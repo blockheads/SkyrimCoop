@@ -479,6 +479,24 @@ class Harness(unittest.TestCase):
         self.assertEqual(unwatched_games({}), ["host", "client"])
         self.assertEqual(unwatched_games({"host": 160.0, "client": 0.0}), ["client"])
 
+    def test_makeable_crafting_entry_skips_greyed_recipes(self):
+        from coop_harness.actions.story import StoryActions
+        for enabled, expected in (([1, 0, 1], 0), ([0, 0, 1], 2)):
+            ctx = Mock()
+            ctx.crafting_entries.side_effect = lambda instance, path, e=enabled: (
+                len(e) if path == "entryList.length" else e[int(path.split(".")[1])])
+            self.assertEqual(StoryActions.select_makeable_crafting_entry(ctx, "client"), expected)
+            ctx.select_crafting_entry.assert_called_once_with("client", expected)
+
+    def test_makeable_crafting_entry_fails_when_none_can_be_made(self):
+        from coop_harness.actions.story import StoryActions
+        ctx = Mock()
+        ctx.crafting_entries.side_effect = lambda instance, path: 2 if path == "entryList.length" else 0
+        ctx.failure.side_effect = TestFailure
+        with self.assertRaises(TestFailure):
+            StoryActions.select_makeable_crafting_entry(ctx, "client")
+        ctx.select_crafting_entry.assert_not_called()
+
     def test_vanilla_ref_steps_turn_the_trace_off_when_the_arrival_fails(self):
         from coop_harness.actions.repro import RefSteps
         with tempfile.TemporaryDirectory() as tmp:

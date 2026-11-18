@@ -1,10 +1,10 @@
-"""The guest cooks at QASmoke's cooking spit and Tabs out right after the box's Yes (mid-craft): its player and the host's copy of it both end standing (sit state 0). The copy's exit is the owner's IdleChairExitStart replayed (chairExitStart sets 4 in 39004), ended by the exit clip's ChairFurnitureExitHandler (42835). bugs.md's "Leaving a crafting station" (2026-10-27) saw the copy stay on 4; not seen on dev 2026-11-18.
+"""The guest Tabs out of QASmoke's cooking spit right after the craft box's Yes: its player and the host's copy both end standing (re/systems/actor-movement.md, "Getting up").
 
 Recorded with the repro MCP (docs/design/repro-mcp.md)."""
 # recorded: 20261118-122952-guest-leaves-crafting-mid-box.jsonl, trimmed to the path played twice (scripts/check_scenarios.py)
 NAME = 'guest-leaves-crafting-mid-craft'
 TAGS = ['furniture', 'recorded', 'story']
-DOC = 'The guest cooks at QASmoke\'s cooking spit and Tabs out right after the box\'s Yes (mid-craft): its player and the host\'s copy of it both end standing (sit state 0). The copy\'s exit is the owner\'s IdleChairExitStart replayed (chairExitStart sets 4 in 39004), ended by the exit clip\'s ChairFurnitureExitHandler (42835). bugs.md\'s "Leaving a crafting station" (2026-10-27) saw the copy stay on 4; not seen on dev 2026-11-18.'
+DOC = 'The guest Tabs out of QASmoke\'s cooking spit right after the craft box\'s Yes: its player and the host\'s copy both end standing (re/systems/actor-movement.md, "Getting up").'
 
 
 def run(ctx):
