@@ -1,0 +1,18 @@
+time	op	id	rva	item
+2026-11-18T17:24:21Z	read	52857	0x98e4e0	{"name": "coop_RealShowList"}
+2026-11-18T17:24:21Z	read		0x914880	{"name": "sub_1409146D0"}
+2026-11-18T17:24:28Z	comment	52857	0x98e4e0	{"addr": "0x14098e4e0", "comment": "[re]\nAddressLib ID 52857\nSkyrimCoop: hooked by HookShowList as RealShowList (Code/client/Bridges/DialogueBridge.cpp:383)\nDialogue: queues a UIMessage (data +0x20 = a1, abNewList) to the Dialogue Menu; its ProcessMessage calls the SWF's DoShowDialogueList(abNewList, ...). In TOPIC_CLICKED with a new list the SWF keeps TextCopy_mc (the picked line) visible while the list slides in (DialogueMenu.as ShowDialogueList)."}
+2026-11-18T17:24:29Z	local	52857	0x98e4e0	{"func_addr": "0x14098e4e0", "old": "a1", "new": "abNewList"}
+2026-11-18T18:13:02Z	read		0x7a54f0	{"name": "sub_1407A5390"}
+2026-11-18T18:13:02Z	read		0x7a5690	{"name": "sub_1407A5680"}
+2026-11-18T18:13:10Z	read	42835	0x7cd1f0	{"name": "ChairFurnitureExitHandler::Handle"}
+2026-11-18T18:13:11Z	read	42837	0x7cd390	{"name": "PlayerFurnitureExitHandler::Handle"}
+2026-11-18T18:13:36Z	comment	42835	0x7cd1f0	{"addr": "0x1407cd1f0", "comment": "[re]\nAddressLib ID 42835\nAn NPC's furniture exit (graph event handler 'ChairFurnitureExitHandler'): only with sit state 1..4 (actorState2 +0xC8 bits 14-17), and a process with the high level (sub_37965 <= 1): SetSitSleepState(0, no furniture). Else hands off to the actor state's vfunc +0xA0. The only way 4 (want to stand) ends for a non-player."}
+2026-11-18T18:13:36Z	comment	42837	0x7cd390	{"addr": "0x1407cd390", "comment": "[re]\nAddressLib ID 42837\nThe player's furniture exit handler: restores the controls and camera, then SetSitSleepState(0) as the chair handler, with no sit state check."}
+2026-11-18T18:13:36Z	comment		0x7a54f0	{"addr": "0x1407a54f0", "comment": "not on the path: misread vtable slot (a MovementHandlerAgent input mask helper)"}
+2026-11-18T18:13:36Z	comment		0x7a5690	{"addr": "0x1407a5690", "comment": "not on the path: MovementHandlerAgentPlayerControlsActionTrigger ctor, read by mistake"}
+2026-11-18T18:22:35Z	read		0x6e1c44	{"name": "Actor::SetSitSleepStateFromGraph"}
+2026-11-18T18:22:56Z	read	6081	0xa2be0	{"name": "sub_1400A2BE0"}
+2026-11-18T18:23:03Z	read		0x6e253e	{"name": "coop_ApplyActionGraphEffects"}
+2026-11-18T18:23:32Z	comment		0x6e254f	{"addr": "0x1406e254f", "comment": "Graph event chairExitStart (qword_143243EF8) or the four at F10/F18/F78/F80: sit state 4 (wants to stand). Nothing here takes it to 0: only the exit clip's ChairFurnitureExitHandler (42835) does, so an actor whose graph plays no exit clip (a copy that never sat) stays on 4."}
+2026-11-18T18:23:32Z	data			{"old": "qword_143243EF8", "new": "g_strChairExitStart"}
