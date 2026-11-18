@@ -163,6 +163,10 @@ teleporting unless 16+ units off (`PlaceDistance`). Before: 0 of 3, up to 81-uni
 bone over 25 units off. This also explains the note in `progress.md` about a wolf's copy holding its pose after its blow:
 that hold is now deliberate.
 
+Its ragdoll is its own through the clip (2026-11-18): the victim state's `AddRagdollToWorld` puts it in the world on
+the copy before its owner's stream does, and mirroring the owner's body layer had taken it out again until the death
+(`docs/re/systems/physics.md`, "A kill move's victim copy keeps its ragdoll").
+
 ## `client-kill-move` timing
 
 Misses were 2 in about 10 runs (blow 1737 ms against 2143, start lag 611 ms against 600). The blow miss fits an early contact

@@ -31,6 +31,13 @@ constexpr bool CopyOwnBody(bool aInPair, bool aInKillMove, bool aGettingOnOff, u
     return aInPair || aInKillMove || aGettingOnOff || aSitState == kSitWantsToStand;
 }
 
+// A copy's bodies take its owner's layer (seated, mounted: SetCopyPhysics) unless they are its own ragdoll's: lying in
+// it, or a kill move's victim state's, which its graph put in the world (AddRagdollHandler 42873; physics.md).
+constexpr bool TakesOwnerBodies(bool aLiesInRagdoll, bool aInKillMove) noexcept
+{
+    return !aLiesInRagdoll && !aInKillMove;
+}
+
 // A copy's owner's pair, at its half's action: the copy stays on its stream when its partner on this game is a copy
 // too (no instance here, 32803: each replays its own stream, its clip's wait at the mark its owner's pick), a kill
 // move's or a mount's alike (an action writes nothing a mount's beside the graph, 39004). Its partner this game's own

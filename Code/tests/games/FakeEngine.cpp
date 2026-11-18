@@ -1475,6 +1475,8 @@ void FakeEngine::EndKillMove(uint32_t aFormId)
     actor.InKillMove = false;
     if (actor.KilledBy)
         KillActor(aFormId);
+    else if (!actor.InFurniture)
+        actor.BodiesLayer = 0; // a living victim's ragdoll out of the world as it stands (inferred, not read)
 }
 
 bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
@@ -1503,6 +1505,9 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         // Only a "pa_Kill" action puts both in a kill move (39004); a mount's pair leaves that alone.
         if (cCollapsed || ::ReplayState::EntersKillMove(acAction.EventName))
             actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
+        // The victim state's AddRagdollToWorld (AddRagdollHandler 42873): its ragdoll in the world, biped layer.
+        if (cPartner->second.InKillMove)
+            cPartner->second.BodiesLayer = kBipedLayer;
         actor.LatestPairAction = acAction;
         if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
         {

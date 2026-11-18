@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-18: ragdolls and death poses re-checked (`agent/bugs-ragdolls`). A kill move's victim copy keeps its own
+ragdoll in the world through the clip (`ReplayState::TakesOwnerBodies`): mirroring its owner's body layer, 0 until the
+owner's own pair started, had taken it out (`TaskQueueInterface::QueueRemoveFromWorld` 36924, the call
+`RemoveRagdollHandler` 42877 makes), and it came back at death keyframed for a frame, the copy's flickers in
+`kill-move-kills-guest` (`docs/re/systems/physics.md`). GameTests "A copy in a kill move keeps its own ragdoll in the
+world". The revive: a revived player knocked down gets up with its copy, and its first conversation does not kneel it
+(new scenario `revived-guest-gets-up`, played through the MCP with the new verb `player_knocked_down_together`; 2 of
+2); `docs/design/death.md`'s open item is closed. Still open in `docs/bugs.md`: a revived ragdoll back in the world
+now and then, and a dead copy shaking as it falls or never sleeping.
+
 2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`). One player drives,
 the others ride along: a player's Activate on a horse a party player drives boards it (our hook on
 `Character::ActivateMount` 37864 raises `BoardEvent`; the horse's slot emptied, then the engine's own get-on), and the

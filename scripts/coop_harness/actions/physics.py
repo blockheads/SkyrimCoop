@@ -581,6 +581,15 @@ class PhysicsActions:
         ctx.wait_for(f"[{where}] the copy is up with it", lambda: not knock(other, copy), 3)
 
 
+    def player_knocked_down_together(ctx, instance):
+        """That game's player is pushed down (pushactoraway on itself): the other game's copy of it lies as it lies
+        and both get up again (knocked_down_together)."""
+        other = "" if instance else "client"
+        copy = ctx.player_copy(other)
+        ctx.knocked_down_together(instance, 0x14, other, copy,
+                                  lambda: ctx.console_on(instance, "player.pushactoraway player 5"))
+
+
     def script_running(ctx, instance, script):
         """A stack in that game's VM runs a function of that script (harness script_stacks), waiting ones too."""
         prefix = script.lower() + "."

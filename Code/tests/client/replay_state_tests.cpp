@@ -143,3 +143,10 @@ TEST_CASE("ReplayState: a copy seated on a mount takes the engine's position wri
     CHECK_FALSE(ReplayState::CopyTakesEnginePlace(false, true, ReplayState::kSitGettingOn)); // its clip, not its seat
     CHECK_FALSE(ReplayState::CopyTakesEnginePlace(false, false, ReplayState::kSitSeated));  // a chair: no mount
 }
+
+TEST_CASE("A copy's bodies take its owner's layer only while they are not its own ragdoll's", "[replay-state][copy-ragdoll]")
+{
+    CHECK(ReplayState::TakesOwnerBodies(false, false));
+    CHECK_FALSE(ReplayState::TakesOwnerBodies(true, false));
+    CHECK_FALSE(ReplayState::TakesOwnerBodies(false, true)); // a kill move's victim: its graph's ragdoll
+}

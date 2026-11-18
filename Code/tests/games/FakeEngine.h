@@ -14,6 +14,7 @@
 #include <Games/Skyrim/CopyPackage.h>
 #include "../FakeNativeVm.h"
 #include <Games/Animation/ReplayStep.h>
+#include <Games/Animation/ReplayState.h>
 #include <Games/Animation/HeldClipLoads.h>
 #include "../FakeFlight.h"
 
@@ -749,6 +750,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A behaviour's transitions; a clip's own annotation can advance only this game's graph.
     std::map<std::pair<std::string, std::string>, std::string> GraphTransitions;
     std::map<uint32_t, uint32_t> RefusedAnimations;
+    static constexpr uint8_t kBipedLayer = 8; // a ragdoll's bodies' collision layer in the world (L_BIPED)
     bool PairBlows = false; // an owner's pair lands its blow on its victim's copy after PairBlowFrames: uninterruptible (pa_KillMoveI)
     uint32_t PairStopsDropped = 0; // a clip's entry transition drops this many pairedStops (flags 0xd04)
     uint32_t PairBlowFrames = 2000; // after the other game replays the pair (~700 frames here), as HitFrame at ~1.2 s is
@@ -1059,7 +1061,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool GraphsStepPhysics(uint32_t aFormId) const noexcept override { return !Actors.contains(aFormId) || Actors.at(aFormId).GraphsStepPhysics; }
     void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override
     {
-        if (!Actors.contains(aFormId) || !Actors.at(aFormId).Copy || Actors.at(aFormId).KnockedDown)
+        if (!Actors.contains(aFormId) || !Actors.at(aFormId).Copy ||
+            !::ReplayState::TakesOwnerBodies(Actors.at(aFormId).KnockedDown, Actors.at(aFormId).InKillMove))
             return;
         Actors.at(aFormId).BodiesLayer = aBodiesLayer;
         Actors.at(aFormId).GraphsStepPhysics = aGraphsStep;
