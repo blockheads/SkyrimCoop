@@ -110,6 +110,7 @@ struct CharacterService
     void OnNotifyBoard(const NotifyBoard& acMessage) noexcept;
     // The mount is the host's again: a copy in its rider's game, the host's game's to simulate.
     void OnNotifyDismount(const NotifyDismount& acMessage) noexcept;
+    void OnNotifyUnboard(const NotifyUnboard& acMessage) noexcept;
     void OnNotifyRespawn(const NotifyRespawn& acMessage) noexcept;
     void QueuePendingLooks() noexcept;
     void ApplyPendingLooks() noexcept;

@@ -83,6 +83,7 @@ private:
     void OnUnboard(const UnboardRequest& acRequest, ConnectionId_t aSender) noexcept;
     // The driver is gone: the first passenger drives, the horse its game's. False with no passenger.
     bool HandOver(uint32_t aMountId) noexcept;
+    void SendUnboard(uint32_t aRiderId, uint32_t aMountId, ConnectionId_t aSender) noexcept;
     // Who rides what, to a game that just got the riders' and mounts' spawns.
     void SendRides(ConnectionId_t aPlayer) const noexcept;
     // The owner's actor's effects with visuals: to everyone else, and into a player's record for its later spawns.

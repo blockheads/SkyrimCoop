@@ -168,7 +168,8 @@
     X(NotifyDialogueFace)          \
     X(NotifyDevCommand) \
     X(NotifyMountRefused)          \
-    X(NotifyBoard)
+    X(NotifyBoard)                 \
+    X(NotifyUnboard)
 
 #define COOP_OPCODE(aName) k##aName,
 

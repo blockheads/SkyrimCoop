@@ -7,10 +7,10 @@ marked otherwise.
 
 | Step | ID | What |
 |---|---|---|
-| The slot | `PlayerCharacter+0x924` | `lastRiddenMount`, an actor handle. Set by vfunc 0x113 `SetLastRiddenMount` (41131), read by 0x114 `QLastRiddenMount`. Written in the player's save (`PlayerCharacter::SaveGame` 40538 / `LoadGame` 40540, vtable slots 0xE/0xF). Only `PlayerCharacter` has it: a copy (a `Character`) answers none |
+| The slot | `PlayerCharacter+0x924` | `lastRiddenMount`, an actor handle. Set by vfunc 0x113 `SetLastRiddenMount` (41131), read by 0x114 `QLastRiddenMount` (41076). Written in the player's save (`PlayerCharacter::SaveGame` 40538 / `LoadGame` 40540, vtable slots 0xE/0xF). Only `PlayerCharacter` has it: a copy (a `Character`) answers none |
 | Getting on | 40359 `MountInteraction__OnRiderMounted` | Mounted weapon anim variables; a horse the rider does not own (`IsAnOwner` 20210, unless the race has flag 0x80) raises `StealAlarm` (horse theft). The player then calls 40725 |
 | The player got on | 40725 `PlayerCharacter::OnMountStarted` | An owned horse (`IsAnOwner`): the previous `lastRiddenMount` demoted from dynamic persistence, this one promoted, `SetLastRiddenMount`. A stolen horse never becomes the last ridden |
-| Fast travel | 40445 | Keeps `lastRiddenMount` only while the player is an owner and it is alive (else clears it), then places it beside the destination: the horse comes along |
+| Fast travel | 40445 `Actor::FastTravel` (our `HookFastTravel`) | Keeps `lastRiddenMount` only while the player is an owner and it is alive (else clears it), then places it beside the destination: the horse comes along |
 | Conditions, Papyrus | `IsPlayersLastRiddenMount`, `Actor.IsPlayersLastRiddenHorse`, `Game.GetPlayersLastRiddenHorse` | All read the slot through vfunc 0x114 |
 
 `IsAnOwner` on an actor reads its own `ExtraOwnership` (crime.md); `PlayerFaction` as the owner means every game's
@@ -93,12 +93,18 @@ own player, so a party horse is "owned" on every game, and each game's engine ke
 our player's Activate on a ridden horse (37864 does nothing)
   HookActivateMount -> BoardEvent -> CharacterService: a party player drives it
     horse's slot emptied, engine get-on (37905, not our hook) -> BoardRequest
+    refused (CanRide 38706: midair, getting on or off, reach) -> the driver's copy holds the slot again
 host: OnBoard -> Passengers.push, NotifyBoard to the others (refused: NotifyMountRefused)
-other games: NotifyBoard -> SeatOnMount (PutOnMount, sit state 3, 41533); HorseEnter replay skipped once seated
+other games: NotifyBoard -> PutOnMount (linked); its get-on's hold ends -> SeatOnMount (sit state 3, 41533)
+  (its owner seated already, a late joiner's: seated at once, HorseEnter replay skipped)
 driver's Detach -> DismountRequest -> HandOver: first passenger drives, NotifyMount to all
   its game: TakeOwnership + PlayerTakeReins (slot, 40725, EvaluatePackage 37401)
   others: its copy on already -> slot only (ActorHoldMount)
-passenger's Detach -> UnboardRequest; any Detach -> the driver still on holds the slot again (KeepDriverOn)
+  then NotifyUnboard (old driver) to the others
+passenger's Detach -> UnboardRequest -> NotifyUnboard to the others
+NotifyUnboard: the rider's copy still on that horse -> ActorEndRide (its owner's ride may end with no exit clip,
+  38705/40352: mounts.md); a pending board dropped
+any Detach -> the driver still on holds the slot again (KeepDriverOn)
 ```
 
 Not built: passengers carried by a party travel (only the driver's horse is, `CarryMountTo`).
@@ -138,11 +144,12 @@ place). The engine keeps a rider on its horse inside that movement, so a copy on
 - A mount's own `ExtraInteraction` holds its rider's link (targetHandle the mount itself), so `GetActorMount` counts a
   link only for its rider (`actorHandle`): reading the target alone froze the horse copy as a "rider".
 - A rider's reference rides its horse by a `REFRSyncController` (20318, `TESObjectREFRSync`) that `SeatRider` puts on
-  its 3D (`REFRSyncController_Attach` 20319 via `TESObjectREFR::sub_20312`): each update it calls
-  `TESObjectREFR::SetPosition` (19790) and `SetRotationZ` on the rider from the mount node's transform. Our
+  its 3D (`REFRSyncController_Attach` 20319 via `TESObjectREFR::AttachSyncControllers` 20312, which does it for both its 3Ds): each update it calls
+  `TESObjectREFR::SetPosition` (19790) and `SetRotationZ` (19789) on the rider from the mount node's transform. Our
   `HookSetPosition` refused engine writes on any copy without a copy goal, so a seated copy's reference stayed where it
   got on: measured 1,105 units behind its horse on both games after a drive. Built: a copy linked to a mount at sit
-  state 3 takes those writes (`ReplayState::CopyTakesEnginePlace`). `party-shares-a-horse` checks every riding copy's
+  state 3 takes those writes (`ReplayState::CopyTakesEnginePlace`), and our `HookRotateZ` lets its rotation through
+  the same way (it refused every copy's). `party-shares-a-horse` checks every riding copy's
   reference is within 80 units of its horse after each drive (`riders_with_horse`): fails without the fix, passes with.
 
 ## A passenger's copy getting on (duo, 2026-11-18)

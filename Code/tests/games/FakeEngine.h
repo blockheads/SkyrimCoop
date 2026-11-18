@@ -903,6 +903,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         Mounts[aRider] = aMount;
         MountSlots.try_emplace(aMount, aRider); // 12074 adds only to an empty slot
+        // A copy replays its owner's get-on: HorseEnter (39004) sets sit state 2. The fake plays no clip.
+        if (const auto it = Actors.find(aRider); it != Actors.end() && it->second.Copy && SitState(aRider) == 0)
+            it->second.State1 = (it->second.State1 & ~(0xFu << kSitShift)) | 2u << kSitShift;
     }
     void ActorEndRide(uint32_t aRider) noexcept override;
     void ActorSeatOnMount(uint32_t aRider, uint32_t aMount) noexcept override;

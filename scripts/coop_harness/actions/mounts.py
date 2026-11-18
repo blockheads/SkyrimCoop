@@ -21,6 +21,22 @@ from ..comparisons import distance
 from ..utilities import log
 
 
+def bad_clip_spans(name, clips, longest=0.1):
+    """Each actor's span of samples with no clip playing or clips not loaded (a T-pose) lasting longest seconds or
+    more, or still bad at the trace's end: one problem each."""
+    problems, bad = [], {}  # actor -> (since, what), kept from its first bad sample until a good one
+    for entry in clips:
+        if entry.get("kind") != "clips":
+            continue
+        actor = entry["actor"]
+        unloaded = [clip for clip, detail in (entry.get("detail") or {}).items() if not detail.get("loaded")]
+        if unloaded or not entry.get("clips"):
+            bad.setdefault(actor, (entry["t"], f"clips not loaded {unloaded}" if unloaded else "no clip playing"))
+        elif (since := bad.pop(actor, None)) and (entry["t"] - since[0]) / 1e6 >= longest:
+            problems.append(f"[{name} {actor:X}] {since[1]} for {(entry['t'] - since[0]) / 1e6:.2f} s")
+    return problems + [f"[{name} {actor:X}] {what} to the end" for actor, (_, what) in bad.items()]
+
+
 class MountsActions:
     def player_copy(ctx, instance):
         """That game's copy of the other player (its form id), or None."""
@@ -305,17 +321,7 @@ class MountsActions:
                             problems.append(f"[{name} {entry['id']:X}] jumped {moved:.0f} units in {seconds * 1000:.0f} ms "
                                             f"at {(entry['t'] - began) / 1e6:.2f} s")
                 last[entry["id"]] = (entry["t"], at)
-            bad = {}  # actor -> (since, what)
-            for entry in clips:
-                if entry.get("kind") != "clips":
-                    continue
-                actor = entry["actor"]
-                if (since := bad.pop(actor, None)) and (entry["t"] - since[0]) / 1e6 >= 0.1:
-                    problems.append(f"[{name} {actor:X}] {since[1]} for {(entry['t'] - since[0]) / 1e6:.2f} s")
-                unloaded = [clip for clip, detail in (entry.get("detail") or {}).items() if not detail.get("loaded")]
-                if unloaded or not entry.get("clips"):
-                    bad[actor] = (entry["t"], f"clips not loaded {unloaded}" if unloaded else "no clip playing")
-            problems += [f"[{name} {actor:X}] {what} to the end" for actor, (_, what) in bad.items()]
+            problems += bad_clip_spans(name, clips)
         if problems:
             raise TestFailure(f"{step}: " + "; ".join(sorted(set(problems))[:12]))
 

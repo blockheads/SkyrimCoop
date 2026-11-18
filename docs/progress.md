@@ -61,7 +61,8 @@ passenger already off it goes straight back. A copy on a mount: linked as a driv
 get-on ends; its bodies in its mount's collision group, as `SeatRider` (40358) sets a rider's (in its own group the
 horse stepped 70 units away); its capsule off while it gets on; seated, no steps and the engine's position writes taken
 (`REFRSyncController` 20318 keeps its reference on the horse; refused, it stayed 1,100 units behind); at its get-off off
-the horse at once (`FinishDismount` 38696). Any rider's Detach empties the horse's one slot, so the driver still on
+the horse at once (`FinishDismount` 38696); a rider off a horse that stays ridden is told to its copies (`NotifyUnboard`), as a
+ride can end with no exit clip. A refused get-on gives the driver back its slot. Any rider's Detach empties the horse's one slot, so the driver still on
 holds it again. Passengers arrive on foot after a party travel. Scenario `party-shares-a-horse` checks boarding, both
 seated, driving, the handover, every get-on and get-off for jumps on both games and each riding copy at its horse; it
 passes its steps, its end check failing on the plains' critters (`bugs.md`). Tests: GameTests `[passengers]` (the

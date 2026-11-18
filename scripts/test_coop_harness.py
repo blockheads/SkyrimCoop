@@ -2957,5 +2957,25 @@ class UndrawnBodies(unittest.TestCase):
         self.assertEqual(len(body_problems(sunk, bones=False)), 1)
 
 
+class RidersBadClips(unittest.TestCase):
+    """riders_smooth: a span of samples with no clip (a T-pose) is judged from its first sample, not sample to sample."""
+
+    @staticmethod
+    def samples(bad_seconds, rate=60):
+        frames = [{"kind": "clips", "actor": 0x14, "t": int(i * 1e6 / rate), "clips": []} for i in range(int(bad_seconds * rate))]
+        return frames + [{"kind": "clips", "actor": 0x14, "t": int(len(frames) * 1e6 / rate), "clips": ["idle"],
+                          "detail": {"idle": {"loaded": True}}}]
+
+    def test_a_second_with_no_clip_then_recovery_is_a_problem(self):
+        from coop_harness.actions.mounts import bad_clip_spans
+        problems = bad_clip_spans("client", self.samples(1.2))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("no clip playing for 1.2", problems[0])
+
+    def test_a_blink_shorter_than_the_limit_passes(self):
+        from coop_harness.actions.mounts import bad_clip_spans
+        self.assertEqual(bad_clip_spans("client", self.samples(0.05)), [])
+
+
 if __name__ == "__main__":
     unittest.main()

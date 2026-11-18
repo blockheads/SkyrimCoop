@@ -115,6 +115,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<NotifyPlayerName, &CharacterService::OnNotifyPlayerName>(m_connections, m_dispatcher, this);
     Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyDismount, &CharacterService::OnNotifyDismount>(m_connections, m_dispatcher, this);
+    Listen<NotifyUnboard, &CharacterService::OnNotifyUnboard>(m_connections, m_dispatcher, this);
 
     Listen<NotifyRespawn, &CharacterService::OnNotifyRespawn>(m_connections, m_dispatcher, this);
     Listen<PlayerArrivedEvent, &CharacterService::OnPlayerArrived>(m_connections, m_dispatcher, this);
@@ -1252,6 +1253,9 @@ void CharacterService::OnBoardEvent(const BoardEvent& acEvent) noexcept
         }
         if (!m_playerBridge.PlayerBoardMount(acEvent.MountId))
         {
+            // Its slot was emptied for the get-on (CanRide 38706 refuses more than a ridden horse): the driver's again.
+            if (const uint32_t cDriver = FormOfSession(m_drivers.at(cMount)))
+                m_actorBridge.ActorHoldMount(cDriver, acEvent.MountId);
             spdlog::info("Board {:X}: the engine's get-on refused (37905)", acEvent.MountId);
             return;
         }
@@ -1282,6 +1286,17 @@ void CharacterService::OnNotifyBoard(const NotifyBoard& acMessage) noexcept
         m_actorBridge.ActorSeatOnMount(cRider, cMount);
     else if (m_actorBridge.GetActorMount(cRider) != cMount)
         m_actorBridge.ActorPutOnMount(cRider, cMount);
+}
+
+void CharacterService::OnNotifyUnboard(const NotifyUnboard& acMessage) noexcept
+{
+    m_pendingBoards.erase(acMessage.RiderId);
+    // Its owner is off a horse that stays ridden: its copy gets off too, if no exit clip took it off already.
+    const uint32_t cRider = FormOfSession(acMessage.RiderId);
+    const uint32_t cMount = FormOfSession(acMessage.MountId);
+    spdlog::info("Unboard {:X}: its copy on {:X}, sit state {}", cRider, m_actorBridge.GetActorMount(cRider), m_actorBridge.GetActorSitState(cRider));
+    if (cRider && m_actorBridge.IsActorCopy(cRider) && m_actorBridge.GetActorMount(cRider) == cMount)
+        m_actorBridge.ActorEndRide(cRider);
 }
 
 uint32_t CharacterService::FormOfSession(uint32_t aSessionId) const noexcept
@@ -1885,10 +1900,8 @@ void CharacterService::RunRemoteUpdates() noexcept
             guess.emplace(first, second);
         position += correction.At(tick);
         interpolationComponent.Position = position;
-        // A copy on a mount (player-mount.md): seated, its seat carries it and its collision stays the engine's (layer
-        // 33); stepped there, or its capsule given back, it dragged or shook the horse. Getting off it is off the horse
-        // at once (FinishDismount), its clip ending on its own body: attached, a step threw it off; left, it stood on
-        // the horse until its clip's end.
+        // A copy on a mount: seated, its seat carries it (player-mount.md); getting off, off the horse at once
+        // (FinishDismount 38696).
         const uint32_t cMount = pFormIdComponent ? m_actorBridge.GetActorMount(pFormIdComponent->Id) : 0;
         if (cMount)
         {

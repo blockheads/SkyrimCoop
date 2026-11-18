@@ -229,7 +229,9 @@ void HostCharacters::OnDismount(const DismountRequest& acRequest, ConnectionId_t
         spdlog::warn("HostCharacters: {:x} took {:x} off {:x}, which it cannot", aSender, acRequest.RiderId, acRequest.MountId);
         return;
     }
-    if (!HandOver(acRequest.MountId))
+    if (HandOver(acRequest.MountId))
+        SendUnboard(acRequest.RiderId, acRequest.MountId, aSender);
+    else
         GiveBack(acRequest.MountId, acRequest.RiderId, acRequest.Whereabouts);
 }
 
@@ -260,6 +262,16 @@ void HostCharacters::OnUnboard(const UnboardRequest& acRequest, ConnectionId_t a
     if (OwnerOf(acRequest.RiderId) != aSender || cMount == m_characters.end())
         return;
     std::erase(cMount->second.Passengers, acRequest.RiderId);
+    SendUnboard(acRequest.RiderId, acRequest.MountId, aSender);
+}
+
+// Its ride ended with no exit clip (38705/40352, mounts.md): its copies need telling, as a lone rider's NotifyDismount.
+void HostCharacters::SendUnboard(uint32_t aRiderId, uint32_t aMountId, ConnectionId_t aSender) noexcept
+{
+    NotifyUnboard notify;
+    notify.RiderId = aRiderId;
+    notify.MountId = aMountId;
+    m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
 bool HostCharacters::HandOver(uint32_t aMountId) noexcept

@@ -1164,9 +1164,11 @@ void FakeEngine::ActorSeatOnMount(uint32_t aRider, uint32_t aMount) noexcept
 
 bool FakeEngine::PlayerBoardMount(uint32_t aMount) noexcept
 {
-    if (!Actors.contains(aMount) || Actors.at(kPlayer).InAir)
+    if (!Actors.contains(aMount))
         return false;
-    MountSlots.erase(aMount);
+    MountSlots.erase(aMount); // emptied before 37905's CanRide (38706), which refuses midair too
+    if (Actors.at(kPlayer).InAir)
+        return false;
     Mounts[kPlayer] = aMount;
     MountSlots[aMount] = kPlayer;
     // Its get-on's end (PairedStopHandler 42868): seated. The fake plays no clip.

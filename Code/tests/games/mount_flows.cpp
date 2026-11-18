@@ -2,6 +2,7 @@
 
 #include <Events/DismountEvent.h>
 #include <Events/MountEvent.h>
+#include <Games/Animation/ReplayState.h>
 #include <Events/AiStateChangeEvent.h>
 
 namespace
@@ -408,12 +409,17 @@ struct Passenger
                 hostOnGuest = cId;
         party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, horse); });
         party.Until([&] { return guest.GetActorMount(hostOnGuest) == guestHorse; }, "the guest sees the host riding");
+        // Its owner's get-on pair holds it off its stream on the host (PairOnStream) until the pair ends.
+        auto& streams = party.Host().GetGraphStreams();
+        party.As(party.Host(), [&] { streams.HoldWhile(guestOnHost, true); });
         party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, guestHorse); });
         party.Until([&] { return host.GetActorMount(guestOnHost) == horse; }, "the host's copy of the guest is linked to the horse");
-        // Linked, not seated: popped onto the saddle at once it then played its whole get-on up there (the duo,
-        // 2026-11-17: 174 units in a frame). Its get-on's end seats it (PairedStopHandler 42868), as a driver's copy.
-        REQUIRE(host.SitState(guestOnHost) != 3);
-        party.As(party.Host(), [&] { host.ActorSeatOnMount(guestOnHost, horse); });
+        // Linked, not seated: popped onto the saddle at once it played its whole get-on up there (the duo, 174 units).
+        for (int i = 0; i < 5; ++i)
+            party.Frame();
+        REQUIRE(host.SitState(guestOnHost) == ::ReplayState::kSitGettingOn);
+        party.As(party.Host(), [&] { streams.HoldWhile(guestOnHost, false); });
+        party.Until([&] { return host.SitState(guestOnHost) == ::ReplayState::kSitSeated; }, "its hold's end seats it");
     }
 };
 } // namespace
@@ -531,6 +537,51 @@ TEST_CASE("A passenger gets off: the driver keeps its horse on both games", "[mo
         ride.party.Frame();
     CHECK(Owns(ride.party.Host(), ride.horse));
     CHECK_FALSE(ride.guest.IsPlayerMounted());
+}
+
+TEST_CASE("A passenger's ride ends with no exit clip: its copy gets off on the driver's game", "[mounts][passengers]")
+{
+    Passenger ride;
+    // A forced end (38705/40352, mounts.md): no HorseExit replays for its copy.
+    ride.party.As(ride.party.Guest(), [&] { ride.guest.EndRide(FakeEngine::kPlayer); });
+    ride.party.Until([&] { return ride.host.GetActorMount(ride.guestOnHost) == 0; }, "the host's copy of the guest is off");
+    ride.party.Until([&] { return ride.host.MountSlots.contains(ride.horse) && ride.host.MountSlots.at(ride.horse) == FakeEngine::kPlayer; },
+                     "the host's horse names the host again");
+    CHECK(ride.host.PlayerSteers(ride.horse));
+}
+
+TEST_CASE("The driver's ride ends with no exit clip: the passenger drives, the driver's copy off", "[mounts][passengers]")
+{
+    Passenger ride;
+    ride.party.As(ride.party.Host(), [&] { ride.host.EndRide(FakeEngine::kPlayer); });
+    ride.party.Until([&] { return ride.guest.GetActorMount(ride.hostOnGuest) == 0; }, "the guest's copy of the host is off");
+    ride.party.Until([&] { return ride.guest.PlayerSteers(ride.guestHorse); }, "the passenger steers it");
+}
+
+TEST_CASE("A get-on the engine refuses leaves the horse its driver's", "[mounts][passengers]")
+{
+    Party party(1, [](FakeEngine& aEngine) {
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+        aEngine.LoadCell(kCell);
+    });
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Agree("the players are present");
+    uint32_t horse = 0;
+    party.As(party.Host(), [&] { horse = host.LoadNpc(kHorse, kCell); });
+    party.Until([&] { return guest.CopiesOf(kHorse).size() == 1; }, "the guest has the horse");
+    const uint32_t cGuestHorse = guest.CopiesOf(kHorse)[0];
+    party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, horse); });
+    party.Until([&] { return guest.MountSlots.contains(cGuestHorse); }, "the guest sees the host riding");
+    const uint32_t cDriverCopy = guest.MountSlots.at(cGuestHorse);
+    // Its slot emptied for the get-on, then CanRide (38706) refuses: midair.
+    guest.Actors.at(FakeEngine::kPlayer).InAir = true;
+    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cGuestHorse); });
+    for (int i = 0; i < 5; ++i)
+        party.Frame();
+    CHECK_FALSE(guest.IsPlayerMounted());
+    REQUIRE(guest.MountSlots.contains(cGuestHorse));
+    CHECK(guest.MountSlots.at(cGuestHorse) == cDriverCopy);
 }
 
 TEST_CASE("No boarding a horse an NPC rides", "[mounts][passengers]")

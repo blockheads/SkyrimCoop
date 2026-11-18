@@ -1609,3 +1609,12 @@ Size: small. Needs: the duo.
   false" (`actions/play_verbs.py`: a frozen speaker never finishes a line). The scenario stages him frozen, so whether a placed speaker deleted mid-conversation is
   handled has no running check.
   - Start: stage him unfrozen and restrained, as `dialogue.py`'s other placed speakers are.
+
+## A passenger jumps 57 units as it takes the reins (duo, 2026-11-18)
+
+- `party-shares-a-horse`, "the host gets off": the guest's own player, seated as a passenger, moved 57 units in one
+  frame (19 ms) 0.84 s into the host's get-off, as the horse was handed to it. 1 of 3 runs; the other two smooth.
+- Not the rider-off message: it reached the guest after the host's copy was already off (`Unboard ...: its copy on 0,
+  sit state 4`) in every logged run.
+- Start: trace the guest's player and horse around `PlayerTakeReins` (`EndMountPair`, `HoldRider`, 40725,
+  `EvaluatePackage` 37401) with `riders_smooth`'s body trace; read what 40725 / the mount package do to a seated rider.

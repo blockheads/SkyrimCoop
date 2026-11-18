@@ -83,6 +83,8 @@ using BoardRequest = Relayed<Payloads::Mount, kBoardRequest>;
 using NotifyBoard = Relayed<Payloads::Mount, kNotifyBoard>;
 // A passenger got off (the host's rule alone).
 using UnboardRequest = Relayed<Payloads::Mount, kUnboardRequest>;
+// A rider got off a horse that stays ridden (a passenger, or a driver handing over): its copy off on every other game.
+using NotifyUnboard = Relayed<Payloads::Mount, kNotifyUnboard>;
 using DismountRequest = Relayed<Payloads::Dismount, kDismountRequest>;
 using NotifyDismount = Relayed<Payloads::Dismount, kNotifyDismount>;
 using AiStateRequest = Relayed<Payloads::AiState, kAiStateRequest>;

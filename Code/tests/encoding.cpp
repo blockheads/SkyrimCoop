@@ -2408,4 +2408,5 @@ TEST_CASE("A passenger's boarding and getting off name the horse and the rider",
     cRoundTrip(BoardRequest{}, RequestMessageFactory{});
     cRoundTrip(UnboardRequest{}, RequestMessageFactory{});
     cRoundTrip(NotifyBoard{}, NotifyMessageFactory{});
+    cRoundTrip(NotifyUnboard{}, NotifyMessageFactory{});
 }
