@@ -11,12 +11,15 @@ ROOT = Path(__file__).resolve().parent.parent
 REGISTRATIONS = "scripts/coop_harness/registrations.py"
 RECORDED = "scripts/coop_harness/scenarios/recorded/"
 ADDED = re.compile(r"^\+\s*registry\.add\('([^']+)'")
+REMOVED = re.compile(r"^-\s*registry\.add\('([^']+)'")
 
 
 def unstated(registry_diff, recorded_files):
     """The new flows with no origin: `registry_diff` is registrations.py's diff, `recorded_files` {path: text}."""
+    # A registration edited in place shows as removed and added: only a name with no removed line is new.
+    removed = {match.group(1) for line in registry_diff.splitlines() if (match := REMOVED.match(line))}
     missing = [f"{match.group(1)} ({REGISTRATIONS})" for line in registry_diff.splitlines()
-               if (match := ADDED.match(line)) and "# hand-written:" not in line]
+               if (match := ADDED.match(line)) and match.group(1) not in removed and "# hand-written:" not in line]
     missing += [path for path, text in recorded_files.items()
                 if not path.endswith("__init__.py") and not re.search(r"^# (recorded|hand-written):", text, re.M)]
     return missing

@@ -30,7 +30,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
    - A refused second holder: two players grabbing within one round trip both hold it locally; the host should refuse
      the second, which drops it.
    - Fiedler's authority chain: bodies a held or thrown body knocks stay the host's.
-3. **From Fabien's playtest** (`playtests/2026-10-31-fabien.md`):
+3. **From the 2026-10-31 playtest:**
    - **C2 freezes in our code:** Windows only. Needs a package with the PDB kept, and one trigger replayed on
      Windows (reconnect failure, then the main menu; a guest loading the host's save; party travel).
    - **C3 crash on quit:** fixed on Linux, verify on Windows.
@@ -48,6 +48,10 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
    below, `docs/design/red-flags.md`). Left: its cleanup and explainer docs.
 
 ## News
+
+2026-11-18: release cleanup. Full GPLv3 `LICENSE` (the upstream notice in `NOTICE`); a short README (development is
+Linux only); machine paths from the environment or `~/.config/skyrimcoop/paths.env` (`scripts/local_paths.py`), and the
+duo runs as this user unless `COOP_DUO_USER` is set; `playtests/`, raw report evidence and the imgui examples removed.
 
 2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`). One player drives,
 the others ride along: a player's Activate on a horse a party player drives boards it (our hook on
@@ -663,13 +667,13 @@ for `ArrivalStack` and the collision groups.
 proximity choose between party players, with a target hold and switching margin. Copied combat targets now persist
 through native updates. Steam 1.7.104 acceptance passes all six targeted scenarios, including both attack orders,
 300-frame stability, guest combat state and casting; the combined fast gate passes 202 client / 199 host / 33 encoding /
-290 game cases. [Design](design/party-aggro.md), [acceptance](../playtests/2026-11-02-party-aggro.md).
+290 game cases. [Design](design/party-aggro.md).
 
-2026-11-02: party markers (Fabien R2) are reviewed and merged into dev: cyan compass
+2026-11-02: party markers (playtest R2) are reviewed and merged into dev: cyan compass
 icons and named pins on the world/local maps, following displayed player copies and clearing on departure.
 The combined fast gate passes (193 client / 198 host / 32 encoding / 282 game cases); all five targeted native
 cases pass on both Steam 1.7.104 and the retained 1.6.1170 build.
-[Design](design/party-markers.md), [acceptance and screenshots](../playtests/2026-11-02-party-markers.md).
+[Design](design/party-markers.md).
 
 2026-11-02: `guest-throw-lands-on-host` failed 2 of 3 at its grab, fixed in the scenario. It teleported the client
 beside the ladle and pressed at once, while its copy was still reaching the host. The host's ladle could stir then,
@@ -722,15 +726,13 @@ frames. The native tankard detector failed before the fix (18/340 sampled frames
 across three observer checks); throw and push controls pass. Three GameTests guard scene-write timing; four unit cases
 cover deferred repair/rest bookkeeping and cancellation. The guest watching the host gives the native before/after
 proof; the host-watching-guest controls were negative before the fix too.
-[Evidence and scope](../playtests/2026-11-01-s2-green-flash.md).
 
 2026-11-01: dialogue follow-up (merged `edca669f`, with the S3 arrest scenarios): refused choices restore their list,
 competing clicks display the host's accepted text, and barter resume re-arms input (the three `bugs.md` Dialogue
 entries, deleted). Native failures, failing GameTests and unit tests preceded each fix. Six coverage improvements
 include stricter fake input, pick-completion postconditions, duplicate/competing choices, stale notifications after
 reopen, same-topic mouse INFO selection, and barter/training returns. Full check passes; native fixes and exit
-controls pass. A separate queued Lydia greeting still blocks `dialogue-pick-reaches-host` before any pick (bugs.md);
-[results and limits](../playtests/2026-11-01-dialogue-fixes.md), [reproduction](../playtests/2026-11-01-dialogue-reproduction.md).
+controls pass. A separate queued Lydia greeting still blocks `dialogue-pick-reaches-host` before any pick (bugs.md).
 
 2026-11-01: a guest can take a chest's fresh roll (S5): the host's game found none of a freshly rolled
 leveled item to give (its read counted the changes' 0, not the engine's count through the base's leveled list) and
@@ -1954,6 +1956,8 @@ removed (git history keeps them).
 
 - **A dragged object blinked once in play (2026-11-01).** Not reproduced with `body_trace`; nothing traces a hold; a
   scenario that drags an object while both games trace it would catch a recurrence.
+- **Replace the health faces before a Nexus release (2026-11-18).** `Code/client/Ui/assets/moods/*.png` are
+  RollerCoaster Tycoon art, not ours and not GPL; swap in our own or CC0 faces.
 
 ### Mounts (2026-10-23)
 
@@ -2068,7 +2072,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
     off-screen, so it cannot show a display stall), during a stall.
   - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
-- **Done 2026-11-01 (C1, `playtests/2026-10-31-fabien.md`): players can't loot each other.** Taking a dead guest's
+- **Done 2026-11-01 (C1, the 2026-10-31 playtest): players can't loot each other.** Taking a dead guest's
   clothes crashed the host in `ContainerMenu`. Now `ContainerMenu::OpenMenu` (51140) refuses another player's copy
   (`party-items.md`). GameTests "Players can't loot each other" passes. The duo scenario `host-cannot-loot-guest`
   recreated it unfixed (the loot menu opened) and passes fixed. The duo's guest is unnamed and `ActivateRef` (19796)

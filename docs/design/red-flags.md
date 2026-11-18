@@ -158,7 +158,7 @@ network: Net::Server and Client, 2 ENet channels: 0 reliable, 1 unreliable (Serv
 ```
 
 - **Why it matters:** about 30 reliable movement messages a second. On loss, every later one waits for the resend, so
-  copies freeze and jump: a candidate for "lagging out when moving side to side" (S10, Fabien's notes).
+  copies freeze and jump: a candidate for "lagging out when moving side to side" (S10, the 2026-10-31 playtest).
 - **Fix:**
   - The guest sends `ReferencesMoveRequest` unreliably unless it carries action events, the host's own rule. A
     `SendPacket` overload with flags, or a per-opcode choice.

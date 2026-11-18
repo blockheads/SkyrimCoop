@@ -310,7 +310,7 @@ def bucket_on_npc_head(ctx, carrier, base=BUCKET, upside_down=False, stays=False
             f"[{g or 'host'}] first seen {text}" for g, text in off.items()) + f" ({report})")
 
 def scenario_guest_bucket_on_npc_head(ctx):
-    """S1 (playtests/2026-10-31-fabien.md): the client's player puts a bucket on a host NPC's head."""
+    """S1 (the 2026-10-31 playtest): the client's player puts a bucket on a host NPC's head."""
     bucket_on_npc_head(ctx, "client")
 
 def scenario_host_bucket_on_npc_head(ctx):
@@ -825,7 +825,7 @@ def scenario_guest_opens_hosts_roll(ctx, *, take=False, _game=None):
             ctx.tap_key("client", TAB_KEY)
             ctx.wait_for("[client] the menu closed", lambda: ctx.takes_input("client"), 5, _game=_game)
             return
-        # Taking it all (playtests/2026-10-31-fabien.md S5): the guest gets the host's roll, the host's chest empties.
+        # Taking it all (the 2026-10-31 playtest S5): the guest gets the host's roll, the host's chest empties.
         carried = {item: ctx.item_count("client", 0x14, item) or 0 for item in host}
         ctx.tap_key("client", TAKE_ALL_KEY)
         ctx.wait_for("[client] the menu closed", lambda: ctx.takes_input("client"), 5, _game=_game)
@@ -877,7 +877,7 @@ def scenario_placed_leveled_items_are_hosts(ctx):
 
 
 def scenario_clutter_rests_at_any_frame_rate(ctx, *, window=20, _game=None):
-    """S4 (playtests/2026-10-31-fabien.md): Havok's step set 2.4 times the frame (fMaxTime 0.04 at 60 fps, as the
+    """S4 (the 2026-10-31 playtest): Havok's step set 2.4 times the frame (fMaxTime 0.04 at 60 fps, as the
     default 1/60 is at 144 fps) wakes the inn's clutter, which then creeps. Each game steps physics with its frames:
     the step reads back as the frame's whatever the INI says."""
     _game = ctx.game(_game)

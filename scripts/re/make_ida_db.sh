@@ -4,8 +4,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RE="$ROOT/build/re"
-IDA_DIR="${IDA_DIR:-/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d1/apps/aur-ida-pro}"
-GAME="${SKYRIM_GAME_DIR:-/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition}"
+IDA_DIR="${IDA_DIR:-$(python3 "$ROOT/scripts/local_paths.py" IDA_DIR)}"
+GAME="${SKYRIM_GAME_DIR:-$(python3 "$ROOT/scripts/local_paths.py" SKYRIM_STEAM_GAME_DIR)}"
 VERSION="$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from skyrim_runtime import runtime_version; print(runtime_version().removesuffix(".0"))' "$ROOT/scripts")"
 EXE="$RE/SkyrimSE_${VERSION}_unpacked.exe"
 DB="$RE/SkyrimSE_${VERSION}.i64"

@@ -67,6 +67,6 @@ Three unused RTTI IDs (`392519`, `394235`, `398437`) were already absent on both
 
 ## Acceptance
 
-[Port acceptance](../../../playtests/2026-11-02-steam-runtime-port.md) records the full fast gate and native results:
+The port's acceptance (2026-11-02) ran the full fast gate and native results:
 1.7.104 passed boot/join plus all 10 targeted scenarios; legacy passed boot/join and 9/10 (baseline physics tolerance).
 Reviewed engine lock signatures are runtime-specific; live overlaps remain failures.

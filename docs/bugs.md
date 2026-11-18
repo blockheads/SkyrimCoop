@@ -6,7 +6,7 @@ delete the entry and say where the evidence went. Unfinished work and unexplaine
 `docs/progress.md` ("Loose ends"); ideas in `docs/ideas.md`. The fixes and regression evidence for feature 14's
 visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixes and regression evidence are in
 [native-bugs.md](design/native-bugs.md). Fixes that landed after a playtest (S2's green flash, the
-2026-11-01 dialogue fixes) keep their evidence in `playtests/` and a dated entry in `docs/progress.md`.
+2026-11-01 dialogue fixes) keep a dated entry in `docs/progress.md`.
 
 Each `###` section is one task for one agent: a paste-ready "Agent task", its size (small: a day or less; medium: a few
 days), what it needs, and what it waits for. Delete a section when its last entry goes, and its index line with it.
@@ -27,7 +27,7 @@ Where the evidence comes from:
   so their engine paths are still to be proved in step 0 (CLAUDE.md).
 - **Physics and ragdolls:** the audit removed unsuccessful pose reconstruction; existing native checks and failed traces
   remain. Retained changes and their evidence are in [native-bugs.md](design/native-bugs.md). Party travel's fixes are
-  there too. The entries dated 2026-11-01 come from the S1 work (`playtests/2026-10-31-fabien.md`;
+  there too. The entries dated 2026-11-01 come from the S1 work (the 2026-10-31 playtest;
   `docs/design/physics-sync.md`, "Steered holds" and "Matches a game without co-op").
 
 How the entries relate (shared causes, wrong checks, what to fix first): [bugs-map.md](bugs-map.md).
@@ -871,7 +871,7 @@ Size: medium. Needs: duo, then a decision.
 - **NPC copies judge the guest's player in the guest's game** (2026-11-08, found with the sneak eye fix,
   `docs/re/systems/stealth.md`). The eye (40593 through 41408) counts every high-process actor's state of the player,
   and a copy's detection pass still runs: Lydia's copy read -21, fresh, while the guest sneaked in QASmoke. On 2026-11-01
-  the host's eye read Lydia's real 30 and the guest's its copy's 20 (`playtests/2026-10-31-fabien.md`, S6): an estimate,
+  the host's eye read Lydia's real 30 and the guest's its copy's 20 (the 2026-10-31 playtest, S6): an estimate,
   not stuck.
   - The host's side is no better yet: nothing keeps the host's NPCs' state of a guest's copy fresh (`crime.md`, Hulda 4.7 s
     old), and [A still guest unseen up close](#a-still-guest-unseen-up-close) reads no line of sight to it.
