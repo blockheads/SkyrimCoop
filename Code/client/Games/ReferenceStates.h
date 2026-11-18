@@ -31,4 +31,6 @@ ObjectChange Deleted(const GameId& acId) noexcept;
 bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange) noexcept;
 // False for a kind that is an event, not a state, or a change the engine refused.
 bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept;
+// A door's or container's lid put at its open state at once, as a 3D load does (InitNonNPCAnimation 19757).
+void PoseOpenState(TESObjectREFR& aObject) noexcept;
 } // namespace ReferenceStates

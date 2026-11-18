@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-18: a chest's lid agrees after the host disables it under an open menu (`bugs.md`, "A chest lid's pose",
+gone). The disable drops the chest's 3D (19801); our live menu's auto-close, or the host's close row on a guest, then
+flips its open state with no 3D, and the enable's new 3D (19800) came up part open in each game where that happened.
+Vanilla never gets here (its menus pause the game). Every game now puts such a lid at its open state once it is
+enabled and loaded again (`LidUnposedEvent`, `ObjectService`; `SetOpenState` 14287 with its snap, as a 3D load does,
+`InitNonNPCAnimation` 19757; `docs/re/systems/guest-world-events.md`, "A lid after a disable"). Scenarios
+`guest-chest-lid-after-disable`, `host-/guest-menus-close-when-target-goes`; GameTests "A chest the host disables
+under ... open menu shows one lid once enabled" (the fake learned lids, a chest's 3D and Enable's queued load). The
+harness reads a container's open state (`open_state`), `door_open` takes containers, and the MCP's `expect agree`
+runs the world check too.
+
 2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`). One player drives,
 the others ride along: a player's Activate on a horse a party player drives boards it (our hook on
 `Character::ActivateMount` 37864 raises `BoardEvent`; the horse's slot emptied, then the engine's own get-on), and the
@@ -2391,7 +2402,7 @@ What the first playtest build has besides what works today (the table above):
     damage). Live chest and barter menus close when their target goes, dies or leaves (`MenuAutoClose`, Skyrim Souls'
     rule), and an open chest's list follows another game's change (`SendInventoryUpdateMessage`). ClientTests
     `menu_auto_close_tests.cpp`, GameTests `perk_flows.cpp` (rejoin); Skyrim `ability-stays-on-copy` and the
-    `coop_menus.py` live-menu checks pass; a chest lid's pose after an interrupted open is in `docs/bugs.md`.
+    `coop_menus.py` live-menu checks pass; a chest lid's pose after an interrupted open is fixed (News, 2026-11-18).
 
 Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, mod support
 (RaceMenu adapter, animation mods, mod sync). Party map/compass markers are implemented on dev as recorded above.

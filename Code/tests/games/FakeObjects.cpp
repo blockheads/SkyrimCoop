@@ -1,3 +1,4 @@
+#include <Events/LidUnposedEvent.h>
 #include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Games/FormChangeRows.h>
@@ -202,6 +203,40 @@ void FakeEngine::SetOpen(uint32_t aDoor, bool aOpen)
     Recorded.push_back(OpenRow(aDoor, reference));
 }
 
+void FakeEngine::ScriptSetsEnabled(uint32_t aReference, bool aEnabled)
+{
+    auto& reference = References.at(aReference);
+    reference.Disabled = !aEnabled;
+    reference.Has3D = false; // Disable drops it, Enable queues its load (Finishes3D)
+    Changed.insert(aReference);
+    Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = aEnabled ? 1u : 0u});
+}
+
+void FakeEngine::ClosesChestMenu()
+{
+    const uint32_t cChest = std::exchange(ChestMenuOf, 0);
+    auto& chest = References.at(cChest);
+    chest.Open = false;
+    if (chest.Has3D)
+        chest.Lid = 0.f;
+    else // our auto-close on a disabled chest (LiveMenuHooks)
+    {
+        chest.Unposed = true;
+        World::Get().GetRunner().Trigger(LidUnposedEvent{cChest});
+    }
+    if (!IsGuest)
+        Recorded.push_back(OpenRow(cChest, chest));
+    World::Get().GetRunner().Trigger(MenuEvent{"ContainerMenu", false});
+}
+
+void FakeEngine::Finishes3D(uint32_t aReference)
+{
+    auto& reference = References.at(aReference);
+    reference.Has3D = true;
+    if (reference.Chest)
+        reference.Lid = reference.Unposed ? kPartOpen : reference.Open ? 1.f : 0.f;
+}
+
 void FakeEngine::ToggleDoor(uint32_t aObject)
 {
     const auto it = References.find(aObject);
@@ -312,7 +347,21 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
     case ObjectChange::Kind::kItems:
         SetCount(reference, ::ItemForm(acChange.Item), static_cast<int32_t>(acChange.Value), acChange.Stacks);
         break;
-    case ObjectChange::Kind::kOpenState: reference.Open = acChange.Value != 0; break;
+    case ObjectChange::Kind::kOpenState: // ApplyOpen: SetOpenState plays it; with no 3D, LidUnposedEvent
+        reference.Open = acChange.Value != 0;
+        if (reference.Chest && reference.Has3D)
+            reference.Lid = reference.Open ? 1.f : 0.f;
+        else if (reference.Chest)
+        {
+            reference.Unposed = true;
+            World::Get().GetRunner().Trigger(LidUnposedEvent{it->first});
+        }
+        break;
+    case ObjectChange::Kind::kEnabled: // Disable drops the 3D, Enable queues its load (Finishes3D)
+        if (reference.Disabled != ((acChange.Value & 1) == 0))
+            reference.Has3D = false;
+        reference.Disabled = (acChange.Value & 1) == 0;
+        break;
     case ObjectChange::Kind::kContents: ApplyContents(reference, acChange); break;
     default: break;
     }

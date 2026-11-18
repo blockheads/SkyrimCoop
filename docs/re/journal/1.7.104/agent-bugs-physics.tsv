@@ -1,0 +1,20 @@
+time	op	id	rva	item
+2026-11-18T17:16:05Z	read	14287	0x1d9eb0	{"name": "BGSOpenCloseForm::SetOpenState"}
+2026-11-18T17:16:22Z	read	17887	0x281c10	{"name": "TESObjectCONT::Activate"}
+2026-11-18T17:16:30Z	read	14284	0x1d9590	{"name": "BGSOpenCloseForm::OpenOrClose"}
+2026-11-18T17:18:12Z	read		0x90fe50	{"name": "ContainerMenu::dtor_impl"}
+2026-11-18T17:18:15Z	read	14288	0x1da110	{"name": "BGSOpenCloseForm::GetOpenState"}
+2026-11-18T17:18:39Z	read	14297	0x1da760	{"name": "TESObjectREFR::PlayAnimation_Impl"}
+2026-11-18T17:18:49Z	read	11802	0x169170	{"name": "ExtraDataList::SetOpenCloseActivateRef"}
+2026-11-18T17:18:59Z	read	19796	0x2f11b0	{"name": "TESObjectREFR::ActivateRef"}
+2026-11-18T18:03:47Z	read	14285	0x1d99b0	{"name": "BGSOpenCloseForm::HandleAnimationEvent"}
+2026-11-18T18:20:40Z	comment		0x90fe44	{"addr": "0x14090fe44", "comment": "Menu close plays the lid's Close only when GetOpenState (14288) is 1 (open): a lid still opening (2) is left to finish open, so a menu closed during the Open sequence leaves the chest open"}
+2026-11-18T18:20:40Z	comment		0x1da215	{"addr": "0x1401da215", "comment": "Open sequence active (state 104 == 1): 2 opening; else Close active: 4 closing; else the extra flag: 1 open / 3 closed"}
+2026-11-18T18:20:40Z	comment		0x281e0a	{"addr": "0x140281e0a", "comment": "Only the game's own player toggles the lid (OpenOrClose 14284); an already open chest goes straight to HandleOpen. Another actor (a replayed copy) never animates the lid"}
+2026-11-18T18:29:49Z	read	19801	0x2f2d70	{"name": ""}
+2026-11-18T18:30:30Z	read		0x2ea410	{"name": "TESObjectREFR::Load3D"}
+2026-11-18T18:31:09Z	read	19757	0x2ef180	{"name": "TESObjectREFR::InitNonNPCAnimation"}
+2026-11-18T18:31:21Z	comment	19757	0x2ef180	{"addr": "0x1402ef180", "comment": "AddressLib 19757. At a reference's 3D load: an open/close form's lid is posed at its open flag with SetOpenState(ref, open, snap=1) (14287): the engine's own 'put the lid where its state says'. Then the Idle sequences or the manager's first sequence at its end, NiAVObject::Update."}
+2026-11-18T18:31:21Z	comment		0x1da7c1	{"addr": "0x1401da7c1", "comment": "snap: the 'to' sequence activated at its end (+108 = -FLT_MAX), NiAVObject::Update, collision updated: the lid lands at its final pose in this call. Without snap the sequence is only activated and plays over the next frames (manager +16 |= 8)."}
+2026-11-18T18:31:21Z	comment	14287	0x1d9eb0	{"addr": "0x1401d9eb0", "comment": "BGSOpenCloseForm::SetOpenState (ref, open, snap): types ACTI 0x18, CONT 0x1C, DOOR 0x1D. Sets the open flag (19683/19684), plays Open/Close through PlayAnimation_Impl 14297 (snap: at its end at once), else the graph event; snap also clears ExtraOpenCloseActivateRef and a door's navmesh obstacle."}
+2026-11-18T18:59:05Z	comment		0x2ef251	{"addr": "0x1402ef251", "comment": "The open state at load: the reference's default (19642) toggled when its record holds the open state change (0x800000)"}

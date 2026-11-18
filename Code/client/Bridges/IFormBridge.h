@@ -95,6 +95,9 @@ public:
     virtual void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept = 0;
     /// Returns the open state of an object (for door sync).
     virtual uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept = 0;
+    /// Puts a door's or container's lid at its open state at once, as a 3D load does. False while it is disabled or
+    /// its 3D is not loaded; true once done, or for one that is gone or has no lid.
+    virtual bool PoseObjectOpenState(uint32_t aObjectFormId) noexcept = 0;
     /// Returns true if the object's base form is of the specified FormType enum value.
     virtual bool IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept = 0;
     /// A door that leads to another cell.

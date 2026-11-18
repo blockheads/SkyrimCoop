@@ -977,7 +977,7 @@ bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
 bool SetDoorOpen(uint32_t aObjectFormId, bool aOpen, bool aSnap) noexcept
 {
     auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
-    if (!pObject || !pObject->baseForm || pObject->baseForm->formType != FormType::Door)
+    if (!pObject || !pObject->baseForm || (pObject->baseForm->formType != FormType::Door && pObject->baseForm->formType != FormType::Container))
         return false;
     using TSetOpenState = bool(TESObjectREFR*, bool, bool);
     POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287); // BGSOpenCloseForm::SetOpenState
@@ -1124,7 +1124,8 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
                 state.Locked = pLock->IsLocked();
                 state.LockLevel = pLock->lockLevel;
             }
-            if (pRef->baseForm->formType == FormType::Door)
+            // BGSOpenCloseForm::GetOpenState (14288): a door's or a container's (its lid).
+            if (const auto cType = pRef->baseForm->formType; cType == FormType::Door || cType == FormType::Container)
                 state.OpenState = static_cast<uint8_t>(pRef->GetOpenState());
             if (const auto* pOwnership = static_cast<ExtraOwnership*>(pRef->extraData.GetByType(ExtraDataType::Ownership)); pOwnership && pOwnership->owner)
                 state.Owner = pOwnership->owner->formID;
