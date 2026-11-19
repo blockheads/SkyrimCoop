@@ -94,7 +94,7 @@ horse's half is over too (`seated_on_mount`).
 Read in IDA 2026-11-18 unless marked measured; the branch journal `docs/re/journal/1.7.104/agent-horse-riding-copy.tsv`.
 
 ```
-the mount package's step (AIProcess::MountProcedureStep 39669; UpdateHighProcessAI's mount case the same)
+the mount package's step (AIProcess::MountProcedureStep 39669; the same in AIProcess::UpdateHighProcessAI 39637's mount case)
   Actor::TryStartMountInteraction (38704): a ridden mount refuses, else a new MountInteraction
     RefrInteraction::StartWithActivate (41530): the rider's sit state set, ActionActivate rider->mount
       refused by a graph (2): nothing attached; else AttachToRider (41540)

@@ -512,6 +512,18 @@ TEST_CASE("The driver gets off: the passenger drives, the horse its game's", "[m
     ride.party.Until([&] { return Owns(ride.party.Host(), ride.horse); }, "no passenger left: the host's again");
 }
 
+TEST_CASE("The driver's copy is off before the passenger takes the reins: the passenger keeps steering", "[mounts][passengers]")
+{
+    Passenger ride;
+    // The host's copy finishes its exit while the horse is still a copy here: its stream's PairEnd still to come.
+    ride.party.As(ride.party.Guest(), [&] { ride.guest.EndRide(ride.hostOnGuest); });
+    REQUIRE(ride.guest.PairEndIn.contains(ride.guestHorse));
+    ride.party.As(ride.party.Host(), [&] { ride.host.StartDismount(FakeEngine::kPlayer); });
+    ride.party.Until([&] { return ride.guest.PlayerSteers(ride.guestHorse); }, "the passenger steers it");
+    ride.party.Until([&] { return ride.guest.PairEndIn.empty(); }, "the stream's PairEnd would have landed");
+    CHECK(ride.guest.PlayerSteers(ride.guestHorse));
+}
+
 TEST_CASE("A passenger gets off: the driver keeps its horse on both games", "[mounts][passengers]")
 {
     Passenger ride;
