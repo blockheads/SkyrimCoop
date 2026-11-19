@@ -315,11 +315,16 @@ TEST_CASE("A horse passes from rider to rider: the host, a guest, the host again
     party.Until([&] { return Owns(party.Guest(), cHorse) && host.IsActorCopy(horse); }, "the guest's game owns the horse");
     party.As(party.Guest(), [&] { guest.StartDismount(FakeEngine::kPlayer); });
     party.Until([&] { return Owns(party.Host(), horse) && guest.IsActorCopy(cHorse); }, "the host owns it again");
+    // Skyrim (duo, 2026-11-18): taken back before its copy rider's exit pair ended, the host's horse stayed in it,
+    // refused the host's get-on and retried it; the guest's copy of the host was left off (mounts.md).
+    party.Until([&] { return host.PairEndIn.empty(); }, "the guest's exit pair would have reached the host's horse");
+    CHECK(host.SyncedMounts.empty());
 
     cRide(party.Host(), host, horse);
     party.Until([&] { return guest.Mounts.size() == 1 && guest.Mounts.begin()->second == cHorse; },
                 "the host rides it again, the guest's copy on it");
     CHECK(Owns(party.Host(), horse));
+    CHECK(host.RefusedGetOns == 0);
     CHECK(host.GettingOnOff.empty());
     CHECK(guest.GettingOnOff.empty());
     party.Agree("the horse and its copies agree");

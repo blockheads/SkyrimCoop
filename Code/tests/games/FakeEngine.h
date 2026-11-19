@@ -916,13 +916,26 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         return it != Mounts.end() ? it->second : 0;
     }
     void ActorHoldMount(uint32_t aRider, uint32_t aMount) noexcept override { MountSlots.try_emplace(aMount, aRider); }
-    void ActorEndMountPair(uint32_t aMount) noexcept override { SyncedMounts.erase(aMount); }
+    void ActorEndMountPair(uint32_t aMount) noexcept override
+    {
+        SyncedMounts.erase(aMount);
+        PairEndIn.erase(aMount);
+    }
     uint8_t GetActorSitState(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) ? SitState(aFormId) : 0; }
     void ActorFinishDismount(uint32_t aRider) noexcept override { EndRide(aRider); } // its sit state its clip's
     // Mounts left in a rider's exit pair (MountBehavior DismountSynced): a copy rider's exit ending on a mount this
     // game owns, the horse having changed hands mid-pair. Only PairEnd ends it; it steers nothing until then (the
     // duo, 2026-11-17, player-mount.md).
     std::set<uint32_t> SyncedMounts;
+    // A copy mount whose copy rider's exit started: its owner's PairEnd reaches it through its stream this many frames
+    // later. Taken over by then (the host's NotifyDismount), it never does: left in the pair (the duo, 2026-11-18,
+    // mounts.md "A horse taken back mid-pair").
+    std::map<uint32_t, uint32_t> PairEndIn;
+    uint32_t StreamPairEndFrames = 30;
+    // A get-on of a mount left in a pair: pa_HorseEnter refused (its refusal's PairEnd ends the pair), the mount
+    // procedure (39669) calls InitiateMountPackage (37905) again, and the next try starts the ride.
+    std::map<uint32_t, uint32_t> MountRetryOf; // rider -> mount
+    uint32_t RefusedGetOns{};
     // A mount's one ExtraInteraction (12074): its first rider's; any rider's Detach (41539) empties it, and a ridden
     // one is what ActivateMount (37864) and CanRide (38706) refuse (player-mount.md).
     std::map<uint32_t, uint32_t> MountSlots;

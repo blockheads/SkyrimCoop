@@ -89,6 +89,32 @@ horse's half is over too (`seated_on_mount`).
   for good. On `NotifyDismount` a copy rider still seated is taken off as 40352 does (sit state 0, `FinishDismount`);
   one getting off already is left to its clip (`IActorBridge::ActorEndRide`).
 
+## A horse taken back mid-pair
+
+Read in IDA 2026-11-18 unless marked measured; the branch journal `docs/re/journal/1.7.104/agent-horse-riding-copy.tsv`.
+
+```
+the mount package's step (AIProcess::MountProcedureStep 39669; UpdateHighProcessAI's mount case the same)
+  Actor::TryStartMountInteraction (38704): a ridden mount refuses, else a new MountInteraction
+    RefrInteraction::StartWithActivate (41530): the rider's sit state set, ActionActivate rider->mount
+      refused by a graph (2): nothing attached; else AttachToRider (41540)
+  refused: kGettingOnOffMount cleared on both, then InitiateMountPackage (37905) again; the next update retries
+```
+
+- Measured (duo, `horse-passes-between-riders`): a guest's ride ends and the host takes its horse back
+  (`NotifyDismount`) while the horse copy still replays the guest's `pa_HorseExit` pair. Its stream's `PairEnd`
+  comes later and is lost once the horse is the host's, so the host's horse stays in the pair (`bIsSynced` on). The
+  host's next get-on is refused until the refusal's own `PairEnd` and the blend out of it: five tries in 0.3 s, each
+  one a 37905, so our hook sends a `MountRequest` and the guest gets a `NotifyMount` each time.
+- Measured: between those tries the host's player reads sit state 4. Its copy on the guest replays that, and a linked
+  copy at 4 is taken off (`FinishDismount`, above). The try that finally starts calls no 37905 again, so no
+  `NotifyMount` re-links the copy. It plays `HorseEnter` and sits (sit state 3) with no link: not riding, the horse
+  copy not ridden, and the copy's `pa_HorseExit` is refused later.
+- Fix: the host's game, taking a horse back from a guest's ride (`OnNotifyDismount`), sends it `PairEnd`
+  (`ActorEndMountPair`, as a pair's instance does, 32797). It is the host's own and nobody is on it, so nothing else
+  ends that pair. Not handled (inferred): a get-on the engine refuses for another reason still links and then takes
+  off a copy the same way.
+
 ## A low-process mount gets its rider off
 
 `AIProcess::UpdateLowMountRider` (39174): a mount with no middle-high data that carries a rider of process level 0 or 1
