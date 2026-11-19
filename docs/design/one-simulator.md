@@ -141,6 +141,7 @@ HostRecords                     OnRecord: owner check (OwnerOf), newest version 
   version, and the last owner's late part is dropped.
 - A part's bytes are its struct's own encoding (`ToPartBytes`/`FromPartBytes`, `Structs/RecordPart.h`); the host reads
   the AI state part for `HostDeath` (who fights), nothing else.
+- `HostDeath` hears only the AI parts `HostRecords` keeps (`OnKept`): an older part arriving late changes nothing.
 - AI state moved: `AiStateRequest`/`NotifyAiState`, the spawn's and announcement's `AiState` field and
   `AiStateService::m_owners` are gone. `GuestScene` hears `CopyAiStateEvent` (the part applied to the host's player's
   copy), so a guest that joins mid-scene plays its part too.
@@ -451,7 +452,7 @@ and only the scenarios it names on the duo.
 81 entries: 40 the model's, 17 engine quirks, 13 test tools, 9 outside it or unread, 2 inside physics and the
 stream themselves.
 
-- **Piece 1 (2):** "A copy that looks at nobody" (closed 2026-11-18), "A temporary form in a slot" (open: above).
+- **Piece 1 (2):** "A copy that looks at nobody" (fixed on the fake 2026-11-18; no duo scenario yet), "A temporary form in a slot" (open: above).
 - **Piece 2 (7):** "An action sent before its copy exists", "A seated owner's copy keeps an old action", "The
   attacker's copy not in its kill move", "A mod's rename at run time" (both), "A character's base bytes after
   joining", "An NPC copy's swing picks the nearest".

@@ -21,9 +21,7 @@ struct CopyRecords;
  * @brief What actors' AI is doing (package, scene, combat), as every game reads it (docs/design/copy-contract.md,
  * "AI state").
  *
- * Only an actor's owner simulates it. The owner declares an actor's AI state as a part of its record (CopyRecords)
- * when the engine says it changed (AiStateEvents); each copy holds its owner's (IActorBridge::SetCopyAiFields),
- * whenever the copy or an actor the state names appears.
+ * The owner declares it as a record part (CopyRecords) when the engine says it changed; each copy holds its owner's.
  */
 struct AiStateService
 {

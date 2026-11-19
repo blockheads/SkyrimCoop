@@ -8,14 +8,8 @@
 #include <set>
 #include <unordered_map>
 
-/**
- * @brief Every actor's record on this game: the last state its owner declared, in parts, by session id
- * (docs/design/one-simulator.md, piece 1).
- *
- * A part waits here until its copy appears, and a part naming an actor that is not here yet is applied again when
- * that actor gets its session id. The newest version of a part wins, in whatever order they arrive. This game's own
- * actors' parts are here too (Declare): their versions go on from the last owner's.
- */
+// Every actor's last declared state, in versioned parts by session id; a part waits for its copy and for the actors it
+// names (docs/design/one-simulator.md, piece 1).
 struct CopyRecords
 {
     // Puts a part on the copy of aId. Returns the session ids its bytes name that are not on this game yet; empty when

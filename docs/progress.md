@@ -52,9 +52,10 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 2026-11-18: **the copy record, piece 1 of one-simulator.md, built** (`agent/copy-record`): every game keeps each actor's
 last declared state in versioned parts by session id (`Services/CopyRecords`), the host keeps them and puts them on every
 spawn (`HostRecords`), a part waits for its copy and for an actor it names, and a game can ask for one again. One part
-moved onto it, AI state: `AiStateRequest`/`NotifyAiState` and the spawn's `AiState` are gone. Closes "A copy that looks
-at nobody" (a look or combat target named before its copy existed stayed empty). The other caches move in later PRs.
-Tests: GameTests `[copy-records]` (3), ClientTests `[copy-records]` (6), HostAuthorityTests `[records]` (3).
+moved onto it, AI state: `AiStateRequest`/`NotifyAiState` and the spawn's `AiState` are gone; a look or combat target
+named before its copy exists is applied when it appears ("A copy that looks at nobody" stays open until a duo scenario
+shows the player path). The other caches move in later PRs.
+Tests: GameTests `[copy-records]` (3), ClientTests `[copy-records]` (6), HostAuthorityTests `[records]` (4).
 
 2026-11-18: one sync rule for every system, designed ([one-simulator.md](design/one-simulator.md),
 `agent/one-sync-model`). An audit's map checked in the code: each open desync is a copy missing what its owner did
