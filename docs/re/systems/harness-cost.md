@@ -5,11 +5,11 @@ Found 2026-11-18 on the Linux duo: both games stalled ~400 ms about once a secon
 
 ## Where the harness runs
 
-`TestHarness::Poll` (our `HookPoll`) runs on the main thread inside the frame's draw, `Main::DrawFrame_36558`
-(ID 36558, read in IDA: it sets the camera position into the shader state, then `Main::Draw`), called from the render
-step 36555 (+0x4cd) in `Main::Update` (36564, `ProcessEvents_Enter`) (sampled stacks). Before this change the command
-server answered every request there in full: the command's engine reads, its JSON, and `dump()`. So a slow command
-held the frame for as long as it took.
+`TestHarness::Poll` runs on the main thread from our `HookMainLoop`, the hook on `Main::Update` (ID 36564,
+`ProcessEvents_Enter`, `SkyrimVM64.cpp`), before the engine's frame (sampled stack: 36544 → `HookMainLoop` →
+`HookPoll`). Before this change the command server answered every request there in full: the command's engine
+reads, its JSON, and `dump()`. So a slow command held the frame for as long as it took. (The draw, `Main::DrawFrame_36558`,
+read in IDA on the way, is not on that path: its frames were other samples'.)
 
 ## What took the frame (measured)
 
@@ -32,6 +32,9 @@ held the frame for as long as it took.
   frame met the `coc` load frame (3.6 s) after it; Python's 3 s RPC timeout closed the connection, the reply was lost
   and the scenario failed "console line never ran" (two runs of three, measured).
 - The status file is dumped and written on a worker; a write still running skips the next one.
+- A deferred reply whose JSON cannot be written (nlohmann throws on a non-UTF-8 name) answers as a refusal
+  (`DumpReply`), as before. A client that closes while its reply is still being built leaves the queue to finish on
+  its own (`CommandServer`'s closed list): Poll never waits for a worker; only Stop (unload) does.
 
 After, same scenario: `world_state` 21 ms average, 29 ms at most on the main thread; the status file 6.5 ms, 14 ms at
 most; no stall left in the scene's settle window (the remaining ones are the `coc` load and the arrival's cell loads).

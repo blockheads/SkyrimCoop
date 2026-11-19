@@ -374,10 +374,8 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"objects", objects}};
 }
 
-// {"cmd": "world_state", "ids"?: [id, ...], "details"?: true}: every reference in the loaded cells (or only those)
-// as this game holds and shows it, with details its pose, physics, graph and effects too
-// (EngineCalls::GetLoadedReferences); fields at their defaults are left out. Read here, its JSON built off the game
-// thread (a whole town's took up to 450 ms there, docs/re/systems/harness-cost.md).
+// {"cmd": "world_state", "ids"?: [id, ...], "details"?: true}: the loaded cells' references as this game shows them,
+// details adding pose, physics, graph, effects (GetLoadedReferences); defaults left out, JSON built off the game thread.
 nlohmann::json WorldStateReply(const std::vector<EngineCalls::ReferenceState>& acRefs)
 {
     auto references = nlohmann::json::array();

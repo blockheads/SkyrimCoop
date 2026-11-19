@@ -21,7 +21,7 @@ target("ClientTests")
               "../../client/Games/Animation/GraphState.cpp")
     add_includedirs("../../client", "../../client/Games/Skyrim")
     add_deps("SkyrimEncoding")
-    add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy", "zstd", "lz4")
+    add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy", "zstd", "lz4", "nlohmann_json")
     if is_plat("windows") then add_syslinks("bcrypt") end
 target_end()
 

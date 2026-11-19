@@ -32,6 +32,7 @@ void CommandServer::Stop()
         CloseSocket(client.Socket);
     }
     m_clients.clear();
+    m_closed.clear(); // waits: the workers run this DLL's code
     if (m_listener != ~uintptr_t(0))
         CloseSocket(m_listener);
     m_listener = ~uintptr_t(0);
@@ -120,6 +121,10 @@ void CommandServer::Poll()
         }
     }
 
+    for (Client& client : m_clients)
+        if (client.Socket == ~uintptr_t(0) && !client.Replies.Finished())
+            m_closed.push_back(std::move(client.Replies));
     std::erase_if(m_clients, [](const Client& acClient) { return acClient.Socket == ~uintptr_t(0); });
+    std::erase_if(m_closed, [](const ReplyQueue& acReplies) { return acReplies.Finished(); });
 }
 } // namespace TestHarness

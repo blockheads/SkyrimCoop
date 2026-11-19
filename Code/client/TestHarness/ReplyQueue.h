@@ -42,6 +42,14 @@ public:
     }
 
     [[nodiscard]] bool Empty() const noexcept { return m_pending.empty(); }
+    // Every reply finished: a closed client's queue can go without waiting.
+    [[nodiscard]] bool Finished() const noexcept
+    {
+        for (const auto& cPending : m_pending)
+            if (cPending.valid() && cPending.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+                return false;
+        return true;
+    }
 
     // Before the plugin unloads: the workers run its code.
     void Wait() noexcept

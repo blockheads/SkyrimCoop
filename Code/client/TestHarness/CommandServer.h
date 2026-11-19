@@ -9,9 +9,8 @@
 
 namespace TestHarness
 {
-// Test-harness command socket: line-delimited JSON on 127.0.0.1, served on the game thread every frame
-// (scripts/coop_test.py); a large reply is finished on a worker, all sent in order. The port is written to
-// <control dir>/rpc.json, so a request costs one frame instead of the control files' 250ms poll.
+// Test-harness command socket (scripts/coop_test.py): line-delimited JSON on 127.0.0.1, served on the game thread
+// every frame, a large reply finished on a worker (docs/re/systems/harness-cost.md); the port in <control dir>/rpc.json.
 class CommandServer
 {
 public:
@@ -42,6 +41,8 @@ private:
 
     uintptr_t m_listener = ~uintptr_t(0);
     std::vector<Client> m_clients;
+    // Closed clients' replies still being built: dropped once finished, never waited for in Poll.
+    std::vector<ReplyQueue> m_closed;
     THandler m_handler;
 };
 } // namespace TestHarness

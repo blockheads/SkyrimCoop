@@ -2,6 +2,7 @@
 #include "ActivateWatch.h"
 #include "ClipLoads.h"
 #include "Harness.h"
+#include "JsonReply.h"
 #include <Diagnostics/Counters.h>
 
 namespace TestHarness
@@ -43,7 +44,7 @@ CommandServer::Reply StartCommand(Harness& aHarness, const std::string& acReques
                 // Each command's game-thread time: `profile` lists the harness's own cost.
                 const ::Diagnostics::Counters::ScopedTime cTime(::Diagnostics::Counters::Get(("harness " + cName + " us").c_str()));
                 if (cCommand.Gather)
-                    return {{}, [build = cCommand.Gather(aHarness, cRequest)] { return build().dump(); }};
+                    return {{}, [build = cCommand.Gather(aHarness, cRequest)] { return DumpReply(build); }};
                 return cReady(cCommand.Run(aHarness, cRequest));
             }
         return cReady(Error("unknown cmd " + cName));

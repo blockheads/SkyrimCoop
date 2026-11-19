@@ -105,7 +105,15 @@ void Poll()
     if (s_statusWrite.valid() && s_statusWrite.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
         return;
     COUNT_TIME("harness status file us");
-    s_statusWrite = std::async(std::launch::async, [&files = harness.Files, status = BuildStatus(harness)] { files.WriteStatus(status.dump(2)); });
+    s_statusWrite = std::async(std::launch::async, [&files = harness.Files, status = BuildStatus(harness)] {
+        try
+        {
+            files.WriteStatus(status.dump(2));
+        }
+        catch (const nlohmann::json::exception&)
+        {
+        }
+    });
 }
 
 void Shutdown()
