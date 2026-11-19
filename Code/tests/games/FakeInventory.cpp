@@ -651,6 +651,11 @@ void FakeEngine::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
             it->second.Weapon = aDraw ? WeaponState::WantToDraw : WeaponState::WantToSheathe;
         return;
     }
+    if (it->second.RefusesDraw)
+    {
+        it->second.Weapon = aDraw ? WeaponState::WantToDraw : WeaponState::WantToSheathe;
+        return;
+    }
     it->second.Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed;
 }
 

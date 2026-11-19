@@ -26,3 +26,20 @@ time	op	id	rva	item
 2026-11-19T05:16:41Z	read	38614	0x6cc840	{"name": "Character::EndKillMove"}
 2026-11-19T05:16:41Z	read	42871	0x7ce420	{"name": "KillMoveEndHandler::Handle"}
 2026-11-19T05:16:46Z	comment		0x6cc882	{"addr": "0x1406cc882", "comment": "The kill is queued only with a killer handle at +0x108. With that handle cleared first, 38614 only clears the process state and flag 0x4000: how a copy left in a kill move its owner already ended is taken out without dying (ActorStateService). SkyrimCoop piece-2-actor-state"}
+2026-11-19T14:36:47Z	read	38603	0x6cbee0	{"name": "Actor::sub_38603"}
+2026-11-19T14:36:47Z	read	38608	0x6cc490	{"name": "Actor_GetTarget"}
+2026-11-19T14:36:48Z	read	47272	0x866260	{"name": "Actor_PickSwingTarget"}
+2026-11-19T14:36:48Z	read	38613	0x6cc740	{"name": "Character::EnterKillMove"}
+2026-11-19T14:36:49Z	read	42810	0x7cc4b0	{"name": "WeaponRightSwingHandler::Process_Origin"}
+2026-11-19T14:36:50Z	read	42812	0x7cc5d0	{"name": "AttackWinStartHandler::Handle"}
+2026-11-19T14:36:50Z	read	42813	0x7cc610	{"name": "AttackWinEndHandler::Handle"}
+2026-11-19T14:36:51Z	read	42814	0x7cc650	{"name": "AttackStopHandler::Handle"}
+2026-11-19T14:36:51Z	read	42828	0x7cccc0	{"name": "HitFrameHandler::Handle"}
+2026-11-19T14:36:52Z	read	42815	0x7cc690	{"name": "RecoilStopHandler::Handle"}
+2026-11-19T14:37:03Z	comment	42815	0x7cc690	{"addr": "0x1407cc690", "comment": "[re]\nAddressLib ID 42815\nRecoilStopHandler::Handle (graph event recoilStop): clears ActorState2 recoil (0x400/0x800); 39004 sets them on the recoil actions. Read in IDA 1.7.104, SkyrimCoop piece-2-actor-state"}
+2026-11-19T14:37:03Z	comment	38613	0x6cc740	{"addr": "0x1406cc740", "comment": "[re]\nAddressLib ID 38613\nmeh321: Character::sub_38613\nRead in IDA 1.7.104 (2026-11-18, piece-2-actor-state): a kill move's victim or attacker: StartDeferredKill (kill-move kind), kIsInKillMove (0x4000 at +0x204), the killer's handle at +0x108 (invalid for none); the player's camera to third person with a killer. Only actor states 0/1 (sub_37965) enter.\nCallers (1.7.104 xrefs): only 39004 for a pa_Kill action (the actor with no killer, then its target with the actor). No graph-event handler calls it: two copies of one pair on their streams are entered at the action by AnimationSystem; a copy that missed it, from its record (ActorStateService)."}
+2026-11-19T14:37:03Z	comment		0x7ccd11	{"addr": "0x1407ccd11", "comment": "Attack state 2 (swing) -> 3 (hit) only; from any other state the handler returns 0. The hit itself (38603) runs first either way. Read in IDA 1.7.104, SkyrimCoop piece-2-actor-state"}
+2026-11-19T14:37:03Z	name	38603	0x6cbee0	{"addr": "0x1406cbee0", "name": "Actor_HitFrameStrike"}
+2026-11-19T14:37:09Z	read	37279	0x675930	{"name": "Actor::DrawWeaponMagicHands"}
+2026-11-19T14:37:16Z	comment		0x675a55	{"addr": "0x140675a55", "comment": "Draw: weapon state := 1 (wants to draw) if the draw action was refused, 2 (drawing) if taken; never 3 here (the weaponDraw handler 42824 sets that). So a copy's put-right draw is retried until it settles (ActorStateService, kHandsRetry). Read in IDA 1.7.104, SkyrimCoop piece-2-actor-state"}
+2026-11-19T14:37:16Z	comment		0x675b33	{"addr": "0x140675b33", "comment": "Sheathe: weapon state := 4 (wants to sheathe) if refused, 5 (sheathing) if taken. SkyrimCoop piece-2-actor-state"}

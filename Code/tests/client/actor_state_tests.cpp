@@ -58,8 +58,10 @@ TEST_CASE("Drawn hands: the owner's settled state, put right on a copy once it i
     CHECK(PutsHandsRight(true, WeaponState::Sheathed));
     CHECK(PutsHandsRight(true, WeaponState::WantToDraw)); // a copy's refused request stays pending for good
     CHECK_FALSE(PutsHandsRight(true, WeaponState::Drawing));
-    CHECK(HandsPending(WeaponState::Drawing)); // looked at again once its animation ends
-    CHECK_FALSE(HandsPending(WeaponState::Drawn));
+    CHECK_FALSE(HandsSettled(true, WeaponState::Drawing));    // looked at again once its animation ends
+    CHECK_FALSE(HandsSettled(true, WeaponState::WantToDraw)); // a refused draw (37279) is tried again
+    CHECK(HandsSettled(true, WeaponState::Drawn));
+    CHECK(HandsSettled(false, WeaponState::Sheathed));
     CHECK_FALSE(PutsHandsRight(true, WeaponState::Drawn));
     CHECK(PutsHandsRight(false, WeaponState::WantToSheathe));
 }

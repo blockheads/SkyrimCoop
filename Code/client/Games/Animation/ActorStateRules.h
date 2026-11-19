@@ -82,13 +82,15 @@ constexpr std::optional<bool> SettledHands(WeaponState aOwner, bool aOwnerDead) 
         return false;
     return std::nullopt;
 }
-// A copy not mid-animation that shows the other hands is put right; mid-animation, it is looked at again after.
+// A copy not mid-animation that shows the other hands is put right. Done only once its hands settle as its owner's:
+// a draw the engine refuses (37279: weapon state 1, or 4 for a sheathe) is tried again, every kHandsRetry.
+constexpr double kHandsRetry = 0.25;
 constexpr bool PutsHandsRight(bool aPartHandsUp, WeaponState aCopy) noexcept
 {
     return !IsAnimating(aCopy) && ShowsHandsUp(aCopy) != aPartHandsUp;
 }
-constexpr bool HandsPending(WeaponState aCopy) noexcept
+constexpr bool HandsSettled(bool aPartHandsUp, WeaponState aCopy) noexcept
 {
-    return IsAnimating(aCopy);
+    return aCopy == (aPartHandsUp ? WeaponState::Drawn : WeaponState::Sheathed);
 }
 } // namespace ActorStateRules

@@ -610,6 +610,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t State1 = 0;        // ActorState's flags1 (sneaking 1 << 9): an owner's goes with its actions
         uint32_t State2 = 0;        // flags2 but the weapon state (Weapon): wantBlocking 0x100, recoil 0xC00
         uint32_t Killer = 0;        // a kill move's victim: its killer (killerHandle, 38613)
+        bool RefusesDraw = false;   // its draw or sheathe action refused (37279: weapon state 1 or 4), its graph not ready
         uint32_t ExitIn = 0;        // frames until its exit clip's own event (42835) ends its getting off, 0 none
         bool InPair = false;        // in a pair's instance on this game (32808): a replay with a copy partner makes none
         double MarkWaitMs = 0.0;    // in an instance: until every actor is at its mark, its synchronized clip waits

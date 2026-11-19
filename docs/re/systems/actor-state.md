@@ -63,7 +63,9 @@ writes them on a copy is not read (an audit on 2026-11-18 caught a first version
   first, then 38614, which queues its kill only with a killer (read in IDA).
 - Hands: the owner declares them once settled (drawn or sheathed), never while dead or dying (its hands drop with its
   death, which its copies play later). A copy that shows the other one is put right (`ShowWeaponDrawn` on its
-  stream); mid-animation it is looked at again each frame until the animation ends. This replaced a 0.25 s poll.
+  stream, else `SetWeaponDrawnEx`), and is looked at again until its hands settle as its owner's: 37279
+  (`DrawWeaponMagicHands`) leaves weapon state 1 (or 4) when its action is refused and 2 (or 5) when taken, never 3
+  (read in IDA), so a refused draw is tried again every 0.25 s (`kHandsRetry`). This replaced a 0.25 s poll.
 - Cost of the owner's read (flags, weapon state, name per owned actor, each frame), measured 2026-11-18 with about 80
   wolves on the host: 152 us a frame mean (597 max), of 6 ms of our update; 13 us on the guest.
 

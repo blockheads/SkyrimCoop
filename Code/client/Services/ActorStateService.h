@@ -19,15 +19,8 @@ struct UpdateEvent;
 struct DisconnectedEvent;
 struct FactionsChangeEvent;
 
-/**
- * @brief Actors' state beside their graph (sneak, block, sprint, life, kill move, drawn hands) as a record part
- * (docs/design/one-simulator.md, piece 2).
- *
- * The owner reads it after each frame and declares it when it changed; a copy takes it once its stream's playback
- * reaches the frame it was read at (ActorStateRules). Its factions and its display name are parts of their own:
- * factions declared on the engine's faction writes (FactionEvents), the name read after each frame as the state is
- * (a script's SetDisplayName or SetName raises nothing).
- */
+// Actors' state beside their graph, their factions and their name as record parts: owners declare, copies apply
+// (one-simulator.md piece 2, docs/re/systems/actor-state.md).
 struct ActorStateService
 {
     ActorStateService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport, IActorBridge& aActorBridge, CopyRecords& aRecords) noexcept;
@@ -39,7 +32,7 @@ struct ActorStateService
     [[nodiscard]] ActorStatePart ReadPart(uint32_t aFormId, const ActorStatePart* apLast = nullptr) const noexcept;
 
 private:
-    void OnUpdate(const UpdateEvent&) noexcept;
+    void OnUpdate(const UpdateEvent& acEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void OnFactionsChange(const FactionsChangeEvent& acEvent) noexcept;
     // The factions part of aId on its copy.
@@ -66,6 +59,8 @@ private:
     std::unordered_map<uint32_t, ActorStatePart> m_sent;
     // Copies whose newest part waits for their stream.
     std::set<uint32_t> m_due;
+    // Copies whose hands were put right: seconds since (a refused draw is tried again, ActorStateRules::kHandsRetry).
+    std::unordered_map<uint32_t, double> m_handsTried;
 
     std::vector<entt::scoped_connection> m_connections;
 };

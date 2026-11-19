@@ -77,7 +77,7 @@ ActorStatePart ActorStateService::ReadPart(uint32_t aFormId, const ActorStatePar
     return part;
 }
 
-void ActorStateService::OnUpdate(const UpdateEvent&) noexcept
+void ActorStateService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
     PROFILE_ZONE("ActorStateService::OnUpdate");
     if (!m_transport.IsConnected())
@@ -103,6 +103,8 @@ void ActorStateService::OnUpdate(const UpdateEvent&) noexcept
                 m_world.all_of<PlayerComponent>(cEntity) && !m_actorBridge.IsActorCopy(cFormId))
                 m_world.GetDispatcher().trigger(PlayerRenamedEvent{});
 
+    for (auto& [cId, since] : m_handsTried)
+        since += acEvent.Delta;
     for (auto it = m_due.begin(); it != m_due.end();)
     {
         const uint32_t cId = *it;
@@ -110,6 +112,8 @@ void ActorStateService::OnUpdate(const UpdateEvent&) noexcept
         // A killer not here yet: applied again when it appears (R5).
         for (const uint32_t cNamed : cApplied.Missing)
             m_records.WaitFor(cId, RecordKind::kActorState, cNamed);
+        if (cApplied.Done)
+            m_handsTried.erase(cId);
         it = cApplied.Done ? m_due.erase(it) : std::next(it);
     }
 }
@@ -130,10 +134,13 @@ ActorStateService::Applied ActorStateService::TryApply(uint32_t aId) noexcept
     m_actorBridge.SetCopyActorStateFlags(cFormId, ActorStateRules::FromPart1(part.Flags1, cFields.Flags1),
                                          ActorStateRules::FromPart2(part.Flags2, cFields.Flags2));
     const WeaponState cWeapon = m_actorBridge.GetWeaponState(cFormId);
-    Applied applied{cFields.Dead || !ActorStateRules::HandsPending(cWeapon), {}};
-    if (!cFields.Dead && ActorStateRules::PutsHandsRight(part.HandsUp, cWeapon))
+    Applied applied{cFields.Dead || ActorStateRules::HandsSettled(part.HandsUp, cWeapon), {}};
+    const auto cTried = m_handsTried.find(aId);
+    if (!cFields.Dead && ActorStateRules::PutsHandsRight(part.HandsUp, cWeapon) &&
+        (cTried == m_handsTried.end() || cTried->second >= ActorStateRules::kHandsRetry))
     {
-        spdlog::debug("Copy {:X}: hands {} as its owner's", cFormId, part.HandsUp ? "up" : "down");
+        m_handsTried[aId] = 0.0;
+        spdlog::debug("Copy {:X}: hands {} as its owner's (weapon state {})", cFormId, part.HandsUp ? "up" : "down", static_cast<int>(cWeapon));
         // On its owner's stream its graph is its owner's already and drops its own events: the result alone.
         if (cPlayback)
             m_actorBridge.ShowActorWeaponDrawn(cFormId, part.HandsUp);
@@ -207,4 +214,5 @@ void ActorStateService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_sent.clear();
     m_due.clear();
+    m_handsTried.clear();
 }

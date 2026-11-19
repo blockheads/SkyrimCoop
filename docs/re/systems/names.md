@@ -72,5 +72,6 @@ shared base) only if it reads differently, compared as the engine's pool does ([
 
 ## Not covered
 
-- A mod's `SetDisplayName` or `SetName` at run time: copies and lists follow (GameTests "A script's rename with no
-  event...", not played).
+- A mod's `SetDisplayName` or `SetName` at run time: copies and lists follow. Played: `script-renames-reach-party`
+  (the host's SKSE `SetDisplayName` on an NPC, the guest's `Form.SetName` on its player's base) fails on dev
+  `f7a72494` (the guest's copy kept "Wolf") and passes here; fast: GameTests "A script's rename with no event...".

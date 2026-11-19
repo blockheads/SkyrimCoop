@@ -161,6 +161,23 @@ SCENARIO("A dying owner's dropped hands do not sheathe its copy before its death
     CHECK(guest.GetWeaponState(kGuard) == WeaponState::Drawn);
 }
 
+SCENARIO("A copy whose draw the engine refused draws once it can, its owner's hands unchanged", "[actor-state][weapon-draw]")
+{
+    // 37279 (DrawWeaponMagicHands) leaves weapon state 1 when its action is refused (a graph not ready while its 3D
+    // loads); nothing new comes from its owner, so the copy tries again (review of PR #82).
+    Party party(1, TwoNpcs(0));
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return guest.IsActorCopy(kGuard); }, "the guest has the guard's copy");
+    guest.Actors.at(kGuard).RefusesDraw = true;
+    party.As(party.Host(), [&] { host.Draws(kGuard, true); });
+    party.Until([&] { return guest.GetWeaponState(kGuard) == WeaponState::WantToDraw; }, "the copy's draw is refused");
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    guest.Actors.at(kGuard).RefusesDraw = false;
+    party.Until([&] { return guest.GetWeaponState(kGuard) == WeaponState::Drawn; }, "the copy draws once it can");
+}
+
 SCENARIO("A faction its owner gives an actor later reaches its copy, and a copy made after", "[actor-state][factions][records]")
 {
     // The engine raises nothing for a faction write (FactionEvents' hooks on 37686/37688/37677): a script's
