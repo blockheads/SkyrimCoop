@@ -71,17 +71,11 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
     }
     int32_t remaining = std::min(std::abs(acRequest.Item.Count), available);
     ScopedInventoryOverride _;
-    // The player's items are its own game's part: a take only leaves the container, a put only arrives in it
-    // (one-simulator.md, piece 3).
-    if (!cTake)
-    {
-        Inventory::Entry stored = moved;
-        stored.Count = remaining;
-        if (remaining > 0)
-            pContainer->AddOrRemoveItem(stored);
-        moved.Count = -remaining;
-    }
-    while (cTake && remaining > 0)
+    // A take only leaves the container: the looter's own game changes its player (one-simulator.md, piece 3). A put
+    // moves from the host's copy of the player, its count spent at once against a second put before the player's
+    // next items part, and its real list (worn, a roll's) to the container.
+    TESObjectREFR* pTarget = cTake ? nullptr : pContainer;
+    while (remaining > 0)
     {
         int32_t chunk = remaining;
         // Plain to us is not plain to the engine: a fresh roll's items sit in lists (ExtraLeveledItem), which 16059
@@ -90,13 +84,13 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
         if (moved.ContainsExtraData() && !pExtra)
             break;
         const int32_t cBefore = pSource->GetContainerCount(pItem).value_or(0);
-        pSource->RemoveItem(pItem, chunk, acRequest.Steal ? ITEM_REMOVE_REASON::kSteal : ITEM_REMOVE_REASON::kStoreInContainer,
-                            pExtra, nullptr);
+        pSource->RemoveItem(pItem, chunk, acRequest.Steal && cTake ? ITEM_REMOVE_REASON::kSteal : ITEM_REMOVE_REASON::kStoreInContainer,
+                            pExtra, pTarget);
         const int32_t cTaken = std::clamp(cBefore - pSource->GetContainerCount(pItem).value_or(cBefore), 0, chunk);
         if (!cTaken)
             break;
         remaining -= cTaken;
-        moved.Count += cTaken;
+        moved.Count += cTaken * (cTake ? 1 : -1);
     }
     // A theft marks what it takes as the owner's (16059 does so only on an item given to a target): stolen on the
     // looter's game (inventory-changes.md, "What 16059's target does").

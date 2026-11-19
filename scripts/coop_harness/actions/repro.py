@@ -1039,7 +1039,7 @@ class ReproActions:
         update; with `name`, its copy compared on at least `value` updates, by default 9 in 10 of its owner's and 4 a
         second; without, at least `value` copies, default 1, compared that far), "guest_npcs" (the guest shows no NPC of its own, all
         through `seconds`), "props" (every copy holds its owner's props within `seconds`, at least `value` owners holding one), "stolen" (item `name`,
-        hex: `game`'s player holds at least value [n] of it marked another's, ExtraOwnership)."""
+        hex: `game`'s player holds at least value [n] of it owned by `of`, hex: ExtraOwnership)."""
         if check == "faces":
             return ctx.expect_faces(name, of, game, within, seconds)
         if check == "items":  # within `seconds`: a change reaches the other game a few frames later
@@ -1064,17 +1064,17 @@ class ReproActions:
             except TestFailure:
                 raise ctx.failure(f"{name}: the bounty is {rows()}, not at least {value[0]} in both games") from None
             return {"bounty": rows()}
-        if check == "stolen":  # `name` an item (hex): `game`'s player holds at least value [n] of it marked another's
+        if check == "stolen":  # item `name` (hex): `game`'s player holds at least value [n] of it owned by `of` (hex)
             instance = "client" if game in ("guest", "client") else ""
-            item = int(name, 16)
-            def stolen():  # stacks holding ExtraOwnership (0x21): the engine's stolen mark (inventory-changes.md)
-                stacks = ctx.game(instance).rpc({"cmd": "stack_extras", "object": 0x14, "item": item}).get("stacks") or []
-                return sum(s["count"] for s in stacks if 0x21 in (s.get("types") or []))
+            item, owner = int(name, 16), int(of, 16)
+            def stolen():  # each stack's ExtraOwnership and ExtraCount, as item_stacks reads them (the engine's stolen mark)
+                stacks = ctx.game(instance).rpc({"cmd": "item_stacks", "object": 0x14}).get("stacks") or []
+                return sum(s.get("count", 1) for s in stacks if s.get("item") == item and s.get("owner") == owner)
             want = (value or [1])[0]
             try:
-                ctx.wait_for(f"[{game or 'host'}] the player's {name} is stolen", lambda: stolen() >= want, seconds or 5)
+                ctx.wait_for(f"[{game or 'host'}] the player's {name} is {of}'s", lambda: stolen() >= want, seconds or 5)
             except TestFailure:
-                raise ctx.failure(f"[{game or 'host'}] the player holds {stolen()} of {name} marked another's, not {want}") from None
+                raise ctx.failure(f"[{game or 'host'}] the player holds {stolen()} of {name} owned by {of}, not {want}") from None
             return {"stolen": stolen()}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
@@ -1251,8 +1251,8 @@ class ReproActions:
             session = flatten(ctx.actor_row(instance, form)).get("mod.session_id")
             return (form, f"session {session}", [f"session {session}"])
         targets = {label: as_target(label, instance) for label, instance in games} if target else {}
-        # A list of plain values (equipment, hands) has no order: compared as a sorted list.
-        unordered = lambda seen: sorted(seen) if isinstance(seen, list) and all(isinstance(v, (int, float)) for v in seen) else seen
+        # The worn equipment list has no order: compared sorted. Others keep theirs (state.hands is [left, right]).
+        unordered = lambda seen: sorted(seen) if field == "equipment" and isinstance(seen, list) else seen
         def wrong(got):
             if value is None:
                 return len(set(repr(unordered(seen)) for seen in got.values())) > 1

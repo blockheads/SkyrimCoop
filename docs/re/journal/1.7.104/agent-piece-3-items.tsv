@@ -72,3 +72,4 @@ time	op	id	rva	item
 2026-11-19T20:28:29Z	read		0x6a9f20	{"name": "Actor::KillImpl"}
 2026-11-19T20:53:32Z	read	11810	0x169670	{"name": "ExtraDataList::GetLeveledNPC"}
 2026-11-19T20:53:52Z	comment	11810	0x169670	{"addr": "0x140169670", "comment": "ID 11810. ExtraLeveledCreature (0x2D) +0x10: the ORIGINAL base the actor was placed from (a leveled character such as LvlBanditBoss 3DF17, a permanent form), not the temporary resolved NPC. 16059 stamps this as a theft's owner. coop piece-3."}
+2026-11-19T21:18:32Z	type	418622	0x3c4440	{"addr": "0x1403c4440", "kind": "function", "signature": "void __fastcall TESNPC__ResetWornToOutfit(void *apNpc, void *apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag)"}

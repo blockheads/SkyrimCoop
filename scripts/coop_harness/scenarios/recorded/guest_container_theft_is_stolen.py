@@ -16,7 +16,7 @@ def run(ctx):
         ctx.console_on('', 'C2CE8.additem 64B3D 2')
         ctx.expect('chest', 'items', within=5.0, seconds=5.0)  # by hand: waits for the host's additem to arrive
         ctx.take('client', 'chest')
-        ctx.expect('64B3D', 'stolen', within=5.0, game='guest', value=[2], seconds=5.0)  # by hand: 2, one additem
+        ctx.expect('64B3D', 'stolen', within=5.0, game='guest', value=[2], of='13479', seconds=5.0)  # by hand: 2, one additem; Orgnar's
         ctx.player_command('client', {'cmd': 'stack_extras', 'object': 20, 'item': 412477})
     finally:
         # By hand: the test-room chest is nobody's again and the guest holds no sweetroll, for the scenarios after

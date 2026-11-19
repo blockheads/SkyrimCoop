@@ -1822,12 +1822,13 @@ void HookUpdateAI(Actor* apThis, float aDelta)
 
 // TESNPC::ResetWornToOutfit (418622): worn items off (16100), the hands emptied, the base's outfit on; past our equip hooks.
 // Callers: ResetInventory, InitLoadGame, SetLevel, TESNPC::InitWornOn3D 24725 (inventory-changes.md).
-using TResetWornToOutfit = void(void* apNpc, Actor* apActor, void* apUnk, bool aUnk1, int32_t aUnk2, bool aUnk3);
+// Four byte arguments (24725's call: r8b, r9b, two stack bytes); the fourth picks the best weapons carried.
+using TResetWornToOutfit = void(void* apNpc, Actor* apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag);
 static TResetWornToOutfit* RealResetWornToOutfit = nullptr;
 
-void HookResetWornToOutfit(void* apNpc, Actor* apActor, void* apUnk, bool aUnk1, int32_t aUnk2, bool aUnk3)
+void HookResetWornToOutfit(void* apNpc, Actor* apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag)
 {
-    RealResetWornToOutfit(apNpc, apActor, apUnk, aUnk1, aUnk2, aUnk3);
+    RealResetWornToOutfit(apNpc, apActor, aUnused3, aEquipBestWeapons, aUnused5, aKeepTlsFlag);
     if (apActor)
         World::Get().GetRunner().Trigger(WornResetEvent{apActor->formID});
 }

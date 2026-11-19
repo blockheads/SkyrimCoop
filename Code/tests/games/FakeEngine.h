@@ -1123,6 +1123,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The actor readies a spell in a hand (0 left, 1 right), as EquipSpellHook (38928) then the engine: selected, held
     // with 3D; a local actor's change raised (EquipmentChangeEvent).
     void EquipsSpell(uint32_t aActor, const GameId& acSpell, uint32_t aHand);
+    // The actor's player selects a shout or power (none: clears it), as the favorites menu does (EquipShout).
+    void EquipsShout(uint32_t aActor, const GameId& acShout);
     // The native's own write on aActor, as the engine makes it.
     void TakeProgress(const LocalCall& acCall, uint32_t aActor);
     // Objects: an actor activates one by itself (opens a door, pulls a lever), as our hook on TESObjectREFR::Activate
@@ -1618,6 +1620,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // EquipManager's, ours: under ScopedEquipOverride, as EquipManager::Equip and UnEquip set it.
     void ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept override;
     void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
+    void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
 
     [[nodiscard]] bool Has(uint32_t aFlags) const noexcept

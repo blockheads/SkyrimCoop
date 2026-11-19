@@ -2,6 +2,7 @@
 // count, whatever reached it first.
 #include "Party.h"
 #include "Fixtures.h"
+#include <Games/Overrides.h>
 #include <Services/ContainerTransfers.h>
 
 namespace
@@ -120,4 +121,87 @@ SCENARIO("A host script taking an item from a guest's character takes it on the 
     party.As(party.Host(), [&] { host.LosesItem(cCopy, kIronSword, 1); });
     party.Until([&] { return guest.CountOf(FakeEngine::kPlayer, kIronSword) == 0; }, "the guest's own player loses the sword");
     party.Agree("the copy carries what its owner does");
+}
+
+namespace
+{
+// A party reward on a guest's player and on the host's copy of it, as the party store puts it in each (party-items.md).
+Inventory::Entry PartySword()
+{
+    return {.BaseId = GameId(0, kIronSword), .Count = 1, .ExtraName = "[P] Iron Sword"};
+}
+
+uint32_t GivePartySword(Party& aParty)
+{
+    auto& host = Party::Engine(aParty.Host());
+    auto& guest = Party::Engine(aParty.Guest());
+    aParty.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
+    const uint32_t cCopy = PlayerCopy(host);
+    aParty.As(aParty.Guest(), [&] {
+        ScopedInventoryOverride _;
+        guest.GetsItem(FakeEngine::kPlayer, PartySword());
+    });
+    aParty.As(aParty.Host(), [&] {
+        ScopedInventoryOverride _;
+        host.GetsItem(cCopy, PartySword());
+    });
+    return cCopy;
+}
+
+int32_t Tagged(const FakeEngine& acEngine, uint32_t aActor)
+{
+    int32_t count = 0;
+    for (const auto& cStack : acEngine.EntriesOf(aActor, kIronSword))
+        if (cStack.ExtraName == PartySword().ExtraName)
+            count += cStack.Count;
+    return count;
+}
+} // namespace
+
+SCENARIO("A player's copy keeps its party sword when its owner gets a plain one", "[items][items-part][party-items]")
+{
+    // Review of PR #83: a player's party stacks are the party store's, so the copy's items apply only the private ones,
+    // even while its owner's part does not name the reward yet (the store reached the copy first).
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
+    const uint32_t cCopy = PlayerCopy(host);
+    party.As(party.Host(), [&] {
+        ScopedInventoryOverride _;
+        host.GetsItem(cCopy, PartySword());
+    });
+    party.As(party.Guest(), [&] { guest.GetsItem(FakeEngine::kPlayer, kIronSword, 1); });
+    party.Until([&] { return host.CountOf(cCopy, kIronSword) == 2; }, "the host's copy carries both swords");
+    CHECK(Tagged(host, cCopy) == 1);
+}
+
+SCENARIO("A player's copy wears the party sword its owner equips", "[items][items-part][party-items]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    const uint32_t cCopy = GivePartySword(party);
+    party.As(party.Guest(), [&] { guest.Equips(FakeEngine::kPlayer, kIronSword); });
+    party.Until([&] { return Wears(host, cCopy, kIronSword); }, "the host's copy wears the party sword");
+    party.As(party.Guest(), [&] { guest.Unequips(FakeEngine::kPlayer, kIronSword); });
+    party.Until([&] { return !Wears(host, cCopy, kIronSword); }, "the host's copy takes it off");
+    CHECK(Tagged(host, cCopy) == 1);
+}
+
+SCENARIO("A player's copy selects the shout its owner selects, switches and clears it", "[items][items-part][shout]")
+{
+    // Review of PR #83: a shout has no worn flag; the items part carries it beside the hands.
+    constexpr uint32_t kUnrelentingForce = 0x13E07, kWhirlwindSprint = 0x2F7BA;
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
+    const uint32_t cCopy = PlayerCopy(host);
+    const auto cShout = [&] { return host.Actors.at(cCopy).Items.CurrentMagicEquipment.Shout; };
+    for (const GameId& cWanted : {GameId(0, kUnrelentingForce), GameId(0, kWhirlwindSprint), GameId{}})
+    {
+        party.As(party.Guest(), [&] { guest.EquipsShout(FakeEngine::kPlayer, cWanted); });
+        party.Until([&] { return cShout() == cWanted; }, std::format("the host's copy selects shout {:X}", cWanted.BaseId));
+    }
 }

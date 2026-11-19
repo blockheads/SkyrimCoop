@@ -1093,6 +1093,22 @@ Agent task: read where `F11B6` came from, in the guest's log and the host's.
 
 Size: small. Needs: the duo.
 
+### A guest's store of an item held in a list
+
+Stands alone: one container scenario.
+
+Agent task: Make the guest's own removal of a stored item take it from the list that holds it.
+
+Size: small. Needs: the duo (the fake holds no plain lists on an actor).
+
+- From the review of PR #83 (read, not run): a guest storing an item its game holds only in a list that reads as
+  plain (worn, or a roll's `ExtraLeveledItem`) gets a plain negative grant (`ContainerTransfers::Stack` clears the
+  worn flags). `TESObjectREFR::AddOrRemoveItem` passes no list for it, and 16059 takes only the loose count, so the
+  guest keeps the item the chest was given. The host's side moves the copy's real list (`HostEngine::TransferContainer`).
+  Dev does the same on the guest.
+  - Start: in `AddOrRemoveItem`'s plain removal, take the rest through the lists that read as plain, each by its
+    `ExtraCount`, as `SetCarriedStacks` does.
+
 ### A party item removed without its tag
 
 Stands alone: one party stack on a player's copy.
@@ -1108,6 +1124,10 @@ Size: small. Needs: GameTests, then the duo.
   else carries it (a player's items part leaves party stacks out). The host's copy holds 1, the guest 0; the next
   scenario's end comparison fails on it. Before piece 3 the relay took it off the copy, the party's store still at 1.
   - Start: `SendRemoval` (TESObjectREFR.cpp) reads no list for a plain removal; what the party's store should do then.
+- **Both copies keep it** (2026-11-19, review of PR #83): a player's copy now applies only its owner's private items and
+  keeps its party stacks as the party's store sets them, so after that cleanup the store's 1 stays on the host's and the
+  guest's copies (players 0), and `party-item-moves-host` run next stops at "a player carries [P] Key to Breezehome to
+  begin with". Alone on a fresh boot it passes.
 
 ### A spawn's inventory over a newer equip
 

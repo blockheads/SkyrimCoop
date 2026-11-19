@@ -67,7 +67,10 @@ loot no longer passes through the host's copy of the looter, and a stack carries
 16059's target only moved the item and stamped a theft's owner on it, so a guest's container theft was never stolen on its
 own game (read in IDA; `guest-container-theft-is-stolen`, MCP with a new `expect stolen`, fails 3 of 3 on dev, passes 5
 of 5; GameTests "A guest's theft from an owned chest is the owner's on the guest's game"). Also read: why the outfit
-reset keeps a copy's items (our forced equips lock them, `ExtraCannotWear`; inventory-changes.md).
+reset keeps a copy's items (our forced equips lock them, `ExtraCannotWear`; inventory-changes.md). Review of PR #83:
+a put still moves from the host's copy of the player (spent at once against a second put), a player's copy keeps its
+party stacks and wears the ones its owner does (the part carries them, the party's store counts them), a copy applies
+its owner's shout, a record part can pass 64 KB, a version 3 character co-save still loads (version 4: owners).
 
 2026-11-18: **actor state as record parts, piece 2 of one-simulator.md, built** (`agent/piece-2-actor-state`): a copy
 gets what its owner set beside the graph from three new parts. `kActorState` (sneak, block, bleedout and the other

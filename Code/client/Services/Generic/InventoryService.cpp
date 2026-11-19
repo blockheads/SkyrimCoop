@@ -252,8 +252,17 @@ bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) no
             if (m_formBridge.FormExists(aItemId))
                 m_formBridge.ActorUnequipItem(cActorFormId, aItemId, EquipmentRepair::EquipSlot(m_formBridge.GetFormType(aItemId), aLeft), 1);
         });
+    // The selected shout or power (EquipShout): no worn flag, apart from the worn set.
+    const GameId cShout = m_formBridge.GetActorEquipment(cActorFormId).CurrentMagicEquipment.Shout;
+    if (cShout != cWantedMagic.Shout)
+    {
+        if (cWantedMagic.Shout)
+            m_formBridge.ActorEquipShout(cActorFormId, ToGame(cWantedMagic.Shout));
+        else
+            m_formBridge.ActorUnequipShout(cActorFormId, ToGame(cShout));
+    }
     const Inventory cAfter = m_formBridge.GetActorEquipment(cActorFormId);
-    return worn(cAfter) == cWanted && cHandsAgree(cAfter);
+    return worn(cAfter) == cWanted && cHandsAgree(cAfter) && cAfter.CurrentMagicEquipment.Shout == cWantedMagic.Shout;
 }
 
 Inventory InventoryService::ReadItems(uint32_t aFormId) const noexcept
@@ -261,9 +270,10 @@ Inventory InventoryService::ReadItems(uint32_t aFormId) const noexcept
     constexpr uint8_t cLeveledItem = 53; // FormType::LeveledItem: a base container's leveled list, listed as it is
     Inventory items = m_actorBridge.GetActorInventory(aFormId);
     const bool cPlayer = aFormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId() || m_actorBridge.IsOtherPlayer(aFormId);
+    // A player's gold is the party's purse; its party stacks stay in (their worn state), counted by the party store.
     std::erase_if(items.Entries, [&](const Inventory::Entry& acEntry) {
         return m_formBridge.GetFormType(ToGame(acEntry.BaseId)) == cLeveledItem ||
-               (cPlayer && (acEntry.BaseId == Payloads::PartyGold::kGold || PartyItems::IsParty(acEntry)));
+               (cPlayer && acEntry.BaseId == Payloads::PartyGold::kGold);
     });
     return items;
 }
@@ -344,17 +354,19 @@ void InventoryService::ApplyItems(uint32_t aId, const std::string& acBytes) noex
         return;
     }
     const Inventory cHeld = ReadItems(cFormId);
+    // A player's party stacks are the party store's (party-items.md): its copy keeps the ones it holds.
+    const bool cPlayer = m_actorBridge.IsOtherPlayer(cFormId);
     // Each item's count and its stacks with extra data, worn flags aside: the wearing is ApplyWorn's.
     std::vector<GameId> items;
     for (const std::vector<Inventory::Entry>* cpStacks : {&cHeld.Entries, static_cast<const std::vector<Inventory::Entry>*>(&part.Items.Entries)})
         for (const auto& cStack : *cpStacks)
             if (std::ranges::find(items, cStack.BaseId) == items.end())
                 items.push_back(cStack.BaseId);
-    const auto cOf = [](const std::vector<Inventory::Entry>& acStacks, const GameId& acItem) {
+    const auto cOf = [cPlayer](const std::vector<Inventory::Entry>& acStacks, const GameId& acItem, bool aParty = false) {
         std::pair<int32_t, std::vector<Inventory::Entry>> of;
         for (Inventory::Entry stack : acStacks)
         {
-            if (stack.BaseId != acItem)
+            if (stack.BaseId != acItem || (cPlayer && PartyItems::IsParty(stack) != aParty))
                 continue;
             of.first += stack.Count;
             stack.ExtraWorn = stack.ExtraWornLeft = stack.IsQuestItem = false;
@@ -385,7 +397,14 @@ void InventoryService::ApplyItems(uint32_t aId, const std::string& acBytes) noex
         if (cWantedCount == cHeldCount && cSameStacks(cHeldStacks, cWantedStacks))
             continue;
         spdlog::debug("Copy {:X}: item {:X} {} -> {}", cFormId, cItem.LogFormat(), cHeldCount, cWantedCount);
-        m_formBridge.SetCopyItemCount(cFormId, cItem, cWantedCount, cWantedStacks);
+        auto [count, stacks] = cOf(part.Items.Entries, cItem);
+        if (cPlayer)
+        {
+            const auto [cPartyCount, cPartyStacks] = cOf(cHeld.Entries, cItem, true);
+            count += cPartyCount;
+            stacks.insert(stacks.end(), cPartyStacks.begin(), cPartyStacks.end());
+        }
+        m_formBridge.SetCopyItemCount(cFormId, cItem, count, stacks);
     }
     if (ApplyWorn(cFormId, part.Items))
         m_unsettled.erase(aId);

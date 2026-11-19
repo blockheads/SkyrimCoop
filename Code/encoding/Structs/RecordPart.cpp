@@ -10,7 +10,9 @@ void RecordPart::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     aWriter.WriteBits(static_cast<uint8_t>(Kind), 8);
     Serialization::WriteVarInt(aWriter, Version);
-    Serialization::WriteString(aWriter, Bytes);
+    // Its own length, not WriteString's 16 bits: a full items part can pass 64 KB.
+    Serialization::WriteVarInt(aWriter, Bytes.size());
+    aWriter.WriteBytes(std::span(reinterpret_cast<const uint8_t*>(Bytes.data()), Bytes.size()));
 }
 
 void RecordPart::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -19,7 +21,8 @@ void RecordPart::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     aReader.ReadBits(kind, 8);
     Kind = static_cast<RecordKind>(kind & 0xFF);
     Version = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    Bytes = Serialization::ReadString(aReader);
+    Bytes.assign(Serialization::ReadVarInt(aReader) & 0xFFFFFF, '\0');
+    aReader.ReadBytes(std::span(reinterpret_cast<uint8_t*>(Bytes.data()), Bytes.size()));
 }
 
 void RecordParts::Serialize(Wire::Buffer::Writer& aWriter) const noexcept

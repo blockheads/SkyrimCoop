@@ -304,8 +304,12 @@ HostItems::OnContainerTransfer         the loot to the looter alone; the NPC's c
   announcement and an ask carry the whole part. A copy missing a version asks (`CopyRecords::AskWith`), as does the host.
 - Stacks are matched ignoring charge (`ItemsPart::SameStack`): an enchanted weapon's falling charge sends nothing and
   never makes a copy take its sword off and on.
-- A guest's loot no longer passes through the host's copy of the looter: `HostEngine::TransferContainer` changes only
-  the container, and the looter's game changes its player. 16059's target only moved the item and marked a theft
+- A guest's take no longer passes through the host's copy of the looter: `HostEngine::TransferContainer` changes only
+  the container, and the looter's game changes its player. A put still moves from the host's copy of the player: its
+  count is spent at once, so a second put before the player's next part finds nothing, and the copy's real list (worn,
+  a roll's) goes to the container.
+- A player's part carries its party stacks too (their worn state); a copy applies only the private counts and keeps
+  the party stacks the party's store gave it. 16059's target only moved the item and marked a theft
   (inventory-changes.md, "What 16059's target does"); a stack now carries its owner (`Inventory::Entry::ExtraOwner`),
   so the grant marks a theft on the looter's own game. The vampire lord's model fix still lands after
   the copy's items at its 3D (`CopyRecords::ApplyAgain`).

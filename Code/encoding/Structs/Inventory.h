@@ -62,7 +62,8 @@ struct Inventory
         bool operator!=(const Entry& acRhs) const noexcept;
 
         void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-        void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+        // aOwner false: written before ExtraOwner (character co-saves of version 3).
+        void Deserialize(Wire::Buffer::Reader& aReader, bool aOwner = true) noexcept;
 
         bool ContainsExtraData() const noexcept { return !IsExtraDataEquals(Entry{}); }
 
@@ -93,7 +94,7 @@ struct Inventory
     bool operator!=(const Inventory& acRhs) const noexcept;
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader, bool aOwners = true) noexcept;
 
     std::optional<Entry> GetEntryById(GameId& aItemId) const noexcept;
     int32_t GetEntryCountById(GameId& aItemId) const noexcept;

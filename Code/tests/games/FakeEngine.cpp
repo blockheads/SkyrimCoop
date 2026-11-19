@@ -1099,6 +1099,26 @@ void FakeEngine::EquipsSpell(uint32_t aActor, const GameId& acSpell, uint32_t aH
     EquipSpells(aActor, magic);
 }
 
+void FakeEngine::EquipsShout(uint32_t aActor, const GameId& acShout)
+{
+    auto& actor = Actors.at(aActor);
+    if (!actor.Copy)
+        World::Get().GetRunner().Trigger(EquipmentChangeEvent{.ActorId = aActor, .ItemId = ::ItemForm(acShout), .Unequip = !acShout, .IsShout = true});
+    actor.Items.CurrentMagicEquipment.Shout = acShout;
+}
+
+void FakeEngine::ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept
+{
+    if (auto it = Actors.find(aActorFormId); it != Actors.end())
+        it->second.Items.CurrentMagicEquipment.Shout = ToSession(aShoutFormId).value_or(GameId{});
+}
+
+void FakeEngine::ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept
+{
+    if (auto it = Actors.find(aActorFormId); it != Actors.end() && ::ItemForm(it->second.Items.CurrentMagicEquipment.Shout) == aShoutFormId)
+        it->second.Items.CurrentMagicEquipment.Shout = {};
+}
+
 void FakeEngine::RevertSelectedSpells(uint32_t aFormId)
 {
     auto& actor = Actors.at(aFormId);

@@ -14,7 +14,7 @@ def run(ctx):
         ctx.stage({'npcs': [{'name': 'bandit', 'base': '3DF17', 'frozen': True}]})
         ctx.console_on('', f"{ctx.resolve('bandit', 'host'):X}.additem 64B3D 2")
         ctx.pickpocket('client', 'bandit', 'Sweet Roll', False)
-        ctx.expect('64B3D', 'stolen', within=5.0, game='guest', value=[1], seconds=5.0)
+        ctx.expect('64B3D', 'stolen', within=5.0, game='guest', value=[1], of='3DF17', seconds=5.0)  # by hand: owned by LvlBanditBoss
     finally:
         ctx.console_on('client', 'player.removeitem 64B3D 99')
         ctx.unstage()

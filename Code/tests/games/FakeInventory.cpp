@@ -252,7 +252,13 @@ void FakeEngine::AddItems(uint32_t aActor, uint32_t aItem, int32_t aCount)
         return;
     const GameId cId = ServerId(aItem);
     auto& entries = cActor->second.Items.Entries;
-    auto it = std::find_if(entries.begin(), entries.end(), [&](const auto& acEntry) { return acEntry.BaseId == cId; });
+    // Plain items: the item's entry with no extra data of its own (a named or tempered stack is its own list).
+    const auto cPlain = [&](const Inventory::Entry& acEntry) {
+        Inventory::Entry bare = acEntry;
+        bare.ExtraWorn = bare.ExtraWornLeft = bare.IsQuestItem = false;
+        return acEntry.BaseId == cId && !bare.ContainsExtraData();
+    };
+    auto it = std::find_if(entries.begin(), entries.end(), cPlain);
     if (it == entries.end())
     {
         if (aCount < 0)
@@ -266,7 +272,7 @@ void FakeEngine::AddItems(uint32_t aActor, uint32_t aItem, int32_t aCount)
     {
         if (it->IsWorn())
             Unequip(aActor, aItem, 0);
-        std::erase_if(entries, [&](const auto& acEntry) { return acEntry.BaseId == cId; });
+        std::erase_if(entries, cPlain);
         return;
     }
     it->Count += aCount;

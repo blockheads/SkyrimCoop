@@ -199,10 +199,13 @@ void HostService::MakeAuthority() noexcept
         const bool cTake = moved.Count > 0;
         const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.References.at(cContainer).Items[cItem]) : engine.CountOf(cPlayer, cItem);
         moved.Count = std::min(std::abs(moved.Count), cAvailable) * (cTake ? 1 : -1);
-        // As HostEngine::TransferContainer: only the container changes here; the player's own game changes its player.
+        // As HostEngine::TransferContainer: a take changes only the container, the player's own game its player; a put
+        // moves from the player's copy here.
         if (moved.Count)
         {
             ScopedInventoryOverride _;
+            if (!cTake)
+                engine.GetsItem(cPlayer, moved);
             Inventory::Entry other = moved;
             other.Count = -other.Count;
             if (acRequest.ContainerActorId)

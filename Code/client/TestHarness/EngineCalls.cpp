@@ -1159,10 +1159,10 @@ std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcep
     auto* pNpc = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
     if (!pNpc)
         return std::nullopt;
-    // As TESNPC::InitWornOn3D (24725) calls it: (npc, actor, 1, process-allows, 0, 0).
-    using TReset = void(TESNPC*, Actor*, uintptr_t, bool, int32_t, bool);
+    // As TESNPC::InitWornOn3D (24725) calls it: four bytes (1, process-allows, 0, 0).
+    using TReset = void(TESNPC*, Actor*, bool, bool, bool, bool);
     POINTER_SKYRIMSE(TReset, s_reset, 418622);
-    s_reset.Get()(pNpc, pActor, 1, true, 0, false);
+    s_reset.Get()(pNpc, pActor, true, true, false, false);
     std::vector<uint32_t> worn;
     for (const auto& cEntry : pActor->GetEquipment().Entries)
         worn.push_back(ItemForm(cEntry.BaseId));

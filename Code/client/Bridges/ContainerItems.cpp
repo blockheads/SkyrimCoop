@@ -5,6 +5,7 @@
 
 #include <Actor.h>
 #include <ExtraData/ExtraContainerChanges.h>
+#include <ExtraData/ExtraCount.h>
 #include <Games/Overrides.h>
 #include <TESObjectREFR.h>
 
@@ -224,8 +225,9 @@ bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCou
         if (cStack.Count > 0)
             aActor.AddObjectToContainer(&aItem, TESObjectREFR::GetExtraDataFromItem(cStack, true), cStack.Count, nullptr);
     aActor.SetContainerCount(&aItem, aCount);
-    // A no-list removal takes only what no list holds (16059): the rest through the lists that read as plain (a roll's).
-    for (int tries = 0; tries < 64 && aActor.GetContainerCount(&aItem).value_or(0) > aCount; ++tries)
+    // A no-list removal takes only what no list holds (16059): the rest through the lists that read as plain (a roll's),
+    // each standing for its ExtraCount (none: one), while each pass takes some.
+    for (int32_t held = aActor.GetContainerCount(&aItem).value_or(0); held > aCount;)
     {
         ExtraDataList* pPlain = nullptr;
         if (auto* pEntry = FindEntry(aActor, aItem); pEntry && pEntry->dataList)
@@ -237,8 +239,13 @@ bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCou
                 }
         if (!pPlain)
             break;
-        const int32_t cOver = aActor.GetContainerCount(&aItem).value_or(0) - aCount;
-        aActor.RemoveItem(&aItem, std::min<int32_t>(cOver, std::max<int32_t>(pPlain->GetCount(), 1)), ITEM_REMOVE_REASON::kRemove, pPlain, nullptr);
+        const auto* pCount = static_cast<const ExtraCount*>(pPlain->GetByType(ExtraDataType::Count));
+        const int32_t cInList = pCount && pCount->count > 0 ? pCount->count : 1;
+        aActor.RemoveItem(&aItem, std::min(held - aCount, cInList), ITEM_REMOVE_REASON::kRemove, pPlain, nullptr);
+        const int32_t cNow = aActor.GetContainerCount(&aItem).value_or(0);
+        if (cNow >= held)
+            break;
+        held = cNow;
     }
     return true;
 }
