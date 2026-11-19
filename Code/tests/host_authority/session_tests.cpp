@@ -311,6 +311,40 @@ TEST_CASE("A player going down reaches every game, its own too, with its name", 
     }
 }
 
+TEST_CASE("An older AI state part does not end the fight that holds a downed player's recovery", "[HostAuthority][records][death]")
+{
+    Session session;
+    const uint32_t cStanding = session.Character(kOtherPeer);
+    const uint32_t cNpc = session.Character(kHost);
+    PlayerDeathRequest down;
+    down.SessionId = session.Character(kPeer);
+    down.Generation = 1;
+    down.Down = true;
+    session.Receive(kPeer, down);
+
+    const auto cPart = [&](uint32_t aVersion, bool aFighting) {
+        ActorAiState ai;
+        ai.Combat = aFighting;
+        ai.CombatTarget.SessionId = aFighting ? cStanding : 0;
+        RecordRequest part;
+        part.Id = cNpc;
+        part.Part = {RecordKind::kAiState, aVersion, ToPartBytes(ai)};
+        return part;
+    };
+    const auto cCombat = [&] {
+        const auto cParty = session.SentTo<NotifyPartyDeath>(kPeer);
+        REQUIRE(!cParty.empty());
+        return cParty.back()->Combat;
+    };
+    session.Receive(kHost, cPart(2, true));
+    CHECK(cCombat());
+    session.Receive(kHost, cPart(1, false)); // late
+    session.Receive(kHost, cPart(2, false)); // the same version again
+    CHECK(cCombat());
+    session.Receive(kHost, cPart(3, false));
+    CHECK_FALSE(cCombat());
+}
+
 TEST_CASE("A player killed by another player: every game's chat names the killer; an NPC's kill names no one",
           "[HostAuthority][Session]")
 {

@@ -131,6 +131,11 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_devTools(*this, m_players, m_characters, m_game)
 {
     using enum Delivery;
+    m_records.OnKept = [this](uint32_t aId, const RecordPart& acPart) {
+        ActorAiState state;
+        if (acPart.Kind == RecordKind::kAiState && FromPartBytes(acPart.Bytes, state))
+            m_death.OnAiState(aId, state);
+    };
 
     // Players
     On(*this, &HostAuthority::OnPlayerLevel);

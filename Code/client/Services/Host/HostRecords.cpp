@@ -78,6 +78,8 @@ void HostRecords::OnRecord(const RecordRequest& acRequest, ConnectionId_t aSende
     if (acRequest.Part.Version <= held.Version)
         return;
     held = acRequest.Part;
+    if (OnKept)
+        OnKept(acRequest.Id, held);
     NotifyRecord notify;
     static_cast<Payloads::Record&>(notify) = acRequest;
     m_players.SendToOthers(notify, aSender, Net::kReliable);

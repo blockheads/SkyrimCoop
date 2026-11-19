@@ -5,6 +5,7 @@
 #include <Messages/RelayedMessages.h>
 #include <Structs/RecordPart.h>
 
+#include <functional>
 #include <map>
 #include <unordered_map>
 
@@ -42,6 +43,8 @@ struct HostRecords
     void Forget(uint32_t aSessionId) noexcept { m_parts.erase(aSessionId); }
     // Every part held of a character, for a spawn of it.
     [[nodiscard]] RecordParts PartsOf(uint32_t aSessionId) const noexcept;
+    // Told each part kept (its owner's, newer than the one held), before it goes out.
+    std::function<void(uint32_t aSessionId, const RecordPart& acPart)> OnKept;
 
 private:
     // A part from its actor's owner: kept if newer than the one held, and sent to every other game.

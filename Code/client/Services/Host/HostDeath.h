@@ -43,6 +43,8 @@ struct HostDeath
     // A player's character is in the world (it counts from here), and the AI state a character arrived with.
     void Entered(ConnectionId_t aPlayer, uint32_t aCharacterId) noexcept;
     void InitialAi(uint32_t aCharacterId, const ActorAiState& acState) noexcept;
+    // A character's AI state as the host keeps it (HostRecords: its owner's, newest version only).
+    void OnAiState(uint32_t aCharacterId, const ActorAiState& acState) noexcept;
     void Left(ConnectionId_t aPlayer) noexcept;
     // A party reload failed: every player is told why.
     void FailReload(const std::string& acError) noexcept;
@@ -55,8 +57,6 @@ struct HostDeath
 
 private:
     void OnDeath(const PlayerDeathRequest& acRequest, ConnectionId_t aSender) noexcept;
-    // A character's combat, from its owner (its record's AI state part, watched).
-    void OnRecord(const RecordRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Who is down and who fights decides a wipe, the recovery timer, or neither.
     void Reconsider() noexcept;
     [[nodiscard]] bool StandingPlayerFights(const std::set<uint32_t>& acStanding) const noexcept;
