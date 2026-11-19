@@ -498,6 +498,17 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 
 void FakeEngine::Frame()
 {
+    for (auto it = PairEndIn.begin(); it != PairEndIn.end();)
+        if (--it->second == 0)
+        {
+            if (Actors.contains(it->first) && !Actors.at(it->first).Copy)
+                SyncedMounts.insert(it->first);
+            it = PairEndIn.erase(it);
+        }
+        else
+            ++it;
+    for (const auto [cRider, cMount] : std::map(std::exchange(MountRetryOf, {})))
+        ActivateMount(cRider, cMount);
     for (auto it = DismountIn.begin(); it != DismountIn.end();)
         if (--it->second == 0)
         {
@@ -1208,6 +1219,12 @@ bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
         return true;
     }
     World::Get().GetRunner().Trigger(MountEvent{aActivator, aMount});
+    if (SyncedMounts.erase(aMount))
+    {
+        ++RefusedGetOns;
+        MountRetryOf[aActivator] = aMount;
+        return true;
+    }
     Mounts[aActivator] = aMount;
     MountSlots[aMount] = aActivator;
     if (aActivator == kPlayer)
@@ -1226,8 +1243,13 @@ void FakeEngine::EndRide(uint32_t aRider) noexcept
     MountSlots.erase(cMountId); // 40355 with null: whichever rider it named
     if (const auto cReins = Reins.find(cMountId); cReins != Reins.end() && cReins->second == aRider)
         Reins.erase(cReins);
-    if (const auto it = Actors.find(aRider); it != Actors.end() && it->second.Copy && Actors.contains(cMountId) && !Actors.at(cMountId).Copy)
-        SyncedMounts.insert(cMountId);
+    if (const auto it = Actors.find(aRider); it != Actors.end() && it->second.Copy && Actors.contains(cMountId))
+    {
+        if (!Actors.at(cMountId).Copy)
+            SyncedMounts.insert(cMountId);
+        else
+            PairEndIn[cMountId] = StreamPairEndFrames;
+    }
     // HookDetachInteraction: any rider's ride ended.
     if (const auto it = Actors.find(aRider); it != Actors.end())
         World::Get().GetRunner().Trigger(DismountEvent{aRider, cMountId, it->second.Copy});

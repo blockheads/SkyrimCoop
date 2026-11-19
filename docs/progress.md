@@ -59,16 +59,44 @@ lists follow the player character's name part, `PlayerNameRequest` gone). An act
 gives its owner's flags but the part's bits, as before for every bit not read yet. Gone: `DrawWeaponRequest`/
 `NotifyDrawWeapon` and the 0.25 s hands poll, `CacheComponent`. The design's `ExtraForcedTarget` for a copy's swing was
 dropped: it skips reach (38608); the copy's `+0x104` already limits its swing to its owner's target (read in IDA, measured on the duo; closes "An NPC copy's swing picks the nearest")
-([actor-state.md](re/systems/actor-state.md)). Tests: GameTests `[actor-state]` (5), two name flows; closes "A mod's rename at run time"; ClientTests
-`[actor-state]` (5), HostAuthorityTests (parts from the owner only).
+([actor-state.md](re/systems/actor-state.md)). Tests: GameTests `[actor-state]` (9), two name flows, ClientTests `[actor-state]` (5), HostAuthorityTests;
+scenario `script-renames-reach-party` (fails on dev); closes "A mod's rename at run time".
+
+2026-11-18: the duo's ~400 ms stalls about once a second at a repro scene's start were the test harness's own
+(`agent/duo-stall-profile`, [harness-cost.md](re/systems/harness-cost.md)). The command server built and wrote every
+reply's JSON on the game's main thread, and the scene's world baseline asks for the whole town's `world_state` back
+to back (in Riverwood up to 451 ms a call). `world_state` now copies the references out on the main thread and
+builds its JSON on a worker (`Command::Gather`; replies still go out in order, `ReplyQueue`, ClientTests), and so does
+the status file; other replies stay in their frame (a `console_result` held a frame got lost behind a load): `world_state`
+went to 21 ms on the main thread, and the scene's settle window has no stall left. `profile` lists each command's
+main-thread time (`harness <cmd> us`) and builds Tracy's Linux tools from any worktree. Players' builds are unchanged
+(test builds only). `horse-passes-between-riders` still fails its last ride (the guest does not see the horse ridden),
+before and after: that is the horse bug, not this.
+
+2026-11-18: **a guest's rejoin works again** (`agent/rejoin-guest`): a join while joined made the guest's one-peer ENet
+host store a null peer over its live one, so the host kept the old connection (and the guest's character) and every
+later join was unreachable. `Net::Client::Connect`/`ConnectByIp` now refuse while a peer or a resolve is held, the
+harness's join while joined fails at once, `rejoin_client` leaves first, and the MCP has a verb
+`guest_leaves_to_main_menu` (join-flow.md, Leaving and kick). With rejoins working, "A copy that looks at nobody" is
+closed: Lucan's copy looks at the host's player like its owner after both rejoin paths. Tests: HostAuthorityTests "a
+guest's second connect keeps its first connection", GameTests `[rejoin]`; scenario `guest-rejoins-while-joined` (its steps pass; its end
+comparison fails on bugs.md's open "References differ").
 
 2026-11-18: **the copy record, piece 1 of one-simulator.md, built** (`agent/copy-record`): every game keeps each actor's
 last declared state in versioned parts by session id (`Services/CopyRecords`), the host keeps them and puts them on every
 spawn (`HostRecords`), a part waits for its copy and for an actor it names, and a game can ask for one again. One part
 moved onto it, AI state: `AiStateRequest`/`NotifyAiState` and the spawn's `AiState` are gone; a look or combat target
-named before its copy exists is applied when it appears ("A copy that looks at nobody" stays open until a duo scenario
+named before its copy exists is applied when it appears ("A copy that looks at nobody": closed by the rejoin entry above, whose duo scenario
 shows the player path). The other caches move in later PRs.
 Tests: GameTests `[copy-records]` (3), ClientTests `[copy-records]` (6), HostAuthorityTests `[records]` (4).
+
+2026-11-18: a horse ridden by the host, then a guest, then the host again shows the host riding on the guest's game
+(`agent/horse-riding-copy`, `docs/re/systems/mounts.md`, "A horse taken back mid-pair"). The host took the horse back
+while it still replayed the guest's exit pair, whose `PairEnd` then never came. The host's get-on was refused and
+retried (39669 calls `InitiateMountPackage` 37905 once per try), and the retries left the guest's copy of the host off
+the horse. Now the host's game ends that pair when it takes a horse back (`OnNotifyDismount`). GameTests: the fake
+loses a copy mount's stream `PairEnd` once the game takes the mount, and refuses a get-on of a horse in a pair once
+(`PairEndIn`, `MountRetryOf`); "A horse passes from rider to rider" checks both. `horse-passes-between-riders` passes.
 
 2026-11-18: one sync rule for every system, designed ([one-simulator.md](design/one-simulator.md),
 `agent/one-sync-model`). An audit's map checked in the code: each open desync is a copy missing what its owner did

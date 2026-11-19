@@ -349,9 +349,12 @@ python3 scripts/coop_test.py profile --route whiterun --seconds 60 --budget p95=
 - The debug overlay has a Performance window.
 
 **Open:** `profile` on the Linux duo (Proton, netns `coop2`): the capture runs in the namespace through
-`as_instance_user`, and the Tracy tools are built from source there. Not yet run.
+`as_instance_user`, and the Tracy tools are built from source there (any worktree, no D-Bus, since 2026-11-18). The
+capture still records nothing there ("no Tracy capture ()", 2026-11-18); the plugin's readouts and `--stacks` work.
 
 The first finding is in [breadcrumbs-cost](../re/systems/breadcrumbs-cost.md).
+The harness's own cost: [harness-cost](../re/systems/harness-cost.md) (each command's main-thread time is in the
+Counters table as `harness <cmd> us`; a command with a large reply builds it off the main thread, `Command::Gather`).
 
 
 ## Python ownership

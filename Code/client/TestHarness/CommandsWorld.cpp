@@ -374,17 +374,13 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"objects", objects}};
 }
 
-// {"cmd": "world_state", "ids"?: [id, ...], "details"?: true}: every reference in the loaded cells (or only those)
-// as this game holds and shows it, with details its pose, physics, graph and effects too
-// (EngineCalls::GetLoadedReferences); fields at their defaults are left out.
-nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
+// {"cmd": "world_state", "ids"?: [id, ...], "details"?: true}: the loaded cells' references as this game shows them,
+// details adding pose, physics, graph, effects (GetLoadedReferences); defaults left out, JSON built off the game thread.
+nlohmann::json WorldStateReply(const std::vector<EngineCalls::ReferenceState>& acRefs)
 {
-    const auto cIds = acRequest.value("ids", std::vector<uint32_t>{});
     auto references = nlohmann::json::array();
-    for (const auto& cRef : EngineCalls::GetLoadedReferences(acRequest.value("details", false)))
+    for (const auto& cRef : acRefs)
     {
-        if (!cIds.empty() && std::ranges::find(cIds, cRef.Id) == cIds.end())
-            continue;
         nlohmann::json ref = {{"id", cRef.Id},
                               {"base", cRef.Base},
                               {"type", cRef.BaseType},
@@ -458,6 +454,15 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
         references.push_back(std::move(ref));
     }
     return {{"ok", true}, {"references", references}};
+}
+
+std::function<nlohmann::json()> WorldState(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cIds = acRequest.value("ids", std::vector<uint32_t>{});
+    auto refs = EngineCalls::GetLoadedReferences(acRequest.value("details", false));
+    if (!cIds.empty())
+        std::erase_if(refs, [&cIds](const auto& acRef) { return std::ranges::find(cIds, acRef.Id) == cIds.end(); });
+    return [refs = std::move(refs)] { return WorldStateReply(refs); };
 }
 
 // {"cmd": "quest", "quest": id}: the quest's live state (EngineCalls::GetQuestState), to check what a save holds.
@@ -1203,7 +1208,7 @@ constexpr Command cCommands[] = {
     {"jitter", true, &Jitter},
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
-    {"world_state", true, &WorldState},
+    {"world_state", true, nullptr, &WorldState},
     {"quest", true, &Quest},
     {"quest_force_alias", true, &QuestForceAlias},
     {"quest_allow_rerun", true, &QuestAllowRerun},
