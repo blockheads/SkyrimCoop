@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-18: one sync rule for every system, designed, nothing built ([one-simulator.md](design/one-simulator.md),
+`agent/one-sync-model`). An audit's map checked in the code: each open desync is a copy missing what its owner did
+beside the graph stream (39004's list, read in IDA) or two games deciding one thing. Ten pieces in build order: a
+versioned copy record, actor state and items as parts of it, pairs claimed through the host, the host running an
+activation's world part and creating what guests create, scenery left out of the world check. 40 of bugs.md's 81
+entries are placed under a piece as its acceptance list; eight engine questions are open.
+
 2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`). One player drives,
 the others ride along: a player's Activate on a horse a party player drives boards it (our hook on
 `Character::ActivateMount` 37864 raises `BoardEvent`; the horse's slot emptied, then the engine's own get-on), and the
