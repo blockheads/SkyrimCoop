@@ -452,7 +452,7 @@ and only the scenarios it names on the duo.
 81 entries: 40 the model's, 17 engine quirks, 13 test tools, 9 outside it or unread, 2 inside physics and the
 stream themselves.
 
-- **Piece 1 (2):** "A copy that looks at nobody" (fixed on the fake 2026-11-18; no duo scenario yet), "A temporary form in a slot" (open: above).
+- **Piece 1 (2):** "A copy that looks at nobody" (closed 2026-11-18: GameTests and the duo scenario `guest-rejoins-while-joined`), "A temporary form in a slot" (open: above).
 - **Piece 2 (7):** "An action sent before its copy exists", "A seated owner's copy keeps an old action", "The
   attacker's copy not in its kill move", "A mod's rename at run time" (both), "A character's base bytes after
   joining", "An NPC copy's swing picks the nearest".

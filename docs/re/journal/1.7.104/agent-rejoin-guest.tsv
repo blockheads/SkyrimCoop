@@ -1,0 +1,9 @@
+time	op	id	rva	item
+2026-11-19T02:06:00Z	read	55490	0xa253e0	{"name": "papyrus::Game::QuitToMainMenu"}
+2026-11-19T02:06:03Z	read	52848	0x98ddd0	{"name": "sub_14098DDD0"}
+2026-11-19T02:06:04Z	read	52316	0x965710	{"name": "sub_140965710"}
+2026-11-19T02:06:26Z	name	52316	0x965710	{"addr": "0x140965710", "name": "UI_ShowMistMenu"}
+2026-11-19T02:06:26Z	name	52848	0x98ddd0	{"addr": "0x14098DDD0", "name": "UI_QueueFaderMessage"}
+2026-11-19T02:06:31Z	comment	52316	0x965710	{"addr": "0x140965710", "comment": "Queues kShow (1) for InterfaceStrings+0x178 \"Mist Menu\" on UIMessageQueue; a1 also requests the mist model and clears MistMenu+0x135."}
+2026-11-19T02:06:31Z	comment	52848	0x98ddd0	{"addr": "0x14098DDD0", "comment": "Builds a FaderData UI message (InterfaceStrings+8): duration a1 at +0x20, callback a2 (refcounted) at +0x10, type 7; queued via FaderData::sub_52877. The callback runs after the fade."}
+2026-11-19T02:06:31Z	comment	55490	0xa253e0	{"addr": "0x140a253e0", "comment": "[re]\nAddressLib ID 55490\nSkyrimCoop: call as s_quit (Code/client/Bridges/JoinBridge.cpp:117)\nShows the Mist Menu (UI_ShowMistMenu(0)), then queues a fade whose FadeThenMainMenuCallback opens the main menu: asynchronous, the main menu opens frames later."}

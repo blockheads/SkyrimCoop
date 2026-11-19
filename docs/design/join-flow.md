@@ -342,6 +342,15 @@ list) when the host saves; read back, into `CharacterRecords`, when any game loa
   menu and says so. Reachable today from the debug overlay and the test harness only; later a kick
   button in the in-game player list. A kick (`Server::Kick`) is delivered after what is queued for the
   peer, so a refusal or a reason sent first arrives.
+- **One connection per guest** (2026-11-18): a guest's `Net::Client` is an ENet host of one peer
+  (`enet_host_create(..., 1, ...)`), and `enet_host_connect` returns no peer while that one is in use (not
+  disconnected). A connect while joined used to store that null over the live peer: the live one was still
+  serviced (its pings kept the host's connection, and its copy of the guest, alive), `Close` no longer reached
+  it, and every later connect found the host full and failed as "unreachable". `Client::Connect` and
+  `ConnectByIp` now refuse while a peer or a resolve is held (`IsBusy`); a rejoin leaves first. Read in our
+  code and enet6's documented `enet_host_connect`; shown by HostAuthorityTests "a guest's second connect keeps
+  its first connection" (it failed with the duo's symptoms before) and the `guest-rejoins-while-joined`
+  scenario.
 
 ## Errors: data first, shown by whoever shows them
 

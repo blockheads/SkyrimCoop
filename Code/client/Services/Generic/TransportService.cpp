@@ -95,9 +95,11 @@ void TransportService::ConnectLocal(HostNetwork& aNetwork) noexcept
 
 bool TransportService::Connect(const std::string& acEndpoint) noexcept
 {
+    if (!Client::Connect(acEndpoint))
+        return false;
     m_joinStatus = {JoinStatus::State::kConnecting};
     m_endpoint = acEndpoint;
-    return Client::Connect(acEndpoint);
+    return true;
 }
 
 bool TransportService::IsConnected() const noexcept

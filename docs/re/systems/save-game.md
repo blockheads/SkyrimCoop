@@ -47,6 +47,14 @@ The real quickload scenario checks the guest's own level rolls back, as well as 
 
 The manager is `BGSSaveLoadManager::singleton` (403340).
 
+## Back to the main menu (2026-11-18)
+
+A guest leaving goes back with `papyrus::Game::QuitToMainMenu` (55490, `0x140a253e0`; read in IDA, 1.7.104). It
+queues kShow for the Mist Menu (`UI_ShowMistMenu`, 52316, `0x140965710`: InterfaceStrings `+0x178`), then a FaderData
+message (`UI_QueueFaderMessage`, 52848, `0x14098DDD0`) whose `FadeThenMainMenuCallback` opens the main menu after the fade.
+So the menu opens frames later: `IsAtMainMenu` stays false meanwhile, and a harness step that leaves must wait for
+the menu (`guest_leaves_to_main_menu`) before joining from it.
+
 ## The character a save belongs to (2026-11-08)
 
 IDA 1.7.104. The engine keeps no character id inside a save: **the id is in the file's name**.

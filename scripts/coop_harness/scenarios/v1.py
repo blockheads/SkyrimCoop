@@ -94,11 +94,7 @@ def host_quits(ctx):
     ctx.joins_with_world("joins after the host ended the session")
 
 def guest_leaves(ctx):
-    ctx.player_command("client", {"cmd": "leave_session"})
-    ctx.wait_for("leaving returns the guest to the main menu", lambda: ctx.game_state("client").get("main_menu"), 30)
-    ctx.wait_for("the host removes the leaving guest", lambda: not ctx.session_players(""), 15)
-    if not ctx.game_state("").get("hosting"):
-        raise ctx.failure("The guest's leave stopped the host")
+    ctx.guest_leaves_to_main_menu()
     ctx.joins_with_world("joins after leaving")
 
 def guest_takes_extra_stack(ctx):
