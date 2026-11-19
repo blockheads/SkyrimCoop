@@ -16,7 +16,7 @@ HostDeath::HostDeath(HostAuthority& aAuthority, HostNetwork& aNetwork, const Hos
     , m_characters(acCharacters)
 {
     aAuthority.On(*this, &HostDeath::OnDeath);
-    aAuthority.Watch(*this, &HostDeath::OnAiState);
+    aAuthority.Watch(*this, &HostDeath::OnRecord);
 }
 
 void HostDeath::Entered(ConnectionId_t aPlayer, uint32_t aCharacterId) noexcept
@@ -43,15 +43,17 @@ void HostDeath::Left(ConnectionId_t aPlayer) noexcept
     Broadcast();
 }
 
-void HostDeath::OnAiState(const AiStateRequest& acRequest, ConnectionId_t aSender) noexcept
+void HostDeath::OnRecord(const RecordRequest& acRequest, ConnectionId_t aSender) noexcept
 {
-    if (m_characters.OwnerOf(acRequest.SessionId) != aSender)
+    ActorAiState state;
+    if (acRequest.Part.Kind != RecordKind::kAiState || m_characters.OwnerOf(acRequest.Id) != aSender ||
+        !FromPartBytes(acRequest.Part.Bytes, state))
         return;
-    m_ai[acRequest.SessionId] = acRequest.State;
-    if (!acRequest.State.Combat)
-        m_targets.erase(acRequest.SessionId);
-    else if (acRequest.State.CombatTarget.SessionId)
-        m_targets[acRequest.SessionId].insert(acRequest.State.CombatTarget.SessionId);
+    m_ai[acRequest.Id] = state;
+    if (!state.Combat)
+        m_targets.erase(acRequest.Id);
+    else if (state.CombatTarget.SessionId)
+        m_targets[acRequest.Id].insert(state.CombatTarget.SessionId);
     Reconsider();
 }
 

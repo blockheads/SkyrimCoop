@@ -1,6 +1,7 @@
 // Cutscenes for the whole party across games (docs/design/cutscenes.md): a world script's controls reach every game,
 // and a leaver's cutscene gives back what it held.
 #include "Party.h"
+#include <Events/CopyAiStateEvent.h>
 #include <Messages/Relayed.h>
 
 using namespace PartyRules;
@@ -29,7 +30,7 @@ SCENARIO("Another guest's AI state cannot interrupt the host's scene", "[cutscen
         return cPresent(cHost) && cPresent(cOtherGuest);
     }, "the host's and other guest's player copies are present");
     party.As(guest, [&] {
-        NotifyAiState state;
+        CopyAiStateEvent state;
         state.SessionId = cOtherGuest;
         state.State.Scene = GameId(0, 0x1234);
         state.State.Package = GameId(0, 0x5678);

@@ -21,7 +21,7 @@ void AnnounceCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const
     Serialization::WriteBool(aWriter, IsPlayerSummon);
     CurrentActorData.Serialize(aWriter);
     Serialization::WriteString(aWriter, GraphState);
-    AiState.Serialize(aWriter);
+    Record.Serialize(aWriter);
     PerksContent.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, EffectIds.size());
     for (const auto& cEffectId : EffectIds)
@@ -62,7 +62,7 @@ void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noe
 
     CurrentActorData.Deserialize(aReader);
     GraphState = Serialization::ReadString(aReader);
-    AiState.Deserialize(aReader);
+    Record.Deserialize(aReader);
     PerksContent.Deserialize(aReader);
     EffectIds.clear();
     const auto cEffects = Serialization::ReadVarInt(aReader);

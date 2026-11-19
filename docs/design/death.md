@@ -63,7 +63,7 @@ messages         DeathMessages.h: PlayerDeathRequest, NotifyPartyDeath, NotifyPl
 
 - The owner decides when its player goes down; the host checks the sender owns that character. Each fall carries a
   generation, so a late or repeated message for an older fall changes nothing.
-- Combat comes from the owners' AI state (`AiStateRequest`, watched by HostDeath): a standing player fighting, or a
+- Combat comes from the owners' AI state (the record's AI state part, `RecordRequest`, watched by HostDeath): a standing player fighting, or a
   host NPC fighting a standing player now or since its fight started (it switches targets). A downed player's stale
   combat flag holds nothing. A player who just joined holds the timer until its state is known.
 - Respawn is the host's: `NotifyPlayerRespawn` names the anchor and where it stands (`HostCharacters::CharacterPlace`),

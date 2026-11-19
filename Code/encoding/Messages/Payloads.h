@@ -7,7 +7,7 @@
 // host's authority, Code/client/Services/Host/HostAuthority.cpp). Both messages inherit the payload, so its
 // fields and their bytes are written once.
 
-#include <Structs/ActorAiState.h>
+#include <Structs/RecordPart.h>
 #include <Structs/ActorWhereabouts.h>
 #include <Structs/BodyFrame.h>
 #include <Structs/GameId.h>
@@ -232,7 +232,6 @@ struct Mount
     uint32_t MountId{};
 };
 
-// An actor's AI state, when its owner's changed.
 // Ownership returns with the last owner's current placement, including a native travel's implicit dismount.
 struct Dismount : Mount
 {
@@ -242,15 +241,28 @@ struct Dismount : Mount
     ActorWhereabouts Whereabouts;
 };
 
-struct AiState
+// One part of an actor's record, from its owner (docs/design/one-simulator.md, piece 1).
+struct Record
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
-    bool operator==(const AiState&) const noexcept = default;
+    bool operator==(const Record&) const noexcept = default;
 
-    uint32_t SessionId{};
-    ActorAiState State{};
+    uint32_t Id{}; // the actor's session id
+    RecordPart Part{};
+};
+
+// A game whose copy looks wrong asks the actor's owner for a part again (R3).
+struct RecordAsk
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const RecordAsk&) const noexcept = default;
+
+    uint32_t Id{};
+    RecordKind Kind{};
 };
 
 struct Dialogue

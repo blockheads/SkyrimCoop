@@ -27,6 +27,8 @@
 #include <Systems/InterpolationSystem.h>
 #include <Services/ActorValueService.h>
 #include <Services/AiStateService.h>
+#include <Services/CopyRecords.h>
+#include <Services/CopyRecordsService.h>
 #include <Services/PerkService.h>
 #include <Services/EffectVisualsService.h>
 #include <Services/CharacterService.h>
@@ -113,7 +115,9 @@ World::World()
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<PerkService>(m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<CopyRecords>();
+    ctx().emplace<CopyRecordsService>(*this, m_dispatcher, m_transport, ctx().at<CopyRecords>());
+    ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
     ctx().emplace<FakeBugReports&>(static_cast<FakeBugReports&>(*m_pBugReportBridge));
@@ -182,6 +186,8 @@ World::~World()
     ctx().erase<CutsceneService>();
     ctx().erase<PerkService>();
     ctx().erase<AiStateService>();
+    ctx().erase<CopyRecordsService>();
+    ctx().erase<CopyRecords>();
     ctx().erase<EffectVisualsService>();
     ctx().erase<MagicService>();
     ctx().erase<InventoryService>();

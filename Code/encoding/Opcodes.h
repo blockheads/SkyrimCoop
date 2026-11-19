@@ -21,7 +21,6 @@
     X(ProjectileLaunchRequest)      \
     X(DrawWeaponRequest)            \
     X(MountRequest)                 \
-    X(AiStateRequest)               \
     X(RequestRespawn)               \
     X(RequestEquipmentChanges)      \
     X(SendChatMessageRequest)       \
@@ -81,7 +80,9 @@
     X(SaveHeldRequest)              \
     X(DevCommandRequest)            \
     X(BoardRequest)                 \
-    X(UnboardRequest)
+    X(UnboardRequest)               \
+    X(RecordRequest)                \
+    X(RecordAskRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -103,7 +104,6 @@
     X(NotifyProjectileLaunch)      \
     X(NotifyDrawWeapon)            \
     X(NotifyMount)                 \
-    X(NotifyAiState)               \
     X(NotifyRespawn)               \
     X(NotifyEquipmentChanges)      \
     X(NotifyChatMessageBroadcast)  \
@@ -169,7 +169,9 @@
     X(NotifyDevCommand) \
     X(NotifyMountRefused)          \
     X(NotifyBoard)                 \
-    X(NotifyUnboard)
+    X(NotifyUnboard)               \
+    X(NotifyRecord)                \
+    X(NotifyRecordAsk)
 
 #define COOP_OPCODE(aName) k##aName,
 

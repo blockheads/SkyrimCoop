@@ -25,7 +25,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
     spawn.FactionsContent = acAnnouncement.FactionsContent;
     spawn.LatestAction = acAnnouncement.LatestAction;
     spawn.GraphState = acAnnouncement.GraphState;
-    spawn.AiState = acAnnouncement.AiState;
+    spawn.Record = acAnnouncement.Record;
     spawn.PerksContent = acAnnouncement.PerksContent;
     spawn.EffectIds = acAnnouncement.EffectIds;
     spawn.FaceTints = acAnnouncement.FaceTints;
@@ -62,7 +62,7 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Serialization::WriteBool(aWriter, IsWeaponDrawn);
     Serialization::WriteBool(aWriter, IsPlayerSummon);
     Serialization::WriteString(aWriter, GraphState);
-    AiState.Serialize(aWriter);
+    Record.Serialize(aWriter);
     PerksContent.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, EffectIds.size());
     for (const auto& cEffectId : EffectIds)
@@ -105,7 +105,7 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     IsWeaponDrawn = Serialization::ReadBool(aReader);
     IsPlayerSummon = Serialization::ReadBool(aReader);
     GraphState = Serialization::ReadString(aReader);
-    AiState.Deserialize(aReader);
+    Record.Deserialize(aReader);
     PerksContent.Deserialize(aReader);
     EffectIds.clear();
     const auto cEffects = Serialization::ReadVarInt(aReader);

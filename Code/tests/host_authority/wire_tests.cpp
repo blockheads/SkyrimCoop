@@ -178,15 +178,6 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         add("Dismount", m, (NotifyDismount*)nullptr);
     }
     {
-        AiStateRequest m;
-        m.SessionId = 0x1234;
-        m.State.Package = GameId(0, 0x5432);
-        m.State.Combat = 1;
-        m.State.CombatTarget.SessionId = 0x21;
-        m.State.CombatTarget.RefId = GameId(1, 0x803);
-        add("AiState", m, (NotifyAiState*)nullptr);
-    }
-    {
         DialogueRequest m;
         m.SessionId = 0x2345;
         m.SoundFilename = "Sound\\Voice\\Skyrim.esm\\FemaleNord\\hello.fuz";
@@ -209,7 +200,6 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
     // {request, notification} payloads, recorded from the messages before they shared payload
     // structs. The opcode byte is left out: opcodes number the messages in Opcodes.h's order.
     const std::map<std::string, std::pair<std::string, std::string>> cRecorded{
-        {"AiState", {"b424b2a801000000012183100100", "b424b2a801000000012183100100"}}, // replaced NewPackage (2026-10-22); headtrack slots (2026-10-31)
         {"ActiveEffects", {"c5460283de040192e40602", "c5460283de040192e40602"}},
         {"EffectFlash", {"c54683de0401", "c54683de0401"}}, // new 2026-10-22
         {"ActorMaxValues", {"e78a01011a00007a43", "e78a01011a00007a43"}},

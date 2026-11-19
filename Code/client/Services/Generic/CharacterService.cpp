@@ -47,7 +47,7 @@
 #include <Messages/NotifyPlayerLevel.h>
 #include <Events/PlayerArrivedEvent.h>
 #include <Services/TravelService.h>
-#include <Services/AiStateService.h>
+#include <Services/CopyRecords.h>
 #include <Services/BodyService.h>
 #include <Services/EffectVisualsService.h>
 
@@ -583,6 +583,13 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     if (!acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
     LinkPendingRides(acMessage.SessionId);
+    SessionIdHere(acMessage.SessionId);
+}
+
+void CharacterService::SessionIdHere(uint32_t aSessionId) const noexcept
+{
+    if (auto* pRecords = m_world.ctx().find<CopyRecords>())
+        pRecords->OnSessionId(aSessionId);
 }
 
 // A late joiner hears who rides what right after the spawns, which can still be loading.
@@ -1587,8 +1594,6 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
         message.PerksContent = m_actorBridge.GetPlayerPerks();
     message.LatestAction = cState.LatestAction;
     message.GraphState = cState.GraphState;
-    if (const auto* pAiState = m_world.ctx().find<AiStateService>())
-        message.AiState = pAiState->ReadState(formIdComponent.Id);
     if (const auto* pEffects = m_world.ctx().find<EffectVisualsService>())
         message.EffectIds = pEffects->ReadEffects(formIdComponent.Id);
 
@@ -1655,6 +1660,11 @@ void CharacterService::AnnounceCharacter(const entt::entity aEntity) const noexc
         return;
 
     m_world.emplace_or_replace<LocalComponent>(aEntity, message->SessionId);
+    if (auto* pRecords = m_world.ctx().find<CopyRecords>())
+    {
+        message->Record = pRecords->ReadAll(message->SessionId, cFormId);
+        pRecords->OnSessionId(message->SessionId);
+    }
     // Its actions from here on follow the graph state just sent.
     (void)m_world.get_or_emplace<LocalAnimationComponent>(aEntity);
     m_actorBridge.SetActorCopy(cFormId, false);
@@ -1749,6 +1759,8 @@ void CharacterService::ReleaseCharacter(const entt::entity aEntity, const uint32
         message.SessionId = pLocalComponent->Id;
         message.Whereabouts = ReadWhereabouts(aFormId);
         m_transport.Send(message);
+        if (auto* pRecords = m_world.ctx().find<CopyRecords>())
+            pRecords->Forget(pLocalComponent->Id);
 
         m_world.remove<LocalAnimationComponent, LocalComponent>(aEntity);
         return;
@@ -2027,6 +2039,8 @@ void CharacterService::RunRemoteUpdates() noexcept
             m_actorBridge.ActorFixVampireLordModel(formIdComponent.Id);
 
         toRemove.push_back(entity);
+        if (const auto* pCopy = m_world.try_get<RemoteComponent>(entity))
+            SessionIdHere(pCopy->Id);
 
         spdlog::info("Applied 3D for actor, form id: {:X}", formIdComponent.Id);
     }

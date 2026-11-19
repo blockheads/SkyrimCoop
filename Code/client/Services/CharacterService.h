@@ -90,6 +90,8 @@ struct CharacterService
     // A spawn waiting for its reference to finish loading: kStillLoading clears before its 3D loads.
     void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
     void OnNpcHeld(const NpcHeldEvent& acEvent) noexcept;
+    // The actor of that session id is on this game now: its record's parts apply (CopyRecords).
+    void SessionIdHere(uint32_t aSessionId) const noexcept;
     // A spawn waiting on that actor to finish loading goes on.
     void SpawnPending(uint32_t aFormId) noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept;

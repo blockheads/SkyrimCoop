@@ -184,13 +184,16 @@ get the copy's own answer.
 **As built (2026-10-22).** `AiStateService` (every game), event-driven: the engine's package, combat, death and
 scene events, a combat target switch (`CombatController::SetTarget` 33235) and the player's in-combat flag
 (`PlayerCharacter::UpdateInCombat` 41238), all in `Games/Skyrim/AiStateEvents.cpp`, mark an owned actor changed; its state is read on the main thread and
-sent (`AiStateRequest`) when it differs from the last sent. A spawn carries it. The host relays it from the owner only
-(`NotifyAiState`). No timed check, no periodic resend. The copy's side, `IActorBridge::SetCopyAiFields` and
+declared as a part of the actor's copy record (`CopyRecords`, `RecordRequest`; one-simulator.md, piece 1; since
+2026-11-18, before that its own `AiStateRequest`) when it differs from the last sent. A spawn carries the record. The
+host keeps it and relays it from the owner only (`NotifyRecord`). No timed check, no periodic resend. A state that
+arrives before its copy, or names an actor that is not here yet (a look or combat target), is applied when that copy
+or actor appears. The copy's side, `IActorBridge::SetCopyAiFields` and
 `Games/Skyrim/CopyAiState.cpp`:
 
 ```
 owner's game                              copy's game
-TESPackageEvent / TESCombatEvent /        NotifyAiState, or the spawn's AiState
+TESPackageEvent / TESCombatEvent /        NotifyRecord, or the spawn's record
 TESDeathEvent / TESSceneEvent,              -> SetCopyAiFields:
 SetTarget, the player's flag (any
   thread) -> AiStateChangeEvent (queued)       package  -> running slot

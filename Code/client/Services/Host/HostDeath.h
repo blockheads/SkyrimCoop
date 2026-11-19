@@ -55,8 +55,8 @@ struct HostDeath
 
 private:
     void OnDeath(const PlayerDeathRequest& acRequest, ConnectionId_t aSender) noexcept;
-    // A character's combat, from its owner (the relayed AiStateRequest, watched).
-    void OnAiState(const AiStateRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // A character's combat, from its owner (its record's AI state part, watched).
+    void OnRecord(const RecordRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Who is down and who fights decides a wipe, the recovery timer, or neither.
     void Reconsider() noexcept;
     [[nodiscard]] bool StandingPlayerFights(const std::set<uint32_t>& acStanding) const noexcept;
