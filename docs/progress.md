@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-18: the duo's ~400 ms stalls about once a second at a repro scene's start were the test harness's own
+(`agent/duo-stall-profile`, [harness-cost.md](re/systems/harness-cost.md)). The command server built and wrote every
+reply's JSON on the game's main thread, and the scene's world baseline asks for the whole town's `world_state` back
+to back (in Riverwood up to 451 ms a call). `world_state` now copies the references out on the main thread and
+builds its JSON on a worker (`Command::Gather`; replies still go out in order, `ReplyQueue`, ClientTests), and so does
+the status file; other replies stay in their frame (a `console_result` held a frame got lost behind a load): `world_state`
+went to 21 ms on the main thread, and the scene's settle window has no stall left. `profile` lists each command's
+main-thread time (`harness <cmd> us`) and builds Tracy's Linux tools from any worktree. Players' builds are unchanged
+(test builds only). `horse-passes-between-riders` still fails its last ride (the guest does not see the horse ridden),
+before and after: that is the horse bug, not this.
+
 2026-11-18: **a guest's rejoin works again** (`agent/rejoin-guest`): a join while joined made the guest's one-peer ENet
 host store a null peer over its live one, so the host kept the old connection (and the guest's character) and every
 later join was unreachable. `Net::Client::Connect`/`ConnectByIp` now refuse while a peer or a resolve is held, the
