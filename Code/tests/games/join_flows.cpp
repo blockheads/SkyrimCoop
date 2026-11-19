@@ -772,3 +772,36 @@ SCENARIO("A game joining again gets the host's current world as its difference f
     CHECK(Join(guest).GetMetrics().AgainstHeld == !damaged);
     CHECK(guestEngine.HeldSaveFiles.size() == (damaged ? 1 : SaveStore::kKept));
 }
+
+// A join while joined (2026-11-18, Riverwood Trader): the guest's second connect found its one ENet peer in use, lost the
+// live one and every later join was unreachable while the host kept showing its character (join-flow.md, Leaving and kick).
+SCENARIO("A guest's join while joined keeps its session, and it rejoins after leaving", "[join][rejoin]")
+{
+    Party party(1, SmokeWorld);
+    World& guest = party.Guest();
+    FakeEngine& host = Party::Engine(party.Host());
+    const auto cClients = [&] { return party.Host().GetHostService().GetNetwork()->GetClientCount(); };
+    const std::string cEndpoint = std::format("127.0.0.1:{}", party.Host().GetHostService().GetNetwork()->GetPort());
+    party.As(party.Host(), [&] { host.LoadNpc(0xA2C8E, kSmoke, {}); });
+    party.Until([&] { return Party::Engine(guest).CopiesOf(0xA2C8E).size() == 1; }, "the guest copies the host's NPC");
+    party.Agree("each game has the other's player and the NPC");
+    const std::string cWas = guest.GetTransport().GetEndpoint();
+
+    party.As(guest, [&] { CHECK_FALSE(guest.GetTransport().Connect(cEndpoint)); });
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    CHECK(guest.GetTransport().IsOnline());
+    CHECK(guest.GetTransport().GetEndpoint() == cWas);
+    CHECK(cClients() == 1);
+    party.Agree("the refused join changed nothing");
+
+    party.Leave(guest);
+    party.Until([&] { return cClients() == 0; }, "the host drops the guest that left");
+    // A connect still resolving its address holds the peer too.
+    party.As(guest, [&] {
+        REQUIRE(guest.GetTransport().Connect(cEndpoint));
+        CHECK_FALSE(guest.GetTransport().Connect(cEndpoint));
+    });
+    party.Until([&] { return guest.GetTransport().IsOnline() && cClients() == 1; }, "the guest rejoins");
+    party.Agree("after the rejoin each game agrees again");
+}
