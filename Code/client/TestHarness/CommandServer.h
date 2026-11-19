@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ReplyQueue.h"
+
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -7,19 +9,24 @@
 
 namespace TestHarness
 {
-// Test-harness command socket: line-delimited JSON on 127.0.0.1, served on the game thread every
-// frame (scripts/coop_test.py). The port is written to <control dir>/rpc.json, so a request costs
-// one frame instead of the control files' 250ms poll.
+// Test-harness command socket: line-delimited JSON on 127.0.0.1, served on the game thread every frame
+// (scripts/coop_test.py); a large reply is finished on a worker, all sent in order. The port is written to
+// <control dir>/rpc.json, so a request costs one frame instead of the control files' 250ms poll.
 class CommandServer
 {
 public:
-    // Answers one request line with one response line (no newline).
-    using THandler = std::function<std::string(const std::string&)>;
+    // Takes one request line on the game thread: its response line (no newline), or what makes it off that thread.
+    struct Reply
+    {
+        std::string Ready;
+        ReplyQueue::TFinish Later;
+    };
+    using THandler = std::function<Reply(const std::string&)>;
 
     ~CommandServer();
     // Opens the socket and writes rpc.json into aDirectory; false if it could not.
     bool Start(const std::string& aDirectory, THandler aHandler);
-    // Game thread, every frame: accepts, reads and answers without blocking.
+    // Game thread, every frame: accepts, reads, starts requests and sends finished replies without blocking.
     void Poll();
     // Closes the socket and every connection (the plugin unloads).
     void Stop();
@@ -29,6 +36,7 @@ private:
     {
         uintptr_t Socket;
         std::string Inbound;
+        ReplyQueue Replies;
         std::string Outbound;
     };
 

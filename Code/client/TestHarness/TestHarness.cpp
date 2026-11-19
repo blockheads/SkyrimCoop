@@ -6,14 +6,19 @@
 #include "Commands.h"
 #include "EngineCalls.h"
 #include "Status.h"
+#include <Diagnostics/Counters.h>
 #include <Diagnostics/EngineReads.h>
 #include <Games/Skyrim/Main.h>
+
+#include <future>
 
 namespace TestHarness
 {
 namespace
 {
 std::chrono::steady_clock::time_point s_nextFilePoll{};
+// The status file written off the game thread; a write still running skips the next.
+std::future<void> s_statusWrite;
 
 // Tutorial help popups ("Magicka Low", "Health Low"...) swallow all input and console commands
 // until closed, which stalls the harness: close them as soon as they open.
@@ -49,7 +54,7 @@ void Poll()
     {
         harness.CommandsStarted = true;
         GraphStreamCheck::Install();
-        if (!harness.Commands.Start(harness.Files.Directory().string(), [&harness](const std::string& acRequest) { return HandleCommand(harness, acRequest); }))
+        if (!harness.Commands.Start(harness.Files.Directory().string(), [&harness](const std::string& acRequest) { return StartCommand(harness, acRequest); }))
             spdlog::warn("Command server did not start; the test harness falls back to control files");
     }
     harness.Inputs.Poll();
@@ -97,13 +102,18 @@ void Poll()
         harness.Files.PollConsoleCommand();
         CloseTutorialPopups();
     }
-    harness.Files.WriteStatus(BuildStatus(harness).dump(2));
+    if (s_statusWrite.valid() && s_statusWrite.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+        return;
+    COUNT_TIME("harness status file us");
+    s_statusWrite = std::async(std::launch::async, [&files = harness.Files, status = BuildStatus(harness)] { files.WriteStatus(status.dump(2)); });
 }
 
 void Shutdown()
 {
     StopQuestTrace();
     StopSampler(); // its thread runs our code
+    if (s_statusWrite.valid())
+        s_statusWrite.wait();
     // Off the graphs before this DLL goes (a hot reload): they would call into it.
     Harness::Get().Trace.Stop();
     Harness::Get().Inputs.Stop();

@@ -13,6 +13,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 from pathlib import Path
 import re
 import subprocess
@@ -58,7 +59,7 @@ class Profiling:
                 with zipfile.ZipFile(archive) as zipped:
                     zipped.extractall(TRACY_TOOLS)
             return tool
-        source = TRACY_TOOLS / "source"
+        source = (TRACY_TOOLS / "source").resolve()  # one real path: worktrees share third_party, CMake keys its cache by path
         tool = source / name / "build" / f"tracy-{name}"
         if not tool.exists():
             if not source.exists():
@@ -66,8 +67,11 @@ class Profiling:
                 subprocess.run(["git", "clone", "--depth", "1", "--branch", f"v{TRACY_VERSION}",
                                 "https://github.com/wolfpld/tracy", str(source)], check=True)
             log(f"Building tracy-{name} (once)")
+            # A cache configured at another path (a worktree's symlinked build/) refuses this one: start it over.
+            if (cache := source / name / "build" / "CMakeCache.txt").exists() and str(source / name) not in cache.read_text(errors="replace"):
+                shutil.rmtree(source / name / "build")
             subprocess.run(["cmake", "-S", str(source / name), "-B", str(source / name / "build"),
-                            "-DCMAKE_BUILD_TYPE=Release"], check=True, stdout=subprocess.DEVNULL)
+                            "-DCMAKE_BUILD_TYPE=Release", "-DNO_FILESELECTOR=ON"], check=True, stdout=subprocess.DEVNULL)  # the CLI tools pick no files: no D-Bus
             subprocess.run(["cmake", "--build", str(source / name / "build"), "-j8"], check=True, stdout=subprocess.DEVNULL)
         return tool
 

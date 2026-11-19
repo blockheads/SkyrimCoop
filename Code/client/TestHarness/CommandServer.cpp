@@ -26,8 +26,11 @@ CommandServer::~CommandServer()
 
 void CommandServer::Stop()
 {
-    for (const Client& cClient : m_clients)
-        CloseSocket(cClient.Socket);
+    for (Client& client : m_clients)
+    {
+        client.Replies.Wait();
+        CloseSocket(client.Socket);
+    }
     m_clients.clear();
     if (m_listener != ~uintptr_t(0))
         CloseSocket(m_listener);
@@ -79,7 +82,7 @@ void CommandServer::Poll()
     for (SOCKET accepted; (accepted = accept(static_cast<SOCKET>(m_listener), nullptr, nullptr)) != INVALID_SOCKET;)
     {
         SetNonBlocking(accepted);
-        m_clients.push_back({static_cast<uintptr_t>(accepted), {}, {}});
+        m_clients.push_back({static_cast<uintptr_t>(accepted), {}, {}, {}});
     }
 
     for (Client& client : m_clients)
@@ -100,9 +103,13 @@ void CommandServer::Poll()
         {
             const std::string cRequest = client.Inbound.substr(0, end);
             client.Inbound.erase(0, end + 1);
-            client.Outbound += m_handler(cRequest);
-            client.Outbound += '\n';
+            // A command that ran is answered this frame: a long frame next (a load) must not hold its reply back.
+            if (Reply reply = m_handler(cRequest); reply.Later)
+                client.Replies.Push(std::move(reply.Later));
+            else
+                client.Replies.Push(std::move(reply.Ready));
         }
+        client.Replies.Drain(client.Outbound);
 
         while (!client.Outbound.empty())
         {
