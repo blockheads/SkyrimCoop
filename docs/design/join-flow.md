@@ -349,7 +349,8 @@ list) when the host saves; read back, into `CharacterRecords`, when any game loa
   it, and every later connect found the host full and failed as "unreachable". `Client::Connect` and
   `ConnectByIp` now refuse while a peer or a resolve is held (`IsBusy`); a rejoin leaves first. Read in our
   code and enet6's documented `enet_host_connect`; shown by HostAuthorityTests "a guest's second connect keeps
-  its first connection" (it failed with the duo's symptoms before) and the `guest-rejoins-while-joined`
+  its first connection" and GameTests "A guest's join while joined keeps its session, and it rejoins after
+  leaving" (both failed with the duo's symptoms before) and the `guest-rejoins-while-joined`
   scenario.
 
 ## Errors: data first, shown by whoever shows them

@@ -55,7 +55,7 @@ later join was unreachable. `Net::Client::Connect`/`ConnectByIp` now refuse whil
 harness's join while joined fails at once, `rejoin_client` leaves first, and the MCP has a verb
 `guest_leaves_to_main_menu` (join-flow.md, Leaving and kick). With rejoins working, "A copy that looks at nobody" is
 closed: Lucan's copy looks at the host's player like its owner after both rejoin paths. Tests: HostAuthorityTests "a
-guest's second connect keeps its first connection"; scenario `guest-rejoins-while-joined` (its steps pass; its end
+guest's second connect keeps its first connection", GameTests `[rejoin]`; scenario `guest-rejoins-while-joined` (its steps pass; its end
 comparison fails on bugs.md's open "References differ").
 
 2026-11-18: **the copy record, piece 1 of one-simulator.md, built** (`agent/copy-record`): every game keeps each actor's
