@@ -130,6 +130,10 @@ public:
     virtual void ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept = 0;
     /// Add or remove an item from an object/actor's inventory.
     virtual void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept = 0;
+    // A copy carries aCount of the item, acStacks of them with their extra data (worn flags and charge aside), changed
+    // only where they differ; nothing raised or equipped (InventoryService's items part).
+    virtual void SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount,
+                                  const std::vector<Inventory::Entry>& acStacks) noexcept = 0;
     /// Get worn armor inventory of an actor.
     virtual Inventory GetActorWornArmor(uint32_t aActorFormId) const noexcept = 0;
     /// Returns true if the actor is wearing a body piece.

@@ -20,7 +20,6 @@
     X(ProjectileLaunchRequest)      \
     X(MountRequest)                 \
     X(RequestRespawn)               \
-    X(RequestEquipmentChanges)      \
     X(SendChatMessageRequest)       \
     X(DialogueRequest)              \
     X(SubtitleRequest)              \
@@ -29,7 +28,6 @@
     X(RequestRemoveWaypoint)        \
     X(SetTimeCommandRequest)        \
     X(RequestRemoveCharacter)       \
-    X(RequestEquipmentSnapshot)     \
     X(EnterCellRequest)             \
     X(RequestActiveEffects)         \
     X(TimeScaleRequest)             \
@@ -100,7 +98,6 @@
     X(NotifyProjectileLaunch)      \
     X(NotifyMount)                 \
     X(NotifyRespawn)               \
-    X(NotifyEquipmentChanges)      \
     X(NotifyChatMessageBroadcast)  \
     X(NotifyDialogue)              \
     X(NotifySubtitle)              \
@@ -111,7 +108,6 @@
     X(NotifyWeatherChange)         \
     X(NotifySetWaypoint)           \
     X(NotifyRemoveWaypoint)        \
-    X(NotifyEquipmentSnapshot)     \
     X(NotifyActiveEffects)         \
     X(NotifyTimeScale)             \
     X(NotifyPartyTravel)           \

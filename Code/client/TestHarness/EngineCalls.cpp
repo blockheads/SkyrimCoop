@@ -10,6 +10,7 @@
 #include <Misc/MiddleProcess.h>
 #include <Actor.h>
 #include <Forms/TESNPC.h>
+#include <ItemIds.h>
 #include <Games/ActorPools.h>
 #include <BSAnimationGraphManager.h>
 #include <Bridges/ContainerItems.h>
@@ -1152,6 +1153,22 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
     return references;
 }
 
+std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    auto* pNpc = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
+    if (!pNpc)
+        return std::nullopt;
+    // As TESNPC::InitWornOn3D (24725) calls it: (npc, actor, 1, process-allows, 0, 0).
+    using TReset = void(TESNPC*, Actor*, uintptr_t, bool, int32_t, bool);
+    POINTER_SKYRIMSE(TReset, s_reset, 418622);
+    s_reset.Get()(pNpc, pActor, 1, true, 0, false);
+    std::vector<uint32_t> worn;
+    for (const auto& cEntry : pActor->GetEquipment().Entries)
+        worn.push_back(ItemForm(cEntry.BaseId));
+    return worn;
+}
+
 void UnequipAllUnsynced(uint32_t aFormId) noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
@@ -1424,6 +1441,40 @@ std::optional<std::vector<std::pair<int32_t, std::vector<uint32_t>>>> GetStackEx
                 stacks.emplace_back(pList->GetCount(), std::move(types));
             }
     return stacks;
+}
+
+std::optional<InventoryEntryRead> GetInventoryEntry(uint32_t aHolder, uint32_t aItem) noexcept
+{
+    auto* pHolder = Cast<TESObjectREFR>(TESForm::GetById(aHolder));
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(aItem));
+    if (!pHolder || !pItem)
+        return std::nullopt;
+    InventoryEntryRead read;
+    if (const TESContainer* pBase = pHolder->GetContainer())
+        for (uint32_t i = 0; i < pBase->count; ++i)
+            if (const auto* pEntry = pBase->entries[i]; pEntry && pEntry->form &&
+                (pEntry->form == pItem || pEntry->form->formType == FormType::LeveledItem))
+                read.Base.emplace_back(pEntry->form->formID, static_cast<int32_t>(pEntry->count));
+    if (const auto* pChanges = pHolder->FindContainerChanges(); pChanges && pChanges->entries)
+        for (auto* pEntry : *pChanges->entries)
+            if (pEntry && pEntry->form == pItem)
+            {
+                read.HasEntry = true;
+                read.Delta = pEntry->count;
+                if (pEntry->dataList)
+                    for (ExtraDataList* pList : *pEntry->dataList)
+                        if (pList)
+                        {
+                            std::vector<uint32_t> types;
+                            for (const BSExtraData* pData = pList->data; pData; pData = pData->next)
+                                types.push_back(static_cast<uint32_t>(pData->GetType()));
+                            read.Lists.emplace_back(pList->GetCount(), std::move(types));
+                        }
+            }
+    read.Count = pHolder->GetContainerCount(pItem).value_or(0);
+    for (const auto& cEntry : pHolder->GetInventory([pItem](TESForm& aForm) { return &aForm == pItem; }).Entries)
+        read.Listed += cEntry.Count;
+    return read;
 }
 
 bool PlayerImproves(uint32_t aItemFormId, float aHealth, uint32_t aEnchantment, uint16_t aCharge) noexcept

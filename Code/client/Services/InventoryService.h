@@ -5,6 +5,9 @@
 
 #include <chrono>
 #include <optional>
+#include <map>
+#include <set>
+#include <string>
 #include <utility>
 #include <vector>
 #include <Messages/RelayedMessages.h>
@@ -22,47 +25,31 @@ struct UpdateEvent;
 struct NotifyInventoryChanges;
 struct InventoryChangeEvent;
 struct EquipmentChangeEvent;
-struct NotifyEquipmentChanges;
+struct ItemsChangedEvent;
+struct ReferenceLoadedEvent;
+struct WornResetEvent;
 struct DisconnectedEvent;
+struct CopyRecords;
 
 /**
- * @brief Manages actors' inventories.
- *
- * The initial contents of actor inventories are synced through spawn messages through CharacterService
- * @see CharacterService
- * The InventoryService manages changes to actors' equipment and inventories. Containers' items are world
- * state: the host's (HostWorldState, GuestWorldState).
+ * @brief Actors' items as their owner's record part (docs/design/one-simulator.md, piece 3): an owner declares what its
+ * actor carries and wears when it changes (kItems), a copy is made to carry and wear that. Containers' items are world
+ * state (HostWorldState, GuestWorldState); the party's gold and party items are the host's (HostPurse, HostPartyItems).
  */
 struct InventoryService
 {
     InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
-                     IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept;
-    ~InventoryService() noexcept = default;
+                     IActorBridge& aActorBridge, IFormBridge& aFormBridge, CopyRecords& aRecords) noexcept;
+    ~InventoryService() noexcept;
 
     NO_COPY_MOVE(InventoryService);
 
     void OnUpdate(const UpdateEvent& acUpdateEvent) noexcept;
-    /**
-     * @brief Sends out inventory changes made by the local client.
-     */
+    // This game's player's item change: to the host for the party's gold and items (HostPurse, HostPartyItems).
     void OnInventoryChangeEvent(const InventoryChangeEvent& acEvent) noexcept;
-    /**
-     * @brief Sends out equipment changes made by the local client.
-     */
-    void OnEquipmentChangeEvent(const EquipmentChangeEvent& acEvent) noexcept;
 
-    /**
-     * @brief Applies inventory changes sent by the server.
-     */
+    // The host's change to this game's own actor (a loot it granted), or a drop.
     void OnNotifyInventoryChanges(const NotifyInventoryChanges& acMessage) noexcept;
-    /**
-     * @brief Applies equipment changes sent by the server.
-     */
-    void OnNotifyEquipmentChanges(const NotifyEquipmentChanges& acMessage) noexcept;
-    void OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& acMessage) noexcept;
-    /**
-     * @brief A copy's owner raised or lowered its hands.
-     */
     /**
      * @brief The party's gold (docs/design/party-purse.md): this game's player and every copy of a player carry it.
      */
@@ -93,15 +80,38 @@ struct InventoryService
         SetGold(aActorFormId, static_cast<uint32_t>(std::max<int64_t>(int64_t{GoldOf(aActorFormId)} + aCount, 0)));
     }
 
+    // What an actor carries and wears as its items part: no leveled lists (a base container's, not items), and for a
+    // player's character not the party's gold and items.
+    [[nodiscard]] Inventory ReadItems(uint32_t aFormId) const noexcept;
+
 private:
+    // An actor whose items may have changed: read again if this game owns it, its part applied again if a copy's 3D loaded.
+    void Touch(uint32_t aFormId) noexcept;
+    void OnEquipmentChangeEvent(const EquipmentChangeEvent& acEvent) noexcept;
+    void OnItemsChanged(const ItemsChangedEvent& acEvent) noexcept;
+    void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
+    void OnWornReset(const WornResetEvent& acEvent) noexcept;
+    // The engine changed what aFormId wears by itself: an owner reads its items again, a copy wears its owner's again.
+    void Refresh(uint32_t aFormId) noexcept;
+    // Each touched actor this game owns: its change declared.
+    void DeclareChanges() noexcept;
+    // The items part of aId on its copy (once its 3D is in).
+    void ApplyItems(uint32_t aId, const std::string& acBytes) noexcept;
+    // The part's worn items and hand spells on the copy (EquipmentRepair). False: not settled (an equip refused, a hand
+    // its process does not fill yet).
+    bool ApplyWorn(uint32_t aFormId, const Inventory& acWanted) noexcept;
+    // Copies whose worn set did not settle: seconds since, tried again every kRetry until kGiveUp (as piece 2's hands).
+    static constexpr double kRetry = 0.25, kGiveUp = 5.0;
     // A copy's spawn items are on it now (CharacterService): a player's carries the party's gold and items, not its spawn's.
     void OnSpawnItemsApplied(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept
     {
         m_partyGold.reset();
         m_partyItems.reset();
+        m_touched.clear();
+        m_unsettled.clear();
+        m_waiting3D.clear();
     }
-    void RunEquipmentSnapshots() noexcept;
     /**
     * Checks whether an NPC's (local or remote) equipment is bugged (i.e. naked NPCS)
     * and resets their inventory.
@@ -113,8 +123,11 @@ private:
     TransportService& m_transport;
     IActorBridge& m_actorBridge;
     IFormBridge& m_formBridge;
+    CopyRecords& m_records;
+    std::set<uint32_t> m_touched; // form ids
+    std::map<uint32_t, std::pair<double, double>> m_unsettled; // session id: seconds since the first try, since the last
+    std::set<uint32_t> m_waiting3D; // copies (session ids) whose part waits for their 3D (a move to another cell)
 
-    EquipmentRepair::Snapshots m_equipmentSnapshots;
     std::chrono::steady_clock::time_point m_lastNakedCheck;
     std::optional<uint32_t> m_partyGold;
     std::optional<std::vector<Inventory::Entry>> m_partyItems;

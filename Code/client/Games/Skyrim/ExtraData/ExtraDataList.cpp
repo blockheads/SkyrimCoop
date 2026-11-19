@@ -147,6 +147,13 @@ void ExtraDataList::SetEnchantmentData(EnchantmentItem* apItem, uint16_t aCharge
     setEnchantmentData(this, apItem, aCharge, aRemoveOnUnequip);
 }
 
+void ExtraDataList::SetOwner(TESForm* apOwner) noexcept
+{
+    using TSetOwner = void(ExtraDataList*, TESForm*);
+    POINTER_SKYRIMSE(TSetOwner, s_setOwner, 11609);
+    s_setOwner(this, apOwner);
+}
+
 void ExtraDataList::SetCount(uint16_t aCount) noexcept
 {
     using TSetCount = void(ExtraDataList*, uint16_t aCount);

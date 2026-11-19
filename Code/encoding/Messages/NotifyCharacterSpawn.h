@@ -33,7 +33,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     bool operator==(const NotifyCharacterSpawn& acRhs) const noexcept
     {
         return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
-               InventoryContent == acRhs.InventoryContent && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer &&
+               FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer &&
                IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
     }
 
@@ -45,7 +45,6 @@ struct NotifyCharacterSpawn final : NotifyMessage
     Rotator2_NetQuantize Rotation{};
     uint32_t ChangeFlags{};
     std::string AppearanceBuffer{};
-    Inventory InventoryContent{};
     ActionEvent LatestAction{};
     // The owner's behaviour graphs' state: the copy's fresh graph loads it instead of replaying LatestAction.
     std::string GraphState{};

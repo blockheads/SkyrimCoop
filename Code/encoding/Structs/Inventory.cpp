@@ -49,6 +49,7 @@ void Inventory::Entry::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteBool(aWriter, ExtraWornLeft);
     Serialization::WriteBool(aWriter, IsQuestItem);
     Serialization::WriteString(aWriter, ExtraName);
+    ExtraOwner.Serialize(aWriter);
 }
 
 void Inventory::Entry::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -81,6 +82,7 @@ void Inventory::Entry::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     ExtraWornLeft = Serialization::ReadBool(aReader);
     IsQuestItem = Serialization::ReadBool(aReader);
     ExtraName = Serialization::ReadString(aReader);
+    ExtraOwner.Deserialize(aReader);
 }
 
 bool Inventory::operator==(const Inventory& acRhs) const noexcept

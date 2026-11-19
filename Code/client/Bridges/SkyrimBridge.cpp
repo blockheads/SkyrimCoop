@@ -7,6 +7,8 @@
 /// test targets.
 
 #include <Bridges/SkyrimBridge.h>
+#include <Bridges/ContainerItems.h>
+#include <ItemIds.h>
 #include <AI/FollowerTargets.h>
 #include <Breadcrumbs.h>
 #include <Games/HiddenCopies.h>
@@ -1210,6 +1212,15 @@ void SkyrimBridge::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory
     Breadcrumbs::Record("ObjectAddOrRemoveItem", aObjectFormId);
     if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
         pObj->AddOrRemoveItem(aItem);
+}
+
+void SkyrimBridge::SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept
+{
+    Breadcrumbs::Record("SetCopyItemCount", aActorFormId);
+    Actor* pActor = GetActor(aActorFormId);
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(acItem)));
+    if (pActor && pItem)
+        SetCarriedStacks(*pActor, *pItem, aCount, acStacks);
 }
 
 Inventory SkyrimBridge::GetActorWornArmor(uint32_t aActorFormId) const noexcept

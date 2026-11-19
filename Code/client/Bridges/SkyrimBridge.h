@@ -230,6 +230,7 @@ public:
     Inventory GetActorEquipment(uint32_t aActorFormId) const noexcept override;
     void ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept override;
     void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override;
+    void SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept override;
     Inventory GetActorWornArmor(uint32_t aActorFormId) const noexcept override;
     bool ActorIsWearingBodyPiece(uint32_t aActorFormId) const noexcept override;
     bool ActorShouldWearBodyPiece(uint32_t aActorFormId) const noexcept override;

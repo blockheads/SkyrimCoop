@@ -51,6 +51,7 @@ struct Inventory
         int32_t ExtraSoulLevel{};
 
         std::string ExtraName{}; // a player's name for it (ExtraTextDisplayData, custom), no temper suffix
+        GameId ExtraOwner{}; // its ExtraOwnership (an NPC or a faction): another's makes it stolen
 
         bool ExtraEnchantRemoveUnequip{};
         bool ExtraWorn{};
@@ -73,7 +74,7 @@ struct Inventory
             // since many of these things can and will change, like poison id or charge
             // or the fact that the enchant id can be temp
             return ExtraCharge == acRhs.ExtraCharge && IsSameEnchantment(acRhs) && ExtraEnchantCharge == acRhs.ExtraEnchantCharge && ExtraEnchantRemoveUnequip == acRhs.ExtraEnchantRemoveUnequip && ExtraHealth == acRhs.ExtraHealth && ExtraPoisonId == acRhs.ExtraPoisonId &&
-                   ExtraPoisonCount == acRhs.ExtraPoisonCount && ExtraSoulLevel == acRhs.ExtraSoulLevel && ExtraName == acRhs.ExtraName && ExtraWorn == acRhs.ExtraWorn && ExtraWornLeft == acRhs.ExtraWornLeft && IsQuestItem == acRhs.IsQuestItem;
+                   ExtraPoisonCount == acRhs.ExtraPoisonCount && ExtraSoulLevel == acRhs.ExtraSoulLevel && ExtraName == acRhs.ExtraName && ExtraOwner == acRhs.ExtraOwner && ExtraWorn == acRhs.ExtraWorn && ExtraWornLeft == acRhs.ExtraWornLeft && IsQuestItem == acRhs.IsQuestItem;
         }
 
         bool IsWorn() const noexcept { return ExtraWorn || ExtraWornLeft; }

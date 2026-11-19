@@ -1073,7 +1073,9 @@ bool FakeEngine::ActorHas3D(uint32_t aFormId) const noexcept
 uint32_t FakeEngine::GetEquippedWeaponFormId(uint32_t aActorFormId, uint32_t aSlot) const noexcept
 {
     const auto it = Actors.find(aActorFormId);
-    return it != Actors.end() && aSlot < 2 ? it->second.HeldSpells[aSlot] : 0;
+    if (it == Actors.end() || aSlot >= 2)
+        return 0;
+    return it->second.HeldWeapons[aSlot] ? it->second.HeldWeapons[aSlot] : it->second.HeldSpells[aSlot];
 }
 
 void FakeEngine::EquipSpells(uint32_t aFormId, const MagicEquipment& acMagic)
@@ -1085,6 +1087,16 @@ void FakeEngine::EquipSpells(uint32_t aFormId, const MagicEquipment& acMagic)
         actor.HeldSpells[0] = ::ItemForm(acMagic.LeftHandSpell);
         actor.HeldSpells[1] = ::ItemForm(acMagic.RightHandSpell);
     }
+}
+
+void FakeEngine::EquipsSpell(uint32_t aActor, const GameId& acSpell, uint32_t aHand)
+{
+    auto& actor = Actors.at(aActor);
+    if (!actor.Copy)
+        World::Get().GetRunner().Trigger(EquipmentChangeEvent{.ActorId = aActor, .ItemId = ::ItemForm(acSpell), .IsSpell = true});
+    MagicEquipment magic = actor.Items.CurrentMagicEquipment;
+    (aHand == 0 ? magic.LeftHandSpell : magic.RightHandSpell) = acSpell;
+    EquipSpells(aActor, magic);
 }
 
 void FakeEngine::RevertSelectedSpells(uint32_t aFormId)
@@ -2449,7 +2461,22 @@ bool FakeEngine::IsActorNpcTemporary(uint32_t aFormId) const noexcept
 Inventory FakeEngine::GetActorInventory(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
-    return it != Actors.end() ? it->second.Items : Inventory{};
+    if (it == Actors.end())
+        return {};
+    // TESObjectREFR::GetInventory: the base container's entries as they are, with the actor's own change of them.
+    Inventory inventory = it->second.Items;
+    if (const auto cBase = BaseContainers.find(it->second.Base); cBase != BaseContainers.end())
+        for (const auto& [cItem, cCount] : cBase->second)
+        {
+            const auto cOwn = std::ranges::find_if(inventory.Entries, [&](const Inventory::Entry& acEntry) {
+                return ::ItemForm(acEntry.BaseId) == cItem && !acEntry.ContainsExtraData();
+            });
+            if (cOwn != inventory.Entries.end())
+                cOwn->Count += cCount;
+            else
+                inventory.Entries.push_back({.BaseId = GameId(0, cItem), .Count = cCount});
+        }
+    return inventory;
 }
 
 void FakeEngine::SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept

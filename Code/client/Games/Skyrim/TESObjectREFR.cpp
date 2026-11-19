@@ -445,6 +445,20 @@ TESForm* TESObjectREFR::GetOwner() const noexcept
     return pOwnership ? pOwnership->owner : nullptr;
 }
 
+TESForm* TESObjectREFR::GetItemsOwner() const noexcept
+{
+    if (formType == FormType::Character)
+    {
+        using TGetLeveledNpc = TESForm*(const ExtraDataList*);
+        POINTER_SKYRIMSE(TGetLeveledNpc, s_getLeveledNpc, 11810);
+        TESForm* pLeveled = s_getLeveledNpc(&extraData);
+        return pLeveled ? pLeveled : baseForm;
+    }
+    using TGetOwner = TESForm*(const TESObjectREFR*);
+    POINTER_SKYRIMSE(TGetOwner, s_getOwner, 20194);
+    return s_getOwner(this);
+}
+
 void TESObjectREFR::RecordMove(bool aMoved) noexcept
 {
     if (aMoved && formType != FormType::Character)
@@ -704,6 +718,10 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
         arEntry.ExtraName = std::string(cName.substr(0, pText->usCustomNameLength ? pText->usCustomNameLength : cName.size()));
     }
 
+    if (const auto* pOwnership = static_cast<const ExtraOwnership*>(apExtraDataList->GetByType(ExtraDataType::Ownership));
+        pOwnership && pOwnership->owner)
+        arEntry.ExtraOwner = ToSession(pOwnership->owner->formID).value_or(GameId{}); // a created owner: none
+
     arEntry.ExtraWorn = apExtraDataList->Contains(ExtraDataType::Worn);
     arEntry.ExtraWornLeft = apExtraDataList->Contains(ExtraDataType::WornLeft);
 
@@ -794,6 +812,10 @@ void TESObjectREFR::SetItemExtraData(ExtraDataList& aList, const Inventory::Entr
 
     if (!acEntry.ExtraName.empty())
         aList.SetCustomName(acEntry.ExtraName.c_str());
+
+    if (acEntry.ExtraOwner != GameId{})
+        if (TESForm* pOwner = TESForm::GetById(ToGame(acEntry.ExtraOwner)))
+            aList.SetOwner(pOwner);
 }
 
 Inventory TESObjectREFR::GetInventory() const noexcept

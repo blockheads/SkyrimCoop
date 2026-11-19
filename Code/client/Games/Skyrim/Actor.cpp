@@ -27,6 +27,7 @@
 #include <Events/ActorDeathChangeEvent.h>
 #include <Games/Skyrim/Papyrus/GuestScripts.h>
 #include <Events/InventoryChangeEvent.h>
+#include <Events/WornResetEvent.h>
 #include <Events/LooseItemEvents.h>
 #include <Events/MountEvent.h>
 #include <Events/DismountEvent.h>
@@ -1819,6 +1820,18 @@ void HookUpdateAI(Actor* apThis, float aDelta)
     RealUpdateAI(apThis, aDelta);
 }
 
+// TESNPC::ResetWornToOutfit (418622): worn items off (16100), the hands emptied, the base's outfit on; past our equip hooks.
+// Callers: ResetInventory, InitLoadGame, SetLevel, TESNPC::InitWornOn3D 24725 (inventory-changes.md).
+using TResetWornToOutfit = void(void* apNpc, Actor* apActor, void* apUnk, bool aUnk1, int32_t aUnk2, bool aUnk3);
+static TResetWornToOutfit* RealResetWornToOutfit = nullptr;
+
+void HookResetWornToOutfit(void* apNpc, Actor* apActor, void* apUnk, bool aUnk1, int32_t aUnk2, bool aUnk3)
+{
+    RealResetWornToOutfit(apNpc, apActor, apUnk, aUnk1, aUnk2, aUnk3);
+    if (apActor)
+        World::Get().GetRunner().Trigger(WornResetEvent{apActor->formID});
+}
+
 using TAddDeathItems = void(Actor*);
 static TAddDeathItems* RealAddDeathItems = nullptr;
 
@@ -2006,6 +2019,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
         HOOK_ID(37541, &RealUpdateInDialogue, HookUpdateInDialogue);
         HOOK_ID(37198, &RealAddDeathItems, HookAddDeathItems);
+        HOOK_ID(418622, &RealResetWornToOutfit, HookResetWornToOutfit);
         HOOK_ID(37320, &RealDropHeldItemsOnDeath, HookDropHeldItemsOnDeath);
         HOOK_ID(37577, &RealIsFleeing, HookIsFleeing);
     });

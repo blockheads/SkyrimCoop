@@ -50,6 +50,37 @@ SCENARIO("A guest takes part of a stack and stores it again", "[container-transf
     party.Agree("the inventories agree after storing");
 }
 
+SCENARIO("A guest's theft from an owned chest is the owner's on the guest's game", "[container-transfer]")
+{
+    // Skyrim: 16059 marks a theft's item as the owner's only on the target it moves it to, which on the host was its
+    // copy of the guest (inventory-changes.md, "What 16059's target does"). The grant carries the owner instead.
+    constexpr uint32_t kOwner = 0x1347B;
+    Party party(1, [](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        aEngine.References.at(kChest).Owner = kOwner;
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    Inventory::Entry sword;
+    sword.BaseId = GameId(0, kSword);
+    sword.Count = 1;
+    party.As(party.Guest(), [&] { REQUIRE(ContainerTransfers::Propose(party.Guest(), kChest, FakeEngine::kPlayer, sword, true)); });
+    party.Until([&] { return guest.CountOf(FakeEngine::kPlayer, kSword) == 1; }, "the guest takes the sword");
+    const auto cStacks = guest.EntriesOf(FakeEngine::kPlayer, kSword);
+    REQUIRE(cStacks.size() == 1);
+    CHECK(cStacks.front().ExtraOwner == GameId(0, kOwner));
+    CHECK(host.References.at(kChest).Items[kSword] == 0);
+    uint32_t copy{};
+    for (const auto& [cId, cActor] : host.Actors)
+        if (cActor.Player && cActor.Copy)
+            copy = cId;
+    REQUIRE(copy);
+    party.Until([&] {
+        const auto cCopyStacks = host.EntriesOf(copy, kSword);
+        return cCopyStacks.size() == 1 && cCopyStacks.front().ExtraOwner == GameId(0, kOwner) && host.CountOf(copy, kSword) == 1;
+    }, "the host's copy of the guest holds the one stolen sword its part says");
+}
+
 SCENARIO("A guest taking container gold changes the party purse once", "[container-transfer]")
 {
     Party party(1, Plugins);

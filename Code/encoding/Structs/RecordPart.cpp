@@ -1,4 +1,5 @@
 #include <Structs/RecordPart.h>
+#include <Structs/ItemsPart.h>
 #include <Wire/Serialization.h>
 
 #include <algorithm>
@@ -41,4 +42,19 @@ const RecordPart* RecordParts::Find(RecordKind aKind) const noexcept
 {
     const auto it = std::ranges::find(Parts, aKind, &RecordPart::Kind);
     return it != Parts.end() ? &*it : nullptr;
+}
+
+std::optional<std::string> MergedPart(const RecordPart* apHeld, const RecordPart& acChange) noexcept
+{
+    if (acChange.Kind != RecordKind::kItems)
+        return acChange.Bytes;
+    ItemsPart change;
+    if (!FromPartBytes(acChange.Bytes, change))
+        return std::nullopt;
+    if (change.Full)
+        return acChange.Bytes;
+    ItemsPart held;
+    if (!apHeld || apHeld->Version + 1 != acChange.Version || !FromPartBytes(apHeld->Bytes, held))
+        return std::nullopt;
+    return ToPartBytes(ItemsPart::Merged(held, change));
 }

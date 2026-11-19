@@ -251,6 +251,19 @@ bool PlayerImproves(uint32_t aItemFormId, float aHealth, uint32_t aEnchantment, 
 // Each of the holder's stacks of the item with an extra data list: its count and the types its list holds
 // (BSExtraData::GetType), past the fields Inventory::Entry reads. None: no such holder or item.
 std::optional<std::vector<std::pair<int32_t, std::vector<uint32_t>>>> GetStackExtraTypes(uint32_t aHolder, uint32_t aItem) noexcept;
+// One item on a holder, every way it is counted: its base container's entries naming it or a leveled list (form,
+// count), its changes entry (delta and each list's count and extra types), GetContainerCount (16108) and what
+// TESObjectREFR::GetInventory lists for it. None: no such holder or item.
+struct InventoryEntryRead
+{
+    std::vector<std::pair<uint32_t, int32_t>> Base;
+    bool HasEntry{};
+    int32_t Delta{};
+    std::vector<std::pair<int32_t, std::vector<uint32_t>>> Lists;
+    int32_t Count{};
+    int32_t Listed{};
+};
+std::optional<InventoryEntryRead> GetInventoryEntry(uint32_t aHolder, uint32_t aItem) noexcept;
 // Whether the reference is enabled (its disabled flag, TESForm 0x800); none: no such reference.
 std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept;
 
@@ -322,6 +335,10 @@ using RayHit = GameRaycast::RayHit;
 std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer = 30, uint32_t aThrough = 0) noexcept;
 // Unequips everything in this game only, nothing sent (a copy that drifted).
 void UnequipAllUnsynced(uint32_t aFormId) noexcept;
+// The engine's own reset of what the actor wears to its base's outfit (TESNPC::ResetWornToOutfit 418622, as a 3D load
+// runs it: inventory-changes.md), through our hook: what it wears right after, before any service answers. None: no
+// such actor or NPC base.
+std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
 // (the bridge's Activate and lock replays call past the hooks): the player activates the object
 // (pressing E on it), and the object's lock changes.

@@ -14,6 +14,7 @@
 #include <Papyrus/StoryGifts.h>
 #include <Services/ContainerTransfers.h>
 #include <Games/ItemChanges.h>
+#include <Structs/ItemsPart.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Events/AddTargetEvent.h>
@@ -24,6 +25,7 @@
 #include <Events/ActorValueChangeEvent.h>
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
+#include <Events/WornResetEvent.h>
 #include <Games/DeathActions.h>
 #include <Events/HitEvent.h>
 #include <Events/ProjectileLaunchedEvent.h>
@@ -100,6 +102,9 @@ void FakeEngine::RebuildCopyEquipment(uint32_t aActor, uint32_t aRemainingItem)
         if (::ItemForm(entry.BaseId) != aRemainingItem)
             entry.ExtraWorn = entry.ExtraWornLeft = false;
     actor.EquipmentNeedsReset = true;
+    actor.HeldWeapons[0] = actor.HeldWeapons[1] = 0;
+    // TESNPC::ResetWornToOutfit (418622) did it: our hook raises it.
+    World::Get().GetRunner().Trigger(WornResetEvent{aActor});
 }
 
 void FakeEngine::ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept
@@ -107,6 +112,7 @@ void FakeEngine::ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment
     if (auto actor = Actors.find(aActorFormId); actor != Actors.end())
     {
         actor->second.EquipmentNeedsReset = false;
+        actor->second.HeldWeapons[0] = actor->second.HeldWeapons[1] = 0;
         for (auto& item : actor->second.Items.Entries)
             item.ExtraWorn = item.ExtraWornLeft = false;
         EquipSpells(aActorFormId, acMagic);
@@ -170,6 +176,8 @@ void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
 
     auto& entry = EntryOf(cActor->second, aItem);
     (cLeft ? entry.ExtraWornLeft : entry.ExtraWorn) = true;
+    if ((cWeapon || cForm->second.Type == kLight) && ActorHas3D(aActor))
+        cActor->second.HeldWeapons[cLeft || !cWeapon ? 0 : 1] = aItem;
 }
 
 // UnEquipHook, then the engine: off that hand (both for no hand's slot).
@@ -185,6 +193,9 @@ void FakeEngine::Unequip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
         World::Get().GetRunner().Trigger(EquipmentChangeEvent{
             .ActorId = aActor, .ItemId = aItem, .EquipSlotId = aSlot, .Count = 1, .Unequip = true});
 
+    for (auto& held : cActor->second.HeldWeapons)
+        if (held == aItem)
+            held = 0;
     const GameId cId = ServerId(aItem);
     for (auto& entry : cActor->second.Items.Entries)
         if (entry.BaseId == cId)
@@ -526,9 +537,25 @@ void FakeEngine::AddEntry(uint32_t aActor, const Inventory::Entry& acItem)
         entries.erase(it);
 }
 
+namespace
+{
+// The base container's entries of the actor's NPC base (FakeEngine::BaseContainers).
+const std::map<uint32_t, int32_t>* BaseOf(const FakeEngine& acEngine, uint32_t aActor)
+{
+    const auto cActor = acEngine.Actors.find(aActor);
+    if (cActor == acEngine.Actors.end())
+        return nullptr;
+    const auto cBase = acEngine.BaseContainers.find(cActor->second.Base);
+    return cBase != acEngine.BaseContainers.end() ? &cBase->second : nullptr;
+}
+} // namespace
+
 int32_t FakeEngine::CountOf(uint32_t aActor, uint32_t aItem) const
 {
     int32_t count = 0;
+    if (const auto* cpBase = BaseOf(*this, aActor))
+        if (const auto it = cpBase->find(aItem); it != cpBase->end())
+            count += it->second;
     // A brewed potion by its recipe (ItemIds).
     const auto cBrewed = Brewed.find(aItem);
     if (const auto it = Actors.find(aActor); it != Actors.end())
@@ -544,6 +571,9 @@ std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aA
     if (const auto it = Actors.find(aActor); it != Actors.end())
         for (const auto& cEntry : it->second.Items.Entries)
             carried[{cEntry.BaseId.ModId, cEntry.BaseId.BaseId}] += cEntry.Count;
+    if (const auto* cpBase = BaseOf(*this, aActor))
+        for (const auto& [cItem, cCount] : *cpBase)
+            carried[{0u, cItem}] += cCount;
     return carried;
 }
 
@@ -665,3 +695,47 @@ void FakeEngine::ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept
         it->second.Weapon = aDrawn ? WeaponState::Drawn : WeaponState::Sheathed;
 }
 
+
+// As SetCarriedStacks: the stacks with extra data that differ (worn and charge aside) out and in, then the plain count
+// (with the base container's entries counted, as 16108 does).
+void FakeEngine::SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept
+{
+    const auto cActor = Actors.find(aActorFormId);
+    if (cActor == Actors.end())
+        return;
+    auto& entries = cActor->second.Items.Entries;
+    std::vector<Inventory::Entry> missing;
+    for (Inventory::Entry stack : acStacks)
+        if (stack.Count > 0)
+        {
+            stack.ExtraWorn = stack.ExtraWornLeft = stack.IsQuestItem = false;
+            missing.push_back(stack);
+        }
+    for (auto& entry : entries)
+    {
+        if (entry.BaseId != acItem || !entry.ContainsExtraData())
+            continue;
+        Inventory::Entry bare = entry;
+        bare.ExtraWorn = bare.ExtraWornLeft = bare.IsQuestItem = false;
+        if (!bare.ContainsExtraData())
+            continue;
+        const auto it = std::ranges::find_if(missing, [&](const auto& acWanted) { return acWanted.Count > 0 && ItemsPart::SameStack(acWanted, bare); });
+        const int32_t cKept = it != missing.end() ? std::min(it->Count, entry.Count) : 0;
+        if (it != missing.end())
+            it->Count -= cKept;
+        entry.Count = cKept;
+    }
+    std::erase_if(entries, [](const Inventory::Entry& acEntry) { return acEntry.Count <= 0; });
+    for (const auto& cStack : missing)
+        if (cStack.Count > 0)
+            AddEntry(aActorFormId, cStack); // as AddObjectToContainer with GetExtraDataFromItem: its coating's form made here
+    const uint32_t cItem = ::ItemForm(acItem);
+    const int32_t cOver = CountOf(aActorFormId, cItem) - aCount;
+    if (cOver != 0)
+    {
+        Inventory::Entry plain;
+        plain.BaseId = acItem;
+        plain.Count = -cOver;
+        AddEntry(aActorFormId, plain);
+    }
+}

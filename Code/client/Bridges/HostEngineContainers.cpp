@@ -1,5 +1,7 @@
 #include <Actor.h>
 #include <Bridges/HostEngine.h>
+#include <Events/ItemsChangedEvent.h>
+#include <World.h>
 #include <ExtraData/ExtraContainerChanges.h>
 #include <FormIds.h>
 #include <ItemIds.h>
@@ -51,7 +53,6 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
         return moved;
     const bool cTake = acRequest.Item.Count > 0;
     TESObjectREFR* pSource = cTake ? pContainer : pPlayer;
-    TESObjectREFR* pTarget = cTake ? pPlayer : pContainer;
     const auto inventory = pSource->GetInventory([pItem](TESForm& aForm) { return &aForm == pItem; });
     int32_t available = 0;
     if (moved.ContainsExtraData())
@@ -70,7 +71,17 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
     }
     int32_t remaining = std::min(std::abs(acRequest.Item.Count), available);
     ScopedInventoryOverride _;
-    while (remaining > 0)
+    // The player's items are its own game's part: a take only leaves the container, a put only arrives in it
+    // (one-simulator.md, piece 3).
+    if (!cTake)
+    {
+        Inventory::Entry stored = moved;
+        stored.Count = remaining;
+        if (remaining > 0)
+            pContainer->AddOrRemoveItem(stored);
+        moved.Count = -remaining;
+    }
+    while (cTake && remaining > 0)
     {
         int32_t chunk = remaining;
         // Plain to us is not plain to the engine: a fresh roll's items sit in lists (ExtraLeveledItem), which 16059
@@ -79,17 +90,23 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
         if (moved.ContainsExtraData() && !pExtra)
             break;
         const int32_t cBefore = pSource->GetContainerCount(pItem).value_or(0);
-        pSource->RemoveItem(
-            pItem, chunk, acRequest.Steal && cTake ? ITEM_REMOVE_REASON::kSteal : ITEM_REMOVE_REASON::kStoreInContainer,
-            pExtra, pTarget);
+        pSource->RemoveItem(pItem, chunk, acRequest.Steal ? ITEM_REMOVE_REASON::kSteal : ITEM_REMOVE_REASON::kStoreInContainer,
+                            pExtra, nullptr);
         const int32_t cTaken = std::clamp(cBefore - pSource->GetContainerCount(pItem).value_or(cBefore), 0, chunk);
         if (!cTaken)
             break;
         remaining -= cTaken;
-        moved.Count += cTaken * (cTake ? 1 : -1);
+        moved.Count += cTaken;
     }
+    // A theft marks what it takes as the owner's (16059 does so only on an item given to a target): stolen on the
+    // looter's game (inventory-changes.md, "What 16059's target does").
+    if (cTake && acRequest.Steal && moved.Count && moved.ExtraOwner == GameId{} && pItem->formID != 0xF)
+        if (TESForm* pOwner = pContainer->GetItemsOwner())
+            moved.ExtraOwner = ToSession(pOwner->formID).value_or(GameId{});
     // The container menu may be showing a stale stack even when nothing was granted.
     if (!acRequest.ContainerActorId)
         RecordItems(pContainer->formID, pItem->formID);
+    else if (moved.Count)
+        World::Get().GetRunner().Trigger(ItemsChangedEvent{pContainer->formID}); // its items part, silent above
     return moved;
 }

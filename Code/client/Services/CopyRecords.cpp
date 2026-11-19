@@ -8,17 +8,20 @@ void CopyRecords::Register(RecordKind aKind, Apply_t aApply, Read_t aRead)
 RecordPart& CopyRecords::Next(uint32_t aId, RecordKind aKind, std::string aBytes)
 {
     RecordPart& part = m_records[aId][aKind];
+    const RecordPart cChange{aKind, part.Version + 1, std::move(aBytes)};
+    // The owner's own change always follows the version it holds.
+    part.Bytes = MergedPart(part.Version ? &part : nullptr, cChange).value_or(cChange.Bytes);
     part.Kind = aKind;
-    ++part.Version;
-    part.Bytes = std::move(aBytes);
+    part.Version = cChange.Version;
     return part;
 }
 
 void CopyRecords::Declare(uint32_t aId, RecordKind aKind, std::string aBytes)
 {
-    const RecordPart cPart = Next(aId, aKind, std::move(aBytes));
+    RecordPart sent{aKind, 0, aBytes};
+    sent.Version = Next(aId, aKind, std::move(aBytes)).Version;
     if (m_send)
-        m_send(aId, cPart);
+        m_send(aId, sent);
 }
 
 RecordParts CopyRecords::ReadAll(uint32_t aId, uint32_t aFormId)
@@ -45,7 +48,15 @@ bool CopyRecords::Take(uint32_t aId, const RecordPart& acPart)
     part.Kind = acPart.Kind;
     if (acPart.Version <= part.Version)
         return false;
-    part = acPart;
+    auto merged = MergedPart(part.Version ? &part : nullptr, acPart);
+    if (!merged)
+    {
+        if (m_ask)
+            m_ask(aId, acPart.Kind);
+        return false;
+    }
+    part.Version = acPart.Version;
+    part.Bytes = std::move(*merged);
     TryApply(aId, acPart.Kind);
     return true;
 }

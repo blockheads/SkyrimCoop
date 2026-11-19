@@ -68,6 +68,16 @@ nlohmann::json Strip(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "reset_worn", "actor": id}: the engine resets what it wears to its base's outfit (EngineCalls::ResetWornToOutfit):
+// a copy's drift as Skyrim makes it; worn_after: what it wears as the reset returns.
+nlohmann::json ResetWorn(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cWorn = EngineCalls::ResetWornToOutfit(acRequest.value("actor", 0u));
+    if (!cWorn)
+        return Error("no such actor or NPC base");
+    return {{"ok", true}, {"worn_after", *cWorn}};
+}
+
 // {"cmd": "freeze", "actor": id, "frozen": true}: freezes the actor in this game (EngineCalls::FreezeActor): a
 // scenario's target stands still, does not fight back and lets players pass through; false thaws it.
 nlohmann::json Freeze(Harness&, const nlohmann::json& acRequest)
@@ -227,7 +237,7 @@ nlohmann::json Wake(Harness&, const nlohmann::json& acRequest)
 
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
-    {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing},
+    {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"put_on_mount", true, &PutOnMount}, {"board_ridden", true, &BoardRidden}, {"seat_on_mount", true, &SeatOnMountCommand}, {"take_reins", true, &TakeReinsCommand}, {"graph_event", true, &GraphEventCommand}, {"activate_text", true, &ActivateTextCommand}, {"clear_map_marker", true, &ClearMapMarker},
     {"wake", true, &Wake},
     {"body_velocity", true, &BodyVelocity},

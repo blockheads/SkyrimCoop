@@ -1727,6 +1727,7 @@ TEST_CASE("Dropped items keep their extra data on the wire", "[encoding.items]")
     item.ExtraEnchantId = GameId(0, 0x4605A);
     item.ExtraEnchantCharge = 500;
     item.ExtraName = "Old Friend";
+    item.ExtraOwner = GameId(0, 0x1347B); // stolen from its owner
 
     DropItemRequest drop;
     drop.Tag = 0xFF000A31;

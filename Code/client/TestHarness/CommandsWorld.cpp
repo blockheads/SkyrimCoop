@@ -647,7 +647,8 @@ nlohmann::json StackJson(const Inventory::Entry& acItem)
             {"poison", ItemForm(acItem.ExtraPoisonId)},
             {"poison_count", acItem.ExtraPoisonCount},
             {"soul", acItem.ExtraSoulLevel},
-            {"name", acItem.ExtraName}};
+            {"name", acItem.ExtraName},
+            {"owner", ToGame(acItem.ExtraOwner)}};
 }
 
 // {"cmd": "item_stacks", "object": id}: a loose item's own count and extra data, or each stack with extra data a
@@ -708,6 +709,23 @@ nlohmann::json Improve(Harness&, const nlohmann::json& acRequest)
                                      static_cast<uint16_t>(acRequest.value("charge", 0u))))
         return Error("the player holds no such stack with extra data, or no such enchantment");
     return Ok();
+}
+
+// {"cmd": "inventory_entry", "object": id, "item": id}: the item on the holder, every way it is counted
+// (EngineCalls::GetInventoryEntry).
+nlohmann::json InventoryEntry(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cRead = EngineCalls::GetInventoryEntry(acRequest.value("object", 0u), acRequest.value("item", 0u));
+    if (!cRead)
+        return Error("no such holder or item");
+    auto base = nlohmann::json::array();
+    for (const auto& [cForm, cCount] : cRead->Base)
+        base.push_back({{"form", cForm}, {"count", cCount}});
+    auto lists = nlohmann::json::array();
+    for (const auto& [cCount, cTypes] : cRead->Lists)
+        lists.push_back({{"count", cCount}, {"types", cTypes}});
+    return {{"ok", true}, {"base", base}, {"has_entry", cRead->HasEntry}, {"delta", cRead->Delta}, {"lists", lists},
+            {"count", cRead->Count}, {"listed", cRead->Listed}};
 }
 
 // {"cmd": "stack_extras", "object": id, "item": id}: each of the holder's stacks of the item with an extra data list,
@@ -1246,6 +1264,7 @@ constexpr Command cCommands[] = {
     {"store", true, &Store},
     {"improve", true, &Improve},
     {"stack_extras", true, &StackExtras},
+    {"inventory_entry", true, &InventoryEntry},
     {"lock", true, &Lock},
     {"door_open", true, &DoorOpen},
     {"graph_state", true, &GraphState},

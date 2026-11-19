@@ -1038,11 +1038,20 @@ class ReproActions:
         (the graph input stream's live check for `seconds`: every streamed copy's graph states equal its owner's at each
         update; with `name`, its copy compared on at least `value` updates, by default 9 in 10 of its owner's and 4 a
         second; without, at least `value` copies, default 1, compared that far), "guest_npcs" (the guest shows no NPC of its own, all
-        through `seconds`), "props" (every copy holds its owner's props within `seconds`, at least `value` owners holding one)."""
+        through `seconds`), "props" (every copy holds its owner's props within `seconds`, at least `value` owners holding one), "stolen" (item `name`,
+        hex: `game`'s player holds at least value [n] of it marked another's, ExtraOwnership)."""
         if check == "faces":
             return ctx.expect_faces(name, of, game, within, seconds)
-        if check == "items":
-            held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
+        if check == "items":  # within `seconds`: a change reaches the other game a few frames later
+            def read():
+                return {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
+            held = read()
+            if seconds and held["host"] != held["guest"]:
+                try:
+                    ctx.wait_for(f"{name}: holds the same in both games", lambda: (h := read())["host"] == h["guest"], seconds)
+                except TestFailure:
+                    pass
+                held = read()
             if held["host"] != held["guest"]:
                 raise ctx.failure(f"{name}: holds differently: " + ctx.item_differences(held["host"], held["guest"], "host", "guest"))
             return {"items": len(held["host"])}
@@ -1055,6 +1064,18 @@ class ReproActions:
             except TestFailure:
                 raise ctx.failure(f"{name}: the bounty is {rows()}, not at least {value[0]} in both games") from None
             return {"bounty": rows()}
+        if check == "stolen":  # `name` an item (hex): `game`'s player holds at least value [n] of it marked another's
+            instance = "client" if game in ("guest", "client") else ""
+            item = int(name, 16)
+            def stolen():  # stacks holding ExtraOwnership (0x21): the engine's stolen mark (inventory-changes.md)
+                stacks = ctx.game(instance).rpc({"cmd": "stack_extras", "object": 0x14, "item": item}).get("stacks") or []
+                return sum(s["count"] for s in stacks if 0x21 in (s.get("types") or []))
+            want = (value or [1])[0]
+            try:
+                ctx.wait_for(f"[{game or 'host'}] the player's {name} is stolen", lambda: stolen() >= want, seconds or 5)
+            except TestFailure:
+                raise ctx.failure(f"[{game or 'host'}] the player holds {stolen()} of {name} marked another's, not {want}") from None
+            return {"stolen": stolen()}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
         if check == "crosshair":
@@ -1230,9 +1251,11 @@ class ReproActions:
             session = flatten(ctx.actor_row(instance, form)).get("mod.session_id")
             return (form, f"session {session}", [f"session {session}"])
         targets = {label: as_target(label, instance) for label, instance in games} if target else {}
+        # A list of plain values (equipment, hands) has no order: compared as a sorted list.
+        unordered = lambda seen: sorted(seen) if isinstance(seen, list) and all(isinstance(v, (int, float)) for v in seen) else seen
         def wrong(got):
             if value is None:
-                return len(set(map(repr, got.values()))) > 1
+                return len(set(repr(unordered(seen)) for seen in got.values())) > 1
             if target:
                 return any(seen not in targets[label] for label, seen in got.items())
             return not all(got.values()) if value == "set" else any(seen != value for seen in got.values())

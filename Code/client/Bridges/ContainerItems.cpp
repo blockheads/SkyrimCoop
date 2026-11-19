@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <RTTI.h>
+#include <Structs/ItemsPart.h>
 
 std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
 {
@@ -189,5 +190,55 @@ bool ApplyContainerItems(TESObjectREFR& aObject, const ObjectChange& acChange) n
     if (!pItem || Cast<Actor>(&aObject) || !SetContainerStacks(aObject, *pItem, static_cast<int32_t>(acChange.Value), acChange.Stacks))
         return false;
     ShowInItemMenus(aObject);
+    return true;
+}
+
+bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept
+{
+    if (!aActor.GetContainer())
+        return false;
+    ScopedInventoryOverride _;
+    std::vector<Inventory::Entry> missing;
+    for (Inventory::Entry stack : acStacks)
+    {
+        stack.ExtraWorn = stack.ExtraWornLeft = stack.IsQuestItem = false;
+        if (stack.Count > 0)
+            missing.push_back(std::move(stack));
+    }
+    // Each carried list with extra data keeps what is wanted of its stack; the rest of it goes, by its own list (16059).
+    std::vector<std::pair<ExtraDataList*, int32_t>> removals;
+    if (auto* pEntry = FindEntry(aActor, aItem); pEntry && pEntry->dataList)
+        for (ExtraDataList* pList : *pEntry->dataList)
+            if (const auto cStack = pList ? ReadStack(aItem, pList) : std::nullopt)
+            {
+                const auto it = std::ranges::find_if(missing, [&](const auto& acWanted) { return acWanted.Count > 0 && ItemsPart::SameStack(acWanted, *cStack); });
+                const int32_t cKept = it != missing.end() ? std::min(it->Count, cStack->Count) : 0;
+                if (it != missing.end())
+                    it->Count -= cKept;
+                if (cStack->Count > cKept)
+                    removals.emplace_back(pList, cStack->Count - cKept);
+            }
+    for (const auto& [pList, cCount] : removals)
+        aActor.RemoveItem(&aItem, cCount, ITEM_REMOVE_REASON::kRemove, pList, nullptr);
+    for (const auto& cStack : missing)
+        if (cStack.Count > 0)
+            aActor.AddObjectToContainer(&aItem, TESObjectREFR::GetExtraDataFromItem(cStack, true), cStack.Count, nullptr);
+    aActor.SetContainerCount(&aItem, aCount);
+    // A no-list removal takes only what no list holds (16059): the rest through the lists that read as plain (a roll's).
+    for (int tries = 0; tries < 64 && aActor.GetContainerCount(&aItem).value_or(0) > aCount; ++tries)
+    {
+        ExtraDataList* pPlain = nullptr;
+        if (auto* pEntry = FindEntry(aActor, aItem); pEntry && pEntry->dataList)
+            for (ExtraDataList* pList : *pEntry->dataList)
+                if (pList && !ReadStack(aItem, pList))
+                {
+                    pPlain = pList;
+                    break;
+                }
+        if (!pPlain)
+            break;
+        const int32_t cOver = aActor.GetContainerCount(&aItem).value_or(0) - aCount;
+        aActor.RemoveItem(&aItem, std::min<int32_t>(cOver, std::max<int32_t>(pPlain->GetCount(), 1)), ITEM_REMOVE_REASON::kRemove, pPlain, nullptr);
+    }
     return true;
 }

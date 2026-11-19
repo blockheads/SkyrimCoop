@@ -33,18 +33,6 @@ template <class TNotify, class TRequest> TNotify FromRequestBytes(const TRequest
     return notify;
 }
 
-Inventory SomeEquipment()
-{
-    Inventory inventory;
-    Inventory::Entry entry;
-    entry.BaseId = GameId(3, 0x12EB7);
-    entry.Count = 2;
-    entry.ExtraHealth = 1.5f;
-    entry.ExtraWorn = true;
-    inventory.Entries.push_back(entry);
-    return inventory;
-}
-
 // Every relayed request with distinct, non-default values in each field.
 std::map<std::string, std::pair<std::string, std::string>> Encode()
 {
@@ -53,12 +41,6 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         out[acpName] = {Hex(acRequest), Hex(FromRequestBytes<TNotify>(acRequest))};
     };
 
-    {
-        RequestEquipmentSnapshot m;
-        m.SessionId = 0x123456;
-        m.Equipment = SomeEquipment();
-        add("EquipmentSnapshot", m, (NotifyEquipmentSnapshot*)nullptr);
-    }
     {
         RequestActiveEffects m;
         m.SessionId = 0x2345;
@@ -202,7 +184,6 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
         {"DeathState", {"f8ac0101", "f8ac0101"}},
         {"Dismount", {"92e003a30200", "92e003a30200"}}, // placement added 2026-10-27
         {"Dialogue", {"c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a", "c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a"}},
-        {"EquipmentSnapshot", {"d6e84801b7dd04030200000000000000000000c03f00000000040000", "d6e84801b7dd04030200000000000000000000c03f00000000040000"}}, // an item's custom name (2026-10-26)
         {"HealthChange", {"89cf0100004cc135e30300", "89cf0100004cc135e30300"}},
         {"InterruptCast", {"cdd70203", "cdd70203"}},
         {"Mount", {"92e003a302", "92e003a302"}},

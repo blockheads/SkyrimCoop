@@ -1,3 +1,4 @@
+#include <Events/ItemsChangedEvent.h>
 #include <Events/GameLoadFailedEvent.h>
 #include <Events/GameLoadedEvent.h>
 #include <Events/ActorRenamedEvent.h>
@@ -198,16 +199,35 @@ void HostService::MakeAuthority() noexcept
         const bool cTake = moved.Count > 0;
         const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.References.at(cContainer).Items[cItem]) : engine.CountOf(cPlayer, cItem);
         moved.Count = std::min(std::abs(moved.Count), cAvailable) * (cTake ? 1 : -1);
+        // As HostEngine::TransferContainer: only the container changes here; the player's own game changes its player.
         if (moved.Count)
         {
             ScopedInventoryOverride _;
-            engine.GetsItem(cPlayer, moved);
             Inventory::Entry other = moved;
             other.Count = -other.Count;
             if (acRequest.ContainerActorId)
                 engine.GetsItem(cContainer, other);
             else
                 engine.SetItems(cContainer, cItem, engine.References.at(cContainer).Items[cItem] - moved.Count);
+        }
+        if (moved.Count && acRequest.ContainerActorId) // as HostEngine::TransferContainer
+            World::Get().GetRunner().Trigger(ItemsChangedEvent{cContainer});
+        // A theft marks the item as the container's owner's (16059 on its target): an actor's NPC, else the
+        // reference's owner, else its cell's.
+        if (cTake && acRequest.Steal && moved.Count && moved.ExtraOwner == GameId{} && cItem != 0xF)
+        {
+            uint32_t owner{};
+            if (acRequest.ContainerActorId) // its original leveled form, else its base (TESObjectREFR::GetItemsOwner)
+            {
+                const auto& cActor = engine.Actors.at(cContainer);
+                owner = cActor.LeveledBase ? cActor.LeveledBase : cActor.Base ? cActor.Base : cContainer;
+            }
+            else if (const auto& cReference = engine.References.at(cContainer); cReference.Owner)
+                owner = cReference.Owner;
+            else if (const auto cCell = engine.CellOwners.find(engine.References.at(cContainer).Cell); cCell != engine.CellOwners.end())
+                owner = cCell->second;
+            if (owner)
+                moved.ExtraOwner = GameId(0, owner);
         }
         return moved;
     };

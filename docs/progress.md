@@ -49,6 +49,26 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-19: **items as their owner's part, piece 3 of one-simulator.md, built** (`agent/piece-3-items`): an actor's items
+and worn set are one record part (`kItems`, `ItemsPart`), declared by its owner when an item or equip hook, a 3D load or
+the engine's outfit reset (TESNPC 418622, hooked) touches it, and carrying only the stacks that changed (merged onto the
+version before; a gap asks the owner). A copy applies it once its 3D is in and again on each 3D load, outfit reset and
+move to its owner's cell: counts by stack (`SetCopyItemCount`), then only the worn pieces that differ, each hand holding
+its weapon, torch or spell (the full reset when one is refused). Nobody relays item changes any more: a host script's
+change of a guest's character goes to that guest, a guest's loot is the host's transfer with the NPC's part after it.
+Gone: the equipment messages and their 3 s snapshot, the spawn's inventory (`WaitingFor3D`, `InventoryContent`). Read in
+IDA: 16059's removals, 24725/24384/418622/16100 on a 3D load, the queued-equip drain (inventory-changes.md, "1.7.104").
+Closes "A looted corpse keeps items on the guest": the spawn put the bandit's base leveled lists on its copy as items
+(measured, `inventory_entry`); `looted_corpse_empty_on_both` (MCP) fails 3 of 3 on dev, passes 4 of 4. Tests: GameTests
+`[items-part]` (5), ClientTests `[items-part]`, `[equipment-repair]`, HostAuthorityTests (4). Open with leads: "A copy
+without its weapon" (418622 empties a copy's hands, measured), "A spawn's inventory over a newer equip" (no MCP
+scenario), "The guest player's copy wears nothing" (trigger unread), new "A party item removed without its tag". A guest's
+loot no longer passes through the host's copy of the looter, and a stack carries its owner (`Inventory::Entry::ExtraOwner`):
+16059's target only moved the item and stamped a theft's owner on it, so a guest's container theft was never stolen on its
+own game (read in IDA; `guest-container-theft-is-stolen`, MCP with a new `expect stolen`, fails 3 of 3 on dev, passes 5
+of 5; GameTests "A guest's theft from an owned chest is the owner's on the guest's game"). Also read: why the outfit
+reset keeps a copy's items (our forced equips lock them, `ExtraCannotWear`; inventory-changes.md).
+
 2026-11-18: **actor state as record parts, piece 2 of one-simulator.md, built** (`agent/piece-2-actor-state`): a copy
 gets what its owner set beside the graph from three new parts. `kActorState` (sneak, block, bleedout and the other
 non-death life states, a kill move for a copy made mid-move, drawn hands) is read by the owner after each frame and
