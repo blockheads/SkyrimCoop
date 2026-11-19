@@ -1219,6 +1219,8 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
         }
     }
 
+    spdlog::info("Ride {:X} on {:X}: its copy {:X} on {:X}, sit {}", acMessage.RiderId, acMessage.MountId, cRiderFormId, mountFormId,
+                 m_actorBridge.GetActorSitState(cRiderFormId));
     if (!mountFormId)
         m_pendingRides[acMessage.MountId] = acMessage.RiderId;
     else if (cRiderFormId && m_actorBridge.GetActorMount(cRiderFormId) == mountFormId)
@@ -1396,8 +1398,9 @@ void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcep
             FollowOwner(cEntity, cFormId, acMessage.Whereabouts, false);
         if (m_world.GetHostService().IsHosting())
         {
-            if (!m_world.all_of<LocalComponent>(cEntity))
-                TakeOwnership(cFormId, acMessage.MountId, cEntity);
+            // Taken back before its stream's PairEnd: out of the rider's exit pair, or it refuses the next get-on.
+            if (!m_world.all_of<LocalComponent>(cEntity) && TakeOwnership(cFormId, acMessage.MountId, cEntity))
+                m_actorBridge.ActorEndMountPair(cFormId);
         }
         else if (m_world.all_of<LocalComponent>(cEntity))
             GiveUpOwnership(cEntity, acMessage.MountId, cFormId);

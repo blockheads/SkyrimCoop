@@ -16,8 +16,10 @@ from ..utilities import atomic_write
 
 class SessionActions:
     def rejoin_client(ctx):
-        """The client joins the host's running session again."""
+        """The client joins the host's running session again, leaving it first if it is still in it."""
         _game = ctx.game()
+        if ctx.game_state("client").get("online"):
+            ctx.disconnect_client()
         if ctx.game_state("client").get("main_menu"):
             ctx.joins_with_world("rejoins from the main menu")
             return
@@ -28,6 +30,16 @@ class SessionActions:
         _game = ctx.game('client')
         ctx.start_session(f"join {port}", _game=_game)
         ctx.wait_for("Each game shows the other player again", ctx.both_see_each_other, 30, _game=_game)
+
+
+    def guest_leaves_to_main_menu(ctx):
+        """The client leaves the session as a player does (its Leave): its game goes back to the main menu, the host
+        drops it and keeps hosting."""
+        ctx.player_command("client", {"cmd": "leave_session"})
+        ctx.wait_for("[client] leaving returns it to the main menu", lambda: ctx.game_state("client").get("main_menu"), 30)
+        ctx.wait_for("[host] removes the leaving client", lambda: not ctx.session_players(""), 15)
+        if not ctx.game_state("").get("hosting"):
+            raise ctx.failure("[host] the client's leave stopped the session")
 
 
     def party_panel_lists_the_other(ctx, when):

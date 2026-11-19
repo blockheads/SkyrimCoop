@@ -80,8 +80,13 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
         // The transport authenticates and assigns our character itself once connected.
         // The host across a network namespace link (SKYRIMCOOP_JOIN_HOST), loopback otherwise.
         const char* pHost = std::getenv("SKYRIMCOOP_JOIN_HOST");
-        world.GetTransport().Connect(std::string(pHost && *pHost ? pHost : "127.0.0.1") + ":" + std::to_string(joinPort));
-        state = "joining";
+        if (world.GetTransport().Connect(std::string(pHost && *pHost ? pHost : "127.0.0.1") + ":" + std::to_string(joinPort)))
+            state = "joining";
+        else
+        {
+            state = "failed";
+            error = "already connected or connecting: leave the session first";
+        }
     }
     if (state == "joining" && world.GetTransport().IsOnline())
         state = "ready";
