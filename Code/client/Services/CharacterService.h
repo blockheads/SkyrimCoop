@@ -212,6 +212,27 @@ private:
     uint32_t m_boardedMount{}; // session id: our player rides along on it
     std::unordered_map<uint32_t, uint32_t> m_drivers; // mount -> its driver, session ids
     std::unordered_map<uint32_t, uint32_t> m_pendingBoards; // passenger -> mount, heard before both copies were made
+    // The ride of one of this game's mounts ended: handed back once its graph's next update is recorded (its exit
+    // pair's PairEnd, an event, is due with it), its ops sent first (mounts.md).
+    struct HandBack
+    {
+        uint32_t RiderId{}; // session ids
+        uint32_t MountId{};
+        uint32_t MountFormId{};
+        uint64_t Since{}; // its updates recorded as its ride's end was heard
+    };
+    std::vector<HandBack> m_handBacks;
+    void RunHandBacks() noexcept;
+    // Hosting: mounts given back, taken once their copy has run the last rider's ops (TakesOverMount).
+    struct TakeOver
+    {
+        uint32_t MountId{}; // session id
+        uint64_t Tick{};
+        ActorWhereabouts Whereabouts{};
+    };
+    std::vector<TakeOver> m_takeOvers;
+    void RunTakeOvers() noexcept;
+    [[nodiscard]] bool TakeOverMount(const TakeOver& acTakeOver) noexcept;
     // Any rider's Detach empties its mount's one slot: the driver still on holds it again.
     void KeepDriverOn(const DismountEvent& acEvent) noexcept;
     [[nodiscard]] uint32_t FormOfSession(uint32_t aSessionId) const noexcept;

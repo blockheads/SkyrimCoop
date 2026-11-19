@@ -1986,6 +1986,7 @@ TEST_CASE("Dismount carries the horse's placement to its next owner", "[encoding
     DismountRequest dismount;
     dismount.RiderId = 8;
     dismount.MountId = 9;
+    dismount.Tick = 123456789;
     dismount.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
     dismount.Whereabouts.CellId = GameId(0, 0x9C5E1);
     dismount.Whereabouts.WorldSpaceId = GameId(0, 0x3C);

@@ -498,15 +498,6 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 
 void FakeEngine::Frame()
 {
-    for (auto it = PairEndIn.begin(); it != PairEndIn.end();)
-        if (--it->second == 0)
-        {
-            if (Actors.contains(it->first) && !Actors.at(it->first).Copy)
-                SyncedMounts.insert(it->first);
-            it = PairEndIn.erase(it);
-        }
-        else
-            ++it;
     for (const auto [cRider, cMount] : std::map(std::exchange(MountRetryOf, {})))
         ActivateMount(cRider, cMount);
     for (auto it = DismountIn.begin(); it != DismountIn.end();)
@@ -939,6 +930,8 @@ uint32_t FakeEngine::LoadNpc(uint32_t aBase, uint32_t aCell, const glm::vec3& ac
     const uint32_t cId = NewTemporary();
     Actors[cId] = Actor{.Base = aBase, .Cell = aCell, .Position = {acPosition.x, acPosition.y, acPosition.z},
                         .Essential = EssentialBases.contains(aBase), .Made = m_made};
+    if (MountBases.contains(aBase) && GraphTransitions.contains({"Standing", "pa_HorseExit"}))
+        Actors[cId].GraphState = "Standing"; // MountGraph's
     return cId;
 }
 
@@ -1179,6 +1172,30 @@ void FakeEngine::StartDismount(uint32_t aRider, uint32_t aFrames) noexcept
     if (!Mounts.contains(aRider))
         return;
     DismountIn[aRider] = aFrames;
+    // The exit pair's start (32803): the mount's half, on its game.
+    if (!Actors.at(aRider).Copy && Actors.contains(Mounts.at(aRider)) && !Actors.at(Mounts.at(aRider)).Copy)
+        SendGraphEvent(Mounts.at(aRider), "pa_HorseExit");
+}
+
+void FakeEngine::MountGraph(FakeEngine& aEngine)
+{
+    aEngine.GraphTransitions[{"Standing", "pa_HorseExit"}] = kDismountSynced;
+    aEngine.GraphTransitions[{kDismountSynced, "PairEnd"}] = "Standing";
+    if (!aEngine.Graph)
+        aEngine.Graph = FakeGraphRules{};
+}
+
+void FakeEngine::SendGraphEvent(uint32_t aFormId, const std::string& acEvent)
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || it->second.GraphState.empty())
+        return;
+    auto& streams = World::Get().GetGraphStreams();
+    if (it->second.Copy && streams.OnStream(aFormId))
+        return;
+    if (Graph && !it->second.Copy && streams.Recording(aFormId) && GraphEventId(acEvent) != UINT16_MAX)
+        streams.OnEvent(aFormId, streams.Tick(), GraphEventId(acEvent), GraphWords(it->second), {it->second.GraphRandom, 0});
+    TakeGraphEvent(it->second, acEvent);
 }
 
 void FakeEngine::StopRiding(uint32_t aRider, uint32_t aMode, uint32_t aFrames) noexcept
@@ -1251,8 +1268,9 @@ bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
         return true;
     }
     World::Get().GetRunner().Trigger(MountEvent{aActivator, aMount});
-    if (SyncedMounts.erase(aMount))
+    if (Synced(aMount))
     {
+        SendGraphEvent(aMount, "PairEnd"); // the refused pair's own instance ends it
         ++RefusedGetOns;
         MountRetryOf[aActivator] = aMount;
         return true;
@@ -1275,13 +1293,9 @@ void FakeEngine::EndRide(uint32_t aRider) noexcept
     MountSlots.erase(cMountId); // 40355 with null: whichever rider it named
     if (const auto cReins = Reins.find(cMountId); cReins != Reins.end() && cReins->second == aRider)
         Reins.erase(cReins);
-    if (const auto it = Actors.find(aRider); it != Actors.end() && it->second.Copy && Actors.contains(cMountId))
-    {
-        if (!Actors.at(cMountId).Copy)
-            SyncedMounts.insert(cMountId);
-        else
-            PairEndIn[cMountId] = StreamPairEndFrames;
-    }
+    // An owner's exit pair: its instance ends before the Detach, in its frame (32797).
+    if (const auto it = Actors.find(aRider); it != Actors.end() && !it->second.Copy && Synced(cMountId) && !Actors.at(cMountId).Copy)
+        SendGraphEvent(cMountId, "PairEnd");
     // HookDetachInteraction: any rider's ride ended.
     if (const auto it = Actors.find(aRider); it != Actors.end())
         World::Get().GetRunner().Trigger(DismountEvent{aRider, cMountId, it->second.Copy});

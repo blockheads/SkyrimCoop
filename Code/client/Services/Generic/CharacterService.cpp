@@ -262,6 +262,8 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     RunPresence();
     RunLocalUpdates();
     RunRemoteUpdates();
+    RunHandBacks();
+    RunTakeOvers();
 }
 
 // Dispatches ActorAddedEvent / ActorRemovedEvent as actors gain or lose loaded 3D, which drives
@@ -333,6 +335,8 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
 {
     m_pendingLooks.clear();
     m_pendingSpawns.clear();
+    m_handBacks.clear();
+    m_takeOvers.clear();
     m_world.GetCopyClock().Reset();
     const auto cMounts = m_mountPersistence;
     for (const auto& [cFormId, cPersistent] : cMounts)
@@ -1325,10 +1329,56 @@ void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
         if (!request.RiderId || !request.MountId)
             return;
     }
+    uint32_t mountFormId = 0;
     for (const auto cMount : m_world.view<LocalComponent, FormIdComponent>())
         if (m_world.get<LocalComponent>(cMount).Id == request.MountId)
-            request.Whereabouts = ReadWhereabouts(m_world.get<FormIdComponent>(cMount).Id);
-    m_transport.Send(request);
+            mountFormId = m_world.get<FormIdComponent>(cMount).Id;
+    const auto cUpdates = mountFormId ? m_world.GetGraphStreams().Updates(mountFormId) : std::nullopt;
+    m_handBacks.push_back({request.RiderId, request.MountId, mountFormId, cUpdates ? cUpdates->Count : 0});
+    RunHandBacks();
+}
+
+void CharacterService::RunHandBacks() noexcept
+{
+    std::erase_if(m_handBacks, [this](const HandBack& aHandBack) {
+        const auto cUpdates = aHandBack.MountFormId ? m_world.GetGraphStreams().Updates(aHandBack.MountFormId) : std::nullopt;
+        if (cUpdates && cUpdates->Count <= aHandBack.Since)
+            return false;
+        DismountRequest request;
+        request.RiderId = aHandBack.RiderId;
+        request.MountId = aHandBack.MountId;
+        if (aHandBack.MountFormId)
+            request.Whereabouts = ReadWhereabouts(aHandBack.MountFormId);
+        // Giving it up drops its unsent ops: they go first, the hand-back's tick their last update (copies take it then).
+        request.Tick = cUpdates ? cUpdates->LastTick : 0;
+        SendGraphStream();
+        m_transport.Send(request);
+        return true;
+    });
+}
+
+void CharacterService::RunTakeOvers() noexcept
+{
+    std::erase_if(m_takeOvers, [this](const TakeOver& acTakeOver) { return TakeOverMount(acTakeOver); });
+}
+
+bool CharacterService::TakeOverMount(const TakeOver& acTakeOver) noexcept
+{
+    for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
+    {
+        if (m_world.get<RemoteComponent>(cEntity).Id != acTakeOver.MountId)
+            continue;
+        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+        const auto cDone = m_world.GetGraphStreams().StreamDoneThrough(cFormId);
+        if (!ReplayState::TakesOverMount(acTakeOver.Tick, cDone.has_value(), cDone.value_or(0)))
+            return false;
+        if (acTakeOver.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
+            FollowOwner(cEntity, cFormId, acTakeOver.Whereabouts, false);
+        if (TakeOwnership(cFormId, acTakeOver.MountId, cEntity))
+            spdlog::info("Mount {:X}: taken back, its last rider's ops run through {}", cFormId, acTakeOver.Tick);
+        return true;
+    }
+    return true; // gone, or ours already
 }
 
 void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcept
@@ -1347,16 +1397,12 @@ void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcep
         if (Utils::GetSessionId(cEntity) != acMessage.MountId)
             continue;
         const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-        // The rider can arrive before the horse's last movement snapshot. Place it before the host takes it.
-        if (acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
+        // The host takes it once its copy has played the rider's exit pair, placed where its rider left it.
+        if (m_world.GetHostService().IsHosting() && !m_world.all_of<LocalComponent>(cEntity))
+            m_takeOvers.push_back({acMessage.MountId, acMessage.Tick, acMessage.Whereabouts});
+        else if (acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
             FollowOwner(cEntity, cFormId, acMessage.Whereabouts, false);
-        if (m_world.GetHostService().IsHosting())
-        {
-            // Taken back before its stream's PairEnd: out of the rider's exit pair, or it refuses the next get-on.
-            if (!m_world.all_of<LocalComponent>(cEntity) && TakeOwnership(cFormId, acMessage.MountId, cEntity))
-                m_actorBridge.ActorEndMountPair(cFormId);
-        }
-        else if (m_world.all_of<LocalComponent>(cEntity))
+        if (!m_world.GetHostService().IsHosting() && m_world.all_of<LocalComponent>(cEntity))
             GiveUpOwnership(cEntity, acMessage.MountId, cFormId);
         ReleaseMount(cFormId);
         break;

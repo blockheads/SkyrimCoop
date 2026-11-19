@@ -110,10 +110,45 @@ the mount package's step (AIProcess::MountProcedureStep 39669; the same in AIPro
   copy at 4 is taken off (`FinishDismount`, above). The try that finally starts calls no 37905 again, so no
   `NotifyMount` re-links the copy. It plays `HorseEnter` and sits (sit state 3) with no link: not riding, the horse
   copy not ridden, and the copy's `pa_HorseExit` is refused later.
-- Fix: the host's game, taking a horse back from a guest's ride (`OnNotifyDismount`), sends it `PairEnd`
-  (`ActorEndMountPair`, as a pair's instance does, 32797). It is the host's own and nobody is on it, so nothing else
-  ends that pair. Not handled (inferred): a get-on the engine refuses for another reason still links and then takes
-  off a copy the same way.
+- The first fix (2026-11-18) sent the horse `PairEnd` by hand on the host (`ActorEndMountPair`); replaced by the
+  section below, which found why the stream's `PairEnd` never came. Not handled (inferred): a get-on the engine
+  refuses for another reason still links and then takes off a copy the same way.
+
+## A horse handed back between pairs (one-simulator.md piece 4a, 2026-11-19)
+
+Measured on the duo (`horse-passes-between-riders`, `anim_trace` of the horse on both games, `bIsSynced`), with
+`BGSSynchronizedAnimationInstance::Deactivate` (32797) read in IDA:
+
+```
+rider's game, one engine frame N
+  the exit pair's instance ends: Deactivate (32797) sends the horse PairEnd    (input from 54F342)
+  then RefrInteraction::Detach (41539): our DismountEvent                       (2 ms later, same frame)
+  at our handler (frame N+1): the horse in no instance (32808), bIsSynced still on (blends out ~190 ms later)
+the horse's copy on another game
+  PairEnd only from its owner's graph stream: an event op, due with the owner's NEXT update (GraphReplayer::Feed)
+  plays ~100-200 ms behind (CopyPlayback)
+```
+
+- Why the host's horse stayed synced (the bug above): the rider's game sends its graph ops once a round (~50 ms,
+  `SendGraphStream`); its `NotifyDismount` came back in a few ms and giving the horse up dropped the unsent ops,
+  `PairEnd` among them. The host's copy replayed the guest's ops up to 57 ms before the `Detach`, then nothing.
+- Built: the rider's game hands the horse back once its next graph update after the `Detach` is recorded
+  (`CharacterService::RunHandBacks`, `GraphStreams::Updates`), sending its ops first; the hand-back carries that
+  update's tick (`Payloads::Dismount::Tick`, through `HostCharacters::GiveBack`). The host's game waits until its copy
+  has run every op through that tick (`GraphReplayer::DoneThrough`, `ReplayState::TakesOverMount`,
+  `CharacterService::RunTakeOvers`), then takes it. The host's `PairEnd` by hand is gone.
+- Measured with it: taken 235 ms after the hand-back, the host's next get-on accepted at the first try (one
+  `MountRequest`, against five before).
+- **Not for a passenger who drives on** (measured, `party-shares-a-horse`): taken the same way, after its copy ran the
+  old driver's `PairEnd` from the stream (`bIsSynced` off 200 ms later), the new driver's horse did not steer, nor after
+  the harness's `take_reins` (slot, 40725, `EvaluatePackage`, `PairEnd`). Taken at once without a `PairEnd` it stayed in
+  the pair and did not steer either. Taken at once with `PairEnd` by hand (`PlayerTakeReins`, `KeepDriverOn`), as
+  before, it steers (3 of 3). That stays: the exit pair's instance is on the old driver's game while the horse is
+  already the new driver's. Why a horse that replayed the whole exit will not steer is not read (inferred: its graph
+  left riderless by the exit, which the new driver's seat never sets again).
+- The rider-side wait for the instance's end that piece 4's plan proposed (a `Deactivate` hook) is not needed: the
+  instance is gone at every measured `Detach` (6 of 6 rides).
+- `bIsSynced` is no signal for "the pair ended": it outlasts the clip on the owner too.
 
 ## A low-process mount gets its rider off
 

@@ -215,6 +215,9 @@ struct Dismount : Mount
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
     bool operator==(const Dismount&) const noexcept = default;
     ActorWhereabouts Whereabouts;
+    // Its rider's game's last graph update sent (its exit pair's PairEnd due with it, 32797): the host's game takes the
+    // mount once its copy has run that far (ReplayState::TakesOverMount); 0 at once.
+    uint64_t Tick{};
 };
 
 // One part of an actor's record, from its owner (docs/design/one-simulator.md, piece 1).

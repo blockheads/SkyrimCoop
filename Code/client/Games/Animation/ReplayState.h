@@ -56,6 +56,14 @@ constexpr bool SeatsAtHoldEnd(uint8_t aSitState, bool aMountIsCopy, bool aHeld) 
     return aSitState == kSitGettingOn && !aMountIsCopy && !aHeld;
 }
 
+// A mount handed to this game is taken once its copy has run every op of its last owner's through the hand-back's
+// tick: its exit pair's PairEnd among them (only the instance sends it, 32797). Off its stream, or tick 0 (its owner
+// left, or recorded nothing): at once. docs/re/systems/mounts.md
+constexpr bool TakesOverMount(uint64_t aTick, bool aOnStream, uint64_t aDoneThrough) noexcept
+{
+    return !aTick || !aOnStream || aDoneThrough >= aTick;
+}
+
 // A copy takes the engine's position writes (SetPosition 19790) while stepped, or seated on a mount: its
 // REFRSyncController (20318) keeps its reference on the mount (player-mount.md).
 constexpr bool CopyTakesEnginePlace(bool aStepped, bool aLinkedToMount, uint8_t aSitState) noexcept

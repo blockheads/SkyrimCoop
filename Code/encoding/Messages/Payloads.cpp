@@ -263,12 +263,14 @@ void Dismount::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Mount::SerializePayload(aWriter);
     Whereabouts.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, Tick);
 }
 
 void Dismount::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Mount::DeserializePayload(aReader);
     Whereabouts.Deserialize(aReader);
+    Tick = Serialization::ReadVarInt(aReader);
 }
 
 void PlayerName::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

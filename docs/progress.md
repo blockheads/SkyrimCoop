@@ -49,6 +49,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-19: **a mount handed back between pairs, piece 4a of one-simulator.md, built** (`agent/piece-4`): the horse
+stuck in its rider's exit pair after a hand-back (PR #80 sent it `PairEnd` by hand) came from the rider's last graph ops,
+its horse's `PairEnd` among them, being dropped unsent when it gave the horse up. Now the rider's game hands the horse
+back once its next graph update is recorded, its ops sent first, and the host's game waits until its copy has run them
+(`docs/re/systems/mounts.md`, "A horse handed back between pairs"). On the duo the host's next get-on is accepted at once
+(five tries before). A passenger who drives on still takes the horse at once and ends the old driver's pair by hand: taken
+after the replayed exit, it would not steer (not read yet). Kill moves (4b) next.
+
 2026-11-19: **items as their owner's part, piece 3 of one-simulator.md, built** (`agent/piece-3-items`): an actor's items
 and worn set are one record part (`kItems`, `ItemsPart`), declared by its owner when an item or equip hook, a 3D load or
 the engine's outfit reset (TESNPC 418622, hooked) touches it, and carrying only the stacks that changed (merged onto the

@@ -75,7 +75,8 @@ private:
     void OnMount(const MountRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its rider got off: the mount is the host's again (its game simulates it), and every game hears of it.
     void OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept;
-    void GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
+    // aTick: its rider's game's frame its exit pair ended (0: at once, its rider gone).
+    void GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts = {}, uint64_t aTick = 0) noexcept;
     // A player got on a horse another player drives: a passenger, its copy seated on every other game.
     void OnBoard(const BoardRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnUnboard(const UnboardRequest& acRequest, ConnectionId_t aSender) noexcept;

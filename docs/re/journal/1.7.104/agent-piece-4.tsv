@@ -1,0 +1,23 @@
+time	op	id	rva	item
+2026-11-19T21:52:16Z	read	42838	0x7cd430	{"name": "KillActorHandler::Handle"}
+2026-11-19T21:52:16Z	read	38614	0x6cc840	{"name": "Character::EndKillMove"}
+2026-11-19T21:52:28Z	read	37316	0x6779c0	{"name": "Actor::QueueKill"}
+2026-11-19T21:52:29Z	read	38619	0x6cc970	{"name": "Character::sub_38619"}
+2026-11-19T21:52:34Z	name	38619	0x6cc970	{"addr": "0x1406cc970", "name": "Actor::IsInDeferredKill"}
+2026-11-19T21:54:13Z	read	38618	0x6cc950	{"name": "Actor::EndDeferredKill"}
+2026-11-19T21:54:17Z	read	40036	0x728620	{"name": "sub_140728620"}
+2026-11-19T21:54:17Z	read	40037	0x728690	{"name": "sub_140728690"}
+2026-11-19T21:54:50Z	read	38617	0x6cc930	{"name": "sub_1406CC930"}
+2026-11-19T21:54:50Z	read	38616	0x6cc910	{"name": "Character::StartDeferredKill"}
+2026-11-19T21:54:53Z	name	40036	0x728620	{"addr": "0x140728620", "name": "ActorProcess::EndDeferredKill"}
+2026-11-19T21:54:53Z	name	40037	0x728690	{"addr": "0x140728690", "name": "ActorProcess::IsInDeferredKill"}
+2026-11-19T21:54:53Z	name	38617	0x6cc930	{"addr": "0x1406CC930", "name": "Actor::DeferKill"}
+2026-11-19T21:54:58Z	comment	40036	0x728620	{"addr": "0x140728620", "comment": "Ends a deferred kill only if its scripted flag (MiddleHigh +0x332) matches aScripted: clears the state (+0x2F8); a kill held back meanwhile (state > 1) is queued credited to g_thePlayer. So KillActorHandler 42838's EndDeferredKill(false) leaves a copy's scripted one (UpdateCopyAI) in place. SkyrimCoop piece-4"}
+2026-11-19T21:54:58Z	comment	40037	0x728690	{"addr": "0x140728690", "comment": "Deferred kill state (MiddleHigh +0x2F8) nonzero. SkyrimCoop piece-4"}
+2026-11-19T21:54:58Z	comment	38617	0x6cc930	{"addr": "0x1406CC930", "comment": "KillImpl 37896's early return while in a deferred kill: counts the held-back kill (MiddleHigh +0x2F8 += 1, from 1). The actor does not die; EndDeferredKill later queues it, credited to the player. SkyrimCoop piece-4"}
+2026-11-19T21:54:58Z	comment		0x6a9eb0	{"addr": "0x1406a9eb0", "comment": "In a deferred kill (38619): the kill is only counted (38617) and nothing dies. Every copy holds a scripted one (UpdateCopyAI), so a copy's clip KillActor / KillMoveEnd queues a kill that does nothing. SkyrimCoop piece-4"}
+2026-11-19T21:54:58Z	comment		0x6a9f32	{"addr": "0x1406a9f32", "comment": "A killer with flags +0xE8 0x4000000 (inferred: the player's team or commanded) other than the victim: credit goes to g_thePlayer. Not read further. SkyrimCoop piece-4"}
+2026-11-19T21:55:10Z	comment	38619	0x6cc970	{"addr": "0x1406cc970", "comment": "In a deferred kill (ActorProcess::IsInDeferredKill 40037). KillImpl 37896 returns early on it, counting the kill (38617). SkyrimCoop piece-4"}
+2026-11-19T21:55:20Z	read	32797	0x54f110	{"name": "BGSSynchronizedAnimationInstance::Deactivate"}
+2026-11-19T22:58:40Z	comment		0x54f349	{"addr": "0x14054f349", "comment": "Each participant's graph gets PairEnd (IAnimationGraphManagerHolder vfunc 1); not taken -> PairedStop. The only sender of a mount's PairEnd: HorseBehavior MountBehavior DismountSynced/MountSynced leave on it alone. Measured (duo 2026-11-19): on the rider's game this runs in the same frame as the rider's Detach (41539), just before it. A copy horse gets it only from its owner's graph stream, as an event due with the owner's next update: co-op hands a horse back once that update is recorded and its ops sent, and the next owner takes it once its copy ran them (docs/re/systems/mounts.md). SkyrimCoop piece-4"}
+2026-11-19T23:34:24Z	comment		0x54f349	{"addr": "0x14054f349", "comment": "Each participant's graph gets PairEnd (IAnimationGraphManagerHolder vfunc 1); not taken -> PairedStop. The only sender of a mount's PairEnd: HorseBehavior MountBehavior DismountSynced/MountSynced leave on it alone. Measured (duo 2026-11-19): on the rider's game this runs in the same frame as the rider's Detach (41539), just before it. A copy horse gets it only from its owner's graph stream, as an event due with the owner's next update: co-op hands a horse back to the host once that update is recorded and its ops sent, and the host takes it once its copy ran them. A passenger driving on takes it at once and sends PairEnd itself (Actor::EndMountPair): taken after the replayed exit it would not steer (docs/re/systems/mounts.md). SkyrimCoop piece-4"}
