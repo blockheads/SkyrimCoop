@@ -1,4 +1,6 @@
 #include "Party.h"
+#include <Services/CopyRecords.h>
+#include <Structs/ActorStatePart.h>
 #include "Fixtures.h"
 #include <Services/CharacterService.h>
 #include <Messages/NotifyReferencesMove.h>
@@ -1162,7 +1164,19 @@ TEST_CASE("Two copies of one game's pair stay on their streams, their clip waiti
     }, "the copy takes its half from its stream");
     CHECK_FALSE(cCopy.InPair); // no instance on the guest
     // In the kill move all the same: playing the action sets that, and they played none (39004).
-    wolf.party.Until([&] { return cCopy.InKillMove; }, "the victim's copy is in the kill move");
+    // Both halves in one frame, at the action. Skyrim (host-kill-move, 2026-11-18): entered from each one's own record
+    // part, the attacker's copy was in two frames before the victim's. The fake's copies share one playback clock, so
+    // this holds here either way: host-kill-move is what catches it.
+    bool apart = false;
+    wolf.party.Until([&] {
+        bool attacker = false;
+        for (const auto& [cId, cActor] : wolf.guest.Actors)
+            attacker |= cActor.Copy && cId != wolf.copy && cActor.InKillMove;
+        apart |= attacker != cCopy.InKillMove;
+        return cCopy.InKillMove;
+    }, "the victim's copy is in the kill move");
+    CHECK_FALSE(apart);
+    CHECK(cCopy.Killer != 0); // its killer: the attacker's copy
     wolf.party.Until([&] {
         held |= streams.Held(wolf.copy);
         return cOwner.GraphState == "Standing";
@@ -1284,11 +1298,11 @@ TEST_CASE("A rider's copy is back on its stream only once its own getting off ha
     CHECK_FALSE(wolf.guest.Mounts.contains(wolf.copy));
 }
 
-TEST_CASE("A streamed copy takes its owner's actor state with each action", "[animation][replay-start][players]")
+TEST_CASE("A streamed copy sneaks as its owner does, from its record", "[animation][replay-start][players][actor-state]")
 {
     // Skyrim (duo, sneak-host-player, 2026-11-10): a streamed player's copy never sneaked. Sneaking is the actor's
-    // state (flags1), toggled as the engine takes the sneak action; on its stream a copy takes no action, and the
-    // flags an action carried were its owner's from before it. The action carries the state after it too.
+    // state (flags1 bit 9, 37951), set as the engine takes the sneak action; on its stream a copy takes no action.
+    // The owner declares the bit in its actor state part (one-simulator.md, piece 2).
     Party party(1, SmokeWorld, true);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
@@ -1314,9 +1328,12 @@ TEST_CASE("A streamed copy takes its owner's actor state with each action", "[an
         action.EventName = cSneak ? "SneakStart" : "SneakStop";
         party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(FakeEngine::kPlayer, action)); });
         REQUIRE(((host.Actors.at(FakeEngine::kPlayer).State1 & cSneaking) != 0) == cSneak); // the action toggled it
-        party.Until([&] { return guest.GetActorLatestAnimation(copy).EventName == action.EventName; }, "its copy has the action");
+        party.Until([&] { return ((cCopy.State1 & cSneaking) != 0) == cSneak; }, cSneak ? "its copy sneaks" : "its copy stands");
         CHECK(party.Guest().GetGraphStreams().OnStream(copy));
-        CHECK(((cCopy.State1 & cSneaking) != 0) == cSneak);
+        // Not ahead of its graph: applied once its stream's playback reached the owner's frame (ActorStateRules::Due).
+        ActorStatePart part;
+        REQUIRE(FromPartBytes(party.Guest().ctx().at<CopyRecords>().Find(session, RecordKind::kActorState)->Bytes, part));
+        CHECK(party.Guest().GetGraphStreams().StreamPlayback(copy).value_or(0) >= part.Tick);
     }
 }
 

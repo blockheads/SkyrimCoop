@@ -100,9 +100,7 @@ every other section needs the duo.
 
 - [After the host dies](#after-the-host-dies): medium, caused by the next one
 - [A still guest unseen up close](#a-still-guest-unseen-up-close): small, minor
-- [An NPC copy's swing picks the nearest](#an-npc-copys-swing-picks-the-nearest): small
 - [A guest's summon](#a-guests-summon): medium
-- [A mod's rename at run time](#a-mods-rename-at-run-time): small
 
 **Found by the playthrough flow**
 
@@ -140,6 +138,7 @@ every other section needs the duo.
 
 **Seen in the final review's duo runs (2026-11-12)**
 
+- [A guest's console kill that never downs it](#a-guests-console-kill-that-never-downs-it): small, not read
 - [A kill move that never pairs](#a-kill-move-that-never-pairs): small
 - [A guest crash in the garbage collector's job](#a-guest-crash-in-the-garbage-collectors-job): medium
 - [A dead player's copy a little off its owner's body](#a-dead-players-copy-a-little-off-its-owners-body): small
@@ -930,19 +929,6 @@ Size: small. Needs: duo, IDA, then GameTests.
     5 of 5 as well, 5-15 s, once 470 units off. Likely the engine's detection with a second player: a hook there.
   - Test: `host_death_watch` both ways is the scenario's base; a GameTests flow once the engine fact is known.
 
-### An NPC copy's swing picks the nearest
-
-Agent task: Make an NPC copy's swing on the guest's game hit the actor the host's NPC is fighting, not whoever is nearest
-in front. Do step 0 in IDA first (`Actor_GetTarget` 38608, `Actor::sub_47272`), then a GameTests case.
-
-Size: small. Needs: IDA, GameTests, then duo.
-
-- **A copy's swing hits the nearest actor in front** (2026-11-06, read in IDA, seen once): a hit on the guest is judged on
-  the guest's game by the NPC's copy; with no combat target (copies run no AI) the victim pick (47272) takes the nearest
-  actor in the cone within reach. With the host alive and closer, the copy's swing picked the host's copy, not the guest
-  (`combat-targets.md`, "Measured 2026-11-06"). Start: give the pick the owner's target (ExtraForcedTarget 0x9D is read
-  first) or answer it in a hook.
-
 ### A guest's summon
 
 A guest's Conjure Familiar makes no familiar on either game; the host's reaches the guest.
@@ -958,20 +944,6 @@ Size: medium. Needs: IDA, duo, then GameTests.
 - Suspect, read not observed: `CharacterService::RunActorDiscovery` deletes a temporary actor on a guest that is no copy
   and has no session id (a rule for saved NPCs). `DeleteActor` logs nothing.
 - Test: a scenario where a guest casts it and both games show one familiar.
-
-### A mod's rename at run time
-
-Agent task: Make a script's `SetDisplayName` on an NPC, and `SetName` on a player's base, reach the other games. Do step 0 in IDA first, then add one
-GameTests case for the rename.
-
-Size: small. Needs: IDA, GameTests. Waits for: nothing.
-
-- **A mod's rename doesn't reach an NPC's existing copy** (2026-11-05, read in IDA, not played): a script's `SetDisplayName`
-  (SKSE) writes the reference's ExtraTextDisplayData directly, past the alias hooks, so only the next spawn or refresh
-  carries it (`docs/re/systems/names.md`). Start: a hook on where SKSE's native lands, or relaying that native.
-- **A mod's rename of a player's character isn't sent** (2026-11-05, read, not played): `PlayerService` sends a player's
-  name when the race menu closes or a save loads; a script's `SetName` on the player's base raises neither, so the party's
-  lists and copies keep the old name until one of them. Start: the same native, on the player's base.
 
 ## Found by the playthrough flow
 
@@ -1399,11 +1371,29 @@ Size: small. Needs: the duo (`form-state-round-trips` after a full run's earlier
   `1400c9c1...0500`: the copy's list is one entry shorter. So something an earlier scenario does puts the guest's
   player in a faction that never reaches its copy's base. progress.md's loose end on a copy's spawn writing its NPC
   base's factions (`SkyrimBridge.cpp`) is the place to start.
+- **Now on every fresh join** (2026-11-18, dev `f7a72494` and piece 2 alike, the same bytes): the guest announces with
+  five factions and its own join-time script adds a sixth about a second later. The faction reaches the host's copy
+  (piece 2: the factions part, applied with six), but `Actor::SetFactions` goes through 37677, which on a non-unique
+  base (a copy's created base) writes the reference's `ExtraFactionChanges`, never the base's list (read in IDA). So
+  the copy's base keeps the snapshot's five. Passes after a reload (the announcement then carries six). Start: decide
+  whether the check should read the copy's factions (base and reference) or the copy's base list should be written.
 
 ## Seen in the final review's duo runs (2026-11-12)
 
 Each line is a run of the branch's current code unless it says committed build. All are intermittent; none is read yet
 (step 0, CLAUDE.md). Rates are from runs of 3 to 6, so they say "sometimes" and no more.
+
+### A guest's console kill that never downs it
+
+Agent task: find why the guest's `player.kill` sometimes leaves its player up in `names-in-every-case`, after the
+host's load. Do step 0 in IDA first.
+
+Size: small. Needs: the duo. Waits for: nothing.
+
+- **`names-in-every-case`: "Timed out after 15s: [client] the player is down"** (2026-11-18: 2 of 8 mixed runs on
+  the piece 2 branch; then 10 back-to-back on dev `f7a72494` and 10 on piece 2: 0 of each). The step follows the host's load of a save
+  and the party's rejoin; it passed alone and after the kill move scenarios alike. No crash log; the failure's
+  readout showed the guest standing in the baseline cell. Not read.
 
 ### A kill move that never pairs
 

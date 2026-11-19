@@ -41,10 +41,6 @@ struct InventoryService
 
     NO_COPY_MOVE(InventoryService);
 
-    /**
-     * @brief Check weapon state.
-     * @see RunWeaponStateUpdates
-     */
     void OnUpdate(const UpdateEvent& acUpdateEvent) noexcept;
     /**
      * @brief Sends out inventory changes made by the local client.
@@ -67,7 +63,6 @@ struct InventoryService
     /**
      * @brief A copy's owner raised or lowered its hands.
      */
-    void OnNotifyDrawWeapon(const NotifyDrawWeapon& acMessage) noexcept;
     /**
      * @brief The party's gold (docs/design/party-purse.md): this game's player and every copy of a player carry it.
      */
@@ -99,18 +94,6 @@ struct InventoryService
     }
 
 private:
-    /**
-     * Sends the hands' direction of actors this game owns when it changes (and once when an actor
-     * becomes ours). The owner decides; the server only relays.
-     */
-    void RunWeaponStateUpdates() noexcept;
-    /**
-     * Copies replay their owner's draw/sheathe animations. A refused replay would leave a copy's
-     * hands wrong for good: once it has nothing left to replay, it draws or sheathes to match.
-     */
-    void RunWeaponDrawConvergence(double aDelta) noexcept;
-    void OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
-    void OnRemoteComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     // A copy's spawn items are on it now (CharacterService): a player's carries the party's gold and items, not its spawn's.
     void OnSpawnItemsApplied(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept

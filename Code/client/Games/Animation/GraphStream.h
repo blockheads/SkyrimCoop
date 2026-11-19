@@ -209,6 +209,8 @@ struct GraphStreams
     // True once while it waits for a sync point: ask its owner for one.
     [[nodiscard]] bool ShouldAsk(uint32_t aFormId);
     void SetPlayback(uint32_t aFormId, uint64_t aTick);
+    // Its playback tick while on its stream; none off it.
+    [[nodiscard]] std::optional<uint64_t> StreamPlayback(uint32_t aFormId) const;
     // Its graph now, each update on or off its stream: a new one since another project's point was dropped asks again.
     void SeeGraph(uint32_t aFormId, const void* apGraph);
     // apGraph: which graph it replays into; another than the one its point loaded into waits for a new point.

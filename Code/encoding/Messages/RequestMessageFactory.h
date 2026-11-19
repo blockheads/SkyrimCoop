@@ -11,7 +11,6 @@
 #include <Messages/Relayed.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/RequestInventoryChanges.h>
-#include <Messages/RequestFactionsChanges.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/LockChangeRequest.h>
 #include <Messages/StoryEventRequest.h>

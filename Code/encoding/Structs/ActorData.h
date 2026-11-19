@@ -12,12 +12,10 @@ struct ActorData
     bool operator==(const ActorData& acRhs) const noexcept
     {
         return InitialActorValues == acRhs.InitialActorValues &&
-               InitialInventory == acRhs.InitialInventory && IsDead == acRhs.IsDead &&
-               IsWeaponDrawn == acRhs.IsWeaponDrawn;
+               InitialInventory == acRhs.InitialInventory && IsDead == acRhs.IsDead;
     }
 
     ActorValues InitialActorValues{};
     Inventory InitialInventory{};
     bool IsDead{};
-    bool IsWeaponDrawn{};
 };

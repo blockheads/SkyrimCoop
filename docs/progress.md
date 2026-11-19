@@ -49,6 +49,19 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-18: **actor state as record parts, piece 2 of one-simulator.md, built** (`agent/piece-2-actor-state`): a copy
+gets what its owner set beside the graph from three new parts. `kActorState` (sneak, block, bleedout and the other
+non-death life states, a kill move for a copy made mid-move, drawn hands) is read by the owner after each frame and
+applied on a copy when its stream reaches that frame (`ActorStateService`, masks in `ActorStateRules.h`). `kFactions` and
+`kName` replace `Request/NotifyFactionsChanges`, the spawn's factions and name, and the host's name relay; a script's
+`SetDisplayName` or `SetName` now reaches the copies and the party's lists (no event: the owner's frame read; the
+lists follow the player character's name part, `PlayerNameRequest` gone). An action on a copy's stream
+gives its owner's flags but the part's bits, as before for every bit not read yet. Gone: `DrawWeaponRequest`/
+`NotifyDrawWeapon` and the 0.25 s hands poll, `CacheComponent`. The design's `ExtraForcedTarget` for a copy's swing was
+dropped: it skips reach (38608); the copy's `+0x104` already limits its swing to its owner's target (read in IDA, measured on the duo; closes "An NPC copy's swing picks the nearest")
+([actor-state.md](re/systems/actor-state.md)). Tests: GameTests `[actor-state]` (9), two name flows, ClientTests `[actor-state]` (5), HostAuthorityTests;
+scenario `script-renames-reach-party` (fails on dev); closes "A mod's rename at run time".
+
 2026-11-18: the duo's ~400 ms stalls about once a second at a repro scene's start were the test harness's own
 (`agent/duo-stall-profile`, [harness-cost.md](re/systems/harness-cost.md)). The command server built and wrote every
 reply's JSON on the game's main thread, and the scene's world baseline asks for the whole town's `world_state` back

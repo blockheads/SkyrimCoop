@@ -11,8 +11,6 @@ void AnnounceCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const
     Rotation.Serialize(aWriter);
     aWriter.WriteBits(ChangeFlags, 32);
     Serialization::WriteString(aWriter, AppearanceBuffer);
-    Serialization::WriteString(aWriter, DisplayName);
-    FactionsContent.Serialize(aWriter);
     LatestAction.GenerateDifferential(ActionEvent{}, aWriter);
     FaceTints.Serialize(aWriter);
     Serialization::WriteFloat(aWriter, Weight);
@@ -45,10 +43,7 @@ void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noe
     ChangeFlags = dest & 0xFFFFFFFF;
 
     AppearanceBuffer = Serialization::ReadString(aReader);
-    DisplayName = Serialization::ReadString(aReader);
 
-    FactionsContent = {};
-    FactionsContent.Deserialize(aReader);
 
     LatestAction = ActionEvent{};
     LatestAction.ApplyDifferential(aReader);

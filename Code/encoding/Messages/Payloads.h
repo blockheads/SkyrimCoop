@@ -51,17 +51,6 @@ struct EquipmentSnapshot
     Inventory Equipment{};
 };
 
-struct DrawWeapon
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const DrawWeapon&) const noexcept = default;
-
-    uint32_t Id{};
-    bool IsWeaponDrawn{};
-};
-
 struct ActorValueChanges
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;

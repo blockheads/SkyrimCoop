@@ -575,6 +575,22 @@ void GraphStreams::SetPlayback(uint32_t aFormId, uint64_t aTick)
     }
 }
 
+std::optional<uint64_t> GraphStreams::StreamPlayback(uint32_t aFormId) const
+{
+    std::shared_ptr<Copied> pCopied;
+    {
+        std::scoped_lock _{m_lock};
+        const auto it = m_copied.find(aFormId);
+        if (it == m_copied.end())
+            return std::nullopt;
+        pCopied = it->second;
+    }
+    std::scoped_lock _{pCopied->Lock};
+    if (!pCopied->Replayer.Started())
+        return std::nullopt;
+    return pCopied->Playback;
+}
+
 void GraphStreams::SeeGraph(uint32_t aFormId, const void* apGraph)
 {
     const auto pCopied = FindCopied(aFormId);

@@ -6,10 +6,7 @@
 #include <Components/InterpolationComponent.h>
 #include <Components/LocalComponent.h>
 #include <Components/RemoteComponent.h>
-#include <Components/LocalWeaponDrawComponent.h>
-#include <Components/RemoteWeaponDrawComponent.h>
 #include <Components/FaceGenComponent.h>
-#include <Components/CacheComponent.h>
 #include <Components/WaitingFor3D.h>
 #include <Components/ActorValuesComponent.h>
 #include <Components/PlayerComponent.h>

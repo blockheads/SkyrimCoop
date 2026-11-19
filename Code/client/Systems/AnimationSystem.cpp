@@ -9,6 +9,7 @@
 #include <Games/KnockReplay.h>
 #include <Services/BodyService.h>
 #include <Games/Animation/ReplayGraph.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <Games/Animation/ReplayState.h>
 #include <Camera/VATS.h>
 
@@ -165,10 +166,10 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 spdlog::debug("Copy {:X}: down with its owner's ragdoll action", apActor->formID);
                 aWorld.ctx().at<BodyService>().KnockDown(apActor->formID);
             }
-            // Its owner's actor state once it took the action (the action toggles sneaking), its own ragdoll and
-            // weapon transition kept as a replayed action keeps them.
-            apActor->actorState.flags1 = ReplayState::Flags1(action.StateAfter1, apActor->actorState.flags1);
-            apActor->actorState.flags2 = ReplayState::Flags2(action.StateAfter2, apActor->actorState.flags2);
+            // Its owner's flags once it took the action (39004's start of an attack, a sit, a recoil), but the record's
+            // bits (ActorStateService), its own ragdoll and its own weapon transition.
+            apActor->actorState.flags1 = ActorStateRules::FromSnapshot1(action.StateAfter1, apActor->actorState.flags1);
+            apActor->actorState.flags2 = ActorStateRules::FromSnapshot2(action.StateAfter2, apActor->actorState.flags2);
             aAnimationComponent.LastRanAction = action;
             apActor->GetExtension()->LatestAnimation.Write(action);
         }
@@ -360,8 +361,8 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
     // Historical action flags keep the copy's current ragdoll and weapon transition.
     const uint32_t cPreviousFlags1 = apActor->actorState.flags1;
     const uint32_t cPreviousFlags2 = apActor->actorState.flags2;
-    apActor->actorState.flags1 = ReplayState::Flags1(cAction.State1, cPreviousFlags1);
-    apActor->actorState.flags2 = ReplayState::Flags2(cAction.State2, cPreviousFlags2);
+    apActor->actorState.flags1 = ActorStateRules::FromSnapshot1(cAction.State1, cPreviousFlags1);
+    apActor->actorState.flags2 = ActorStateRules::FromSnapshot2(cAction.State2, cPreviousFlags2);
 
     TESActionData actionData(cAction.Type & 0x3, apActor, pAction, pTarget);
     actionData.eventName = BSFixedString(cAction.EventName.c_str());

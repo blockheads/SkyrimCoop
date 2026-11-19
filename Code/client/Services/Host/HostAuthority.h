@@ -38,7 +38,6 @@
 struct LockChangeRequest;
 struct ContainerChangeRequest;
 struct RequestInventoryChanges;
-struct RequestFactionsChanges;
 struct SendChatMessageRequest;
 struct PlayerLevelRequest;
 
@@ -85,7 +84,8 @@ struct HostAuthority
     [[nodiscard]] bool HasGuests() const noexcept { return m_players.Count() > 1; }
     [[nodiscard]] bool CheckpointDelivered() const noexcept { return m_transfer.Empty() && m_players.Count() <= 1; }
     void FailReload(const std::string& acError) noexcept { m_death.FailReload(acError); }
-    // This game's engine renamed an actor (HostService): every guest's actor follows.
+    // This game's engine renamed an actor another game owns (HostService): its owner names its actor, and its name part
+    // carries that on.
     void NameActor(uint32_t aSessionId, const std::string& acName) const noexcept;
 
     // For the parts: TRequest is handled by aOwner's member function.
@@ -147,8 +147,6 @@ private:
     void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept;
     void OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // Each actor's factions from its owner (one message carries many actors).
-    void OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept;
     // An owner game's graph ops (docs/design/graph-input-stream.md): each actor's run goes to the others if the sender
     // owns that actor.
     void OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept;
@@ -162,7 +160,8 @@ private:
     void OnBugReport(const BugReportRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
     void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
-    void OnPlayerName(const PlayerNameRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // A player's character's name part changed: the party's lists take it (printable text only).
+    void NamePlayer(ConnectionId_t aPlayer, const std::string& acName) noexcept;
 
     void Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
 

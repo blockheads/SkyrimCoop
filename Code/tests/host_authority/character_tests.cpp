@@ -101,9 +101,9 @@ TEST_CASE("Characters: removed by their owner or their player leaving", "[HostAu
 
     // Gone: the owner no longer speaks for it.
     session.Outbox.clear();
-    DrawWeaponRequest draw;
-    draw.Id = cHostNpc;
-    session.Receive(kHost, draw);
+    RequestDeathStateChange death;
+    death.Id = cHostNpc;
+    session.Receive(kHost, death);
     CHECK(session.Outbox.empty());
 
     session.Outbox.clear();
@@ -652,7 +652,6 @@ TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joine
     sword.Count = 1;
     sword.ExtraWorn = true;
     arrival.Data.InitialInventory.Entries.push_back(sword);
-    arrival.Data.IsWeaponDrawn = true;
     session.Receive(kPeer, arrival);
 
     // The host's copy of it was lost: the host's game asks for it again (RunPresence).
@@ -662,7 +661,6 @@ TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joine
     const auto cToHost = session.SentTo<NotifyCharacterSpawn>(kHost);
     REQUIRE(cToHost.size() == 1);
     CHECK(cToHost[0]->InventoryContent == arrival.Data.InitialInventory);
-    CHECK(cToHost[0]->IsWeaponDrawn);
 }
 
 TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared first", "[HostAuthority][Characters]")

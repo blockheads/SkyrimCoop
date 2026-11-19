@@ -165,7 +165,6 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
             record->InventoryContent = acRequest.Data.InitialInventory;
             record->InitialActorValues = acRequest.Data.InitialActorValues;
             record->IsDead = acRequest.Data.IsDead;
-            record->IsWeaponDrawn = acRequest.Data.IsWeaponDrawn;
         }
         else if (acRequest.AppearanceBuffer.empty())
             m_game.ReadCopy(acRequest.ActorId, *record);
@@ -422,7 +421,6 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
             record->InventoryContent = acRequest.Data.InitialInventory;
             record->InitialActorValues = acRequest.Data.InitialActorValues;
             record->IsDead = acRequest.Data.IsDead;
-            record->IsWeaponDrawn = acRequest.Data.IsWeaponDrawn;
         }
     }
     // Ahead of the host: the host's actors there reach it once the host arrives.
@@ -471,12 +469,6 @@ uint32_t HostCharacters::PlayerCharacterOf(ConnectionId_t aPlayer) const noexcep
         if (cCharacter.Owner == aPlayer && cCharacter.PlayerRecord)
             return cSessionId;
     return cNoCharacter;
-}
-
-void HostCharacters::SetPlayerName(ConnectionId_t aPlayer, const std::string& acName) noexcept
-{
-    if (const auto it = m_characters.find(PlayerCharacterOf(aPlayer)); it != m_characters.end())
-        it->second.PlayerRecord->DisplayName = acName;
 }
 
 uint32_t HostCharacters::NewCharacterId() noexcept

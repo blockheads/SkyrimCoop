@@ -41,18 +41,6 @@ void EquipmentSnapshot::DeserializePayload(Wire::Buffer::Reader& aReader) noexce
     Equipment.Deserialize(aReader);
 }
 
-void DrawWeapon::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, Id);
-    Serialization::WriteBool(aWriter, IsWeaponDrawn);
-}
-
-void DrawWeapon::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    IsWeaponDrawn = Serialization::ReadBool(aReader);
-}
-
 void ActorValueChanges::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Id);

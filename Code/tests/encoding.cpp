@@ -1039,7 +1039,6 @@ TEST_CASE("Packets", "[encoding.packets]")
                 sendMessage.GraphState = "graph";
                 sendMessage.Data.InitialActorValues.ActorMaxValuesList[24] = 5000.f;
                 sendMessage.Data.InitialActorValues.ActorTemporaryValuesList[24] = 30.f;
-                sendMessage.Data.IsWeaponDrawn = true;
             }
             Buffer::Writer writer(&buff);
             sendMessage.Serialize(writer);

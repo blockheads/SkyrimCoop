@@ -5,21 +5,6 @@
 
 namespace ReplayState
 {
-constexpr uint32_t kWeaponMask = 7u << 5;
-
-constexpr uint32_t kKnockMask = 7u << 25;
-
-// A copy's actor state with its owner's action (sneaking, sitting, life state): its owner's, its own ragdoll kept.
-constexpr uint32_t Flags1(uint32_t aOwner, uint32_t aCopy) noexcept
-{
-    return (aOwner & ~kKnockMask) | (aCopy & kKnockMask);
-}
-
-constexpr uint32_t Flags2(uint32_t aOwner, uint32_t aCopy) noexcept
-{
-    return (aOwner & ~kWeaponMask) | (aCopy & kWeaponMask);
-}
-
 // ActorState1::sitSleepState's wants-to-stand: from an exit action until its clip's own exit event (42835).
 constexpr uint8_t kSitWantsToStand = 4;
 
@@ -41,7 +26,8 @@ constexpr bool PairOnStream(bool aPartnerIsCopy) noexcept
 }
 
 // Playing a "pa_Kill..." action puts its actor and its target in a kill move (39004: EnterKillMove 38613 on each);
-// two copies that take the pair from their streams play no action, so it is done for them.
+// two copies that take the pair from their streams play no action, so it is done for them at the action, both in
+// one frame. A copy made later enters from its record (ActorStateService).
 constexpr bool StartsWithNoCase(std::string_view acText, std::string_view acLowerPrefix) noexcept
 {
     if (acText.size() < acLowerPrefix.size())

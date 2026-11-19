@@ -36,6 +36,8 @@ struct CopyRecords
     // The actor of aId is on this game now (a copy made, or an actor a part names): its parts apply, and those of
     // the actors waiting for it.
     void OnSessionId(uint32_t aId);
+    // aId's part of aKind is applied again when aNamed appears (an Apply that ran later than Take, its stream behind).
+    void WaitFor(uint32_t aId, RecordKind aKind, uint32_t aNamed);
     // The actor left the session.
     void Forget(uint32_t aId);
     void Clear();

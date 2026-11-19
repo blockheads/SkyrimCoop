@@ -608,6 +608,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint64_t PoseHeldUntil = 0;
         bool InPairClip = false;    // bIsSynced: on through a pair's clip
         uint32_t State1 = 0;        // ActorState's flags1 (sneaking 1 << 9): an owner's goes with its actions
+        uint32_t State2 = 0;        // flags2 but the weapon state (Weapon): wantBlocking 0x100, recoil 0xC00
+        uint32_t Killer = 0;        // a kill move's victim: its killer (killerHandle, 38613)
+        bool RefusesDraw = false;   // its draw or sheathe action refused (37279: weapon state 1 or 4), its graph not ready
         uint32_t ExitIn = 0;        // frames until its exit clip's own event (42835) ends its getting off, 0 none
         bool InPair = false;        // in a pair's instance on this game (32808): a replay with a copy partner makes none
         double MarkWaitMs = 0.0;    // in an instance: until every actor is at its mark, its synchronized clip waits
@@ -1556,6 +1559,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The actor draws or sheathes by itself; ActorState's weapon state, the animation not modelled.
     void Draws(uint32_t aActor, bool aDraw) { Actors.at(aActor).Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed; }
     WeaponState GetWeaponState(uint32_t aFormId) const noexcept override;
+    ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept override;
+    // Actor::GetFactions / SetFactions over Factions (Skyrim.esm factions: mod 0).
+    ::Factions GetActorFactions(uint32_t aFormId) const noexcept override;
+    void SetActorFactions(uint32_t aFormId, const ::Factions& acFactions) noexcept override;
+    void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override;
+    void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
+    void CopyLeaveKillMove(uint32_t aFormId) noexcept override;
     // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played; refused on
     // a copy on its owner's stream (weapon state 1 or 4).
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;

@@ -34,6 +34,19 @@ struct ActorAiFields
     std::array<uint32_t, 6> HeadTrackIds{};
 };
 
+// An actor's state beside its graph (one-simulator.md, piece 2): this game's form ids, 0 for none.
+struct ActorStateFields
+{
+    bool operator==(const ActorStateFields&) const noexcept = default;
+
+    uint32_t Flags1{};       // ActorState flags1
+    uint32_t Flags2{};       // ActorState flags2
+    bool InKillMove{};       // Actor::IsInKillMove (38615)
+    uint32_t KillerFormId{}; // Actor::killerHandle (+0x108), set by EnterKillMove (38613)
+    bool InPair{};           // in a pair's instance (32808) or its clip (bIsSynced)
+    bool Dead{};
+};
+
 class IActorBridge
 {
 public:
@@ -200,6 +213,15 @@ public:
     virtual void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept = 0;
     virtual WeaponState GetWeaponState(uint32_t aFormId) const noexcept = 0;
 
+    // --- Actor state (ActorStateService) ---
+    virtual ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept = 0;
+    // A copy: its flags as given (the caller masks them, ActorStateRules).
+    virtual void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept = 0;
+    // A copy enters a kill move as EnterKillMove (38613) does, its killer aKillerFormId (0: the attacker's half).
+    virtual void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept = 0;
+    // A copy leaves a kill move without dying: its killer cleared, then EndKillMove (38614).
+    virtual void CopyLeaveKillMove(uint32_t aFormId) noexcept = 0;
+
     // --- Actor lifecycle flags ---
     virtual bool IsActorTemporary(uint32_t aFormId) const noexcept = 0;
     virtual bool IsActorMount(uint32_t aFormId) const noexcept = 0;
@@ -297,9 +319,6 @@ public:
     // --- FaceTints ---
     virtual Tints GetActorFaceTints(uint32_t aFormId) const noexcept = 0;
     virtual void SetupActorFaceGen(uint32_t aFormId) noexcept = 0;
-
-    // --- CacheSystem integration ---
-    virtual void SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept = 0;
 
     // --- Systems (CharacterService calls that take Actor*) ---
     /// Run interpolation update for a remote actor.

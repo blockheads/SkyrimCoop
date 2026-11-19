@@ -51,6 +51,7 @@
 #include <Events/RoutedCallEvent.h>
 #include <Events/PlayerProgressEvent.h>
 #include <Games/EngineNames.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <Games/Animation/ReplayState.h>
 #include <Events/RemoveWaypointEvent.h>
 #include <Events/SetWaypointEvent.h>
@@ -1524,7 +1525,10 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         CollapsedPairs += cCollapsed;
         // Only a "pa_Kill" action puts both in a kill move (39004); a mount's pair leaves that alone.
         if (cCollapsed || ::ReplayState::EntersKillMove(acAction.EventName))
+        {
             actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
+            cPartner->second.Killer = cCollapsed ? 0 : aFormId; // 38613 on the victim, the attacker its killer
+        }
         actor.LatestPairAction = acAction;
         if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
         {
@@ -1567,8 +1571,8 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
     const auto cWeaponBefore = actor.Weapon;
     if (actor.Copy)
     {
-        actor.Weapon = WeaponState((ReplayState::Flags2(acAction.State2, uint32_t(actor.Weapon) << 5) >> 5) & 7);
-        actor.State1 = ReplayState::Flags1(acAction.State1, actor.State1);
+        actor.Weapon = WeaponState((ActorStateRules::FromSnapshot2(acAction.State2, uint32_t(actor.Weapon) << 5) >> 5) & 7);
+        actor.State1 = ActorStateRules::FromSnapshot1(acAction.State1, actor.State1);
     }
     if (const auto cState = ActionStates.find(acAction.EventName); cState != ActionStates.end())
         actor.State1 = cState->second.second ? actor.State1 | cState->second.first : actor.State1 & ~cState->second.first;
@@ -1665,7 +1669,7 @@ std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aForm
 
 bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery)
 {
-    aAction.State2 = (aAction.State2 & ~ReplayState::kWeaponMask) | (uint32_t(Actors.at(aFormId).Weapon) << 5);
+    aAction.State2 = (aAction.State2 & ~ActorStateRules::kWeaponMask) | Actors.at(aFormId).State2 | (uint32_t(Actors.at(aFormId).Weapon) << 5);
     aAction.State1 |= Actors.at(aFormId).State1;
     uint32_t flags = aQuery ? 1 : 0;
     aAction.Type = 2 | (flags ? 4 : 0);
@@ -1881,8 +1885,8 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
     {
         uint32_t flags[2];
         std::memcpy(flags, acState.data(), sizeof(flags));
-        actor.State1 = flags[0];
-        const uint32_t cFlags2 = actor.Copy ? ReplayState::Flags2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
+        actor.State1 = actor.Copy ? ActorStateRules::Take(flags[0], actor.State1, ~ActorStateRules::kPartBits1) : flags[0];
+        const uint32_t cFlags2 = actor.Copy ? ActorStateRules::FromSnapshot2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
         actor.Weapon = WeaponState((cFlags2 >> 5) & 7);
         // One graph, one active machine: its state is the fake's GraphState.
         const auto cState = FakeGraphState(acState);
@@ -1912,8 +1916,8 @@ bool FakeEngine::LoadGraphStateFlags(uint32_t aFormId, const std::string& acStat
         return false;
     uint32_t flags[2];
     std::memcpy(flags, acState.data(), sizeof(flags));
-    it->second.State1 = ReplayState::Flags1(flags[0], it->second.State1);
-    it->second.Weapon = WeaponState((ReplayState::Flags2(flags[1], uint32_t(it->second.Weapon) << 5) >> 5) & 7);
+    it->second.State1 = ActorStateRules::FromSnapshot1(flags[0], it->second.State1);
+    it->second.Weapon = WeaponState((ActorStateRules::FromSnapshot2(flags[1], uint32_t(it->second.Weapon) << 5) >> 5) & 7);
     return true;
 }
 
@@ -2668,7 +2672,7 @@ void FakeEngine::PlayerNames(const std::string& acName)
 void FakeEngine::AliasNames(uint32_t aFormId, const std::string& acName)
 {
     Actors.at(aFormId).DisplayName = acName;
-    World::Get().GetRunner().Trigger(ActorRenamedEvent{aFormId});
+    World::Get().GetRunner().Trigger(ActorRenamedEvent{aFormId, GetActorDisplayName(aFormId)});
 }
 
 std::string FakeEngine::PlayerId() noexcept

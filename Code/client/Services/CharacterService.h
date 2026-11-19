@@ -25,8 +25,6 @@ struct NotifyCharacterSpawn;
 struct NotifyPlayerLevel;
 struct NotifyReferencesMove;
 struct NotifyInventoryChanges;
-struct NotifyFactionsChanges;
-struct FactionsChangeEvent;
 struct ReferenceJumpEvent;
 struct ReferenceLoadedEvent;
 struct NpcHeldEvent;
@@ -82,9 +80,7 @@ struct CharacterService
     void OnGraphSync(const NotifyGraphSync& acMessage) const noexcept;
     void OnGraphSyncPoint(const NotifyGraphSyncPoint& acMessage) const noexcept;
     void SendGraphStream() const noexcept;
-    void OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept;
     // An owned actor's factions changed: they reach its copies if they differ from the last sent.
-    void OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept;
     // An actor of ours put somewhere at once: its next snapshot says so (Movement::Teleported).
     void OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept;
     // A spawn waiting for its reference to finish loading: kStillLoading clears before its 3D loads.
@@ -99,10 +95,8 @@ struct CharacterService
     // The player's owned horse accompanies a tether move.
     void CarryMountTo(uint32_t aCellId, const glm::vec3& acPosition) noexcept;
     void OnNotifyMount(const NotifyMount& acMessage) noexcept;
-    // The one way a name reaches an actor here: its spawn, or the host's notification (docs/re/systems/names.md).
-    void ApplyOwnerName(uint32_t aFormId, const std::string& acName) const noexcept;
-    void OnNotifyActorName(const NotifyActorName& acMessage) noexcept;
-    void OnNotifyPlayerName(const NotifyPlayerName& acMessage) const noexcept;
+    // A copy's name is its record's (ActorStateService); this is the host's rename of an actor this game owns.
+    void OnNotifyActorName(const NotifyActorName& acMessage) const noexcept;
     // Our player got off the mount the host gave this game: the host takes it back.
     void OnDismountEvent(const DismountEvent& acEvent) noexcept;
     void OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept;

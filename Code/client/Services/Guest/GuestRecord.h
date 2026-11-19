@@ -6,6 +6,7 @@
 
 class IJoinBridge;
 struct PlayerProgressEvent;
+struct PlayerRenamedEvent;
 struct EquipmentChangeEvent;
 struct InventoryChangeEvent;
 struct MenuEvent;
@@ -35,6 +36,8 @@ private:
     void OnProgress(const PlayerProgressEvent&) noexcept { m_changed = true; }
     void OnPartyGold(const NotifyPartyGold&) noexcept { m_changed = true; }
     void OnMenu(const MenuEvent& acEvent) noexcept;
+    // A new name changes who the character is: the host's next save must have it at once (names.md).
+    void OnRenamed(const PlayerRenamedEvent&) noexcept;
     void OnLeaving(const SessionLeavingEvent&) noexcept;
     bool Send() noexcept;
 

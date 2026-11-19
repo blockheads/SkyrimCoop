@@ -326,10 +326,11 @@ class StoryActions:
 
 
     def script_call(ctx, instance, klass, function, args=(), on=None):
-        """That game queues the call as a quest's script would (no player's action behind it)."""
+        """That game queues the call as a quest's script would (no player's action behind it). `on`: a form id, or a
+        staged handle ("player", "wolf") resolved in that game."""
         request = {"cmd": "papyrus_call", "class": klass, "function": function, "args": list(args)}
         if on is not None:
-            request["self"] = on
+            request["self"] = ctx.resolve(on, instance or "host")
         ctx.player_command(instance, request)
 
 
@@ -337,7 +338,7 @@ class StoryActions:
         """That game queues the call as a script its own player's action started (a lever, fishing, a picked line)."""
         request = {"cmd": "papyrus_call", "class": klass, "function": function, "args": list(args), "player_action": True}
         if on is not None:
-            request["self"] = on
+            request["self"] = ctx.resolve(on, instance or "host")
         ctx.player_command(instance, request)
 
 

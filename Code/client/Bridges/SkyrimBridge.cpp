@@ -63,7 +63,6 @@
 #include <Effects/ActiveEffect.h>
 #include <Magic/EffectItem.h>
 #include <Systems/FaceGenSystem.h>
-#include <Systems/CacheSystem.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
 #include <Games/Animation/ReplayState.h>
@@ -1778,6 +1777,51 @@ WeaponState SkyrimBridge::GetWeaponState(uint32_t aFormId) const noexcept
     return static_cast<WeaponState>(pActor->actorState.GetWeaponState());
 }
 
+ActorStateFields SkyrimBridge::GetActorStateFields(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return {};
+    ActorStateFields fields;
+    fields.Flags1 = pActor->actorState.flags1;
+    fields.Flags2 = pActor->actorState.flags2;
+    fields.InKillMove = pActor->IsInKillMove();
+    if (fields.InKillMove)
+        if (const TESObjectREFR* pKiller = TESObjectREFR::GetByHandle(pActor->killerHandle))
+            fields.KillerFormId = pKiller->formID;
+    fields.InPair = fields.InKillMove && (pActor->InPair() || pActor->InPairClip());
+    fields.Dead = pActor->IsDead();
+    return fields;
+}
+
+void SkyrimBridge::CopyLeaveKillMove(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    Breadcrumbs::Record("CopyLeaveKillMove", aFormId);
+    pActor->killerHandle = *TESObjectREFR::GetNullHandle();
+    pActor->EndKillMove();
+}
+
+void SkyrimBridge::SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    pActor->actorState.flags1 = aFlags1;
+    pActor->actorState.flags2 = aFlags2;
+}
+
+void SkyrimBridge::CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    Breadcrumbs::Record("CopyEnterKillMove", aFormId, aKillerFormId);
+    pActor->EnterKillMove(aKillerFormId ? GetActor(aKillerFormId) : nullptr);
+}
+
 bool SkyrimBridge::IsActorTemporary(uint32_t aFormId) const noexcept
 {
     Actor* pActor = GetActor(aFormId);
@@ -2292,14 +2336,6 @@ void SkyrimBridge::SetupActorFaceGen(uint32_t aFormId) noexcept
     Breadcrumbs::Record("SetupActorFaceGen", aFormId);
     // FaceGen setup is entity-based; this is a no-op at bridge level
     // Actual setup happens in CharacterService::OnCharacterSpawn via FaceGenSystem::Setup
-}
-
-void SkyrimBridge::SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept
-{
-    Breadcrumbs::Record("SetupActorCache", aFormId, aEntityHint);
-    // aEntityHint is the entity (CharacterService::ProcessNewEntity), as before the bridge refactor.
-    if (Actor* pActor = GetActor(aFormId))
-        CacheSystem::Setup(World::Get(), static_cast<entt::entity>(aEntityHint), pActor);
 }
 
 void SkyrimBridge::ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept

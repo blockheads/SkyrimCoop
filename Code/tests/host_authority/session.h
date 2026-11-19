@@ -29,8 +29,6 @@
 #include <Messages/NotifyRespawn.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
-#include <Messages/NotifyFactionsChanges.h>
-#include <Messages/RequestFactionsChanges.h>
 #include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RelayedMessages.h>

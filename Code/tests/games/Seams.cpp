@@ -27,6 +27,8 @@
 #include <Systems/InterpolationSystem.h>
 #include <Services/ActorValueService.h>
 #include <Services/AiStateService.h>
+#include <Services/ActorStateService.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <Services/CopyRecords.h>
 #include <Services/CopyRecordsService.h>
 #include <Services/PerkService.h>
@@ -118,6 +120,7 @@ World::World()
     ctx().emplace<CopyRecords>();
     ctx().emplace<CopyRecordsService>(*this, m_dispatcher, m_transport, ctx().at<CopyRecords>());
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
+    ctx().emplace<ActorStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
     ctx().emplace<FakeBugReports&>(static_cast<FakeBugReports&>(*m_pBugReportBridge));
@@ -185,6 +188,7 @@ World::~World()
     ctx().erase<SystemQuestService>();
     ctx().erase<CutsceneService>();
     ctx().erase<PerkService>();
+    ctx().erase<ActorStateService>();
     ctx().erase<AiStateService>();
     ctx().erase<CopyRecordsService>();
     ctx().erase<CopyRecords>();
@@ -286,14 +290,17 @@ void World::Update() noexcept
                 }
                 // What playing the action does beside the graph (39004), as AnimationSystem.
                 if (!cAction.TargetEventName.empty() && ::ReplayState::EntersKillMove(cAction.EventName))
+                {
                     actor.InKillMove = cPartner->second.InKillMove = true;
+                    cPartner->second.Killer = form.Id;
+                }
                 animation.TimePoints.pop_front();
                 // Its owner's get-up stands its own body up; its graph's get-up is the stream's (AnimationSystem).
                 if (KnockReplay::StandsUp(actor.KnockedDown ? 1 : 0, cAction.ActionId == FakeEngine::kActionGetUp))
                     engine.StandUp(form.Id);
                 if (!actor.Dead && KnockReplay::GoesDown(engine.KnockStateOf(form.Id), cAction.ActionId == FakeEngine::kActionRagdoll))
                     ctx().at<BodyService>().KnockDown(form.Id);
-                actor.State1 = ::ReplayState::Flags1(cAction.StateAfter1, actor.State1); // as AnimationSystem
+                actor.State1 = ActorStateRules::FromSnapshot1(cAction.StateAfter1, actor.State1); // as AnimationSystem
                 animation.LastRanAction = cAction;
                 engine.SetActorLatestAnimation(form.Id, cAction);
             }
