@@ -315,11 +315,16 @@ TEST_CASE("A horse passes from rider to rider: the host, a guest, the host again
     party.Until([&] { return Owns(party.Guest(), cHorse) && host.IsActorCopy(horse); }, "the guest's game owns the horse");
     party.As(party.Guest(), [&] { guest.StartDismount(FakeEngine::kPlayer); });
     party.Until([&] { return Owns(party.Host(), horse) && guest.IsActorCopy(cHorse); }, "the host owns it again");
+    // Skyrim (duo, 2026-11-18): taken back before its copy rider's exit pair ended, the host's horse stayed in it,
+    // refused the host's get-on and retried it; the guest's copy of the host was left off (mounts.md).
+    party.Until([&] { return host.PairEndIn.empty(); }, "the guest's exit pair would have reached the host's horse");
+    CHECK(host.SyncedMounts.empty());
 
     cRide(party.Host(), host, horse);
     party.Until([&] { return guest.Mounts.size() == 1 && guest.Mounts.begin()->second == cHorse; },
                 "the host rides it again, the guest's copy on it");
     CHECK(Owns(party.Host(), horse));
+    CHECK(host.RefusedGetOns == 0);
     CHECK(host.GettingOnOff.empty());
     CHECK(guest.GettingOnOff.empty());
     party.Agree("the horse and its copies agree");
@@ -505,6 +510,18 @@ TEST_CASE("The driver gets off: the passenger drives, the horse its game's", "[m
 
     ride.party.As(ride.party.Guest(), [&] { ride.guest.StartDismount(FakeEngine::kPlayer); });
     ride.party.Until([&] { return Owns(ride.party.Host(), ride.horse); }, "no passenger left: the host's again");
+}
+
+TEST_CASE("The driver's copy is off before the passenger takes the reins: the passenger keeps steering", "[mounts][passengers]")
+{
+    Passenger ride;
+    // The host's copy finishes its exit while the horse is still a copy here: its stream's PairEnd still to come.
+    ride.party.As(ride.party.Guest(), [&] { ride.guest.EndRide(ride.hostOnGuest); });
+    REQUIRE(ride.guest.PairEndIn.contains(ride.guestHorse));
+    ride.party.As(ride.party.Host(), [&] { ride.host.StartDismount(FakeEngine::kPlayer); });
+    ride.party.Until([&] { return ride.guest.PlayerSteers(ride.guestHorse); }, "the passenger steers it");
+    ride.party.Until([&] { return ride.guest.PairEndIn.empty(); }, "the stream's PairEnd would have landed");
+    CHECK(ride.guest.PlayerSteers(ride.guestHorse));
 }
 
 TEST_CASE("A passenger gets off: the driver keeps its horse on both games", "[mounts][passengers]")

@@ -1297,6 +1297,8 @@ make the horse recordings' end check pass there.
 
 Size: small. Needs: the duo.
 
+- 2026-11-18 (`agent/horse-riding-copy`): `horse-passes-between-riders` passed whole once (its steps every run since its
+  third ride's fix); `two-players-race-for-horse` failed on the mill's log (FURN 71C47) the same day.
 - The recorded horse scenarios (`horse-passes-between-riders`, `two-players-race-for-horse`,
   `rejoined-guest-sees-rider`; 2026-11-17) pass every step, then fail the end comparison on one or two of: a
   FishController's position (ACTI 10C3BA/10B035, the river's fish), the mill's log (FURN 71C47), cabbages or ingots

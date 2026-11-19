@@ -66,6 +66,14 @@ named before its copy exists is applied when it appears ("A copy that looks at n
 shows the player path). The other caches move in later PRs.
 Tests: GameTests `[copy-records]` (3), ClientTests `[copy-records]` (6), HostAuthorityTests `[records]` (4).
 
+2026-11-18: a horse ridden by the host, then a guest, then the host again shows the host riding on the guest's game
+(`agent/horse-riding-copy`, `docs/re/systems/mounts.md`, "A horse taken back mid-pair"). The host took the horse back
+while it still replayed the guest's exit pair, whose `PairEnd` then never came. The host's get-on was refused and
+retried (39669 calls `InitiateMountPackage` 37905 once per try), and the retries left the guest's copy of the host off
+the horse. Now the host's game ends that pair when it takes a horse back (`OnNotifyDismount`). GameTests: the fake
+loses a copy mount's stream `PairEnd` once the game takes the mount, and refuses a get-on of a horse in a pair once
+(`PairEndIn`, `MountRetryOf`); "A horse passes from rider to rider" checks both. `horse-passes-between-riders` passes.
+
 2026-11-18: one sync rule for every system, designed ([one-simulator.md](design/one-simulator.md),
 `agent/one-sync-model`). An audit's map checked in the code: each open desync is a copy missing what its owner did
 beside the graph stream (39004's list, read in IDA) or two games deciding one thing. Ten pieces in build order: a
