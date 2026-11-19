@@ -1,40 +1,6 @@
 // HostAuthority's relays: who receives each request's notification.
 #include "session.h"
 
-TEST_CASE("Hands: the owner's change reaches everyone else", "[HostAuthority][Inventory]")
-{
-    Session session;
-    const uint32_t cActor = session.Character(kPeer);
-
-    DrawWeaponRequest request;
-    request.Id = cActor;
-    request.IsWeaponDrawn = true;
-    session.Receive(kPeer, request);
-
-    for (const auto cTo : {kHost, kOtherPeer})
-    {
-        const auto cNotifies = session.SentTo<NotifyDrawWeapon>(cTo);
-        REQUIRE(cNotifies.size() == 1);
-        CHECK(cNotifies[0]->Id == cActor);
-        CHECK(cNotifies[0]->IsWeaponDrawn);
-    }
-    CHECK(session.SentTo<NotifyDrawWeapon>(kPeer).empty());
-}
-
-TEST_CASE("Hands: only the owner decides", "[HostAuthority][Inventory]")
-{
-    Session session;
-    const uint32_t cHostNpc = session.Character(kHost);
-
-    DrawWeaponRequest request;
-    request.Id = cHostNpc;
-    request.IsWeaponDrawn = true;
-    session.Receive(kPeer, request);
-
-    CHECK(session.SentTo<NotifyDrawWeapon>(kHost).empty());
-    CHECK(session.SentTo<NotifyDrawWeapon>(kOtherPeer).empty());
-}
-
 TEST_CASE("Equipment snapshot: relayed from the owner only", "[HostAuthority][Inventory]")
 {
     Session session;
@@ -379,27 +345,27 @@ TEST_CASE("Spell removal: reaches everyone else", "[HostAuthority][Magic]")
     CHECK(session.SentTo<NotifyRemoveSpell>(kPeer).empty());
 }
 
-TEST_CASE("Factions: each actor's from its owner only", "[HostAuthority][Characters]")
+TEST_CASE("Factions and actor state: each actor's parts from its owner only", "[HostAuthority][Characters][records]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
     const uint32_t cPeerPlayer = session.Character(kPeer);
 
-    RequestFactionsChanges changes;
-    changes.Changes[cPeerPlayer] = {};
-    changes.Changes[cHostNpc] = {}; // not the peer's to say
-    session.Receive(kPeer, changes);
+    for (const RecordKind cKind : {RecordKind::kFactions, RecordKind::kActorState})
+    {
+        session.Outbox.clear();
+        RecordRequest part;
+        part.Id = cHostNpc; // not the peer's to say
+        part.Part = {cKind, 1, std::string("\x01", 1)};
+        session.Receive(kPeer, part);
+        CHECK(session.Outbox.empty());
 
-    const auto cToHost = session.SentTo<NotifyFactionsChanges>(kHost);
-    REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->Changes.size() == 1);
-    CHECK(cToHost[0]->Changes.count(cPeerPlayer) == 1);
-    CHECK(session.SentTo<NotifyFactionsChanges>(kPeer).empty());
-
-    session.Outbox.clear();
-    changes.Changes.erase(cPeerPlayer);
-    session.Receive(kPeer, changes);
-    CHECK(session.Outbox.empty());
+        part.Id = cPeerPlayer;
+        session.Receive(kPeer, part);
+        REQUIRE(session.SentTo<NotifyRecord>(kHost).size() == 1);
+        CHECK(session.SentTo<NotifyRecord>(kHost)[0]->Part.Kind == cKind);
+        CHECK(session.SentTo<NotifyRecord>(kPeer).empty());
+    }
 }
 
 TEST_CASE("Subtitles, experience: reach everyone else", "[HostAuthority][Characters]")

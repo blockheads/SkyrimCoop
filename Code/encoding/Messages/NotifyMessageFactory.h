@@ -19,7 +19,6 @@
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyInventoryChanges.h>
-#include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifyActivate.h>
 #include <Messages/NotifyRespawn.h>

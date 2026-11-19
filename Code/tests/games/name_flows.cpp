@@ -41,14 +41,14 @@ bool AllNamed(Party& aParty)
     return true;
 }
 
-// The actor names a game was told (OnNotifyActorName's message).
+// The actor names a game was told (name parts of the copy record, one-simulator.md piece 2).
 struct NamesHeard
 {
     explicit NamesHeard(World& aGame)
-        : Connection(aGame.GetDispatcher().sink<NotifyActorName>().connect<&NamesHeard::On>(*this))
+        : Connection(aGame.GetDispatcher().sink<NotifyRecord>().connect<&NamesHeard::On>(*this))
     {
     }
-    void On(const NotifyActorName&) { ++Count; }
+    void On(const NotifyRecord& acPart) { Count += acPart.Part.Kind == RecordKind::kName; }
     int Count = 0;
     entt::scoped_connection Connection;
 };
@@ -60,7 +60,11 @@ struct SpawnsHeard
         : Connection(aGame.GetDispatcher().sink<NotifyCharacterSpawn>().connect<&SpawnsHeard::On>(*this))
     {
     }
-    void On(const NotifyCharacterSpawn& acSpawn) { Names.push_back(acSpawn.DisplayName); }
+    void On(const NotifyCharacterSpawn& acSpawn)
+    {
+        if (const RecordPart* cpName = acSpawn.Record.Find(RecordKind::kName))
+            Names.push_back(cpName->Bytes);
+    }
     [[nodiscard]] bool Named(const std::string& acName) const { return std::ranges::find(Names, acName) != Names.end(); }
     std::vector<std::string> Names;
     entt::scoped_connection Connection;
@@ -244,4 +248,37 @@ TEST_CASE("The host's quest names a horse its guest rider owns", "[names][mounts
     party.Until([&] { return cNamed("Frost"); }, "the rider's horse and the other guest's copy take the name");
     party.As(party.Host(), [&] { host.AliasNames(horse, ""); });
     party.Until([&] { return cNamed("Horse"); }, "and lose it");
+}
+
+SCENARIO("A script's rename with no event reaches the copies and lists: SetDisplayName on an NPC, SetName on a player", "[names][copies][actor-state]")
+{
+    // Neither raises anything (SKSE's SetDisplayName writes ExtraTextDisplayData past the alias hooks; SetName writes
+    // the base): the owner reads its actors' names after each frame, as their state (one-simulator.md, piece 2).
+    constexpr uint32_t cNpc = 0xD8C56;
+    constexpr uint32_t cBase = 0x3DEE0;
+    Party party(1, [&](FakeEngine& aEngine) {
+        SmokeWorld(aEngine);
+        aEngine.Npcs[cBase].Name = "Whiterun Guard";
+        aEngine.Npcs[cBase].Race = 0x13746;
+        aEngine.PlaceNpc(cNpc, cBase, 0x31D2E, {});
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    const uint32_t cCopy = CopyOf(party, cNpc);
+    party.Until([&] { return AllNamed(party); }, "every copy names its player");
+
+    party.As(party.Host(), [&] { host.SetActorDisplayName(cNpc, "Captain"); });
+    party.Until([&] { return guest.GetActorDisplayName(cCopy) == "Captain"; }, "the NPC's copy takes the script's name");
+
+    party.As(party.Guest(), [&] { guest.PlayerNames("Rinara"); }); // no race menu, no save loaded
+    party.Until([&] { return AllNamed(party); }, "every copy and list calls the guest Rinara");
+    // The host's next save keeps it too, at once: a save right after would bring the old name back (names.md).
+    const std::string cKey = party.Guest().ctx().at<JoinService>().PlayerKey();
+    int frames = 0;
+    party.Until([&] {
+        ++frames;
+        const auto* cpKept = party.Host().ctx().at<SaveService>().GetRecords().Find(cKey);
+        return cpKept && cpKept->Name == "Rinara";
+    }, "the host keeps the guest's new name");
+    CHECK(frames < 60);
 }

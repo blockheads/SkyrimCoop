@@ -22,10 +22,8 @@
 #include <Games/PartyItems.h>
 #include <set>
 #include <Components/LocalComponent.h>
-#include <Components/LocalWeaponDrawComponent.h>
 #include <Components/RemoteAnimationComponent.h>
 #include <Components/RemoteComponent.h>
-#include <Components/RemoteWeaponDrawComponent.h>
 #include <SessionIds.h>
 #include <Components/FormIdComponent.h>
 #include <Components/WaitingFor3D.h>
@@ -46,21 +44,16 @@ InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<NotifyInventoryChanges, &InventoryService::OnNotifyInventoryChanges>(m_connections, m_dispatcher, this);
     Listen<NotifyEquipmentChanges, &InventoryService::OnNotifyEquipmentChanges>(m_connections, m_dispatcher, this);
     Listen<NotifyEquipmentSnapshot, &InventoryService::OnNotifyEquipmentSnapshot>(m_connections, m_dispatcher, this);
-    Listen<NotifyDrawWeapon, &InventoryService::OnNotifyDrawWeapon>(m_connections, m_dispatcher, this);
     Listen<NotifyPartyGold, &InventoryService::OnNotifyPartyGold>(m_connections, m_dispatcher, this);
     Listen<NotifyPartyItem, &InventoryService::OnNotifyPartyItem>(m_connections, m_dispatcher, this);
     Listen<NotifyPartyItems, &InventoryService::OnNotifyPartyItems>(m_connections, m_dispatcher, this);
     Listen<DisconnectedEvent, &InventoryService::OnDisconnected>(m_connections, m_dispatcher, this);
     Listen<&InventoryService::OnSpawnItemsApplied>(m_connections, m_world.on_destroy<WaitingFor3D>(), this);
-    Listen<&InventoryService::OnLocalComponentRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
-    Listen<&InventoryService::OnRemoteComponentRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
 }
 
 void InventoryService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
     PROFILE_ZONE("InventoryService::OnUpdate");
-    RunWeaponStateUpdates();
-    RunWeaponDrawConvergence(acUpdateEvent.Delta);
     RunEquipmentSnapshots();
     RunNakedNPCBugChecks();
 }
@@ -335,74 +328,6 @@ void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& 
         });
 }
 
-void InventoryService::RunWeaponStateUpdates() noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    for (auto entity : view)
-    {
-        const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
-        // A dying actor's hands drop with its death, which its copies replay later: sent now, a copy would sheathe first.
-        if (!m_actorBridge.ActorExists(cFormId) || m_actorBridge.IsActorDead(cFormId))
-            continue;
-
-        const bool cHandsUp = HandsUp(m_actorBridge.GetWeaponState(cFormId));
-        const auto* pSent = m_world.try_get<LocalWeaponDrawComponent>(entity);
-        if (pSent && pSent->HandsUp == cHandsUp)
-            continue;
-
-        m_world.emplace_or_replace<LocalWeaponDrawComponent>(entity, cHandsUp);
-
-        DrawWeaponRequest request;
-        request.Id = view.get<LocalComponent>(entity).Id;
-        request.IsWeaponDrawn = cHandsUp;
-        m_transport.Send(request);
-    }
-}
-
-void InventoryService::OnNotifyDrawWeapon(const NotifyDrawWeapon& acMessage) noexcept
-{
-    auto view = m_world.view<RemoteComponent>();
-    for (auto entity : view)
-        if (view.get<RemoteComponent>(entity).Id == acMessage.Id)
-            m_world.emplace_or_replace<RemoteWeaponDrawComponent>(entity, acMessage.IsWeaponDrawn);
-}
-
-void InventoryService::RunWeaponDrawConvergence(double aDelta) noexcept
-{
-    // Long enough for an accepted replay to land first.
-    constexpr double cDriftGrace = 0.25;
-
-    auto view = m_world.view<FormIdComponent, RemoteAnimationComponent, RemoteWeaponDrawComponent>();
-    for (auto entity : view)
-    {
-        auto& owner = view.get<RemoteWeaponDrawComponent>(entity);
-        const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
-        if (!m_actorBridge.ActorExists(cFormId) || !m_actorBridge.ActorHas3D(cFormId) || m_actorBridge.IsActorDead(cFormId))
-        {
-            owner.DriftSeconds = 0.0;
-            continue;
-        }
-
-        const WeaponState cState = m_actorBridge.GetWeaponState(cFormId);
-        const bool cDrifted = view.get<RemoteAnimationComponent>(entity).TimePoints.empty() && !IsAnimating(cState) && ShowsHandsUp(cState) != owner.HandsUp;
-        owner.DriftSeconds = cDrifted ? owner.DriftSeconds + aDelta : 0.0;
-        if (owner.DriftSeconds < cDriftGrace)
-            continue;
-
-        spdlog::debug("Copy {:X} hands {} (weapon state {}) while its owner's are {}: converging", cFormId, ShowsHandsUp(cState) ? "up" : "down",
-                      static_cast<int>(cState), owner.HandsUp ? "up" : "down");
-        // On its owner's stream its graph is its owner's already and drops its own events: the result alone.
-        if (m_world.GetGraphStreams().OnStream(cFormId))
-            m_actorBridge.ShowActorWeaponDrawn(cFormId, owner.HandsUp);
-        else
-            m_actorBridge.SetActorWeaponDrawnEx(cFormId, owner.HandsUp);
-        owner.DriftSeconds = 0.0;
-    }
-}
-
 void InventoryService::OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexcept
 {
     m_partyGold = acMessage.Gold;
@@ -577,16 +502,6 @@ void InventoryService::OnSpawnItemsApplied(entt::registry& aRegistry, entt::enti
         SetGold(cFormId, *m_partyGold);
     if (m_partyItems)
         SetPartyItems(cFormId, *m_partyItems);
-}
-
-void InventoryService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept
-{
-    aRegistry.remove<LocalWeaponDrawComponent>(aEntity);
-}
-
-void InventoryService::OnRemoteComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept
-{
-    aRegistry.remove<RemoteWeaponDrawComponent>(aEntity);
 }
 
 void InventoryService::RunNakedNPCBugChecks() noexcept

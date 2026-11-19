@@ -22,7 +22,6 @@
 #include <Events/PlayerLooksChangeEvent.h>
 #include <Events/ActorHeadUpdateEvent.h>
 #include <Events/PlayerDeathEvent.h>
-#include <Events/FactionsChangeEvent.h>
 #include <Events/ReferenceJumpEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
 #include <Events/NpcHeldEvent.h>
@@ -35,8 +34,6 @@
 #include <Messages/NotifyReferencesMove.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/NotifyCharacterSpawn.h>
-#include <Messages/RequestFactionsChanges.h>
-#include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/Relayed.h>
@@ -58,7 +55,6 @@
 #include <Systems/CopyStep.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
-#include <Systems/CacheSystem.h>
 #include <Systems/FaceGenSystem.h>
 
 #include <World.h>
@@ -99,8 +95,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<NotifyCharacterSpawn, &CharacterService::OnCharacterSpawn>(m_connections, m_dispatcher, this);
     Listen<NotifyReferencesMove, &CharacterService::OnReferencesMoveRequest>(m_connections, m_dispatcher, this);
-    Listen<NotifyFactionsChanges, &CharacterService::OnFactionsChanges>(m_connections, m_dispatcher, this);
-    Listen<FactionsChangeEvent, &CharacterService::OnFactionsChange>(m_connections, m_dispatcher, this);
     Listen<ReferenceJumpEvent, &CharacterService::OnReferenceJump>(m_connections, m_dispatcher, this);
     Listen<ReferenceLoadedEvent, &CharacterService::OnReferenceLoaded>(m_connections, m_dispatcher, this);
     Listen<NpcHeldEvent, &CharacterService::OnNpcHeld>(m_connections, m_dispatcher, this);
@@ -112,7 +106,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<BoardEvent, &CharacterService::OnBoardEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyBoard, &CharacterService::OnNotifyBoard>(m_connections, m_dispatcher, this);
     Listen<NotifyActorName, &CharacterService::OnNotifyActorName>(m_connections, m_dispatcher, this);
-    Listen<NotifyPlayerName, &CharacterService::OnNotifyPlayerName>(m_connections, m_dispatcher, this);
     Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyDismount, &CharacterService::OnNotifyDismount>(m_connections, m_dispatcher, this);
     Listen<NotifyUnboard, &CharacterService::OnNotifyUnboard>(m_connections, m_dispatcher, this);
@@ -139,7 +132,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
 void CharacterService::DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept
 {
-    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, CacheComponent, WaitingFor3D, PlayerComponent,
+    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, WaitingFor3D, PlayerComponent,
                    OwnerPlaceComponent>(aEntity);
 }
 
@@ -575,8 +568,6 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     AnimationSystem::Setup(m_world, *entity);
 
     m_world.emplace_or_replace<WaitingFor3D>(*entity, acMessage);
-    // Its owner's hands as of this spawn; a later draw change (OnNotifyDrawWeapon) is newer, also while its 3D loads.
-    m_world.emplace_or_replace<RemoteWeaponDrawComponent>(*entity, acMessage.IsWeaponDrawn);
 
     auto& remoteAnimationComponent = m_world.get<RemoteAnimationComponent>(*entity);
     remoteAnimationComponent.TimePoints.push_back(acMessage.LatestAction);
@@ -620,10 +611,7 @@ void CharacterService::LinkPendingRides(uint32_t aSessionId) noexcept
 bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept
 {
     if (acMessage.BaseId == GameId{})
-    {
-        ApplyOwnerName(aFormId, acMessage.DisplayName);
         return true;
-    }
     const uint32_t cBaseId = ToGame(acMessage.BaseId);
     const bool cResolvedAlike = NpcSnapshot::KeepsResolvedBase(
         m_actorBridge.IsActorNpcTemporary(aFormId), m_actorBridge.GetActorNpcTemplateBaseFormId(aFormId), cBaseId);
@@ -633,30 +621,15 @@ bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterS
                       acMessage.BaseId.BaseId, aFormId);
         return false;
     }
-    ApplyOwnerName(aFormId, acMessage.DisplayName);
     return true;
 }
 
-void CharacterService::ApplyOwnerName(uint32_t aFormId, const std::string& acName) const noexcept
+void CharacterService::OnNotifyActorName(const NotifyActorName& acMessage) const noexcept
 {
-    if (!acName.empty() && !SameName(m_actorBridge.GetActorDisplayName(aFormId), acName))
-        m_actorBridge.SetActorDisplayName(aFormId, acName);
-}
-
-void CharacterService::OnNotifyActorName(const NotifyActorName& acMessage) noexcept
-{
-    // Still loading: its spawn applies the name.
-    if (const auto cPending = m_pendingSpawns.find(acMessage.ActorId); cPending != m_pendingSpawns.end())
-        cPending->second.DisplayName = acMessage.Name;
-    if (const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.ActorId))
-        ApplyOwnerName(cFormId, acMessage.Name);
-}
-
-void CharacterService::OnNotifyPlayerName(const NotifyPlayerName& acMessage) const noexcept
-{
-    for (auto&& [cEntity, cForm, cPlayer, cCopy] : m_world.view<FormIdComponent, PlayerComponent, RemoteComponent>().each())
-        if (cPlayer.Id == acMessage.PlayerId)
-            return ApplyOwnerName(cForm.Id, acMessage.Name);
+    // The host's quest named this game's own actor (a horse its player rides): its name part carries it on.
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.ActorId);
+    if (cFormId && !m_actorBridge.IsActorCopy(cFormId) && !acMessage.Name.empty() && !SameName(m_actorBridge.GetActorDisplayName(cFormId), acMessage.Name))
+        m_actorBridge.SetActorDisplayName(cFormId, acMessage.Name);
 }
 
 void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSpawn& acMessage) const noexcept
@@ -677,7 +650,6 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
     place.LastMove = {};
     if (auto* pWaitingFor3D = m_world.try_get<WaitingFor3D>(aEntity))
         pWaitingFor3D->SpawnRequest = acMessage;
-    m_world.emplace_or_replace<RemoteWeaponDrawComponent>(aEntity, acMessage.IsWeaponDrawn);
     if (pFormId && (cBaseChanged || !m_actorBridge.ActorHas3D(pFormId->Id)) && !acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(aEntity, acMessage.GraphState);
     spdlog::info("Character with remote id {:X} is already spawned: refreshed from the new spawn (cell {:X})", acMessage.SessionId,
@@ -814,25 +786,6 @@ void CharacterService::OnActionEvent(const ActionEvent& acActionEvent) const noe
         ActionEvent action = acActionEvent;
         AnimationSystem::TargetToNetwork(action);
         localComponent.Append(action);
-    }
-}
-
-void CharacterService::OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept
-{
-    // Copies have no CacheComponent (only actors this game owns do, CharacterService::ProcessNewEntity).
-    auto view = m_world.view<RemoteComponent, FormIdComponent>();
-
-    for (const auto& [id, factions] : acEvent.Changes)
-    {
-        const auto itor = std::find_if(std::begin(view), std::end(view), [id = id, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
-
-        if (itor != std::end(view))
-        {
-            const uint32_t cFormId = view.get<FormIdComponent>(*itor).Id;
-            if (auto* pCache = m_world.try_get<CacheComponent>(*itor))
-                pCache->FactionsContent = factions;
-            m_actorBridge.SetActorFactions(cFormId, factions);
-        }
     }
 }
 
@@ -1535,8 +1488,6 @@ void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
     if (m_world.any_of<RemoteComponent, LocalComponent>(aEntity))
         return;
 
-    m_actorBridge.SetupActorCache(formIdComponent.Id, static_cast<uint32_t>(entt::to_integral(aEntity)));
-
     AnnounceCharacter(aEntity);
 }
 
@@ -1608,14 +1559,12 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     const auto changeFlags = m_actorBridge.SerializeActorNpc(formIdComponent.Id, message.AppearanceBuffer);
     message.ChangeFlags = changeFlags;
     message.Weight = m_actorBridge.GetActorBaseWeight(formIdComponent.Id);
-    message.DisplayName = m_actorBridge.GetActorDisplayName(formIdComponent.Id);
 
     if (isPlayer)
     {
         message.FaceTints = m_playerBridge.GetPlayerFaceTints();
     }
 
-    message.FactionsContent = m_actorBridge.GetActorFactions(formIdComponent.Id);
     message.IsDragon = m_actorBridge.IsActorDragon(formIdComponent.Id);
     message.IsMount = m_actorBridge.IsActorMount(formIdComponent.Id);
 
@@ -1721,7 +1670,6 @@ bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpaw
         aSpawn.Rotation = cState.Rotation;
         aSpawn.InventoryContent = cState.Data.InitialInventory;
         aSpawn.IsDead = cState.Data.IsDead;
-        aSpawn.IsWeaponDrawn = cState.Data.IsWeaponDrawn;
         aSpawn.LatestAction = cState.LatestAction;
         aSpawn.GraphState = cState.GraphState;
         return true;
@@ -1807,7 +1755,6 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
     }
     actorData.InitialInventory = m_actorBridge.GetActorInventory(aFormId);
     actorData.IsDead = m_actorBridge.IsActorDead(aFormId);
-    actorData.IsWeaponDrawn = HandsUp(m_actorBridge.GetWeaponState(aFormId));
 
     return actorData;
 }
@@ -2028,7 +1975,6 @@ void CharacterService::RunRemoteUpdates() noexcept
             continue;
 
         m_actorBridge.SetActorInventory(formIdComponent.Id, waitingFor3D.SpawnRequest.InventoryContent);
-        m_actorBridge.SetActorFactions(formIdComponent.Id, waitingFor3D.SpawnRequest.FactionsContent);
         m_actorBridge.ActorLoadAnimationVariables(formIdComponent.Id, waitingFor3D.SpawnRequest.LatestAction.Variables);
 
         const bool cIsDead = m_actorBridge.IsActorDead(formIdComponent.Id);
@@ -2052,28 +1998,6 @@ void CharacterService::RunRemoteUpdates() noexcept
 void CharacterService::OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept
 {
     m_jumped.insert(acEvent.FormId);
-}
-
-void CharacterService::OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-    auto view = m_world.view<LocalComponent, CacheComponent, FormIdComponent>();
-    for (const auto cEntity : view)
-    {
-        if (view.get<FormIdComponent>(cEntity).Id != acEvent.ActorId)
-            continue;
-        auto& cacheComponent = view.get<CacheComponent>(cEntity);
-        auto factions = m_actorBridge.GetActorFactions(acEvent.ActorId);
-        if (cacheComponent.FactionsContent == factions)
-            return;
-        cacheComponent.FactionsContent = factions;
-
-        RequestFactionsChanges message;
-        message.Changes[view.get<LocalComponent>(cEntity).Id] = std::move(factions);
-        m_transport.Send(message);
-        return;
-    }
 }
 
 // Tells the host, which sends what is here and, when the player led, takes the party along.

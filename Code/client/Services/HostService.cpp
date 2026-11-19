@@ -305,11 +305,12 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
         m_pAggro->Update(acEvent);
 }
 
-// The host's game is the only one that names an NPC for the party; a guest's own quests stay on that guest.
+// The host's game is the only one that names an NPC for the party; a guest's own quests stay on that guest. An actor the
+// host owns is declared by its name part (ActorStateService); another's goes to its owner.
 void HostService::OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcept
 {
     if (!IsHosting() || acEvent.FormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId())
         return;
     if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId))
-        m_pAuthority->NameActor(*cSessionId, m_world.ctx().at<IActorBridge&>().GetActorDisplayName(acEvent.FormId));
+        m_pAuthority->NameActor(*cSessionId, acEvent.Name);
 }

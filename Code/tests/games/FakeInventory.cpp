@@ -1,3 +1,4 @@
+#include <Games/Animation/ActorStateRules.h>
 #include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
@@ -576,6 +577,66 @@ WeaponState FakeEngine::GetWeaponState(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
     return it != Actors.end() ? it->second.Weapon : WeaponState::Sheathed;
+}
+
+ActorStateFields FakeEngine::GetActorStateFields(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return {};
+    const Actor& cActor = it->second;
+    return {cActor.State1, cActor.State2 | uint32_t(cActor.Weapon) << 5, cActor.InKillMove, cActor.InKillMove ? cActor.Killer : 0,
+            cActor.InKillMove && (cActor.InPair || cActor.InPairClip), cActor.Dead};
+}
+
+::Factions FakeEngine::GetActorFactions(uint32_t aFormId) const noexcept
+{
+    ::Factions factions;
+    if (const auto it = Factions.find(aFormId); it != Factions.end())
+        for (const auto& [cFaction, cRank] : it->second)
+        {
+            Faction faction;
+            faction.Id = GameId(0, cFaction);
+            faction.Rank = static_cast<int8_t>(cRank);
+            factions.ExtraFactions.push_back(faction);
+        }
+    return factions;
+}
+
+void FakeEngine::SetActorFactions(uint32_t aFormId, const ::Factions& acFactions) noexcept
+{
+    auto& factions = Factions[aFormId];
+    factions.clear();
+    for (const auto& cFaction : acFactions.ExtraFactions)
+        factions[cFaction.Id.BaseId] = cFaction.Rank;
+}
+
+void FakeEngine::SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || !it->second.Copy)
+        return;
+    it->second.State1 = aFlags1;
+    it->second.State2 = aFlags2 & ~ActorStateRules::kWeaponMask;
+    it->second.Weapon = WeaponState(aFlags2 >> 5 & 7);
+}
+
+void FakeEngine::CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || !it->second.Copy)
+        return;
+    it->second.InKillMove = true;
+    it->second.Killer = aKillerFormId;
+}
+
+void FakeEngine::CopyLeaveKillMove(uint32_t aFormId) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || !it->second.Copy)
+        return;
+    it->second.InKillMove = false; // no killer: 38614 queues no kill
+    it->second.Killer = 0;
 }
 
 void FakeEngine::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept

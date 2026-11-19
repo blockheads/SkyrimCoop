@@ -10,6 +10,9 @@
 enum class RecordKind : uint8_t
 {
     kAiState = 1, // ActorAiState (AiStateService)
+    kActorState = 2, // ActorStatePart (ActorStateService)
+    kFactions = 3,   // Factions (ActorStateService)
+    kName = 4,       // its display name (ActorStateService)
 };
 
 // One part of an actor's record as its owner last declared it: the owner's own counter and the part's bytes.

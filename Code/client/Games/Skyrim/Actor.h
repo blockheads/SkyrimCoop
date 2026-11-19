@@ -489,6 +489,7 @@ public:
 static_assert(offsetof(Actor, currentProcess) == 0xF8);
 static_assert(offsetof(Actor, tdEvent) == 0xD0); // BSTEventSink<BSTransformDeltaEvent> (CommonLib-NG)
 static_assert(offsetof(Actor, combatHandle) == 0x104); // currentCombatTarget, what GetCombatTarget reads (54680, 22318)
+static_assert(offsetof(Actor, killerHandle) == 0x108); // a kill move's killer, written by EnterKillMove (38613)
 static_assert(offsetof(Actor, flags1) == 0xE8);
 static_assert(offsetof(Actor, actorValueOwner) == 0xB8);
 static_assert(offsetof(Actor, actorState) == 0xC0);

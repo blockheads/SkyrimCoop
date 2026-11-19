@@ -1,6 +1,7 @@
 #include <Games/Memory.h>
 #include <Games/Animation/GraphReference.h>
 #include <Games/Animation/VariableSync.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <Games/Animation/ReplayState.h>
 #include <Havok/AnimationGraphState.h>
 #include <atomic>
@@ -233,13 +234,15 @@ bool TESObjectREFR::LoadAnimationGraphState(const std::string& acState) const no
     if (!pActor || acState.size() < sizeof(flags))
         return false;
     std::memcpy(flags, acState.data(), sizeof(flags));
+    const uint32_t cPreviousFlags1 = pActor->actorState.flags1;
     const uint32_t cPreviousFlags2 = pActor->actorState.flags2;
     const bool cLoaded = LoadGraphs(acState.substr(sizeof(flags)));
     if (cLoaded)
     {
-        pActor->actorState.flags1 = flags[0];
+        // A copy's part bits are its record's (ActorStateService), which can be newer than this state.
+        pActor->actorState.flags1 = pActor->GetExtension()->IsCopy() ? ActorStateRules::Take(flags[0], cPreviousFlags1, ~ActorStateRules::kPartBits1) : flags[0];
         // Weapon choice has its live owner messages; a graph snapshot's transition is historical.
-        pActor->actorState.flags2 = pActor->GetExtension()->IsCopy() ? ReplayState::Flags2(flags[1], cPreviousFlags2) : flags[1];
+        pActor->actorState.flags2 = pActor->GetExtension()->IsCopy() ? ActorStateRules::FromSnapshot2(flags[1], cPreviousFlags2) : flags[1];
     }
     return cLoaded;
 }
@@ -251,8 +254,8 @@ bool TESObjectREFR::LoadGraphStateFlags(const std::string& acState) const noexce
     if (!pActor || acState.size() < sizeof(flags))
         return false;
     std::memcpy(flags, acState.data(), sizeof(flags));
-    pActor->actorState.flags1 = ReplayState::Flags1(flags[0], pActor->actorState.flags1);
-    pActor->actorState.flags2 = ReplayState::Flags2(flags[1], pActor->actorState.flags2);
+    pActor->actorState.flags1 = ActorStateRules::FromSnapshot1(flags[0], pActor->actorState.flags1);
+    pActor->actorState.flags2 = ActorStateRules::FromSnapshot2(flags[1], pActor->actorState.flags2);
     return true;
 }
 

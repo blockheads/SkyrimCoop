@@ -17,13 +17,11 @@
 #include <Messages/NotifyActivate.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/NotifyEquipmentChanges.h>
-#include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/NotifyPlayerLevel.h>
 #include <Messages/NotifyRemoveWaypoint.h>
 #include <Messages/NotifySetWaypoint.h>
 #include <Messages/RequestEquipmentChanges.h>
-#include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Messages/RequestSetWaypoint.h>
@@ -135,15 +133,16 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         ActorAiState state;
         if (acPart.Kind == RecordKind::kAiState && FromPartBytes(acPart.Bytes, state))
             m_death.OnAiState(aId, state);
+        // A player's character's name is that player's in the party's lists.
+        if (acPart.Kind == RecordKind::kName && m_characters.IsPlayerCharacter(aId))
+            NamePlayer(m_characters.OwnerOf(aId), acPart.Bytes);
     };
 
     // Players
     On(*this, &HostAuthority::OnPlayerLevel);
-    On(*this, &HostAuthority::OnPlayerName);
     On(m_transfer, &HostSaveTransfer::OnSaveHeld);
 
     // Characters (spawning, removal, movement and respawn: HostCharacters)
-    On(*this, &HostAuthority::OnFactionsChanges);
     Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
     Relay<SubtitleRequest, NotifySubtitle>(FromAnyone);
 
@@ -155,7 +154,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     On(*this, &HostAuthority::OnGraphOps);
     Relay<GraphSyncRequest, NotifyGraphSync>(ToOwner, &GraphSyncRequest::Id);
     Relay<GraphSyncPointRequest, NotifyGraphSyncPoint>(FromOwner, &GraphSyncPointRequest::Id);
-    Relay<DrawWeaponRequest, NotifyDrawWeapon>(FromOwner, &DrawWeaponRequest::Id);
 
     // Actor values: a hit lands in its owner's game, which then reports the resulting values.
     Relay<RequestActorValueChanges, NotifyActorValueChanges>(FromOwner, &RequestActorValueChanges::Id);
@@ -346,16 +344,6 @@ void HostAuthority::OnContainerChange(const ContainerChangeRequest& acRequest, C
     m_game.SetItems(items);
 }
 
-void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyFactionsChanges notify;
-    for (const auto& [cSessionId, cFactions] : acRequest.Changes)
-        if (m_characters.OwnerOf(cSessionId) == aSender)
-            notify.Changes[cSessionId] = cFactions;
-    if (!notify.Changes.empty())
-        m_players.SendToOthers(notify, aSender, Net::kReliable);
-}
-
 void HostAuthority::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
     // The chat box shows text as it is (RmlUi text, no markup parsed).
@@ -394,26 +382,28 @@ void HostAuthority::OnPlayerLevel(const PlayerLevelRequest& acRequest, Connectio
     m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
-void HostAuthority::OnPlayerName(const PlayerNameRequest& acRequest, ConnectionId_t aSender) noexcept
+void HostAuthority::NamePlayer(ConnectionId_t aPlayer, const std::string& acName) noexcept
 {
-    const std::string cName = ChatText(acRequest.Name);
-    if (cName.empty())
+    const std::string cName = ChatText(acName);
+    if (cName.empty() || cName == m_players.PlayerNameOf(aPlayer))
         return;
-    m_players.SetName(aSender, cName);
-    m_characters.SetPlayerName(aSender, cName);
-    m_network.NameConnection(aSender, cName);
+    m_players.SetName(aPlayer, cName);
+    m_network.NameConnection(aPlayer, cName);
     NotifyPlayerName notify;
-    notify.PlayerId = m_players.PlayerIdOf(aSender);
+    notify.PlayerId = m_players.PlayerIdOf(aPlayer);
     notify.Name = cName;
-    m_players.SendToOthers(notify, aSender, Net::kReliable);
+    m_players.SendToOthers(notify, aPlayer, Net::kReliable);
 }
 
 void HostAuthority::NameActor(uint32_t aSessionId, const std::string& acName) const noexcept
 {
+    const ConnectionId_t cOwner = m_characters.OwnerOf(aSessionId);
+    if (cOwner == m_players.Host())
+        return;
     NotifyActorName notify;
     notify.ActorId = aSessionId;
     notify.Name = acName;
-    m_players.SendToOthers(notify, m_players.Host(), Net::kReliable);
+    m_network.Send(cOwner, notify);
 }
 
 void HostAuthority::OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept

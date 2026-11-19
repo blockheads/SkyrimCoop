@@ -63,6 +63,12 @@ void CopyRecords::OnSessionId(uint32_t aId)
         TryApply(cId, cKind);
 }
 
+void CopyRecords::WaitFor(uint32_t aId, RecordKind aKind, uint32_t aNamed)
+{
+    if (aNamed && aNamed != aId)
+        m_waitsFor[aNamed].insert({aId, aKind});
+}
+
 void CopyRecords::TryApply(uint32_t aId, RecordKind aKind)
 {
     const Waiter cWaiter{aId, aKind};

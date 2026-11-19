@@ -20,9 +20,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
     spawn.Rotation = acAnnouncement.Rotation;
     spawn.ChangeFlags = acAnnouncement.ChangeFlags;
     spawn.AppearanceBuffer = acAnnouncement.AppearanceBuffer;
-    spawn.DisplayName = acAnnouncement.DisplayName;
     spawn.InventoryContent = acAnnouncement.CurrentActorData.InitialInventory;
-    spawn.FactionsContent = acAnnouncement.FactionsContent;
     spawn.LatestAction = acAnnouncement.LatestAction;
     spawn.GraphState = acAnnouncement.GraphState;
     spawn.Record = acAnnouncement.Record;
@@ -34,7 +32,6 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
     spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
     spawn.IsDead = acAnnouncement.CurrentActorData.IsDead;
     spawn.IsPlayer = cIsPlayer;
-    spawn.IsWeaponDrawn = acAnnouncement.CurrentActorData.IsWeaponDrawn;
     spawn.IsPlayerSummon = acAnnouncement.IsPlayerSummon;
     return spawn;
 }
@@ -49,9 +46,7 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Rotation.Serialize(aWriter);
     aWriter.WriteBits(ChangeFlags, 32);
     Serialization::WriteString(aWriter, AppearanceBuffer);
-    Serialization::WriteString(aWriter, DisplayName);
     InventoryContent.Serialize(aWriter);
-    FactionsContent.Serialize(aWriter);
     LatestAction.GenerateDifferential(ActionEvent{}, aWriter);
     FaceTints.Serialize(aWriter);
     Serialization::WriteFloat(aWriter, Weight);
@@ -59,7 +54,6 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Serialization::WriteVarInt(aWriter, PlayerId);
     Serialization::WriteBool(aWriter, IsDead);
     Serialization::WriteBool(aWriter, IsPlayer);
-    Serialization::WriteBool(aWriter, IsWeaponDrawn);
     Serialization::WriteBool(aWriter, IsPlayerSummon);
     Serialization::WriteString(aWriter, GraphState);
     Record.Serialize(aWriter);
@@ -85,12 +79,9 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     ChangeFlags = dest & 0xFFFFFFFF;
 
     AppearanceBuffer = Serialization::ReadString(aReader);
-    DisplayName = Serialization::ReadString(aReader);
     InventoryContent = {};
     InventoryContent.Deserialize(aReader);
 
-    FactionsContent = {};
-    FactionsContent.Deserialize(aReader);
 
     LatestAction = ActionEvent{};
     LatestAction.ApplyDifferential(aReader);
@@ -102,7 +93,6 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
 
     IsDead = Serialization::ReadBool(aReader);
     IsPlayer = Serialization::ReadBool(aReader);
-    IsWeaponDrawn = Serialization::ReadBool(aReader);
     IsPlayerSummon = Serialization::ReadBool(aReader);
     GraphState = Serialization::ReadString(aReader);
     Record.Deserialize(aReader);

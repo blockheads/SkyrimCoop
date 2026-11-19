@@ -20,6 +20,7 @@
 #include <Services/CutsceneService.h>
 #include <Services/SystemQuestService.h>
 #include <Services/AiStateService.h>
+#include <Services/ActorStateService.h>
 #include <Services/CopyRecords.h>
 #include <Services/CopyRecordsService.h>
 #include <Services/PerkService.h>
@@ -129,6 +130,7 @@ World::World()
     ctx().emplace<CopyRecords>();
     ctx().emplace<CopyRecordsService>(*this, m_dispatcher, m_transport, ctx().at<CopyRecords>());
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
+    ctx().emplace<ActorStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
     ctx().emplace<BugReportService>(*this, m_dispatcher, m_transport, *m_pBugReportBridge);
@@ -179,6 +181,7 @@ World::~World()
     ctx().erase<SystemQuestService>();
     ctx().erase<CutsceneService>();
     ctx().erase<PerkService>();
+    ctx().erase<ActorStateService>();
     ctx().erase<AiStateService>();
     ctx().erase<CopyRecordsService>();
     ctx().erase<CopyRecords>();

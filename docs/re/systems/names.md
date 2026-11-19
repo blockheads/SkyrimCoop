@@ -23,23 +23,30 @@ duo, "fast" is `GameTests [names]`.
 
 ## How a name travels
 
-One rule: the host passes every name on, and each game applies it one way, `CharacterService::ApplyOwnerName`. It overlays the
-name on the reference (`ExtraTextDisplayData`, never the shared base) only if it reads differently, compared as the
-engine's pool does ([engine names](engine-names.md)).
+One rule (since 2026-11-18, one-simulator.md piece 2): a copy's name is its record's `kName` part, declared by the
+actor's owner (`ActorStateService`) and applied one way: overlaid on the reference (`ExtraTextDisplayData`, never the
+shared base) only if it reads differently, compared as the engine's pool does ([engine names](engine-names.md)).
 
-1. **At spawn:** the owner's announcement carries `DisplayName`, a player's too, and the host passes it on. A player's
-   copy has an unnamed base when its character has no change flag `0x20` (measured on the duo: flags `0x3000C40`, copies showed
-   "" before this; saved with `0x20`, the bytes hold `Prisoner`), so the name comes from here, not the snapshot.
-2. **A player renames, or the host loads another character:** that game sends `PlayerNameRequest` (`PlayerService`: the race
-   menu closing, or a save loaded). The host updates its list and the stored spawn, and sends `NotifyPlayerName`; each
-   game updates its list (`SessionService`: party panel, markers, chat, join, leave and death notices, spectating) and the copy.
-3. **The host's game renames an NPC:** hooks on 24011 and 24012 raise `ActorRenamedEvent` when the display name actually changed,
-   because the engine has no event for it. `HostService` sends `NotifyActorName`, whoever owns the actor, so a horse a guest
-   rides needs nothing special. A guest's own quest naming a copy stays on that guest. A spawn still waiting on a loading
-   reference takes the new name.
-4. **A guest's kept character** (`GuestRecord`) is saving, not sync: it reaches the host at most every few seconds, at once after
-   the race menu closes, or a save right after a rename would keep the old name and the load bring it back (seen in
-   `names-in-every-case`).
+1. **Its owner reads it after each frame** (`GetDisplayFullName` 19781 of each actor it owns) and declares it when it
+   differs from the record's. Whatever renamed it is caught: the race menu, a loaded save, a script's `SetDisplayName`
+   (SKSE: `ExtraTextDisplayData` past the alias hooks) or `SetName` on a player's base, none of which raise an event.
+2. **At spawn** the record's parts ride along, the name among them (read at the announcement), and the host keeps the
+   newest one for a joiner. A player's copy has an unnamed base when its character has no change flag `0x20`
+   (measured on the duo: flags `0x3000C40`; saved with `0x20`, the bytes hold `Prisoner`), so the name comes from here,
+   not the snapshot.
+3. **The party's lists** follow the same part: when the host keeps a new name part of a player's character
+   (`HostRecords::OnKept`), `HostAuthority::NamePlayer` updates its list and sends `NotifyPlayerName`; each game updates
+   its list (`SessionService`: party panel, markers, chat, join, leave and death notices, spectating). A name of
+   nothing printable is refused, so a list keeps the last good name. (Was `PlayerNameRequest`, sent only when the race
+   menu closed or a save loaded.)
+4. **The host's quests rename an actor:** hooks on 24011 and 24012 raise `ActorRenamedEvent` (with the name as the call
+   left it) when the display name actually changed. An actor the host owns: its own part says it. One another game owns
+   (a horse a guest rides): `NotifyActorName` to that owner alone, which names its actor; its part carries that on. A
+   guest's own quest naming a copy stays on that guest until the owner's next declared name.
+5. **A guest's kept character** (`GuestRecord`) is saving, not sync: it reaches the host at most every few seconds, at once after
+   the race menu closes and at once when its player's name part changes (`PlayerRenamedEvent`), or a save right after a
+   rename would keep the old name and the load bring it back (seen in `names-in-every-case`: the race menu's name box
+   sets the base's name before the menu closes, and the lists follow it at once).
 
 ## Checked
 
@@ -65,5 +72,5 @@ engine's pool does ([engine names](engine-names.md)).
 
 ## Not covered
 
-- A mod's `SetDisplayName` at run time: `docs/bugs.md`. It arrives on the next spawn or refresh.
-- A mod that renames a player's base with `SetName`: `docs/bugs.md`.
+- A mod's `SetDisplayName` or `SetName` at run time: copies and lists follow (GameTests "A script's rename with no
+  event...", not played).

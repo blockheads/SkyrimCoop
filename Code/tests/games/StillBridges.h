@@ -671,6 +671,19 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept override
+    {
+        return {};
+    }
+    void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override
+    {
+    }
+    void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override
+    {
+    }
+    void CopyLeaveKillMove(uint32_t aFormId) noexcept override
+    {
+    }
     bool IsActorTemporary(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -813,9 +826,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
         return {};
     }
     void SetupActorFaceGen(uint32_t aFormId) noexcept override
-    {
-    }
-    void SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept override
     {
     }
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override

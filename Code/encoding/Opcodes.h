@@ -6,7 +6,6 @@
     X(AuthenticationRequest)        \
     X(AnnounceCharacterRequest)       \
     X(ReferencesMoveRequest)        \
-    X(RequestFactionsChanges)       \
     X(RequestActorValueChanges)     \
     X(RequestActorMaxValueChanges)  \
     X(RequestHealthChangeBroadcast) \
@@ -19,7 +18,6 @@
     X(AddTargetRequest)             \
     X(RemoveSpellRequest)           \
     X(ProjectileLaunchRequest)      \
-    X(DrawWeaponRequest)            \
     X(MountRequest)                 \
     X(RequestRespawn)               \
     X(RequestEquipmentChanges)      \
@@ -72,7 +70,6 @@
     X(BugReportRequest)            \
     X(DialogueHighlightRequest)    \
     X(DialogueSkipRequest) \
-    X(PlayerNameRequest)           \
     X(PartySummonRequest)          \
     X(GraphOpsRequest)             \
     X(GraphSyncRequest)            \
@@ -89,7 +86,6 @@
     X(NotifyReferencesMove)        \
     X(NotifyTimeSettings)          \
     X(NotifyCharacterSpawn)        \
-    X(NotifyFactionsChanges)       \
     X(NotifyRemoveCharacter)       \
     X(NotifyActorValueChanges)     \
     X(NotifyActorMaxValueChanges)  \
@@ -102,7 +98,6 @@
     X(NotifyAddTarget)             \
     X(NotifyRemoveSpell)           \
     X(NotifyProjectileLaunch)      \
-    X(NotifyDrawWeapon)            \
     X(NotifyMount)                 \
     X(NotifyRespawn)               \
     X(NotifyEquipmentChanges)      \

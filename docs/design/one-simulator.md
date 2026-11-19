@@ -1,6 +1,7 @@
 # One simulator: every system on one sync rule (2026-11-18)
 
-Status: **piece 1 built (2026-11-18, with one part: AI state); the rest proposed.** Direction agreed 2026-11-18 (the four
+Status: **pieces 1 and 2 built (2026-11-18: the copy record; AI state, actor state, factions and name parts); the rest
+proposed.** Direction agreed 2026-11-18 (the four
 decisions below). Physics
 ([physics-sync.md](physics-sync.md), "One simulator per pile") and the graph stream
 ([graph-input-stream.md](graph-input-stream.md)) already work this way; this puts the rest of the code on the same
@@ -206,6 +207,38 @@ Also here: **a copy's swing hits its owner's target.** `AiStatePart` already car
 gets it as `ExtraForcedTarget` (0x9D, read first by the victim pick 47272: read in IDA, combat-targets.md), so
 the guest's game still decides whether its own player was hit (kept: the victim sees the blow land), on the
 owner's choice of victim.
+
+**As built (2026-11-18)**, after the RE (`docs/re/systems/actor-state.md`), with three changes from the above:
+
+```text
+ActorStateService (every game)
+  owner, each frame, each LocalComponent actor:
+    kActorState  flags1 & (sprinting | sneaking | life), flags2 & wantBlocking,
+                 in kill move + killer's session id, hands (settled: drawn / sheathed), tick
+    kName        its display name                      declared when it differs from the record's
+  FactionsChangeEvent -> kFactions
+  copy: kActorState applied when its stream's playback reaches the part's tick (off its stream: at once)
+        kFactions once its 3D is in; kName if it reads differently
+```
+
+- **Attack state, sit state and recoil stay on the stream.** 39004 writes only their start; the copy's own graph
+  handlers carry them on (attack 42810-42814 and 42828, sit 42868/42881/42835, recoil 42815). A part arriving out of
+  order with those handlers would rewind a swing. An action on a copy's stream gives its owner's flags but the part's
+  bits (`ActorStateRules::FromSnapshot1/2`), so every bit not read yet travels as before; `StateAfter1/2` stay. Death
+  stays there too (with its clip). Sprinting (bit 8) is not in the part: its writer on a copy is not read.
+- **Kill moves:** two copies of one pair still enter at the action on the stream, in one frame (from their two parts
+  they were two frames apart, `host-kill-move`). The part enters one (38613, its killer once here:
+  `CopyRecords::WaitFor`) for a copy that missed the action, and takes a copy out of one its owner left when no pair
+  plays, its killer cleared first (38614 kills only with a killer).
+- **No `ExtraForcedTarget`.** 38608 takes it only while `IsInCombat` is false and skips cone and reach, so a copy
+  would hit at any distance. The copy's `currentCombatTarget` (`+0x104`) is already its owner's target, and 47272 then
+  hits only that actor within reach: the owner's choice, judged where the blow lands.
+- Names: the party's lists follow the name part of each player's character (the host sends `NotifyPlayerName` from
+  it; `PlayerNameRequest` is gone). A host's quest renaming an actor another game owns goes to that owner
+  (`NotifyActorName`), whose part carries it.
+- Gone: `ReplayState::Flags1/Flags2`, `DrawWeaponRequest`/
+  `NotifyDrawWeapon`, `RunWeaponStateUpdates`, `RunWeaponDrawConvergence`, `Request/NotifyFactionsChanges`, the spawn's
+  `DisplayName`, `FactionsContent` and `IsWeaponDrawn`, `CacheComponent`, `HostCharacters::SetPlayerName`.
 
 ## Piece 3: items are their owner's, as counts
 

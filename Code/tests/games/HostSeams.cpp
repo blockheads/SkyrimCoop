@@ -359,7 +359,7 @@ void HostService::OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcep
     if (!IsHosting() || acEvent.FormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId())
         return;
     if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId))
-        m_pAuthority->NameActor(*cSessionId, m_world.ctx().at<IActorBridge&>().GetActorDisplayName(acEvent.FormId));
+        m_pAuthority->NameActor(*cSessionId, acEvent.Name); // as HostService
 }
 
 void HostService::OnGameSaving(const GameSavingEvent&) const noexcept

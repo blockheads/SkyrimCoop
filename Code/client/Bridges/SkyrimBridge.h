@@ -99,6 +99,10 @@ public:
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;
     void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept override;
     WeaponState GetWeaponState(uint32_t aFormId) const noexcept override;
+    ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept override;
+    void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override;
+    void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
+    void CopyLeaveKillMove(uint32_t aFormId) noexcept override;
     bool IsActorTemporary(uint32_t aFormId) const noexcept override;
     bool IsActorMount(uint32_t aFormId) const noexcept override;
     bool IsActorDragon(uint32_t aFormId) const noexcept override;
@@ -149,7 +153,6 @@ public:
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
     Tints GetActorFaceTints(uint32_t aFormId) const noexcept override;
     void SetupActorFaceGen(uint32_t aFormId) noexcept override;
-    void SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept override;
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override;
     void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override;
     bool IsActorFacePainted(uint32_t aFormId) const noexcept override;

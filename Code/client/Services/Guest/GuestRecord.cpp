@@ -2,6 +2,7 @@
 
 #include <Bridges/IJoinBridge.h>
 #include <Events/PlayerProgressEvent.h>
+#include <Events/PlayerRenamedEvent.h>
 #include <Events/EquipmentChangeEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/MenuEvent.h>
@@ -23,6 +24,7 @@ GuestRecord::GuestRecord(World& aWorld, entt::dispatcher& aDispatcher, IJoinBrid
     Listen<PlayerProgressEvent, &GuestRecord::OnProgress>(m_connections, aDispatcher, this);
     Listen<NotifyPartyGold, &GuestRecord::OnPartyGold>(m_connections, aDispatcher, this);
     Listen<MenuEvent, &GuestRecord::OnMenu>(m_connections, aDispatcher, this);
+    Listen<PlayerRenamedEvent, &GuestRecord::OnRenamed>(m_connections, aDispatcher, this);
     Listen<SessionLeavingEvent, &GuestRecord::OnLeaving>(m_connections, aDispatcher, this);
 }
 
@@ -41,6 +43,12 @@ void GuestRecord::OnMenu(const MenuEvent& acEvent) noexcept
     // The race menu changes who the character is: the host's next save must have it (docs/re/systems/names.md).
     if (acEvent.Menu == "RaceSex Menu")
         m_sinceSent = kSeconds;
+}
+
+void GuestRecord::OnRenamed(const PlayerRenamedEvent&) noexcept
+{
+    m_changed = true;
+    m_sinceSent = kSeconds;
 }
 
 void GuestRecord::OnUpdate(const UpdateEvent& acEvent) noexcept
