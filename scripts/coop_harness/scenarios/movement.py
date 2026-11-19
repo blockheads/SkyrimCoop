@@ -114,7 +114,7 @@ def scenario_health_client_player(ctx):
 
 def scenario_sneaking_players_stay_hidden(ctx):
     """Both players sneak facing each other, nobody else about: each game's stealth eye (the HUD's highest detection
-    of its player, 41408) stays hidden; the other player's copy is no observer (playtests/2026-10-31-fabien.md S6)."""
+    of its player, 41408) stays hidden; the other player's copy is no observer (the 2026-10-31 playtest S6)."""
     def eye(instance):
         return ctx.player_command(instance, {"cmd": "crime", "action": "stealth_meter"})["level"]
     def observers(instance):
@@ -264,7 +264,7 @@ def animation_lags(entries, game, who, yaw):
 
 
 def scenario_copy_strafes_with_owner(ctx, strafer=""):
-    """S10 (playtests/2026-10-31-fabien.md, "lagging out when moving side to side"): the strafer's player strafes
+    """S10 (the 2026-10-31 playtest, "lagging out when moving side to side"): the strafer's player strafes
     left and right with real keys, slow then quick; the other game's copy follows its path side to side."""
     watcher = "client" if strafer == "" else ""
     copy = ctx.player_copy(watcher)

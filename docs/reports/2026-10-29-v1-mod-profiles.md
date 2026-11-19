@@ -16,15 +16,15 @@ The main checkout’s existing TODO edit is outside this worktree.
 
 Builds, game installation and Proton prefixes are isolated under this worktree’s `build/`.
 Only `build/coop-test/CHAT.md` and `DUO.md` link to the main checkout’s shared coordination files;
-both resolve to `/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SkyrimCoop-build/coop-test/`.
+both resolve to the main checkout's `build/coop-test/`.
 The read-only compiler toolchain and engine references are reused.
 The worktree was removed 2026-10-30 and its `build/` evidence below was not kept.
 
 All seven cached dependency archives match the SHA-256 pins in
 [mod compatibility](../mod-compatibility.md#acquisition-and-configuration). The extraction trees
 were refreshed from those verified archives. `build/archive-verification.json` maps the pins to files.
-The historical evidence survived worktree cleanup at
-`/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SkyrimCoop-build-v1-engine-fixes/`;
+The historical evidence survived worktree cleanup in a retained
+build directory (`SkyrimCoop-build-v1-engine-fixes/`);
 the old relative worktree paths in earlier reports refer to that retained build directory.
 
 Each new run records its own profile directory under `build/profiles/`, including DLL/PDB hashes,

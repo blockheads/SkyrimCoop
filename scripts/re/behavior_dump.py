@@ -14,7 +14,10 @@ import glob, os, re, struct, sys
 
 import lz4.frame
 
-GAME = os.environ.get("SKYRIM_GAME_DIR", "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import local_paths
+
+GAME = os.environ.get("SKYRIM_GAME_DIR", str(local_paths.STEAM_GAME))
 def read_bsa(path, want):
     f=open(path,'rb'); d=f.read()
     magic,ver,foff,aflags,fcount,filecount,tfoldn,tfilen,fflags,_=struct.unpack_from('<4sIIIIIIIHH',d,0)

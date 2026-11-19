@@ -155,7 +155,7 @@ def guest_loots_corpse(ctx):
 
 def host_cannot_loot_guest(ctx):
     """Players can't loot each other: the guest dies, the host activates its body and no loot menu opens (it once
-    crashed the host taking the body's clothes, playtests/2026-10-31-fabien.md C1). The guest keeps its items.
+    crashed the host taking the body's clothes, the 2026-10-31 playtest C1). The guest keeps its items.
     The duo's guest is unnamed and Skyrim activates nothing nameless (ActivateRef 19796), so it names its character in
     the race menu first, as a new player does. The client's game then starts again as the duo's."""
     _game = ctx.game('client')

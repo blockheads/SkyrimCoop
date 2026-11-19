@@ -19,6 +19,9 @@ import sys
 import zlib
 from collections import Counter, defaultdict
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import local_paths  # noqa: E402
+
 import lz4.block
 
 GLOBAL_NAMES = {
@@ -89,8 +92,7 @@ EXPECTED_GLOBALS = {0: "the player's own stats", 1: "the player's own location",
                     114: "the player's dialogue menu"}
 
 
-DATA = Path(os.environ.get("SKYRIM_GAME_DIR", "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/"
-                           "SteamLibrary/steamapps/common/Skyrim Special Edition")) / "Data"
+DATA = Path(os.environ.get("SKYRIM_GAME_DIR", local_paths.STEAM_GAME)) / "Data"
 # Records whose editor ids name a difference. References without one are named by their base form.
 NAMED_RECORDS = {b"QUST", b"GLOB", b"FACT", b"NPC_", b"SMQN", b"SMBN", b"SMEN", b"LCTN", b"SCEN", b"CELL",
                  b"DOOR", b"CONT", b"PACK", b"FLST", b"RELA", b"ECZN", b"BOOK", b"MISC", b"KEYM", b"STAT",
