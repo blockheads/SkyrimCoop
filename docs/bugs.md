@@ -194,7 +194,10 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
 - **A copy that looks at nobody** (1 of 4): Lucan's owner read `['session 1']`, his copy `[]`, through the check's window. Read, not
   measured: `AiStateService::ToFields` resolves a target's session id once, as the state arrives (`OnCharacterSpawn`,
   `OnNotifyAiState`), and nothing applies it again when the target's copy appears; the owner sends again only when its slots
-  change (`AiStateEvents`, `seen`). So the order the spawns arrive in would decide it.
+  change (`AiStateEvents`, `seen`). So the order the spawns arrive in would decide it. 2026-11-18: the copy record
+  (one-simulator.md, piece 1) applies a target when its copy appears; GameTests "A part naming an actor that spawns later"
+  shows that order on the fake. Not shown on the duo yet: `rejoin_client` on dev's plugin left the guest at the main menu
+  and its join from there found the host unreachable, so this path has no scenario.
 - **A copy that stays off its owner** (2 of 2, Whiterun, 2026-11-09, `guest_shows_only_hosts_npcs` after its rejoin): a
   Skeleton (`109620`, high process, the same package in both) stood 81 units from its owner and turned 123 degrees from
   it through two reads 5 s apart, neither moving; 130 units and 130 degrees in the next run. Its spawn action is

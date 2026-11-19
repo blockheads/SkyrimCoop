@@ -25,6 +25,8 @@
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/WorldState.h>
 #include <Messages/DroppedItems.h>
+#include <Structs/ActorAiState.h>
+#include <Structs/RecordPart.h>
 #include <Structs/Vector2_NetQuantize.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/NotifyActivate.h>
@@ -2221,26 +2223,55 @@ TEST_CASE("A press through a line names its conversation and step", "[encoding.d
     CHECK(static_cast<const NotifyDialogueSkip&>(*decodedTold) == told);
 }
 
-TEST_CASE("An actor's AI state carries what it looks at for each reason", "[encoding.ai_state]")
+TEST_CASE("An actor's AI state carries what it looks at for each reason, as a part of its record", "[encoding.ai_state][encoding.record]")
 {
-    AiStateRequest sent;
-    sent.SessionId = 7;
-    sent.State.Combat = 1;
-    sent.State.CombatTarget.SessionId = 2;
-    sent.State.HeadTrack[4].SessionId = 1;                  // dialogue: a player's character
-    sent.State.HeadTrack[5].RefId = GameId(0, 0x31D2E);     // procedure: a marker from the game's data
+    ActorAiState state;
+    state.Combat = 1;
+    state.CombatTarget.SessionId = 2;
+    state.HeadTrack[4].SessionId = 1;                  // dialogue: a player's character
+    state.HeadTrack[5].RefId = GameId(0, 0x31D2E);     // procedure: a marker from the game's data
+    RecordRequest sent;
+    sent.Id = 7;
+    sent.Part = {RecordKind::kAiState, 3, ToPartBytes(state)};
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     sent.Serialize(writer);
     Buffer::Reader reader(&buffer);
     auto decoded = RequestMessageFactory{}.Extract(reader);
     REQUIRE(decoded);
-    REQUIRE(decoded->GetOpcode() == kAiStateRequest);
-    const auto& cState = static_cast<const AiStateRequest&>(*decoded).State;
-    CHECK(cState == sent.State);
-    CHECK(cState.HeadTrack[4].SessionId == 1);
-    CHECK(cState.HeadTrack[5].RefId == GameId(0, 0x31D2E));
-    CHECK(cState.HeadTrack[0] == AiTarget{});
+    REQUIRE(decoded->GetOpcode() == kRecordRequest);
+    const auto& cRecord = static_cast<const RecordRequest&>(*decoded);
+    CHECK(cRecord == sent);
+    ActorAiState read;
+    REQUIRE(FromPartBytes(cRecord.Part.Bytes, read));
+    CHECK(read == state);
+    CHECK(read.HeadTrack[4].SessionId == 1);
+    CHECK(read.HeadTrack[5].RefId == GameId(0, 0x31D2E));
+    CHECK(read.HeadTrack[0] == AiTarget{});
+    CHECK_FALSE(FromPartBytes(std::string{}, read));
+}
+
+TEST_CASE("A spawn carries its actor's record and an ask names one part", "[encoding.record]")
+{
+    NotifyCharacterSpawn spawn;
+    spawn.SessionId = 9;
+    spawn.Record.Parts.push_back({RecordKind::kAiState, 4, std::string("\x01\x00\x02", 3)});
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    spawn.Serialize(writer);
+    RecordAskRequest ask;
+    ask.Id = 9;
+    ask.Kind = RecordKind::kAiState;
+    ask.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decodedSpawn = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decodedSpawn);
+    REQUIRE(decodedSpawn->GetOpcode() == kNotifyCharacterSpawn);
+    CHECK(static_cast<const NotifyCharacterSpawn&>(*decodedSpawn).Record == spawn.Record);
+    auto decodedAsk = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decodedAsk);
+    REQUIRE(decodedAsk->GetOpcode() == kRecordAskRequest);
+    CHECK(static_cast<const RecordAskRequest&>(*decodedAsk) == ask);
 }
 
 TEST_CASE("A guest sends movement unreliably and movement with actions or a teleport reliably", "[encoding.delivery]")

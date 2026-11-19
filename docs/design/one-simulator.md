@@ -1,6 +1,7 @@
 # One simulator: every system on one sync rule (2026-11-18)
 
-Status: **proposed, nothing built.** Direction agreed 2026-11-18 (the four decisions below). Physics
+Status: **piece 1 built (2026-11-18, with one part: AI state); the rest proposed.** Direction agreed 2026-11-18 (the four
+decisions below). Physics
 ([physics-sync.md](physics-sync.md), "One simulator per pile") and the graph stream
 ([graph-input-stream.md](graph-input-stream.md)) already work this way; this puts the rest of the code on the same
 rule, to end the edge-case bugs that come from two games deciding one thing or a copy missing what its owner did.
@@ -117,6 +118,37 @@ Deletes, as each part moves: `ActorValueService::m_copyValues`, `EffectVisualsSe
 `CrimeService::m_confiscations`' retry, `MagicService::m_queuedEffects`' wait (its 4 s expiry and head-of-line
 block), `CharacterService`'s `WaitingFor3D` inventory. Replaces PR #73's `AiStateService::ResolveNewSessions`.
 Stays: `GuestEngine::m_pendingAliases` (quests are on the model already; moved only if it falls out).
+
+**As built (2026-11-18), with one part, AI state:**
+
+```text
+CopyRecords (Services/CopyRecords, no engine: ClientTests [copy-records])
+  Register(kind, Apply, Read)   by the part's service, once
+  Declare(id, kind, bytes)      an owner's change: the next version, sent (RecordRequest)
+  ReadAll(id, form)             the announcement's parts (AnnounceCharacterRequest::Record)
+  Take(id, part)                another game's: NotifyRecord, or each part of NotifyCharacterSpawn::Record
+  OnSessionId(id)               from CharacterService: a copy made, its 3D ready, an actor announced
+  DeclareAgain(id, kind)        NotifyRecordAsk reached its owner (RecordAskRequest, R3)
+CopyRecordsService              the messages in and out; Forget on NotifyRemoveCharacter, Clear on leaving
+HostRecords                     OnRecord: owner check (OwnerOf), newest version kept, NotifyRecord to the others
+                                every spawn the host sends carries RecordOf(id) (HostCharacters::BuildSpawn,
+                                SendHostSpawns), so a joiner gets every part; OnRecordAsk: to the owner alone
+```
+
+- `Apply` returns the session ids its bytes name that are not here; `CopyRecords` keeps them as waits-for. A copy that
+  is not here returns none: `OnSessionId` of its own id applies every part it holds.
+- An owner's parts are in the same store, so a game that takes an actor over (a mount) goes on from the last owner's
+  version, and the last owner's late part is dropped.
+- A part's bytes are its struct's own encoding (`ToPartBytes`/`FromPartBytes`, `Structs/RecordPart.h`); the host reads
+  the AI state part for `HostDeath` (who fights), nothing else.
+- `HostDeath` hears only the AI parts `HostRecords` keeps (`OnKept`): an older part arriving late changes nothing.
+- AI state moved: `AiStateRequest`/`NotifyAiState`, the spawn's and announcement's `AiState` field and
+  `AiStateService::m_owners` are gone. `GuestScene` hears `CopyAiStateEvent` (the part applied to the host's player's
+  copy), so a guest that joins mid-scene plays its part too.
+- `Ask` has no caller yet: no part has a check of its own that says a copy looks wrong. The path is tested (GameTests
+  "A part a game asks for comes again", HostAuthorityTests "An asked part").
+- Not closed: "A temporary form in a slot" (bugs.md). Its form has no session id on the **owner**, so the owner sends
+  none; waits-for is the copy's side. The owner would have to declare again when the actor it names is announced.
 
 ## Piece 2: actor state is a part, not a rider on actions
 
@@ -420,7 +452,7 @@ and only the scenarios it names on the duo.
 81 entries: 40 the model's, 17 engine quirks, 13 test tools, 9 outside it or unread, 2 inside physics and the
 stream themselves.
 
-- **Piece 1 (2):** "A copy that looks at nobody", "A temporary form in a slot".
+- **Piece 1 (2):** "A copy that looks at nobody" (fixed on the fake 2026-11-18; no duo scenario yet), "A temporary form in a slot" (open: above).
 - **Piece 2 (7):** "An action sent before its copy exists", "A seated owner's copy keeps an old action", "The
   attacker's copy not in its kill move", "A mod's rename at run time" (both), "A character's base bytes after
   joining", "An NPC copy's swing picks the nearest".

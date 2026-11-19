@@ -119,6 +119,8 @@ private:
     // A spawn of the character as it is now: the host's actor from its engine, a player's from its
     // record and the host's copy.
     [[nodiscard]] std::optional<NotifyCharacterSpawn> BuildSpawn(uint32_t aSessionId) const noexcept;
+    // The same without its record.
+    [[nodiscard]] std::optional<NotifyCharacterSpawn> ReadSpawn(uint32_t aSessionId) const noexcept;
     // Its copies follow aWhereabouts (where the owner's actor went).
     void RemoveCharacter(uint32_t aSessionId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
 

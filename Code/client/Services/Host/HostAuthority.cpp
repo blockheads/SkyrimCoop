@@ -131,6 +131,11 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_devTools(*this, m_players, m_characters, m_game)
 {
     using enum Delivery;
+    m_records.OnKept = [this](uint32_t aId, const RecordPart& acPart) {
+        ActorAiState state;
+        if (acPart.Kind == RecordKind::kAiState && FromPartBytes(acPart.Bytes, state))
+            m_death.OnAiState(aId, state);
+    };
 
     // Players
     On(*this, &HostAuthority::OnPlayerLevel);
@@ -139,8 +144,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     On(*this, &HostAuthority::OnFactionsChanges);
-    // What its AI is doing: its owner's, read 1:1 on every game (copy-contract.md, "AI state").
-    Relay<AiStateRequest, NotifyAiState>(FromOwner, &AiStateRequest::SessionId);
     Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
     Relay<SubtitleRequest, NotifySubtitle>(FromAnyone);
 
@@ -242,6 +245,14 @@ void HostAuthority::DifficultyChanged(uint32_t aDifficulty) const noexcept
 void HostAuthority::Kick(uint32_t aPlayerId) noexcept
 {
     m_players.Kick(aPlayerId);
+}
+
+void HostAuthority::ActorAnnounced(uint32_t aId, const RecordParts& acRecord) noexcept
+{
+    m_records.Announced(aId, acRecord);
+    ActorAiState state;
+    if (const RecordPart* cpAi = acRecord.Find(RecordKind::kAiState); cpAi && FromPartBytes(cpAi->Bytes, state))
+        m_death.InitialAi(aId, state);
 }
 
 void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept

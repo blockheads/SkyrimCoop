@@ -26,7 +26,8 @@ struct PlayerName;
 struct ActorName;
 struct Mount;
 struct Dismount;
-struct AiState;
+struct Record;
+struct RecordAsk;
 struct Dialogue;
 struct Subtitle;
 struct ActiveEffects;
@@ -87,8 +88,12 @@ using UnboardRequest = Relayed<Payloads::Mount, kUnboardRequest>;
 using NotifyUnboard = Relayed<Payloads::Mount, kNotifyUnboard>;
 using DismountRequest = Relayed<Payloads::Dismount, kDismountRequest>;
 using NotifyDismount = Relayed<Payloads::Dismount, kNotifyDismount>;
-using AiStateRequest = Relayed<Payloads::AiState, kAiStateRequest>;
-using NotifyAiState = Relayed<Payloads::AiState, kNotifyAiState>;
+// A part of an actor's record from its owner; NotifyRecord: every other game's CopyRecords takes it.
+using RecordRequest = Relayed<Payloads::Record, kRecordRequest>;
+using NotifyRecord = Relayed<Payloads::Record, kNotifyRecord>;
+// A game asks for a part again; NotifyRecordAsk: the actor's owner sends it under a new version.
+using RecordAskRequest = Relayed<Payloads::RecordAsk, kRecordAskRequest>;
+using NotifyRecordAsk = Relayed<Payloads::RecordAsk, kNotifyRecordAsk>;
 using DialogueRequest = Relayed<Payloads::Dialogue, kDialogueRequest>;
 using NotifyDialogue = Relayed<Payloads::Dialogue, kNotifyDialogue>;
 using SubtitleRequest = Relayed<Payloads::Subtitle, kSubtitleRequest>;

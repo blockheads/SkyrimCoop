@@ -1,0 +1,126 @@
+#include <Services/CopyRecords.h>
+
+void CopyRecords::Register(RecordKind aKind, Apply_t aApply, Read_t aRead)
+{
+    m_kinds[aKind] = {std::move(aApply), std::move(aRead)};
+}
+
+RecordPart& CopyRecords::Next(uint32_t aId, RecordKind aKind, std::string aBytes)
+{
+    RecordPart& part = m_records[aId][aKind];
+    part.Kind = aKind;
+    ++part.Version;
+    part.Bytes = std::move(aBytes);
+    return part;
+}
+
+void CopyRecords::Declare(uint32_t aId, RecordKind aKind, std::string aBytes)
+{
+    const RecordPart cPart = Next(aId, aKind, std::move(aBytes));
+    if (m_send)
+        m_send(aId, cPart);
+}
+
+RecordParts CopyRecords::ReadAll(uint32_t aId, uint32_t aFormId)
+{
+    for (const auto& [cKind, cHow] : m_kinds)
+        if (cHow.Read)
+            if (auto bytes = cHow.Read(aFormId))
+                Next(aId, cKind, std::move(*bytes));
+    return PartsOf(aId);
+}
+
+bool CopyRecords::DeclareAgain(uint32_t aId, RecordKind aKind)
+{
+    const RecordPart* cpHeld = Find(aId, aKind);
+    if (!cpHeld)
+        return false;
+    Declare(aId, aKind, cpHeld->Bytes);
+    return true;
+}
+
+bool CopyRecords::Take(uint32_t aId, const RecordPart& acPart)
+{
+    RecordPart& part = m_records[aId][acPart.Kind];
+    part.Kind = acPart.Kind;
+    if (acPart.Version <= part.Version)
+        return false;
+    part = acPart;
+    TryApply(aId, acPart.Kind);
+    return true;
+}
+
+void CopyRecords::OnSessionId(uint32_t aId)
+{
+    // Copied: applying a part changes who waits for whom.
+    std::vector<Waiter> parts;
+    if (const auto it = m_records.find(aId); it != m_records.end())
+        for (const auto& [cKind, cPart] : it->second)
+            parts.emplace_back(aId, cKind);
+    if (const auto it = m_waitsFor.find(aId); it != m_waitsFor.end())
+        parts.insert(parts.end(), it->second.begin(), it->second.end());
+    for (const auto& [cId, cKind] : parts)
+        TryApply(cId, cKind);
+}
+
+void CopyRecords::TryApply(uint32_t aId, RecordKind aKind)
+{
+    const Waiter cWaiter{aId, aKind};
+    std::erase_if(m_waitsFor, [&](auto& aEntry) {
+        aEntry.second.erase(cWaiter);
+        return aEntry.second.empty();
+    });
+    const RecordPart* cpPart = Find(aId, aKind);
+    const auto cKind = m_kinds.find(aKind);
+    if (!cpPart || !cpPart->Version || cKind == m_kinds.end() || !cKind->second.Apply)
+        return;
+    // Its bytes copied: Apply may reach a service that declares or takes another part.
+    const std::string cBytes = cpPart->Bytes;
+    for (const uint32_t cNamed : cKind->second.Apply(aId, cBytes))
+        if (cNamed && cNamed != aId)
+            m_waitsFor[cNamed].insert(cWaiter);
+}
+
+void CopyRecords::Forget(uint32_t aId)
+{
+    if (const auto it = m_records.find(aId); it != m_records.end())
+    {
+        for (const auto& [cKind, cPart] : it->second)
+            std::erase_if(m_waitsFor, [&](auto& aEntry) {
+                aEntry.second.erase(Waiter{aId, cKind});
+                return aEntry.second.empty();
+            });
+        m_records.erase(it);
+    }
+}
+
+void CopyRecords::Clear()
+{
+    m_records.clear();
+    m_waitsFor.clear();
+}
+
+const RecordPart* CopyRecords::Find(uint32_t aId, RecordKind aKind) const noexcept
+{
+    const auto cRecord = m_records.find(aId);
+    if (cRecord == m_records.end())
+        return nullptr;
+    const auto cPart = cRecord->second.find(aKind);
+    return cPart != cRecord->second.end() && cPart->second.Version ? &cPart->second : nullptr;
+}
+
+RecordParts CopyRecords::PartsOf(uint32_t aId) const
+{
+    RecordParts parts;
+    if (const auto it = m_records.find(aId); it != m_records.end())
+        for (const auto& [cKind, cPart] : it->second)
+            if (cPart.Version)
+                parts.Parts.push_back(cPart);
+    return parts;
+}
+
+bool CopyRecords::WaitsFor(uint32_t aId, RecordKind aKind, uint32_t aNamed) const noexcept
+{
+    const auto it = m_waitsFor.find(aNamed);
+    return it != m_waitsFor.end() && it->second.contains({aId, aKind});
+}

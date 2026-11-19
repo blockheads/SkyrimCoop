@@ -759,6 +759,12 @@ meh321 where they have one, ours otherwise.
   session id or form), and a copy's owner's slots (`ActorExtension::HeadTrack`) are put in before the engine reads
   them, so the copy's own engine turns its head. Compared as `ai_state.head_track`; GameTests `[headtrack]`.
   An owner beyond the distance gate is not processed, so its slot changes go out once it is close again.
+  **A target that arrives late (2026-11-18, read in IDA):** `SetHeadtrackTarget` (39783) writes only the slot's handle
+  (`+0x140`), its `headTracked` byte (`+0x158`) and the cached look position; `GetHeadtrackTarget` (39484) reads the
+  highest slot whose byte is set, each call. Nothing else remembers a slot, and the hook puts the copy's slots in
+  before every ProcessTracking, so a form id resolved after the state arrived (the target's copy spawned later) is
+  looked at from the next frame. That is what the copy record's waits-for relies on (one-simulator.md, piece 1); before
+  it the session id was resolved once and the slot stayed empty.
   A conversation's dialogue slot holds the player talking, not the host's player: dialogue.md, "Who the speaker looks at".
 
   **When the slots are read (read in IDA, 1.7.104, 2026-11-05 and 2026-11-06).** Both callers skip ProcessTracking for an

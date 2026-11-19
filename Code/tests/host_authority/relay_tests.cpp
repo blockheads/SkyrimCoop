@@ -555,27 +555,100 @@ TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and cont
     CHECK(session.ItemsSet.size() == 1);
 }
 
-TEST_CASE("AI state: the owner's reaches everyone else; nobody else's counts", "[HostAuthority][AiState]")
+TEST_CASE("A record's part: its owner's reaches everyone else; nobody else's counts", "[HostAuthority][records]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
 
-    AiStateRequest state;
-    state.SessionId = cHostNpc;
-    state.State.Package = GameId(0, 0x1A6A5);
-    state.State.CombatTarget.SessionId = 7;
-    session.Receive(kPeer, state); // not its
+    ActorAiState ai;
+    ai.Package = GameId(0, 0x1A6A5);
+    ai.CombatTarget.SessionId = 7;
+    RecordRequest part;
+    part.Id = cHostNpc;
+    part.Part = {RecordKind::kAiState, 2, ToPartBytes(ai)};
+    session.Receive(kPeer, part); // not its
     CHECK(session.Outbox.empty());
 
-    session.Receive(kHost, state);
+    session.Receive(kHost, part);
     for (const auto cTo : {kPeer, kOtherPeer})
     {
-        const auto cNotifies = session.SentTo<NotifyAiState>(cTo);
+        const auto cNotifies = session.SentTo<NotifyRecord>(cTo);
         REQUIRE(cNotifies.size() == 1);
-        CHECK(cNotifies[0]->SessionId == cHostNpc);
-        CHECK(cNotifies[0]->State == state.State);
+        CHECK(cNotifies[0]->Id == cHostNpc);
+        CHECK(cNotifies[0]->Part == part.Part);
     }
-    CHECK(session.SentTo<NotifyAiState>(kHost).empty());
+    CHECK(session.SentTo<NotifyRecord>(kHost).empty());
+
+    // An older version than the one held is dropped (order free: the last state wins).
+    session.Outbox.clear();
+    part.Part.Version = 1;
+    session.Receive(kHost, part);
+    CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("A joiner gets every part: each spawn carries its actor's record as last declared", "[HostAuthority][records]")
+{
+    Session session;
+    AnnounceCharacterRequest announce;
+    announce.SessionId = session.NewCharacterId();
+    announce.ReferenceId = GameId(1, 0x2000);
+    ActorAiState ai;
+    ai.Package = GameId(0, 0x1A6A5);
+    announce.Record.Parts.push_back({RecordKind::kAiState, 1, ToPartBytes(ai)});
+    session.Receive(kHost, announce);
+    const auto cFirst = session.SentTo<NotifyCharacterSpawn>(kPeer);
+    REQUIRE(cFirst.size() == 1);
+    CHECK(cFirst[0]->Record == announce.Record);
+
+    // The owner declares it again; the host's game still reads the actor as it announced it.
+    ai.Combat = 1;
+    RecordRequest part;
+    part.Id = announce.SessionId;
+    part.Part = {RecordKind::kAiState, 2, ToPartBytes(ai)};
+    session.Receive(kHost, part);
+    session.Spawns.push_back(NotifyCharacterSpawn::FromAnnouncement(announce, announce.SessionId, 0));
+    session.Outbox.clear();
+
+    const ConnectionId_t cJoiner = 4;
+    session.Join(cJoiner, JoinRequest("Farkas"));
+    AnnounceCharacterRequest player;
+    player.SessionId = session.CharacterId(cJoiner);
+    player.ReferenceId = GameId(0, 0x14);
+    session.Receive(cJoiner, player);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(cJoiner);
+    const auto cNpc = std::ranges::find_if(cSpawns, [&](const auto* apSpawn) { return apSpawn->SessionId == announce.SessionId; });
+    REQUIRE(cNpc != cSpawns.end());
+    REQUIRE((*cNpc)->Record.Parts.size() == 1);
+    CHECK((*cNpc)->Record.Parts[0] == part.Part);
+
+    // Gone, its record goes with it.
+    RequestRemoveCharacter remove;
+    remove.SessionId = announce.SessionId;
+    session.Receive(kHost, remove);
+    session.Outbox.clear();
+    part.Part.Version = 3;
+    session.Receive(kHost, part);
+    CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("An asked part: the actor's owner alone is told", "[HostAuthority][records]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+    RecordAskRequest ask;
+    ask.Id = cHostNpc;
+    ask.Kind = RecordKind::kAiState;
+    session.Receive(kHost, ask); // its own
+    CHECK(session.Outbox.empty());
+    session.Receive(kPeer, ask);
+    REQUIRE(session.SentTo<NotifyRecordAsk>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyRecordAsk>(kHost)[0]->Kind == RecordKind::kAiState);
+    CHECK(session.SentTo<NotifyRecordAsk>(kPeer).empty());
+    CHECK(session.SentTo<NotifyRecordAsk>(kOtherPeer).empty());
+    ask.Id = 0xFFFF; // nobody's
+    session.Outbox.clear();
+    session.Receive(kPeer, ask);
+    CHECK(session.Outbox.empty());
 }
 
 

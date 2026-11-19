@@ -131,7 +131,7 @@ void HostCharacters::OnAnnounceCharacter(const AnnounceCharacterRequest& acReque
         }
     }
 
-    m_authority.ActorAnnounced(cSessionId, cSpawn.AiState);
+    m_authority.ActorAnnounced(cSessionId, cSpawn.Record);
     SendToOthersWithHost(cSpawn, aSender);
     spdlog::info("HostCharacters: {:x} announced {:x}:{:x} as {:x}", aSender, acRequest.ReferenceId.ModId, acRequest.ReferenceId.BaseId, cSessionId);
 }
@@ -539,10 +539,13 @@ void HostCharacters::SendHostActors(ConnectionId_t aPlayer) noexcept
 
 size_t HostCharacters::SendHostSpawns(ConnectionId_t aPlayer, uint32_t aExcludedSessionId) noexcept
 {
-    const auto cSpawns = m_game.OwnSpawns(aExcludedSessionId);
-    for (const auto& cSpawn : cSpawns)
-        m_network.Send(aPlayer, cSpawn);
-    return cSpawns.size();
+    auto spawns = m_game.OwnSpawns(aExcludedSessionId);
+    for (auto& spawn : spawns)
+    {
+        spawn.Record = m_authority.RecordOf(spawn.SessionId);
+        m_network.Send(aPlayer, spawn);
+    }
+    return spawns.size();
 }
 
 HostCharacters::Place HostCharacters::PlaceOf(GameId aCellId, GameId aWorldSpaceId) noexcept
@@ -586,6 +589,15 @@ HostCharacters::ConnectionId_t HostCharacters::OwnerOf(uint32_t aSessionId) cons
 }
 
 std::optional<NotifyCharacterSpawn> HostCharacters::BuildSpawn(uint32_t aSessionId) const noexcept
+{
+    auto spawn = ReadSpawn(aSessionId);
+    // Its record as its owner last declared it: a spawn read before a change never brings an older part.
+    if (spawn)
+        spawn->Record = m_authority.RecordOf(aSessionId);
+    return spawn;
+}
+
+std::optional<NotifyCharacterSpawn> HostCharacters::ReadSpawn(uint32_t aSessionId) const noexcept
 {
     const auto it = m_characters.find(aSessionId);
     if (it == m_characters.end())
@@ -638,6 +650,7 @@ void HostCharacters::RemoveCharacter(uint32_t aSessionId, const ActorWhereabouts
     m_players.SendToOthers(notify, it->second.Owner, Net::kReliable);
 
     m_characters.erase(it);
+    m_authority.ActorRemoved(aSessionId);
     // A rider gone: its first passenger drives, else the mount is the host's again. A passenger gone: off the list.
     std::vector<uint32_t> ridden;
     for (auto& [cSessionId, character] : m_characters)

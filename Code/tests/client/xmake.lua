@@ -8,7 +8,7 @@ target("ClientTests")
     add_files("../../client/Diagnostics/Counters.cpp")
     add_files("../../client/Services/SaveTransfer.cpp", "../../client/MainLoopTasks.cpp", "../../client/TaskQueue.cpp", "../../client/Bridges/PhysicsBodies.cpp",
               "../../client/Services/Host/PartyThreat.cpp", "../../client/Services/DevCommands.cpp")
-    add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp", "../../client/Services/Generic/PartyOptionText.cpp",
+    add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp", "../../client/Services/CopyRecords.cpp", "../../client/Services/Generic/PartyOptionText.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Perf.cpp", "../../client/Diagnostics/ReportPaths.cpp", "../../client/Diagnostics/LogRing.cpp",
               "../../client/Diagnostics/Zip.cpp", "../../client/Diagnostics/Export.cpp", "../../client/Diagnostics/CrashReports.cpp")
     add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp", "../../client/Games/Skyrim/Papyrus/ScriptTags.cpp",

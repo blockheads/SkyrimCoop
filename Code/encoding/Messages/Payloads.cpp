@@ -331,16 +331,30 @@ void Mount::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     MountId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
-void AiState::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+void Record::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, SessionId);
-    State.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, Id);
+    Part.Serialize(aWriter);
 }
 
-void AiState::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+void Record::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
-    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    State.Deserialize(aReader);
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Part.Deserialize(aReader);
+}
+
+void RecordAsk::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+    aWriter.WriteBits(static_cast<uint8_t>(Kind), 8);
+}
+
+void RecordAsk::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    uint64_t kind = 0;
+    aReader.ReadBits(kind, 8);
+    Kind = static_cast<RecordKind>(kind & 0xFF);
 }
 
 void Dialogue::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

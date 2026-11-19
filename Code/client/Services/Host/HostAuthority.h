@@ -111,9 +111,14 @@ struct HostAuthority
 
     // A player's own character is in the world: everything it must know about the session.
     void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept;
-    // A player's character is in the host's world, and the AI state a character arrived with: they count for death.
+    // A player's character is in the host's world, and the record a character arrived with (its AI state counts for
+    // death).
     void PlayerBodyEntered(ConnectionId_t aPlayer, uint32_t aId) noexcept { m_death.Entered(aPlayer, aId); }
-    void ActorAnnounced(uint32_t aId, const ActorAiState& aState) noexcept { m_death.InitialAi(aId, aState); }
+    void ActorAnnounced(uint32_t aId, const RecordParts& acRecord) noexcept;
+    // A character left the session: its record goes.
+    void ActorRemoved(uint32_t aId) noexcept { m_records.Forget(aId); }
+    // A character's record as its owner last declared it, for a spawn of it.
+    [[nodiscard]] RecordParts RecordOf(uint32_t aId) const noexcept { return m_records.PartsOf(aId); }
     // The host removes a player from the session.
     void Kick(uint32_t aPlayerId) noexcept;
     // The host's game set its difficulty (DifficultyChangeEvent).

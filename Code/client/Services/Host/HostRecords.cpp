@@ -14,6 +14,8 @@ HostRecords::HostRecords(HostAuthority& aAuthority, const HostPlayers& acPlayers
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostRecords::OnPlayerRecord);
+    aAuthority.On(*this, &HostRecords::OnRecord);
+    aAuthority.On(*this, &HostRecords::OnRecordAsk);
     aAuthority.Watch(*this, &HostRecords::OnPartyCall);
 }
 
@@ -63,4 +65,50 @@ void HostRecords::StorePlace(ConnectionId_t aPlayer) const noexcept
         return;
     if (const auto cPlace = m_characters.CharacterPlace(m_characters.PlayerCharacterOf(aPlayer)))
         m_game.StorePlace(cpPlayer->Key, cPlace->WorldSpaceId, cPlace->CellId, {cPlace->Position.x, cPlace->Position.y, cPlace->Position.z});
+}
+
+void HostRecords::OnRecord(const RecordRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    if (m_characters.OwnerOf(acRequest.Id) != aSender)
+    {
+        spdlog::debug("HostRecords: {:x} declared a part of {:x}, which it does not own: dropped", aSender, acRequest.Id);
+        return;
+    }
+    RecordPart& held = m_parts[acRequest.Id][acRequest.Part.Kind];
+    if (acRequest.Part.Version <= held.Version)
+        return;
+    held = acRequest.Part;
+    if (OnKept)
+        OnKept(acRequest.Id, held);
+    NotifyRecord notify;
+    static_cast<Payloads::Record&>(notify) = acRequest;
+    m_players.SendToOthers(notify, aSender, Net::kReliable);
+}
+
+void HostRecords::OnRecordAsk(const RecordAskRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    const ConnectionId_t cOwner = m_characters.OwnerOf(acRequest.Id);
+    if (!cOwner || cOwner == aSender)
+        return;
+    NotifyRecordAsk notify;
+    static_cast<Payloads::RecordAsk&>(notify) = acRequest;
+    m_players.SendTo(cOwner, notify);
+}
+
+void HostRecords::Announced(uint32_t aSessionId, const RecordParts& acParts) noexcept
+{
+    auto& parts = m_parts[aSessionId];
+    parts.clear();
+    for (const RecordPart& cPart : acParts.Parts)
+        parts[cPart.Kind] = cPart;
+}
+
+RecordParts HostRecords::PartsOf(uint32_t aSessionId) const noexcept
+{
+    RecordParts parts;
+    if (const auto it = m_parts.find(aSessionId); it != m_parts.end())
+        for (const auto& [cKind, cPart] : it->second)
+            if (cPart.Version)
+                parts.Parts.push_back(cPart);
+    return parts;
 }
