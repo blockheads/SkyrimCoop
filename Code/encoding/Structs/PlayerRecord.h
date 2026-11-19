@@ -86,5 +86,6 @@ struct PlayerRecord
     bool operator==(const PlayerRecord& acRhs) const noexcept;
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    // aItemOwners false: a record written before Inventory::Entry::ExtraOwner (co-save version 3).
+    void Deserialize(Wire::Buffer::Reader& aReader, bool aItemOwners = true) noexcept;
 };

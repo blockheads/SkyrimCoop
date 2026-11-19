@@ -1,7 +1,7 @@
 # One simulator: every system on one sync rule (2026-11-18)
 
-Status: **pieces 1 and 2 built (2026-11-18: the copy record; AI state, actor state, factions and name parts); the rest
-proposed.** Direction agreed 2026-11-18 (the four
+Status: **pieces 1 to 3 built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
+2026-11-19: items); the rest proposed.** Direction agreed 2026-11-18 (the four
 decisions below). Physics
 ([physics-sync.md](physics-sync.md), "One simulator per pile") and the graph stream
 ([graph-input-stream.md](graph-input-stream.md)) already work this way; this puts the rest of the code on the same
@@ -280,6 +280,48 @@ survives it", "A copy spawned again wears what its owner wears".
 Deletes: `HostAuthority::OnInventoryChanges`'s relay from anyone, `RequestEquipmentChanges`/`Snapshot` and
 `EquipmentSnapshots` (one part instead), `CharacterService`'s `WaitingFor3D` inventory.
 To check when building: whether `RunNakedNPCBugChecks` (a 1 s poll) still has anything to catch.
+
+**As built (2026-11-19)**, after the RE (`docs/re/systems/inventory-changes.md`, "1.7.104"):
+
+```text
+InventoryService (every game), RecordKind::kItems = ItemsPart {Full, Inventory: stacks by count, worn flags, hand spells}
+  owner: an item or equip hook, a 3D load, 418622's reset, a host grant  -> the actor touched
+         once a frame, each touched actor it owns: ItemsPart::Change(held, now)  -> Declare (only the stacks that changed)
+  copy:  the part applied once its 3D is in (waits for it), and again on each 3D load (ReferenceLoadedEvent), 418622
+         (WornResetEvent) and CharacterService's move to its owner's cell
+         each item: SetCopyItemCount (count, stacks with extra data; worn and charge aside), then ApplyWorn:
+         only the pieces that differ off and on, each hand holding its worn weapon or torch and its spell; the full
+         reset (EquipmentRepair) when one is refused; not settled: tried again every 0.25 s for 5 s
+CopyRecords / HostRecords: MergedPart  a change merges onto the version just before; else the owner is asked (R3)
+HostAuthority::OnInventoryChanges      the party's gold and items; a host script's change of another game's actor to its
+                                       owner alone (a quest taking a guest's claw), whose part follows
+HostItems::OnContainerTransfer         the loot to the looter alone; the NPC's change goes out as its part (ItemsChangedEvent)
+```
+
+- Read: leveled lists stay out of the part (a base container's, listed by `GetInventory` as they are); for a player's
+  character, gold and party stacks too (the host's).
+- A change carries absolute counts per stack (0: gone), merged only onto the version before it; a spawn, an
+  announcement and an ask carry the whole part. A copy missing a version asks (`CopyRecords::AskWith`), as does the host.
+- Stacks are matched ignoring charge (`ItemsPart::SameStack`): an enchanted weapon's falling charge sends nothing and
+  never makes a copy take its sword off and on.
+- A guest's take no longer passes through the host's copy of the looter: `HostEngine::TransferContainer` changes only
+  the container, and the looter's game changes its player. A put still moves from the host's copy of the player: its
+  count is spent at once, so a second put before the player's next part finds nothing, and the copy's real list (worn,
+  a roll's) goes to the container.
+- A player's part carries its party stacks too (their worn state); a copy applies only the private counts and keeps
+  the party stacks the party's store gave it. 16059's target only moved the item and marked a theft
+  (inventory-changes.md, "What 16059's target does"); a stack now carries its owner (`Inventory::Entry::ExtraOwner`),
+  so the grant marks a theft on the looter's own game. The vampire lord's model fix still lands after
+  the copy's items at its 3D (`CopyRecords::ApplyAgain`).
+- Only a player character's item changes still go to the host as events (the party's stores); an NPC's go only as
+  its part.
+- `RunNakedNPCBugChecks` stays, for this game's own actors only (a copy's reset did nothing already); it logs when it
+  resets one, to learn whether it still catches anything.
+- The harness's drift for a copy is now the engine's own (`reset_worn`, 418622) instead of `strip`, which took a copy's
+  armor off past every hook, a drift no engine path makes on a copy (its unequip hook refuses the engine's).
+- Gone: `RequestEquipmentChanges`/`NotifyEquipmentChanges`, `Request/NotifyEquipmentSnapshot`, `RunEquipmentSnapshots`
+  (the 3 s heartbeat) and `EquipmentRepair::Snapshots`, the relay of item changes from anyone, `WaitingFor3D`'s
+  `SetActorInventory`, the spawn's `InventoryContent` and `ActorData::InitialInventory` (the record's part instead).
 
 ## Piece 4: pairs are claimed
 

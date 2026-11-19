@@ -1,5 +1,6 @@
 #include "FakeDialogue.h"
 #include "Party.h"
+#include <Services/ContainerTransfers.h>
 #include <Events/ActorAddedEvent.h>
 #include <Events/MenuEvent.h>
 #include <Followers/Records.h>
@@ -76,9 +77,12 @@ SCENARIO("Three players share a follower while its pathing anchor and trade inve
     CHECK(first.FollowerTradeNpc == 0);
     CHECK(host.FollowerTradeNpc == 0);
     CHECK(host.FollowerTargets[0].Character == cFirst);
+    // The trade menu's take: a guest's container transfer goes to the host (TESObjectREFR's hook, ContainerTransfers).
     party.As(party.Guest(1), [&] {
-        second.LosesItem(cCopy, kPick, 1);
-        second.GetsItem(FakeEngine::kPlayer, kPick, 1);
+        Inventory::Entry pick;
+        pick.BaseId = GameId(0, kPick);
+        pick.Count = 1;
+        REQUIRE(ContainerTransfers::Propose(party.Guest(1), cCopy, FakeEngine::kPlayer, pick));
     });
     party.Until([&] { return host.CountOf(npc, kPick) == 2; }, "the host's follower loses the traded item once");
     CHECK(second.CountOf(FakeEngine::kPlayer, kPick) == 1);

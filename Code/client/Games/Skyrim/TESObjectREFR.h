@@ -244,6 +244,10 @@ struct TESObjectREFR : TESForm
     // As Papyrus' SetActorOwner/SetFactionOwner (20198): an NPC, a faction or none, a load door's other side too.
     void SetOwner(TESForm* apOwner) noexcept;
     TESForm* GetOwner() const noexcept;
+    // Whose its items are, as a theft from it stamps them (16059): an actor's original leveled form (ExtraLeveledCreature,
+    // 11810: a permanent form, not the temporary NPC) or its base, else
+    // TESObjectREFR::GetOwner 20194 (its ownership, a linked door's, the encounter zone's, the cell's).
+    TESForm* GetItemsOwner() const noexcept;
     bool SendAnimationEvent(BSFixedString* apEventName) noexcept;
 
     bool Activate(TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing) noexcept;

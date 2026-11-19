@@ -104,7 +104,6 @@ every other section needs the duo.
 
 **Found by the playthrough flow**
 
-- [A looted corpse keeps items on the guest](#a-looted-corpse-keeps-items-on-the-guest): small
 - [The host's copy after a door](#the-hosts-copy-after-a-door): small
 - [Players stacked after a door](#players-stacked-after-a-door): small
 
@@ -119,6 +118,7 @@ every other section needs the duo.
 - [The guest player's copy wears nothing](#the-guest-players-copy-wears-nothing): small
 - [A starting kit with an extra item](#a-starting-kit-with-an-extra-item): small
 - [A spawn's inventory over a newer equip](#a-spawns-inventory-over-a-newer-equip): small
+- [A party item removed without its tag](#a-party-item-removed-without-its-tag): small
 - [The host shows a guest's relief box](#the-host-shows-a-guests-relief-box): small
 - [A party wipe's fight that misfires](#a-party-wipes-fight-that-misfires): medium
 - [An action sent before its copy exists](#an-action-sent-before-its-copy-exists): small
@@ -332,6 +332,11 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   (bugs-map.md, "A copy's hands"). A move did strip a copy's armour until the 3 s reconcile.
 - The snapshot compares worn items and hand spells, not hand weapons; a copy refuses the engine's equips.
 - Lead: copy `13485`'s engine tried to equip about once a second for over 2 minutes in the 2026-11-04 playtest.
+- **A mechanism, measured** (2026-11-19, one-simulator.md piece 3): the engine's outfit reset (TESNPC 418622, run on a
+  3D load by 24725) empties a copy's hands and leaves the weapon's worn flag, so a repair comparing worn flags saw
+  nothing (harness `reset_worn` on Aela's copy: hands [0, 0], her owner's torch and bow). The repair now checks each
+  hand holds its worn weapon or torch (GameTests "A copy whose hands the engine's outfit reset emptied holds its
+  owner's weapon again"). Not closed: no scenario of play that fails on dev shows a copy without its weapon.
 
 ### End comparisons in towns
 
@@ -823,6 +828,10 @@ Size: small. Needs: duo.
 
 The guard arrests have no passing run on 1.7.104, so nothing shows the arrest working.
 
+- `guest-theft-warned` (2026-11-19, dev `9c55b453` and `agent/piece-3-items` alike): "the party has spent 0 theft
+  warnings, expected 1", 3 runs; a fourth left the host stuck at `coc RiverwoodSleepingGiantInn`, which only a new
+  boot cleared. It passed when written (2026-11-13).
+
 Agent task: Find why these stop at their theft, then check the arrest with a guest's crime.
 
 Size: medium. Needs: duo.
@@ -844,6 +853,10 @@ Size: medium. Needs: duo.
       `guest-theft-host-witnesses` and `guest-murder-party-alarm` 2 of 4 on the branch, passed once on dev.
     - "the fine confiscates stolen rolls and keeps the unowned one": `guest-container-theft-and-fine`, alone on both
       (in the full run it stopped on the unseen control first).
+      Found 2026-11-19 (`agent/piece-3-items`): the guest's taken rolls were not stolen on the guest's own game (16059
+      stamps a theft's owner only on the item it gives a target, the host's copy of the guest; inventory-changes.md).
+      Fixed there (`guest-container-theft-is-stolen` fails 3 of 3 on dev, passes 5 of 5); this scenario then passed
+      the confiscation once and stopped on the unseen control twice, as on dev.
     - "the guard naturally arrests the party" (20 s): `guest-ivarstead-fine-mouse` every run on both;
       `guest-ivarstead-jail-mouse` in the full run only. Two of them left a player behind: the host's player 27-32
       units into the floor, the guest's copy 200 units from its owner.
@@ -950,22 +963,6 @@ Size: medium. Needs: IDA, duo, then GameTests.
 From `riverwood-day-one` (`docs/design/playthrough-flows.md`), runs of 2026-11-05: each was seen at every run that
 reached it. Its summaries are in `build/coop-test/flows/<time>-riverwood-day-one/summary.md`; `--from` a step's
 checkpoint replays it in under a minute.
-
-### A looted corpse keeps items on the guest
-
-Stands alone: one container's items.
-
-Agent task: Make a loot taken from an NPC's corpse leave the corpse's copy on the other game as empty as the corpse.
-
-Size: small. Needs: duo, then GameTests.
-
-- **A looted corpse's copy still holds items** (5 of 5 runs, either player looting). After `take` from a bandit's
-  corpse the host's corpse is empty, and the guest's copy still holds 2 each of 37C1B, 4F78D and 10E0DD (once 4DEE0
-  too). Neither the looter nor its copy got them. A player who opens that corpse on the guest sees loot that isn't
-  there. Start: what a take-all from a dead NPC sends (the container change rows), and what the guest applies to a
-  dead copy.
-  - Test: the flow's `lookout` and `loot` steps (`sees: same_items("enemy_1")`); then a scenario of one bandit killed
-    and looted.
 
 ### The host's copy after a door
 
@@ -1080,6 +1077,11 @@ graph input stream. Unread: whether the copy was spawned again during the scenar
 
 Agent task: read what gives a re-spawned player copy its owner's worn set, then make a GameTests flow for it.
 
+- 2026-11-19 (one-simulator.md piece 3): a copy now wears its owner's items part again on each 3D load, after the
+  engine's outfit reset (418622) and after a move to its owner's cell; the 3 s snapshot is gone. A player copy's round
+  trip to another cell kept its worn set on dev too, so this entry's trigger is still unread: run
+  `dialogue-picked-text-visual --repeat 4` on the new build before closing.
+
 Size: small. Needs: the duo (`dialogue-picked-text-visual --repeat 4`), then GameTests.
 
 ### A starting kit with an extra item
@@ -1090,6 +1092,42 @@ two expected items. First seen in this run. Unread: what `F11B6` is and which si
 Agent task: read where `F11B6` came from, in the guest's log and the host's.
 
 Size: small. Needs: the duo.
+
+### A guest's store of an item held in a list
+
+Stands alone: one container scenario.
+
+Agent task: Make the guest's own removal of a stored item take it from the list that holds it.
+
+Size: small. Needs: the duo (the fake holds no plain lists on an actor).
+
+- From the review of PR #83 (read, not run): a guest storing an item its game holds only in a list that reads as
+  plain (worn, or a roll's `ExtraLeveledItem`) gets a plain negative grant (`ContainerTransfers::Stack` clears the
+  worn flags). `TESObjectREFR::AddOrRemoveItem` passes no list for it, and 16059 takes only the loose count, so the
+  guest keeps the item the chest was given. The host's side moves the copy's real list (`HostEngine::TransferContainer`).
+  Dev does the same on the guest.
+  - Start: in `AddOrRemoveItem`'s plain removal, take the rest through the lists that read as plain, each by its
+    `ExtraCount`, as `SetCarriedStacks` does.
+
+### A party item removed without its tag
+
+Stands alone: one party stack on a player's copy.
+
+Agent task: Make a party item a guest's game removes without naming its stack (console `player.removeitem`, a script's
+`RemoveItem` of the base) leave every player as the party's store says.
+
+Size: small. Needs: GameTests, then the duo.
+
+- **The host's copy keeps the key** (2026-11-19, `party-item-moves-guest` then `guest-pickpockets-lucan` in one boot):
+  the first scenario's cleanup removes "[P] Key to Breezehome" (`93B08`) from the guest's player by console; the
+  removal's event names no stack, so it is no party change (HostPartyItems), and since one-simulator.md piece 3 nothing
+  else carries it (a player's items part leaves party stacks out). The host's copy holds 1, the guest 0; the next
+  scenario's end comparison fails on it. Before piece 3 the relay took it off the copy, the party's store still at 1.
+  - Start: `SendRemoval` (TESObjectREFR.cpp) reads no list for a plain removal; what the party's store should do then.
+- **Both copies keep it** (2026-11-19, review of PR #83): a player's copy now applies only its owner's private items and
+  keeps its party stacks as the party's store sets them, so after that cleanup the store's 1 stays on the host's and the
+  guest's copies (players 0), and `party-item-moves-host` run next stops at "a player carries [P] Key to Breezehome to
+  begin with". Alone on a fresh boot it passes.
 
 ### A spawn's inventory over a newer equip
 
@@ -1106,6 +1144,10 @@ Size: small. Needs: GameTests, then the duo.
   it: the copy stands with an empty hand until the next change.
   - Start: `CharacterService`'s `WaitingFor3D` inventory against `InventoryService`'s equipment changes for the same
     copy: the older one must not win.
+  - 2026-11-19 (one-simulator.md piece 3): read in our code, the spawn's inventory applied at 3D over a newer equip; it is
+    gone (the items part, newest version, applied at 3D). GameTests "An equip sent after the spawn was read survives it"
+    fails on dev and passes. Not closed: no MCP-recorded scenario yet (the race needs the copy's 3D after the equip;
+    in QASmoke the copy has 3D before `stage` returns).
   - Test: a GameTests flow, an NPC that equips one frame after it is announced, the copy's 3D ready later.
   - Also `host-loads-party` (branch 1 of 4, dev 1 of 4) and `host-menu-loads-party` (branch 2 of 4, dev 0 of 4),
     2026-11-12: Aela's copy lacks `1D4EC` and its right hand is empty, the same shape.

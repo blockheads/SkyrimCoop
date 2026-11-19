@@ -49,9 +49,10 @@ void Inventory::Entry::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteBool(aWriter, ExtraWornLeft);
     Serialization::WriteBool(aWriter, IsQuestItem);
     Serialization::WriteString(aWriter, ExtraName);
+    ExtraOwner.Serialize(aWriter);
 }
 
-void Inventory::Entry::Deserialize(Wire::Buffer::Reader& aReader) noexcept
+void Inventory::Entry::Deserialize(Wire::Buffer::Reader& aReader, bool aOwner) noexcept
 {
     BaseId.Deserialize(aReader);
     Count = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
@@ -81,6 +82,8 @@ void Inventory::Entry::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     ExtraWornLeft = Serialization::ReadBool(aReader);
     IsQuestItem = Serialization::ReadBool(aReader);
     ExtraName = Serialization::ReadString(aReader);
+    if (aOwner)
+        ExtraOwner.Deserialize(aReader);
 }
 
 bool Inventory::operator==(const Inventory& acRhs) const noexcept
@@ -114,13 +117,13 @@ void Inventory::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     CurrentMagicEquipment.Serialize(aWriter);
 }
 
-void Inventory::Deserialize(Wire::Buffer::Reader& aReader) noexcept
+void Inventory::Deserialize(Wire::Buffer::Reader& aReader, bool aOwners) noexcept
 {
     uint32_t count = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     for (uint32_t i = 0; i < count; i++)
     {
         Entry entry;
-        entry.Deserialize(aReader);
+        entry.Deserialize(aReader, aOwners);
         Entries.push_back(entry);
     }
 

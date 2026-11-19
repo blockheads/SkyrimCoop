@@ -162,7 +162,6 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
         {
             record->LatestAction = acRequest.LatestAction;
             record->GraphState = acRequest.GraphState;
-            record->InventoryContent = acRequest.Data.InitialInventory;
             record->InitialActorValues = acRequest.Data.InitialActorValues;
             record->IsDead = acRequest.Data.IsDead;
         }
@@ -418,7 +417,6 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
             record->Position = acRequest.Position;
             record->LatestAction = acRequest.LatestAction;
             record->GraphState = acRequest.GraphState;
-            record->InventoryContent = acRequest.Data.InitialInventory;
             record->InitialActorValues = acRequest.Data.InitialActorValues;
             record->IsDead = acRequest.Data.IsDead;
         }

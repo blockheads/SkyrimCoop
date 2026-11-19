@@ -22,7 +22,6 @@
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifyActivate.h>
 #include <Messages/NotifyRespawn.h>
-#include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifyPlayerJoined.h>

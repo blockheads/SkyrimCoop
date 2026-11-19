@@ -325,3 +325,6 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   accepted action carried its whole graph state (12-15 KB raw a player). Since the stream (`graph-input-stream.md`)
   streamed actors' actions carry none (`ReplayState::CarriesGraphState`). Measured 2026-11-13 (`wire_cost`, 15 wolves
   fighting): 32.7 KB/s on the wire to each guest, was 76 KB/s; 2 graph states saved in the fight, was 579.
+- **Optimistic loot for a guest** (2026-11-19, one-simulator.md piece 3): a guest's take could land on its own player at
+  once and be taken back if the host refuses it (another player got it first); the corpse's copy needs nothing, the
+  host's items part for it puts it right. Not needed while nobody notices the round trip in the container menu.

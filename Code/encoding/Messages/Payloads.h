@@ -38,19 +38,6 @@ struct ActorPerks
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 };
 
-// The owner's full worn equipment for one actor, re-sent periodically so a copy that drifted
-// (missed or undone change) converges back to the owner's state.
-struct EquipmentSnapshot
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const EquipmentSnapshot&) const noexcept = default;
-
-    uint32_t SessionId{};
-    Inventory Equipment{};
-};
-
 struct ActorValueChanges
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;

@@ -262,6 +262,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         glm::vec3 Position{}; // where it stands (a marker MoveTo goes to)
         uint32_t RecordFlags{};
         uint32_t Base = 0; // a created one's (a script's PlaceAtMe)
+        uint32_t Owner = 0; // its ExtraOwnership (an NPC or a faction); none: its cell's (CellOwners)
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
@@ -587,6 +588,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     struct Actor
     {
         uint32_t Base = 0;
+        // A leveled actor's original form (ExtraLeveledCreature's, 11810): the leveled character it was placed from,
+        // a permanent form; Base is then each game's own temporary NPC.
+        uint32_t LeveledBase = 0;
         std::string DisplayName;
         uint32_t Cell = 0;
         uint32_t WorldSpace = 0;
@@ -670,6 +674,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::map<uint32_t, float> Bases = FullValues().ActorMaxValuesList;
         std::map<uint32_t, float> TemporaryValues;
         Inventory Items; // its CurrentMagicEquipment: the hands' selected spells (Actor::selectedSpells +0x1C8)
+        // The weapon or torch each hand holds (AIProcess::equippedObjects, left and right): put there by an equip with
+        // 3D, emptied by TESNPC::ResetWornToOutfit 418622 (39811-39813) whose worn flags stay (measured, Aela's torch).
+        uint32_t HeldWeapons[2]{};
         // The spells its hands hold (AIProcess::equippedObjects, left and right): an equip without 3D only selects.
         uint32_t HeldSpells[2]{};
         bool EquipmentNeedsReset = false;
@@ -1113,6 +1120,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetsFaction(uint32_t aActor, uint32_t aFaction, int32_t aRank, uint32_t aCause = 0, bool aStory = false,
                      uint32_t aQuest = 0); // Actor.SetFactionRank; -1: RemoveFromFaction
     void AddsSpell(uint32_t aActor, uint32_t aSpell, bool aAdded, uint32_t aCause = 0, bool aStory = false, uint32_t aQuest = 0);
+    // The actor readies a spell in a hand (0 left, 1 right), as EquipSpellHook (38928) then the engine: selected, held
+    // with 3D; a local actor's change raised (EquipmentChangeEvent).
+    void EquipsSpell(uint32_t aActor, const GameId& acSpell, uint32_t aHand);
+    // The actor's player selects a shout or power (none: clears it), as the favorites menu does (EquipShout).
+    void EquipsShout(uint32_t aActor, const GameId& acShout);
     // The native's own write on aActor, as the engine makes it.
     void TakeProgress(const LocalCall& acCall, uint32_t aActor);
     // Objects: an actor activates one by itself (opens a door, pulls a lever), as our hook on TESObjectREFR::Activate
@@ -1542,8 +1554,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static constexpr uint8_t kWeapon = 41;
     static constexpr uint8_t kLight = 31;
     static constexpr uint8_t kArmor = 26;
+    static constexpr uint8_t kLeveledItem = 53;
     static constexpr uint32_t kRightHand = 0x13F42; // DefaultObjectManager's equip slots
     static constexpr uint32_t kLeftHand = 0x13F43;
+    // Each NPC base's container entries (TESContainer): only its leveled lists (form type kLeveledItem) are modelled.
+    // As Skyrim showed them (inventory_entry, 2026-11-19): counted with the actor's own change of them (16108),
+    // listed by TESObjectREFR::GetInventory as they are, and left by RemoveAllItems (SetActorInventory).
+    std::map<uint32_t, std::map<uint32_t, int32_t>> BaseContainers;
     std::map<uint32_t, ItemForm> ItemForms{{0x00012EB7, {kWeapon}},          // Iron Sword
                                            {0x00013989, {kWeapon}},          // Steel Sword
                                            {0x0001397E, {kWeapon}},          // Iron Dagger
@@ -1593,6 +1610,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] std::map<std::pair<uint32_t, uint32_t>, int32_t> Carried(uint32_t aActor) const;
     // TESObjectREFR::AddOrRemoveItem: another game's change (InventoryService, under ScopedInventoryOverride).
     void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override;
+    void SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept override;
     // What the actor wears: each worn item (its server id) and whether in the left hand.
     [[nodiscard]] std::set<std::tuple<uint32_t, uint32_t, bool>> Worn(uint32_t aActor) const;
     uint8_t GetFormType(uint32_t aFormId) const noexcept override;
@@ -1602,6 +1620,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // EquipManager's, ours: under ScopedEquipOverride, as EquipManager::Equip and UnEquip set it.
     void ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept override;
     void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
+    void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
 
     [[nodiscard]] bool Has(uint32_t aFlags) const noexcept

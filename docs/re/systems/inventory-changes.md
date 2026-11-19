@@ -45,3 +45,99 @@ loot the same chest then). `HostEngine::TransferContainer` counts a plain reques
 matching list (`RemoveItem` 16059 takes from a list only when given it). `GetInventory` itself still reads a fresh
 roll as empty.
 
+What 16059's target (`apMoveToRef`) does, read 2026-11-19: the removed count goes to it (`AddObjectToContainer`,
+vfunc 0x5A) with the list, and only with a target do the reasons mark the list: `kSteal` (1), not gold, stamps
+`ExtraOwnership` with the source's owner (an actor's original leveled form, else its base; else the reference's owner): that stamp is
+what makes the item stolen. `kStoreInTeammate` (5) from the player stamps the player; `kSelling` (2) raises the
+unique-id event. No crime is reported in 16059 (the alarm is `StealAlarm`'s, crime.md). Without a target the count
+only drops. So a guest's container theft stamped the host's copy of the guest, whose items the guest's part overwrites,
+and the grant carried no owner: the guest's own player held the item unstolen.
+
+Since 2026-11-19 `HostEngine::TransferContainer` gives 16059 no target: a take only leaves the container, a put only
+arrives in it (`AddOrRemoveItem`), and the player's own game changes its player. A theft's grant names the owner
+(`Inventory::Entry::ExtraOwner`, `TESObjectREFR::GetItemsOwner`: an actor's original leveled form, else its base,
+else `TESObjectREFR::GetOwner` 20194 with its door, zone and cell fallbacks), and the looter's game sets it on the item
+(`ExtraDataList::SetOwner`, 11609).
+
+A leveled actor's NPC is a temporary form each game makes, but its theft's owner is not: `ExtraDataList::GetLeveledNPC`
+(11810) reads `ExtraLeveledCreature`'s first field, the original form the actor was placed from (`LvlBanditBoss`
+`3DF17`), a form every game has. Measured: the guest's sweetroll pickpocketed from a placed bandit chief was owned by
+`3DF17` (`guest-pickpockets-leveled-npc-stolen`). Only an owner that is itself a created form (none seen) is not sent.
+
+
+# 1.7.104: an actor's items as its owner's part (2026-11-19)
+
+Read in IDA for one-simulator.md piece 3 (names and comments in the database, journal
+`docs/re/journal/1.7.104/agent-piece-3-items.tsv`); measured on the duo with the harness readout `inventory_entry`.
+
+## Removing (read)
+
+`InventoryChanges::RemoveItem` (16059). Given a list, it takes from that list. Given none (past `LABEL_286`), it takes
+only the loose count: base container count + entry delta, minus every list's count (the non-stackable ones summed there,
+the stackable ones by `InventoryEntryData::CountStackableListsPruned` 0x14022AF40). So an item held in a list is never
+taken by a plain removal. `SetCarriedStacks` (Bridges/ContainerItems) removes through a plain list when the loose count
+runs out.
+
+## A base container's leveled lists (measured)
+
+A bandit (`3DE8D`) lists three leveled lists in its base container (`37C1B`, `4F78D`, `8FFFB`, count 1 each).
+`inventory_entry` on the owner: no changes entry, count 1 (16108 counts the base entry). Our
+`TESObjectREFR::GetInventory` lists base entries as they are, leveled lists included, so the spawn's inventory carried
+the three forms as items; the copy's `SetActorInventory` (Papyrus `RemoveAllItems`, then adds) left the base entry and
+added a changes entry: count 2 on the copy. `GetContainerItems` (the harness's `container_items`) skips a base leveled
+list, so it listed the copy's (a changes entry) but not the owner's: "0 (host) vs 2 (guest)". This was "A looted corpse
+keeps items on the guest": the loot itself was fine. The items part leaves leveled lists out (`ReadItems`).
+
+## Worn items on a 3D load (read)
+
+```text
+Update3DModel_Impl 39395 -> TESNPC::InitWornOn3D 24725 (npc, actor, biped, force)
+  no 3D yet or force:
+    TESNPC::ShouldResetWornOn3D 24384   saving loading: false only with change 0x8000020 recorded
+                                         else: living (IsDead, vfunc 0x99, false) -> true; dead: no change 0x400
+    or byte npc+0x242 / form 7 with nothing worn (ShouldRunDefaultWornVisitor)
+  -> TESNPC::ResetWornToOutfit 418622
+       InventoryChanges::UnequipAllWorn 16100   each worn list off in the changes (16067): no unequip hook
+         16067: a list with ExtraCannotWear (0x3D) on a living actor is skipped: it stays worn
+       the hands cleared (ActorProcess 39811-39813)
+       the base's outfit (npc+0x218): InitOutfitItems if missing, AddWornOutfit
+       kPlayerTeammate (boolBits +0xE8, 1 << 26): per biped slot the best armor carried (BestArmorForSlot)
+       a4 and living: the best weapons carried (16088), a bow's or crossbow's ammo with it
+```
+
+`ExtraCannotWear` is the lock an equip with `forceEquip` puts on the worn list: `EquipNow` (38001) passes
+`EquipData+0x21` to `Actor::AddWornItem` (38004), whose list marking sets it (`ExtraDataList::SetCannotWear`); the
+console's and Papyrus's `EquipItem` set it for `abPreventRemoval`. A copy's equips (`SkyrimBridge::ActorEquipItem`)
+force, so 418622 leaves what we put on a copy worn; it takes off only what the copy's own engine put on.
+
+418622's other callers: `Actor::ResetInventory` (copies skip it, `HookResetInventory`), `Actor::InitLoadGame`,
+`SetLevel`. Our hook on 418622 raises `WornResetEvent` after it: a copy wears its part again, an owner reads its items
+again.
+
+Measured on a copy with the harness's `reset_worn` (418622 called as 24725 calls it, its worn set read as it returns):
+
+- Aela's copy lost the torch its owner wore (not in her outfit), and its hands were emptied (`state.hands` [0, 0]
+  against its owner's torch and bow) while the bow's worn flag stayed. The process's hands are cleared by 418622's
+  `ActorProcess` calls (39811-39813, read only as calls). So a copy's repair also checks that each hand holds the
+  weapon or torch its owner wears there (`EquipmentRepair::HandOf`).
+- Lydia's copy kept an iron helmet her outfit lacks, and her sword: both were equipped on the copy by its repair,
+  forced, so locked (above). Aela's torch was lost all the same; why a forced light comes off is not read.
+- A player copy's round trip to another cell (Riverwood inn and back) kept its worn set: no strip logged.
+
+## A copy moved to its owner's cell (measured)
+
+`CharacterService` moving a copy to where its owner is ("not where its owner is: moved there") dropped its left hand's
+spell (`copy-holds-spell-after-trip`, as copy-hand-spells.md found), and no 3D load event reached the copy's part
+afterwards. The move now raises `WornResetEvent` itself, and a part that finds its copy without 3D applies once the 3D
+is in (`InventoryService::m_waiting3D`); a worn set or hand that does not settle is applied again every 0.25 s for up
+to 5 s (a hand spell needs the copy's process, copy-hand-spells.md).
+
+## Queued equips (read)
+
+`ActorEquipManager::EquipObject` (38894) -> 38929 (our `EquipHook`). With `EquipData+0x20` (`bQueueEquip`) set,
+`Character::QueueOrEquipNow` (37684) queues armor, weapons, ammo, lights and spells on the middle process
+(`AIProcess::QueueEquipItem`, `itemstoEquipUnequip` +0x188) unless a menu is open, a save is loading or the process is
+above high; else `Character::EquipNow` (38001). `ActorEquipManager::EquipEntryQueued` (0x1406DC220: `PickUpObject`,
+`DropObject`, `StartCombat`, AI packages) always queues. `AIProcess::ApplyQueuedEquips` (0x140720D90, from
+`Job_Non_render_safe_AI`) drains the list through the public `EquipObject`/`UnequipObject` with `abQueueEquip` 0, so
+every queued equip passes our hook again when it lands: the owner reads its items then, no timer needed.

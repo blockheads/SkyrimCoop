@@ -32,19 +32,18 @@ def scenario_player_equipment_guest(ctx):
     ctx.equip_roundtrip("client", "player", "", ctx.other_player, "client's character", ready_weapon=True)
 
 def scenario_npc_equipment_lifecycle(ctx):
-    """A host NPC equips and removes a sword, then its copy recovers from an equipment drift."""
+    """A host NPC equips and removes a sword, then puts on a helmet its outfit lacks; its copy follows each change.
+    (A copy's drift by the engine's own reset: npc-torch-repairs-in-default-slot.)"""
     npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
     ctx.equip_roundtrip("", f"{npc:08X}", "client", lambda actors: copy if str(copy) in actors else None,
                         f"NPC copy {copy:08X}")
     def equipment(instance, form_id):
         _game = ctx.game(instance)
         return set((((_game.read_status() or {}).get("world") or {}).get(str(form_id)) or {}).get("equipment") or [])
-    owner = equipment("", npc)
-    if not owner:
-        raise ctx.failure("the host's NPC wears nothing: nothing to drift")
-    ctx.player_command("client", {"cmd": "strip", "actor": copy})
-    ctx.wait_for("[client] the copy's equipment drifted", lambda: equipment("client", copy) != owner, 5)
-    ctx.wait_for("[client] the copy wears the owner's equipment again", lambda: equipment("client", copy) == owner, 10)
+    ctx.console_on("", f"{npc:X}.additem 12E4D 1")
+    ctx.console_on("", f"{npc:X}.equipitem 12E4D")
+    ctx.wait_for("[host] the NPC wears the helmet", lambda: 0x12E4D in equipment("", npc), 10)
+    ctx.wait_for("[client] the copy wears what its owner wears", lambda: equipment("client", copy) == equipment("", npc), 10)
 
 def scenario_chest_take_all(ctx):
     """Both players use Take All: items reach the acting player and its copy.

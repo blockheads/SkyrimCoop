@@ -17,7 +17,6 @@
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/RequestRespawn.h>
-#include <Messages/RequestEquipmentChanges.h>
 #include <Messages/SendChatMessageRequest.h>
 #include <Messages/SetTimeCommandRequest.h>
 #include <Messages/PlayerLevelRequest.h>

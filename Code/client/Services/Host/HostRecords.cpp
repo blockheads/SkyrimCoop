@@ -77,7 +77,17 @@ void HostRecords::OnRecord(const RecordRequest& acRequest, ConnectionId_t aSende
     RecordPart& held = m_parts[acRequest.Id][acRequest.Part.Kind];
     if (acRequest.Part.Version <= held.Version)
         return;
-    held = acRequest.Part;
+    auto merged = MergedPart(held.Version ? &held : nullptr, acRequest.Part);
+    if (!merged)
+    {
+        // A change on top of a version the host lacks: its owner sends the whole part (R3); nothing goes out.
+        NotifyRecordAsk ask;
+        ask.Id = acRequest.Id;
+        ask.Kind = acRequest.Part.Kind;
+        m_players.SendTo(aSender, ask);
+        return;
+    }
+    held = {acRequest.Part.Kind, acRequest.Part.Version, std::move(*merged)};
     if (OnKept)
         OnKept(acRequest.Id, held);
     NotifyRecord notify;

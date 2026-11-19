@@ -130,20 +130,13 @@ void HostItems::OnContainerTransfer(const ContainerTransferRequest& acRequest, C
     RequestInventoryChanges change;
     change.SessionId = cPlayer;
     change.Item = moved;
-    // Gold and party stacks are the party's (party-purse.md, party-items.md); the guest's engine showed its own take.
+    // Gold and party stacks are the party's (party-purse.md, party-items.md). The rest: the looter's own game changes its
+    // player, whose items part goes to the others; the NPC's goes out as the host's own part (ItemsChangedEvent).
     if (!m_purse.Change(change, m_players.Host()) && !m_partyItems.Change(change, aSender))
     {
         NotifyInventoryChanges notify;
         notify.SessionId = cPlayer;
         notify.Item = moved;
-        m_players.SendToOthers(notify, m_players.Host());
-    }
-    if (acRequest.ContainerActorId)
-    {
-        NotifyInventoryChanges container;
-        container.SessionId = acRequest.ContainerActorId;
-        moved.Count = -moved.Count;
-        container.Item = std::move(moved);
-        m_players.SendToOthers(container, m_players.Host());
+        m_network.Send(aSender, notify);
     }
 }

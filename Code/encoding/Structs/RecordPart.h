@@ -3,6 +3,7 @@
 #include <Wire/Buffer.h>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -13,6 +14,7 @@ enum class RecordKind : uint8_t
     kActorState = 2, // ActorStatePart (ActorStateService)
     kFactions = 3,   // Factions (ActorStateService)
     kName = 4,       // its display name (ActorStateService)
+    kItems = 5,      // ItemsPart (InventoryService): a change carries only the stacks that changed
 };
 
 // One part of an actor's record as its owner last declared it: the owner's own counter and the part's bytes.
@@ -41,6 +43,11 @@ struct RecordParts
 
     std::vector<RecordPart> Parts;
 };
+
+// The part to hold once acChange arrives over apHeld: its bytes as they are, or for a kItems change of only some stacks,
+// apHeld's merged with it. None: that change cannot be merged (no part held, or one other than the version just before):
+// its owner is asked for the whole part (R3).
+[[nodiscard]] std::optional<std::string> MergedPart(const RecordPart* apHeld, const RecordPart& acChange) noexcept;
 
 // A part's struct as a part's bytes, and back (false: not that struct's bytes).
 template <class T> [[nodiscard]] std::string ToPartBytes(const T& acValue) noexcept

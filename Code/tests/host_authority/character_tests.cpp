@@ -1,5 +1,6 @@
 // HostCharacters: ids, owners, spawns, removal and respawn.
 #include "session.h"
+#include <Structs/ItemsPart.h>
 
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyPartyTravel.h>
@@ -644,15 +645,16 @@ TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joine
     Session session;
     const uint32_t cPeerPlayer = BothInQASmoke(session);
 
-    // The peer changed its equipment since it joined, then both go to Riverwood.
+    // The peer changed its equipment since it joined (its items part), then both go to Riverwood.
+    ItemsPart sword;
+    sword.Full = true;
+    sword.Items.Entries.push_back({.BaseId = GameId(0, 0x12EB7), .Count = 1, .ExtraWorn = true});
+    RecordRequest items;
+    items.Id = cPeerPlayer;
+    items.Part = {RecordKind::kItems, 1, ToPartBytes(sword)};
+    session.Receive(kPeer, items);
     session.Receive(kHost, Arrival(0x9732, 0x3C));
-    auto arrival = Arrival(0x9732, 0x3C);
-    Inventory::Entry sword;
-    sword.BaseId = GameId(0, 0x12EB7);
-    sword.Count = 1;
-    sword.ExtraWorn = true;
-    arrival.Data.InitialInventory.Entries.push_back(sword);
-    session.Receive(kPeer, arrival);
+    session.Receive(kPeer, Arrival(0x9732, 0x3C));
 
     // The host's copy of it was lost: the host's game asks for it again (RunPresence).
     RequestRespawn again;
@@ -660,7 +662,9 @@ TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joine
     session.Receive(kHost, again);
     const auto cToHost = session.SentTo<NotifyCharacterSpawn>(kHost);
     REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->InventoryContent == arrival.Data.InitialInventory);
+    const RecordPart* cpItems = cToHost[0]->Record.Find(RecordKind::kItems);
+    REQUIRE(cpItems);
+    CHECK(cpItems->Bytes == items.Part.Bytes);
 }
 
 TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared first", "[HostAuthority][Characters]")

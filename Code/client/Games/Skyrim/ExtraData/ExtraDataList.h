@@ -35,6 +35,8 @@ struct ExtraDataList
     // A player's name for the item (ExtraTextDisplayData, custom), as CommonLib's SetOverrideName; none over a quest's
     // or a message's name.
     void SetCustomName(const char* acpName, bool aOverQuest = false) noexcept;
+    // Who owns the item or reference (ExtraOwnership: an NPC or a faction), as ExtraDataList::SetOwnerForm (11609).
+    void SetOwner(TESForm* apOwner) noexcept;
 
     [[nodiscard]] bool HasQuestObjectAlias() noexcept;
 

@@ -29,10 +29,8 @@
 #include <Messages/NotifyRespawn.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
-#include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RelayedMessages.h>
-#include <Messages/RequestEquipmentChanges.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/NotifyRemoveWaypoint.h>

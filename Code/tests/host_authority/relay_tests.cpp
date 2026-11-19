@@ -1,21 +1,8 @@
 // HostAuthority's relays: who receives each request's notification.
 #include "session.h"
-
-TEST_CASE("Equipment snapshot: relayed from the owner only", "[HostAuthority][Inventory]")
-{
-    Session session;
-    const uint32_t cHostNpc = session.Character(kHost);
-
-    RequestEquipmentSnapshot snapshot;
-    snapshot.SessionId = cHostNpc;
-    session.Receive(kPeer, snapshot);
-    CHECK(session.SentTo<NotifyEquipmentSnapshot>(kOtherPeer).empty());
-
-    session.Receive(kHost, snapshot);
-    REQUIRE(session.SentTo<NotifyEquipmentSnapshot>(kPeer).size() == 1);
-    CHECK(session.SentTo<NotifyEquipmentSnapshot>(kPeer)[0]->SessionId == cHostNpc);
-    CHECK(session.SentTo<NotifyEquipmentSnapshot>(kHost).empty());
-}
+#include <Structs/ItemsPart.h>
+#include <Messages/NotifyInventoryChanges.h>
+#include <Messages/RequestInventoryChanges.h>
 
 TEST_CASE("Active effects: relayed from the owner only, to everyone else", "[HostAuthority][Magic]")
 {
@@ -138,48 +125,61 @@ TEST_CASE("World calls: a guest's script's quest stage goes to the host's game, 
     CHECK(session.SentTo<NotifyRoutedCall>(kPeer).empty());
 }
 
-TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[HostAuthority][Inventory]")
+TEST_CASE("An item change from a game that does not own the actor is dropped", "[HostAuthority][Inventory][items-part]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
+    ItemsPart sword;
+    sword.Full = true;
+    sword.Items.Entries.push_back({.BaseId = GameId(0, 0x12EB7), .Count = 1});
 
+    // A guest's engine changed the host NPC's copy (an event, or a part of it): nothing reaches anyone.
     RequestInventoryChanges change;
     change.SessionId = cHostNpc;
-    change.Item.BaseId = GameId(0, 0x12EB7);
-    change.Item.Count = 1;
-    change.Drop = true;
-    change.UpdateClients = true;
+    change.Item = sword.Items.Entries[0];
     session.Receive(kPeer, change);
-
-    const auto cToHost = session.SentTo<NotifyInventoryChanges>(kHost);
-    REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->SessionId == cHostNpc);
-    CHECK(cToHost[0]->Item.Count == 1);
-    CHECK_FALSE(cToHost[0]->Drop); // dropped items are not synced
-    CHECK(session.SentTo<NotifyInventoryChanges>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<NotifyInventoryChanges>(kPeer).empty());
-
-    change.UpdateClients = false;
-    session.Outbox.clear();
-    session.Receive(kPeer, change);
+    RecordRequest stolen;
+    stolen.Id = cHostNpc;
+    stolen.Part = {RecordKind::kItems, 1, ToPartBytes(sword)};
+    session.Receive(kPeer, stolen);
     CHECK(session.Outbox.empty());
+
+    // Its owner's part goes to every other game.
+    session.Receive(kHost, stolen);
+    CHECK(session.SentTo<NotifyRecord>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyRecord>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyRecord>(kHost).empty());
 }
 
-TEST_CASE("Equipment: a change reaches everyone else", "[HostAuthority][Inventory]")
+TEST_CASE("A host script's item change on a guest's character goes to that guest alone", "[HostAuthority][Inventory][items-part]")
 {
     Session session;
-    const uint32_t cActor = session.Character(kPeer);
+    const uint32_t cGuestCharacter = session.Character(kPeer);
+    RequestInventoryChanges taken; // a quest's hand-in takes the guest's claw on the host's copy
+    taken.SessionId = cGuestCharacter;
+    taken.Item = {.BaseId = GameId(0, 0x999E3), .Count = -1};
+    session.Receive(kHost, taken);
+    const auto cToOwner = session.SentTo<NotifyInventoryChanges>(kPeer);
+    REQUIRE(cToOwner.size() == 1);
+    CHECK(cToOwner[0]->Item.Count == -1);
+    CHECK(session.SentTo<NotifyInventoryChanges>(kOtherPeer).empty()); // the owner's part carries it on
+}
 
-    RequestEquipmentChanges change;
-    change.SessionId = cActor;
-    change.ItemId = GameId(0, 0x12EB7);
-    change.Count = 1;
-    session.Receive(kPeer, change);
-
-    REQUIRE(session.SentTo<NotifyEquipmentChanges>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifyEquipmentChanges>(kHost)[0]->ItemId == GameId(0, 0x12EB7));
-    CHECK(session.SentTo<NotifyEquipmentChanges>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<NotifyEquipmentChanges>(kPeer).empty());
+TEST_CASE("An items change the host cannot merge asks its owner for the whole part", "[HostAuthority][Inventory][items-part]")
+{
+    Session session;
+    const uint32_t cCharacter = session.Character(kPeer);
+    ItemsPart change; // only the stacks that changed, on top of a version the host never had
+    change.Items.Entries.push_back({.BaseId = GameId(0, 0xF), .Count = 3});
+    RecordRequest late;
+    late.Id = cCharacter;
+    late.Part = {RecordKind::kItems, 7, ToPartBytes(change)};
+    session.Receive(kPeer, late);
+    CHECK(session.SentTo<NotifyRecord>(kOtherPeer).empty());
+    const auto cAsked = session.SentTo<NotifyRecordAsk>(kPeer);
+    REQUIRE(cAsked.size() == 1);
+    CHECK(cAsked[0]->Id == cCharacter);
+    CHECK(cAsked[0]->Kind == RecordKind::kItems);
 }
 
 TEST_CASE("Values: the owner's reach everyone else, nobody else's do", "[HostAuthority][Values]")

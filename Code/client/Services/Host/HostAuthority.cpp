@@ -16,12 +16,10 @@
 #include <Messages/PlayerLevelRequest.h>
 #include <Messages/NotifyActivate.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
-#include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/NotifyPlayerLevel.h>
 #include <Messages/NotifyRemoveWaypoint.h>
 #include <Messages/NotifySetWaypoint.h>
-#include <Messages/RequestEquipmentChanges.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Messages/RequestSetWaypoint.h>
@@ -32,29 +30,6 @@
 namespace
 {
 // The relays that change what they pass on; the rest share a payload (Messages/Payloads.h).
-
-NotifyInventoryChanges ToNotify(const RequestInventoryChanges& acRequest)
-{
-    NotifyInventoryChanges notify;
-    notify.SessionId = acRequest.SessionId;
-    notify.Item = acRequest.Item;
-    notify.Drop = false; // Dropped items are not synced this way (upstream's experimental item drops).
-    return notify;
-}
-
-NotifyEquipmentChanges ToNotify(const RequestEquipmentChanges& acRequest)
-{
-    // Without the sender's whole equipment: copies get that from the owner's snapshots.
-    NotifyEquipmentChanges notify;
-    notify.SessionId = acRequest.SessionId;
-    notify.ItemId = acRequest.ItemId;
-    notify.EquipSlotId = acRequest.EquipSlotId;
-    notify.Count = acRequest.Count;
-    notify.Unequip = acRequest.Unequip;
-    notify.IsSpell = acRequest.IsSpell;
-    notify.IsShout = acRequest.IsShout;
-    return notify;
-}
 
 // Objects: without the cell (under the party tether every game has the host's cells loaded).
 NotifyActivate ToNotify(const ActivateRequest& acRequest)
@@ -148,8 +123,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
     // Inventory and hands
     On(*this, &HostAuthority::OnInventoryChanges);
-    Relay<RequestEquipmentChanges, NotifyEquipmentChanges>(FromAnyone); // like items: a peer can dress the host's follower
-    Relay<RequestEquipmentSnapshot, NotifyEquipmentSnapshot>(FromOwner, &RequestEquipmentSnapshot::SessionId);
     // The graph input stream: ops from each actor's owner; a copy's game asks the owner for a sync point.
     On(*this, &HostAuthority::OnGraphOps);
     Relay<GraphSyncRequest, NotifyGraphSync>(ToOwner, &GraphSyncRequest::Id);
@@ -288,10 +261,17 @@ bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSend
 
 void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept
 {
+    // An actor's items reach its copies as its owner's part (HostRecords, kItems); the party's gold and items here.
     if (m_purse.Change(acRequest, aSender) || m_partyItems.Change(acRequest, aSender))
         return;
-    if (acRequest.UpdateClients)
-        Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+    // The host's script changed another game's actor (a quest taking a guest's claw): its owner runs it, and its part follows.
+    if (aSender == m_players.Host() && acRequest.UpdateClients && m_characters.OwnerOf(acRequest.SessionId) != aSender)
+    {
+        NotifyInventoryChanges notify;
+        notify.SessionId = acRequest.SessionId;
+        notify.Item = acRequest.Item;
+        Deliver(notify, Delivery::ToOwner, acRequest.SessionId, aSender);
+    }
 }
 
 void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept

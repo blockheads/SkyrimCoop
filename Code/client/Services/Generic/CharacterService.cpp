@@ -45,6 +45,7 @@
 #include <Events/PlayerArrivedEvent.h>
 #include <Services/TravelService.h>
 #include <Services/CopyRecords.h>
+#include <Events/WornResetEvent.h>
 #include <Services/BodyService.h>
 #include <Services/EffectVisualsService.h>
 
@@ -1671,7 +1672,6 @@ bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpaw
         const auto cState = ReadLiveState(cFormId);
         aSpawn.Position = cState.Position;
         aSpawn.Rotation = cState.Rotation;
-        aSpawn.InventoryContent = cState.Data.InitialInventory;
         aSpawn.IsDead = cState.Data.IsDead;
         aSpawn.LatestAction = cState.LatestAction;
         aSpawn.GraphState = cState.GraphState;
@@ -1756,7 +1756,6 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
         if (cPool)
             actorData.InitialActorValues.ActorTemporaryValuesList[index] = m_actorBridge.GetActorTemporaryValue(aFormId, index);
     }
-    actorData.InitialInventory = m_actorBridge.GetActorInventory(aFormId);
     actorData.IsDead = m_actorBridge.IsActorDead(aFormId);
 
     return actorData;
@@ -1977,19 +1976,19 @@ void CharacterService::RunRemoteUpdates() noexcept
         if (!m_actorBridge.ActorHas3D(formIdComponent.Id))
             continue;
 
-        m_actorBridge.SetActorInventory(formIdComponent.Id, waitingFor3D.SpawnRequest.InventoryContent);
         m_actorBridge.ActorLoadAnimationVariables(formIdComponent.Id, waitingFor3D.SpawnRequest.LatestAction.Variables);
 
         const bool cIsDead = m_actorBridge.IsActorDead(formIdComponent.Id);
         if (cIsDead != waitingFor3D.SpawnRequest.IsDead)
             waitingFor3D.SpawnRequest.IsDead ? m_actorBridge.KillActor(formIdComponent.Id) : m_actorBridge.RespawnActor(formIdComponent.Id);
 
-        if (m_actorBridge.IsActorVampireLord(formIdComponent.Id))
-            m_actorBridge.ActorFixVampireLordModel(formIdComponent.Id);
-
         toRemove.push_back(entity);
         if (const auto* pCopy = m_world.try_get<RemoteComponent>(entity))
             SessionIdHere(pCopy->Id);
+
+        // After its owner's items (its record's part), as after the spawn's inventory before.
+        if (m_actorBridge.IsActorVampireLord(formIdComponent.Id))
+            m_actorBridge.ActorFixVampireLordModel(formIdComponent.Id);
 
         spdlog::info("Applied 3D for actor, form id: {:X}", formIdComponent.Id);
     }
@@ -2102,6 +2101,8 @@ void CharacterService::RunPresence() noexcept
         spdlog::info("Copy {:X} is not where its owner is (cell {:X}, worldspace {:X}): moved there", cFormId, place.CellId.BaseId,
                      place.WorldSpaceId.BaseId);
         MoveActor(cFormId, place.WorldSpaceId, place.CellId, position);
+        // The move rebuilds the copy's equipment and drops its hand spells (copy-hand-spells.md): it wears its part again.
+        m_world.GetRunner().Trigger(WornResetEvent{cFormId});
     }
 
     for (const auto& [cEntity, cSessionId] : gone)

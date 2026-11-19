@@ -29,18 +29,6 @@ void ActorPerks::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Content.Deserialize(aReader);
 }
 
-void EquipmentSnapshot::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, SessionId);
-    Equipment.Serialize(aWriter);
-}
-
-void EquipmentSnapshot::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    Equipment.Deserialize(aReader);
-}
-
 void ActorValueChanges::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Id);

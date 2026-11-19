@@ -1727,6 +1727,7 @@ TEST_CASE("Dropped items keep their extra data on the wire", "[encoding.items]")
     item.ExtraEnchantId = GameId(0, 0x4605A);
     item.ExtraEnchantCharge = 500;
     item.ExtraName = "Old Friend";
+    item.ExtraOwner = GameId(0, 0x1347B); // stolen from its owner
 
     DropItemRequest drop;
     drop.Tag = 0xFF000A31;
@@ -2439,4 +2440,20 @@ TEST_CASE("A passenger's boarding and getting off name the horse and the rider",
     cRoundTrip(UnboardRequest{}, RequestMessageFactory{});
     cRoundTrip(NotifyBoard{}, NotifyMessageFactory{});
     cRoundTrip(NotifyUnboard{}, NotifyMessageFactory{});
+}
+
+TEST_CASE("A record part longer than 64 KB round-trips whole", "[encoding][record-parts]")
+{
+    // A full items part of a large inventory (review of PR #83): WriteString's 16-bit length would cut it.
+    RecordPart part{RecordKind::kItems, 7, std::string(70000, '\x5A')};
+    part.Bytes[69999] = '\x01';
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    part.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    RecordPart read;
+    read.Deserialize(reader);
+    CHECK(read.Kind == RecordKind::kItems);
+    CHECK(read.Version == 7);
+    CHECK(read.Bytes == part.Bytes);
 }

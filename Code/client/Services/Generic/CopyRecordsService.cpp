@@ -13,6 +13,7 @@ CopyRecordsService::CopyRecordsService(World& aWorld, entt::dispatcher& aDispatc
     , m_transport(aTransport)
     , m_records(aRecords)
 {
+    m_records.AskWith([this](uint32_t aId, RecordKind aKind) { Ask(aId, aKind); });
     m_records.SendWith([this](uint32_t aId, const RecordPart& acPart) {
         if (!m_transport.IsConnected())
             return;
@@ -31,6 +32,7 @@ CopyRecordsService::CopyRecordsService(World& aWorld, entt::dispatcher& aDispatc
 CopyRecordsService::~CopyRecordsService() noexcept
 {
     m_records.SendWith({});
+    m_records.AskWith({});
 }
 
 void CopyRecordsService::Ask(uint32_t aId, RecordKind aKind) const noexcept

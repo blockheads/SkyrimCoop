@@ -6,7 +6,6 @@
 
 namespace Payloads
 {
-struct EquipmentSnapshot;
 struct GraphOpsBatch;
 struct GraphSync;
 struct GraphSyncPoint;
@@ -49,8 +48,6 @@ struct DialogueSkip;
 
 template <class TPayload, auto cOpcode> struct Relayed;
 
-using RequestEquipmentSnapshot = Relayed<Payloads::EquipmentSnapshot, kRequestEquipmentSnapshot>;
-using NotifyEquipmentSnapshot = Relayed<Payloads::EquipmentSnapshot, kNotifyEquipmentSnapshot>;
 using RequestActorValueChanges = Relayed<Payloads::ActorValueChanges, kRequestActorValueChanges>;
 using NotifyActorValueChanges = Relayed<Payloads::ActorValueChanges, kNotifyActorValueChanges>;
 using RequestActorMaxValueChanges = Relayed<Payloads::ActorMaxValueChanges, kRequestActorMaxValueChanges>;
