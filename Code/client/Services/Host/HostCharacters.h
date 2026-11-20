@@ -58,6 +58,9 @@ struct HostCharacters
     [[nodiscard]] std::optional<NotifyPartyTravel> CharacterPlace(uint32_t aSessionId) const noexcept;
     // Every character but aPlayer's own (aOwnSessionId), as it is now.
     void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) noexcept;
+    // One of the host's NPCs is aTo's game's from now (a claimed pair's partner: HostPairs), or the host's again.
+    // False for a player's character or none.
+    bool Lend(uint32_t aSessionId, ConnectionId_t aTo) noexcept;
     // Its characters leave with it.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 

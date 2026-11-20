@@ -2423,6 +2423,34 @@ TEST_CASE("A refused ride names the horse and the rider", "[encoding.travel]")
     CHECK(*CastUnique<NotifyMountRefused>(std::move(message)) == refused);
 }
 
+TEST_CASE("A pair's claim, refusal and end name both actors, the reason, the tick and the kill", "[encoding.pair]")
+{
+    PairDoneRequest done;
+    done.ActorId = 8;
+    done.PartnerId = 9;
+    done.Tick = 123456789;
+    done.Killed = true;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    done.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto message = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(message);
+    CHECK(*CastUnique<PairDoneRequest>(std::move(message)) == done);
+
+    NotifyPairRefused refused;
+    refused.ActorId = 8;
+    refused.PartnerId = 9;
+    refused.Reason = Payloads::Pair::kCannotPair;
+    Buffer buffer2;
+    Buffer::Writer writer2(&buffer2);
+    refused.Serialize(writer2);
+    Buffer::Reader reader2(std::span(buffer2.GetData(), writer2.Size()));
+    auto notify = NotifyMessageFactory{}.Extract(reader2);
+    REQUIRE(notify);
+    CHECK(*CastUnique<NotifyPairRefused>(std::move(notify)) == refused);
+}
+
 TEST_CASE("A passenger's boarding and getting off name the horse and the rider", "[encoding.travel]")
 {
     const auto cRoundTrip = [](auto aMessage, auto aFactory) {

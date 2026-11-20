@@ -58,34 +58,3 @@ SCENARIO("A guest's fire bolt flies on the host's game", "[combat]")
         "the host's copy of the guest launches the same bolt from the same place");
     THEN("the guest's own bolt is not sent back to it") CHECK(guest.Shots.size() == 1);
 }
-
-SCENARIO("A guest's kill move on a host NPC with its AI off: the host plays no pair, and the guest's blow kills it",
-         "[combat][kill-move]")
-{
-    // Skyrim (duo, frozen-wolf-kill-move, 2026-11-18): the host's own pick refuses a pair on a wolf whose graph does not
-    // run (kProcessMe clear); forced from the guest's replay, the pair never ended and every later hit was refused.
-    Party party(1, SmokeWorld);
-    FakeEngine& host = Party::Engine(party.Host());
-    FakeEngine& guest = Party::Engine(party.Guest());
-    uint32_t guard = 0;
-    party.As(party.Host(), [&] {
-        guard = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f});
-        host.Actors.at(guard).ProcessMe = false;
-    });
-    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1 && PlayerCopy(host) != 0; }, "each game has the other's actors");
-    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
-
-    ActionEvent kill;
-    kill.ActionId = 0x13005;
-    kill.EventName = "pa_KillMoveI";
-    kill.TargetEventName = "KillMoveI";
-    kill.TargetId = cCopy;
-    party.As(party.Guest(), [&] { REQUIRE(guest.PerformAnimation(FakeEngine::kPlayer, kill)); });
-    party.Until([&] { return host.GetActorLatestAnimation(PlayerCopy(host)).EventName == "pa_KillMoveI"; },
-                "the host's copy of the guest has the kill move");
-    // In a kill move the NPC would refuse every forwarded hit (IsHeldByKillMove), its graph never ending the pair.
-    CHECK_FALSE(host.Actors.at(guard).InKillMove);
-
-    party.As(party.Guest(), [&] { guest.Strikes(FakeEngine::kPlayer, cCopy, host.GetActorValue(guard, FakeEngine::kHealth)); });
-    party.Until([&] { return host.IsActorDead(guard); }, "the host's NPC dies of the guest's blow");
-}

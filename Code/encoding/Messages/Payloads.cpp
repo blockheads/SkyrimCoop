@@ -309,6 +309,24 @@ void Mount::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     MountId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
+void Pair::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ActorId);
+    Serialization::WriteVarInt(aWriter, PartnerId);
+    Serialization::WriteVarInt(aWriter, Reason);
+    Serialization::WriteVarInt(aWriter, Tick);
+    Serialization::WriteBool(aWriter, Killed);
+}
+
+void Pair::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    PartnerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Reason = uint8_t(Serialization::ReadVarInt(aReader));
+    Tick = Serialization::ReadVarInt(aReader);
+    Killed = Serialization::ReadBool(aReader);
+}
+
 void Record::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Id);

@@ -24,6 +24,7 @@ struct PlayerName;
 struct ActorName;
 struct Mount;
 struct Dismount;
+struct Pair;
 struct Record;
 struct RecordAsk;
 struct Dialogue;
@@ -81,6 +82,15 @@ using UnboardRequest = Relayed<Payloads::Mount, kUnboardRequest>;
 using NotifyUnboard = Relayed<Payloads::Mount, kNotifyUnboard>;
 using DismountRequest = Relayed<Payloads::Dismount, kDismountRequest>;
 using NotifyDismount = Relayed<Payloads::Dismount, kNotifyDismount>;
+// A game's own actor started a pair (a kill move) with an actor it does not own; NotifyPairClaim: the host's first
+// claim on either actor holds, an NPC partner the claimer's for the pair; NotifyPairRefused: the claimer ends its pair
+// (one-simulator.md piece 4b, docs/re/systems/kill-moves.md).
+using PairClaimRequest = Relayed<Payloads::Pair, kPairClaimRequest>;
+using NotifyPairClaim = Relayed<Payloads::Pair, kNotifyPairClaim>;
+using NotifyPairRefused = Relayed<Payloads::Pair, kNotifyPairRefused>;
+// The claimed pair ended on the claimer's game; NotifyPairDone: an NPC partner is the host's again.
+using PairDoneRequest = Relayed<Payloads::Pair, kPairDoneRequest>;
+using NotifyPairDone = Relayed<Payloads::Pair, kNotifyPairDone>;
 // A part of an actor's record from its owner; NotifyRecord: every other game's CopyRecords takes it.
 using RecordRequest = Relayed<Payloads::Record, kRecordRequest>;
 using NotifyRecord = Relayed<Payloads::Record, kNotifyRecord>;

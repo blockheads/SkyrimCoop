@@ -103,6 +103,11 @@ public:
     void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override;
     void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
     void CopyLeaveKillMove(uint32_t aFormId) noexcept override;
+    void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept override;
+    void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
+    void ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept override;
+    bool ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept override;
+    [[nodiscard]] bool ActorCanPair(uint32_t aFormId) const noexcept override;
     bool IsActorTemporary(uint32_t aFormId) const noexcept override;
     bool IsActorMount(uint32_t aFormId) const noexcept override;
     bool IsActorDragon(uint32_t aFormId) const noexcept override;

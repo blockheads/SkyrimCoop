@@ -3,7 +3,86 @@
 Reviewed and reproduced 2026-11-04 on 1.7.104. Scenarios `kill-move-runs-full-length`, `kill-moves-cross`; GameTests
 `[kill-move]`, ClientTests `[replay-state]`.
 
-## The path
+## Claimed pairs (one-simulator.md piece 4b, 2026-11-20)
+
+One game runs a pair. A kill move a game's own actor starts on an actor it does not own is claimed through the host
+(`HostPairs`, `PairService`); the pair plays on meanwhile.
+
+```
+claimer's game                         host                          other games
+its actor's pa_Kill... accepted
+(38949: StartPair 32803 began it)
+  PairClaimRequest{actor, partner, --> first claim on either actor holds
+    the action's tick}                 NPC partner: its owner = claimer
+                                       NotifyPairClaim ------------> the host's game: its NPC is a copy
+claimer: the NPC is its own (TakeOwnership),                         every non-claimer game plays the pair itself:
+  the copy's scripted deferred kill kept                             an instance between its two copies (the NPC's
+its clip's KillActor (42838): only counted (37896),                  copy has no stream: below)
+  its pose held; graph ops sent                                      a player partner's game: plays its half
+  PairDoneRequest{tick, killed}    --> NPC: the host's again          from the replay, as before
+                                       NotifyPairDone -------------> the host's game: once its own copy's clip sent
+                                                                     KillActor (or 1.5 s), TakeOwnership, the hold
+                                                                     ended, KillImpl with the claim's actor
+refused (NotifyPairRefused, to every game): the claimer ends its pair (the yield below);
+  crossed (either actor in a claimed pair): its blow dropped
+  the partner cannot pair (dead, kProcessMe clear): the same action again with no target (42350's second try)
+  every other game never plays that pair's replay
+a claimed pair's forwarded blow on the victim's game: held; dropped once the pair plays there, a plain hit if it ends first
+```
+
+- **Read in IDA (2026-11-20).**
+  - `KillActorHandler` 42838 kills through `Actor::QueueKill` 37316 with the pair's other participant as killer, after
+    ending a non-scripted deferred kill only. So the killer of a claimed pair is the claim's own actor: the done
+    message carries only "killed", and the host names the killer.
+  - Every engine caller of `Actor::EndDeferredKill` 38618 passes scripted 0 (`Set3D`, `MoveToLow`, `MoveToMiddleLow`,
+    `Revert`, 37947, 37972, 42838, `FlightLandEndHandler`, 42907, `Actor::SetGettingOnOffMount` 37462: a rider's non-scripted hold through a get-on); only Papyrus passes 1, and 40036
+    acts only on a matching flag. So a copy's scripted hold (`UpdateCopyAI`) outlives the copy: `TakeOwnership` now
+    ends it (`Actor::HoldKill`), and a lend for a pair keeps it on purpose. Inferred, not read: the hold goes with
+    the middle-high process data when that is dropped.
+  - `KillImpl` 37896, after the deferred-kill test: `IsDead` (vfunc 0x99) returns at once. So the kill 40036 queues
+    for `g_thePlayer` as the hold ends finds the actor dead when `KillImpl` ran with the real killer in the same frame
+    (`Actor::KillBy`).
+  - 38949: `started = StartPair(32803) && the graph event sent`; our hook sends only accepted actions, so an accepted
+    action with a target event is a pair begun. (32803 also returns 1 for two actors already in one instance, but the
+    selection checks 39002 refuse an unforced action of an actor in an instance first.)
+  - **The engine's fallback for a refused pair** is in the player's controls, not the idle tree:
+    `PlayerControls` 42350 (from `AttackBlockHandler` 42435, action 45) performs the action with the swing target
+    (`Func5` 41557); refused with a target, it clears the event names and the target (`BGSActionData_SetTarget` null)
+    and performs it again in the same call: the tree then picks a plain swing. `coop_PickIdleForAction` (from 37147)
+    makes one pick per perform, no retry. `Actor::PerformPlainly` is that second try.
+- **Why the kill rides the done message, not a forwarded hit** (the plan's first idea): a hit on a lent NPC is applied
+  on the claimer (`HitRules`: its own actor), and the host's game drops hits on a copy until it took the NPC back.
+- **A replay with a partner that is this game's player** waits for the host's answer (`PairClaims`, by the action's
+  tick): claimed, it plays, and a player in its own kill move yields to it; refused, it is never played.
+- **Learned on the duo (2026-11-20), each now a GameTests flow that failed first:**
+  - *The lent NPC's copy has nothing to replay.* On the claimer the NPC was still a copy when 32803 played its half
+    (held off its stream, `HookSendEvent`), so its half never went out as an action; owned now and in an instance, it
+    gives no sync point (`GraphStreams::HoldPointsWhile`). The host's copy showed nothing and its `KillActor` never
+    came (`client-kill-move`: "[host] wolf's graph sends KillActor" timed out). So a non-claimer game pairs the two
+    copies itself (`ReplayState::LentPartner`, `PairsHere`, `ReplayStep::PairHere`), as the host's game did with its
+    own NPC before.
+  - *Our hook refused that pair.* 32803 plays the partner's half through `Func5` (41557) -> 38949; `HookPerformAction`
+    refused every copy's own action but the local player's partner's half, and 32803 then fails (`v12`): "Copy refused
+    replayed action 'pa_KillMove1HMWolfA'". A copy's half of a pair replayed here is taken and never sent
+    (`ReplayState::CopyTakesAction`; inside `ForceAction`, 38953 is not hooked, so only that half reaches 38949).
+  - *The plain swing bypassed our hook.* `ActorMediator::PerformAction` calls the trampoline: the swing was not sent and
+    the yield's blow guard (`ClashUntil`) dropped its blow ("14's blow on FF00080D dropped"). `PerformPlainly` enters
+    38949 at its own address, as 42350's `Func5` does. Then (`frozen-wolf-kill-move`, 3 of 3): refused `kCannotPair`,
+    the yield, `attackStart` taken, its blow forwarded about 430 ms later, the wolf dead.
+  - *A short winner's blow came first* (bugs.md's entry, now closed): the guest's refusal at 04.451, the host's
+    `ShortD` hit applied at 04.812 as a plain death, the host's pair reaching the guest at 04.895 behind the yield's wait.
+    The claim reaches the victim's game ahead of the blow on the same ordered channel, so the blow is held
+    (`ActorValueService::RunHeldBlows`, `PairClaims::Holds`): a kill move's blow is never applied on its victim
+    (`SkyrimBridge::DamageActorHealth` refuses it once the kill move holds it); applied only if the pair ended
+    without ever playing there. A claim that ended makes a late replay of it skip (`PairClaims::Done`).
+  - `StartDeferredKill` 40033 (read): one hold per actor, its scripted flag OR'd, so `EnterKillMove`'s non-scripted
+    start never clears the lent NPC's scripted hold: its clip's `KillActor` only counts.
+- Not built into this: mounts keep their own messages (`MountRequest`), sharing the hand-back's wait and the take-over
+  (`CharacterService::QueueTakeOver`).
+- Not measured yet: what a host NPC shows when it becomes a copy mid-swing (the scenarios' wolves are restrained or
+  frozen). Seen, not read: a frozen wolf (AI off) at -24 health after two plain hits, not dead.
+
+## The path (before claims: what each game did, kept for the player-victim half)
 
 ```
 attacker's game                            victim's game
@@ -111,9 +190,8 @@ for 10 s. `HeldByPair` keeps a copy in a pair from taking a plain action, checke
 (`PlayReplayedAction`): one staged before the pair began gets there too.
 
 **3. Two players on each other.** Each started a pair on its own game, then each game replayed the other's onto the same
-two actors. By 32803 that is "the same pair": both clips ended and a player dropped with a plain death. Now the first swing
-wins (`SettlePairedReplay`). Both games hold the same two ticks, a tie going to the lower session id, so they agree with no
-message: the winner's game skips the later pair; the loser's game yields, then plays the winner's pair as its victim.
+two actors. By 32803 that is "the same pair": both clips ended and a player dropped with a plain death. Now the host's first claim wins (`HostPairs`; until 2026-11-20 both games compared the two swings' ticks): the loser's
+claim is refused and its game yields, then plays the winner's pair as its victim (`SettlePairedReplay`).
 
 Yielding has to stop a playing pair, which took four things, each measured:
 
@@ -128,8 +206,6 @@ Yielding has to stop a playing pair, which took four things, each measured:
   `HookDamageActor`) until its player starts a new attack (`StartsAttack`).
 - The loser's own kill cam ends at the yield (`VATS::End`, `SetMode` 44282). Left running, its end at 1.24 s cut the winner's
   `KillMoveI` clip short, 2 of 2 rounds, and nobody died. Why only that clip was not settled: the graph path was not reversed.
-
-`ActorExtension::LatestPairAction` keeps the pair: `LatestAnimation` is overwritten by the next `moveStop`.
 
 **4. The victim's game refused the pair.** 32792's sweep runs on each game's own positions, so it could fail on the victim's
 after passing on the attacker's: the attacker's kill move ran 5 s alone and the victim fell to the plain forwarded blow at
@@ -219,9 +295,9 @@ host:  the guest's copy replays pa_KillMove... with the host's own NPC as partne
   `pa_KillMove1HMWolfB`; the player swung normally), while the replayed pair on another frozen wolf was taken. What
   refused the wolf's half in the first case is not read.
 - Measured: an unfrozen wolf under the same blow: the pair ran and the wolf died.
-- So the fix rests on the part read: a pair whose partner's graph does not run can never reach `KillMoveEnd`. A replayed
-  pair with a local partner without `kProcessMe` is not played (`ReplayState::SettlePairedReplay`, `PartnerAnimates`): the
-  guest's forwarded blow then kills it as a plain hit.
+- So the fix rests on the part read: a pair whose partner's graph does not run can never reach `KillMoveEnd`. The host
+  refuses the claim on an NPC without `kProcessMe` (`HostGame::CanPair`, `kCannotPair`; until 2026-11-20 the host's game
+  skipped the replay, `PartnerAnimates`): no game plays the pair on it, and the guest swings plainly.
 
 ## The `host-kill-move` timeout
 

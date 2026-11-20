@@ -11,6 +11,7 @@
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostFollowers.h>
 #include <Services/Host/HostHands.h>
+#include <Services/Host/HostPairs.h>
 #include <Services/Host/HostItems.h>
 #include <Services/Host/HostPhysics.h>
 #include <Services/Host/HostPlayerNatives.h>
@@ -188,6 +189,7 @@ private:
     HostDialogue m_dialogue;
     HostPlayerNatives m_playerNatives;
     HostRecords m_records;
+    HostPairs m_pairs;
     HostStory m_story;
     HostDeath m_death;
     HostFollowers m_followers;

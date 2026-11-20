@@ -49,7 +49,6 @@ every other section needs the duo.
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
-- [Crossed kill moves: a short winner's blow lands first](#crossed-kill-moves-a-short-winners-blow-lands-first): small
 - [After a kill move the guest's own body floats](#after-a-kill-move-the-guests-own-body-floats): small
 - [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
@@ -390,25 +389,6 @@ Size: small. Needs: duo, IDA (the copy's step, `StepCopy` under 37356).
   (`movement.py` `frame_speeds`), so a 25 ms frame of either game shows a move half again as long. Runs with other
   load on the machine had 100-200 such frames of 600 and failed most often. The trace stamps each frame (`t`, in the
   plugin): judging only frames whose neighbours ran evenly drops those and leaves the shape above.
-
-### Crossed kill moves: a short winner's blow lands first
-
-`kill-moves-cross` fails its end comparison when the first swing is `pa_KillMoveShortD` and the loser's clip does not
-leave at once (2026-11-09, 1 run in 2 with the graph input stream's phase 3, whose off-stream action timing is dev's;
-dev passed its one such draw in 6 runs).
-
-Agent task: make the winner's pair start on the loser's game before the winner's hit can kill there.
-
-Size: small. Needs: duo, then GameTests (`friendly_fire_flows.cpp`, the crossing flows).
-
-- **Measured** (trace `20261109-231028-kill-moves-cross`): host swings at 117 ms, guest at 153 (`pa_KillMoveI`). The
-  guest yields at 219, but its own clip goes on (`KillMoveStart` 235, `KillMoveEnd` 374: `pa_KillMoveI` sits behind an
-  uninterruptible transition, kill-moves.md). The host's `HitFrame` comes at 501 and its forwarded hit kills the
-  guest's player at 545, a plain death. The host's pair is tried on the guest at 605 and refused; the copy's last
-  action stays `moveStart`.
-- The stops are resent for 30 of the copy's updates while the player's `IsInKillMove` or `bIsSynced` holds
-  (`AnimationSystem::Update`, `ReplayState::ResendPairStop`): 500 ms, longer than the short move's 384 ms to its hit.
-  Not read: which of the two still held after `KillMoveEnd`.
 
 ### After a kill move the guest's own body floats
 

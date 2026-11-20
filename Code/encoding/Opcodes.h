@@ -77,7 +77,9 @@
     X(BoardRequest)                 \
     X(UnboardRequest)               \
     X(RecordRequest)                \
-    X(RecordAskRequest)
+    X(RecordAskRequest) \
+    X(PairClaimRequest) \
+    X(PairDoneRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -162,7 +164,10 @@
     X(NotifyBoard)                 \
     X(NotifyUnboard)               \
     X(NotifyRecord)                \
-    X(NotifyRecordAsk)
+    X(NotifyRecordAsk) \
+    X(NotifyPairClaim) \
+    X(NotifyPairRefused) \
+    X(NotifyPairDone)
 
 #define COOP_OPCODE(aName) k##aName,
 

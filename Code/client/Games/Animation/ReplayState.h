@@ -27,9 +27,12 @@ constexpr bool TakesOwnerBodies(bool aLiesInRagdoll, bool aInKillMove) noexcept
 // too (no instance here, 32803: each replays its own stream, its clip's wait at the mark its owner's pick), a kill
 // move's or a mount's alike (an action writes nothing a mount's beside the graph, 39004). Its partner this game's own
 // actor, or not here: the instance is on this game or there is none to follow, and its half is its own body's.
-constexpr bool PairOnStream(bool aPartnerIsCopy) noexcept
+// A claimed pair's NPC partner (aPartnerLent) has no stream to replay: its new owner gives no sync point inside the
+// instance, and its half never went out as an action (it was a copy then). The pair plays here, as with this game's
+// own actor.
+constexpr bool PairOnStream(bool aPartnerIsCopy, bool aPartnerLent = false) noexcept
 {
-    return aPartnerIsCopy;
+    return aPartnerIsCopy && !aPartnerLent;
 }
 
 // Playing a "pa_Kill..." action puts its actor and its target in a kill move (39004: EnterKillMove 38613 on each);
@@ -63,9 +66,9 @@ constexpr bool SeatsAtHoldEnd(uint8_t aSitState, bool aMountIsCopy, bool aHeld) 
     return aSitState == kSitGettingOn && !aMountIsCopy && !aHeld;
 }
 
-// A mount handed to this game is taken once its copy has run every op of its last owner's through the hand-back's
-// tick: its exit pair's PairEnd among them (only the instance sends it, 32797). Off its stream, or tick 0 (its owner
-// left, or recorded nothing): at once. docs/re/systems/mounts.md
+// An actor handed to this game (a mount, a claimed pair's partner) is taken once its copy has run every op of its
+// last owner's through the hand-back's tick: its pair's PairEnd among them (only the instance sends it, 32797). Off
+// its stream, or tick 0 (its owner left, or recorded nothing): at once. docs/re/systems/mounts.md
 constexpr bool TakesOverMount(uint64_t aTick, bool aOnStream, uint64_t aDoneThrough) noexcept
 {
     return !aTick || !aOnStream || aDoneThrough >= aTick;
@@ -143,39 +146,72 @@ constexpr bool PoseHeld(uint64_t aNow, uint64_t aHeldUntil, bool aDead) noexcept
     return !aDead && aNow < aHeldUntil;
 }
 
+// A kill move on an actor of another game is claimed through the host (HostPairs; one-simulator.md piece 4b): what a
+// game knows of the claim of the pair a copy replays.
+enum class PairClaim
+{
+    kNotNeeded, // no kill move: a mount's pair, a pair's other half
+    kUnknown,   // the host's answer is still on its way
+    kClaimed,
+    kRefused,
+};
+
 enum class PairOutcome
 {
     kPlay,  // the partner here is free
-    kSkip,  // the pair's other half came back, the partner is paired elsewhere or its graph does not run, or this game's pair swung first
-    kYield, // crossed, and the replayed pair swung first: this game ends its own pair, then plays that one
+    kSkip,  // refused by the host, or the partner is in a pair already (this pair's other half came back)
+    kYield, // the host gave the replayed pair the claim over this game's own: it ends its own pair, then plays that one
+    kWait,  // the host has not answered yet: the action stays first
 };
 
-struct PairedReplay
+// A replayed pair whose partner is this game's own player. The engine takes a pair on two actors already paired as the
+// same pair and ends both clips at once (32803), so two crossed kill moves need one answer: the host's first claim.
+constexpr PairOutcome SettlePairedReplay(bool aPartnerInKillMove, PairClaim aClaim) noexcept
 {
-    std::string_view EventName;  // the replayed action's
-    uint32_t CopyId;             // the copy replaying it
-    bool PartnerInKillMove;      // its partner, this game's own actor
-    std::string_view PairEvent;  // the partner's pair: its target's event
-    uint32_t PairTargetId;       // and its target
-    uint64_t Tick, PairTick;     // when each pair was swung, on the session's clock
-    uint32_t Session, PairSession; // each attacker's session id: same tick, the lower wins
-    bool PartnerAnimates = true;   // its graph runs (kProcessMe, the graph job's gate 41466)
-};
-
-// The engine takes a pair on two actors already paired as the same pair and ends both clips at once (32803). Both games
-// see the same ticks, so they agree who swung first with no message (docs/re/systems/kill-moves.md).
-constexpr PairOutcome SettlePairedReplay(const PairedReplay& acReplay) noexcept
-{
-    // Its graph would never reach KillMoveEnd (38614): the pair would hold it (kill-moves.md, "A partner whose graph stops").
-    if (!acReplay.PartnerAnimates)
+    if (aClaim == PairClaim::kRefused)
         return PairOutcome::kSkip;
-    if (!acReplay.PartnerInKillMove)
+    if (aClaim == PairClaim::kUnknown)
+        return PairOutcome::kWait;
+    if (!aPartnerInKillMove)
         return PairOutcome::kPlay;
-    if (acReplay.PairEvent == acReplay.EventName || acReplay.PairTargetId != acReplay.CopyId)
-        return PairOutcome::kSkip;
-    const bool cReplayedFirst = acReplay.Tick != acReplay.PairTick ? acReplay.Tick < acReplay.PairTick : acReplay.Session < acReplay.PairSession;
-    return cReplayedFirst ? PairOutcome::kYield : PairOutcome::kSkip;
+    return aClaim == PairClaim::kClaimed ? PairOutcome::kYield : PairOutcome::kSkip;
 }
+
+// A kill move replayed on an NPC this game owns is never paired here: its claim makes the NPC the claimer's game's
+// for the pair (a copy here, both on their streams), or is refused and ended there (kill-moves.md).
+constexpr bool ClaimedAway(bool aKillMove, bool aPartnerIsCopy, bool aPartnerIsPlayer) noexcept
+{
+    return aKillMove && !aPartnerIsCopy && !aPartnerIsPlayer;
+}
+
+// A claimed kill move's NPC partner, a copy here: lent to the claimer's game (HostPairs).
+constexpr bool LentPartner(bool aKillMove, PairClaim aClaim, bool aPartnerIsCopy, bool aPartnerIsPlayer) noexcept
+{
+    return aKillMove && aClaim == PairClaim::kClaimed && aPartnerIsCopy && !aPartnerIsPlayer;
+}
+
+// A copy's own action is refused (its owner's game plays it) but for: one we force, its half of the local player's
+// pair, or its half of a pair this game replays between two copies (a lent NPC's: 32803 plays it through Func5 41557,
+// and refused, the pair fails). Those two are taken and never sent.
+constexpr bool CopyTakesAction(bool aForced, bool aPlayersPartner, bool aReplayedPairHalf) noexcept
+{
+    return aForced || aPlayersPartner || aReplayedPairHalf;
+}
+
+// A replayed pair makes an instance here (32803, its target's half played by it) with a partner of this game's own
+// that takes it, or a lent one: no mount (its owner played its half), no NPC claimed away.
+constexpr bool PairsHere(bool aPartnerIsCopy, bool aPartnerIsMount, bool aPartnerIsPlayer, bool aKillMove, bool aPartnerLent = false) noexcept
+{
+    return (!aPartnerIsCopy || aPartnerLent) && !aPartnerIsMount && !ClaimedAway(aKillMove, aPartnerIsCopy, aPartnerIsPlayer);
+}
+
+// A claimed pair is done on its claimer's game: a lent partner's clip killed it, or it left the pair; a player
+// partner's once the claimer's own actor left its kill move.
+constexpr bool PairDone(bool aLent, bool aKilled, bool aPartnerPaired, bool aActorPaired) noexcept
+{
+    return aLent ? aKilled || !aPartnerPaired : !aActorPaired;
+}
+
 // An accepted action carries its owner's whole graph state for a copy that refuses it (ReplayGraph::Recover). A pair's
 // halves never do. A streamed owner's copies take no actions, but while they are on their own bodies (aOwnBody: the
 // owner's own CopyOwnBody, its copies' follows it): then they play its actions (graph-input-stream.md, Cost measured).

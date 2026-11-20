@@ -1054,21 +1054,26 @@ TEST_CASE("A guest's kill move takes a streamed copy off its stream until the pa
 TEST_CASE("A copy in a kill move keeps its own ragdoll in the world, whatever its owner's layer", "[animation][kill-move][copy-ragdoll]")
 {
     // Its owner's layer 0 took the ragdoll AddRagdollToWorld (42873) put in (36924): physics.md, "A kill move's
-    // victim copy keeps its ragdoll" (kill-move-kills-guest, 2026-11-18).
-    WolfTurn wolf;
+    // victim copy keeps its ragdoll" (kill-move-kills-guest, 2026-11-18). A player victim: an NPC is its attacker's
+    // game's own for the pair (pair_claim_flows.cpp).
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
+    const uint32_t cVictim = PlayerCopy(host);
     ActionEvent kill;
     kill.ActionId = 0x13005;
     kill.EventName = "pa_KillMoveI";
     kill.TargetEventName = "KillMoveI";
-    kill.TargetId = wolf.copy;
+    kill.TargetId = cVictim;
     bool started = false;
-    wolf.party.As(wolf.party.Guest(), [&] { started = wolf.guest.PerformAnimation(FakeEngine::kPlayer, kill); });
+    party.As(party.Host(), [&] { started = host.PerformAnimation(FakeEngine::kPlayer, kill); });
     REQUIRE(started);
-    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    const auto& cCopy = host.Actors.at(cVictim);
     REQUIRE(cCopy.BodiesLayer == FakeEngine::kBipedLayer);
-    REQUIRE(wolf.host.Actors.at(wolf.wolf).BodiesLayer == 0);
+    guest.Actors.at(FakeEngine::kPlayer).BodiesLayer = 0;
     const uint32_t cMovements = cCopy.Movements;
-    wolf.party.Until([&] { return cCopy.Movements > cMovements + 3; }, "its owner's movement keeps coming during the clip");
+    party.Until([&] { return cCopy.Movements > cMovements + 3; }, "its owner's movement keeps coming during the clip");
     CHECK(cCopy.BodiesLayer == FakeEngine::kBipedLayer);
 }
 

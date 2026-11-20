@@ -1815,6 +1815,42 @@ void SkyrimBridge::CopyLeaveKillMove(uint32_t aFormId) noexcept
     pActor->EndKillMove();
 }
 
+void SkyrimBridge::ActorHoldKill(uint32_t aFormId, bool aHold) noexcept
+{
+    Breadcrumbs::Record("ActorHoldKill", aFormId, static_cast<uint32_t>(aHold));
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->HoldKill(aHold);
+}
+
+void SkyrimBridge::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
+{
+    Breadcrumbs::Record("KillActorBy", aFormId, aKillerFormId);
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->KillBy(aKillerFormId ? GetActor(aKillerFormId) : nullptr);
+}
+
+void SkyrimBridge::ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept
+{
+    Breadcrumbs::Record("ActorYieldPair", aOwnFormId, aCopyFormId);
+    Actor* pOwn = GetActor(aOwnFormId);
+    Actor* pCopy = GetActor(aCopyFormId);
+    if (pOwn && pCopy)
+        AnimationSystem::YieldPair(World::Get(), pCopy, pOwn);
+}
+
+bool SkyrimBridge::ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept
+{
+    Breadcrumbs::Record("ActorPerformPlainly", aFormId, aActionId);
+    Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->PerformPlainly(Cast<BGSAction>(TESForm::GetById(aActionId)));
+}
+
+bool SkyrimBridge::ActorCanPair(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && !pActor->IsDead() && (pActor->flags1 & Actor::kProcessMe) != 0;
+}
+
 void SkyrimBridge::SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept
 {
     Actor* pActor = GetActor(aFormId);

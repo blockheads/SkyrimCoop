@@ -1,23 +1,52 @@
 #include <catch2/catch.hpp>
 #include <Games/Animation/ReplayState.h>
 
-TEST_CASE("A replayed pair plays on a free partner; crossed, the first swing wins on both games", "[copies][replay-state][kill-move]")
+TEST_CASE("A replayed pair on this game's player goes by the host's answer to its claim", "[copies][replay-state][kill-move]")
 {
     using namespace ReplayState;
-    const auto cSettle = [](std::string_view aEvent, uint32_t aCopy, bool aInKillMove, std::string_view aPairEvent, uint32_t aTarget, uint64_t aTick, uint64_t aPairTick, uint32_t aSession = 2, uint32_t aPairSession = 1) {
-        return SettlePairedReplay(PairedReplay{aEvent, aCopy, aInKillMove, aPairEvent, aTarget, aTick, aPairTick, aSession, aPairSession});
-    };
-    CHECK(cSettle("pa_A", 5, false, "", 0, 10, 0) == PairOutcome::kPlay);
-    CHECK(cSettle("A", 5, true, "A", 5, 10, 10) == PairOutcome::kSkip);     // the pair's other half
-    CHECK(cSettle("pa_A", 5, true, "B", 6, 10, 20) == PairOutcome::kSkip);  // paired with someone else
-    CHECK(cSettle("pa_A", 5, true, "B", 5, 10, 20) == PairOutcome::kYield); // it swung first
-    CHECK(cSettle("pa_A", 5, true, "B", 5, 20, 10) == PairOutcome::kSkip);  // this game swung first
-    // The same two swings seen from each game: exactly one yields, a tie included.
-    CHECK(cSettle("pa_A", 5, true, "B", 5, 10, 10, 2, 1) == PairOutcome::kSkip);
-    CHECK(cSettle("pa_B", 7, true, "A", 7, 10, 10, 1, 2) == PairOutcome::kYield);
-    // A partner whose graph does not run (its AI off): no pair, whether it is free or crossed.
-    CHECK(SettlePairedReplay(PairedReplay{"pa_A", 5, false, "", 0, 10, 0, 2, 1, false}) == PairOutcome::kSkip);
-    CHECK(SettlePairedReplay(PairedReplay{"pa_A", 5, true, "B", 5, 10, 20, 2, 1, false}) == PairOutcome::kSkip);
+    // A kill move waits for the host's answer; refused, it is never played.
+    CHECK(SettlePairedReplay(false, PairClaim::kUnknown) == PairOutcome::kWait);
+    CHECK(SettlePairedReplay(true, PairClaim::kUnknown) == PairOutcome::kWait);
+    CHECK(SettlePairedReplay(false, PairClaim::kRefused) == PairOutcome::kSkip);
+    CHECK(SettlePairedReplay(true, PairClaim::kRefused) == PairOutcome::kSkip);
+    // Claimed: played on a free player; one in its own kill move lost the claim, and yields.
+    CHECK(SettlePairedReplay(false, PairClaim::kClaimed) == PairOutcome::kPlay);
+    CHECK(SettlePairedReplay(true, PairClaim::kClaimed) == PairOutcome::kYield);
+    // No kill move (a pair's other half coming back, a mount's pair): played unless the player is in a pair.
+    CHECK(SettlePairedReplay(false, PairClaim::kNotNeeded) == PairOutcome::kPlay);
+    CHECK(SettlePairedReplay(true, PairClaim::kNotNeeded) == PairOutcome::kSkip);
+}
+
+TEST_CASE("A kill move replayed on an NPC of this game's is never paired here", "[copies][replay-state][kill-move]")
+{
+    using namespace ReplayState;
+    CHECK(ClaimedAway(true, false, false));
+    CHECK_FALSE(ClaimedAway(true, false, true));  // this game's player: its game plays its half
+    CHECK_FALSE(ClaimedAway(true, true, false));  // a copy already
+    CHECK_FALSE(ClaimedAway(false, false, false)); // a mount's pair
+    CHECK(PairsHere(false, false, true, true));
+    CHECK_FALSE(PairsHere(false, false, false, true));
+    CHECK(PairsHere(false, false, false, false));
+    CHECK_FALSE(PairsHere(false, true, false, false));
+    CHECK_FALSE(PairsHere(true, false, false, false));
+    // A lent NPC, a copy here with no stream to replay: its pair is made here, the attacker's copy off its stream.
+    CHECK(LentPartner(true, PairClaim::kClaimed, true, false));
+    CHECK_FALSE(LentPartner(true, PairClaim::kUnknown, true, false));
+    CHECK_FALSE(LentPartner(true, PairClaim::kClaimed, true, true)); // a player's copy: its own game plays its half
+    CHECK(PairsHere(true, false, false, true, true));
+    CHECK(PairOnStream(true));
+    CHECK_FALSE(PairOnStream(true, true));
+    CHECK_FALSE(PairOnStream(false));
+}
+
+TEST_CASE("A claimed pair is done when its lent partner was killed or left it, a player partner's with the claimer's own kill move", "[copies][replay-state][kill-move]")
+{
+    using namespace ReplayState;
+    CHECK_FALSE(PairDone(true, false, true, true));
+    CHECK(PairDone(true, true, true, true));   // its clip's KillActor
+    CHECK(PairDone(true, false, false, true)); // it left the pair alive
+    CHECK_FALSE(PairDone(false, false, false, true));
+    CHECK(PairDone(false, false, true, false));
 }
 
 TEST_CASE("A blocked mark refuses an owner's pair, never a replayed one", "[copies][replay-state][kill-move]")
@@ -153,4 +182,13 @@ TEST_CASE("A copy's bodies take its owner's layer only while they are not its ow
     CHECK(ReplayState::TakesOwnerBodies(false, false));
     CHECK_FALSE(ReplayState::TakesOwnerBodies(true, false));
     CHECK_FALSE(ReplayState::TakesOwnerBodies(false, true)); // a kill move's victim: its graph's ragdoll
+}
+
+TEST_CASE("A copy takes its half of a pair this game plays, and no other action of its own", "[copies][replay-state][kill-move]")
+{
+    using namespace ReplayState;
+    CHECK_FALSE(CopyTakesAction(false, false, false));
+    CHECK(CopyTakesAction(true, false, false));
+    CHECK(CopyTakesAction(false, true, false));
+    CHECK(CopyTakesAction(false, false, true)); // a lent NPC's half, both copies here
 }

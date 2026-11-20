@@ -1,6 +1,7 @@
 #include <Diagnostics/HeadTrackRead.h>
 #include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
+#include <Events/PairKillEvent.h>
 #include <Events/ActorHeadUpdateEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
@@ -498,6 +499,13 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 
 void FakeEngine::Frame()
 {
+    // The task queue's kills (task 10, KillImpl): one already dead is left as it is (37896's IsDead test).
+    for (const uint32_t cId : std::exchange(QueuedKills, {}))
+        if (const auto it = Actors.find(cId); it != Actors.end() && !it->second.Dead)
+        {
+            it->second.KilledBy = kPlayer;
+            KillActor(cId);
+        }
     for (const auto [cRider, cMount] : std::map(std::exchange(MountRetryOf, {})))
         ActivateMount(cRider, cMount);
     for (auto it = DismountIn.begin(); it != DismountIn.end();)
@@ -512,7 +520,22 @@ void FakeEngine::Frame()
     // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
     for (auto& [cId, actor] : Actors)
         if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))
+        {
             Strikes(cId, actor.PairVictim, 1000.f);
+            actor.KillMoveEndIn = PairEndFrames ? PairEndFrames : 4 * PairBlowFrames; // its clip's KillMoveEnd, well after its blow
+        }
+    for (auto& [cId, actor] : Actors)
+        if (actor.KillMoveEndIn && --actor.KillMoveEndIn == 0)
+        {
+            actor.InKillMove = actor.InPairClip = actor.InPair = false;
+            actor.Killer = 0;
+        }
+    std::vector<uint32_t> killed;
+    for (auto& [cId, actor] : Actors)
+        if (actor.KillActorIn && --actor.KillActorIn == 0 && actor.InKillMove && !actor.Dead)
+            killed.push_back(cId);
+    for (const uint32_t cId : killed)
+        ClipKillActor(cId);
     // Without the graph's rules, clips loop on each game's own clock; with them, in the graph's step (StepGraph).
     if (Loop && !Graph)
         for (auto& [cId, actor] : Actors)
@@ -991,6 +1014,11 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
 {
     if (aActor.Copy || aActor.Dead || aActor.Values.ActorValuesList[kHealth] > 0.f)
         return;
+    if (aActor.KillHeld)
+    {
+        aActor.KillCounted = true; // KillImpl under a deferred kill (37896)
+        return;
+    }
     (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
     if (aActor.Dead)
     {
@@ -1320,6 +1348,8 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
         const bool cReleased = it->second.Copy && !aCopy;
         if (aCopy && !it->second.Copy)
             it->second.GraphReady = NewCopiesGraphReady;
+        if (aCopy)
+            it->second.KillHeld = true; // UpdateCopyAI's StartDeferredKill, each frame
         it->second.Copy = aCopy;
         if (!aCopy)
         {
@@ -1518,12 +1548,71 @@ void FakeEngine::StopPairClip(uint32_t aFormId)
     actor.InPairClip = false;
     actor.InPair = false;
     actor.PairBlowIn = 0;
+    actor.KillActorIn = 0;
+    actor.KillMoveEndIn = 0;
 }
 
 void FakeEngine::ClipKillActor(uint32_t aFormId)
 {
-    if (auto& actor = Actors.at(aFormId); actor.Copy)
+    auto& actor = Actors.at(aFormId);
+    World::Get().GetRunner().Trigger(PairKillEvent{aFormId}); // Animation.cpp's hook
+    if (actor.Copy || actor.KillHeld)
+    {
         actor.PoseHeldUntil = World::Get().GetFrameTick() + ::ReplayState::cPoseHoldMs;
+        actor.KillCounted = true;
+        return;
+    }
+    actor.KilledBy = actor.Killer;
+    KillActor(aFormId);
+}
+
+void FakeEngine::ActorHoldKill(uint32_t aFormId, bool aHold) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return;
+    it->second.KillHeld = aHold;
+    // The hold ended over a counted kill: queued on the task queue, credited to this game's player (40036, 37316).
+    if (!aHold && std::exchange(it->second.KillCounted, false))
+        QueuedKills.push_back(aFormId);
+}
+
+void FakeEngine::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || it->second.Dead)
+        return;
+    // KillImpl with its killer before the kill the hold's end queued runs: that one finds it dead (37896).
+    it->second.KillHeld = it->second.KillCounted = false;
+    it->second.PoseHeldUntil = 0;
+    it->second.KilledBy = aKillerFormId;
+    it->second.Values.ActorValuesList[kHealth] = 0.f;
+    CheckHealth(aFormId, it->second);
+}
+
+void FakeEngine::ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept
+{
+    if (!Actors.contains(aOwnFormId) || !Actors.contains(aCopyFormId))
+        return;
+    for (const uint32_t cHalf : {aCopyFormId, aOwnFormId})
+    {
+        StopPairClip(cHalf);
+        EndKillMove(cHalf);
+    }
+    Actors.at(aCopyFormId).ClashPartner = aOwnFormId;
+    Actors.at(aCopyFormId).PairStops = ::ReplayState::cClashStopUpdates;
+    Actors.at(aOwnFormId).ClashUntil = World::Get().GetTick() + ::ReplayState::cClashGuardMs;
+}
+
+bool FakeEngine::ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept
+{
+    ActionEvent swing;
+    swing.ActionId = aActionId;
+    swing.EventName = kPlainSwing;
+    if (!Actors.contains(aFormId) || !PerformAnimation(aFormId, swing))
+        return false;
+    ++PlainSwings;
+    return true;
 }
 
 bool FakeEngine::PoseHeld(uint32_t aFormId) const noexcept
@@ -1560,14 +1649,23 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             return false;
         // 32803 makes an instance and plays the target's half through its graph (63591); a replay names no target
         // event for a copy partner (PlayReplayedAction): no instance, its half is its owner's action.
-        const bool cInstance = !(Replaying && cPartner->second.Copy);
+        const bool cInstance = !Replaying || actor.Replay.PairHere;
         // A copy on its owner's stream takes the half only held off the stream (Games/Skyrim's 63591 hook); refused,
         // the pair fails.
         if (auto& streams = World::Get().GetGraphStreams();
             cInstance && cPartner->second.Copy && streams.OnStream(acAction.TargetId) && !streams.HoldWhile(acAction.TargetId, true))
             return false;
-        // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
-        const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
+        // 32803 plays the partner's half through Func5 (41557) -> 38949: our hook refuses a copy's own action but for
+        // the local player's partner's half or a half of a pair replayed here; refused, the pair fails.
+        if (cInstance && cPartner->second.Copy &&
+            !::ReplayState::CopyTakesAction(false, !Replaying && aFormId == kPlayer, Replaying))
+            return false;
+        // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once. Paired:
+        // in an instance (32808), or each playing its half from its own game's pair; not the kill move flag alone (an
+        // actor-state record sets that, 38613).
+        const bool cOtherHalf = cPartner->second.PairHalf.EventName == acAction.TargetEventName &&
+                                cPartner->second.PairHalf.TargetEventName == acAction.EventName;
+        const bool cCollapsed = !cOtherHalf && (actor.InPair || actor.InPairClip) && (cPartner->second.InPair || cPartner->second.InPairClip);
         CollapsedPairs += cCollapsed;
         // Only a "pa_Kill" action puts both in a kill move (39004); a mount's pair leaves that alone.
         if (cCollapsed || ::ReplayState::EntersKillMove(acAction.EventName))
@@ -1575,15 +1673,23 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
             cPartner->second.Killer = cCollapsed ? 0 : aFormId; // 38613 on the victim, the attacker its killer
         }
+        actor.PairHalf = acAction;
+        if (!cCollapsed && !cOtherHalf)
+        {
+            cPartner->second.PairHalf.EventName = acAction.TargetEventName;
+            cPartner->second.PairHalf.TargetEventName = acAction.EventName;
+        }
         // The victim state's AddRagdollToWorld (AddRagdollHandler 42873): its ragdoll in the world, biped layer.
         if (cPartner->second.InKillMove)
             cPartner->second.BodiesLayer = kBipedLayer;
-        actor.LatestPairAction = acAction;
         if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
         {
             actor.PairBlowIn = PairBlowFrames;
             actor.PairVictim = acAction.TargetId;
         }
+        // The victim's half plays here (an instance): its own clip's KillActor, at the blow's time.
+        if (PairBlows && cInstance && !cCollapsed && !cOtherHalf && acAction.EventName.starts_with("pa_"))
+            cPartner->second.KillActorIn = PairBlowFrames;
         actor.InPairClip = cPartner->second.InPairClip = !cCollapsed;
         if (cInstance || cCollapsed)
         {
@@ -2030,6 +2136,10 @@ bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, f
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
+        return false;
+    // A forwarded hit on an actor a kill move holds (SkyrimBridge::DamageActorHealth: in its kill move, 38619): its
+    // clip's KillActor kills it. A hit seen here goes through the engine's own damage (TakesDamage).
+    if (!m_applyingOwnHit && it->second.InKillMove && it->second.Killer)
         return false;
     const bool cWasDead = it->second.Dead;
     it->second.Values.ActorValuesList[kHealth] -= aDamage;
@@ -3109,7 +3219,9 @@ void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, 
     {
     case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage));
+        m_applyingOwnHit = true;
         DamageActorHealth(aHittee, aHitter, aDamage);
+        m_applyingOwnHit = false;
         break;
     case HitRules::Route::AskOwner: World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage, aHitter)); break;
     case HitRules::Route::Mirror:

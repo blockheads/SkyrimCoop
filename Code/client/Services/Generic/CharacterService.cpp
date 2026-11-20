@@ -137,7 +137,7 @@ void CharacterService::DeleteRemoteEntityComponents(entt::entity aEntity) const 
                    OwnerPlaceComponent>(aEntity);
 }
 
-bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acSessionId, const entt::entity acEntity) const noexcept
+bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acSessionId, const entt::entity acEntity, bool aHoldKill) const noexcept
 {
     if (!m_actorBridge.ActorExists(acFormId))
     {
@@ -158,6 +158,8 @@ bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acS
     }
 
     m_actorBridge.SetActorCopy(acFormId, false);
+    // A copy's scripted deferred kill (UpdateCopyAI) outlives the copy: no engine path ends one (kill-moves.md).
+    m_actorBridge.ActorHoldKill(acFormId, aHoldKill);
     m_world.emplace_or_replace<LocalComponent>(acEntity, acSessionId);
     // Its copies hold the last owner's action and AI state until this game sends its own (the action as played here
     // while it was a copy: a mount's half of its rider's paired getting on).
@@ -1364,7 +1366,17 @@ void CharacterService::RunTakeOvers() noexcept
     std::erase_if(m_takeOvers, [this](const TakeOver& acTakeOver) { return TakeOverMount(acTakeOver); });
 }
 
-bool CharacterService::TakeOverMount(const TakeOver& acTakeOver) noexcept
+void CharacterService::QueueTakeOver(uint32_t aSessionId, uint64_t aTick, uint32_t aKillerId) noexcept
+{
+    m_takeOvers.push_back({aSessionId, aTick, {}, aKillerId});
+}
+
+void CharacterService::TakeOverNow(uint32_t aSessionId) noexcept
+{
+    std::erase_if(m_takeOvers, [&](const TakeOver& acTakeOver) { return acTakeOver.MountId == aSessionId && TakeOverMount(acTakeOver, true); });
+}
+
+bool CharacterService::TakeOverMount(const TakeOver& acTakeOver, bool aNow) noexcept
 {
     for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
     {
@@ -1372,12 +1384,15 @@ bool CharacterService::TakeOverMount(const TakeOver& acTakeOver) noexcept
             continue;
         const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
         const auto cDone = m_world.GetGraphStreams().StreamDoneThrough(cFormId);
-        if (!ReplayState::TakesOverMount(acTakeOver.Tick, cDone.has_value(), cDone.value_or(0)))
+        if (!aNow && !ReplayState::TakesOverMount(acTakeOver.Tick, cDone.has_value(), cDone.value_or(0)))
             return false;
         if (acTakeOver.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
             FollowOwner(cEntity, cFormId, acTakeOver.Whereabouts, false);
         if (TakeOwnership(cFormId, acTakeOver.MountId, cEntity))
-            spdlog::info("Mount {:X}: taken back, its last rider's ops run through {}", cFormId, acTakeOver.Tick);
+            spdlog::info("Actor {:X}: taken back, its last owner's ops run through {}", cFormId, acTakeOver.Tick);
+        // A claimed pair's clip killed it on its claimer's game: its death is this game's (KillImpl 37896).
+        if (acTakeOver.KillerId)
+            m_actorBridge.KillActorBy(cFormId, Utils::GetFormIdBySessionId(acTakeOver.KillerId));
         return true;
     }
     return true; // gone, or ours already

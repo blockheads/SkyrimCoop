@@ -358,6 +358,15 @@ void HostCharacters::OnActiveEffects(const RequestActiveEffects& acRequest, Conn
     m_players.SendToOthers(notify, aSender);
 }
 
+bool HostCharacters::Lend(uint32_t aSessionId, ConnectionId_t aTo) noexcept
+{
+    const auto cCharacter = m_characters.find(aSessionId);
+    if (cCharacter == m_characters.end() || cCharacter->second.PlayerRecord)
+        return false;
+    cCharacter->second.Owner = aTo;
+    return true;
+}
+
 void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
     const uint32_t cRider = PlayerCharacterOf(aPlayer);

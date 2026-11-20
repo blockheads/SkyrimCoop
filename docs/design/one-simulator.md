@@ -1,7 +1,7 @@
 # One simulator: every system on one sync rule (2026-11-18)
 
-Status: **pieces 1 to 3 and 4a built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
-2026-11-19: items, a mount handed back between pairs); the rest proposed.** Direction agreed 2026-11-18 (the four
+Status: **pieces 1 to 4 built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
+2026-11-19: items, a mount handed back between pairs; 2026-11-20: kill moves as claimed pairs); the rest proposed.** Direction agreed 2026-11-18 (the four
 decisions below). Physics
 ([physics-sync.md](physics-sync.md), "One simulator per pile") and the graph stream
 ([graph-input-stream.md](graph-input-stream.md)) already work this way; this puts the rest of the code on the same
@@ -408,6 +408,53 @@ a passenger who drives on (HandOver): takes it at once and sends PairEnd itself,
   HostAuthorityTests (the tick passed on), ClientTests `TakesOverMount`; on the duo `horse-passes-between-riders`,
   `party-shares-a-horse` (3 of 3 to the end comparison), `host-rides-horse`, `guest-rides-host-horse`,
   `mounted-guest-leaves`.
+
+**4b as built (2026-11-20)**, after the RE (`docs/re/systems/kill-moves.md`, "Claimed pairs"):
+
+```text
+claimer's game: its own actor's pa_Kill... accepted on another game's actor (PairService, from the ActionEvent)
+  -> PairClaimRequest{actor, partner, the action's tick}; the pair plays on
+host (HostPairs): either actor in a claim -> refused kCrossed; an NPC dead or its graph stopped -> kCannotPair
+  else the claim holds; an NPC partner's owner = the claimer (HostCharacters::Lend); NotifyPairClaim to all
+claimer: TakeOwnership, the copy's scripted deferred kill kept (its clip's KillActor only counts, 37896; pose held)
+  its KillActor (or the pair left alive) -> its graph ops, then PairDoneRequest{tick, killed}
+host: the NPC is the host's again; NotifyPairDone
+the host's game: its copy ran the claimer's ops through tick -> TakeOwnership -> KillImpl credited to the claim's actor
+refused: the claimer yields (EndPairsOf 32809, pairedStop resent, kill cam ended, blow dropped)
+  kCannotPair: then the same action with no target, the engine's own second try (42350): a plain swing
+a replay onto a game's own player waits for the host's answer (PairClaims): claimed plays (its own kill move yields),
+  refused is never played; onto an NPC still its own: never paired there (ClaimedAway)
+every non-claimer game pairs the attacker's copy with the lent NPC's copy itself (an instance here, LentPartner):
+  the NPC's copy has no stream to replay (its half never went out, its new owner gives no point in the instance)
+the host's game takes the NPC back once its own copy's clip sent KillActor (1.5 s at most), then kills it
+a forwarded blow of a claimed pair on the victim's game: held; dropped once the pair plays there, a plain hit if the
+  pair ended first (a short winner's blow used to land before its pair played there)
+```
+
+Changes from the plan above, each from what was read:
+
+- **The kill rides the done message**, not a forwarded hit: a hit on a lent NPC is applied on the claimer (its own
+  actor now), and the host's game drops hits on a copy until it took the NPC back. The killer is the claim's own actor
+  (42838 credits the pair's partner), so the message says only "killed".
+- **A partner that cannot pair gets the engine's own fallback** (the user, 2026-11-20): a crossed pair's blow is
+  dropped, the other refusal swings plainly.
+- **No timeout on a claim** (the user): a claimer that leaves frees its claims, its NPC the host's again at once.
+- **A released copy's deferred kill is ended** (`TakeOwnership`, mounts too): no engine path ends a scripted one.
+- **Fewer deletes than listed.** Gone: `SettlePairedReplay`'s tick comparison, `ActorExtension::LatestPairAction`,
+  PR #73's `PartnerAnimates`. Kept, because a player victim cannot change owner and a third game still shows two
+  copies: `PairMarkClear`, `ContactKills`, `PoseHeld` (now a lent victim's too), `HeldByPair`, the yield's steps
+  (now `AnimationSystem::YieldPair`, also what a refusal runs). The manual `PairEnd` for a passenger who drives on
+  stays (4a measured it).
+- Mounts keep their own messages; the hand-back's wait and the take-over are shared (`CharacterService::QueueTakeOver`).
+- Tests: HostAuthorityTests `[pairs]` (5), GameTests `[pair-claim]` (6: the lend, the host's two copies paired, the
+  host's kill with its credit, a taken-back NPC can die, two guests on one NPC, the frozen NPC's plain swing, a claimer
+  leaving, a short crossed winner's blow), the crossed flows of `[friendly-fire][kill-move]`, ClientTests
+  `[replay-state]`. The fake learned: the scripted deferred kill (kept by a released copy, a held kill counted, its
+  end's kill on the task queue), `KillActor`'s partner credit, a victim's clip's `KillActor` and an attacker's
+  `KillMoveEnd`, a forwarded hit on a held victim refused, "already paired" meaning in a pair (not the flag a record
+  sets), our hook's rule for a copy's half, and the plain second try.
+- On the duo (2026-11-20): `client-kill-move`, `host-kill-move`, `kill-moves-cross` pass; `frozen-wolf-kill-move` 3
+  of 3 (one earlier run picked no kill move at all: its staging, open since PR #73).
 
 ## Piece 5: passengers sit at once
 

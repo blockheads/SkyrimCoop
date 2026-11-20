@@ -6,6 +6,7 @@
 #include <Bridges/IActorBridge.h>
 #include <Components/FormIdComponent.h>
 #include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/CopyAiStateEvent.h>
 #include <Services/CopyRecords.h>
@@ -37,6 +38,13 @@ AiStateService::AiStateService(World& aWorld, entt::dispatcher& aDispatcher, Tra
     Listen<NotifyRemoveCharacter, &AiStateService::OnRemoveCharacter>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &AiStateService::OnDisconnected>(m_connections, aDispatcher, this);
     Listen<&AiStateService::OnLocalRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+    Listen<&AiStateService::OnSessionActor>(m_connections, m_world.on_construct<LocalComponent>(), this);
+    Listen<&AiStateService::OnSessionActor>(m_connections, m_world.on_construct<RemoteComponent>(), this);
+}
+
+void AiStateService::OnSessionActor(entt::registry&, entt::entity) noexcept
+{
+    m_newSession = true;
 }
 
 AiStateService::~AiStateService() noexcept
@@ -48,6 +56,9 @@ void AiStateService::OnUpdate(const UpdateEvent&) noexcept
 {
     PROFILE_ZONE("AiStateService::OnUpdate");
     if (!m_transport.IsConnected()) return;
+    // A look or fight at an actor with no session id yet read as nobody: owners read again (sent only if changed).
+    if (std::exchange(m_newSession, false))
+        OnAiStateChange(AiStateChangeEvent{0});
     // Scene stop (24140) sends its event before clearing the actors.
     const auto changes = SceneRefresh::ReadChanges(m_sent, [this](uint32_t aSessionId) -> std::optional<ActorAiState> {
         const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);

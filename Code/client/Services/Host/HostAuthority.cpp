@@ -98,6 +98,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_dialogue(*this, aNetwork, m_players, m_characters)
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
     , m_records(*this, m_players, m_characters, m_game)
+    , m_pairs(*this, m_players, m_characters, m_game)
     , m_story(*this, m_players, m_characters, m_game)
     , m_death(*this, aNetwork, m_players, m_characters)
     , m_followers(*this, aNetwork, m_players, m_characters, m_death, m_game)
@@ -171,6 +172,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_session.OnPlayerLeft(aConnection);
         m_playerNatives.OnPlayerLeft(aConnection);
         m_records.OnPlayerLeft(aConnection);
+        m_pairs.OnPlayerLeft(aConnection);
         m_characters.OnPlayerLeft(aConnection);
         m_players.Remove(aConnection);
         m_timeScale.OnPlayerLeft(aConnection);
