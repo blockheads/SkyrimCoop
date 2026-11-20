@@ -147,3 +147,10 @@ TEST_CASE("ReplayState: a mount handed over is taken once its copy ran its last 
     CHECK(ReplayState::TakesOverMount(0, true, 0));      // its owner left, or recorded nothing
     CHECK(ReplayState::TakesOverMount(1000, false, 0));  // off its stream: no op of its owner's will come
 }
+
+TEST_CASE("A copy's bodies take its owner's layer only while they are not its own ragdoll's", "[replay-state][copy-ragdoll]")
+{
+    CHECK(ReplayState::TakesOwnerBodies(false, false));
+    CHECK_FALSE(ReplayState::TakesOwnerBodies(true, false));
+    CHECK_FALSE(ReplayState::TakesOwnerBodies(false, true)); // a kill move's victim: its graph's ragdoll
+}

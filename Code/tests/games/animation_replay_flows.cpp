@@ -1051,6 +1051,27 @@ TEST_CASE("A guest's kill move takes a streamed copy off its stream until the pa
                      "the copy is back on its owner's stream from a new sync point");
 }
 
+TEST_CASE("A copy in a kill move keeps its own ragdoll in the world, whatever its owner's layer", "[animation][kill-move][copy-ragdoll]")
+{
+    // Its owner's layer 0 took the ragdoll AddRagdollToWorld (42873) put in (36924): physics.md, "A kill move's
+    // victim copy keeps its ragdoll" (kill-move-kills-guest, 2026-11-18).
+    WolfTurn wolf;
+    ActionEvent kill;
+    kill.ActionId = 0x13005;
+    kill.EventName = "pa_KillMoveI";
+    kill.TargetEventName = "KillMoveI";
+    kill.TargetId = wolf.copy;
+    bool started = false;
+    wolf.party.As(wolf.party.Guest(), [&] { started = wolf.guest.PerformAnimation(FakeEngine::kPlayer, kill); });
+    REQUIRE(started);
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    REQUIRE(cCopy.BodiesLayer == FakeEngine::kBipedLayer);
+    REQUIRE(wolf.host.Actors.at(wolf.wolf).BodiesLayer == 0);
+    const uint32_t cMovements = cCopy.Movements;
+    wolf.party.Until([&] { return cCopy.Movements > cMovements + 3; }, "its owner's movement keeps coming during the clip");
+    CHECK(cCopy.BodiesLayer == FakeEngine::kBipedLayer);
+}
+
 TEST_CASE("A streamed owner's movement carries no graph variables, and its copy's graph takes its stream's alone", "[animation][replay-start]")
 {
     // Phase 3 (graph-input-stream.md): a streamed copy's variables are its stream's; the snapshot's were loaded into

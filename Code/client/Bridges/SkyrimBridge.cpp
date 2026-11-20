@@ -368,9 +368,9 @@ bool SkyrimBridge::GraphsStepPhysics(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept
 {
-    // Not while it lies in its ragdoll: those bodies are its ragdoll's (BodyService).
+    // Not while those bodies are its own ragdoll's: lying in it (BodyService) or in its kill move.
     Actor* pActor = GetActor(aFormId);
-    if (!pActor || !pActor->GetExtension()->IsCopy() || pActor->LiesInRagdoll())
+    if (!pActor || !pActor->GetExtension()->IsCopy() || !ReplayState::TakesOwnerBodies(pActor->LiesInRagdoll(), pActor->IsInKillMove()))
         return;
     if (!aGraphsStep)
         SetGraphsStepPhysics(*pActor, false);

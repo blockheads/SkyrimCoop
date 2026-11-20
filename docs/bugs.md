@@ -469,51 +469,49 @@ Size: small. Needs: the duo with the late save.
 
 ### Revive leaves the body wrong
 
-`PlayerCharacter::Revive` resets neither the knock state nor the graph.
+A revived player's body, now and then, stays in its ragdoll.
 
-Agent task: Read what Revive leaves behind and reset it, so a revived player neither stays ragdolled nor kneels.
+Agent task: find what puts a revived player's ragdoll back in the world, sunk into the floor, from a failing run's
+ragdoll trace.
 
-Size: medium. Needs: IDA, duo, then a GameTests revive flow (the fake must keep knock and graph state).
+Size: medium. Needs: duo (`revived-guest-gets-up --until-fail`, `party-travel-dead-guest`), then a GameTests revive
+flow.
 
 - **A respawned guest can stay ragdolled, sunk into the floor** (2026-10-29, v1 triage). `death-spectate-guest` once
   timed out on "the respawned player can walk again": the guest's player had its 18 ragdoll bodies awake and stood
-  49 units into the floor after its revive. 0 of 14 runs since.
-  - Found 2026-10-29.
-  - Start: what Revive (`PlayerCharacter::Revive`) leaves of the knock state and ragdoll when the respawn moves a dead
-    body; the open revive item in [death.md](design/death.md) (a revived player knocked down stays getting up).
-  - Test: `death-spectate-guest --until-fail`, then a GameTests revive flow once the fake keeps knock state.
-  Seen again 2026-11-06: `party-travel-dead-guest`, 1 of 7, the guest's own body and its copy 36 units under the floor.
-- **A revived guest's own body kneels in its next conversation** (2026-10-29, cause narrowed 2026-10-30). Once
-  thought to follow a follower trade: it follows a death. `follower-anchor-dies` then `follower-anchor-saved`
-  reproduces it: right after the revive the guest stands; at the next scenario's first conversation its own body
-  kneels (pelvis ~29, head ~55, like the bleedout pose), then stands again later. Once its death ragdoll was left
-  awake too (18 bodies). Only the guest sees it (third person); the host sees its copy standing. A later
-  conversation with no death first does not show it.
-  - Found 2026-10-30: cosmetic, the guest's own view only, after a death.
-  - Start: the behavior graph's state after `PlayerCharacter::Revive` (it resets neither the graph nor its state
-    machine; the open revive item in [death.md](design/death.md)), and what the conversation sends the graph.
-  - Test: `scenario follower-anchor-dies follower-anchor-saved` (its mid-conversation body check), then a GameTests
-    revive flow once the fake keeps graph state.
-- **Player body/ragdoll.** Kneeling, sunken/lifted skeletons, unsettled death ragdolls and mounted zero-height
-  readings. Several occur on the owner too. Revived-player kneeling is the same bug.
+  49 units into the floor after its revive. Seen again 2026-11-06: `party-travel-dead-guest`, 1 of 7, the guest's
+  own body and its copy 36 units under the floor. Not seen in 2026-11-18's runs: `party-travel-dead-guest` 2 of 2,
+  `revived-guest-gets-up` (it checks the revived ragdoll is out of the world) and `kill-move-kills-guest`'s respawn
+  check passed every run.
+  - Read in IDA 2026-11-18 (`docs/re/systems/physics.md`, "Resurrect and the knock state"): `Actor::Resurrect`
+    (37321) zeroes the knock state; it plays `kActionResetAnimationGraph` while the actor is still dead;
+    `Actor::DoReset3D` (40255) rebuilds the worn models, not the graph. `PlayerCharacter::Revive` takes the ragdoll
+    out once (`RemoveRagdollFromWorld`); what puts it back is not known.
+  - Start: a failing run's `RagdollTrace` of the guest after its revive: when its bodies go back in the world, and
+    which graph event (`AddRagdollToWorld`, 42873) or death action came just before.
 
 ### Copy ragdolls at rest
 
-A dead copy's bodies against its owner's.
+A dead copy's bodies against its owner's, after its death.
 
-Agent task: find why the killed guest's copy flickers where its owner does not in `kill-move-kills-guest`, from the
-copy's `RagdollTrace` samples.
+Agent task: find why the killed guest's copy shakes as it falls, or never sleeps, where its owner does not in
+`kill-move-kills-guest`, from the copy's `RagdollTrace` samples against its steering (`CopyRagdollPhysics`).
 
 Size: medium. Needs: duo (`RagdollTrace`), then a fast test.
 
-- **A killed guest's copy flickers and turns bodies back** (`kill-move-kills-guest`, the full run of 2026-11-16: "6
-  flickers, its owner 0", body 9 turned back 4 times within a second, a bone up to 16 units off its body; samples
-  `20261116-173724-kill-move-kills-guest`). The same shape was a third of the runs on 2026-11-12 and 3 of 23 with
-  deaths on the stream ([A kill move that never pairs](#a-kill-move-that-never-pairs)).
-  - Fixed 2026-11-11 and still holding: the copy now comes to rest (steered to its owner's rest for 30 physics steps,
-    then placed and left, `BodyPrediction::StepToRest`); `ragdoll-lies-as-host` passed 4 of 4 on 2026-11-16, so its
-    lying copy's bones agree now too.
-  - Start: the flickers' frames in the samples against the copy's steering (`CopyRagdollPhysics`) before its rest.
+- **A killed guest's copy shakes as it falls, or never comes to rest** (`kill-move-kills-guest`, 2026-11-18 on the
+  fix below, 5 runs: 2 passed, 1 the pairing timeout of [A kill move that never pairs](#a-kill-move-that-never-pairs)).
+  - "A series turned back 11 times within a second, its owner's 1" (samples `20261118-123756-kill-move-kills-guest`):
+    body 9 shook in moves of 0.6 units while the copy fell, from its death (4.49 s, 0.74 s after its owner's) for a
+    second, steered toward its owner's falling bodies at 100 to 390 units/s. Came to rest 8.3 s in.
+  - "NEVER came to rest, its owner's did 2.0 s before the trace's end" (`20261118-123709-kill-move-kills-guest`):
+    18 bodies awake at 5 to 36 units/s to the end; the owner's slept 4.8 s in.
+  - The flickers are fixed (2026-11-18): the victim copy's ragdoll was out of the world for the whole kill move and
+    came back at death keyframed for one frame (`docs/re/systems/physics.md`, "A kill move's victim copy keeps its
+    ragdoll"). 0 flickers in the 4 runs that reached the death since; 1 run of 2 had them before.
+  - Start: the copy's death 0.3 to 0.7 s after its owner's (its owner's death action, `kill-moves.md`, "A copy's death
+    at the end of its clip") leaves its bodies far from the owner's frames; `BodyPrediction::Steer`'s 0.05 s
+    correction on that gap, then `StepToRest`.
 
 ## Physics
 

@@ -1575,6 +1575,9 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
             cPartner->second.Killer = cCollapsed ? 0 : aFormId; // 38613 on the victim, the attacker its killer
         }
+        // The victim state's AddRagdollToWorld (AddRagdollHandler 42873): its ragdoll in the world, biped layer.
+        if (cPartner->second.InKillMove)
+            cPartner->second.BodiesLayer = kBipedLayer;
         actor.LatestPairAction = acAction;
         if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
         {
