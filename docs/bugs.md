@@ -49,11 +49,10 @@ every other section needs the duo.
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
-- [Crossed kill moves: a short winner's blow lands first](#crossed-kill-moves-a-short-winners-blow-lands-first): small
 - [After a kill move the guest's own body floats](#after-a-kill-move-the-guests-own-body-floats): small
+- [A refused rider left crouched](#a-refused-rider-left-crouched): small
 - [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
-- [A frozen NPC a guest's kill move missed](#a-frozen-npc-a-guests-kill-move-missed): small
 
 **Ragdolls and death poses**
 
@@ -392,25 +391,6 @@ Size: small. Needs: duo, IDA (the copy's step, `StepCopy` under 37356).
   load on the machine had 100-200 such frames of 600 and failed most often. The trace stamps each frame (`t`, in the
   plugin): judging only frames whose neighbours ran evenly drops those and leaves the shape above.
 
-### Crossed kill moves: a short winner's blow lands first
-
-`kill-moves-cross` fails its end comparison when the first swing is `pa_KillMoveShortD` and the loser's clip does not
-leave at once (2026-11-09, 1 run in 2 with the graph input stream's phase 3, whose off-stream action timing is dev's;
-dev passed its one such draw in 6 runs).
-
-Agent task: make the winner's pair start on the loser's game before the winner's hit can kill there.
-
-Size: small. Needs: duo, then GameTests (`friendly_fire_flows.cpp`, the crossing flows).
-
-- **Measured** (trace `20261109-231028-kill-moves-cross`): host swings at 117 ms, guest at 153 (`pa_KillMoveI`). The
-  guest yields at 219, but its own clip goes on (`KillMoveStart` 235, `KillMoveEnd` 374: `pa_KillMoveI` sits behind an
-  uninterruptible transition, kill-moves.md). The host's `HitFrame` comes at 501 and its forwarded hit kills the
-  guest's player at 545, a plain death. The host's pair is tried on the guest at 605 and refused; the copy's last
-  action stays `moveStart`.
-- The stops are resent for 30 of the copy's updates while the player's `IsInKillMove` or `bIsSynced` holds
-  (`AnimationSystem::Update`, `ReplayState::ResendPairStop`): 500 ms, longer than the short move's 384 ms to its hit.
-  Not read: which of the two still held after `KillMoveEnd`.
-
 ### After a kill move the guest's own body floats
 
 After `kill-moves-cross` or `spectator-watches-kill-move`, the guest's own third-person skeleton stands about 2,100
@@ -435,6 +415,22 @@ Size: small. Needs: IDA, the duo, then GameTests.
   `spectator-watches-kill-move` then `host-rides-horse` 2 of 2 (2110-2122). `ragdoll-lies-as-host` right after each
   failed ride passed (2 of 2), so the lifted skeleton does not unsettle the next ragdoll (that entry, "A ragdoll that
   never settles after a failed ride", closed: 8 of 8 that day).
+
+### A refused rider left crouched
+
+`two-players-race-for-horse`, when the host wins the race: the guest's ride is refused and its player taken off
+(`OnNotifyMountRefused`, `PlayerStopRiding` -> `StopRidingQuick`), but sometimes it is left with its pelvis at its feet
+and sit state 0 on its own game while the host's copy of it stays at sit state 2 (getting on). A player would see the
+loser of a race for a horse stuck crouched, or getting on, on the other game.
+
+Agent task: read what `StopRidingQuick` does to a player still in its get-on clip (the mount interaction, 37905's
+package, the graph's state), and whether the refusal's arrival time within that clip decides it.
+
+Size: small. Needs: IDA, the duo.
+
+- **Measured** (2026-11-20, `agent/piece-4b`, action claims): 3 of 7 runs (`fe9a7048` and the next build); 0 of 3 later
+  runs where the host also won and "Ride on 1C refused ... our player gets off" logged; 0 of 2 runs before the claim
+  refactor (those failed on Riverwood's drift). Not read yet whether the refactor changed the refusal's timing.
 
 ### Doors the host's NPCs unlock
 
@@ -470,51 +466,49 @@ Size: small. Needs: the duo with the late save.
 
 ### Revive leaves the body wrong
 
-`PlayerCharacter::Revive` resets neither the knock state nor the graph.
+A revived player's body, now and then, stays in its ragdoll.
 
-Agent task: Read what Revive leaves behind and reset it, so a revived player neither stays ragdolled nor kneels.
+Agent task: find what puts a revived player's ragdoll back in the world, sunk into the floor, from a failing run's
+ragdoll trace.
 
-Size: medium. Needs: IDA, duo, then a GameTests revive flow (the fake must keep knock and graph state).
+Size: medium. Needs: duo (`revived-guest-gets-up --until-fail`, `party-travel-dead-guest`), then a GameTests revive
+flow.
 
 - **A respawned guest can stay ragdolled, sunk into the floor** (2026-10-29, v1 triage). `death-spectate-guest` once
   timed out on "the respawned player can walk again": the guest's player had its 18 ragdoll bodies awake and stood
-  49 units into the floor after its revive. 0 of 14 runs since.
-  - Found 2026-10-29.
-  - Start: what Revive (`PlayerCharacter::Revive`) leaves of the knock state and ragdoll when the respawn moves a dead
-    body; the open revive item in [death.md](design/death.md) (a revived player knocked down stays getting up).
-  - Test: `death-spectate-guest --until-fail`, then a GameTests revive flow once the fake keeps knock state.
-  Seen again 2026-11-06: `party-travel-dead-guest`, 1 of 7, the guest's own body and its copy 36 units under the floor.
-- **A revived guest's own body kneels in its next conversation** (2026-10-29, cause narrowed 2026-10-30). Once
-  thought to follow a follower trade: it follows a death. `follower-anchor-dies` then `follower-anchor-saved`
-  reproduces it: right after the revive the guest stands; at the next scenario's first conversation its own body
-  kneels (pelvis ~29, head ~55, like the bleedout pose), then stands again later. Once its death ragdoll was left
-  awake too (18 bodies). Only the guest sees it (third person); the host sees its copy standing. A later
-  conversation with no death first does not show it.
-  - Found 2026-10-30: cosmetic, the guest's own view only, after a death.
-  - Start: the behavior graph's state after `PlayerCharacter::Revive` (it resets neither the graph nor its state
-    machine; the open revive item in [death.md](design/death.md)), and what the conversation sends the graph.
-  - Test: `scenario follower-anchor-dies follower-anchor-saved` (its mid-conversation body check), then a GameTests
-    revive flow once the fake keeps graph state.
-- **Player body/ragdoll.** Kneeling, sunken/lifted skeletons, unsettled death ragdolls and mounted zero-height
-  readings. Several occur on the owner too. Revived-player kneeling is the same bug.
+  49 units into the floor after its revive. Seen again 2026-11-06: `party-travel-dead-guest`, 1 of 7, the guest's
+  own body and its copy 36 units under the floor. Not seen in 2026-11-18's runs: `party-travel-dead-guest` 2 of 2,
+  `revived-guest-gets-up` (it checks the revived ragdoll is out of the world) and `kill-move-kills-guest`'s respawn
+  check passed every run.
+  - Read in IDA 2026-11-18 (`docs/re/systems/physics.md`, "Resurrect and the knock state"): `Actor::Resurrect`
+    (37321) zeroes the knock state; it plays `kActionResetAnimationGraph` while the actor is still dead;
+    `Actor::DoReset3D` (40255) rebuilds the worn models, not the graph. `PlayerCharacter::Revive` takes the ragdoll
+    out once (`RemoveRagdollFromWorld`); what puts it back is not known.
+  - Start: a failing run's `RagdollTrace` of the guest after its revive: when its bodies go back in the world, and
+    which graph event (`AddRagdollToWorld`, 42873) or death action came just before.
 
 ### Copy ragdolls at rest
 
-A dead copy's bodies against its owner's.
+A dead copy's bodies against its owner's, after its death.
 
-Agent task: find why the killed guest's copy flickers where its owner does not in `kill-move-kills-guest`, from the
-copy's `RagdollTrace` samples.
+Agent task: find why the killed guest's copy shakes as it falls, or never sleeps, where its owner does not in
+`kill-move-kills-guest`, from the copy's `RagdollTrace` samples against its steering (`CopyRagdollPhysics`).
 
 Size: medium. Needs: duo (`RagdollTrace`), then a fast test.
 
-- **A killed guest's copy flickers and turns bodies back** (`kill-move-kills-guest`, the full run of 2026-11-16: "6
-  flickers, its owner 0", body 9 turned back 4 times within a second, a bone up to 16 units off its body; samples
-  `20261116-173724-kill-move-kills-guest`). The same shape was a third of the runs on 2026-11-12 and 3 of 23 with
-  deaths on the stream ([A kill move that never pairs](#a-kill-move-that-never-pairs)).
-  - Fixed 2026-11-11 and still holding: the copy now comes to rest (steered to its owner's rest for 30 physics steps,
-    then placed and left, `BodyPrediction::StepToRest`); `ragdoll-lies-as-host` passed 4 of 4 on 2026-11-16, so its
-    lying copy's bones agree now too.
-  - Start: the flickers' frames in the samples against the copy's steering (`CopyRagdollPhysics`) before its rest.
+- **A killed guest's copy shakes as it falls, or never comes to rest** (`kill-move-kills-guest`, 2026-11-18 on the
+  fix below, 5 runs: 2 passed, 1 the pairing timeout of [A kill move that never pairs](#a-kill-move-that-never-pairs)).
+  - "A series turned back 11 times within a second, its owner's 1" (samples `20261118-123756-kill-move-kills-guest`):
+    body 9 shook in moves of 0.6 units while the copy fell, from its death (4.49 s, 0.74 s after its owner's) for a
+    second, steered toward its owner's falling bodies at 100 to 390 units/s. Came to rest 8.3 s in.
+  - "NEVER came to rest, its owner's did 2.0 s before the trace's end" (`20261118-123709-kill-move-kills-guest`):
+    18 bodies awake at 5 to 36 units/s to the end; the owner's slept 4.8 s in.
+  - The flickers are fixed (2026-11-18): the victim copy's ragdoll was out of the world for the whole kill move and
+    came back at death keyframed for one frame (`docs/re/systems/physics.md`, "A kill move's victim copy keeps its
+    ragdoll"). 0 flickers in the 4 runs that reached the death since; 1 run of 2 had them before.
+  - Start: the copy's death 0.3 to 0.7 s after its owner's (its owner's death action, `kill-moves.md`, "A copy's death
+    at the end of its clip") leaves its bodies far from the owner's frames; `BodyPrediction::Steer`'s 0.05 s
+    correction on that gap, then `StepToRest`.
 
 ## Physics
 
@@ -1301,6 +1295,9 @@ Size: small. Needs: the duo.
   the guest's) and `STAT C2D47` present on the guest only. The third run passed clean.
   - Start: read which game spawns these (a critter spawner's script, created references) and whether HostWorldState
     sends them; `Riverwood's scenery drifts apart` below may share the answer.
+- 2026-11-20 (`agent/piece-4b`, the claims refactor): 2 of 3 runs the same critters; the other run failed instead on the
+  horse itself, the host (its owner again) and the guest's copy 53 units apart at the end. Not seen again in the next
+  two runs; whether a give-back's placement or the copy's playback delay, not read yet.
 
 ### Riverwood's scenery drifts apart
 
@@ -1525,23 +1522,6 @@ Agent task: log why `ShouldAsk` fires again for one looping actor (`Asked` reset
 load, `SeeGraph`), in the scenario that shows it.
 
 Size: medium. Needs: the duo, GameTests.
-
-## Found with the dev commands (2026-11-16)
-
-### A frozen NPC a guest's kill move missed
-
-The duo, QASmoke, by hand: two wolves staged frozen (`stage`), the guest in daedric gear hits one (`fight`). The guest's
-idle tree picks `pa_KillMove1HMWolfB` on the fatal swing, its engine refuses the pair ("refused by the engine, not
-sent"), and from then on the host refuses every forwarded hit on that wolf ("Forwarded hit on FF00087F by FF000838 not
-applied (gone, or held by a kill move)") for over 50 s; the host's copy of the guest logs "paired action 13005
-'pa_KillMove1HMWolfB' not played, FF00087F was in a kill move". The same at vanilla odds (`/killmove default`) with a
-third wolf. `kill_move_check` on the host: `in_kill_move` false. Unread: what holds the host's wolf (its kill move flag
-or a recorded killer, 38613/38614), and whether an unfrozen NPC does it too.
-
-Agent task: read what `IsHeldByKillMove` answers for the host's wolf after the guest's refused pair, then a GameTests
-flow for it.
-
-Size: small. Needs: the duo (two frozen wolves, the guest's fatal swing), then GameTests.
 
 ## Found by the full run of 2026-11-16
 

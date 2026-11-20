@@ -42,9 +42,8 @@ How sure each link is:
 
  REVIVE LEAVES THE BODY WRONG          SEPARATE, ONLY THE WORD "RAGDOLL"
  ----------------------------          ---------------------------------
-   stays ragdolled                     copy ragdolls at rest (BodyService)
-   kneels in its next conversation     get-up 5->6 handoff
-   knocked down later, stuck in 6      a wolf's slow rest (host's own body)
+   stays ragdolled                     get-up 5->6 handoff
+                                       a wolf's slow rest (host's own body)
 ```
 
 ## Clusters
@@ -171,12 +170,12 @@ One task for all of it, on the drop's path: scripts' references and a guest's ac
 
 ### F. Revive
 
-Entries: [Revive leaves the body wrong](bugs.md#revive-leaves-the-body-wrong), and death.md's open item (a revived player
-knocked down stays in knock state 6).
+Entry: [Revive leaves the body wrong](bugs.md#revive-leaves-the-body-wrong) (a revived ragdoll back in the world,
+sometimes).
 
-Read in code: `PlayerCharacter::Revive` restores hands, graph flags and ragdoll, and neither the knock state nor the
-graph's state machines. All three symptoms follow a death; `guest-knockdown-lies-on-host` passes before one and fails
-after. Link inferred, the missing reset not yet read.
+Read in IDA 2026-11-18: `Actor::Resurrect` zeroes the knock state, and only the graph's `GetUpEnd` ends a get-up
+(physics.md, Getting up). The other two symptoms are gone: a revived player knocked down gets up with its copy, and
+its first conversation does not kneel it (`revived-guest-gets-up`, 2026-11-18).
 
 ### G. Lock pairs
 

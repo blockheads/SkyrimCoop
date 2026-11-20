@@ -23,7 +23,8 @@ struct RemoveSpell;
 struct PlayerName;
 struct ActorName;
 struct Mount;
-struct Dismount;
+struct Claim;
+struct ActorGiveBack;
 struct Record;
 struct RecordAsk;
 struct Dialogue;
@@ -68,9 +69,8 @@ using RemoveSpellRequest = Relayed<Payloads::RemoveSpell, kRemoveSpellRequest>;
 using NotifyRemoveSpell = Relayed<Payloads::RemoveSpell, kNotifyRemoveSpell>;
 using NotifyPlayerName = Relayed<Payloads::PlayerName, kNotifyPlayerName>;
 using NotifyActorName = Relayed<Payloads::ActorName, kNotifyActorName>;
-using MountRequest = Relayed<Payloads::Mount, kMountRequest>;
 using NotifyMount = Relayed<Payloads::Mount, kNotifyMount>;
-// To a game whose player got on a horse another player already rides: its player gets off.
+// To a game whose player boarded a horse nobody else drives: its player gets off.
 using NotifyMountRefused = Relayed<Payloads::Mount, kNotifyMountRefused>;
 // A player got on a horse another player drives, as a passenger; NotifyBoard: its copy seated on every other game.
 using BoardRequest = Relayed<Payloads::Mount, kBoardRequest>;
@@ -79,8 +79,17 @@ using NotifyBoard = Relayed<Payloads::Mount, kNotifyBoard>;
 using UnboardRequest = Relayed<Payloads::Mount, kUnboardRequest>;
 // A rider got off a horse that stays ridden (a passenger, or a driver handing over): its copy off on every other game.
 using NotifyUnboard = Relayed<Payloads::Mount, kNotifyUnboard>;
-using DismountRequest = Relayed<Payloads::Dismount, kDismountRequest>;
-using NotifyDismount = Relayed<Payloads::Dismount, kNotifyDismount>;
+// A rider got off (its mount's give-back follows, ActorGiveBackRequest); NotifyDismount: its copy off everywhere.
+using DismountRequest = Relayed<Payloads::Mount, kDismountRequest>;
+using NotifyDismount = Relayed<Payloads::Mount, kNotifyDismount>;
+// An action's claim (HostClaims: a ride, a kill move); NotifyClaim: granted, to every game (the holder takes its taken
+// members); NotifyClaimRefused: to every game, its claimer ends the action.
+using ClaimRequest = Relayed<Payloads::Claim, kClaimRequest>;
+using NotifyClaim = Relayed<Payloads::Claim, kNotifyClaim>;
+using NotifyClaimRefused = Relayed<Payloads::Claim, kNotifyClaimRefused>;
+// Its holder gives it back; NotifyActorGiveBack: the host's game takes it once its copy ran the holder's ops.
+using ActorGiveBackRequest = Relayed<Payloads::ActorGiveBack, kActorGiveBackRequest>;
+using NotifyActorGiveBack = Relayed<Payloads::ActorGiveBack, kNotifyActorGiveBack>;
 // A part of an actor's record from its owner; NotifyRecord: every other game's CopyRecords takes it.
 using RecordRequest = Relayed<Payloads::Record, kRecordRequest>;
 using NotifyRecord = Relayed<Payloads::Record, kNotifyRecord>;

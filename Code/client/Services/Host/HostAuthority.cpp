@@ -117,6 +117,13 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     On(*this, &HostAuthority::OnPlayerLevel);
     On(m_transfer, &HostSaveTransfer::OnSaveHeld);
 
+    // A kill move's claim (kill-moves.md, "Claimed pairs"): its NPC victim alive, its graph running (kProcessMe).
+    m_characters.Claims().SetRule(Payloads::Claim::kKillMove, {.Allows = [this](const Payloads::Claim& acClaim) {
+        return std::ranges::all_of(acClaim.Members, [&](const Payloads::ClaimMember& acMember) {
+            return !acMember.Take || !m_game.CanPair || m_game.CanPair(acMember.ActorId);
+        });
+    }});
+
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
     Relay<SubtitleRequest, NotifySubtitle>(FromAnyone);

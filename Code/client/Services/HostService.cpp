@@ -3,6 +3,7 @@
 #include <Events/GameLoadedEvent.h>
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
+#include <Services/Host/HostTakeBacks.h>
 #include <Bridges/IBodyBridge.h>
 #include <Services/BodyService.h>
 #include <Services/CrimeService.h>
@@ -144,6 +145,10 @@ void HostService::MakeAuthority() noexcept
     m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(),
         [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); });
+    m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(), [this](uint32_t aId) {
+        if (m_pAuthority)
+            m_pAuthority->ActorTaken(aId);
+    });
     HostGame game;
     game.ReadFollowers = [this] { return m_pEngine->ReadFollowers(); };
     game.TakeFollowerOrders = [this] { return m_pEngine->TakeFollowerOrders(); };
@@ -168,6 +173,14 @@ void HostService::MakeAuthority() noexcept
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
     game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
+    game.Claimable = [this](uint32_t aSessionId) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId && !m_world.ctx().at<IActorBridge&>().IsPlayerSummon(cFormId);
+    };
+    game.CanPair = [this](uint32_t aSessionId) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId && m_world.ctx().at<IActorBridge&>().ActorCanPair(cFormId);
+    };
     game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
     game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
     game.ConsoleNameOf = [this](uint32_t aSessionId) {
@@ -266,6 +279,7 @@ void HostService::MakeAuthority() noexcept
 void HostService::StopHosting() noexcept
 {
     m_pAggro.reset();
+    m_pTakeBacks.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();
@@ -303,6 +317,8 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);
+    if (m_pTakeBacks)
+        m_pTakeBacks->Update(acEvent);
 }
 
 // The host's game is the only one that names an NPC for the party; a guest's own quests stay on that guest. An actor the
@@ -314,3 +330,4 @@ void HostService::OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcep
     if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId))
         m_pAuthority->NameActor(*cSessionId, acEvent.Name);
 }
+

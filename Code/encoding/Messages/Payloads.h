@@ -208,16 +208,58 @@ struct Mount
     uint32_t MountId{};
 };
 
-// Ownership returns with the last owner's current placement, including a native travel's implicit dismount.
-struct Dismount : Mount
+// An action's claim on the actors it involves (HostClaims; one-simulator.md, "Action claims"): the host grants all or
+// none. A taken member is the claimer's game's until given back; a locked one keeps its owner, busy meanwhile.
+struct ClaimMember
+{
+    bool operator==(const ClaimMember&) const noexcept = default;
+    uint32_t ActorId{};
+    bool Take{};
+    bool DeathOnGiveBack{}; // taken: its death waits for its give-back (the copy's deferred kill kept)
+};
+
+struct Claim
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-    bool operator==(const Dismount&) const noexcept = default;
+    bool operator==(const Claim&) const noexcept = default;
+
+    enum Kind : uint8_t
+    {
+        kRide,     // a rider's get-on: its horse taken
+        kKillMove, // a kill move: its attacker locked, its victim taken (an NPC) or locked (a player)
+    };
+    enum Refusal : uint8_t
+    {
+        kNone,
+        kHeld,       // a member is in another claim (crossed kill moves, two riders): a kill move drops its blow
+        kCannotTake, // its kind's rule (a victim dead or frozen) or a summon: a kill move swings plainly (42350)
+    };
+
+    uint32_t ClaimId{}; // the host's, granted
+    uint8_t Kind{};
+    uint8_t Reason{}; // a refusal's
+    uint32_t ForId{}; // the acting actor (a rider, a kill move's attacker), its owner's game the holder
+    uint64_t Tick{};  // the action's
+    std::vector<ClaimMember> Members;
+};
+
+// A claimed actor back to the host, with its holder's current placement (a native travel's implicit dismount too).
+struct ActorGiveBack
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+    bool operator==(const ActorGiveBack&) const noexcept = default;
+    uint32_t ActorId{};
+    uint32_t ClaimId{}; // the claim it ends
+    uint32_t ForId{};   // the host's: whom the claim was for, the killer of a killed one
     ActorWhereabouts Whereabouts;
-    // Its rider's game's last graph update sent (its exit pair's PairEnd due with it, 32797): the host's game takes the
-    // mount once its copy has run that far (ReplayState::TakesOverMount); 0 at once.
+    // The holder's last graph update sent (an exit pair's PairEnd due with it, 32797): the host's game takes the actor
+    // once its copy has run that far (ReplayState::TakesOverMount); 0 at once.
     uint64_t Tick{};
+    bool Killed{}; // a kill counted under its hold (DeathOnGiveBack): the host's game kills it
+    bool Taken{};  // the host's: a taken member (the host's game takes it back), not a locked one
+    bool Ended{};  // the host's: its claim's last member back
 };
 
 // One part of an actor's record, from its owner (docs/design/one-simulator.md, piece 1).

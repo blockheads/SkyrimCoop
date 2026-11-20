@@ -71,6 +71,27 @@ inline Mods HostPlugins()
 }
 
 // What a game on the host's build, game and plugins sends to join.
+// A rider's get-on: a claim on its horse (HostCharacters' ride rule).
+inline ClaimRequest RideClaim(uint32_t aRider, uint32_t aMount)
+{
+    ClaimRequest claim;
+    claim.Kind = Payloads::Claim::kRide;
+    claim.ForId = aRider;
+    claim.Members = {{aMount, true, false}};
+    return claim;
+}
+
+// A kill move: its attacker locked, its victim taken (an NPC, its death kept) or locked (a player).
+inline ClaimRequest KillMoveClaim(uint32_t aAttacker, uint32_t aVictim, bool aVictimIsPlayer = false, uint64_t aTick = 0)
+{
+    ClaimRequest claim;
+    claim.Kind = Payloads::Claim::kKillMove;
+    claim.ForId = aAttacker;
+    claim.Tick = aTick;
+    claim.Members = {{aAttacker, false, false}, {aVictim, !aVictimIsPlayer, !aVictimIsPlayer}};
+    return claim;
+}
+
 inline AuthenticationRequest JoinRequest(const char* acpName, uint16_t aLevel = 5)
 {
     AuthenticationRequest join;
@@ -123,6 +144,8 @@ struct Session
     // A session id for one of the host's actors, as the host's game takes it.
     uint32_t NewCharacterId() { return m_authority.NewCharacterId(); }
     HostAuthority& Authority() { return m_authority; }
+    // The host's game took back an actor given back (its copy ran the holder's ops: HostService).
+    void Taken(uint32_t aActorId) { m_authority.ActorTaken(aActorId); }
 
     // A character aOwner announces, as its game does: the host one of its NPCs, a peer its player. Returns its
     // session id once another game got its spawn; what the announcement sent is cleared.
@@ -192,6 +215,7 @@ struct Session
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
     std::vector<std::string> ConsoleLines;                   // the dev commands' lines the host's console ran
+    std::set<uint32_t> CannotPair;                           // the host's NPCs dead or with their graph stopped
     std::map<uint32_t, std::string> ConsoleNames;            // a character as the host's console names it
     uint32_t HostilesKilled = 0;                             // /killall's kills in the host's game
     uint32_t GlobalReads = 0;
@@ -297,6 +321,7 @@ private:
             if (CrimeJudge) CrimeJudge(aActor, aCrime);
             return CrimeCaught;
         };
+        game.CanPair = [this](uint32_t aSessionId) { return !CannotPair.contains(aSessionId); };
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.AdvanceTime = [this](float aHours) { HostClock.Time += aHours; };

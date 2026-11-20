@@ -1981,24 +1981,39 @@ TEST_CASE("Party travel preserves queued destinations and native travel hours", 
     CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
 }
 
-TEST_CASE("Dismount carries the horse's placement to its next owner", "[encoding.travel]")
+TEST_CASE("A give-back carries the actor's placement, its holder's last tick, its kill and its claim's end", "[encoding.travel]")
 {
-    DismountRequest dismount;
-    dismount.RiderId = 8;
-    dismount.MountId = 9;
-    dismount.Tick = 123456789;
-    dismount.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
-    dismount.Whereabouts.CellId = GameId(0, 0x9C5E1);
-    dismount.Whereabouts.WorldSpaceId = GameId(0, 0x3C);
-    dismount.Whereabouts.Position = {100.f, 200.f, -30.f};
-    dismount.Whereabouts.Heading = 0.5f;
+    ActorGiveBackRequest giveBack;
+    giveBack.ActorId = 9;
+    giveBack.ClaimId = 3;
+    giveBack.ForId = 8;
+    giveBack.Tick = 123456789;
+    giveBack.Killed = true;
+    giveBack.Taken = true;
+    giveBack.Ended = true;
+    giveBack.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
+    giveBack.Whereabouts.CellId = GameId(0, 0x9C5E1);
+    giveBack.Whereabouts.WorldSpaceId = GameId(0, 0x3C);
+    giveBack.Whereabouts.Position = {100.f, 200.f, -30.f};
+    giveBack.Whereabouts.Heading = 0.5f;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
-    dismount.Serialize(writer);
+    giveBack.Serialize(writer);
     Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
     auto message = RequestMessageFactory{}.Extract(reader);
     REQUIRE(message);
-    CHECK(*CastUnique<DismountRequest>(std::move(message)) == dismount);
+    CHECK(*CastUnique<ActorGiveBackRequest>(std::move(message)) == giveBack);
+
+    NotifyActorGiveBack notify;
+    static_cast<Payloads::ActorGiveBack&>(notify) = giveBack;
+    Buffer notifyBuffer;
+    Buffer::Writer notifyWriter(&notifyBuffer);
+    notify.Serialize(notifyWriter);
+    Buffer::Reader notifyReader(std::span(notifyBuffer.GetData(), notifyWriter.Size()));
+    auto notified = NotifyMessageFactory{}.Extract(notifyReader);
+    REQUIRE(notified);
+    CHECK(*CastUnique<NotifyActorGiveBack>(std::move(notified)) == notify);
+
 }
 
 TEST_CASE("Follower trade grants and releases retain the NPC session id", "[encoding.followers]")
@@ -2421,6 +2436,44 @@ TEST_CASE("A refused ride names the horse and the rider", "[encoding.travel]")
     auto message = NotifyMessageFactory{}.Extract(reader);
     REQUIRE(message);
     CHECK(*CastUnique<NotifyMountRefused>(std::move(message)) == refused);
+}
+
+TEST_CASE("An action claim names its kind, actor, tick and members; its grant its id, its refusal the reason", "[encoding.claim]")
+{
+    ClaimRequest request;
+    request.Kind = Payloads::Claim::kKillMove;
+    request.ForId = 8;
+    request.Tick = 123456789;
+    request.Members = {{8, false, false}, {9, true, true}};
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto message = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(message);
+    CHECK(*CastUnique<ClaimRequest>(std::move(message)) == request);
+
+    NotifyClaim claim;
+    static_cast<Payloads::Claim&>(claim) = request;
+    claim.ClaimId = 3;
+    Buffer buffer2;
+    Buffer::Writer writer2(&buffer2);
+    claim.Serialize(writer2);
+    Buffer::Reader reader2(std::span(buffer2.GetData(), writer2.Size()));
+    auto notify = NotifyMessageFactory{}.Extract(reader2);
+    REQUIRE(notify);
+    CHECK(*CastUnique<NotifyClaim>(std::move(notify)) == claim);
+
+    NotifyClaimRefused refused;
+    static_cast<Payloads::Claim&>(refused) = request;
+    refused.Reason = Payloads::Claim::kCannotTake;
+    Buffer buffer3;
+    Buffer::Writer writer3(&buffer3);
+    refused.Serialize(writer3);
+    Buffer::Reader reader3(std::span(buffer3.GetData(), writer3.Size()));
+    auto refusal = NotifyMessageFactory{}.Extract(reader3);
+    REQUIRE(refusal);
+    CHECK(*CastUnique<NotifyClaimRefused>(std::move(refusal)) == refused);
 }
 
 TEST_CASE("A passenger's boarding and getting off name the horse and the rider", "[encoding.travel]")

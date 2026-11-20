@@ -316,6 +316,16 @@ struct Actor : TESObjectREFR
     // The engine keeps the actor alive whatever its health until EndDeferredKill (papyrus StartDeferredKill).
     void StartDeferredKill() noexcept;
     void EndDeferredKill() noexcept;
+    // Taken by this game for a claimed kill move: the copy's scripted deferred kill kept (its clip's KillActor only counts,
+    // 37896), its pose held from there; or released: the hold ended, its counted kills dropped (40036 would queue one).
+    void HoldKill(bool aHold) noexcept;
+    // A kill counted under the deferred kill (DeferKill 38617: KillActor 42838 or KillMoveEnd 38614's QueueKill).
+    [[nodiscard]] bool KillCounted() const noexcept;
+    // Dies now, credited to apKiller: the hold ended, then KillImpl.
+    void KillBy(Actor* apKiller) noexcept;
+    // The action again with no target and no events, as PlayerControls' second try (42350) after a refused pair:
+    // the idle tree picks a plain swing.
+    bool PerformPlainly(BGSAction* apAction) noexcept;
     // A kill move's victim: the kill move kills it (KillActorHandler 42838, crediting its partner).
     [[nodiscard]] bool IsHeldByKillMove() const noexcept;
     [[nodiscard]] bool IsInKillMove() const noexcept;

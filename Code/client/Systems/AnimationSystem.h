@@ -51,6 +51,10 @@ struct AnimationSystem
      * @param formIdComponent The form id component of the actor, used to fetch the actor pointer.
      */
     static void Serialize(World& aWorld, ReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent, LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent);
+    // This game's actor ends its pair with a copy (the host gave another pair the claim, or refused this one): both
+    // out of the instance and the kill move, its clip stopped until it leaves, its blow dropped, its kill cam ended
+    // (docs/re/systems/kill-moves.md, "Yielding").
+    static void YieldPair(World& aWorld, Actor* apCopy, Actor* apOwn) noexcept;
     // An action's target between games: an actor by its session id (ActionEvent::TargetActor), any other reference
     // by its form id (the same in both games; a temporary one names nothing there and is dropped). Game thread.
     static void TargetToNetwork(ActionEvent& aAction) noexcept;

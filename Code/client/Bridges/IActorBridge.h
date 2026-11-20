@@ -221,6 +221,19 @@ public:
     virtual void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept = 0;
     // A copy leaves a kill move without dying: its killer cleared, then EndKillMove (38614).
     virtual void CopyLeaveKillMove(uint32_t aFormId) noexcept = 0;
+    // A claimed kill move (one-simulator.md, "Action claims"; kill-moves.md). An NPC taken by this game keeps the copy's deferred
+    // kill (true: its clip's KillActor only counts); released, the hold ends and its counted kills are dropped.
+    virtual void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept = 0;
+    // Its clip killed it under the hold (a counted kill, MiddleHigh +0x2F8 above 1).
+    [[nodiscard]] virtual bool ActorKillCounted(uint32_t aFormId) const noexcept = 0;
+    // The host's game kills its NPC a claimed kill move's clip killed, credited to aKillerFormId.
+    virtual void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept = 0;
+    // This game's actor ends its pair with a copy: the host refused its claim, or gave another the claim.
+    virtual void ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept = 0;
+    // The action again with no target, as the engine's own second try after a refused pair (42350); true if taken.
+    virtual bool ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept = 0;
+    // Alive, its graph running (kProcessMe), no player's summon: it can be lent for a pair's half.
+    [[nodiscard]] virtual bool ActorCanPair(uint32_t aFormId) const noexcept = 0;
 
     // --- Actor lifecycle flags ---
     virtual bool IsActorTemporary(uint32_t aFormId) const noexcept = 0;

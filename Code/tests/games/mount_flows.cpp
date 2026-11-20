@@ -765,3 +765,87 @@ TEST_CASE("The host rides along on the horse a guest drives, then drives it when
                 [&] { return std::format("host owns {} slot {} reins {}", Owns(party.Host(), horse), host.MountSlots.contains(horse),
                                          host.Reins.contains(horse)); });
 }
+
+namespace
+{
+// A host horse and the guest's copy of it, both games on the mount graph.
+struct HorseParty
+{
+    Party party{1, [](FakeEngine& aEngine) {
+                    FakeEngine::MountGraph(aEngine);
+                    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+                    aEngine.LoadCell(kCell);
+                }};
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t horse = 0;
+    uint32_t copy = 0;
+
+    HorseParty()
+    {
+        party.Agree("the players are present");
+        party.As(party.Host(), [&] { horse = host.LoadNpc(kHorse, kCell); });
+        party.Until([&] { return guest.CopiesOf(kHorse).size() == 1; }, "the guest has the horse");
+        copy = guest.CopiesOf(kHorse)[0];
+    }
+    void GuestRides() { party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, copy); }); }
+};
+} // namespace
+
+SCENARIO("A horse whose copy's stream stops on the host's game is still taken back, and ridden again", "[mounts][claims]")
+{
+    // HostTakeBacks waits for the copy to replay its holder's ops; a copy whose graph stops updating (still loaded)
+    // never gets there. Before, the horse stayed on its way back for good and every later ride was refused.
+    HorseParty ride;
+    ride.GuestRides();
+    ride.party.Until([&] { return Owns(ride.party.Guest(), ride.copy) && ride.party.Host().GetGraphStreams().OnStream(ride.horse); },
+                     "the guest's game holds the horse, the host's copy on its stream");
+    ride.host.Actors.at(ride.horse).GraphUpdating = false;
+    ride.party.As(ride.party.Guest(), [&] { ride.guest.StartDismount(FakeEngine::kPlayer); });
+    ride.party.Until([&] { return Owns(ride.party.Host(), ride.horse); }, "the host's game takes it back anyway", {}, nullptr,
+                     std::chrono::seconds(10));
+    ride.host.Actors.at(ride.horse).GraphUpdating = true;
+    ride.GuestRides();
+    ride.party.Until([&] { return Owns(ride.party.Guest(), ride.copy); }, "the guest rides it again", {}, nullptr, std::chrono::seconds(10));
+}
+
+SCENARIO("A ride on the host player's summoned horse is refused before the host gives it up", "[mounts][claims]")
+{
+    // No game takes a player's summon (CharacterService::TakeOwnership): the host's game could not take it back either.
+    HorseParty ride;
+    ride.party.As(ride.party.Host(), [&] { ride.host.Actors.at(ride.horse).PlayerSummon = true; });
+    ride.guest.Actors.at(ride.copy).PlayerSummon = true;
+    ride.GuestRides();
+    ride.party.Until([&] { return !ride.guest.IsPlayerMounted(); }, "the guest's player is off it, its ride refused");
+    CHECK(Owns(ride.party.Host(), ride.horse));
+    CHECK(ride.guest.IsActorCopy(ride.copy));
+}
+
+SCENARIO("A ride its game could not take ends there too: its player gets off", "[mounts][claims]")
+{
+    // The guest's game alone refuses the horse (a summon to it): the claim comes straight back, the host ends the ride
+    // (HostClaims::OnEnded), and the guest's player, seated already, gets off.
+    HorseParty ride;
+    ride.guest.Actors.at(ride.copy).PlayerSummon = true;
+    ride.GuestRides();
+    ride.party.Until([&] { return ride.guest.IsPlayerMounted(); }, "the guest's player gets on");
+    ride.party.Until([&] { return !ride.guest.IsPlayerMounted(); }, "the guest's player is off it");
+    ride.party.Until([&] { return Owns(ride.party.Host(), ride.horse); }, "the host's game has it");
+    CHECK(ride.guest.IsActorCopy(ride.copy));
+}
+
+SCENARIO("The host's player rides its own summoned horse", "[mounts][claims]")
+{
+    // No game takes a player's summon, but this ride moves nothing: the horse is the host's game's already.
+    HorseParty ride;
+    ride.party.As(ride.party.Host(), [&] {
+        ride.host.Actors.at(ride.horse).PlayerSummon = true;
+        ride.host.Activates(FakeEngine::kPlayer, ride.horse);
+    });
+    ride.party.Until([&] { return ride.guest.Mounts.size() == 1; }, "the guest's copy of the host's player rides");
+    int frames = 0;
+    ride.party.Until([&] { return ++frames > 30; }, "the claim's round trip");
+    CHECK(ride.host.IsPlayerMounted());
+    CHECK(Owns(ride.party.Host(), ride.horse));
+}
+

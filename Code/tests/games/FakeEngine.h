@@ -14,6 +14,7 @@
 #include <Games/Skyrim/CopyPackage.h>
 #include "../FakeNativeVm.h"
 #include <Games/Animation/ReplayStep.h>
+#include <Games/Animation/ReplayState.h>
 #include <Games/Animation/HeldClipLoads.h>
 #include "../FakeFlight.h"
 
@@ -599,12 +600,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Dead = false;
         uint64_t GraphHash = 0;
         bool GraphUpdating = true; // KillImpl clears kShouldAnimGraphUpdate; resurrection leaves it stopped.
+        bool KillHeld = false;    // a scripted deferred kill (38616): every copy's (UpdateCopyAI), and it outlives the
+                                  // copy (no engine path ends one, 38618's callers); held, a kill is only counted (37896)
+        bool KillCounted = false; // a kill held back (MiddleHigh +0x2F8 above 1); our release drops it (Actor::HoldKill)
+        bool PlayerSummon = false; // commanded by this game's player (Actor::IsPlayerSummon)
+        bool ProcessMe = true; // kProcessMe: EnableAI(false) (37504, the harness's freeze) clears it, and the graph job skips it (41466)
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
         bool InAir = false; // its controller jumping or falling, else on the ground
         bool InKillMove = false; // either half of a pair (Actor::IsInKillMove 38615)
-        ActionEvent LatestPairAction; // its half of the pair it last took
         uint32_t PairBlowIn = 0;  // frames until its own pair's blow lands (HitFrame), 0 none
         uint32_t PairVictim = 0;
+        uint32_t KillMoveEndIn = 0; // frames until its own clip's KillMoveEnd (KillMoveEndHandler 42871), 0 none
+        uint32_t KillActorIn = 0; // frames until its victim half's clip sends KillActor (42838), 0 none
         uint32_t ClashPartner = 0;
         uint64_t ClashUntil = 0;
         uint8_t PairStops = 0;
@@ -690,11 +697,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                 Retries = acOther.Retries;
                 Action = acOther.Action;
                 Variables = acOther.Variables;
+                PairHere = acOther.PairHere;
                 ClipsLoaded = acOther.ClipsLoaded;
                 return *this;
             }
         } Replay;
         ActionEvent LatestAnimation;
+        ActionEvent PairHalf; // its half of the pair it last took (32803 knows its instance's halves)
         std::string GraphState;
         std::set<std::string> LoadedClips; // the event whose clip files its process holds: one action set (KeepSet 40055)
         std::vector<std::pair<uint32_t, bool>> AnimObjects; // its props (AnimationObjects 400328): ANIO, drawn
@@ -759,9 +768,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A behaviour's transitions; a clip's own annotation can advance only this game's graph.
     std::map<std::pair<std::string, std::string>, std::string> GraphTransitions;
     std::map<uint32_t, uint32_t> RefusedAnimations;
+    static constexpr uint8_t kBipedLayer = 8; // a ragdoll's bodies' collision layer in the world (L_BIPED)
     bool PairBlows = false; // an owner's pair lands its blow on its victim's copy after PairBlowFrames: uninterruptible (pa_KillMoveI)
     uint32_t PairStopsDropped = 0; // a clip's entry transition drops this many pairedStops (flags 0xd04)
     uint32_t PairBlowFrames = 2000; // after the other game replays the pair (~700 frames here), as HitFrame at ~1.2 s is
+    uint32_t PairEndFrames = 0; // after its blow, until the attacker's clip sends KillMoveEnd (0: four times the blow's)
     double PairMarkMs = 0.0; // how long a pair's actors take to reach their marks in its instance (150 ms on the host)
     bool PairMarkBlocked = false; // the mark sweep (TryMoveTo 78260) fails here: this game's positions, its own walls
     uint32_t BrokenPairs = 0; // a plain action took a copy out of its pair's clip, the pair ended before its blow
@@ -775,7 +786,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // PerformAction, KnockReplay); nothing else ends a living copy's knock.
     static constexpr uint32_t kActionGetUp = 0x13FF0;
     static constexpr uint32_t kActionRagdoll = 0x13FEF; // what a knock plays (39895)
-    void ClipKillActor(uint32_t aFormId); // KillActorHandler 42838: a copy holds its pose
+    // KillActorHandler 42838, a victim's clip's KillActor: dies credited to its pair partner, unless its kill is held
+    // (a copy, an NPC taken for a claimed kill move): then counted, its pose held.
+    void ClipKillActor(uint32_t aFormId);
+    bool m_applyingOwnHit = false; // TakesDamage's Apply: the engine's own hit, not the bridge's forwarded one
+    uint32_t PlainSwings = 0; // ActorPerformPlainly taken: the engine's second try after a refused pair (42350)
+    static constexpr const char* kPlainSwing = "attackStart";
     [[nodiscard]] bool PoseHeld(uint32_t aFormId) const noexcept; // HookUpdateAnimationGraphs: its graph takes no update
     void RagdollContact(uint32_t aFormId); // a kill move's victim touches something: 63092 kills it, unless held back
     void StopPairClip(uint32_t aFormId); // pairedStop: the clip leaves, unless its transition drops it
@@ -1078,7 +1094,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool GraphsStepPhysics(uint32_t aFormId) const noexcept override { return !Actors.contains(aFormId) || Actors.at(aFormId).GraphsStepPhysics; }
     void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override
     {
-        if (!Actors.contains(aFormId) || !Actors.at(aFormId).Copy || Actors.at(aFormId).KnockedDown)
+        if (!Actors.contains(aFormId) || !Actors.at(aFormId).Copy ||
+            !::ReplayState::TakesOwnerBodies(Actors.at(aFormId).KnockedDown, Actors.at(aFormId).InKillMove))
             return;
         Actors.at(aFormId).BodiesLayer = aBodiesLayer;
         Actors.at(aFormId).GraphsStepPhysics = aGraphsStep;
@@ -1580,6 +1597,25 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override;
     void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
     void CopyLeaveKillMove(uint32_t aFormId) noexcept override;
+    void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept override;
+    void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
+    void ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept override;
+    bool ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept override;
+    [[nodiscard]] bool ActorCanPair(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && !it->second.Dead && it->second.ProcessMe && !it->second.PlayerSummon;
+    }
+    [[nodiscard]] bool ActorKillCounted(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && it->second.KillCounted;
+    }
+    [[nodiscard]] bool IsPlayerSummon(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && it->second.PlayerSummon;
+    }
     // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played; refused on
     // a copy on its owner's stream (weapon state 1 or 4).
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;

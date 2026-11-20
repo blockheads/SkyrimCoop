@@ -685,6 +685,12 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void CopyLeaveKillMove(uint32_t aFormId) noexcept override
     {
     }
+    void ActorHoldKill(uint32_t, bool) noexcept override {}
+    [[nodiscard]] bool ActorKillCounted(uint32_t) const noexcept override { return false; }
+    void KillActorBy(uint32_t, uint32_t) noexcept override {}
+    void ActorYieldPair(uint32_t, uint32_t) noexcept override {}
+    bool ActorPerformPlainly(uint32_t, uint32_t) noexcept override { return false; }
+    [[nodiscard]] bool ActorCanPair(uint32_t) const noexcept override { return true; }
     bool IsActorTemporary(uint32_t aFormId) const noexcept override
     {
         return {};

@@ -1,7 +1,7 @@
 # One simulator: every system on one sync rule (2026-11-18)
 
-Status: **pieces 1 to 3 and 4a built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
-2026-11-19: items, a mount handed back between pairs); the rest proposed.** Direction agreed 2026-11-18 (the four
+Status: **pieces 1 to 4 built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
+2026-11-19: items, a mount handed back between pairs; 2026-11-20: kill moves as claimed pairs); the rest proposed.** Direction agreed 2026-11-18 (the four
 decisions below). Physics
 ([physics-sync.md](physics-sync.md), "One simulator per pile") and the graph stream
 ([graph-input-stream.md](graph-input-stream.md)) already work this way; this puts the rest of the code on the same
@@ -408,6 +408,109 @@ a passenger who drives on (HandOver): takes it at once and sends PairEnd itself,
   HostAuthorityTests (the tick passed on), ClientTests `TakesOverMount`; on the duo `horse-passes-between-riders`,
   `party-shares-a-horse` (3 of 3 to the end comparison), `host-rides-horse`, `guest-rides-host-horse`,
   `mounted-guest-leaves`.
+
+**4b as built (2026-11-20)**, after the RE (`docs/re/systems/kill-moves.md`, "Claimed pairs"):
+
+```text
+claimer's game: its own actor's pa_Kill... accepted on another game's actor (KillMoveService, from the ActionEvent)
+  -> ClaimRequest{kill move, attacker, the action's tick, members: attacker locked, an NPC victim taken (its death
+  kept) or a player victim locked}; the pair plays on
+host (HostClaims): a member in another claim -> kHeld; a victim dead, its graph stopped or a summon -> kCannotTake;
+  else NotifyClaim to all, an NPC victim the claimer's game's
+claimer: TakeOwnership, the copy's scripted deferred kill kept (its clip's KillActor only counts, 37896; pose held)
+  its kill counted (KillActor 42838 or EndKillMove 38614), or the pair left alive -> each member's give-back
+  (the victim's ActorGiveBackRequest{tick, killed}, its graph ops first); a victim it cannot take -> yield and done
+host: the NPC is the host's again (NotifyActorGiveBack; the claim's end with its last member)
+the host's game: its copy ran the claimer's ops through tick -> TakeOwnership -> KillImpl credited to the claim's actor
+refused (NotifyClaimRefused): the claimer yields (EndPairsOf 32809, pairedStop resent, kill cam ended, blow dropped)
+  kCannotTake: then the same action with no target, the engine's own second try (42350): a plain swing
+a replay onto a game's own player waits for the host's answer (ActionClaims): claimed plays (its own kill move yields),
+  refused is never played, on any game; onto an NPC still its own: never paired there (ClaimedAway)
+answers are kept by the action's tick (8 per actor): a replay behind its owner still finds an earlier one
+a player joining during a lend gets the NPC from the host's records (HostCharacters, as a ridden mount)
+releasing a hold drops its counted kills: a death is only ever the give-back's word
+every non-claimer game pairs the attacker's copy with the lent NPC's copy itself (an instance here, LentPartner):
+  the NPC's copy has no stream to replay (its half never went out, its new owner gives no point in the instance)
+the host's game takes the NPC back once its own copy's clip sent KillActor (1.5 s at most), then kills it
+a forwarded blow of a claimed pair on the victim's game: held; dropped once the pair plays there, a plain hit if the
+  pair ended first (a short winner's blow used to land before its pair played there)
+```
+
+Changes from the plan above, each from what was read:
+
+- **The kill rides the done message**, not a forwarded hit: a hit on a lent NPC is applied on the claimer (its own
+  actor now), and the host's game drops hits on a copy until it took the NPC back. The killer is the claim's own actor
+  (42838 credits the pair's partner), so the message says only "killed".
+- **A partner that cannot pair gets the engine's own fallback** (the user, 2026-11-20): a crossed pair's blow is
+  dropped, the other refusal swings plainly.
+- **No timeout on a claim** (the user): a claimer that leaves frees its claims, its NPC the host's again at once.
+- **A released copy's deferred kill is ended** (`TakeOwnership`, mounts too): no engine path ends a scripted one.
+- **Fewer deletes than listed.** Gone: `SettlePairedReplay`'s tick comparison, `ActorExtension::LatestPairAction`,
+  PR #73's `PartnerAnimates`. Kept, because a player victim cannot change owner and a third game still shows two
+  copies: `PairMarkClear`, `ContactKills`, `PoseHeld` (now a lent victim's too), `HeldByPair`, the yield's steps
+  (now `AnimationSystem::YieldPair`, also what a refusal runs). The manual `PairEnd` for a passenger who drives on
+  stays (4a measured it).
+- **Action claims (2026-11-20, the user: "just claiming actor ownership, and giving back"; then "why do we have
+  this idea of pairs still?").** A ride and a kill move were the same thing built twice; now one claim, `HostClaims`
+  (host) and `ClaimService` (every game), and each kind keeps only its own rule:
+
+  ```text
+  claimer: ClaimRequest{kind, for, tick, members[{actor, take, death}]}
+    a kill move: {attacker: locked} + {victim: taken+death (an NPC) | locked (a player)}; a ride: {horse: taken}
+  host: one claim per actor (two riders, crossed kill moves, one still on its way back -> kHeld); taken members a
+    host NPC its game could take back; the kind's rule (a ride: a horse; a kill move: the victim can pair) ->
+    NotifyClaim to all (the holder takes its taken members, the others give them up; every game keeps the answer by
+    for and tick: ActionClaims), then the kind's own notice (a ride: NotifyMount, for seating)
+  holder: each member's ActorGiveBackRequest{claim, tick, whereabouts, killed} (a taken one after its next update,
+    its ops first); the claim ends with its last -> NotifyActorGiveBack{taken, ended}
+    the host's game takes a taken one back (HostTakeBacks): after its copy's replay, placed, killed for `for`
+  a holder leaving: its claims end; a member removed (a player leaving): its claim ends, the others back
+  a passenger driving on: the ride's claim passes to it (PassOn)
+  ```
+
+  Gone: `HostPairs`, `PairService` (now `KillMoveService`, the kill move's rules alone), `PairClaims` (now
+  `ActionClaims`), `PairClaimRequest`/`NotifyPairClaim`/`NotifyPairRefused`/`PairDoneRequest`/`NotifyPairDone`,
+  `MountRequest`, `NotifyActorClaim`, `HostCharacters::Lend`, the owner changes in the mount rules, `PairKillEvent`,
+  `CharacterService`'s hand-backs and take-overs. Kept: `NotifyMount`, `DismountRequest`, boarding and its refusal
+  (seating). Only one rule is enforced across kinds, one claim per actor, for the races two games create. Other
+  cross-kind cases (a kill move on a ridden horse) get no rule of their own, by scope (the user, 2026-11-20): whether
+  Skyrim can produce them is not read.
+  Its review round: a grant naming a member retires any claim it was in on every game (a passenger driving on), and
+  a held blow goes by kill-move claims alone; a removal taking a claim's last outstanding member ends it; ownership
+  moving decides "takeable" (a host player's own summoned horse rides); a joiner gets the live claims; a holder's
+  give-back waits 3 s at most for its last update. Names: `ClaimAnswer`, `TakenVictim` (pair kept only for the
+  engine's paired animation).
+- **Its review round (PR #85, second Codex review):**
+  - Each claim has an id its give-back names; a re-claim must match (same `for`, same death rule), anything else
+    only by handover; "killed" counts only on a claim that keeps its death.
+  - Given back, an actor is *returning* until the host's game took it (`HostTakeBacks`, the host's game-side part;
+    `HostAuthority::ActorTaken`): claimed by nobody meanwhile (a reported death settles first), and a joiner gets the
+    host's copy of it.
+  - A claim's end tells its kind (`HostClaims::Rule::Ended`): a ride still marked (its game could not take the horse)
+    ends.
+  - The holder re-reads its hold's kill count as it sends (38614 queues its kill on task 10, read; when that runs
+    against our give-back is not read or measured: the GameTest models it landing a frame later), and never sends
+    in the update that asked; a claim for an actor no longer on the claimer's game comes straight back.
+  - The take-back places the actor exactly (`CharacterService::PlaceAt`): `FollowOwner` skips a move under 64
+    units and a turn.
+- **Its third review round:** a copy whose stream stops is taken back after 3 s anyway (it stayed returning for
+  good); the host claims nothing its game could not take back (`HostGame::Claimable`: a player's summon) and marks a
+  take-back done only when it took it; a give-back is bound to its claim when asked (one asked before its claim was
+  heard takes the next one, 5 s at most) and the host takes no unnumbered one; a ride the host ends with this game's
+  player still on it takes it off; a taken-back actor loses `FollowOwner`'s held-copy mark.
+- Review round (PR #85): answers by tick, a refusal skipped on a watching game too, the join snapshot, a summon
+  refused, `KillMoveEnd`'s kill counted and a hold's counted kills dropped on release, each with a test that failed
+  first. A held blow is dropped only with its victim in the attacker's own pair (its killer, 38613), not in
+  its own yielded clip.
+- Tests: HostAuthorityTests `[claims]`, GameTests `[pair-claim]` and `[claims]` (the first 4b set: the lend, the host's two copies paired, the
+  host's kill with its credit, a taken-back NPC can die, two guests on one NPC, the frozen NPC's plain swing, a claimer
+  leaving, a short crossed winner's blow, a refusal on a watching game, a kill at the clip's end, a summon), the crossed flows of `[friendly-fire][kill-move]`, ClientTests
+  `[replay-state]`. The fake learned: the scripted deferred kill (kept by a released copy, a held kill counted and
+  dropped by our release), `KillActor`'s partner credit, a victim's clip's `KillActor` and an attacker's
+  `KillMoveEnd`, a forwarded hit on a held victim refused, "already paired" meaning in a pair (not the flag a record
+  sets), our hook's rule for a copy's half, and the plain second try.
+- On the duo (2026-11-20): `client-kill-move`, `host-kill-move`, `kill-moves-cross` pass; `frozen-wolf-kill-move` 3
+  of 3 (one earlier run picked no kill move at all: its staging, open since PR #73).
 
 ## Piece 5: passengers sit at once
 

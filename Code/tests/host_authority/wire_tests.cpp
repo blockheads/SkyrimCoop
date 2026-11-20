@@ -142,7 +142,7 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         add("RemoveSpell", m, (NotifyRemoveSpell*)nullptr);
     }
     {
-        MountRequest m;
+        BoardRequest m; // the Mount payload (MountRequest went: a ride is a ClaimRequest)
         m.RiderId = 0xF012;
         m.MountId = 0x0123;
         add("Mount", m, (NotifyMount*)nullptr);
@@ -182,7 +182,7 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
         {"ActorValues", {"d668021800004d4219000060c001190000f041", "d668021800004d4219000060c001190000f041"}}, // temporary pool modifiers (2026-10-30)
         {"AddTarget", {"ef9b03f0bd03cddf0401cedf04010000cc4103", "ef9b03f0bd03cddf0401cedf04010000cc4103"}},
         {"DeathState", {"f8ac0101", "f8ac0101"}},
-        {"Dismount", {"92e003a3020000", "92e003a3020000"}}, // placement added 2026-10-27; the hand-back's tick 2026-11-19
+        {"Dismount", {"92e003a302", "92e003a302"}}, // placement and tick moved to ActorGiveBack 2026-11-20
         {"Dialogue", {"c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a", "c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a"}},
         {"HealthChange", {"89cf0100004cc135e30300", "89cf0100004cc135e30300"}},
         {"InterruptCast", {"cdd70203", "cdd70203"}},

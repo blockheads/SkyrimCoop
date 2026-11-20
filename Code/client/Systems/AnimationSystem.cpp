@@ -138,13 +138,30 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             if (!action.TargetEventName.empty())
             {
                 auto* pPartner = Cast<Actor>(TESForm::GetById(action.TargetId));
-                if (!ReplayState::PairOnStream(pPartner && pPartner->GetExtension()->IsCopy()))
+                const bool cKillMove = ReplayState::EntersKillMove(action.EventName);
+                const bool cPartnerPlayer = pPartner && pPartner->GetExtension()->IsPlayer();
+                const auto cClaim = cKillMove ? aWorld.GetActionClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), action.Tick)
+                                              : ReplayState::ClaimAnswer::kNotNeeded;
+                // Refused, its claimer ended it; on an NPC still this game's, it waits for the host's answer.
+                const auto cOutcome = ReplayState::ClaimOutcome(
+                    cClaim, pPartner && ReplayState::ClaimedAway(cKillMove, pPartner->GetExtension()->IsCopy(), cPartnerPlayer));
+                if (cOutcome == ReplayState::PairOutcome::kWait)
+                    return;
+                if (cOutcome == ReplayState::PairOutcome::kSkip)
+                {
+                    actions.pop_front();
+                    aAnimationComponent.LastRanAction = action;
+                    apActor->GetExtension()->LatestAnimation.Write(action);
+                    continue;
+                }
+                const bool cPartnerCopy = pPartner && pPartner->GetExtension()->IsCopy();
+                if (!ReplayState::PairOnStream(cPartnerCopy, ReplayState::TakenVictim(cKillMove, cClaim, cPartnerCopy, cPartnerPlayer)))
                 {
                     streams.HoldUntilPoint(apActor->formID, action.Tick);
                     return;
                 }
                 // What playing the action does beside the graph (39004): both in the kill move, the victim's killer.
-                if (ReplayState::EntersKillMove(action.EventName))
+                if (cKillMove)
                 {
                     apActor->EnterKillMove(nullptr);
                     pPartner->EnterKillMove(apActor);
@@ -289,31 +306,41 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         // BeginGetUp (40150) sets its input and performs the action together. A graph update between them advances
         // the copy's get-up before the action. Paired actions also start here, with a partner this game owns.
         auto* pPartner = first.TargetEventName.empty() ? nullptr : Cast<Actor>(TESForm::GetById(first.TargetId));
-        const bool cLocalPartner = pPartner && !pPartner->GetExtension()->IsCopy() && !pPartner->IsMount();
-        if (cLocalPartner)
+        const bool cKillMove = ReplayState::EntersKillMove(first.EventName);
+        // Refused, its claimer ended it; on an NPC still this game's, it waits for the host's answer.
+        const auto cClaim = cKillMove ? aWorld.GetActionClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), first.Tick)
+                                      : ReplayState::ClaimAnswer::kNotNeeded;
+        const auto cClaimOutcome = ReplayState::ClaimOutcome(
+            cClaim, pPartner && ReplayState::ClaimedAway(cKillMove, pPartner->GetExtension()->IsCopy(), pPartner->GetExtension()->IsPlayer()));
+        if (cClaimOutcome == ReplayState::PairOutcome::kWait)
+            return;
+        if (cClaimOutcome == ReplayState::PairOutcome::kSkip)
         {
-            const ActionEvent cPair = pPartner->GetExtension()->LatestPairAction.Read();
-            const auto cOutcome = ReplayState::SettlePairedReplay(
-                {first.EventName.c_str(), apActor->formID, pPartner->IsInKillMove(), cPair.TargetEventName.c_str(), cPair.TargetId,
-                 first.Tick, cPair.Tick, Utils::GetSessionIdByFormId(apActor->formID).value_or(0), Utils::GetSessionIdByFormId(pPartner->formID).value_or(0)});
+            spdlog::debug("Copy {:X}: kill move '{}' not played, its claim refused", apActor->formID, first.EventName);
+            aAnimationComponent.LastRanAction = first;
+            apActor->GetExtension()->LatestAnimation.Write(first);
+            actions.pop_front();
+            return;
+        }
+        const bool cPartnerCopy = pPartner && pPartner->GetExtension()->IsCopy();
+        const bool cTaken = pPartner && ReplayState::TakenVictim(cKillMove, cClaim, cPartnerCopy, pPartner->GetExtension()->IsPlayer());
+        const bool cLocalPartner = pPartner && ReplayState::PairsHere(cPartnerCopy, pPartner->IsMount(), pPartner->GetExtension()->IsPlayer(), cKillMove, cTaken);
+        step.PairHere = cLocalPartner;
+        if (cLocalPartner && !cTaken)
+        {
+            // A kill move on this game's player goes by the host's answer to its claim (ActionClaims).
+            const auto cOutcome = ReplayState::SettlePairedReplay(pPartner->IsInKillMove(), cClaim);
+            if (cOutcome == ReplayState::PairOutcome::kWait)
+                return;
             if (cOutcome == ReplayState::PairOutcome::kYield)
             {
-                spdlog::debug("{:X}'s pair yields to {:X}'s '{}', swung first", pPartner->formID, apActor->formID, first.EventName);
-                apActor->EndPairs();
-                apActor->EndKillMove();
-                pPartner->EndPairs();
-                pPartner->EndKillMove();
-                apActor->GetExtension()->ClashPartner = pPartner->formID;
-                apActor->GetExtension()->PairStops = ReplayState::cClashStopUpdates;
-                pPartner->GetExtension()->ClashUntil = aWorld.GetTick() + ReplayState::cClashGuardMs;
-                // The kill cam of the swing that lost: left running, its end cuts the winner's pair short.
-                if (auto* pVats = VATS::Get(); pPartner == PlayerCharacter::Get() && pVats && pVats->mode == VATS::kKillCam)
-                    pVats->End();
+                spdlog::debug("{:X}'s pair yields to {:X}'s '{}', the host's claim", pPartner->formID, apActor->formID, first.EventName);
+                YieldPair(aWorld, apActor, pPartner);
                 return; // the action stays first: played once the clips have left
             }
             if (cOutcome == ReplayState::PairOutcome::kSkip)
             {
-                spdlog::debug("Copy {:X}: paired action {:X} '{}' not played, {:X} was in a kill move", apActor->formID, first.ActionId,
+                spdlog::debug("Copy {:X}: paired action {:X} '{}' not played on {:X} (refused, or in a pair)", apActor->formID, first.ActionId,
                               first.EventName, pPartner->formID);
                 aAnimationComponent.LastRanAction = first;
                 apActor->GetExtension()->LatestAnimation.Write(first);
@@ -334,6 +361,20 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         step.ClipsLoaded = ActionClips::Request(*apActor, first.EventName.c_str());
         step.Phase.store(step.ClipsLoaded ? ReplayStep::kClips : ReplayStep::kVariables, std::memory_order_release);
     }
+}
+
+void AnimationSystem::YieldPair(World& aWorld, Actor* apCopy, Actor* apOwn) noexcept
+{
+    apCopy->EndPairs();
+    apCopy->EndKillMove();
+    apOwn->EndPairs();
+    apOwn->EndKillMove();
+    apCopy->GetExtension()->ClashPartner = apOwn->formID;
+    apCopy->GetExtension()->PairStops = ReplayState::cClashStopUpdates;
+    apOwn->GetExtension()->ClashUntil = aWorld.GetTick() + ReplayState::cClashGuardMs;
+    // The kill cam of the swing that lost: left running, its end cuts the winner's pair short.
+    if (auto* pVats = VATS::Get(); apOwn == PlayerCharacter::Get() && pVats && pVats->mode == VATS::kKillCam)
+        pVats->End();
 }
 
 void AnimationSystem::TargetToNetwork(ActionEvent& aAction) noexcept
@@ -368,8 +409,7 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
     actionData.eventName = BSFixedString(cAction.EventName.c_str());
     // A paired action (a kill move) on an actor of this game plays the partner's half too; a copy partner plays
     // its own, from its owner. So does a mount: getting off hands it back mid-pair (its owner played its half).
-    auto* pPartner = Cast<Actor>(pTarget);
-    if (pPartner && !pPartner->GetExtension()->IsCopy() && !pPartner->IsMount())
+    if (acStep.PairHere)
         actionData.targetEventName = BSFixedString(cAction.TargetEventName.c_str());
     actionData.idleForm = Cast<TESIdleForm>(TESForm::GetById(cAction.IdleId));
     actionData.someFlag = ((cAction.Type & 0x4) != 0) ? 1 : 0;

@@ -1,4 +1,5 @@
 #include <Services/ActorValueService.h>
+#include <Messages/Payloads.h>
 #include <World.h>
 #include <Components.h>
 #include <SessionIds.h>
@@ -76,6 +77,7 @@ void ActorValueService::OnDisconnected(const DisconnectedEvent& acEvent) noexcep
 {
     m_world.clear<ActorValuesComponent>();
     m_smallHealthChanges.clear();
+    m_heldBlows.clear();
     m_changedValues.clear();
     m_changedDeaths.clear();
     m_copyDeathStates.clear();
@@ -113,6 +115,7 @@ void ActorValueService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcep
 void ActorValueService::OnUpdate(const UpdateEvent&) noexcept
 {
     PROFILE_ZONE("ActorValueService::OnUpdate");
+    RunHeldBlows();
     RunSmallHealthUpdates();
     BroadcastActorValues();
     RunPoolUpdates();
@@ -374,7 +377,7 @@ void ActorValueService::RunDeathStateUpdates() noexcept
             ApplyDeathState(copy.Id);
 }
 
-void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcast& acMessage) const noexcept
+void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcast& acMessage) noexcept
 {
     const uint32_t formId = Utils::GetFormIdBySessionId(acMessage.Id);
     if (formId == 0)
@@ -387,6 +390,37 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     if (m_actorBridge.IsActorCopy(formId))
         return;
 
+    // A claimed kill move's blow: held until its pair plays here or ends (RunHeldBlows).
+    if (acMessage.DeltaHealth < 0.f && acMessage.HasAttacker && m_world.GetActionClaims().Holds(acMessage.AttackerId, acMessage.Id, Payloads::Claim::kKillMove))
+    {
+        m_heldBlows.push_back(acMessage);
+        return;
+    }
+    ApplyForwardedHit(acMessage, formId);
+}
+
+void ActorValueService::RunHeldBlows() noexcept
+{
+    std::erase_if(m_heldBlows, [this](const NotifyHealthChangeBroadcast& acBlow) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(acBlow.Id);
+        if (!cFormId)
+            return true;
+        // In the attacker's own pair here (its killer, 38613), not its own yielded clip: the pair's clip kills.
+        const auto cState = m_actorBridge.GetActorStateFields(cFormId);
+        if (cState.InKillMove && cState.KillerFormId && cState.KillerFormId == Utils::GetFormIdBySessionId(acBlow.AttackerId))
+        {
+            spdlog::debug("Forwarded hit on {:X}: its claimed kill move's blow, dropped (the pair's clip kills)", cFormId);
+            return true;
+        }
+        if (m_world.GetActionClaims().Holds(acBlow.AttackerId, acBlow.Id, Payloads::Claim::kKillMove))
+            return false;
+        ApplyForwardedHit(acBlow, cFormId); // the pair ended without playing here: a plain hit
+        return true;
+    });
+}
+
+void ActorValueService::ApplyForwardedHit(const NotifyHealthChangeBroadcast& acMessage, uint32_t formId) const noexcept
+{
     const uint32_t cAttackerFormId = acMessage.HasAttacker ? Utils::GetFormIdBySessionId(acMessage.AttackerId) : 0;
     if (acMessage.DeltaHealth < 0.f)
     {

@@ -102,9 +102,9 @@ with the party, unmounted, and belongs to the host again; it is not left behind 
 
 ```text
 rider's horse moves -> rider follows -> native interaction ends
-    -> DismountRequest(horse, rider, horse's current whereabouts)
-    -> host validates ownership and gives it back
-    -> NotifyDismount with that placement
+    -> DismountRequest(horse, rider), then ActorGiveBackRequest(horse's current whereabouts)
+    -> host validates the holder and takes it back (HostClaims)
+    -> NotifyDismount, then NotifyActorGiveBack with that placement
     -> move each horse copy there BEFORE the host takes ownership
 ```
 

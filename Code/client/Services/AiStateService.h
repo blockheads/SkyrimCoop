@@ -41,6 +41,8 @@ protected:
 private:
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
+    // An actor gained its session id here (its copy spawned, or this game announced it).
+    void OnSessionActor(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     // One of this game's actors: its state goes out when it differs from the last sent.
     void SendOwned(uint32_t aFormId, uint32_t aSessionId) noexcept;
     // The copy of that session id, if this game has it, takes its owner's state (the record's part). Returns the
@@ -63,6 +65,7 @@ private:
 
     // Per owned actor (session id): the state last sent.
     std::unordered_map<uint32_t, ActorAiState> m_sent;
+    bool m_newSession{}; // an actor gained its session id since the last update
 
     std::vector<entt::scoped_connection> m_connections;
 };

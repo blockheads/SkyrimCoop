@@ -6,7 +6,7 @@ branch journal `docs/re/journal/1.7.104/agent-horse-riding.tsv` records each rea
 ## Getting on
 
 ```
-Actor::InitiateMountPackage (37905)            hooked: MountEvent (an own rider) -> MountRequest, once started
+Actor::InitiateMountPackage (37905)            hooked: MountEvent (an own rider) -> a ride's ClaimRequest, once started
   returns false for a refusal and for the at-once attach; true for the package
   mount null -> the rider's ExtraHorse (0x7B, 12033), else FindNearbyFreeHorse (38045)
   Character::CanRide (38706) gates
@@ -43,7 +43,7 @@ Predestroy, GarbageCollector::Add -> EndMountInteraction (41535) -> Detach
 interaction. `ChairFurnitureExitHandler` (42835) sets sit state 0 (a copy's replayed getting off).
 
 **Hooked:** `RefrInteraction::Detach` (41539, `HookDetachInteraction`): an own rider's ride ended, by any path above
-(`DismountEvent` with its mount) -> `DismountRequest`, the host takes the horse. Until 2026-11-17 the hand-back hooked
+(`DismountEvent` with its mount) -> `DismountRequest` and the horse's give-back, the host takes the horse. Until 2026-11-17 the hand-back hooked
 `Actor::Dismount`, which only starts a dismount: the horse went back mid-clip, and a fine, jail or load (no Dismount)
 left it the guest's ("The guest's ride ends with the horse still the guest's", bugs.md).
 
@@ -133,10 +133,11 @@ the horse's copy on another game
   `SendGraphStream`); its `NotifyDismount` came back in a few ms and giving the horse up dropped the unsent ops,
   `PairEnd` among them. The host's copy replayed the guest's ops up to 57 ms before the `Detach`, then nothing.
 - Built: the rider's game hands the horse back once its next graph update after the `Detach` is recorded
-  (`CharacterService::RunHandBacks`, `GraphStreams::Updates`), sending its ops first; the hand-back carries that
-  update's tick (`Payloads::Dismount::Tick`, through `HostCharacters::GiveBack`). The host's game waits until its copy
-  has run every op through that tick (`GraphReplayer::DoneThrough`, `ReplayState::TakesOverMount`,
-  `CharacterService::RunTakeOvers`), then takes it. The host's `PairEnd` by hand is gone.
+  (`ClaimService::GiveBack`, `GraphStreams::Updates`), sending its ops first; the give-back carries that update's
+  tick (`ActorGiveBackRequest`, `HostClaims`). The host's game waits until its copy has run every op through that
+  tick (`GraphReplayer::DoneThrough`, `ReplayState::TakesOverMount`, `ClaimService`'s take-over), then takes it. The
+  host's `PairEnd` by hand is gone. Since 2026-11-20 this is every claim's give-back (a kill move's partner too):
+  a ride is an action claim on its horse (`ClaimRequest`, `HostCharacters`' ride rule), first rider wins.
 - Measured with it: taken 235 ms after the hand-back, the host's next get-on accepted at the first try (one
   `MountRequest`, against five before).
 - **Not for a passenger who drives on** (measured, `party-shares-a-horse`): taken the same way, after its copy ran the

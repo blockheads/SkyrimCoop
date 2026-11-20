@@ -1,3 +1,6 @@
+#include <Forms/BGSAction.h>
+#include <Games/Animation/ActorMediator.h>
+#include <Games/Animation/TESActionData.h>
 #include <Games/Animation/ReplayState.h>
 #include <CrashHandler.h>
 #include <HookSwitch.h>
@@ -1216,6 +1219,49 @@ void Actor::Kill() noexcept
     */
 }
 
+void Actor::HoldKill(bool aHold) noexcept
+{
+    GetExtension()->KillHeld.store(aHold, std::memory_order_relaxed);
+    if (aHold)
+    {
+        StartDeferredKill();
+        return;
+    }
+    // A death is its owner's word: a kill counted meanwhile is not queued for the player (40036).
+    if (auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr; pMiddle && pMiddle->deferredKill > 1)
+        pMiddle->deferredKill = 1;
+    EndDeferredKill();
+}
+
+bool Actor::KillCounted() const noexcept
+{
+    const auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr;
+    return pMiddle && pMiddle->deferredKill > 1;
+}
+
+void Actor::KillBy(Actor* apKiller) noexcept
+{
+    if (GetExtension()->IsLocalPlayer())
+        return;
+    GetExtension()->PoseHeldUntil.store(0, std::memory_order_relaxed);
+    HoldKill(false);
+    KillImpl(apKiller, 100.f, true, false);
+}
+
+bool Actor::PerformPlainly(BGSAction* apAction) noexcept
+{
+    if (!apAction)
+        return false;
+    // Through 38949's own entry, as 42350's Func5 (41557) goes: our hook records and sends it, and its swing ends the
+    // yield's blow guard (ReplayState::StartsAttack).
+    using TPerformAction = uint8_t(ActorMediator*, TESActionData*);
+    POINTER_SKYRIMSE(TPerformAction, s_performAction, 38949);
+    TESActionData actionData(2, this, apAction, nullptr);
+    const bool cTaken = s_performAction.Get()(ActorMediator::Get(), &actionData) != 0;
+    spdlog::debug("{:X} performs {:X} with no target: '{}' {}", formID, apAction->formID, actionData.eventName.AsAscii(), cTaken ? "taken" : "refused");
+    return cTaken;
+}
+
 bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
 {
     ActorExtension* pExtension = GetExtension();
@@ -1389,7 +1435,10 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
         World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
 
     if (apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil))
+    {
+        spdlog::debug("{:X}'s blow on {:X} dropped: its pair yielded", apHitter->formID, apThis->formID);
         return false;
+    }
 
     float realDamage = GameplayFormulas::CalculateRealDamage(apThis, aDamage, aKillMove);
 

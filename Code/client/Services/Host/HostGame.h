@@ -62,6 +62,10 @@ struct HostGame
     std::function<bool(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn)> ReadCopy;
     // A spawn of the host's copy of an NPC another game owns now (a horse a guest rides), as its engine shows it.
     std::function<std::optional<NotifyCharacterSpawn>(uint32_t aSessionId)> CopySpawn;
+    // One of the host's NPCs can take a pair's half: alive, its graph running (kProcessMe; kill-moves.md).
+    std::function<bool(uint32_t aSessionId)> CanPair;
+    // One of the host's NPCs its game could take back once claimed: no player's summon (TakeOwnership refuses one).
+    std::function<bool(uint32_t aSessionId)> Claimable;
     // The host's clock (the session's) and setting its hour.
     std::function<TimeModel()> ReadTime;
     std::function<void(float aHours)> SetHour;

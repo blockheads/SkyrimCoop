@@ -1051,6 +1051,32 @@ TEST_CASE("A guest's kill move takes a streamed copy off its stream until the pa
                      "the copy is back on its owner's stream from a new sync point");
 }
 
+TEST_CASE("A copy in a kill move keeps its own ragdoll in the world, whatever its owner's layer", "[animation][kill-move][copy-ragdoll]")
+{
+    // Its owner's layer 0 took the ragdoll AddRagdollToWorld (42873) put in (36924): physics.md, "A kill move's
+    // victim copy keeps its ragdoll" (kill-move-kills-guest, 2026-11-18). A player victim: an NPC is its attacker's
+    // game's own for the pair (pair_claim_flows.cpp).
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
+    const uint32_t cVictim = PlayerCopy(host);
+    ActionEvent kill;
+    kill.ActionId = 0x13005;
+    kill.EventName = "pa_KillMoveI";
+    kill.TargetEventName = "KillMoveI";
+    kill.TargetId = cVictim;
+    bool started = false;
+    party.As(party.Host(), [&] { started = host.PerformAnimation(FakeEngine::kPlayer, kill); });
+    REQUIRE(started);
+    const auto& cCopy = host.Actors.at(cVictim);
+    REQUIRE(cCopy.BodiesLayer == FakeEngine::kBipedLayer);
+    guest.Actors.at(FakeEngine::kPlayer).BodiesLayer = 0;
+    const uint32_t cMovements = cCopy.Movements;
+    party.Until([&] { return cCopy.Movements > cMovements + 3; }, "its owner's movement keeps coming during the clip");
+    CHECK(cCopy.BodiesLayer == FakeEngine::kBipedLayer);
+}
+
 TEST_CASE("A streamed owner's movement carries no graph variables, and its copy's graph takes its stream's alone", "[animation][replay-start]")
 {
     // Phase 3 (graph-input-stream.md): a streamed copy's variables are its stream's; the snapshot's were loaded into
