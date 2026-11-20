@@ -140,6 +140,12 @@ nlohmann::json SeatOnMountCommand(Harness&, const nlohmann::json& acRequest)
     return EngineCalls::SeatOnMount(acRequest.value("rider", 0u), acRequest.value("mount", 0u)) ? Ok() : Error("no such rider or mount");
 }
 
+// {"cmd": "sit_on_mount_quick", "rider": id, "mount": id}: the engine's quick get-on (EngineCalls::SitOnMountQuick).
+nlohmann::json SitOnMountQuickCommand(Harness&, const nlohmann::json& acRequest)
+{
+    return EngineCalls::SitOnMountQuick(acRequest.value("rider", 0u), acRequest.value("mount", 0u)) ? Ok() : Error("refused, or no such rider or mount");
+}
+
 // {"cmd": "put_package", "actor": id, "package": id}: the actor runs that package (EngineCalls::PutPackage). This game only.
 nlohmann::json PutPackage(Harness&, const nlohmann::json& acRequest)
 {
@@ -238,7 +244,7 @@ nlohmann::json Wake(Harness&, const nlohmann::json& acRequest)
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
     {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing},
-    {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"put_on_mount", true, &PutOnMount}, {"board_ridden", true, &BoardRidden}, {"seat_on_mount", true, &SeatOnMountCommand}, {"take_reins", true, &TakeReinsCommand}, {"graph_event", true, &GraphEventCommand}, {"activate_text", true, &ActivateTextCommand}, {"clear_map_marker", true, &ClearMapMarker},
+    {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"put_on_mount", true, &PutOnMount}, {"board_ridden", true, &BoardRidden}, {"seat_on_mount", true, &SeatOnMountCommand}, {"sit_on_mount_quick", true, &SitOnMountQuickCommand}, {"take_reins", true, &TakeReinsCommand}, {"graph_event", true, &GraphEventCommand}, {"activate_text", true, &ActivateTextCommand}, {"clear_map_marker", true, &ClearMapMarker},
     {"wake", true, &Wake},
     {"body_velocity", true, &BodyVelocity},
 };

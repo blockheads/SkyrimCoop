@@ -16,11 +16,13 @@ def run(ctx):
         ctx.wait_seated(instance='')
         ctx.place_before(instance='client', target='horse', gap=130, bearing=90)  # beside it: head-on the crosshair takes the rider
         ctx.prompt_offers(instance='client', target='horse')  # hand-written: the ridden horse offers Ride (24716)
-        ctx.watch_riders()  # hand-written: the playtest's T-pose as the guest got on
+        ctx.watch_riders()  # hand-written: the playtest's T-pose as the guest got on; no get-on clip now (piece 5)
         ctx.use('client', 'horse')
         ctx.wait_seated(instance='client')
         ctx.passenger_seated(instance='client', horse='horse')
-        ctx.riders_smooth(step='the guest gets on', snap=130.0)  # its snap to the mark is vanilla (76-106 measured)
+        # hand-written: seated at once (HorseEnterInstant, no paired clip): one pop to the saddle, 169 units, its riding
+        # pose a frame later (73), measured; no get-on clip on any rider's graph (player-mount.md, "Sitting at once")
+        ctx.riders_smooth(step='the guest gets on', snap=220.0, pop=0.05, forbid=('HorseEnter', 'pa_HorseEnter'))
         ctx.horse_owned_by(horse='horse', owner='host')
         ctx.drives(instance='', horse='horse')
         ctx.expect('horse', 'agree', within=5.0, seconds=3.0)

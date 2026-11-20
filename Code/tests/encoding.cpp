@@ -27,6 +27,7 @@
 #include <Messages/DroppedItems.h>
 #include <Structs/ActorAiState.h>
 #include <Structs/RecordPart.h>
+#include <Structs/RidePart.h>
 #include <Structs/Vector2_NetQuantize.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/NotifyActivate.h>
@@ -2494,6 +2495,15 @@ TEST_CASE("A passenger's boarding and getting off name the horse and the rider",
     cRoundTrip(UnboardRequest{}, RequestMessageFactory{});
     cRoundTrip(NotifyBoard{}, NotifyMessageFactory{});
     cRoundTrip(NotifyUnboard{}, NotifyMessageFactory{});
+}
+
+TEST_CASE("A passenger's ride part names its horse", "[encoding][record-parts]")
+{
+    RidePart read{7, 7};
+    REQUIRE(FromPartBytes(ToPartBytes(RidePart{900000000123, 0x1234}), read));
+    CHECK(read == RidePart{900000000123, 0x1234});
+    REQUIRE(FromPartBytes(ToPartBytes(RidePart{}), read));
+    CHECK(read == RidePart{});
 }
 
 TEST_CASE("A record part longer than 64 KB round-trips whole", "[encoding][record-parts]")

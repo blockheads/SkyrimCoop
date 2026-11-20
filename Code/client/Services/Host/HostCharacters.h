@@ -54,6 +54,8 @@ struct HostCharacters
     [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
     // One of the players' characters.
     [[nodiscard]] bool IsPlayerCharacter(uint32_t aSessionId) const noexcept;
+    // A rider's Ride part (RidePart) names a horse the host gave it a seat on (OnBoard), or none.
+    [[nodiscard]] bool RideGranted(uint32_t aRider, const RecordPart& acPart) const noexcept;
     // Where a player's character stands now: its cell (outdoors its worldspace too), position and heading, from its
     // game's announcement, arrivals and movement (the host's own from its engine). None for any other character.
     [[nodiscard]] std::optional<NotifyPartyTravel> CharacterPlace(uint32_t aSessionId) const noexcept;

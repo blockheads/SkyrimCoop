@@ -20,6 +20,7 @@
 #include <Messages/RequestRespawn.h>
 #include <Messages/NotifyReferencesMove.h>
 #include <Structs/GridCellCoords.h>
+#include <Structs/RidePart.h>
 
 
 namespace
@@ -138,7 +139,9 @@ void HostCharacters::OnAnnounceCharacter(const AnnounceCharacterRequest& acReque
     }
 
     const uint32_t cPlayerId = cIsPlayer ? m_players.PlayerIdOf(aSender) : 0;
-    const auto cSpawn = NotifyCharacterSpawn::FromAnnouncement(acRequest, cSessionId, cPlayerId);
+    auto cSpawn = NotifyCharacterSpawn::FromAnnouncement(acRequest, cSessionId, cPlayerId);
+    // A seat the host did not give it: its copies stay standing.
+    std::erase_if(cSpawn.Record.Parts, [&](const RecordPart& acPart) { return !RideGranted(cSessionId, acPart); });
 
     auto& character = m_characters[cSessionId];
     character.Owner = aSender;
@@ -248,9 +251,10 @@ void HostCharacters::OnBoard(const BoardRequest& acRequest, ConnectionId_t aSend
     if (std::ranges::find(passengers, acRequest.RiderId) == passengers.end())
         passengers.push_back(acRequest.RiderId);
     spdlog::info("HostCharacters: {:x} rides along on {:x}, {:x} driving", acRequest.RiderId, acRequest.MountId, cMount->second.Rider);
+    // Its game seats it; its Ride part seats its copies (CharacterService).
     NotifyBoard notify;
     static_cast<Payloads::Mount&>(notify) = acRequest;
-    m_players.SendToOthers(notify, aSender, Net::kReliable);
+    m_network.Send(aSender, notify, Net::kReliable);
 }
 
 void HostCharacters::OnUnboard(const UnboardRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -316,14 +320,7 @@ void HostCharacters::SendRides(ConnectionId_t aPlayer) const noexcept
             NotifyMount notify;
             notify.RiderId = cCharacter.Rider;
             notify.MountId = cSessionId;
-            m_network.Send(aPlayer, notify, Net::kReliable);
-            for (const uint32_t cPassenger : cCharacter.Passengers)
-            {
-                NotifyBoard board;
-                board.RiderId = cPassenger;
-                board.MountId = cSessionId;
-                m_network.Send(aPlayer, board, Net::kReliable);
-            }
+            m_network.Send(aPlayer, notify, Net::kReliable); // passengers: their Ride parts, on their spawns
         }
 }
 
@@ -575,6 +572,15 @@ void HostCharacters::SendToOthersWithHost(const NotifyCharacterSpawn& acSpawn, C
     for (const ConnectionId_t cPlayer : m_players.Connections())
         if (cPlayer != aSender && WithHost(cPlayer))
             m_network.Send(cPlayer, acSpawn, Net::kReliable);
+}
+
+bool HostCharacters::RideGranted(uint32_t aRider, const RecordPart& acPart) const noexcept
+{
+    RidePart ride;
+    if (acPart.Kind != RecordKind::kRide || (FromPartBytes(acPart.Bytes, ride) && !ride.Mount))
+        return true;
+    const auto cMount = m_characters.find(ride.Mount);
+    return cMount != m_characters.end() && std::ranges::find(cMount->second.Passengers, aRider) != cMount->second.Passengers.end();
 }
 
 HostCharacters::ConnectionId_t HostCharacters::OwnerOf(uint32_t aSessionId) const noexcept

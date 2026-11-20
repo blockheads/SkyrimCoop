@@ -56,7 +56,7 @@ struct Actor : TESObjectREFR
     virtual void SetPosition(const NiPoint3& acPoint, bool aSyncHavok = true);
     virtual void sub_AA();
     virtual void Resurrect(bool aResetInventory);
-    virtual void sub_AC();
+    virtual bool PutActorOnMountQuick(); // AC (CommonLibSSE-NG; 38699): a linked rider seated at once (38704 resume)
     virtual void sub_AD();
     virtual void sub_AE();
     virtual void sub_AF();
@@ -296,9 +296,11 @@ struct Actor : TESObjectREFR
     void EndRideNow() noexcept;
     // Off its mount as a get-off clip ends (Actor::FinishDismount 38696: beside the mount, Detach), its sit state left.
     void FinishDismount() noexcept;
-    // Onto a mount another rider holds: linked, then seated as a get-on's clip ends (sit state 3, then
+    // Onto a mount another rider holds: linked (unless already), then seated as a get-on's clip ends (sit state 3, then
     // Actor::OnInteractionSeated 41533, as PairedStopHandler 42868).
     void SeatOnMount(Actor* apMount) noexcept;
+    // Linked and seated at once by the engine's quick get-on (HorseEnterInstant, no paired clip), a ridden mount too.
+    bool SitOnMountQuick(Actor* apMount) noexcept;
     // Its own ExtraInteraction's link (a rider's to its mount), else null.
     [[nodiscard]] RefrInteraction* GetOwnInteraction() const noexcept;
     // On a mount: its one slot (ExtraDataList::SetInteractionData 12074, which adds only to an empty one) set to

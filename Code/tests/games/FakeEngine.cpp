@@ -1242,19 +1242,28 @@ void FakeEngine::ActorSeatOnMount(uint32_t aRider, uint32_t aMount) noexcept
         return;
     ActorPutOnMount(aRider, aMount);
     Actors.at(aRider).State1 = (Actors.at(aRider).State1 & ~(0xFu << kSitShift)) | uint32_t(::ReplayState::kSitSeated) << kSitShift;
+    SeatedRiders.insert(aRider);
 }
 
-bool FakeEngine::PlayerBoardMount(uint32_t aMount) noexcept
+bool FakeEngine::PlayerSitOnMountQuick(uint32_t aMount) noexcept
 {
     if (!Actors.contains(aMount))
         return false;
-    MountSlots.erase(aMount); // emptied before 37905's CanRide (38706), which refuses midair too
-    if (Actors.at(kPlayer).InAir)
-        return false;
     Mounts[kPlayer] = aMount;
-    MountSlots[aMount] = kPlayer;
-    // Its get-on's end (PairedStopHandler 42868): seated. The fake plays no clip.
-    Actors.at(kPlayer).State1 = (Actors.at(kPlayer).State1 & ~(0xFu << kSitShift)) | 3u << kSitShift;
+    MountSlots.try_emplace(aMount, kPlayer); // 12074 adds only to an empty slot: the driver keeps it
+    if (RefuseQuickSeat)
+    {
+        EndRide(kPlayer); // 40356 ends a rider not seated: its Detach (41539) empties the slot
+        return false;
+    }
+    // IDLE EnterHorseInstant (condition 631): HorseEnterInstant, which seats it (ApplyActionWrites). No paired clip.
+    ActionEvent instant;
+    instant.ActionId = 0x13009; // ActionActivate (default object 55)
+    instant.EventName = "HorseEnterInstant";
+    instant.TargetId = aMount;
+    if (!PerformAnimation(kPlayer, instant))
+        return false;
+    SeatedRiders.insert(kPlayer); // 41530's OnSeated (40353)
     return true;
 }
 
@@ -1311,6 +1320,7 @@ void FakeEngine::EndRide(uint32_t aRider) noexcept
         return;
     const uint32_t cMountId = cMount->second;
     Mounts.erase(cMount);
+    SeatedRiders.erase(aRider);
     MountSlots.erase(cMountId); // 40355 with null: whichever rider it named
     if (const auto cReins = Reins.find(cMountId); cReins != Reins.end() && cReins->second == aRider)
         Reins.erase(cReins);
@@ -1522,6 +1532,9 @@ bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
 
 void FakeEngine::ApplyActionWrites(uint32_t aFormId, const std::string& acEvent)
 {
+    // 39004: HorseEnterInstant seats its actor at once (sit state 3).
+    if (acEvent == "HorseEnterInstant")
+        Actors.at(aFormId).State1 = (Actors.at(aFormId).State1 & ~(0xFu << kSitShift)) | uint32_t(::ReplayState::kSitSeated) << kSitShift;
     const auto it = ActionWrites.find(acEvent);
     if (it == ActionWrites.end())
         return;

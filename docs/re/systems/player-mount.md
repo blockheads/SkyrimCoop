@@ -91,12 +91,10 @@ own player, so a party horse is "owned" on every game, and each game's engine ke
 
 ```
 our player's Activate on a ridden horse (37864 does nothing)
-  HookActivateMount -> BoardEvent -> CharacterService: a party player drives it
-    horse's slot emptied, engine get-on (37905, not our hook) -> BoardRequest
-    refused (CanRide 38706: midair, getting on or off, reach) -> the driver's copy holds the slot again
-host: OnBoard -> Passengers.push, NotifyBoard to the others (refused: NotifyMountRefused)
-other games: NotifyBoard -> PutOnMount (linked); its get-on's hold ends -> SeatOnMount (sit state 3, 41533)
-  (its owner seated already, a late joiner's: seated at once, HorseEnter replay skipped)
+  HookActivateMount -> BoardEvent -> CharacterService: a party player drives it -> BoardRequest
+host: OnBoard -> Passengers.push, NotifyBoard to the asker (refused: NotifyMountRefused, nothing to undo)
+the asker's game: PlayerSitOnMountQuick (PutOnMount, vfunc 0xAC: "Sitting at once") -> its Ride part
+other games: the Ride part -> SeatOnMount (sit state 3, 41533), once the horse is here (R5)
 driver's Detach -> DismountRequest -> HandOver: first passenger drives, NotifyMount to all
   its game: TakeOwnership + PlayerTakeReins (slot, 40725, EvaluatePackage 37401)
   others: its copy on already -> slot only (ActorHoldMount)
@@ -155,9 +153,10 @@ place). The engine keeps a rider on its horse inside that movement, so a copy on
 ## A passenger's copy getting on (duo, 2026-11-18)
 
 - Seated at once (`NotifyBoard`: `SeatOnMount`), the copy jumped 174 units from the ground to the saddle, then played
-  its whole get-on up there: the playtest's "T-pose for a second". Built instead: `NotifyBoard` links the copy as a
-  driver's copy is (`PutOnMount`), its owner's get-on plays from the ground, and it is seated as its stream hold ends
-  (`ReplayState::SeatsAtHoldEnd`: on this game's own mount nothing sends the pair's end that seats a rider, 42868).
+  its whole get-on up there: the playtest's "T-pose for a second". Built instead (replaced 2026-11-20, "Sitting at
+  once" below): `NotifyBoard` linked the copy as a driver's copy is (`PutOnMount`), its owner's get-on played from the
+  ground, and it was seated as its stream hold ended (on this game's own mount nothing sends the pair's end that
+  seats a rider, 42868).
 - Climbing, the copy shoved the host's own horse 60-75 units, and its owner's clip, aimed at where the horse stood,
   ended beside it: the snap the playtest saw as "the guest's physics push the horse". Measured (`anim_trace`
   `bodies_layer`, controller flags): the copy's bodies went to layer 33 (`kBipedNoCC`, its owner's, by
@@ -173,6 +172,45 @@ place). The engine keeps a rider on its horse inside that movement, so a copy on
 - `party-shares-a-horse` checks both get-on and get-off for jumps on both games (`watch_riders` / `riders_smooth`:
   pelvis moves per frame; one 76-106 unit snap allowed per body, a normal get-on's to its mark). 2 of 2 runs pass
   every step; one failed only the end comparison on the plains' critters.
+
+## Sitting at once (one-simulator.md piece 5, read in IDA and probed on the duo, 2026-11-20)
+
+The engine's own instant get-on for a rider linked already (inferred, callers of vfunc 0xAC not read: the one a
+loaded save's rider takes, its interaction restored first):
+
+```
+Actor::PutActorOnMountQuick 38699 (vfunc 0xAC)        a rider linked already (IsOnMount)
+  -> TryStartMountInteraction 38704, resume=1            no IsMountBeingRidden: a ridden horse too
+  -> RefrInteraction::StartWithActivate 41530, resume
+       sit state from the interaction (39912); process middleHigh+0x320 "entering quick" := 1
+       ActionActivate rider->mount via MountInteraction vfunc 0x70 (40351)
+         idle tree: IDLE EnterHorseInstant 0x5701D, its one condition IsEnteringInteractionQuick (631, 21723)
+         event HorseEnterInstant: 0_Master wildcard, no condition -> HorseRider_State; 39004 sit state 3
+         taken -> OnRiderMounted 40359 (the player: 40725); kGettingOnOffMount cleared on both (37462)
+       AttachToRider 41540 (12074: the horse keeps the rider it names)
+       result 0 -> vfunc 0x40 OnSeated 40353 -> SeatRider 40358; "entering quick" := 0
+```
+
+- Refused (41530 returns 2: its ActionActivate refused by the graphs; what refuses it on this path is not read): the
+  rider stays linked, not seated, and `MountInteraction::Update` (40356) ends a rider not seated at its next update.
+  Our player's seat then goes back to the host (`UnboardRequest`).
+- No paired clip and no horse half: nothing has to end it (42868 never runs). `HorseEnterInstant`'s only engine
+  reader is 39004. The 2026-11-17 probe's "not processed by the graph" was the console's `sae`.
+- Measured (Riverwood plains, the host riding, harness `sit_on_mount_quick` = `PutOnMount` then vfunc 0xAC for the
+  guest's player on its horse copy): action 0x13009 picked idle 0x5701D, `HorseEnterInstant` taken, sit state 3 the same
+  frame, the graph straight to `HorseIdle`; no `HorseEnter`, no T-pose; the horse still named the host's copy. The
+  player popped 175 units to the saddle in one frame (from 130 units beside it). On the host the guest's copy replayed
+  the same action from its owner's stream (sit state 3, `HorseIdle`).
+- Built: a passenger asks first (`BoardRequest`), the host's `NotifyBoard` goes to it alone, and its game seats it with
+  `PlayerSitOnMountQuick`. Its copies are seated by its record's Ride part (`RecordKind::kRide`, `CharacterService::
+  ApplyRide`, waiting for a horse not here yet); a refusal undoes nothing. The copy is linked as the part arrives and
+  seated (41533) once its stream reaches the owner's frame: seated earlier, it stood on the saddle 180 ms before its
+  graph's `HorseEnterInstant`; left unlinked meanwhile, stepped toward its owner on the saddle, it ran the host's horse
+  off (1 of 3 runs, the 2026-11-17 drift); and a copy its stream had put at sit state 3 still needs 41533, whose
+  `SeatRider` puts the `REFRSyncController` (20318) on it (skipped, its reference stayed 1,100 units behind, 3 of 3). Gone: the passenger's slot
+  emptying and engine get-on (37905), the copy's seat at its hold's end, the replay skip of a seated copy's
+  `HorseEnter*`, the pending boards. Kept: a driver's get-on as before (`ReplayState::GettingOnMount` for its copy),
+  and `KeepDriverOn` (a passenger's `Detach` still empties the horse's one slot, 41539).
 
 ## The Ride prompt (duo, 2026-11-17)
 

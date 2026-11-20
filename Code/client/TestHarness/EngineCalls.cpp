@@ -853,6 +853,13 @@ bool SeatOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept
     return true;
 }
 
+bool SitOnMountQuick(uint32_t aRiderId, uint32_t aMountId) noexcept
+{
+    Actor* pRider = Cast<Actor>(TESForm::GetById(aRiderId));
+    Actor* pMount = Cast<Actor>(TESForm::GetById(aMountId));
+    return pRider && pMount && pRider->SitOnMountQuick(pMount);
+}
+
 bool BoardRiddenMount(uint32_t aRiderId, uint32_t aMountId) noexcept
 {
     using TSetInteraction = void(ExtraDataList*, void** appInteraction);

@@ -456,6 +456,8 @@ bool PutOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept;
 bool BoardRiddenMount(uint32_t aRiderId, uint32_t aMountId) noexcept;
 // Probe: PutOnMount, then seated (sit state 3) as the get-on clip's end leaves a rider, with no clip.
 bool SeatOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept;
+// Probe: the engine's quick get-on (Actor::SitOnMountQuick), a ridden mount too.
+bool SitOnMountQuick(uint32_t aRiderId, uint32_t aMountId) noexcept;
 // Probe: the horse's slot set to this rider's own interaction (12074), as a new driver would need.
 bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept;
 // Probe: a graph event to the actor's graphs (TESObjectREFR::SendAnimationEvent); true when one took it.

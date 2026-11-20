@@ -111,6 +111,7 @@ World::World()
     // Before CharacterService: an arrival drops the copies the old cell took before they are checked.
     ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                  ctx().at<IPlayerBridge&>());
+    ctx().emplace<CopyRecords>(); // before CharacterService: its Ride part
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport,
                                    ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
     ctx().emplace<DebugService>(m_dispatcher, *this, m_transport, ctx().at<ImguiService>());
@@ -128,7 +129,6 @@ World::World()
                                ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<PerkService>(m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<CopyRecords>();
     ctx().emplace<CopyRecordsService>(*this, m_dispatcher, m_transport, ctx().at<CopyRecords>());
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
     ctx().emplace<ActorStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
@@ -192,7 +192,6 @@ World::~World()
     ctx().erase<ActorStateService>();
     ctx().erase<AiStateService>();
     ctx().erase<CopyRecordsService>();
-    ctx().erase<CopyRecords>();
     ctx().erase<EffectVisualsService>();
     ctx().erase<MagicService>();
     ctx().erase<ActorValueService>();
@@ -205,6 +204,7 @@ World::~World()
     ctx().erase<PapyrusService>();
     ctx().erase<DebugService>();
     ctx().erase<CharacterService>();
+    ctx().erase<CopyRecords>();
     ctx().erase<UiService>();
     ctx().erase<ImguiService>();
 }

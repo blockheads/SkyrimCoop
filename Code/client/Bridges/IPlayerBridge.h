@@ -46,9 +46,9 @@ public:
     virtual bool IsPlayerMounted() const noexcept = 0;
     // Off its mount, with no Dismount (a ride the host refused).
     virtual void PlayerStopRiding() noexcept = 0;
-    // Onto a horse another player drives: the horse's slot emptied (CanRide 38706 refuses a ridden one), then the
-    // engine's own get-on (37905, not our hook). False when it refuses.
-    virtual bool PlayerBoardMount(uint32_t aMountFormId) noexcept = 0;
+    // Onto a horse another player drives, seated at once: linked (40345, 41532; the horse keeps its driver), then the
+    // engine's quick get-on (PutActorOnMountQuick, HorseEnterInstant, no paired clip). False when it refuses.
+    virtual bool PlayerSitOnMountQuick(uint32_t aMountFormId) noexcept = 0;
     // A passenger drives now: the horse names it (12074), its get-on's player step (40725: controls, the mount's
     // EnablePlayerControl 41710) and the horse's package evaluated again (player-mount.md, probe 4c).
     virtual void PlayerTakeReins(uint32_t aMountFormId) noexcept = 0;

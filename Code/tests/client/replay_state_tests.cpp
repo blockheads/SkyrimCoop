@@ -133,24 +133,6 @@ TEST_CASE("A pa_Kill action puts both actors in a kill move, as the engine's own
     CHECK_FALSE(ReplayState::EntersKillMove("pa_K"));
 }
 
-TEST_CASE("ReplayState: a seated copy skips its owner's get-on; one not seated plays it", "[replay][passengers]")
-{
-    CHECK(ReplayState::SkipsMountEntry("HorseEnter", ReplayState::kSitSeated));
-    CHECK(ReplayState::SkipsMountEntry("horseEnterInstant", ReplayState::kSitSeated));
-    CHECK_FALSE(ReplayState::SkipsMountEntry("HorseEnter", 0));
-    CHECK_FALSE(ReplayState::SkipsMountEntry("HorseEnter", 2));
-    CHECK_FALSE(ReplayState::SkipsMountEntry("HorseExit", ReplayState::kSitSeated));
-}
-
-TEST_CASE("ReplayState: a passenger's copy on this game's own mount is seated as its hold ends", "[replay][passengers]")
-{
-    CHECK(ReplayState::SeatsAtHoldEnd(ReplayState::kSitGettingOn, false, false));
-    CHECK_FALSE(ReplayState::SeatsAtHoldEnd(ReplayState::kSitGettingOn, false, true)); // its owner's get-on still plays
-    CHECK_FALSE(ReplayState::SeatsAtHoldEnd(ReplayState::kSitGettingOn, true, false)); // on its stream: its events seat it
-    CHECK_FALSE(ReplayState::SeatsAtHoldEnd(0, false, false));
-    CHECK_FALSE(ReplayState::SeatsAtHoldEnd(ReplayState::kSitWantsToStand, false, false));
-}
-
 TEST_CASE("ReplayState: a copy getting onto a mount collides with nothing until seated", "[replay][passengers]")
 {
     CHECK(ReplayState::GettingOnMount(true, ReplayState::kSitGettingOn));

@@ -1298,6 +1298,8 @@ Size: small. Needs: the duo.
 - 2026-11-20 (`agent/piece-4b`, the claims refactor): 2 of 3 runs the same critters; the other run failed instead on the
   horse itself, the host (its owner again) and the guest's copy 53 units apart at the end. Not seen again in the next
   two runs; whether a give-back's placement or the copy's playback delay, not read yet.
+- 2026-11-20 (`agent/piece-5`, passengers seated at once): every step passed, the end comparison failed on two host
+  elks, the guest's copies about 159 units off their owners (wild NPCs nobody touched; not read).
 
 ### Riverwood's scenery drifts apart
 
