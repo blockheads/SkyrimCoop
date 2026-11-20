@@ -277,7 +277,8 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     RunPresence();
     RunLocalUpdates();
     RunRemoteUpdates();
-    for (const uint32_t cId : std::vector(m_dueRides.begin(), m_dueRides.end()))
+    // Each due part waits again in ApplyRide; one whose record went is dropped.
+    for (const uint32_t cId : std::exchange(m_dueRides, {}))
         m_world.ctx().at<CopyRecords>().ApplyAgain(cId, RecordKind::kRide);
 }
 
@@ -1270,9 +1271,10 @@ void CharacterService::OnNotifyBoard(const NotifyBoard& acMessage) noexcept
     if (acMessage.RiderId != m_characterId || acMessage.MountId != std::exchange(m_boardingMount, 0u))
         return;
     const uint32_t cMount = FormOfSession(acMessage.MountId);
-    if (!cMount || !m_playerBridge.PlayerSitOnMountQuick(cMount))
+    // On another horse meanwhile (its own ride): the seat goes back, PutOnMount would take it off that one.
+    if (!cMount || m_riddenMount || m_playerBridge.IsPlayerMounted() || !m_playerBridge.PlayerSitOnMountQuick(cMount))
     {
-        spdlog::info("Board {:X}: the engine's quick get-on refused (41530)", cMount);
+        spdlog::info("Board {:X}: riding {:X}, or the engine's quick get-on refused (41530)", cMount, m_riddenMount);
         UnboardRequest unboard;
         unboard.RiderId = m_characterId;
         unboard.MountId = acMessage.MountId;
@@ -1304,6 +1306,14 @@ std::vector<uint32_t> CharacterService::ApplyRide(uint32_t aId, const std::strin
     const uint32_t cMount = FormOfSession(part.Mount);
     if (!cMount)
         return {part.Mount};
+    // After its driver: the horse's one slot names the first rider linked (12074), so a joiner hearing the
+    // passenger's spawn before the ride would have the horse name the passenger.
+    const auto cDriver = m_drivers.find(part.Mount);
+    if (cDriver == m_drivers.end() || m_actorBridge.GetActorMount(FormOfSession(cDriver->second)) != cMount)
+    {
+        m_dueRides.insert(aId);
+        return {};
+    }
     // Linked at once: its capsule collides with nothing until seated (GettingOnMount); unlinked, stepped toward its
     // owner on the saddle, it pushed the horse (player-mount.md).
     if (m_actorBridge.GetActorMount(cRider) != cMount)

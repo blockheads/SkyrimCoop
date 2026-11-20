@@ -297,7 +297,7 @@ class MountsActions:
         its rider to its mark in one frame, vanilla: 76-83 units measured); no graph went 0.1 s with a clip not
         loaded or none playing (the skeleton's rest pose: a T-pose; one frame of it is a clip's file arriving); and no
         graph took an event in `forbid` (a passenger's get-on clip). A move within `pop` seconds after a body's snap is
-        part of it (a quick get-on: the reference to the saddle, its riding pose a frame later). Fails naming each, per
+        part of it, once (a quick get-on: the reference to the saddle, its riding pose a frame later). Fails naming each, per
         game and actor."""
         problems = []
         for game in ("", "client"):
@@ -316,8 +316,9 @@ class MountsActions:
                     seconds = max((entry["t"] - before[0]) / 1e6, 0.0)
                     moved = distance(at, before[1])
                     if moved > max(most, 1500.0 * seconds):
-                        if moved <= snap and entry["t"] - snapped.get(entry["id"], entry["t"]) <= pop * 1e6:
-                            snapped.setdefault(entry["id"], entry["t"])
+                        first, count = snapped.get(entry["id"], (entry["t"], 0))
+                        if moved <= snap and count < (2 if pop else 1) and entry["t"] - first <= pop * 1e6:
+                            snapped[entry["id"]] = (first, count + 1)
                             log(f"  [{name} {entry['id']:X}] its one allowed snap: {moved:.0f} units at {(entry['t'] - began) / 1e6:.2f} s")
                         else:
                             problems.append(f"[{name} {entry['id']:X}] jumped {moved:.0f} units in {seconds * 1000:.0f} ms "

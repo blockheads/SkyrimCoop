@@ -51,8 +51,8 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 2026-11-20: **passengers sit at once, piece 5 of one-simulator.md, built** (`agent/piece-5`). A player boarding a
 horse another player drives asks the host first (`BoardRequest`); the host's yes (`NotifyBoard`, to it alone) seats it
-with the engine's own quick get-on, the one a loaded save uses: `PutOnMount`, then `Actor::PutActorOnMountQuick`
-(vfunc 0xAC: 38704 resume, IDLE `EnterHorseInstant` under `IsEnteringInteractionQuick`, 39004 sit state 3,
+with the engine's own quick get-on: `PutOnMount`, then `Actor::PutActorOnMountQuick`
+(38699, vfunc 0xAC: 38704 resume, IDLE `EnterHorseInstant` under `IsEnteringInteractionQuick`, 39004 sit state 3,
 `SeatRider`), with no paired clip and nothing for the horse (read in IDA; player-mount.md, "Sitting at once"). Its
 copies are seated by its record's Ride part (`RecordKind::kRide`), once the horse is here and its stream reaches that
 frame; a joiner gets it on the spawn. Gone: the slot emptying and engine get-on, `SeatsAtHoldEnd`, `SkipsMountEntry`,

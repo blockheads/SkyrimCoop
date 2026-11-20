@@ -1042,6 +1042,34 @@ TEST_CASE("Mounts: a player boards a horse another player drives: its game is gi
     CHECK(ride.session.SentTo<NotifyReferencesMove>(kHost).empty());
 }
 
+TEST_CASE("Mounts: a Ride part naming a horse the host gave no seat on goes nowhere", "[HostAuthority][Characters][passengers]")
+{
+    Ride ride;
+    RecordRequest seat;
+    seat.Id = ride.Passenger;
+    seat.Part = {RecordKind::kRide, 1, ToPartBytes(RidePart{1, ride.Horse})};
+    ride.session.Receive(kOtherPeer, seat); // never asked: no seat
+    CHECK(ride.session.SentTo<NotifyRecord>(kHost).empty());
+    CHECK(ride.session.SentTo<NotifyRecord>(kPeer).empty());
+
+    ride.Board();
+    seat.Part.Version = 2;
+    ride.session.Receive(kOtherPeer, seat);
+    CHECK(ride.session.SentTo<NotifyRecord>(kHost).size() == 1);
+    // Off again: no seat; getting off (Ride {0}) still goes out.
+    UnboardRequest off;
+    off.RiderId = ride.Passenger;
+    off.MountId = ride.Horse;
+    ride.session.Receive(kOtherPeer, off);
+    ride.session.Outbox.clear();
+    seat.Part.Version = 3;
+    ride.session.Receive(kOtherPeer, seat);
+    CHECK(ride.session.SentTo<NotifyRecord>(kHost).empty());
+    seat.Part = {RecordKind::kRide, 4, ToPartBytes(RidePart{2, 0})};
+    ride.session.Receive(kOtherPeer, seat);
+    CHECK(ride.session.SentTo<NotifyRecord>(kHost).size() == 1);
+}
+
 TEST_CASE("Mounts: no boarding a horse nobody drives, nor for a rider not the sender's", "[HostAuthority][Characters][passengers]")
 {
     Session session;

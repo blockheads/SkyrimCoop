@@ -175,10 +175,11 @@ place). The engine keeps a rider on its horse inside that movement, so a copy on
 
 ## Sitting at once (one-simulator.md piece 5, read in IDA and probed on the duo, 2026-11-20)
 
-The engine's own instant get-on, the one a loaded save uses for a rider already on its horse:
+The engine's own instant get-on for a rider linked already (inferred, callers of vfunc 0xAC not read: the one a
+loaded save's rider takes, its interaction restored first):
 
 ```
-Actor vfunc 0xAC PutActorOnMountQuick (0x1406D3050)   a rider linked already (IsOnMount)
+Actor::PutActorOnMountQuick 38699 (vfunc 0xAC)        a rider linked already (IsOnMount)
   -> TryStartMountInteraction 38704, resume=1            no IsMountBeingRidden: a ridden horse too
   -> RefrInteraction::StartWithActivate 41530, resume
        sit state from the interaction (39912); process middleHigh+0x320 "entering quick" := 1
@@ -190,6 +191,9 @@ Actor vfunc 0xAC PutActorOnMountQuick (0x1406D3050)   a rider linked already (Is
        result 0 -> vfunc 0x40 OnSeated 40353 -> SeatRider 40358; "entering quick" := 0
 ```
 
+- Refused (41530 returns 2: its ActionActivate refused by the graphs; what refuses it on this path is not read): the
+  rider stays linked, not seated, and `MountInteraction::Update` (40356) ends a rider not seated at its next update.
+  Our player's seat then goes back to the host (`UnboardRequest`).
 - No paired clip and no horse half: nothing has to end it (42868 never runs). `HorseEnterInstant`'s only engine
   reader is 39004. The 2026-11-17 probe's "not processed by the graph" was the console's `sae`.
 - Measured (Riverwood plains, the host riding, harness `sit_on_mount_quick` = `PutOnMount` then vfunc 0xAC for the

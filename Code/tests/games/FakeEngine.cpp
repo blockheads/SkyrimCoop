@@ -1247,10 +1247,15 @@ void FakeEngine::ActorSeatOnMount(uint32_t aRider, uint32_t aMount) noexcept
 
 bool FakeEngine::PlayerSitOnMountQuick(uint32_t aMount) noexcept
 {
-    if (!Actors.contains(aMount) || Actors.at(kPlayer).InAir) // its ActionActivate refused (41530's result 2)
+    if (!Actors.contains(aMount))
         return false;
     Mounts[kPlayer] = aMount;
     MountSlots.try_emplace(aMount, kPlayer); // 12074 adds only to an empty slot: the driver keeps it
+    if (RefuseQuickSeat)
+    {
+        EndRide(kPlayer); // 40356 ends a rider not seated: its Detach (41539) empties the slot
+        return false;
+    }
     // IDLE EnterHorseInstant (condition 631): HorseEnterInstant, which seats it (ApplyActionWrites). No paired clip.
     ActionEvent instant;
     instant.ActionId = 0x13009; // ActionActivate (default object 55)

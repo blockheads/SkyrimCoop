@@ -964,6 +964,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Riders SeatRider (40358) ran for: 41533, a quick get-on. Its REFRSyncController (20318) carries their reference;
     // a linked copy at sit state 3 without it stayed where it got on (the duo, 2026-11-20).
     std::set<uint32_t> SeatedRiders;
+    // A test's lever: the quick get-on's ActionActivate refused (41530's result 2; what refuses it is not read). Linked
+    // already, its rider's link ends at the interaction's next update (40356: a rider not seated).
+    bool RefuseQuickSeat = false;
     // Mounts the player steers: its own get-on's, or a passenger's handed the reins (PlayerTakeReins). Skyrim, probe
     // 4c: the driver's ride ending leaves the horse on the driver's package, the passenger steering nothing.
     std::map<uint32_t, uint32_t> Reins;

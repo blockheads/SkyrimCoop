@@ -41,6 +41,8 @@ ambient animation that changes no state             nobody: each game's own, nev
    plays its half, follows the claim and decides nothing (the stated exception).
 2. **Passengers:** seated without the paired get-on, if that does not bring back the jump and T-pose fixed on
    2026-11-18 (`party-shares-a-horse`, `riders_smooth`). If it cannot be made clean, today's rules stay, with a note.
+   2026-11-20: built; the owner's one pop to the saddle accepted by the user (piece 5), the T-pose and the copy's
+   climb gone.
 3. **What a guest creates** (a script's `PlaceAtMe`, a summon): the host creates it. A summon gets a test.
 4. **Scenery and critters:** not synced. They change no game state; the world check stops comparing them.
 
@@ -527,8 +529,9 @@ every other game: the Ride part -> SeatOnMount; a horse not here yet: waits for 
 passenger gets off or drives on: Ride {0}; its copies get off by NotifyUnboard (as before)
 ```
 
-- No paired get-on clip anywhere: the engine's quick get-on is its own (the load path), read in IDA and measured.
-  What remains is the owner's one-frame pop to the saddle (175 units measured), as a loaded save shows it.
+- No paired get-on clip anywhere: the engine's own quick get-on (38699), read in IDA and measured. What remains is
+  the owner's one-frame pop to the saddle (168-174 units, its riding pose 71-73 a frame later). The user accepted the
+  pop on 2026-11-20 (decision 2's "clean"): the gate allows it once and fails on any get-on clip.
 - Gate: `party-shares-a-horse` allows that one pop and fails if any rider's graph takes `HorseEnter` or
   `pa_HorseEnter` while a passenger boards (`riders_smooth`'s `forbid`).
 - Deleted: `SeatsAtHoldEnd`, `SkipsMountEntry`, `m_pendingBoards` (the Ride part), the passenger's slot emptying and

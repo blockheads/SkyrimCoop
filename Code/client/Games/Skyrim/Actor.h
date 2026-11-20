@@ -56,7 +56,7 @@ struct Actor : TESObjectREFR
     virtual void SetPosition(const NiPoint3& acPoint, bool aSyncHavok = true);
     virtual void sub_AA();
     virtual void Resurrect(bool aResetInventory);
-    virtual bool PutActorOnMountQuick(); // AC (CommonLibSSE-NG, 0x1406D3050): a linked rider seated at once (38704 resume)
+    virtual bool PutActorOnMountQuick(); // AC (CommonLibSSE-NG; 38699): a linked rider seated at once (38704 resume)
     virtual void sub_AD();
     virtual void sub_AE();
     virtual void sub_AF();

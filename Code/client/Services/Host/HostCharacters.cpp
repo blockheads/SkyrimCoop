@@ -20,6 +20,7 @@
 #include <Messages/RequestRespawn.h>
 #include <Messages/NotifyReferencesMove.h>
 #include <Structs/GridCellCoords.h>
+#include <Structs/RidePart.h>
 
 
 namespace
@@ -138,7 +139,9 @@ void HostCharacters::OnAnnounceCharacter(const AnnounceCharacterRequest& acReque
     }
 
     const uint32_t cPlayerId = cIsPlayer ? m_players.PlayerIdOf(aSender) : 0;
-    const auto cSpawn = NotifyCharacterSpawn::FromAnnouncement(acRequest, cSessionId, cPlayerId);
+    auto cSpawn = NotifyCharacterSpawn::FromAnnouncement(acRequest, cSessionId, cPlayerId);
+    // A seat the host did not give it: its copies stay standing.
+    std::erase_if(cSpawn.Record.Parts, [&](const RecordPart& acPart) { return !RideGranted(cSessionId, acPart); });
 
     auto& character = m_characters[cSessionId];
     character.Owner = aSender;
@@ -569,6 +572,15 @@ void HostCharacters::SendToOthersWithHost(const NotifyCharacterSpawn& acSpawn, C
     for (const ConnectionId_t cPlayer : m_players.Connections())
         if (cPlayer != aSender && WithHost(cPlayer))
             m_network.Send(cPlayer, acSpawn, Net::kReliable);
+}
+
+bool HostCharacters::RideGranted(uint32_t aRider, const RecordPart& acPart) const noexcept
+{
+    RidePart ride;
+    if (acPart.Kind != RecordKind::kRide || (FromPartBytes(acPart.Bytes, ride) && !ride.Mount))
+        return true;
+    const auto cMount = m_characters.find(ride.Mount);
+    return cMount != m_characters.end() && std::ranges::find(cMount->second.Passengers, aRider) != cMount->second.Passengers.end();
 }
 
 HostCharacters::ConnectionId_t HostCharacters::OwnerOf(uint32_t aSessionId) const noexcept

@@ -3,6 +3,7 @@
 #include <Events/DismountEvent.h>
 #include <Events/MountEvent.h>
 #include <Games/Animation/ReplayState.h>
+#include <SessionIds.h>
 #include <Events/AiStateChangeEvent.h>
 
 namespace
@@ -560,7 +561,7 @@ TEST_CASE("A board the host refuses leaves the player standing", "[mounts][passe
         FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
-    });
+    }, true, NetConditions{.DelayMs = 300}); // the guest hears the ride's end long after the host's game ends it
     party.Agree("the players are present");
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
@@ -570,16 +571,56 @@ TEST_CASE("A board the host refuses leaves the player standing", "[mounts][passe
     const uint32_t cHorse = guest.CopiesOf(kHorse)[0];
     party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, horse); });
     party.Until([&] { return !guest.Mounts.empty(); }, "the guest sees the host riding");
-    // The guest asks as the host's ride ends (no exit clip, 38705): nobody drives it when the host hears the guest.
-    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cHorse); });
+    // The host's ride ends (no exit clip, 38705) and its game gives the horse back; the guest asks before it hears:
+    // nobody drives it when the host hears the guest.
     party.As(party.Host(), [&] { host.EndRide(FakeEngine::kPlayer); });
-    for (int i = 0; i < 20; ++i)
-        party.Frame();
+    const auto cRun = [&](int aMs) {
+        const auto cStart = std::chrono::steady_clock::now();
+        while (std::chrono::steady_clock::now() - cStart < std::chrono::milliseconds(aMs)) // the session's clock
+            party.Frame();
+    };
+    cRun(100);
+    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cHorse); });
+    cRun(900); // there and back over the slow line
     CHECK_FALSE(guest.IsPlayerMounted());
     CHECK(guest.SitState(FakeEngine::kPlayer) == 0);
     // Asked again, now with the horse its own: a ride of its own.
     party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cHorse); });
     party.Until([&] { return Owns(party.Guest(), cHorse); }, "the guest rides the horse itself");
+}
+
+TEST_CASE("A seat granted after the player took a horse of its own is given back", "[mounts][passengers]")
+{
+    Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+        aEngine.LoadCell(kCell);
+    });
+    party.Agree("the players are present");
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t driven = 0, spare = 0;
+    party.As(party.Host(), [&] {
+        driven = host.LoadNpc(kHorse, kCell);
+        spare = host.LoadNpc(kHorse, kCell);
+    });
+    party.Until([&] { return guest.CopiesOf(kHorse).size() == 2; }, "the guest has both horses");
+    party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, driven); });
+    party.Until([&] { return !guest.Mounts.empty(); }, "the guest sees the host riding");
+    const uint32_t cDriven = guest.Mounts.begin()->second;
+    const uint32_t cSpare = guest.CopiesOf(kHorse)[0] == cDriven ? guest.CopiesOf(kHorse)[1] : guest.CopiesOf(kHorse)[0];
+    // Asks for a seat, then gets on the free horse before the host's answer comes back.
+    party.As(party.Guest(), [&] {
+        guest.Activates(FakeEngine::kPlayer, cDriven);
+        guest.Activates(FakeEngine::kPlayer, cSpare);
+    });
+    party.Until([&] { return Owns(party.Guest(), cSpare); }, "the guest rides the free horse");
+    for (int i = 0; i < 20; ++i)
+        party.Frame();
+    CHECK(guest.GetActorMount(FakeEngine::kPlayer) == cSpare);
+    CHECK(guest.MountSlots.at(cDriven) != FakeEngine::kPlayer);
+    CHECK(guest.GetActorLatestAnimation(FakeEngine::kPlayer).EventName != "HorseEnterInstant");
+    (void)spare;
 }
 
 TEST_CASE("A guest joining while a passenger rides sees it seated on the horse", "[mounts][passengers][late-ride]")
@@ -606,10 +647,22 @@ TEST_CASE("A guest joining while a passenger rides sees it seated on the horse",
     party.Join(party.Guest(1));
     party.Until([&] { return late.CopiesOf(kHorse).size() == 1 && late.Mounts.size() == 2; }, "both riders are on the late guest's horse",
                 [&] { return std::format("horse copies {}, mounts {}", late.CopiesOf(kHorse).size(), late.Mounts.size()); });
+    const uint32_t cLateHorse = late.CopiesOf(kHorse)[0];
+    std::optional<uint32_t> guestSession;
+    party.As(party.Guest(), [&] { guestSession = Utils::GetSessionIdByFormId(FakeEngine::kPlayer); });
+    uint32_t passenger = 0, driver = 0;
     for (const auto& [cRider, cMount] : late.Mounts)
-        CHECK(cMount == late.CopiesOf(kHorse)[0]);
-    party.Until([&] { return std::ranges::count_if(late.Mounts, [&](const auto& acRide) { return late.SitState(acRide.first) == ::ReplayState::kSitSeated; }) >= 1; },
-                "the passenger's copy is seated");
+    {
+        CHECK(cMount == cLateHorse);
+        std::optional<uint32_t> session;
+        party.As(party.Guest(1), [&] { session = Utils::GetSessionIdByFormId(cRider); });
+        (session == guestSession ? passenger : driver) = cRider;
+    }
+    REQUIRE(passenger);
+    REQUIRE(driver);
+    party.Until([&] { return late.SeatedRiders.contains(passenger); }, "the passenger's copy is seated");
+    // The spawns come before the ride (SendRides): the horse still names its driver (12074, its one slot).
+    CHECK(late.MountSlots.at(cLateHorse) == driver);
 }
 
 TEST_CASE("The driver gets off: the passenger drives, the horse its game's", "[mounts][passengers]")
@@ -719,14 +772,15 @@ TEST_CASE("A get-on the engine refuses leaves the horse its driver's", "[mounts]
     party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, horse); });
     party.Until([&] { return guest.MountSlots.contains(cGuestHorse); }, "the guest sees the host riding");
     const uint32_t cDriverCopy = guest.MountSlots.at(cGuestHorse);
-    // Its slot emptied for the get-on, then CanRide (38706) refuses: midair.
-    guest.Actors.at(FakeEngine::kPlayer).InAir = true;
+    // The host's yes comes, then the engine's quick get-on refuses: the seat goes back, the horse names its driver.
+    guest.RefuseQuickSeat = true;
     party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cGuestHorse); });
-    for (int i = 0; i < 5; ++i)
-        party.Frame();
-    CHECK_FALSE(guest.IsPlayerMounted());
-    REQUIRE(guest.MountSlots.contains(cGuestHorse));
-    CHECK(guest.MountSlots.at(cGuestHorse) == cDriverCopy);
+    party.Until([&] { return !guest.IsPlayerMounted() && guest.MountSlots.contains(cGuestHorse) && guest.MountSlots.at(cGuestHorse) == cDriverCopy; },
+                "the guest stands, the horse names its driver again");
+    // Its seat given back (UnboardRequest): the host's ride ending hands the horse to nobody.
+    party.As(party.Host(), [&] { host.EndRide(FakeEngine::kPlayer); });
+    party.Until([&] { return !guest.MountSlots.contains(cGuestHorse); }, "nobody rides the horse");
+    CHECK_FALSE(Owns(party.Guest(), cGuestHorse));
 }
 
 TEST_CASE("No boarding a horse an NPC rides", "[mounts][passengers]")
