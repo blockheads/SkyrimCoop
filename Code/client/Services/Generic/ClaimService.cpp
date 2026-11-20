@@ -13,6 +13,11 @@
 #include <SessionIds.h>
 #include <World.h>
 
+namespace
+{
+constexpr uint64_t cUnheardClaimMs = 5000; // a give-back asked before its claim was heard waits this long for it
+}
+
 ClaimService::ClaimService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport, IActorBridge& aActorBridge) noexcept
     : m_world(aWorld)
     , m_transport(aTransport)
@@ -53,6 +58,9 @@ void ClaimService::OnClaim(const NotifyActorClaim& acMessage) noexcept
     }
     Held& held = m_held[acMessage.ActorId];
     held.ClaimId = acMessage.ClaimId;
+    for (Pending& pending : m_giveBacks)
+        if (pending.SessionId == acMessage.ActorId && !pending.ClaimId)
+            pending.ClaimId = acMessage.ClaimId;
     if (cEntity == entt::null)
     {
         // Gone from this game since it asked (a cell change): back at once, nobody left to simulate it here.
@@ -66,7 +74,17 @@ void ClaimService::OnClaim(const NotifyActorClaim& acMessage) noexcept
     const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
     held.Took = characters.TakeOwnership(cFormId, acMessage.ActorId, cEntity, acMessage.DeathOnGiveBack);
     if (held.Took)
+    {
+        // A give-back asked before this claim came: this game's actor to read from now.
+        const auto cUpdates = m_world.GetGraphStreams().Updates(cFormId);
+        for (Pending& pending : m_giveBacks)
+            if (pending.SessionId == acMessage.ActorId && !pending.FormId)
+            {
+                pending.FormId = cFormId;
+                pending.Since = cUpdates ? cUpdates->Count : 0;
+            }
         return;
+    }
     // Not takeable here (a player's summon): back at once.
     spdlog::warn("Claim of {:X} for {:X}: this game cannot take it, given back", cFormId, acMessage.ForId);
     GiveBack(acMessage.ActorId, false, true);
@@ -78,7 +96,9 @@ void ClaimService::GiveBack(uint32_t aSessionId, bool aKilled, bool aNow, std::f
     const entt::entity cEntity = EntityOf(aSessionId);
     const uint32_t cFormId = cEntity != entt::null && m_world.all_of<LocalComponent>(cEntity) ? m_world.get<FormIdComponent>(cEntity).Id : 0;
     const auto cUpdates = cFormId ? m_world.GetGraphStreams().Updates(cFormId) : std::nullopt;
-    m_giveBacks.push_back({aSessionId, cFormId, cUpdates ? cUpdates->Count : 0, aKilled, aNow, false, std::move(aBefore)});
+    const auto cHeld = m_held.find(aSessionId);
+    m_giveBacks.push_back({aSessionId, cHeld != m_held.end() ? cHeld->second.ClaimId : 0, m_world.GetTick() + cUnheardClaimMs, cFormId,
+                           cUpdates ? cUpdates->Count : 0, aKilled, aNow, false, std::move(aBefore)});
     if (aNow)
         RunGiveBacks();
 }
@@ -87,6 +107,13 @@ void ClaimService::RunGiveBacks() noexcept
 {
     std::vector<Pending> due;
     std::erase_if(m_giveBacks, [&](Pending& aPending) {
+        if (!aPending.ClaimId)
+        {
+            if (m_world.GetTick() < aPending.Expires)
+                return false;
+            spdlog::info("Give-back of {:X}: its claim never came", aPending.SessionId);
+            return true;
+        }
         const auto cUpdates = aPending.FormId ? m_world.GetGraphStreams().Updates(aPending.FormId) : std::nullopt;
         if (!aPending.Now && (!aPending.Waited || (cUpdates && cUpdates->Count <= aPending.Since)))
             return false;
@@ -96,10 +123,9 @@ void ClaimService::RunGiveBacks() noexcept
     for (Pending& pending : due)
     {
         const auto cUpdates = pending.FormId ? m_world.GetGraphStreams().Updates(pending.FormId) : std::nullopt;
-        const auto cHeld = m_held.find(pending.SessionId);
         ActorGiveBackRequest request;
         request.ActorId = pending.SessionId;
-        request.ClaimId = cHeld != m_held.end() ? cHeld->second.ClaimId : 0;
+        request.ClaimId = pending.ClaimId;
         // A kill its hold counted while it waited (38614's queued one) still counts (DeferKill 38617).
         request.Killed = pending.Killed || (pending.FormId && m_actorBridge.ActorKillCounted(pending.FormId));
         // Giving it up drops its unsent ops: they go first, the give-back's tick their last update (copies take it then).

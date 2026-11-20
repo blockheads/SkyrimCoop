@@ -33,7 +33,7 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     , m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)
-    , m_claims(aAuthority, acPlayers, *this)
+    , m_claims(aAuthority, acPlayers, *this, acGame)
 {
     aAuthority.On(*this, &HostCharacters::OnAnnounceCharacter);
     aAuthority.On(*this, &HostCharacters::OnRemoveCharacter);

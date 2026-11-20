@@ -88,6 +88,7 @@ TEST_CASE("Claims: a give-back after the claim passed to a passenger is not the 
     session.Outbox.clear();
     ActorGiveBackRequest late;
     late.ActorId = cHorse;
+    late.ClaimId = 1; // the driver's claim
     session.Receive(kPeer, late);
     CHECK(session.SentTo<NotifyActorGiveBack>(kHost).empty());
     CHECK(MovedBy(session, cHorse, kOtherPeer, kHost));
@@ -123,8 +124,11 @@ TEST_CASE("Claims: one game cannot hold one horse for two features, and an older
     CHECK(cRide[0]->ClaimId == 2);
     CHECK_FALSE(cRide[0]->DeathOnGiveBack);
 
-    // A late copy of the first claim's give-back: dropped. The ride's own, saying killed: back alive.
+    // A late copy of the first claim's give-back, or one naming no claim: dropped. The ride's own, saying killed: back
+    // alive.
     session.Outbox.clear();
+    session.Receive(kPeer, back);
+    back.ClaimId = 0;
     session.Receive(kPeer, back);
     CHECK(session.SentTo<NotifyActorGiveBack>(kHost).empty());
     back.ClaimId = 2;

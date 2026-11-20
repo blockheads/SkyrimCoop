@@ -66,6 +66,7 @@ TEST_CASE("Pairs: the first claim on a host NPC holds, the NPC its claimer's gam
     done.PartnerId = cWolf;
     ActorGiveBackRequest giveBack;
     giveBack.ActorId = cWolf;
+    giveBack.ClaimId = 1;
     giveBack.Tick = 4200;
     giveBack.Killed = true;
     session.Receive(kOtherPeer, done); // not its claim

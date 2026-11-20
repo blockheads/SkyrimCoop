@@ -13,9 +13,8 @@ class IActorBridge;
 struct UpdateEvent;
 struct World;
 
-// The host's game takes back a claimed actor given back (HostClaims): once its copy ran the holder's ops through the
-// give-back's tick (TakesOverMount); a killed one once its copy counted its own clip's kill too (its death then comes
-// at the blow it shows), or cPoseHoldMs on. Placed where the holder left it, then killed for whom it was claimed.
+// The host's game takes back a claimed actor given back (HostClaims): after its copy's replay, placed where its holder
+// left it, then killed if it was (one-simulator.md, "One claim for every actor").
 struct HostTakeBacks
 {
     // aTaken: the host's rules hear it (HostAuthority::ActorTaken).
@@ -34,7 +33,8 @@ private:
         uint64_t Tick{};
         ActorWhereabouts Whereabouts{};
         uint32_t KillerId{}; // session id, 0: lives
-        uint64_t Until{};
+        uint64_t Until{};     // a killed one: by then even if its copy never counted its own clip's kill
+        uint64_t StalledAt{}; // by then even if its copy's stream stopped short of Tick
     };
     [[nodiscard]] bool Take(const TakeBack& acTakeBack) noexcept;
 

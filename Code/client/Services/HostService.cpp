@@ -173,6 +173,10 @@ void HostService::MakeAuthority() noexcept
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
     game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
+    game.Claimable = [this](uint32_t aSessionId) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId && !m_world.ctx().at<IActorBridge&>().IsPlayerSummon(cFormId);
+    };
     game.CanPair = [this](uint32_t aSessionId) {
         const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
         return cFormId && m_world.ctx().at<IActorBridge&>().ActorCanPair(cFormId);

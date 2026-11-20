@@ -478,10 +478,16 @@ Changes from the plan above, each from what was read:
     host's copy of it.
   - A claim's end tells the feature (`HostClaims::OnEnded`): a ride still marked (its game could not take the horse)
     ends.
-  - The holder re-reads its hold's kill count as it sends (38614's queued kill lands a frame late), and never sends
+  - The holder re-reads its hold's kill count as it sends (38614 queues its kill on task 10, read; when that runs
+    against our give-back is not read or measured: the GameTest models it landing a frame later), and never sends
     in the update that asked; a claim for an actor no longer on the claimer's game comes straight back.
   - The take-back places the actor exactly (`CharacterService::PlaceAt`): `FollowOwner` skips a move under 64
     units and a turn.
+- **Its third review round:** a copy whose stream stops is taken back after 3 s anyway (it stayed returning for
+  good); the host claims nothing its game could not take back (`HostGame::Claimable`: a player's summon) and marks a
+  take-back done only when it took it; a give-back is bound to its claim when asked (one asked before its claim was
+  heard takes the next one, 5 s at most) and the host takes no unnumbered one; a ride the host ends with this game's
+  player still on it takes it off; a taken-back actor loses `FollowOwner`'s held-copy mark.
 - Review round (PR #85): answers by tick, a refusal skipped on a watching game too, the join snapshot, a summon
   refused, `KillMoveEnd`'s kill counted and a hold's counted kills dropped on release, each with a test that failed
   first. A held blow is dropped only with its victim in the attacker's own pair (its killer, 38613), not in

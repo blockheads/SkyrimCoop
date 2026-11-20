@@ -4,6 +4,7 @@
 #include "Fixtures.h"
 
 #include <Components/FormIdComponent.h>
+#include <Components/HeldCopyComponent.h>
 #include <Events/MountEvent.h>
 #include <SessionIds.h>
 
@@ -280,6 +281,10 @@ SCENARIO("An NPC given back from a pair is placed exactly where the claimer's ga
         }
     });
     pair.party.Until([&] { return !pair.host.Actors.at(pair.guard).Copy; }, "the guard is the host's again");
+    // Ours again: not a copy its owner left (that mark drops an actor from the next session at a disconnect).
+    for (const auto cEntity : pair.party.Host().view<FormIdComponent>())
+        if (pair.party.Host().get<FormIdComponent>(cEntity).Id == pair.guard)
+            CHECK_FALSE(pair.party.Host().all_of<HeldCopyComponent>(cEntity));
     CHECK(pair.host.Actors.at(pair.guard).Position[0] == Approx(there[0]));
     CHECK(pair.host.Actors.at(pair.guard).Position[1] == Approx(there[1]));
     CHECK(pair.host.Actors.at(pair.guard).Rotation[2] == Approx(1.25f));

@@ -2,20 +2,23 @@
 
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostCharacters.h>
+#include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/Relayed.h>
 
-HostClaims::HostClaims(HostAuthority& aAuthority, const HostPlayers& acPlayers, HostCharacters& aCharacters) noexcept
+HostClaims::HostClaims(HostAuthority& aAuthority, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostGame& acGame) noexcept
     : m_players(acPlayers)
     , m_characters(aCharacters)
+    , m_game(acGame)
 {
     aAuthority.On(*this, &HostClaims::OnGiveBack);
 }
 
 bool HostClaims::Claim(uint32_t aActorId, ConnectionId_t aTo, uint32_t aForId, bool aDeathOnGiveBack, bool aTakeFrom) noexcept
 {
-    if (!m_characters.OwnerOf(aActorId) || m_characters.IsPlayerCharacter(aActorId) || Returning(aActorId))
+    if (!m_characters.OwnerOf(aActorId) || m_characters.IsPlayerCharacter(aActorId) || Returning(aActorId) ||
+        (m_game.Claimable && !m_game.Claimable(aActorId)))
         return false;
     // The same claim again (a rider getting back on): held already. Anything else only takes it over by handover.
     const auto cHold = m_holds.find(aActorId);
@@ -45,9 +48,8 @@ HostClaims::ConnectionId_t HostClaims::HolderOf(uint32_t aActorId) const noexcep
 void HostClaims::OnGiveBack(const ActorGiveBackRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     // A give-back of another claim (passed on to a passenger, or an older one of the same game) is not the holder's word.
-    // 0: sent before its claim was heard, the sender's only claim on it then.
     const auto cHold = m_holds.find(acRequest.ActorId);
-    if (cHold == m_holds.end() || cHold->second.To != aSender || (acRequest.ClaimId && acRequest.ClaimId != cHold->second.ClaimId))
+    if (cHold == m_holds.end() || cHold->second.To != aSender || acRequest.ClaimId != cHold->second.ClaimId)
         return;
     GiveBack(acRequest.ActorId, acRequest);
 }

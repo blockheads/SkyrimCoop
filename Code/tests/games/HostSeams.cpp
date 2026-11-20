@@ -133,6 +133,7 @@ void HostService::MakeAuthority() noexcept
         return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn);
     };
     game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
+    game.Claimable = [&engine](uint32_t aSessionId) { return !engine.IsPlayerSummon(Utils::GetFormIdBySessionId(aSessionId)); };
     game.CanPair = [&engine](uint32_t aSessionId) { return engine.ActorCanPair(Utils::GetFormIdBySessionId(aSessionId)); };
     game.AdvanceTime = [&engine](float aHours) {
         MainLoopTasks::Queue([&engine, aHours] {

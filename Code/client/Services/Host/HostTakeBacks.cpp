@@ -11,6 +11,11 @@
 #include <SessionIds.h>
 #include <World.h>
 
+namespace
+{
+constexpr uint64_t cStalledMs = 3000; // a copy whose stream stops (its graph not updating) is taken as it is
+}
+
 HostTakeBacks::HostTakeBacks(World& aWorld, entt::dispatcher& aDispatcher, IActorBridge& aActors, std::function<void(uint32_t)> aTaken) noexcept
     : m_world(aWorld)
     , m_actors(aActors)
@@ -21,8 +26,9 @@ HostTakeBacks::HostTakeBacks(World& aWorld, entt::dispatcher& aDispatcher, IActo
 
 void HostTakeBacks::OnGiveBack(const NotifyActorGiveBack& acMessage) noexcept
 {
+    const uint64_t cNow = m_world.GetTick();
     m_takeBacks.push_back({acMessage.ActorId, acMessage.Tick, acMessage.Whereabouts, acMessage.Killed ? acMessage.ForId : 0,
-                           m_world.GetTick() + ReplayState::cPoseHoldMs});
+                           cNow + ReplayState::cPoseHoldMs, cNow + cStalledMs});
 }
 
 void HostTakeBacks::Update(const UpdateEvent&) noexcept
@@ -46,11 +52,16 @@ bool HostTakeBacks::Take(const TakeBack& acTakeBack) noexcept
     if (acTakeBack.KillerId && !m_actors.ActorKillCounted(cFormId) && m_world.GetTick() < acTakeBack.Until)
         return false;
     const auto cDone = m_world.GetGraphStreams().StreamDoneThrough(cFormId);
-    if (!ReplayState::TakesOverMount(acTakeBack.Tick, cDone.has_value(), cDone.value_or(0)))
+    if (!ReplayState::TakesOverMount(acTakeBack.Tick, cDone.has_value(), cDone.value_or(0)) && m_world.GetTick() < acTakeBack.StalledAt)
         return false;
     auto& characters = m_world.GetCharacterService();
-    if (characters.TakeOwnership(cFormId, acTakeBack.SessionId, entity))
-        spdlog::info("Actor {:X}: taken back, its last holder's ops run through {}", cFormId, acTakeBack.Tick);
+    if (!characters.TakeOwnership(cFormId, acTakeBack.SessionId, entity))
+    {
+        // Left returning (claimed by nobody): HostClaims refuses what this game cannot take (Claimable).
+        spdlog::error("Actor {:X}: given back, but this game cannot take it", cFormId);
+        return true;
+    }
+    spdlog::info("Actor {:X}: taken back, its last holder's ops run through {}", cFormId, acTakeBack.Tick);
     characters.PlaceAt(cFormId, acTakeBack.Whereabouts);
     // Its holder's clip killed it there under the hold: its death is this game's (KillImpl 37896).
     if (acTakeBack.KillerId)

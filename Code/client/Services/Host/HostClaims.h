@@ -10,6 +10,7 @@
 
 struct HostAuthority;
 struct HostCharacters;
+struct HostGame;
 struct HostPlayers;
 
 // Claims on the host's actors: one game holds one, as its owner, until it gives it back (one-simulator.md, "One claim
@@ -19,12 +20,12 @@ struct HostClaims
     using ConnectionId_t = Net::ConnectionId_t;
 
     // Registers its rules with aAuthority.
-    HostClaims(HostAuthority& aAuthority, const HostPlayers& acPlayers, HostCharacters& aCharacters) noexcept;
+    HostClaims(HostAuthority& aAuthority, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostClaims);
 
     // aTo's game holds aActorId for aForId (its rider, a kill move's attacker). False if it is held for anything else
-    // (unless aTakeFrom: a passenger driving on), on its way back to the host's game, or a player's.
+    // (unless aTakeFrom: a passenger driving on), on its way back to the host's game, a player's, or not Claimable.
     bool Claim(uint32_t aActorId, ConnectionId_t aTo, uint32_t aForId, bool aDeathOnGiveBack, bool aTakeFrom = false) noexcept;
     // The holder's game, or 0.
     [[nodiscard]] ConnectionId_t HolderOf(uint32_t aActorId) const noexcept;
@@ -55,6 +56,7 @@ private:
 
     const HostPlayers& m_players;
     HostCharacters& m_characters;
+    const HostGame& m_game;
     std::unordered_map<uint32_t, Hold> m_holds;
     std::unordered_set<uint32_t> m_returning;
     uint32_t m_lastClaimId = 0;

@@ -40,9 +40,13 @@ private:
         uint32_t ClaimId{};
         bool Took{}; // a copy here until the claim: given up again with its give-back
     };
+    // A give-back names the claim held when it was asked; one asked before its claim was heard (a dismount before the
+    // ride's answer) takes the next claim heard for it, or is dropped by Expires (the ride refused).
     struct Pending
     {
         uint32_t SessionId{};
+        uint32_t ClaimId{};
+        uint64_t Expires{};
         uint32_t FormId{}; // 0: not this game's (its claim not heard yet)
         uint64_t Since{};  // its graph updates recorded when asked
         bool Killed{};

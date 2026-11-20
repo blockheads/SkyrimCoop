@@ -768,6 +768,7 @@ TEST_CASE("Mounts: getting off gives the horse back to the host", "[HostAuthorit
     dismount.MountId = cHorse;
     ActorGiveBackRequest giveBack;
     giveBack.ActorId = cHorse;
+    giveBack.ClaimId = 1;
     giveBack.Tick = 4242; // its rider's last graph update: the host's game takes it once its copy ran that far
     session.Receive(kOtherPeer, dismount); // not its rider
     session.Receive(kOtherPeer, giveBack); // nor its holder
@@ -957,6 +958,7 @@ TEST_CASE("Mounts: a horse has one rider; a second getting on within the round t
     CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).size() == 1); // still the first's game's
     ActorGiveBackRequest giveBack;
     giveBack.ActorId = cHorse;
+    giveBack.ClaimId = 1;
     session.Receive(kPeer, giveBack);
     session.Outbox.clear();
     session.Receive(kOtherPeer, second);

@@ -159,6 +159,8 @@ bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acS
     }
 
     m_actorBridge.SetActorCopy(acFormId, false);
+    // Ours now: no longer a copy its owner left (FollowOwner's mark would drop it at a disconnect).
+    m_world.remove<HeldCopyComponent>(acEntity);
     // A copy's scripted deferred kill (UpdateCopyAI) outlives the copy: no engine path ends one (kill-moves.md).
     m_actorBridge.ActorHoldKill(acFormId, aHoldKill);
     m_world.emplace_or_replace<LocalComponent>(acEntity, acSessionId);
@@ -1355,10 +1357,15 @@ void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcep
         if (m_world.get<RemoteComponent>(cEntity).Id == acMessage.RiderId)
             m_actorBridge.ActorEndRide(m_world.get<FormIdComponent>(cEntity).Id);
     // Its owner (the host, given back: ClaimService) keeps it as it would.
-    if (const uint32_t cFormId = FormOfSession(acMessage.MountId))
-        ReleaseMount(cFormId);
+    const uint32_t cMountFormId = FormOfSession(acMessage.MountId);
+    if (cMountFormId)
+        ReleaseMount(cMountFormId);
     if (m_riddenMount == acMessage.MountId)
         m_riddenMount = 0;
+    // Our player's ride ended by the host's word with our player still on it (this game could not take the horse:
+    // HostClaims::OnEnded): off it too. Off already in a dismount of its own.
+    if (acMessage.RiderId == m_characterId && cMountFormId && m_actorBridge.GetActorMount(m_playerBridge.GetPlayerFormId()) == cMountFormId)
+        m_playerBridge.PlayerStopRiding();
 }
 
 void CharacterService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept

@@ -19,8 +19,8 @@ claimer: the NPC is its own (TakeOwnership),                         every non-c
   the copy's scripted deferred kill kept                             an instance between its two copies (the NPC's
 its clip's KillActor (42838): only counted (37896),                  copy has no stream: below)
   its pose held; graph ops sent                                      a player partner's game: plays its half
-  PairDoneRequest{tick, killed}    --> NPC: the host's again          from the replay, as before
-                                       NotifyPairDone -------------> the host's game: once its own copy's clip sent
+  PairDoneRequest, then              --> NPC: the host's again          from the replay, as before
+  ActorGiveBackRequest{tick, killed}   NotifyActorGiveBack --------> the host's game: once its own copy's clip sent
                                                                      KillActor (or 1.5 s), TakeOwnership, the hold
                                                                      ended, KillImpl with the claim's actor
 refused (NotifyPairRefused, to every game): the claimer ends its pair (the yield below);
