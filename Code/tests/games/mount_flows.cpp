@@ -22,6 +22,7 @@ bool Owns(World& aGame, uint32_t aForm)
 SCENARIO("A mounted guest owns the horse until dismount or disconnect, then the host takes it back", "[mounts]")
 {
     Party party(2, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -80,6 +81,7 @@ SCENARIO("A mounted guest owns the horse until dismount or disconnect, then the 
 SCENARIO("A horse's empty package is published when its rider becomes its owner", "[mounts][mount-package]")
 {
     Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -121,6 +123,7 @@ SCENARIO("A horse's empty package is published when its rider becomes its owner"
 SCENARIO("The host rides its own horse and both guests put their copies on it", "[mounts]")
 {
     Party party(2, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -153,6 +156,7 @@ SCENARIO("The host rides its own horse and both guests put their copies on it", 
 TEST_CASE("The host dismounts without giving up its own horse", "[mounts]")
 {
     Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -174,6 +178,7 @@ TEST_CASE("The host dismounts without giving up its own horse", "[mounts]")
 SCENARIO("A guest's horse stays its game's until the ride itself ends, by any path", "[mounts][ride-end]")
 {
     Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -220,6 +225,7 @@ SCENARIO("A guest's horse stays its game's until the ride itself ends, by any pa
 TEST_CASE("Two guests get on the host's horse at once: the first keeps it, the other's player gets off", "[mounts][one-rider]")
 {
     Party party(2, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -256,6 +262,7 @@ TEST_CASE("Two guests get on the host's horse at once: the first keeps it, the o
 TEST_CASE("A guest joining while another rides sees its copy on the horse", "[mounts][late-ride]")
 {
     Party party(2, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     }, false);
@@ -291,6 +298,7 @@ TEST_CASE("A guest joining while another rides sees its copy on the horse", "[mo
 TEST_CASE("A horse passes from rider to rider: the host, a guest, the host again", "[mounts][riders]")
 {
     Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -313,12 +321,15 @@ TEST_CASE("A horse passes from rider to rider: the host, a guest, the host again
 
     cRide(party.Guest(), guest, cHorse);
     party.Until([&] { return Owns(party.Guest(), cHorse) && host.IsActorCopy(horse); }, "the guest's game owns the horse");
+    party.Until([&] { return party.Host().GetGraphStreams().OnStream(horse); }, "the host's copy is on the guest's stream");
     party.As(party.Guest(), [&] { guest.StartDismount(FakeEngine::kPlayer); });
+    party.Until([&] {
+        return std::ranges::any_of(host.Actors.at(horse).Graph.History, [](const auto& acEntry) { return acEntry.State == FakeEngine::kDismountSynced; });
+    }, "the host's copy plays the horse's half of the guest's exit");
     party.Until([&] { return Owns(party.Host(), horse) && guest.IsActorCopy(cHorse); }, "the host owns it again");
-    // Skyrim (duo, 2026-11-18): taken back before its copy rider's exit pair ended, the host's horse stayed in it,
-    // refused the host's get-on and retried it; the guest's copy of the host was left off (mounts.md).
-    party.Until([&] { return host.PairEndIn.empty(); }, "the guest's exit pair would have reached the host's horse");
-    CHECK(host.SyncedMounts.empty());
+    // Skyrim (duo, 2026-11-18/19): the guest's last graph ops, its horse's PairEnd among them, went unsent when it gave
+    // the horse up; the host's horse stayed in the exit pair, refused the host's get-on and retried it (mounts.md).
+    CHECK_FALSE(host.Synced(horse));
 
     cRide(party.Host(), host, horse);
     party.Until([&] { return guest.Mounts.size() == 1 && guest.Mounts.begin()->second == cHorse; },
@@ -330,11 +341,43 @@ TEST_CASE("A horse passes from rider to rider: the host, a guest, the host again
     party.Agree("the horse and its copies agree");
 }
 
+TEST_CASE("A horse taken back over a slow line plays its rider's exit to its end first", "[mounts][riders][hand-back]")
+{
+    // Skyrim (duo, 2026-11-19): the exit pair's PairEnd (32797) reaches the rider's horse in its Detach's frame, due on
+    // its copies with the update after it; a copy plays ~100 ms behind. Taken at the hand-back's arrival, the host's
+    // horse missed it, stayed in DismountSynced and refused the host's next get-on five times (mounts.md).
+    Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+        aEngine.LoadCell(kCell);
+    }, true, NetConditions{.DelayMs = 80});
+    party.Agree("the players are present");
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t horse = 0;
+    party.As(party.Host(), [&] { horse = host.LoadNpc(kHorse, kCell); });
+    party.Until([&] { return guest.CopiesOf(kHorse).size() == 1; }, "the guest has the horse");
+    const uint32_t cHorse = guest.CopiesOf(kHorse)[0];
+    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cHorse); });
+    party.Until([&] { return Owns(party.Guest(), cHorse) && host.IsActorCopy(horse); }, "the guest's game owns the horse");
+    party.Until([&] { return party.Host().GetGraphStreams().OnStream(horse); }, "the host's copy is on the guest's stream");
+    // Its exit clip runs ~2.4 s (duo): the host's copy is in the horse's half before the ride ends.
+    party.As(party.Guest(), [&] { guest.StartDismount(FakeEngine::kPlayer, UINT32_MAX); });
+    party.Until([&] { return host.Synced(horse); }, "the host's copy plays the horse's half of the exit");
+    party.As(party.Guest(), [&] { guest.EndRide(FakeEngine::kPlayer); });
+    party.Until([&] { return Owns(party.Host(), horse); }, "the host owns it again");
+    CHECK_FALSE(host.Synced(horse));
+    party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, horse); });
+    party.Until([&] { return host.IsPlayerMounted(); }, "the host rides it");
+    CHECK(host.RefusedGetOns == 0);
+}
+
 TEST_CASE("A guest gets on the horse the host just got off", "[mounts][ride-end][riders]")
 {
     // Skyrim (duo, horse-passes-between-riders, 2026-11-17): the guest's Activate did nothing, and the host's copy of
     // the guest kept kGettingOnOffMount (docs/re/systems/mounts.md).
     Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -363,6 +406,7 @@ TEST_CASE("A ride the engine refuses reserves no horse", "[mounts][one-rider]")
 {
     // InitiateMountPackage (37905) returns early when CanRide (38706) refuses (in midair): no ride, no MountEvent.
     Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -390,6 +434,7 @@ namespace
 struct Passenger
 {
     Party party{1, [](FakeEngine& aEngine) {
+                    FakeEngine::MountGraph(aEngine);
                     aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
                     aEngine.LoadCell(kCell);
                 }};
@@ -494,7 +539,7 @@ TEST_CASE("The driver gets off: the passenger drives, the horse its game's", "[m
     ride.party.As(ride.party.Guest(), [&] { ride.guest.EndRide(ride.hostOnGuest); });
     ride.party.Until([&] { return ride.guest.PlayerSteers(ride.guestHorse); }, "the passenger steers it",
                      [&] { return std::format("slot {} reins {} synced {}", ride.guest.MountSlots.size(), ride.guest.Reins.size(),
-                                              ride.guest.SyncedMounts.size()); });
+                                              ride.guest.Synced(ride.guestHorse)); });
     // The new driver's copy rides its seat too: placed by its snapshots it shook on the saddle (the duo, 2026-11-17).
     const uint32_t cMovements = ride.host.Actors.at(ride.guestOnHost).Movements;
     const auto cStart = std::chrono::steady_clock::now();
@@ -515,13 +560,11 @@ TEST_CASE("The driver gets off: the passenger drives, the horse its game's", "[m
 TEST_CASE("The driver's copy is off before the passenger takes the reins: the passenger keeps steering", "[mounts][passengers]")
 {
     Passenger ride;
-    // The host's copy finishes its exit while the horse is still a copy here: its stream's PairEnd still to come.
+    // The host's copy finishes its exit before the horse changes hands here.
     ride.party.As(ride.party.Guest(), [&] { ride.guest.EndRide(ride.hostOnGuest); });
-    REQUIRE(ride.guest.PairEndIn.contains(ride.guestHorse));
     ride.party.As(ride.party.Host(), [&] { ride.host.StartDismount(FakeEngine::kPlayer); });
     ride.party.Until([&] { return ride.guest.PlayerSteers(ride.guestHorse); }, "the passenger steers it");
-    ride.party.Until([&] { return ride.guest.PairEndIn.empty(); }, "the stream's PairEnd would have landed");
-    CHECK(ride.guest.PlayerSteers(ride.guestHorse));
+    CHECK_FALSE(ride.guest.Synced(ride.guestHorse));
 }
 
 TEST_CASE("A passenger gets off: the driver keeps its horse on both games", "[mounts][passengers]")
@@ -578,6 +621,7 @@ TEST_CASE("The driver's ride ends with no exit clip: the passenger drives, the d
 TEST_CASE("A get-on the engine refuses leaves the horse its driver's", "[mounts][passengers]")
 {
     Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -604,6 +648,7 @@ TEST_CASE("A get-on the engine refuses leaves the horse its driver's", "[mounts]
 TEST_CASE("No boarding a horse an NPC rides", "[mounts][passengers]")
 {
     Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });
@@ -666,6 +711,7 @@ TEST_CASE("The horse handed to a passenger no longer on it goes back to the host
 TEST_CASE("A guest joining while a passenger rides along sees both on the horse", "[mounts][passengers][late-ride]")
 {
     Party party(2, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     }, false);
@@ -696,6 +742,7 @@ TEST_CASE("A guest joining while a passenger rides along sees both on the horse"
 TEST_CASE("The host rides along on the horse a guest drives, then drives it when the guest gets off", "[mounts][passengers]")
 {
     Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
     });

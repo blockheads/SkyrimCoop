@@ -926,21 +926,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         return it != Mounts.end() ? it->second : 0;
     }
     void ActorHoldMount(uint32_t aRider, uint32_t aMount) noexcept override { MountSlots.try_emplace(aMount, aRider); }
-    void ActorEndMountPair(uint32_t aMount) noexcept override
-    {
-        SyncedMounts.erase(aMount);
-        PairEndIn.erase(aMount);
-    }
+    void ActorEndMountPair(uint32_t aMount) noexcept override { SendGraphEvent(aMount, "PairEnd"); }
     uint8_t GetActorSitState(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) ? SitState(aFormId) : 0; }
     void ActorFinishDismount(uint32_t aRider) noexcept override { EndRide(aRider); } // its sit state its clip's
-    // Mounts left in a rider's exit pair (MountBehavior DismountSynced): a copy rider's exit ending on a mount this
-    // game owns, the horse having changed hands mid-pair. Only PairEnd ends it; it steers nothing until then (the
-    // duo, 2026-11-17, player-mount.md).
-    std::set<uint32_t> SyncedMounts;
-    // A copy mount's stream PairEnd, this many frames after its copy rider's exit; lost if the game takes it first
-    // (mounts.md, "A horse taken back mid-pair").
-    std::map<uint32_t, uint32_t> PairEndIn;
-    uint32_t StreamPairEndFrames = 30;
+    // A mount's half of its rider's exit (MountBehavior: pa_HorseExit -> DismountSynced, left only on PairEnd, which only
+    // the pair's instance sends: 32797, in the frame of the owner rider's Detach, just before it; duo 2026-11-19). A copy
+    // takes both from its owner's stream; a mount this game took before its copy ran that PairEnd stays synced and
+    // steers nothing (mounts.md). MountGraph puts the rules on an engine.
+    static constexpr const char* kDismountSynced = "DismountSynced";
+    static void MountGraph(FakeEngine& aEngine);
+    [[nodiscard]] bool Synced(uint32_t aMount) const { return Actors.contains(aMount) && Actors.at(aMount).GraphState == kDismountSynced; }
+    // An event the engine sends a graph (63591): recorded for an owner's copies, dropped on a copy on its stream.
+    void SendGraphEvent(uint32_t aFormId, const std::string& acEvent);
     // A get-on of a mount left in a pair: pa_HorseEnter refused (its refusal's PairEnd ends the pair), the mount
     // procedure (39669) calls InitiateMountPackage (37905) again, and the next try starts the ride.
     std::map<uint32_t, uint32_t> MountRetryOf; // rider -> mount
@@ -954,7 +951,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] bool PlayerSteers(uint32_t aMount) const
     {
         return GetActorMount(kPlayer) == aMount && Reins.contains(aMount) && Reins.at(aMount) == kPlayer &&
-               MountSlots.contains(aMount) && MountSlots.at(aMount) == kPlayer && !SyncedMounts.contains(aMount);
+               MountSlots.contains(aMount) && MountSlots.at(aMount) == kPlayer && !Synced(aMount);
     }
     // NPC bases that are mounts (flags2 kIsAMount): a horse.
     std::set<uint32_t> MountBases{0x109E3D};

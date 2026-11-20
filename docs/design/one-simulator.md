@@ -1,7 +1,7 @@
 # One simulator: every system on one sync rule (2026-11-18)
 
-Status: **pieces 1 to 3 built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
-2026-11-19: items); the rest proposed.** Direction agreed 2026-11-18 (the four
+Status: **pieces 1 to 3 and 4a built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
+2026-11-19: items, a mount handed back between pairs); the rest proposed.** Direction agreed 2026-11-18 (the four
 decisions below). Physics
 ([physics-sync.md](physics-sync.md), "One simulator per pile") and the graph stream
 ([graph-input-stream.md](graph-input-stream.md)) already work this way; this puts the rest of the code on the same
@@ -383,6 +383,31 @@ Replaces PR #73's `PartnerAnimates` (the host refuses the claim) and, for NPC vi
 `TakesOwnerBodies` (the victim is local where the pair runs).
 Stays, for a player victim only: the yield's four steps (`ResendPairStop`, `CancelledBlow`, the kill cam's end)
 and the victim's half replayed on its own game.
+
+**4a as built (2026-11-19)**, after the duo (`docs/re/systems/mounts.md`, "A horse handed back between pairs"):
+
+```text
+rider's game: its ride ends (Detach 41539; the exit pair's instance ended in that frame, 32797's PairEnd first)
+  waits for the horse's next graph update recorded (PairEnd is due on copies with it)
+  -> its graph ops sent, then DismountRequest{Tick: that update's}
+host: GiveBack passes the Tick on (NotifyDismount)
+the host's game: once its copy has run every op of the rider's through Tick (GraphReplayer::DoneThrough) -> TakeOwnership
+a passenger who drives on (HandOver): takes it at once and sends PairEnd itself, as before (see below)
+```
+
+- The claim itself was already built (`MountRequest`, first rider wins). What was left was the hand-back, and the cause
+  of the stuck horse was not a mid-pair hand-back but the rider's last graph ops dropped unsent when it gave the horse
+  up. The host no longer sends `PairEnd` by hand.
+- **The exception: a passenger who drives on.** Taken after its copy ran the old driver's exit, its horse would not
+  steer (measured); taken at once with `PairEnd` by hand, as before, it does. The exit pair's instance is on the old
+  driver's game while the horse is already the new driver's, so the new driver ends the pair. Why the replayed exit
+  stops the steering is not read (mounts.md).
+- The planned `Deactivate` hook on the rider's game is not needed: the instance is gone at every measured `Detach`.
+- Tests: GameTests "A horse taken back over a slow line plays its rider's exit to its end first" (the fake learned a
+  mount's exit half and its `PairEnd` on the graph stream, `FakeEngine::MountGraph`; fails without the wait),
+  HostAuthorityTests (the tick passed on), ClientTests `TakesOverMount`; on the duo `horse-passes-between-riders`,
+  `party-shares-a-horse` (3 of 3 to the end comparison), `host-rides-horse`, `guest-rides-host-horse`,
+  `mounted-guest-leaves`.
 
 ## Piece 5: passengers sit at once
 

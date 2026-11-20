@@ -135,3 +135,12 @@ TEST_CASE("ReplayState: a copy seated on a mount takes the engine's position wri
     CHECK_FALSE(ReplayState::CopyTakesEnginePlace(false, true, ReplayState::kSitGettingOn)); // its clip, not its seat
     CHECK_FALSE(ReplayState::CopyTakesEnginePlace(false, false, ReplayState::kSitSeated));  // a chair: no mount
 }
+
+TEST_CASE("ReplayState: a mount handed over is taken once its copy ran its last owner's ops through the hand-back", "[replay][hand-back]")
+{
+    CHECK_FALSE(ReplayState::TakesOverMount(1000, true, 999)); // its exit pair's PairEnd still to run
+    CHECK(ReplayState::TakesOverMount(1000, true, 1000));
+    CHECK(ReplayState::TakesOverMount(1000, true, 1200));
+    CHECK(ReplayState::TakesOverMount(0, true, 0));      // its owner left, or recorded nothing
+    CHECK(ReplayState::TakesOverMount(1000, false, 0));  // off its stream: no op of its owner's will come
+}

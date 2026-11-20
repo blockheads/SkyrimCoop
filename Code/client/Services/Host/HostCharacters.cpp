@@ -227,10 +227,11 @@ void HostCharacters::OnDismount(const DismountRequest& acRequest, ConnectionId_t
         spdlog::warn("HostCharacters: {:x} took {:x} off {:x}, which it cannot", aSender, acRequest.RiderId, acRequest.MountId);
         return;
     }
+    // The host's game takes it back once its copy ran the rider's ops through Tick (mounts.md); a passenger drives on at once.
     if (HandOver(acRequest.MountId))
         SendUnboard(acRequest.RiderId, acRequest.MountId, aSender);
     else
-        GiveBack(acRequest.MountId, acRequest.RiderId, acRequest.Whereabouts);
+        GiveBack(acRequest.MountId, acRequest.RiderId, acRequest.Whereabouts, acRequest.Tick);
 }
 
 void HostCharacters::OnBoard(const BoardRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -297,7 +298,7 @@ bool HostCharacters::HandOver(uint32_t aMountId) noexcept
     return false;
 }
 
-void HostCharacters::GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts) noexcept
+void HostCharacters::GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts, uint64_t aTick) noexcept
 {
     const ConnectionId_t cHost = m_players.Host();
     const auto cMount = m_characters.find(aMountId);
@@ -311,6 +312,7 @@ void HostCharacters::GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorW
     notify.RiderId = aRiderId;
     notify.MountId = aMountId;
     notify.Whereabouts = acWhereabouts;
+    notify.Tick = aTick;
     m_players.SendToAll(notify);
 }
 

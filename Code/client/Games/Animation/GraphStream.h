@@ -125,6 +125,11 @@ struct GraphReplayer
     size_t Run(uint64_t aPlaybackTick, IGraphTarget& aTarget);
     // The owner's update index it runs now or ran last (a readout: the harness's live check).
     [[nodiscard]] uint32_t CurrentUpdate() const noexcept { return m_current.load(std::memory_order_relaxed); }
+    // The owner's tick every op fed up to has run through (an event is due with the update after it).
+    [[nodiscard]] uint64_t DoneThrough() const noexcept
+    {
+        return m_queue.empty() || m_queue.front().Tick == UINT64_MAX ? m_lastUpdateTick : m_queue.front().Tick - 1;
+    }
 
   private:
     struct Queued
@@ -154,6 +159,13 @@ struct GraphStreams
     void Record(uint32_t aFormId, uint32_t aActorId);
     void Forget(uint32_t aFormId); // no longer owned, or no longer a copy
     [[nodiscard]] bool Recording(uint32_t aFormId) const;
+    // Its updates ended so far (sendable: Take holds a running one) and the last one's tick (an event is due with the update after it), while recorded.
+    struct RecordedUpdates
+    {
+        uint64_t Count = 0;
+        uint64_t LastTick = 0;
+    };
+    [[nodiscard]] std::optional<RecordedUpdates> Updates(uint32_t aFormId) const;
     // Recorded and not on its own body: its copies' graphs take its stream alone, so its movement carries no graph
     // variables and it sends no graph points.
     [[nodiscard]] bool Streaming(uint32_t aFormId) const;
@@ -211,6 +223,8 @@ struct GraphStreams
     void SetPlayback(uint32_t aFormId, uint64_t aTick);
     // Its playback tick while on its stream; none off it.
     [[nodiscard]] std::optional<uint64_t> StreamPlayback(uint32_t aFormId) const;
+    // The owner's tick its replay has run every op fed through, while on its stream; none off it.
+    [[nodiscard]] std::optional<uint64_t> StreamDoneThrough(uint32_t aFormId) const;
     // Its graph now, each update on or off its stream: a new one since another project's point was dropped asks again.
     void SeeGraph(uint32_t aFormId, const void* apGraph);
     // apGraph: which graph it replays into; another than the one its point loaded into waits for a new point.
@@ -228,6 +242,8 @@ struct GraphStreams
         bool WantsPoint = false;
         bool TimeDeltaKnown = false;
         bool Paused = false; // on its own body (HoldPointsWhile): no sync point, not Streaming
+        RecordedUpdates Updates; // ended updates only (OnUpdated)
+        uint64_t OpenTick = 0;
     };
     struct Copied
     {

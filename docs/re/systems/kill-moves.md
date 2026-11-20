@@ -65,6 +65,13 @@ death action
 - **38614** (`KillMoveEndHandler` 42871 calls it) clears the kill move flag (`flags2` 0x4000). If the actor has a recorded
   killer it queues the kill too. Nothing else clears the flag soon: without the `KillMoveEnd` event it stayed set for 10 s.
 - **`2_` triggers** on a paired clip go to the partner's graph.
+- **Why a copy never dies by its clip (read 2026-11-19, for piece 4b).** Every copy holds a *scripted* deferred kill
+  (`UpdateCopyAI` each frame). `KillImpl` (37896) checks a deferred kill first and only counts the kill
+  (`Actor::DeferKill` 38617, MiddleHigh `+0x2F8` += 1). `KillActorHandler` (42838) ends only a non-scripted one:
+  `ActorProcess::EndDeferredKill` (40036) acts only when its argument matches the scripted flag (`+0x332`). Ending a
+  scripted one later (`EndDeferredKill(true)`) queues the counted kill credited to `g_thePlayer`, so a game that ends it
+  must kill with the real killer right after. A killer with `+0xE8` 0x4000000 is credited to `g_thePlayer` too
+  (37896, inferred: the player's team; not read further).
 
 ## Names given in IDA (1.7.104)
 

@@ -304,6 +304,15 @@ bool GraphStreams::Recording(uint32_t aFormId) const
     return FindOwned(aFormId) != nullptr;
 }
 
+std::optional<GraphStreams::RecordedUpdates> GraphStreams::Updates(uint32_t aFormId) const
+{
+    const auto pOwned = FindOwned(aFormId);
+    if (!pOwned)
+        return std::nullopt;
+    std::scoped_lock _{pOwned->Lock};
+    return pOwned->Updates;
+}
+
 bool GraphStreams::Streaming(uint32_t aFormId) const
 {
     const auto pOwned = FindOwned(aFormId);
@@ -355,6 +364,7 @@ void GraphStreams::OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::
         if (apGraph)
             pOwned->Graph = apGraph;
         pOwned->Recorder.Update(aTick, aStep, aWords, acSeed);
+        pOwned->OpenTick = aTick;
     }
 }
 
@@ -373,6 +383,7 @@ void GraphStreams::OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords)
     {
         std::scoped_lock _{pOwned->Lock};
         pOwned->Recorder.Updated(aWords);
+        pOwned->Updates = {pOwned->Updates.Count + 1, pOwned->OpenTick}; // ended: Take sends it now
     }
 }
 
@@ -589,6 +600,22 @@ std::optional<uint64_t> GraphStreams::StreamPlayback(uint32_t aFormId) const
     if (!pCopied->Replayer.Started())
         return std::nullopt;
     return pCopied->Playback;
+}
+
+std::optional<uint64_t> GraphStreams::StreamDoneThrough(uint32_t aFormId) const
+{
+    std::shared_ptr<Copied> pCopied;
+    {
+        std::scoped_lock _{m_lock};
+        const auto it = m_copied.find(aFormId);
+        if (it == m_copied.end())
+            return std::nullopt;
+        pCopied = it->second;
+    }
+    std::scoped_lock _{pCopied->Lock};
+    if (!pCopied->Replayer.Started())
+        return std::nullopt;
+    return pCopied->Replayer.DoneThrough();
 }
 
 void GraphStreams::SeeGraph(uint32_t aFormId, const void* apGraph)

@@ -766,6 +766,7 @@ TEST_CASE("Mounts: getting off gives the horse back to the host", "[HostAuthorit
     DismountRequest dismount;
     dismount.RiderId = cPeerPlayer;
     dismount.MountId = cHorse;
+    dismount.Tick = 4242; // its rider's last graph update: the host's game takes it once its copy ran that far
     session.Receive(kOtherPeer, dismount); // not its rider
     CHECK(session.SentTo<NotifyDismount>(kHost).empty());
 
@@ -775,6 +776,7 @@ TEST_CASE("Mounts: getting off gives the horse back to the host", "[HostAuthorit
     {
         REQUIRE(session.SentTo<NotifyDismount>(cTo).size() == 1);
         CHECK(session.SentTo<NotifyDismount>(cTo)[0]->MountId == cHorse);
+        CHECK(session.SentTo<NotifyDismount>(cTo)[0]->Tick == 4242);
     }
 
     // The host's game moves it again; the rider's no longer does.
