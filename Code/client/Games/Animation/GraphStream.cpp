@@ -364,7 +364,7 @@ void GraphStreams::OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::
         if (apGraph)
             pOwned->Graph = apGraph;
         pOwned->Recorder.Update(aTick, aStep, aWords, acSeed);
-        pOwned->Updates = {pOwned->Updates.Count + 1, aTick};
+        pOwned->OpenTick = aTick;
     }
 }
 
@@ -383,6 +383,7 @@ void GraphStreams::OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords)
     {
         std::scoped_lock _{pOwned->Lock};
         pOwned->Recorder.Updated(aWords);
+        pOwned->Updates = {pOwned->Updates.Count + 1, pOwned->OpenTick}; // ended: Take sends it now
     }
 }
 

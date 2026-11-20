@@ -1106,6 +1106,8 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
 void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 {
     m_pendingRides.erase(acMessage.MountId);
+    // A new ride settles who owns it: a take-over still waiting for the last rider's exit is void.
+    std::erase_if(m_takeOvers, [&](const TakeOver& acTakeOver) { return acTakeOver.MountId == acMessage.MountId; });
     m_drivers[acMessage.MountId] = acMessage.RiderId;
     m_pendingBoards.erase(acMessage.RiderId);
     for (const auto cPlayer : m_world.view<PlayerComponent>())

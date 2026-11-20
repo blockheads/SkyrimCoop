@@ -159,7 +159,7 @@ struct GraphStreams
     void Record(uint32_t aFormId, uint32_t aActorId);
     void Forget(uint32_t aFormId); // no longer owned, or no longer a copy
     [[nodiscard]] bool Recording(uint32_t aFormId) const;
-    // Its updates recorded so far and the last one's tick (an event is due with the update after it), while recorded.
+    // Its updates ended so far (sendable: Take holds a running one) and the last one's tick (an event is due with the update after it), while recorded.
     struct RecordedUpdates
     {
         uint64_t Count = 0;
@@ -242,7 +242,8 @@ struct GraphStreams
         bool WantsPoint = false;
         bool TimeDeltaKnown = false;
         bool Paused = false; // on its own body (HoldPointsWhile): no sync point, not Streaming
-        RecordedUpdates Updates;
+        RecordedUpdates Updates; // ended updates only (OnUpdated)
+        uint64_t OpenTick = 0;
     };
     struct Copied
     {

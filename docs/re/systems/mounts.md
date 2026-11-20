@@ -143,9 +143,9 @@ the horse's copy on another game
   old driver's `PairEnd` from the stream (`bIsSynced` off 200 ms later), the new driver's horse did not steer, nor after
   the harness's `take_reins` (slot, 40725, `EvaluatePackage`, `PairEnd`). Taken at once without a `PairEnd` it stayed in
   the pair and did not steer either. Taken at once with `PairEnd` by hand (`PlayerTakeReins`, `KeepDriverOn`), as
-  before, it steers (3 of 3). That stays: the exit pair's instance is on the old driver's game while the horse is
-  already the new driver's. Why a horse that replayed the whole exit will not steer is not read (inferred: its graph
-  left riderless by the exit, which the new driver's seat never sets again).
+  before, it steers (3 of 3). That stays. No passenger trace read the old driver's instance at the handover; observed
+  only: the new driver's horse graph ran the old driver's whole `pa_HorseExit` half, then did not steer. Why is not
+  read (inferred: its graph left riderless by the exit, which the new driver's seat never sets again).
 - The rider-side wait for the instance's end that piece 4's plan proposed (a `Deactivate` hook) is not needed: the
   instance is gone at every measured `Detach` (6 of 6 rides).
 - `bIsSynced` is no signal for "the pair ended": it outlasts the clip on the owner too.
