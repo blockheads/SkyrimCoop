@@ -134,3 +134,40 @@ TEST_CASE("Claims: a player joining while an actor is on its way back gets the h
     session.Receive(cLate, late);
     CHECK(std::ranges::any_of(session.SentTo<NotifyCharacterSpawn>(cLate), [&](const auto* apSpawn) { return apSpawn->SessionId == cWolf; }));
 }
+
+TEST_CASE("Claims: a removal taking a claim's last outstanding member still ends the claim", "[HostAuthority][claims]")
+{
+    // The attacker's lock back first; the NPC victim, waiting for its next update, unloads on the claimer's game.
+    Session session;
+    const uint32_t cWolf = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    session.Receive(kPeer, KillMoveClaim(cPeerPlayer, cWolf));
+    session.Receive(kPeer, Back(cPeerPlayer, 1));
+    session.Outbox.clear();
+    RequestRemoveCharacter removal;
+    removal.SessionId = cWolf;
+    session.Receive(kPeer, removal);
+    const auto cBack = session.SentTo<NotifyActorGiveBack>(kHost);
+    REQUIRE(cBack.size() == 1);
+    CHECK(cBack[0]->ClaimId == 1);
+    CHECK(cBack[0]->Ended);
+}
+
+TEST_CASE("Claims: a player joining while a kill move is claimed hears the claim", "[HostAuthority][claims]")
+{
+    // Its replay of the attacker's kill move goes by the answer (ActionClaims): a taken victim has no stream half.
+    Session session;
+    const uint32_t cWolf = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    session.Receive(kPeer, KillMoveClaim(cPeerPlayer, cWolf));
+
+    constexpr ConnectionId_t cLate = 4;
+    session.Join(cLate, JoinRequest("Serana"));
+    AnnounceCharacterRequest late;
+    late.SessionId = session.CharacterId(cLate);
+    late.ReferenceId = GameId(0, 0x14);
+    session.Receive(cLate, late);
+    const auto cClaims = session.SentTo<NotifyClaim>(cLate);
+    REQUIRE(cClaims.size() == 1);
+    CHECK(cClaims[0]->ForId == cPeerPlayer);
+}

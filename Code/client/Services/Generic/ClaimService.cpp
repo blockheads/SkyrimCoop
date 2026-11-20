@@ -16,6 +16,7 @@
 namespace
 {
 constexpr uint64_t cUnheardClaimMs = 5000; // a give-back asked before its claim was heard waits this long for it
+constexpr uint64_t cStalledMs = 3000;      // a graph that stops updating: given back through its last recorded update
 }
 
 ClaimService::ClaimService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport, IActorBridge& aActorBridge) noexcept
@@ -56,12 +57,12 @@ std::vector<uint32_t> MemberIds(const Payloads::Claim& acClaim)
 
 void ClaimService::OnRefused(const NotifyClaimRefused& acMessage) noexcept
 {
-    m_world.GetActionClaims().Set(acMessage.ForId, {acMessage.Tick, 0, MemberIds(acMessage), false});
+    m_world.GetActionClaims().Set(acMessage.ForId, {acMessage.Tick, 0, MemberIds(acMessage), false, acMessage.Kind});
 }
 
 void ClaimService::OnClaim(const NotifyClaim& acMessage) noexcept
 {
-    m_world.GetActionClaims().Set(acMessage.ForId, {acMessage.Tick, acMessage.ClaimId, MemberIds(acMessage), true});
+    m_world.GetActionClaims().Set(acMessage.ForId, {acMessage.Tick, acMessage.ClaimId, MemberIds(acMessage), true, acMessage.Kind});
     const entt::entity cFor = EntityOf(acMessage.ForId);
     const bool cOurs = cFor != entt::null && m_world.all_of<LocalComponent>(cFor);
     for (const auto& cMember : acMessage.Members)
@@ -126,7 +127,7 @@ void ClaimService::GiveBack(uint32_t aSessionId, bool aKilled, bool aNow, std::f
     const uint32_t cFormId = cEntity != entt::null && m_world.all_of<LocalComponent>(cEntity) ? m_world.get<FormIdComponent>(cEntity).Id : 0;
     const auto cUpdates = cFormId ? m_world.GetGraphStreams().Updates(cFormId) : std::nullopt;
     const auto cHeld = m_held.find(aSessionId);
-    m_giveBacks.push_back({aSessionId, cHeld != m_held.end() ? cHeld->second.ClaimId : 0, m_world.GetTick() + cUnheardClaimMs, cFormId,
+    m_giveBacks.push_back({aSessionId, cHeld != m_held.end() ? cHeld->second.ClaimId : 0, m_world.GetTick(), cFormId,
                            cUpdates ? cUpdates->Count : 0, aKilled, aNow, false, std::move(aBefore)});
     if (aNow)
         RunGiveBacks();
@@ -138,13 +139,14 @@ void ClaimService::RunGiveBacks() noexcept
     std::erase_if(m_giveBacks, [&](Pending& aPending) {
         if (!aPending.ClaimId)
         {
-            if (m_world.GetTick() < aPending.Expires)
+            if (m_world.GetTick() < aPending.Asked + cUnheardClaimMs)
                 return false;
             spdlog::info("Give-back of {:X}: its claim never came", aPending.SessionId);
             return true;
         }
         const auto cUpdates = aPending.FormId ? m_world.GetGraphStreams().Updates(aPending.FormId) : std::nullopt;
-        if (!aPending.Now && (!aPending.Waited || (cUpdates && cUpdates->Count <= aPending.Since)))
+        const bool cStalled = m_world.GetTick() >= aPending.Asked + cStalledMs;
+        if (!aPending.Now && (!aPending.Waited || (cUpdates && cUpdates->Count <= aPending.Since && !cStalled)))
             return false;
         due.push_back(std::move(aPending));
         return true;

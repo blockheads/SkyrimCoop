@@ -833,3 +833,19 @@ SCENARIO("A ride its game could not take ends there too: its player gets off", "
     ride.party.Until([&] { return Owns(ride.party.Host(), ride.horse); }, "the host's game has it");
     CHECK(ride.guest.IsActorCopy(ride.copy));
 }
+
+SCENARIO("The host's player rides its own summoned horse", "[mounts][claims]")
+{
+    // No game takes a player's summon, but this ride moves nothing: the horse is the host's game's already.
+    HorseParty ride;
+    ride.party.As(ride.party.Host(), [&] {
+        ride.host.Actors.at(ride.horse).PlayerSummon = true;
+        ride.host.Activates(FakeEngine::kPlayer, ride.horse);
+    });
+    ride.party.Until([&] { return ride.guest.Mounts.size() == 1; }, "the guest's copy of the host's player rides");
+    int frames = 0;
+    ride.party.Until([&] { return ++frames > 30; }, "the claim's round trip");
+    CHECK(ride.host.IsPlayerMounted());
+    CHECK(Owns(ride.party.Host(), ride.horse));
+}
+

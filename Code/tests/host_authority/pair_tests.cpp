@@ -126,14 +126,13 @@ TEST_CASE("Kill moves: a claim on an NPC that cannot pair (dead, its graph stopp
     CHECK(OwnerSeen(session, cWolf, kPeer) == kHost);
 }
 
-TEST_CASE("Kill moves: a claim for an actor that is not the sender's, or on its own actor, is dropped", "[HostAuthority][claims]")
+TEST_CASE("Kill moves: a claim for an actor that is not the sender's is dropped", "[HostAuthority][claims]")
 {
     Session session;
     const uint32_t cWolf = session.Character(kHost);
     const uint32_t cPeerPlayer = session.Character(kPeer);
     session.Outbox.clear();
     session.Receive(kOtherPeer, Claim(cPeerPlayer, cWolf));
-    session.Receive(kHost, Claim(cWolf, cWolf));
     CHECK(session.Outbox.empty());
 }
 

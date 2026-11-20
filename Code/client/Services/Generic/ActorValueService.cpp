@@ -1,4 +1,5 @@
 #include <Services/ActorValueService.h>
+#include <Messages/Payloads.h>
 #include <World.h>
 #include <Components.h>
 #include <SessionIds.h>
@@ -390,7 +391,7 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
         return;
 
     // A claimed kill move's blow: held until its pair plays here or ends (RunHeldBlows).
-    if (acMessage.DeltaHealth < 0.f && acMessage.HasAttacker && m_world.GetActionClaims().Holds(acMessage.AttackerId, acMessage.Id))
+    if (acMessage.DeltaHealth < 0.f && acMessage.HasAttacker && m_world.GetActionClaims().Holds(acMessage.AttackerId, acMessage.Id, Payloads::Claim::kKillMove))
     {
         m_heldBlows.push_back(acMessage);
         return;
@@ -411,7 +412,7 @@ void ActorValueService::RunHeldBlows() noexcept
             spdlog::debug("Forwarded hit on {:X}: its claimed kill move's blow, dropped (the pair's clip kills)", cFormId);
             return true;
         }
-        if (m_world.GetActionClaims().Holds(acBlow.AttackerId, acBlow.Id))
+        if (m_world.GetActionClaims().Holds(acBlow.AttackerId, acBlow.Id, Payloads::Claim::kKillMove))
             return false;
         ApplyForwardedHit(acBlow, cFormId); // the pair ended without playing here: a plain hit
         return true;

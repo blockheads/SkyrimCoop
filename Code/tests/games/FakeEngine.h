@@ -787,7 +787,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static constexpr uint32_t kActionGetUp = 0x13FF0;
     static constexpr uint32_t kActionRagdoll = 0x13FEF; // what a knock plays (39895)
     // KillActorHandler 42838, a victim's clip's KillActor: dies credited to its pair partner, unless its kill is held
-    // (a copy, an NPC lent for a claimed pair): then counted, its pose held.
+    // (a copy, an NPC taken for a claimed kill move): then counted, its pose held.
     void ClipKillActor(uint32_t aFormId);
     bool m_applyingOwnHit = false; // TakesDamage's Apply: the engine's own hit, not the bridge's forwarded one
     uint32_t PlainSwings = 0; // ActorPerformPlainly taken: the engine's second try after a refused pair (42350)

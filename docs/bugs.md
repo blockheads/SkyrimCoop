@@ -50,6 +50,7 @@ every other section needs the duo.
 - [End comparisons in towns](#end-comparisons-in-towns): medium
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
 - [After a kill move the guest's own body floats](#after-a-kill-move-the-guests-own-body-floats): small
+- [A refused rider left crouched](#a-refused-rider-left-crouched): small
 - [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
 
@@ -414,6 +415,22 @@ Size: small. Needs: IDA, the duo, then GameTests.
   `spectator-watches-kill-move` then `host-rides-horse` 2 of 2 (2110-2122). `ragdoll-lies-as-host` right after each
   failed ride passed (2 of 2), so the lifted skeleton does not unsettle the next ragdoll (that entry, "A ragdoll that
   never settles after a failed ride", closed: 8 of 8 that day).
+
+### A refused rider left crouched
+
+`two-players-race-for-horse`, when the host wins the race: the guest's ride is refused and its player taken off
+(`OnNotifyMountRefused`, `PlayerStopRiding` -> `StopRidingQuick`), but sometimes it is left with its pelvis at its feet
+and sit state 0 on its own game while the host's copy of it stays at sit state 2 (getting on). A player would see the
+loser of a race for a horse stuck crouched, or getting on, on the other game.
+
+Agent task: read what `StopRidingQuick` does to a player still in its get-on clip (the mount interaction, 37905's
+package, the graph's state), and whether the refusal's arrival time within that clip decides it.
+
+Size: small. Needs: IDA, the duo.
+
+- **Measured** (2026-11-20, `agent/piece-4b`, action claims): 3 of 7 runs (`fe9a7048` and the next build); 0 of 3 later
+  runs where the host also won and "Ride on 1C refused ... our player gets off" logged; 0 of 2 runs before the claim
+  refactor (those failed on Riverwood's drift). Not read yet whether the refactor changed the refusal's timing.
 
 ### Doors the host's NPCs unlock
 

@@ -596,7 +596,8 @@ void FakeEngine::Frame()
             }
             else
             {
-                if (actor.AnimationStepMs > 0.0)
+                // A graph that does not update (kShouldAnimGraphUpdate clear) records nothing for its copies either.
+                if (actor.AnimationStepMs > 0.0 && actor.GraphUpdating)
                     UpdateGraph(cId, actor);
                 // Its exit clip's own event (42835): standing, off its mount.
                 if (actor.ExitIn && !--actor.ExitIn)

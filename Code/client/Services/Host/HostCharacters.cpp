@@ -522,6 +522,7 @@ void HostCharacters::SendPlayersMet(ConnectionId_t aPlayer) noexcept
             }
     spdlog::info("HostCharacters: {:x} reached the party it was brought to: {} players' characters each way", aPlayer,
                  count);
+    m_claims.SendClaims(aPlayer);
     SendRides(aPlayer);
 }
 
@@ -631,6 +632,7 @@ void HostCharacters::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOw
         }
     }
     spdlog::info("HostCharacters: {} characters for the player who joined ({:x})", count, aPlayer);
+    m_claims.SendClaims(aPlayer);
     SendRides(aPlayer);
 }
 

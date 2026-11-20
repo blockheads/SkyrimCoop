@@ -58,7 +58,7 @@ void HostClaims::OnClaim(const ClaimRequest& acRequest, ConnectionId_t aSender) 
     }
     for (const auto& cMember : acRequest.Members)
         if (cMember.Take && (m_characters.OwnerOf(cMember.ActorId) != m_players.Host() || m_characters.IsPlayerCharacter(cMember.ActorId) ||
-                             (m_game.Claimable && !m_game.Claimable(cMember.ActorId))))
+                             !Takeable(cMember.ActorId, aSender)))
             return Refuse(acRequest, Payloads::Claim::kCannotTake);
     if (cRule != m_rules.end() && cRule->second.Allows && !cRule->second.Allows(acRequest))
         return Refuse(acRequest, Payloads::Claim::kCannotTake);
@@ -95,12 +95,21 @@ void HostClaims::Grant(Payloads::Claim aClaim, ConnectionId_t aTo) noexcept
         cRule->second.Granted(aClaim, aTo, ownersChanged);
 }
 
+bool HostClaims::Takeable(uint32_t aActorId, ConnectionId_t aTo) const noexcept
+{
+    // Only a move to another game needs the host's game able to take it back: a host player's summon stays its own.
+    return m_characters.OwnerOf(aActorId) == aTo || !m_game.Claimable || m_game.Claimable(aActorId);
+}
+
 bool HostClaims::PassOn(uint32_t aActorId, ConnectionId_t aTo, uint32_t aForId) noexcept
 {
     const auto cIn = m_inClaim.find(aActorId);
     if (cIn == m_inClaim.end())
         return false;
     Payloads::Claim claim = m_claims.at(cIn->second).Claim;
+    for (const auto& cMember : claim.Members)
+        if (cMember.Take && !Takeable(cMember.ActorId, aTo))
+            return false;
     m_claims.erase(cIn->second);
     for (const auto& cMember : claim.Members)
         m_inClaim.erase(cMember.ActorId);
@@ -136,6 +145,16 @@ void HostClaims::End(uint32_t aClaimId) noexcept
             GiveBack(aClaimId, cMember.ActorId, {});
 }
 
+void HostClaims::SendClaims(ConnectionId_t aPlayer) const noexcept
+{
+    for (const auto& [cClaimId, cHeld] : m_claims)
+    {
+        NotifyClaim notify;
+        static_cast<Payloads::Claim&>(notify) = cHeld.Claim;
+        m_players.SendTo(aPlayer, notify);
+    }
+}
+
 void HostClaims::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
     std::vector<uint32_t> held;
@@ -154,16 +173,22 @@ void HostClaims::Forget(uint32_t aActorId) noexcept
         return;
     const uint32_t cClaimId = cIn->second;
     m_inClaim.erase(cIn);
-    auto& held = m_claims.at(cClaimId);
-    std::erase_if(held.Claim.Members, [&](const Payloads::ClaimMember& acMember) { return acMember.ActorId == aActorId; });
-    if (held.Claim.Members.empty())
-    {
-        const Payloads::Claim cClaim = held.Claim;
-        m_claims.erase(cClaimId);
-        Ended(cClaim);
-        return;
-    }
-    End(cClaimId);
+    const Payloads::Claim cClaim = m_claims.at(cClaimId).Claim;
+    const bool cOthers = std::ranges::any_of(cClaim.Members, [&](const Payloads::ClaimMember& acMember) {
+        const auto cOther = m_inClaim.find(acMember.ActorId);
+        return cOther != m_inClaim.end() && cOther->second == cClaimId;
+    });
+    // Others still out: back now, the last of them ending the claim. It was the last out: its end is told here.
+    if (cOthers)
+        return End(cClaimId);
+    NotifyActorGiveBack notify;
+    notify.ActorId = aActorId;
+    notify.ClaimId = cClaimId;
+    notify.ForId = cClaim.ForId;
+    notify.Ended = true;
+    m_players.SendToAll(notify);
+    m_claims.erase(cClaimId);
+    Ended(cClaim);
 }
 
 void HostClaims::GiveBack(uint32_t aClaimId, uint32_t aActorId, const Payloads::ActorGiveBack& acGiveBack) noexcept

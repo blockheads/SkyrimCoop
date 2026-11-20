@@ -1215,6 +1215,7 @@ void CharacterService::OnRideRefused(const NotifyClaimRefused& acMessage) noexce
 
 void CharacterService::OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept
 {
+    spdlog::info("Ride on {:X} refused (riding {:X}, aboard {:X}): our player gets off", acMessage.MountId, m_riddenMount, m_boardedMount);
     if (m_riddenMount == acMessage.MountId)
         m_riddenMount = 0;
     else if (m_boardedMount == acMessage.MountId)

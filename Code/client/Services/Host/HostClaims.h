@@ -45,6 +45,8 @@ struct HostClaims
     [[nodiscard]] bool Returning(uint32_t aActorId) const noexcept { return m_returning.contains(aActorId); }
     // The host's game took it back.
     void Taken(uint32_t aActorId) noexcept { m_returning.erase(aActorId); }
+    // The live claims, to a game that just got their actors' spawns (a joiner's replays go by them).
+    void SendClaims(ConnectionId_t aPlayer) const noexcept;
     // Its claims end, every member back.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
     // The actor is gone: a claim it was in ends, its other members back.
@@ -58,6 +60,8 @@ private:
     // One member back (the holder's give-back, or none from it); the claim ends with its last.
     void GiveBack(uint32_t aClaimId, uint32_t aActorId, const Payloads::ActorGiveBack& acGiveBack) noexcept;
     void End(uint32_t aClaimId) noexcept;
+    // aTo's game may hold it: it is aTo's already, or the host's game could take it back (Claimable).
+    [[nodiscard]] bool Takeable(uint32_t aActorId, ConnectionId_t aTo) const noexcept;
     void Ended(const Payloads::Claim& acClaim) noexcept;
 
     struct Held

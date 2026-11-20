@@ -472,8 +472,14 @@ Changes from the plan above, each from what was read:
   `ActionClaims`), `PairClaimRequest`/`NotifyPairClaim`/`NotifyPairRefused`/`PairDoneRequest`/`NotifyPairDone`,
   `MountRequest`, `NotifyActorClaim`, `HostCharacters::Lend`, the owner changes in the mount rules, `PairKillEvent`,
   `CharacterService`'s hand-backs and take-overs. Kept: `NotifyMount`, `DismountRequest`, boarding and its refusal
-  (seating). Only one rule is enforced across kinds, one claim per actor, for the races two games create; cases the
-  engine never produces (a kill move on a ridden horse) get no rule of their own.
+  (seating). Only one rule is enforced across kinds, one claim per actor, for the races two games create. Other
+  cross-kind cases (a kill move on a ridden horse) get no rule of their own, by scope (the user, 2026-11-20): whether
+  Skyrim can produce them is not read.
+  Its review round: a grant naming a member retires any claim it was in on every game (a passenger driving on), and
+  a held blow goes by kill-move claims alone; a removal taking a claim's last outstanding member ends it; ownership
+  moving decides "takeable" (a host player's own summoned horse rides); a joiner gets the live claims; a holder's
+  give-back waits 3 s at most for its last update. Names: `ClaimAnswer`, `TakenVictim` (pair kept only for the
+  engine's paired animation).
 - **Its review round (PR #85, second Codex review):**
   - Each claim has an id its give-back names; a re-claim must match (same `for`, same death rule), anything else
     only by handover; "killed" counts only on a claim that keeps its death.

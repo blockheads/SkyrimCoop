@@ -1,4 +1,4 @@
-// Kill moves as claimed pairs (docs/design/one-simulator.md, piece 4b; docs/re/systems/kill-moves.md): the host's
+// Kill moves as action claims (docs/design/one-simulator.md, piece 4b; docs/re/systems/kill-moves.md): the host's
 // first claim holds, an NPC partner is its claimer's game's for the pair, and its death is the host's.
 #include "Party.h"
 #include "Fixtures.h"
@@ -275,8 +275,8 @@ SCENARIO("An NPC given back from a pair is placed exactly where the claimer's ga
 
 SCENARIO("A kill counted while the NPC's give-back waits for its last update still kills it", "[combat][kill-move][pair-claim][claims]")
 {
-    // Skyrim (38614, read): KillMoveEnd queues its kill on the task queue (37316) as it clears the kill move flag; the
-    // pair looks over a frame before its kill is counted (DeferKill 38617).
+    // Skyrim (38614, read): KillMoveEnd queues its kill on the task queue (37316) as it clears the kill move flag. When
+    // that task runs against our give-back is not read: this flow models the kill counted a frame after the pair ends.
     GuardPair pair;
     pair.GuestSwings();
     pair.Lent();

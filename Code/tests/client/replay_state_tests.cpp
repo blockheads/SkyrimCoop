@@ -1,21 +1,22 @@
 #include <catch2/catch.hpp>
 #include <Games/Animation/ActionClaims.h>
+#include <Messages/Payloads.h>
 #include <Games/Animation/ReplayState.h>
 
 TEST_CASE("A replayed pair on this game's player goes by the host's answer to its claim", "[copies][replay-state][kill-move]")
 {
     using namespace ReplayState;
     // A kill move waits for the host's answer; refused, it is never played.
-    CHECK(SettlePairedReplay(false, PairClaim::kUnknown) == PairOutcome::kWait);
-    CHECK(SettlePairedReplay(true, PairClaim::kUnknown) == PairOutcome::kWait);
-    CHECK(SettlePairedReplay(false, PairClaim::kRefused) == PairOutcome::kSkip);
-    CHECK(SettlePairedReplay(true, PairClaim::kRefused) == PairOutcome::kSkip);
+    CHECK(SettlePairedReplay(false, ClaimAnswer::kUnknown) == PairOutcome::kWait);
+    CHECK(SettlePairedReplay(true, ClaimAnswer::kUnknown) == PairOutcome::kWait);
+    CHECK(SettlePairedReplay(false, ClaimAnswer::kRefused) == PairOutcome::kSkip);
+    CHECK(SettlePairedReplay(true, ClaimAnswer::kRefused) == PairOutcome::kSkip);
     // Claimed: played on a free player; one in its own kill move lost the claim, and yields.
-    CHECK(SettlePairedReplay(false, PairClaim::kClaimed) == PairOutcome::kPlay);
-    CHECK(SettlePairedReplay(true, PairClaim::kClaimed) == PairOutcome::kYield);
+    CHECK(SettlePairedReplay(false, ClaimAnswer::kClaimed) == PairOutcome::kPlay);
+    CHECK(SettlePairedReplay(true, ClaimAnswer::kClaimed) == PairOutcome::kYield);
     // No kill move (a pair's other half coming back, a mount's pair): played unless the player is in a pair.
-    CHECK(SettlePairedReplay(false, PairClaim::kNotNeeded) == PairOutcome::kPlay);
-    CHECK(SettlePairedReplay(true, PairClaim::kNotNeeded) == PairOutcome::kSkip);
+    CHECK(SettlePairedReplay(false, ClaimAnswer::kNotNeeded) == PairOutcome::kPlay);
+    CHECK(SettlePairedReplay(true, ClaimAnswer::kNotNeeded) == PairOutcome::kSkip);
 }
 
 TEST_CASE("A kill move replayed on an NPC of this game's is never paired here", "[copies][replay-state][kill-move]")
@@ -31,16 +32,16 @@ TEST_CASE("A kill move replayed on an NPC of this game's is never paired here", 
     CHECK_FALSE(PairsHere(false, true, false, false));
     CHECK_FALSE(PairsHere(true, false, false, false));
     // A lent NPC, a copy here with no stream to replay: its pair is made here, the attacker's copy off its stream.
-    CHECK(LentPartner(true, PairClaim::kClaimed, true, false));
-    CHECK_FALSE(LentPartner(true, PairClaim::kUnknown, true, false));
-    CHECK_FALSE(LentPartner(true, PairClaim::kClaimed, true, true)); // a player's copy: its own game plays its half
+    CHECK(TakenVictim(true, ClaimAnswer::kClaimed, true, false));
+    CHECK_FALSE(TakenVictim(true, ClaimAnswer::kUnknown, true, false));
+    CHECK_FALSE(TakenVictim(true, ClaimAnswer::kClaimed, true, true)); // a player's copy: its own game plays its half
     CHECK(PairsHere(true, false, false, true, true));
     CHECK(PairOnStream(true));
     CHECK_FALSE(PairOnStream(true, true));
     CHECK_FALSE(PairOnStream(false));
 }
 
-TEST_CASE("A claimed pair is done when its lent partner was killed or left it, a player partner's with the claimer's own kill move", "[copies][replay-state][kill-move]")
+TEST_CASE("A claimed kill move is done when its taken victim was killed or left it, a player partner's with the claimer's own kill move", "[copies][replay-state][kill-move]")
 {
     using namespace ReplayState;
     CHECK_FALSE(PairDone(true, false, true, true));
@@ -191,35 +192,48 @@ TEST_CASE("A copy takes its half of a pair this game plays, and no other action 
     CHECK_FALSE(CopyTakesAction(false, false, false));
     CHECK(CopyTakesAction(true, false, false));
     CHECK(CopyTakesAction(false, true, false));
-    CHECK(CopyTakesAction(false, false, true)); // a lent NPC's half, both copies here
+    CHECK(CopyTakesAction(false, false, true)); // a taken NPC's half, both copies here
 }
 
 TEST_CASE("A copy's replay behind its owner still finds the answer to an earlier claim", "[copies][replay-state][kill-move]")
 {
-    using ReplayState::PairClaim;
+    using ReplayState::ClaimAnswer;
     ActionClaims claims;
     // Two kill moves answered before the copy here played the first: one refused, one granted as claim 4.
-    claims.Set(7, {100, 0, {7, 9}, false});
-    claims.Set(7, {200, 4, {7, 9}, true});
-    CHECK(claims.Of(7, 100) == PairClaim::kRefused);
-    CHECK(claims.Of(7, 200) == PairClaim::kClaimed);
-    CHECK(claims.Of(7, 300) == PairClaim::kUnknown);
-    CHECK(claims.Holds(7, 9));
-    CHECK_FALSE(claims.Holds(7, 8));
+    claims.Set(7, {100, 0, {7, 9}, false, Payloads::Claim::kKillMove});
+    claims.Set(7, {200, 4, {7, 9}, true, Payloads::Claim::kKillMove});
+    CHECK(claims.Of(7, 100) == ClaimAnswer::kRefused);
+    CHECK(claims.Of(7, 200) == ClaimAnswer::kClaimed);
+    CHECK(claims.Of(7, 300) == ClaimAnswer::kUnknown);
+    CHECK(claims.Holds(7, 9, Payloads::Claim::kKillMove));
+    CHECK_FALSE(claims.Holds(7, 8, Payloads::Claim::kKillMove));
     claims.End(4); // its last member back
-    CHECK(claims.Of(7, 200) == PairClaim::kRefused);
-    CHECK_FALSE(claims.Holds(7, 9));
+    CHECK(claims.Of(7, 200) == ClaimAnswer::kRefused);
+    CHECK_FALSE(claims.Holds(7, 9, Payloads::Claim::kKillMove));
 }
 
 TEST_CASE("A refused kill move is skipped on every game; one on an NPC still this game's waits for its answer", "[copies][replay-state][kill-move]")
 {
     using namespace ReplayState;
     // Two copies here (a spectator): refused, never entered.
-    CHECK(ClaimOutcome(PairClaim::kRefused, false) == PairOutcome::kSkip);
-    CHECK(ClaimOutcome(PairClaim::kUnknown, false) == PairOutcome::kPlay);
-    CHECK(ClaimOutcome(PairClaim::kClaimed, false) == PairOutcome::kPlay);
-    CHECK(ClaimOutcome(PairClaim::kNotNeeded, false) == PairOutcome::kPlay);
-    CHECK(ClaimOutcome(PairClaim::kRefused, true) == PairOutcome::kSkip);
-    CHECK(ClaimOutcome(PairClaim::kUnknown, true) == PairOutcome::kWait);
-    CHECK(ClaimOutcome(PairClaim::kClaimed, true) == PairOutcome::kPlay);
+    CHECK(ClaimOutcome(ClaimAnswer::kRefused, false) == PairOutcome::kSkip);
+    CHECK(ClaimOutcome(ClaimAnswer::kUnknown, false) == PairOutcome::kPlay);
+    CHECK(ClaimOutcome(ClaimAnswer::kClaimed, false) == PairOutcome::kPlay);
+    CHECK(ClaimOutcome(ClaimAnswer::kNotNeeded, false) == PairOutcome::kPlay);
+    CHECK(ClaimOutcome(ClaimAnswer::kRefused, true) == PairOutcome::kSkip);
+    CHECK(ClaimOutcome(ClaimAnswer::kUnknown, true) == PairOutcome::kWait);
+    CHECK(ClaimOutcome(ClaimAnswer::kClaimed, true) == PairOutcome::kPlay);
+}
+
+TEST_CASE("A grant naming a claim's member replaces that claim; held blows go by kill moves alone", "[copies][replay-state][claims]")
+{
+    using ReplayState::ClaimAnswer;
+    ActionClaims claims;
+    // A rides the horse 5; B, its passenger, drives on: B's claim replaces A's on every game.
+    claims.Set(1, {0, 3, {5}, true, Payloads::Claim::kRide});
+    claims.Set(2, {0, 4, {5}, true, Payloads::Claim::kRide});
+    CHECK_FALSE(claims.Holds(1, 5, Payloads::Claim::kRide));
+    CHECK(claims.Holds(2, 5, Payloads::Claim::kRide));
+    // A ride is no kill move: a hit between rider and horse is no kill move's blow.
+    CHECK_FALSE(claims.Holds(2, 5, Payloads::Claim::kKillMove));
 }

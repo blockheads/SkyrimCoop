@@ -62,10 +62,10 @@ void KillMoveService::OnClaim(const NotifyClaim& acMessage) noexcept
         own.ClaimId = acMessage.ClaimId;
         // Its NPC victim taken just before (ClaimService, this message's first sink), its kill held: its death the host's.
         const auto cVictim = std::ranges::find(acMessage.Members, own.PartnerId, &Payloads::ClaimMember::ActorId);
-        const bool cTaken = cVictim != acMessage.Members.end() && cVictim->Take;
-        own.Lent = cTaken && m_world.ctx().at<ClaimService>().Holds(own.PartnerId);
+        const bool cToTake = cVictim != acMessage.Members.end() && cVictim->Take;
+        own.Taken = cToTake && m_world.ctx().at<ClaimService>().Holds(own.PartnerId);
         // Not taken here (a player's summon, or gone: given back already): the pair ends.
-        if (cTaken && !own.Lent)
+        if (cToTake && !own.Taken)
         {
             spdlog::warn("Kill move of {:X} on {:X} granted, but its victim is not this game's: ended here", own.ActorFormId, own.PartnerFormId);
             m_actorBridge.ActorYieldPair(own.ActorFormId, own.PartnerFormId);
@@ -101,12 +101,10 @@ void KillMoveService::SendDone(Own& aOwn) noexcept
 {
     aOwn.Sent = true;
     auto& claims = m_world.ctx().at<ClaimService>();
-    // Its attacker's lock at once; a player victim's too. A taken victim after: a kill counted under its hold (38617)
-    // at once, by our choice (its pose held only after KillActor 42838, not 38614's kill); alive after its next update,
-    // its PairEnd due with it.
+    // Locks at once; a taken victim after its next update, or at once if its kill counted (kill-moves.md).
     claims.GiveBack(aOwn.ActorId, false, true);
-    const bool cKilled = aOwn.Lent && m_actorBridge.ActorKillCounted(aOwn.PartnerFormId);
-    claims.GiveBack(aOwn.PartnerId, cKilled, !aOwn.Lent || cKilled);
+    const bool cKilled = aOwn.Taken && m_actorBridge.ActorKillCounted(aOwn.PartnerFormId);
+    claims.GiveBack(aOwn.PartnerId, cKilled, !aOwn.Taken || cKilled);
 }
 
 void KillMoveService::OnUpdate(const UpdateEvent&) noexcept
@@ -117,8 +115,8 @@ void KillMoveService::OnUpdate(const UpdateEvent&) noexcept
             continue;
         const auto cActor = m_actorBridge.GetActorStateFields(own.ActorFormId);
         const auto cPartner = m_actorBridge.GetActorStateFields(own.PartnerFormId);
-        const bool cKilled = own.Lent && m_actorBridge.ActorKillCounted(own.PartnerFormId);
-        if (ReplayState::PairDone(own.Lent, cKilled, cPartner.InKillMove || cPartner.InPair, cActor.InKillMove || cActor.InPair))
+        const bool cKilled = own.Taken && m_actorBridge.ActorKillCounted(own.PartnerFormId);
+        if (ReplayState::PairDone(own.Taken, cKilled, cPartner.InKillMove || cPartner.InPair, cActor.InKillMove || cActor.InPair))
             SendDone(own);
     }
     std::erase_if(m_swings, [&](const Swing& acSwing) {

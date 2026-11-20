@@ -141,7 +141,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 const bool cKillMove = ReplayState::EntersKillMove(action.EventName);
                 const bool cPartnerPlayer = pPartner && pPartner->GetExtension()->IsPlayer();
                 const auto cClaim = cKillMove ? aWorld.GetActionClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), action.Tick)
-                                              : ReplayState::PairClaim::kNotNeeded;
+                                              : ReplayState::ClaimAnswer::kNotNeeded;
                 // Refused, its claimer ended it; on an NPC still this game's, it waits for the host's answer.
                 const auto cOutcome = ReplayState::ClaimOutcome(
                     cClaim, pPartner && ReplayState::ClaimedAway(cKillMove, pPartner->GetExtension()->IsCopy(), cPartnerPlayer));
@@ -155,7 +155,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                     continue;
                 }
                 const bool cPartnerCopy = pPartner && pPartner->GetExtension()->IsCopy();
-                if (!ReplayState::PairOnStream(cPartnerCopy, ReplayState::LentPartner(cKillMove, cClaim, cPartnerCopy, cPartnerPlayer)))
+                if (!ReplayState::PairOnStream(cPartnerCopy, ReplayState::TakenVictim(cKillMove, cClaim, cPartnerCopy, cPartnerPlayer)))
                 {
                     streams.HoldUntilPoint(apActor->formID, action.Tick);
                     return;
@@ -309,7 +309,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         const bool cKillMove = ReplayState::EntersKillMove(first.EventName);
         // Refused, its claimer ended it; on an NPC still this game's, it waits for the host's answer.
         const auto cClaim = cKillMove ? aWorld.GetActionClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), first.Tick)
-                                      : ReplayState::PairClaim::kNotNeeded;
+                                      : ReplayState::ClaimAnswer::kNotNeeded;
         const auto cClaimOutcome = ReplayState::ClaimOutcome(
             cClaim, pPartner && ReplayState::ClaimedAway(cKillMove, pPartner->GetExtension()->IsCopy(), pPartner->GetExtension()->IsPlayer()));
         if (cClaimOutcome == ReplayState::PairOutcome::kWait)
@@ -323,10 +323,10 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             return;
         }
         const bool cPartnerCopy = pPartner && pPartner->GetExtension()->IsCopy();
-        const bool cLent = pPartner && ReplayState::LentPartner(cKillMove, cClaim, cPartnerCopy, pPartner->GetExtension()->IsPlayer());
-        const bool cLocalPartner = pPartner && ReplayState::PairsHere(cPartnerCopy, pPartner->IsMount(), pPartner->GetExtension()->IsPlayer(), cKillMove, cLent);
+        const bool cTaken = pPartner && ReplayState::TakenVictim(cKillMove, cClaim, cPartnerCopy, pPartner->GetExtension()->IsPlayer());
+        const bool cLocalPartner = pPartner && ReplayState::PairsHere(cPartnerCopy, pPartner->IsMount(), pPartner->GetExtension()->IsPlayer(), cKillMove, cTaken);
         step.PairHere = cLocalPartner;
-        if (cLocalPartner && !cLent)
+        if (cLocalPartner && !cTaken)
         {
             // A kill move on this game's player goes by the host's answer to its claim (ActionClaims).
             const auto cOutcome = ReplayState::SettlePairedReplay(pPartner->IsInKillMove(), cClaim);

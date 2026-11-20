@@ -42,7 +42,7 @@ private:
         uint64_t Tick{};
         uint32_t ClaimId{};
         bool Granted{};
-        bool Lent{}; // its victim taken by this game
+        bool Taken{}; // its victim taken by this game
         bool Sent{};
     };
     // A refused kill move's plain swing, once the yielded clip has left.
