@@ -84,6 +84,12 @@ TEST_CASE("Pairs: the first claim on a host NPC holds, the NPC its claimer's gam
     CHECK(cBack[0]->ForId == cPeerPlayer);
     CHECK(OwnerSeen(session, cWolf, kOtherPeer) == kHost);
 
+    // On its way back, claimed by nobody: a kill reported dead settles first.
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, Claim(cOtherPlayer, cWolf));
+    CHECK(session.SentTo<NotifyPairRefused>(kOtherPeer).size() == 1);
+    session.Taken(cWolf);
+
     // Free again: the next claim holds.
     session.Outbox.clear();
     session.Receive(kOtherPeer, Claim(cOtherPlayer, cWolf));
@@ -151,6 +157,7 @@ TEST_CASE("Pairs: a claimer gone gives the NPC back and frees its claims", "[Hos
     REQUIRE(cBack.size() == 1);
     CHECK_FALSE(cBack[0]->Killed);
     CHECK(OwnerSeen(session, cWolf, kOtherPeer) == kHost);
+    session.Taken(cWolf);
     session.Outbox.clear();
     session.Receive(kOtherPeer, Claim(cOtherPlayer, cWolf));
     CHECK(session.SentTo<NotifyPairClaim>(kHost).size() == 1);

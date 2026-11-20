@@ -15,19 +15,22 @@ HostClaims::HostClaims(HostAuthority& aAuthority, const HostPlayers& acPlayers, 
 
 bool HostClaims::Claim(uint32_t aActorId, ConnectionId_t aTo, uint32_t aForId, bool aDeathOnGiveBack, bool aTakeFrom) noexcept
 {
-    if (!m_characters.OwnerOf(aActorId) || m_characters.IsPlayerCharacter(aActorId))
+    if (!m_characters.OwnerOf(aActorId) || m_characters.IsPlayerCharacter(aActorId) || Returning(aActorId))
         return false;
+    // The same claim again (a rider getting back on): held already. Anything else only takes it over by handover.
     const auto cHold = m_holds.find(aActorId);
-    if (cHold != m_holds.end() && cHold->second.To != aTo && !aTakeFrom)
-        return false;
-    if (cHold != m_holds.end() && cHold->second.To == aTo && cHold->second.ForId == aForId)
+    if (cHold != m_holds.end() && cHold->second.To == aTo && cHold->second.ForId == aForId && cHold->second.DeathOnGiveBack == aDeathOnGiveBack)
         return true;
-    m_holds[aActorId] = {aTo, aForId};
+    if (cHold != m_holds.end() && !aTakeFrom)
+        return false;
+    const Hold cNew{aTo, aForId, ++m_lastClaimId, aDeathOnGiveBack};
+    m_holds[aActorId] = cNew;
     m_characters.SetOwner(aActorId, aTo);
-    spdlog::info("HostClaims: {:x} holds {:x} for {:x}", aTo, aActorId, aForId);
+    spdlog::info("HostClaims: {:x} holds {:x} for {:x} (claim {})", aTo, aActorId, aForId, cNew.ClaimId);
     NotifyActorClaim notify;
     notify.ActorId = aActorId;
     notify.ForId = aForId;
+    notify.ClaimId = cNew.ClaimId;
     notify.DeathOnGiveBack = aDeathOnGiveBack;
     m_players.SendToAll(notify);
     return true;
@@ -41,8 +44,10 @@ HostClaims::ConnectionId_t HostClaims::HolderOf(uint32_t aActorId) const noexcep
 
 void HostClaims::OnGiveBack(const ActorGiveBackRequest& acRequest, ConnectionId_t aSender) noexcept
 {
-    // A holder's late give-back after the claim passed on (a passenger drives on) is not the holder's word.
-    if (HolderOf(acRequest.ActorId) != aSender)
+    // A give-back of another claim (passed on to a passenger, or an older one of the same game) is not the holder's word.
+    // 0: sent before its claim was heard, the sender's only claim on it then.
+    const auto cHold = m_holds.find(acRequest.ActorId);
+    if (cHold == m_holds.end() || cHold->second.To != aSender || (acRequest.ClaimId && acRequest.ClaimId != cHold->second.ClaimId))
         return;
     GiveBack(acRequest.ActorId, acRequest);
 }
@@ -69,9 +74,21 @@ void HostClaims::GiveBack(uint32_t aActorId, const Payloads::ActorGiveBack& acGi
     NotifyActorGiveBack notify;
     static_cast<Payloads::ActorGiveBack&>(notify) = acGiveBack;
     notify.ActorId = aActorId;
+    notify.ClaimId = cHold->second.ClaimId;
     notify.ForId = cHold->second.ForId; // the killer of a killed one: whom the claim was for, never the sender's word
+    notify.Killed = acGiveBack.Killed && cHold->second.DeathOnGiveBack;
+    const uint32_t cForId = cHold->second.ForId;
     m_holds.erase(cHold);
     m_characters.SetOwner(aActorId, m_players.Host());
+    m_returning.insert(aActorId);
     spdlog::info("HostClaims: {:x} is the host's again{}", aActorId, notify.Killed ? ", killed" : "");
     m_players.SendToAll(notify);
+    if (OnEnded)
+        OnEnded(aActorId, cForId);
+}
+
+void HostClaims::Forget(uint32_t aActorId) noexcept
+{
+    m_holds.erase(aActorId);
+    m_returning.erase(aActorId);
 }

@@ -831,6 +831,17 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
     }
 }
 
+void CharacterService::PlaceAt(uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
+{
+    if (acWhereabouts.Where != ActorWhereabouts::State::kPlaced)
+        return;
+    if (const uint32_t cCellId = m_world.GetTravelService().CellAt(acWhereabouts.WorldSpaceId, acWhereabouts.CellId, acWhereabouts.Position))
+    {
+        m_actorBridge.MoveActorTo(aFormId, cCellId, acWhereabouts.Position.x, acWhereabouts.Position.y, acWhereabouts.Position.z);
+        m_actorBridge.SetActorRotation(aFormId, 0.f, acWhereabouts.Heading);
+    }
+}
+
 void CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts, bool aOwnerGone) const noexcept
 {
     // Still a copy: a guest never runs a host NPC (copy-contract.md, "When the owner's actor goes away").

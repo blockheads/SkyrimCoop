@@ -39,6 +39,7 @@
 #include <Services/Host/HostNetwork.h>
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
+#include <Services/Host/HostTakeBacks.h>
 #include <Services/BodyService.h>
 #include <Services/CrimeService.h>
 #include <Services/InventoryService.h>
@@ -87,6 +88,10 @@ void HostService::MakeAuthority() noexcept
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
         [&engine](const auto& acState) { engine.PartyThreats = acState; });
+    m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, engine, [this](uint32_t aId) {
+        if (m_pAuthority)
+            m_pAuthority->ActorTaken(aId);
+    });
     HostGame game;
     game.ReadFollowers = [&engine]() -> std::optional<std::vector<Followers::State>> {
         auto followers = engine.PartyFollowers;
@@ -336,6 +341,7 @@ void HostService::MakeAuthority() noexcept
 void HostService::StopHosting() noexcept
 {
     m_pAggro.reset();
+    m_pTakeBacks.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();
@@ -401,6 +407,8 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);
+    if (m_pTakeBacks)
+        m_pTakeBacks->Update(acEvent);
 }
 
 // Never made here (the fake engine is the host's reads), but HostService's members name them.

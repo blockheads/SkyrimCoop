@@ -217,6 +217,7 @@ struct ActorClaim
     bool operator==(const ActorClaim&) const noexcept = default;
     uint32_t ActorId{};
     uint32_t ForId{};
+    uint32_t ClaimId{}; // its give-back names it
     bool DeathOnGiveBack{};
 };
 
@@ -227,7 +228,8 @@ struct ActorGiveBack
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
     bool operator==(const ActorGiveBack&) const noexcept = default;
     uint32_t ActorId{};
-    uint32_t ForId{}; // the host's: whom the claim was for, the killer of a killed one
+    uint32_t ClaimId{}; // the claim it ends (0: its claim not heard yet)
+    uint32_t ForId{};   // the host's: whom the claim was for, the killer of a killed one
     ActorWhereabouts Whereabouts;
     // The holder's last graph update sent (an exit pair's PairEnd due with it, 32797): the host's game takes the actor
     // once its copy has run that far (ReplayState::TakesOverMount); 0 at once.

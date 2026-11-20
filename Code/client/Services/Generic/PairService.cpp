@@ -114,8 +114,8 @@ void PairService::SendDone(Own& aOwn) noexcept
         m_transport.Send(request);
         return;
     }
-    // The partner goes back after the done: killed (its KillActor 42838 or KillMoveEnd 38614's kill counted under the
-    // hold, 38617) at once, its graph stopped; alive with its next update, its PairEnd due with it.
+    // The partner goes back after the done: a kill counted under the hold (38617) at once, by our choice (its pose held
+    // only after KillActor 42838, not 38614's kill); alive after its next update, its PairEnd due with it.
     const bool cKilled = m_actorBridge.ActorKillCounted(aOwn.PartnerFormId);
     m_world.ctx().at<ClaimService>().GiveBack(aOwn.PartnerId, cKilled, cKilled, [this, request] { m_transport.Send(request); });
 }

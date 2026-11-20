@@ -960,6 +960,10 @@ TEST_CASE("Mounts: a horse has one rider; a second getting on within the round t
     session.Receive(kPeer, giveBack);
     session.Outbox.clear();
     session.Receive(kOtherPeer, second);
+    CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).size() == 1); // not yet the host's game's again
+    session.Taken(cHorse);
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, second);
     CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).empty());
     CHECK(session.SentTo<NotifyMount>(kHost).size() == 1);
 }
@@ -1000,6 +1004,7 @@ TEST_CASE("Mounts: a rider's character removed gives its horse back", "[HostAuth
 
     // Announced again (a respawn): its old character goes, and the ride with it.
     session.Character(kPeer);
+    session.Taken(cHorse);
     MountRequest other;
     other.RiderId = cOtherPlayer;
     other.MountId = cHorse;

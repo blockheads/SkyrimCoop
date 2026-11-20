@@ -1985,6 +1985,7 @@ TEST_CASE("A give-back carries the actor's placement, its holder's last tick and
 {
     ActorGiveBackRequest giveBack;
     giveBack.ActorId = 9;
+    giveBack.ClaimId = 3;
     giveBack.ForId = 8;
     giveBack.Tick = 123456789;
     giveBack.Killed = true;
@@ -2014,6 +2015,7 @@ TEST_CASE("A give-back carries the actor's placement, its holder's last tick and
     NotifyActorClaim claim;
     claim.ActorId = 9;
     claim.ForId = 8;
+    claim.ClaimId = 3;
     claim.DeathOnGiveBack = true;
     Buffer claimBuffer;
     Buffer::Writer claimWriter(&claimBuffer);

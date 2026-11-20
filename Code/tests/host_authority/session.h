@@ -123,6 +123,8 @@ struct Session
     // A session id for one of the host's actors, as the host's game takes it.
     uint32_t NewCharacterId() { return m_authority.NewCharacterId(); }
     HostAuthority& Authority() { return m_authority; }
+    // The host's game took back an actor given back (its copy ran the holder's ops: HostService).
+    void Taken(uint32_t aActorId) { m_authority.ActorTaken(aActorId); }
 
     // A character aOwner announces, as its game does: the host one of its NPCs, a peer its player. Returns its
     // session id once another game got its spawn; what the announcement sent is cleared.

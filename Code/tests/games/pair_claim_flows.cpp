@@ -3,6 +3,7 @@
 #include "Party.h"
 #include "Fixtures.h"
 
+#include <Components/FormIdComponent.h>
 #include <Events/MountEvent.h>
 #include <SessionIds.h>
 
@@ -257,15 +258,21 @@ SCENARIO("A kill move on a horse the host's player rides is refused: the host's 
     CHECK(pair.guest.Actors.at(pair.copy).Copy);
 }
 
-SCENARIO("An NPC given back from a pair is placed where the claimer's game left it", "[combat][kill-move][pair-claim][claims]")
+SCENARIO("An NPC given back from a pair is placed exactly where the claimer's game left it", "[combat][kill-move][pair-claim][claims]")
 {
-    // A give-back carries its holder's placement, a horse's and a kill move's partner's alike (ActorGiveBack).
+    // A give-back carries its holder's placement, a horse's and a kill move's partner's alike (ActorGiveBack); the
+    // host's game takes it there exactly (CharacterService::PlaceAt), a small move and a turn too (FollowOwner skips
+    // those: under 64 units, same cell).
     GuardPair pair;
     pair.GuestSwings();
     pair.Lent();
-    const float cThere[3] = {260.f, -140.f, 0.f};
+    float there[3]{};
     pair.party.As(pair.party.Guest(), [&] {
-        std::ranges::copy(cThere, pair.guest.Actors.at(pair.copy).Position);
+        auto& guard = pair.guest.Actors.at(pair.copy);
+        std::ranges::copy(guard.Position, there);
+        there[0] += 30.f;
+        std::ranges::copy(there, guard.Position);
+        guard.Rotation[2] = 1.25f;
         for (const uint32_t cHalf : {FakeEngine::kPlayer, pair.copy})
         {
             pair.guest.EndKillMove(cHalf);
@@ -273,6 +280,42 @@ SCENARIO("An NPC given back from a pair is placed where the claimer's game left 
         }
     });
     pair.party.Until([&] { return !pair.host.Actors.at(pair.guard).Copy; }, "the guard is the host's again");
-    CHECK(pair.host.Actors.at(pair.guard).Position[0] == Approx(cThere[0]));
-    CHECK(pair.host.Actors.at(pair.guard).Position[1] == Approx(cThere[1]));
+    CHECK(pair.host.Actors.at(pair.guard).Position[0] == Approx(there[0]));
+    CHECK(pair.host.Actors.at(pair.guard).Position[1] == Approx(there[1]));
+    CHECK(pair.host.Actors.at(pair.guard).Rotation[2] == Approx(1.25f));
+}
+
+SCENARIO("A kill counted while the NPC's give-back waits for its last update still kills it", "[combat][kill-move][pair-claim][claims]")
+{
+    // Skyrim (38614, read): KillMoveEnd queues its kill on the task queue (37316) as it clears the kill move flag; the
+    // pair looks over a frame before its kill is counted (DeferKill 38617).
+    GuardPair pair;
+    pair.GuestSwings();
+    pair.Lent();
+    pair.party.As(pair.party.Guest(), [&] {
+        for (const uint32_t cHalf : {FakeEngine::kPlayer, pair.copy})
+        {
+            pair.guest.EndKillMove(cHalf);
+            pair.guest.StopPairClip(cHalf);
+        }
+    });
+    pair.party.Frame();
+    pair.guest.Actors.at(pair.copy).KillCounted = true; // the task queue's KillImpl, under the hold
+    pair.party.Until([&] { return pair.host.IsActorDead(pair.guard); }, "the host's game kills its guard");
+    CHECK(pair.host.Actors.at(pair.guard).KilledBy == PlayerCopy(pair.host));
+}
+
+SCENARIO("A kill move's NPC the claimer's game lost before the host's answer goes straight back", "[combat][kill-move][pair-claim][claims]")
+{
+    // The guest's copy went (a cell change) between its claim and the grant: nobody would simulate the NPC.
+    GuardPair pair;
+    pair.GuestSwings();
+    pair.party.As(pair.party.Guest(), [&] {
+        for (const auto cEntity : pair.party.Guest().view<FormIdComponent>())
+            if (pair.party.Guest().get<FormIdComponent>(cEntity).Id == pair.copy)
+                pair.party.Guest().destroy(cEntity);
+    });
+    int frames = 0;
+    pair.party.Until([&] { return ++frames > 90; }, "the claim's round trip and the take-back");
+    CHECK_FALSE(pair.host.Actors.at(pair.guard).Copy);
 }

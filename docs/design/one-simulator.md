@@ -418,9 +418,9 @@ host (HostPairs): either actor in a claim -> refused kCrossed; an NPC dead, its 
   -> kCannotPair; else the claim holds; an NPC partner is claimed for the claimer (HostClaims, held already ->
   kCannotPair); NotifyActorClaim, then NotifyPairClaim to all
 claimer: TakeOwnership, the copy's scripted deferred kill kept (its clip's KillActor only counts, 37896; pose held)
-  its kill counted (KillActor 42838 or EndKillMove 38614), or the pair left alive -> its graph ops, then
-  PairDoneRequest{tick, killed}; a partner it cannot take (a summon) -> yield and done at once
-host: the NPC is the host's again; NotifyPairDone
+  its kill counted (KillActor 42838 or EndKillMove 38614), or the pair left alive -> PairDoneRequest, then its
+  give-back (ActorGiveBackRequest{tick, killed}, its graph ops first); a partner it cannot take -> yield and done
+host: NotifyPairDone; the NPC is the host's again (NotifyActorGiveBack)
 the host's game: its copy ran the claimer's ops through tick -> TakeOwnership -> KillImpl credited to the claim's actor
 refused: the claimer yields (EndPairsOf 32809, pairedStop resent, kill cam ended, blow dropped)
   kCannotPair: then the same action with no target, the engine's own second try (42350): a plain swing
@@ -470,6 +470,18 @@ Changes from the plan above, each from what was read:
   rides (the host's player too) is refused; a take-over still waiting when a new claim comes runs first (a mount's
   used to be dropped); a lent NPC comes back placed where its claimer left it. Tests: HostAuthorityTests `[claims]`,
   GameTests `[claims]` (both failed without their fix).
+- **Its review round (PR #85, second Codex review):**
+  - Each claim has an id its give-back names; a re-claim must match (same `for`, same death rule), anything else
+    only by handover; "killed" counts only on a claim that keeps its death.
+  - Given back, an actor is *returning* until the host's game took it (`HostTakeBacks`, the host's game-side part;
+    `HostAuthority::ActorTaken`): claimed by nobody meanwhile (a reported death settles first), and a joiner gets the
+    host's copy of it.
+  - A claim's end tells the feature (`HostClaims::OnEnded`): a ride still marked (its game could not take the horse)
+    ends.
+  - The holder re-reads its hold's kill count as it sends (38614's queued kill lands a frame late), and never sends
+    in the update that asked; a claim for an actor no longer on the claimer's game comes straight back.
+  - The take-back places the actor exactly (`CharacterService::PlaceAt`): `FollowOwner` skips a move under 64
+    units and a turn.
 - Review round (PR #85): answers by tick, a refusal skipped on a watching game too, the join snapshot, a summon
   refused, `KillMoveEnd`'s kill counted and a hold's counted kills dropped on release, each with a test that failed
   first. A held blow is dropped only with its victim in the attacker's own pair (its killer, 38613), not in

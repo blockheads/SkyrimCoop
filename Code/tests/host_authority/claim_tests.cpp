@@ -92,3 +92,85 @@ TEST_CASE("Claims: a give-back after the claim passed to a passenger is not the 
     CHECK(session.SentTo<NotifyActorGiveBack>(kHost).empty());
     CHECK(MovedBy(session, cHorse, kOtherPeer, kHost));
 }
+
+TEST_CASE("Claims: one game cannot hold one horse for two features, and an older claim's give-back is not this one's", "[HostAuthority][claims]")
+{
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+
+    // Held for its player's kill move: the same player's ride is another claim, refused.
+    session.Receive(kPeer, KillMove(cPeerPlayer, cHorse));
+    session.Outbox.clear();
+    session.Receive(kPeer, Ride(cPeerPlayer, cHorse));
+    CHECK(session.SentTo<NotifyMountRefused>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyActorClaim>(kHost).empty());
+
+    // Given back (a ride's "killed" would not count: only a claim keeping its death has one), taken, ridden.
+    PairDoneRequest done;
+    done.ActorId = cPeerPlayer;
+    done.PartnerId = cHorse;
+    session.Receive(kPeer, done);
+    ActorGiveBackRequest back;
+    back.ActorId = cHorse;
+    back.ClaimId = 1;
+    session.Receive(kPeer, back);
+    session.Taken(cHorse);
+    session.Outbox.clear();
+    session.Receive(kPeer, Ride(cPeerPlayer, cHorse));
+    const auto cRide = session.SentTo<NotifyActorClaim>(kHost);
+    REQUIRE(cRide.size() == 1);
+    CHECK(cRide[0]->ClaimId == 2);
+    CHECK_FALSE(cRide[0]->DeathOnGiveBack);
+
+    // A late copy of the first claim's give-back: dropped. The ride's own, saying killed: back alive.
+    session.Outbox.clear();
+    session.Receive(kPeer, back);
+    CHECK(session.SentTo<NotifyActorGiveBack>(kHost).empty());
+    back.ClaimId = 2;
+    back.Killed = true;
+    session.Receive(kPeer, back);
+    REQUIRE(session.SentTo<NotifyActorGiveBack>(kHost).size() == 1);
+    CHECK_FALSE(session.SentTo<NotifyActorGiveBack>(kHost)[0]->Killed);
+}
+
+TEST_CASE("Claims: a horse given back with its rider still marked ends the ride", "[HostAuthority][claims]")
+{
+    // Its rider's game could not take it (a player's summon): it gives it back at once, with no dismount.
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    const uint32_t cOtherPlayer = session.Character(kOtherPeer);
+    session.Receive(kPeer, Ride(cPeerPlayer, cHorse));
+    session.Outbox.clear();
+    ActorGiveBackRequest back;
+    back.ActorId = cHorse;
+    back.ClaimId = 1;
+    session.Receive(kPeer, back);
+    REQUIRE(session.SentTo<NotifyDismount>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyDismount>(kOtherPeer)[0]->RiderId == cPeerPlayer);
+    session.Taken(cHorse);
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, Ride(cOtherPlayer, cHorse));
+    CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).empty());
+}
+
+TEST_CASE("Claims: a player joining while an actor is on its way back gets the host's copy of it", "[HostAuthority][claims]")
+{
+    Session session;
+    const uint32_t cWolf = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    session.Receive(kPeer, KillMove(cPeerPlayer, cWolf));
+    ActorGiveBackRequest back;
+    back.ActorId = cWolf;
+    back.ClaimId = 1;
+    session.Receive(kPeer, back);
+
+    constexpr ConnectionId_t cLate = 4;
+    session.Join(cLate, JoinRequest("Serana"));
+    AnnounceCharacterRequest late;
+    late.SessionId = session.CharacterId(cLate);
+    late.ReferenceId = GameId(0, 0x14);
+    session.Receive(cLate, late);
+    CHECK(std::ranges::any_of(session.SentTo<NotifyCharacterSpawn>(cLate), [&](const auto* apSpawn) { return apSpawn->SessionId == cWolf; }));
+}

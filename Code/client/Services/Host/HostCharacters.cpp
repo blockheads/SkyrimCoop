@@ -50,6 +50,11 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     aAuthority.On(*this, &HostCharacters::OnEnterCell);
     aAuthority.On(*this, &HostCharacters::OnTravelQueued);
     aAuthority.On(*this, &HostCharacters::OnPartySummon);
+    // A ride whose claim came back with the rider still marked (its game could not take the horse) ends too.
+    m_claims.OnEnded = [this](uint32_t aActorId, uint32_t aForId) {
+        if (const auto cMount = m_characters.find(aActorId); cMount != m_characters.end() && cMount->second.Rider == aForId)
+            EndRide(aActorId, aForId, false);
+    };
 }
 
 void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -610,8 +615,8 @@ std::optional<NotifyCharacterSpawn> HostCharacters::ReadSpawn(uint32_t aSessionI
         m_game.ReadCopy(aSessionId, spawn); // else as recorded
         return spawn;
     }
-    // A horse a guest rides: the host's copy of it.
-    if (!it->second.PlayerRecord && it->second.Owner != m_players.Host())
+    // A horse a guest rides, or one on its way back to the host's game: the host's copy of it.
+    if (!it->second.PlayerRecord && (it->second.Owner != m_players.Host() || m_claims.Returning(aSessionId)))
         return m_game.CopySpawn ? m_game.CopySpawn(aSessionId) : std::nullopt;
 
     for (auto& spawn : m_game.OwnSpawns(cNoCharacter))
@@ -626,8 +631,10 @@ void HostCharacters::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOw
     size_t count = SendHostSpawns(aPlayer, aOwnSessionId);
     for (const auto& [cSessionId, cCharacter] : m_characters)
     {
-        if (cSessionId == aOwnSessionId || cCharacter.Owner == cHost || !(cCharacter.PlayerRecord || m_claims.HolderOf(cSessionId)) ||
-            !WithHost(cCharacter.Owner))
+        // A claimed actor, or one given back the host's game has not taken yet: its own spawns lack them.
+        const bool cClaimed = m_claims.HolderOf(cSessionId) || m_claims.Returning(cSessionId);
+        if (cSessionId == aOwnSessionId || (cCharacter.Owner == cHost && !m_claims.Returning(cSessionId)) ||
+            !(cCharacter.PlayerRecord || cClaimed) || !WithHost(cCharacter.Owner))
             continue;
         if (const auto cSpawn = BuildSpawn(cSessionId))
         {

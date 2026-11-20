@@ -263,6 +263,7 @@ void ActorClaim::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, ActorId);
     Serialization::WriteVarInt(aWriter, ForId);
+    Serialization::WriteVarInt(aWriter, ClaimId);
     Serialization::WriteBool(aWriter, DeathOnGiveBack);
 }
 
@@ -270,12 +271,14 @@ void ActorClaim::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     ForId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    ClaimId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     DeathOnGiveBack = Serialization::ReadBool(aReader);
 }
 
 void ActorGiveBack::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, ActorId);
+    Serialization::WriteVarInt(aWriter, ClaimId);
     Serialization::WriteVarInt(aWriter, ForId);
     Whereabouts.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Tick);
@@ -285,6 +288,7 @@ void ActorGiveBack::SerializePayload(Wire::Buffer::Writer& aWriter) const noexce
 void ActorGiveBack::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    ClaimId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     ForId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Whereabouts.Deserialize(aReader);
     Tick = Serialization::ReadVarInt(aReader);

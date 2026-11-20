@@ -118,6 +118,8 @@ struct HostAuthority
     void ActorAnnounced(uint32_t aId, const RecordParts& acRecord) noexcept;
     // A character left the session: its record goes.
     void ActorRemoved(uint32_t aId) noexcept { m_records.Forget(aId); }
+    // The host's game took back a claimed actor given back (HostClaims::Returning ends).
+    void ActorTaken(uint32_t aId) noexcept { m_characters.Claims().Taken(aId); }
     // A character's record as its owner last declared it, for a spawn of it.
     [[nodiscard]] RecordParts RecordOf(uint32_t aId) const noexcept { return m_records.PartsOf(aId); }
     // The host removes a player from the session.

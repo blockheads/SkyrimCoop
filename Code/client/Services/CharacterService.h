@@ -151,6 +151,8 @@ struct CharacterService
     // One of this game's references whose owner's actor went: moved or disabled as it was, still a copy. With no owner
     // left (aOwnerGone), CopyHeldEvent first: a guest hides it (GuestCopies).
     void FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts, bool aOwnerGone) const noexcept;
+    // Our actor taken back from a claim: exactly where its last holder left it, its heading too.
+    void PlaceAt(uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept;
 
 private:
     void MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;
