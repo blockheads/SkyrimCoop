@@ -79,7 +79,8 @@
     X(RecordRequest)                \
     X(RecordAskRequest) \
     X(PairClaimRequest) \
-    X(PairDoneRequest)
+    X(PairDoneRequest) \
+    X(ActorGiveBackRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -167,7 +168,9 @@
     X(NotifyRecordAsk) \
     X(NotifyPairClaim) \
     X(NotifyPairRefused) \
-    X(NotifyPairDone)
+    X(NotifyPairDone) \
+    X(NotifyActorClaim) \
+    X(NotifyActorGiveBack)
 
 #define COOP_OPCODE(aName) k##aName,
 

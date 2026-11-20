@@ -766,17 +766,24 @@ TEST_CASE("Mounts: getting off gives the horse back to the host", "[HostAuthorit
     DismountRequest dismount;
     dismount.RiderId = cPeerPlayer;
     dismount.MountId = cHorse;
-    dismount.Tick = 4242; // its rider's last graph update: the host's game takes it once its copy ran that far
+    ActorGiveBackRequest giveBack;
+    giveBack.ActorId = cHorse;
+    giveBack.Tick = 4242; // its rider's last graph update: the host's game takes it once its copy ran that far
     session.Receive(kOtherPeer, dismount); // not its rider
+    session.Receive(kOtherPeer, giveBack); // nor its holder
     CHECK(session.SentTo<NotifyDismount>(kHost).empty());
+    CHECK(session.SentTo<NotifyActorGiveBack>(kHost).empty());
 
     session.Receive(kPeer, dismount);
+    session.Receive(kPeer, giveBack);
     // Every game hears it, the host's to take the horse back.
     for (const auto cTo : {kHost, kPeer, kOtherPeer})
     {
         REQUIRE(session.SentTo<NotifyDismount>(cTo).size() == 1);
         CHECK(session.SentTo<NotifyDismount>(cTo)[0]->MountId == cHorse);
-        CHECK(session.SentTo<NotifyDismount>(cTo)[0]->Tick == 4242);
+        REQUIRE(session.SentTo<NotifyActorGiveBack>(cTo).size() == 1);
+        CHECK(session.SentTo<NotifyActorGiveBack>(cTo)[0]->Tick == 4242);
+        CHECK(session.SentTo<NotifyActorGiveBack>(cTo)[0]->ForId == cPeerPlayer);
     }
 
     // The host's game moves it again; the rider's no longer does.
@@ -940,11 +947,17 @@ TEST_CASE("Mounts: a horse has one rider; a second getting on within the round t
     session.Receive(kOtherPeer, moved);
     CHECK(session.SentTo<NotifyReferencesMove>(kHost).empty());
 
-    // Once the first is off, the second may ride it.
+    // Once the first is off and its game gave the horse back, the second may ride it.
     DismountRequest off;
     off.RiderId = cPeerPlayer;
     off.MountId = cHorse;
     session.Receive(kPeer, off);
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, second);
+    CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).size() == 1); // still the first's game's
+    ActorGiveBackRequest giveBack;
+    giveBack.ActorId = cHorse;
+    session.Receive(kPeer, giveBack);
     session.Outbox.clear();
     session.Receive(kOtherPeer, second);
     CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).empty());

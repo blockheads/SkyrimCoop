@@ -13,8 +13,9 @@ struct HostPlayers;
 
 /**
  * @brief Pairs (kill moves) claimed through the host (docs/design/one-simulator.md, piece 4b): the first claim naming
- * either actor holds until its claimer says the pair ended. A host NPC partner is the claimer's game's for the pair,
- * a player partner stays its own game's. Any other claim on either actor is refused.
+ * either actor holds until its claimer says the pair ended. A host NPC partner is claimed for the claimer's game
+ * (HostClaims, given back as any claim); a player partner stays its own game's. Any other claim on either actor is
+ * refused.
  */
 struct HostPairs
 {
@@ -25,7 +26,7 @@ struct HostPairs
 
     NO_COPY_MOVE(HostPairs);
 
-    // Its claims end (before its characters go), its lent NPCs the host's again.
+    // Its pairs end (before its characters go): the other games hear it.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
 private:
@@ -38,7 +39,6 @@ private:
         uint32_t ActorId{};
         uint32_t PartnerId{};
         ConnectionId_t Claimer{};
-        bool Lent{}; // the partner changed owner for the pair
     };
 
     const HostPlayers& m_players;

@@ -28,6 +28,7 @@
 #include <Services/ActorValueService.h>
 #include <Services/AiStateService.h>
 #include <Services/ActorStateService.h>
+#include <Services/ClaimService.h>
 #include <Services/PairService.h>
 #include <Games/Animation/ActorStateRules.h>
 #include <Services/CopyRecords.h>
@@ -121,6 +122,7 @@ World::World()
     ctx().emplace<CopyRecordsService>(*this, m_dispatcher, m_transport, ctx().at<CopyRecords>());
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
     ctx().emplace<ActorStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
+    ctx().emplace<ClaimService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<PairService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                    ctx().at<CopyRecords>());
@@ -193,6 +195,7 @@ World::~World()
     ctx().erase<PerkService>();
     ctx().erase<InventoryService>();
     ctx().erase<PairService>();
+    ctx().erase<ClaimService>();
     ctx().erase<ActorStateService>();
     ctx().erase<AiStateService>();
     ctx().erase<CopyRecordsService>();

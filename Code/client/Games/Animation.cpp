@@ -27,7 +27,6 @@
 #include <Utils.h>
 #include <Games/Animation/ReplayCapture.h>
 #include <Games/Animation/ReplayState.h>
-#include <Events/PairKillEvent.h>
 #include <VersionDb.h>
 
 using TPerformAction = uint8_t(ActorMediator*, TESActionData* apAction);
@@ -191,10 +190,9 @@ void HookContactPoint(BSRagdollContactListener* apThis, const hkpContactPointEve
 // KillActorHandler::Handle 42838, on a graph's KillActor event: a copy holds its pose until its owner's death action.
 bool HookKillActorEvent(void* apThis, Actor* apActor)
 {
-    // A lent victim's kill is the host's too (PairService): it holds its pose as a copy does.
+    // A claimed victim's kill is the host's too (DeathOnGiveBack): it holds its pose as a copy does.
     if (auto* pExtension = apActor->GetExtension(); pExtension->IsCopy() || pExtension->KillHeld.load(std::memory_order_relaxed))
         pExtension->PoseHeldUntil.store(World::Get().GetFrameTick() + ReplayState::cPoseHoldMs, std::memory_order_relaxed);
-    World::Get().GetRunner().Trigger(PairKillEvent{apActor->formID});
     return RealKillActorEvent(apThis, apActor);
 }
 

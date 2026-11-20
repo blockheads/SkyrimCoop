@@ -1,7 +1,6 @@
 #include <Diagnostics/HeadTrackRead.h>
 #include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
-#include <Events/PairKillEvent.h>
 #include <Events/ActorHeadUpdateEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
@@ -1548,7 +1547,6 @@ void FakeEngine::StopPairClip(uint32_t aFormId)
 void FakeEngine::ClipKillActor(uint32_t aFormId)
 {
     auto& actor = Actors.at(aFormId);
-    World::Get().GetRunner().Trigger(PairKillEvent{aFormId}); // Animation.cpp's hook
     if (actor.Copy || actor.KillHeld)
     {
         actor.PoseHeldUntil = World::Get().GetFrameTick() + ::ReplayState::cPoseHoldMs;

@@ -29,7 +29,7 @@ target("GameTests")
               "../../client/Services/Guest/GuestScene.cpp", "../../client/Services/Guest/GuestCopies.cpp",
               "../../client/Services/Generic/MapService.cpp", "../../client/Services/Generic/PartyMarkerService.cpp",
               "../../client/Services/Generic/TimeScaleService.cpp", "../../client/Services/Generic/WaitService.cpp", "../../client/Services/Generic/CrimeService.cpp", "../../client/Services/Generic/MagicService.cpp",
-              "../../client/Services/Generic/EffectVisualsService.cpp", "../../client/Services/Generic/AiStateService.cpp", "../../client/Services/Generic/ActorStateService.cpp", "../../client/Services/Generic/PairService.cpp",
+              "../../client/Services/Generic/EffectVisualsService.cpp", "../../client/Services/Generic/AiStateService.cpp", "../../client/Services/Generic/ActorStateService.cpp", "../../client/Services/Generic/PairService.cpp", "../../client/Services/Generic/ClaimService.cpp",
               "../../client/Services/CopyRecords.cpp", "../../client/Services/Generic/CopyRecordsService.cpp",
               "../../client/Services/Generic/CombatService.cpp", "../../client/Services/Generic/PerkService.cpp",
               "../../client/Services/Generic/ObjectService.cpp",

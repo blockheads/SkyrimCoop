@@ -80,8 +80,9 @@ a claimed pair's forwarded blow on the victim's game: held; dropped once the pai
     without ever playing there. A claim that ended makes a late replay of it skip (`PairClaims::Done`).
   - `StartDeferredKill` 40033 (read): one hold per actor, its scripted flag OR'd, so `EnterKillMove`'s non-scripted
     start never clears the lent NPC's scripted hold: its clip's `KillActor` only counts.
-- Not built into this: mounts keep their own messages (`MountRequest`), sharing the hand-back's wait and the take-over
-  (`CharacterService::QueueTakeOver`).
+- The NPC partner's lend is a generic claim (2026-11-20): `HostClaims::Claim` with its death kept for the give-back
+  (`ActorClaim::DeathOnGiveBack`), given back by `ClaimService::GiveBack` as a ridden horse is, killed or alive. A
+  horse someone rides is held already: a kill move on it is refused.
 - Not measured yet: what a host NPC shows when it becomes a copy mid-swing (the scenarios' wolves are restrained or
   frozen). Seen, not read: a frozen wolf (AI off) at -24 health after two plain hits, not dead.
 

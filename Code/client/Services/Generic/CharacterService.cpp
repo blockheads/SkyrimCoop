@@ -1,6 +1,7 @@
 #include <Games/NpcSnapshot.h>
 #include <Games/ActorPools.h>
 #include <Services/CharacterService.h>
+#include <Services/ClaimService.h>
 #include <MainLoopTasks.h>
 #include <Services/ActorValueService.h>
 #include <Services/TransportService.h>
@@ -264,8 +265,6 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     RunPresence();
     RunLocalUpdates();
     RunRemoteUpdates();
-    RunHandBacks();
-    RunTakeOvers();
 }
 
 // Dispatches ActorAddedEvent / ActorRemovedEvent as actors gain or lose loaded 3D, which drives
@@ -337,8 +336,6 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
 {
     m_pendingLooks.clear();
     m_pendingSpawns.clear();
-    m_handBacks.clear();
-    m_takeOvers.clear();
     m_world.GetCopyClock().Reset();
     const auto cMounts = m_mountPersistence;
     for (const auto& [cFormId, cPersistent] : cMounts)
@@ -1108,22 +1105,20 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
 void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 {
     m_pendingRides.erase(acMessage.MountId);
-    // A new ride settles who owns it: a take-over still waiting for the last rider's exit is void.
-    std::erase_if(m_takeOvers, [&](const TakeOver& acTakeOver) { return acTakeOver.MountId == acMessage.MountId; });
     m_drivers[acMessage.MountId] = acMessage.RiderId;
     m_pendingBoards.erase(acMessage.RiderId);
     for (const auto cPlayer : m_world.view<PlayerComponent>())
         if (Utils::GetSessionId(cPlayer) == acMessage.RiderId)
             m_partyMounts.insert(acMessage.MountId);
-    // Our player got on it: the host gave the mount to this game. Not asked for: a handover (HostCharacters::HandOver).
+    // Our player got on it: the host's claim gave the mount to this game (ClaimService, just before). Not asked for: a
+    // handover (HostCharacters::HandOver).
     const bool cHandedOver = m_riddenMount != acMessage.MountId;
     for (const auto cRider : m_world.view<LocalComponent>())
     {
         if (m_world.get<LocalComponent>(cRider).Id != acMessage.RiderId)
             continue;
-        for (const auto cMount : m_world.view<RemoteComponent, FormIdComponent>())
-            if (m_world.get<RemoteComponent>(cMount).Id == acMessage.MountId &&
-                TakeOwnership(m_world.get<FormIdComponent>(cMount).Id, acMessage.MountId, cMount))
+        for (const auto cMount : m_world.view<LocalComponent, FormIdComponent>())
+            if (m_world.get<LocalComponent>(cMount).Id == acMessage.MountId && m_world.ctx().at<ClaimService>().Holds(acMessage.MountId))
             {
                 m_riddenMount = acMessage.MountId;
                 KeepMount(m_world.get<FormIdComponent>(cMount).Id);
@@ -1176,7 +1171,6 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
             mountFormId = m_world.get<FormIdComponent>(entity).Id;
             if (m_partyMounts.contains(acMessage.MountId))
                 KeepMount(mountFormId);
-            GiveUpOwnership(entity, acMessage.MountId, mountFormId);
             break;
         }
     }
@@ -1333,69 +1327,9 @@ void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
         if (!request.RiderId || !request.MountId)
             return;
     }
-    uint32_t mountFormId = 0;
-    for (const auto cMount : m_world.view<LocalComponent, FormIdComponent>())
-        if (m_world.get<LocalComponent>(cMount).Id == request.MountId)
-            mountFormId = m_world.get<FormIdComponent>(cMount).Id;
-    const auto cUpdates = mountFormId ? m_world.GetGraphStreams().Updates(mountFormId) : std::nullopt;
-    m_handBacks.push_back({request.RiderId, request.MountId, mountFormId, cUpdates ? cUpdates->Count : 0});
-    RunHandBacks();
-}
-
-void CharacterService::RunHandBacks() noexcept
-{
-    std::erase_if(m_handBacks, [this](const HandBack& aHandBack) {
-        const auto cUpdates = aHandBack.MountFormId ? m_world.GetGraphStreams().Updates(aHandBack.MountFormId) : std::nullopt;
-        if (cUpdates && cUpdates->Count <= aHandBack.Since)
-            return false;
-        DismountRequest request;
-        request.RiderId = aHandBack.RiderId;
-        request.MountId = aHandBack.MountId;
-        if (aHandBack.MountFormId)
-            request.Whereabouts = ReadWhereabouts(aHandBack.MountFormId);
-        // Giving it up drops its unsent ops: they go first, the hand-back's tick their last update (copies take it then).
-        request.Tick = cUpdates ? cUpdates->LastTick : 0;
-        SendGraphStream();
-        m_transport.Send(request);
-        return true;
-    });
-}
-
-void CharacterService::RunTakeOvers() noexcept
-{
-    std::erase_if(m_takeOvers, [this](const TakeOver& acTakeOver) { return TakeOverMount(acTakeOver); });
-}
-
-void CharacterService::QueueTakeOver(uint32_t aSessionId, uint64_t aTick, uint32_t aKillerId) noexcept
-{
-    m_takeOvers.push_back({aSessionId, aTick, {}, aKillerId});
-}
-
-void CharacterService::TakeOverNow(uint32_t aSessionId) noexcept
-{
-    std::erase_if(m_takeOvers, [&](const TakeOver& acTakeOver) { return acTakeOver.MountId == aSessionId && TakeOverMount(acTakeOver, true); });
-}
-
-bool CharacterService::TakeOverMount(const TakeOver& acTakeOver, bool aNow) noexcept
-{
-    for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
-    {
-        if (m_world.get<RemoteComponent>(cEntity).Id != acTakeOver.MountId)
-            continue;
-        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-        const auto cDone = m_world.GetGraphStreams().StreamDoneThrough(cFormId);
-        if (!aNow && !ReplayState::TakesOverMount(acTakeOver.Tick, cDone.has_value(), cDone.value_or(0)))
-            return false;
-        if (acTakeOver.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
-            FollowOwner(cEntity, cFormId, acTakeOver.Whereabouts, false);
-        if (TakeOwnership(cFormId, acTakeOver.MountId, cEntity))
-            spdlog::info("Actor {:X}: taken back, its last owner's ops run through {}", cFormId, acTakeOver.Tick);
-        // A claimed pair's clip killed it on its claimer's game: its death is this game's (KillImpl 37896).
-        if (acTakeOver.KillerId)
-            m_actorBridge.KillActorBy(cFormId, Utils::GetFormIdBySessionId(acTakeOver.KillerId));
-        return true;
-    }
-    return true; // gone, or ours already
+    // The mount goes back once its graph's next update is recorded (its exit pair's PairEnd is due with it), the
+    // ride's end told first (mounts.md).
+    m_world.ctx().at<ClaimService>().GiveBack(request.MountId, false, false, [this, request] { m_transport.Send(request); });
 }
 
 void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcept
@@ -1409,21 +1343,9 @@ void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcep
     for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
         if (m_world.get<RemoteComponent>(cEntity).Id == acMessage.RiderId)
             m_actorBridge.ActorEndRide(m_world.get<FormIdComponent>(cEntity).Id);
-    for (const auto cEntity : m_world.view<FormIdComponent>())
-    {
-        if (Utils::GetSessionId(cEntity) != acMessage.MountId)
-            continue;
-        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-        // The host takes it once its copy has played the rider's exit pair, placed where its rider left it.
-        if (m_world.GetHostService().IsHosting() && !m_world.all_of<LocalComponent>(cEntity))
-            m_takeOvers.push_back({acMessage.MountId, acMessage.Tick, acMessage.Whereabouts});
-        else if (acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
-            FollowOwner(cEntity, cFormId, acMessage.Whereabouts, false);
-        if (!m_world.GetHostService().IsHosting() && m_world.all_of<LocalComponent>(cEntity))
-            GiveUpOwnership(cEntity, acMessage.MountId, cFormId);
+    // Its owner (the host, given back: ClaimService) keeps it as it would.
+    if (const uint32_t cFormId = FormOfSession(acMessage.MountId))
         ReleaseMount(cFormId);
-        break;
-    }
     if (m_riddenMount == acMessage.MountId)
         m_riddenMount = 0;
 }

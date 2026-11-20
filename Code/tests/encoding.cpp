@@ -1981,24 +1981,47 @@ TEST_CASE("Party travel preserves queued destinations and native travel hours", 
     CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
 }
 
-TEST_CASE("Dismount carries the horse's placement to its next owner", "[encoding.travel]")
+TEST_CASE("A give-back carries the actor's placement, its holder's last tick and its kill; a claim whom it is for", "[encoding.travel]")
 {
-    DismountRequest dismount;
-    dismount.RiderId = 8;
-    dismount.MountId = 9;
-    dismount.Tick = 123456789;
-    dismount.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
-    dismount.Whereabouts.CellId = GameId(0, 0x9C5E1);
-    dismount.Whereabouts.WorldSpaceId = GameId(0, 0x3C);
-    dismount.Whereabouts.Position = {100.f, 200.f, -30.f};
-    dismount.Whereabouts.Heading = 0.5f;
+    ActorGiveBackRequest giveBack;
+    giveBack.ActorId = 9;
+    giveBack.ForId = 8;
+    giveBack.Tick = 123456789;
+    giveBack.Killed = true;
+    giveBack.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
+    giveBack.Whereabouts.CellId = GameId(0, 0x9C5E1);
+    giveBack.Whereabouts.WorldSpaceId = GameId(0, 0x3C);
+    giveBack.Whereabouts.Position = {100.f, 200.f, -30.f};
+    giveBack.Whereabouts.Heading = 0.5f;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
-    dismount.Serialize(writer);
+    giveBack.Serialize(writer);
     Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
     auto message = RequestMessageFactory{}.Extract(reader);
     REQUIRE(message);
-    CHECK(*CastUnique<DismountRequest>(std::move(message)) == dismount);
+    CHECK(*CastUnique<ActorGiveBackRequest>(std::move(message)) == giveBack);
+
+    NotifyActorGiveBack notify;
+    static_cast<Payloads::ActorGiveBack&>(notify) = giveBack;
+    Buffer notifyBuffer;
+    Buffer::Writer notifyWriter(&notifyBuffer);
+    notify.Serialize(notifyWriter);
+    Buffer::Reader notifyReader(std::span(notifyBuffer.GetData(), notifyWriter.Size()));
+    auto notified = NotifyMessageFactory{}.Extract(notifyReader);
+    REQUIRE(notified);
+    CHECK(*CastUnique<NotifyActorGiveBack>(std::move(notified)) == notify);
+
+    NotifyActorClaim claim;
+    claim.ActorId = 9;
+    claim.ForId = 8;
+    claim.DeathOnGiveBack = true;
+    Buffer claimBuffer;
+    Buffer::Writer claimWriter(&claimBuffer);
+    claim.Serialize(claimWriter);
+    Buffer::Reader claimReader(std::span(claimBuffer.GetData(), claimWriter.Size()));
+    auto claimed = NotifyMessageFactory{}.Extract(claimReader);
+    REQUIRE(claimed);
+    CHECK(*CastUnique<NotifyActorClaim>(std::move(claimed)) == claim);
 }
 
 TEST_CASE("Follower trade grants and releases retain the NPC session id", "[encoding.followers]")
@@ -2423,13 +2446,12 @@ TEST_CASE("A refused ride names the horse and the rider", "[encoding.travel]")
     CHECK(*CastUnique<NotifyMountRefused>(std::move(message)) == refused);
 }
 
-TEST_CASE("A pair's claim, refusal and end name both actors, the reason, the tick and the kill", "[encoding.pair]")
+TEST_CASE("A pair's claim, refusal and end name both actors, the reason and the tick", "[encoding.pair]")
 {
     PairDoneRequest done;
     done.ActorId = 8;
     done.PartnerId = 9;
     done.Tick = 123456789;
-    done.Killed = true;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     done.Serialize(writer);

@@ -208,16 +208,31 @@ struct Mount
     uint32_t MountId{};
 };
 
-// Ownership returns with the last owner's current placement, including a native travel's implicit dismount.
-struct Dismount : Mount
+// A claim on one of the host's actors (HostClaims): the game of ForId's owner holds it (a rider, a kill move's
+// attacker) until it gives it back. DeathOnGiveBack: its death waits for that (the copy's deferred kill kept).
+struct ActorClaim
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-    bool operator==(const Dismount&) const noexcept = default;
+    bool operator==(const ActorClaim&) const noexcept = default;
+    uint32_t ActorId{};
+    uint32_t ForId{};
+    bool DeathOnGiveBack{};
+};
+
+// A claimed actor back to the host, with its holder's current placement (a native travel's implicit dismount too).
+struct ActorGiveBack
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+    bool operator==(const ActorGiveBack&) const noexcept = default;
+    uint32_t ActorId{};
+    uint32_t ForId{}; // the host's: whom the claim was for, the killer of a killed one
     ActorWhereabouts Whereabouts;
-    // Its rider's game's last graph update sent (its exit pair's PairEnd due with it, 32797): the host's game takes the
-    // mount once its copy has run that far (ReplayState::TakesOverMount); 0 at once.
+    // The holder's last graph update sent (an exit pair's PairEnd due with it, 32797): the host's game takes the actor
+    // once its copy has run that far (ReplayState::TakesOverMount); 0 at once.
     uint64_t Tick{};
+    bool Killed{}; // a kill counted under its hold (DeathOnGiveBack): the host's game kills it
 };
 
 // A claimed pair (a kill move): its starter and its partner, session ids.
@@ -238,10 +253,7 @@ struct Pair
     uint32_t ActorId{};
     uint32_t PartnerId{};
     uint8_t Reason{}; // a refusal's
-    // A done's: the claimer's last graph update of the partner sent (the host's game takes it once its copy ran that
-    // far), and whether the pair's clip killed it (the host's game kills it, credited to ActorId).
-    uint64_t Tick{};
-    bool Killed{};
+    uint64_t Tick{};  // the claimed action's
 };
 
 // One part of an actor's record, from its owner (docs/design/one-simulator.md, piece 1).

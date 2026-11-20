@@ -37,6 +37,11 @@ TEST_CASE("Pairs: the first claim on a host NPC holds, the NPC its claimer's gam
     session.Receive(kPeer, Claim(cPeerPlayer, cWolf));
     for (const ConnectionId_t cPlayer : {kHost, kPeer, kOtherPeer})
     {
+        const auto cActorClaims = session.SentTo<NotifyActorClaim>(cPlayer);
+        REQUIRE(cActorClaims.size() == 1);
+        CHECK(cActorClaims[0]->ActorId == cWolf);
+        CHECK(cActorClaims[0]->ForId == cPeerPlayer);
+        CHECK(cActorClaims[0]->DeathOnGiveBack);
         const auto cClaims = session.SentTo<NotifyPairClaim>(cPlayer);
         REQUIRE(cClaims.size() == 1);
         CHECK(cClaims[0]->ActorId == cPeerPlayer);
@@ -53,21 +58,30 @@ TEST_CASE("Pairs: the first claim on a host NPC holds, the NPC its claimer's gam
     CHECK(cRefused[0]->Reason == Payloads::Pair::kCrossed);
     CHECK(session.SentTo<NotifyPairRefused>(kHost).size() == 1);
 
-    // Done, killed: the wolf is the host's again, and every game hears the tick and the kill.
+    // Every game first hears the wolf claimed for the claimer's game, its death kept for the give-back.
+    // Done, then given back killed: the wolf is the host's again, its killer the claim's actor.
     session.Outbox.clear();
     PairDoneRequest done;
     done.ActorId = cPeerPlayer;
     done.PartnerId = cWolf;
-    done.Tick = 4200;
-    done.Killed = true;
+    ActorGiveBackRequest giveBack;
+    giveBack.ActorId = cWolf;
+    giveBack.Tick = 4200;
+    giveBack.Killed = true;
     session.Receive(kOtherPeer, done); // not its claim
+    session.Receive(kOtherPeer, giveBack);
     CHECK(session.SentTo<NotifyPairDone>(kHost).empty());
+    CHECK(session.SentTo<NotifyActorGiveBack>(kHost).empty());
     session.Receive(kPeer, done);
+    session.Receive(kPeer, giveBack);
     const auto cDone = session.SentTo<NotifyPairDone>(kHost);
     REQUIRE(cDone.size() == 1);
-    CHECK(cDone[0]->Tick == 4200);
-    CHECK(cDone[0]->Killed);
     CHECK(cDone[0]->ActorId == cPeerPlayer);
+    const auto cBack = session.SentTo<NotifyActorGiveBack>(kHost);
+    REQUIRE(cBack.size() == 1);
+    CHECK(cBack[0]->Tick == 4200);
+    CHECK(cBack[0]->Killed);
+    CHECK(cBack[0]->ForId == cPeerPlayer);
     CHECK(OwnerSeen(session, cWolf, kOtherPeer) == kHost);
 
     // Free again: the next claim holds.
@@ -133,7 +147,9 @@ TEST_CASE("Pairs: a claimer gone gives the NPC back and frees its claims", "[Hos
     const auto cDone = session.SentTo<NotifyPairDone>(kHost);
     REQUIRE(cDone.size() == 1);
     CHECK(cDone[0]->PartnerId == cWolf);
-    CHECK_FALSE(cDone[0]->Killed);
+    const auto cBack = session.SentTo<NotifyActorGiveBack>(kHost);
+    REQUIRE(cBack.size() == 1);
+    CHECK_FALSE(cBack[0]->Killed);
     CHECK(OwnerSeen(session, cWolf, kOtherPeer) == kHost);
     session.Outbox.clear();
     session.Receive(kOtherPeer, Claim(cOtherPlayer, cWolf));

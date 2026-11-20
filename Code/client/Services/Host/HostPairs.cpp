@@ -34,7 +34,11 @@ void HostPairs::OnClaim(const PairClaimRequest& acRequest, ConnectionId_t aSende
     if (Claimed(acRequest.ActorId) || Claimed(acRequest.PartnerId))
         reason = Payloads::Pair::kCrossed;
     else if (!cPlayer && (cPartnerOwner != m_players.Host() || (m_game.CanPair && !m_game.CanPair(acRequest.PartnerId))))
-        reason = Payloads::Pair::kCannotPair; // dead, its graph stopped, or another game's (a ridden mount)
+        reason = Payloads::Pair::kCannotPair; // dead, its graph stopped, a player's summon, or another game's
+    // A free host NPC is claimed for the claimer's game, its death kept for the give-back; held already (the host's
+    // player rides it): refused.
+    else if (!cPlayer && !m_characters.Claims().Claim(acRequest.PartnerId, aSender, acRequest.ActorId, true))
+        reason = Payloads::Pair::kCannotPair;
     if (reason != Payloads::Pair::kNone)
     {
         spdlog::info("HostPairs: {:x}'s pair of {:x} with {:x} refused ({})", aSender, acRequest.ActorId, acRequest.PartnerId, reason);
@@ -44,9 +48,8 @@ void HostPairs::OnClaim(const PairClaimRequest& acRequest, ConnectionId_t aSende
         m_players.SendToAll(refused);
         return;
     }
-    const bool cLent = !cPlayer && m_characters.Lend(acRequest.PartnerId, aSender);
-    m_claims.push_back({acRequest.ActorId, acRequest.PartnerId, aSender, cLent});
-    spdlog::info("HostPairs: {:x} holds the pair of {:x} with {:x}{}", aSender, acRequest.ActorId, acRequest.PartnerId, cLent ? ", its game's for it" : "");
+    m_claims.push_back({acRequest.ActorId, acRequest.PartnerId, aSender});
+    spdlog::info("HostPairs: {:x} holds the pair of {:x} with {:x}", aSender, acRequest.ActorId, acRequest.PartnerId);
     NotifyPairClaim notify;
     static_cast<Payloads::Pair&>(notify) = acRequest;
     m_players.SendToAll(notify);
@@ -59,10 +62,7 @@ void HostPairs::OnDone(const PairDoneRequest& acRequest, ConnectionId_t aSender)
     });
     if (cClaim == m_claims.end())
         return;
-    if (cClaim->Lent)
-        m_characters.Lend(cClaim->PartnerId, m_players.Host());
     m_claims.erase(cClaim);
-    // The killer is the claim's own actor (KillActorHandler 42838 credits the pair's partner), never the sender's word.
     NotifyPairDone notify;
     static_cast<Payloads::Pair&>(notify) = acRequest;
     notify.Reason = Payloads::Pair::kNone;
@@ -75,9 +75,7 @@ void HostPairs::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
     std::erase_if(m_claims, [&](const Claim& acClaim) {
         if (acClaim.Claimer != aPlayer && acClaim.PartnerId != cCharacter)
             return false;
-        // The other game ends the pair as the leaver's actor goes; a lent NPC is the host's again, at once.
-        if (acClaim.Lent && acClaim.Claimer == aPlayer)
-            m_characters.Lend(acClaim.PartnerId, m_players.Host());
+        // The other game ends the pair as the leaver's actor goes; its claimed NPC goes back with its claims.
         NotifyPairDone notify;
         notify.ActorId = acClaim.ActorId;
         notify.PartnerId = acClaim.PartnerId;

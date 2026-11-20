@@ -141,15 +141,16 @@ struct CharacterService
     // A spawn of our copy of an NPC another game owns, read from the engine as it is now.
     std::optional<NotifyCharacterSpawn> BuildCopySpawn(uint32_t aSessionId) const noexcept;
 
-    // The host gave this game a copy's actor (a mount its player got on, a claimed pair's partner): ours to simulate
-    // from here on. aHoldKill: the copy's deferred kill stays (a pair's partner: its kill is the host's); else it ends.
+    // The host gave this game a copy's actor (a claim: ClaimService): ours to simulate from here on. aHoldKill: the
+    // copy's deferred kill stays (its death waits for the give-back); else it ends.
     bool TakeOwnership(const uint32_t acFormId, const uint32_t acSessionId, const entt::entity acEntity, bool aHoldKill = false) const noexcept;
-    // Another game simulates this game's actor from here on (the mount, given to its rider's game or back): a copy.
+    // Another game simulates this game's actor from here on (claimed for it, or given back): a copy.
     void GiveUpOwnership(entt::entity aEntity, uint32_t aSessionId, uint32_t aFormId) const noexcept;
-    // Hosting: an actor handed back, taken once its copy has run its last owner's ops through aTick (TakesOverMount);
-    // then killed, credited to aKillerId (session id, 0: lives). TakeOverNow: any waiting one of it, at once.
-    void QueueTakeOver(uint32_t aSessionId, uint64_t aTick, uint32_t aKillerId) noexcept;
-    void TakeOverNow(uint32_t aSessionId) noexcept;
+    // Where our actor is now, for its copies to follow when we stop simulating it.
+    [[nodiscard]] ActorWhereabouts ReadWhereabouts(uint32_t aFormId) const noexcept;
+    // One of this game's references whose owner's actor went: moved or disabled as it was, still a copy. With no owner
+    // left (aOwnerGone), CopyHeldEvent first: a guest hides it (GuestCopies).
+    void FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts, bool aOwnerGone) const noexcept;
 
 private:
     void MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;
@@ -159,11 +160,6 @@ private:
     // The actor left this game's simulation: a copy goes or is held, our own one's copies are removed.
     void ReleaseCharacter(entt::entity aEntity, uint32_t aFormId) const noexcept;
     void DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept;
-    // Where our actor is now, for its copies to follow when we stop simulating it.
-    [[nodiscard]] ActorWhereabouts ReadWhereabouts(uint32_t aFormId) const noexcept;
-    // One of this game's references whose owner's actor went: moved or disabled as it was, still a copy. With no owner
-    // left (aOwnerGone), CopyHeldEvent first: a guest hides it (GuestCopies).
-    void FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts, bool aOwnerGone) const noexcept;
 
     ActorData BuildActorData(uint32_t aFormId) const noexcept;
     // An actor as it is now: where, its values, inventory and hands, and the action it last took.
@@ -218,28 +214,6 @@ private:
     uint32_t m_boardedMount{}; // session id: our player rides along on it
     std::unordered_map<uint32_t, uint32_t> m_drivers; // mount -> its driver, session ids
     std::unordered_map<uint32_t, uint32_t> m_pendingBoards; // passenger -> mount, heard before both copies were made
-    // The ride of one of this game's mounts ended: handed back once its graph's next update is recorded (its exit
-    // pair's PairEnd, an event, is due with it), its ops sent first (mounts.md).
-    struct HandBack
-    {
-        uint32_t RiderId{}; // session ids
-        uint32_t MountId{};
-        uint32_t MountFormId{};
-        uint64_t Since{}; // its updates recorded as its ride's end was heard
-    };
-    std::vector<HandBack> m_handBacks;
-    void RunHandBacks() noexcept;
-    // Hosting: mounts given back, taken once their copy has run the last rider's ops (TakesOverMount).
-    struct TakeOver
-    {
-        uint32_t MountId{}; // session id
-        uint64_t Tick{};
-        ActorWhereabouts Whereabouts{};
-        uint32_t KillerId{}; // session id: a claimed pair's clip killed it (PairService)
-    };
-    std::vector<TakeOver> m_takeOvers;
-    void RunTakeOvers() noexcept;
-    [[nodiscard]] bool TakeOverMount(const TakeOver& acTakeOver, bool aNow = false) noexcept;
     // Any rider's Detach empties its mount's one slot: the driver still on holds it again.
     void KeepDriverOn(const DismountEvent& acEvent) noexcept;
     [[nodiscard]] uint32_t FormOfSession(uint32_t aSessionId) const noexcept;

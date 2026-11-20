@@ -415,7 +415,8 @@ a passenger who drives on (HandOver): takes it at once and sends PairEnd itself,
 claimer's game: its own actor's pa_Kill... accepted on another game's actor (PairService, from the ActionEvent)
   -> PairClaimRequest{actor, partner, the action's tick}; the pair plays on
 host (HostPairs): either actor in a claim -> refused kCrossed; an NPC dead, its graph stopped or a player's summon
-  -> kCannotPair; else the claim holds; an NPC partner's owner = the claimer (HostCharacters::Lend); NotifyPairClaim to all
+  -> kCannotPair; else the claim holds; an NPC partner is claimed for the claimer (HostClaims, held already ->
+  kCannotPair); NotifyActorClaim, then NotifyPairClaim to all
 claimer: TakeOwnership, the copy's scripted deferred kill kept (its clip's KillActor only counts, 37896; pose held)
   its kill counted (KillActor 42838 or EndKillMove 38614), or the pair left alive -> its graph ops, then
   PairDoneRequest{tick, killed}; a partner it cannot take (a summon) -> yield and done at once
@@ -427,7 +428,7 @@ a replay onto a game's own player waits for the host's answer (PairClaims): clai
   refused is never played, on any game; onto an NPC still its own: never paired there (ClaimedAway)
 answers are kept by the action's tick (8 per actor): a replay behind its owner still finds an earlier one
 a player joining during a lend gets the NPC from the host's records (HostCharacters, as a ridden mount)
-releasing a hold drops its counted kills: a death is only ever the hand-back's word
+releasing a hold drops its counted kills: a death is only ever the give-back's word
 every non-claimer game pairs the attacker's copy with the lent NPC's copy itself (an instance here, LentPartner):
   the NPC's copy has no stream to replay (its half never went out, its new owner gives no point in the instance)
 the host's game takes the NPC back once its own copy's clip sent KillActor (1.5 s at most), then kills it
@@ -449,7 +450,26 @@ Changes from the plan above, each from what was read:
   copies: `PairMarkClear`, `ContactKills`, `PoseHeld` (now a lent victim's too), `HeldByPair`, the yield's steps
   (now `AnimationSystem::YieldPair`, also what a refusal runs). The manual `PairEnd` for a passenger who drives on
   stays (4a measured it).
-- Mounts keep their own messages; the hand-back's wait and the take-over are shared (`CharacterService::QueueTakeOver`).
+- **One claim for every actor (2026-11-20, the user: "just claiming actor ownership, and giving back").** The lend
+  and a ride were one mechanism built twice. Now `HostClaims` (host) and `ClaimService` (every game) hold it:
+
+  ```text
+  a feature's request (MountRequest / PairClaimRequest) -> its rule -> HostClaims::Claim(actor, for, deathOnGiveBack)
+    refused if another game holds it (any feature) or it is a player; a passenger driving on takes it over
+    -> NotifyActorClaim: the game of `for` takes it (deathOnGiveBack: the copy's hold kept), the others give it up
+  holder: the feature's end (DismountRequest / PairDoneRequest), then ActorGiveBackRequest{tick, whereabouts,
+    killed} after its next update (its ops first) -> HostClaims (holder only) -> NotifyActorGiveBack{for}
+    the host's game takes it once its copy ran through tick (a killed one once its copy counted its own kill too,
+    1.5 s at most), placed where the holder left it, then KillBy(for)
+  a holder leaving: the features' leave rules first (a passenger drives on), then its claims go back
+  ```
+
+  Gone with it: `HostCharacters::Lend`, the owner changes in `OnMount` / `HandOver` / `GiveBack`, `PairService`'s
+  own take-back and kill wait, `PairKillEvent` (a kill is the engine's count), `CharacterService`'s hand-backs and
+  take-overs, `Dismount`'s tick and placement, `Pair::Killed`. Changed on purpose: a kill move on a horse someone
+  rides (the host's player too) is refused; a take-over still waiting when a new claim comes runs first (a mount's
+  used to be dropped); a lent NPC comes back placed where its claimer left it. Tests: HostAuthorityTests `[claims]`,
+  GameTests `[claims]` (both failed without their fix).
 - Review round (PR #85): answers by tick, a refusal skipped on a watching game too, the join snapshot, a summon
   refused, `KillMoveEnd`'s kill counted and a hold's counted kills dropped on release, each with a test that failed
   first. A held blow is dropped only with its victim in the attacker's own pair (its killer, 38613), not in
