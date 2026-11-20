@@ -191,6 +191,34 @@ come from copies. Bows were not tried.
 Not settled: whether a copy's capsule blocks a sweep a real NPC's would not. A real NPC in open floor paired 7 of 7, but the
 same-spot control never started a kill move, so it says nothing.
 
+## A partner whose graph stops
+
+Read in IDA and measured on the duo, 2026-11-18 (`frozen-wolf-kill-move`). A guest's kill move on a host NPC whose AI is
+off (`kProcessMe` clear: `Actor::EnableAI(false)` 37504, a quest script's `EnableAI`, the harness's `freeze`) stuck: the
+NPC stayed in its kill move and refused every forwarded hit after it (`IsHeldByKillMove`) for over 50 s.
+
+```
+guest: its copy of the NPC (processed, copies are) takes the victim's half: pair starts, sent
+host:  the guest's copy replays pa_KillMove... with the host's own NPC as partner (ForceAction)
+       StartPair 32803: the victim's half, an unforced action (Func5 41557), taken
+       39004 with started: EnterKillMove 38613 on both (flag +0x204 0x4000, a deferred kill)
+       the NPC's graph never updates (kProcessMe gates the graph job, 41466) -> no KillMoveEnd 38614 -> flag stays
+```
+
+- Read: `PerformAction` 38949 tests the graph holder (32877) first, forced or not; action flag 2 (`ForceAction`) then
+  skips the selection checks, 39002 (`coop_ActionSelectionChecks`: ragdoll, already in an instance, per-action state)
+  and 1406E2110 (attack stamina). None of them reads a partner, and the victim's half is a new unforced action either
+  way, so forcing is not what let the pair start.
+- Read: 39004 sets attack state and the `pa_Kill` kill move flags only for a started action (its third argument); its
+  graph-variable writes run either way.
+- Measured: the host's own pick on a frozen wolf was refused (the wolf's half `KillMove1HMWolfB` first, then the player's
+  `pa_KillMove1HMWolfB`; the player swung normally), while the replayed pair on another frozen wolf was taken. What
+  refused the wolf's half in the first case is not read.
+- Measured: an unfrozen wolf under the same blow: the pair ran and the wolf died.
+- So the fix rests on the part read: a pair whose partner's graph does not run can never reach `KillMoveEnd`. A replayed
+  pair with a local partner without `kProcessMe` is not played (`ReplayState::SettlePairedReplay`, `PartnerAnimates`): the
+  guest's forwarded blow then kills it as a plain hit.
+
 ## The `host-kill-move` timeout
 
 The scenario, not a kill move: the wolf is unrestrained and fighting, and in the captured failure it stood 113 units away and

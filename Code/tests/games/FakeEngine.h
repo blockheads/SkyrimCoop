@@ -599,6 +599,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Dead = false;
         uint64_t GraphHash = 0;
         bool GraphUpdating = true; // KillImpl clears kShouldAnimGraphUpdate; resurrection leaves it stopped.
+        bool ProcessMe = true; // kProcessMe: EnableAI(false) (37504, the harness's freeze) clears it, and the graph job skips it (41466)
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
         bool InAir = false; // its controller jumping or falling, else on the ground
         bool InKillMove = false; // either half of a pair (Actor::IsInKillMove 38615)

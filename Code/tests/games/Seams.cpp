@@ -394,7 +394,8 @@ void World::Update() noexcept
             const auto& cPair = cPartner->second.LatestPairAction;
             const auto cOutcome = ::ReplayState::SettlePairedReplay(
                 {replayed.EventName.c_str(), form.Id, cPartner->second.InKillMove, cPair.TargetEventName.c_str(), cPair.TargetId,
-                 replayed.Tick, cPair.Tick, Utils::GetSessionIdByFormId(form.Id).value_or(0), Utils::GetSessionIdByFormId(replayed.TargetId).value_or(0)});
+                 replayed.Tick, cPair.Tick, Utils::GetSessionIdByFormId(form.Id).value_or(0), Utils::GetSessionIdByFormId(replayed.TargetId).value_or(0),
+                 cPartner->second.ProcessMe});
             if (cOutcome == ::ReplayState::PairOutcome::kYield)
             {
                 for (const uint32_t cHalf : {form.Id, replayed.TargetId})

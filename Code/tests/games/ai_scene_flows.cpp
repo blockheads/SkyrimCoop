@@ -48,3 +48,30 @@ SCENARIO("A copy forgets the old package when its owner's package clears", "[ai]
     });
     party.Until([&] { return guest.GetActorAiFields(cCopy).PackageId == 0; }, "the copy's gameplay reader no longer exposes the old fallback package");
 }
+
+SCENARIO("A copy looks at an actor whose session id came after its owner's look", "[ai][headtrack]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t speaker = 0;
+    party.As(party.Host(), [&] { speaker = host.LoadNpc(0x13BA1, 0x31D2E, {}); });
+    party.Until([&] { return guest.CopiesOf(0x13BA1).size() == 1; }, "the guest has the speaker");
+    // A created actor (no form the games share) appears and is looked at in one frame, before its session id.
+    party.As(party.Host(), [&] {
+        const uint32_t cListener = host.LoadNpc(0x1A67D, 0x31D2E, {});
+        host.LooksAt(speaker, FakeEngine::kDialogueHeadTrack, cListener);
+    });
+    party.Until(
+        [&] {
+            const auto cListeners = guest.CopiesOf(0x1A67D);
+            return cListeners.size() == 1 &&
+                   guest.GetActorAiFields(guest.CopiesOf(0x13BA1)[0]).HeadTrackIds[FakeEngine::kDialogueHeadTrack] == cListeners[0];
+        },
+        "the speaker's copy looks at the listener's copy",
+        [&] {
+            return std::format("listener copies {}, slot {:X}", guest.CopiesOf(0x1A67D).size(),
+                               guest.GetActorAiFields(guest.CopiesOf(0x13BA1)[0]).HeadTrackIds[FakeEngine::kDialogueHeadTrack]);
+        });
+    party.Agree("the games agree on every actor");
+}
