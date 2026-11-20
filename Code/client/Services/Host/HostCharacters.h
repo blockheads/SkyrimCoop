@@ -135,6 +135,8 @@ private:
         uint32_t Rider{};
         // Its passengers, in boarding order: the first drives next.
         std::vector<uint32_t> Passengers;
+        // An NPC lent to another game for a claimed pair (Lend): a copy on the host's game too.
+        bool Lent{};
     };
 
     HostAuthority& m_authority;

@@ -291,18 +291,17 @@ void World::Update() noexcept
                 const bool cHasPartner = cPartner != engine.Actors.end();
                 const auto cClaim = cKillMove ? GetPairClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), cAction.Tick)
                                               : ::ReplayState::PairClaim::kNotNeeded;
-                // As AnimationSystem: a kill move on an NPC still this game's waits for the host's answer.
-                if (cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player))
+                // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
+                const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
+                    cClaim, cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player));
+                if (cClaimOutcome == ::ReplayState::PairOutcome::kWait)
+                    break;
+                if (cClaimOutcome == ::ReplayState::PairOutcome::kSkip)
                 {
-                    if (cClaim == ::ReplayState::PairClaim::kUnknown)
-                        break;
-                    if (cClaim == ::ReplayState::PairClaim::kRefused)
-                    {
-                        animation.TimePoints.pop_front();
-                        animation.LastRanAction = cAction;
-                        engine.SetActorLatestAnimation(form.Id, cAction);
-                        continue;
-                    }
+                    animation.TimePoints.pop_front();
+                    animation.LastRanAction = cAction;
+                    engine.SetActorLatestAnimation(form.Id, cAction);
+                    continue;
                 }
                 const bool cPartnerCopy = cHasPartner && cPartner->second.Copy;
                 const bool cLent = cHasPartner && ::ReplayState::LentPartner(cKillMove, cClaim, cPartnerCopy, cPartner->second.Player);
@@ -411,31 +410,27 @@ void World::Update() noexcept
             replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
         const auto cPartner = engine.Actors.find(replayed.TargetId);
         const bool cKillMove = ::ReplayState::EntersKillMove(replayed.EventName);
-        // As AnimationSystem: a kill move on an NPC still this game's waits for the host's answer.
-        if (!replayed.TargetEventName.empty() && cPartner != engine.Actors.end() &&
-            ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player))
+        // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
+        const bool cHasPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end();
+        const auto cClaim = cKillMove ? GetPairClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), replayed.Tick)
+                                      : ::ReplayState::PairClaim::kNotNeeded;
+        const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
+            cClaim, cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player));
+        if (cClaimOutcome == ::ReplayState::PairOutcome::kWait)
+            continue;
+        if (cClaimOutcome == ::ReplayState::PairOutcome::kSkip)
         {
-            const auto cClaim = GetPairClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), replayed.Tick);
-            if (cClaim == ::ReplayState::PairClaim::kUnknown)
-                continue;
-            if (cClaim == ::ReplayState::PairClaim::kRefused)
-            {
-                animation.LastRanAction = replayed;
-                engine.SetActorLatestAnimation(form.Id, replayed);
-                animation.TimePoints.pop_front();
-                continue;
-            }
+            animation.LastRanAction = replayed;
+            engine.SetActorLatestAnimation(form.Id, replayed);
+            animation.TimePoints.pop_front();
+            continue;
         }
-        const bool cLent = cPartner != engine.Actors.end() &&
-                           ::ReplayState::LentPartner(cKillMove, GetPairClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), replayed.Tick),
-                                                      cPartner->second.Copy, cPartner->second.Player);
-        const bool cLocalPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end() &&
+        const bool cLent = cPartner != engine.Actors.end() && ::ReplayState::LentPartner(cKillMove, cClaim, cPartner->second.Copy, cPartner->second.Player);
+        const bool cLocalPartner = cHasPartner &&
                                    ::ReplayState::PairsHere(cPartner->second.Copy, engine.IsActorMount(replayed.TargetId), cPartner->second.Player, cKillMove, cLent);
         step.PairHere = cLocalPartner;
         if (cLocalPartner && !cLent)
         {
-            const auto cClaim = cKillMove ? GetPairClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), replayed.Tick)
-                                          : ::ReplayState::PairClaim::kNotNeeded;
             const auto cOutcome = ::ReplayState::SettlePairedReplay(cPartner->second.InKillMove, cClaim);
             if (cOutcome == ::ReplayState::PairOutcome::kWait)
                 continue;

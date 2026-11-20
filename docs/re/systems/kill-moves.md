@@ -31,17 +31,20 @@ a claimed pair's forwarded blow on the victim's game: held; dropped once the pai
 ```
 
 - **Read in IDA (2026-11-20).**
-  - `KillActorHandler` 42838 kills through `Actor::QueueKill` 37316 with the pair's other participant as killer, after
-    ending a non-scripted deferred kill only. So the killer of a claimed pair is the claim's own actor: the done
-    message carries only "killed", and the host names the killer.
+  - `KillActorHandler` 42838 kills through `Actor::QueueKill` 37316 with the pair's other participant as killer
+    (null when its lookup finds none), after ending a non-scripted deferred kill only. Crediting the claim's own actor
+    always is our choice, from that: the done message carries only "killed", and the host names the killer.
+  - The victim's `Character::EndKillMove` 38614 (`KillMoveEndHandler` 42871) also queues a kill, by its recorded
+    killer (+0x108), with no `KillActor` event. Under the lent NPC's hold either kill only counts: `DeferKill` 38617
+    raises `MiddleHigh +0x2F8` above 1 (`MiddleProcess::deferredKill`, 0 none, 1 held). So "killed" is that count
+    (`Actor::KillCounted`), and releasing a hold drops it (`Actor::HoldKill`): 40036 would queue it for
+    `g_thePlayer`, against the hand-back's word (an alive hand-back after the host's copy counted its own clip's kill).
   - Every engine caller of `Actor::EndDeferredKill` 38618 passes scripted 0 (`Set3D`, `MoveToLow`, `MoveToMiddleLow`,
     `Revert`, 37947, 37972, 42838, `FlightLandEndHandler`, 42907, `Actor::SetGettingOnOffMount` 37462: a rider's non-scripted hold through a get-on); only Papyrus passes 1, and 40036
     acts only on a matching flag. So a copy's scripted hold (`UpdateCopyAI`) outlives the copy: `TakeOwnership` now
     ends it (`Actor::HoldKill`), and a lend for a pair keeps it on purpose. Inferred, not read: the hold goes with
     the middle-high process data when that is dropped.
-  - `KillImpl` 37896, after the deferred-kill test: `IsDead` (vfunc 0x99) returns at once. So the kill 40036 queues
-    for `g_thePlayer` as the hold ends finds the actor dead when `KillImpl` ran with the real killer in the same frame
-    (`Actor::KillBy`).
+  - `KillImpl` 37896, after the deferred-kill test: `IsDead` (vfunc 0x99) returns at once.
   - 38949: `started = StartPair(32803) && the graph event sent`; our hook sends only accepted actions, so an accepted
     action with a target event is a pair begun. (32803 also returns 1 for two actors already in one instance, but the
     selection checks 39002 refuse an unforced action of an actor in an instance first.)
@@ -287,7 +290,7 @@ host:  the guest's copy replays pa_KillMove... with the host's own NPC as partne
 
 - Read: `PerformAction` 38949 tests the graph holder (32877) first, forced or not; action flag 2 (`ForceAction`) then
   skips the selection checks, 39002 (`coop_ActionSelectionChecks`: ragdoll, already in an instance, per-action state)
-  and 1406E2110 (attack stamina). None of them reads a partner, and the victim's half is a new unforced action either
+  and `coop_ActionAttackStaminaCheck` 39003. None of them reads a partner, and the victim's half is a new unforced action either
   way, so forcing is not what let the pair start.
 - Read: 39004 sets attack state and the `pa_Kill` kill move flags only for a started action (its third argument); its
   graph-variable writes run either way.

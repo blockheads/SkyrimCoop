@@ -139,3 +139,21 @@ TEST_CASE("Pairs: a claimer gone gives the NPC back and frees its claims", "[Hos
     session.Receive(kOtherPeer, Claim(cOtherPlayer, cWolf));
     CHECK(session.SentTo<NotifyPairClaim>(kHost).size() == 1);
 }
+
+TEST_CASE("Pairs: a player joining while an NPC is lent gets it, as the host's game has it", "[HostAuthority][pairs]")
+{
+    Session session;
+    const uint32_t cWolf = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    session.Receive(kPeer, Claim(cPeerPlayer, cWolf));
+    REQUIRE(OwnerSeen(session, cWolf, kHost) == kPeer);
+
+    // The host's game lists only its own actors at a join; the lent wolf is a copy there.
+    constexpr ConnectionId_t cLate = 4;
+    session.Join(cLate, JoinRequest("Serana"));
+    AnnounceCharacterRequest late;
+    late.SessionId = session.CharacterId(cLate);
+    late.ReferenceId = GameId(0, 0x14);
+    session.Receive(cLate, late);
+    CHECK(std::ranges::any_of(session.SentTo<NotifyCharacterSpawn>(cLate), [&](const auto* apSpawn) { return apSpawn->SessionId == cWolf; }));
+}

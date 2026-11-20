@@ -602,7 +602,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool GraphUpdating = true; // KillImpl clears kShouldAnimGraphUpdate; resurrection leaves it stopped.
         bool KillHeld = false;    // a scripted deferred kill (38616): every copy's (UpdateCopyAI), and it outlives the
                                   // copy (no engine path ends one, 38618's callers); held, a kill is only counted (37896)
-        bool KillCounted = false; // a kill held back (MiddleHigh +0x2F8 above 1): queued for the player as the hold ends (40036)
+        bool KillCounted = false; // a kill held back (MiddleHigh +0x2F8 above 1); our release drops it (Actor::HoldKill)
+        bool PlayerSummon = false; // commanded by this game's player (Actor::IsPlayerSummon)
         bool ProcessMe = true; // kProcessMe: EnableAI(false) (37504, the harness's freeze) clears it, and the graph job skips it (41466)
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
         bool InAir = false; // its controller jumping or falling, else on the ground
@@ -789,7 +790,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // (a copy, an NPC lent for a claimed pair): then counted, its pose held.
     void ClipKillActor(uint32_t aFormId);
     bool m_applyingOwnHit = false; // TakesDamage's Apply: the engine's own hit, not the bridge's forwarded one
-    std::vector<uint32_t> QueuedKills; // kills on the task queue (QueueKill 37316), run at the next frame
     uint32_t PlainSwings = 0; // ActorPerformPlainly taken: the engine's second try after a refused pair (42350)
     static constexpr const char* kPlainSwing = "attackStart";
     [[nodiscard]] bool PoseHeld(uint32_t aFormId) const noexcept; // HookUpdateAnimationGraphs: its graph takes no update
@@ -1604,7 +1604,17 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] bool ActorCanPair(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
-        return it != Actors.end() && !it->second.Dead && it->second.ProcessMe;
+        return it != Actors.end() && !it->second.Dead && it->second.ProcessMe && !it->second.PlayerSummon;
+    }
+    [[nodiscard]] bool ActorKillCounted(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && it->second.KillCounted;
+    }
+    [[nodiscard]] bool IsPlayerSummon(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && it->second.PlayerSummon;
     }
     // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played; refused on
     // a copy on its owner's stream (weapon state 1 or 4).

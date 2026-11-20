@@ -364,6 +364,7 @@ bool HostCharacters::Lend(uint32_t aSessionId, ConnectionId_t aTo) noexcept
     if (cCharacter == m_characters.end() || cCharacter->second.PlayerRecord)
         return false;
     cCharacter->second.Owner = aTo;
+    cCharacter->second.Lent = aTo != m_players.Host();
     return true;
 }
 
@@ -626,7 +627,7 @@ void HostCharacters::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOw
     size_t count = SendHostSpawns(aPlayer, aOwnSessionId);
     for (const auto& [cSessionId, cCharacter] : m_characters)
     {
-        if (cSessionId == aOwnSessionId || cCharacter.Owner == cHost || !(cCharacter.PlayerRecord || cCharacter.Rider) ||
+        if (cSessionId == aOwnSessionId || cCharacter.Owner == cHost || !(cCharacter.PlayerRecord || cCharacter.Rider || cCharacter.Lent) ||
             !WithHost(cCharacter.Owner))
             continue;
         if (const auto cSpawn = BuildSpawn(cSessionId))

@@ -414,16 +414,20 @@ a passenger who drives on (HandOver): takes it at once and sends PairEnd itself,
 ```text
 claimer's game: its own actor's pa_Kill... accepted on another game's actor (PairService, from the ActionEvent)
   -> PairClaimRequest{actor, partner, the action's tick}; the pair plays on
-host (HostPairs): either actor in a claim -> refused kCrossed; an NPC dead or its graph stopped -> kCannotPair
-  else the claim holds; an NPC partner's owner = the claimer (HostCharacters::Lend); NotifyPairClaim to all
+host (HostPairs): either actor in a claim -> refused kCrossed; an NPC dead, its graph stopped or a player's summon
+  -> kCannotPair; else the claim holds; an NPC partner's owner = the claimer (HostCharacters::Lend); NotifyPairClaim to all
 claimer: TakeOwnership, the copy's scripted deferred kill kept (its clip's KillActor only counts, 37896; pose held)
-  its KillActor (or the pair left alive) -> its graph ops, then PairDoneRequest{tick, killed}
+  its kill counted (KillActor 42838 or EndKillMove 38614), or the pair left alive -> its graph ops, then
+  PairDoneRequest{tick, killed}; a partner it cannot take (a summon) -> yield and done at once
 host: the NPC is the host's again; NotifyPairDone
 the host's game: its copy ran the claimer's ops through tick -> TakeOwnership -> KillImpl credited to the claim's actor
 refused: the claimer yields (EndPairsOf 32809, pairedStop resent, kill cam ended, blow dropped)
   kCannotPair: then the same action with no target, the engine's own second try (42350): a plain swing
 a replay onto a game's own player waits for the host's answer (PairClaims): claimed plays (its own kill move yields),
-  refused is never played; onto an NPC still its own: never paired there (ClaimedAway)
+  refused is never played, on any game; onto an NPC still its own: never paired there (ClaimedAway)
+answers are kept by the action's tick (8 per actor): a replay behind its owner still finds an earlier one
+a player joining during a lend gets the NPC from the host's records (HostCharacters, as a ridden mount)
+releasing a hold drops its counted kills: a death is only ever the hand-back's word
 every non-claimer game pairs the attacker's copy with the lent NPC's copy itself (an instance here, LentPartner):
   the NPC's copy has no stream to replay (its half never went out, its new owner gives no point in the instance)
 the host's game takes the NPC back once its own copy's clip sent KillActor (1.5 s at most), then kills it
@@ -446,11 +450,15 @@ Changes from the plan above, each from what was read:
   (now `AnimationSystem::YieldPair`, also what a refusal runs). The manual `PairEnd` for a passenger who drives on
   stays (4a measured it).
 - Mounts keep their own messages; the hand-back's wait and the take-over are shared (`CharacterService::QueueTakeOver`).
-- Tests: HostAuthorityTests `[pairs]` (5), GameTests `[pair-claim]` (6: the lend, the host's two copies paired, the
+- Review round (PR #85): answers by tick, a refusal skipped on a watching game too, the join snapshot, a summon
+  refused, `KillMoveEnd`'s kill counted and a hold's counted kills dropped on release, each with a test that failed
+  first. A held blow is dropped only with its victim in the attacker's own pair (its killer, 38613), not in
+  its own yielded clip.
+- Tests: HostAuthorityTests `[pairs]` (6), GameTests `[pair-claim]` (9: the lend, the host's two copies paired, the
   host's kill with its credit, a taken-back NPC can die, two guests on one NPC, the frozen NPC's plain swing, a claimer
-  leaving, a short crossed winner's blow), the crossed flows of `[friendly-fire][kill-move]`, ClientTests
-  `[replay-state]`. The fake learned: the scripted deferred kill (kept by a released copy, a held kill counted, its
-  end's kill on the task queue), `KillActor`'s partner credit, a victim's clip's `KillActor` and an attacker's
+  leaving, a short crossed winner's blow, a refusal on a watching game, a kill at the clip's end, a summon), the crossed flows of `[friendly-fire][kill-move]`, ClientTests
+  `[replay-state]`. The fake learned: the scripted deferred kill (kept by a released copy, a held kill counted and
+  dropped by our release), `KillActor`'s partner credit, a victim's clip's `KillActor` and an attacker's
   `KillMoveEnd`, a forwarded hit on a held victim refused, "already paired" meaning in a pair (not the flag a record
   sets), our hook's rule for a copy's half, and the plain second try.
 - On the duo (2026-11-20): `client-kill-move`, `host-kill-move`, `kill-moves-cross` pass; `frozen-wolf-kill-move` 3

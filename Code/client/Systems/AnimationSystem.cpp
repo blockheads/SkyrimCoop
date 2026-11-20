@@ -142,18 +142,17 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 const bool cPartnerPlayer = pPartner && pPartner->GetExtension()->IsPlayer();
                 const auto cClaim = cKillMove ? aWorld.GetPairClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), action.Tick)
                                               : ReplayState::PairClaim::kNotNeeded;
-                // A kill move on an NPC still this game's: the host's answer makes it a copy, or the pair is refused.
-                if (pPartner && ReplayState::ClaimedAway(cKillMove, pPartner->GetExtension()->IsCopy(), cPartnerPlayer))
+                // Refused, its claimer ended it; on an NPC still this game's, it waits for the host's answer.
+                const auto cOutcome = ReplayState::ClaimOutcome(
+                    cClaim, pPartner && ReplayState::ClaimedAway(cKillMove, pPartner->GetExtension()->IsCopy(), cPartnerPlayer));
+                if (cOutcome == ReplayState::PairOutcome::kWait)
+                    return;
+                if (cOutcome == ReplayState::PairOutcome::kSkip)
                 {
-                    if (cClaim == ReplayState::PairClaim::kUnknown)
-                        return;
-                    if (cClaim == ReplayState::PairClaim::kRefused)
-                    {
-                        actions.pop_front();
-                        aAnimationComponent.LastRanAction = action;
-                        apActor->GetExtension()->LatestAnimation.Write(action);
-                        continue;
-                    }
+                    actions.pop_front();
+                    aAnimationComponent.LastRanAction = action;
+                    apActor->GetExtension()->LatestAnimation.Write(action);
+                    continue;
                 }
                 const bool cPartnerCopy = pPartner && pPartner->GetExtension()->IsCopy();
                 if (!ReplayState::PairOnStream(cPartnerCopy, ReplayState::LentPartner(cKillMove, cClaim, cPartnerCopy, cPartnerPlayer)))
@@ -308,31 +307,28 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         // the copy's get-up before the action. Paired actions also start here, with a partner this game owns.
         auto* pPartner = first.TargetEventName.empty() ? nullptr : Cast<Actor>(TESForm::GetById(first.TargetId));
         const bool cKillMove = ReplayState::EntersKillMove(first.EventName);
-        // A kill move on an NPC still this game's: the host's answer makes it a copy, or the pair is never played here.
-        if (pPartner && ReplayState::ClaimedAway(cKillMove, pPartner->GetExtension()->IsCopy(), pPartner->GetExtension()->IsPlayer()))
+        // Refused, its claimer ended it; on an NPC still this game's, it waits for the host's answer.
+        const auto cClaim = cKillMove ? aWorld.GetPairClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), first.Tick)
+                                      : ReplayState::PairClaim::kNotNeeded;
+        const auto cClaimOutcome = ReplayState::ClaimOutcome(
+            cClaim, pPartner && ReplayState::ClaimedAway(cKillMove, pPartner->GetExtension()->IsCopy(), pPartner->GetExtension()->IsPlayer()));
+        if (cClaimOutcome == ReplayState::PairOutcome::kWait)
+            return;
+        if (cClaimOutcome == ReplayState::PairOutcome::kSkip)
         {
-            const auto cClaim = aWorld.GetPairClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), first.Tick);
-            if (cClaim == ReplayState::PairClaim::kUnknown)
-                return;
-            if (cClaim == ReplayState::PairClaim::kRefused)
-            {
-                spdlog::debug("Copy {:X}: kill move '{}' on {:X} not played, its claim refused", apActor->formID, first.EventName, pPartner->formID);
-                aAnimationComponent.LastRanAction = first;
-                apActor->GetExtension()->LatestAnimation.Write(first);
-                actions.pop_front();
-                return;
-            }
+            spdlog::debug("Copy {:X}: kill move '{}' not played, its claim refused", apActor->formID, first.EventName);
+            aAnimationComponent.LastRanAction = first;
+            apActor->GetExtension()->LatestAnimation.Write(first);
+            actions.pop_front();
+            return;
         }
         const bool cPartnerCopy = pPartner && pPartner->GetExtension()->IsCopy();
-        const bool cLent = pPartner && ReplayState::LentPartner(cKillMove, aWorld.GetPairClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), first.Tick),
-                                                                cPartnerCopy, pPartner->GetExtension()->IsPlayer());
+        const bool cLent = pPartner && ReplayState::LentPartner(cKillMove, cClaim, cPartnerCopy, pPartner->GetExtension()->IsPlayer());
         const bool cLocalPartner = pPartner && ReplayState::PairsHere(cPartnerCopy, pPartner->IsMount(), pPartner->GetExtension()->IsPlayer(), cKillMove, cLent);
         step.PairHere = cLocalPartner;
         if (cLocalPartner && !cLent)
         {
             // A kill move on this game's player goes by the host's answer to its claim (HostPairs).
-            const auto cClaim = cKillMove ? aWorld.GetPairClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), first.Tick)
-                                          : ReplayState::PairClaim::kNotNeeded;
             const auto cOutcome = ReplayState::SettlePairedReplay(pPartner->IsInKillMove(), cClaim);
             if (cOutcome == ReplayState::PairOutcome::kWait)
                 return;

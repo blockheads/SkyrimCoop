@@ -1,4 +1,5 @@
 #include <catch2/catch.hpp>
+#include <Games/Animation/PairClaims.h>
 #include <Games/Animation/ReplayState.h>
 
 TEST_CASE("A replayed pair on this game's player goes by the host's answer to its claim", "[copies][replay-state][kill-move]")
@@ -191,4 +192,33 @@ TEST_CASE("A copy takes its half of a pair this game plays, and no other action 
     CHECK(CopyTakesAction(true, false, false));
     CHECK(CopyTakesAction(false, true, false));
     CHECK(CopyTakesAction(false, false, true)); // a lent NPC's half, both copies here
+}
+
+TEST_CASE("A copy's replay behind its owner still finds the answer to an earlier claim", "[copies][replay-state][kill-move]")
+{
+    using ReplayState::PairClaim;
+    PairClaims claims;
+    // Two kill moves answered before the copy here played the first.
+    claims.Set(7, {9, 100, false});
+    claims.Set(7, {9, 200, true});
+    CHECK(claims.Of(7, 100) == PairClaim::kRefused);
+    CHECK(claims.Of(7, 200) == PairClaim::kClaimed);
+    CHECK(claims.Of(7, 300) == PairClaim::kUnknown);
+    CHECK(claims.Holds(7, 9));
+    claims.Done(7);
+    CHECK(claims.Of(7, 200) == PairClaim::kRefused);
+    CHECK_FALSE(claims.Holds(7, 9));
+}
+
+TEST_CASE("A refused kill move is skipped on every game; one on an NPC still this game's waits for its answer", "[copies][replay-state][kill-move]")
+{
+    using namespace ReplayState;
+    // Two copies here (a spectator): refused, never entered.
+    CHECK(ClaimOutcome(PairClaim::kRefused, false) == PairOutcome::kSkip);
+    CHECK(ClaimOutcome(PairClaim::kUnknown, false) == PairOutcome::kPlay);
+    CHECK(ClaimOutcome(PairClaim::kClaimed, false) == PairOutcome::kPlay);
+    CHECK(ClaimOutcome(PairClaim::kNotNeeded, false) == PairOutcome::kPlay);
+    CHECK(ClaimOutcome(PairClaim::kRefused, true) == PairOutcome::kSkip);
+    CHECK(ClaimOutcome(PairClaim::kUnknown, true) == PairOutcome::kWait);
+    CHECK(ClaimOutcome(PairClaim::kClaimed, true) == PairOutcome::kPlay);
 }

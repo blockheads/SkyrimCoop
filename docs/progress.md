@@ -58,7 +58,9 @@ dead), the engine's own plain second swing (42350, read). Every other game pairs
 pair's forwarded blow waits on the victim's game for the pair (closes "a short winner's blow lands first"). Also: a
 copy taken back keeps no deferred kill (no engine path ends a scripted one: read, all 38618 callers). On the duo
 `client-kill-move`, `host-kill-move`, `kill-moves-cross` and `frozen-wolf-kill-move` pass (kill-moves.md, "Claimed
-pairs"). Left for a player victim: the old rules (`PairMarkClear`, `ContactKills`, `HeldByPair`, the yield).
+pairs"). Left for a player victim: the old rules (`PairMarkClear`, `ContactKills`, `HeldByPair`, the yield). Review
+round (PR #85): "killed" is the engine's counted kill (`KillMoveEnd` 38614 kills too, read), a released hold drops
+it, a refusal is skipped on watching games, a player joining mid-lend gets the NPC, summons are refused.
 
 2026-11-19: **a mount handed back between pairs, piece 4a of one-simulator.md, built** (`agent/piece-4`): the horse
 stuck in its rider's exit pair after a hand-back (PR #80 sent it `PairEnd` by hand) came from the rider's last graph ops,

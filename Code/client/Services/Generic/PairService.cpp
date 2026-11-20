@@ -93,6 +93,13 @@ void PairService::OnClaim(const NotifyPairClaim& acMessage) noexcept
         // The NPC is this game's for the pair. Its kill stays held: its death is the host's.
         own.Granted = true;
         own.Lent = m_world.all_of<RemoteComponent>(cPartner) && characters.TakeOwnership(cFormId, acMessage.PartnerId, cPartner, true);
+        // Not takeable here (a player's summon): the pair ends and the NPC goes back at once.
+        if (!own.Lent && m_world.all_of<RemoteComponent>(cPartner))
+        {
+            spdlog::warn("Pair of {:X} with {:X} granted, but its partner cannot be this game's: ended here", own.ActorFormId, cFormId);
+            m_actorBridge.ActorYieldPair(own.ActorFormId, cFormId);
+            SendDone(own, acMessage.Tick);
+        }
         return;
     }
     // Another game's pair with this game's NPC (the host's): its claimer's game simulates it for the pair.
@@ -153,7 +160,8 @@ void PairService::SendDone(Own& aOwn, uint64_t aTick) noexcept
     request.ActorId = aOwn.ActorId;
     request.PartnerId = aOwn.PartnerId;
     request.Tick = aTick;
-    request.Killed = aOwn.Lent && aOwn.Killed;
+    // Its KillActor came, or KillMoveEnd's kill was counted under the hold (38614, 38617).
+    request.Killed = aOwn.Lent && (aOwn.Killed || m_actorBridge.ActorKillCounted(aOwn.PartnerFormId));
     // Giving the partner up drops its unsent graph ops: they go first (mounts.md, "A horse handed back between pairs").
     if (aOwn.Lent)
         m_world.GetCharacterService().SendGraphStream();

@@ -499,13 +499,6 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 
 void FakeEngine::Frame()
 {
-    // The task queue's kills (task 10, KillImpl): one already dead is left as it is (37896's IsDead test).
-    for (const uint32_t cId : std::exchange(QueuedKills, {}))
-        if (const auto it = Actors.find(cId); it != Actors.end() && !it->second.Dead)
-        {
-            it->second.KilledBy = kPlayer;
-            KillActor(cId);
-        }
     for (const auto [cRider, cMount] : std::map(std::exchange(MountRetryOf, {})))
         ActivateMount(cRider, cMount);
     for (auto it = DismountIn.begin(); it != DismountIn.end();)
@@ -1572,9 +1565,9 @@ void FakeEngine::ActorHoldKill(uint32_t aFormId, bool aHold) noexcept
     if (it == Actors.end())
         return;
     it->second.KillHeld = aHold;
-    // The hold ended over a counted kill: queued on the task queue, credited to this game's player (40036, 37316).
-    if (!aHold && std::exchange(it->second.KillCounted, false))
-        QueuedKills.push_back(aFormId);
+    // Released: the counted kill dropped first, so 40036 queues none (Actor::HoldKill).
+    if (!aHold)
+        it->second.KillCounted = false;
 }
 
 void FakeEngine::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
@@ -1582,7 +1575,6 @@ void FakeEngine::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
     const auto it = Actors.find(aFormId);
     if (it == Actors.end() || it->second.Dead)
         return;
-    // KillImpl with its killer before the kill the hold's end queued runs: that one finds it dead (37896).
     it->second.KillHeld = it->second.KillCounted = false;
     it->second.PoseHeldUntil = 0;
     it->second.KilledBy = aKillerFormId;

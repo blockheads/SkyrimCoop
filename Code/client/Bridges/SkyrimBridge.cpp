@@ -1822,6 +1822,12 @@ void SkyrimBridge::ActorHoldKill(uint32_t aFormId, bool aHold) noexcept
         pActor->HoldKill(aHold);
 }
 
+bool SkyrimBridge::ActorKillCounted(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->KillCounted();
+}
+
 void SkyrimBridge::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
 {
     Breadcrumbs::Record("KillActorBy", aFormId, aKillerFormId);
@@ -1848,7 +1854,7 @@ bool SkyrimBridge::ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noe
 bool SkyrimBridge::ActorCanPair(uint32_t aFormId) const noexcept
 {
     const Actor* pActor = GetActor(aFormId);
-    return pActor && !pActor->IsDead() && (pActor->flags1 & Actor::kProcessMe) != 0;
+    return pActor && !pActor->IsDead() && (pActor->flags1 & Actor::kProcessMe) != 0 && !pActor->IsPlayerSummon();
 }
 
 void SkyrimBridge::SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept

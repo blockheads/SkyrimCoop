@@ -406,7 +406,9 @@ SCENARIO("A yielded clip that drops pairedStop never lands its blow", "[combat][
     CrossKillMoves(party, true, 5, cDropped);
     if (cDropped < ReplayState::cClashStopUpdates)
         CHECK(guest.Actors.at(FakeEngine::kPlayer).InKillMove); // its clip left, so the winner's pair could play
-    party.Until([&] { return !host.IsPlayerAlive() || !guest.IsPlayerAlive(); }, "a blow lands");
+    // A clip that outlasts the resends: the winner's held blow lands as its claim ends, at its clip's KillMoveEnd
+    // (4 x PairBlowFrames after its blow), more frames than 2 s holds under load.
+    party.Until([&] { return !host.IsPlayerAlive() || !guest.IsPlayerAlive(); }, "a blow lands", {}, nullptr, std::chrono::seconds(20));
     CHECK(host.IsPlayerAlive());
     CHECK_FALSE(guest.IsPlayerAlive());
 }

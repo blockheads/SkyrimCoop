@@ -1223,9 +1223,20 @@ void Actor::HoldKill(bool aHold) noexcept
 {
     GetExtension()->KillHeld.store(aHold, std::memory_order_relaxed);
     if (aHold)
+    {
         StartDeferredKill();
-    else
-        EndDeferredKill();
+        return;
+    }
+    // A death is its owner's word: a kill counted meanwhile is not queued for the player (40036).
+    if (auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr; pMiddle && pMiddle->deferredKill > 1)
+        pMiddle->deferredKill = 1;
+    EndDeferredKill();
+}
+
+bool Actor::KillCounted() const noexcept
+{
+    const auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr;
+    return pMiddle && pMiddle->deferredKill > 1;
 }
 
 void Actor::KillBy(Actor* apKiller) noexcept

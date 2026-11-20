@@ -404,7 +404,9 @@ void ActorValueService::RunHeldBlows() noexcept
         const uint32_t cFormId = Utils::GetFormIdBySessionId(acBlow.Id);
         if (!cFormId)
             return true;
-        if (m_actorBridge.GetActorStateFields(cFormId).InKillMove)
+        // In the attacker's own pair here (its killer, 38613), not its own yielded clip: the pair's clip kills.
+        const auto cState = m_actorBridge.GetActorStateFields(cFormId);
+        if (cState.InKillMove && cState.KillerFormId && cState.KillerFormId == Utils::GetFormIdBySessionId(acBlow.AttackerId))
         {
             spdlog::debug("Forwarded hit on {:X}: its claimed kill move's blow, dropped (the pair's clip kills)", cFormId);
             return true;

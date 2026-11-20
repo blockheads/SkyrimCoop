@@ -23,13 +23,8 @@ constexpr bool TakesOwnerBodies(bool aLiesInRagdoll, bool aInKillMove) noexcept
     return !aLiesInRagdoll && !aInKillMove;
 }
 
-// A copy's owner's pair, at its half's action: the copy stays on its stream when its partner on this game is a copy
-// too (no instance here, 32803: each replays its own stream, its clip's wait at the mark its owner's pick), a kill
-// move's or a mount's alike (an action writes nothing a mount's beside the graph, 39004). Its partner this game's own
-// actor, or not here: the instance is on this game or there is none to follow, and its half is its own body's.
-// A claimed pair's NPC partner (aPartnerLent) has no stream to replay: its new owner gives no sync point inside the
-// instance, and its half never went out as an action (it was a copy then). The pair plays here, as with this game's
-// own actor.
+// A copy's owner's pair: on its stream with a copy partner here, but a lent one, which has no stream to replay
+// (kill-moves.md, "Claimed pairs"). A partner this game's own, or not here: its half is its own body's.
 constexpr bool PairOnStream(bool aPartnerIsCopy, bool aPartnerLent = false) noexcept
 {
     return aPartnerIsCopy && !aPartnerLent;
@@ -175,6 +170,15 @@ constexpr PairOutcome SettlePairedReplay(bool aPartnerInKillMove, PairClaim aCla
     if (!aPartnerInKillMove)
         return PairOutcome::kPlay;
     return aClaim == PairClaim::kClaimed ? PairOutcome::kYield : PairOutcome::kSkip;
+}
+
+// A kill move replayed on any game by its claim: refused, its claimer ended it (every game skips it); claimed away
+// (ClaimedAway) and not answered yet, it waits; else on.
+constexpr PairOutcome ClaimOutcome(PairClaim aClaim, bool aClaimedAway) noexcept
+{
+    if (aClaim == PairClaim::kRefused)
+        return PairOutcome::kSkip;
+    return aClaimedAway && aClaim == PairClaim::kUnknown ? PairOutcome::kWait : PairOutcome::kPlay;
 }
 
 // A kill move replayed on an NPC this game owns is never paired here: its claim makes the NPC the claimer's game's
