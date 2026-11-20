@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-20: **passengers sit at once, piece 5 of one-simulator.md, built** (`agent/piece-5`). A player boarding a
+horse another player drives asks the host first (`BoardRequest`); the host's yes (`NotifyBoard`, to it alone) seats it
+with the engine's own quick get-on, the one a loaded save uses: `PutOnMount`, then `Actor::PutActorOnMountQuick`
+(vfunc 0xAC: 38704 resume, IDLE `EnterHorseInstant` under `IsEnteringInteractionQuick`, 39004 sit state 3,
+`SeatRider`), with no paired clip and nothing for the horse (read in IDA; player-mount.md, "Sitting at once"). Its
+copies are seated by its record's Ride part (`RecordKind::kRide`), once the horse is here and its stream reaches that
+frame; a joiner gets it on the spawn. Gone: the slot emptying and engine get-on, `SeatsAtHoldEnd`, `SkipsMountEntry`,
+the pending boards. `party-shares-a-horse` allows the one pop to the saddle and fails on any `HorseEnter` while a
+passenger boards. Tests: GameTests `[passengers]` (quick seat, a refused board, a joiner), HostAuthorityTests
+`[passengers]`, the Ride part's round trip.
+
 2026-11-20: **kill moves as claimed pairs, piece 4b of one-simulator.md, built** (`agent/piece-4b`; PRs #73 and #75
 folded in). A kill move a game's own actor starts on another game's actor is claimed through the host
 (an action claim, `HostClaims`): the first claim on either actor holds. A host NPC is then the claimer's game's for the pair, keeping

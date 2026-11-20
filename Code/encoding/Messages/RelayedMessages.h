@@ -72,7 +72,7 @@ using NotifyActorName = Relayed<Payloads::ActorName, kNotifyActorName>;
 using NotifyMount = Relayed<Payloads::Mount, kNotifyMount>;
 // To a game whose player boarded a horse nobody else drives: its player gets off.
 using NotifyMountRefused = Relayed<Payloads::Mount, kNotifyMountRefused>;
-// A player got on a horse another player drives, as a passenger; NotifyBoard: its copy seated on every other game.
+// A player asks for a seat on a horse another player drives; NotifyBoard: the host gave it one (its game seats it).
 using BoardRequest = Relayed<Payloads::Mount, kBoardRequest>;
 using NotifyBoard = Relayed<Payloads::Mount, kNotifyBoard>;
 // A passenger got off (the host's rule alone).

@@ -961,6 +961,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A mount's one ExtraInteraction (12074): its first rider's; any rider's Detach (41539) empties it, and a ridden
     // one is what ActivateMount (37864) and CanRide (38706) refuse (player-mount.md).
     std::map<uint32_t, uint32_t> MountSlots;
+    // Riders SeatRider (40358) ran for: 41533, a quick get-on. Its REFRSyncController (20318) carries their reference;
+    // a linked copy at sit state 3 without it stayed where it got on (the duo, 2026-11-20).
+    std::set<uint32_t> SeatedRiders;
     // Mounts the player steers: its own get-on's, or a passenger's handed the reins (PlayerTakeReins). Skyrim, probe
     // 4c: the driver's ride ending leaves the horse on the driver's package, the passenger steering nothing.
     std::map<uint32_t, uint32_t> Reins;
@@ -1527,7 +1530,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
     bool IsPlayerMounted() const noexcept override { return Mounts.contains(kPlayer); }
     void PlayerStopRiding() noexcept override { StopRiding(kPlayer); }
-    bool PlayerBoardMount(uint32_t aMount) noexcept override;
+    bool PlayerSitOnMountQuick(uint32_t aMount) noexcept override;
     void PlayerTakeReins(uint32_t aMount) noexcept override
     {
         ActorEndMountPair(aMount); // SkyrimBridge::PlayerTakeReins sends PairEnd too

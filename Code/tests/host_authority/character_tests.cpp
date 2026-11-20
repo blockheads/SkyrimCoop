@@ -1,6 +1,7 @@
 // HostCharacters: ids, owners, spawns, removal and respawn.
 #include "session.h"
 #include <Structs/ItemsPart.h>
+#include <Structs/RidePart.h>
 
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyPartyTravel.h>
@@ -1022,18 +1023,17 @@ struct Ride
 };
 } // namespace
 
-TEST_CASE("Mounts: a player boards a horse another player drives, its copy seated on the other games", "[HostAuthority][Characters][passengers]")
+TEST_CASE("Mounts: a player boards a horse another player drives: its game is given the seat", "[HostAuthority][Characters][passengers]")
 {
     Ride ride;
     ride.Board();
     CHECK(ride.session.SentTo<NotifyMountRefused>(kOtherPeer).empty());
-    CHECK(ride.session.SentTo<NotifyBoard>(kOtherPeer).empty());
+    // Only the asker: its game seats it, its Ride part its copies.
+    REQUIRE(ride.session.SentTo<NotifyBoard>(kOtherPeer).size() == 1);
+    CHECK(ride.session.SentTo<NotifyBoard>(kOtherPeer)[0]->RiderId == ride.Passenger);
+    CHECK(ride.session.SentTo<NotifyBoard>(kOtherPeer)[0]->MountId == ride.Horse);
     for (const auto cTo : {kHost, kPeer})
-    {
-        REQUIRE(ride.session.SentTo<NotifyBoard>(cTo).size() == 1);
-        CHECK(ride.session.SentTo<NotifyBoard>(cTo)[0]->RiderId == ride.Passenger);
-        CHECK(ride.session.SentTo<NotifyBoard>(cTo)[0]->MountId == ride.Horse);
-    }
+        CHECK(ride.session.SentTo<NotifyBoard>(cTo).empty());
     // The driver's game still moves it.
     ReferencesMoveRequest moved;
     moved.Updates[ride.Horse] = {};
@@ -1144,6 +1144,10 @@ TEST_CASE("Mounts: the driver leaving hands the horse to its passenger; a late j
 {
     Ride ride;
     ride.Board();
+    RecordRequest seat; // the passenger's game, seated
+    seat.Id = ride.Passenger;
+    seat.Part = {RecordKind::kRide, 1, ToPartBytes(RidePart{1, ride.Horse})};
+    ride.session.Receive(kOtherPeer, seat);
     constexpr ConnectionId_t cLate = 4;
     ride.session.Join(cLate, JoinRequest("Serana"));
     AnnounceCharacterRequest late;
@@ -1151,8 +1155,13 @@ TEST_CASE("Mounts: the driver leaving hands the horse to its passenger; a late j
     late.ReferenceId = GameId(0, 0x14);
     ride.session.Receive(cLate, late);
     REQUIRE(ride.session.SentTo<NotifyMount>(cLate).size() == 1);
-    REQUIRE(ride.session.SentTo<NotifyBoard>(cLate).size() == 1);
-    CHECK(ride.session.SentTo<NotifyBoard>(cLate)[0]->RiderId == ride.Passenger);
+    CHECK(ride.session.SentTo<NotifyBoard>(cLate).empty());
+    bool seated = false; // its Ride part, on the passenger's spawn
+    for (const auto* cpSpawn : ride.session.SentTo<NotifyCharacterSpawn>(cLate))
+        if (cpSpawn->SessionId == ride.Passenger)
+            if (const RecordPart* cpRide = cpSpawn->Record.Find(RecordKind::kRide))
+                seated = cpRide->Bytes == seat.Part.Bytes;
+    CHECK(seated);
 
     ride.session.Outbox.clear();
     ride.session.Leave(kPeer);

@@ -956,10 +956,17 @@ void Actor::SeatOnMount(Actor* apMount) noexcept
 {
     using TSeated = void(Actor*);
     POINTER_SKYRIMSE(TSeated, s_onSeated, 41533);
-    if (!PutOnMount(apMount))
+    const RefrInteraction* pLink = GetOwnInteraction();
+    const bool cLinked = pLink && TESObjectREFR::GetByHandle(pLink->actorHandle) == this && TESObjectREFR::GetByHandle(pLink->targetHandle) == apMount;
+    if (!cLinked && !PutOnMount(apMount))
         return;
     actorState.SetSitSleepStateFlags(3);
     s_onSeated(this);
+}
+
+bool Actor::SitOnMountQuick(Actor* apMount) noexcept
+{
+    return PutOnMount(apMount) && PutActorOnMountQuick();
 }
 
 RefrInteraction* Actor::GetOwnInteraction() const noexcept

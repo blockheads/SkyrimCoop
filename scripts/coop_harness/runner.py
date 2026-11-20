@@ -6,6 +6,7 @@ import json
 import random
 import sys
 import time
+import traceback
 import uuid
 from .common import (
     BOOT_FILE,
@@ -186,6 +187,8 @@ class Runner:
                     action()
                 except BaseException as error:
                     failures.append((getattr(error, "phase", None) or phase, error))
+                    if not isinstance(error, (TestFailure, KeyboardInterrupt)):
+                        log("harness error, not a check:\n" + "".join(traceback.format_exception(error)[-6:]).rstrip())
                     original_step = dict(ctx.CURRENT_STEP)
                     try:
                         ctx.keep_failure(name, error)

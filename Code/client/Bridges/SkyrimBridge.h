@@ -267,7 +267,7 @@ public:
     bool IsPlayerAlive() const noexcept override;
     bool IsPlayerMounted() const noexcept override;
     void PlayerStopRiding() noexcept override;
-    bool PlayerBoardMount(uint32_t aMountFormId) noexcept override;
+    bool PlayerSitOnMountQuick(uint32_t aMountFormId) noexcept override;
     void PlayerTakeReins(uint32_t aMountFormId) noexcept override;
     void HoldPlayerDeathReload(bool aHold) noexcept override;
     void RevivePlayer() noexcept override;

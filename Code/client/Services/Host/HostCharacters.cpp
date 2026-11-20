@@ -248,9 +248,10 @@ void HostCharacters::OnBoard(const BoardRequest& acRequest, ConnectionId_t aSend
     if (std::ranges::find(passengers, acRequest.RiderId) == passengers.end())
         passengers.push_back(acRequest.RiderId);
     spdlog::info("HostCharacters: {:x} rides along on {:x}, {:x} driving", acRequest.RiderId, acRequest.MountId, cMount->second.Rider);
+    // Its game seats it; its Ride part seats its copies (CharacterService).
     NotifyBoard notify;
     static_cast<Payloads::Mount&>(notify) = acRequest;
-    m_players.SendToOthers(notify, aSender, Net::kReliable);
+    m_network.Send(aSender, notify, Net::kReliable);
 }
 
 void HostCharacters::OnUnboard(const UnboardRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -316,14 +317,7 @@ void HostCharacters::SendRides(ConnectionId_t aPlayer) const noexcept
             NotifyMount notify;
             notify.RiderId = cCharacter.Rider;
             notify.MountId = cSessionId;
-            m_network.Send(aPlayer, notify, Net::kReliable);
-            for (const uint32_t cPassenger : cCharacter.Passengers)
-            {
-                NotifyBoard board;
-                board.RiderId = cPassenger;
-                board.MountId = cSessionId;
-                m_network.Send(aPlayer, board, Net::kReliable);
-            }
+            m_network.Send(aPlayer, notify, Net::kReliable); // passengers: their Ride parts, on their spawns
         }
 }
 

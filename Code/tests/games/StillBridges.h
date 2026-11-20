@@ -65,7 +65,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     }
     bool IsPlayerMounted() const noexcept override { return false; }
     void PlayerStopRiding() noexcept override {}
-    bool PlayerBoardMount(uint32_t) noexcept override { return false; }
+    bool PlayerSitOnMountQuick(uint32_t) noexcept override { return false; }
     void PlayerTakeReins(uint32_t) noexcept override {}
     bool IsPlayerAlive() const noexcept override
     {

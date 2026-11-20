@@ -215,9 +215,12 @@ private:
     std::unordered_set<uint32_t> m_partyMounts; // session ids: ridden by a player, kept through cell loads
     std::unordered_map<uint32_t, uint32_t> m_pendingRides; // mount -> rider session ids, heard before both copies were made
     void LinkPendingRides(uint32_t aSessionId) noexcept;
-    uint32_t m_boardedMount{}; // session id: our player rides along on it
+    uint32_t m_boardedMount{};  // session id: our player rides along on it
+    uint32_t m_boardingMount{}; // session id: asked the host for a seat on it
     std::unordered_map<uint32_t, uint32_t> m_drivers; // mount -> its driver, session ids
-    std::unordered_map<uint32_t, uint32_t> m_pendingBoards; // passenger -> mount, heard before both copies were made
+    std::unordered_set<uint32_t> m_dueRides; // session ids: a Ride part waiting for its copy's stream
+    void LeaveBoard() noexcept;
+    std::vector<uint32_t> ApplyRide(uint32_t aId, const std::string& acBytes) noexcept;
     // Any rider's Detach empties its mount's one slot: the driver still on holds it again.
     void KeepDriverOn(const DismountEvent& acEvent) noexcept;
     [[nodiscard]] uint32_t FormOfSession(uint32_t aSessionId) const noexcept;

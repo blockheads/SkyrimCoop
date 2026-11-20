@@ -104,6 +104,7 @@ World::World()
     // In the real World's order: TravelService before CharacterService.
     ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                  ctx().at<IPlayerBridge&>());
+    ctx().emplace<CopyRecords>(); // before CharacterService: its Ride part
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                     ctx().at<IPlayerBridge&>());
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
@@ -118,7 +119,6 @@ World::World()
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<PerkService>(m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<CopyRecords>();
     ctx().emplace<CopyRecordsService>(*this, m_dispatcher, m_transport, ctx().at<CopyRecords>());
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
     ctx().emplace<ActorStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
@@ -199,7 +199,6 @@ World::~World()
     ctx().erase<ActorStateService>();
     ctx().erase<AiStateService>();
     ctx().erase<CopyRecordsService>();
-    ctx().erase<CopyRecords>();
     ctx().erase<EffectVisualsService>();
     ctx().erase<MagicService>();
     ctx().erase<ActorValueService>();
@@ -210,6 +209,7 @@ World::~World()
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
     ctx().erase<CharacterService>();
+    ctx().erase<CopyRecords>();
     ctx().erase<TravelService>();
 }
 
@@ -277,13 +277,6 @@ void World::Update() noexcept
             while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             {
                 const ActionEvent cAction = animation.TimePoints.front();
-                if (::ReplayState::SkipsMountEntry(cAction.EventName, engine.SitState(form.Id))) // as AnimationSystem
-                {
-                    animation.TimePoints.pop_front();
-                    animation.LastRanAction = cAction;
-                    engine.SetActorLatestAnimation(form.Id, cAction);
-                    continue;
-                }
                 // Its death on its stream: the kill beside the graph, its death's clip its stream's (AnimationSystem).
                 if (DeathActions::IsDying(cAction.State1) && !actor.Dead)
                     engine.KillBesideGraph(form.Id, cAction);
@@ -398,13 +391,6 @@ void World::Update() noexcept
         }
         if (actor.GraphState == "dead" || actor.GraphState == "recovering")
         {
-            animation.TimePoints.pop_front();
-            continue;
-        }
-        if (::ReplayState::SkipsMountEntry(action.EventName, engine.SitState(form.Id))) // as AnimationSystem
-        {
-            animation.LastRanAction = action;
-            engine.SetActorLatestAnimation(form.Id, action);
             animation.TimePoints.pop_front();
             continue;
         }

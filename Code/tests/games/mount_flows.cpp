@@ -459,17 +459,11 @@ struct Passenger
                 hostOnGuest = cId;
         party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, horse); });
         party.Until([&] { return guest.GetActorMount(hostOnGuest) == guestHorse; }, "the guest sees the host riding");
-        // Its owner's get-on pair holds it off its stream on the host (PairOnStream) until the pair ends.
-        auto& streams = party.Host().GetGraphStreams();
-        party.As(party.Host(), [&] { streams.HoldWhile(guestOnHost, true); });
         party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, guestHorse); });
-        party.Until([&] { return host.GetActorMount(guestOnHost) == horse; }, "the host's copy of the guest is linked to the horse");
-        // Linked, not seated: popped onto the saddle at once it played its whole get-on up there (the duo, 174 units).
-        for (int i = 0; i < 5; ++i)
-            party.Frame();
-        REQUIRE(host.SitState(guestOnHost) == ::ReplayState::kSitGettingOn);
-        party.As(party.Host(), [&] { streams.HoldWhile(guestOnHost, false); });
-        party.Until([&] { return host.SitState(guestOnHost) == ::ReplayState::kSitSeated; }, "its hold's end seats it");
+        // The host's yes seats it at once (PutActorOnMountQuick); its Ride part seats its copy (player-mount.md).
+        party.Until([&] { return guest.SitState(FakeEngine::kPlayer) == ::ReplayState::kSitSeated &&
+                                 host.GetActorMount(guestOnHost) == horse && host.SitState(guestOnHost) == ::ReplayState::kSitSeated; },
+                    "the guest is seated on both games");
     }
 };
 } // namespace
@@ -508,24 +502,114 @@ TEST_CASE("A guest boards the horse the host drives: seated on both games, the h
         }
         CHECK(copy.Movements > cBefore);
         CHECK(ride.host.SitState(ride.guestOnHost) == 4); // its clip's to end (ChairFurnitureExitHandler 42835)
-        // Seated again for the steps below (as NotifyBoard does).
-        ride.party.As(ride.party.Host(), [&] { ride.host.ActorSeatOnMount(ride.guestOnHost, ride.horse); });
     }
 
-    // Its owner's get-on replayed after: 39004 would set sit state 2, and no horse half would end the clip.
-    ActionEvent enter;
-    enter.ActionId = 0x13007;
-    enter.EventName = "HorseEnter";
-    enter.TargetEventName = "HorseEnterPartner";
-    enter.TargetId = ride.guestHorse;
-    ride.party.As(ride.party.Guest(), [&] {
-        auto& player = ride.guest.Actors.at(FakeEngine::kPlayer);
-        player.State1 = (player.State1 & ~(0xFu << FakeEngine::kSitShift)) | 2u << FakeEngine::kSitShift;
-        ride.guest.PerformAnimation(FakeEngine::kPlayer, enter);
+}
+
+TEST_CASE("A passenger sits at once: no get-on clip on any game, the driver keeps its horse", "[mounts][passengers]")
+{
+    Passenger ride;
+    // The engine's quick get-on (IDLE EnterHorseInstant): no HorseEnter, no pair with the horse (player-mount.md).
+    CHECK(ride.guest.GetActorLatestAnimation(FakeEngine::kPlayer).EventName == "HorseEnterInstant");
+    ride.party.Until([&] { return ride.host.GetActorLatestAnimation(ride.guestOnHost).EventName == "HorseEnterInstant"; },
+                     "the host's copy has its owner's quick get-on");
+    for (int i = 0; i < 10; ++i)
+        ride.party.Frame();
+    CHECK(ride.host.SitState(ride.guestOnHost) == ::ReplayState::kSitSeated);
+    CHECK(ride.host.SeatedRiders.contains(ride.guestOnHost)); // its reference rides along (20318)
+    CHECK(ride.guest.SeatedRiders.contains(FakeEngine::kPlayer));
+    CHECK(ride.guest.MountSlots.at(ride.guestHorse) == ride.hostOnGuest);
+    CHECK(ride.host.MountSlots.at(ride.horse) == FakeEngine::kPlayer);
+    CHECK_FALSE(ride.guest.Synced(ride.guestHorse));
+    CHECK(ride.host.PlayerSteers(ride.horse));
+}
+
+TEST_CASE("A passenger's copy its stream sat first is still seated by its Ride part", "[mounts][passengers]")
+{
+    Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+        aEngine.LoadCell(kCell);
     });
-    ride.party.Until([&] { return ride.host.GetActorLatestAnimation(ride.guestOnHost).EventName == "HorseEnter"; },
-                     "the host's copy has the get-on");
-    CHECK(ride.host.SitState(ride.guestOnHost) == 3);
+    party.Agree("the players are present");
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t horse = 0;
+    party.As(party.Host(), [&] { horse = host.LoadNpc(kHorse, kCell); });
+    party.Until([&] { return guest.CopiesOf(kHorse).size() == 1; }, "the guest has the horse");
+    const uint32_t cHorse = guest.CopiesOf(kHorse)[0];
+    uint32_t guestOnHost = 0;
+    for (const auto& [cId, cActor] : host.Actors)
+        if (cActor.Copy && cActor.Player)
+            guestOnHost = cId;
+    party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, horse); });
+    party.Until([&] { return !guest.Mounts.empty(); }, "the guest sees the host riding");
+    // On the duo its stream's HorseEnterInstant (39004: sit state 3) came before its Ride part was due.
+    party.As(party.Host(), [&] {
+        host.ActorPutOnMount(guestOnHost, horse);
+        auto& copy = host.Actors.at(guestOnHost);
+        copy.State1 = (copy.State1 & ~(0xFu << FakeEngine::kSitShift)) | uint32_t(::ReplayState::kSitSeated) << FakeEngine::kSitShift;
+    });
+    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cHorse); });
+    party.Until([&] { return host.SeatedRiders.contains(guestOnHost); }, "SeatRider ran for the host's copy (its reference rides along, 20318)");
+}
+
+TEST_CASE("A board the host refuses leaves the player standing", "[mounts][passengers]")
+{
+    Party party(1, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+        aEngine.LoadCell(kCell);
+    });
+    party.Agree("the players are present");
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t horse = 0;
+    party.As(party.Host(), [&] { horse = host.LoadNpc(kHorse, kCell); });
+    party.Until([&] { return guest.CopiesOf(kHorse).size() == 1; }, "the guest has the horse");
+    const uint32_t cHorse = guest.CopiesOf(kHorse)[0];
+    party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, horse); });
+    party.Until([&] { return !guest.Mounts.empty(); }, "the guest sees the host riding");
+    // The guest asks as the host's ride ends (no exit clip, 38705): nobody drives it when the host hears the guest.
+    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cHorse); });
+    party.As(party.Host(), [&] { host.EndRide(FakeEngine::kPlayer); });
+    for (int i = 0; i < 20; ++i)
+        party.Frame();
+    CHECK_FALSE(guest.IsPlayerMounted());
+    CHECK(guest.SitState(FakeEngine::kPlayer) == 0);
+    // Asked again, now with the horse its own: a ride of its own.
+    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cHorse); });
+    party.Until([&] { return Owns(party.Guest(), cHorse); }, "the guest rides the horse itself");
+}
+
+TEST_CASE("A guest joining while a passenger rides sees it seated on the horse", "[mounts][passengers][late-ride]")
+{
+    Party party(2, [](FakeEngine& aEngine) {
+        FakeEngine::MountGraph(aEngine);
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+        aEngine.LoadCell(kCell);
+    }, false);
+    party.Join(party.Guest());
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& late = Party::Engine(party.Guest(1));
+    uint32_t horse = 0;
+    party.As(party.Host(), [&] { horse = host.LoadNpc(kHorse, kCell); });
+    party.Until([&] { return guest.CopiesOf(kHorse).size() == 1; }, "the guest has the horse");
+    const uint32_t cHorse = guest.CopiesOf(kHorse)[0];
+    party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, horse); });
+    party.Until([&] { return !guest.Mounts.empty(); }, "the guest sees the host riding");
+    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cHorse); });
+    party.Until([&] { return guest.SitState(FakeEngine::kPlayer) == ::ReplayState::kSitSeated; }, "the guest is a passenger");
+
+    // Its Ride part rides on its spawn; seated once both it and the horse are here (R5).
+    party.Join(party.Guest(1));
+    party.Until([&] { return late.CopiesOf(kHorse).size() == 1 && late.Mounts.size() == 2; }, "both riders are on the late guest's horse",
+                [&] { return std::format("horse copies {}, mounts {}", late.CopiesOf(kHorse).size(), late.Mounts.size()); });
+    for (const auto& [cRider, cMount] : late.Mounts)
+        CHECK(cMount == late.CopiesOf(kHorse)[0]);
+    party.Until([&] { return std::ranges::count_if(late.Mounts, [&](const auto& acRide) { return late.SitState(acRide.first) == ::ReplayState::kSitSeated; }) >= 1; },
+                "the passenger's copy is seated");
 }
 
 TEST_CASE("The driver gets off: the passenger drives, the horse its game's", "[mounts][passengers]")

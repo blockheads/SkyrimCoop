@@ -1418,15 +1418,12 @@ void SkyrimBridge::PlayerStopRiding() noexcept
         pPlayer->StopRidingQuick();
 }
 
-bool SkyrimBridge::PlayerBoardMount(uint32_t aMountFormId) noexcept
+bool SkyrimBridge::PlayerSitOnMountQuick(uint32_t aMountFormId) noexcept
 {
-    Breadcrumbs::Record("PlayerBoardMount", aMountFormId);
+    Breadcrumbs::Record("PlayerSitOnMountQuick", aMountFormId);
     auto* pPlayer = PlayerCharacter::Get();
     Actor* pMount = GetActor(aMountFormId);
-    if (!pPlayer || !pMount)
-        return false;
-    pMount->HoldRider(nullptr, true);
-    return pPlayer->InitiateMountPackage(pMount) || pPlayer->extraData.Contains(ExtraDataType::Interaction);
+    return pPlayer && pMount && pPlayer->SitOnMountQuick(pMount);
 }
 
 void SkyrimBridge::PlayerTakeReins(uint32_t aMountFormId) noexcept
