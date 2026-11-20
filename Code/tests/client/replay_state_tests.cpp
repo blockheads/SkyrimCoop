@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Games/Animation/PairClaims.h>
+#include <Games/Animation/ActionClaims.h>
 #include <Games/Animation/ReplayState.h>
 
 TEST_CASE("A replayed pair on this game's player goes by the host's answer to its claim", "[copies][replay-state][kill-move]")
@@ -197,15 +197,16 @@ TEST_CASE("A copy takes its half of a pair this game plays, and no other action 
 TEST_CASE("A copy's replay behind its owner still finds the answer to an earlier claim", "[copies][replay-state][kill-move]")
 {
     using ReplayState::PairClaim;
-    PairClaims claims;
-    // Two kill moves answered before the copy here played the first.
-    claims.Set(7, {9, 100, false});
-    claims.Set(7, {9, 200, true});
+    ActionClaims claims;
+    // Two kill moves answered before the copy here played the first: one refused, one granted as claim 4.
+    claims.Set(7, {100, 0, {7, 9}, false});
+    claims.Set(7, {200, 4, {7, 9}, true});
     CHECK(claims.Of(7, 100) == PairClaim::kRefused);
     CHECK(claims.Of(7, 200) == PairClaim::kClaimed);
     CHECK(claims.Of(7, 300) == PairClaim::kUnknown);
     CHECK(claims.Holds(7, 9));
-    claims.Done(7);
+    CHECK_FALSE(claims.Holds(7, 8));
+    claims.End(4); // its last member back
     CHECK(claims.Of(7, 200) == PairClaim::kRefused);
     CHECK_FALSE(claims.Holds(7, 9));
 }

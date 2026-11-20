@@ -140,7 +140,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 auto* pPartner = Cast<Actor>(TESForm::GetById(action.TargetId));
                 const bool cKillMove = ReplayState::EntersKillMove(action.EventName);
                 const bool cPartnerPlayer = pPartner && pPartner->GetExtension()->IsPlayer();
-                const auto cClaim = cKillMove ? aWorld.GetPairClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), action.Tick)
+                const auto cClaim = cKillMove ? aWorld.GetActionClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), action.Tick)
                                               : ReplayState::PairClaim::kNotNeeded;
                 // Refused, its claimer ended it; on an NPC still this game's, it waits for the host's answer.
                 const auto cOutcome = ReplayState::ClaimOutcome(
@@ -308,7 +308,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         auto* pPartner = first.TargetEventName.empty() ? nullptr : Cast<Actor>(TESForm::GetById(first.TargetId));
         const bool cKillMove = ReplayState::EntersKillMove(first.EventName);
         // Refused, its claimer ended it; on an NPC still this game's, it waits for the host's answer.
-        const auto cClaim = cKillMove ? aWorld.GetPairClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), first.Tick)
+        const auto cClaim = cKillMove ? aWorld.GetActionClaims().Of(Utils::GetSessionIdByFormId(apActor->formID).value_or(0), first.Tick)
                                       : ReplayState::PairClaim::kNotNeeded;
         const auto cClaimOutcome = ReplayState::ClaimOutcome(
             cClaim, pPartner && ReplayState::ClaimedAway(cKillMove, pPartner->GetExtension()->IsCopy(), pPartner->GetExtension()->IsPlayer()));
@@ -328,7 +328,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         step.PairHere = cLocalPartner;
         if (cLocalPartner && !cLent)
         {
-            // A kill move on this game's player goes by the host's answer to its claim (HostPairs).
+            // A kill move on this game's player goes by the host's answer to its claim (ActionClaims).
             const auto cOutcome = ReplayState::SettlePairedReplay(pPartner->IsInKillMove(), cClaim);
             if (cOutcome == ReplayState::PairOutcome::kWait)
                 return;

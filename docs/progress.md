@@ -51,7 +51,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 2026-11-20: **kill moves as claimed pairs, piece 4b of one-simulator.md, built** (`agent/piece-4b`; PRs #73 and #75
 folded in). A kill move a game's own actor starts on another game's actor is claimed through the host
-(`HostPairs`): the first claim on either actor holds. A host NPC is then the claimer's game's for the pair, keeping
+(an action claim, `HostClaims`): the first claim on either actor holds. A host NPC is then the claimer's game's for the pair, keeping
 the copy's deferred kill so its clip's `KillActor` only counts, and goes back with "killed"; the host's game kills it,
 credited to the claim's actor. A refused claim yields: crossed, its blow dropped; an NPC that cannot pair (frozen,
 dead), the engine's own plain second swing (42350, read). Every other game pairs its two copies itself. A claimed
@@ -61,8 +61,9 @@ copy taken back keeps no deferred kill (no engine path ends a scripted one: read
 pairs"). Left for a player victim: the old rules (`PairMarkClear`, `ContactKills`, `HeldByPair`, the yield). Review
 round (PR #85): "killed" is the engine's counted kill (`KillMoveEnd` 38614 kills too, read), a released hold drops
 it, a refusal is skipped on watching games, a player joining mid-lend gets the NPC, summons are refused. Then the lend and a ride became one claim:
-`HostClaims` / `ClaimService` hold any host actor for another game and take it back (`ActorGiveBackRequest`); a
-kill move on a ridden horse is now refused.
+`HostClaims` / `ClaimService` hold any host actor for another game and take it back (`ActorGiveBackRequest`);
+then a ride and a kill move became one action claim (`ClaimRequest`: its actors taken or
+locked, all or none, one claim per actor); `HostPairs`, `PairService` and the pair messages are gone.
 
 2026-11-19: **a mount handed back between pairs, piece 4a of one-simulator.md, built** (`agent/piece-4`): the horse
 stuck in its rider's exit pair after a hand-back (PR #80 sent it `PairEnd` by hand) came from the rider's last graph ops,

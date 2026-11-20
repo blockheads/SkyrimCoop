@@ -71,6 +71,27 @@ inline Mods HostPlugins()
 }
 
 // What a game on the host's build, game and plugins sends to join.
+// A rider's get-on: a claim on its horse (HostCharacters' ride rule).
+inline ClaimRequest RideClaim(uint32_t aRider, uint32_t aMount)
+{
+    ClaimRequest claim;
+    claim.Kind = Payloads::Claim::kRide;
+    claim.ForId = aRider;
+    claim.Members = {{aMount, true, false}};
+    return claim;
+}
+
+// A kill move: its attacker locked, its victim taken (an NPC, its death kept) or locked (a player).
+inline ClaimRequest KillMoveClaim(uint32_t aAttacker, uint32_t aVictim, bool aVictimIsPlayer = false, uint64_t aTick = 0)
+{
+    ClaimRequest claim;
+    claim.Kind = Payloads::Claim::kKillMove;
+    claim.ForId = aAttacker;
+    claim.Tick = aTick;
+    claim.Members = {{aAttacker, false, false}, {aVictim, !aVictimIsPlayer, !aVictimIsPlayer}};
+    return claim;
+}
+
 inline AuthenticationRequest JoinRequest(const char* acpName, uint16_t aLevel = 5)
 {
     AuthenticationRequest join;

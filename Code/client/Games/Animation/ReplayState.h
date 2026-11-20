@@ -141,7 +141,7 @@ constexpr bool PoseHeld(uint64_t aNow, uint64_t aHeldUntil, bool aDead) noexcept
     return !aDead && aNow < aHeldUntil;
 }
 
-// A kill move on an actor of another game is claimed through the host (HostPairs; one-simulator.md piece 4b): what a
+// A kill move on an actor of another game is claimed through the host (HostClaims; one-simulator.md piece 4b): what a
 // game knows of the claim of the pair a copy replays.
 enum class PairClaim
 {
@@ -188,7 +188,7 @@ constexpr bool ClaimedAway(bool aKillMove, bool aPartnerIsCopy, bool aPartnerIsP
     return aKillMove && !aPartnerIsCopy && !aPartnerIsPlayer;
 }
 
-// A claimed kill move's NPC partner, a copy here: lent to the claimer's game (HostPairs).
+// A claimed kill move's NPC partner, a copy here: taken by the claimer's game (HostClaims).
 constexpr bool LentPartner(bool aKillMove, PairClaim aClaim, bool aPartnerIsCopy, bool aPartnerIsPlayer) noexcept
 {
     return aKillMove && aClaim == PairClaim::kClaimed && aPartnerIsCopy && !aPartnerIsPlayer;

@@ -100,6 +100,8 @@ struct CharacterService
     // Our player got off the mount the host gave this game: the host takes it back.
     void OnDismountEvent(const DismountEvent& acEvent) noexcept;
     void OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept;
+    // Another player got on first (a ride's claim refused): ours gets off, as a refused boarding.
+    void OnRideRefused(const NotifyClaimRefused& acMessage) noexcept;
     // Our player activated a horse a party player drives: on as a passenger, the host told.
     void OnBoardEvent(const BoardEvent& acEvent) noexcept;
     // Another player rides along: its copy seated at once (its replayed get-on never ends).

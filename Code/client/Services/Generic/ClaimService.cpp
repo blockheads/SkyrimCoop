@@ -23,7 +23,8 @@ ClaimService::ClaimService(World& aWorld, entt::dispatcher& aDispatcher, Transpo
     , m_transport(aTransport)
     , m_actorBridge(aActorBridge)
 {
-    Listen<NotifyActorClaim, &ClaimService::OnClaim>(m_connections, aDispatcher, this);
+    Listen<NotifyClaim, &ClaimService::OnClaim>(m_connections, aDispatcher, this);
+    Listen<NotifyClaimRefused, &ClaimService::OnRefused>(m_connections, aDispatcher, this);
     Listen<NotifyActorGiveBack, &ClaimService::OnGiveBack>(m_connections, aDispatcher, this);
     Listen<UpdateEvent, &ClaimService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &ClaimService::OnDisconnected>(m_connections, aDispatcher, this);
@@ -42,43 +43,71 @@ bool ClaimService::Holds(uint32_t aSessionId) const noexcept
     return m_held.contains(aSessionId);
 }
 
-void ClaimService::OnClaim(const NotifyActorClaim& acMessage) noexcept
+namespace
 {
-    const entt::entity cEntity = EntityOf(acMessage.ActorId);
+std::vector<uint32_t> MemberIds(const Payloads::Claim& acClaim)
+{
+    std::vector<uint32_t> ids;
+    for (const auto& cMember : acClaim.Members)
+        ids.push_back(cMember.ActorId);
+    return ids;
+}
+} // namespace
+
+void ClaimService::OnRefused(const NotifyClaimRefused& acMessage) noexcept
+{
+    m_world.GetActionClaims().Set(acMessage.ForId, {acMessage.Tick, 0, MemberIds(acMessage), false});
+}
+
+void ClaimService::OnClaim(const NotifyClaim& acMessage) noexcept
+{
+    m_world.GetActionClaims().Set(acMessage.ForId, {acMessage.Tick, acMessage.ClaimId, MemberIds(acMessage), true});
     const entt::entity cFor = EntityOf(acMessage.ForId);
-    auto& characters = m_world.GetCharacterService();
-    if (cFor == entt::null || !m_world.all_of<LocalComponent>(cFor))
+    const bool cOurs = cFor != entt::null && m_world.all_of<LocalComponent>(cFor);
+    for (const auto& cMember : acMessage.Members)
     {
-        // Another game's (a passenger driving on): ours to give back no longer.
-        m_held.erase(acMessage.ActorId);
-        std::erase_if(m_giveBacks, [&](const Pending& acPending) { return acPending.SessionId == acMessage.ActorId; });
-        if (cEntity != entt::null && m_world.all_of<LocalComponent>(cEntity))
-            characters.GiveUpOwnership(cEntity, acMessage.ActorId, m_world.get<FormIdComponent>(cEntity).Id);
-        return;
+        if (cOurs)
+        {
+            TakeMember(cMember, acMessage);
+            continue;
+        }
+        // Another game's (a passenger driving on): ours to give back no longer, a taken one a copy here.
+        m_held.erase(cMember.ActorId);
+        std::erase_if(m_giveBacks, [&](const Pending& acPending) { return acPending.SessionId == cMember.ActorId; });
+        const entt::entity cEntity = EntityOf(cMember.ActorId);
+        if (cMember.Take && cEntity != entt::null && m_world.all_of<LocalComponent>(cEntity))
+            m_world.GetCharacterService().GiveUpOwnership(cEntity, cMember.ActorId, m_world.get<FormIdComponent>(cEntity).Id);
     }
-    Held& held = m_held[acMessage.ActorId];
-    held.ClaimId = acMessage.ClaimId;
+}
+
+void ClaimService::TakeMember(const Payloads::ClaimMember& acMember, const NotifyClaim& acClaim) noexcept
+{
+    Held& held = m_held[acMember.ActorId];
+    held.ClaimId = acClaim.ClaimId;
     for (Pending& pending : m_giveBacks)
-        if (pending.SessionId == acMessage.ActorId && !pending.ClaimId)
-            pending.ClaimId = acMessage.ClaimId;
+        if (pending.SessionId == acMember.ActorId && !pending.ClaimId)
+            pending.ClaimId = acClaim.ClaimId;
+    if (!acMember.Take)
+        return; // locked: busy, its owner's still
+    const entt::entity cEntity = EntityOf(acMember.ActorId);
     if (cEntity == entt::null)
     {
         // Gone from this game since it asked (a cell change): back at once, nobody left to simulate it here.
-        spdlog::warn("Claim of {:X} for {:X}: not on this game, given back", acMessage.ActorId, acMessage.ForId);
-        GiveBack(acMessage.ActorId, false, true);
-        m_held.erase(acMessage.ActorId);
+        spdlog::warn("Claim {} of {:X}: not on this game, given back", acClaim.ClaimId, acMember.ActorId);
+        GiveBack(acMember.ActorId, false, true);
+        m_held.erase(acMember.ActorId);
         return;
     }
     if (!m_world.all_of<RemoteComponent>(cEntity))
         return; // ours already (the host's own ride)
     const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-    held.Took = characters.TakeOwnership(cFormId, acMessage.ActorId, cEntity, acMessage.DeathOnGiveBack);
+    held.Took = m_world.GetCharacterService().TakeOwnership(cFormId, acMember.ActorId, cEntity, acMember.DeathOnGiveBack);
     if (held.Took)
     {
         // A give-back asked before this claim came: this game's actor to read from now.
         const auto cUpdates = m_world.GetGraphStreams().Updates(cFormId);
         for (Pending& pending : m_giveBacks)
-            if (pending.SessionId == acMessage.ActorId && !pending.FormId)
+            if (pending.SessionId == acMember.ActorId && !pending.FormId)
             {
                 pending.FormId = cFormId;
                 pending.Since = cUpdates ? cUpdates->Count : 0;
@@ -86,9 +115,9 @@ void ClaimService::OnClaim(const NotifyActorClaim& acMessage) noexcept
         return;
     }
     // Not takeable here (a player's summon): back at once.
-    spdlog::warn("Claim of {:X} for {:X}: this game cannot take it, given back", cFormId, acMessage.ForId);
-    GiveBack(acMessage.ActorId, false, true);
-    m_held.erase(acMessage.ActorId);
+    spdlog::warn("Claim {} of {:X}: this game cannot take it, given back", acClaim.ClaimId, cFormId);
+    GiveBack(acMember.ActorId, false, true);
+    m_held.erase(acMember.ActorId);
 }
 
 void ClaimService::GiveBack(uint32_t aSessionId, bool aKilled, bool aNow, std::function<void()> aBefore) noexcept
@@ -141,6 +170,8 @@ void ClaimService::RunGiveBacks() noexcept
 
 void ClaimService::OnGiveBack(const NotifyActorGiveBack& acMessage) noexcept
 {
+    if (acMessage.Ended)
+        m_world.GetActionClaims().End(acMessage.ClaimId);
     const auto cHeld = m_held.find(acMessage.ActorId);
     const bool cTook = cHeld != m_held.end() && cHeld->second.Took;
     if (cHeld != m_held.end())
@@ -156,7 +187,7 @@ void ClaimService::OnGiveBack(const NotifyActorGiveBack& acMessage) noexcept
         if (cTook)
             m_world.GetCharacterService().GiveUpOwnership(cEntity, acMessage.ActorId, cFormId);
     }
-    else if (acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
+    else if (acMessage.Taken && acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
         m_world.GetCharacterService().FollowOwner(cEntity, cFormId, acMessage.Whereabouts, false);
 }
 
@@ -171,4 +202,5 @@ void ClaimService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_held.clear();
     m_giveBacks.clear();
+    m_world.GetActionClaims().Clear();
 }

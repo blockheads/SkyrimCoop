@@ -18,7 +18,6 @@
     X(AddTargetRequest)             \
     X(RemoveSpellRequest)           \
     X(ProjectileLaunchRequest)      \
-    X(MountRequest)                 \
     X(RequestRespawn)               \
     X(SendChatMessageRequest)       \
     X(DialogueRequest)              \
@@ -78,9 +77,8 @@
     X(UnboardRequest)               \
     X(RecordRequest)                \
     X(RecordAskRequest) \
-    X(PairClaimRequest) \
-    X(PairDoneRequest) \
-    X(ActorGiveBackRequest)
+    X(ActorGiveBackRequest) \
+    X(ClaimRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -166,11 +164,9 @@
     X(NotifyUnboard)               \
     X(NotifyRecord)                \
     X(NotifyRecordAsk) \
-    X(NotifyPairClaim) \
-    X(NotifyPairRefused) \
-    X(NotifyPairDone) \
-    X(NotifyActorClaim) \
-    X(NotifyActorGiveBack)
+    X(NotifyActorGiveBack) \
+    X(NotifyClaim) \
+    X(NotifyClaimRefused)
 
 #define COOP_OPCODE(aName) k##aName,
 

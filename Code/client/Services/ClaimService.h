@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Events/Listen.h>
+#include <Messages/Payloads.h>
 #include <Messages/RelayedMessages.h>
 
 #include <NoCopyMove.h>
@@ -15,22 +16,24 @@ struct TransportService;
 struct UpdateEvent;
 struct World;
 
-// Claims on the host's actors on every game (HostClaims; one-simulator.md, "One claim for every actor"): the holder's
-// game takes a claimed actor, the others give it up; the holder gives it back. The host's take-back: HostService.
+// Action claims on every game (HostClaims; one-simulator.md, "Action claims"): the holder's game takes a claim's taken
+// members, the others give them up; the holder gives each back; every game keeps the answers (ActionClaims).
 struct ClaimService
 {
     ClaimService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport, IActorBridge& aActorBridge) noexcept;
 
     NO_COPY_MOVE(ClaimService);
 
-    // This game holds the actor (session id) through a claim, from its NotifyActorClaim to its give-back.
+    // This game holds the actor (session id) through a claim, from its NotifyClaim to its give-back.
     [[nodiscard]] bool Holds(uint32_t aSessionId) const noexcept;
     // Gives it back at the next update after its next recorded graph update (aNow: at once), its ops first, then
     // aBefore (the feature's own message). Killed: aKilled, or a kill its hold counted by then.
     void GiveBack(uint32_t aSessionId, bool aKilled, bool aNow, std::function<void()> aBefore = {}) noexcept;
 
 private:
-    void OnClaim(const NotifyActorClaim& acMessage) noexcept;
+    void OnClaim(const NotifyClaim& acMessage) noexcept;
+    void OnRefused(const NotifyClaimRefused& acMessage) noexcept;
+    void TakeMember(const Payloads::ClaimMember& acMember, const NotifyClaim& acClaim) noexcept;
     void OnGiveBack(const NotifyActorGiveBack& acMessage) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;

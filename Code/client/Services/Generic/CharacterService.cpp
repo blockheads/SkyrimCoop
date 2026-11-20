@@ -105,6 +105,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
     Listen<NotifyMountRefused, &CharacterService::OnNotifyMountRefused>(m_connections, m_dispatcher, this);
+    Listen<NotifyClaimRefused, &CharacterService::OnRideRefused>(m_connections, m_dispatcher, this);
     Listen<BoardEvent, &CharacterService::OnBoardEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyBoard, &CharacterService::OnNotifyBoard>(m_connections, m_dispatcher, this);
     Listen<NotifyActorName, &CharacterService::OnNotifyActorName>(m_connections, m_dispatcher, this);
@@ -1101,15 +1102,17 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
         return;
     }
 
-    // The host decides who simulates the mount (HostCharacters::OnMount); its answer gives it to us.
-    MountRequest request;
-    request.MountId = mountSessionIdRes.value();
-    request.RiderId = cpRider->Id;
+    // A ride is a claim on its horse (HostCharacters' rule): granted, it is ours to simulate (ClaimService).
+    const uint32_t cMountId = mountSessionIdRes.value();
+    ClaimRequest request;
+    request.Kind = Payloads::Claim::kRide;
+    request.ForId = cpRider->Id;
+    request.Members = {{cMountId, true, false}};
     if (acEvent.RiderID == m_playerBridge.GetPlayerFormId())
     {
-        m_riddenMount = request.MountId;
-        m_partyMounts.insert(request.MountId);
-        m_drivers[request.MountId] = request.RiderId;
+        m_riddenMount = cMountId;
+        m_partyMounts.insert(cMountId);
+        m_drivers[cMountId] = cpRider->Id;
         KeepMount(acEvent.MountID);
     }
     m_transport.Send(request);
@@ -1199,7 +1202,17 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 }
 
 // The ride of one of this game's actors ended (any path): the host takes its mount back.
-// Another player got on first (HostCharacters::OnMount): ours gets off, and the horse stays a copy here.
+// A boarding refused (HostCharacters::OnBoard), or a ride (OnRideRefused): ours gets off, the horse stays a copy here.
+void CharacterService::OnRideRefused(const NotifyClaimRefused& acMessage) noexcept
+{
+    if (acMessage.Kind != Payloads::Claim::kRide || acMessage.Members.empty() || acMessage.ForId != m_characterId)
+        return;
+    NotifyMountRefused refused;
+    refused.RiderId = acMessage.ForId;
+    refused.MountId = acMessage.Members[0].ActorId;
+    OnNotifyMountRefused(refused);
+}
+
 void CharacterService::OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept
 {
     if (m_riddenMount == acMessage.MountId)

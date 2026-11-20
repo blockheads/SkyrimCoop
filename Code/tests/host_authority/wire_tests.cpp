@@ -142,7 +142,7 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         add("RemoveSpell", m, (NotifyRemoveSpell*)nullptr);
     }
     {
-        MountRequest m;
+        BoardRequest m; // the Mount payload (MountRequest went: a ride is a ClaimRequest)
         m.RiderId = 0xF012;
         m.MountId = 0x0123;
         add("Mount", m, (NotifyMount*)nullptr);

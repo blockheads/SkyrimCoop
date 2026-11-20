@@ -1,14 +1,11 @@
-// HostPairs: pairs (kill moves) claimed through the host (one-simulator.md piece 4b).
+// Kill moves as action claims (HostClaims; one-simulator.md, "Action claims").
 #include "session.h"
 
 namespace
 {
-PairClaimRequest Claim(uint32_t aActor, uint32_t aPartner)
+ClaimRequest Claim(uint32_t aActor, uint32_t aVictim, bool aVictimIsPlayer = false)
 {
-    PairClaimRequest claim;
-    claim.ActorId = aActor;
-    claim.PartnerId = aPartner;
-    return claim;
+    return KillMoveClaim(aActor, aVictim, aVictimIsPlayer);
 }
 
 // Whose game a hit on aActor is sent to: its owner's.
@@ -26,7 +23,7 @@ ConnectionId_t OwnerSeen(Session& aSession, uint32_t aActor, ConnectionId_t aHit
 }
 } // namespace
 
-TEST_CASE("Pairs: the first claim on a host NPC holds, the NPC its claimer's game's until the pair is done", "[HostAuthority][pairs]")
+TEST_CASE("Kill moves: the first claim on a host NPC holds, the NPC its claimer's game's until the pair is done", "[HostAuthority][claims]")
 {
     Session session;
     const uint32_t cWolf = session.Character(kHost);
@@ -37,84 +34,83 @@ TEST_CASE("Pairs: the first claim on a host NPC holds, the NPC its claimer's gam
     session.Receive(kPeer, Claim(cPeerPlayer, cWolf));
     for (const ConnectionId_t cPlayer : {kHost, kPeer, kOtherPeer})
     {
-        const auto cActorClaims = session.SentTo<NotifyActorClaim>(cPlayer);
-        REQUIRE(cActorClaims.size() == 1);
-        CHECK(cActorClaims[0]->ActorId == cWolf);
-        CHECK(cActorClaims[0]->ForId == cPeerPlayer);
-        CHECK(cActorClaims[0]->DeathOnGiveBack);
-        const auto cClaims = session.SentTo<NotifyPairClaim>(cPlayer);
+        // One claim on both: the attacker locked, the wolf taken with its death kept for the give-back.
+        const auto cClaims = session.SentTo<NotifyClaim>(cPlayer);
         REQUIRE(cClaims.size() == 1);
-        CHECK(cClaims[0]->ActorId == cPeerPlayer);
-        CHECK(cClaims[0]->PartnerId == cWolf);
+        CHECK(cClaims[0]->ForId == cPeerPlayer);
+        CHECK(cClaims[0]->ClaimId == 1);
+        REQUIRE(cClaims[0]->Members.size() == 2);
+        CHECK(cClaims[0]->Members[1].ActorId == cWolf);
+        CHECK(cClaims[0]->Members[1].DeathOnGiveBack);
     }
     CHECK(OwnerSeen(session, cWolf, kOtherPeer) == kPeer);
+    CHECK(OwnerSeen(session, cPeerPlayer, kOtherPeer) == kPeer); // locked, its owner's still
 
-    // Another player's kill move on the same wolf within the round trip: refused as crossed, told to every game.
+    // Another player's kill move on the same wolf within the round trip: refused as held, told to every game.
     session.Outbox.clear();
     session.Receive(kOtherPeer, Claim(cOtherPlayer, cWolf));
-    CHECK(session.SentTo<NotifyPairClaim>(kHost).empty());
-    const auto cRefused = session.SentTo<NotifyPairRefused>(kOtherPeer);
+    CHECK(session.SentTo<NotifyClaim>(kHost).empty());
+    const auto cRefused = session.SentTo<NotifyClaimRefused>(kOtherPeer);
     REQUIRE(cRefused.size() == 1);
-    CHECK(cRefused[0]->Reason == Payloads::Pair::kCrossed);
-    CHECK(session.SentTo<NotifyPairRefused>(kHost).size() == 1);
+    CHECK(cRefused[0]->Reason == Payloads::Claim::kHeld);
+    CHECK(session.SentTo<NotifyClaimRefused>(kHost).size() == 1);
 
-    // Every game first hears the wolf claimed for the claimer's game, its death kept for the give-back.
-    // Done, then given back killed: the wolf is the host's again, its killer the claim's actor.
+    // Its members given back, the wolf killed: the host's again, its killer the claim's actor; the claim ends with
+    // its last member.
     session.Outbox.clear();
-    PairDoneRequest done;
-    done.ActorId = cPeerPlayer;
-    done.PartnerId = cWolf;
+    ActorGiveBackRequest attacker;
+    attacker.ActorId = cPeerPlayer;
+    attacker.ClaimId = 1;
     ActorGiveBackRequest giveBack;
     giveBack.ActorId = cWolf;
     giveBack.ClaimId = 1;
     giveBack.Tick = 4200;
     giveBack.Killed = true;
-    session.Receive(kOtherPeer, done); // not its claim
-    session.Receive(kOtherPeer, giveBack);
-    CHECK(session.SentTo<NotifyPairDone>(kHost).empty());
+    session.Receive(kOtherPeer, giveBack); // not its claim
     CHECK(session.SentTo<NotifyActorGiveBack>(kHost).empty());
-    session.Receive(kPeer, done);
+    session.Receive(kPeer, attacker);
     session.Receive(kPeer, giveBack);
-    const auto cDone = session.SentTo<NotifyPairDone>(kHost);
-    REQUIRE(cDone.size() == 1);
-    CHECK(cDone[0]->ActorId == cPeerPlayer);
     const auto cBack = session.SentTo<NotifyActorGiveBack>(kHost);
-    REQUIRE(cBack.size() == 1);
-    CHECK(cBack[0]->Tick == 4200);
-    CHECK(cBack[0]->Killed);
-    CHECK(cBack[0]->ForId == cPeerPlayer);
+    REQUIRE(cBack.size() == 2);
+    CHECK_FALSE(cBack[0]->Taken);
+    CHECK_FALSE(cBack[0]->Ended);
+    CHECK(cBack[1]->Tick == 4200);
+    CHECK(cBack[1]->Killed);
+    CHECK(cBack[1]->Taken);
+    CHECK(cBack[1]->Ended);
+    CHECK(cBack[1]->ForId == cPeerPlayer);
     CHECK(OwnerSeen(session, cWolf, kOtherPeer) == kHost);
 
     // On its way back, claimed by nobody: a kill reported dead settles first.
     session.Outbox.clear();
     session.Receive(kOtherPeer, Claim(cOtherPlayer, cWolf));
-    CHECK(session.SentTo<NotifyPairRefused>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyClaimRefused>(kOtherPeer).size() == 1);
     session.Taken(cWolf);
 
     // Free again: the next claim holds.
     session.Outbox.clear();
     session.Receive(kOtherPeer, Claim(cOtherPlayer, cWolf));
-    CHECK(session.SentTo<NotifyPairClaim>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyClaim>(kHost).size() == 1);
 }
 
-TEST_CASE("Pairs: crossed kill moves between two players, the host's first claim holds and neither changes owner", "[HostAuthority][pairs]")
+TEST_CASE("Kill moves: crossed kill moves between two players, the host's first claim holds and neither changes owner", "[HostAuthority][claims]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
     const uint32_t cOtherPlayer = session.Character(kOtherPeer);
     session.Outbox.clear();
 
-    session.Receive(kPeer, Claim(cPeerPlayer, cOtherPlayer));
-    session.Receive(kOtherPeer, Claim(cOtherPlayer, cPeerPlayer));
-    CHECK(session.SentTo<NotifyPairClaim>(kOtherPeer).size() == 1);
-    const auto cRefused = session.SentTo<NotifyPairRefused>(kOtherPeer);
+    session.Receive(kPeer, Claim(cPeerPlayer, cOtherPlayer, true));
+    session.Receive(kOtherPeer, Claim(cOtherPlayer, cPeerPlayer, true));
+    CHECK(session.SentTo<NotifyClaim>(kOtherPeer).size() == 1);
+    const auto cRefused = session.SentTo<NotifyClaimRefused>(kOtherPeer);
     REQUIRE(cRefused.size() == 1);
-    CHECK(cRefused[0]->ActorId == cOtherPlayer);
-    CHECK(cRefused[0]->Reason == Payloads::Pair::kCrossed);
+    CHECK(cRefused[0]->ForId == cOtherPlayer);
+    CHECK(cRefused[0]->Reason == Payloads::Claim::kHeld);
     CHECK(OwnerSeen(session, cOtherPlayer, kPeer) == kOtherPeer);
 }
 
-TEST_CASE("Pairs: a claim on an NPC that cannot pair (dead, its graph stopped) is refused as such", "[HostAuthority][pairs]")
+TEST_CASE("Kill moves: a claim on an NPC that cannot pair (dead, its graph stopped) is refused as such", "[HostAuthority][claims]")
 {
     Session session;
     const uint32_t cWolf = session.Character(kHost);
@@ -123,14 +119,14 @@ TEST_CASE("Pairs: a claim on an NPC that cannot pair (dead, its graph stopped) i
     session.Outbox.clear();
 
     session.Receive(kPeer, Claim(cPeerPlayer, cWolf));
-    CHECK(session.SentTo<NotifyPairClaim>(kPeer).empty());
-    const auto cRefused = session.SentTo<NotifyPairRefused>(kPeer);
+    CHECK(session.SentTo<NotifyClaim>(kPeer).empty());
+    const auto cRefused = session.SentTo<NotifyClaimRefused>(kPeer);
     REQUIRE(cRefused.size() == 1);
-    CHECK(cRefused[0]->Reason == Payloads::Pair::kCannotPair);
+    CHECK(cRefused[0]->Reason == Payloads::Claim::kCannotTake);
     CHECK(OwnerSeen(session, cWolf, kPeer) == kHost);
 }
 
-TEST_CASE("Pairs: a claim for an actor that is not the sender's, or on its own actor, is dropped", "[HostAuthority][pairs]")
+TEST_CASE("Kill moves: a claim for an actor that is not the sender's, or on its own actor, is dropped", "[HostAuthority][claims]")
 {
     Session session;
     const uint32_t cWolf = session.Character(kHost);
@@ -141,7 +137,7 @@ TEST_CASE("Pairs: a claim for an actor that is not the sender's, or on its own a
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Pairs: a claimer gone gives the NPC back and frees its claims", "[HostAuthority][pairs]")
+TEST_CASE("Kill moves: a claimer gone gives the NPC back and frees its claims", "[HostAuthority][claims]")
 {
     Session session;
     const uint32_t cWolf = session.Character(kHost);
@@ -151,20 +147,18 @@ TEST_CASE("Pairs: a claimer gone gives the NPC back and frees its claims", "[Hos
     session.Outbox.clear();
 
     session.Leave(kPeer);
-    const auto cDone = session.SentTo<NotifyPairDone>(kHost);
-    REQUIRE(cDone.size() == 1);
-    CHECK(cDone[0]->PartnerId == cWolf);
     const auto cBack = session.SentTo<NotifyActorGiveBack>(kHost);
-    REQUIRE(cBack.size() == 1);
-    CHECK_FALSE(cBack[0]->Killed);
+    REQUIRE(cBack.size() == 2);
+    CHECK(std::ranges::any_of(cBack, [&](const auto* apBack) { return apBack->ActorId == cWolf && apBack->Taken && !apBack->Killed; }));
+    CHECK(std::ranges::any_of(cBack, [&](const auto* apBack) { return apBack->Ended; }));
     CHECK(OwnerSeen(session, cWolf, kOtherPeer) == kHost);
     session.Taken(cWolf);
     session.Outbox.clear();
     session.Receive(kOtherPeer, Claim(cOtherPlayer, cWolf));
-    CHECK(session.SentTo<NotifyPairClaim>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyClaim>(kHost).size() == 1);
 }
 
-TEST_CASE("Pairs: a player joining while an NPC is lent gets it, as the host's game has it", "[HostAuthority][pairs]")
+TEST_CASE("Kill moves: a player joining while an NPC is lent gets it, as the host's game has it", "[HostAuthority][claims]")
 {
     Session session;
     const uint32_t cWolf = session.Character(kHost);

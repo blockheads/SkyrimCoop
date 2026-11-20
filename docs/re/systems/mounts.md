@@ -6,7 +6,7 @@ branch journal `docs/re/journal/1.7.104/agent-horse-riding.tsv` records each rea
 ## Getting on
 
 ```
-Actor::InitiateMountPackage (37905)            hooked: MountEvent (an own rider) -> MountRequest, once started
+Actor::InitiateMountPackage (37905)            hooked: MountEvent (an own rider) -> a ride's ClaimRequest, once started
   returns false for a refusal and for the at-once attach; true for the package
   mount null -> the rider's ExtraHorse (0x7B, 12033), else FindNearbyFreeHorse (38045)
   Character::CanRide (38706) gates
@@ -137,7 +137,7 @@ the horse's copy on another game
   tick (`ActorGiveBackRequest`, `HostClaims`). The host's game waits until its copy has run every op through that
   tick (`GraphReplayer::DoneThrough`, `ReplayState::TakesOverMount`, `ClaimService`'s take-over), then takes it. The
   host's `PairEnd` by hand is gone. Since 2026-11-20 this is every claim's give-back (a kill move's partner too):
-  a ride is a claim on the horse (`HostClaims::Claim` from `HostCharacters::OnMount`), first rider wins.
+  a ride is an action claim on its horse (`ClaimRequest`, `HostCharacters`' ride rule), first rider wins.
 - Measured with it: taken 235 ms after the hand-back, the host's next get-on accepted at the first try (one
   `MountRequest`, against five before).
 - **Not for a passenger who drives on** (measured, `party-shares-a-horse`): taken the same way, after its copy ran the

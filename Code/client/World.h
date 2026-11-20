@@ -13,7 +13,7 @@
 
 #include <RecipeBook.h>
 #include <Services/CopyClock.h>
-#include <Games/Animation/PairClaims.h>
+#include <Games/Animation/ActionClaims.h>
 #include <Games/Animation/GraphStream.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
@@ -83,8 +83,8 @@ struct World : entt::registry
     [[nodiscard]] uint64_t GetFrameTick() const noexcept { return m_frameClock.Now(); }
     // The graph input stream's recorders and replayers (graph-input-stream.md), on the graphs' threads too.
     GraphStreams& GetGraphStreams() noexcept { return m_graphStreams; }
-    // The host's answers to pair claims (PairService writes, AnimationSystem reads).
-    PairClaims& GetPairClaims() noexcept { return m_pairClaims; }
+    // The host's answers to action claims (ClaimService writes; AnimationSystem and held blows read).
+    ActionClaims& GetActionClaims() noexcept { return m_actionClaims; }
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
 
@@ -107,7 +107,7 @@ private:
     FrameClock m_frameClock;
     CopyClock m_copyClock;
     GraphStreams m_graphStreams;
-    PairClaims m_pairClaims;
+    ActionClaims m_actionClaims;
     RunnerService m_runner;
     TransportService m_transport;
 

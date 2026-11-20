@@ -59,7 +59,7 @@ struct HostCharacters
     [[nodiscard]] std::optional<NotifyPartyTravel> CharacterPlace(uint32_t aSessionId) const noexcept;
     // Every character but aPlayer's own (aOwnSessionId), as it is now.
     void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) noexcept;
-    // Claims on the host's actors (a mount, a kill move's partner), which change their owner (SetOwner).
+    // Action claims (a ride, a kill move), which change their taken members' owner (SetOwner).
     [[nodiscard]] HostClaims& Claims() noexcept { return m_claims; }
     // HostClaims only: aTo's game owns the actor from now. False if it did already, or no such character.
     bool SetOwner(uint32_t aSessionId, ConnectionId_t aTo) noexcept;
@@ -75,9 +75,6 @@ private:
     // The owner's looks update its existing copies; a revival remakes them. Anyone else lost its copy and asks
     // for a fresh spawn.
     void OnRespawn(const RequestRespawn& acRequest, ConnectionId_t aSender) noexcept;
-    // A player's character got on a mount: the rider's game simulates it from here on (its movement is the rider's
-    // input), so it becomes that game's; every game hears of it, the rider's to take it.
-    void OnMount(const MountRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its rider got off: its first passenger drives on, else the ride ends (the rider's game gives the mount back).
     void OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept;
     // The ride ends, every game told; aRelease: the mount is the host's again at once (its rider gone).
@@ -133,7 +130,7 @@ private:
         ConnectionId_t Owner{};
         // A player's: what is needed to spawn it again, kept current with its movement.
         std::optional<NotifyCharacterSpawn> PlayerRecord;
-        // A mount's: who rides it, from OnMount until GiveBack (one rider at a time).
+        // A mount's: who rides it, from its ride's claim until the ride ends (one rider at a time).
         uint32_t Rider{};
         // Its passengers, in boarding order: the first drives next.
         std::vector<uint32_t> Passengers;

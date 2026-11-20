@@ -98,7 +98,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_dialogue(*this, aNetwork, m_players, m_characters)
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
     , m_records(*this, m_players, m_characters, m_game)
-    , m_pairs(*this, m_players, m_characters, m_game)
     , m_story(*this, m_players, m_characters, m_game)
     , m_death(*this, aNetwork, m_players, m_characters)
     , m_followers(*this, aNetwork, m_players, m_characters, m_death, m_game)
@@ -117,6 +116,13 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // Players
     On(*this, &HostAuthority::OnPlayerLevel);
     On(m_transfer, &HostSaveTransfer::OnSaveHeld);
+
+    // A kill move's claim (kill-moves.md, "Claimed pairs"): its NPC victim alive, its graph running (kProcessMe).
+    m_characters.Claims().SetRule(Payloads::Claim::kKillMove, {.Allows = [this](const Payloads::Claim& acClaim) {
+        return std::ranges::all_of(acClaim.Members, [&](const Payloads::ClaimMember& acMember) {
+            return !acMember.Take || !m_game.CanPair || m_game.CanPair(acMember.ActorId);
+        });
+    }});
 
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
@@ -172,7 +178,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_session.OnPlayerLeft(aConnection);
         m_playerNatives.OnPlayerLeft(aConnection);
         m_records.OnPlayerLeft(aConnection);
-        m_pairs.OnPlayerLeft(aConnection);
         m_characters.OnPlayerLeft(aConnection);
         m_players.Remove(aConnection);
         m_timeScale.OnPlayerLeft(aConnection);

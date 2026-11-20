@@ -208,17 +208,40 @@ struct Mount
     uint32_t MountId{};
 };
 
-// A claim on one of the host's actors (HostClaims): the game of ForId's owner holds it (a rider, a kill move's
-// attacker) until it gives it back. DeathOnGiveBack: its death waits for that (the copy's deferred kill kept).
-struct ActorClaim
+// An action's claim on the actors it involves (HostClaims; one-simulator.md, "Action claims"): the host grants all or
+// none. A taken member is the claimer's game's until given back; a locked one keeps its owner, busy meanwhile.
+struct ClaimMember
+{
+    bool operator==(const ClaimMember&) const noexcept = default;
+    uint32_t ActorId{};
+    bool Take{};
+    bool DeathOnGiveBack{}; // taken: its death waits for its give-back (the copy's deferred kill kept)
+};
+
+struct Claim
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-    bool operator==(const ActorClaim&) const noexcept = default;
-    uint32_t ActorId{};
-    uint32_t ForId{};
-    uint32_t ClaimId{}; // its give-back names it
-    bool DeathOnGiveBack{};
+    bool operator==(const Claim&) const noexcept = default;
+
+    enum Kind : uint8_t
+    {
+        kRide,     // a rider's get-on: its horse taken
+        kKillMove, // a kill move: its attacker locked, its victim taken (an NPC) or locked (a player)
+    };
+    enum Refusal : uint8_t
+    {
+        kNone,
+        kHeld,       // a member is in another claim (crossed kill moves, two riders): a kill move drops its blow
+        kCannotTake, // its kind's rule (a victim dead or frozen) or a summon: a kill move swings plainly (42350)
+    };
+
+    uint32_t ClaimId{}; // the host's, granted
+    uint8_t Kind{};
+    uint8_t Reason{}; // a refusal's
+    uint32_t ForId{}; // the acting actor (a rider, a kill move's attacker), its owner's game the holder
+    uint64_t Tick{};  // the action's
+    std::vector<ClaimMember> Members;
 };
 
 // A claimed actor back to the host, with its holder's current placement (a native travel's implicit dismount too).
@@ -235,27 +258,8 @@ struct ActorGiveBack
     // once its copy has run that far (ReplayState::TakesOverMount); 0 at once.
     uint64_t Tick{};
     bool Killed{}; // a kill counted under its hold (DeathOnGiveBack): the host's game kills it
-};
-
-// A claimed pair (a kill move): its starter and its partner, session ids.
-struct Pair
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const Pair&) const noexcept = default;
-
-    enum Refusal : uint8_t
-    {
-        kNone,
-        kCrossed,    // either actor is in a claimed pair already: the claimer's blow is dropped
-        kCannotPair, // the partner is dead or its graph does not run: the claimer swings plainly
-    };
-
-    uint32_t ActorId{};
-    uint32_t PartnerId{};
-    uint8_t Reason{}; // a refusal's
-    uint64_t Tick{};  // the claimed action's
+    bool Taken{};  // the host's: a taken member (the host's game takes it back), not a locked one
+    bool Ended{};  // the host's: its claim's last member back
 };
 
 // One part of an actor's record, from its owner (docs/design/one-simulator.md, piece 1).

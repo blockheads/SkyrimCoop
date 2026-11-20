@@ -29,7 +29,7 @@
 #include <Services/AiStateService.h>
 #include <Services/ActorStateService.h>
 #include <Services/ClaimService.h>
-#include <Services/PairService.h>
+#include <Services/KillMoveService.h>
 #include <Games/Animation/ActorStateRules.h>
 #include <Services/CopyRecords.h>
 #include <Services/CopyRecordsService.h>
@@ -123,7 +123,7 @@ World::World()
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
     ctx().emplace<ActorStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
     ctx().emplace<ClaimService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<PairService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<KillMoveService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                    ctx().at<CopyRecords>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
@@ -194,7 +194,7 @@ World::~World()
     ctx().erase<CutsceneService>();
     ctx().erase<PerkService>();
     ctx().erase<InventoryService>();
-    ctx().erase<PairService>();
+    ctx().erase<KillMoveService>();
     ctx().erase<ClaimService>();
     ctx().erase<ActorStateService>();
     ctx().erase<AiStateService>();
@@ -292,7 +292,7 @@ void World::Update() noexcept
                 const auto cPartner = engine.Actors.find(cPartnerId);
                 const bool cKillMove = !cAction.TargetEventName.empty() && ::ReplayState::EntersKillMove(cAction.EventName);
                 const bool cHasPartner = cPartner != engine.Actors.end();
-                const auto cClaim = cKillMove ? GetPairClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), cAction.Tick)
+                const auto cClaim = cKillMove ? GetActionClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), cAction.Tick)
                                               : ::ReplayState::PairClaim::kNotNeeded;
                 // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
                 const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
@@ -415,7 +415,7 @@ void World::Update() noexcept
         const bool cKillMove = ::ReplayState::EntersKillMove(replayed.EventName);
         // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
         const bool cHasPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end();
-        const auto cClaim = cKillMove ? GetPairClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), replayed.Tick)
+        const auto cClaim = cKillMove ? GetActionClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), replayed.Tick)
                                       : ::ReplayState::PairClaim::kNotNeeded;
         const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
             cClaim, cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player));

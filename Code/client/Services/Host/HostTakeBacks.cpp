@@ -26,6 +26,8 @@ HostTakeBacks::HostTakeBacks(World& aWorld, entt::dispatcher& aDispatcher, IActo
 
 void HostTakeBacks::OnGiveBack(const NotifyActorGiveBack& acMessage) noexcept
 {
+    if (!acMessage.Taken)
+        return; // a locked member: its owner kept it
     const uint64_t cNow = m_world.GetTick();
     m_takeBacks.push_back({acMessage.ActorId, acMessage.Tick, acMessage.Whereabouts, acMessage.Killed ? acMessage.ForId : 0,
                            cNow + ReplayState::cPoseHoldMs, cNow + cStalledMs});

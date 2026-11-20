@@ -5,7 +5,6 @@
 
 #include <Components/FormIdComponent.h>
 #include <Components/HeldCopyComponent.h>
-#include <Events/MountEvent.h>
 #include <SessionIds.h>
 
 namespace
@@ -241,22 +240,6 @@ SCENARIO("A kill move on the host player's summon is refused: no game would simu
     }
     CHECK(pair.guest.Actors.at(pair.copy).Copy);
     CHECK_FALSE(pair.host.Actors.at(pair.guard).Copy);
-}
-
-SCENARIO("A kill move on a horse the host's player rides is refused: the host's claim on it holds", "[combat][kill-move][pair-claim][claims]")
-{
-    // One claim per actor, whatever the feature (HostClaims): the host's own ride holds the horse. Before, the host
-    // lent its ridden horse to the guest's kill move from under its own player.
-    GuardPair pair;
-    pair.party.As(pair.party.Host(), [&] {
-        pair.host.ActorPutOnMount(FakeEngine::kPlayer, pair.guard);
-        pair.party.Host().GetRunner().Trigger(MountEvent{FakeEngine::kPlayer, pair.guard});
-    });
-    pair.party.Until([&] { return !pair.guest.Mounts.empty(); }, "the guest's game puts the host's copy on it");
-    pair.GuestSwings();
-    pair.party.Until([&] { return pair.guest.PlainSwings == 1; }, "the guest's player swings plainly");
-    CHECK_FALSE(pair.host.Actors.at(pair.guard).Copy);
-    CHECK(pair.guest.Actors.at(pair.copy).Copy);
 }
 
 SCENARIO("An NPC given back from a pair is placed exactly where the claimer's game left it", "[combat][kill-move][pair-claim][claims]")

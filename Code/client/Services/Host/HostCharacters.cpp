@@ -38,7 +38,6 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     aAuthority.On(*this, &HostCharacters::OnAnnounceCharacter);
     aAuthority.On(*this, &HostCharacters::OnRemoveCharacter);
     aAuthority.On(*this, &HostCharacters::OnRespawn);
-    aAuthority.On(*this, &HostCharacters::OnMount);
     aAuthority.On(*this, &HostCharacters::OnDismount);
     aAuthority.On(*this, &HostCharacters::OnBoard);
     aAuthority.On(*this, &HostCharacters::OnUnboard);
@@ -50,11 +49,30 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     aAuthority.On(*this, &HostCharacters::OnEnterCell);
     aAuthority.On(*this, &HostCharacters::OnTravelQueued);
     aAuthority.On(*this, &HostCharacters::OnPartySummon);
-    // A ride whose claim came back with the rider still marked (its game could not take the horse) ends too.
-    m_claims.OnEnded = [this](uint32_t aActorId, uint32_t aForId) {
-        if (const auto cMount = m_characters.find(aActorId); cMount != m_characters.end() && cMount->second.Rider == aForId)
-            EndRide(aActorId, aForId, false);
-    };
+    // A ride is a claim on its horse (its rider's game simulates it, its movement the rider's input); every game hears
+    // who rides it. A claim that ends with its rider still marked (its game could not take the horse) ends the ride.
+    m_claims.SetRule(Payloads::Claim::kRide, {
+        .Allows = [this](const Payloads::Claim& acClaim) {
+            const auto cMount = m_characters.find(acClaim.Members[0].ActorId);
+            return acClaim.Members.size() == 1 && cMount != m_characters.end() && !cMount->second.PlayerRecord;
+        },
+        .Granted = [this](const Payloads::Claim& acClaim, ConnectionId_t aTo, bool aOwnersChanged) {
+            const uint32_t cMountId = acClaim.Members[0].ActorId;
+            m_characters.at(cMountId).Rider = acClaim.ForId;
+            NotifyMount notify;
+            notify.RiderId = acClaim.ForId;
+            notify.MountId = cMountId;
+            if (!aOwnersChanged)
+                return m_players.SendToOthers(notify, aTo);
+            spdlog::info("HostCharacters: {:x} rides {:x}, which is its game's now", aTo, cMountId);
+            m_players.SendToAll(notify);
+        },
+        .Ended = [this](const Payloads::Claim& acClaim) {
+            const uint32_t cMountId = acClaim.Members.empty() ? 0 : acClaim.Members[0].ActorId;
+            if (const auto cMount = m_characters.find(cMountId); cMount != m_characters.end() && cMount->second.Rider == acClaim.ForId)
+                EndRide(cMountId, acClaim.ForId, false);
+        },
+    });
 }
 
 void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -198,33 +216,6 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
     m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
-void HostCharacters::OnMount(const MountRequest& acRequest, ConnectionId_t aSender) noexcept
-{
-    const auto cMount = m_characters.find(acRequest.MountId);
-    if (OwnerOf(acRequest.RiderId) != aSender || cMount == m_characters.end() || cMount->second.PlayerRecord)
-    {
-        spdlog::warn("HostCharacters: {:x} put {:x} on {:x}, which it cannot", aSender, acRequest.RiderId, acRequest.MountId);
-        return;
-    }
-    NotifyMount notify;
-    static_cast<Payloads::Mount&>(notify) = acRequest;
-    // Two players got on within one round trip: the first keeps it. Held for anything else (a kill move): refused.
-    const bool cOwnerChanges = cMount->second.Owner != aSender;
-    if ((cMount->second.Rider && cMount->second.Rider != acRequest.RiderId) || !m_claims.Claim(acRequest.MountId, aSender, acRequest.RiderId, false))
-    {
-        spdlog::info("HostCharacters: {:x} rides {:x} already, {:x} refused", cMount->second.Rider, acRequest.MountId, acRequest.RiderId);
-        NotifyMountRefused refused;
-        static_cast<Payloads::Mount&>(refused) = acRequest;
-        m_network.Send(aSender, refused, Net::kReliable);
-        return;
-    }
-    cMount->second.Rider = acRequest.RiderId;
-    if (!cOwnerChanges)
-        return m_players.SendToOthers(notify, aSender);
-    spdlog::info("HostCharacters: {:x} rides {:x}, which is its game's now", aSender, acRequest.MountId);
-    m_players.SendToAll(notify);
-}
-
 void HostCharacters::OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     const auto cMount = m_characters.find(acRequest.MountId);
@@ -293,13 +284,10 @@ bool HostCharacters::HandOver(uint32_t aMountId) noexcept
         const ConnectionId_t cOwner = OwnerOf(cNext);
         if (!cOwner)
             continue;
-        cMount->second.Rider = cNext;
-        m_claims.Claim(aMountId, cOwner, cNext, false, true);
+        // The ride's claim passes on: its rule sets the rider and tells every game.
+        if (!m_claims.PassOn(aMountId, cOwner, cNext))
+            continue;
         spdlog::info("HostCharacters: {:x} drives {:x} now, its game's", cNext, aMountId);
-        NotifyMount notify;
-        notify.RiderId = cNext;
-        notify.MountId = aMountId;
-        m_players.SendToAll(notify);
         return true;
     }
     return false;

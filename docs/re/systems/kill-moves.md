@@ -5,27 +5,28 @@ Reviewed and reproduced 2026-11-04 on 1.7.104. Scenarios `kill-move-runs-full-le
 
 ## Claimed pairs (one-simulator.md piece 4b, 2026-11-20)
 
-One game runs a pair. A kill move a game's own actor starts on an actor it does not own is claimed through the host
-(`HostPairs`, `PairService`); the pair plays on meanwhile.
+One game runs a pair. A kill move a game's own actor starts on an actor it does not own is an action claim
+(`HostClaims`, `KillMoveService`; one-simulator.md, "Action claims"): its attacker locked, its NPC victim taken or its
+player victim locked; the pair plays on meanwhile.
 
 ```
 claimer's game                         host                          other games
 its actor's pa_Kill... accepted
 (38949: StartPair 32803 began it)
-  PairClaimRequest{actor, partner, --> first claim on either actor holds
-    the action's tick}                 NPC partner: its owner = claimer
-                                       NotifyPairClaim ------------> the host's game: its NPC is a copy
+  ClaimRequest{kill move, attacker, --> one claim per actor: both free
+    tick, members}                     an NPC victim's owner = claimer
+                                       NotifyClaim ----------------> the host's game: its NPC is a copy
 claimer: the NPC is its own (TakeOwnership),                         every non-claimer game plays the pair itself:
   the copy's scripted deferred kill kept                             an instance between its two copies (the NPC's
 its clip's KillActor (42838): only counted (37896),                  copy has no stream: below)
   its pose held; graph ops sent                                      a player partner's game: plays its half
-  PairDoneRequest, then              --> NPC: the host's again          from the replay, as before
-  ActorGiveBackRequest{tick, killed}   NotifyActorGiveBack --------> the host's game: once its own copy's clip sent
+  each member's give-back: the       --> NPC: the host's again          from the replay, as before
+  attacker's, the victim's{tick, killed} NotifyActorGiveBack ------> the host's game: once its own copy's clip sent
                                                                      KillActor (or 1.5 s), TakeOwnership, the hold
                                                                      ended, KillImpl with the claim's actor
-refused (NotifyPairRefused, to every game): the claimer ends its pair (the yield below);
-  crossed (either actor in a claimed pair): its blow dropped
-  the partner cannot pair (dead, kProcessMe clear): the same action again with no target (42350's second try)
+refused (NotifyClaimRefused, to every game): the claimer ends its pair (the yield below);
+  kHeld (either actor in another claim: crossed kill moves): its blow dropped
+  kCannotTake (the victim dead or kProcessMe clear): the same action again with no target (42350's second try)
   every other game never plays that pair's replay
 a claimed pair's forwarded blow on the victim's game: held; dropped once the pair plays there, a plain hit if it ends first
 ```
@@ -55,7 +56,7 @@ a claimed pair's forwarded blow on the victim's game: held; dropped once the pai
     makes one pick per perform, no retry. `Actor::PerformPlainly` is that second try.
 - **Why the kill rides the done message, not a forwarded hit** (the plan's first idea): a hit on a lent NPC is applied
   on the claimer (`HitRules`: its own actor), and the host's game drops hits on a copy until it took the NPC back.
-- **A replay with a partner that is this game's player** waits for the host's answer (`PairClaims`, by the action's
+- **A replay with a partner that is this game's player** waits for the host's answer (`ActionClaims`, by the action's
   tick): claimed, it plays, and a player in its own kill move yields to it; refused, it is never played.
 - **Learned on the duo (2026-11-20), each now a GameTests flow that failed first:**
   - *The lent NPC's copy has nothing to replay.* On the claimer the NPC was still a copy when 32803 played its half
@@ -75,14 +76,14 @@ a claimed pair's forwarded blow on the victim's game: held; dropped once the pai
   - *A short winner's blow came first* (bugs.md's entry, now closed): the guest's refusal at 04.451, the host's
     `ShortD` hit applied at 04.812 as a plain death, the host's pair reaching the guest at 04.895 behind the yield's wait.
     The claim reaches the victim's game ahead of the blow on the same ordered channel, so the blow is held
-    (`ActorValueService::RunHeldBlows`, `PairClaims::Holds`): a kill move's blow is never applied on its victim
+    (`ActorValueService::RunHeldBlows`, `ActionClaims::Holds`): a kill move's blow is never applied on its victim
     (`SkyrimBridge::DamageActorHealth` refuses it once the kill move holds it); applied only if the pair ended
-    without ever playing there. A claim that ended makes a late replay of it skip (`PairClaims::Done`).
+    without ever playing there. A claim that ended makes a late replay of it skip (`ActionClaims::End`).
   - `StartDeferredKill` 40033 (read): one hold per actor, its scripted flag OR'd, so `EnterKillMove`'s non-scripted
     start never clears the lent NPC's scripted hold: its clip's `KillActor` only counts.
-- The NPC partner's lend is a generic claim (2026-11-20): `HostClaims::Claim` with its death kept for the give-back
-  (`ActorClaim::DeathOnGiveBack`), given back by `ClaimService::GiveBack` as a ridden horse is, killed or alive. A
-  horse someone rides is held already: a kill move on it is refused.
+- The kill move is a generic action claim (2026-11-20): its NPC victim a taken member with its death kept for the
+  give-back (`ClaimMember::DeathOnGiveBack`), given back by `ClaimService::GiveBack` as a ridden horse is, killed or
+  alive. The kill move's own rule (`HostAuthority`): a taken victim can pair (`HostGame::CanPair`).
 - Not measured yet: what a host NPC shows when it becomes a copy mid-swing (the scenarios' wolves are restrained or
   frozen). Seen, not read: a frozen wolf (AI off) at -24 health after two plain hits, not dead.
 
