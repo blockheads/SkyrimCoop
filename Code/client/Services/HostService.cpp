@@ -206,6 +206,7 @@ void HostService::MakeAuthority() noexcept
     game.SetHour = [this](float aHours) { m_pEngine->SetHour(aHours); };
     game.AdvanceTime = [this](float aHours) { m_pEngine->AdvanceTime(aHours); };
     game.ReadWeather = [this] { return m_pEngine->ReadWeather(); };
+    game.ReadEye = [this](uint32_t aSessionId) { return m_pEngine->ReadEye(aSessionId); };
     game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
     game.TakeGlobalChanges = [this] { return m_pEngine->TakeGlobalChanges(); };
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };

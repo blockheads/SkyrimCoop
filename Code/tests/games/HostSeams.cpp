@@ -155,6 +155,17 @@ void HostService::MakeAuthority() noexcept
     };
     game.ReadTime = [&engine] { return engine.Calendar; };
     game.SetHour = [&engine](float aHours) { engine.Calendar.Time = aHours; };
+    game.ReadEye = [&engine](uint32_t aSessionId) -> std::optional<DetectionRules::EyeReading> {
+        // HostEngine::ReadEye: a loaded copy's 41408 and 46877.
+        const uint32_t cCopy = Utils::GetFormIdBySessionId(aSessionId);
+        const auto it = engine.Actors.find(cCopy);
+        if (it == engine.Actors.end() || !it->second.Copy || !it->second.Loaded)
+            return std::nullopt;
+        DetectionRules::EyeReading reading;
+        reading.Level = engine.HighestDetection(cCopy, reading.Seeing);
+        reading.Stealth = engine.LowestStealthPoints(cCopy);
+        return reading;
+    };
     game.ReadWeather = [&engine] {
         return engine.Weather.BaseId ? std::optional<GameId>(engine.Weather) : std::optional<GameId>{};
     };

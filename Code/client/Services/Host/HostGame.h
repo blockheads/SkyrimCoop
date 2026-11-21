@@ -13,6 +13,7 @@
 #include <Structs/TimeModel.h>
 
 #include <Followers/State.h>
+#include <Games/Skyrim/DetectionRules.h>
 #include <Services/SaveTransfer.h>
 #include <functional>
 #include <memory>
@@ -76,6 +77,9 @@ struct HostGame
     std::function<void(const std::string& acLine)> RunConsole;
     std::function<std::optional<std::string>(uint32_t aSessionId)> ConsoleNameOf;
     std::function<uint32_t()> KillHostiles;
+    // What the host's NPCs see of that character's copy now (41408, 46877; stealth.md "The eye is the host's"),
+    // asking as the HUD asks of the host's own player; none when its copy is not loaded.
+    std::function<std::optional<DetectionRules::EyeReading>(uint32_t aSessionId)> ReadEye;
     // The host's weather, when it shows one to share (none: no sky, or the map's).
     std::function<std::optional<GameId>()> ReadWeather;
     // The host's global variables but the constants.

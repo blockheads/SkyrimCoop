@@ -91,12 +91,10 @@ every other section needs the duo.
 **Crime and aggro**
 
 - [The older crime scenarios](#the-older-crime-scenarios): medium
-- [The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate): medium, a scenario first
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium, caused by the next one
-- [A still guest unseen up close](#a-still-guest-unseen-up-close): small, minor
+- [After the host dies](#after-the-host-dies): small, the lock order inversion left
 
 **Found by the playthrough flow**
 
@@ -106,7 +104,6 @@ every other section needs the duo.
 **From the 2026-11-08 playtest**
 
 - [A guest's crash loading a wipe's save](#a-guests-crash-loading-a-wipes-save): small
-- [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small, a repro first
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
 
 **Found by the full runs of 2026-11-11 and 2026-11-12**
@@ -820,79 +817,19 @@ Size: medium. Needs: duo.
     - `guest-ivarstead-jail-mouse` 1 of 4: "the guard sees the guest at 9E572" timed out.
     - Pass now: `guest-lockpick-party-alarm` and `guest-ivarstead-fine-mouse`, 4 of 4 each (every run on 2026-11-11).
 
-### The guest's eye is its own estimate
-
-On the guest, the stealth eye shows what its NPC copies judge themselves, not what the host's NPCs see.
-
-Agent task: Show with a scenario that the guest's eye and the host's NPCs disagree in a way a player feels; only then
-make the guest's eye show the host's detection.
-
-Size: medium. Needs: duo, then a decision.
-
-- **NPC copies judge the guest's player in the guest's game** (2026-11-08, found with the sneak eye fix,
-  `docs/re/systems/stealth.md`). The eye (40593 through 41408) counts every high-process actor's state of the player,
-  and a copy's detection pass still runs: Lydia's copy read -21, fresh, while the guest sneaked in QASmoke. On 2026-11-01
-  the host's eye read Lydia's real 30 and the guest's its copy's 20 (the 2026-10-31 playtest, S6): an estimate,
-  not stuck.
-  - The host's side is no better yet: nothing keeps the host's NPCs' state of a guest's copy fresh (`crime.md`, Hulda 4.7 s
-    old), and [A still guest unseen up close](#a-still-guest-unseen-up-close) reads no line of sight to it.
-  - Shape if it matters: the host asks its NPCs about each guest's copy and sends the highest level (a message, at a rate:
-    detection has no event); the guest's eye shows it, and NPC copies become unseen witnesses (`DetectionRules`).
-  - Test: a scenario where the guest's eye says hidden while a host NPC spots the guest (combat, a crime reported), or
-    the reverse. With none, this entry goes.
-
 ## Combat
 
 ### After the host dies
 
-The NPCs' target.
+What is left of it. The half-stop (NPCs searching for a still guest once the host died) was the guest's copy making none
+of its owner's noise, fixed 2026-11-21 (`docs/re/systems/stealth.md`, "A player's noise"; scenario
+`guest-bump-heard-on-host`, GameTests "A guest's bump is heard on the host").
 
-Size: medium. Needs: duo, IDA, then GameTests.
-
-- **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
-  only up close, and stop when the guest walks away (`docs/re/systems/combat-targets.md`, "The half-stop").
-  - Fixed on the way: an attack gave the guest's copy a combat tree of its own, all through the playtest's wait
-    (`HookStartCombat`; scenario `host-dies-guest-still-fought`, flow "After the host dies...").
-  - Measured, not a copy's: the NPC's target moves to the copy; the copy's light and detection read as the real player's;
-    the stall happens with the real player as target too. In the inn the engine's detection loses a still or retreating
-    target (-5 to -10) and the fight goes to search. Inferred, not measured: with the host dead nothing keeps it going.
-  - 2026-11-06 (`combat-targets.md`, "Measured 2026-11-06"): vanilla pushes the player back a few units a hit and
-    the NPC stands while the gap is inside its approach radius (174); the host's player gets the same. In three clean
-    host deaths Orgnar kept fighting the copy and his hits landed. Not reproduced as reported yet.
-  - Co-op differences found: an NPC copy's swing hits whoever is nearest in front (copies have no combat target), so
-    with another actor closer the guest is not hit; a guest unseen at the host's death is searched for, the NPC walking
-    off. Next: the playtest's own setup (the guest moving, fighting back) with `console_watch` and `kill_move_check`.
-  - Reproduced once (2026-11-06, the guest still, as the playtester saw): after the host's death Orgnar sat 196 from the
-    copy for 20 s on `Advance` without moving or swinging; the host's player at the same gap was closed on at once
-    (`combat-targets.md`, "A/B at 196 units"). Not seen again in 5 more rounds.
-  - **The cause is the copy unseen at the switch** (2026-11-06, `host_death_watch`, 5 rounds each way, the inn,
-    the survivor standing still): the host dies, the target moves to the guest's copy and the fight goes to search every
-    time (2.5-7 s, at 44-67 units), twice walking 440-490 units off before coming back. The guest dies instead: the host's
-    player is fought on, no search in 5 of 5. So this is [A still guest unseen up close](#a-still-guest-unseen-up-close).
+Size: small. Needs: duo.
 
 - **Lock order inversion with the host's player dead** (2026-11-05, `host-dies-guest-still-fought`, 2 of 6 runs, with and
   without the fix): `ExtraAliasInstanceArray` 12720 (0x140187955) then the player's reference lock in `Actor::IsGhost`
   (0x1406756F4), against 0x140172A5B then 12719 (0x140187881); our code on the stack, which frame not read.
-
-### A still guest unseen up close
-
-Agent task: Find why an NPC fighting the host reads no line of sight to the guest's copy 74 units away (the cause of the
-half-stop after the host dies). Do step 0 in IDA
-first (the detection's line-of-sight request for a candidate), then compare with the host's player in the same place.
-
-Size: small. Needs: duo, IDA, then GameTests.
-
-- **An NPC loses a still guest standing next to it** (2026-11-06, `host-dies-guest-still-fought` setup by hand, one run):
-  Orgnar fought the host with the guest 80 units off to his side; the host died, his target moved to the guest's copy and
-  the fight went to search (state 2) for 13 s at 74 units. `combat_watch`: the copy's candidate read `line_of_sight`
-  false, detection -6 to 15, until the copy was found again. A still guest makes no noise, so sight is all there is.
-  - Compared (5 rounds each, `host_death_watch`): with the guest's copy left, search every time, twice walking 440-490
-    units off; with the host's player left (`dies="guest"`), never. The copy is what isn't seen: this is the cause of
-    [After the host dies](#after-the-host-dies). While the host lives, the copy's candidate read line of sight false and
-    detection about -6, the host's 42 with line of sight.
-  - Not the copy's combat refusal: with `CopyCombat::MayStart` switched off (dev's behaviour, a local build), search
-    5 of 5 as well, 5-15 s, once 470 units off. Likely the engine's detection with a second player: a hook there.
-  - Test: `host_death_watch` both ways is the scenario's base; a GameTests flow once the engine fact is known.
 
 ## Found by the playthrough flow
 
@@ -958,30 +895,6 @@ Size: small. Needs: IDA, the dump; duo to prove it.
     `BSLightingShaderMaterial`'s vtable (a freed form pointer, the memory reused); commented at `0x140639011`.
   - Start: which list `sub_140638B20` walks and which form left it freed (the log's last line before the load:
     `Temporary Remote Deleted FF000DC3`, a copy deleted as the guest disconnects).
-
-### The sneak eye with the other player looking
-
-S6 of 2026-10-31 again. Hardened (PR #40), not reproduced.
-
-Agent task: Catch the eye open with the other player looking, name its source with the readout, and fix that source.
-
-Size: small. Needs: duo, the user's report.
-
-- **The other player looking counts as being seen** (2026-11-08, the user: "friends when looking at you detect you";
-  "just standing next to another player if we're sneaking and they are looking at us"). Not reproduced on the duo
-  (2026-11-08/09, dev's hook): standing or sneaking face to face, both games, the eye stayed closed on screen; the
-  copy's knowledge held no state; talking to or pickpocketing a player's copy is refused. The playtest's 21:26 `/bug`
-  reports caught no sneaking moment (Riverwood Trader, Lucan and Camilla by).
-  - Hardened (`docs/re/systems/stealth.md`): a player's copy now carries `kDoNotShowOnStealthMeter` (41408 skips it),
-    and `HookUpdateDetectionState` installs an unseen pass instead of skipping (a skip left the request queued; 42702
-    then answered an older level at any age, and 37765's forced 100 through 42705 the same).
-  - Suspects left: a real NPC near (the Sleeping Giant: Orgnar read -5 and "seen" on a sneaking host), NPC copies on the
-    guest ([The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate)), combat (40593 shows 100 minus
-    the search level).
-  - Start: the user's conditions (whose eye, where, who was near), or a `/bug` taken while the eye shows detected; the
-    harness's `crime stealth_meter` lists each actor holding a level of the player (`sources`).
-  - Test: scenario `other-player-looking-leaves-eye-hidden` is the base; it must fail before a fix on what the readout
-    names.
 
 ### A guest crash at the main menu
 

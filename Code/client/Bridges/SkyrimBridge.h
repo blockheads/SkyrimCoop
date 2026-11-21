@@ -101,6 +101,7 @@ public:
     WeaponState GetWeaponState(uint32_t aFormId) const noexcept override;
     ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept override;
     void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override;
+    void SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept override;
     void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
     void CopyLeaveKillMove(uint32_t aFormId) noexcept override;
     void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept override;

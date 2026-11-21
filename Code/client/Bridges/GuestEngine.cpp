@@ -1,3 +1,4 @@
+#include <Games/Skyrim/StealthEye.h>
 #include <Bridges/GuestEngine.h>
 #include <mutex>
 #include <unordered_set>
@@ -270,6 +271,16 @@ void GuestEngine::ReleaseWeather() noexcept
     Breadcrumbs::Record("ReleaseWeather", 0);
     if (Sky* pSky = Sky::Get())
         pSky->ReleaseWeatherOverride();
+}
+
+void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
+{
+    StealthEye::Hold(acReading);
+}
+
+void GuestEngine::ReleaseEye() noexcept
+{
+    StealthEye::Hold(std::nullopt);
 }
 
 bool GuestEngine::RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn) noexcept

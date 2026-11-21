@@ -2,6 +2,7 @@
 #include <Games/Animation/ActorMediator.h>
 #include <Games/Animation/TESActionData.h>
 #include <Games/Animation/ReplayState.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <CrashHandler.h>
 #include <HookSwitch.h>
 #include <BSCore/LockOrder.h>
@@ -1618,7 +1619,7 @@ void Actor::DropObject(TESBoundObject* apObject, ExtraDataList* apExtraData, int
     RealDropObject(this, &result, apObject, apExtraData, aCount, apLocation, apRotation);
 }
 
-// ActorKnowledge::SetDetectionState (42704), the detection job's pass: another player's copy sees our player unseen.
+// ActorKnowledge::SetDetectionState (42704), the detection job's pass: a copy sees our player unseen (its eye is the host's).
 using TUpdateDetectionState = void(ActorKnowledge*, CrimeEngine::DetectionState*);
 static TUpdateDetectionState* RealUpdateDetectionState = nullptr;
 
@@ -1628,7 +1629,7 @@ void HookUpdateDetectionState(ActorKnowledge* apThis, CrimeEngine::DetectionStat
     auto* pTarget = Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hTarget));
     if (apState && pWitness && pTarget)
     {
-        const auto cPass = DetectionRules::Installed(pWitness->GetExtension()->IsOtherPlayer(), pTarget->GetExtension()->IsLocalPlayer(),
+        const auto cPass = DetectionRules::Installed(pWitness->GetExtension()->IsCopy(), pTarget->GetExtension()->IsLocalPlayer(),
                                                      {apState->Level, apState->LineOfSight, apState->Seen, apState->Unk16});
         apState->Level = cPass.Level;
         apState->LineOfSight = cPass.LineOfSight;
@@ -1636,6 +1637,18 @@ void HookUpdateDetectionState(ActorKnowledge* apThis, CrimeEngine::DetectionStat
         apState->Unk16 = cPass.Unk16;
     }
     RealUpdateDetectionState(apThis, apState);
+}
+
+// Actor::SetActionValue (37711): the noise an actor's action makes (a swing, a cast, the player's bump). A copy's is its
+// owner's, from its record (ActorStateService), not its own engine's.
+using TSetActionValue = void(Actor*, int32_t);
+static TSetActionValue* RealSetActionValue = nullptr;
+
+void HookSetActionValue(Actor* apThis, int32_t aNoise)
+{
+    if (!ActorStateRules::MakesOwnNoise(apThis->GetExtension()->IsCopy()))
+        return;
+    RealSetActionValue(apThis, aNoise);
 }
 
 struct DialogueItem;
@@ -2067,6 +2080,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37521, &RealPickUpObject, HookPickUpObject);
         HOOK_ID(40454, &RealDropObject, HookDropObject);
         HOOK_ID(42704, &RealUpdateDetectionState, HookUpdateDetectionState);
+        HOOK_ID(37711, &RealSetActionValue, HookSetActionValue);
         HOOK_ID(39643, &RealProcessResponse, HookProcessResponse);
         HOOK_ID(37905, &RealInitiateMountPackage, HookInitiateMountPackage);
         HOOK_ID(41539, &RealDetachInteraction, HookDetachInteraction);

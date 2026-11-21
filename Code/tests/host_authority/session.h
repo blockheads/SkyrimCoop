@@ -42,6 +42,7 @@
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AuthenticationResponse.h>
 #include <Messages/NotifyPlayerJoined.h>
+#include <Messages/NotifyStealthEye.h>
 #include <Messages/NotifyPlayerLevel.h>
 #include <Messages/NotifySettingsChange.h>
 #include <Messages/PlayerLevelRequest.h>
@@ -214,6 +215,7 @@ struct Session
     std::unordered_map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
+    std::map<uint32_t, DetectionRules::EyeReading> Eyes;      // the host's NPCs' reading of a character's copy, by id
     std::vector<std::string> ConsoleLines;                   // the dev commands' lines the host's console ran
     std::set<uint32_t> CannotPair;                           // the host's NPCs dead or with their graph stopped
     std::map<uint32_t, std::string> ConsoleNames;            // a character as the host's console names it
@@ -328,6 +330,10 @@ private:
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.AdvanceTime = [this](float aHours) { HostClock.Time += aHours; };
         game.ReadWeather = [this] { return Weather; };
+        game.ReadEye = [this](uint32_t aSessionId) -> std::optional<DetectionRules::EyeReading> {
+            const auto it = Eyes.find(aSessionId);
+            return it == Eyes.end() ? std::nullopt : std::optional(it->second);
+        };
         game.RunConsole = [this](const std::string& acLine) { ConsoleLines.push_back(acLine); };
         game.ConsoleNameOf = [this](uint32_t aSessionId) -> std::optional<std::string> {
             const auto it = ConsoleNames.find(aSessionId);

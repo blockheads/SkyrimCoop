@@ -74,6 +74,7 @@ ActorStatePart ActorStateService::ReadPart(uint32_t aFormId, const ActorStatePar
     const WeaponState cWeapon = m_actorBridge.GetWeaponState(aFormId);
     const bool cDead = cFields.Dead || ActorStateRules::IsDeath(ActorStateRules::LifeOf(cFields.Flags1));
     part.HandsUp = ActorStateRules::SettledHands(cWeapon, cDead).value_or(apLast ? apLast->HandsUp : HandsUp(cWeapon));
+    part.Noise = static_cast<uint32_t>(std::max(cFields.Noise, 0));
     return part;
 }
 
@@ -133,6 +134,9 @@ ActorStateService::Applied ActorStateService::TryApply(uint32_t aId) noexcept
     const ActorStateFields cFields = m_actorBridge.GetActorStateFields(cFormId);
     m_actorBridge.SetCopyActorStateFlags(cFormId, ActorStateRules::FromPart1(part.Flags1, cFields.Flags1),
                                          ActorStateRules::FromPart2(part.Flags2, cFields.Flags2));
+    // Its owner's noise, which the host's detection of it hears (stealth.md, "A player's noise").
+    if (cFields.Noise != static_cast<int32_t>(part.Noise))
+        m_actorBridge.SetCopyNoise(cFormId, static_cast<int32_t>(part.Noise));
     const WeaponState cWeapon = m_actorBridge.GetWeaponState(cFormId);
     Applied applied{cFields.Dead || ActorStateRules::HandsSettled(part.HandsUp, cWeapon), {}};
     const auto cTried = m_handsTried.find(aId);

@@ -8,6 +8,17 @@ class CrimeActions:
     def crime_command(ctx, instance, action, **values):
         return ctx.player_command(instance, {"cmd": "crime", "action": action, **values})
 
+    def eyes(ctx, player="guest_player"):
+        """The stealth eye of a player in each game (crime stealth_meter, stealth.md): its own game's, and the other's of
+        its copy. {game: {level, seeing, stealth, in_combat, shows}}; shows is what the eye shows (40593: in combat 100
+        minus the stealth points, else 100 when the level is above 0)."""
+        eyes = {}
+        for game, instance in (("host", ""), ("guest", "client")):
+            read = ctx.crime_command(instance, "stealth_meter", actor=ctx.resolve(player, game))
+            shows = 100 - int(read["stealth"]) if read["in_combat"] else (100 if read["level"] > 0 else 0)
+            eyes[game] = {k: read[k] for k in ("level", "seeing", "stealth", "in_combat")} | {"shows": max(shows, 0)}
+        return eyes
+
     def party_bounty(ctx):
         """Each game's bounty rows: {"host": {faction: [violent, nonviolent]}, "guest": {...}}."""
         return {label: {f"{row['faction']:X}": [row["violent"], row["nonviolent"]]

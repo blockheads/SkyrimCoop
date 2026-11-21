@@ -273,6 +273,9 @@ bool IsProcessMe(uint32_t aFormId) noexcept;
 // The actor's sneaking flag (ActorState1::sneaking), what detection reads; false without the actor.
 bool IsSneaking(uint32_t aFormId) noexcept;
 
+// The noise its actions make now (Actor +0x11C, SetActionValue 37711), detection's sound term; 0 without the actor.
+int32_t GetActionNoise(uint32_t aFormId) noexcept;
+
 // Actor::IsTalking (37266): what the condition IsTalking and the dialogue menu read.
 bool IsTalking(uint32_t aFormId) noexcept;
 

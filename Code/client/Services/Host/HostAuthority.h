@@ -25,6 +25,7 @@
 #include <Services/Host/HostPartyItems.h>
 #include <Services/Host/HostPurse.h>
 #include <Services/Host/HostWeather.h>
+#include <Services/Host/HostEye.h>
 #include <Services/Host/HostWorldState.h>
 
 #include <array>
@@ -59,8 +60,8 @@ struct SummonRequest;
  * (how fast everyone's clock runs), HostDialogue (the party's conversation), HostWorldState (a guest's cell
  * loading), HostItems (a guest's drops and pickups), HostPlayerNatives (the script calls one game sends to others),
  * HostStory (a guest's story events),
- * HostPhysics (the host's bodies) and HostHands (a guest's player's pushes and holds of them); HostWeather has no
- * rules, and HostPurse (the party's gold) takes a player's gold out of the item relay.
+ * HostPhysics (the host's bodies) and HostHands (a guest's player's pushes and holds of them); HostWeather and HostEye (a guest's
+ * stealth eye) have no rules, and HostPurse (the party's gold) takes a player's gold out of the item relay.
  */
 struct HostAuthority
 {
@@ -185,6 +186,7 @@ private:
     HostPurse m_purse;
     HostPartyItems m_partyItems;
     HostWeather m_weather;
+    HostEye m_eye;
     HostWorldState m_worldState;
     HostItems m_items;
     HostHands m_hands;

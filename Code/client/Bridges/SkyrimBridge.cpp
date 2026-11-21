@@ -11,6 +11,7 @@
 #include <ItemIds.h>
 #include <AI/FollowerTargets.h>
 #include <Breadcrumbs.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <Games/HiddenCopies.h>
 #include <Games/GuestNpcs.h>
 #include <MainLoopTasks.h>
@@ -166,6 +167,8 @@ void SkyrimBridge::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
         {
             if (cReleased)
                 pActor->EndReleasedCopyPackage();
+            if (cReleased && ActorStateRules::HoldsOwnersNoise(pActor->fTimerOnAction))
+                pActor->iActionValue = 0, pActor->fTimerOnAction = 0.f;
             pActor->ApplyHeld3D(); // a copy or claimed: its refused 3D loads
         }
     }
@@ -1767,6 +1770,7 @@ ActorStateFields SkyrimBridge::GetActorStateFields(uint32_t aFormId) const noexc
             fields.KillerFormId = pKiller->formID;
     fields.InPair = fields.InKillMove && (pActor->InPair() || pActor->InPairClip());
     fields.Dead = pActor->IsDead();
+    fields.Noise = pActor->iActionValue;
     return fields;
 }
 
@@ -1829,6 +1833,15 @@ void SkyrimBridge::SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, ui
         return;
     pActor->actorState.flags1 = aFlags1;
     pActor->actorState.flags2 = aFlags2;
+}
+
+void SkyrimBridge::SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    pActor->iActionValue = aNoise;
+    pActor->fTimerOnAction = ActorStateRules::CopyNoiseTimer(aNoise);
 }
 
 void SkyrimBridge::CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept

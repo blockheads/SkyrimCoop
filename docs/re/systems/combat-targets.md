@@ -176,8 +176,9 @@ all AI detection.
 **Host-death rounds (duo, 2026-11-06, `host_death_watch`, 5 each way, the survivor still).** Host dies: the target moves
 to the copy and the state goes to search at once every time (2.5-7 s, 44-67 units off), twice walking 440-490 units
 away first. Guest dies: the host's player is fought on, never searched for. While both live, the copy's candidate reads
-line of sight false and detection about -6, the host's 42 with line of sight. Why the line of sight to a copy fails is
-the open step 0 (bugs.md, "A still guest unseen up close").
+line of sight false and detection about -6, the host's 42 with line of sight. Read and measured 2026-11-21 (stealth.md,
+"Line of sight" and "A player's noise"): no ray to the copy was blocked; it was out of the NPC's view cone, and it made
+none of its owner's noise (the host's player's bump noise is most of its 42). Its noise is its owner's since: no search.
 
 ## A fight with one player is the party's (2026-11-17)
 

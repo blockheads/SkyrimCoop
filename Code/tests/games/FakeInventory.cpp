@@ -622,7 +622,7 @@ ActorStateFields FakeEngine::GetActorStateFields(uint32_t aFormId) const noexcep
         return {};
     const Actor& cActor = it->second;
     return {cActor.State1, cActor.State2 | uint32_t(cActor.Weapon) << 5, cActor.InKillMove, cActor.InKillMove ? cActor.Killer : 0,
-            cActor.InKillMove && (cActor.InPair || cActor.InPairClip), cActor.Dead};
+            cActor.InKillMove && (cActor.InPair || cActor.InPairClip), cActor.Dead, cActor.Noise};
 }
 
 ::Factions FakeEngine::GetActorFactions(uint32_t aFormId) const noexcept
@@ -655,6 +655,21 @@ void FakeEngine::SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint
     it->second.State1 = aFlags1;
     it->second.State2 = aFlags2 & ~ActorStateRules::kWeaponMask;
     it->second.Weapon = WeaponState(aFlags2 >> 5 & 7);
+}
+
+void FakeEngine::SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end() && it->second.Copy)
+    {
+        it->second.Noise = aNoise;
+        it->second.NoiseHeld = ActorStateRules::CopyNoiseTimer(aNoise) == ActorStateRules::kHeldNoise;
+    }
+}
+
+void FakeEngine::SetActionValue(uint32_t aFormId, int32_t aNoise) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end() && ActorStateRules::MakesOwnNoise(it->second.Copy))
+        it->second.Noise = aNoise;
 }
 
 void FakeEngine::CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept

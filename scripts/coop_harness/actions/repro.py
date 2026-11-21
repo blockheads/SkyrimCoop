@@ -1076,6 +1076,16 @@ class ReproActions:
             except TestFailure:
                 raise ctx.failure(f"[{game or 'host'}] the player holds {stolen()} of {name} owned by {of}, not {want}") from None
             return {"stolen": stolen()}
+        if check == "eye":  # `name` a player: the eye its own game shows is the one the other game's NPCs give its copy
+            def agree():  # and shows `value` when given
+                seen = ctx.eyes(name)
+                same = seen["host"]["shows"] == seen["guest"]["shows"]
+                return seen if same and (value is None or seen["host"]["shows"] == value) else None
+            try:
+                ctx.wait_for(f"{name}: one eye in both games", agree, seconds or 2)
+            except TestFailure:
+                raise ctx.failure(f"{name}: the eye differs: {ctx.eyes(name)}") from None
+            return {"eye": ctx.eyes(name)}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
         if check == "crosshair":

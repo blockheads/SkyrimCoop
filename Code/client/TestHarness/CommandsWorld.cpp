@@ -121,6 +121,25 @@ nlohmann::json ReadCombat(Harness&, const nlohmann::json& acRequest)
             {"close_range", cRead->CloseRange}, {"margin", cRead->Margin}, {"margin_max", cRead->MarginMax},
             {"reach", cRead->Reach}, {"target_reach", cRead->TargetReach}, {"since_attacked", cRead->SinceAttacked}, {"target_path_state", cRead->TargetPathState}, {"target_path_points", cRead->TargetPathPoints}};
 }
+// {"cmd": "sight", "actor": detector, "target": id}: the detector's line of sight to the target (stealth.md, "Line of
+// sight"): CalculateLOS and CalculateDetection's verdicts, and a probe ray (37770) to each point with what it meets.
+nlohmann::json ReadSight(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cRead = EngineCalls::ReadSight(acRequest.value("actor", 0u), acRequest.value("target", 0x14u));
+    if (!cRead)
+        return Error("no such actors, or no process");
+    nlohmann::json rays = nlohmann::json::array();
+    for (const auto& cRay : cRead->Rays)
+        rays.push_back({{"location", cRay.Location}, {"to", cRay.To}, {"hit", cRay.Hit}, {"hit_at", cRay.HitAt},
+                        {"hit_ref", std::format("{:X}", cRay.HitReference)}, {"hit_node", cRay.HitNode},
+                        {"cast_layer", cRay.CastLayer}, {"cast_ref", std::format("{:X}", cRay.CastReference)}, {"sees", cRay.Sees}});
+    return {{"ok", true}, {"combat_target", std::format("{:X}", cRead->CombatTarget)}, {"angle", cRead->Angle},
+            {"half_cone", cRead->HalfCone}, {"distance", cRead->Distance}, {"los", cRead->Los}, {"level", cRead->Level},
+            {"in_view", cRead->InView}, {"line_of_sight", cRead->LineOfSight}, {"sound", cRead->Sound},
+            {"sight", cRead->Sight}, {"sneak", cRead->Sneak}, {"target_noise", cRead->TargetNoise},
+            {"target_noise_timer", cRead->TargetNoiseTimer}, {"rays", rays}};
+}
+
 // {"cmd": "status"}: the status (Status.h).
 nlohmann::json GetStatus(Harness& aHarness, const nlohmann::json&)
 {
@@ -1229,6 +1248,7 @@ constexpr Command cCommands[] = {
     {"add_effect", true, &AddEffect},
     {"commanded", true, &Commanded},
     {"combat_targets", true, &ReadCombat},
+    {"sight", true, &ReadSight},
     {"status", false, &GetStatus},
     {"world_clock", false, &WorldClock},
     {"counters", false, &CountersCommand},

@@ -65,6 +65,37 @@ struct CombatRead
 };
 std::optional<CombatRead> ReadCombat(uint32_t aActorId);
 
+// One detector's line of sight to a target (stealth.md, "Line of sight"): the engine's verdicts (37768, 37774) and
+// probes, not its own rays: 37770 to each of torso, head and feet (37771), its collector taking the detector's layer.
+struct SightRay
+{
+    uint32_t Location{};              // ACTOR_LOS_LOCATION: 3 torso, 2 head, 4 feet
+    std::array<float, 3> To{};
+    std::array<float, 3> HitAt{};
+    bool Hit{};                       // 37770 hit some 3D on the way
+    uint32_t HitReference{};          // that 3D's reference (19750), 0 for none
+    std::string HitNode;
+    uint32_t CastLayer{};             // the same line cast on layer 41 past the detector: the collision's layer
+    uint32_t CastReference{};
+    bool Sees{};                      // what 37768 counts: nothing hit, or the target's own 3D
+};
+struct SightRead
+{
+    uint32_t CombatTarget{};          // the detector's +0x104: with the player, it gets three rays
+    float Angle{};                    // 37773, degrees from the detector's facing
+    float HalfCone{};                 // half of fDetectionViewCone
+    float Distance{};
+    uint32_t Los{};                   // CalculateLOS (37768): the first location seen, 0 none
+    int32_t Level{};                  // CalculateDetection (37774)
+    bool InView{};
+    bool LineOfSight{};
+    float Sound{}, Sight{}, Sneak{};  // its three terms (0x14041CD90)
+    int32_t TargetNoise{};            // the target's action noise (Actor +0x11C), the sound term's input
+    float TargetNoiseTimer{};
+    std::vector<SightRay> Rays;
+};
+std::optional<SightRead> ReadSight(uint32_t aDetectorId, uint32_t aTargetId);
+
 // The engine reads the player build uses too (bug reports).
 using namespace Diagnostics::EngineReads;
 

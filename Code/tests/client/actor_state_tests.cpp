@@ -65,3 +65,14 @@ TEST_CASE("Drawn hands: the owner's settled state, put right on a copy once it i
     CHECK_FALSE(PutsHandsRight(true, WeaponState::Drawn));
     CHECK(PutsHandsRight(false, WeaponState::WantToSheathe));
 }
+
+TEST_CASE("A copy's noise is its owner's: held while its owner's lasts, never its own engine's", "[actor-state][stealth]")
+{
+    CHECK(MakesOwnNoise(false));
+    CHECK_FALSE(MakesOwnNoise(true)); // a replayed swing or cast on the copy (37711) is not its
+    CHECK(CopyNoiseTimer(100) == kHeldNoise);
+    CHECK(CopyNoiseTimer(100) - 3600.f > 0.f); // an hour of its own countdown leaves it
+    CHECK(CopyNoiseTimer(0) == 0.f);           // its owner's 0 ends it
+    CHECK(HoldsOwnersNoise(CopyNoiseTimer(100) - 60.f)); // a minute of its own countdown: still held, ended on release
+    CHECK_FALSE(HoldsOwnersNoise(5.f));                  // its own engine's noise runs out by itself
+}

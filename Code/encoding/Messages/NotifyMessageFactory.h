@@ -27,6 +27,7 @@
 #include <Messages/NotifyPlayerLevel.h>
 #include <Messages/NotifySettingsChange.h>
 #include <Messages/NotifyWeatherChange.h>
+#include <Messages/NotifyStealthEye.h>
 #include <Messages/NotifyTimeScale.h>
 #include <Messages/NotifyPartyTravel.h>
 #include <Messages/SharedDialogue.h>

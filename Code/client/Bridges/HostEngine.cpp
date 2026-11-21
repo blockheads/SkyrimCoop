@@ -1,5 +1,6 @@
 #include <Bridges/PlacedByGame.h>
 #include <Bridges/HostEngine.h>
+#include <Games/Skyrim/StealthEye.h>
 #include <Papyrus/SystemQuests.h>
 #include <MainLoopTasks.h>
 #include <AI/FollowerTargets.h>
@@ -299,6 +300,14 @@ std::optional<GameId> HostEngine::ReadWeather() const noexcept
     if (!pWeather || pWeather->formID == Sky::kWorldMapWeather)
         return std::nullopt;
     return ToSession(pWeather->formID);
+}
+
+std::optional<DetectionRules::EyeReading> HostEngine::ReadEye(uint32_t aSessionId) const noexcept
+{
+    auto* pCopy = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(aSessionId)));
+    if (!pCopy || !pCopy->currentProcess || !pCopy->GetNiNode() || !pCopy->GetExtension()->IsCopy())
+        return std::nullopt;
+    return StealthEye::Read(*pCopy);
 }
 
 std::vector<HostGlobal> HostEngine::ReadGlobals() const noexcept

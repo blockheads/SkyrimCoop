@@ -426,6 +426,8 @@ public:
     uint32_t flags1; // CommonLib boolBits
     // flags1: the engine updates the actor this frame (CommonLib BOOL_BITS::kProcessMe).
     static constexpr uint32_t kProcessMe = 1u << 1;
+    // flags1: a follower of the player (CommonLib BOOL_BITS::kPlayerTeammate): off its eye (41408).
+    static constexpr uint32_t kPlayerTeammate = 1u << 26;
     float headTrackingUpdateDelay;
     uint32_t unk84;
     AIProcess* currentProcess;
@@ -435,10 +437,10 @@ public:
     uint32_t unk98;
     float fVoiceTimer; // seconds left of the voice line (CommonLib voiceTimer)
     float fUnderWaterTimer; // seconds the head has been under water (CommonLib underWaterTimer)
-    uint32_t unkA4;
     int32_t iThiefCrimeStamp;
-    int32_t iActionValue;
-    float fTimerOnAction;
+    int32_t iActionValue;  // the noise its actions make, a detection's sound term (SetActionValue 37711, read by 37774)
+    float fTimerOnAction;  // seconds the noise lasts (fActorAlertSoundTimer); 0 clears it (0x14075FA50)
+    uint32_t unk124;
     uint32_t unkB4[5];
     void* pad138[2];
     struct IMovementDrivenControl* movementDrivenControl; // MovementControllerNPC
@@ -512,6 +514,8 @@ static_assert(offsetof(Actor, cullingState) == 0x27C);
 static_assert(offsetof(Actor, iLastSeenTime) == 0x264);
 static_assert(offsetof(Actor, fVoiceTimer) == 0x110);
 static_assert(offsetof(Actor, fUnderWaterTimer) == 0x114);
+static_assert(offsetof(Actor, iActionValue) == 0x11C); // CommonLib actionValue
+static_assert(offsetof(Actor, fTimerOnAction) == 0x120);
 static_assert(offsetof(Actor, unk84) == 0xF0);
 static_assert(offsetof(Actor, unk17C) == 0x184);
 static_assert(offsetof(Actor, movementDrivenControl) == 0x150); // MovementControllerNPC (CommonLib movementController)

@@ -624,6 +624,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                   // copy (no engine path ends one, 38618's callers); held, a kill is only counted (37896)
         bool KillCounted = false; // a kill held back (MiddleHigh +0x2F8 above 1); our release drops it (Actor::HoldKill)
         uint32_t Commander = 0; // a summon's caster (MiddleProcess 0x218); this game's player's: Actor::IsPlayerSummon
+        bool Teammate = false;  // a follower of the player (flags1 kPlayerTeammate): off a player's eye (41408)
         bool ProcessMe = true; // kProcessMe: EnableAI(false) (37504, the harness's freeze) clears it, and the graph job skips it (41466)
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
         bool InAir = false; // its controller jumping or falling, else on the ground
@@ -641,6 +642,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t State1 = 0;        // ActorState's flags1 (sneaking 1 << 9): an owner's goes with its actions
         uint32_t State2 = 0;        // flags2 but the weapon state (Weapon): wantBlocking 0x100, recoil 0xC00
         uint32_t Killer = 0;        // a kill move's victim: its killer (killerHandle, 38613)
+        int32_t Noise = 0;          // actionValue: its own engine sets it (a player's bump, a swing: 37711), detection's
+                                    // sound term hears it (37774)
+        bool NoiseHeld = false;     // a copy's, its owner's: no countdown ends it (ActorStateRules::CopyNoiseTimer)
         bool RefusesDraw = false;   // its draw or sheathe action refused (37279: weapon state 1 or 4), its graph not ready
         uint32_t ExitIn = 0;        // frames until its exit clip's own event (42835) ends its getting off, 0 none
         bool InPair = false;        // in a pair's instance on this game (32808): a replay with a copy partner makes none
@@ -1288,16 +1292,24 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Asking the running package's procedure: GetCurrentAIProcedure (21521) and a former copy's CheckForNewPackage (39213)
     // read a table at this index with no check, and -1 reads what lies before it: Skyrim crashes.
     bool ReadsProcedure(uint32_t aActor) const { return Actors.at(aActor).ProcedureType >= 0; }
-    // Detection of the player (stealth.md): a request queued once (42712), a pass installs and clears it (42704,
-    // DetectionRules); while queued, 42702 answers the state at any age.
+    // Detection (stealth.md): a request queued once (42712), a pass installs and clears it (42704, DetectionRules);
+    // while queued, 42702 answers the state at any age. Kept by target: the HUD asks of the player each frame, the
+    // host of each guest's copy (HostEye).
     struct WitnessKnowledge
     {
         std::optional<DetectionRules::Pass> State;
         uint32_t UpdatedAt = 0; // DetectionFrame of its pass
         bool Queued = false;
     };
-    std::map<uint32_t, WitnessKnowledge> KnowledgeOfPlayer; // by witness
-    std::map<uint32_t, int32_t> Sees;                      // what a witness's pass computes of the player (CalculateDetection)
+    std::map<uint32_t, std::map<uint32_t, WitnessKnowledge>> DetectionOf; // by target, then witness
+    std::map<uint32_t, WitnessKnowledge>& KnowledgeOfPlayer = DetectionOf[kPlayer];
+    std::map<uint32_t, std::map<uint32_t, int32_t>> SeesOf; // what a witness's pass computes of a target (37774), by target
+    std::map<uint32_t, int32_t>& Sees = SeesOf[kPlayer];
+    // An actor's lowest stealth points over this game's fights (46877; its combat groups' targets): none, 100.
+    std::map<uint32_t, float> StealthPoints;
+    bool PlayerInCombat = false; // the player's IsInCombat (vfunc 0xE3): the eye shows its fights' stealth
+    // A guest's held reading of its player from the host (GuestEngine::HoldEye): the eye's reads answer it.
+    std::optional<DetectionRules::EyeReading> HeldEye;
     uint32_t DetectionFrame = 0;
     // The witness judged the player in a pass already installed (a copy before its flags, as after a cog swap).
     void JudgedPlayer(uint32_t aWitness, int32_t aLevel);
@@ -1311,7 +1323,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     // The HUD's eye: the highest fresh detection of the player among loaded actors (40593 through 41408).
     int32_t StealthEye();
-    [[nodiscard]] const DetectionRules::Pass* FreshState(uint32_t aWitness);
+    // 41408 of any target (the player's skips its flagged witnesses), with StealthEye's hook on a guest's player.
+    int32_t HighestDetection(uint32_t aTarget, uint32_t& aSeeing);
+    // 46877, with the same hook.
+    [[nodiscard]] float LowestStealthPoints(uint32_t aTarget) const;
+    // What the HUD's eye shows (40593, DetectionRules::EyeShows).
+    int32_t EyeShows();
+    [[nodiscard]] const DetectionRules::Pass* FreshState(uint32_t aWitness, uint32_t aTarget = kPlayer);
     void DetectionPass(); // DoDetectionJob 42742: each queued request answered
     // Actor::ProcessTracking (38009), each frame: an actor whose look is this game's player asks its own detection of
     // that player (37758) and, with a state of level 0 or less, drops its default slot (slot 0).
@@ -1637,6 +1655,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     ::Factions GetActorFactions(uint32_t aFormId) const noexcept override;
     void SetActorFactions(uint32_t aFormId, const ::Factions& acFactions) noexcept override;
     void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override;
+    void SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept override;
+    // Actor::SetActionValue (37711) as its engine calls it (a swing, a cast, the player's bump), with HookSetActionValue.
+    void SetActionValue(uint32_t aFormId, int32_t aNoise) noexcept;
     void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
     void CopyLeaveKillMove(uint32_t aFormId) noexcept override;
     void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept override;

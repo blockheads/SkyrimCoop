@@ -2,7 +2,7 @@
 
 Status: **pieces 1 to 5 built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
 2026-11-19: items, a mount handed back between pairs; 2026-11-20: kill moves as claimed pairs, passengers seated at
-once; piece 6 revised to its four fixes; 2026-11-21: the host creates, piece 7); the rest proposed.** Direction agreed 2026-11-18 (the four
+once; piece 6 revised to its four fixes; 2026-11-21: the host creates, piece 7; the eye is the host's, piece 8); the rest proposed.** Direction agreed 2026-11-18 (the four
 decisions below). Physics
 ([physics-sync.md](physics-sync.md), "One simulator per pile") and the graph stream
 ([graph-input-stream.md](graph-input-stream.md)) already work this way; this puts the rest of the code on the same
@@ -631,6 +631,34 @@ guest: 40593's read of 41408 answers that level; every NPC copy is an unseen wit
 Blocked on a read: host NPCs get no line of sight to a still guest's copy 74 units away (bugs.md, "A still
 guest unseen up close"). Until that is understood the host's level would be wrong, so that entry comes first.
 
+**The read (2026-11-21, `docs/re/systems/stealth.md`):** no ray was blocked. The copy was out of the NPC's view cone
+(vanilla geometry), and it made none of its owner's noise: a player's bump into a character (iSoundLevelLoud for 5 s,
+37711) happens on its own game, so the host's NPCs heard the host's player (sound 187) and not the guest's copy
+(0). The noise is now its owner's, in the actor state part (`ActorStatePart::Noise`, `HookSetActionValue`): no search
+in 5 rounds of `host_death_watch` (5 of 5 before).
+
+**As built (2026-11-21)**, after the RE (`docs/re/systems/stealth.md`, "The eye is the host's"):
+
+```text
+host, each frame: HostEye -> HostGame::ReadEye (StealthEye::Read: 41408, 46877 on the guest's copy)
+  changed (DetectionRules::EyeChanged) -> NotifyStealthEye{Level, Seeing, Stealth} to that guest only
+guest: GuestEye -> GuestEngine::HoldEye -> StealthEye's hooks on 41408 and 46877 answer it for its player;
+       40593 runs as is (its own in-combat branch, the host's numbers)
+every game: any copy judging this game's player is an unseen witness (DetectionRules::Installed)
+```
+
+- The host's read walks the high actors itself: 41408 skips flagged witnesses, teammates and the player's summons
+  only for the real player, so a guest's copy would count a follower (review of PR #89). Copies never count.
+- The level is sent, not only seen or hidden: 41408's other callers read it (lockpicking, alarms, the stolen item's
+  owner adds it to a modifier); `EyeChanged` sends on a sign change, by 5, or a whole stealth point.
+- **Measured on the way:** the host's NPCs' state of a guest's copy was never fresh (42702 answers none past 2 s and
+  nobody asked each frame); the read each frame is what the engine does for its own player. In a fight the guest's
+  eye showed hidden: its game has no combat group with its player.
+- Tests: GameTests "A guest's eye is what the host's NPCs see of it, in a fight and out of one" (the fake learned
+  detection by target, 46877 and the eye's combat branch), HostAuthorityTests `[Eye]`, ClientTests
+  `[DetectionRules]`, TPTests the message; scenario `guest-eye-is-hosts`, `other-player-looking-leaves-eye-hidden`
+  still passing. Bugs closed: "The guest's eye is its own estimate", "The sneak eye with the other player looking".
+
 ## Piece 9: held-now state for a joiner
 
 ```text
@@ -667,7 +695,7 @@ case ("every store answers a joiner").
 7  the host creates; a summon's test
 9  held-now state for a joiner; the cast part
 10 world check leaves scenery out (a harness change: can go first, it unblocks end comparisons)
-8  the eye (after "A still guest unseen up close" is read)
+8  the eye (its blocker read and fixed 2026-11-21: a copy's noise is its owner's)
 10 copy ragdolls in the played group
 ```
 
@@ -695,7 +723,8 @@ and only the scenarios it names on the duo.
 5. How a guest's script call can wait for the host's created reference (the VM's latent calls), and what a
    summon's own engine path creates before it can be suppressed.
 6. Who applies a host NPC's weapon enchantment to a guest's player (the audit's "inferred"; not read).
-7. Why the host's detection gets no line of sight to a guest's copy (piece 8's blocker).
+7. ~~Why the host's detection gets no line of sight to a guest's copy (piece 8's blocker).~~ It had it; the copy made no
+   noise (stealth.md, "A player's noise", 2026-11-21).
 8. Whether a copy's ragdoll in the played group still lies right on stairs and slopes (its bodies meet the world).
 
 ## Acceptance: the open bugs each piece should close (docs/bugs.md, 2026-11-18)
