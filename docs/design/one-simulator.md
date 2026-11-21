@@ -2,7 +2,7 @@
 
 Status: **pieces 1 to 5 built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
 2026-11-19: items, a mount handed back between pairs; 2026-11-20: kill moves as claimed pairs, passengers seated at
-once); the rest proposed.** Direction agreed 2026-11-18 (the four
+once; piece 6 revised to its four fixes; 2026-11-21: the host creates, piece 7); the rest proposed.** Direction agreed 2026-11-18 (the four
 decisions below). Physics
 ([physics-sync.md](physics-sync.md), "One simulator per pile") and the graph stream
 ([graph-input-stream.md](graph-input-stream.md)) already work this way; this puts the rest of the code on the same
@@ -581,6 +581,43 @@ Familiar: both games show one, it fights for the guest); `vampirism_flows.cpp` "
 host's".
 Deletes: the guest-only reference the world check trips on; `RunActorDiscovery`'s silent delete of a guest's
 temporary actor becomes a refusal that logs.
+
+**As built (2026-11-21)**, after the RE (`docs/re/systems/summons.md`):
+
+```text
+a guest's script: PlaceAtMe / PlaceActorAtMe (56203: CreateReferenceAtLocation 13723, the kCreate sink)
+  -> RoutedCall{kHost, ReplyId}; its stack waits (latent)
+host's game: runs it for that guest -> its create row as every creation -> PlayerNativeResult{ReplyId, R, guest}
+guest: R here (its create row made the copy) -> the script goes on with it (R5); 5 s without: None
+  then the script's Disable/Enable on it (56491, 56492: kWorld) -> the host's, R by its created id (CreatedIds)
+
+a guest's player casts a summon on itself
+  its effect runs here (portal, timer); CreateSummon (34993) makes nothing on a guest
+  -> SummonRequest{spell, effect, magnitude}
+host's game: the effect on the guest's copy, cast by the copy -> its engine makes the familiar, commanded by the copy
+every game: the familiar's spawn with CommanderId -> commanded by that player's character there
+```
+
+- Not a `CreateRequest` of our own: the summon goes through the engine's own effect on the copy (the copy's
+  commanded list keeps the limit, the effect's end ends it), and `PlaceAtMe` through the router's routed call.
+- **Measured on the way:** a guest's own familiar was made and held without 3D (`GuestNpcs`), never announced; the
+  host dropped the copy's replayed cast. The 2026-11-06 suspect (`RunActorDiscovery`) only takes actors with 3D. The
+  delete stays, now logged.
+- **Found and fixed:** a copy spawned while its owner shows an effect (the familiar's shader) never played it: no
+  `TESObjectLoadedEvent` for a spawned copy's 3D; `Copy3DEvent` replays it. `ClassifyCall` had no bucket for a
+  creation (it fell to the screen's). A guest joining with the host's world had each of the host's created references
+  twice (its save's, by the host's id, and the create row's); the row now takes the save's.
+- `Enable`/`Disable` from a guest's script go to the host only for the host's created references: routed for all,
+  a guest's startup scripts changed the host's world as it joined.
+- The guest's summon effect was kept off its game at first; the duo showed the portal missing (the user), so only
+  `CreateSummon` is refused.
+- Tests: GameTests "A guest's familiar is one actor on every game", "A host NPC already burning when its copy is
+  made burns on the copy once it has 3D", `vampirism_flows.cpp` "VampireChange's marker is the host's" (placed and
+  disabled on the host, the guest's script given the host's); HostAuthorityTests `[Summons]`, the create answer to
+  its asker only; ClientTests `RouteOf` for `kCreate`, `ClassifyCall`'s creation; TPTests the summon request and the
+  answer's guest. Duo: `guest-summons-familiar` (one familiar, both games agree, the shader included; no NPC of the
+  guest's own), `vampirism-is-each-players`, `vampirism-kept-across-rejoin`; GameTests "A reference the host's game
+  created is one on a guest joining with the host's world".
 
 ## Piece 8: the eye is the host's
 

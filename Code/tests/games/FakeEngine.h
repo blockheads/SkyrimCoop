@@ -221,13 +221,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     PartyRules::LatentCopies Copies;
     // What the last question a script asked here answered (ObjectReference.GetDistance).
     std::optional<LocalValue> LastAnswer;
+    // What the last native run here returned (PlaceAtMe's reference); and a call sent to the host's game waiting on its
+    // answer (PlayerNatives' Wait): its stack, then what the stack got (PlayerNatives::Answer).
+    LocalValue LastReturn;
+    uint32_t LastWaiting = 0;
+    std::set<uint32_t> Waiting; // stacks waiting on another game (PlayerNatives' s_waiting)
+    std::map<uint32_t, LocalValue> ScriptReturns;
     [[nodiscard]] LocalValue Answer(const LocalCall& acCall, bool aAsksParty) const;
     // This game's player answers the box in aStack: its stack returns (ReturnFromLatent's hook: an original's result
     // goes to its copies, CallEndedEvent).
     void AnswerBox(uint32_t aStack, int32_t aButton);
     // A call the VM runs on its next frame, its stack tagged aCause (GlobalCall::QueueCall): a quest's function
     // (QuestFunctions) or a native.
-    void Queue(LocalCall aCall, uint32_t aCause);
+    void Queue(LocalCall aCall, uint32_t aCause, std::function<void(LocalValue)> aOnReturn = {});
     void RunQueued();
     // A script's call into a quest's function, its self (QuestFunctions, by the quest and the function's name), as
     // GuestScripts' call hook takes it (docs/design/system-quests.md): one from this game's player's own script
@@ -263,6 +269,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         glm::vec3 Position{}; // where it stands (a marker MoveTo goes to)
         uint32_t RecordFlags{};
         uint32_t Base = 0; // a created one's (a script's PlaceAtMe)
+        bool Disabled = false; // a script's Disable (kEnabled's row)
         uint32_t Owner = 0; // its ExtraOwnership (an NPC or a faction); none: its cell's (CellOwners)
         bool Plant = false;     // a flora or tree reference: an activation picks it (TESProduceForm::Harvest 14864)
         bool Harvested = false; // its form flag 0x2000
@@ -284,6 +291,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t PlaceContainer(uint32_t aCell, uint32_t aBase);
     // The host's script places a container (PlaceAtMe of a leveled chest) that rolled aRolled: made and recorded.
     uint32_t ScriptPlacesContainer(uint32_t aCell, uint32_t aBase, const std::map<uint32_t, int32_t>& acRolled);
+    // A script's PlaceAtMe (56203: CreateReferenceAtLocation 13723) of aBase at aAt (an actor or a reference): made and
+    // recorded as the host's creations are (kCreate).
+    uint32_t ScriptPlaces(uint32_t aAt, uint32_t aBase);
     // A created container's contents (HostGame::ReadContents); none for no such container.
     std::optional<ObjectChange> ContentsOf(uint32_t aContainer) const;
     // A container holds exactly the kContents change's items (ApplyContainerContents).
@@ -613,7 +623,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool KillHeld = false;    // a scripted deferred kill (38616): every copy's (UpdateCopyAI), and it outlives the
                                   // copy (no engine path ends one, 38618's callers); held, a kill is only counted (37896)
         bool KillCounted = false; // a kill held back (MiddleHigh +0x2F8 above 1); our release drops it (Actor::HoldKill)
-        bool PlayerSummon = false; // commanded by this game's player (Actor::IsPlayerSummon)
+        uint32_t Commander = 0; // a summon's caster (MiddleProcess 0x218); this game's player's: Actor::IsPlayerSummon
         bool ProcessMe = true; // kProcessMe: EnableAI(false) (37504, the harness's freeze) clears it, and the graph job skips it (41466)
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
         bool InAir = false; // its controller jumping or falling, else on the ground
@@ -1026,11 +1036,16 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Healing = false;
         bool Buff = false;
         bool Damage = false; // its effect damages health
+        uint32_t Summons = 0; // its effect makes this NPC base, commanded by the caster (SummonCreatureEffect)
     };
+    static constexpr uint32_t kConjureFamiliar = 0x000640B6;
+    static constexpr uint32_t kFamiliarEffect = 0x000640B4;
+    static constexpr uint32_t kFamiliar = 0x000CAE0B; // stands for the familiar's base
     std::map<uint32_t, SpellForm> SpellForms{{0x00012FCD, {.Concentration = true}},                  // Flames
                                              {0x00012FCC, {.Concentration = true, .Healing = true}}, // Healing
                                              {0x0005AD5C, {.Buff = true}},                           // Oakflesh
-                                             {0x0001C789, {.Damage = true}}};                        // Firebolt
+                                             {0x0001C789, {.Damage = true}},                         // Firebolt
+                                             {kConjureFamiliar, {.Summons = kFamiliar}}};
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
     struct Cast
     {
@@ -1054,6 +1069,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // This game's spell lands on an actor (HookAddTarget): on another game's actor, our cast is a request for its
     // owner and is not applied here; on our own, applied.
     void SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
+    // A summon effect's actor (SummonCreatureEffect::CreateSummon 34993): one of aBase at its caster, commanded by it;
+    // the caster's earlier summon dismissed (AIProcess::AddCommandedActor's limit, 1 without Twin Souls).
+    uint32_t MakesSummon(uint32_t aCaster, uint32_t aBase);
     bool IsConcentrationSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Concentration; }
     bool IsHealingSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Healing; }
     bool IsBuffSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Buff; }
@@ -1068,6 +1086,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                               bool aApplyStaminaPerkBonus) noexcept override
     {
         Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
+        if (Spell(aSpellFormId).Summons && !HoldSession) // a guest's CreateSummon (34993) makes nothing
+            MakesSummon(aCasterFormId, Spell(aSpellFormId).Summons);
         // A damaging effect's value goes through the damage hook while applied (HookApplyActorEffect).
         if (Spell(aSpellFormId).Damage)
             TakesDamage(aTargetFormId, aCasterFormId, aMagnitude, true);
@@ -1313,9 +1333,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     std::vector<ActiveEffectInfo> GetActorActiveEffects(uint32_t aFormId) const noexcept override;
     bool EffectHasHitVisuals(uint32_t) const noexcept override { return true; }
+    // Nothing plays on an actor with no 3D (SkyrimBridge: no NiNode, ApplyHitVisuals has nothing to attach to).
     bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
     {
-        return Actors.contains(aFormId) && Actors.at(aFormId).ShownVisuals.insert(aEffectFormId).second;
+        return Actors.contains(aFormId) && ActorHas3D(aFormId) && Actors.at(aFormId).ShownVisuals.insert(aEffectFormId).second;
     }
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
     {
@@ -1625,17 +1646,27 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] bool ActorCanPair(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
-        return it != Actors.end() && !it->second.Dead && it->second.ProcessMe && !it->second.PlayerSummon;
+        return it != Actors.end() && !it->second.Dead && it->second.ProcessMe && it->second.Commander != kPlayer;
     }
     [[nodiscard]] bool ActorKillCounted(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
         return it != Actors.end() && it->second.KillCounted;
     }
+    void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end())
+            it->second.Commander = aCommanderFormId;
+    }
+    uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() ? it->second.Commander : 0;
+    }
     [[nodiscard]] bool IsPlayerSummon(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
-        return it != Actors.end() && it->second.PlayerSummon;
+        return it != Actors.end() && it->second.Commander == kPlayer;
     }
     // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played; refused on
     // a copy on its owner's stream (weapon state 1 or 4).
@@ -1693,6 +1724,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool m_mirroredMove = false; // the player's move is another game's party call's: party travel leads no one with it
     // A new temporary form id: the lowest a deleted reference gave back, as the engine reuses them, else the next.
     uint32_t NewTemporary() noexcept;
+
+  public:
+    // The next temporary form id this game makes (two games' ids meeting: each numbers its own).
+    void NextTemporaryIs(uint32_t aFormId) noexcept { m_nextTemporary = aFormId; }
+
+  private:
     // At 0 health: dead, or down if essential; a copy is in deferred kill.
     void CheckHealth(uint32_t aFormId, Actor& aActor) noexcept;
     // The engine's equip and unequip behind EquipHook and UnEquipHook (EquipManager.cpp).
@@ -1712,7 +1749,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The host's record of a loose item it made or took (kCreate, the deletion).
     void RecordCreated(uint32_t aObject);
 
-    std::deque<std::pair<LocalCall, uint32_t>> m_queued;
+    struct QueuedCall
+    {
+        LocalCall Call;
+        uint32_t Cause;
+        std::function<void(LocalValue)> OnReturn;
+    };
+    std::deque<QueuedCall> m_queued;
     RagdollPending m_pendingRagdolls;
     bool m_inSystemQuest = false; // a system quest's function runs (CallsQuest): its natives are its instance's
     std::chrono::steady_clock::time_point m_lastFrame;

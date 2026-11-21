@@ -1,5 +1,6 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
+#include <CreatedIds.h>
 #include <Games/Animation/ReplayState.h>
 #include <Games/KnockReplay.h>
 #include <SessionIds.h>
@@ -104,6 +105,7 @@ World::World()
     // In the real World's order: TravelService before CharacterService.
     ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                  ctx().at<IPlayerBridge&>());
+    ctx().emplace<CreatedIds>();
     ctx().emplace<CopyRecords>(); // before CharacterService: its Ride part
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                     ctx().at<IPlayerBridge&>());

@@ -31,6 +31,7 @@
 #include <Messages/DroppedItems.h>
 #include <Messages/DeathMessages.h>
 #include <Messages/TravelMessages.h>
+#include <Messages/SummonRequest.h>
 
 struct RequestMessageFactory
 {

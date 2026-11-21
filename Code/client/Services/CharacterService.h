@@ -215,6 +215,8 @@ private:
     std::unordered_set<uint32_t> m_partyMounts; // session ids: ridden by a player, kept through cell loads
     std::unordered_map<uint32_t, uint32_t> m_pendingRides; // mount -> rider session ids, heard before both copies were made
     void LinkPendingRides(uint32_t aSessionId) noexcept;
+    std::unordered_map<uint32_t, uint32_t> m_pendingCommanders; // a summon -> its commander, before the commander's copy
+    void LinkPendingCommanders(uint32_t aSessionId) noexcept;
     uint32_t m_boardedMount{};  // session id: our player rides along on it
     uint32_t m_boardingMount{}; // session id: asked the host for a seat on it
     std::unordered_map<uint32_t, uint32_t> m_drivers; // mount -> its driver, session ids

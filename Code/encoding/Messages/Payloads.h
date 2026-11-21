@@ -365,7 +365,8 @@ struct CallEnded
     ScriptValue Result{};
 };
 
-// What a native on the player returned on the guest's game, for the host's script waiting on it (PlayerNative::ReplyId).
+// What a native on the player returned on the guest's game, for the host's script waiting on it (PlayerNative::ReplyId);
+// or what the host's game returned for a guest's script waiting on it (a created reference, one-simulator.md piece 7).
 struct PlayerNativeResult
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
@@ -375,6 +376,7 @@ struct PlayerNativeResult
 
     uint32_t ReplyId{};
     ScriptValue Result{}; // None also when it did not run there (the guest left, an argument not there)
+    uint32_t SessionId{}; // from the host's game: the asking guest's character; 0: for the host's game
 };
 
 // Physics bodies moving on the host's game (docs/design/physics-sync.md): the frames a guest would guess wrong

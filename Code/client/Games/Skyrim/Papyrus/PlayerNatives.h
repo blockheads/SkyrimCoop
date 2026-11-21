@@ -15,14 +15,18 @@ namespace PlayerNatives
 void SetGuest(bool aIsGuest) noexcept;
 [[nodiscard]] bool IsGuest() noexcept;
 // A guest's own script changed the world (a quest's stage): the host's game makes acCall (RoutedCallEvent), and it
-// completes here (a bool one with true, as the host takes it). Sent as a RoutedCallEvent.
-[[nodiscard]] BSScript::CallResult SendToHost(BSScript::IFunction* apFunction, BSScript::Stack& aStack, LocalCall aCall) noexcept;
+// completes here (a bool one with true, as the host takes it). aReply (a created reference): it waits for the host's
+// answer instead (Answer).
+[[nodiscard]] BSScript::CallResult SendToHost(BSScript::IFunction* apFunction, BSScript::Stack& aStack, BSScript::IVirtualMachine* apVm,
+                                              LocalCall aCall, bool aReply = false) noexcept;
 // A native on the player in a stack run for aGuest (a form id): its game runs acCall on its own player
 // (RoutedCallEvent). A void one completes; one returning a value waits for that game's answer.
 [[nodiscard]] BSScript::CallResult SendToGuest(BSScript::IFunction* apFunction, BSScript::Stack& aStack, BSScript::IVirtualMachine* apVm,
                                                uint32_t aGuest, LocalCall aCall) noexcept;
-// The guest's game answered the stack waiting on aReplyId: it goes on with acResult (None: its return type's default).
+// The game asked answered the stack waiting on aReplyId: it goes on with acResult (None: its return type's default).
 void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept;
+// This game left the session: every script waiting on another game goes on with None.
+void AnswerAll() noexcept;
 // A stack ended: nothing waits for it any more.
 void StackEnded(uint32_t aStackId) noexcept;
 

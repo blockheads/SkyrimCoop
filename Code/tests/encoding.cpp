@@ -960,7 +960,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendRequest.Result = int32_t(7);
         NotifyPlayerNativeResult sendNotify, recvNotify;
         sendNotify.ReplyId = 0x4D3;
-        sendNotify.Result = ScriptForm{.SessionId = 0x22};
+        // The host's game's answer to a guest's PlaceAtMe: a created reference, for that guest's character.
+        sendNotify.Result = ScriptForm{.Form = GameId(0xFFFFFFFF, 0x812)};
+        sendNotify.SessionId = 0x22;
 
         Buffer::Writer writer(&buff);
         sendRequest.Serialize(writer);
@@ -2072,6 +2074,23 @@ TEST_CASE("Melee stagger messages retain the hitter, victim and native magnitude
     const auto decoded = RequestMessageFactory{}.Extract(reader);
     REQUIRE(decoded);
     CHECK(static_cast<const MeleeStaggerRequest&>(*decoded) == request);
+}
+
+TEST_CASE("A guest's summon reaches the host with its spell, effect and magnitude", "[encoding.summon]")
+{
+    SummonRequest request;
+    request.SpellId = GameId(0, 0x640B6);
+    request.EffectId = GameId(0, 0x640B4);
+    request.Magnitude = 60.f;
+    request.Location = {-165.f, 2034.f, 6976.f};
+    request.DualCast = true;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    const auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    CHECK(static_cast<const SummonRequest&>(*decoded) == request);
 }
 
 TEST_CASE("A guest's story event reaches the host with its members", "[encoding.story]")

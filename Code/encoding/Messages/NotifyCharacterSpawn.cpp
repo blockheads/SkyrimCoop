@@ -31,7 +31,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
     spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
     spawn.IsDead = acAnnouncement.CurrentActorData.IsDead;
     spawn.IsPlayer = cIsPlayer;
-    spawn.IsPlayerSummon = acAnnouncement.IsPlayerSummon;
+    spawn.CommanderId = acAnnouncement.CommanderId;
     return spawn;
 }
 
@@ -52,7 +52,7 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Serialization::WriteVarInt(aWriter, PlayerId);
     Serialization::WriteBool(aWriter, IsDead);
     Serialization::WriteBool(aWriter, IsPlayer);
-    Serialization::WriteBool(aWriter, IsPlayerSummon);
+    Serialization::WriteVarInt(aWriter, CommanderId);
     Serialization::WriteString(aWriter, GraphState);
     Record.Serialize(aWriter);
     PerksContent.Serialize(aWriter);
@@ -89,7 +89,7 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
 
     IsDead = Serialization::ReadBool(aReader);
     IsPlayer = Serialization::ReadBool(aReader);
-    IsPlayerSummon = Serialization::ReadBool(aReader);
+    CommanderId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     GraphState = Serialization::ReadString(aReader);
     Record.Deserialize(aReader);
     PerksContent.Deserialize(aReader);

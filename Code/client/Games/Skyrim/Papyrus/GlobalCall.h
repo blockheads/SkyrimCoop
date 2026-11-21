@@ -22,8 +22,8 @@ bool Queue(std::string_view aClass, std::string_view aFunction, std::span<const 
 bool QueueCall(const LocalCall& acCall, OnReturn aOnReturn = {}) noexcept;
 
 // A script's value as ours, and ours into a script's (a form not here: None). Read gives none when the session
-// cannot carry it: an array, an object that is not a form, or a temporary reference that is not an actor (no other
-// game knows it).
+// cannot carry it: an array, an object that is not a form, or a temporary reference that is neither an actor nor a
+// created reference the others know (CreatedIds).
 [[nodiscard]] std::optional<LocalValue> Read(const BSScript::Variable& acVariable) noexcept;
 // The call a native's frame holds (its class and name, its self, its arguments), to make on another game; none when
 // the session cannot carry its self or an argument.

@@ -30,7 +30,7 @@ struct AnnounceCharacterRequest final : RequestMessage
     bool operator==(const AnnounceCharacterRequest& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
-               AppearanceBuffer == acRhs.AppearanceBuffer && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
+               AppearanceBuffer == acRhs.AppearanceBuffer && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && CommanderId == acRhs.CommanderId;
     }
 
     // The id the host gave it: the player's from the join answer, the host's actors' from HostCharacters.
@@ -56,6 +56,6 @@ struct AnnounceCharacterRequest final : RequestMessage
     float Weight{50.f}; // the base's (TESNPC weight): the engine saves it with the actor, not in AppearanceBuffer
     bool IsDragon{};
     bool IsMount{};
-    bool IsPlayerSummon{};
+    uint32_t CommanderId{}; // a summon's caster, by session id (0: none)
     ActorData CurrentActorData{};
 };

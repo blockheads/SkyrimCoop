@@ -57,6 +57,19 @@ void HostPlayerNatives::ToOwner(const RoutedCallRequest& acRequest, ConnectionId
 void HostPlayerNatives::OnPlayerNativeResult(const PlayerNativeResultRequest& acRequest,
                                              ConnectionId_t aSender) noexcept
 {
+    if (acRequest.SessionId)
+    {
+        const ConnectionId_t cGuest = m_characters.OwnerOf(acRequest.SessionId);
+        if (aSender != m_players.Host() || !m_asked.erase({cGuest, acRequest.ReplyId}))
+        {
+            spdlog::warn("HostPlayerNatives: {:x} answered {} for {:x}, which nobody asked", aSender, acRequest.ReplyId, acRequest.SessionId);
+            return;
+        }
+        NotifyPlayerNativeResult notify;
+        static_cast<Payloads::PlayerNativeResult&>(notify) = acRequest;
+        m_network.Send(cGuest, notify);
+        return;
+    }
     const auto it = m_waiting.find(acRequest.ReplyId);
     if (it == m_waiting.end() || it->second != aSender)
     {
@@ -67,18 +80,26 @@ void HostPlayerNatives::OnPlayerNativeResult(const PlayerNativeResultRequest& ac
     Answer(acRequest.ReplyId, acRequest.Result);
 }
 
-void HostPlayerNatives::ToHost(const RoutedCallRequest& acRequest, ConnectionId_t aSender) const noexcept
+void HostPlayerNatives::ToHost(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     const ConnectionId_t cHost = m_players.Host();
     const uint32_t cCharacter = aSender != cHost ? m_characters.PlayerCharacterOf(aSender) : 0;
     if (!cHost || !cCharacter)
     {
         spdlog::warn("HostPlayerNatives: {:x} has no character to run {}.{} for", aSender, acRequest.Call.Class, acRequest.Call.Function);
+        if (acRequest.ReplyId && aSender != cHost)
+        {
+            NotifyPlayerNativeResult none; // its waiting script gets None
+            none.ReplyId = acRequest.ReplyId;
+            m_network.Send(aSender, none);
+        }
         return;
     }
     NotifyRoutedCall notify;
     static_cast<Payloads::RoutedCall&>(notify) = acRequest;
     notify.SessionId = cCharacter;
+    if (acRequest.ReplyId)
+        m_asked.insert({aSender, acRequest.ReplyId});
     m_network.Send(cHost, notify);
 }
 
@@ -106,6 +127,7 @@ void HostPlayerNatives::OnCallEnded(const CallEndedRequest& acRequest, Connectio
 
 void HostPlayerNatives::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
+    std::erase_if(m_asked, [aPlayer](const auto& acAsked) { return acAsked.first == aPlayer; });
     std::vector<uint32_t> unanswered;
     for (const auto& [cReplyId, cAsked] : m_waiting)
         if (cAsked == aPlayer)

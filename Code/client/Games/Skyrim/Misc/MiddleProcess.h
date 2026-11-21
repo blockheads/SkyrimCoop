@@ -27,6 +27,15 @@ struct AnimationSets
 static_assert(offsetof(AnimationSets, actionLoad) == 0x60);
 static_assert(offsetof(AnimationSets, instantLoad) == 0x80);
 
+// A commander's summon or raised corpse with the effect keeping it (AIProcess::AddCommandedActor).
+struct CommandedActor
+{
+    uint32_t handle; // the actor's
+    uint32_t pad04;
+    ActiveEffect* pEffect; // 08
+};
+static_assert(sizeof(CommandedActor) == 0x10);
+
 struct MiddleProcess
 {
     // void SaveActiveEffects()
@@ -35,7 +44,9 @@ struct MiddleProcess
     // 0xB0 - pitch
     uint8_t pad0[0xB8];
     float direction; // B8
-    uint8_t padBC[0x1A0 - 0xBC];
+    uint8_t padBC[0x100 - 0xBC];
+    GameArray<CommandedActor> commandedActors; // 100, its limit kept by AddCommandedActor
+    uint8_t pad118[0x1A0 - 0x118];
     GameList<ActiveEffect>* ActiveEffects;
     uint8_t pad1A8[0x1B8 - 0x1A8];
     AnimationSets* animationSets; // 1B8
@@ -64,6 +75,7 @@ struct MiddleProcess
 };
 
 static_assert(offsetof(MiddleProcess, direction) == 0xB8);
+static_assert(offsetof(MiddleProcess, commandedActors) == 0x100);
 static_assert(offsetof(MiddleProcess, animationSets) == 0x1B8);
 static_assert(offsetof(MiddleProcess, animationLock) == 0x1E8);
 static_assert(offsetof(MiddleProcess, occupiedFurniture) == 0x208);

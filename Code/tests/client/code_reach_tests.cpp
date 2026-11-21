@@ -21,6 +21,7 @@ constexpr uintptr_t kMoviePlayer = 0x142F00100;    // a screen object
 constexpr uintptr_t kToggleControls = 0x140C00000; // ControlMap::ToggleControls
 constexpr uintptr_t kShakeCamera = 0x140500000;
 constexpr uintptr_t kSetStage = 0x140300000;
+constexpr uintptr_t kCreateReference = 0x1401BC1C0; // CreateReferenceAtLocation 13723
 constexpr uintptr_t kElsewhere = 0x140900000;
 constexpr uintptr_t kApplyArtObject = 0x140366B20; // some engine function
 constexpr uintptr_t kHudMessage = 0x14097A5E0;     // SendHUDMessage::ShowHUDMessage
@@ -141,6 +142,7 @@ const Objects cObjects{cPerPlayer, cScreen, cPlayer};
 const Sinks cSinks{.Functions = {{kToggleControls, {{Call::kControls}}},
                                  {kShakeCamera, {{Call::kScreen}}},
                                  {kSetStage, {{Call::kWorld}}},
+                                 {kCreateReference, {{Call::kCreate}}},
                                  {kApplyArtObject, {{Call::kShow}}},
                                  {kHudMessage, {{Call::kScreen}}},
                                  {kEquipObject, {{Call::kItem}}}}};
@@ -268,6 +270,11 @@ SCENARIO("Which of the party's calls a native makes", "[reach]")
     THEN("then what a reference shows")
     CHECK(ClassifyCall({false, false, {kElsewhere, kApplyArtObject}}, cSinks).Kind == Call::kShow);
     THEN("none of them") CHECK(ClassifyCall({true, false, {kElsewhere}}, cSinks).Kind == Call::kNone);
+    THEN("a new reference is a creation (PlaceAtMe), before the world and the screen")
+    {
+        CHECK(ClassifyCall({false, false, {kCreateReference}}, cSinks).Kind == Call::kCreate);
+        CHECK(ClassifyCall({false, true, {kShakeCamera, kSetStage, kCreateReference}}, cSinks).Kind == Call::kCreate);
+    }
     THEN("a notification is the screen's (Debug.Notification)")
     CHECK(ClassifyCall({false, false, {kHudMessage}}, cSinks).Kind == Call::kScreen);
     THEN("an equip showing its HUD message is an item change, not the screen's (Actor.EquipItem)")

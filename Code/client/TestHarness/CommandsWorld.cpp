@@ -1204,7 +1204,30 @@ nlohmann::json PapyrusResult(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"done", cValue.has_value()}, {"value", cValue.value_or(nullptr)}};
 }
 
+// {"cmd": "add_effect", "spell": id, "target": id, "caster": id, "effect": mgef (default: the spell's first),
+// "magnitude": m}: the effect put on the target as its owner applies a request, past our AddTarget hook.
+nlohmann::json AddEffect(Harness&, const nlohmann::json& acRequest)
+{
+    const uint32_t cSpell = acRequest.value("spell", 0u);
+    const auto cEffects = EngineCalls::SpellEffects(cSpell);
+    const uint32_t cEffect = acRequest.value("effect", cEffects.empty() ? 0u : cEffects.front());
+    if (!cEffect)
+        return {{"ok", false}, {"error", "the spell has no effect"}};
+    World::Get().GetFormBridge().AddMagicTargetEffect(acRequest.value("target", 0x14u), acRequest.value("caster", 0u), cSpell, cEffect,
+                                                      acRequest.value("magnitude", 0.f), false, false, false);
+    return {{"ok", true}, {"effect", cEffect}, {"effects", cEffects}};
+}
+
+// {"cmd": "commanded", "actor": id}: who commands it and whom it commands.
+nlohmann::json Commanded(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cCommanding = EngineCalls::ReadCommanding(acRequest.value("actor", 0x14u));
+    return {{"ok", true}, {"commander", cCommanding.Commander}, {"commanded", cCommanding.Commanded}};
+}
+
 constexpr Command cCommands[] = {
+    {"add_effect", true, &AddEffect},
+    {"commanded", true, &Commanded},
     {"combat_targets", true, &ReadCombat},
     {"status", false, &GetStatus},
     {"world_clock", false, &WorldClock},

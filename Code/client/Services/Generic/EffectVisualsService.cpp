@@ -7,6 +7,7 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
+#include <Events/Copy3DEvent.h>
 #include <Messages/Relayed.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyRemoveCharacter.h>
@@ -28,6 +29,7 @@ EffectVisualsService::EffectVisualsService(World& aWorld, entt::dispatcher& aDis
 {
     Listen<EffectVisualsChangeEvent, &EffectVisualsService::OnEffectVisualsChange>(m_connections, aDispatcher, this);
     Listen<ReferenceLoadedEvent, &EffectVisualsService::OnReferenceLoaded>(m_connections, aDispatcher, this);
+    Listen<Copy3DEvent, &EffectVisualsService::OnCopy3D>(m_connections, aDispatcher, this);
     Listen<NotifyActiveEffects, &EffectVisualsService::OnNotifyActiveEffects>(m_connections, aDispatcher, this);
     Listen<NotifyEffectFlash, &EffectVisualsService::OnNotifyEffectFlash>(m_connections, aDispatcher, this);
     Listen<NotifyCharacterSpawn, &EffectVisualsService::OnCharacterSpawn>(m_connections, aDispatcher, this);
@@ -90,6 +92,12 @@ void EffectVisualsService::OnNotifyEffectFlash(const NotifyEffectFlash& acMessag
 }
 
 void EffectVisualsService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept
+{
+    if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId); cSessionId && m_shown.contains(*cSessionId))
+        PlayMissing(*cSessionId);
+}
+
+void EffectVisualsService::OnCopy3D(const Copy3DEvent& acEvent) noexcept
 {
     if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId); cSessionId && m_shown.contains(*cSessionId))
         PlayMissing(*cSessionId);

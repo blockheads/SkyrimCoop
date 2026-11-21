@@ -9,6 +9,7 @@
 
 #include <Components.h>
 
+#include <Events/Copy3DEvent.h>
 #include <Events/ActorAddedEvent.h>
 #include <Events/ActorRemovedEvent.h>
 #include <Events/UpdateEvent.h>
@@ -299,7 +300,11 @@ void CharacterService::RunActorDiscovery() noexcept
         for (const uint32_t cFormId : m_actorBridge.GetLoadedActorFormIds())
             if (cFormId != cPlayerId && m_actorBridge.IsActorTemporary(cFormId) &&
                 !m_actorBridge.IsActorCopy(cFormId) && !Utils::GetSessionIdByFormId(cFormId))
-                m_actorBridge.DeleteActor(cFormId); // saved NPCs can finish loading after connection; their copies come separately
+            {
+                // The host creates (one-simulator.md piece 7): an actor this guest's engine made is refused.
+                spdlog::warn("Actor discovery: {:X}, made by this guest's engine, refused (deleted)", cFormId);
+                m_actorBridge.DeleteActor(cFormId);
+            }
 
     // Removals first, as the original DiscoveryService did.
     std::vector<uint32_t> removed;
@@ -389,6 +394,7 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
     m_riddenMount = 0;
     m_partyMounts.clear();
     m_pendingRides.clear();
+    m_pendingCommanders.clear();
     m_boardedMount = 0;
     m_boardingMount = 0;
     m_dueRides.clear();
@@ -567,13 +573,13 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     if (cIsDead != acMessage.IsDead)
         acMessage.IsDead ? m_actorBridge.KillActor(actorFormId) : m_actorBridge.RespawnActor(actorFormId);
 
-    spdlog::info("Spawn Request Is summon {}", acMessage.IsPlayerSummon);
-
-    if (acMessage.IsPlayerSummon)
+    // A summon's commander here: the caster's game sees its own player (summons.md).
+    if (acMessage.CommanderId)
     {
-        // Prevents remote summons agroing other players.
-        const uint32_t cPlayerId = m_playerBridge.GetPlayerFormId();
-        m_actorBridge.SetActorCommandingActor(actorFormId, cPlayerId);
+        if (const uint32_t cCommander = Utils::GetFormIdBySessionId(acMessage.CommanderId))
+            m_actorBridge.SetActorCommandingActor(actorFormId, cCommander);
+        else
+            m_pendingCommanders[acMessage.SessionId] = acMessage.CommanderId; // its caster's copy comes later (R5)
     }
 
     m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.SessionId, actorFormId);
@@ -595,6 +601,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     if (!acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
     LinkPendingRides(acMessage.SessionId);
+    LinkPendingCommanders(acMessage.SessionId);
     SessionIdHere(acMessage.SessionId);
 }
 
@@ -602,6 +609,21 @@ void CharacterService::SessionIdHere(uint32_t aSessionId) const noexcept
 {
     if (auto* pRecords = m_world.ctx().find<CopyRecords>())
         pRecords->OnSessionId(aSessionId);
+}
+
+// A summon spawned before its commander's copy: commanded once that copy is here.
+void CharacterService::LinkPendingCommanders(uint32_t aSessionId) noexcept
+{
+    std::erase_if(m_pendingCommanders, [&](const auto& acPending) {
+        const auto& [cSummon, cCommander] = acPending;
+        if (cCommander != aSessionId)
+            return false;
+        const uint32_t cSummonId = Utils::GetFormIdBySessionId(cSummon);
+        const uint32_t cCommanderId = Utils::GetFormIdBySessionId(cCommander);
+        if (cSummonId && cCommanderId)
+            m_actorBridge.SetActorCommandingActor(cSummonId, cCommanderId);
+        return true;
+    });
 }
 
 // A late joiner hears who rides what right after the spawns, which can still be loading.
@@ -1639,8 +1661,8 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     message.IsDragon = m_actorBridge.IsActorDragon(formIdComponent.Id);
     message.IsMount = m_actorBridge.IsActorMount(formIdComponent.Id);
 
-    const uint32_t cCommandingActor = m_actorBridge.GetActorCommandingActorFormId(formIdComponent.Id);
-    message.IsPlayerSummon = (cCommandingActor == 0x14);
+    if (const uint32_t cCommander = m_actorBridge.GetActorCommandingActorFormId(formIdComponent.Id))
+        message.CommanderId = Utils::GetSessionIdByFormId(cCommander).value_or(0);
 
     if (!isPlayer)
     {
@@ -2053,6 +2075,7 @@ void CharacterService::RunRemoteUpdates() noexcept
             m_actorBridge.ActorFixVampireLordModel(formIdComponent.Id);
 
         spdlog::info("Applied 3D for actor, form id: {:X}", formIdComponent.Id);
+        m_dispatcher.trigger(Copy3DEvent{formIdComponent.Id});
     }
 
     for (auto entity : toRemove)

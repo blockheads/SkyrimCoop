@@ -1,3 +1,5 @@
+#include <CreatedIds.h>
+#include <FormIds.h>
 #include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
@@ -123,6 +125,9 @@ Reach FakeReachOf(const LocalCall& acCall)
         {"ObjectReference", "GetDistance", {Call::kQuestion}}, {"Actor", "HasLOS", {Call::kQuestion}},
         {"Game", "DisablePlayerControls", {Call::kControls}}, {"Game", "EnablePlayerControls", {Call::kControls}},
         {"GlobalVariable", "SetValue", {Call::kWorld}},
+        {"ObjectReference", "PlaceAtMe", {Call::kCreate}}, // CreateReferenceAtLocation 13723
+        {"ObjectReference", "PlaceActorAtMe", {Call::kCreate}}, // 56204, through 13723
+        {"ObjectReference", "Disable", {.Kind = Call::kWorld, .OnCreated = true}}, // DisableImpl 56491
         {"ObjectReference", "MoveTo", {Call::kBody}}, {"Actor", "PlayIdle", {Call::kBody}},
         {"Game", "SetPlayerAIDriven", {Call::kBody}},
         {"Debug", "SendAnimationEvent", {.Kind = Call::kBody, .Argument = 0}}, // its argument's graph holder (38048)
@@ -162,7 +167,8 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
                            .Guest = IsGuest,
                            .PlayerInCall = cIsPlayer(acCall.Self) || std::ranges::any_of(acCall.Arguments, cIsPlayer),
                            .InSystemQuest = m_inSystemQuest,
-                           .SystemObject = cpSelf && (SystemQuestList.Contains(cpSelf->FormId) || SystemQuestList.IsGlobal(cpSelf->FormId))};
+                           .SystemObject = cpSelf && (SystemQuestList.Contains(cpSelf->FormId) || SystemQuestList.IsGlobal(cpSelf->FormId)),
+                           .CreatedObject = cpSelf && IsCreatedForm(cpSelf->FormId) && World::Get().ctx().at<CreatedIds>().ToSession(cpSelf->FormId).has_value()};
     const Routing cRouting = InSession ? RouteOf(cFacts) : Routing{};
     if (cReach.Kind == Call::kQuestion)
     {
@@ -182,7 +188,13 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
     if (cRouting.To == Destination::kCauseGame)
         World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOwner, .GuestFormId = aCause, .Call = acCall});
     if (cRouting.To == Destination::kHost)
-        World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kHost, .Call = acCall});
+    {
+        // A created reference's call waits for the host's answer (PlayerNatives' Wait).
+        const uint32_t cReply = cRouting.Reply ? (LastWaiting = m_nextStack++) : 0;
+        if (cReply)
+            Waiting.insert(cReply);
+        World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kHost, .ReplyId = cReply, .Call = acCall});
+    }
     if (cRouting.To != Destination::kEveryGame)
         return;
     if (cReach.Kind == Call::kControls && ShareOf(Call::kControls, aCause, aStory, asked) != Share::kParty)
@@ -258,10 +270,33 @@ uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf
     switch (aKind)
     {
     case Call::kPlayerMenu: BarterMerchant = aSelf; return 0;
+    case Call::kCreate:
+        // PlaceAtMe(base): a reference of base at its self, recorded as the host's creations are (ReadCreate);
+        // PlaceActorAtMe(npc): a new actor there, announced by a later update's discovery.
+        if (const auto* cpBase = acCall.Arguments.empty() ? nullptr : std::get_if<LocalForm>(&acCall.Arguments[0]))
+        {
+            if (acCall.Function == "PlaceActorAtMe")
+            {
+                const auto cAt = Actors.find(aSelf);
+                const uint32_t cMade = LoadNpc(cpBase->FormId, cAt != Actors.end() ? cAt->second.Cell : 0,
+                                               cAt != Actors.end() ? glm::vec3(cAt->second.Position[0] + 100.f, cAt->second.Position[1], cAt->second.Position[2]) : glm::vec3{});
+                Actors.at(cMade).Loaded = MadeActors3D; // its 3D on a worker, later
+                LastReturn = LocalForm{cMade};
+            }
+            else
+                LastReturn = LocalForm{ScriptPlaces(aSelf, cpBase->FormId)};
+        }
+        return 0;
     case Call::kProgress: TakeProgress(acCall, aSelf); return 0;
     case Call::kWorld:
         if (acCall.Function == "SetValue" && !acCall.Arguments.empty())
             SetGlobal(aSelf, std::get<float>(acCall.Arguments[0]));
+        if (acCall.Function == "Disable")
+            if (const auto it = References.find(aSelf); it != References.end())
+            {
+                it->second.Disabled = true; // the funnel's row (ReferenceStates' kEnabled)
+                Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = ToSessionOrCreated(aSelf).value_or(GameId{}), .Value = 0});
+            }
         return 0;
     case Call::kShow:
     {
@@ -338,3 +373,19 @@ uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf
     }
 }
 
+
+// The stack waiting on another game goes on with acResult (PlayerNatives::Answer's ReturnFromLatent).
+namespace PlayerNatives
+{
+void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept
+{
+    if (FakeEngine::Current().Waiting.erase(aReplyId))
+        FakeEngine::Current().ScriptReturns[aReplyId] = acResult;
+}
+
+void AnswerAll() noexcept
+{
+    for (const uint32_t cStack : std::exchange(FakeEngine::Current().Waiting, {}))
+        FakeEngine::Current().ScriptReturns[cStack] = std::monostate{};
+}
+} // namespace PlayerNatives

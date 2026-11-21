@@ -89,6 +89,9 @@ const Sinks& EngineSinks() noexcept
     POINTER_SKYRIMSE(void, s_musicRemove, 35146);
     POINTER_SKYRIMSE(void, s_rumble, 68528);           // the gamepad's rumble queues
     POINTER_SKYRIMSE(void, s_setStage, 25004);         // TESQuest::SetStage
+    POINTER_SKYRIMSE(void, s_createReference, 13723);  // TESDataHandler::CreateReferenceAtLocation (PlaceAtMe 56203)
+    POINTER_SKYRIMSE(void, s_disableReference, 56491); // Papyrus Disable's and DisableNoWait's (56155, 56156) DisableImpl
+    POINTER_SKYRIMSE(void, s_enableReference, 56492);  // Papyrus Enable's and EnableNoWait's (56158, 56160) EnableImpl
     POINTER_SKYRIMSE(void, s_applyArtObject, 22769);   // TESObjectREFR::ApplyArtObject
     POINTER_SKYRIMSE(void, s_applyShader, 19872);      // TESObjectREFR::ApplyEffectShader
     POINTER_SKYRIMSE(void, s_stopArtObject, 41396);    // ProcessLists: a reference's art object stops
@@ -137,6 +140,9 @@ const Sinks& EngineSinks() noexcept
         };
         cAdd(s_toggleControls, {Call::kControls});
         cAdd(s_setStage, {Call::kWorld});
+        cAdd(s_createReference, {Call::kCreate});
+        cAdd(s_disableReference, {.Kind = Call::kWorld, .OnCreated = true});
+        cAdd(s_enableReference, {.Kind = Call::kWorld, .OnCreated = true});
         for (const auto* pFunction : {&s_applyArtObject, &s_applyShader, &s_stopArtObject, &s_stopShader, &s_subGraphEvent})
             cAdd(*pFunction, {Call::kShow});
         for (const auto* pFunction : {&s_fade, &s_imodTrigger, &s_imodCrossFade, &s_imodStop, &s_imodStopCrossFade, &s_shakeCamera, &s_forceFirstPerson,
@@ -357,7 +363,8 @@ Reach CallOf(BSScript::IFunction* apFunction) noexcept
     }
     if (call.Kind == Call::kQuestion && apFunction->GetReturnType().type == BSScript::Variable::kEmpty)
         call = {}; // an action reading a place (a move), no question
-    static constexpr const char* cNames[] = {"", "controls", "screen", "world", "show", "progression", "items", "question", "body", "player menu"};
+    static constexpr const char* cNames[] = {"", "controls", "screen", "world", "show", "progression", "items", "question", "body", "player menu", "creation"};
+    static_assert(std::size(cNames) == static_cast<size_t>(Call::kCreate) + 1);
     if (call.Kind != Call::kNone)
         spdlog::debug("NativeReach: {}.{} calls the {}", apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(),
                       cNames[static_cast<size_t>(call.Kind)]);

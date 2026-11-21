@@ -225,14 +225,14 @@ SCENARIO("A kill move on the host player's summon is refused: no game would simu
     GuardPair pair;
     SECTION("the host refuses it")
     {
-        pair.party.As(pair.party.Host(), [&] { pair.host.Actors.at(pair.guard).PlayerSummon = true; });
-        pair.guest.Actors.at(pair.copy).PlayerSummon = true;
+        pair.party.As(pair.party.Host(), [&] { pair.host.Actors.at(pair.guard).Commander = FakeEngine::kPlayer; });
+        pair.guest.Actors.at(pair.copy).Commander = FakeEngine::kPlayer;
         pair.GuestSwings();
         pair.party.Until([&] { return pair.guest.PlainSwings == 1; }, "the guest's player swings plainly");
     }
     SECTION("granted, the guest cannot take it: the pair ends and the NPC goes back")
     {
-        pair.guest.Actors.at(pair.copy).PlayerSummon = true;
+        pair.guest.Actors.at(pair.copy).Commander = FakeEngine::kPlayer;
         pair.GuestSwings();
         int frames = 0;
         pair.party.Until([&] { return ++frames > 30; }, "the claim's round trip");

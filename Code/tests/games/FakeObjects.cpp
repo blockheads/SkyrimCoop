@@ -268,6 +268,20 @@ uint32_t FakeEngine::ScriptPlacesContainer(uint32_t aCell, uint32_t aBase, const
     return cId;
 }
 
+uint32_t FakeEngine::ScriptPlaces(uint32_t aAt, uint32_t aBase)
+{
+    const auto cActor = Actors.find(aAt);
+    const auto cReference = References.find(aAt);
+    const uint32_t cCell = cActor != Actors.end() ? cActor->second.Cell : cReference != References.end() ? cReference->second.Cell : 0;
+    const uint32_t cId = PlaceContainer(cCell, aBase);
+    if (cActor != Actors.end())
+        References.at(cId).Position = {cActor->second.Position[0], cActor->second.Position[1], cActor->second.Position[2]};
+    ObjectChange create{.Type = ObjectChange::Kind::kCreate, .Object = CreatedId(cId), .Item = SessionIdOf(aBase)};
+    create.Data = ObjectChange::PackPlacement({.Cell = SessionIdOf(cCell)});
+    Recorded.push_back(std::move(create));
+    return cId;
+}
+
 std::optional<ObjectChange> FakeEngine::ContentsOf(uint32_t aContainer) const
 {
     const auto it = References.find(aContainer);
@@ -369,6 +383,15 @@ std::optional<std::vector<ObjectChange>> FakeEngine::CellState(const GameId& acC
     if (!Attached.contains(cCell))
         return std::nullopt;
     std::vector<ObjectChange> rows;
+    // The host's created ones there first, so the guest makes its own (HostEngine::ReadCellState): base, place, state.
+    for (const auto& [cId, cReference] : References)
+        if (cReference.Cell == cCell && IsCreatedForm(cId) && cReference.Base)
+        {
+            ObjectChange create{.Type = ObjectChange::Kind::kCreate, .Object = CreatedId(cId), .Item = SessionIdOf(cReference.Base)};
+            create.Data = ObjectChange::PackPlacement({.Cell = SessionIdOf(cCell)});
+            rows.push_back(std::move(create));
+            rows.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = CreatedId(cId), .Value = cReference.Disabled ? 0u : 1u});
+        }
     for (const auto& [cId, cReference] : References)
     {
         const bool cNamed = std::ranges::any_of(acChanged, [cId](const ChangedReference& acRef) { return FormIdOf(acRef.Id) == cId; });

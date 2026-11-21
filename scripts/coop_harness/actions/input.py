@@ -196,7 +196,8 @@ class InputActions:
 
 
     def face(ctx, instance, target):
-        ctx.player_command(instance, {"cmd": "face", "target": target})
+        """The player turns to `target`: a handle (it replays), "player" or a form id."""
+        ctx.player_command(instance, {"cmd": "face", "target": ctx.resolve(target, instance)})
 
 
     def clear_way(ctx, instance, bearings, distance):

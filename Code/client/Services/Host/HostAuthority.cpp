@@ -12,6 +12,7 @@
 #include <Messages/ActivateRequest.h>
 #include <Messages/Relayed.h>
 #include <Messages/LockChangeRequest.h>
+#include <Messages/SummonRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/PlayerLevelRequest.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
@@ -145,6 +146,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     On(*this, &HostAuthority::OnActivate);
+    On(*this, &HostAuthority::OnSummon);
     On(*this, &HostAuthority::OnMeleeStagger);
     On(*this, &HostAuthority::OnLockChange);
     On(*this, &HostAuthority::OnContainerChange);
@@ -287,6 +289,14 @@ void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t 
     if (acRequest.NpcId && (m_characters.IsPlayerCharacter(acRequest.NpcId) || m_characters.OwnerOf(acRequest.NpcId) != m_players.Host()))
         return;
     m_game.Activate(acRequest.Id, acRequest.NpcId, acRequest.ActivatorId);
+}
+
+void HostAuthority::OnSummon(const SummonRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    const uint32_t cCaster = aSender != m_players.Host() ? m_characters.PlayerCharacterOf(aSender) : 0;
+    if (!cCaster || !m_game.Summon)
+        return;
+    m_game.Summon(cCaster, acRequest);
 }
 
 void HostAuthority::OnRecipes(const RecipesRequest& acRequest, ConnectionId_t) const noexcept

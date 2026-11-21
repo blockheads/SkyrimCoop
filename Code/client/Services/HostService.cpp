@@ -38,6 +38,9 @@
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 #include <Messages/Relayed.h>
+#include <Messages/SummonRequest.h>
+#include <CreatedIds.h>
+#include <ScriptValues.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/GuestScripts.h>
 #include <Papyrus/PlayerNatives.h>
@@ -109,11 +112,23 @@ void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
     if (!IsHosting() || !cGuest || !cCall)
     {
         spdlog::warn("HostService: {}.{} from a guest's script names a form or character not here", acMessage.Call.Class, acMessage.Call.Function);
+        if (IsHosting() && acMessage.ReplyId)
+            QueueWorldAnswer(acMessage.ReplyId, acMessage.SessionId, std::monostate{}); // its waiting script gets None
         return;
     }
     spdlog::info("HostService: {}.{} from guest {:X}'s own script runs here, for it", acMessage.Call.Class, acMessage.Call.Function, cGuest);
     const GuestScripts::ScopedCause cCause(cGuest); // the call runs for that guest (rule 2)
-    GlobalCall::QueueCall(*cCall);
+    if (!acMessage.ReplyId)
+    {
+        GlobalCall::QueueCall(*cCall);
+        return;
+    }
+    // Its script waits (a created reference): what the call returns goes back to it, on the VM's thread.
+    const auto cAnswer = [this, cReplyId = acMessage.ReplyId, cSessionId = acMessage.SessionId](const LocalValue& acResult) {
+        QueueWorldAnswer(cReplyId, cSessionId, acResult);
+    };
+    if (!GlobalCall::QueueCall(*cCall, cAnswer))
+        cAnswer(std::monostate{});
 }
 
 HostService::~HostService() noexcept
@@ -143,6 +158,7 @@ void HostService::MakeAuthority() noexcept
 {
     m_pAggro.reset();
     m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
+    m_world.ctx().at<CreatedIds>().SetHosting(true);
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(),
         [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); });
     m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(), [this](uint32_t aId) {
@@ -236,6 +252,7 @@ void HostService::MakeAuthority() noexcept
     };
     game.ReadContents = [this](const GameId& acObject) { return m_pEngine->ReadContents(acObject); };
     game.Activate = [this](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) { m_pEngine->Activate(acObject, aNpcId, aActivatorId); };
+    game.Summon = [this](uint32_t aCasterId, const SummonRequest& acSummon) { m_pEngine->Summon(aCasterId, acSummon); };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
     game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { m_pEngine->RaiseStoryEvent(acEvent); };
@@ -293,6 +310,7 @@ void HostService::StopHosting() noexcept
     m_pNetwork.reset();
     m_pAuthority.reset();
     m_pEngine.reset();
+    m_world.ctx().at<CreatedIds>().SetHosting(false);
     m_pSaves.reset();
     spdlog::info("HostService: session stopped");
 }
@@ -315,6 +333,7 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
         return;
     m_pNetwork->Update();
     m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta, m_world.GetFrameTick());
+    SendWorldAnswers();
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);
