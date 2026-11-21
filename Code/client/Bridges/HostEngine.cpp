@@ -609,7 +609,8 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
     {
         const auto cGuest = guestRows.find(pRef->formID);
         const bool cGuestChanged = cGuest != guestRows.end() && pRef->formType == FormType::Reference;
-        const uint32_t cRows = ReferenceStates::ChangedRows(*pRef) | (cGuestChanged ? cGuest->second & ReferenceStates::RowFlags() : 0);
+        const uint32_t cRows = ReferenceStates::ChangedRows(*pRef) | ReferenceStates::LinkedLockRows(*pRef) |
+                               (cGuestChanged ? cGuest->second & ReferenceStates::RowFlags() : 0);
         const auto cId = cRows ? ToSessionOrCreated(pRef->formID) : std::nullopt;
         if (!cId)
             continue;

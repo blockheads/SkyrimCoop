@@ -539,24 +539,30 @@ passenger gets off or drives on: Ride {0}; its copies get off by NotifyUnboard (
 - **Not deleted, contrary to the plan:** `GettingOnMount` (a driver's copy still climbs) and `KeepDriverOn` (a
   passenger's `Detach` still empties the horse's one slot, 41539, and the handover's `PairEnd` stays: piece 4a).
 
-## Piece 6: the host runs an activation's world part
+## Piece 6: activations stay as they are; their four bugs fixed one by one (revised 2026-11-20)
+
+The RE (open question 4, `docs/re/systems/activation.md`) found the split already made by the engine: every form's
+`Activate` acts for this game's player on its screen and for anyone else on the world. Today a guest runs its own
+activation, the host runs it again with that player's copy (its scripts' `OnActivate` only there, `WorldEvents.cpp`),
+and the host's rows put the guest right. With two players `FromAnyone` reaches only the host. A gate sending the
+world part to the host would fix no bug seen and delay a guest's own levers and doors by a round trip, so it is not
+built (the user, 2026-11-20). The four acceptance bugs each have their own cause:
 
 ```text
-our player activates a reference (19796)
-  its own screen's part, here:   a container's menu, a book, a sign's text, dialogue, a ride (pieces 4, 5)
-  the world's part:              ActivateRequest -> the host runs Activate with that player's copy
-                                 (guest scripts: the player in its scripts is the activator)
-                                 -> what changed goes out as rows (HostWorldState), to every game
-other guests: nothing replayed (NotifyActivate goes only to the host's game)
-a row for a reference with no 3D: kept, applied when its 3D loads (PR #77's lid rule, for every row)
+A chest lid's pose                       PR #77 (a row applied when the chest's 3D loads)
+The host shows a guest's relief box      fixed 2026-11-20: the guest ran the host's routed call untagged and
+                                         sent it back to every game; now queued as its player's
+Doors the host's NPCs unlock             fixed 2026-11-20: a load door's lock lives on the door it leads to
+                                         (19512, 20223); a cell's state now sends it with the door
+                                         (late-join-gets-load-door-lock)
+The host's roll for a guest's loot       fixed 2026-11-20: the roll agrees (cell state sends contents); a taken
+                                         roll's 0 entry read as one (16214), now counted as CommonLib does
 ```
 
-Files: `ObjectService`, `HostAuthority::OnActivate`, `TESObjectREFR.cpp` (`HookActivate`), `ReferenceStates`.
-Tests: GameTests "A lever a guest pulls moves once, on the host, and every game shows it", "A guest's chest
-lid follows the host's row"; scenarios `door-opens-for-both`, `relief-takes-client-relics`.
-Deletes: `Delivery::FromAnyone` for activations, `ObjectService::OnActivateNotify` on guests, the door's
-pre-activation open-state compare. Also here: **the host's NPCs' lock changes go out as rows** (`HookLockChange`
-19512 raises every change; only a guest's own player's is sent today).
+Cleanups kept (2026-11-20): a guest's object activation goes to the host's game only, the host's own reach guests
+as rows, and the door's pre-activation open-state compare is gone.
+
+Found along the way: a harvest (14864) sets a harvested flag no row carries (bugs.md, "Harvested flora").
 
 ## Piece 7: the host creates
 
@@ -618,7 +624,7 @@ case ("every store answers a joiner").
 3  items part, owner-only                                         the biggest bug group
 4a pair claims: mounts          4b pair claims: kill moves
 5  passengers seated at once (or kept, noted)
-6  activation's world part on the host; lock rows; rows at 3D load
+6  activations kept; their four bugs one by one (revised)
 7  the host creates; a summon's test
 9  held-now state for a joiner; the cast part
 10 world check leaves scenery out (a harness change: can go first, it unblocks end comparisons)
@@ -645,8 +651,8 @@ and only the scenarios it names on the duo.
    clash yield, at once).
 3. ~~Does `HorseEnterInstant` take on a player's graph beside a ridden horse?~~ Yes, through the engine's own quick
    get-on (vfunc 0xAC; player-mount.md, "Sitting at once", 2026-11-20).
-4. Per activator type (door, container, activator, furniture, flora, lever scripts): which part of `Activate`
-   (19796 and each form's vfunc) changes the world and which only this game's screen.
+4. ~~Per activator type: which part of `Activate` changes the world and which only this game's screen.~~ Read
+   2026-11-20: `docs/re/systems/activation.md`.
 5. How a guest's script call can wait for the host's created reference (the VM's latent calls), and what a
    summon's own engine path creates before it can be suppressed.
 6. Who applies a host NPC's weapon enchantment to a guest's player (the audit's "inferred"; not read).

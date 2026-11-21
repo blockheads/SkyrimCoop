@@ -74,7 +74,6 @@ TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]
     request.CellId = GameId(0, 0x32AE7);
     request.NpcId = 1234;
     request.ActivatorId = 42;
-    request.PreActivationOpenState = 0;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     request.Serialize(writer);
@@ -85,7 +84,6 @@ TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]
     NotifyActivate notice;
     notice.NpcId = request.NpcId;
     notice.ActivatorId = request.ActivatorId;
-    notice.PreActivationOpenState = 0;
     Buffer result;
     Buffer::Writer resultWriter(&result);
     notice.Serialize(resultWriter);

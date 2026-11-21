@@ -12,6 +12,7 @@
 #include <RTTI.h>
 #include <VersionDb.h>
 #include <Forms/TESBoundObject.h>
+#include <ExtraData/ExtraTeleport.h>
 
 namespace ReferenceStates
 {
@@ -257,6 +258,16 @@ uint32_t RecordedRows(const TESObjectREFR& acObject) noexcept
         return 0;
     const uint32_t cFlags = pSaveLoad->ChangeFlags(acObject, RowFlags() | cHavokMove);
     return (cFlags & ~cHavokMove) | (cFlags & cHavokMove ? TESObjectREFR::CHANGE_REFR_MOVE : 0);
+}
+
+uint32_t LinkedLockRows(const TESObjectREFR& acObject) noexcept
+{
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    const auto* pTeleport = static_cast<const ExtraTeleport*>(acObject.extraData.GetByType(ExtraDataType::Teleport));
+    if (!pSaveLoad || !pTeleport || !pTeleport->teleportData || acObject.extraData.Contains(ExtraDataType::Lock))
+        return 0;
+    const TESObjectREFR* pLinked = TESObjectREFR::GetByHandle(pTeleport->teleportData->linkedDoor);
+    return pLinked ? pSaveLoad->ChangeFlags(*pLinked, TESObjectREFR::CHANGE_OBJECT_EXTRA_LOCK) : 0;
 }
 
 uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept

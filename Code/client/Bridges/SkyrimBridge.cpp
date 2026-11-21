@@ -1057,8 +1057,7 @@ uint32_t SkyrimBridge::GetObjectParentCellId(uint32_t aObjectFormId) const noexc
     return 0;
 }
 
-void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId,
-                                             uint8_t aPreActivationState) noexcept
+void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId) noexcept
 {
     Breadcrumbs::Record("ActivateObjectFromActor", aObjectFormId, aActivatorFormId);
     TESObjectREFR* pObject = GetRefr(aObjectFormId);
@@ -1079,11 +1078,6 @@ void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aAct
             spdlog::info("Load door {:X} not replayed: its player's own game takes it through", aObjectFormId);
             return;
         }
-
-        auto remotePreActivationState = static_cast<TESObjectREFR::OpenState>(aPreActivationState);
-        TESObjectREFR::OpenState localState = pObject->GetOpenState();
-        if (remotePreActivationState != localState)
-            return;
     }
 
     pObject->Activate(pActor, 0, nullptr, 1, 0);

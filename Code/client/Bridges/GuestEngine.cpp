@@ -35,6 +35,8 @@
 #include <Misc/StoryEvents.h>
 #include <Papyrus/SystemQuests.h>
 #include <Papyrus/GlobalCall.h>
+#include <Papyrus/GuestScripts.h>
+#include <Papyrus/PartyRules.h>
 #include <Papyrus/WorldEvents.h>
 #include <Utils.h>
 #include <Games/TES.h>
@@ -243,6 +245,8 @@ void GuestEngine::ReleaseWeather() noexcept
 bool GuestEngine::RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn) noexcept
 {
     const auto cCall = Utils::ToLocalCall(acCall.Call);
+    // Run as this player's own (cause 0x14, HookCallQueued): untagged, a screen call is the story's and goes back out.
+    const GuestScripts::ScopedCause cOwnPlayer(PartyRules::kThisPlayerFormId);
     return cCall && GlobalCall::QueueCall(*cCall, std::move(aOnReturn));
 }
 

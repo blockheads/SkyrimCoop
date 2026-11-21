@@ -264,9 +264,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t RecordFlags{};
         uint32_t Base = 0; // a created one's (a script's PlaceAtMe)
         uint32_t Owner = 0; // its ExtraOwnership (an NPC or a faction); none: its cell's (CellOwners)
+        uint32_t LinkedDoor = 0; // a load door with no lock of its own: it uses this door's (GetLock 20223)
+        bool Persistent = false; // in memory with its cell unloaded (a load door's other side)
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
+    // The reference holding its lock: a load door's linked door when it has none (AddLockChange 19512 records there).
+    [[nodiscard]] uint32_t LockHolderOf(uint32_t aReference) const;
     // The container bases: a created one is a container reference, not a loose item.
     std::set<uint32_t> ContainerBases;
     // A container reference made here (ModManager::CreateReference): it holds nothing, the engine rolls no leveled
@@ -1154,15 +1158,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t LootMenuOf{}; // the dead actor whose loot menu the player opened (TESNPC::Activate -> OpenMenu 51140)
     bool ObjectHasLock(uint32_t aObjectFormId) const noexcept override
     {
-        const auto it = References.find(aObjectFormId);
+        const auto it = References.find(LockHolderOf(aObjectFormId));
         return it != References.end() && (it->second.Locked || it->second.LockLevel);
     }
     bool ObjectIsLocked(uint32_t aObjectFormId) const noexcept override
     {
-        const auto it = References.find(aObjectFormId);
+        const auto it = References.find(LockHolderOf(aObjectFormId));
         return it != References.end() && it->second.Locked;
     }
-    void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t) noexcept override
+    void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId) noexcept override
     {
         Activations.emplace_back(aObjectFormId, aActivatorFormId);
         if (!ActivateMount(aActivatorFormId, aObjectFormId))

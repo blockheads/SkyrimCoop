@@ -962,6 +962,18 @@ nlohmann::json Lock(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "door_lock", "object": id}: who holds a door's lock (its own, or its linked door's) and their change flags.
+nlohmann::json DoorLock(Harness&, const nlohmann::json& acRequest)
+{
+    const auto c = EngineCalls::GetDoorLock(acRequest.value("object", 0u));
+    if (!c.Exists)
+        return Error("no such object");
+    return {{"ok", true},
+            {"own_lock", c.OwnLock}, {"locked", c.Locked}, {"level", c.Level}, {"changes", c.Changes},
+            {"linked", c.Linked}, {"linked_exists", c.LinkedExists}, {"linked_own_lock", c.LinkedOwnLock},
+            {"linked_locked", c.LinkedLocked}, {"linked_level", c.LinkedLevel}, {"linked_changes", c.LinkedChanges}};
+}
+
 // {"cmd": "door_open", "object": id, "open": false, "snap": true}: sets the door's state in this game only
 // (staging: puts a door back the way a scenario found it).
 nlohmann::json DoorOpen(Harness&, const nlohmann::json& acRequest)
@@ -1266,6 +1278,7 @@ constexpr Command cCommands[] = {
     {"stack_extras", true, &StackExtras},
     {"inventory_entry", true, &InventoryEntry},
     {"lock", true, &Lock},
+    {"door_lock", true, &DoorLock},
     {"door_open", true, &DoorOpen},
     {"graph_state", true, &GraphState},
     {"load_graph_state", true, &LoadGraphState},

@@ -28,13 +28,6 @@ ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, Trans
 
 void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
 {
-    if (acEvent.ActivateFlag)
-    {
-        // Re-activate: delegate to bridge using form IDs from the event struct.
-        m_formBridge.ActivateObjectFromActor(acEvent.ObjectFormId, acEvent.ActivatorFormId,
-                                              acEvent.PreActivationOpenStateValue);
-    }
-
     // A world script's door is the host's world: HostWorldState sends the host's (step 5).
     // Activating a mount rides it (Character::ActivateMount 37864): the ride goes as a MountRequest. Replayed, it
     // would start a mount package on the activator's copy, which no copy runs.
@@ -81,7 +74,6 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
         return;
 
     request.ActivatorId = sessionIdRes.value();
-    request.PreActivationOpenState = acEvent.PreActivationOpenStateValue;
 
     m_transport.Send(request);
 }
@@ -104,6 +96,5 @@ void ObjectService::OnActivateNotify(const NotifyActivate& acMessage) noexcept
         return;
     }
 
-    m_formBridge.ActivateObjectFromActor(cObjectId, cActorFormId,
-                                          acMessage.PreActivationOpenState);
+    m_formBridge.ActivateObjectFromActor(cObjectId, cActorFormId);
 }

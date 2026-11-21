@@ -92,7 +92,7 @@ public:
     /// Returns the form ID of the object's parent cell.
     virtual uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept = 0;
     /// Activate an object as if the given actor activated it.
-    virtual void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept = 0;
+    virtual void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId) noexcept = 0;
     /// Returns the open state of an object (for door sync).
     virtual uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept = 0;
     /// Returns true if the object's base form is of the specified FormType enum value.

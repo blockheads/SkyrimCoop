@@ -83,10 +83,11 @@ std::vector<Inventory::Entry> StacksOf(const FakeEngine::Reference& acReference,
 // ReferenceStates' lock row: the level in the low byte, kLocked above it.
 constexpr uint32_t kLocked = 0x100;
 
-ObjectChange LockRow(uint32_t aReference, const FakeEngine::Reference& acReference)
+// acHolder: the reference holding its lock (FakeEngine::LockHolderOf).
+ObjectChange LockRow(uint32_t aReference, const FakeEngine::Reference& acHolder)
 {
     ObjectChange row{.Type = ObjectChange::Kind::kLock, .Object = SessionIdOf(aReference)};
-    row.Value = (acReference.Locked ? kLocked : 0) | acReference.LockLevel;
+    row.Value = (acHolder.Locked ? kLocked : 0) | acHolder.LockLevel;
     return row;
 }
 
@@ -136,13 +137,19 @@ void FakeEngine::UnloadCell(uint32_t aCell)
         DeleteActor(cId);
 }
 
+uint32_t FakeEngine::LockHolderOf(uint32_t aReference) const
+{
+    const auto it = References.find(aReference);
+    return it != References.end() && it->second.LinkedDoor ? it->second.LinkedDoor : aReference;
+}
+
 void FakeEngine::PlayerSetsLock(uint32_t aReference, bool aLocked, uint8_t aLevel)
 {
     if (IsGuest)
     {
-        References.at(aReference).Locked = aLocked;
-        References.at(aReference).LockLevel = aLevel;
-        Changed.insert(aReference);
+        References.at(LockHolderOf(aReference)).Locked = aLocked;
+        References.at(LockHolderOf(aReference)).LockLevel = aLevel;
+        Changed.insert(LockHolderOf(aReference));
         World::Get().GetDispatcher().trigger(LockChangeEvent(aReference, aLocked, aLevel, true));
         return;
     }
@@ -161,13 +168,15 @@ void FakeEngine::PlayerSetsItems(uint32_t aContainer, uint32_t aItem, int32_t aC
     SetItems(aContainer, aItem, aCount, std::move(aStacks));
 }
 
+// Recorded on the reference holding the lock (AddLockChange 19512).
 void FakeEngine::SetLock(uint32_t aReference, bool aLocked, uint8_t aLevel)
 {
-    auto& reference = References.at(aReference);
-    reference.Locked = aLocked;
-    reference.LockLevel = aLevel;
-    Changed.insert(aReference);
-    Recorded.push_back(LockRow(aReference, reference));
+    const uint32_t cHolder = LockHolderOf(aReference);
+    auto& holder = References.at(cHolder);
+    holder.Locked = aLocked;
+    holder.LockLevel = aLevel;
+    Changed.insert(cHolder);
+    Recorded.push_back(LockRow(cHolder, holder));
 }
 
 void FakeEngine::ScriptSetsCellOwner(uint32_t aCell, uint32_t aOwner)
@@ -256,7 +265,7 @@ void FakeEngine::ApplyContents(Reference& aContainer, const ObjectChange& acCont
 std::vector<ObjectChange> FakeEngine::RowsOf(uint32_t aReference) const
 {
     const auto& cReference = References.at(aReference);
-    std::vector<ObjectChange> rows{LockRow(aReference, cReference)};
+    std::vector<ObjectChange> rows{LockRow(aReference, References.at(LockHolderOf(aReference)))};
     if (cReference.Door)
         rows.push_back(OpenRow(aReference, cReference));
     for (const auto& [cItem, cCount] : cReference.Items)
@@ -299,16 +308,19 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         }
     }
     const auto it = References.find(FormIdOf(acChange.Object));
-    if (it == References.end() || !InMemory.contains(it->second.Cell))
+    if (it == References.end() || (!InMemory.contains(it->second.Cell) && !it->second.Persistent))
         return false; // its cell never loaded here: "its object is not in this game"
     auto& reference = it->second;
     switch (acChange.Type)
     {
     case ObjectChange::Kind::kRecord: reference.RecordFlags = acChange.Value; break;
     case ObjectChange::Kind::kLock:
-        reference.Locked = (acChange.Value & kLocked) != 0;
-        reference.LockLevel = static_cast<uint8_t>(acChange.Value & 0xFF);
+    {
+        auto& holder = References.at(LockHolderOf(it->first)); // SetLockState through GetLock (20223)
+        holder.Locked = (acChange.Value & kLocked) != 0;
+        holder.LockLevel = static_cast<uint8_t>(acChange.Value & 0xFF);
         break;
+    }
     case ObjectChange::Kind::kItems:
         SetCount(reference, ::ItemForm(acChange.Item), static_cast<int32_t>(acChange.Value), acChange.Stacks);
         break;
@@ -329,7 +341,7 @@ std::optional<std::vector<ObjectChange>> FakeEngine::CellState(const GameId& acC
     for (const auto& [cId, cReference] : References)
     {
         const bool cNamed = std::ranges::any_of(acChanged, [cId](const ChangedReference& acRef) { return FormIdOf(acRef.Id) == cId; });
-        if (cReference.Cell == cCell && (Changed.contains(cId) || cNamed))
+        if (cReference.Cell == cCell && (Changed.contains(cId) || Changed.contains(LockHolderOf(cId)) || cNamed))
             std::ranges::move(RowsOf(cId), std::back_inserter(rows));
     }
     for (const auto& [cId, cActor] : Actors)

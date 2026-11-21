@@ -24,6 +24,7 @@
 #include <Events/InventoryChangeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/LockChangeEvent.h>
+#include <Games/ContainerCount.h>
 #include <Events/ReferenceJumpEvent.h>
 
 #include <ExtraData/ExtraContainerChanges.h>
@@ -557,19 +558,26 @@ ExtraContainerChanges::Data* TESObjectREFR::FindContainerChanges() const noexcep
     return s_getInventoryChanges(this);
 }
 
+// ContainerCount's rule (Games/ContainerCount.h), read from the changes: not 16108 (16214's entry at 0 reads as one).
 std::optional<int32_t> TESObjectREFR::GetContainerCount(TESBoundObject* apItem) const noexcept
 {
-    using TGetItemCount = int32_t(ExtraContainerChanges::Data*, TESBoundObject*);
-    POINTER_SKYRIMSE(TGetItemCount, s_getItemCount, 16108); // InventoryChanges::GetItemCount
-
     const TESContainer* pContainer = GetContainer();
     if (!apItem || !pContainer)
         return std::nullopt;
-    // No changes yet (nothing touched it): its base container's, leveled entries not rolled (14529 returns an int).
-    auto* pChanges = FindContainerChanges();
-    if (!pChanges)
-        return std::abs(static_cast<int32_t>(pContainer->GetItemCount(apItem)));
-    return std::abs(s_getItemCount(pChanges, apItem));
+    const int32_t cBase = std::abs(static_cast<int32_t>(pContainer->GetItemCount(apItem))); // 14529 returns an int
+    std::optional<int32_t> entry;
+    bool rolled = false;
+    if (const auto* pChanges = FindContainerChanges(); pChanges && pChanges->entries)
+        for (const auto* pEntry : *pChanges->entries)
+            if (pEntry && pEntry->form == apItem)
+            {
+                entry = pEntry->count;
+                if (pEntry->dataList)
+                    for (const auto* pList : *pEntry->dataList)
+                        rolled = rolled || (pList && pList->Contains(ExtraDataType::LeveledItem));
+                break;
+            }
+    return ContainerCount(cBase, entry, rolled);
 }
 
 bool TESObjectREFR::SetContainerCount(TESBoundObject* apItem, int32_t aCount) noexcept

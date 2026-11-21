@@ -65,6 +65,27 @@ A leveled actor's NPC is a temporary form each game makes, but its theft's owner
 `3DF17` (`guest-pickpockets-leveled-npc-stolen`). Only an owner that is itself a created form (none seen) is not sent.
 
 
+## A roll's taken item (2026-11-20, IDA 1.7.104, measured)
+
+`guest-loots-hosts-roll` failed 2 of 3: the guest's Take All of a chest the host had freshly rolled moved the gold
+and none of the items ("take 1 of <item>: 1 there, 0 moved"). Measured with `inventory_entry` before and after: the
+item's entry went from 1 to 0 and its roll list stayed, now with `ExtraCount` (types 46, 36), while the count read 1.
+
+- `InventoryChanges::RemoveItem` (16059), given a roll's list (`ExtraLeveledItem`, checked by 0x140164830), lowers the
+  entry by the count asked, keeps the list with a count set, and moves a copy (to the target, or freed with none).
+- At its end an entry left at 0 is freed, except on a non-actor whose list was a roll's: a chest keeps the 0 entry
+  and the list, which marks the leveled index rolled.
+- `InventoryChanges::GetItemCount` (16108 → `TESBoundObject::GetCountDelta` 16214) is the base count plus the entry's,
+  but reads an entry at 0 over no base count as **one**. So the taken item still counted: `TransferContainer` saw
+  nothing taken (the guest got nothing), and the host's row said "holds 1", putting it back in the guest's chest.
+- After the cell unloads and loads, the roll's lists are gone, the 0 entry is freed, and the take reads right: why
+  the run on the first run's leftovers passed.
+
+`TESObjectREFR::GetContainerCount` now counts as CommonLibSSE-NG's `GetInventory` does (what the menus show): the base
+count unless the entry is a roll's, plus the entry's, with no special case (`Games/ContainerCount.h`, ClientTests
+"A roll's item taken from a chest counts none, not one"). `guest-loots-hosts-roll` 3 of 3, 3 different fresh chests.
+Not shown in GameTests: the fake counts items, not the engine's entries and lists.
+
 # 1.7.104: an actor's items as its owner's part (2026-11-19)
 
 Read in IDA for one-simulator.md piece 3 (names and comments in the database, journal

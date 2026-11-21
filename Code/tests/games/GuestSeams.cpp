@@ -456,7 +456,7 @@ void GuestSeam::OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept
 {
     if (!m_pGuest || acMessage.To != CallTo::kOwner)
         return;
-    // GuestService::OnPlayerNative -> GuestEngine::RunPlayerNative -> GlobalCall::QueueCall.
+    // GuestService::OnPlayerNative -> GuestEngine::RunPlayerNative -> GlobalCall::QueueCall, as this player's own.
     if (const auto cCall = Utils::ToLocalCall(acMessage.Call))
         FakeEngine::Current().Queue(*cCall, FakeEngine::kPlayer);
 }

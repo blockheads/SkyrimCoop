@@ -75,12 +75,14 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
     // moves from the host's copy of the player, its count spent at once against a second put before the player's
     // next items part, and its real list (worn, a roll's) to the container.
     TESObjectREFR* pTarget = cTake ? nullptr : pContainer;
+    bool foundList = false;
     while (remaining > 0)
     {
         int32_t chunk = remaining;
         // Plain to us is not plain to the engine: a fresh roll's items sit in lists (ExtraLeveledItem), which 16059
         // takes from only when given the list (S5).
         ExtraDataList* pExtra = FindStack(*pSource, *pItem, moved, chunk);
+        foundList = foundList || pExtra;
         if (moved.ContainsExtraData() && !pExtra)
             break;
         const int32_t cBefore = pSource->GetContainerCount(pItem).value_or(0);
@@ -92,6 +94,9 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
         remaining -= cTaken;
         moved.Count += cTaken * (cTake ? 1 : -1);
     }
+    spdlog::info("HostEngine: {} {} of {:X} {} {:X}: {} there, {} moved{} (asked {}, a list {})", cTake ? "take" : "put",
+                 std::abs(acRequest.Item.Count), pItem->formID, cTake ? "from" : "into", pContainer->formID, available, std::abs(moved.Count),
+                 acRequest.Steal ? " (theft)" : "", moved.ContainsExtraData() ? "with extra data" : "plain", foundList ? "found" : "not found");
     // A theft marks what it takes as the owner's (16059 does so only on an item given to a target): stolen on the
     // looter's game (inventory-changes.md, "What 16059's target does").
     if (cTake && acRequest.Steal && moved.Count && moved.ExtraOwner == GameId{} && pItem->formID != 0xF)

@@ -38,7 +38,6 @@ NotifyActivate ToNotify(const ActivateRequest& acRequest)
     notify.Id = acRequest.Id;
     notify.NpcId = acRequest.NpcId;
     notify.ActivatorId = acRequest.ActivatorId;
-    notify.PreActivationOpenState = acRequest.PreActivationOpenState;
     return notify;
 }
 
@@ -293,9 +292,11 @@ void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, Connect
 
 void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
+    // An object: the host's game runs it with the guest's copy; what changed reaches everyone as its rows.
     if (!acRequest.NpcId)
     {
-        Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+        if (aSender != m_players.Host() && m_characters.OwnerOf(acRequest.ActivatorId) == aSender)
+            m_network.Send(m_players.Host(), ToNotify(acRequest));
         return;
     }
     if (m_characters.OwnerOf(acRequest.ActivatorId) != aSender || m_characters.IsPlayerCharacter(acRequest.NpcId))
