@@ -6,6 +6,7 @@
 
 #include <map>
 #include <set>
+#include <vector>
 #include <unordered_map>
 #include <Messages/Relayed.h>
 #include <Messages/RelayedMessages.h>
@@ -56,5 +57,5 @@ struct HostPlayerNatives
     const HostCharacters& m_characters;
     std::unordered_map<uint32_t, ConnectionId_t> m_waiting; // reply id -> the game asked
     std::set<std::pair<ConnectionId_t, uint32_t>> m_asked;  // the guests' calls the host's game owes an answer: guest, reply id
-    std::map<ConnectionId_t, NotifyRoutedCall> m_controls;  // each game's last controls call still holding (piece 9)
+    std::map<ConnectionId_t, std::vector<NotifyRoutedCall>> m_controls; // each game's controls calls since it gave back (piece 9)
 };

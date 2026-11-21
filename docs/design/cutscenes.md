@@ -47,8 +47,8 @@ each game runs the same call on its own VM, on its own player and screen (a stac
   (`NotifyPlayerLeft`, `PartyNatives::GiveBackControls`). A game leaving the session gives back what every other
   game's cutscene held on it. The give-back is `Game.EnablePlayerControls` for what no one else holds; camera switch,
   activate and the journal (not in `ControlMap`) come back only when no one holds anything.
-- **A joiner mid-cutscene** (built 2026-11-21, one-simulator.md piece 9): the host keeps each game's last party
-  `DisablePlayerControls` until that game gives back (`RoutedCall::Controls`, `HostPlayerNatives`), and a joining game
+- **A joiner mid-cutscene** (built 2026-11-21, one-simulator.md piece 9): the host keeps each game's party
+  `DisablePlayerControls` calls until that game gives back (`RoutedCall::Controls`, `HostPlayerNatives`), and a joining game
   runs it as that game's call, so its controls come back with the cutscene's end. Only controls: tints and fades are
   not kept.
 

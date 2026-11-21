@@ -112,7 +112,7 @@ void HostPlayerNatives::ToOthers(const RoutedCallRequest& acRequest, ConnectionI
     static_cast<Payloads::RoutedCall&>(notify) = acRequest;
     notify.Source = cpPlayer->Id;
     if (acRequest.Controls == CallControls::kTakes)
-        m_controls[aSender] = notify;
+        m_controls[aSender].push_back(notify);
     else if (acRequest.Controls == CallControls::kGivesBack)
         m_controls.erase(aSender);
     m_players.SendToOthers(notify, aSender);
@@ -120,9 +120,10 @@ void HostPlayerNatives::ToOthers(const RoutedCallRequest& acRequest, ConnectionI
 
 void HostPlayerNatives::SendHeld(ConnectionId_t aJoiner) const noexcept
 {
-    for (const auto& [cGame, cCall] : m_controls)
+    for (const auto& [cGame, cCalls] : m_controls)
         if (cGame != aJoiner)
-            m_network.Send(aJoiner, cCall);
+            for (const NotifyRoutedCall& cCall : cCalls)
+                m_network.Send(aJoiner, cCall);
 }
 
 void HostPlayerNatives::OnCallEnded(const CallEndedRequest& acRequest, ConnectionId_t aSender) const noexcept

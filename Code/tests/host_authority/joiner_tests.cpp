@@ -114,6 +114,22 @@ TEST_CASE("A joiner gets each game's cutscene still holding the controls, as tha
     }
 }
 
+TEST_CASE("A joiner gets every controls call a cutscene made since it last gave back", "[HostAuthority][Join]")
+{
+    Session session;
+    session.Receive(kHost, ControlsCall(CallControls::kTakes)); // movement and fighting
+    RoutedCallRequest movement = ControlsCall(CallControls::kTakes);
+    movement.Call.Arguments[1] = false; // then movement alone: fighting stays taken
+    session.Receive(kHost, movement);
+    session.Outbox.clear();
+
+    Arrive(session, kPeer);
+    const auto cHeld = session.SentTo<NotifyRoutedCall>(kPeer);
+    REQUIRE(cHeld.size() == 2);
+    CHECK(cHeld[0]->Call.Arguments == ControlsCall(CallControls::kTakes).Call.Arguments);
+    CHECK(cHeld[1]->Call.Arguments == movement.Call.Arguments);
+}
+
 TEST_CASE("A party call that is not on the controls is not kept for a joiner", "[HostAuthority][Join]")
 {
     Session session;

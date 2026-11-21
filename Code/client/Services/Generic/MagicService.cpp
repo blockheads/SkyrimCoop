@@ -111,8 +111,15 @@ void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) noexcept
         cast.Target = Utils::GetSessionIdByFormId(acEvent.DesiredTargetID).value_or(0);
     CastPart& part = m_held[acEvent.CasterFormId];
     part.Sources[acEvent.CastingSource] = cast;
-    spdlog::debug("MagicService: {:X} holds {:X} in source {}", *cId, cSpell->BaseId, acEvent.CastingSource);
-    m_world.ctx().at<CopyRecords>().Declare(*cId, RecordKind::kCast, ToPartBytes(part));
+    spdlog::debug("MagicService: {:X} casts {:X} in source {}", *cId, cSpell->BaseId, acEvent.CastingSource);
+    auto& records = m_world.ctx().at<CopyRecords>();
+    records.Declare(*cId, RecordKind::kCast, ToPartBytes(part));
+    // A one-shot cast (invisibility) holds nothing: its copies cast it once, a joiner gets none.
+    if (!m_formBridge.IsConcentrationSpell(cSpellFormId))
+    {
+        part.Sources[acEvent.CastingSource].reset();
+        records.Declare(*cId, RecordKind::kCast, ToPartBytes(part));
+    }
 }
 
 std::vector<uint32_t> MagicService::ApplyCast(uint32_t aId, const std::string& acBytes) noexcept
@@ -124,39 +131,45 @@ std::vector<uint32_t> MagicService::ApplyCast(uint32_t aId, const std::string& a
     Applied& applied = m_applied[aId];
     if (applied.FormId != cFormId)
         applied = {cFormId, {}};
+    std::vector<uint32_t> waiting;
     for (uint32_t source = 0; source < part.Sources.size(); ++source)
     {
         const auto& cHeld = part.Sources[source];
-        if (cHeld == applied.Part.Sources[source])
+        auto& was = applied.Part.Sources[source];
+        if (cHeld == was)
             continue;
+        // A named target not here yet: this slot waits for it.
+        if (cHeld && cHeld->Target && !Utils::GetFormIdBySessionId(cHeld->Target))
+        {
+            waiting.push_back(cHeld->Target);
+            continue;
+        }
         if (cHeld)
             CastOn(cFormId, source, *cHeld);
-        else
+        else if (m_formBridge.IsConcentrationSpell(ToGame(was->Spell))) // a one-shot cast has nothing to stop
         {
             m_actorBridge.GenerateMagicCasters(cFormId);
             m_actorBridge.InterruptCast(cFormId, source);
         }
+        was = cHeld;
     }
-    applied.Part = part;
-    return {};
+    return waiting;
 }
 
 void MagicService::CastOn(uint32_t aFormId, uint32_t aSource, const HeldCast& acCast) const noexcept
 {
     m_actorBridge.GenerateMagicCasters(aFormId);
-    // Only left hand casters need dual casting (CastingSource::LEFT_HAND = 1).
+    // The dual flag on caster 1 (RIGHT_HAND, MagicSystem.h), as the old cast message did; which caster reads it is unread.
     m_actorBridge.SetMagicCasterDualCasting(aFormId, 1u, acCast.Dual);
 
-    // The spell equipped in that source, else the owner's.
-    uint32_t spellFormId = m_actorBridge.GetActiveMagicItemFormId(aFormId, aSource);
+    // The owner's spell, else the one equipped in that source.
+    uint32_t spellFormId = ToGame(acCast.Spell);
+    if (!spellFormId || !m_formBridge.FormExists(spellFormId))
+        spellFormId = m_actorBridge.GetActiveMagicItemFormId(aFormId, aSource);
     if (!spellFormId)
     {
-        spellFormId = ToGame(acCast.Spell);
-        if (!spellFormId || !m_formBridge.FormExists(spellFormId))
-        {
-            spdlog::error("MagicService: no spell {:X}:{:X} here to cast", acCast.Spell.ModId, acCast.Spell.BaseId);
-            return;
-        }
+        spdlog::error("MagicService: no spell {:X}:{:X} here to cast", acCast.Spell.ModId, acCast.Spell.BaseId);
+        return;
     }
     const uint32_t cTarget = acCast.Target ? Utils::GetFormIdBySessionId(acCast.Target) : 0;
 
