@@ -14,7 +14,6 @@
 #include <Messages/LockChangeRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/PlayerLevelRequest.h>
-#include <Messages/NotifyActivate.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/NotifyPlayerLevel.h>
@@ -30,17 +29,6 @@
 namespace
 {
 // The relays that change what they pass on; the rest share a payload (Messages/Payloads.h).
-
-// Objects: without the cell (under the party tether every game has the host's cells loaded).
-NotifyActivate ToNotify(const ActivateRequest& acRequest)
-{
-    NotifyActivate notify;
-    notify.Id = acRequest.Id;
-    notify.NpcId = acRequest.NpcId;
-    notify.ActivatorId = acRequest.ActivatorId;
-    notify.PreActivationOpenState = acRequest.PreActivationOpenState;
-    return notify;
-}
 
 NotifySetWaypoint ToNotify(const RequestSetWaypoint& acRequest)
 {
@@ -293,16 +281,12 @@ void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, Connect
 
 void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
-    if (!acRequest.NpcId)
-    {
-        Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+    // The host's game runs a guest's activation with its copy; the others get what changed as its rows.
+    if (aSender == m_players.Host() || m_characters.OwnerOf(acRequest.ActivatorId) != aSender || !m_game.Activate)
         return;
-    }
-    if (m_characters.OwnerOf(acRequest.ActivatorId) != aSender || m_characters.IsPlayerCharacter(acRequest.NpcId))
+    if (acRequest.NpcId && (m_characters.IsPlayerCharacter(acRequest.NpcId) || m_characters.OwnerOf(acRequest.NpcId) != m_players.Host()))
         return;
-    const auto cOwner = m_characters.OwnerOf(acRequest.NpcId);
-    if (cOwner == m_players.Host() && cOwner != aSender)
-        m_network.Send(cOwner, ToNotify(acRequest));
+    m_game.Activate(acRequest.Id, acRequest.NpcId, acRequest.ActivatorId);
 }
 
 void HostAuthority::OnRecipes(const RecipesRequest& acRequest, ConnectionId_t) const noexcept

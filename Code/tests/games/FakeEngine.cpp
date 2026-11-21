@@ -3274,6 +3274,7 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
         World::Get().GetRunner().Trigger(MenuEvent{"ContainerMenu", true});
     }
     ToggleDoor(aObject);
+    Harvest(aObject);
 }
 
 // The alias clear hooks report their quest after the engine removes the fill, without a stage/flag event.

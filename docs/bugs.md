@@ -51,7 +51,6 @@ every other section needs the duo.
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
 - [After a kill move the guest's own body floats](#after-a-kill-move-the-guests-own-body-floats): small
 - [A refused rider left crouched](#a-refused-rider-left-crouched): small
-- [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
 
 **Ragdolls and death poses**
@@ -118,7 +117,6 @@ every other section needs the duo.
 - [A starting kit with an extra item](#a-starting-kit-with-an-extra-item): small
 - [A spawn's inventory over a newer equip](#a-spawns-inventory-over-a-newer-equip): small
 - [A party item removed without its tag](#a-party-item-removed-without-its-tag): small
-- [The host shows a guest's relief box](#the-host-shows-a-guests-relief-box): small
 - [A party wipe's fight that misfires](#a-party-wipes-fight-that-misfires): medium
 - [An action sent before its copy exists](#an-action-sent-before-its-copy-exists): small
 - [The green flash scenarios' grab](#the-green-flash-scenarios-grab): small
@@ -129,7 +127,6 @@ every other section needs the duo.
 - [Riverwood's scenery drifts apart](#riverwoods-scenery-drifts-apart): small
 - [Whiterun plains' critters differ](#whiterun-plains-critters-differ): small
 - [A guest crashed loading a copy's idle clips](#a-guest-crashed-loading-a-copys-idle-clips): small
-- [The host's roll for a guest's loot](#the-hosts-roll-for-a-guests-loot): small
 - [Cover plates after the host leaves](#cover-plates-after-the-host-leaves): small
 - [A follower's party ahead of its copies](#a-followers-party-ahead-of-its-copies): small
 - [Failures only deep in a long run](#failures-only-deep-in-a-long-run): medium
@@ -431,23 +428,6 @@ Size: small. Needs: IDA, the duo.
 - **Measured** (2026-11-20, `agent/piece-4b`, action claims): 3 of 7 runs (`fe9a7048` and the next build); 0 of 3 later
   runs where the host also won and "Ride on 1C refused ... our player gets off" logged; 0 of 2 runs before the claim
   refactor (those failed on Riverwood's drift). Not read yet whether the refactor changed the refusal's timing.
-
-### Doors the host's NPCs unlock
-
-Whiterun's doors open on the host, locked on the guest.
-
-Agent task: Find what unlocks these doors on the host, and make that change reach the guests.
-
-Size: medium. Needs: duo, IDA.
-
-- **Three doors unlocked on the host stay locked on the guest** (2026-11-09, `guest_shows_only_hosts_npcs` after its
-  steps, at noon). Doors of base `252C7` in Whiterun's exterior cell `1A278` (`1A6F5`, `252CD`, `24E25`); both games'
-  have change flag `0x10000000`. First seen once a guest stopped running its own NPCs (copy-contract.md, "A guest's
-  own NPCs"): the guest's NPC packages likely locked and unlocked them there before, hiding it.
-  - Not read yet: whether package door locks do it (the lock-doors package flags), and whether the host sends a lock
-    change its own NPC made (a guest proposes only its player's, `GuestWorldState::OnLockChange`; `HookLockChange`
-    19512 raises `LockChangeEvent` for every lock change).
-  - Test: that scenario's end comparison, or `world_state` on the three doors in both games.
 
 ### The Greybeards scene never casts the host's player
 
@@ -1147,18 +1127,6 @@ Size: small. Needs: GameTests, then the duo.
     2026-11-12: Aela's copy lacks `1D4EC` and its right hand is empty, the same shape.
   - 2026-11-16, dev's full run: `host-quickloads-party` and `save-load-gate`, Aela's copy lacking `1D4EC` both times.
 
-### The host shows a guest's relief box
-
-`relief-takes-client-relics` (branch 3 of 4, dev's plugin 2 of 4, 2026-11-12; on dev 2026-11-16 2 of 3 reruns, after
-passing in the full run): the guest puts the axe in Volunruud's
-relief and the box saying the sword is missing shows on the host's game too (`[host] shows the client's box`). Once on
-dev it failed before that, with no menu cursor on the host. Unread: which stack's `Message.Show` reached the host's
-screen (party-calls.md: a guest's action's message is its own).
-
-Agent task: read where the door script's `Message.Show` runs for a guest's activation, then a GameTests flow.
-
-Size: small. Needs: the duo (`relief-takes-client-relics --repeat 4`), then GameTests.
-
 ### An action sent before its copy exists
 
 Stands alone: a copy's last action.
@@ -1319,21 +1287,6 @@ Size: small. Needs: the duo.
   touched by the scenario; the short `mount_roundtrip` scenarios in the same cell pass.
   - Start: `scene` now baselines the world differences already there; these appear during the run. Read which of
     them the host sends (HostWorldState) and which each game simulates alone.
-
-### The host's roll for a guest's loot
-
-Stands alone: one loot scenario.
-
-Agent task: Find why the guest's container never shows the host's leveled roll in `guest-loots-hosts-roll`.
-
-Size: small. Needs: the duo, then GameTests.
-
-- **The guest does not get the host's roll** (2026-11-11, every run on both builds): "[client] the guest gets the
-  host's roll {...}" times out after 10 s, the host's roll different each run (so the host does roll). What the guest
-  holds instead is not in the message: its own roll, or nothing.
-  - Start: the guest's container contents at the timeout against the host's; then where a container's leveled items
-    are resolved on a guest (`loot` in `docs/design/`).
-  - Test: a GameTests flow, a leveled container opened by the guest first.
 
 ### Cover plates after the host leaves
 
@@ -1602,6 +1555,10 @@ host's `tp_client.2.log`, 18:25:09) are `HookCheckForNewPackage` (+0x5d), `HookU
 `AliasOnReference<RealClearRefAlias>` (+0x91), all pass-through hooks `LockOrder::IgnoreFrames` lists. But
 `HookUpdateAI` is listed with 0x50 bytes (`Actor.cpp`), and its call returns at +0x59: the hook has grown past its size,
 so its frame counts as ours.
+
+- 2026-11-20 (piece 6): the same in Whiterun from `GuestScripts::HookNativeCalled`, which runs every native and was
+  not listed (an extra-data list's lock against the VM's, `late-join-gets-load-door-lock` every run). Listed now with
+  its PDB size (0x984, given 0xA00); a measured size would have caught both.
 
 Agent task: give `HookUpdateAI` a size that covers it, and make the checker fail loudly when a listed hook's code is
 longer than its size (or measure the size instead of writing it).

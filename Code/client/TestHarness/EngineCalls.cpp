@@ -44,6 +44,8 @@
 #include <Games/Skyrim/Events/EventDispatcher.h>
 #include <Games/Overrides.h>
 #include <Games/References.h>
+#include <ExtraData/ExtraLock.h>
+#include <ExtraData/ExtraTeleport.h>
 #include <Games/Skyrim/BSInput/InputEvent.h>
 #include <Games/TES.h>
 #include <Havok/BShkbAnimationGraph.h>
@@ -1080,6 +1082,50 @@ void ReadGraph(TESObjectREFR& aRef, ReferenceState& aState) noexcept
     pManager->Release();
 }
 } // namespace
+
+namespace
+{
+uint32_t ChangesOf(const TESObjectREFR& acRef) noexcept
+{
+    uint32_t changes = 0;
+    if (const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get())
+        for (uint32_t bit = 0; bit < 32; ++bit)
+            if (pSaveLoad->HasChange(acRef, 1u << bit))
+                changes |= 1u << bit;
+    return changes;
+}
+
+// Its own ExtraLock (0x2A) only: whether it holds the lock, locked, level.
+std::tuple<bool, bool, uint8_t> OwnLock(const TESObjectREFR& acRef) noexcept
+{
+    const auto* pExtra = static_cast<const ExtraLock*>(acRef.extraData.GetByType(ExtraDataType::Lock));
+    if (!pExtra || !pExtra->lock)
+        return {false, false, 0};
+    return {true, pExtra->lock->IsLocked(), pExtra->lock->lockLevel};
+}
+} // namespace
+
+DoorLockState GetDoorLock(uint32_t aRefId) noexcept
+{
+    DoorLockState state;
+    const auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aRefId));
+    if (!pRef)
+        return state;
+    state.Exists = true;
+    std::tie(state.OwnLock, state.Locked, state.Level) = OwnLock(*pRef);
+    state.Changes = ChangesOf(*pRef);
+    const auto* pTeleport = static_cast<const ExtraTeleport*>(pRef->extraData.GetByType(ExtraDataType::Teleport));
+    if (!pTeleport || !pTeleport->teleportData)
+        return state;
+    const auto* pLinked = TESObjectREFR::GetByHandle(pTeleport->teleportData->linkedDoor);
+    if (!pLinked)
+        return state;
+    state.Linked = pLinked->formID;
+    state.LinkedExists = true;
+    std::tie(state.LinkedOwnLock, state.LinkedLocked, state.LinkedLevel) = OwnLock(*pLinked);
+    state.LinkedChanges = ChangesOf(*pLinked);
+    return state;
+}
 
 std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
 {

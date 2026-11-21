@@ -264,9 +264,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t RecordFlags{};
         uint32_t Base = 0; // a created one's (a script's PlaceAtMe)
         uint32_t Owner = 0; // its ExtraOwnership (an NPC or a faction); none: its cell's (CellOwners)
+        bool Plant = false;     // a flora or tree reference: an activation picks it (TESProduceForm::Harvest 14864)
+        bool Harvested = false; // its form flag 0x2000
+        std::set<uint32_t> Rolled; // items a leveled roll put in (their changes entry a roll's: ExtraLeveledItem lists)
+        uint32_t LinkedDoor = 0; // a load door with no lock of its own: it uses this door's (GetLock 20223)
+        bool Persistent = false; // in memory with its cell unloaded (a load door's other side)
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
+    // The reference holding its lock: a load door's linked door when it has none (AddLockChange 19512 records there).
+    [[nodiscard]] uint32_t LockHolderOf(uint32_t aReference) const;
+    // A container's count of an item as TESObjectREFR::GetContainerCount reads it (ContainerCount): Items holds its
+    // changes entry's count, kept at 0 for a roll's item taken (16059 frees it only on an actor).
+    [[nodiscard]] int32_t ContainerCountOf(uint32_t aContainer, uint32_t aItem) const;
     // The container bases: a created one is a container reference, not a loose item.
     std::set<uint32_t> ContainerBases;
     // A container reference made here (ModManager::CreateReference): it holds nothing, the engine rolls no leveled
@@ -1148,28 +1158,33 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The native's own write on aActor, as the engine makes it.
     void TakeProgress(const LocalCall& acCall, uint32_t aActor);
     // Objects: an actor activates one by itself (opens a door, pulls a lever), as our hook on TESObjectREFR::Activate
-    // raises it; another game's activation replayed here (ActivateObjectFromActor), recorded.
+    // raises it; a guest's activation run on the host's game (HostGame::Activate), recorded.
     void Activates(uint32_t aActor, uint32_t aObject);
     std::vector<std::pair<uint32_t, uint32_t>> Activations; // object, activator
     uint32_t LootMenuOf{}; // the dead actor whose loot menu the player opened (TESNPC::Activate -> OpenMenu 51140)
     bool ObjectHasLock(uint32_t aObjectFormId) const noexcept override
     {
-        const auto it = References.find(aObjectFormId);
+        const auto it = References.find(LockHolderOf(aObjectFormId));
         return it != References.end() && (it->second.Locked || it->second.LockLevel);
     }
     bool ObjectIsLocked(uint32_t aObjectFormId) const noexcept override
     {
-        const auto it = References.find(aObjectFormId);
+        const auto it = References.find(LockHolderOf(aObjectFormId));
         return it != References.end() && it->second.Locked;
     }
-    void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t) noexcept override
+    void RunsActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId) noexcept
     {
         Activations.emplace_back(aObjectFormId, aActivatorFormId);
         if (!ActivateMount(aActivatorFormId, aObjectFormId))
+        {
             ToggleDoor(aObjectFormId);
+            Harvest(aObjectFormId);
+        }
     }
     // An activated door swings: the host's records it, a guest's opens here only (the host's state follows).
     void ToggleDoor(uint32_t aObject);
+    // An activated plant is picked (for any actor, 14864): the host's records it (CHANGE_OBJECT_EMPTY), a guest's here only.
+    void Harvest(uint32_t aObject);
     // Combat. A melee hit, as our hook on Actor::DamageActor (Actor.cpp) takes it: raised as a hit, and a hit of this
     // game's player on another's actor raised as a health change and not applied here (its owner applies it).
     void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);

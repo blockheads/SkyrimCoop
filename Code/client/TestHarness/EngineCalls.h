@@ -252,7 +252,7 @@ bool PlayerImproves(uint32_t aItemFormId, float aHealth, uint32_t aEnchantment, 
 // (BSExtraData::GetType), past the fields Inventory::Entry reads. None: no such holder or item.
 std::optional<std::vector<std::pair<int32_t, std::vector<uint32_t>>>> GetStackExtraTypes(uint32_t aHolder, uint32_t aItem) noexcept;
 // One item on a holder, every way it is counted: its base container's entries naming it or a leveled list (form,
-// count), its changes entry (delta and each list's count and extra types), GetContainerCount (16108) and what
+// count), its changes entry (delta and each list's count and extra types), GetContainerCount (ContainerCount) and what
 // TESObjectREFR::GetInventory lists for it. None: no such holder or item.
 struct InventoryEntryRead
 {
@@ -484,6 +484,24 @@ std::vector<CellObject> GetCellObjects() noexcept;
 
 // A reference in a loaded cell as this game holds and shows it: everything world-state sync could carry
 // (scripts/coop_test.py's world diff compares the two games').
+// A door's lock as each side holds it (the readout for "Doors the host's NPCs unlock"): its own ExtraLock, else its
+// linked door's (GetLock 20223); AddLockChange 19512 records on the holder.
+struct DoorLockState
+{
+    bool Exists{};
+    bool OwnLock{};
+    bool Locked{};
+    uint8_t Level{};
+    uint32_t Changes{};
+    uint32_t Linked{};      // the load door's other side, 0 for none
+    bool LinkedExists{};
+    bool LinkedOwnLock{};
+    bool LinkedLocked{};
+    uint8_t LinkedLevel{};
+    uint32_t LinkedChanges{};
+};
+DoorLockState GetDoorLock(uint32_t aRefId) noexcept;
+
 struct ReferenceState
 {
     uint32_t Id;

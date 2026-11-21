@@ -465,7 +465,7 @@ TEST_CASE("Scripts: a guest leaving before it answers leaves the host's script w
     CHECK((cLater[1]->ReplyId == 79 && std::holds_alternative<std::monostate>(cLater[1]->Result)));
 }
 
-TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and container change are the host's to take", "[HostAuthority][Objects]")
+TEST_CASE("Objects: a guest's activation runs on the host's game only; a guest's lock and container change are the host's to take", "[HostAuthority][Objects]")
 {
     Session session;
     const uint32_t cPlayer = session.Character(kPeer);
@@ -474,17 +474,22 @@ TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and cont
     activate.Id = GameId(0, 0x1A2B);
     activate.CellId = GameId(0, 0x9732);
     activate.ActivatorId = cPlayer;
-    activate.PreActivationOpenState = 2;
+    session.Outbox.clear();
     session.Receive(kPeer, activate);
-    for (const auto cTo : {kHost, kOtherPeer})
-    {
-        const auto cActivations = session.SentTo<NotifyActivate>(cTo);
-        REQUIRE(cActivations.size() == 1);
-        CHECK(cActivations[0]->Id == GameId(0, 0x1A2B));
-        CHECK(cActivations[0]->ActivatorId == cPlayer);
-        CHECK(cActivations[0]->PreActivationOpenState == 2);
-    }
-    CHECK(session.SentTo<NotifyActivate>(kPeer).empty());
+    REQUIRE(session.Activations.size() == 1);
+    CHECK(session.Activations[0] == std::tuple{GameId(0, 0x1A2B), 0u, cPlayer});
+    // The other games get what changed as the host's rows, never the activation.
+    CHECK(session.Outbox.empty());
+
+    // The host's own activation, and one naming another game's character, go nowhere.
+    session.Outbox.clear();
+    ActivateRequest hosts = activate;
+    hosts.ActivatorId = session.Character(kHost);
+    session.Receive(kHost, hosts);
+    ActivateRequest other = activate;
+    other.ActivatorId = session.Character(kOtherPeer);
+    session.Receive(kPeer, other);
+    CHECK(session.Activations.size() == 1);
 
     // A guest picked a lock: the host's game takes it (and sends it as its own change); nothing is relayed.
     LockChangeRequest lock;

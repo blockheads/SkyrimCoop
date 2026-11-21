@@ -49,6 +49,39 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-20: **piece 6 of one-simulator.md revised: activations stay as they are** (`agent/piece-6`). The RE
+(`docs/re/systems/activation.md`, open question 4) found the engine already splits each form's `Activate` by
+"this game's player" (screen) and anyone else (world). The host already reruns a guest's activation with its copy,
+and its rows put the guest right. A gate sending the world part to the host would fix no bug seen, so it is not built.
+Its four bugs are fixed one by one. First, **"Doors the host's NPCs unlock" fixed**: a load door's lock lives on the
+door it leads to (`GetLock` 20223, `AddLockChange` 19512 records there), and a change made before a guest joined never
+reached it, because the guest asks for its loaded cells and the inside door's cell is not one of them. The host's
+cell state now sends the lock with the outside door (`ReferenceStates::LinkedLockRows`). Tests: GameTests "A load
+door the host's NPC unlocked while a guest was away is unlocked when it joins again", scenario
+`late-join-gets-load-door-lock` (control: fails without the row); harness `door_lock`. Found on the way, not fixed:
+harvested flora was not synced (fixed in the review, below). Second, **"The host shows a guest's relief box"
+fixed**: a call the host's script routes to a guest's game (`NotifyRoutedCall`) was queued there with no cause, so a
+screen or controls call read as the story's and went back to every game; the host showed the mirrored box. The guest
+now queues it as its own player's (`GuestEngine::RunPlayerNative`, cause 0x14). Tests: GameTests "A guest's action's
+message box shows on its game only" (the fake's guest seam had queued it as the player's all along: now it follows
+production), ClientTests; `relief-takes-client-relics` 4 of 4 (0 of 4 before), the guest-moment and story-box
+scenarios pass.
+Third, **"The host's roll for a guest's loot" fixed**: the roll already agreed (the cell state sends contents); a
+guest's Take All of a fresh roll moved nothing because a chest keeps a taken roll item's entry at 0 (16059) and
+16108/16214 reads that as one. `GetContainerCount` now counts as CommonLibSSE-NG does (`Games/ContainerCount.h`,
+ClientTests); `guest-loots-hosts-roll` 3 of 3 (1 of 3 before), the container scenarios pass
+(inventory-changes.md, "A roll's taken item").
+Review of PR #87: a picked plant goes out as the host's row (`kHarvested`: `SetHarvestedFlag` 14647 and
+`UpdateHarvestModel` 14865); a guest's own linked-lock change is named in its cell request; the own-lock check reads
+the lock pointer; a guest's activation reaches the host's game as `HostGame::Activate` (`NotifyActivate`, the
+guests' replay and `IFormBridge::ActivateObjectFromActor` deleted); fakes model a roll's 0 entry and take the routed
+call's cause from `PartyRules::kRoutedCallCause`.
+Cleanups: a guest's object activation runs on the host's game only (`HostAuthority::OnActivate`, no `FromAnyone`);
+the host's own activations reach the guests only as rows; the door's open-state compare and the field carrying it
+are gone (`ActivateRequest`, `NotifyActivate`, `ActivateObjectFromActor`). GameTests "A lever a guest pulls moves once,
+on the host, and no other guest replays it", HostAuthorityTests; 21 object scenarios pass. The lock checker no longer
+counts `HookNativeCalled`'s frame as ours (bugs.md, "A pass-through hook counted as ours").
+
 2026-11-20: **passengers sit at once, piece 5 of one-simulator.md, built** (`agent/piece-5`). A player boarding a
 horse another player drives asks the host first (`BoardRequest`); the host's yes (`NotifyBoard`, to it alone) seats it
 with the engine's own quick get-on: `PutOnMount`, then `Actor::PutActorOnMountQuick`

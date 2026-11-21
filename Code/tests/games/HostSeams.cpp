@@ -192,6 +192,12 @@ void HostService::MakeAuthority() noexcept
         return acObject.ModId == ObjectChange::kCreatedModId ? engine.ContentsOf(0xFF000000 | acObject.BaseId) : std::nullopt;
     };
     game.RaiseStoryEvent = [&engine](const StoryEvent& acEvent) { engine.StoriesRaised.push_back(acEvent); };
+    game.Activate = [&engine](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) {
+        const uint32_t cObject = aNpcId ? Utils::GetFormIdBySessionId(aNpcId) : FormIdOf(acObject);
+        const uint32_t cActivator = Utils::GetFormIdBySessionId(aActivatorId);
+        if (cActivator && (!aNpcId || !engine.IsActorCopy(cObject)))
+            engine.RunsActivation(cObject, cActivator);
+    };
     game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
     };
@@ -204,7 +210,7 @@ void HostService::MakeAuthority() noexcept
         const uint32_t cContainer = acRequest.ContainerActorId ? Utils::GetFormIdBySessionId(acRequest.ContainerActorId) : FormIdOf(acRequest.Container);
         const uint32_t cItem = ItemForm(moved.BaseId);
         const bool cTake = moved.Count > 0;
-        const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.References.at(cContainer).Items[cItem]) : engine.CountOf(cPlayer, cItem);
+        const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.ContainerCountOf(cContainer, cItem)) : engine.CountOf(cPlayer, cItem);
         moved.Count = std::min(std::abs(moved.Count), cAvailable) * (cTake ? 1 : -1);
         // As HostEngine::TransferContainer: a take changes only the container, the player's own game its player; a put
         // moves from the player's copy here.
@@ -218,7 +224,13 @@ void HostService::MakeAuthority() noexcept
             if (acRequest.ContainerActorId)
                 engine.GetsItem(cContainer, other);
             else
+            {
+                // Measured as HostEngine::TransferContainer does: the count before and after the removal.
+                const int32_t cBefore = engine.ContainerCountOf(cContainer, cItem);
                 engine.SetItems(cContainer, cItem, engine.References.at(cContainer).Items[cItem] - moved.Count);
+                const int32_t cAfter = engine.ContainerCountOf(cContainer, cItem);
+                moved.Count = std::clamp(cTake ? cBefore - cAfter : cAfter - cBefore, 0, std::abs(moved.Count)) * (cTake ? 1 : -1);
+            }
         }
         if (moved.Count && acRequest.ContainerActorId) // as HostEngine::TransferContainer
             World::Get().GetRunner().Trigger(ItemsChangedEvent{cContainer});

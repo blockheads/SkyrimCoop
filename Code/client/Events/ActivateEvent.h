@@ -12,8 +12,6 @@ struct ActivateEvent
     // The activator is a reference, not an actor: a script opened a door (Activate(Self)).
     bool ByReference{false};
     uint32_t ObjectParentCellFormId{0};
-    // A door's TESObjectREFR::OpenState before the activation.
+    // A door's TESObjectREFR::OpenState before a script's activation (HostService: a guest's door toggles only from it).
     uint8_t PreActivationOpenStateValue{0};
-    // Activate again through the bridge (ObjectService::OnActivate).
-    bool ActivateFlag{false};
 };

@@ -310,6 +310,9 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript
     m_progressed = cFacts.Reach.Kind == NativeReach::Call::kProgress || cFacts.InSystemQuest;
     m_body = cFacts.Reach.Kind == NativeReach::Call::kBody;
     const PartyRules::Routing cRouting = PartyRules::RouteOf(cFacts);
+    if (cFacts.Reach.Kind == NativeReach::Call::kScreen)
+        spdlog::debug("PartyNatives: {}.{} on the screen, cause {:X} (story {}): destination {}", apFunction->GetObjectTypeName().AsAscii(),
+                      apFunction->GetName().AsAscii(), aCause, aStory, static_cast<int>(cRouting.To));
     if (cRouting.Ask)
     {
         const bool cYesNo = apFunction->GetReturnType().type == BSScript::Variable::kBoolean;

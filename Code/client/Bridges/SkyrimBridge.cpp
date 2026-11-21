@@ -1057,38 +1057,6 @@ uint32_t SkyrimBridge::GetObjectParentCellId(uint32_t aObjectFormId) const noexc
     return 0;
 }
 
-void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId,
-                                             uint8_t aPreActivationState) noexcept
-{
-    Breadcrumbs::Record("ActivateObjectFromActor", aObjectFormId, aActivatorFormId);
-    TESObjectREFR* pObject = GetRefr(aObjectFormId);
-    Actor* pActor = GetActor(aActivatorFormId);
-    if (!pObject || !pActor)
-    {
-        spdlog::error("SkyrimBridge::ActivateObjectFromActor — object {:X} or actor {:X} not found",
-                      aObjectFormId, aActivatorFormId);
-        return;
-    }
-
-    if (pObject->baseForm && static_cast<uint8_t>(pObject->baseForm->formType) == static_cast<uint8_t>(FormType::Door))
-    {
-        // A load door would take the copy through it, out of this game's cell. The player's own
-        // game moves it, and everyone follows (cell arrivals).
-        if (IsLoadDoor(aObjectFormId))
-        {
-            spdlog::info("Load door {:X} not replayed: its player's own game takes it through", aObjectFormId);
-            return;
-        }
-
-        auto remotePreActivationState = static_cast<TESObjectREFR::OpenState>(aPreActivationState);
-        TESObjectREFR::OpenState localState = pObject->GetOpenState();
-        if (remotePreActivationState != localState)
-            return;
-    }
-
-    pObject->Activate(pActor, 0, nullptr, 1, 0);
-}
-
 uint8_t SkyrimBridge::GetObjectOpenState(uint32_t aObjectFormId) const noexcept
 {
     if (TESObjectREFR* pObj = GetRefr(aObjectFormId))

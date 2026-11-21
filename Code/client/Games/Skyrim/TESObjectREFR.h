@@ -40,6 +40,7 @@ struct TESObjectREFR : TESForm
         CHANGE_REFR_EXTRA_OWNERSHIP = 1 << 6,
         CHANGE_REFR_BASEOBJECT = 1 << 7,
         CHANGE_OBJECT_EXTRA_LOCK = 1 << 12, // AddLockChange (19512)
+        CHANGE_OBJECT_EMPTY = 1 << 21,      // a plant picked (TESProduceForm::Harvest 14864)
         CHANGE_OBJECT_OPEN_STATE = 1 << 23, // BGSOpenCloseForm::SetOpenState (14287)
         CHANGE_REFR_PROMOTED = 1 << 25,
         CHANGE_REFR_EXTRA_ACTIVATING_CHILDREN = 1 << 26,
@@ -191,7 +192,7 @@ struct TESObjectREFR : TESForm
     Lock* GetLock() const noexcept;
     TESContainer* GetContainer() const noexcept;
     int64_t GetItemCountInInventory(TESForm* apItem) const noexcept;
-    // How many of the item it holds (InventoryChanges::GetItemCount 16108); none for no container or item.
+    // How many of the item it holds, as the menus count (Games/ContainerCount.h, not 16108); none for no container or item.
     std::optional<int32_t> GetContainerCount(TESBoundObject* apItem) const noexcept;
     // Adds or removes the difference to hold that many, past our inventory hooks; false for no container or item.
     bool SetContainerCount(TESBoundObject* apItem, int32_t aCount) noexcept;

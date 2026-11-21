@@ -89,7 +89,6 @@
     X(NotifyActorValueChanges)     \
     X(NotifyActorMaxValueChanges)  \
     X(NotifyHealthChangeBroadcast) \
-    X(NotifyActivate)              \
     X(NotifyDeathStateChange)      \
     X(NotifyInventoryChanges)      \
     X(NotifySpellCast)             \
