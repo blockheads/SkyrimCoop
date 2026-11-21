@@ -97,6 +97,7 @@ struct CallFacts
     bool PlayerInCall = false;  // this game's player (0x14) is its object or an argument
     bool InSystemQuest = false; // a system quest's script calls it: this game's instance, for its own player
     bool SystemObject = false;  // its object is a system quest or one of its globals: each game's own
+    bool CreatedObject = false; // its object is a reference the host's game created (CreatedIds)
 };
 
 enum class Destination : uint8_t
@@ -115,6 +116,7 @@ struct Routing
     bool Mark = false;       // the player in it (MarkFor's) is each game's own (MarkEachPlayer)
     uint32_t MarkFor = 0;
     bool Ask = false;        // a question with no player's action: asked of the party's player nearest the asker (rule 3)
+    bool Reply = false;      // kHost: the script waits for what the host's game returned (a created reference)
     bool operator==(const Routing&) const = default;
 };
 // Where a call runs (docs/design/party-calls.md). Another game's call (mirrored) runs here only.

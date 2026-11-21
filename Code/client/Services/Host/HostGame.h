@@ -111,6 +111,9 @@ struct HostGame
     // A guest's activation of an object (aObject) or an NPC (aNpcId), run by its player's copy (aActivatorId); what
     // changed goes out as the host's rows.
     std::function<void(const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId)> Activate;
+    // A guest's player's summon (spell, its effect, magnitude) put on that player's copy, aCasterId, cast by it: the
+    // host's engine makes the summon, commanded by the copy (summons.md).
+    std::function<void(uint32_t aCasterId, const GameId& acSpell, const GameId& acEffect, float aMagnitude)> Summon;
     // A guest's lock change, accepted into the host's world (it then goes out as the host's change).
     std::function<void(const GameId& acObject, bool aLocked, uint8_t aLockLevel)> SetLock;
     // A guest's container change, accepted (a kItems change): the host's container holds that many, its stacks with

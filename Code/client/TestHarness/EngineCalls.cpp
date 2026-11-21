@@ -1,4 +1,6 @@
 #include "EngineCalls.h"
+#include <Forms/MagicItem.h>
+#include <Magic/EffectItem.h>
 #include <Interface/ConsoleLines.h>
 #include <Havok/Raycast.h>
 #include <Havok/SwingCast.h>
@@ -2162,6 +2164,33 @@ bool IsInRagdollState(uint32_t aFormId) noexcept
     POINTER_SKYRIMSE(TIsInRagdollState, s_isInRagdollState, 37491);
     const Actor* pActor = GetActor(aFormId);
     return pActor && s_isInRagdollState.Get()(pActor);
+}
+
+std::vector<uint32_t> SpellEffects(uint32_t aSpellId) noexcept
+{
+    std::vector<uint32_t> effects;
+    if (auto* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellId)))
+        for (EffectItem* pEffect : pSpell->listOfEffects)
+            if (pEffect && pEffect->pEffectSetting)
+                effects.push_back(pEffect->pEffectSetting->formID);
+    return effects;
+}
+
+Commanding ReadCommanding(uint32_t aFormId) noexcept
+{
+    Commanding commanding;
+    const Actor* pActor = GetActor(aFormId);
+    const MiddleProcess* pProcess = pActor && pActor->currentProcess ? pActor->currentProcess->middleProcess : nullptr;
+    if (!pProcess)
+        return commanding;
+    const auto cFormOf = [](uint32_t aHandle) {
+        const TESObjectREFR* pRef = TESObjectREFR::GetByHandle(aHandle);
+        return pRef ? pRef->formID : 0u;
+    };
+    commanding.Commander = cFormOf(pProcess->commandingActor.handle.iBits);
+    for (const CommandedActor& cEntry : pProcess->commandedActors)
+        commanding.Commanded.push_back(cFormOf(cEntry.handle));
+    return commanding;
 }
 
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept

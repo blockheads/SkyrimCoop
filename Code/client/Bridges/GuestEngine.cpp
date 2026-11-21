@@ -1,4 +1,6 @@
 #include <Bridges/GuestEngine.h>
+#include <CreatedIds.h>
+#include <World.h>
 #include <Games/GuestNpcs.h>
 #include <Games/QuestStarts.h>
 
@@ -188,6 +190,7 @@ GuestEngine::~GuestEngine() noexcept
     m_bodyBridge.SetReferences({});
     PlayerCharacter::SetPickUpGate({});
     // The host's created objects go with the session: a next one makes them again.
+    World::Get().ctx().at<CreatedIds>().Clear();
     for (const auto& [cHostId, cHandle] : m_created)
         if (TESObjectREFR* pMade = TESObjectREFR::GetByHandle(cHandle); pMade && !pMade->IsDeleted())
         {
@@ -428,6 +431,15 @@ bool GuestEngine::Create(const ObjectChange& acChange) noexcept
 {
     if (const TESObjectREFR* pMade = FindReference(acChange.Object); pMade && !pMade->IsDeleted())
         return true;
+    // Loaded with the host's save as this game joined: a save keeps a created reference's id (measured, summons.md).
+    auto* pSaved = Cast<TESObjectREFR>(TESForm::GetById(0xFF000000 | acChange.Object.BaseId));
+    if (pSaved && !pSaved->IsDeleted() && pSaved->baseForm && pSaved->baseForm->formID == ToGame(acChange.Item) &&
+        !std::ranges::any_of(m_ownDrops, [pSaved](const auto& acDrop) { return TESObjectREFR::GetByHandle(acDrop.second) == pSaved; }))
+    {
+        m_created[acChange.Object.BaseId] = pSaved->GetHandle().handle.iBits;
+        World::Get().ctx().at<CreatedIds>().Link(pSaved->formID, acChange.Object);
+        return true;
+    }
     ObjectChange::Placement placement;
     if (!ObjectChange::UnpackPlacement(acChange.Data, placement))
         return false;
@@ -436,6 +448,7 @@ bool GuestEngine::Create(const ObjectChange& acChange) noexcept
     if (!pMade)
         return false;
     m_created[acChange.Object.BaseId] = pMade->GetHandle().handle.iBits;
+    World::Get().ctx().at<CreatedIds>().Link(pMade->formID, acChange.Object);
     return true;
 }
 
@@ -467,6 +480,7 @@ bool GuestEngine::AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept
     if (acObject == GameId{})
         return true;
     m_created[acObject.BaseId] = cHandle;
+    World::Get().ctx().at<CreatedIds>().Link(pOwn->formID, acObject);
     m_adopted.push_back({.Object = acObject});
     return true;
 }
@@ -504,6 +518,8 @@ void GuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
     if (const auto it = m_created.find(acGrant.Object.BaseId); acGrant.Object.ModId == ObjectChange::kCreatedModId && it != m_created.end())
     {
         handle = it->second;
+        if (const TESObjectREFR* pTwin = TESObjectREFR::GetByHandle(handle))
+            World::Get().ctx().at<CreatedIds>().Unlink(pTwin->formID);
         m_created.erase(it);
         m_taken.insert(acGrant.Object.BaseId);
     }

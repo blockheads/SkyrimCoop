@@ -951,8 +951,8 @@ SCENARIO("A ride on the host player's summoned horse is refused before the host 
 {
     // No game takes a player's summon (CharacterService::TakeOwnership): the host's game could not take it back either.
     HorseParty ride;
-    ride.party.As(ride.party.Host(), [&] { ride.host.Actors.at(ride.horse).PlayerSummon = true; });
-    ride.guest.Actors.at(ride.copy).PlayerSummon = true;
+    ride.party.As(ride.party.Host(), [&] { ride.host.Actors.at(ride.horse).Commander = FakeEngine::kPlayer; });
+    ride.guest.Actors.at(ride.copy).Commander = FakeEngine::kPlayer;
     ride.GuestRides();
     ride.party.Until([&] { return !ride.guest.IsPlayerMounted(); }, "the guest's player is off it, its ride refused");
     CHECK(Owns(ride.party.Host(), ride.horse));
@@ -964,7 +964,7 @@ SCENARIO("A ride its game could not take ends there too: its player gets off", "
     // The guest's game alone refuses the horse (a summon to it): the claim comes straight back, the host ends the ride
     // (HostClaims::OnEnded), and the guest's player, seated already, gets off.
     HorseParty ride;
-    ride.guest.Actors.at(ride.copy).PlayerSummon = true;
+    ride.guest.Actors.at(ride.copy).Commander = FakeEngine::kPlayer;
     ride.GuestRides();
     ride.party.Until([&] { return ride.guest.IsPlayerMounted(); }, "the guest's player gets on");
     ride.party.Until([&] { return !ride.guest.IsPlayerMounted(); }, "the guest's player is off it");
@@ -977,7 +977,7 @@ SCENARIO("The host's player rides its own summoned horse", "[mounts][claims]")
     // No game takes a player's summon, but this ride moves nothing: the horse is the host's game's already.
     HorseParty ride;
     ride.party.As(ride.party.Host(), [&] {
-        ride.host.Actors.at(ride.horse).PlayerSummon = true;
+        ride.host.Actors.at(ride.horse).Commander = FakeEngine::kPlayer;
         ride.host.Activates(FakeEngine::kPlayer, ride.horse);
     });
     ride.party.Until([&] { return ride.guest.Mounts.size() == 1; }, "the guest's copy of the host's player rides");

@@ -37,6 +37,9 @@
 #include <SaveLoad.h>
 #include <Sky/Sky.h>
 #include <Actor.h>
+#include <Forms/MagicItem.h>
+#include <Magic/EffectItem.h>
+#include <Magic/MagicTarget.h>
 #include <Games/ActorExtension.h>
 #include <ExtraData/ExtraDataList.h>
 #include <PlayerCharacter.h>
@@ -433,6 +436,28 @@ void HostEngine::Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aAct
     }
     Breadcrumbs::Record("HostEngine::Activate", cObjectId, pActor->formID);
     pObject->Activate(pActor, 0, nullptr, 1, 0);
+}
+
+void HostEngine::Summon(uint32_t aCasterId, const GameId& acSpell, const GameId& acEffect, float aMagnitude) noexcept
+{
+    auto* pCopy = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(aCasterId)));
+    auto* pSpell = Cast<MagicItem>(TESForm::GetById(ToGame(acSpell)));
+    EffectItem* pEffect = pSpell ? pSpell->GetEffect(ToGame(acEffect)) : nullptr;
+    if (!pCopy || !pCopy->GetExtension()->IsOtherPlayer() || !pEffect || !pEffect->IsSummonEffect())
+    {
+        spdlog::warn("HostEngine: a guest's summon {:X} on {:X} not made: no such copy or summon effect", acSpell.LogFormat(), aCasterId);
+        return;
+    }
+    // As an owner applies a request (MagicTarget::AddTarget, past our hook): Update 34992 makes it, commanded by the copy.
+    MagicTarget::AddTargetData data{};
+    data.pCaster = pCopy;
+    data.pSpell = pSpell;
+    data.pEffectItem = pEffect;
+    data.fMagnitude = aMagnitude;
+    data.fUnkFloat1 = 1.0f;
+    data.eCastingSource = MagicSystem::CastingSource::CASTING_SOURCE_COUNT;
+    spdlog::info("HostEngine: guest {:X}'s summon {:X} made by its copy {:X}", aCasterId, pSpell->formID, pCopy->formID);
+    pCopy->magicTarget.AddTarget(data, false, false);
 }
 
 void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept

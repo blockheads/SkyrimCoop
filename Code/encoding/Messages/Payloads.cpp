@@ -479,6 +479,7 @@ void PlayerNativeResult::SerializePayload(Wire::Buffer::Writer& aWriter) const n
 {
     Serialization::WriteVarInt(aWriter, ReplyId);
     SerializeScriptValue(aWriter, Result);
+    Serialization::WriteVarInt(aWriter, SessionId);
 }
 
 void PlayerNativeResult::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -486,6 +487,7 @@ void PlayerNativeResult::DeserializePayload(Wire::Buffer::Reader& aReader) noexc
     ReplyId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     if (!DeserializeScriptValue(aReader, Result))
         Result = std::monostate{};
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
 } // namespace Payloads

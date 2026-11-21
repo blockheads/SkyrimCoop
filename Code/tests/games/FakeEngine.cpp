@@ -27,6 +27,7 @@
 #include <Services/ContainerOpens.h>
 #include <Services/DeathDrops.h>
 #include <Events/AddTargetEvent.h>
+#include <Events/SummonEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
 #include <Events/EquipmentChangeEvent.h>
@@ -770,21 +771,24 @@ void FakeEngine::Frame()
     RunQueued();
 }
 
-void FakeEngine::Queue(LocalCall aCall, uint32_t aCause)
+void FakeEngine::Queue(LocalCall aCall, uint32_t aCause, std::function<void(LocalValue)> aOnReturn)
 {
-    m_queued.emplace_back(std::move(aCall), aCause);
+    m_queued.push_back({std::move(aCall), aCause, std::move(aOnReturn)});
 }
 
 void FakeEngine::RunQueued()
 {
     auto queued = std::exchange(m_queued, {});
-    for (const auto& [cCall, cCause] : queued)
+    for (const auto& [cCall, cCause, cOnReturn] : queued)
     {
         const auto* cpSelf = std::get_if<LocalForm>(&cCall.Self);
+        LastReturn = std::monostate{};
         if (cpSelf && QuestFunctions.contains({cpSelf->FormId, cCall.Function}))
             CallsQuest(cCall, cCause, false, false);
         else
             RunScript(cCall, cCause);
+        if (cOnReturn)
+            cOnReturn(LastReturn);
     }
 }
 
@@ -2870,10 +2874,14 @@ IJoinBridge::SaveFiles FakeEngine::MakeSave()
     player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
     player.Serialize(writer);
     Serialization::WriteVarInt(writer, References.size());
+    // Created ones keep their ids in a save (measured, summons.md): their base, cell and state with them.
     for (const auto& [id, r] : References)
     {
         Serialization::WriteVarInt(writer, id);
         Serialization::WriteBool(writer, r.Locked);
+        Serialization::WriteVarInt(writer, r.Base);
+        Serialization::WriteVarInt(writer, r.Cell);
+        Serialization::WriteBool(writer, r.Disabled);
     }
     // The words' flags (the world's), the player's own factions (its base's, kept with the save).
     for (const auto* pWords : {&WordsKnown, &WordsUnlocked})
@@ -2924,7 +2932,11 @@ void FakeEngine::RunMainLoop() noexcept
     for (size_t i = 0; i < count; ++i)
     {
         const uint32_t id = Serialization::ReadVarInt(reader);
-        References[id].Locked = Serialization::ReadBool(reader);
+        auto& reference = References[id];
+        reference.Locked = Serialization::ReadBool(reader);
+        reference.Base = static_cast<uint32_t>(Serialization::ReadVarInt(reader));
+        reference.Cell = static_cast<uint32_t>(Serialization::ReadVarInt(reader));
+        reference.Disabled = Serialization::ReadBool(reader);
     }
     for (auto* pWords : {&WordsKnown, &WordsUnlocked})
     {
@@ -3078,6 +3090,15 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
     if (cTarget == Actors.end())
         return;
     const bool cOurCast = Actors.contains(aCaster) && !Actors.at(aCaster).Copy;
+    // A summon on its caster: applied here (a guest's CreateSummon makes nothing); a guest's player's goes to the host's
+    // game too (MagicTarget's hook, summons.md).
+    if (Spell(aSpell).Summons && aTarget == aCaster && cOurCast)
+    {
+        if (HoldSession && aTarget == kPlayer)
+            World::Get().GetRunner().Trigger(SummonEvent{aSpell, aEffect, aMagnitude});
+        AddMagicTargetEffect(aTarget, aCaster, aSpell, aEffect, aMagnitude, false, false, false);
+        return;
+    }
     if (cTarget->second.Copy)
     {
         if (!cOurCast)
@@ -3092,6 +3113,25 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
         return;
     }
     Effects.push_back({aTarget, aCaster, aSpell, aEffect});
+}
+
+uint32_t FakeEngine::MakesSummon(uint32_t aCaster, uint32_t aBase)
+{
+    const auto cCaster = Actors.find(aCaster);
+    if (cCaster == Actors.end())
+        return 0;
+    for (const auto& [cId, cActor] : Actors)
+        if (cActor.Commander == aCaster && !cActor.Copy)
+        {
+            DeleteActor(cId);
+            break;
+        }
+    const auto& cPosition = cCaster->second.Position;
+    const uint32_t cId = LoadNpc(aBase, cCaster->second.Cell, {cPosition[0] + 100.f, cPosition[1], cPosition[2]});
+    Actors.at(cId).Commander = aCaster;
+    if (Attached.contains(Actors.at(cId).Cell))
+        Load3D(cId);
+    return cId;
 }
 
 void FakeEngine::Fights(uint32_t aActor, uint32_t aTarget)

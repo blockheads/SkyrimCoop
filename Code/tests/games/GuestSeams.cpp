@@ -1,5 +1,6 @@
 // A guest's side in this process: GuestEngine's calls GuestWorldState makes, on the fake engine's world, and
 // GuestService's making of the guest's parts as it joins (its clock, weather, world state and dialogue).
+#include <CreatedIds.h>
 #include <Physics/BodyRead.h>
 #include "GuestSeams.h"
 #include "FakeEngine.h"
@@ -211,14 +212,25 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
         ObjectChange::Placement placement;
         if (!ObjectChange::UnpackPlacement(acChange.Data, placement))
             return false;
-        if (engine.ContainerBases.contains(FormIdOf(acChange.Item)))
+        // Loaded with the host's save as this game joined: a save keeps a created reference's id (as GuestEngine).
+        if (const auto cSaved = engine.References.find(0xFF000000 | acChange.Object.BaseId);
+            cSaved != engine.References.end() && cSaved->second.Base == FormIdOf(acChange.Item))
+        {
+            m_created[acChange.Object.BaseId] = cSaved->first;
+            World::Get().ctx().at<CreatedIds>().Link(cSaved->first, acChange.Object);
+            return true;
+        }
+        // A container, or a script's reference (no item stacks: not a drop).
+        if (engine.ContainerBases.contains(FormIdOf(acChange.Item)) || acChange.Stacks.empty())
         {
             m_created[acChange.Object.BaseId] = engine.PlaceContainer(FormIdOf(placement.Cell), FormIdOf(acChange.Item));
+            World::Get().ctx().at<CreatedIds>().Link(m_created[acChange.Object.BaseId], acChange.Object);
             return true;
         }
         Inventory::Entry item = acChange.Stacks.empty() ? Inventory::Entry{.BaseId = acChange.Item, .Count = 1} : acChange.Stacks[0];
         const uint32_t cId = engine.PlaceLoose(FormIdOf(placement.Cell), item);
         m_created[acChange.Object.BaseId] = cId;
+        World::Get().ctx().at<CreatedIds>().Link(cId, acChange.Object);
         engine.HostDecides.insert(cId);
         return true;
     }
@@ -233,6 +245,8 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
             engine.References.erase(cContainer);
             m_created.erase(cTwin);
         }
+        else if (acChange.Type == ObjectChange::Kind::kEnabled)
+            cContainer->second.Disabled = !(acChange.Value & 1);
         return true;
     }
     if (acChange.Type == ObjectChange::Kind::kEnabled && acChange.Value & 2)
@@ -272,6 +286,7 @@ bool GuestEngine::AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept
         return true;
     }
     m_created[acObject.BaseId] = cOwn;
+    World::Get().ctx().at<CreatedIds>().Link(cOwn, acObject);
     m_adopted.push_back({.Object = acObject});
     return true;
 }

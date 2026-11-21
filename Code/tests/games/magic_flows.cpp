@@ -30,6 +30,49 @@ SCENARIO("A guest's Flames plays on its copy on the host's game", "[magic]")
     THEN("the guest's own cast is not sent back to it") CHECK(guest.Casts.size() == 1);
 }
 
+// The actors of aBase a game holds: its own (not copies) and its copies.
+std::pair<std::vector<uint32_t>, std::vector<uint32_t>> ActorsOf(const FakeEngine& acEngine, uint32_t aBase)
+{
+    std::pair<std::vector<uint32_t>, std::vector<uint32_t>> actors;
+    for (const auto& [cId, cActor] : acEngine.Actors)
+        if (cActor.Base == aBase)
+            (cActor.Copy ? actors.second : actors.first).push_back(cId);
+    return actors;
+}
+
+SCENARIO("A guest's familiar is one actor on every game", "[magic][summon]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    const auto cCast = [&] {
+        party.As(party.Guest(), [&] {
+            guest.SpellHits(FakeEngine::kPlayer, FakeEngine::kPlayer, FakeEngine::kConjureFamiliar, FakeEngine::kFamiliarEffect, 60.f);
+        });
+    };
+    cCast();
+    party.Until([&] { return ActorsOf(host, FakeEngine::kFamiliar).first.size() == 1 && guest.CopiesOf(FakeEngine::kFamiliar).size() == 1; },
+                "the host's game made the familiar and the guest's shows its copy");
+    THEN("the host's familiar is commanded by the guest's copy, its copy by the guest's player, and the guest made none")
+    {
+        CHECK(std::ranges::count_if(guest.Effects, [](const auto& acEffect) { return acEffect.Spell == FakeEngine::kConjureFamiliar; }) == 1);
+        CHECK(host.Actors.at(ActorsOf(host, FakeEngine::kFamiliar).first[0]).Commander == PlayerCopy(host));
+        CHECK(guest.Actors.at(guest.CopiesOf(FakeEngine::kFamiliar)[0]).Commander == FakeEngine::kPlayer);
+        CHECK(ActorsOf(guest, FakeEngine::kFamiliar).first.empty());
+    }
+
+    WHEN("the guest casts it again")
+    {
+        cCast();
+        party.Until([&] { return ActorsOf(host, FakeEngine::kFamiliar).first.size() == 1 && guest.CopiesOf(FakeEngine::kFamiliar).size() == 1 &&
+                                 host.Effects.size() == 2; },
+                    "the host's game dismissed the first for the second");
+        THEN("still one familiar on each game") CHECK(ActorsOf(guest, FakeEngine::kFamiliar).first.empty());
+    }
+}
+
 SCENARIO("A guest's spell on a host NPC is the host's to apply", "[magic]")
 {
     Party party(1, SmokeWorld);
@@ -75,6 +118,29 @@ SCENARIO("A host NPC's burning shows on its copy", "[magic]")
     party.As(party.Host(), [&] { host.Burns(guard, kFlamesEffect, false); });
     party.Until([&] { return !guest.IsPlayingEffectHitVisuals(guest.CopiesOf(kGuard)[0], kFlamesEffect); },
                 "its burning ends with the guard's");
+}
+
+SCENARIO("A host NPC already burning when its copy is made burns on the copy once it has 3D", "[magic][summon]")
+{
+    Party party(1, SmokeWorld, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] {
+        guard = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f});
+        host.Burns(guard, kFlamesEffect, true); // a summon's own shader, as the familiar's (summons.md)
+    });
+    // Skyrim (the familiar, 2026-11-21): the copy's 3D comes after its spawn, with no TESObjectLoadedEvent.
+    guest.MadeActors3D = false;
+    party.Join(party.Guest());
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the guard");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    for (int i = 0; i < 10; ++i)
+        party.Frame(); // its visuals asked for, with no 3D to play on
+    CHECK_FALSE(guest.IsPlayingEffectHitVisuals(cCopy, kFlamesEffect));
+    guest.Actors.at(cCopy).Loaded = true;
+    party.Until([&] { return guest.IsPlayingEffectHitVisuals(cCopy, kFlamesEffect); }, "the copy burns once its 3D is there");
 }
 
 SCENARIO("A host NPC fighting the guest's player fights it on the guest's game too", "[ai]")

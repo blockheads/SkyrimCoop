@@ -24,6 +24,7 @@
 #include <Services/ClaimService.h>
 #include <Services/KillMoveService.h>
 #include <Services/CopyRecords.h>
+#include <CreatedIds.h>
 #include <Services/CopyRecordsService.h>
 #include <Services/PerkService.h>
 #include <Services/DialogueService.h>
@@ -111,6 +112,7 @@ World::World()
     // Before CharacterService: an arrival drops the copies the old cell took before they are checked.
     ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                  ctx().at<IPlayerBridge&>());
+    ctx().emplace<CreatedIds>();
     ctx().emplace<CopyRecords>(); // before CharacterService: its Ride part
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport,
                                    ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());

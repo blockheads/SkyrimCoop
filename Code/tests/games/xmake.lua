@@ -17,7 +17,7 @@ target("GameTests")
     add_files("../../client/Services/Generic/TransportService.cpp", "../../client/Services/Generic/CutsceneService.cpp",
               "../../client/Services/Generic/SystemQuestService.cpp",
               "../../client/Services/Generic/RunnerService.cpp", "../../client/TaskQueue.cpp",
-              "../../client/ScriptValues.cpp", "../../client/SessionIds.cpp",
+              "../../client/ScriptValues.cpp", "../../client/SessionIds.cpp", "../../client/CreatedIds.cpp",
               "../../client/Services/Generic/CharacterService.cpp", "../../client/Services/Generic/TravelService.cpp",
               "../../client/Services/Generic/SessionService.cpp", "../../client/Services/Generic/ActorValueService.cpp",
               "../../client/Services/Generic/PlayerService.cpp", "../../client/Services/Generic/DeathService.cpp",

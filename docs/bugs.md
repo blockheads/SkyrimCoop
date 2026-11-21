@@ -69,7 +69,6 @@ every other section needs the duo.
 
 **Party scripts**
 
-- [References a guest's script creates](#references-a-guests-script-creates): medium, no duo
 - [The werewolf's turn back](#the-werewolfs-turn-back): medium, no duo
 - [Leaving a crafting station](#leaving-a-crafting-station): small
 
@@ -98,7 +97,6 @@ every other section needs the duo.
 
 - [After the host dies](#after-the-host-dies): medium, caused by the next one
 - [A still guest unseen up close](#a-still-guest-unseen-up-close): small, minor
-- [A guest's summon](#a-guests-summon): medium
 
 **Found by the playthrough flow**
 
@@ -574,26 +572,6 @@ Size: small. Needs: duo (screenshots).
 
 ## Party scripts
 
-### References a guest's script creates
-
-Stands alone; needs a decision first.
-
-Agent task: Decide whose a reference a guest's own script creates is, then make the world check and
-`vampirism-is-each-players` agree.
-
-Size: medium. Needs: code and GameTests; ask the user the decision.
-
-- **A reference a guest's own script creates is that game's alone** (2026-10-28, party-scripts-2). `PlaceAtMe` is not
-  a world change to the router, so a guest's own script (its system quest's `VampireChange`: the change's hidden
-  `XMarker`, placed and disabled) makes a reference only its game has; the world check sees it on the guest alone
-  (`vampirism-is-each-players` fails on it). Sending it to the host would hand the guest's script None for the
-  reference it goes on to use.
-  - Start: whether a reference a guest's own script makes is its game's own (the world check and world sync leave it),
-    or the host's made for it and sent back.
-  - Test: a `vampirism_flows.cpp` case where `VampireChange` places a marker on the guest.
-  - Still the only failure of `vampirism-is-each-players` (2026-11-11, every run on both builds): "created STAT 3B at
-    (-165, 2038, 6976): present client only".
-
 ### The werewolf's turn back
 
 Stands alone: a crash, not reproduced.
@@ -915,22 +893,6 @@ Size: small. Needs: duo, IDA, then GameTests.
   - Not the copy's combat refusal: with `CopyCombat::MayStart` switched off (dev's behaviour, a local build), search
     5 of 5 as well, 5-15 s, once 470 units off. Likely the engine's detection with a second player: a hook there.
   - Test: `host_death_watch` both ways is the scenario's base; a GameTests flow once the engine fact is known.
-
-### A guest's summon
-
-A guest's Conjure Familiar makes no familiar on either game; the host's reaches the guest.
-
-Agent task: Read what happens to the summon on the guest's game, then make a guest's actor reach the host the way a
-drop does, one path with script-placed references (bugs-map.md, "Created forms").
-
-Size: medium. Needs: IDA, duo, then GameTests.
-
-- **A guest's familiar never appears** (2026-11-06, Riverwood, 640B6 aimed at the other player). Host's cast: announced
-  (`FF00090D`), the guest spawned its copy. Guest's two casts (`abSuccess: true`): nothing announced on the host, and 8 s
-  after the first the guest's only familiar was the host's copy.
-- Suspect, read not observed: `CharacterService::RunActorDiscovery` deletes a temporary actor on a guest that is no copy
-  and has no session id (a rule for saved NPCs). `DeleteActor` logs nothing.
-- Test: a scenario where a guest casts it and both games show one familiar.
 
 ## Found by the playthrough flow
 

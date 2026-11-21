@@ -772,6 +772,16 @@ std::optional<GameSwingCast::Cast> PlayerSwingCast(GameSwingCast::Reach aReach) 
 // Turns the player so its eye (GetEyeVector's origin, where a swing starts) looks at that point, in first person.
 bool AimPlayerEyeAt(const float acPoint[3]) noexcept;
 
+// The MGEF ids of a spell's effects, in order.
+std::vector<uint32_t> SpellEffects(uint32_t aSpellId) noexcept;
+// Who commands an actor (a summon's caster) and whom it commands (MiddleProcess 0x218, 0x100).
+struct Commanding
+{
+    uint32_t Commander{};
+    std::vector<uint32_t> Commanded;
+};
+Commanding ReadCommanding(uint32_t aFormId) noexcept;
+
 // Its ragdoll has its body (dead, knocked down, a kill move's victim): Actor::IsInRagdollState 37491.
 bool IsInRagdollState(uint32_t aFormId) noexcept;
 

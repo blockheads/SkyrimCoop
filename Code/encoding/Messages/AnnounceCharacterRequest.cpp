@@ -16,7 +16,7 @@ void AnnounceCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const
     Serialization::WriteFloat(aWriter, Weight);
     Serialization::WriteBool(aWriter, IsDragon);
     Serialization::WriteBool(aWriter, IsMount);
-    Serialization::WriteBool(aWriter, IsPlayerSummon);
+    Serialization::WriteVarInt(aWriter, CommanderId);
     CurrentActorData.Serialize(aWriter);
     Serialization::WriteString(aWriter, GraphState);
     Record.Serialize(aWriter);
@@ -53,7 +53,7 @@ void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noe
 
     IsDragon = Serialization::ReadBool(aReader);
     IsMount = Serialization::ReadBool(aReader);
-    IsPlayerSummon = Serialization::ReadBool(aReader);
+    CommanderId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 
     CurrentActorData.Deserialize(aReader);
     GraphState = Serialization::ReadString(aReader);

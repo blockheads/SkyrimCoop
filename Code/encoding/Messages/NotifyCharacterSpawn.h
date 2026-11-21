@@ -34,7 +34,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     {
         return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
                FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer &&
-               IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
+               CommanderId == acRhs.CommanderId && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
     }
 
     uint32_t SessionId{};
@@ -59,5 +59,5 @@ struct NotifyCharacterSpawn final : NotifyMessage
     uint32_t PlayerId{};
     bool IsDead{};
     bool IsPlayer{};
-    bool IsPlayerSummon{};
+    uint32_t CommanderId{}; // a summon's caster, by session id (0: none)
 };

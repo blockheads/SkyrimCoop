@@ -1,3 +1,5 @@
+#include <CreatedIds.h>
+#include <FormIds.h>
 #include <Events/PlayerDeathEvent.h>
 #include <Events/CallEndedEvent.h>
 #include <Events/PlayerProgressEvent.h>
@@ -276,6 +278,7 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
                    : GuestScripts::IsGuestCharacter(cSelf) ? Target::kGuestCharacter
                                                            : Target::kNone;
     facts.OwnQuest = !cStatic && PlayerNatives::IsOwnQuest(cObject);
+    facts.CreatedObject = !cStatic && IsCreatedForm(cObject) && World::Get().ctx().at<CreatedIds>().ToSession(cObject).has_value();
     const BSScript::StackFrame* cpCaller = acStack.pTop->pPrevious;
     auto* pScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
     const uint64_t cScript = pScript ? pScript->GetHandle() : 0;
@@ -339,7 +342,7 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript
     switch (cRouting.To)
     {
     case Destination::kHere: return;
-    case Destination::kHost: m_result = PlayerNatives::SendToHost(apFunction, *apStack, std::move(*call)); return;
+    case Destination::kHost: m_result = PlayerNatives::SendToHost(apFunction, *apStack, apVm, std::move(*call), cRouting.Reply); return;
     case Destination::kCauseGame: m_result = PlayerNatives::SendToGuest(apFunction, *apStack, apVm, aCause, std::move(*call)); return;
     case Destination::kEveryGame: break;
     }

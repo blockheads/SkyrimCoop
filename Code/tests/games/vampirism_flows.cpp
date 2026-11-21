@@ -17,6 +17,7 @@ constexpr uint32_t kPlayerIsVampire = 0xED06D; // its script's global
 constexpr uint32_t kAbVampire = 0x2E1C3, kAbVampire02 = 0x2E1C4; // AbVampire01, 02
 constexpr uint32_t kNord = 0x13746, kKhajiit = 0x13745;
 constexpr uint32_t kNordVampire = 0x88794, kKhajiitVampire = 0x88845;
+constexpr uint32_t kXMarker = 0x3B; // the change's hidden marker (STAT)
 
 int32_t Status(FakeEngine& aGame)
 {
@@ -47,6 +48,8 @@ void VampireQuest(FakeEngine& aEngine)
         aGame.RunScript({.Class = "Actor", .Function = "SetRace", .Self = LocalForm{cTarget},
                          .Arguments = {LocalForm{cRace == kKhajiit ? kKhajiitVampire : kNordVampire}}},
                         aCause);
+        // Its hidden marker (PlaceAtMe; vampirism.md): the host's game makes it (one-simulator.md piece 7).
+        aGame.RunScript({.Class = "ObjectReference", .Function = "PlaceAtMe", .Self = LocalForm{cTarget}, .Arguments = {LocalForm{kXMarker}}}, aCause);
         aGame.AddsSpell(cTarget, kAbVampire, true, aCause);
         cSetValue(aGame, 1.f, aCause);
         SystemQuests::TimerCalled(kVampireQuest, "RegisterForUpdateGameTime", 12.f);
@@ -122,6 +125,25 @@ SCENARIO("A guest's vampirism is its own", "[vampirism][system-quests]")
         GuestTurns(party, host, guest);
         party.Until([&] { return hostEngine.GetActorRaceFormId(PlayerCopy(hostEngine)) == kKhajiitVampire; },
                     "the host's copy of the guest's player is a Khajiit vampire");
+        THEN("VampireChange's marker is the host's: the host's game made it, the guest's script got the host's")
+        {
+            const auto cMarkers = [](const FakeEngine& acEngine) {
+                std::vector<uint32_t> markers;
+                for (const auto& [cId, cReference] : acEngine.References)
+                    if (cReference.Base == kXMarker)
+                        markers.push_back(cId);
+                return markers;
+            };
+            party.Until([&] { return guestEngine.ScriptReturns.contains(guestEngine.LastWaiting); }, "the guest's script got its answer");
+            REQUIRE(cMarkers(hostEngine).size() == 1);
+            REQUIRE(cMarkers(guestEngine).size() == 1);
+            const LocalValue cMarker = guestEngine.ScriptReturns.at(guestEngine.LastWaiting);
+            CHECK(cMarker == LocalValue{LocalForm{cMarkers(guestEngine)[0]}});
+            // The script goes on: it hides its marker (Disable), the host's to change, on both games.
+            party.As(guest, [&] { guestEngine.RunScript({.Class = "ObjectReference", .Function = "Disable", .Self = cMarker}, FakeEngine::kPlayer); });
+            party.Until([&] { return hostEngine.References.at(cMarkers(hostEngine)[0]).Disabled && guestEngine.References.at(cMarkers(guestEngine)[0]).Disabled; },
+                        "the marker is hidden on both games");
+        }
         THEN("Falion's quest, whose stage the vampire quest set, stays the story's")
             CHECK((!guestEngine.SystemQuestList.Contains(kFalion) && !hostEngine.SystemQuestList.Contains(kFalion)));
         THEN("only the guest is a vampire: the host's player stays a human Nord")

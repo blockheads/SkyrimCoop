@@ -465,6 +465,57 @@ TEST_CASE("Scripts: a guest leaving before it answers leaves the host's script w
     CHECK((cLater[1]->ReplyId == 79 && std::holds_alternative<std::monostate>(cLater[1]->Result)));
 }
 
+TEST_CASE("Scripts: a guest's script creating a reference gets the host's game's answer, only that guest", "[HostAuthority][Scripts]")
+{
+    Session session;
+    const uint32_t cPlayer = session.Character(kPeer);
+    session.Character(kOtherPeer);
+    RoutedCallRequest request;
+    request.To = CallTo::kHost;
+    request.Call.Class = "ObjectReference";
+    request.Call.Function = "PlaceAtMe";
+    request.ReplyId = 41;
+    session.Receive(kPeer, request);
+    const auto cCalls = session.SentTo<NotifyRoutedCall>(kHost);
+    REQUIRE(cCalls.size() == 1);
+    CHECK((cCalls[0]->ReplyId == 41 && cCalls[0]->SessionId == cPlayer));
+
+    PlayerNativeResultRequest result;
+    result.ReplyId = 41;
+    result.SessionId = cPlayer;
+    result.Result = ScriptForm{.Form = GameId(0xFFFFFFFF, 0x812)};
+    // Only the host's game answers it, once, and only the asking guest hears it.
+    session.Receive(kOtherPeer, result);
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kPeer).empty());
+    session.Receive(kHost, result);
+    session.Receive(kHost, result);
+    const auto cAnswers = session.SentTo<NotifyPlayerNativeResult>(kPeer);
+    REQUIRE(cAnswers.size() == 1);
+    CHECK((cAnswers[0]->ReplyId == 41 && cAnswers[0]->Result == result.Result));
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kHost).empty());
+}
+
+TEST_CASE("Summons: a guest's summon is made by the host's game, cast by that guest's character", "[HostAuthority][Summons]")
+{
+    Session session;
+    const uint32_t cPlayer = session.Character(kPeer);
+    SummonRequest summon;
+    summon.SpellId = GameId(0, 0x640B6);
+    summon.EffectId = GameId(0, 0x640B4);
+    summon.Magnitude = 60.f;
+    session.Outbox.clear();
+    session.Receive(kPeer, summon);
+    REQUIRE(session.Summons.size() == 1);
+    CHECK(session.Summons[0] == std::pair{cPlayer, GameId(0, 0x640B6)});
+    // Nothing is relayed: the familiar reaches the others as the host's actor.
+    CHECK(session.Outbox.empty());
+
+    // The host's own player makes its own: a request from it is nothing.
+    session.Receive(kHost, summon);
+    CHECK(session.Summons.size() == 1);
+}
+
 TEST_CASE("Objects: a guest's activation runs on the host's game only; a guest's lock and container change are the host's to take", "[HostAuthority][Objects]")
 {
     Session session;

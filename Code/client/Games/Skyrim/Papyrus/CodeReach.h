@@ -29,6 +29,7 @@ enum class Call : uint8_t
     kQuestion, // where a reference is: asked of the party with no player's action behind it (party-model.md rule 3)
     kBody,     // moves, poses or drives an actor's body (cutscenes.md step 2)
     kPlayerMenu, // a menu on another actor (barter): opened on the game of the player whose action asked for it
+    kCreate,     // a new reference (CreateReferenceAtLocation 13723: PlaceAtMe): the host's to make (one-simulator.md piece 7)
 };
 
 // How the party shares a change to a player's progression (docs/design/dragonborn.md, "The party's calls"): it runs
@@ -46,6 +47,7 @@ struct Reach
     Call Kind = Call::kNone;
     Progress Progress{};
     std::optional<uint8_t> Argument; // the call acts on this argument (Debug.SendAnimationEvent's reference), not the self
+    bool OnCreated = false; // the world's only on a created reference the host made (Enable, Disable: piece 7)
     bool operator==(const Reach&) const = default;
 };
 
@@ -139,16 +141,17 @@ inline constexpr uintptr_t kLeafBytes = 0x400;
 
 // The native's own calls (not its callees': Actor.Kill reaches the controls deep in SetLifeState) of the engine's
 // functions acSinks names, a player's field it writes, or a screen object it reads. A virtual call is resolved by
-// aResolve (none: unknown); one on an argument names it (Reach::Argument). Progression comes first, then the world, items (an equip's HUD message is no screen's), the
+// aResolve (none: unknown); one on an argument names it (Reach::Argument). Progression comes first, then a creation, the world, items (an equip's HUD message is no screen's), the
 // body, the controls, the screen, a show, a question (a getter's field: only for a native making no call).
 template <class TResolve>
 [[nodiscard]] Reach ClassifyCall(const Facts& acFacts, const Sinks& acSinks, TResolve&& aResolve) noexcept
 {
-    Reach progress, world, item, playerMenu, body, controls, screen, show, question;
+    Reach progress, create, world, item, playerMenu, body, controls, screen, show, question;
     if (acFacts.ReadsScreen)
         screen.Kind = Call::kScreen;
     const auto cNote = [&](const Sink& acSink, std::optional<uint8_t> aArgument = std::nullopt) {
         Reach& into = (acSink.Is.Kind == Call::kProgress ? progress
+         : acSink.Is.Kind == Call::kCreate ? create
          : acSink.Is.Kind == Call::kWorld  ? world
          : acSink.Is.Kind == Call::kItem   ? item
          : acSink.Is.Kind == Call::kPlayerMenu ? playerMenu
@@ -178,7 +181,7 @@ template <class TResolve>
         for (const uint32_t cField : acFacts.SelfReads)
             if (const auto it = acSinks.SelfFields.find(cField); it != acSinks.SelfFields.end())
                 cNote(it->second);
-    for (const Reach* cpReach : {&progress, &world, &item, &playerMenu, &body, &controls, &screen, &show, &question})
+    for (const Reach* cpReach : {&progress, &create, &world, &item, &playerMenu, &body, &controls, &screen, &show, &question})
         if (cpReach->Kind != Call::kNone)
             return *cpReach;
     return {};

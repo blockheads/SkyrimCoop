@@ -1,3 +1,5 @@
+#include <CreatedIds.h>
+#include <World.h>
 #include <Papyrus/GlobalCall.h>
 
 #include <Actor.h>
@@ -141,7 +143,7 @@ std::optional<LocalValue> Read(const BSScript::Variable& acVariable) noexcept
             return std::monostate{}; // None
         const uint64_t cHandle = pObject->GetHandle();
         auto* pForm = BSScript::IsFormHandle(cHandle) ? TESForm::GetById(BSScript::FormIdOfHandle(cHandle)) : nullptr;
-        if (!pForm || (pForm->formID >= 0xFF000000 && !Cast<Actor>(pForm)))
+        if (!pForm || (pForm->formID >= 0xFF000000 && !Cast<Actor>(pForm) && !World::Get().ctx().at<CreatedIds>().ToSession(pForm->formID)))
             return std::nullopt;
         return LocalForm{pForm->formID};
     }

@@ -20,6 +20,12 @@
     return GameId(0xFFFFFFFF, aFormId & 0x00FFFFFF);
 }
 
+// Whether a wire id is a created form's (CreatedId).
+[[nodiscard]] inline bool IsCreatedId(const GameId& acId) noexcept
+{
+    return acId.ModId == 0xFFFFFFFF;
+}
+
 // This game's form id on the wire: none for a created form; 0 is GameId{}.
 [[nodiscard]] inline std::optional<GameId> ToSession(uint32_t aFormId) noexcept
 {

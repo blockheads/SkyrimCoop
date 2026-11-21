@@ -78,7 +78,8 @@
     X(RecordRequest)                \
     X(RecordAskRequest) \
     X(ActorGiveBackRequest) \
-    X(ClaimRequest)
+    X(ClaimRequest)                 \
+    X(SummonRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \

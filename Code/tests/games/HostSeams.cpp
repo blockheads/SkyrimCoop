@@ -17,6 +17,7 @@
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/Relayed.h>
 #include <ScriptValues.h>
+#include <CreatedIds.h>
 #include <FormIds.h>
 #include <SessionIds.h>
 #include <Events/DifficultyChangeEvent.h>
@@ -84,6 +85,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
 
 void HostService::MakeAuthority() noexcept
 {
+    m_world.ctx().at<CreatedIds>().SetHosting(true);
     m_pAggro.reset();
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
@@ -197,6 +199,11 @@ void HostService::MakeAuthority() noexcept
         const uint32_t cActivator = Utils::GetFormIdBySessionId(aActivatorId);
         if (cActivator && (!aNpcId || !engine.IsActorCopy(cObject)))
             engine.RunsActivation(cObject, cActivator);
+    };
+    game.Summon = [&engine](uint32_t aCasterId, const GameId& acSpell, const GameId& acEffect, float aMagnitude) {
+        const uint32_t cCopy = Utils::GetFormIdBySessionId(aCasterId);
+        if (cCopy && engine.IsOtherPlayer(cCopy) && engine.SpellForms.contains(FormIdOf(acSpell)) && engine.SpellForms.at(FormIdOf(acSpell)).Summons)
+            engine.AddMagicTargetEffect(cCopy, cCopy, FormIdOf(acSpell), FormIdOf(acEffect), aMagnitude, false, false, false);
     };
     game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
@@ -363,6 +370,7 @@ void HostService::StopHosting() noexcept
     // As the real one: our own in-process connection goes through it.
     if (m_world.GetTransport().IsConnectedLocally())
         m_world.GetTransport().Close();
+    m_world.ctx().at<CreatedIds>().SetHosting(false);
     m_pConversation.reset();
     m_pNetwork.reset();
     m_pAuthority.reset();
@@ -392,8 +400,22 @@ void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
     if (acMessage.To != CallTo::kHost || !IsHosting())
         return;
     const uint32_t cGuest = Utils::GetFormIdBySessionId(acMessage.SessionId);
-    if (const auto cCall = Utils::ToLocalCall(acMessage.Call); cGuest && cCall)
+    const auto cCall = Utils::ToLocalCall(acMessage.Call);
+    if (!cGuest || !cCall)
+        return;
+    if (!acMessage.ReplyId)
+    {
         m_world.ctx().at<FakeEngine&>().Queue(*cCall, cGuest);
+        return;
+    }
+    // Its script waits: what the call returns goes back (as HostService).
+    m_world.ctx().at<FakeEngine&>().Queue(*cCall, cGuest, [this, cReplyId = acMessage.ReplyId, cSessionId = acMessage.SessionId](LocalValue aResult) {
+        PlayerNativeResultRequest result;
+        result.ReplyId = cReplyId;
+        result.SessionId = cSessionId;
+        result.Result = Utils::ToScriptValue(aResult);
+        m_world.GetTransport().Send(result);
+    });
 }
 
 // As HostService::OnActorRenamed.

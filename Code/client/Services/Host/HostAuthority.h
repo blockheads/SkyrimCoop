@@ -43,6 +43,7 @@ struct PlayerLevelRequest;
 
 struct HostNetwork;
 struct ActivateRequest;
+struct SummonRequest;
 
 /**
  * @brief The host's side of the session: handles what players send (docs/design/host-authority-migration.md).
@@ -149,6 +150,8 @@ private:
     void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept;
     void OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    // A guest's player cast a summon on itself: the host's game puts it on that player's copy (the host creates).
+    void OnSummon(const SummonRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // An owner game's graph ops (docs/design/graph-input-stream.md): each actor's run goes to the others if the sender
     // owns that actor.
     void OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept;

@@ -11,6 +11,8 @@
 
 #include <Events/AddTargetEvent.h>
 #include <Events/HitEvent.h>
+#include <Events/SummonEvent.h>
+#include <Games/GuestNpcs.h>
 
 #include <Games/Overrides.h>
 #include <PlayerCharacter.h>
@@ -129,9 +131,18 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
     if (ScopedSpellCastOverride::IsOverriden())
         return RealAddTarget(apThis, arData);
 
+    Actor* pCasterActor = Cast<Actor>(arData.pCaster);
+    // A guest's player's summon: the host's engine makes it on this player's copy (summons.md). The effect runs here
+    // too (its portal, its timer); CreateSummon makes nothing on a guest (SummonCreatureEffect.cpp).
+    if (GuestNpcs::Session() && arData.pEffectItem->IsSummonEffect() && pTargetActor == PlayerCharacter::Get() && pCasterActor == pTargetActor)
+    {
+        World::Get().GetRunner().Trigger(
+            SummonEvent{arData.pSpell->formID, arData.pEffectItem->pEffectSetting->formID, arData.fMagnitude});
+        return RealAddTarget(apThis, arData);
+    }
+
     AddTargetEvent addTargetEvent{};
     addTargetEvent.TargetID = pTargetActor->formID;
-    Actor* pCasterActor = Cast<Actor>(arData.pCaster);
     addTargetEvent.CasterID = pCasterActor ? pCasterActor->formID : 0;
     addTargetEvent.SpellID = arData.pSpell->formID;
     addTargetEvent.EffectID = arData.pEffectItem->pEffectSetting->formID;

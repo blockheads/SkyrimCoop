@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-21: **the host creates, piece 7 of one-simulator.md, built** (`agent/piece-7`; `docs/re/systems/summons.md`).
+A guest's Conjure Familiar showed on neither game: its own engine made one and held it without 3D, and the host dropped
+the copy's cast. Now the guest's summon effect runs on its game (portal, timer) with `CreateSummon` (34993) refused,
+and the host's game puts it on the guest's copy, so the host's engine makes the one familiar, commanded by the copy;
+the spawn carries its commander. A guest's script's `PlaceAtMe` goes to the host's game and waits for the host's
+reference (the `kCreate` sink, 13723); script values carry created references by their created id (`CreatedIds`),
+and `Enable`/`Disable` on them are the host's (`vampirism-is-each-players`' marker). Found on the duo: a copy spawned while
+its owner shows an effect never played it (no loaded event for its 3D; `Copy3DEvent`), and a guest joining with the
+host's world had the host's created references twice (its save's and the create row's). Bugs closed: "A guest's
+summon", "References a guest's script creates". Scenario `guest-summons-familiar`.
+
 2026-11-20: **piece 6 of one-simulator.md revised: activations stay as they are** (`agent/piece-6`). The RE
 (`docs/re/systems/activation.md`, open question 4) found the engine already splits each form's `Activate` by
 "this game's player" (screen) and anyone else (world). The host already reruns a guest's activation with its copy,
