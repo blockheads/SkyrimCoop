@@ -1,6 +1,7 @@
 #include <Diagnostics/HeadTrackRead.h>
 #include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
+#include <Events/InterruptCastEvent.h>
 #include <Events/ActorHeadUpdateEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
@@ -3084,6 +3085,17 @@ void FakeEngine::CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource,
     if (!cActor->second.Copy)
         World::Get().GetRunner().Trigger(SpellCastEvent(aCaster, aSpell, aTarget, aSource, false, cActor->second.Loaded));
     Casts.push_back({aCaster, aSpell, aSource, aTarget});
+    if (Spell(aSpell).Concentration)
+        Channels[{aCaster, aSource}] = aSpell;
+}
+
+void FakeEngine::StopsCasting(uint32_t aCaster, uint32_t aSource)
+{
+    const auto cActor = Actors.find(aCaster);
+    if (cActor == Actors.end() || !Channels.erase({aCaster, aSource}))
+        return;
+    if (!cActor->second.Copy)
+        World::Get().GetRunner().Trigger(InterruptCastEvent(aCaster, aSource));
 }
 
 void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude)

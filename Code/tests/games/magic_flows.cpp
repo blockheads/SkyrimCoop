@@ -11,6 +11,7 @@ constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kGuard = 0x0001A67C;
 constexpr uint32_t kFlames = 0x00012FCD;
 constexpr uint32_t kFlamesEffect = 0x00013CA9; // FireDamageConcAimed
+constexpr uint32_t kInvisibility = 0x00027EB6;
 
 } // namespace
 
@@ -30,6 +31,81 @@ SCENARIO("A guest's Flames plays on its copy on the host's game", "[magic]")
         },
         "the host's copy of the guest casts Flames from the same hand");
     THEN("the guest's own cast is not sent back to it") CHECK(guest.Casts.size() == 1);
+}
+
+SCENARIO("A guest joining while another channels Flames sees its copy cast it; the stop ends it", "[magic][join]")
+{
+    Party party(2, SmokeWorld, false);
+    party.Join(party.Guest());
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& caster = Party::Engine(party.Guest());
+    FakeEngine& late = Party::Engine(party.Guest(1));
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    party.As(party.Guest(), [&] { caster.CastsSpell(FakeEngine::kPlayer, kFlames, 1); });
+    party.Until([&] { return host.Channels.contains({PlayerCopy(host), 1}); }, "the host's copy channels Flames");
+
+    const auto cCopyChannels = [&] {
+        return std::ranges::any_of(late.Channels, [&](const auto& acChannel) {
+            return late.IsActorCopy(acChannel.first.first) && acChannel.first.second == 1 && acChannel.second == kFlames;
+        });
+    };
+    party.Join(party.Guest(1));
+    party.Until(cCopyChannels, "the late guest's copy of the caster channels Flames from the same hand");
+
+    party.As(party.Guest(), [&] { caster.StopsCasting(FakeEngine::kPlayer, 1); });
+    party.Until([&] { return host.Channels.empty() && late.Channels.empty(); }, "every copy stops with it");
+    THEN("the caster's own channel is not sent back to it") CHECK(std::ranges::count(caster.Casts, kFlames, &FakeEngine::Cast::Spell) == 1);
+}
+
+SCENARIO("A one-shot cast plays once on each copy, every time, and a guest joining after gets none", "[magic][join]")
+{
+    Party party(2, SmokeWorld, false);
+    party.Join(party.Guest());
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& caster = Party::Engine(party.Guest());
+    FakeEngine& late = Party::Engine(party.Guest(1));
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+    const auto cCopyCasts = [&](FakeEngine& aEngine) {
+        return std::ranges::count_if(aEngine.Casts, [&](const auto& acCast) {
+            return aEngine.IsActorCopy(acCast.Caster) && acCast.Spell == kInvisibility;
+        });
+    };
+
+    party.As(party.Guest(), [&] { caster.CastsSpell(FakeEngine::kPlayer, kInvisibility, 0); });
+    party.Until([&] { return cCopyCasts(host) == 1; }, "the host's copy casts it");
+    party.As(party.Guest(), [&] { caster.CastsSpell(FakeEngine::kPlayer, kInvisibility, 0); });
+    party.Until([&] { return cCopyCasts(host) == 2; }, "cast again, the host's copy casts it again");
+
+    party.Join(party.Guest(1));
+    party.Until([&] { return PlayerCopy(late, 0) && PlayerCopy(late, 1); }, "the late guest has both players' copies");
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    THEN("its copy casts nothing that ended long ago") CHECK(cCopyCasts(late) == 0);
+}
+
+SCENARIO("A host NPC channelling at a guest: a guest joining after casts it on its copy of that guest", "[magic][join]")
+{
+    Party party(2, SmokeWorld, false);
+    party.Join(party.Guest());
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& late = Party::Engine(party.Guest(1));
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+    party.As(party.Host(), [&] { host.CastsSpell(guard, kFlames, 1, PlayerCopy(host)); });
+
+    party.Join(party.Guest(1));
+    party.Until([&] { return late.CopiesOf(kGuard).size() == 1; }, "the late guest has the guard");
+    party.Until([&] { return late.Channels.contains({late.CopiesOf(kGuard)[0], 1}); }, "its copy of the guard channels Flames");
+    const auto cCast = std::ranges::find(late.Casts, late.CopiesOf(kGuard)[0], &FakeEngine::Cast::Caster);
+    REQUIRE(cCast != late.Casts.end());
+    THEN("at its copy of the first guest's player")
+    {
+        CHECK(cCast->Target != 0);
+        CHECK(late.IsActorCopy(cCast->Target));
+        CHECK(late.Actors.at(cCast->Target).Base != kGuard);
+    }
 }
 
 // The actors of aBase a game holds: its own (not copies) and its copies.

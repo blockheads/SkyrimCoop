@@ -87,20 +87,6 @@ struct HealthChange
     uint32_t AttackerId{};
 };
 
-struct SpellCast
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const SpellCast&) const noexcept = default;
-
-    uint32_t CasterId{};
-    GameId SpellFormId{};
-    int32_t CastingSource{};
-    bool IsDualCasting{};
-    uint32_t DesiredTarget{};
-};
-
 struct InterruptCast
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
@@ -349,6 +335,7 @@ struct RoutedCall
     uint32_t ReplyId{};   // kOwner, a native returning a value: the host's script waits for PlayerNativeResult; kOthers,
                           // a latent call: its key, the sender's stack (CallEnded); 0: none
     ScriptCall Call{};    // its self: an image-space modifier, a music type, an actor; None for a global native
+    CallControls Controls{}; // kOthers: a cutscene taking or giving back the controls (the host keeps it for a joiner)
 };
 
 // A latent party call returned on the game that made it (a story's Message.Show answered): its copies on the other

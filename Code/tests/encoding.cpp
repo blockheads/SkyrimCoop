@@ -29,6 +29,7 @@
 #include <Structs/ActorStatePart.h>
 #include <Structs/RecordPart.h>
 #include <Structs/RidePart.h>
+#include <Structs/CastPart.h>
 #include <Structs/Vector2_NetQuantize.h>
 #include <Messages/ActivateRequest.h>
 #include <Structs/SystemQuestState.h>
@@ -815,6 +816,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendOpen.NpcId = 0x21;
         sendOpen.Everyone = true;
         sendOpen.Greeting = GameId(2, 0x803);
+        sendOpen.Step = 3; // a joiner's open, mid-conversation
 
         Buffer::Writer writer(&buff);
         sendRequest.Serialize(writer);
@@ -835,6 +837,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK((recvList.Step == 8 && !recvList.Choices && recvList.Options == sendList.Options));
         CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone));
         CHECK(recvOpen.Greeting == sendOpen.Greeting);
+        CHECK(recvOpen.Step == 3);
         DialogueOpenedRequest sendOpened, recvOpened;
         sendOpened.NpcId = 0x21;
         sendOpened.Everyone = true;
@@ -906,6 +909,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         NotifyRoutedCall sendNotify, recvNotify;
         static_cast<Payloads::RoutedCall&>(sendNotify) = toOthers;
         sendNotify.Source = 3;
+        sendNotify.Call.Class = "Game";
+        sendNotify.Call.Function = "DisablePlayerControls";
+        sendNotify.Controls = CallControls::kTakes; // a cutscene's, kept for a joiner
 
         Buffer::Writer writer(&buff);
         for (const RoutedCallRequest* cpRequest : {&toOwner, &toHost, &toOthers})
@@ -2532,6 +2538,19 @@ TEST_CASE("A passenger's ride part names its horse", "[encoding][record-parts]")
     CHECK(read == RidePart{900000000123, 0x1234});
     REQUIRE(FromPartBytes(ToPartBytes(RidePart{}), read));
     CHECK(read == RidePart{});
+}
+
+TEST_CASE("A cast part carries each source's held cast, and a cleared one", "[encoding][record-parts]")
+{
+    CastPart sent;
+    sent.Sources[1] = HeldCast{GameId(0, 0x12FCD), true, 0x2A}; // Flames in the right hand, dual, at an actor
+    sent.Sources[2] = HeldCast{GameId(1, 0x803)};
+    CastPart read;
+    read.Sources[0] = HeldCast{GameId(0, 1)}; // a slot not held any more reads cleared
+    REQUIRE(FromPartBytes(ToPartBytes(sent), read));
+    CHECK(read == sent);
+    REQUIRE(FromPartBytes(ToPartBytes(CastPart{}), read));
+    CHECK(read == CastPart{});
 }
 
 TEST_CASE("An actor state part round-trips with its noise", "[encoding][record-parts]")

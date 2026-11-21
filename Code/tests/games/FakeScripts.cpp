@@ -206,7 +206,9 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
         PartyNatives::Run(OnThisPlayer(call), 0);
     if (m_openedBox)
         LatentOriginals.insert(m_openedBox);
-    World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .ReplyId = m_openedBox, .Call = std::move(call)});
+    const CallControls cControls = cReach.Kind != Call::kControls ? CallControls::kNone
+                                   : acCall.Function == "EnablePlayerControls" ? CallControls::kGivesBack : CallControls::kTakes;
+    World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .ReplyId = m_openedBox, .Call = std::move(call), .Controls = cControls});
 }
 
 // ObjectReference.GetDistance between its self and its argument, Actor.HasLOS (in sight within 1000 units). A question

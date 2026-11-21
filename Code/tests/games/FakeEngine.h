@@ -1040,6 +1040,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Healing = false;
         bool Buff = false;
         bool Damage = false; // its effect damages health
+        bool Invisibility = false; // fire and forget, on its caster
         uint32_t Summons = 0; // its effect makes this NPC base, commanded by the caster (SummonCreatureEffect)
     };
     static constexpr uint32_t kConjureFamiliar = 0x000640B6;
@@ -1048,6 +1049,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, SpellForm> SpellForms{{0x00012FCD, {.Concentration = true}},                  // Flames
                                              {0x00012FCC, {.Concentration = true, .Healing = true}}, // Healing
                                              {0x0005AD5C, {.Buff = true}},                           // Oakflesh
+                                             {0x00027EB6, {.Invisibility = true}},                   // Invisibility
                                              {0x0001C789, {.Damage = true}},                         // Firebolt
                                              {kConjureFamiliar, {.Summons = kFamiliar}}};
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
@@ -1059,6 +1061,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Target = 0;
     };
     std::vector<Cast> Casts;
+    // A concentration spell held, by caster and hand: state 6 until MagicCaster::InterruptCast (34408).
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> Channels;
+    // The actor lets go of its channel: the graph's InterruptCast event (InterruptCastHandler -> 34408 -> 34140), which
+    // our hook raises only for this game's actor (HookInterruptCast).
+    void StopsCasting(uint32_t aCaster, uint32_t aSource);
+    void InterruptCast(uint32_t aFormId, uint32_t aCastingSource) noexcept override { Channels.erase({aFormId, aCastingSource}); }
     struct Effect
     {
         uint32_t Target = 0;
@@ -1078,12 +1086,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t MakesSummon(uint32_t aCaster, uint32_t aBase);
     bool IsConcentrationSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Concentration; }
     bool IsHealingSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Healing; }
+    bool IsInvisibilitySpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Invisibility; }
     bool IsBuffSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Buff; }
     bool IsMagicItem(uint32_t aFormId) const noexcept override { return SpellForms.contains(aFormId); }
     void CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource,
                    uint32_t aDesiredTargetFormId) noexcept override
     {
         Casts.push_back({aActorFormId, aSpellFormId, aCastingSource, aDesiredTargetFormId});
+        if (Spell(aSpellFormId).Concentration)
+            Channels[{aActorFormId, aCastingSource}] = aSpellFormId;
     }
     void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId, uint32_t aSpellFormId,
                               uint32_t aEffectFormId, float aMagnitude, bool aIsDualCasting, bool aApplyHealPerkBonus,

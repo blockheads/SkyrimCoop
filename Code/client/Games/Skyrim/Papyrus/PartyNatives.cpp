@@ -97,6 +97,7 @@ void HookToggleControls(BSInputEnableManager* apThis, uint32_t aFlags, bool aEna
     if (!pCall)
         return RealToggleControls(apThis, aFlags, aEnable, aStoreState);
     pCall->Asked |= aFlags;
+    pCall->Enable = aEnable;
     const uint32_t flags = Hold(pCall->Holder, aFlags, aEnable);
     if (flags != aFlags)
         spdlog::debug("PartyNatives: controls {:X} stay taken, another cutscene holds them", aFlags & ~flags);
@@ -395,6 +396,8 @@ Scope::~Scope() noexcept
             spdlog::debug("PartyNatives: {}.{} leaves movement ({:X}): this game's only", m_event->Call.Class, m_event->Call.Function, m_controls->Asked);
             return;
         }
+        if (m_event)
+            m_event->Controls = m_controls->Enable ? CallControls::kGivesBack : CallControls::kTakes;
     }
     if (m_onThisPlayer && !Run(*m_onThisPlayer, 0))
         spdlog::warn("PartyNatives: {}.{} could not be queued on this game's player", m_onThisPlayer->Class, m_onThisPlayer->Function);

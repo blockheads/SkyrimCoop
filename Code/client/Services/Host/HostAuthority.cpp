@@ -132,7 +132,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<RequestHealthChangeBroadcast, NotifyHealthChangeBroadcast>(ToOwner, &RequestHealthChangeBroadcast::Id);
 
     // Magic and combat: an effect landing works like a hit.
-    Relay<SpellCastRequest, NotifySpellCast>(FromOwner, &SpellCastRequest::CasterId);
     Relay<InterruptCastRequest, NotifyInterruptCast>(FromOwner, &InterruptCastRequest::CasterId);
     Relay<ProjectileLaunchRequest, NotifyProjectileLaunch>(FromOwner, &ProjectileLaunchRequest::ShooterID);
     Relay<AddTargetRequest, NotifyAddTarget>(ToOwner, &AddTargetRequest::TargetId);
@@ -155,8 +154,30 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // The map and chat
     Relay<RequestSetWaypoint, NotifySetWaypoint>(FromAnyone);
     Relay<RequestRemoveWaypoint, NotifyRemoveWaypoint>(FromAnyone);
+    Watch(*this, &HostAuthority::OnSetWaypoint);
+    Watch(*this, &HostAuthority::OnRemoveWaypoint);
     On(*this, &HostAuthority::OnChatMessage);
     On(*this, &HostAuthority::OnBugReport);
+
+    // Everything a joiner must know, from every store that holds it.
+    m_joinerStores = {
+        {"crime", [this](ConnectionId_t aPlayer, uint32_t) { m_crime.Entered(aPlayer); }},
+        {"clock", [this](ConnectionId_t aPlayer, uint32_t) { m_clock.SendTime(aPlayer); }},
+        {"weather", [this](ConnectionId_t aPlayer, uint32_t) { m_weather.SendWeather(aPlayer); }},
+        {"world state", [this](ConnectionId_t aPlayer, uint32_t) { m_worldState.SendWorldState(aPlayer); }},
+        {"time scale", [this](ConnectionId_t aPlayer, uint32_t) { m_timeScale.SendTimeScale(aPlayer); }},
+        // Every character with its record, and the claims on them.
+        {"characters", [this](ConnectionId_t aPlayer, uint32_t aId) { m_characters.SendExistingCharacters(aPlayer, aId); }},
+        // Its player and every copy carry the party's gold and items, its own brought in replaced.
+        {"purse", [this](ConnectionId_t, uint32_t) { m_purse.Send(); }},
+        {"party items", [this](ConnectionId_t, uint32_t) { m_partyItems.Send(); }},
+        {"cutscene controls", [this](ConnectionId_t aPlayer, uint32_t) { m_playerNatives.SendHeld(aPlayer); }},
+        {"waypoint", [this](ConnectionId_t aPlayer, uint32_t) {
+             if (m_waypoint)
+                 m_network.Send(aPlayer, *m_waypoint);
+         }},
+        {"conversation", [this](ConnectionId_t aPlayer, uint32_t) { m_dialogue.SendCurrent(aPlayer); }},
+    };
 
     m_network.SetFrontDoor([this](const RequestMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     // A player's game ended its connection: the others drop it, then its characters go.
@@ -228,16 +249,19 @@ void HostAuthority::ActorAnnounced(uint32_t aId, const RecordParts& acRecord) no
 
 void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept
 {
-    m_wait.OnPlayerEntered();
-    m_crime.Entered(aPlayer);
-    m_clock.SendTime(aPlayer);
-    m_weather.SendWeather(aPlayer);
-    m_worldState.SendWorldState(aPlayer);
-    m_timeScale.SendTimeScale(aPlayer);
-    m_characters.SendExistingCharacters(aPlayer, aCharacterSessionId);
-    // Its player and every copy carry the party's gold and items, its own brought in replaced.
-    m_purse.Send();
-    m_partyItems.Send();
+    m_wait.OnPlayerEntered(); // a joiner ends a shared wait's countdown
+    for (const JoinerStore& cStore : m_joinerStores)
+        cStore.Send(aPlayer, aCharacterSessionId);
+}
+
+void HostAuthority::OnSetWaypoint(const RequestSetWaypoint& acRequest, ConnectionId_t) noexcept
+{
+    m_waypoint = ToNotify(acRequest);
+}
+
+void HostAuthority::OnRemoveWaypoint(const RequestRemoveWaypoint&, ConnectionId_t) noexcept
+{
+    m_waypoint.reset();
 }
 
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept

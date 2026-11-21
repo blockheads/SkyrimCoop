@@ -133,6 +133,25 @@ SCENARIO("Two cutscenes at once: the first to end gives back only its own", "[cu
     }
 }
 
+SCENARIO("A guest joining mid-cutscene has its controls taken, and back when the cutscene ends", "[cutscene][join]")
+{
+    Party party(2, {}, false);
+    party.Join(party.Guest(0));
+    World& host = party.Host();
+    FakeEngine& late = Party::Engine(party.Guest(1));
+
+    party.WorldScript(host, DisablePlayerControls());
+    party.Until([&] { return !Party::Engine(party.Guest(0)).Has(kMovement); }, "the first guest's movement is taken");
+
+    party.Join(party.Guest(1));
+    party.Until([&] { return !late.Has(kMovement); }, "the late guest's movement is taken");
+    INFO("held by the host's cutscene, not its own"); CHECK(late.Holds.HeldBy(kThisGame) == 0);
+
+    party.WorldScript(host, EnablePlayerControls());
+    party.Until([&] { return late.Has(kMovement | kFighting); }, "the late guest's controls come back");
+    CHECK(late.Holds.Held() == 0);
+}
+
 SCENARIO("A restriction stays with its game", "[cutscene]")
 {
     Party party;

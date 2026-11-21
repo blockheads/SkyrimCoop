@@ -672,6 +672,31 @@ a channelled spell                  CastPart{spell, source, target} in the caste
 `HostAuthority::PlayerEntered` sends from one list of stores; a store not on the list fails a HostAuthorityTests
 case ("every store answers a joiner").
 
+**As built (2026-11-21)**, controls only for cutscenes (the user: "just have cutscenes disable controls, keep it simple"):
+
+```text
+a party controls call (PartyNatives::Scope, ToggleControls 68545's enable flag) -> RoutedCall::Controls
+host HostPlayerNatives::ToOthers: kTakes calls kept per sender, kGivesBack (any) drops them, a leaver's go
+map marker: HostAuthority keeps the last set (Watch on the relay), a remove clears it: one marker for the party
+conversation: HostDialogue::SendCurrent -> NotifyDialogueOpen{Everyone false, Greeting, Step}; talking joins
+PlayerEntered: wait ends, then JoinerStores in order (crime, clock, weather, world state, time scale,
+  characters, purse, party items, cutscene controls, waypoint, conversation)
+a held cast: SpellCastEvent (34144) -> CastPart slot; InterruptCastEvent (34140) on a held slot -> slot cleared
+  a one-shot cast (invisibility): the slot declared, then cleared at once (FinishCast 34435 ends it, no hook)
+copy: ApplyCast casts the owner's spell in a slot newly held (a named target not here: that slot waits),
+  interrupts a cleared concentration slot (what it applied is kept per copy)
+```
+
+- **Read in IDA:** a concentration release is the graph's `InterruptCast` event (`InterruptCastHandler` ->
+  `Actor::InterruptCast` -> `MagicCaster::InterruptCast` 34408 -> `InterruptCastImpl` 34140, our hook); a channel's
+  timeout and sheathing (38821) reach 34408 too, so every end clears the slot. Image-space modifiers (18570/18573,
+  `IsFinished` 18566: only an animatable one ends by itself) and `Game.FadeOutGame` (55456 -> 52847, always timed) were
+  read and left out.
+- **Left as is:** a partial give-back drops the kept calls (a joiner gets nothing of what is still held).
+- Tests: HostAuthorityTests `[Join]` (each store, "Every store answers a joiner"), GameTests "A guest joining
+  mid-cutscene...", "...mid-conversation...", "...after a marker was placed...", "...while another channels Flames...",
+  each failing without its store; TPTests the open's step, the routed call's mark, the cast part.
+
 ## Piece 10: ragdolls follow the pile rule; scenery is nobody's
 
 - **A copy's ragdoll** keeps its own Havok bodies, steered to its owner's frames (as now), and joins the

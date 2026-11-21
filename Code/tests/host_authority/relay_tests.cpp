@@ -276,20 +276,11 @@ TEST_CASE("Friendly fire: a player's hit or spell on another player goes to that
     CHECK(session.SentTo<NotifyHealthChangeBroadcast>(kPeer).empty());
 }
 
-TEST_CASE("Casts and shots: replayed everywhere else, from the caster's owner only", "[HostAuthority][Magic]")
+TEST_CASE("Shots: replayed everywhere else, from the shooter's owner only", "[HostAuthority][Magic]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
     const uint32_t cHostNpc = session.Character(kHost);
-
-    SpellCastRequest cast;
-    cast.CasterId = cPeerPlayer;
-    cast.SpellFormId = GameId(0, 0x12FCD); // firebolt
-    session.Receive(kPeer, cast);
-    REQUIRE(session.SentTo<NotifySpellCast>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifySpellCast>(kHost)[0]->SpellFormId == GameId(0, 0x12FCD));
-    CHECK(session.SentTo<NotifySpellCast>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<NotifySpellCast>(kPeer).empty());
 
     ProjectileLaunchRequest shot;
     shot.ShooterID = cPeerPlayer;
@@ -299,8 +290,6 @@ TEST_CASE("Casts and shots: replayed everywhere else, from the caster's owner on
     CHECK(session.SentTo<NotifyProjectileLaunch>(kHost)[0]->OriginX == 10.f);
 
     session.Outbox.clear();
-    cast.CasterId = cHostNpc;
-    session.Receive(kPeer, cast);
     shot.ShooterID = cHostNpc;
     session.Receive(kPeer, shot);
     CHECK(session.Outbox.empty());

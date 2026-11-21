@@ -424,6 +424,19 @@ with the owner in god mode: gap 0.0 in 3 runs (0.1 with the charge-start hook, 1
 The owner's health, magicka and stamina now go out within 100 ms of a change (`RunPoolUpdates`,
 health alone before): a copy that spends nothing shows its owner's value only as fast as it is sent.
 
+## A held cast's end (2026-11-21)
+
+Read in IDA for one-simulator.md piece 9 (the cast part). A held cast starts in `SpellCast` (34144, our
+`HookSpellCast`). Every end goes through `MagicCaster::InterruptCast` (34408), which calls `InterruptCastImpl`
+(vfunc 8, 34140, our `HookInterruptCast`) and then `FinishCast`:
+
+- releasing a concentration spell: the graph's `InterruptCast` event, `InterruptCastHandler::Handle` ->
+  `Actor::InterruptCast`;
+- a channel running out: `MagicCaster::UpdateImpl` (34400), state 6, past the spell's duration;
+- sheathing magic: `ActorState` vfunc 21 (38821) interrupts both hands.
+
+So `InterruptCastEvent` on a held slot is the cast's end, and the caster's `kCast` part clears it there.
+
 ## A copy's death (2026-10-13)
 
 `death-host-npc` and the kill-credit scenarios failed on the copy's last action: the owner's
