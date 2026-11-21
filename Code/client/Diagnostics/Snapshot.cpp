@@ -290,6 +290,7 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
                    {"weapon_drawn", actors.IsWeaponDrawn(aFormId)},
                    {"weapon_state", static_cast<int>(actors.GetWeaponState(aFormId))},
                    {"sneaking", EngineReads::IsSneaking(aFormId)},
+                   {"noise", EngineReads::GetActionNoise(aFormId)},
                    {"sit_sleep", EngineReads::GetSitSleepState(aFormId)},
                    {"knock", EngineReads::GetKnockState(aFormId)},
                    {"deferred_kill", EngineReads::GetKillState(aFormId).Deferred},

@@ -5,7 +5,7 @@
 #include <cstdint>
 
 // An actor's state beside its graph, as its owner last had it (one-simulator.md, piece 2): its masked flags, its kill
-// move and drawn hands. Applied on a copy when its stream reaches Tick.
+// move, drawn hands and noise. Applied on a copy when its stream reaches Tick.
 struct ActorStatePart
 {
     bool operator==(const ActorStatePart&) const noexcept = default;
@@ -21,4 +21,5 @@ struct ActorStatePart
     bool InKillMove{}; // Actor::IsInKillMove (38615)
     uint32_t Killer{}; // its killer's session id + 1 (the victim's half), 0 none
     bool HandsUp{};    // its weapon drawn, settled (weapon state 3), or sheathed (0)
+    uint32_t Noise{};  // the noise its actions make now (actionValue, 37711), what detection hears
 };

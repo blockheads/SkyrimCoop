@@ -102,9 +102,11 @@ class CombatActions:
         return crossed
 
 
-    def combat_watch(ctx, npc, seconds=5.0, every=0.33):
+    def combat_watch(ctx, npc, seconds=5.0, every=0.33, sight=None):
         """An NPC of the host's in a fight, over time: its gap to its target, how far the target's predicted place (what its
-        close movement reads) is off the target's real one, the target's path follower and the close movement branch."""
+        close movement reads) is off the target's real one, the target's path follower and the close movement branch.
+        `sight` (an actor): also its sight of that one each row (harness `sight`): angle off its facing, LOS location,
+        level."""
         actor = ctx.resolve(npc, "host")
         rows = []
         end = time.monotonic() + seconds
@@ -122,6 +124,34 @@ class CombatActions:
                          "lost": read.get("target_lost"), "detected": read.get("detected"),
                          "candidates": [(f"{c['actor']:X}", c["detection"], c["flags"], round(c.get("light", 0)),
                                          round(c.get("raw_light", 0)), c.get("line_of_sight")) for c in read.get("candidates", [])]})
+            if sight is not None:
+                seen = ctx.player_command("", {"cmd": "sight", "actor": actor, "target": ctx.resolve(sight, "host")})
+                rows[-1]["sight"] = (round(seen.get("angle", 0)), seen.get("los"), seen.get("level"))
+            time.sleep(every)
+        return rows
+
+    def sight_watch(ctx, npc, target=0x14, seconds=5.0, every=0.5):
+        """An NPC of the host's sight of a target over time (harness `sight`, stealth.md "Line of sight"): its combat
+        target, the angle off its facing, CalculateLOS's location (0 none), CalculateDetection's level and terms, and per
+        ray (torso, head, feet) what it meets: '-' nothing, 'T' the target, else the reference:node and cast layer."""
+        actor, aim = ctx.resolve(npc, "host"), ctx.resolve(target, "host")
+        rows = []
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            read = ctx.player_command("", {"cmd": "sight", "actor": actor, "target": aim})
+            rays = []
+            for ray in read.get("rays", []):
+                if not ray["hit"]:
+                    rays.append("-")
+                elif ray["sees"]:
+                    rays.append("T")
+                else:
+                    rays.append(f"{ray['hit_ref']}:{ray['hit_node']}/L{ray['cast_layer']}")
+            rows.append({"t": round(seconds - (end - time.monotonic()), 1), "combat_target": read.get("combat_target"),
+                         "distance": round(read.get("distance", 0)), "angle": round(read.get("angle", 0)),
+                         "los": read.get("los"), "level": read.get("level"), "in_view": read.get("in_view"),
+                         "sound": round(read.get("sound", 0), 1), "sight": round(read.get("sight", 0), 1),
+                         "noise": (read.get("target_noise"), round(read.get("target_noise_timer", 0), 1)), "rays": rays})
             time.sleep(every)
         return rows
 
@@ -134,8 +164,8 @@ class CombatActions:
         copy = ctx.client_on_host()
         combat = lambda: ctx.player_command("", {"cmd": "combat_targets", "actor": npc})
         ctx.console_on("", f"{npc:X}.resurrect")
-        ctx.console_on("client", "tgm")
-        ctx.console_on("", "tgm")
+        ctx.god_mode("client", True)
+        ctx.god_mode("", True)
         ctx.console_on("", f"player.moveto {npc:X} 80 0 0")
         ctx.console_on("client", f"player.moveto {npc:X} {guest_offset} 0 0")
         ctx.console_on("", f"{npc:X}.startcombat 14")
@@ -144,12 +174,12 @@ class CombatActions:
         ctx.wait_for("both players are the NPC's targets",
                      lambda: {0x14, copy} <= {c["actor"] for c in combat().get("candidates", [])}, 15)
         dying, left = ("", "client") if dies == "host" else ("client", "")
-        ctx.console_on(dying, "tgm")
+        ctx.god_mode(dying, False)
         ctx.console_on(dying, "player.kill")
         ctx.wait_for(f"the {dies} is down", lambda: ctx.death_state(dying).get("down"), 15)
         guest_at = [round(v) for v in (ctx.actor_snapshot("", copy).get("placement", {}).get("position") or [])]
-        rows = ctx.combat_watch(npc, seconds=seconds, every=0.5)
-        ctx.console_on(left, "tgm")
+        rows = ctx.combat_watch(npc, seconds=seconds, every=0.5, sight=copy if dies == "host" else 0x14)
+        ctx.god_mode(left, False)
         stall, run, last = 0, 0, None
         for row in rows:
             held = row["state"] == 1 and row["gap"] > row["range"] and row["gap"] == last
@@ -158,7 +188,8 @@ class CombatActions:
             last = row["gap"]
         return {"guest_at": guest_at, "stall_s": round(stall * 0.5, 1),
                 "search_s": round(sum(r["state"] == 2 for r in rows) * 0.5, 1),
-                "gaps": " ".join(f"{r['gap']}{'' if r['state'] == 1 else 's'}" for r in rows)}
+                "gaps": " ".join(f"{r['gap']}{'' if r['state'] == 1 else 's'}" for r in rows),
+                "sight": " ".join(f"{a}/{l}/{v}" for a, l, v in (r["sight"] for r in rows))}
 
     def console_watch(ctx, reads, seconds=10.0, every=1.0, instance=""):
         """Console reads over time ({name: line}, e.g. {"state": "13486.getcombatstate"}): the numbers each line prints, also in

@@ -3186,10 +3186,10 @@ void FakeEngine::ForcesDetected(uint32_t aWitness)
     known.UpdatedAt = DetectionFrame;
 }
 
-const DetectionRules::Pass* FakeEngine::FreshState(uint32_t aWitness)
+const DetectionRules::Pass* FakeEngine::FreshState(uint32_t aWitness, uint32_t aTarget)
 {
     // Priority 3: refreshed after 1 s, answered unseen after 2 s (table 0x1420B8AB8), at 60 frames a second.
-    auto& known = KnowledgeOfPlayer[aWitness];
+    auto& known = DetectionOf[aTarget][aWitness];
     if (!known.State || known.Queued)
     {
         known.Queued = true;
@@ -3203,12 +3203,42 @@ const DetectionRules::Pass* FakeEngine::FreshState(uint32_t aWitness)
 
 int32_t FakeEngine::StealthEye()
 {
+    uint32_t seeing = 0;
+    return HighestDetection(kPlayer, seeing);
+}
+
+int32_t FakeEngine::HighestDetection(uint32_t aTarget, uint32_t& aSeeing)
+{
+    aSeeing = 0;
+    if (aTarget == kPlayer && HeldEye)
+    {
+        aSeeing = HeldEye->Seeing;
+        return HeldEye->Level;
+    }
     int32_t highest = DetectionRules::kUnseen;
     for (const auto& [cId, cActor] : Actors)
-        if (cId != kPlayer && cActor.Loaded && !cActor.Dead && !cActor.NotOnStealthMeter)
-            if (const auto* cpState = FreshState(cId))
+        if (cId != aTarget && cActor.Loaded && !cActor.Dead && !(aTarget == kPlayer && cActor.NotOnStealthMeter))
+            if (const auto* cpState = FreshState(cId, aTarget))
+            {
                 highest = std::max(highest, cpState->Level);
+                aSeeing += cpState->Seen;
+            }
     return highest;
+}
+
+float FakeEngine::LowestStealthPoints(uint32_t aTarget) const
+{
+    if (aTarget == kPlayer && HeldEye)
+        return HeldEye->Stealth;
+    const auto it = StealthPoints.find(aTarget);
+    return it != StealthPoints.end() ? it->second : 100.f;
+}
+
+int32_t FakeEngine::EyeShows()
+{
+    uint32_t seeing = 0;
+    const int32_t cLevel = HighestDetection(kPlayer, seeing);
+    return DetectionRules::EyeShows(PlayerInCombat, cLevel, LowestStealthPoints(kPlayer));
 }
 
 void FakeEngine::ProcessTracking()
@@ -3232,16 +3262,19 @@ void FakeEngine::ProcessTracking()
 
 void FakeEngine::DetectionPass()
 {
-    for (auto& [cWitness, known] : KnowledgeOfPlayer)
-    {
-        if (!known.Queued)
-            continue;
-        const auto cSees = Sees.find(cWitness);
-        DetectionRules::Pass computed{};
-        if (cSees != Sees.end())
-            computed = {.Level = cSees->second, .LineOfSight = true, .Seen = true};
-        known = {DetectionRules::Installed(PartyOf(cWitness) == HitRules::Party::OtherPlayer, true, computed), DetectionFrame, false};
-    }
+    for (auto& [cTarget, known] : DetectionOf)
+        for (auto& [cWitness, state] : known)
+        {
+            if (!state.Queued)
+                continue;
+            const auto& cSees = SeesOf[cTarget];
+            const auto cComputed = cSees.find(cWitness);
+            DetectionRules::Pass computed{};
+            if (cComputed != cSees.end())
+                computed = {.Level = cComputed->second, .LineOfSight = true, .Seen = true};
+            const bool cCopy = Actors.contains(cWitness) && Actors.at(cWitness).Copy;
+            state = {DetectionRules::Installed(cCopy, cTarget == kPlayer, computed), DetectionFrame, false};
+        }
 }
 
 HitRules::Party FakeEngine::PartyOf(uint32_t aFormId) const noexcept

@@ -49,6 +49,23 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-21: **the eye is the host's, piece 8 of one-simulator.md, built** (`agent/piece-8`; `docs/re/systems/stealth.md`,
+"The eye is the host's"). A guest's stealth eye was its own game's estimate: its NPC copies judged it, and in a fight it
+showed hidden (no combat group of its own; scenario `guest-eye-is-hosts`). Now the host reads its NPCs' detection of each
+guest's copy every frame (41408, 46877: what its HUD asks of its own player, which also keeps that state fresh; it was
+always stale) and sends that guest a `NotifyStealthEye` when it changes; the guest's reads of its player answer it
+(`StealthEye` hooks), and every copy is an unseen witness of this game's player. Bugs closed: "The guest's eye is its own
+estimate", "The sneak eye with the other player looking".
+
+2026-11-21: **piece 8's blocker read and fixed: a guest's copy makes its owner's noise** (`agent/piece-8`;
+`docs/re/systems/stealth.md`, "Line of sight", "A player's noise"). NPCs searched for a still guest once the host died
+("A still guest unseen up close"): no line-of-sight ray was blocked (harness `sight`, MCP `sight_watch`); the copy was
+out of the NPC's cone and silent. A player who bumps a character makes iSoundLevelLoud for 5 s (37711, only in the real
+player's update), so the host heard its own player and never a guest. `ActorStatePart::Noise` now carries the owner's
+noise to its copies (held until the owner's ends; `HookSetActionValue` keeps a copy's own engine out): no search in 5
+rounds (5 of 5 before). Scenario `guest-bump-heard-on-host`. On the way: `Actor.h` named +0x11C/+0x120 one field off;
+`host_death_watch` toggled god mode (now `god_mode`).
+
 2026-11-21: **the host creates, piece 7 of one-simulator.md, built** (`agent/piece-7`; `docs/re/systems/summons.md`).
 A guest's Conjure Familiar showed on neither game: its own engine made one and held it without 3D, and the host dropped
 the copy's cast. Now the guest's summon effect runs on its game (portal, timer) with `CreateSummon` (34993) refused,

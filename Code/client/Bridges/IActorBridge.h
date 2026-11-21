@@ -45,6 +45,7 @@ struct ActorStateFields
     uint32_t KillerFormId{}; // Actor::killerHandle (+0x108), set by EnterKillMove (38613)
     bool InPair{};           // in a pair's instance (32808) or its clip (bIsSynced)
     bool Dead{};
+    int32_t Noise{};         // the noise its actions make now (actionValue +0x11C, SetActionValue 37711)
 };
 
 class IActorBridge
@@ -217,6 +218,8 @@ public:
     virtual ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept = 0;
     // A copy: its flags as given (the caller masks them, ActorStateRules).
     virtual void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept = 0;
+    // A copy: its owner's noise, held until its owner's ends (ActorStateRules::CopyNoiseTimer).
+    virtual void SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept = 0;
     // A copy enters a kill move as EnterKillMove (38613) does, its killer aKillerFormId (0: the attacker's half).
     virtual void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept = 0;
     // A copy leaves a kill move without dying: its killer cleared, then EndKillMove (38614).

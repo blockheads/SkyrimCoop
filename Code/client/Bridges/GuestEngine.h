@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bridges/BodyReads.h>
+#include <Games/Skyrim/DetectionRules.h>
 #include <Bridges/PhysicsBodies.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/DroppedItems.h>
@@ -47,6 +48,9 @@ public:
     bool HoldWeather(const GameId& acWeather) noexcept;
     // The game's own weather again.
     void ReleaseWeather() noexcept;
+    // The eye's reads of this game's player answer what the host's NPCs see of it (StealthEye::Hold), until released.
+    void HoldEye(const DetectionRules::EyeReading& acReading) noexcept;
+    void ReleaseEye() noexcept;
     // Runs a native on the player the host's script called for this game's player (Game.AdvanceSkill,
     // Game.QueryStat; party-model.md, rule 2), as a script's call does; aOnReturn is told what it returned. False: a
     // form it names is not here.

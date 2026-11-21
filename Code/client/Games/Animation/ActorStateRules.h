@@ -93,4 +93,17 @@ constexpr bool HandsSettled(bool aPartHandsUp, WeaponState aCopy) noexcept
 {
     return aCopy == (aPartHandsUp ? WeaponState::Drawn : WeaponState::Sheathed);
 }
+
+// Noise (actionValue, SetActionValue 37711: a player's bump, a swing, a cast): an actor's own engine makes its owner's;
+// a copy's is its owner's from the record, never its own engine's (a replayed swing or cast).
+constexpr bool MakesOwnNoise(bool aCopy) noexcept
+{
+    return !aCopy;
+}
+// A copy holds its owner's noise until its owner's part clears it: its own countdown (UpdateAI, 0x14067A046) never ends it.
+constexpr float kHeldNoise = 1.0e30f;
+constexpr float CopyNoiseTimer(int32_t aNoise) noexcept
+{
+    return aNoise > 0 ? kHeldNoise : 0.f;
+}
 } // namespace ActorStateRules

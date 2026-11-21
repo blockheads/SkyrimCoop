@@ -75,11 +75,76 @@ Head tracking reads the same state: `ProcessTracking` (38009) drops a look at th
 not detect (37758). The unseen state above made a player's copy drop its owner's look at this game's player, so a
 copy's tracking does not ask (`actor-ai-and-copies.md`, "A look at this game's player needs detection").
 
-## Not covered here
+## Line of sight (read 2026-11-21)
 
-- An NPC copy on the guest judges the guest's player itself (its own pass, measured: Lydia's copy, level -21, fresh).
-  That is the guest's estimate, not the host's number (`crime.md`; `docs/bugs.md`, "The guest's eye is its own
-  estimate").
+Read in IDA on 1.7.104 for piece 8 (`one-simulator.md`, open question 7); journal `agent-piece-8`.
+
+```
+CalculateDetection 37774 (detector D, target T)
+  D in combat, T not the player and not D's combat target (+0x104)
+      -> range x fDetectionCombatNonTargetDistanceMult (0.75)
+  CalculateLOS 37768 (only inside that range)
+      T more than half fDetectionViewCone (190) off D's facing (37773)  -> none
+      T the player, D's combat target, or D the player -> rays to T's torso, head, feet (37771)
+      anyone else                                      -> one ray, to its head
+      ray: layer kLOS (41), D's capsule group; seen if it hits T's 3D (19750) or nothing
+  0x14041CD90: sound (T's noise +0x11C, movement, weight) + sight (needs LOS and the cone) - sneak
+```
+
+Measured on the duo (harness `sight`, MCP `sight_watch`; Orgnar with the host at +80, the guest at -80): no ray to a
+guest's copy ever hit anything. Its line of sight was lost only when it stood outside Orgnar's cone (167-180 degrees
+off, Orgnar facing the host): vanilla geometry, nothing a copy changes.
+
+## A player's noise (read 2026-11-21)
+
+```
+Actor::SetActionValue 37711: actionValue (+0x11C) = noise, timerOnAction (+0x120) = fActorAlertSoundTimer (5 s)
+  PlayerCharacter::Update: its controller bumped a character (bumpedCharCollisionObject, 78291), not a teammate
+      -> iSoundLevelLoud (100); also a weapon's hit frame (38603), TESObjectWEAP::Fire, a cast (0x1405CDF50)
+  counted down by PlayerCharacter__UpdateTimers (0x14075FA50) for the player, Character::UpdateAI (0x14067A046)
+  for anyone else; at 0 the noise clears
+```
+
+Only the real player runs the bump rule, on its own game: a guest walking into an NPC is loud on its game and was
+silent on the host. Measured (duo, the inn): at the host's death Orgnar heard the host's player (noise 100, sound term
+187, level 210-228) and not the guest's copy beside him (noise 0, level 16-19, sight alone), while the guest's own game
+read its player at 100 and level 215. The copy, the new target, was then searched for 2-11 s every round: "A still guest
+unseen up close" (bugs.md, 2026-11-06).
+
+Now the noise is its owner's (one-simulator.md, R2): `ActorStatePart::Noise` carries the owner's actionValue, its copy
+holds it until the owner's part clears it (`ActorStateRules::CopyNoiseTimer`; the copy's own countdown never ends it),
+and `HookSetActionValue` keeps a copy's own engine (a replayed swing or cast) from setting one. Five rounds of
+`host_death_watch` after: no search, the copy at 175-209 at the switch. Tests: GameTests "A guest's bump is heard on
+the host", ClientTests `[actor-state]`, TPTests the part's round trip, scenario `guest-bump-heard-on-host`.
+
+## The eye is the host's (read and built 2026-11-21, one-simulator.md piece 8)
+
+```
+40593 the eye: in combat (vfunc 0xE3) 100 - CombatManager__GetLowestStealthPointsOf (46877: the lowest over every
+               combat group, any actor; none: 100); else 41408's level, > 0 shown as 100; sneak XP while seeing > 0
+41408's other callers read the player's level as > 0 (an assault alarm 0x1406F1F50, lockpicking 51981, an activator's
+      trespass) or add it to a modifier (the stolen item owner's 41382)
+42702: a state older than 2 s (priority 3) answers none and queues a pass
+```
+
+Measured on the duo (`crime stealth_meter` with `actor`, MCP `eyes`): the guest's eye was its own game's. Its NPC
+copies judged its player in their own passes, and its game has no fight of theirs: in a fight with Andurs its eye
+showed 0 (46877's default) while the host's Andurs had the copy at stealth 0 (shows 100). And the host's NPCs' state
+of a guest's copy was stale: nothing asks it each frame as the HUD asks of the host's player, so every read a few
+seconds apart found it older than 2 s and answered -1000, though Andurs's pass computed 31.
+
+```
+host, each frame (HostEye, HostEngine::ReadEye -> StealthEye::Read): per guest's copy 41408 and 46877, asked as the HUD
+      asks of its own player (keeping its NPCs' state of the copy fresh)
+      changed (DetectionRules::EyeChanged: seen or not, seeing or not, the level by 5, a stealth point)
+      -> NotifyStealthEye to that guest only
+guest: GuestEye -> GuestEngine::HoldEye -> StealthEye's hooks on 41408 and 46877 answer it for this game's player
+every game: a copy's pass of this game's player is unseen (DetectionRules::Installed, any copy now)
+```
+
+Measured after: in the fight both games show 100 (scenario `guest-eye-is-hosts`); sneaking in front of Andurs the
+guest's eye follows the host's reading a read behind (-14, then 47). Tests: GameTests "A guest's eye is what the host's
+NPCs see of it", HostAuthorityTests `[Eye]`, ClientTests `[DetectionRules]`, TPTests the message.
 
 | ID | Name | Use |
 |---|---|---|
@@ -93,3 +158,9 @@ copy's tracking does not ask (`actor-ai-and-copies.md`, "A look at this game's p
 | 37722, 54969 | Actor__SetNotShowOnStealthMeter, Papyrus | the eye's skip flag |
 | 42742 | DoDetectionJob | answers queued knowledges |
 | 42760, 42761 | DetectionState::Set, Clear | a pass's fields |
+| 37768 | Actor::CalculateLOS | rays from the detector's eye (one, or three for the player) |
+| 37771, 37770, 37773 | Actor::CalculateLOSLocation, CalculateLOSToPoint, GetAngleToPoint | its points, a ray, the cone |
+| 37711 | Actor__SetActionValue | an actor's noise; `HookSetActionValue` |
+| 0x14041CD90 | Actor__ComputeDetectionLevel | sound + sight - sneak |
+| 41408 | ProcessLists::RequestHighestDetectionLevelAgainstActor | `StealthEye`'s hook: the host's on a guest |
+| 46877 | CombatManager__GetLowestStealthPointsOf | the eye in combat; `StealthEye`'s hook |

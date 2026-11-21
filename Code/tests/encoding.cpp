@@ -26,6 +26,7 @@
 #include <Messages/WorldState.h>
 #include <Messages/DroppedItems.h>
 #include <Structs/ActorAiState.h>
+#include <Structs/ActorStatePart.h>
 #include <Structs/RecordPart.h>
 #include <Structs/RidePart.h>
 #include <Structs/Vector2_NetQuantize.h>
@@ -2506,6 +2507,24 @@ TEST_CASE("A passenger's boarding and getting off name the horse and the rider",
     cRoundTrip(NotifyUnboard{}, NotifyMessageFactory{});
 }
 
+TEST_CASE("The host's eye of a guest round-trips, unseen and seen", "[encoding][stealth]")
+{
+    for (const auto& [cLevel, cSeeing, cStealth] : {std::tuple{NotifyStealthEye::kUnseen, 0u, 100.f}, std::tuple{146, 2u, 0.f}, std::tuple{-7, 1u, 79.5f}})
+    {
+        NotifyStealthEye eye;
+        eye.Level = cLevel;
+        eye.Seeing = cSeeing;
+        eye.Stealth = cStealth;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        eye.Serialize(writer);
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto message = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(message);
+        CHECK(*CastUnique<NotifyStealthEye>(std::move(message)) == eye);
+    }
+}
+
 TEST_CASE("A passenger's ride part names its horse", "[encoding][record-parts]")
 {
     RidePart read{7, 7};
@@ -2513,6 +2532,22 @@ TEST_CASE("A passenger's ride part names its horse", "[encoding][record-parts]")
     CHECK(read == RidePart{900000000123, 0x1234});
     REQUIRE(FromPartBytes(ToPartBytes(RidePart{}), read));
     CHECK(read == RidePart{});
+}
+
+TEST_CASE("An actor state part round-trips with its noise", "[encoding][record-parts]")
+{
+    ActorStatePart part;
+    part.Tick = 900000000123;
+    part.Flags1 = 1u << 9;
+    part.Flags2 = 0x100;
+    part.InKillMove = true;
+    part.Killer = 3;
+    part.HandsUp = true;
+    part.Noise = 100;
+    ActorStatePart read;
+    REQUIRE(FromPartBytes(ToPartBytes(part), read));
+    CHECK(read == part);
+    CHECK_FALSE(read.SameState(ActorStatePart{part.Tick, part.Flags1, part.Flags2, true, 3, true, 0})); // noise alone is news
 }
 
 TEST_CASE("A record part longer than 64 KB round-trips whole", "[encoding][record-parts]")

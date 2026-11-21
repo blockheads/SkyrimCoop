@@ -24,6 +24,7 @@
 #include <Services/Guest/GuestCopies.h>
 #include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
+#include <Services/Guest/GuestEye.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
 #include <Services/HostService.h>
@@ -130,6 +131,16 @@ bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
 void GuestEngine::ReleaseWeather() noexcept
 {
     FakeEngine::Current().WeatherHeld = false;
+}
+
+void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
+{
+    FakeEngine::Current().HeldEye = acReading;
+}
+
+void GuestEngine::ReleaseEye() noexcept
+{
+    FakeEngine::Current().HeldEye.reset();
 }
 
 bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
@@ -437,7 +448,7 @@ struct GuestSeam::Guest
 {
     explicit Guest(World& aWorld)
         : Engine(aWorld.ctx().at<IBodyBridge&>()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
-          Weather(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
+          Weather(aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
           Saves(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
@@ -451,6 +462,7 @@ struct GuestSeam::Guest
     GuestEngine Engine;
     GuestClock Clock;
     GuestWeather Weather;
+    GuestEye Eye;
     GuestWorldState WorldState;
     GuestDialogue Dialogue;
     GuestRecord Record;

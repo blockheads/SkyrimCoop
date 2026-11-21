@@ -687,6 +687,12 @@ bool IsSneaking(uint32_t aFormId) noexcept
     return pActor && pActor->actorState.IsSneaking();
 }
 
+int32_t GetActionNoise(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->iActionValue : 0;
+}
+
 bool IsTalking(uint32_t aFormId) noexcept
 {
     using TIsTalking = bool(Actor*);

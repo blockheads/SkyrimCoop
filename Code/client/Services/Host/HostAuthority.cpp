@@ -79,6 +79,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_purse(m_players, m_characters, m_game)
     , m_partyItems(m_players, m_characters, m_game)
     , m_weather(aNetwork, m_players, m_game)
+    , m_eye(m_players, m_characters, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
     , m_items(*this, aNetwork, m_players, m_characters, m_purse, m_partyItems, m_game)
     , m_hands(*this, m_players, m_characters, m_game)
@@ -177,6 +178,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_physics.OnPlayerLeft(aConnection);
         m_hands.OnPlayerLeft(aConnection);
         m_death.Left(aConnection);
+        m_eye.OnPlayerLeft(aConnection);
     });
 }
 
@@ -196,6 +198,7 @@ void HostAuthority::Update(uint64_t aTick, double aDelta, uint64_t aFrameTick) n
     m_clock.Update(aTick);
     m_transfer.Update(aTick);
     m_weather.Update();
+    m_eye.Update();
     m_worldState.Update(aTick);
     m_items.Update();
     m_hands.Update(aTick);

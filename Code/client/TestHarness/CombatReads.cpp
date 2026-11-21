@@ -10,6 +10,8 @@
 #include <VersionDb.h>
 #include <Havok/Raycast.h>
 
+#include <cmath>
+
 namespace TestHarness::EngineCalls
 {
 namespace
@@ -130,6 +132,76 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
             candidate.RawLight = pTarget->currentProcess ? s_processLight.Get()(pTarget->currentProcess) : -1.f;
         }
         read.Candidates.push_back(candidate);
+    }
+    return read;
+}
+
+std::optional<SightRead> ReadSight(uint32_t aDetectorId, uint32_t aTargetId)
+{
+    auto* pDetector = Cast<Actor>(TESForm::GetById(aDetectorId));
+    auto* pTarget = Cast<Actor>(TESForm::GetById(aTargetId));
+    if (!pDetector || !pTarget || !pDetector->currentProcess || !pTarget->currentProcess)
+        return {};
+    using TCalculateLos = uint32_t(Actor*, Actor*, float);
+    using TLosLocation = float*(Actor*, float*, uint32_t);
+    using TLosToPoint = NiAVObject*(Actor*, const float*, float*, float);
+    using TAngle = float(Actor*, const float*);
+    using TFindRef = TESObjectREFR*(NiAVObject*);
+    using TDetection = void(Actor*, Actor*, int32_t*, bool*, bool*, uint32_t*, float*, float*, float*, float*);
+    POINTER_SKYRIMSE(TCalculateLos, s_calculateLos, 37768);
+    POINTER_SKYRIMSE(TLosLocation, s_losLocation, 37771);
+    POINTER_SKYRIMSE(TLosToPoint, s_losToPoint, 37770);
+    POINTER_SKYRIMSE(TAngle, s_angle, 37773);
+    POINTER_SKYRIMSE(TFindRef, s_findRef, 19750);
+    POINTER_SKYRIMSE(TDetection, s_detection, 37774);
+    struct FloatSetting
+    {
+        void* pVtable;
+        float Value;
+    };
+    POINTER_SKYRIMSE(FloatSetting, s_viewCone, 370394); // fDetectionViewCone
+
+    SightRead read;
+    if (const auto* pCombatTarget = TESObjectREFR::GetByHandle(pDetector->combatHandle))
+        read.CombatTarget = pCombatTarget->formID;
+    const float cTargetAt[3]{pTarget->position.x, pTarget->position.y, pTarget->position.z};
+    read.Angle = s_angle.Get()(pDetector, cTargetAt) * 57.29578f;
+    read.HalfCone = s_viewCone.Get()->Value * 0.5f;
+    read.Distance = std::sqrt(std::pow(pTarget->position.x - pDetector->position.x, 2.f) +
+                              std::pow(pTarget->position.y - pDetector->position.y, 2.f) +
+                              std::pow(pTarget->position.z - pDetector->position.z, 2.f));
+    read.Los = s_calculateLos.Get()(pDetector, pTarget, -1.f);
+    uint32_t location{};
+    float seenAt[3]{}, sound{}, sight{}, sneak{};
+    s_detection.Get()(pDetector, pTarget, &read.Level, &read.InView, &read.LineOfSight, &location, seenAt, &sound, &sight, &sneak);
+    read.Sound = sound;
+    read.Sight = sight;
+    read.Sneak = sneak;
+    read.TargetNoise = pTarget->iActionValue;
+    read.TargetNoiseTimer = pTarget->fTimerOnAction;
+
+    float eye[3]{};
+    s_losLocation.Get()(pDetector, eye, 1);
+    for (const uint32_t cLocation : {3u, 2u, 4u})
+    {
+        SightRay ray;
+        ray.Location = cLocation;
+        s_losLocation.Get()(pTarget, ray.To.data(), cLocation);
+        // A cone past a full turn: the cone is read once above, as 37768 does.
+        if (NiAVObject* pHit = s_losToPoint.Get()(pDetector, ray.To.data(), ray.HitAt.data(), 7.f))
+        {
+            ray.Hit = true;
+            ray.HitNode = pHit->name ? pHit->name : "";
+            if (const auto* pRef = s_findRef.Get()(pHit))
+                ray.HitReference = pRef->formID;
+        }
+        ray.Sees = !ray.Hit || ray.HitReference == pTarget->formID;
+        if (const auto cCast = GameRaycast::CastRay(eye, ray.To.data(), 41, pDetector->formID, pDetector->parentCell); cCast && cCast->Hit)
+        {
+            ray.CastLayer = cCast->Layer;
+            ray.CastReference = cCast->Reference;
+        }
+        read.Rays.push_back(std::move(ray));
     }
     return read;
 }

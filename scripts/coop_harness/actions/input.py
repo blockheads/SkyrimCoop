@@ -49,6 +49,15 @@ class InputActions:
         return ctx.run_console(command, _game=_game)
 
 
+    def god_mode(ctx, instance, on):
+        """That game's player invulnerable or not, whatever it was: tgm only toggles, and a checkpoint's load keeps it."""
+        for _ in range(2):
+            printed = " ".join(ctx.console_on(instance, "tgm") or [])
+            if ("enabled" in printed) == bool(on):
+                return
+        raise ctx.failure(f"tgm did not say god mode {'enabled' if on else 'disabled'}: {printed!r}")
+
+
     def local_player(ctx, instance):
         _game = ctx.game(instance)
         return (_game.read_status() or {}).get("player") or {}
