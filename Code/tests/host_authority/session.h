@@ -351,7 +351,7 @@ private:
             const auto it = acObject.ModId == ObjectChange::kCreatedModId ? CreatedContents.find(acObject.BaseId) : CreatedContents.end();
             return it != CreatedContents.end() ? std::optional(it->second) : std::nullopt;
         };
-        game.Summon = [this](uint32_t aCasterId, const GameId& acSpell, const GameId&, float) { Summons.emplace_back(aCasterId, acSpell); };
+        game.Summon = [this](uint32_t aCasterId, const SummonRequest& acSummon) { Summons.emplace_back(aCasterId, acSummon.SpellId); };
         game.Activate = [this](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) { Activations.emplace_back(acObject, aNpcId, aActivatorId); };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
         game.SetItems = [this](const ObjectChange& acItems) { ItemsSet.push_back(acItems); };

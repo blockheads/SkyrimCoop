@@ -225,6 +225,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // answer (PlayerNatives' Wait): its stack, then what the stack got (PlayerNatives::Answer).
     LocalValue LastReturn;
     uint32_t LastWaiting = 0;
+    std::set<uint32_t> Waiting; // stacks waiting on another game (PlayerNatives' s_waiting)
     std::map<uint32_t, LocalValue> ScriptReturns;
     [[nodiscard]] LocalValue Answer(const LocalCall& acCall, bool aAsksParty) const;
     // This game's player answers the box in aStack: its stack returns (ReturnFromLatent's hook: an original's result
@@ -1723,6 +1724,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool m_mirroredMove = false; // the player's move is another game's party call's: party travel leads no one with it
     // A new temporary form id: the lowest a deleted reference gave back, as the engine reuses them, else the next.
     uint32_t NewTemporary() noexcept;
+
+  public:
+    // The next temporary form id this game makes (two games' ids meeting: each numbers its own).
+    void NextTemporaryIs(uint32_t aFormId) noexcept { m_nextTemporary = aFormId; }
+
+  private:
     // At 0 health: dead, or down if essential; a copy is in deferred kill.
     void CheckHealth(uint32_t aFormId, Actor& aActor) noexcept;
     // The engine's equip and unequip behind EquipHook and UnEquipHook (EquipManager.cpp).

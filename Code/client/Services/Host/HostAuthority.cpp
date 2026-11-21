@@ -296,7 +296,7 @@ void HostAuthority::OnSummon(const SummonRequest& acRequest, ConnectionId_t aSen
     const uint32_t cCaster = aSender != m_players.Host() ? m_characters.PlayerCharacterOf(aSender) : 0;
     if (!cCaster || !m_game.Summon)
         return;
-    m_game.Summon(cCaster, acRequest.SpellId, acRequest.EffectId, acRequest.Magnitude);
+    m_game.Summon(cCaster, acRequest);
 }
 
 void HostAuthority::OnRecipes(const RecipesRequest& acRequest, ConnectionId_t) const noexcept

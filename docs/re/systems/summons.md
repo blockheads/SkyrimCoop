@@ -6,7 +6,7 @@ open question 5, for piece 7. Read in IDA on 1.7.104 (2026-11-21) unless a line 
 ## A summon
 
 ```text
-caster casts a summon (MGEF archetype 18) on itself -> MagicTarget::AddTarget -> SummonCreatureEffect
+caster casts a summon (MGEF archetype 18) on itself -> MagicTarget::AddTarget (34526) -> SummonCreatureEffect
   Start (vfunc 0x14, 34990)     placement: FindPlacement 34994, else the caster's position (+0x90, angle +0x9C);
                                 the portal's SummonPlacementEffect (+0xB0); no actor yet
   Update (vfunc 4, 34992)       elapsed >= a setting and not made (+0xB8): CreateSummon, every frame until made
@@ -14,11 +14,15 @@ caster casts a summon (MGEF archetype 18) on itself -> MagicTarget::AddTarget ->
                                 in the caster's cell; handle -> +0xA8; process high (+0xB8 set); PromoteReference to
                                 the caster; a detection event
     its process high (+0xB9)    AIProcess::SetCommandingActor (39950): middle process +0x218 = the caster, flags2
-                                0x10000; AIProcess::AddCommandedActor: the caster's +0x100 list {handle, effect}
+                                0x10000; AIProcess::AddCommandedActor (40056): the caster's +0x100 list {handle, effect}
                                 over its limit (a setting + perk entry 68, Twin Souls) Dispels the oldest effect
   Finish (vfunc 0x15, 34991)    the summon killed (QueueKill) and faded, or disabled and deleted; DemoteReference
 ```
 
+- **What the host's copy is given.** `HostEngine::Summon` builds the guest's `AddTargetData` (its point, +0x30, and
+  dual cast, +0x49, carried in `SummonRequest`) and calls `AddTarget` (34526) past our hook; the request goes only once
+  the guest's own `AddTarget` took the effect (it can refuse one: the review of PR #88, read in its disassembly, not
+  re-read here).
 - **The effect is the summon's life.** Its duration ends it (measured: the familiar died at 60 s, Conjure Familiar's
   duration); a recast past the limit dispels the old one's effect, which ends it.
 - **The commander is whoever the effect is on.** Put on any actor as caster and target, the engine makes the summon
@@ -67,8 +71,8 @@ Any copy spawned while its owner shows an effect had the same gap. The world com
   initiallyDisabled)`. Each of `count` references of `base` at the self's position, angle and cell, by
   `CreateReferenceAtLocation` (13723) directly. A leveled list (LVLI 0x2C, LVLN 0x35) is rolled first at the self's
   level. Returns the last made; `initiallyDisabled` disables it (vfunc 0x89), not an explosion.
-- `ObjectReference.PlaceActorAtMe` (`PlaceActorAtMe_Native`): a temporary `Character` of the NPC, its level mod set,
-  placed by 13723 directly.
+- `ObjectReference.PlaceActorAtMe` (56204, `PlaceActorAtMe_Native`, read): a temporary `Character` of the NPC (its
+  constructor, 696 bytes), its level mod set, placed by 13723 directly with that `Character` as the reference; returns it.
 
 Both call 13723 themselves, so `NativeReach` sees them: 13723 is the `Call::kCreate` sink, ranked before the world
 in `ClassifyCall` (a bucket of its own; without it a creation fell to the screen's). A guest's script's call goes to

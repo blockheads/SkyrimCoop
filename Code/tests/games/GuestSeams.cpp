@@ -214,7 +214,8 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
             return false;
         // Loaded with the host's save as this game joined: a save keeps a created reference's id (as GuestEngine).
         if (const auto cSaved = engine.References.find(0xFF000000 | acChange.Object.BaseId);
-            cSaved != engine.References.end() && cSaved->second.Base == FormIdOf(acChange.Item))
+            cSaved != engine.References.end() && cSaved->second.Base == FormIdOf(acChange.Item) &&
+            !World::Get().ctx().at<CreatedIds>().ToSession(cSaved->first)) // not already another's copy
         {
             m_created[acChange.Object.BaseId] = cSaved->first;
             World::Get().ctx().at<CreatedIds>().Link(cSaved->first, acChange.Object);

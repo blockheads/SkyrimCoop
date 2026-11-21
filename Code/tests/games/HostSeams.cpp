@@ -17,6 +17,7 @@
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/Relayed.h>
 #include <ScriptValues.h>
+#include <Messages/SummonRequest.h>
 #include <CreatedIds.h>
 #include <FormIds.h>
 #include <SessionIds.h>
@@ -200,10 +201,11 @@ void HostService::MakeAuthority() noexcept
         if (cActivator && (!aNpcId || !engine.IsActorCopy(cObject)))
             engine.RunsActivation(cObject, cActivator);
     };
-    game.Summon = [&engine](uint32_t aCasterId, const GameId& acSpell, const GameId& acEffect, float aMagnitude) {
+    game.Summon = [&engine](uint32_t aCasterId, const SummonRequest& acSummon) {
         const uint32_t cCopy = Utils::GetFormIdBySessionId(aCasterId);
-        if (cCopy && engine.IsOtherPlayer(cCopy) && engine.SpellForms.contains(FormIdOf(acSpell)) && engine.SpellForms.at(FormIdOf(acSpell)).Summons)
-            engine.AddMagicTargetEffect(cCopy, cCopy, FormIdOf(acSpell), FormIdOf(acEffect), aMagnitude, false, false, false);
+        const uint32_t cSpell = FormIdOf(acSummon.SpellId);
+        if (cCopy && engine.IsOtherPlayer(cCopy) && engine.SpellForms.contains(cSpell) && engine.SpellForms.at(cSpell).Summons)
+            engine.AddMagicTargetEffect(cCopy, cCopy, cSpell, FormIdOf(acSummon.EffectId), acSummon.Magnitude, acSummon.DualCast, false, false);
     };
     game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
@@ -410,11 +412,7 @@ void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
     }
     // Its script waits: what the call returns goes back (as HostService).
     m_world.ctx().at<FakeEngine&>().Queue(*cCall, cGuest, [this, cReplyId = acMessage.ReplyId, cSessionId = acMessage.SessionId](LocalValue aResult) {
-        PlayerNativeResultRequest result;
-        result.ReplyId = cReplyId;
-        result.SessionId = cSessionId;
-        result.Result = Utils::ToScriptValue(aResult);
-        m_world.GetTransport().Send(result);
+        QueueWorldAnswer(cReplyId, cSessionId, std::move(aResult));
     });
 }
 
@@ -439,6 +437,7 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
         return;
     m_pNetwork->Update();
     m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta, m_world.GetFrameTick());
+    SendWorldAnswers();
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);

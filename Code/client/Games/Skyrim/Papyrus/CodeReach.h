@@ -141,7 +141,7 @@ inline constexpr uintptr_t kLeafBytes = 0x400;
 
 // The native's own calls (not its callees': Actor.Kill reaches the controls deep in SetLifeState) of the engine's
 // functions acSinks names, a player's field it writes, or a screen object it reads. A virtual call is resolved by
-// aResolve (none: unknown); one on an argument names it (Reach::Argument). Progression comes first, then a creation, the world, items (an equip's HUD message is no screen's), the
+// aResolve (none: unknown); one on an argument names it (Reach::Argument). Progression comes first, then the world, items (an equip's HUD message is no screen's), the
 // body, the controls, the screen, a show, a question (a getter's field: only for a native making no call).
 template <class TResolve>
 [[nodiscard]] Reach ClassifyCall(const Facts& acFacts, const Sinks& acSinks, TResolve&& aResolve) noexcept

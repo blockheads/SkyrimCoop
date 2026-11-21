@@ -25,6 +25,8 @@ void SetGuest(bool aIsGuest) noexcept;
                                                uint32_t aGuest, LocalCall aCall) noexcept;
 // The game asked answered the stack waiting on aReplyId: it goes on with acResult (None: its return type's default).
 void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept;
+// This game left the session: every script waiting on another game goes on with None.
+void AnswerAll() noexcept;
 // A stack ended: nothing waits for it any more.
 void StackEnded(uint32_t aStackId) noexcept;
 

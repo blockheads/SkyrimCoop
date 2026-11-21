@@ -145,6 +145,18 @@ void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept
     pVm->ReturnFromLatent(aReplyId, result);
 }
 
+void AnswerAll() noexcept
+{
+    std::vector<uint32_t> waiting;
+    {
+        std::scoped_lock _{s_waitingLock};
+        for (const auto& [cStack, cType] : s_waiting)
+            waiting.push_back(cStack);
+    }
+    for (const uint32_t cStack : waiting)
+        Answer(cStack, std::monostate{});
+}
+
 void StackEnded(uint32_t aStackId) noexcept
 {
     if (!s_anyWaited.load(std::memory_order_relaxed))

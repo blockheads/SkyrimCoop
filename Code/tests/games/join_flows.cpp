@@ -799,6 +799,77 @@ SCENARIO("A reference the host's game created is one on a guest joining with the
     CHECK(guestEngine.References.contains(marker));
 }
 
+SCENARIO("A host's creation whose id is a guest's copy of another keeps both apart", "[summon]")
+{
+    // PR #88's review: each game numbers its own created forms, so the host's second marker can take the id of the
+    // guest's copy of its first; it is no reference the guest's save held.
+    constexpr uint32_t kXMarker = 0x3B;
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    const auto cMarkers = [](const FakeEngine& acEngine) {
+        std::vector<uint32_t> markers;
+        for (const auto& [cId, cReference] : acEngine.References)
+            if (cReference.Base == kXMarker)
+                markers.push_back(cId);
+        return markers;
+    };
+    guest.NextTemporaryIs(0xFF00F000); // a range the host's game does not use
+    party.As(party.Host(), [&] { host.ScriptPlaces(FakeEngine::kPlayer, kXMarker); });
+    party.Until([&] { return cMarkers(guest).size() == 1; }, "the guest has its copy of the first marker");
+    const uint32_t cFirstCopy = cMarkers(guest)[0];
+    REQUIRE((!host.References.contains(cFirstCopy) && !host.Actors.contains(cFirstCopy)));
+    party.As(party.Host(), [&] {
+        host.NextTemporaryIs(cFirstCopy);
+        CHECK(host.ScriptPlaces(FakeEngine::kPlayer, kXMarker) == cFirstCopy);
+    });
+    party.Until([&] { return cMarkers(guest).size() == 2; }, "the guest has a copy of each");
+    CHECK(guest.References.contains(cFirstCopy));
+}
+
+SCENARIO("A guest's script placing an actor gets its copy, the host's answer waiting for its announcement", "[summon]")
+{
+    // PR #88's review: the host's PlaceActorAtMe returns before its discovery gives the actor a session id.
+    constexpr uint32_t kGuard = 0x0001A67C;
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    host.MadeActors3D = false; // the actor's 3D, and so its discovery, comes after the call returned
+    party.As(party.Guest(), [&] {
+        guest.RunScript({.Class = "ObjectReference", .Function = "PlaceActorAtMe", .Self = LocalForm{FakeEngine::kPlayer},
+                         .Arguments = {LocalForm{kGuard}}}, FakeEngine::kPlayer);
+    });
+    REQUIRE(guest.LastWaiting != 0);
+    const auto cPlaced = [&] {
+        for (const auto& [cId, cActor] : host.Actors)
+            if (cActor.Base == kGuard && !cActor.Copy)
+                return cId;
+        return 0u;
+    };
+    party.Until([&] { return cPlaced() != 0; }, "the host's game placed it");
+    for (int i = 0; i < 20; ++i)
+        party.Frame();
+    host.Actors.at(cPlaced()).Loaded = true;
+    party.Until([&] { return guest.ScriptReturns.contains(guest.LastWaiting); }, "the guest's script got its answer");
+    REQUIRE(guest.CopiesOf(kGuard).size() == 1);
+    CHECK(guest.ScriptReturns.at(guest.LastWaiting) == LocalValue{LocalForm{guest.CopiesOf(kGuard)[0]}});
+}
+
+SCENARIO("A guest leaving while its script waits for the host's reference goes on with None", "[summon]")
+{
+    constexpr uint32_t kXMarker = 0x3B;
+    Party party(1, SmokeWorld);
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Guest(), [&] {
+        guest.RunScript({.Class = "ObjectReference", .Function = "PlaceAtMe", .Self = LocalForm{FakeEngine::kPlayer},
+                         .Arguments = {LocalForm{kXMarker}}}, FakeEngine::kPlayer);
+        party.Guest().GetTransport().Close(); // before the host's answer
+    });
+    REQUIRE(guest.LastWaiting != 0);
+    party.Until([&] { return guest.ScriptReturns.contains(guest.LastWaiting); }, "the waiting script goes on");
+    CHECK(std::holds_alternative<std::monostate>(guest.ScriptReturns.at(guest.LastWaiting)));
+}
+
 SCENARIO("A guest's join while joined keeps its session, and it rejoins after leaving", "[join][rejoin]")
 {
     Party party(1, SmokeWorld);

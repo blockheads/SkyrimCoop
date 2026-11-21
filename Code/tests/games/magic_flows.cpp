@@ -3,6 +3,8 @@
 #include "Party.h"
 #include "Fixtures.h"
 
+#include <SessionIds.h>
+
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
@@ -118,6 +120,34 @@ SCENARIO("A host NPC's burning shows on its copy", "[magic]")
     party.As(party.Host(), [&] { host.Burns(guard, kFlamesEffect, false); });
     party.Until([&] { return !guest.IsPlayingEffectHitVisuals(guest.CopiesOf(kGuard)[0], kFlamesEffect); },
                 "its burning ends with the guard's");
+}
+
+SCENARIO("A guest joining after another's familiar sees it commanded by that guest's character", "[magic][summon]")
+{
+    // PR #88's review: a late joiner hears the host's actors (the familiar) before the other guest's character.
+    Party party(2, SmokeWorld, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& first = Party::Engine(party.Guest(0));
+    FakeEngine& late = Party::Engine(party.Guest(1));
+    party.Join(party.Guest(0));
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the first guest's player");
+    party.As(party.Guest(0), [&] {
+        first.SpellHits(FakeEngine::kPlayer, FakeEngine::kPlayer, FakeEngine::kConjureFamiliar, FakeEngine::kFamiliarEffect, 60.f);
+    });
+    party.Until([&] { return ActorsOf(host, FakeEngine::kFamiliar).first.size() == 1; }, "the host's game made the familiar");
+    party.Join(party.Guest(1));
+    party.Until([&] { return late.CopiesOf(FakeEngine::kFamiliar).size() == 1 && PlayerCopy(late) != 0; },
+                "the late guest has the familiar and the other players");
+    // The first guest's character, by its session id, on the late guest's game.
+    uint32_t firstSession = 0;
+    party.As(party.Host(), [&] { firstSession = Utils::GetSessionIdByFormId(PlayerCopy(host)).value_or(0); });
+    REQUIRE(firstSession != 0);
+    const uint32_t cFamiliar = late.CopiesOf(FakeEngine::kFamiliar)[0];
+    uint32_t firstHere = 0;
+    party.Until([&] {
+        party.As(party.Guest(1), [&] { firstHere = Utils::GetFormIdBySessionId(firstSession); });
+        return firstHere != 0 && late.Actors.at(cFamiliar).Commander == firstHere;
+    }, "the familiar commanded by the first guest's character there");
 }
 
 SCENARIO("A host NPC already burning when its copy is made burns on the copy once it has 3D", "[magic][summon]")

@@ -40,6 +40,7 @@
 #include <Forms/MagicItem.h>
 #include <Magic/EffectItem.h>
 #include <Magic/MagicTarget.h>
+#include <Messages/SummonRequest.h>
 #include <Games/ActorExtension.h>
 #include <ExtraData/ExtraDataList.h>
 #include <PlayerCharacter.h>
@@ -438,11 +439,12 @@ void HostEngine::Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aAct
     pObject->Activate(pActor, 0, nullptr, 1, 0);
 }
 
-void HostEngine::Summon(uint32_t aCasterId, const GameId& acSpell, const GameId& acEffect, float aMagnitude) noexcept
+void HostEngine::Summon(uint32_t aCasterId, const SummonRequest& acSummon) noexcept
 {
+    const GameId& acSpell = acSummon.SpellId;
     auto* pCopy = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(aCasterId)));
     auto* pSpell = Cast<MagicItem>(TESForm::GetById(ToGame(acSpell)));
-    EffectItem* pEffect = pSpell ? pSpell->GetEffect(ToGame(acEffect)) : nullptr;
+    EffectItem* pEffect = pSpell ? pSpell->GetEffect(ToGame(acSummon.EffectId)) : nullptr;
     if (!pCopy || !pCopy->GetExtension()->IsOtherPlayer() || !pEffect || !pEffect->IsSummonEffect())
     {
         spdlog::warn("HostEngine: a guest's summon {:X} on {:X} not made: no such copy or summon effect", acSpell.LogFormat(), aCasterId);
@@ -453,9 +455,13 @@ void HostEngine::Summon(uint32_t aCasterId, const GameId& acSpell, const GameId&
     data.pCaster = pCopy;
     data.pSpell = pSpell;
     data.pEffectItem = pEffect;
-    data.fMagnitude = aMagnitude;
+    data.fMagnitude = acSummon.Magnitude;
     data.fUnkFloat1 = 1.0f;
     data.eCastingSource = MagicSystem::CastingSource::CASTING_SOURCE_COUNT;
+    data.ExplosionLocation.x = acSummon.Location[0];
+    data.ExplosionLocation.y = acSummon.Location[1];
+    data.ExplosionLocation.z = acSummon.Location[2];
+    data.bDualCast = acSummon.DualCast;
     spdlog::info("HostEngine: guest {:X}'s summon {:X} made by its copy {:X}", aCasterId, pSpell->formID, pCopy->formID);
     pCopy->magicTarget.AddTarget(data, false, false);
 }

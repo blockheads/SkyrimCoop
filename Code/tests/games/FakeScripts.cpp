@@ -126,6 +126,7 @@ Reach FakeReachOf(const LocalCall& acCall)
         {"Game", "DisablePlayerControls", {Call::kControls}}, {"Game", "EnablePlayerControls", {Call::kControls}},
         {"GlobalVariable", "SetValue", {Call::kWorld}},
         {"ObjectReference", "PlaceAtMe", {Call::kCreate}}, // CreateReferenceAtLocation 13723
+        {"ObjectReference", "PlaceActorAtMe", {Call::kCreate}}, // 56204, through 13723
         {"ObjectReference", "Disable", {.Kind = Call::kWorld, .OnCreated = true}}, // DisableImpl 56491
         {"ObjectReference", "MoveTo", {Call::kBody}}, {"Actor", "PlayIdle", {Call::kBody}},
         {"Game", "SetPlayerAIDriven", {Call::kBody}},
@@ -190,6 +191,8 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
     {
         // A created reference's call waits for the host's answer (PlayerNatives' Wait).
         const uint32_t cReply = cRouting.Reply ? (LastWaiting = m_nextStack++) : 0;
+        if (cReply)
+            Waiting.insert(cReply);
         World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kHost, .ReplyId = cReply, .Call = acCall});
     }
     if (cRouting.To != Destination::kEveryGame)
@@ -268,9 +271,21 @@ uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf
     {
     case Call::kPlayerMenu: BarterMerchant = aSelf; return 0;
     case Call::kCreate:
-        // PlaceAtMe(base): a reference of base at its self, recorded as the host's creations are (ReadCreate).
+        // PlaceAtMe(base): a reference of base at its self, recorded as the host's creations are (ReadCreate);
+        // PlaceActorAtMe(npc): a new actor there, announced by a later update's discovery.
         if (const auto* cpBase = acCall.Arguments.empty() ? nullptr : std::get_if<LocalForm>(&acCall.Arguments[0]))
-            LastReturn = LocalForm{ScriptPlaces(aSelf, cpBase->FormId)};
+        {
+            if (acCall.Function == "PlaceActorAtMe")
+            {
+                const auto cAt = Actors.find(aSelf);
+                const uint32_t cMade = LoadNpc(cpBase->FormId, cAt != Actors.end() ? cAt->second.Cell : 0,
+                                               cAt != Actors.end() ? glm::vec3(cAt->second.Position[0] + 100.f, cAt->second.Position[1], cAt->second.Position[2]) : glm::vec3{});
+                Actors.at(cMade).Loaded = MadeActors3D; // its 3D on a worker, later
+                LastReturn = LocalForm{cMade};
+            }
+            else
+                LastReturn = LocalForm{ScriptPlaces(aSelf, cpBase->FormId)};
+        }
         return 0;
     case Call::kProgress: TakeProgress(acCall, aSelf); return 0;
     case Call::kWorld:
@@ -364,6 +379,13 @@ namespace PlayerNatives
 {
 void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept
 {
-    FakeEngine::Current().ScriptReturns[aReplyId] = acResult;
+    if (FakeEngine::Current().Waiting.erase(aReplyId))
+        FakeEngine::Current().ScriptReturns[aReplyId] = acResult;
+}
+
+void AnswerAll() noexcept
+{
+    for (const uint32_t cStack : std::exchange(FakeEngine::Current().Waiting, {}))
+        FakeEngine::Current().ScriptReturns[cStack] = std::monostate{};
 }
 } // namespace PlayerNatives

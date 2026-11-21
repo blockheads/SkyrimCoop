@@ -38,6 +38,7 @@
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 #include <Messages/Relayed.h>
+#include <Messages/SummonRequest.h>
 #include <CreatedIds.h>
 #include <ScriptValues.h>
 #include <Papyrus/GlobalCall.h>
@@ -112,12 +113,7 @@ void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
     {
         spdlog::warn("HostService: {}.{} from a guest's script names a form or character not here", acMessage.Call.Class, acMessage.Call.Function);
         if (IsHosting() && acMessage.ReplyId)
-        {
-            PlayerNativeResultRequest none; // its waiting script gets None
-            none.ReplyId = acMessage.ReplyId;
-            none.SessionId = acMessage.SessionId;
-            m_world.GetTransport().Send(none);
-        }
+            QueueWorldAnswer(acMessage.ReplyId, acMessage.SessionId, std::monostate{}); // its waiting script gets None
         return;
     }
     spdlog::info("HostService: {}.{} from guest {:X}'s own script runs here, for it", acMessage.Call.Class, acMessage.Call.Function, cGuest);
@@ -127,13 +123,9 @@ void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
         GlobalCall::QueueCall(*cCall);
         return;
     }
-    // Its script waits (a created reference): what the call returns goes back to it.
+    // Its script waits (a created reference): what the call returns goes back to it, on the VM's thread.
     const auto cAnswer = [this, cReplyId = acMessage.ReplyId, cSessionId = acMessage.SessionId](const LocalValue& acResult) {
-        PlayerNativeResultRequest result;
-        result.ReplyId = cReplyId;
-        result.SessionId = cSessionId;
-        result.Result = Utils::ToScriptValue(acResult);
-        m_world.GetTransport().Send(result);
+        QueueWorldAnswer(cReplyId, cSessionId, acResult);
     };
     if (!GlobalCall::QueueCall(*cCall, cAnswer))
         cAnswer(std::monostate{});
@@ -260,9 +252,7 @@ void HostService::MakeAuthority() noexcept
     };
     game.ReadContents = [this](const GameId& acObject) { return m_pEngine->ReadContents(acObject); };
     game.Activate = [this](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) { m_pEngine->Activate(acObject, aNpcId, aActivatorId); };
-    game.Summon = [this](uint32_t aCasterId, const GameId& acSpell, const GameId& acEffect, float aMagnitude) {
-        m_pEngine->Summon(aCasterId, acSpell, acEffect, aMagnitude);
-    };
+    game.Summon = [this](uint32_t aCasterId, const SummonRequest& acSummon) { m_pEngine->Summon(aCasterId, acSummon); };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
     game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { m_pEngine->RaiseStoryEvent(acEvent); };
@@ -343,6 +333,7 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
         return;
     m_pNetwork->Update();
     m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta, m_world.GetFrameTick());
+    SendWorldAnswers();
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);

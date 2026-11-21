@@ -2082,6 +2082,8 @@ TEST_CASE("A guest's summon reaches the host with its spell, effect and magnitud
     request.SpellId = GameId(0, 0x640B6);
     request.EffectId = GameId(0, 0x640B4);
     request.Magnitude = 60.f;
+    request.Location = {-165.f, 2034.f, 6976.f};
+    request.DualCast = true;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     request.Serialize(writer);

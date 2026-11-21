@@ -394,6 +394,7 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
     m_riddenMount = 0;
     m_partyMounts.clear();
     m_pendingRides.clear();
+    m_pendingCommanders.clear();
     m_boardedMount = 0;
     m_boardingMount = 0;
     m_dueRides.clear();
@@ -578,7 +579,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
         if (const uint32_t cCommander = Utils::GetFormIdBySessionId(acMessage.CommanderId))
             m_actorBridge.SetActorCommandingActor(actorFormId, cCommander);
         else
-            spdlog::warn("Spawn {:X}: its commander {:X} is not here", acMessage.SessionId, acMessage.CommanderId);
+            m_pendingCommanders[acMessage.SessionId] = acMessage.CommanderId; // its caster's copy comes later (R5)
     }
 
     m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.SessionId, actorFormId);
@@ -600,6 +601,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     if (!acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
     LinkPendingRides(acMessage.SessionId);
+    LinkPendingCommanders(acMessage.SessionId);
     SessionIdHere(acMessage.SessionId);
 }
 
@@ -607,6 +609,21 @@ void CharacterService::SessionIdHere(uint32_t aSessionId) const noexcept
 {
     if (auto* pRecords = m_world.ctx().find<CopyRecords>())
         pRecords->OnSessionId(aSessionId);
+}
+
+// A summon spawned before its commander's copy: commanded once that copy is here.
+void CharacterService::LinkPendingCommanders(uint32_t aSessionId) noexcept
+{
+    std::erase_if(m_pendingCommanders, [&](const auto& acPending) {
+        const auto& [cSummon, cCommander] = acPending;
+        if (cCommander != aSessionId)
+            return false;
+        const uint32_t cSummonId = Utils::GetFormIdBySessionId(cSummon);
+        const uint32_t cCommanderId = Utils::GetFormIdBySessionId(cCommander);
+        if (cSummonId && cCommanderId)
+            m_actorBridge.SetActorCommandingActor(cSummonId, cCommanderId);
+        return true;
+    });
 }
 
 // A late joiner hears who rides what right after the spawns, which can still be loading.

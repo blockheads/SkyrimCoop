@@ -1291,6 +1291,17 @@ class ReproActions:
                 return {"guest_npcs": 0, "loaded": len(world)}
             time.sleep(min(0.5, max(0.0, ended - time.monotonic())))
 
+    def expect_commanded(ctx, name, by, seconds=10.0):
+        """Actor `name` is commanded by `by` (handles) in both games within `seconds`: a summon's caster, each game's
+        actor for it (the harness's `commanded`, MiddleProcess 0x218)."""
+        games = (("host", ""), ("guest", "client"))
+        wanted = {game: ctx.resolve(by, game) for game, _ in games}
+        def read():
+            return {game: ctx.player_command(instance, {"cmd": "commanded", "actor": ctx.resolve(name, game)})["commander"]
+                    for game, instance in games}
+        ctx.wait_for(f"[both] {name} is commanded by {by}", lambda: read() == wanted, seconds)
+        return {"commander": wanted}
+
     def expect_props(ctx, least=1, seconds=10.0):
         """Every copy with 3D holds its owner's props (state.anim_objects, ANIO and drawn) within `seconds`, at least
         `least` owners holding one compared (docs/re/systems/animation-objects.md)."""

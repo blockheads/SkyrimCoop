@@ -5,9 +5,7 @@
 #include <Hooks/Initializer.h>
 #include <VersionDb.h>
 
-// SummonCreatureEffect::CreateSummon (34993), the one place a summon is made: a guest's engine makes none, its
-// player's summon is the host's to make (MagicTarget's HookAddTarget sends it; docs/re/systems/summons.md). Its effect
-// still runs here: the portal, the timer.
+// SummonCreatureEffect::CreateSummon (34993), where a summon is made: none on a guest, the host makes it (summons.md).
 using TCreateSummon = void(ActiveEffect*);
 static TCreateSummon* RealCreateSummon = nullptr;
 

@@ -50,9 +50,8 @@ GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, G
 
 GuestWorldState::~GuestWorldState() noexcept
 {
-    // Left the session: the scripts still waiting go on with None.
-    for (const WaitingAnswer& cAnswer : m_answers)
-        PlayerNatives::Answer(cAnswer.ReplyId, std::monostate{});
+    // Left the session: the scripts still waiting on the host go on with None, answered or not.
+    PlayerNatives::AnswerAll();
     m_engine.SetDecidesWorld(true);
 }
 
@@ -213,6 +212,8 @@ void GuestWorldState::OnSummon(const SummonEvent& acEvent) noexcept
     request.SpellId = *cSpell;
     request.EffectId = *cEffect;
     request.Magnitude = acEvent.Magnitude;
+    request.Location = acEvent.Location;
+    request.DualCast = acEvent.DualCast;
     spdlog::info("GuestWorldState: summon {:X} asked of the host's game", acEvent.SpellId);
     m_world.GetTransport().Send(request);
 }
