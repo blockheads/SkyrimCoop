@@ -660,7 +660,10 @@ void FakeEngine::SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint
 void FakeEngine::SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end() && it->second.Copy)
+    {
         it->second.Noise = aNoise;
+        it->second.NoiseHeld = ActorStateRules::CopyNoiseTimer(aNoise) == ActorStateRules::kHeldNoise;
+    }
 }
 
 void FakeEngine::SetActionValue(uint32_t aFormId, int32_t aNoise) noexcept

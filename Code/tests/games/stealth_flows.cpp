@@ -155,6 +155,11 @@ SCENARIO("A guest's eye is what the host's NPCs see of it, in a fight and out of
     party.Until([&] { return guest.EyeShows() == 0; }, "the guest's eye is closed: the host's guard does not see it", cEyes);
     host.SeesOf[cCopy][cGuard] = 31;
     party.Until([&] { return guest.EyeShows() == 100; }, "the host's guard sees it: its eye opens", cEyes);
+    // A follower of the party is off a player's eye (41408 skips teammates, for the real player only): so for the guest.
+    host.Actors.at(cGuard).Teammate = true;
+    party.Until([&] { return guest.EyeShows() == 0; }, "a follower seeing it leaves its eye closed", cEyes);
+    host.Actors.at(cGuard).Teammate = false;
+    party.Until([&] { return guest.EyeShows() == 100; }, "the guard again", cEyes);
 
     // The guard fights it: the host's fight has it at 0 stealth points; the guest's game has none of its own.
     host.StealthPoints[cCopy] = 0.f;

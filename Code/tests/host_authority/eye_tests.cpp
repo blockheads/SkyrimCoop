@@ -42,9 +42,21 @@ TEST_CASE("Eye: sent again only when the guest's eye could read otherwise", "[Ho
     REQUIRE(session.SentTo<NotifyStealthEye>(kPeer).size() == 1);
     CHECK(session.SentTo<NotifyStealthEye>(kPeer)[0]->Stealth == 0.f);
 
-    // Its copy unloaded: the guest keeps the last.
+    // Its copy unloaded while seen: no NPC of the host's sees it (the guest would keep the last, lockpicking included).
+    session.Outbox.clear();
+    session.Eyes[cGuest] = {.Level = 31, .Seeing = 1, .Stealth = 100.f};
+    session.Frame(1400);
     session.Outbox.clear();
     session.Eyes.erase(cGuest);
-    session.Frame(1400);
+    session.Frame(1500);
+    REQUIRE(session.SentTo<NotifyStealthEye>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyStealthEye>(kPeer)[0]->Level == NotifyStealthEye::kUnseen);
+    session.Outbox.clear();
+    session.Frame(1600);
     CHECK(session.SentTo<NotifyStealthEye>(kPeer).empty());
+    // Loaded again and seen: sent again.
+    session.Eyes[cGuest] = {.Level = 31, .Seeing = 1, .Stealth = 100.f};
+    session.Frame(1700);
+    REQUIRE(session.SentTo<NotifyStealthEye>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyStealthEye>(kPeer)[0]->Level == 31);
 }

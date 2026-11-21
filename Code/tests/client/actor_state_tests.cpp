@@ -73,4 +73,6 @@ TEST_CASE("A copy's noise is its owner's: held while its owner's lasts, never it
     CHECK(CopyNoiseTimer(100) == kHeldNoise);
     CHECK(CopyNoiseTimer(100) - 3600.f > 0.f); // an hour of its own countdown leaves it
     CHECK(CopyNoiseTimer(0) == 0.f);           // its owner's 0 ends it
+    CHECK(HoldsOwnersNoise(CopyNoiseTimer(100) - 60.f)); // a minute of its own countdown: still held, ended on release
+    CHECK_FALSE(HoldsOwnersNoise(5.f));                  // its own engine's noise runs out by itself
 }

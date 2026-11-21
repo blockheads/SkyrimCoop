@@ -65,8 +65,8 @@ struct CombatRead
 };
 std::optional<CombatRead> ReadCombat(uint32_t aActorId);
 
-// What one detector's line of sight to a target meets (stealth.md, "Line of sight"): the engine's verdicts and each
-// ray CalculateLOS (37768) may cast, from the detector's eye to the target's torso, head and feet (37771).
+// One detector's line of sight to a target (stealth.md, "Line of sight"): the engine's verdicts (37768, 37774) and
+// probes, not its own rays: 37770 to each of torso, head and feet (37771), its collector taking the detector's layer.
 struct SightRay
 {
     uint32_t Location{};              // ACTOR_LOS_LOCATION: 3 torso, 2 head, 4 feet

@@ -13,6 +13,6 @@ def run(ctx):
         ctx.stage({'npcs': [{'name': 'andurs', 'base': '00013BA8', 'frozen': True}], 'players': {'guest': {'near': 'andurs', 'gap': 160, 'bearing': 0}, 'host': {'near': 'andurs', 'gap': 300, 'bearing': 90}}})
         ctx.go_to('client', 'andurs', 45.0, False, True)
         ctx.expect('guest_player', 'actor', within=5.0, game='guest', value=100, field='state.noise', seconds=2.0)
-        ctx.expect('guest_player', 'actor', within=5.0, field='state.noise', seconds=2.0)
+        ctx.expect('guest_player', 'actor', within=5.0, value=100, field='state.noise', seconds=2.0)
     finally:
         ctx.unstage()

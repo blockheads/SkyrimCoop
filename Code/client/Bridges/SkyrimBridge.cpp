@@ -167,6 +167,8 @@ void SkyrimBridge::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
         {
             if (cReleased)
                 pActor->EndReleasedCopyPackage();
+            if (cReleased && ActorStateRules::HoldsOwnersNoise(pActor->fTimerOnAction))
+                pActor->iActionValue = 0, pActor->fTimerOnAction = 0.f;
             pActor->ApplyHeld3D(); // a copy or claimed: its refused 3D loads
         }
     }

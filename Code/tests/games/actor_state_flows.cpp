@@ -203,3 +203,19 @@ SCENARIO("A faction its owner gives an actor later reaches its copy, and a copy 
     party.As(party.Host(), [&] { host.SetsFaction(kGuard, cFaction, -1); });
     party.Until([&] { return !guest.Factions[kGuard].contains(cFaction); }, "the guard's copy leaves it");
 }
+
+SCENARIO("A copy holding its owner's noise is quiet once it is this game's own again", "[actor-state][stealth]")
+{
+    // The owner's noise is held on its copy (ActorStateRules::CopyNoiseTimer, no countdown ends it): released mid-noise
+    // (the guest leaves), the actor would stay heard for good.
+    Party party(1, TwoNpcs(0));
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return guest.IsActorCopy(kGuard); }, "the guest has the guard's copy");
+    party.As(party.Host(), [&] { host.SetActionValue(kGuard, 100); }); // a swing's noise, 37711
+    const auto& cCopy = guest.Actors.at(kGuard);
+    party.Until([&] { return cCopy.Noise == 100; }, "the guard's copy makes its noise");
+    party.Leave(party.Guest());
+    party.Until([&] { return !cCopy.Copy; }, "the guard is the guest's own again");
+    CHECK(cCopy.Noise == 0);
+}

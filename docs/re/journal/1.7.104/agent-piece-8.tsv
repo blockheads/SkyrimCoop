@@ -48,3 +48,5 @@ time	op	id	rva	item
 2026-11-21T18:10:10Z	read	41408	0x786350	{"name": "ProcessLists::RequestHighestDetectionLevelAgainstActor"}
 2026-11-21T18:10:14Z	read	37758	0x6a2300	{"name": "Character::sub_37758"}
 2026-11-21T18:10:17Z	read	42702	0x7c3eb0	{"name": "ActorKnowledge__GetFreshDetectionState"}
+2026-11-21T18:35:39Z	comment		0x7569bc	{"addr": "0x1407569bc", "comment": "the level as a full int32 (41408 returns mov eax, esi): a hook must return int32, not CommonLib's int16"}
+2026-11-21T18:35:39Z	comment		0x7863fe	{"addr": "0x1407863fe", "comment": "the witness exclusions (kDoNotShowOnStealthMeter, teammate, commanded by the player) apply only when the target is the player: a copy's reading must filter them itself (StealthEye::Read)"}

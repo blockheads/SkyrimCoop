@@ -4,9 +4,8 @@
 
 #include <cstdint>
 
-// What the host's NPCs see of a guest's player (one-simulator.md piece 8, stealth.md "The eye is the host's"): its
-// copy's highest detection level among them (41408), how many see it, and its lowest stealth points in their fights
-// (46877). Sent to that guest only, when it changes.
+// What the host's NPCs see of a guest's player, to that guest only on change (stealth.md "The eye is the host's"):
+// its copy's highest detection level and seeing count (41408), lowest stealth points (46877).
 struct NotifyStealthEye final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyStealthEye;

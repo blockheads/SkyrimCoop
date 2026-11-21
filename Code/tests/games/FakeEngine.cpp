@@ -1353,6 +1353,8 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
     if (const auto it = Actors.find(aFormId); it != Actors.end())
     {
         const bool cReleased = it->second.Copy && !aCopy;
+        if (cReleased && it->second.NoiseHeld) // ActorStateRules::HoldsOwnersNoise
+            it->second.Noise = 0, it->second.NoiseHeld = false;
         if (aCopy && !it->second.Copy)
             it->second.GraphReady = NewCopiesGraphReady;
         if (aCopy)
@@ -3215,9 +3217,15 @@ int32_t FakeEngine::HighestDetection(uint32_t aTarget, uint32_t& aSeeing)
         aSeeing = HeldEye->Seeing;
         return HeldEye->Level;
     }
+    // The player's: its flagged witnesses skipped (41408); another actor's: as StealthEye::Read, every exclusion.
+    const auto cCounts = [&](const Actor& acWitness) {
+        if (aTarget == kPlayer)
+            return !acWitness.NotOnStealthMeter;
+        return DetectionRules::CountsOnEye(acWitness.NotOnStealthMeter, acWitness.Teammate, acWitness.Commander == aTarget, acWitness.Copy);
+    };
     int32_t highest = DetectionRules::kUnseen;
     for (const auto& [cId, cActor] : Actors)
-        if (cId != aTarget && cActor.Loaded && !cActor.Dead && !(aTarget == kPlayer && cActor.NotOnStealthMeter))
+        if (cId != aTarget && cActor.Loaded && !cActor.Dead && cCounts(cActor))
             if (const auto* cpState = FreshState(cId, aTarget))
             {
                 highest = std::max(highest, cpState->Level);

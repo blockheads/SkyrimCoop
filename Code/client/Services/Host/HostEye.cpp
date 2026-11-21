@@ -22,18 +22,16 @@ void HostEye::Update() noexcept
         const uint32_t cCharacter = m_characters.PlayerCharacterOf(aPlayer);
         if (aPlayer == cHost || !cCharacter)
             return;
-        // Not here (its copy not loaded): the guest keeps the last.
-        const auto cEye = m_game.ReadEye(cCharacter);
-        if (!cEye)
-            return;
+        // Its copy not loaded here: no NPC of the host's sees it.
+        const DetectionRules::EyeReading cEye = m_game.ReadEye(cCharacter).value_or(DetectionRules::EyeReading{});
         const auto cSent = m_sent.find(aPlayer);
-        if (cSent != m_sent.end() && !DetectionRules::EyeChanged(cSent->second, *cEye))
+        if (cSent == m_sent.end() ? cEye == DetectionRules::EyeReading{} : !DetectionRules::EyeChanged(cSent->second, cEye))
             return;
-        m_sent[aPlayer] = *cEye;
+        m_sent[aPlayer] = cEye;
         NotifyStealthEye notify;
-        notify.Level = cEye->Level;
-        notify.Seeing = cEye->Seeing;
-        notify.Stealth = cEye->Stealth;
+        notify.Level = cEye.Level;
+        notify.Seeing = cEye.Seeing;
+        notify.Stealth = cEye.Stealth;
         m_players.SendTo(aPlayer, notify);
     });
 }

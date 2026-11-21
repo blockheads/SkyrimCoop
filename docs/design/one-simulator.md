@@ -647,6 +647,8 @@ guest: GuestEye -> GuestEngine::HoldEye -> StealthEye's hooks on 41408 and 46877
 every game: any copy judging this game's player is an unseen witness (DetectionRules::Installed)
 ```
 
+- The host's read walks the high actors itself: 41408 skips flagged witnesses, teammates and the player's summons
+  only for the real player, so a guest's copy would count a follower (review of PR #89). Copies never count.
 - The level is sent, not only seen or hidden: 41408's other callers read it (lockpicking, alarms, the stolen item's
   owner adds it to a modifier); `EyeChanged` sends on a sign change, by 5, or a whole stealth point.
 - **Measured on the way:** the host's NPCs' state of a guest's copy was never fresh (42702 answers none past 2 s and

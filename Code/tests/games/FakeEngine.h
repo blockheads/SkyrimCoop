@@ -624,6 +624,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                   // copy (no engine path ends one, 38618's callers); held, a kill is only counted (37896)
         bool KillCounted = false; // a kill held back (MiddleHigh +0x2F8 above 1); our release drops it (Actor::HoldKill)
         uint32_t Commander = 0; // a summon's caster (MiddleProcess 0x218); this game's player's: Actor::IsPlayerSummon
+        bool Teammate = false;  // a follower of the player (flags1 kPlayerTeammate): off a player's eye (41408)
         bool ProcessMe = true; // kProcessMe: EnableAI(false) (37504, the harness's freeze) clears it, and the graph job skips it (41466)
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
         bool InAir = false; // its controller jumping or falling, else on the ground
@@ -643,6 +644,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Killer = 0;        // a kill move's victim: its killer (killerHandle, 38613)
         int32_t Noise = 0;          // actionValue: its own engine sets it (a player's bump, a swing: 37711), detection's
                                     // sound term hears it (37774)
+        bool NoiseHeld = false;     // a copy's, its owner's: no countdown ends it (ActorStateRules::CopyNoiseTimer)
         bool RefusesDraw = false;   // its draw or sheathe action refused (37279: weapon state 1 or 4), its graph not ready
         uint32_t ExitIn = 0;        // frames until its exit clip's own event (42835) ends its getting off, 0 none
         bool InPair = false;        // in a pair's instance on this game (32808): a replay with a copy partner makes none

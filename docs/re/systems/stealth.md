@@ -88,20 +88,22 @@ CalculateDetection 37774 (detector D, target T)
       T the player, D's combat target, or D the player -> rays to T's torso, head, feet (37771)
       anyone else                                      -> one ray, to its head
       ray: layer kLOS (41), D's capsule group; seen if it hits T's 3D (19750) or nothing
-  0x14041CD90: sound (T's noise +0x11C, movement, weight) + sight (needs LOS and the cone) - sneak
+  26365 (0x14041CD90): sound (T's noise +0x11C, movement, weight) + sight (needs LOS and the cone) - sneak
 ```
 
-Measured on the duo (harness `sight`, MCP `sight_watch`; Orgnar with the host at +80, the guest at -80): no ray to a
-guest's copy ever hit anything. Its line of sight was lost only when it stood outside Orgnar's cone (167-180 degrees
-off, Orgnar facing the host): vanilla geometry, nothing a copy changes.
+Measured on the duo (harness `sight`, MCP `sight_watch`; Orgnar with the host at +80, the guest at -80): 37768's own
+verdict was none only with the copy outside Orgnar's cone (167-180 degrees off, Orgnar facing the host), and seen at
+once inside it: vanilla geometry, nothing a copy changes. The readout's rays are probes, not 37768's: 37770 casts to
+every point, past the cone, with a collector taking the detector (25986 at 0x1406A2F4B; 37768 passes the target at
+0x1406A2971); none of them met anything.
 
 ## A player's noise (read 2026-11-21)
 
 ```
 Actor::SetActionValue 37711: actionValue (+0x11C) = noise, timerOnAction (+0x120) = fActorAlertSoundTimer (5 s)
   PlayerCharacter::Update: its controller bumped a character (bumpedCharCollisionObject, 78291), not a teammate
-      -> iSoundLevelLoud (100); also a weapon's hit frame (38603), TESObjectWEAP::Fire, a cast (0x1405CDF50)
-  counted down by PlayerCharacter__UpdateTimers (0x14075FA50) for the player, Character::UpdateAI (0x14067A046)
+      -> iSoundLevelLoud (100); also a weapon's hit frame (38603), TESObjectWEAP::Fire, a cast (34448)
+  counted down by PlayerCharacter__UpdateTimers (40747) for the player, Character::UpdateAI (37347, at 0x14067A046)
   for anyone else; at 0 the noise clears
 ```
 
@@ -122,7 +124,7 @@ the host", ClientTests `[actor-state]`, TPTests the part's round trip, scenario 
 ```
 40593 the eye: in combat (vfunc 0xE3) 100 - CombatManager__GetLowestStealthPointsOf (46877: the lowest over every
                combat group, any actor; none: 100); else 41408's level, > 0 shown as 100; sneak XP while seeing > 0
-41408's other callers read the player's level as > 0 (an assault alarm 0x1406F1F50, lockpicking 51981, an activator's
+41408's other callers read the player's level as > 0 (an assault alarm 39269, lockpicking 51981, an activator's
       trespass) or add it to a modifier (the stolen item owner's 41382)
 42702: a state older than 2 s (priority 3) answers none and queues a pass
 ```
@@ -134,16 +136,20 @@ of a guest's copy was stale: nothing asks it each frame as the HUD asks of the h
 seconds apart found it older than 2 s and answered -1000, though Andurs's pass computed 31.
 
 ```
-host, each frame (HostEye, HostEngine::ReadEye -> StealthEye::Read): per guest's copy 41408 and 46877, asked as the HUD
-      asks of its own player (keeping its NPCs' state of the copy fresh)
+host, each frame (HostEye, HostEngine::ReadEye -> StealthEye::Read): per guest's copy 41408's walk (37758 per high
+      actor, as the HUD asks of its own player, keeping that state fresh) with the player's exclusions 41408 applies to
+      the real player only (0x1407863FE: flagged, teammate, its summon) and no copy; 46877
+      its copy unloaded: one unseen reading (no stale level left on the guest)
       changed (DetectionRules::EyeChanged: seen or not, seeing or not, the level by 5, a stealth point)
       -> NotifyStealthEye to that guest only
-guest: GuestEye -> GuestEngine::HoldEye -> StealthEye's hooks on 41408 and 46877 answer it for this game's player
+guest: GuestEye -> GuestEngine::HoldEye -> StealthEye's hooks on 41408 (int32 in eax: 40593 tests all of it at
+       0x1407569BC; CommonLib declares int16) and 46877 answer it for this game's player
 every game: a copy's pass of this game's player is unseen (DetectionRules::Installed, any copy now)
 ```
 
 Measured after: in the fight both games show 100 (scenario `guest-eye-is-hosts`); sneaking in front of Andurs the
-guest's eye follows the host's reading a read behind (-14, then 47). Tests: GameTests "A guest's eye is what the host's
+guest's eye follows the host's reading a read behind (-14, then 47); a negative level (-16) reaches it intact.
+A copy released to its own game (a guest leaving) drops a held noise (`ActorStateRules::HoldsOwnersNoise`). Tests: GameTests "A guest's eye is what the host's
 NPCs see of it", HostAuthorityTests `[Eye]`, ClientTests `[DetectionRules]`, TPTests the message.
 
 | ID | Name | Use |
@@ -161,6 +167,8 @@ NPCs see of it", HostAuthorityTests `[Eye]`, ClientTests `[DetectionRules]`, TPT
 | 37768 | Actor::CalculateLOS | rays from the detector's eye (one, or three for the player) |
 | 37771, 37770, 37773 | Actor::CalculateLOSLocation, CalculateLOSToPoint, GetAngleToPoint | its points, a ray, the cone |
 | 37711 | Actor__SetActionValue | an actor's noise; `HookSetActionValue` |
-| 0x14041CD90 | Actor__ComputeDetectionLevel | sound + sight - sneak |
+| 26365 | Actor__ComputeDetectionLevel | sound + sight - sneak |
+| 34448, 40747, 39269 | ActorMagicCaster__MakeCastNoise, PlayerCharacter__UpdateTimers, the assault alarm | noise and the eye's callers |
+| 25986 | SpecificItemCollector__ctor | a LOS ray's collector: adds an actor's capsule layer to layer 41 |
 | 41408 | ProcessLists::RequestHighestDetectionLevelAgainstActor | `StealthEye`'s hook: the host's on a guest |
 | 46877 | CombatManager__GetLowestStealthPointsOf | the eye in combat; `StealthEye`'s hook |

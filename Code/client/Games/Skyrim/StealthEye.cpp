@@ -1,6 +1,8 @@
 #include <Games/Skyrim/StealthEye.h>
 
 #include <Actor.h>
+#include <Crime.h>
+#include <Games/ActorExtension.h>
 #include <Games/TES.h>
 #include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
@@ -8,6 +10,7 @@
 #include <PlayerCharacter.h>
 #include <VersionDb.h>
 
+#include <algorithm>
 #include <mutex>
 
 namespace
@@ -23,17 +26,17 @@ std::optional<DetectionRules::EyeReading> HeldFor(const Actor* apTarget) noexcep
     return s_held;
 }
 
-// ProcessLists::RequestHighestDetectionLevelAgainstActor (41408): the eye (40593), lockpicking, alarms, a stolen item's
-// owner. On a guest its player's answer is the host's NPCs'.
-using THighest = int16_t(ProcessLists*, Actor*, uint32_t&);
+// ProcessLists::RequestHighestDetectionLevelAgainstActor (41408; int32 in eax, 40593 tests all of it, CommonLib says
+// int16): the eye, lockpicking, alarms, a stolen item's owner. On a guest its player's answer is the host's NPCs'.
+using THighest = int32_t(ProcessLists*, Actor*, uint32_t&);
 THighest* RealHighest = nullptr;
 
-int16_t HookHighest(ProcessLists* apThis, Actor* apTarget, uint32_t& aSeeing)
+int32_t HookHighest(ProcessLists* apThis, Actor* apTarget, uint32_t& aSeeing)
 {
     if (const auto cHeld = HeldFor(apTarget))
     {
         aSeeing = cHeld->Seeing;
-        return static_cast<int16_t>(cHeld->Level);
+        return cHeld->Level;
     }
     return RealHighest(apThis, apTarget, aSeeing);
 }
@@ -60,11 +63,27 @@ namespace StealthEye
 {
 DetectionRules::EyeReading Read(Actor& aTarget) noexcept
 {
-    POINTER_SKYRIMSE(THighest, s_highest, 41408);
+    // 41408's walk for aTarget with the exclusions it applies to the real player only (0x1407863FE).
+    using TFreshState = CrimeEngine::DetectionState*(Actor*, Actor*, uint32_t);
+    POINTER_SKYRIMSE(TFreshState, s_freshState, 37758); // Actor__GetFreshDetectionStateOf, priority 3 as 41408
     POINTER_SKYRIMSE(TLowestStealth, s_lowestStealth, 46877);
     POINTER_SKYRIMSE(void*, s_combatManager, 405246); // CombatManager::singleton
     DetectionRules::EyeReading reading;
-    reading.Level = (RealHighest ? RealHighest : s_highest.Get())(ProcessLists::Get(), &aTarget, reading.Seeing);
+    const auto& cHandles = ProcessLists::Get()->highActorHandleArray;
+    for (uint32_t i = 0; i < cHandles.length; ++i)
+    {
+        auto* pWitness = Cast<Actor>(TESObjectREFR::GetByHandle(cHandles[i]));
+        if (!pWitness || pWitness == &aTarget || pWitness->IsDead() || !pWitness->currentProcess || !(pWitness->flags1 & Actor::kProcessMe))
+            continue;
+        if (!DetectionRules::CountsOnEye((pWitness->flags2 & Actor::kDoNotShowOnStealthMeter) != 0, (pWitness->flags1 & Actor::kPlayerTeammate) != 0,
+                                         pWitness->GetCommandingActor() == &aTarget, pWitness->GetExtension()->IsCopy()))
+            continue;
+        if (const auto* pState = s_freshState.Get()(pWitness, &aTarget, 3))
+        {
+            reading.Level = std::max(reading.Level, pState->Level);
+            reading.Seeing += pState->Seen;
+        }
+    }
     if (void* pManager = *s_combatManager.Get())
         reading.Stealth = (RealLowestStealth ? RealLowestStealth : s_lowestStealth.Get())(pManager, &aTarget);
     return reading;

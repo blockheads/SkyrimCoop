@@ -426,6 +426,8 @@ public:
     uint32_t flags1; // CommonLib boolBits
     // flags1: the engine updates the actor this frame (CommonLib BOOL_BITS::kProcessMe).
     static constexpr uint32_t kProcessMe = 1u << 1;
+    // flags1: a follower of the player (CommonLib BOOL_BITS::kPlayerTeammate): off its eye (41408).
+    static constexpr uint32_t kPlayerTeammate = 1u << 26;
     float headTrackingUpdateDelay;
     uint32_t unk84;
     AIProcess* currentProcess;

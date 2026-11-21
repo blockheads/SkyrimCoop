@@ -56,3 +56,13 @@ TEST_CASE("The host sends a guest its eye again only when it could read otherwis
     CHECK(EyeChanged(cSeen, {.Level = 31, .Seeing = 1, .Stealth = 99.f}));            // the fight's eye moves a point
     CHECK_FALSE(EyeChanged(cSeen, {.Level = 31, .Seeing = 1, .Stealth = 100.4f}));
 }
+
+TEST_CASE("A player's eye counts no flagged witness, teammate, summon of its own or copy", "[DetectionRules][stealth]")
+{
+    // 41408 applies the first three for the real player only (0x1407863FE); a guest's copy gets them all the same.
+    CHECK(CountsOnEye(false, false, false, false));
+    CHECK_FALSE(CountsOnEye(true, false, false, false));  // SetNotShowOnStealthMeter (MQ201's allies)
+    CHECK_FALSE(CountsOnEye(false, true, false, false));  // a follower
+    CHECK_FALSE(CountsOnEye(false, false, true, false));  // its own familiar
+    CHECK_FALSE(CountsOnEye(false, false, false, true));  // another player's copy, judged on its own game
+}

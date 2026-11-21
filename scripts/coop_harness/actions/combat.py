@@ -133,7 +133,8 @@ class CombatActions:
     def sight_watch(ctx, npc, target=0x14, seconds=5.0, every=0.5):
         """An NPC of the host's sight of a target over time (harness `sight`, stealth.md "Line of sight"): its combat
         target, the angle off its facing, CalculateLOS's location (0 none), CalculateDetection's level and terms, and per
-        ray (torso, head, feet) what it meets: '-' nothing, 'T' the target, else the reference:node and cast layer."""
+        probe ray (torso, head, feet; 37770, not the engine's own) what it meets: '-' nothing, 'T' the target, else the
+        reference:node and cast layer."""
         actor, aim = ctx.resolve(npc, "host"), ctx.resolve(target, "host")
         rows = []
         end = time.monotonic() + seconds

@@ -122,7 +122,7 @@ nlohmann::json ReadCombat(Harness&, const nlohmann::json& acRequest)
             {"reach", cRead->Reach}, {"target_reach", cRead->TargetReach}, {"since_attacked", cRead->SinceAttacked}, {"target_path_state", cRead->TargetPathState}, {"target_path_points", cRead->TargetPathPoints}};
 }
 // {"cmd": "sight", "actor": detector, "target": id}: the detector's line of sight to the target (stealth.md, "Line of
-// sight"): CalculateLOS and CalculateDetection's verdicts, and each ray it may cast with what that ray meets.
+// sight"): CalculateLOS and CalculateDetection's verdicts, and a probe ray (37770) to each point with what it meets.
 nlohmann::json ReadSight(Harness&, const nlohmann::json& acRequest)
 {
     const auto cRead = EngineCalls::ReadSight(acRequest.value("actor", 0u), acRequest.value("target", 0x14u));

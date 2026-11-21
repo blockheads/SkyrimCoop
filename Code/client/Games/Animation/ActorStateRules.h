@@ -100,10 +100,16 @@ constexpr bool MakesOwnNoise(bool aCopy) noexcept
 {
     return !aCopy;
 }
-// A copy holds its owner's noise until its owner's part clears it: its own countdown (UpdateAI, 0x14067A046) never ends it.
+// A copy holds its owner's noise until the owner's part clears it; its own countdown never ends it
+// (UpdateAI 37347 at 0x14067A046).
 constexpr float kHeldNoise = 1.0e30f;
 constexpr float CopyNoiseTimer(int32_t aNoise) noexcept
 {
     return aNoise > 0 ? kHeldNoise : 0.f;
+}
+// A copy released to its own game ends a held noise: no countdown would.
+constexpr bool HoldsOwnersNoise(float aTimer) noexcept
+{
+    return aTimer >= kHeldNoise;
 }
 } // namespace ActorStateRules

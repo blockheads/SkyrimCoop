@@ -18,16 +18,15 @@ struct Pass
     bool operator==(const Pass&) const = default;
 };
 
-// The pass a witness's knowledge gets, always installed: a copy (another player's, or an NPC another game owns)
-// judging this game's player sees nothing: that player's eye is its owner's NPCs' (piece 8). Skipping the pass would
-// leave its request queued, and 42702 then answers an older level at any age.
+// A witness's pass of this game's player, always installed (a skip leaves it queued, 42702): a copy sees nothing,
+// that player's eye being its owner's NPCs' (piece 8).
 [[nodiscard]] constexpr Pass Installed(bool aWitnessIsCopy, bool aTargetIsLocalPlayer, Pass aComputed) noexcept
 {
     return aWitnessIsCopy && aTargetIsLocalPlayer ? Pass{} : aComputed;
 }
 
-// What the host's NPCs see of a guest's player (NotifyStealthEye): its copy's highest level (41408), how many see it,
-// its lowest stealth points in their fights (46877). On that guest the eye's reads of its player answer it.
+// What the host's NPCs see of a guest's player (NotifyStealthEye): 41408's level and seeing count, 46877's stealth
+// points, of its copy. On that guest the eye's reads of its player answer it.
 struct EyeReading
 {
     int32_t Level = kUnseen;
@@ -36,6 +35,13 @@ struct EyeReading
     bool operator==(const EyeReading&) const = default;
 };
 
+// A witness on a player's eye: 41408's exclusions (applied there for the real player only: flagged off the meter, a
+// teammate, its summon) and no copy (another game judges that one).
+[[nodiscard]] constexpr bool CountsOnEye(bool aNotOnMeter, bool aTeammate, bool aCommandedByIt, bool aCopy) noexcept
+{
+    return !aNotOnMeter && !aTeammate && !aCommandedByIt && !aCopy;
+}
+
 // The HUD's eye (40593): in combat 100 minus the stealth points, else 100 for any level above 0; never below 0.
 [[nodiscard]] constexpr int32_t EyeShows(bool aInCombat, int32_t aLevel, float aStealth) noexcept
 {
@@ -43,9 +49,8 @@ struct EyeReading
     return cShown > 0 ? cShown : 0;
 }
 
-// The host sends a reading again when the eye or a caller could read it otherwise: seen or not, someone seeing or
-// not, the level by kLevelStep (the stolen item owner's check adds it to a modifier, 41382), the stealth points by a
-// whole point (40593 shows them as an int).
+// Sent again when the eye or a caller could read otherwise: seen or not, seeing or not, the level by kLevelStep
+// (41382 adds it to a modifier), a whole stealth point (40593 shows an int).
 constexpr int32_t kLevelStep = 5;
 [[nodiscard]] constexpr bool EyeChanged(const EyeReading& acSent, const EyeReading& acNow) noexcept
 {

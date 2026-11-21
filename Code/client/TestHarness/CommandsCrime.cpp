@@ -1,3 +1,4 @@
+#include <Games/Skyrim/StealthEye.h>
 #include "Commands.h"
 
 #include <Actor.h>
@@ -167,14 +168,22 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         // `actor` (on the host, a guest's copy: what the host's NPCs see of that guest); in combat it shows 100 minus
         // the lowest stealth points (46877).
         auto* eyeOf = actor ? actor : player;
-        using THighest = int16_t(ProcessLists*, Actor*, uint32_t&);
+        using THighest = int32_t(ProcessLists*, Actor*, uint32_t&); // int32 in eax (40593 tests all of it)
         static VersionDbPtr<THighest> highest(41408);
         using TStealth = float(void*, Actor*);
         static VersionDbPtr<TStealth> stealth(46877);
         static VersionDbPtr<void*> combatManager(405246); // CombatManager::singleton
         uint32_t seeing = 0;
-        const int16_t cLevel = highest(ProcessLists::Get(), eyeOf, seeing);
-        const float cStealth = *combatManager.Get() ? stealth(*combatManager.Get(), eyeOf) : 100.f;
+        int32_t cLevel = highest(ProcessLists::Get(), eyeOf, seeing);
+        float cStealth = *combatManager.Get() ? stealth(*combatManager.Get(), eyeOf) : 100.f;
+        // Another actor (a guest's copy): what the host sends that guest (HostEye), the player's exclusions applied.
+        if (eyeOf != player)
+        {
+            const auto cReading = StealthEye::Read(*eyeOf);
+            cLevel = cReading.Level;
+            seeing = cReading.Seeing;
+            cStealth = cReading.Stealth;
+        }
         // Each high actor's last state of the player, without asking (39763): who holds the eye's level.
         using TFind = CrimeEngine::ActorKnowledge*(HighProcessData*, Actor*);
         static VersionDbPtr<TFind> find(39763);
