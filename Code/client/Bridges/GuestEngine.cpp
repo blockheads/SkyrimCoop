@@ -245,8 +245,8 @@ void GuestEngine::ReleaseWeather() noexcept
 bool GuestEngine::RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn) noexcept
 {
     const auto cCall = Utils::ToLocalCall(acCall.Call);
-    // Run as this player's own (cause 0x14, HookCallQueued): untagged, a screen call is the story's and goes back out.
-    const GuestScripts::ScopedCause cOwnPlayer(PartyRules::kThisPlayerFormId);
+    // Untagged, a screen call is the story's and goes back out (HookCallQueued tags it).
+    const GuestScripts::ScopedCause cOwnPlayer(PartyRules::kRoutedCallCause);
     return cCall && GlobalCall::QueueCall(*cCall, std::move(aOnReturn));
 }
 
@@ -601,7 +601,7 @@ std::optional<CellStateRequest> GuestEngine::ReadCellChanges(uint32_t aCellFormI
     for (const TESObjectREFR* pRef : pCell->GetReferences())
     {
         ChangedReference changed;
-        changed.Flags = ReferenceStates::ChangedRows(*pRef);
+        changed.Flags = ReferenceStates::ChangedRows(*pRef) | ReferenceStates::LinkedLockRows(*pRef);
         if (const auto cId = changed.Flags ? ToSession(pRef->formID) : std::nullopt)
         {
             changed.Id = *cId;

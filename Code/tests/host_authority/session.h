@@ -16,7 +16,6 @@
 #include <Messages/LockChangeRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
-#include <Messages/NotifyActivate.h>
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/WorldState.h>
 #include <Messages/NotifyTimeSettings.h>
@@ -224,6 +223,7 @@ struct Session
     uint32_t QuestReads = 0;
     std::vector<QuestState> QuestChanges;
     std::vector<QuestState> Quests;                               // the host's quests
+    std::vector<std::tuple<GameId, uint32_t, uint32_t>> Activations; // guests' activations the host's game ran
     std::vector<std::tuple<GameId, bool, uint8_t>> LocksSet; // guests' lock changes the host's game took
     std::vector<StoryEvent> StoriesRaised;                    // guests' story events the host's story manager queued
     std::vector<ObjectChange> ItemsSet;                      // guests' container changes the host's game took
@@ -349,6 +349,7 @@ private:
             const auto it = acObject.ModId == ObjectChange::kCreatedModId ? CreatedContents.find(acObject.BaseId) : CreatedContents.end();
             return it != CreatedContents.end() ? std::optional(it->second) : std::nullopt;
         };
+        game.Activate = [this](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) { Activations.emplace_back(acObject, aNpcId, aActivatorId); };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
         game.SetItems = [this](const ObjectChange& acItems) { ItemsSet.push_back(acItems); };
         game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { StoriesRaised.push_back(acEvent); };

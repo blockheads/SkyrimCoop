@@ -6,10 +6,12 @@ question 4, for piece 6. Read in IDA on 1.7.104 (2026-11-20) unless a line says 
 ## The rule the engine already follows
 
 `TESObjectREFR::ActivateRef` (19796) runs the steps every activation shares, then the base form's
-`TESBoundObject::Activate` (vtable slot 0x1B8 / 55). Each form's `Activate` branches on
-`activator == gPlayerCharacter3` (this game's player). **The player's branches are the screen** (menus, its
-dialogue, its sitting). **The other branches are the world.** So a game that runs `ActivateRef` with another player's
-copy as the activator runs only the world part. A copy is never `gPlayerCharacter3`.
+`TESBoundObject::Activate` (vtable slot 0x1B8 / 55). Where a form's `Activate` has a screen part it branches on
+`activator == gPlayerCharacter3` (this game's player): door, container, furniture, book, talking activator, note,
+produce. **The player's branches are the screen** (menus, its dialogue, its sitting); **the rest is the world.** The
+activator (17702), items (17670) and lights (17615) have no such branch: theirs is all world but a sound. So a game
+that runs `ActivateRef` with another player's copy as the activator runs only the world part. A copy is never
+`gPlayerCharacter3`.
 
 ```text
 ActivateRef 19796 (this, activator, a3, objectToGet, count, defaultProcessingOnly)
@@ -48,9 +50,15 @@ ActivateRef 19796 (this, activator, a3, objectToGet, count, defaultProcessingOnl
   - Any actor: the produce goes into the activator's inventory, the harvested flag is set (`0x2000`,
     `CHANGE_OBJECT_EMPTY` 0x200000, no row yet) and the switch node is posed.
   - Only this game's player: `TESHarvestedEvent`, the steal alarm, the sound.
+  - The flag alone is `SetHarvestedFlag` (14647); the model follows it in `UpdateHarvestModel` (14865, SKSE's name),
+    which `Load3D` calls too. Since 2026-11-20 a harvested row carries it (`ReferenceStates`, `kHarvested`): no game
+    replays another's activation any more, so without it a watching game kept the plant (the review of PR #87).
+    Measured 2026-11-20 in Riverwood: the guest's pick (`EC85C`) and the host's (`ECE8D`) each set flag 0x2000 and
+    `CHANGE_OBJECT_EMPTY` on the other game ("harvested ECE8D" applied); the model's pose was not read back.
 - **Book** (17840): the player gets `BookMenu` (screen). Any other actor picks it up.
 - **Talking activator** (17183), **note** (23764): only this game's player.
-- **Items, lights** (17670 and `TESObjectLIGH`): the activator picks it up (`Actor` vfunc 0xCC0). Loose items
+- **Items, lights** (17670; `TESObjectLIGH::Activate` 17615 for a carryable light): the activator picks it up (`Actor`
+  vfunc 0xCC0). Loose items
   have their own claim (`PickUpRequest`, `HostItems`).
 
 ## Locks
@@ -72,7 +80,9 @@ ActivateRef 19796 (this, activator, a3, objectToGet, count, defaultProcessingOnl
     as it loads, and `16607`'s interior is never one of them.
   - Live rows for inside doors do reach a guest: they are persistent, in memory with their cell unloaded.
   - The fix: the host's cell state sends a lock row for a load door whose linked door's record holds a lock change
-    (`ReferenceStates::LinkedLockRows`). The guest applies it through `SetLockState` → `GetLock` on the linked door.
+    (`ReferenceStates::LinkedLockRows`), and a guest's cell request names such a door the same way (its change while
+    away). The guest applies it through `SetLockState` → `GetLock` on the linked door. "Its own lock" is as 20223 and
+    19512 judge it: an `ExtraLock` with a lock pointer.
   - Tests: GameTests "A load door the host's NPC unlocked while a guest was away is unlocked when it joins again";
     scenario `late-join-gets-load-door-lock` (control 2026-11-20: without the row it fails at "[client] loaded
     Whiterun with its own lock on 1A6F5").

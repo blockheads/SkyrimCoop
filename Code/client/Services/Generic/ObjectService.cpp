@@ -4,7 +4,6 @@
 #include <Events/UpdateEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Messages/ActivateRequest.h>
-#include <Messages/NotifyActivate.h>
 
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IActorBridge.h>
@@ -23,7 +22,6 @@ ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     , m_actorBridge(aActorBridge)
 {
     Listen<ActivateEvent, &ObjectService::OnActivate>(m_connections, aDispatcher, this);
-    Listen<NotifyActivate, &ObjectService::OnActivateNotify>(m_connections, aDispatcher, this);
 }
 
 void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
@@ -76,25 +74,4 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
     request.ActivatorId = sessionIdRes.value();
 
     m_transport.Send(request);
-}
-
-void ObjectService::OnActivateNotify(const NotifyActivate& acMessage) noexcept
-{
-    const uint32_t cActorFormId = Utils::GetFormIdBySessionId(acMessage.ActivatorId);
-    if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
-    {
-        spdlog::error("{}: could not find actor session id {:X}", __FUNCTION__, acMessage.ActivatorId);
-        return;
-    }
-
-    const uint32_t cObjectId = acMessage.NpcId ? Utils::GetFormIdBySessionId(acMessage.NpcId) : ToGame(acMessage.Id);
-    if (acMessage.NpcId && m_actorBridge.IsActorCopy(cObjectId))
-        return;
-    if (!m_formBridge.FormExists(cObjectId))
-    {
-        spdlog::error("Failed to retrieve object to activate.");
-        return;
-    }
-
-    m_formBridge.ActivateObjectFromActor(cObjectId, cActorFormId);
 }

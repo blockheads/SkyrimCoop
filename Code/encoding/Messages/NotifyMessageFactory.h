@@ -20,7 +20,6 @@
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
-#include <Messages/NotifyActivate.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/NotifyPlayerLeft.h>

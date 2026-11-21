@@ -78,13 +78,14 @@ item's entry went from 1 to 0 and its roll list stayed, now with `ExtraCount` (t
 - `InventoryChanges::GetItemCount` (16108 → `TESBoundObject::GetCountDelta` 16214) is the base count plus the entry's,
   but reads an entry at 0 over no base count as **one**. So the taken item still counted: `TransferContainer` saw
   nothing taken (the guest got nothing), and the host's row said "holds 1", putting it back in the guest's chest.
-- After the cell unloads and loads, the roll's lists are gone, the 0 entry is freed, and the take reads right: why
-  the run on the first run's leftovers passed.
+- Inferred, not measured: after the cell unloads and loads, the roll's lists are gone and the 0 entry is freed, so the
+  take reads right. That would be why the run on the first run's leftovers passed (its take was logged "1 moved").
 
 `TESObjectREFR::GetContainerCount` now counts as CommonLibSSE-NG's `GetInventory` does (what the menus show): the base
 count unless the entry is a roll's, plus the entry's, with no special case (`Games/ContainerCount.h`, ClientTests
 "A roll's item taken from a chest counts none, not one"). `guest-loots-hosts-roll` 3 of 3, 3 different fresh chests.
-Not shown in GameTests: the fake counts items, not the engine's entries and lists.
+GameTests "A guest takes a fresh roll's item: it gets it and the chest is empty on every game": the fake's chest keeps
+a roll's entry at 0 and counts through the same `ContainerCount` (control: with 16214's rule it never gets the item).
 
 # 1.7.104: an actor's items as its owner's part (2026-11-19)
 

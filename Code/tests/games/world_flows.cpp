@@ -204,6 +204,21 @@ SCENARIO("A load door the host's NPC unlocked while a guest was away is unlocked
     }
 }
 
+SCENARIO("A load door a guest unlocked while away is the host's again when it joins", "[world]")
+{
+    // The review of PR #87: the guest's change is on the inside door, in a cell it has not loaded; its request for the
+    // outside door's cell must name the door so the host's lock comes back.
+    Party party(1, Plugins);
+    FakeEngine& guest = Party::Engine(party.Guest());
+
+    party.Leave(party.Guest());
+    guest.SetLock(kHouseDoor, false, 50); // its own world, while away
+    REQUIRE_FALSE(guest.ObjectIsLocked(kHouseDoor));
+
+    party.Join(party.Guest());
+    party.Until([&] { return guest.ObjectIsLocked(kHouseDoor); }, "the rejoined guest's door is locked as the host's");
+}
+
 SCENARIO("Two guests: one's proposal reaches the other through the host", "[world]")
 {
     Party party(2, Plugins);

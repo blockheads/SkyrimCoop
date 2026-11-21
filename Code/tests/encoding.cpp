@@ -30,7 +30,6 @@
 #include <Structs/RidePart.h>
 #include <Structs/Vector2_NetQuantize.h>
 #include <Messages/ActivateRequest.h>
-#include <Messages/NotifyActivate.h>
 #include <Structs/SystemQuestState.h>
 #include <Structs/GraphOps.h>
 
@@ -81,16 +80,6 @@ TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]
     auto decoded = RequestMessageFactory{}.Extract(reader);
     REQUIRE(decoded);
     CHECK(static_cast<const ActivateRequest&>(*decoded) == request);
-    NotifyActivate notice;
-    notice.NpcId = request.NpcId;
-    notice.ActivatorId = request.ActivatorId;
-    Buffer result;
-    Buffer::Writer resultWriter(&result);
-    notice.Serialize(resultWriter);
-    Buffer::Reader resultReader(&result);
-    auto received = NotifyMessageFactory{}.Extract(resultReader);
-    REQUIRE(received);
-    CHECK(static_cast<const NotifyActivate&>(*received) == notice);
 }
 
 TEST_CASE("A caught pickpocket names only its victim", "[encoding.crime]")
@@ -1224,6 +1213,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         ObjectChange lock{ObjectChange::Kind::kLock, GameId(0, 0x1A2B)};
         lock.Value = 0x132; // locked, level 50
         sendMessage.Changes.push_back(lock);
+        ObjectChange harvested{ObjectChange::Kind::kHarvested, GameId(0, 0x10B14E)};
+        harvested.Value = 1;
+        sendMessage.Changes.push_back(harvested);
         ObjectChange items{ObjectChange::Kind::kItems, GameId(0, 0xA05B5)};
         items.Item = GameId(0, 0x64B3D);
         items.Value = 300;

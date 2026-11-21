@@ -149,10 +149,6 @@ every other section needs the duo.
 - [The death scenario's wolf turns on the other player](#the-death-scenarios-wolf-turns-on-the-other-player): small
 - [A guest that never arrives after a fast travel](#a-guest-that-never-arrives-after-a-fast-travel): small
 
-**Found by the activation RE (2026-11-20)**
-
-- [Harvested flora](#harvested-flora): small
-
 **Test tools**
 
 - [Heap history crashes the host at a kill move](#heap-history-crashes-the-host-at-a-kill-move): small
@@ -1525,20 +1521,6 @@ refused: no answer`), so the duo was booted again. It passed 3 of 3 after; its l
 Agent task: read the guest's log from the travel to the timeout: a load that never ended, or a hang.
 
 Size: small. Needs: the evidence above, then the duo (`party-fast-travels --repeat 8`).
-
-## Found by the activation RE (2026-11-20)
-
-### Harvested flora
-
-Read in IDA, not seen in a game yet (`docs/re/systems/activation.md`). A player picking a plant or tree
-(`TESProduceForm::Harvest` 14864) sets the reference's harvested form flag (`0x2000`) and records
-`CHANGE_OBJECT_EMPTY` (`0x200000`), which no row carries (`ReferenceStates`' rows; the save-data fallback is off). So
-the plant should stay full on the other games, and another player could pick it again.
-
-Agent task: confirm it on the duo (a guest picks a plant: `world_state` on both games), then a harvested row (a
-guest's own proposed to the host, as a lock is).
-
-Size: small. Needs: the duo, then GameTests.
 
 ## Test tools
 

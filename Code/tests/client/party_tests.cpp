@@ -403,7 +403,7 @@ SCENARIO("Where a native's call runs", "[party][route]")
         }
         THEN("a player's own moment stays here") CHECK(RouteOf({.Reach = {Call::kScreen}, .Cause = kThisPlayer}) == Routing{});
         THEN("the host's call for a guest's player, run on that guest's game as its player's, stays there")
-        CHECK(RouteOf({.Reach = {Call::kScreen}, .Cause = kThisPlayer, .Guest = true}) == Routing{});
+        CHECK(RouteOf({.Reach = {Call::kScreen}, .Cause = kRoutedCallCause, .Guest = true}) == Routing{});
         THEN("a show is every game's whoever's action ran it, its player not marked")
         CHECK(RouteOf({.Reach = {Call::kShow}, .Cause = kThisPlayer}) == Routing{.To = Destination::kEveryGame, .MarkFor = kThisPlayer});
     }

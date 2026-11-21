@@ -45,6 +45,7 @@ inline std::string Describe(const ObjectChange& acChange)
     case ObjectChange::Kind::kCreate: return std::format("create {:X} of {:X}", cObject, acChange.Item.LogFormat());
     case ObjectChange::Kind::kRecord: return std::format("record {:X} {:X}", cObject, acChange.Value);
     case ObjectChange::Kind::kGraph: return std::format("graph {:X}: {} bytes", cObject, acChange.Data.size());
+    case ObjectChange::Kind::kHarvested: return std::format("{} {:X}", acChange.Value ? "harvested" : "unharvested", cObject);
     case ObjectChange::Kind::kBase: return std::format("base {:X} {:X}", cObject, acChange.Item.LogFormat());
     case ObjectChange::Kind::kContents:
         return std::format("contents {:X}: {} items", cObject, ObjectChange::UnpackContents(acChange.Data).size());

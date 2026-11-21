@@ -59,7 +59,7 @@ reached it, because the guest asks for its loaded cells and the inside door's ce
 cell state now sends the lock with the outside door (`ReferenceStates::LinkedLockRows`). Tests: GameTests "A load
 door the host's NPC unlocked while a guest was away is unlocked when it joins again", scenario
 `late-join-gets-load-door-lock` (control: fails without the row); harness `door_lock`. Found on the way, not fixed:
-harvested flora is not synced (bugs.md, "Harvested flora"). Second, **"The host shows a guest's relief box"
+harvested flora was not synced (fixed in the review, below). Second, **"The host shows a guest's relief box"
 fixed**: a call the host's script routes to a guest's game (`NotifyRoutedCall`) was queued there with no cause, so a
 screen or controls call read as the story's and went back to every game; the host showed the mirrored box. The guest
 now queues it as its own player's (`GuestEngine::RunPlayerNative`, cause 0x14). Tests: GameTests "A guest's action's
@@ -71,6 +71,11 @@ guest's Take All of a fresh roll moved nothing because a chest keeps a taken rol
 16108/16214 reads that as one. `GetContainerCount` now counts as CommonLibSSE-NG does (`Games/ContainerCount.h`,
 ClientTests); `guest-loots-hosts-roll` 3 of 3 (1 of 3 before), the container scenarios pass
 (inventory-changes.md, "A roll's taken item").
+Review of PR #87: a picked plant goes out as the host's row (`kHarvested`: `SetHarvestedFlag` 14647 and
+`UpdateHarvestModel` 14865); a guest's own linked-lock change is named in its cell request; the own-lock check reads
+the lock pointer; a guest's activation reaches the host's game as `HostGame::Activate` (`NotifyActivate`, the
+guests' replay and `IFormBridge::ActivateObjectFromActor` deleted); fakes model a roll's 0 entry and take the routed
+call's cause from `PartyRules::kRoutedCallCause`.
 Cleanups: a guest's object activation runs on the host's game only (`HostAuthority::OnActivate`, no `FromAnyone`);
 the host's own activations reach the guests only as rows; the door's open-state compare and the field carrying it
 are gone (`ActivateRequest`, `NotifyActivate`, `ActivateObjectFromActor`). GameTests "A lever a guest pulls moves once,

@@ -37,6 +37,7 @@
 #include <SaveLoad.h>
 #include <Sky/Sky.h>
 #include <Actor.h>
+#include <Games/ActorExtension.h>
 #include <ExtraData/ExtraDataList.h>
 #include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
@@ -411,6 +412,27 @@ std::optional<ObjectChange> HostEngine::ReadContents(const GameId& acObject) con
         return std::nullopt;
     pObject->InitInventoryIfRequired();
     return ReadContainerContents(*pObject);
+}
+
+void HostEngine::Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) noexcept
+{
+    const uint32_t cObjectId = aNpcId ? Utils::GetFormIdBySessionId(aNpcId) : ToGame(acObject);
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cObjectId));
+    auto* pActor = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(aActivatorId)));
+    auto* pNpc = aNpcId ? Cast<Actor>(pObject) : nullptr;
+    if (!pObject || !pActor || (aNpcId && (!pNpc || pNpc->GetExtension()->IsCopy())))
+    {
+        spdlog::warn("HostEngine: a guest's activation of {:X} by {:X} not run: not here", cObjectId, aActivatorId);
+        return;
+    }
+    // A load door takes a copy through it (TESObjectDOOR::Activate 17922 moves an NPC): its player's game does.
+    if (pObject->baseForm && pObject->baseForm->formType == FormType::Door && pObject->extraData.Contains(ExtraDataType::Teleport))
+    {
+        spdlog::info("Load door {:X} not replayed: its player's own game takes it through", cObjectId);
+        return;
+    }
+    Breadcrumbs::Record("HostEngine::Activate", cObjectId, pActor->formID);
+    pObject->Activate(pActor, 0, nullptr, 1, 0);
 }
 
 void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept

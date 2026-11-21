@@ -322,9 +322,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
-    void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId) noexcept override
-    {
-    }
     uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept override
     {
         return {};

@@ -50,6 +50,22 @@ SCENARIO("A guest takes part of a stack and stores it again", "[container-transf
     party.Agree("the inventories agree after storing");
 }
 
+SCENARIO("A guest takes a fresh roll's item: it gets it and the chest is empty on every game", "[container-transfer]")
+{
+    // guest-loots-hosts-roll: a chest keeps a taken roll item's entry at 0 (16059), which 16214 read as one: the host
+    // measured nothing taken and its row put the item back (inventory-changes.md, "A roll's taken item").
+    Party party(1, [](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        aEngine.References.at(kChest).Rolled = {kSword};
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.As(party.Guest(), [&] { Transfer(party.Guest(), 1); });
+    party.Until([&] { return guest.CountOf(FakeEngine::kPlayer, kSword) == 1; }, "the guest gets the sword");
+    party.Until([&] { return guest.ContainerCountOf(kChest, kSword) == 0; }, "the guest's chest is empty as the host's");
+    CHECK(host.ContainerCountOf(kChest, kSword) == 0);
+}
+
 SCENARIO("A guest's theft from an owned chest is the owner's on the guest's game", "[container-transfer]")
 {
     // Skyrim: 16059 marks a theft's item as the owner's only on the target it moves it to, which on the host was its

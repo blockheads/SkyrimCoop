@@ -25,6 +25,8 @@ inline constexpr uint32_t kMainFour = 1 << 8;
 // here only. A holder of controls is this game's own scripts (kThisGame) or another game's mirrored tag.
 inline constexpr uint32_t kMirrored = 0xFFFE0000;
 inline constexpr uint32_t kThisPlayerFormId = 0x14;
+// The cause a call the host routed to this game runs with (GuestEngine::RunPlayerNative): its own player's.
+inline constexpr uint32_t kRoutedCallCause = kThisPlayerFormId;
 inline constexpr uint32_t kThisGame = 0xFFFFFFFF;
 [[nodiscard]] constexpr bool IsMirrored(uint32_t aTag) noexcept
 {

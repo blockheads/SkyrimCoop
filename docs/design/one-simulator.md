@@ -559,10 +559,12 @@ The host's roll for a guest's loot       fixed 2026-11-20: the roll agrees (cell
                                          roll's 0 entry read as one (16214), now counted as CommonLib does
 ```
 
-Cleanups kept (2026-11-20): a guest's object activation goes to the host's game only, the host's own reach guests
-as rows, and the door's pre-activation open-state compare is gone.
+Cleanups kept (2026-11-20): a guest's activation runs on the host's game only (`HostGame::Activate`;
+`NotifyActivate` and the guests' replay deleted), the host's own reach guests as rows, and the door's pre-activation
+open-state compare is gone.
 
-Found along the way: a harvest (14864) sets a harvested flag no row carries (bugs.md, "Harvested flora").
+Found along the way and fixed in the review: a harvest (14864) sets a harvested flag no row carried; with no
+replay it now goes out as the host's row (`kHarvested`).
 
 ## Piece 7: the host creates
 

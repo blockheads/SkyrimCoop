@@ -1,3 +1,4 @@
+#include <Games/ContainerCount.h>
 #include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Games/FormChangeRows.h>
@@ -56,8 +57,8 @@ namespace
 // A container's count of an item; none held is no entry, as the engine's lists keep it.
 void SetCount(FakeEngine::Reference& aReference, uint32_t aItem, int32_t aCount)
 {
-    if (aCount > 0)
-        aReference.Items[aItem] = aCount;
+    if (aCount > 0 || aReference.Rolled.contains(aItem))
+        aReference.Items[aItem] = std::max(aCount, 0); // a roll's entry stays, at 0 (16059 on a non-actor)
     else
         aReference.Items.erase(aItem);
 }
@@ -99,6 +100,14 @@ ObjectChange OpenRow(uint32_t aDoor, const FakeEngine::Reference& acReference)
     return row;
 }
 
+// ReferenceStates' harvested row: 1 picked.
+ObjectChange HarvestedRow(uint32_t aPlant, const FakeEngine::Reference& acReference)
+{
+    ObjectChange row{.Type = ObjectChange::Kind::kHarvested, .Object = SessionIdOf(aPlant)};
+    row.Value = acReference.Harvested ? 1 : 0;
+    return row;
+}
+
 ObjectChange ItemsRow(uint32_t aContainer, const FakeEngine::Reference& acReference, uint32_t aItem)
 {
     ObjectChange row{.Type = ObjectChange::Kind::kItems, .Object = SessionIdOf(aContainer), .Item = ItemId(aItem).value_or(GameId{})};
@@ -135,6 +144,13 @@ void FakeEngine::UnloadCell(uint32_t aCell)
     }
     for (const uint32_t cId : left)
         DeleteActor(cId);
+}
+
+int32_t FakeEngine::ContainerCountOf(uint32_t aContainer, uint32_t aItem) const
+{
+    const auto& cReference = References.at(aContainer);
+    const auto cEntry = cReference.Items.find(aItem);
+    return ContainerCount(0, cEntry != cReference.Items.end() ? std::optional(cEntry->second) : std::nullopt, cReference.Rolled.contains(aItem));
 }
 
 uint32_t FakeEngine::LockHolderOf(uint32_t aReference) const
@@ -222,6 +238,18 @@ void FakeEngine::ToggleDoor(uint32_t aObject)
         SetOpen(aObject, !it->second.Open);
 }
 
+void FakeEngine::Harvest(uint32_t aObject)
+{
+    const auto it = References.find(aObject);
+    if (it == References.end() || !it->second.Plant || it->second.Harvested)
+        return;
+    it->second.Harvested = true;
+    if (IsGuest)
+        return;
+    Changed.insert(aObject);
+    Recorded.push_back(HarvestedRow(aObject, it->second));
+}
+
 uint32_t FakeEngine::PlaceContainer(uint32_t aCell, uint32_t aBase)
 {
     const uint32_t cId = NewTemporary();
@@ -268,6 +296,8 @@ std::vector<ObjectChange> FakeEngine::RowsOf(uint32_t aReference) const
     std::vector<ObjectChange> rows{LockRow(aReference, References.at(LockHolderOf(aReference)))};
     if (cReference.Door)
         rows.push_back(OpenRow(aReference, cReference));
+    if (cReference.Plant)
+        rows.push_back(HarvestedRow(aReference, cReference));
     for (const auto& [cItem, cCount] : cReference.Items)
         rows.push_back(ItemsRow(aReference, cReference, cItem));
     return rows;
@@ -325,6 +355,7 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         SetCount(reference, ::ItemForm(acChange.Item), static_cast<int32_t>(acChange.Value), acChange.Stacks);
         break;
     case ObjectChange::Kind::kOpenState: reference.Open = acChange.Value != 0; break;
+    case ObjectChange::Kind::kHarvested: reference.Harvested = acChange.Value != 0; break;
     case ObjectChange::Kind::kContents: ApplyContents(reference, acChange); break;
     default: break;
     }
@@ -357,8 +388,9 @@ std::optional<CellStateRequest> FakeEngine::CellChanges(uint32_t aCell) const
         return std::nullopt;
     CellStateRequest request;
     request.Cell = SessionIdOf(aCell);
-    for (const uint32_t cId : Changed)
-        if (References.at(cId).Cell == aCell)
+    // Its changed references there, and a load door whose lock (its linked door's, elsewhere) changed.
+    for (const auto& [cId, cReference] : References)
+        if (cReference.Cell == aCell && (Changed.contains(cId) || Changed.contains(LockHolderOf(cId))))
             request.Changed.push_back({SessionIdOf(cId), 1});
     return request;
 }

@@ -32,6 +32,7 @@
 #include <ScriptValues.h>
 #include <Messages/Relayed.h>
 #include <SessionIds.h>
+#include <Papyrus/PartyRules.h>
 
 GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
     : m_bodyBridge(aBodies)
@@ -458,7 +459,7 @@ void GuestSeam::OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept
         return;
     // GuestService::OnPlayerNative -> GuestEngine::RunPlayerNative -> GlobalCall::QueueCall, as this player's own.
     if (const auto cCall = Utils::ToLocalCall(acMessage.Call))
-        FakeEngine::Current().Queue(*cCall, FakeEngine::kPlayer);
+        FakeEngine::Current().Queue(*cCall, PartyRules::kRoutedCallCause);
 }
 
 GuestSeam::~GuestSeam() noexcept = default;
