@@ -103,7 +103,7 @@ void HostPlayerNatives::ToHost(const RoutedCallRequest& acRequest, ConnectionId_
     m_network.Send(cHost, notify);
 }
 
-void HostPlayerNatives::ToOthers(const RoutedCallRequest& acRequest, ConnectionId_t aSender) const noexcept
+void HostPlayerNatives::ToOthers(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     const auto* cpPlayer = m_players.Find(aSender);
     if (!cpPlayer)
@@ -111,7 +111,18 @@ void HostPlayerNatives::ToOthers(const RoutedCallRequest& acRequest, ConnectionI
     NotifyRoutedCall notify;
     static_cast<Payloads::RoutedCall&>(notify) = acRequest;
     notify.Source = cpPlayer->Id;
+    if (acRequest.Controls == CallControls::kTakes)
+        m_controls[aSender] = notify;
+    else if (acRequest.Controls == CallControls::kGivesBack)
+        m_controls.erase(aSender);
     m_players.SendToOthers(notify, aSender);
+}
+
+void HostPlayerNatives::SendHeld(ConnectionId_t aJoiner) const noexcept
+{
+    for (const auto& [cGame, cCall] : m_controls)
+        if (cGame != aJoiner)
+            m_network.Send(aJoiner, cCall);
 }
 
 void HostPlayerNatives::OnCallEnded(const CallEndedRequest& acRequest, ConnectionId_t aSender) const noexcept
@@ -127,6 +138,7 @@ void HostPlayerNatives::OnCallEnded(const CallEndedRequest& acRequest, Connectio
 
 void HostPlayerNatives::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
+    m_controls.erase(aPlayer);
     std::erase_if(m_asked, [aPlayer](const auto& acAsked) { return acAsked.first == aPlayer; });
     std::vector<uint32_t> unanswered;
     for (const auto& [cReplyId, cAsked] : m_waiting)

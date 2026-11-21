@@ -11,4 +11,5 @@ struct RoutedCallEvent
     uint32_t ReplyId{}; // kOwner, one returning a value: the script waiting on it (PlayerNatives::Answer); kOthers, a
                         // latent call: its stack here, its key (CallEndedEvent); 0: none
     LocalCall Call{};
+    CallControls Controls{}; // kOthers: a cutscene's controls taken or given back
 };

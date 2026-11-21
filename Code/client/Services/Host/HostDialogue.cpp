@@ -117,6 +117,7 @@ void HostDialogue::OnOpened(const DialogueOpenedRequest& acRequest, ConnectionId
     m_conversation = Conversation{};
     m_conversation->Id = ++m_lastId;
     m_conversation->NpcId = acRequest.NpcId;
+    m_conversation->Greeting = acRequest.Greeting;
     // Asking for it is joining it, and an NPC greeting the party puts every other player in it: each game leaves it
     // if its menu does not open.
     if (acRequest.Everyone)
@@ -319,6 +320,18 @@ void HostDialogue::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
         m_asked.reset();
     if (m_conversation)
         Leave(aPlayer);
+}
+
+void HostDialogue::SendCurrent(ConnectionId_t aJoiner) const noexcept
+{
+    if (!m_conversation)
+        return;
+    NotifyDialogueOpen open;
+    open.Conversation = m_conversation->Id;
+    open.NpcId = m_conversation->NpcId;
+    open.Greeting = m_conversation->Greeting;
+    open.Step = m_conversation->Step;
+    m_network.Send(aJoiner, open);
 }
 
 void HostDialogue::Leave(ConnectionId_t aPlayer) noexcept

@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-21: **held-now state for a joiner, piece 9 of one-simulator.md, built** (`agent/piece-9`;
+`docs/re/systems/actor-ai-and-copies.md`, "A held cast's end"). A game joining mid-cutscene, mid-conversation, after a
+map marker or while another player channelled a spell got none of it. `HostAuthority::PlayerEntered` now sends from one
+list of stores (`JoinerStores`, checked by HostAuthorityTests "Every store answers a joiner"): each game's cutscene still
+holding the controls (`HostPlayerNatives` keeps its last `DisablePlayerControls`, marked by its sender with
+`RoutedCall::Controls`), the party's map marker, and the conversation under way at its step (`NotifyDialogueOpen::Step`;
+the joiner joins by talking). A held cast (concentration, ward, invisibility) is the caster's `kCast` record part, so a
+copy made mid-cast starts it; `SpellCastRequest`/`NotifySpellCast` are gone. Cutscene tints and fades are not kept (the
+user: controls only).
+
 2026-11-21: **the eye is the host's, piece 8 of one-simulator.md, built** (`agent/piece-8`; `docs/re/systems/stealth.md`,
 "The eye is the host's"). A guest's stealth eye was its own game's estimate: its NPC copies judged it, and in a fight it
 showed hidden (no combat group of its own; scenario `guest-eye-is-hosts`). Now the host reads its NPCs' detection of each

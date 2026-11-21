@@ -4,8 +4,10 @@
 #include <Structs/ScriptValue.h>
 #include <network/ENetInterface.h>
 
+#include <map>
 #include <set>
 #include <unordered_map>
+#include <Messages/Relayed.h>
 #include <Messages/RelayedMessages.h>
 
 struct HostAuthority;
@@ -39,11 +41,13 @@ struct HostPlayerNatives
     void OnPlayerNativeResult(const PlayerNativeResultRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Before the player is off the list: what its game was asked goes unanswered (the host's script gets none).
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
+    // A joiner: each other game's cutscene still holding the controls, as that game's call.
+    void SendHeld(ConnectionId_t aJoiner) const noexcept;
 
   private:
     void ToOwner(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept;
     void ToHost(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept;
-    void ToOthers(const RoutedCallRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void ToOthers(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept;
     // The host's game: the script waiting on aReplyId gets what the guest's game returned (None: its default).
     void Answer(uint32_t aReplyId, const ScriptValue& acResult) const noexcept;
 
@@ -52,4 +56,5 @@ struct HostPlayerNatives
     const HostCharacters& m_characters;
     std::unordered_map<uint32_t, ConnectionId_t> m_waiting; // reply id -> the game asked
     std::set<std::pair<ConnectionId_t, uint32_t>> m_asked;  // the guests' calls the host's game owes an answer: guest, reply id
+    std::map<ConnectionId_t, NotifyRoutedCall> m_controls;  // each game's last controls call still holding (piece 9)
 };

@@ -15,7 +15,6 @@ struct ActorValueChanges;
 struct ActorMaxValueChanges;
 struct DeathStateChange;
 struct HealthChange;
-struct SpellCast;
 struct InterruptCast;
 struct ProjectileLaunch;
 struct AddTarget;
@@ -57,8 +56,6 @@ using RequestDeathStateChange = Relayed<Payloads::DeathStateChange, kRequestDeat
 using NotifyDeathStateChange = Relayed<Payloads::DeathStateChange, kNotifyDeathStateChange>;
 using RequestHealthChangeBroadcast = Relayed<Payloads::HealthChange, kRequestHealthChangeBroadcast>;
 using NotifyHealthChangeBroadcast = Relayed<Payloads::HealthChange, kNotifyHealthChangeBroadcast>;
-using SpellCastRequest = Relayed<Payloads::SpellCast, kSpellCastRequest>;
-using NotifySpellCast = Relayed<Payloads::SpellCast, kNotifySpellCast>;
 using InterruptCastRequest = Relayed<Payloads::InterruptCast, kInterruptCastRequest>;
 using NotifyInterruptCast = Relayed<Payloads::InterruptCast, kNotifyInterruptCast>;
 using ProjectileLaunchRequest = Relayed<Payloads::ProjectileLaunch, kProjectileLaunchRequest>;

@@ -66,6 +66,14 @@ enum class CallTo : uint8_t
     kOthers,
 };
 
+// A party call on the controls: takes them, or gives back the last its game held (one-simulator.md piece 9).
+enum class CallControls : uint8_t
+{
+    kNone,
+    kTakes,
+    kGivesBack,
+};
+
 // A script's call of a native, made on another game: its class and name, its object (a method's form; None for a
 // global native) and its arguments, forms as TForm.
 template <class TForm> struct ScriptCallOf

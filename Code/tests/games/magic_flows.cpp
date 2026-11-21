@@ -32,6 +32,31 @@ SCENARIO("A guest's Flames plays on its copy on the host's game", "[magic]")
     THEN("the guest's own cast is not sent back to it") CHECK(guest.Casts.size() == 1);
 }
 
+SCENARIO("A guest joining while another channels Flames sees its copy cast it; the stop ends it", "[magic][join]")
+{
+    Party party(2, SmokeWorld, false);
+    party.Join(party.Guest());
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& caster = Party::Engine(party.Guest());
+    FakeEngine& late = Party::Engine(party.Guest(1));
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    party.As(party.Guest(), [&] { caster.CastsSpell(FakeEngine::kPlayer, kFlames, 1); });
+    party.Until([&] { return host.Channels.contains({PlayerCopy(host), 1}); }, "the host's copy channels Flames");
+
+    const auto cCopyChannels = [&] {
+        return std::ranges::any_of(late.Channels, [&](const auto& acChannel) {
+            return late.IsActorCopy(acChannel.first.first) && acChannel.first.second == 1 && acChannel.second == kFlames;
+        });
+    };
+    party.Join(party.Guest(1));
+    party.Until(cCopyChannels, "the late guest's copy of the caster channels Flames from the same hand");
+
+    party.As(party.Guest(), [&] { caster.StopsCasting(FakeEngine::kPlayer, 1); });
+    party.Until([&] { return host.Channels.empty() && late.Channels.empty(); }, "every copy stops with it");
+    THEN("the caster's own channel is not sent back to it") CHECK(std::ranges::count(caster.Casts, kFlames, &FakeEngine::Cast::Spell) == 1);
+}
+
 // The actors of aBase a game holds: its own (not copies) and its copies.
 std::pair<std::vector<uint32_t>, std::vector<uint32_t>> ActorsOf(const FakeEngine& acEngine, uint32_t aBase)
 {

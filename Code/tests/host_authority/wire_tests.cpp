@@ -82,15 +82,6 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         add("HealthChange", m, (NotifyHealthChangeBroadcast*)nullptr);
     }
     {
-        SpellCastRequest m;
-        m.CasterId = 0x89AB;
-        m.SpellFormId = GameId(1, 0x12FCD);
-        m.CastingSource = 2;
-        m.IsDualCasting = true;
-        m.DesiredTarget = 0x9ABC;
-        add("SpellCast", m, (NotifySpellCast*)nullptr);
-    }
-    {
         InterruptCastRequest m;
         m.CasterId = 0xABCD;
         m.CastingSource = 3;
@@ -189,7 +180,6 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
         {"Mount", {"92e003a302", "92e003a302"}},
         {"ProjectileLaunch", {"def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55", "def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55"}},
         {"RemoveSpell", {"81de03cddf0402", "81de03cddf0402"}},
-        {"SpellCast", {"ab9302cddf040102796b0500", "ab9302cddf040102796b0500"}},
         {"Subtitle", {"d6680f4c6574206d652067756573732e2e2ee78a0101", "d6680f4c6574206d652067756573732e2e2ee78a0101"}},
     };
 

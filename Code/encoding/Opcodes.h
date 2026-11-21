@@ -13,7 +13,6 @@
     X(LockChangeRequest)            \
     X(RequestDeathStateChange)      \
     X(RequestInventoryChanges)      \
-    X(SpellCastRequest)             \
     X(InterruptCastRequest)         \
     X(AddTargetRequest)             \
     X(RemoveSpellRequest)           \
@@ -92,7 +91,6 @@
     X(NotifyHealthChangeBroadcast) \
     X(NotifyDeathStateChange)      \
     X(NotifyInventoryChanges)      \
-    X(NotifySpellCast)             \
     X(NotifyInterruptCast)         \
     X(NotifyAddTarget)             \
     X(NotifyRemoveSpell)           \

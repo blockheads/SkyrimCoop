@@ -48,6 +48,7 @@ void CutsceneService::OnRoutedCall(const RoutedCallEvent& acEvent) noexcept
     RoutedCallRequest request;
     request.To = acEvent.To;
     request.ReplyId = acEvent.ReplyId;
+    request.Controls = acEvent.Controls;
     request.Call = Utils::ToScriptCall(acEvent.Call);
     const auto cGuest = acEvent.GuestFormId ? Utils::GetSessionIdByFormId(acEvent.GuestFormId) : std::optional<uint32_t>(0);
     if (!m_transport.IsConnected() || !cGuest)

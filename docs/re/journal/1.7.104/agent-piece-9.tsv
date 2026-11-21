@@ -1,0 +1,33 @@
+time	op	id	rva	item
+2026-11-21T19:01:48Z	read	52847	0x98dd00	{"name": "coop_fade"}
+2026-11-21T19:01:48Z	read	18570	0x2a3940	{"name": "ImageSpaceModifierInstanceForm::Trigger"}
+2026-11-21T19:01:52Z	read	18573	0x2a3dd0	{"name": "ImageSpaceModifierInstanceForm::Stop"}
+2026-11-21T19:01:57Z	read	18565	0x2a35b0	{"name": "ImageSpaceModifierInstanceForm::ctor"}
+2026-11-21T19:04:33Z	read	18566	0x2a3650	{"name": "ImageSpaceModifierInstanceForm::Func37_18566"}
+2026-11-21T19:04:33Z	read	18567	0x2a3670	{"name": "ImageSpaceModifierInstanceForm::Func38_18567"}
+2026-11-21T19:04:44Z	name	18566	0x2a3650	{"addr": "0x1402a3650", "name": "ImageSpaceModifierInstanceForm::IsFinished"}
+2026-11-21T19:04:44Z	name	18567	0x2a3670	{"addr": "0x1402a3670", "name": "ImageSpaceModifierInstanceForm::Apply"}
+2026-11-21T19:04:44Z	name	52847	0x98dd00	{"addr": "0x14098dd00", "name": "FaderMenu_QueueFade"}
+2026-11-21T19:04:50Z	comment	18566	0x2a3650	{"addr": "0x1402a3650", "comment": "[re]\nAddressLib ID 18566\nvfunc 0x25 (Unk_25): finished when the imod is animatable (data.animatable, imod+0x20) and now (dword_1431A5810) - start (+0x20) > data.duration (imod+0x24). A non-animatable imod (FadeToBlackHoldImod) never finishes: held until Stop (18573). Piece 9 (one-simulator.md)."}
+2026-11-21T19:04:50Z	comment	18570	0x2a3940	{"addr": "0x1402a3940", "comment": "[re]\nAddressLib ID 18570\nmeh321: TESImageSpaceModifier::Apply\nCommonLibSSE: ImageSpaceModifierInstanceForm::Trigger\nSkyrimCoop: data as s_imodTrigger (NativeReach.cpp)\nNew instance (ctor 18565: imod +0x28, start time +0x20, strength +0x14) appended to TES::activeImageSpaceModifiers (TES+0x108). Lasts until IsFinished (18566) or Stop (18573)."}
+2026-11-21T19:04:50Z	comment	18573	0x2a3dd0	{"addr": "0x1402a3dd0", "comment": "[re]\nAddressLib ID 18573\nmeh321: TESImageSpaceModifier::Remove\nCommonLibSSE: ImageSpaceModifierInstanceForm::Stop\nSkyrimCoop: data as s_imodStop (NativeReach.cpp)\nRemoves from TES+0x108 the first instance whose IsForm()->imod (+0x28) is this imod: Apply/Remove pair by the imod alone, whoever applied it."}
+2026-11-21T19:04:50Z	comment	52847	0x98dd00	{"addr": "0x14098dd00", "comment": "[re]\nAddressLib ID 52847\nSkyrimCoop: data as s_fade (NativeReach.cpp)\n(fadingOut, black, secs, a4, a5): FaderMenu's UI message (InterfaceStrings+8), +0x24 = !fadingOut, +0x25 black, +0x20 secs, +0x26 a4, +0x1C a5; queued through 52877. A fade-out holds until the next call fades in."}
+2026-11-21T19:04:56Z	read		0xa2408e	{"name": "papyrus::Game::FadeOutGame"}
+2026-11-21T19:04:57Z	read	52718	0x988ba0	{"name": "sub_140988BA0"}
+2026-11-21T19:05:06Z	comment		0xa2408e	{"addr": "0x140a2408e", "comment": "[re]\nAddressLib ID 55456\nGame.FadeOutGame(abFadingOut, abBlackFade, afSecsBeforeFade, afFadeDuration) -> FaderMenu_QueueFade (52847). A timed fade: no hold for a joiner to learn (piece 9 keeps image-space holds and controls only)."}
+2026-11-21T19:05:06Z	comment	52847	0x98dd00	{"addr": "0x14098dd00", "comment": "[re]\nAddressLib ID 52847\nSkyrimCoop: data as s_fade (NativeReach.cpp)\nFaderMenu's UI message (InterfaceStrings+8): +0x24 = !fadingOut, +0x25 black, +0x20 duration, +0x26 a4 (menus pass 1), +0x1C secs before; queued through 52877. Callers: Game.FadeOutGame (55456), sleep/wait, map travel, loading."}
+2026-11-21T19:18:29Z	read	34140	0x5bf6a0	{"name": "__int64"}
+2026-11-21T19:18:29Z	read	34141	0x5bf7b0	{"name": "ActorMagicCaster::Func7_34141"}
+2026-11-21T19:18:41Z	read	34143	0x5bf8d0	{"name": "ActorMagicCaster::Func29_34143"}
+2026-11-21T19:18:50Z	read	34400	0x5ca100	{"name": "MagicCaster::UpdateImpl"}
+2026-11-21T19:18:50Z	read	34408	0x5caae0	{"name": "MagicCaster::InterruptCast"}
+2026-11-21T19:18:59Z	read		0x6d8e30	{"name": "Character::sub_38804"}
+2026-11-21T19:19:05Z	read	38805	0x6d8eb0	{"name": "Character::sub_38805"}
+2026-11-21T19:19:22Z	read	38821	0x6d9a20	{"name": "ActorState::Func21_38821"}
+2026-11-21T19:19:27Z	read	34139	0x5bf5c0	{"name": "ActorMagicCaster::Func6_34139"}
+2026-11-21T19:19:45Z	name	34140	0x5bf6a0	{"addr": "0x1405bf6a0", "name": "ActorMagicCaster::InterruptCastImpl"}
+2026-11-21T19:19:45Z	name	34141	0x5bf7b0	{"addr": "0x1405bf7b0", "name": "ActorMagicCaster::FinishCastImpl"}
+2026-11-21T19:19:45Z	name	34143	0x5bf8d0	{"addr": "0x1405bf8d0", "name": "ActorMagicCaster::Update"}
+2026-11-21T19:19:50Z	comment	34140	0x5bf6a0	{"addr": "0x1405bf6a0", "comment": "[re]\nAddressLib ID 34140\nSkyrimCoop: hooked by HookInterruptCast (ActorMagicCaster.cpp)\nvfunc 8 (InterruptCastImpl): refunds the charge (+0xF0) when asked, plays the source's stop action, clears flags. Reached through MagicCaster::InterruptCast (34408) from: a channel's end (UpdateImpl 34400, state 6), the graph's InterruptCast event (InterruptCastHandler -> Actor::InterruptCast: a concentration release), sheathing (38821). Piece 9: our hook clears the cast part's slot."}
+2026-11-21T19:19:50Z	comment	38821	0x6d9a20	{"addr": "0x1406d9a20", "comment": "[re]\nAddressLib ID 38821\nActorState vfunc 21 (magic drawn/sheathed): sheathing (a2 false) interrupts both hand casters (MagicCaster::InterruptCast 34408), then sets iMagicEquipped and the hands' item types."}
+2026-11-21T19:19:50Z	comment	34400	0x5ca100	{"addr": "0x1405ca100", "comment": "[re]\nAddressLib ID 34400\nCommonLibSSE: MagicCaster::UpdateImpl\nState 2 (charging) counts down to 3 (casting); state 6 (concentration) fires each target interval and interrupts (34408) once the spell's max duration passes."}

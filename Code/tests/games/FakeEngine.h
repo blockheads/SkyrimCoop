@@ -1059,6 +1059,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Target = 0;
     };
     std::vector<Cast> Casts;
+    // A concentration spell held, by caster and hand: state 6 until MagicCaster::InterruptCast (34408).
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> Channels;
+    // The actor lets go of its channel: the graph's InterruptCast event (InterruptCastHandler -> 34408 -> 34140), which
+    // our hook raises only for this game's actor (HookInterruptCast).
+    void StopsCasting(uint32_t aCaster, uint32_t aSource);
+    void InterruptCast(uint32_t aFormId, uint32_t aCastingSource) noexcept override { Channels.erase({aFormId, aCastingSource}); }
     struct Effect
     {
         uint32_t Target = 0;
@@ -1084,6 +1090,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                    uint32_t aDesiredTargetFormId) noexcept override
     {
         Casts.push_back({aActorFormId, aSpellFormId, aCastingSource, aDesiredTargetFormId});
+        if (Spell(aSpellFormId).Concentration)
+            Channels[{aActorFormId, aCastingSource}] = aSpellFormId;
     }
     void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId, uint32_t aSpellFormId,
                               uint32_t aEffectFormId, float aMagnitude, bool aIsDualCasting, bool aApplyHealPerkBonus,

@@ -123,24 +123,6 @@ void HealthChange::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     AttackerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
-void SpellCast::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, CasterId);
-    SpellFormId.Serialize(aWriter);
-    Serialization::WriteVarInt(aWriter, CastingSource);
-    Serialization::WriteBool(aWriter, IsDualCasting);
-    Serialization::WriteVarInt(aWriter, DesiredTarget);
-}
-
-void SpellCast::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    CasterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    SpellFormId.Deserialize(aReader);
-    CastingSource = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    IsDualCasting = Serialization::ReadBool(aReader);
-    DesiredTarget = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-}
-
 void InterruptCast::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, CasterId);
@@ -447,6 +429,7 @@ void RoutedCall::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteVarInt(aWriter, Source);
     Serialization::WriteVarInt(aWriter, ReplyId);
     SerializeScriptCall(aWriter, Call);
+    aWriter.WriteBits(static_cast<uint8_t>(Controls), 2);
 }
 
 void RoutedCall::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -458,6 +441,9 @@ void RoutedCall::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Source = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     ReplyId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     DeserializeScriptCall(aReader, Call);
+    uint64_t controls = 0;
+    aReader.ReadBits(controls, 2);
+    Controls = controls <= static_cast<uint64_t>(CallControls::kGivesBack) ? static_cast<CallControls>(controls) : CallControls::kNone;
 }
 
 void CallEnded::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

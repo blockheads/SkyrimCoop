@@ -29,14 +29,19 @@
 #include <Services/Host/HostWorldState.h>
 
 #include <array>
+#include <optional>
+#include <vector>
 #include <functional>
 #include <string_view>
 
 #include <ChatMessageTypes.h>
 #include <NoCopyMove.h>
 #include <Messages/RelayedMessages.h>
+#include <Messages/NotifySetWaypoint.h>
 
 struct LockChangeRequest;
+struct RequestSetWaypoint;
+struct RequestRemoveWaypoint;
 struct ContainerChangeRequest;
 struct RequestInventoryChanges;
 struct SendChatMessageRequest;
@@ -111,8 +116,15 @@ struct HostAuthority
         });
     }
 
-    // A player's own character is in the world: everything it must know about the session.
+    // A player's own character is in the world: everything it must know about the session, from every store.
     void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept;
+    // What a joiner gets, in order (one-simulator.md piece 9): every store holding session state is on it.
+    struct JoinerStore
+    {
+        std::string_view Name;
+        std::function<void(ConnectionId_t aPlayer, uint32_t aCharacterSessionId)> Send;
+    };
+    [[nodiscard]] const std::vector<JoinerStore>& JoinerStores() const noexcept { return m_joinerStores; }
     // A player's character is in the host's world, and the record a character arrived with (its AI state counts for
     // death).
     void PlayerBodyEntered(ConnectionId_t aPlayer, uint32_t aId) noexcept { m_death.Entered(aPlayer, aId); }
@@ -166,6 +178,9 @@ private:
     void OnBugReport(const BugReportRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
     void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // The party's map marker (every game shows the last one set), kept for a joiner.
+    void OnSetWaypoint(const RequestSetWaypoint& acRequest, ConnectionId_t aSender) noexcept;
+    void OnRemoveWaypoint(const RequestRemoveWaypoint& acRequest, ConnectionId_t aSender) noexcept;
     // A player's character's name part changed: the party's lists take it (printable text only).
     void NamePlayer(ConnectionId_t aPlayer, const std::string& acName) noexcept;
 
@@ -199,6 +214,8 @@ private:
     HostDeath m_death;
     HostFollowers m_followers;
     HostDevTools m_devTools;
+    std::vector<JoinerStore> m_joinerStores;
+    std::optional<NotifySetWaypoint> m_waypoint;
     bool m_reloading{};
 };
 
