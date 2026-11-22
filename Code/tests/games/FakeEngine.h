@@ -586,6 +586,28 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
             return;
         Knock(acInto, acVelocity);
     }
+    // Havok's simulation islands (61509): a body whose AABB meets another's shares its island from then, and the
+    // whole island is awake while any body in it is. Lands: acKey comes down on acOnto, which wakes unmoved.
+    std::vector<std::set<BodyKey>> Islands;
+    void Lands(const BodyKey& acKey, const BodyKey& acOnto) { Islands.push_back({acKey, acOnto}); }
+    // The islands any of acKeys is in while one of that island's bodies is awake: every body in each (not keyframed)
+    // and its island's index.
+    [[nodiscard]] std::vector<std::pair<BodyPose, uint32_t>> AwakeIslands(const std::vector<BodyKey>& acKeys) const
+    {
+        std::vector<std::pair<BodyPose, uint32_t>> bodies;
+        for (uint32_t i = 0; i < Islands.size(); ++i)
+        {
+            const auto& cIsland = Islands[i];
+            const bool cOwn = std::ranges::any_of(acKeys, [&](const BodyKey& acKey) { return cIsland.contains(acKey); });
+            const bool cAwake = std::ranges::any_of(cIsland, [&](const BodyKey& acKey) { return Bodies.contains(acKey) && Bodies.at(acKey).Awake; });
+            if (!cOwn || !cAwake)
+                continue;
+            for (const BodyKey& cKey : cIsland)
+                if (Bodies.contains(cKey) && !Bodies.at(cKey).Held)
+                    bodies.push_back({{.Key = cKey, .Position = Bodies.at(cKey).Flight.Body.Position, .Rotation = Bodies.at(cKey).Flight.Body.Rotation}, i});
+        }
+        return bodies;
+    }
     void SetCopies(const std::vector<uint32_t>& acCopyFormIds) noexcept override { CopiesPushNothing = acCopyFormIds; }
     std::vector<uint32_t> CopiesPushNothing; // the copies whose capsules this game told the engine push nothing
     // A character's capsule walks into the body in this game (79133): knocked at that velocity, unless it is a

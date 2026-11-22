@@ -22,6 +22,13 @@ constexpr bool IsLoose(uint32_t aLayer) noexcept
     return aLayer == 4 || aLayer == 5 || aLayer == 10 || aLayer == 19 || aLayer == 20 || aLayer == 29;
 }
 
+// Whether a body this game starts to move gets the moving group now: it changes what the body meets only against a
+// played one (Decide), and writing it makes Havok redo the body's agents (77794), dropping its contacts for a step.
+constexpr bool WritesMoving(bool aAnyPlayed) noexcept
+{
+    return aAnyPlayed;
+}
+
 // Two filter infos (layer in the low 7 bits, group in the high 16). A played body meets the world, characters and
 // what this game moves; not other played bodies (their owner's game settled those), and not a loose object nobody
 // moves: its owner's game never hit that one, or it would be moving too.

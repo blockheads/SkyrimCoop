@@ -118,6 +118,16 @@ public:
         std::vector<BodyPose> RagdollRested;
     };
     [[nodiscard]] OwnBodies TakeOwnBodies(uint64_t aTick, const SessionOf_t& acSessionOf) noexcept;
+    // The awake simulation islands acKeys' bodies are in (a pile Havok woke whole and simulates with them: 61509):
+    // every reference's dynamic body in each, acKeys' own included, where it is now; Island: the same for one island.
+    struct IslandBody
+    {
+        BodyPose Pose;
+        uint32_t Island{};
+    };
+    [[nodiscard]] std::vector<IslandBody> ReadIslands(const std::vector<BodyKey>& acKeys) noexcept;
+    // A reference's body this game took as its own: read as moved from now, however little it has left where it woke.
+    void FollowOwn(const BodyKey& acKey) noexcept;
 
     // Dropped items (docs/design/dropped-items.md). This game's player's drop: the item (count, extra data) and where,
     // tagged with its reference here, now a drop of its own until the host's answer; none for no loose item.

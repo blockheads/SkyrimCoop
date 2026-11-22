@@ -746,6 +746,26 @@ TEST_CASE("What a body meets: a played one passes loose objects nobody moves, an
     CHECK(Decide(cPlayed, cInfo(30, 7)) == Meet::kEngine);
 }
 
+TEST_CASE("A moving body's group waits for a played body: nothing else meets it differently", "[physics]")
+{
+    // The duo, 2026-11-22 (drop_wheel_on_wheels): a wheel the guest's standing player leaned on was claimed and rested
+    // every 0.7 s, its group written each time (77794 redoes its agents), and slid 8 units in 8 s; vanilla's stays.
+    using BodyGroups::Decide;
+    using BodyGroups::Meet;
+    const auto cInfo = [](uint32_t aLayer, uint32_t aGroup) { return aLayer | (aGroup << 16); };
+    // Against anything not played the moving group only hands the pair to the engine, as its own group would.
+    for (const uint32_t cOther : {cInfo(4, 0), cInfo(4, 12), cInfo(1, 0), cInfo(30, 7), cInfo(32, 9)})
+    {
+        CHECK(Decide(cInfo(4, BodyGroups::kMoving), cOther) == Meet::kEngine);
+        CHECK(Decide(cInfo(4, 12), cOther) == Meet::kEngine);
+    }
+    // Against a played one it is what makes them collide.
+    CHECK(Decide(cInfo(4, BodyGroups::kMoving), cInfo(4, BodyGroups::kPlayed)) == Meet::kCollide);
+    CHECK(Decide(cInfo(4, 12), cInfo(4, BodyGroups::kPlayed)) == Meet::kPass);
+    CHECK_FALSE(BodyGroups::WritesMoving(false));
+    CHECK(BodyGroups::WritesMoving(true));
+}
+
 TEST_CASE("A lying copy's ragdoll, played, meets the world and what this game moves, not what its owner's settled", "[physics][played-ragdoll]")
 {
     using BodyGroups::Decide;

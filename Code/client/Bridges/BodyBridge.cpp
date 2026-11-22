@@ -17,6 +17,7 @@
 
 #include <RTTI.h>
 
+#include <algorithm>
 #include <cmath>
 
 void BodyBridge::SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf) noexcept
@@ -69,18 +70,49 @@ void BodyBridge::SetClass(const BodyKey& acKey, bhkWorldObject* apBody, BodyClas
             m_classes.erase(acKey);
         return;
     }
+    // This game's, and nothing played to meet: its group is left as it is until something is.
+    if (aClass == BodyClass::kMoving && it == m_classes.end() && !BodyGroups::WritesMoving(AnyPlayed()))
+    {
+        if (apBody->referencedObject)
+            m_classes[acKey] = {aClass, static_cast<uint16_t>(apBody->referencedObject->CollisionFilterInfo() >> 16), false};
+        return;
+    }
+    if (aClass == BodyClass::kNone && !it->second.Applied)
+    {
+        m_classes.erase(it);
+        return;
+    }
     const uint16_t cGroup = aClass == BodyClass::kPlayed ? BodyGroups::kPlayed
                             : aClass == BodyClass::kMoving ? BodyGroups::kMoving
                             : it->second.Group;
     const auto cWas = SetBodyGroup(*apBody, cGroup);
     if (!cWas)
         return;
+    const bool cFirstPlayed = aClass == BodyClass::kPlayed && !AnyPlayed();
     if (aClass == BodyClass::kNone)
         m_classes.erase(it);
     else if (it == m_classes.end())
         m_classes[acKey] = {aClass, *cWas};
     else
+    {
         it->second.Is = aClass;
+        it->second.Applied = true;
+    }
+    if (cFirstPlayed)
+        WriteMoving();
+}
+
+bool BodyBridge::AnyPlayed() const noexcept
+{
+    return !m_ragdollGroups.empty() || std::ranges::any_of(m_classes, [](const auto& acClass) { return acClass.second.Is == BodyClass::kPlayed; });
+}
+
+void BodyBridge::WriteMoving() noexcept
+{
+    for (auto& [cKey, moving] : m_classes)
+        if (moving.Is == BodyClass::kMoving && !moving.Applied)
+            if (const Found cOther = Find(cKey, 0, false); cOther.pBody && SetBodyGroup(*cOther.pBody, BodyGroups::kMoving))
+                moving.Applied = true;
 }
 
 void BodyBridge::SetMoving(const BodyKey& acKey, bool aMoving) noexcept
@@ -189,7 +221,12 @@ BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, b
             // moves (this game's own corpse another game moves stays as the engine has it).
             if (pCopy->GetExtension()->IsCopy())
                 if (const auto cOwn = SetBodyGroup(*pBody, BodyGroups::kPlayed); cOwn && *cOwn != BodyGroups::kPlayed)
+                {
+                    const bool cFirstPlayed = !AnyPlayed();
                     m_ragdollGroups[acKey] = *cOwn;
+                    if (cFirstPlayed)
+                        WriteMoving();
+                }
         }
         return {.pBody = pBody, .First = first};
     }

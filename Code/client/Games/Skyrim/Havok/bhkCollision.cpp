@@ -244,6 +244,23 @@ bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObj
     return DeactivateIsland(*pBody, acKeepsAwake, acOwnMotion);
 }
 
+std::optional<std::vector<hkpRigidBody*>> IslandMatesOf(const bhkWorldObject& acBody) noexcept
+{
+    const hkpRigidBody* pBody = acBody.referencedObject;
+    bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
+    if (!pWorld)
+        return std::nullopt;
+    BSReadLockGuard _(pWorld->worldLock);
+    const hkpSimulationIsland* pIsland = pBody->simulationIsland;
+    if (!pIsland || !pIsland->IsActive() || !pBody->IsDynamic())
+        return std::nullopt;
+    std::vector<hkpRigidBody*> mates;
+    for (int32_t i = 0; i < pIsland->entityCount; ++i)
+        if (hkpRigidBody* pOther = pIsland->entities[i]; pOther && pOther != pBody && pOther->IsDynamic())
+            mates.push_back(pOther);
+    return mates;
+}
+
 std::optional<uint16_t> SetBodyGroup(bhkWorldObject& aBody, uint16_t aGroup) noexcept
 {
     hkpRigidBody* pBody = aBody.referencedObject;

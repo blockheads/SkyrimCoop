@@ -520,6 +520,17 @@ Size: medium. Needs: the duo, then GameTests.
   bad read, 28 minutes up; `kept/host-crash-2026-11-15-20-48-12.log`).
 - **The harness's `world_state` crashed the host once** (access violation in `EngineCalls.cpp` `ReadPose`, walking an
   object's 3D), on the first call after staging; not seen again (nor in the 2026-11-18 reruns).
+- **2026-11-22, a guest's drop onto a pile** (`agent/physics-piles-drop`, final build; `physics-sync.md`, "A drop onto
+  a pile"). Guest walker, 3 rounds a run: `drop_wheel_on_wheels` 3 runs of 3 as vanilla, `drop_on_bottles` 1 of 1,
+  `pile_carry_release`, `tavern`, `push_mixed` 1 of 1, `carry_into_pile` 1 of 2 (the other a staging timeout, below).
+  Still open: **`drop_on_pile` (a bucket onto nine tavern items) settles at the top of vanilla's range on the guest**:
+  the middle round's seconds 5.8, 5.0 and 6.4 against vanilla's 2.5 to 5.8 (the let go bucket's 2.7 to 5.0) in 3 runs
+  of 4, so `guest-drops-on-pile-like-vanilla` fails about as often as it passes; rests agree, no jump, no shake. Not
+  traced: which bodies move last (the host's rests of the pile coming back after the guest's went out is the guess).
+  After the review's changes (one run each): `carry_into_pile`, `drop_wheel_on_wheels` and `drop_on_bottles` as
+  vanilla, `drop_on_pile` a staging timeout.
+  Seen once and not traced: the host's copy of the wheel pile moving 13 s where the guest's settled in 6. The host's
+  own drops onto a pile were not run.
 - **2026-11-22, dev `aa723513`:** the full run passed `guest-push`, `host-push`, `guest-push-mixed`, `guest-tavern`;
   `host-tavern` (a jump 5.2, vanilla's up to 4.8) and `host-push-mixed` (staging: "no physics world, or this frame's
   picks are spent") passed in the rerun; `guest-carries-into-pile` 2 of 2 (jumps 7.6, 6.3), `host-carries-into-pile`

@@ -123,6 +123,15 @@ Havok/list pairs left were read in IDA (engine-only: they warn, not added to the
 pair". ClientTests `[locks]`, a harness unit. `party-buys-house-host` failed on its staging (`place`: no clear spot),
 not a lock.
 
+2026-11-22: **a guest's drop onto a pile lies as it fell** (`agent/physics-piles-drop`; `docs/design/physics-sync.md`,
+"A drop onto a pile"; `docs/re/systems/physics.md`, "A body landing on a sleeping pile", "A body put into a capsule
+creeps out"). A guest's object let go over a pile left the pile 3 to 8 units off the host's in about 1 round in 3 and
+creeping for 15 s. What its own bodies' island holds is the guest's from its first move (`GuestHands::OwnIsland`), the
+host's rests of that island wait, and a body its player's touch shifts under 2 units is moved all the same
+(`OwnNudged`): the host's old rest of one was put back into the standing player's capsule, which pushed it out every
+step (62648). Three trials with vanilla baselines (`drop_on_pile`, `drop_wheel_on_wheels`, `drop_on_bottles`), their
+scenarios, two GameTests flows, the MCP verb `collision_restless`.
+
 2026-11-22: **the full suite on dev after one-simulator pieces 1-10** (`agent/bugs-audit-suite`): 364 of 423 default
 scenarios pass; of bugs.md's 62 entries 3 closed, 3 unclear, 56 still open; 8 new (six guest crashes through a pointer that holds a vtable among them).
 Details: "Test suite", 2026-11-22.

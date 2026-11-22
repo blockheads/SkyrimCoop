@@ -1708,3 +1708,169 @@ SCENARIO("A guest's player knocks the bucket and it rests: the host's move row o
         CHECK(glm::distance(guestBucket.Flight.Body.Position, cRest) < 0.01f);
     }
 }
+
+SCENARIO("A guest's player drops the bucket onto the plate: the plate it presses aside is the guest's, and the host's rest of it is not put back", "[physics][mover]")
+{
+    // The duo, 2026-11-22 (drop_wheel_on_wheels: rests 3 to 6 units apart); physics-sync.md, "A drop onto a pile".
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& hostPlate = BodyOf(party, party.Host(), kPlate);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    auto& guestPlate = BodyOf(party, party.Guest(), kPlate);
+    for (auto* pBody : {&hostBucket, &hostPlate, &guestBucket, &guestPlate})
+        pBody->Flight.Floor = kTable;
+    const glm::vec3 cPlate = guestPlate.Flight.Body.Position;
+    // Held over the plate, then let go: it falls onto it.
+    Party::Engine(party.Guest()).Grabbed = kBucket;
+    guestBucket.Flight.Body.Position = cPlate + glm::vec3(0.f, 0.f, 40.f);
+    party.Until([&] { return hostBucket.Drives > 0; }, "the host's bucket follows the guest's hands");
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.Grabbed.reset();
+        engine.Knock(kBucket, {30.f, 0.f, -60.f});
+        // Their islands merge as the AABBs meet, before they touch.
+        engine.Lands(kBucket, kPlate);
+    });
+    party.Frame();
+    // Pressed aside under it: no push of its own, less than a knock's 2 units.
+    guestPlate.Flight.Body.Position += glm::vec3(1.5f, 0.f, 0.f);
+    // The host's pile woke as the bucket was put over it and lay still: its rest of the plate goes to the guest.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Wake(kPlate, 48); });
+    party.Until([&] { return !guestBucket.Awake && hostBucket.Rests > 0 && !hostBucket.Awake && !hostPlate.Awake; }, "the bucket rests on both games");
+    for (int i = 0; i < 90; ++i)
+        party.Frame();
+    THEN("the guest's plate was never put back by the host's rest, and the host's lies where the guest's was pressed to")
+    {
+        CHECK(guestPlate.Rests == 0);
+        CHECK(glm::distance(guestPlate.Flight.Body.Position, cPlate + glm::vec3(1.5f, 0.f, 0.f)) < 0.01f);
+        CHECK(glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < 0.01f);
+    }
+}
+
+SCENARIO("A guest's player leans on the bucket and shifts it a unit: the host's lies there too, and its old rest is not put back", "[physics][mover]")
+{
+    // The duo, 2026-11-22 (drop_wheel_on_wheels: put back into the player's capsule, 62648 pushed it out for 15 s).
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    const glm::vec3 cLay = guestBucket.Flight.Body.Position;
+    party.As(party.Guest(), [&] {
+        Party::Engine(party.Guest()).PlayerPushes.push_back({kBucket, {4.f, 0.f, 0.f}, cLay});
+    });
+    party.Frame();
+    // Shifted by the capsule, no flight of its own.
+    guestBucket.Flight.Body.Position = cLay + glm::vec3(1.6f, 0.f, 0.f);
+    // The host's bucket wakes where it lies and sleeps again: its rest goes to the guest.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Wake(kBucket, 48); });
+    party.Until([&] { return glm::distance(hostBucket.Flight.Body.Position, guestBucket.Flight.Body.Position) < 0.01f && !hostBucket.Awake; },
+                "the host's bucket lies where the guest's player shifted it");
+    for (int i = 0; i < 90; ++i)
+        party.Frame();
+    THEN("the guest's was never put back, and both lie where it was shifted to")
+    {
+        CHECK(guestBucket.Rests == 0);
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, cLay + glm::vec3(1.6f, 0.f, 0.f)) < 0.01f);
+        CHECK(glm::distance(hostBucket.Flight.Body.Position, guestBucket.Flight.Body.Position) < 0.01f);
+    }
+}
+
+SCENARIO("A guest's player knocks the bucket and the plate: the plate's rest waits for the bucket's, and both go to the host together", "[physics][mover]")
+{
+    // The duo, 2026-11-22 (carry_into_pile: one body claimed and rested 76 times in a trial).
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& hostPlate = BodyOf(party, party.Host(), kPlate);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    auto& guestPlate = BodyOf(party, party.Guest(), kPlate);
+    for (auto* pBody : {&hostBucket, &hostPlate, &guestBucket, &guestPlate})
+        pBody->Flight.Floor = kTable;
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.PlayerPushes.push_back({kBucket, {400.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
+        engine.PlayerPushes.push_back({kPlate, {20.f, 0.f, 0.f}, guestPlate.Flight.Body.Position});
+        // One pile (one island); the bucket slides far, the plate a little.
+        engine.Lands(kBucket, kPlate);
+        engine.Knock(kBucket, {-400.f, 0.f, 0.f});
+        engine.Knock(kPlate, {20.f, 30.f, 0.f});
+    });
+    party.Until([&] { return !guestPlate.Awake && glm::length(guestPlate.Flight.Body.LinearVelocity) == 0.f; }, "the guest's plate lies still");
+    REQUIRE(guestBucket.Awake);
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    THEN("the plate is still the guest's while its bucket slides: its rest has not gone out")
+    {
+        REQUIRE(guestBucket.Awake);
+        CHECK(party.Guest().ctx().at<BodyService>().MovedHere(kPlate.Object));
+        CHECK(hostPlate.Rests == 0);
+    }
+    party.Until([&] { return !guestBucket.Awake && hostBucket.Rests > 0 && hostPlate.Rests > 0 && !hostBucket.Awake && !hostPlate.Awake; },
+                "both rest on both games");
+    AND_THEN("both lie where the guest's game put them")
+    {
+        CHECK(glm::distance(guestPlate.Flight.Body.Position, hostPlate.Flight.Body.Position) < 0.01f);
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
+    }
+}
+
+SCENARIO("A guest's bucket lands on the plate and shifts it before the guest's game looks: the shift is still the guest's", "[physics][mover]")
+{
+    // Review of PR #101: a shift between two updates was in the first read of the pile, so it was never seen.
+    Party party(1, Plugins);
+    auto& hostPlate = BodyOf(party, party.Host(), kPlate);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    auto& guestPlate = BodyOf(party, party.Guest(), kPlate);
+    for (auto* pBody : {&hostPlate, &guestBucket, &guestPlate, &BodyOf(party, party.Host(), kBucket)})
+        pBody->Flight.Floor = kTable;
+    const glm::vec3 cPlate = guestPlate.Flight.Body.Position;
+    // The guest knows the host's rest of the plate.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Wake(kPlate, 48); });
+    party.Until([&] { return guestPlate.Rests > 0; }, "the host's rest of the plate reaches the guest");
+    const size_t cRests = guestPlate.Rests;
+    Party::Engine(party.Guest()).Grabbed = kBucket;
+    guestBucket.Flight.Body.Position = cPlate + glm::vec3(0.f, 0.f, 40.f);
+    party.Until([&] { return BodyOf(party, party.Host(), kBucket).Drives > 0; }, "the host's bucket follows the guest's hands");
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.Grabbed.reset();
+        engine.Knock(kBucket, {30.f, 0.f, -60.f});
+        engine.Lands(kBucket, kPlate);
+        // In the same step: the guest's game never read the plate where it lay.
+        guestPlate.Flight.Body.Position += glm::vec3(1.5f, 0.f, 0.f);
+    });
+    party.Until([&] { return !guestBucket.Awake && glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < 0.01f && !hostPlate.Awake; },
+                "the host's plate lies where the guest's was shifted to");
+    THEN("the guest's plate was not put back")
+    {
+        CHECK(guestPlate.Rests == cRests);
+        CHECK(glm::distance(guestPlate.Flight.Body.Position, cPlate + glm::vec3(1.5f, 0.f, 0.f)) < 0.01f);
+    }
+}
+
+SCENARIO("The host's game moves the plate while the guest's bucket lands on it: its rest waits for the pile, then is put", "[physics][mover]")
+{
+    // Review of PR #101: a host rest of a body in the guest's pile that the guest never claimed was dropped for good.
+    Party party(1, Plugins);
+    auto& hostPlate = BodyOf(party, party.Host(), kPlate);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    auto& guestPlate = BodyOf(party, party.Guest(), kPlate);
+    for (auto* pBody : {&hostPlate, &guestBucket, &guestPlate, &BodyOf(party, party.Host(), kBucket)})
+        pBody->Flight.Floor = kTable;
+    const glm::vec3 cPlate = guestPlate.Flight.Body.Position;
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
+        engine.Knock(kBucket, {-300.f, 0.f, 0.f});
+        engine.Lands(kBucket, kPlate);
+    });
+    party.Frame();
+    // The host's own game slides its plate (its player's push) while the guest's pile is awake.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kPlate, {0.f, 120.f, 0.f}); });
+    party.Until([&] { return !hostPlate.Awake && glm::distance(hostPlate.Flight.Body.Position, cPlate) > 5.f; }, "the host's plate rests elsewhere");
+    party.Until([&] { return !guestBucket.Awake && !guestPlate.Awake && glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < 0.01f; },
+                "the guest's plate lies at the host's rest once its pile is still");
+    THEN("the guest's plate lies where the host's does")
+    {
+        CHECK(glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < 0.01f);
+    }
+}

@@ -45,6 +45,9 @@ struct BodyService
         [[nodiscard]] virtual bool TakesFrame(const BodyKey& acKey) noexcept = 0;
         // An owner's rest this game does not place (its own body, or its own rest come back).
         [[nodiscard]] virtual bool KeepsRest(const BodyPose& acRest) const noexcept = 0;
+        // An owner's rest of that body waits: this game simulates the pile it lies in (put once that ends, unless the
+        // body became this game's own meanwhile).
+        [[nodiscard]] virtual bool HoldsRest(const BodyKey& acKey) const noexcept = 0;
         // A body of that reference is this game's player's now (its move row is not the host's to apply).
         [[nodiscard]] virtual bool Moves(const GameId& acObject) const noexcept = 0;
         // This game's own rest of that reference's body lies there (the host's move row of it only echoes it back).
@@ -123,6 +126,7 @@ private:
     std::unordered_map<uint32_t, entt::entity> m_copyIndex;
     bool m_copiesIndexed{};
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_pendingRests;
+    std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_heldRests; // waiting for the keeper's pile to end (HoldsRest)
     std::set<BodyKey> m_restsTried; // rests put this frame: asked again only after a physics step (their contacts)
     std::set<BodyKey> m_following; // played from an owner's frames (logged once)
     std::map<BodyKey, uint32_t> m_held; // held in another game: its form id here
