@@ -13,6 +13,11 @@ days), what it needs, and what it waits for. Delete a section when its last entr
 
 Where the evidence comes from:
 
+- **The full run of 2026-11-22:** dev `aa723513` (one-simulator pieces 1-10 merged): the 423 default scenarios, 364
+  passed; then the 21 scene, 4 input and 2 late-save scenarios each on their own boot; then every failure again in a
+  shuffled order, and 3 more runs of each entry's scenario that passed. It closed the entries whose scenario passes and
+  whose fast test exists, and added [its own section](#found-by-the-full-run-of-2026-11-22). Which entries went and
+  why: progress.md, "Test suite", 2026-11-22. Evidence: `build/coop-test/results/` in the `bugs-audit-suite` worktree.
 - **The full run of 2026-11-16:** 402 scenarios on dev (`0a2f618a`), 364 passed, then reruns; it closed entries whose
   scenarios now pass every run and added [its own section](#found-by-the-full-run-of-2026-11-16). Which entries went
   and why: progress.md, "Test suite", 2026-11-16.
@@ -42,7 +47,6 @@ every other section needs the duo.
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
-- [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
@@ -71,6 +75,7 @@ every other section needs the duo.
 - [A follower stops following](#a-follower-stops-following): not reproducible on 1.7.104 (2026-11-07), not worked on
 - [A guest's recruitment stalls](#a-guests-recruitment-stalls): small
 - [A deleted copy in an AI job](#a-deleted-copy-in-an-ai-job): small
+- [A passenger jumps 57 units as it takes the reins](#a-passenger-jumps-57-units-as-it-takes-the-reins): small
 
 **Saves**
 
@@ -101,20 +106,17 @@ every other section needs the duo.
 
 **Found by the full runs of 2026-11-11 and 2026-11-12**
 
-- [The guest player's copy wears nothing](#the-guest-players-copy-wears-nothing): small
 - [A starting kit with an extra item](#a-starting-kit-with-an-extra-item): small
-- [A spawn's inventory over a newer equip](#a-spawns-inventory-over-a-newer-equip): small
+- [A guest's store of an item held in a list](#a-guests-store-of-an-item-held-in-a-list): small
 - [A party item removed without its tag](#a-party-item-removed-without-its-tag): small
-- [A party wipe's fight that misfires](#a-party-wipes-fight-that-misfires): medium
 - [An action sent before its copy exists](#an-action-sent-before-its-copy-exists): small
 - [The green flash scenarios' grab](#the-green-flash-scenarios-grab): small
 - [The guest's highlight with a still mouse](#the-guests-highlight-with-a-still-mouse): small
 - [A refused join shows nothing](#a-refused-join-shows-nothing): small
 - [A player at a chest reads lower than its copy](#a-player-at-a-chest-reads-lower-than-its-copy): small
 - [A rider at a scenario's end](#a-rider-at-a-scenarios-end): small
-- [Riverwood's scenery drifts apart](#riverwoods-scenery-drifts-apart): small
-- [Whiterun plains' critters differ](#whiterun-plains-critters-differ): small
 - [A guest crashed loading a copy's idle clips](#a-guest-crashed-loading-a-copys-idle-clips): small
+- [Riverwood's scenery drifts apart](#riverwoods-scenery-drifts-apart): small
 - [Cover plates after the host leaves](#cover-plates-after-the-host-leaves): small
 - [A follower's party ahead of its copies](#a-followers-party-ahead-of-its-copies): small
 - [Failures only deep in a long run](#failures-only-deep-in-a-long-run): medium
@@ -136,12 +138,23 @@ every other section needs the duo.
 - [The death scenario's wolf turns on the other player](#the-death-scenarios-wolf-turns-on-the-other-player): small
 - [A guest that never arrives after a fast travel](#a-guest-that-never-arrives-after-a-fast-travel): small
 
+**Found by the full run of 2026-11-22**
+
+- [A guest crash through a pointer that holds a vtable](#a-guest-crash-through-a-pointer-that-holds-a-vtable): medium
+- [A guest crash in the clip-load hook with no World](#a-guest-crash-in-the-clip-load-hook-with-no-world): small
+- [A late joiner never sees the host's drawn sword](#a-late-joiner-never-sees-the-hosts-drawn-sword): small
+- [A copy that sheathes while its owner fights](#a-copy-that-sheathes-while-its-owner-fights): small
+- [The party's sword unnamed at a merchant](#the-partys-sword-unnamed-at-a-merchant): small
+- [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
+- [Seen once in the run of 2026-11-22](#seen-once-in-the-run-of-2026-11-22): small
+
 **Test tools**
 
 - [Heap history crashes the host at a kill move](#heap-history-crashes-the-host-at-a-kill-move): small
 - [The gate fails on GameTests now and then](#the-gate-fails-on-gametests-now-and-then): small
 - [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours): small
 - [A scenario stages its speaker frozen](#a-scenario-stages-its-speaker-frozen): small
+- [A staging spot 1500 units off with no floor](#a-staging-spot-1500-units-off-with-no-floor): small
 
 ## Copy-desync follow-ups
 
@@ -160,6 +173,8 @@ Size: small. Needs: IDA, the duo (`party-buys-house-host`, `--repeat`), then Gam
   old. Both report sitting, the copy with no furniture; live graphs apart 6.3 s. Whether a player sees it: unread.
 - **The menu does not open** (1 of 21): `[host] the menu opens on 0001A67D`, 10 s after `Activate`, with no menu and Proventus not
   talking. Not seen again in 16 runs. Unread. These ran from a worktree whose UI did not load, but this menu is the game's own.
+- 2026-11-22, dev `aa723513`: `party-buys-house-host` 2 of 2 failed, neither on Proventus: once a player copy's
+  action ([An action sent before its copy exists](#an-action-sent-before-its-copy-exists)), once the lock pair.
 
 ### After a guest rejoins
 
@@ -174,22 +189,20 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
 
 - **References differ** (4 of 4): 13 to 15 references, containers by the change flag `0x8000000` on the host only (CommonLib
   `kLeveledInventory`, not read here) and loose objects' poses. It does not depend on time away: 1 s did it.
-- **A copy that stays off its owner** (2 of 2, Whiterun, 2026-11-09, `guest_shows_only_hosts_npcs` after its rejoin): a
-  Skeleton (`109620`, high process, the same package in both) stood 81 units from its owner and turned 123 degrees from
-  it through two reads 5 s apart, neither moving; 130 units and 130 degrees in the next run. Its spawn action is
-  `RagdollInstant`: a body lying in its ragdoll. Only after a
-  rejoin with a guest holding its own NPCs (copy-contract.md, "A guest's own NPCs"), where each NPC is hidden and gets
-  its 3D again only after the host's spawn; the same scenario without the rejoin agreed on it. Not read: where a
-  ragdolled copy's body settles when its 3D loads after its spawn placed it.
-  - 2026-11-21 (piece 10): a ragdoll's rest is its actor's record part now, so a copy made after it lies there
-    (GameTests "A guest joining beside a host corpse sees it lie as the host's"). One duo run of the scenario after it:
-    no difference on the Skeleton (it failed on townsfolk's animation picks instead). Delete after a second clean run.
 - **Also after a join with the host's save** (2 of 3): one hanging plant in the shop (`FLOR 38B0C`, `38BE6` or `38BE7`), its `b_Lower` bone
   turned differently. `released-copy-takes-up-its-ai` ends in the blank cell, so it does not fail on this.
 - **A guest joining again does not wear what it wore** (`guest-swaps-armor-after-join`, 2026-11-10): `[client] the guest
   wears iron armor again` times out, on dev's plugin 3 runs in 4 and on the graph input stream's 2 in 3 and 2 in 4
   (with and without players on the stream). The first run of a session passes more often than the next ones. Not
-  read.
+  read. 2026-11-22, dev `aa723513`: 4 of 4 passed (the full run and 3 reruns); no fast test covers it, so it stays
+  until one does.
+- **2026-11-22, dev `aa723513`:** `guest-rejoins-while-joined` 2 of 2 now stops before its end comparison: Lucan's
+  `ai_state.head_track` differs 4.5-7.1 s into a 10 s hold (host `['session 4']`, guest `['session 4', 'session 4']`,
+  and the reverse in the other run). `guest_shows_only_hosts_npcs` 2 of 2 ends on townsfolk after its rejoin:
+  Olava, Lucia and Sigurd sitting on the host (`sit_sleep` 3) and not on the guest (0); then Mila Valentia 66 units
+  off and Olfina on another action. The Skeleton that stayed off its owner (2026-11-09) was in neither run: with the
+  run of 2026-11-21 that is the two clean runs its bullet asked for, and GameTests "A guest joining beside a host
+  corpse sees it lie as the host's" covers it, so that bullet is gone.
 
 ### A copy's interaction idle
 
@@ -208,22 +221,6 @@ Size: small. Needs: IDA, then the duo (Riverwood), then GameTests.
   `MT_Standing_State` with `MT_Idle.HKX`, her copy in `MT_LocomotionType_State`. Same actor, not shown to be the same
   cause. `actors-walk-after-arrival`'s 12 s in Riverwood is too short: watch her by `ids`.
 - Loading the owner's snapshot (tried and reverted) put the copy in it, and it left at once.
-
-### A copy's graph after a turn or a pick
-
-One shape left of the old live check's runs of 2 s or more. The others (a wolf's turns, creatures' idle picks, the
-counter idle's pick) were a copy's graph fed different inputs: on the graph input stream every streamed copy equals
-its owner at every update (`wolf_copy_turns_with_owner` 180 s, Whiterun 120 s, `npc-counter-copy-falls-back-in`,
-2026-11-09).
-
-Agent task: rerun the death scenarios with the stream's live check (`expect stream`) and say whether this shape is left.
-
-Size: small. Needs: the duo (`death-spectate-host`, `death-spectate-guest`, `party-travel-dead-guest`).
-
-- **A wolf `Attack1State` beside a player's death** (`FF000E05`, 13.8 s, `death-spectate-host`; `FF000826`, 15.4 s,
-  `death-spectate-guest`; `FF000859`, 7.7 s, and `FF000D74`, 8.8 s, `party-travel-dead-guest`, until the actor stopped being
-  read; all before the stream): its owner's `RootBehavior` stays in the attack, its copy in combat idle. May be the
-  owner's graph held by the kill: [After the host dies](#after-the-host-dies).
 
 ### Headtracking on copies
 
@@ -274,6 +271,9 @@ Settled by the check, recorded so they are not filed again:
   no head is inferred, not measured.
 - Live actors agree: a hunting wolf, 680 samples on both games, every one the same; a combat slot switch reached the copy in
   70 ms.
+- 2026-11-22, dev `aa723513`: `kill-moves-cross` and the kill-move four passed. Two other NPCs now: Hulda
+  (`dead-player-keeps-weapon`, Whiterun: owner `['session 1']`, copy `[]` at the end) and Lucan
+  (`guest-rejoins-while-joined`: owner `['session 5', 'session 5']`, copy `['session 5']`, 7.1 s into a 10 s hold).
 
 ### Animation mods' random picks
 
@@ -323,6 +323,12 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   nothing (harness `reset_worn` on Aela's copy: hands [0, 0], her owner's torch and bow). The repair now checks each
   hand holds its worn weapon or torch (GameTests "A copy whose hands the engine's outfit reset emptied holds its
   owner's weapon again"). Not closed: no scenario of play that fails on dev shows a copy without its weapon.
+- **Shown by scenarios now** (2026-11-22, dev `aa723513`): `rejoined-guest-sees-rider` 2 of 2 ends with Faendal's copy
+  on the guest holding `[0, 80261]` where his owner holds `[80261, 80261]` (`state.hands`, left hand empty), and
+  `elder-scroll-vision-reaches-party` (late save) ends with the host player's copy on the guest at `[0, 80260]` against
+  `[80260, 80260]`. Both are bows (`13985` Hunting Bow, `13984` Long Bow), one form the process holds in both hands,
+  and the copy lost the left: the hand a bow is drawn in. Start from `rejoined-guest-sees-rider`'s `at-failure.json`:
+  what the hand repair compares for a form held in both hands, and whether the bow's 3D shows.
 
 ### End comparisons in towns
 
@@ -357,8 +363,18 @@ Size: medium. Needs: duo.
     from the interrupted execution 57-94 units off their owners (Lisette, Greta, Jala; Roggvir 66 off and facing 57 deg
     apart), and once the guest's player 40 units into the floor, owner and copy alike. Unread: whether the copies lag a
     run or hold a stale point.
+- 2026-11-22, dev `aa723513`: `copies_follow_owners_graphs_in_town` passed; `copy_holds_furniture_prop` ended on
+  Dorthe's copy 58 units off, `copy-leaves-furniture-steady` on the mill log, `copy-holds-spell-after-trip` on four
+  pieces of food, `guest-trips-platform-guard` on Evette San 75 units off and the guest's copy. On the
+  `LateAfterDragonslayerBackinSkyrim` boot `faendal-letter` passed whole (once), and
+  `copy-keeps-spell-after-party-travel` ended on 12 references (apples turned, activators `8AF59` with `0x8000000` on
+  one game).
 
 ### A strafing copy catches for a frame
+
+**Unclear, 2026-11-22:** `copy-strafes-with-host` passed 4 of 4 on dev `aa723513` (the full run and 3 reruns), where it
+failed 12 of 12 on a quiet machine before. What changed is not shown and no fast test covers it, so the entry stays
+until one does (or the shape below is read).
 
 `copy-strafes-with-host` fails on dev's plugin as often as on the graph input stream's (2026-11-09: dev 17 runs in 27,
 the branch 30 in 44; back to back on a quiet machine dev 12 in 12, the branch 9 in 12). Two things trip its stutter
@@ -402,6 +418,8 @@ Size: small. Needs: IDA, the duo, then GameTests.
   `spectator-watches-kill-move` then `host-rides-horse` 2 of 2 (2110-2122). `ragdoll-lies-as-host` right after each
   failed ride passed (2 of 2), so the lifted skeleton does not unsettle the next ragdoll (that entry, "A ragdoll that
   never settles after a failed ride", closed: 8 of 8 that day).
+- 2026-11-22, dev `aa723513` (pieces 1-10): `kill-moves-cross` then `host-rides-horse` 2 of 2 (pelvis 2099, 2106), and
+  `spectator-watches-kill-move` then `host-rides-horse` 2 of 2 (2083, 2097). The kill moves themselves pass.
 
 ### A refused rider left crouched
 
@@ -418,6 +436,9 @@ Size: small. Needs: IDA, the duo.
 - **Measured** (2026-11-20, `agent/piece-4b`, action claims): 3 of 7 runs (`fe9a7048` and the next build); 0 of 3 later
   runs where the host also won and "Ride on 1C refused ... our player gets off" logged; 0 of 2 runs before the claim
   refactor (those failed on Riverwood's drift). Not read yet whether the refactor changed the refusal's timing.
+- 2026-11-22, dev `aa723513`: 1 of 4 runs passed; the three failures were other shapes (a rabbit's and a fox's copy off
+  their owners, the mill's log: [Riverwood's scenery](#riverwoods-scenery-drifts-apart)), none crouched. Not enough
+  runs to say the crouch is gone.
 
 ### The Greybeards scene never casts the host's player
 
@@ -431,6 +452,7 @@ Agent task: read MQ105's stage 270 fragment and its scene's start conditions, th
 scene plays.
 
 Size: small. Needs: the duo with the late save.
+- 2026-11-22, dev `aa723513` (`duo --save LateAfterDragonRising`): 1 of 1 again, the same step.
 
 ## Ragdolls and death poses
 
@@ -456,6 +478,8 @@ flow.
     out once (`RemoveRagdollFromWorld`); what puts it back is not known.
   - Start: a failing run's `RagdollTrace` of the guest after its revive: when its bodies go back in the world, and
     which graph event (`AddRagdollToWorld`, 42873) or death action came just before.
+- 2026-11-22, dev `aa723513`: `revived-guest-gets-up`, `party-travel-dead-guest`, `death-spectate-guest` and
+  `kill-move-kills-guest` passed 1 of 1 each.
 
 ## Physics
 
@@ -509,6 +533,11 @@ Size: medium. Needs: the duo, then GameTests.
   bad read, 28 minutes up; `kept/host-crash-2026-11-15-20-48-12.log`).
 - **The harness's `world_state` crashed the host once** (access violation in `EngineCalls.cpp` `ReadPose`, walking an
   object's 3D), on the first call after staging; not seen again (nor in the 2026-11-18 reruns).
+- **2026-11-22, dev `aa723513`:** the full run passed `guest-push`, `host-push`, `guest-push-mixed`, `guest-tavern`;
+  `host-tavern` (a jump 5.2, vanilla's up to 4.8) and `host-push-mixed` (staging: "no physics world, or this frame's
+  picks are spent") passed in the rerun; `guest-carries-into-pile` 2 of 2 (jumps 7.6, 6.3), `host-carries-into-pile`
+  2 of 2 (staging, then a rest 3.2 units apart and a jump 4.9). `guest_pile_release_falls` 2 of 2 (rests 2.2-5.7 units
+  apart, then a let-go object put to sleep while it moved).
 
 ## Party scripts
 
@@ -528,6 +557,10 @@ Size: medium. Needs: GameTests (the fake must keep a copy's graph state).
     as a crash bundle ([bug-reports.md](design/bug-reports.md)).
   - Follow-up: graph bounds/types, descriptor invalidation and owner-value restoration are implemented; concurrent animation-snapshot protection is also implemented. Repeated native transitions pass, but the historical crash remains open. See [stability follow-up](v1-session-items-2026-10-28.md#stability-follow-up).
   - Still not reproduced (2026-11-18, `agent/bugs-dialogue`): `host-beast-form-stays-host` passed 2 of 2 on dev.
+  - **The stuck copy shows now** (2026-11-22, dev `aa723513`, 2 of 2, no crash): the end comparison finds the host's
+    werewolf owner on `IdleWerewolfTransformation` (action 77826) and its copy on the guest on `WeapUnEquip` (action
+    289711). So the copy never took the transform its owner did (the copy "refused `IdleWerewolfTransformation`" of
+    2026-10-28). Start from that run's `at-failure.json` and the guest's log at the transform.
   - Start: what the copy's graph holds when the owner's race changes back (the respawn from its new base data).
   - Test: a `GameTests` race switch back with the copy mid-transform, once the fake keeps a copy's graph state.
 
@@ -568,6 +601,8 @@ Size: small. Needs: duo.
     `ExtraDataList::RemoveAliasInstance` (12047: the list's lock for write, then 12719 the array's). So the pair is an
     alias leaving a reference while that reference's packages are judged. Its `[ours]` was wrong: see
     [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours).
+- 2026-11-22, dev `aa723513`: `party-loads-overlap` and `party-fast-travels` passed their lock audits; the pair still
+  shows in `party-buys-house-guest` and `party-buys-house-host` (see the pass-through entry).
 
 ### A follower stops following
 
@@ -619,6 +654,8 @@ slot later, with her conversation still open on the host. `follower-guest-recrui
 Agent task: read why the host's background conversation does not run the picked line (`HostConversation::OnPicked`).
 
 Size: small. Needs: the duo, then GameTests.
+- 2026-11-22, dev `aa723513`: `follower-guest-recruits` passed in the full run, then 1 of 3 reruns; the two failures
+  stopped at "vanilla recruitment fills the shared follower alias" (10 s).
 
 ### A deleted copy in an AI job
 
@@ -630,6 +667,26 @@ took the party from the Whiterun plains to QASmoke with a guest's conversation o
 Agent task: read what 39372 and 37541 dereference and why a deleted copy is still in the job's list.
 
 Size: small. Needs: IDA, then GameTests.
+
+### A passenger jumps 57 units as it takes the reins
+
+Seen on the duo 2026-11-18; `party-shares-a-horse` (Whiterun plains, `cow Tamriel 0 -4`) is its scenario.
+
+Agent task: read what hands the horse to a seated passenger and why its body jumps (start below).
+
+Size: small. Needs: IDA, the duo (`party-shares-a-horse`), then GameTests.
+
+- `party-shares-a-horse`, "the host gets off": the guest's own player, seated as a passenger, moved 57 units in one
+  frame (19 ms) 0.84 s into the host's get-off, as the horse was handed to it. 1 of 3 runs; the other two smooth.
+- Not the rider-off message: it reached the guest after the host's copy was already off (`Unboard ...: its copy on 0,
+  sit state 4`) in every logged run.
+- Start: trace the guest's player and horse around `PlayerTakeReins` (`EndMountPair`, `HoldRider`, 40725,
+  `EvaluatePackage` 37401) with `riders_smooth`'s body trace; read what 40725 / the mount package do to a seated rider.
+- 2026-11-22, dev `aa723513`: 1 of 3 runs, "the host gets off: [client 14] jumped 50 units in 16 ms at 0.77 s"; the
+  other two passed whole (their end comparisons too).
+- From the closed "Whiterun plains' critters differ" (2026-11-20, the claims refactor and piece 5, not read): once the
+  horse itself 53 units from its copy at the end, once two host elks' copies about 159 units off their owners. Not seen
+  in the two passing runs of 2026-11-22.
 
 ## Saves
 
@@ -695,12 +752,35 @@ Size: small. Needs: duo.
   (`death-wipe-twice-keeps-character`), 2 of 402 flows. No scenario touches them, so something in the cell
   pushes them (a player or a copy walking through, or a body settling) and the two games' physics disagree.
   - Start: which game moved it and when: `body_trace` on `32AFE` through a scenario that staged players beside it.
+- 2026-11-22, dev `aa723513`: the same ladles in 7 flows of about 500 run that day: change bit `0x2` on the guest
+  only on all three (`vampirism-kept-across-rejoin`, `late-join-gets-calendar`), `32AFE` turned (`party-stacks-on-arrival`,
+  `party-uses-door` 2 of 2, `guest-container-theft-and-fine`), 2 units off (`guest-murder-party-alarm`). In another
+  cell the same base (`38C1B`, `guest-crosshair-skips-leaning-npc`). `guest-throw-lands-on-host` once could not grab
+  `32AFE` ("holds nothing"). `vampirism-kept-across-rejoin`, `late-join-gets-calendar` and `party-stacks-on-arrival`
+  passed when rerun; `party-uses-door` did not.
 
 ## Crime and aggro
 
 ### The older crime scenarios
 
-The guard arrests have no passing run on 1.7.104, so nothing shows the arrest working.
+Since 2026-11-22 two arrests pass (`guest-guard-arrest-jail` and `guest-guard-arrest-resist`, 4 of 4 each on dev
+`aa723513`); the fine, the theft controls and the Ivarstead arrests still stop before their point.
+
+- **2026-11-22, dev `aa723513`** (the full run, then a shuffled rerun of each failure):
+  - "the host is unseen in the guest theft control": `guest-lockpick-party-alarm`, `guest-pickpocket-party-alarm`,
+    `guest-murder-party-alarm`, `guest-container-theft-and-fine` 2 of 2; `guest-theft-host-witnesses` and
+    `guest-assault-party-alarm` 1 of 2.
+  - `guest-guard-arrest-fine` 2 of 2 ("the sentence or fine moves the host", then "the witnessed theft charges the
+    party"); `host-guard-arrest-jail` 2 of 4, each on a lock order report tagged ours on the guest
+    (`+0x10587a6 > +0x16a695` against `+0x17014d > +0x1058a00`), not read.
+  - `guest-crime-flags`, which passed on 2026-11-05, now 2 of 2: "payment ends the guest's native alarm/combat" timed
+    out after 10 s.
+  - `guest-ivarstead-fine-mouse`, `-jail-mouse`, `-fine-mouse-sweep`: 2 of 2 each, the guest's game crashing in four of
+    the six ([A guest crash through a pointer that holds a vtable](#a-guest-crash-through-a-pointer-that-holds-a-vtable)),
+    the others "the guard naturally arrests the party" timed out.
+  - Scenes: `guest-theft-warned` (one run) took nothing back ("guest_player carries 0 of 64B36 and orgnar holds 0"),
+    `guest-theft-at-bar-bounty` passed its steps and failed its end comparison on a coin and a wine bottle,
+    `guest-theft-aggro` passed.
 
 - `guest-theft-warned` (2026-11-19, dev `9c55b453` and `agent/piece-3-items` alike): "the party has spent 0 theft
   warnings, expected 1", 3 runs; a fourth left the host stuck at `coc RiverwoodSleepingGiantInn`, which only a new
@@ -755,6 +835,8 @@ Size: small. Needs: duo.
 - **Lock order inversion with the host's player dead** (2026-11-05, `host-dies-guest-still-fought`, 2 of 6 runs, with and
   without the fix): `ExtraAliasInstanceArray` 12720 (0x140187955) then the player's reference lock in `Actor::IsGhost`
   (0x1406756F4), against 0x140172A5B then 12719 (0x140187881); our code on the stack, which frame not read.
+- 2026-11-22, dev `aa723513`: `host-dies-guest-still-fought` passed 3 of 3 (its lock audit too). At 2 of 6 before,
+  three runs do not show the pair gone.
 
 ## Found by the playthrough flow
 
@@ -842,22 +924,6 @@ entry here showed on dev's plugin too, or passed alone on both builds. They were
 engine paths are still to be read (step 0, CLAUDE.md). The run-by-run sorting of those failures is in git history
 (this file before 2026-11-16).
 
-### The guest player's copy wears nothing
-
-`dialogue-picked-text-visual` (2 of 3) and `quest-gold-turn-in-guest` (1 of 3), 2026-11-11: at the end, the host's copy of
-the guest's player has no equipment (`[]`, owner `[77387, 77385, 77382, 77389, 79760]`) and empty hands. The same shape
-was in `dialogue-options-are-the-partys` on 2026-10-30 and 2026-10-31 (the copy kept one item of five), so it predates the
-graph input stream. Unread: whether the copy was spawned again during the scenario, and what applies its worn set after.
-
-Agent task: read what gives a re-spawned player copy its owner's worn set, then make a GameTests flow for it.
-
-- 2026-11-19 (one-simulator.md piece 3): a copy now wears its owner's items part again on each 3D load, after the
-  engine's outfit reset (418622) and after a move to its owner's cell; the 3 s snapshot is gone. A player copy's round
-  trip to another cell kept its worn set on dev too, so this entry's trigger is still unread: run
-  `dialogue-picked-text-visual --repeat 4` on the new build before closing.
-
-Size: small. Needs: the duo (`dialogue-picked-text-visual --repeat 4`), then GameTests.
-
 ### A starting kit with an extra item
 
 `guest-makes-character-then-joins` (1 of 3, 2026-11-11): `[client] the starting kit changed`, with `F11B6` beside the
@@ -902,30 +968,10 @@ Size: small. Needs: GameTests, then the duo.
   keeps its party stacks as the party's store sets them, so after that cleanup the store's 1 stays on the host's and the
   guest's copies (players 0), and `party-item-moves-host` run next stops at "a player carries [P] Key to Breezehome to
   begin with". Alone on a fresh boot it passes.
-
-### A spawn's inventory over a newer equip
-
-Stands alone: one copy's worn set.
-
-Agent task: Make a copy keep an equip its owner sent after the spawn's inventory was read.
-
-Size: small. Needs: GameTests, then the duo.
-
-- **A fresh copy loses what its owner equipped right after spawning** (`host-quickloads-party`: branch 3 of 4, dev 2
-  of 4, 2026-11-11). The host places Aela; her game equips her bow 50 ms later and sends the equipment change. On the
-  guest the change lands first ("equip 1D4EC: ours", "Equipment reconcile: reset worn set"), then the spawn's
-  inventory, read before the bow, is applied when the copy's 3D is ready ("Setting inventory for actor") and unequips
-  it: the copy stands with an empty hand until the next change.
-  - Start: `CharacterService`'s `WaitingFor3D` inventory against `InventoryService`'s equipment changes for the same
-    copy: the older one must not win.
-  - 2026-11-19 (one-simulator.md piece 3): read in our code, the spawn's inventory applied at 3D over a newer equip; it is
-    gone (the items part, newest version, applied at 3D). GameTests "An equip sent after the spawn was read survives it"
-    fails on dev and passes. Not closed: no MCP-recorded scenario yet (the race needs the copy's 3D after the equip;
-    in QASmoke the copy has 3D before `stage` returns).
-  - Test: a GameTests flow, an NPC that equips one frame after it is announced, the copy's 3D ready later.
-  - Also `host-loads-party` (branch 1 of 4, dev 1 of 4) and `host-menu-loads-party` (branch 2 of 4, dev 0 of 4),
-    2026-11-12: Aela's copy lacks `1D4EC` and its right hand is empty, the same shape.
-  - 2026-11-16, dev's full run: `host-quickloads-party` and `save-load-gate`, Aela's copy lacking `1D4EC` both times.
+- 2026-11-22, dev `aa723513`: the second shape again in the full run, `party-item-moves-guest` stopping at its start
+  (`{'host player': 0, 'host copy': 1, 'client player': 0, 'client copy': 1}`) after the party-item scenarios before
+  it, and `party-quest-item-guest` beside it ("a player carries the Golden Claw to begin with"); both passed in the
+  shuffled rerun.
 
 ### An action sent before its copy exists
 
@@ -951,6 +997,9 @@ Size: small. Needs: GameTests.
     HostAuthorityTests "a player's latest relayed action". Not yet seen on the duo whether the travels' copies come
     from the record or from the host's copy (`ReadCopy`, its own action, the one behind).
   - Start: which spawn the host's new copy came from after the travel: the record, or an earlier one in flight.
+- 2026-11-22, dev `aa723513`: `party-travel-mounted-guest`, `party-fast-travels` passed; `party-buys-house-host`
+  ended once on the shape (the guest's player `JumpLandEnd`, idle 704248; the host's copy `JumpLand`, idle 689444),
+  then on the lock pair of [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours).
 
 ### The green flash scenarios' grab
 
@@ -964,6 +1013,7 @@ Size: small. Needs: the duo.
   mouse sweep dropped the prop before the contact probe completed". Its neighbours pass now (`-handoff` and `-guest` 4
   of 4, the observer scenarios), so the S2 green-flash fix has a running check; this one is the wine's grab alone.
   - Start: the game's grab readout at the failure (`at-failure.json`) against the scenario's sweep.
+- 2026-11-22, dev `aa723513`: 3 of 4 passed (the full run, then 2 of 3 reruns); the failure was the same message.
 
 ### The guest's highlight with a still mouse
 
@@ -978,6 +1028,9 @@ Size: small. Needs: the duo.
   Not read further: whether the guest's still mouse re-highlights its own row each frame, or the host's move never
   arrives.
   - Start: the guest's SWF `cursor_index` and the dialogue log through the host's move.
+- 2026-11-22, dev `aa723513`, 2 of 2: it now stops one step earlier, "the host follows mouse option 1" timed out
+  after 5 s. The same pair of menus also disagree in `dialogue-hover-while-guest-picks`, 2 of 2: "the menus differ in a
+  conversation: cursor at +9.8s: host 1 vs guest 0". Read both from the same start.
 
 ### A refused join shows nothing
 
@@ -993,8 +1046,14 @@ Size: small. Needs: the duo.
   failed nor timed out. `progress.md` records `join-refused-shows-why` passing in an earlier combined run, so either the join
   handshake changed under the stand-in (`Code/tests/peer/`) or the guest's handling of a refusal broke.
   - Start: the guest's log from the connect to the timeout; `coop_peer`'s output for the refusal it sent.
+- 2026-11-22, dev `aa723513`, `coop_peer` built in the worktree: both again 2 of 2, the same messages;
+  `join-refused-plugins-differ` passes. The first leaves the guest "already connected or connecting", so the runner
+  boots the duo again after it.
 
 ### A player at a chest reads lower than its copy
+
+**Unclear, 2026-11-22:** `chest-take-all` and `furniture-host-player` passed 4 of 4 each on dev `aa723513` (the full
+run and 3 reruns), where the chest failed every run before. What changed is not shown and no fast test covers it.
 
 Stands alone: one end comparison.
 
@@ -1033,6 +1092,9 @@ Size: small. Needs: the duo.
   ridden.
 - **The guest's horse menu lacks the horse** (2026-11-16, once): not seen again on a clean world.
   - Start: buy through the MCP (`talk`, the topics), then `mount_readout` and the horse's packages before getting on.
+- 2026-11-22, dev `aa723513`: `party-buys-horse-guest` passed 4 of 4 (the full run and 3 reruns), so the first shape
+  did not show; no fast test covers it. `party-buys-horse-host` 2 of 2: "the crosshair is on nothing, not 429428: 230
+  units off" (238 in the rerun).
 
 ### A guest crashed loading a copy's idle clips
 
@@ -1049,29 +1111,6 @@ Size: small. Needs: IDA, then the duo.
   `SKSE/crash-2026-11-17-23-28-37.log`.
   - Probably fixed by `agent/coc-whiterun-crash` (PR #71, merged 2026-11-17: the same job, 63997, faulting on a
     deleted copy's held clip load after a `coc`); rerun a `coc` with riders to confirm, then delete this entry.
-
-### Whiterun plains' critters differ
-
-2026-11-21 (piece 10): critters, their landing markers and references on a TranslateTo path are each game's own and no
-longer compared (`comparisons.scenery`). Left to see on the duo: the horse and elk copies apart at the end (the run of
-2026-11-21 failed earlier, on the guest's 71-unit jump getting on: "A passenger jumps 57 units as it takes the reins").
-
-Stands alone: `party-shares-a-horse` (Whiterun plains, `cow Tamriel 0 -4`).
-
-Agent task: Find why the critters the plains spawn differ between the games, and make the scenario's end check pass.
-
-Size: small. Needs: the duo.
-
-- 2026-11-17, 2 of 3 runs: every step passes, then the end comparison fails only on created references nobody touched:
-  `ACTI B97AF` / `ACTI 22219` (flag `0x8000000` on the host's alone, graph `fTakeOffDamped` set on the host's, 0 on
-  the guest's) and `STAT C2D47` present on the guest only. The third run passed clean.
-  - Start: read which game spawns these (a critter spawner's script, created references) and whether HostWorldState
-    sends them; `Riverwood's scenery drifts apart` below may share the answer.
-- 2026-11-20 (`agent/piece-4b`, the claims refactor): 2 of 3 runs the same critters; the other run failed instead on the
-  horse itself, the host (its owner again) and the guest's copy 53 units apart at the end. Not seen again in the next
-  two runs; whether a give-back's placement or the copy's playback delay, not read yet.
-- 2026-11-20 (`agent/piece-5`, passengers seated at once): every step passed, the end comparison failed on two host
-  elks, the guest's copies about 159 units off their owners (wild NPCs nobody touched; not read).
 
 ### Riverwood's scenery drifts apart
 
@@ -1094,6 +1133,11 @@ Size: small. Needs: the duo.
   touched by the scenario; the short `mount_roundtrip` scenarios in the same cell pass.
   - Start: `scene` now baselines the world differences already there; these appear during the run. Read which of
     them the host sends (HostWorldState) and which each game simulates alone.
+- 2026-11-22, dev `aa723513`: the mill's log (FURN 71C47, `71DFC` posed 32-38 units apart) failed
+  `copy-leaves-furniture-steady`, `guest-talk-nothing-to-say`, `wolf_copy_turns_with_owner` and one
+  `two-players-race-for-horse`; Riverwood's tomatoes and food `copy-holds-spell-after-trip`. `horse-passes-between-riders`
+  failed twice on other shapes ("[client] activating horse did nothing in 5 s", then a rabbit's copy 70 units off),
+  `rejoined-guest-sees-rider` on a copy's bow ([A copy without its weapon](#a-copy-without-its-weapon)).
 
 ### Cover plates after the host leaves
 
@@ -1110,6 +1154,8 @@ Size: small. Needs: the duo.
   ambient animation each game runs on its own clock, which the world check should then not compare, or a state one
   game misses.
   - Start: whether the plates animate with nobody touching them (two world checks a few seconds apart on one game).
+- 2026-11-22, dev `aa723513`: `host-quits-to-main-menu` 2 of 2 and `host-ingredient-knowledge-control` once (its
+  rerun crashed the guest first), the same seven plates.
 
 ### A follower's party ahead of its copies
 
@@ -1126,6 +1172,10 @@ Size: small. Needs: the duo.
   check allows.
   - Start: whether the same actors agree two seconds later (`expect stays`); if they do, the scenario's wait is the
     bug, and this moves to Test tools.
+- 2026-11-22, dev `aa723513`: 2 of 2, Stump 159 and 146 units from his copy. The same shape in other scenarios that
+  end in Riverwood: `save-load-gate` (Dorthe 103 units, then Hilde sitting on the host and standing on the guest,
+  `sit_sleep` 3 against 0), `copy_holds_furniture_prop` (Dorthe 58), and in Solitude `guest-trips-platform-guard`
+  (Evette San 75). Townsfolk copies trailing or off their owners' furniture at a comparison is the common shape.
 
 ### Failures only deep in a long run
 
@@ -1138,21 +1188,21 @@ Size: medium. Needs: the duo.
 
 Each failed once in the 388-scenario run of 2026-11-11 and passed alone on dev's plugin and on the branch:
 
-- **`party-aggro-host-first`** (the first scenario of the run): "the enemy flipped away from the higher-damage player:
-  20". Again first in the run of 2026-11-12, then branch 2 of 4 and dev's plugin 1 of 4 alone (on dev "[host] host's
-  first hit lands" timed out): it fails alone too. 2026-11-16: first in the run again (the same message), then 1 of 3
-  alone ("the enemy initially targets the first attacker (host)" timed out).
 - **`dialogue-refused-pick-restores-list`:** "[client] its chat shows the host's refusal". Again 2026-11-16, the
-  run's 25th scenario, so not only deep in a run; 3 of 3 alone after.
-- **`guest-changes-looks-in-session`:** "the vampire change replaced the existing copy".
-- **`furniture-host-player`:** the guest's player `pose.head` 99.6 against its copy's 124.1 afterwards: the same shape
-  as [the chest's](#a-player-at-a-chest-reads-lower-than-its-copy). Again in the full run of 2026-11-16 (100 against
-  124), 3 of 3 alone after.
-- **`host-kill-move`:** "[client] wolf's graph sends KillActor" timed out after 5 s.
+  run's 25th scenario, so not only deep in a run; 3 of 3 alone after. Again 2026-11-22 (the 23rd), then passed in the
+  shuffled rerun.
+- **`guest-changes-looks-in-session`:** "the vampire change replaced the existing copy". Passed in the full run of
+  2026-11-22.
+- **`host-kill-move`:** "[client] wolf's graph sends KillActor" timed out after 5 s. Passed in the full run of
+  2026-11-22.
 - **`dialogue-guest-barter-earns-speech` and `dialogue-guest-placed-barter-reopens`,** one after the other: "the
-  merchant offers its barter line" timed out after 30 s.
+  merchant offers its barter line" timed out after 30 s. 2026-11-22: both again one after the other in the full run,
+  then `-earns-speech` again in the shuffled rerun (so it fails away from its neighbour too), `-placed-barter-reopens`
+  passed.
 - **`dialogue-two-starts-at-once`:** "[client] FF000D73 is between the player and andurs": an actor some earlier
-  scenario left in the cell.
+  scenario left in the cell. Passed in the full run of 2026-11-22.
+- Gone 2026-11-22 (dev `aa723513`, 4 of 4 each: the full run and 3 reruns): `party-aggro-host-first` (the enemy's
+  flip, its first hit) and `furniture-host-player` (the guest's player lower than its copy).
 - The head-tracking four are under [Headtracking on copies](#headtracking-on-copies), the two travel ones under
   [An action sent before its copy exists](#an-action-sent-before-its-copy-exists),
   `form-state-round-trips` under [A character's base bytes after joining](#a-characters-base-bytes-after-joining).
@@ -1178,6 +1228,7 @@ Size: small. Needs: the duo (`form-state-round-trips` after a full run's earlier
   base (a copy's created base) writes the reference's `ExtraFactionChanges`, never the base's list (read in IDA). So
   the copy's base keeps the snapshot's five. Passes after a reload (the announcement then carries six). Start: decide
   whether the check should read the copy's factions (base and reference) or the copy's base list should be written.
+- 2026-11-22, dev `aa723513`: 2 of 2, the same bytes (`...04c6b00c00` against `...0500`).
 
 ## Seen in the final review's duo runs (2026-11-12)
 
@@ -1195,6 +1246,8 @@ Size: small. Needs: the duo. Waits for: nothing.
   the piece 2 branch; then 10 back-to-back on dev `f7a72494` and 10 on piece 2: 0 of each). The step follows the host's load of a save
   and the party's rejoin; it passed alone and after the kill move scenarios alike. No crash log; the failure's
   readout showed the guest standing in the baseline cell. Not read.
+- 2026-11-22, dev `aa723513`: the kill step passed both runs (the full run failed its end comparison on a
+  container instead: [Seen once](#seen-once-in-the-run-of-2026-11-22)).
 
 ### A kill move that never pairs
 
@@ -1209,6 +1262,7 @@ Agent task: run `kill-move-kills-guest --repeat 20` on `1a4a44a4` and on the cur
 start (`HookTryMoveTo`, the instance, `PairOnStream`).
 
 Size: small. Needs: the duo, IDA.
+- 2026-11-22, dev `aa723513`: `kill-move-kills-guest` passed 1 of 1. Too few runs to close.
 
 ### A guest crash in the garbage collector's job
 
@@ -1231,6 +1285,8 @@ follows in 5 s. The host's log has the press 0.65 s after the respawn, the playe
 Agent task: make the respawn step wait for the player to stand (its fall over) before it presses, then see what is left.
 
 Size: small. Needs: the duo.
+- 2026-11-22, dev `aa723513`: `death-spectate-host`, `client-melee-kill-credit` and `friendly-fire-kill` passed
+  1 of 1 each. Too few runs to close at 1 in 58.
 
 ### The attacker's copy not in its kill move
 
@@ -1242,6 +1298,8 @@ moment plays the action instead. Which path missed: not read.
 Agent task: log which branch took the `pa_Kill` action for the attacker's copy, then `host-kill-move --repeat 30`.
 
 Size: small. Needs: the duo.
+- 2026-11-22, dev `aa723513`: `host-kill-move` passed; `frozen-wolf-kill-move` failed once with the same message
+  ("[client] player's kill_move is True" timed out after 3 s) and passed in the rerun.
 
 ### A knocked-down copy placed 62 units off
 
@@ -1253,6 +1311,7 @@ over the day: 3 of 5 and 0 of 3 only while a wrong check refused sync points (re
 Agent task: read what places a copy that stands up 62 units above the floor (its capsule against the bodies' last frame).
 
 Size: small. Needs: IDA, the duo.
+- 2026-11-22, dev `aa723513`: `knockdown-lies-as-host` passed 1 of 1.
 
 ### Sync points asked for over and over
 
@@ -1285,6 +1344,7 @@ Agent task: read what `B8782` is and what put it on the player eighteen times, t
 (`death.md`, abilities on revive).
 
 Size: small. Needs: the duo (`death-spectate-guest --repeat 6`), then GameTests.
+- 2026-11-22, dev `aa723513`: `death-spectate-guest` passed 1 of 1.
 
 ### The death scenario's wolf turns on the other player
 
@@ -1299,6 +1359,7 @@ Agent task: read why the wolf's target moved to the guest's copy (`combat_watch`
 whether it is the game's choice (the scenario stages wrong) or ours.
 
 Size: small. Needs: the duo (`death-spectate-host --repeat 6`).
+- 2026-11-22, dev `aa723513`: `death-spectate-host` passed 1 of 1.
 
 ### A guest that never arrives after a fast travel
 
@@ -1310,6 +1371,129 @@ refused: no answer`), so the duo was booted again. It passed 3 of 3 after; its l
 Agent task: read the guest's log from the travel to the timeout: a load that never ended, or a hang.
 
 Size: small. Needs: the evidence above, then the duo (`party-fast-travels --repeat 8`).
+- 2026-11-22, dev `aa723513`: `party-fast-travels` passed; `late-join-gets-load-door-lock` failed the same way once
+  ("[client] arrived in QASmoke" timed out after 60 s, then `{'cmd': 'dialogue'} refused: no answer`; passed in the
+  rerun). The guest's game had crashed: `crash-2026-11-22-03-04-37.log` in the worktree's client prefix, a null read
+  (`+0x18`) in `hkbBehaviorGraph` code (60025, from 59686, 59311, 58329) under our graph hooks (two frames of ours,
+  from 63587 and 63358). So at least one such hang is that crash.
+
+## Found by the full run of 2026-11-22
+
+From the run on dev `aa723513` (one-simulator.md pieces 1-10 merged; the header above). Each entry failed in the full
+run and again in a shuffled rerun of every failure, unless it says otherwise. Evidence:
+`build/coop-test/results/<time>/at-failure.json` and the client prefix's `SKSE/crash-*.log` in the `bugs-audit-suite`
+worktree. Engine paths are still to be read (step 0, CLAUDE.md) unless an entry says read.
+
+### A guest crash through a pointer that holds a vtable
+
+The guest's game crashed six times in about three hours of scenarios, every time writing through an object pointer
+whose value is the address of a class's vtable in `.rdata` (read in IDA: the written addresses are vtables or vtable+8,
+each crash site commented in the database). Never the host's game.
+
+Agent task: catch one with the heap history on (`coop_test.py repro`, [Heap history crashes the host at a kill
+move](#heap-history-crashes-the-host-at-a-kill-move) first) and name the object freed while a movement or package
+pointer still held it.
+
+Size: medium. Needs: IDA, the duo (`guest-ivarstead-fine-mouse-sweep` crashed 2 of 2, `guest-ivarstead-jail-mouse`
+1 of 2), then GameTests.
+
+- The six, measured (crash logs, 2026-11-22 03:25 to 05:08):
+  - `sub_141236FC0` (92960) writes `[rcx+8]` with rcx a vtable: `BGSAIWorldLocationRefRadius`'s
+    (`guest-ivarstead-jail-mouse`, 03:25) and `MovementMessagePathFailed`'s (`host-ingredient-knowledge-control`,
+    05:06); both from `Actor::SetMovementPath` (37801) -> `ActorMover::SetGoal` (41607) ->
+    `MovementPathManagerArbiter::EndPath` (90880), an AI package's procedure tree (28920-28930) under
+    `Actor::UpdateAI` (37347) and our AI hook.
+  - `BGSPackageDataLocation`'s vtable written: `guest-ivarstead-fine-mouse-sweep` (03:26, at `0x1401DB590`; the log
+    was cut short) and `guest-ivarstead-fine-mouse` (05:01, `sub_141217470` (91958) from the path builder 31483).
+  - `guest-ivarstead-fine-mouse-sweep` again (05:08): a refcount add (`sub_14079A210`, 41783) on
+    `MovementMessagePathFailed`'s vtable, from `Actor::Revert` (37653) -> `MovementControllerNPC` (41692).
+  - `host-quickloads-party` (04:44): `ExtraDataList::ctor` (11583) with this = `BaseExtraList`'s vtable, from
+    `InventoryChanges::InitLeveledItems` (16129) under our `InitInventoryIfRequired` hook (16038) at a reference's 3D
+    load.
+- Read from the logs, inferred: a field holding a pointer read as an object's first word, which is what a freed
+  block reused by another object of a vtable'd class gives. Five of six are movement and package-location objects
+  (refcounted), so the first suspect is an actor's path or package target released on the guest while its mover still
+  holds it.
+
+### A guest crash in the clip-load hook with no World
+
+`hands-survive-reload-host-player` (2026-11-22 05:34, the shuffled rerun; the full run failed it on "[client] host's
+character's respawned copy has the hands raised"): the guest crashed in our code, a read of `0x2A8` (a null base).
+Symbolized: `GraphStreams::FindOwned` (`GraphStream.cpp:268`, its mutex) from `GraphStreams::Recording` <- `LogOwnerLoad`
+<- `HookLoadEventClips` (`GraphStreamHooks.cpp:502-511`), called from the engine's clip load (39291, from 37325 on an AI
+job). So `World::Get()` gave a null `World` (an empty `entt::locator`) while an AI job loaded clips. Read in code, not
+measured: when the locator is empty.
+
+Agent task: find when the locator holds no `World` while the engine's jobs run (a quit, a load, a swap), and make the
+hook safe then.
+
+Size: small. Needs: the code, then the duo (`hands-survive-reload-host-player --repeat 4`).
+
+### A late joiner never sees the host's drawn sword
+
+`late-join-client` 2 of 2 (2026-11-22): the guest leaves and joins again while the host draws a sword; after the join
+"[client] the host's character has the sword drawn" times out after 15 s, though the NPC's copy holds its sword and
+shows its health. The host's copy on the guest is spawned with its worn set (`Equipment reconcile FF00206A: reset worn
+set`, the engine's own equip refused) but not the drawn weapon. Not read: what carries a player's drawn state to a
+copy spawned after the draw.
+
+Agent task: read what puts a new copy in its owner's weapon state, and make a fresh copy of a player with its weapon
+out draw it.
+
+Size: small. Needs: the duo, then GameTests.
+
+### A copy that sheathes while its owner fights
+
+`client-angers-host-ally` 2 of 2 (2026-11-22): the guest burns the host's ally Lydia until she turns on it; every step
+passes, then the end comparison finds Lydia's copy on the guest with `state.weapon_state` 0 (sheathed) while her owner
+holds 2 (drawn). Not read: whether her copy ever drew, or drew and sheathed again.
+
+Agent task: trace Lydia's weapon state on both games through the fight, then read what sheathed the copy.
+
+Size: small. Needs: the duo, then GameTests.
+
+### The party's sword unnamed at a merchant
+
+`party-item-sold-guest` 2 of 2 (2026-11-22): the guest opens the barter menu to sell the party's sword and the list has
+"Iron Sword" but no "[P] Iron Sword": the party item's name tag is not on it in the guest's barter list, so the
+scenario cannot pick it. Not read: whether the guest still holds it as the party's stack, or only the tag is missing
+from that menu's names.
+
+Agent task: read the guest's party stacks and the barter menu's names at that step.
+
+Size: small. Needs: the duo, then GameTests.
+
+### A dragged corpse's copy apart from its owner
+
+`guest-drags-host-corpse` 2 of 2 (2026-11-22): the guest drags a host wolf's corpse back. First run: its copy on the
+guest does not lie as the host's body (bones 1 to 19 degrees and 1-8 units off). Second: "[host] the ragdoll of
+FF0019A6 comes to rest" timed out after 30 s. Not read.
+
+Agent task: trace the corpse's bodies on both games after the drag (`ragdoll_trace`), then read which game's rest is
+kept.
+
+Size: small. Needs: the duo, then GameTests.
+
+### Seen once in the run of 2026-11-22
+
+Each failed once and passed in the shuffled rerun (or ran once). Recorded so a second sighting can join them.
+
+Agent task: when one shows again, give it its own entry.
+
+Size: small. Needs: the duo.
+
+- `dive-host-player`: "copy's health while under water [97, 98, 99, 100], owner's 100".
+- `names-in-every-case`: its end comparison found a container (`C2CE8`, CONT `C2CDD`) with 1 of each of about 15
+  items on one game and 0 on the other.
+- `guest-sets-down-item`: "[host] shows it where it rests" timed out after 5 s.
+- `guest-bump-moves-host`: "[host] 1 objects back where they were" timed out after 30 s.
+- `world-changes-reach-guest`: "the client's world does not follow the host's".
+- `guest-makes-character-then-joins`: "[client] the Body category is open" timed out (the race menu), then the host
+  refused the guest ("has no character in the host's save and brings none") and the duo was booted again.
+- `host-menu-loads-party`: "the guest loads the save from its store and rejoins" timed out after 120 s.
+- `guest-steals-created-item` (scene, one run): "the party's bounty is {'host': {}, 'guest': {}}, expected at least 1".
+- `object-rests-beside-orgnar` (scene, one run): "[guest] cheese has the host's rest" timed out after 2 s.
+- `guest-rejoins-while-joined` and `guest_shows_only_hosts_npcs` (scenes): see [After a guest rejoins](#after-a-guest-rejoins).
 
 ## Test tools
 
@@ -1353,6 +1537,8 @@ Agent task: give `HookUpdateAI` a size that covers it, and make the checker fail
 longer than its size (or measure the size instead of writing it).
 
 Size: small. Needs: a build; the duo to confirm (`party-buys-house-guest`).
+- 2026-11-22, dev `aa723513`: still, `party-buys-house-guest` 2 of 2 and `party-buys-house-host` once, the same pair
+  tagged `[ours]` on the host (`+0x187a10 > +0x165490` against `+0x172a5b > +0x187881`).
 
 ### A scenario stages its speaker frozen
 
@@ -1368,12 +1554,16 @@ Size: small. Needs: the duo.
   false" (`actions/play_verbs.py`: a frozen speaker never finishes a line). The scenario stages him frozen, so whether a placed speaker deleted mid-conversation is
   handled has no running check.
   - Start: stage him unfrozen and restrained, as `dialogue.py`'s other placed speakers are.
+- 2026-11-22, dev `aa723513`: 2 of 2, the same message.
 
-## A passenger jumps 57 units as it takes the reins (duo, 2026-11-18)
+### A staging spot 1500 units off with no floor
 
-- `party-shares-a-horse`, "the host gets off": the guest's own player, seated as a passenger, moved 57 units in one
-  frame (19 ms) 0.84 s into the host's get-off, as the horse was handed to it. 1 of 3 runs; the other two smooth.
-- Not the rider-off message: it reached the guest after the host's copy was already off (`Unboard ...: its copy on 0,
-  sit state 4`) in every logged run.
-- Start: trace the guest's player and horse around `PlayerTakeReins` (`EndMountPair`, `HoldRider`, 40725,
-  `EvaluatePackage` 37401) with `riders_smooth`'s body trace; read what 40725 / the mount package do to a seated rider.
+`dialogue-nobody-moves` 2 of 2 (2026-11-22) stops at its staging: `place` puts the host's player 1500 units from the
+guest at bearing 90 and finds "no clear spot" (90: a copy in the way 832 units from the spot; every other bearing: no
+floor). QASmoke has no floor that far out on those bearings, so the scenario asks for a spot its cell does not have,
+and whether a conversation goes on with nobody moving has no running check.
+
+Agent task: stage the host where QASmoke has floor (a shorter distance, or a bearing `place` finds), and see what the
+scenario then shows.
+
+Size: small. Needs: the duo.
