@@ -62,6 +62,9 @@ TEST_CASE("Drawn hands: the owner's settled state, put right on a copy once it i
     CHECK(PutsHandsRight(true, WeaponState::Drawing, true));
     CHECK(PutsHandsRight(false, WeaponState::Sheathing, false) == false);
     CHECK(PutsHandsRight(true, WeaponState::Sheathing, true));
+    CHECK(PutsHandsRight(false, WeaponState::Sheathing, true)); // a sheathe the stream cut off ends sheathed
+    CHECK(PutsHandsRight(false, WeaponState::Drawing, true));   // a draw its owner has since put away
+    CHECK_FALSE(PutsHandsRight(false, WeaponState::Sheathed, true));
     CHECK_FALSE(HandsSettled(true, WeaponState::Drawing));    // looked at again once its animation ends
     CHECK_FALSE(HandsSettled(true, WeaponState::WantToDraw)); // a refused draw (37279) is tried again
     CHECK(HandsSettled(true, WeaponState::Drawn));

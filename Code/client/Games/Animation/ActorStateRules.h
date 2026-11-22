@@ -82,17 +82,16 @@ constexpr std::optional<bool> SettledHands(WeaponState aOwner, bool aOwnerDead) 
         return false;
     return std::nullopt;
 }
-// A copy not mid-animation that shows the other hands is put right. Done only once its hands settle as its owner's:
-// a draw the engine refuses (37279: weapon state 1, or 4 for a sheathe) is tried again, every kHandsRetry. On its
-// stream its own weaponDraw/weaponSheathe (42824, 37169) never comes: mid-animation there is a draw from before it.
+// A copy not settled as its owner's is put right, every kHandsRetry (a draw 37279 refuses stays at 1 or 4). Off its
+// stream not mid-animation; on it its own draw end (42824, 37169) never comes, so any unsettled state.
 constexpr double kHandsRetry = 0.25;
-constexpr bool PutsHandsRight(bool aPartHandsUp, WeaponState aCopy, bool aOnStream) noexcept
-{
-    return (aOnStream || !IsAnimating(aCopy)) && ShowsHandsUp(aCopy) != aPartHandsUp;
-}
 constexpr bool HandsSettled(bool aPartHandsUp, WeaponState aCopy) noexcept
 {
     return aCopy == (aPartHandsUp ? WeaponState::Drawn : WeaponState::Sheathed);
+}
+constexpr bool PutsHandsRight(bool aPartHandsUp, WeaponState aCopy, bool aOnStream) noexcept
+{
+    return aOnStream ? !HandsSettled(aPartHandsUp, aCopy) : !IsAnimating(aCopy) && ShowsHandsUp(aCopy) != aPartHandsUp;
 }
 
 // Noise (actionValue, SetActionValue 37711: a player's bump, a swing, a cast): an actor's own engine makes its owner's;

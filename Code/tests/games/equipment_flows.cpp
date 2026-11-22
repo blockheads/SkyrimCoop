@@ -235,6 +235,29 @@ SCENARIO("A copy put right before its stream starts ends drawn", "[equipment][pl
     party.Agree("the guest's copy of the host's player has its hands up");
 }
 
+SCENARIO("A copy mid-draw whose owner sheathed before its stream starts ends sheathed", "[equipment][players][weapon-draw]")
+{
+    // A draw 37279 took (state 2) whose own end (42824) the sync point cut off, its owner's hands down since.
+    Party party(1, SmokeWorld, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+        engine->Graph = FakeGraphRules{};
+    guest.WeaponClipFrames = 2000;
+    party.As(party.Host(), [&] {
+        host.Actors.at(FakeEngine::kPlayer).GraphState = "Standing";
+        host.Draws(FakeEngine::kPlayer, true);
+    });
+    party.Join(party.Guest());
+    party.Until([&] { return PlayerCopy(guest) != 0; }, "the guest's game has the host's player");
+    const uint32_t cCopy = PlayerCopy(guest);
+    party.Until([&] { return guest.Actors.at(cCopy).Weapon == WeaponState::Drawing; }, "its hands are put up off its stream");
+    party.As(party.Host(), [&] { host.Draws(FakeEngine::kPlayer, false); });
+    guest.Actors.at(cCopy).GraphState = "Standing";
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy); }, "its copy is on its owner's stream");
+    party.Until([&] { return guest.Actors.at(cCopy).Weapon == WeaponState::Sheathed; }, "its copy ends sheathed");
+}
+
 SCENARIO("A quest's outfit rebuild cannot leave a player's copy partly undressed", "[equipment][outfit-rebuild]")
 {
     Party party(1, SmokeWorld);

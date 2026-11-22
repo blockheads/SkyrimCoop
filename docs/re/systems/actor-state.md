@@ -110,21 +110,24 @@ Read in IDA 1.7.104 unless marked.
   (Character override 38821: iMagicEquipped, iLeft/iRightHandType graph ints; base 38979 writes weapon state 3).
   The sheathe's end is 37169 (42825's body), the same with 0. 38979 skips the write while the opposite request is
   pending (4 for a draw, 1 for a sheathe). 37279 (`DrawWeaponMagicHands`) leaves 2 when its draw action is taken.
-- **So a copy at 2 waits for a `weaponDraw` its graph must raise.** A draw taken off its stream (`SetWeaponDrawnEx` ->
-  37279) whose graph is then replaced by a sync point never raises it: weapon state stays 2, and
-  `PutsHandsRight` waits on `IsAnimating` for good. Measured on `late-join-client` (2026-11-22, 3 of 4 failed): the
-  host player's copy is put right off its stream ("hands up ... (weapon state 0)"), its stream starts 60-500 ms later
-  ("events dropped"), and it stays at 2 with the sword in its hand slot against its owner's 3.
-  `Actor::ShowWeaponDrawn` (42824 / 37169 called directly) settles any state.
-- **The sync point carries sit state, not weapon state.** `LoadAnimationGraphState` takes the owner's flags1 but the
-  part bits (sit state included) and flags2 but the weapon bits (read in our code). No furniture handle: only
-  `AIProcess::SetSitSleepState` 39912 stores it (middle-high +0x208), and a copy runs no AI.
+- **So a copy at 2 waits for a `weaponDraw` its graph must raise.** Measured on `late-join-client` (2026-11-22, 3
+  of 4 failed): the host player's copy is put up off its stream ("hands up ... (weapon state 0)": 37279 takes the draw,
+  2), its stream's sync point restores its graph 60-500 ms later, and it stays at 2 with the sword in its hand slot
+  against its owner's 3. Inferred, not traced: the restore (58373) displaces the draw clip before its `weaponDraw`
+  reaches 42824 (the log's "events dropped" counts the queue, unnamed). `PutsHandsRight` then waited on `IsAnimating`
+  for good. `Actor::ShowWeaponDrawn` (42824 / 37169 called directly) settles any state.
+- **Sit state comes with the spawn's graph state, not the stream's sync point.** A `GraphSyncPoint` holds Havok node
+  state and graph variables only (`LoadPoint` -> 58373). The actor flag words travel in the spawn's snapshot:
+  `LoadAnimationGraphState` (or `LoadGraphStateFlags`, AnimationSystem, when the stream started first) takes the
+  owner's flags1 except the part bits, so sit state included, and flags2 except the weapon bits (read in our code). A
+  later sync point cannot correct a stale sit flag. No furniture handle: only `AIProcess::SetSitSleepState` 39912
+  stores it (middle-high +0x208), and a copy runs no AI.
 - **Hand slots by equip slot.** `ActorEquipManager::EquipObject` 38894 defaults a weapon to RightHand (38911).
-  `coop_RealEquip` 38929 then keeps the passed hand slot when the race has flags bit 30 (0x1406DE4C0), else the
-  item's own (a bow's BothHands, UseAllParents); `ActorProcess::AddEquippedObject` fills each hand the slot covers.
-  Measured (`rejoined-guest-sees-rider`, 2026-11-22): our repair's RightHand equip of Faendal's bow (13985) on his
-  copy left `[13985, 13985]`, both hands, so the repair is not what leaves the scenarios' `[0, bow]`. Which writer
-  does is not found; 39811 (`ActorProcess::SetHandEntry`) sets one hand's entry per call from other paths (outfit
-  reset, MoveToHigh, disarm).
+  `coop_RealEquip` 38929 keeps the passed slot when 38926 says so (the race's flags bit 30, a weapon, a hand slot
+  passed) or when the item's own slot has parents and lacks UseAllParents; else the item's own (a bow's BothHands).
+  `ActorProcess::AddEquippedObject` 39192 fills each hand the slot covers. Measured (`rejoined-guest-sees-rider`,
+  2026-11-22) for one bow: our repair's RightHand equip of Faendal's Hunting Bow (13985) on his copy left
+  `[13985, 13985]`, so the repair is not what leaves the scenarios' `[0, bow]`. Which writer does is not found; 39811
+  (`ActorProcess::SetHandEntry`) sets one hand's entry per call from other paths (outfit reset, MoveToHigh, disarm).
 - **A copy's last action** (`ActorExtension::LatestAnimation`) is read by the harness's comparison and the owner's
   resurrect stamp (`HookResurrect`), nothing else in our code: on its stream the graph is its owner's.
