@@ -121,6 +121,25 @@ nlohmann::json ReadCombat(Harness&, const nlohmann::json& acRequest)
             {"close_range", cRead->CloseRange}, {"margin", cRead->Margin}, {"margin_max", cRead->MarginMax},
             {"reach", cRead->Reach}, {"target_reach", cRead->TargetReach}, {"since_attacked", cRead->SinceAttacked}, {"target_path_state", cRead->TargetPathState}, {"target_path_points", cRead->TargetPathPoints}};
 }
+// {"cmd": "sight", "actor": detector, "target": id}: the detector's line of sight to the target (stealth.md, "Line of
+// sight"): CalculateLOS and CalculateDetection's verdicts, and a probe ray (37770) to each point with what it meets.
+nlohmann::json ReadSight(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cRead = EngineCalls::ReadSight(acRequest.value("actor", 0u), acRequest.value("target", 0x14u));
+    if (!cRead)
+        return Error("no such actors, or no process");
+    nlohmann::json rays = nlohmann::json::array();
+    for (const auto& cRay : cRead->Rays)
+        rays.push_back({{"location", cRay.Location}, {"to", cRay.To}, {"hit", cRay.Hit}, {"hit_at", cRay.HitAt},
+                        {"hit_ref", std::format("{:X}", cRay.HitReference)}, {"hit_node", cRay.HitNode},
+                        {"cast_layer", cRay.CastLayer}, {"cast_ref", std::format("{:X}", cRay.CastReference)}, {"sees", cRay.Sees}});
+    return {{"ok", true}, {"combat_target", std::format("{:X}", cRead->CombatTarget)}, {"angle", cRead->Angle},
+            {"half_cone", cRead->HalfCone}, {"distance", cRead->Distance}, {"los", cRead->Los}, {"level", cRead->Level},
+            {"in_view", cRead->InView}, {"line_of_sight", cRead->LineOfSight}, {"sound", cRead->Sound},
+            {"sight", cRead->Sight}, {"sneak", cRead->Sneak}, {"target_noise", cRead->TargetNoise},
+            {"target_noise_timer", cRead->TargetNoiseTimer}, {"rays", rays}};
+}
+
 // {"cmd": "status"}: the status (Status.h).
 nlohmann::json GetStatus(Harness& aHarness, const nlohmann::json&)
 {
@@ -374,17 +393,14 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"objects", objects}};
 }
 
-// {"cmd": "world_state", "ids"?: [id, ...], "details"?: true}: every reference in the loaded cells (or only those)
-// as this game holds and shows it, with details its pose, physics, graph and effects too
-// (EngineCalls::GetLoadedReferences); fields at their defaults are left out.
-nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
+// {"cmd": "world_state", "ids"?: [id, ...], "details"?: true, "scripts"?: [class, ...]}: the loaded cells' references as
+// this game shows them, details adding pose, physics, graph, effects, scripts the classes each one's bound scripts are
+// or extend (GetLoadedReferences); defaults left out, JSON built off the game thread.
+nlohmann::json WorldStateReply(const std::vector<EngineCalls::ReferenceState>& acRefs)
 {
-    const auto cIds = acRequest.value("ids", std::vector<uint32_t>{});
     auto references = nlohmann::json::array();
-    for (const auto& cRef : EngineCalls::GetLoadedReferences(acRequest.value("details", false)))
+    for (const auto& cRef : acRefs)
     {
-        if (!cIds.empty() && std::ranges::find(cIds, cRef.Id) == cIds.end())
-            continue;
         nlohmann::json ref = {{"id", cRef.Id},
                               {"base", cRef.Base},
                               {"type", cRef.BaseType},
@@ -415,6 +431,10 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
             ref["leveled"] = cRef.Leveled;
         if (cRef.Stored)
             ref["stored"] = true;
+        if (cRef.OnPath)
+            ref["on_path"] = true;
+        if (!cRef.Scripts.empty())
+            ref["scripts"] = cRef.Scripts;
         if (cRef.Items)
         {
             auto items = nlohmann::json::object();
@@ -458,6 +478,15 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
         references.push_back(std::move(ref));
     }
     return {{"ok", true}, {"references", references}};
+}
+
+std::function<nlohmann::json()> WorldState(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cIds = acRequest.value("ids", std::vector<uint32_t>{});
+    auto refs = EngineCalls::GetLoadedReferences(acRequest.value("details", false), acRequest.value("scripts", std::vector<std::string>{}));
+    if (!cIds.empty())
+        std::erase_if(refs, [&cIds](const auto& acRef) { return std::ranges::find(cIds, acRef.Id) == cIds.end(); });
+    return [refs = std::move(refs)] { return WorldStateReply(refs); };
 }
 
 // {"cmd": "quest", "quest": id}: the quest's live state (EngineCalls::GetQuestState), to check what a save holds.
@@ -642,7 +671,8 @@ nlohmann::json StackJson(const Inventory::Entry& acItem)
             {"poison", ItemForm(acItem.ExtraPoisonId)},
             {"poison_count", acItem.ExtraPoisonCount},
             {"soul", acItem.ExtraSoulLevel},
-            {"name", acItem.ExtraName}};
+            {"name", acItem.ExtraName},
+            {"owner", ToGame(acItem.ExtraOwner)}};
 }
 
 // {"cmd": "item_stacks", "object": id}: a loose item's own count and extra data, or each stack with extra data a
@@ -703,6 +733,23 @@ nlohmann::json Improve(Harness&, const nlohmann::json& acRequest)
                                      static_cast<uint16_t>(acRequest.value("charge", 0u))))
         return Error("the player holds no such stack with extra data, or no such enchantment");
     return Ok();
+}
+
+// {"cmd": "inventory_entry", "object": id, "item": id}: the item on the holder, every way it is counted
+// (EngineCalls::GetInventoryEntry).
+nlohmann::json InventoryEntry(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cRead = EngineCalls::GetInventoryEntry(acRequest.value("object", 0u), acRequest.value("item", 0u));
+    if (!cRead)
+        return Error("no such holder or item");
+    auto base = nlohmann::json::array();
+    for (const auto& [cForm, cCount] : cRead->Base)
+        base.push_back({{"form", cForm}, {"count", cCount}});
+    auto lists = nlohmann::json::array();
+    for (const auto& [cCount, cTypes] : cRead->Lists)
+        lists.push_back({{"count", cCount}, {"types", cTypes}});
+    return {{"ok", true}, {"base", base}, {"has_entry", cRead->HasEntry}, {"delta", cRead->Delta}, {"lists", lists},
+            {"count", cRead->Count}, {"listed", cRead->Listed}};
 }
 
 // {"cmd": "stack_extras", "object": id, "item": id}: each of the holder's stacks of the item with an extra data list,
@@ -939,6 +986,18 @@ nlohmann::json Lock(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "door_lock", "object": id}: who holds a door's lock (its own, or its linked door's) and their change flags.
+nlohmann::json DoorLock(Harness&, const nlohmann::json& acRequest)
+{
+    const auto c = EngineCalls::GetDoorLock(acRequest.value("object", 0u));
+    if (!c.Exists)
+        return Error("no such object");
+    return {{"ok", true},
+            {"own_lock", c.OwnLock}, {"locked", c.Locked}, {"level", c.Level}, {"changes", c.Changes},
+            {"linked", c.Linked}, {"linked_exists", c.LinkedExists}, {"linked_own_lock", c.LinkedOwnLock},
+            {"linked_locked", c.LinkedLocked}, {"linked_level", c.LinkedLevel}, {"linked_changes", c.LinkedChanges}};
+}
+
 // {"cmd": "door_open", "object": id, "open": false, "snap": true}: sets the door's state in this game only
 // (staging: puts a door back the way a scenario found it).
 nlohmann::json DoorOpen(Harness&, const nlohmann::json& acRequest)
@@ -1169,8 +1228,32 @@ nlohmann::json PapyrusResult(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"done", cValue.has_value()}, {"value", cValue.value_or(nullptr)}};
 }
 
+// {"cmd": "add_effect", "spell": id, "target": id, "caster": id, "effect": mgef (default: the spell's first),
+// "magnitude": m}: the effect put on the target as its owner applies a request, past our AddTarget hook.
+nlohmann::json AddEffect(Harness&, const nlohmann::json& acRequest)
+{
+    const uint32_t cSpell = acRequest.value("spell", 0u);
+    const auto cEffects = EngineCalls::SpellEffects(cSpell);
+    const uint32_t cEffect = acRequest.value("effect", cEffects.empty() ? 0u : cEffects.front());
+    if (!cEffect)
+        return {{"ok", false}, {"error", "the spell has no effect"}};
+    World::Get().GetFormBridge().AddMagicTargetEffect(acRequest.value("target", 0x14u), acRequest.value("caster", 0u), cSpell, cEffect,
+                                                      acRequest.value("magnitude", 0.f), false, false, false);
+    return {{"ok", true}, {"effect", cEffect}, {"effects", cEffects}};
+}
+
+// {"cmd": "commanded", "actor": id}: who commands it and whom it commands.
+nlohmann::json Commanded(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cCommanding = EngineCalls::ReadCommanding(acRequest.value("actor", 0x14u));
+    return {{"ok", true}, {"commander", cCommanding.Commander}, {"commanded", cCommanding.Commanded}};
+}
+
 constexpr Command cCommands[] = {
+    {"add_effect", true, &AddEffect},
+    {"commanded", true, &Commanded},
     {"combat_targets", true, &ReadCombat},
+    {"sight", true, &ReadSight},
     {"status", false, &GetStatus},
     {"world_clock", false, &WorldClock},
     {"counters", false, &CountersCommand},
@@ -1203,7 +1286,7 @@ constexpr Command cCommands[] = {
     {"jitter", true, &Jitter},
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
-    {"world_state", true, &WorldState},
+    {"world_state", true, nullptr, &WorldState},
     {"quest", true, &Quest},
     {"quest_force_alias", true, &QuestForceAlias},
     {"quest_allow_rerun", true, &QuestAllowRerun},
@@ -1241,7 +1324,9 @@ constexpr Command cCommands[] = {
     {"store", true, &Store},
     {"improve", true, &Improve},
     {"stack_extras", true, &StackExtras},
+    {"inventory_entry", true, &InventoryEntry},
     {"lock", true, &Lock},
+    {"door_lock", true, &DoorLock},
     {"door_open", true, &DoorOpen},
     {"graph_state", true, &GraphState},
     {"load_graph_state", true, &LoadGraphState},

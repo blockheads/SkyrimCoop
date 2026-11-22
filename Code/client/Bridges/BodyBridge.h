@@ -72,6 +72,9 @@ private:
     };
     std::map<BodyKey, Rested> m_rested;
     std::map<BodyKey, std::pair<uint32_t, bhkWorldObject*>> m_ragdolls; // copy and body generation initialized here
+    // A lying copy's ragdoll bodies are played (BodyGroups): each one's own group, given back as it stands.
+    std::map<BodyKey, uint16_t> m_ragdollGroups;
+    void StandRagdoll(Actor& aCopy, const BodyKey& acKey) noexcept;
     std::map<uint32_t, bool> m_knocked;   // living copies knocked down with their owners: lying yet
     std::chrono::steady_clock::time_point m_lastFrame{}; // the last frame that drove a body
     float m_frameSeconds = BodyPrediction::kSteerSeconds;  // the time between those frames (SteerSeconds)

@@ -6,18 +6,15 @@
 
 namespace Payloads
 {
-struct EquipmentSnapshot;
 struct GraphOpsBatch;
 struct GraphSync;
 struct GraphSyncPoint;
 struct ActorPerks;
 struct MeleeStagger;
-struct DrawWeapon;
 struct ActorValueChanges;
 struct ActorMaxValueChanges;
 struct DeathStateChange;
 struct HealthChange;
-struct SpellCast;
 struct InterruptCast;
 struct ProjectileLaunch;
 struct AddTarget;
@@ -25,8 +22,10 @@ struct RemoveSpell;
 struct PlayerName;
 struct ActorName;
 struct Mount;
-struct Dismount;
-struct AiState;
+struct Claim;
+struct ActorGiveBack;
+struct Record;
+struct RecordAsk;
 struct Dialogue;
 struct Subtitle;
 struct ActiveEffects;
@@ -49,10 +48,6 @@ struct DialogueSkip;
 
 template <class TPayload, auto cOpcode> struct Relayed;
 
-using RequestEquipmentSnapshot = Relayed<Payloads::EquipmentSnapshot, kRequestEquipmentSnapshot>;
-using NotifyEquipmentSnapshot = Relayed<Payloads::EquipmentSnapshot, kNotifyEquipmentSnapshot>;
-using DrawWeaponRequest = Relayed<Payloads::DrawWeapon, kDrawWeaponRequest>;
-using NotifyDrawWeapon = Relayed<Payloads::DrawWeapon, kNotifyDrawWeapon>;
 using RequestActorValueChanges = Relayed<Payloads::ActorValueChanges, kRequestActorValueChanges>;
 using NotifyActorValueChanges = Relayed<Payloads::ActorValueChanges, kNotifyActorValueChanges>;
 using RequestActorMaxValueChanges = Relayed<Payloads::ActorMaxValueChanges, kRequestActorMaxValueChanges>;
@@ -61,8 +56,6 @@ using RequestDeathStateChange = Relayed<Payloads::DeathStateChange, kRequestDeat
 using NotifyDeathStateChange = Relayed<Payloads::DeathStateChange, kNotifyDeathStateChange>;
 using RequestHealthChangeBroadcast = Relayed<Payloads::HealthChange, kRequestHealthChangeBroadcast>;
 using NotifyHealthChangeBroadcast = Relayed<Payloads::HealthChange, kNotifyHealthChangeBroadcast>;
-using SpellCastRequest = Relayed<Payloads::SpellCast, kSpellCastRequest>;
-using NotifySpellCast = Relayed<Payloads::SpellCast, kNotifySpellCast>;
 using InterruptCastRequest = Relayed<Payloads::InterruptCast, kInterruptCastRequest>;
 using NotifyInterruptCast = Relayed<Payloads::InterruptCast, kNotifyInterruptCast>;
 using ProjectileLaunchRequest = Relayed<Payloads::ProjectileLaunch, kProjectileLaunchRequest>;
@@ -71,24 +64,35 @@ using AddTargetRequest = Relayed<Payloads::AddTarget, kAddTargetRequest>;
 using NotifyAddTarget = Relayed<Payloads::AddTarget, kNotifyAddTarget>;
 using RemoveSpellRequest = Relayed<Payloads::RemoveSpell, kRemoveSpellRequest>;
 using NotifyRemoveSpell = Relayed<Payloads::RemoveSpell, kNotifyRemoveSpell>;
-using PlayerNameRequest = Relayed<Payloads::PlayerName, kPlayerNameRequest>;
 using NotifyPlayerName = Relayed<Payloads::PlayerName, kNotifyPlayerName>;
 using NotifyActorName = Relayed<Payloads::ActorName, kNotifyActorName>;
-using MountRequest = Relayed<Payloads::Mount, kMountRequest>;
 using NotifyMount = Relayed<Payloads::Mount, kNotifyMount>;
-// To a game whose player got on a horse another player already rides: its player gets off.
+// To a game whose player boarded a horse nobody else drives: its player gets off.
 using NotifyMountRefused = Relayed<Payloads::Mount, kNotifyMountRefused>;
-// A player got on a horse another player drives, as a passenger; NotifyBoard: its copy seated on every other game.
+// A player asks for a seat on a horse another player drives; NotifyBoard: the host gave it one (its game seats it).
 using BoardRequest = Relayed<Payloads::Mount, kBoardRequest>;
 using NotifyBoard = Relayed<Payloads::Mount, kNotifyBoard>;
 // A passenger got off (the host's rule alone).
 using UnboardRequest = Relayed<Payloads::Mount, kUnboardRequest>;
 // A rider got off a horse that stays ridden (a passenger, or a driver handing over): its copy off on every other game.
 using NotifyUnboard = Relayed<Payloads::Mount, kNotifyUnboard>;
-using DismountRequest = Relayed<Payloads::Dismount, kDismountRequest>;
-using NotifyDismount = Relayed<Payloads::Dismount, kNotifyDismount>;
-using AiStateRequest = Relayed<Payloads::AiState, kAiStateRequest>;
-using NotifyAiState = Relayed<Payloads::AiState, kNotifyAiState>;
+// A rider got off (its mount's give-back follows, ActorGiveBackRequest); NotifyDismount: its copy off everywhere.
+using DismountRequest = Relayed<Payloads::Mount, kDismountRequest>;
+using NotifyDismount = Relayed<Payloads::Mount, kNotifyDismount>;
+// An action's claim (HostClaims: a ride, a kill move); NotifyClaim: granted, to every game (the holder takes its taken
+// members); NotifyClaimRefused: to every game, its claimer ends the action.
+using ClaimRequest = Relayed<Payloads::Claim, kClaimRequest>;
+using NotifyClaim = Relayed<Payloads::Claim, kNotifyClaim>;
+using NotifyClaimRefused = Relayed<Payloads::Claim, kNotifyClaimRefused>;
+// Its holder gives it back; NotifyActorGiveBack: the host's game takes it once its copy ran the holder's ops.
+using ActorGiveBackRequest = Relayed<Payloads::ActorGiveBack, kActorGiveBackRequest>;
+using NotifyActorGiveBack = Relayed<Payloads::ActorGiveBack, kNotifyActorGiveBack>;
+// A part of an actor's record from its owner; NotifyRecord: every other game's CopyRecords takes it.
+using RecordRequest = Relayed<Payloads::Record, kRecordRequest>;
+using NotifyRecord = Relayed<Payloads::Record, kNotifyRecord>;
+// A game asks for a part again; NotifyRecordAsk: the actor's owner sends it under a new version.
+using RecordAskRequest = Relayed<Payloads::RecordAsk, kRecordAskRequest>;
+using NotifyRecordAsk = Relayed<Payloads::RecordAsk, kNotifyRecordAsk>;
 using DialogueRequest = Relayed<Payloads::Dialogue, kDialogueRequest>;
 using NotifyDialogue = Relayed<Payloads::Dialogue, kNotifyDialogue>;
 using SubtitleRequest = Relayed<Payloads::Subtitle, kSubtitleRequest>;

@@ -8,6 +8,11 @@
 #include <Events/LockChangeEvent.h>
 #include <Events/LooseItemEvents.h>
 #include <Events/StoryEvents.h>
+#include <Events/SummonEvent.h>
+#include <Messages/SummonRequest.h>
+#include <Messages/Relayed.h>
+#include <Papyrus/PlayerNatives.h>
+#include <ScriptValues.h>
 #include <Misc/StoryEventRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/ContainerChangeRequest.h>
@@ -36,6 +41,8 @@ GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, G
     Listen<ItemPickUpEvent, &GuestWorldState::OnItemPickUp>(m_connections, aDispatcher, this);
     Listen<NotifyPickUp, &GuestWorldState::OnPickUpNotify>(m_connections, aDispatcher, this);
     Listen<OwnStoryEvent, &GuestWorldState::OnStoryEvent>(m_connections, aDispatcher, this);
+    Listen<SummonEvent, &GuestWorldState::OnSummon>(m_connections, aDispatcher, this);
+    Listen<NotifyPlayerNativeResult, &GuestWorldState::OnCallResult>(m_connections, aDispatcher, this);
     // this is what stops guests (clients connected to the host) from starting their own quests or running
     // their own world scripts: the host's game decides
     m_engine.SetDecidesWorld(false);
@@ -43,6 +50,8 @@ GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, G
 
 GuestWorldState::~GuestWorldState() noexcept
 {
+    // Left the session: the scripts still waiting on the host go on with None, answered or not.
+    PlayerNatives::AnswerAll();
     m_engine.SetDecidesWorld(true);
 }
 
@@ -190,6 +199,45 @@ void GuestWorldState::OnItemDroppedNotify(const NotifyItemDropped& acMessage) no
         spdlog::warn("GuestWorldState: the host made drop {:X} as {:X}, no longer here", acMessage.Tag, acMessage.Object.LogFormat());
 }
 
+void GuestWorldState::OnSummon(const SummonEvent& acEvent) noexcept
+{
+    const auto cSpell = ToSession(acEvent.SpellId);
+    const auto cEffect = ToSession(acEvent.EffectId);
+    if (!cSpell || !cEffect)
+    {
+        spdlog::warn("GuestWorldState: summon {:X} is a created spell: not made", acEvent.SpellId);
+        return;
+    }
+    SummonRequest request;
+    request.SpellId = *cSpell;
+    request.EffectId = *cEffect;
+    request.Magnitude = acEvent.Magnitude;
+    request.Location = acEvent.Location;
+    request.DualCast = acEvent.DualCast;
+    spdlog::info("GuestWorldState: summon {:X} asked of the host's game", acEvent.SpellId);
+    m_world.GetTransport().Send(request);
+}
+
+void GuestWorldState::OnCallResult(const NotifyPlayerNativeResult& acMessage) noexcept
+{
+    if (!AnswerCall(acMessage.ReplyId, acMessage.Result))
+    {
+        spdlog::info("GuestWorldState: the host's answer to stack {} waits for its reference", acMessage.ReplyId);
+        m_answers.push_back({acMessage.ReplyId, acMessage.Result, std::chrono::steady_clock::now()});
+    }
+}
+
+bool GuestWorldState::AnswerCall(uint32_t aReplyId, const ScriptValue& acResult) noexcept
+{
+    // A form not here yet (an actor before its spawn, a created reference before its create row) waits.
+    const auto cLocal = Utils::ToLocalValue(acResult);
+    if (!cLocal)
+        return false;
+    spdlog::info("GuestWorldState: the host answered stack {}", aReplyId);
+    PlayerNatives::Answer(aReplyId, *cLocal);
+    return true;
+}
+
 void GuestWorldState::OnItemPickUp(const ItemPickUpEvent& acEvent) noexcept
 {
     const auto cRequest = m_engine.ReadPickUp(acEvent.ObjectId);
@@ -209,6 +257,17 @@ void GuestWorldState::OnPickUpNotify(const NotifyPickUp& acMessage) noexcept
 void GuestWorldState::OnUpdate(const UpdateEvent&) noexcept
 {
     PROFILE_ZONE("GuestWorldState::OnUpdate");
+    // The host's created reference reaches this game in its next update's rows; one deleted first never does.
+    constexpr auto cCreatedWait = std::chrono::seconds(5);
+    std::erase_if(m_answers, [this, cNow = std::chrono::steady_clock::now(), cCreatedWait](const WaitingAnswer& acAnswer) {
+        if (AnswerCall(acAnswer.ReplyId, acAnswer.Result))
+            return true;
+        if (cNow - acAnswer.Since < cCreatedWait)
+            return false;
+        spdlog::warn("GuestWorldState: the host's answer to stack {} names a reference that never came: None", acAnswer.ReplyId);
+        PlayerNatives::Answer(acAnswer.ReplyId, std::monostate{});
+        return true;
+    });
     m_mainTasks.Queue([this] { m_engine.RetryQuestAliases(); });
     auto cells = m_engine.AttachedCells();
     for (const uint32_t cCell : cells)

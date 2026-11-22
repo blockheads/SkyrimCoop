@@ -12,6 +12,7 @@ struct AnimationReplayStep
     uint8_t Retries = 0;
     ActionEvent Action{};
     AnimationVariables Variables{};
+    bool PairHere = false; // a paired action whose instance is made here (ReplayState::PairsHere), decided on the game thread
     // Set when the action's clips are in, as an owner's game waits for them (RunActionAnimationLoadedCallback).
     std::shared_ptr<std::atomic<bool>> ClipsLoaded;
 };

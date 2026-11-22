@@ -14,11 +14,11 @@ struct Equipment
     uint32_t HandSpell = 0;
     uint32_t Resets = 0;
     uint32_t Equips = 0;
+    uint32_t Unequips = 0;
 
     void Restore(const Worn& acWanted, uint32_t aHandSpell = 0)
     {
-        const auto cBefore = Current;
-        EquipmentRepair::Apply(acWanted, cBefore, HandSpell == aHandSpell, [&] {
+        EquipmentRepair::Apply(acWanted, [&] { return Current; }, HandSpell == aHandSpell, [&] {
             ++Resets;
             Current.clear();
             HandSpell = aHandSpell;
@@ -27,6 +27,10 @@ struct Equipment
             ++Equips;
             if (!Stuck)
                 Current.emplace(aId, aLeft);
+        }, [&](uint32_t aId, bool aLeft) {
+            ++Unequips;
+            if (!Stuck)
+                Current.erase({aId, aLeft});
         });
     }
 };
@@ -39,8 +43,17 @@ TEST_CASE("A partial outfit stuck after a model rebuild recovers together", "[eq
     gear.Restore(cWanted);
     CHECK(gear.Current == cWanted);
     gear.Restore(cWanted);
-    CHECK(gear.Resets == 1);
-    CHECK(gear.Equips == 3);
+    CHECK(gear.Resets == 1); // the single equips refused first, then the whole set
+}
+
+TEST_CASE("One piece more is put on alone, the rest left worn", "[equipment-repair]")
+{
+    Equipment gear{{{1, false}, {2, false}}};
+    gear.Restore({{1, false}, {2, false}, {3, true}});
+    CHECK(gear.Current == Worn{{1, false}, {2, false}, {3, true}});
+    CHECK(gear.Resets == 0);
+    CHECK(gear.Equips == 1);
+    CHECK(gear.Unequips == 0);
 }
 
 TEST_CASE("A replacement outfit removes the copy's extra pieces", "[equipment-repair]")
@@ -86,23 +99,9 @@ TEST_CASE("Taking everything off clears a copy's old worn set", "[equipment-repa
     Equipment gear{{{1, false}, {3, true}}};
     gear.Restore({});
     CHECK(gear.Current.empty());
-    CHECK(gear.Resets == 1);
+    CHECK(gear.Resets == 0);
+    CHECK(gear.Unequips == 2);
     CHECK(gear.Equips == 0);
-}
-
-TEST_CASE("Equipment changes coalesce into the next snapshot while quiet actors keep the heartbeat", "[equipment-repair]")
-{
-    using namespace std::chrono_literals;
-    EquipmentRepair::Snapshots snapshots;
-    const auto cStart = EquipmentRepair::Snapshots::Clock::time_point{} + 10s;
-    REQUIRE(snapshots.SendAt(cStart));
-    CHECK_FALSE(snapshots.SendAt(cStart + 100ms));
-    snapshots.OnChange();
-    snapshots.OnChange();
-    CHECK(snapshots.SendAt(cStart + 200ms));
-    CHECK_FALSE(snapshots.SendAt(cStart + 201ms));
-    CHECK_FALSE(snapshots.SendAt(cStart + 3199ms));
-    CHECK(snapshots.SendAt(cStart + 3200ms));
 }
 
 TEST_CASE("Non-weapons retain their native equip slot during repair", "[equipment-repair][repair-slot]")
@@ -112,4 +111,12 @@ TEST_CASE("Non-weapons retain their native equip slot during repair", "[equipmen
     CHECK(EquipmentRepair::EquipSlot(42, false) == 0); // arrows
     CHECK(EquipmentRepair::EquipSlot(41, false) == 0x13F42);
     CHECK(EquipmentRepair::EquipSlot(41, true) == 0x13F43);
+}
+
+TEST_CASE("A worn weapon is held in its hand, a torch in the left", "[equipment-repair][hand-weapon]")
+{
+    CHECK(EquipmentRepair::HandOf(41, false) == 1u);
+    CHECK(EquipmentRepair::HandOf(41, true) == 0u);
+    CHECK(EquipmentRepair::HandOf(31, false) == 0u);
+    CHECK_FALSE(EquipmentRepair::HandOf(26, false)); // armor: no hand
 }

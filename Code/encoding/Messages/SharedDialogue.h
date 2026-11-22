@@ -134,6 +134,7 @@ struct NotifyDialogueOpen final : NotifyMessage
     uint32_t NpcId{};
     bool Everyone{};
     GameId Greeting{};
+    uint32_t Step = 1; // a joiner's: the conversation's step now
 };
 
 // A player's list for a step, judged for its character by the host's engine (Choices: a line's choices).

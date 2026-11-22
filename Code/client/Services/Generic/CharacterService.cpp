@@ -1,6 +1,7 @@
 #include <Games/NpcSnapshot.h>
 #include <Games/ActorPools.h>
 #include <Services/CharacterService.h>
+#include <Services/ClaimService.h>
 #include <MainLoopTasks.h>
 #include <Services/ActorValueService.h>
 #include <Services/TransportService.h>
@@ -8,6 +9,7 @@
 
 #include <Components.h>
 
+#include <Events/Copy3DEvent.h>
 #include <Events/ActorAddedEvent.h>
 #include <Events/ActorRemovedEvent.h>
 #include <Events/UpdateEvent.h>
@@ -22,7 +24,6 @@
 #include <Events/PlayerLooksChangeEvent.h>
 #include <Events/ActorHeadUpdateEvent.h>
 #include <Events/PlayerDeathEvent.h>
-#include <Events/FactionsChangeEvent.h>
 #include <Events/ReferenceJumpEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
 #include <Events/NpcHeldEvent.h>
@@ -35,8 +36,6 @@
 #include <Messages/NotifyReferencesMove.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/NotifyCharacterSpawn.h>
-#include <Messages/RequestFactionsChanges.h>
-#include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/Relayed.h>
@@ -47,7 +46,10 @@
 #include <Messages/NotifyPlayerLevel.h>
 #include <Events/PlayerArrivedEvent.h>
 #include <Services/TravelService.h>
-#include <Services/AiStateService.h>
+#include <Services/CopyRecords.h>
+#include <Structs/RidePart.h>
+#include <Games/Animation/ActorStateRules.h>
+#include <Events/WornResetEvent.h>
 #include <Services/BodyService.h>
 #include <Services/EffectVisualsService.h>
 
@@ -58,7 +60,6 @@
 #include <Systems/CopyStep.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
-#include <Systems/CacheSystem.h>
 #include <Systems/FaceGenSystem.h>
 
 #include <World.h>
@@ -88,6 +89,13 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     , m_formBridge(aFormBridge)
     , m_playerBridge(aPlayerBridge)
 {
+    m_world.ctx().at<CopyRecords>().Register(
+        RecordKind::kRide, [this](uint32_t aId, const std::string& acBytes) { return ApplyRide(aId, acBytes); },
+        [this](uint32_t aFormId) -> std::optional<std::string> {
+            if (aFormId != m_playerBridge.GetPlayerFormId() || !m_boardedMount)
+                return std::nullopt;
+            return ToPartBytes(RidePart{m_world.GetFrameTick(), m_boardedMount});
+        });
     Listen<ActorAddedEvent, &CharacterService::OnActorAdded>(m_connections, m_dispatcher, this);
     Listen<ActorRemovedEvent, &CharacterService::OnActorRemoved>(m_connections, m_dispatcher, this);
 
@@ -99,8 +107,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<NotifyCharacterSpawn, &CharacterService::OnCharacterSpawn>(m_connections, m_dispatcher, this);
     Listen<NotifyReferencesMove, &CharacterService::OnReferencesMoveRequest>(m_connections, m_dispatcher, this);
-    Listen<NotifyFactionsChanges, &CharacterService::OnFactionsChanges>(m_connections, m_dispatcher, this);
-    Listen<FactionsChangeEvent, &CharacterService::OnFactionsChange>(m_connections, m_dispatcher, this);
     Listen<ReferenceJumpEvent, &CharacterService::OnReferenceJump>(m_connections, m_dispatcher, this);
     Listen<ReferenceLoadedEvent, &CharacterService::OnReferenceLoaded>(m_connections, m_dispatcher, this);
     Listen<NpcHeldEvent, &CharacterService::OnNpcHeld>(m_connections, m_dispatcher, this);
@@ -109,10 +115,10 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
     Listen<NotifyMountRefused, &CharacterService::OnNotifyMountRefused>(m_connections, m_dispatcher, this);
+    Listen<NotifyClaimRefused, &CharacterService::OnRideRefused>(m_connections, m_dispatcher, this);
     Listen<BoardEvent, &CharacterService::OnBoardEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyBoard, &CharacterService::OnNotifyBoard>(m_connections, m_dispatcher, this);
     Listen<NotifyActorName, &CharacterService::OnNotifyActorName>(m_connections, m_dispatcher, this);
-    Listen<NotifyPlayerName, &CharacterService::OnNotifyPlayerName>(m_connections, m_dispatcher, this);
     Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyDismount, &CharacterService::OnNotifyDismount>(m_connections, m_dispatcher, this);
     Listen<NotifyUnboard, &CharacterService::OnNotifyUnboard>(m_connections, m_dispatcher, this);
@@ -139,11 +145,11 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
 void CharacterService::DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept
 {
-    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, CacheComponent, WaitingFor3D, PlayerComponent,
+    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, WaitingFor3D, PlayerComponent,
                    OwnerPlaceComponent>(aEntity);
 }
 
-bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acSessionId, const entt::entity acEntity) const noexcept
+bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acSessionId, const entt::entity acEntity, bool aHoldKill) const noexcept
 {
     if (!m_actorBridge.ActorExists(acFormId))
     {
@@ -164,6 +170,10 @@ bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acS
     }
 
     m_actorBridge.SetActorCopy(acFormId, false);
+    // Ours now: no longer a copy its owner left (FollowOwner's mark would drop it at a disconnect).
+    m_world.remove<HeldCopyComponent>(acEntity);
+    // A copy's scripted deferred kill (UpdateCopyAI) outlives the copy: no engine path ends one (kill-moves.md).
+    m_actorBridge.ActorHoldKill(acFormId, aHoldKill);
     m_world.emplace_or_replace<LocalComponent>(acEntity, acSessionId);
     // Its copies hold the last owner's action and AI state until this game sends its own (the action as played here
     // while it was a copy: a mount's half of its rider's paired getting on).
@@ -268,6 +278,9 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     RunPresence();
     RunLocalUpdates();
     RunRemoteUpdates();
+    // Each due part waits again in ApplyRide; one whose record went is dropped.
+    for (const uint32_t cId : std::exchange(m_dueRides, {}))
+        m_world.ctx().at<CopyRecords>().ApplyAgain(cId, RecordKind::kRide);
 }
 
 // Dispatches ActorAddedEvent / ActorRemovedEvent as actors gain or lose loaded 3D, which drives
@@ -287,7 +300,11 @@ void CharacterService::RunActorDiscovery() noexcept
         for (const uint32_t cFormId : m_actorBridge.GetLoadedActorFormIds())
             if (cFormId != cPlayerId && m_actorBridge.IsActorTemporary(cFormId) &&
                 !m_actorBridge.IsActorCopy(cFormId) && !Utils::GetSessionIdByFormId(cFormId))
-                m_actorBridge.DeleteActor(cFormId); // saved NPCs can finish loading after connection; their copies come separately
+            {
+                // The host creates (one-simulator.md piece 7): an actor this guest's engine made is refused.
+                spdlog::warn("Actor discovery: {:X}, made by this guest's engine, refused (deleted)", cFormId);
+                m_actorBridge.DeleteActor(cFormId);
+            }
 
     // Removals first, as the original DiscoveryService did.
     std::vector<uint32_t> removed;
@@ -377,13 +394,16 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
     m_riddenMount = 0;
     m_partyMounts.clear();
     m_pendingRides.clear();
+    m_pendingCommanders.clear();
     m_boardedMount = 0;
+    m_boardingMount = 0;
+    m_dueRides.clear();
     m_drivers.clear();
-    m_pendingBoards.clear();
 }
 
 CharacterService::~CharacterService() noexcept
 {
+    m_world.ctx().at<CopyRecords>().Register(RecordKind::kRide, {});
     m_playerBridge.StopTeleportEvents();
 }
 
@@ -553,13 +573,13 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     if (cIsDead != acMessage.IsDead)
         acMessage.IsDead ? m_actorBridge.KillActor(actorFormId) : m_actorBridge.RespawnActor(actorFormId);
 
-    spdlog::info("Spawn Request Is summon {}", acMessage.IsPlayerSummon);
-
-    if (acMessage.IsPlayerSummon)
+    // A summon's commander here: the caster's game sees its own player (summons.md).
+    if (acMessage.CommanderId)
     {
-        // Prevents remote summons agroing other players.
-        const uint32_t cPlayerId = m_playerBridge.GetPlayerFormId();
-        m_actorBridge.SetActorCommandingActor(actorFormId, cPlayerId);
+        if (const uint32_t cCommander = Utils::GetFormIdBySessionId(acMessage.CommanderId))
+            m_actorBridge.SetActorCommandingActor(actorFormId, cCommander);
+        else
+            m_pendingCommanders[acMessage.SessionId] = acMessage.CommanderId; // its caster's copy comes later (R5)
     }
 
     m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.SessionId, actorFormId);
@@ -575,14 +595,35 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     AnimationSystem::Setup(m_world, *entity);
 
     m_world.emplace_or_replace<WaitingFor3D>(*entity, acMessage);
-    // Its owner's hands as of this spawn; a later draw change (OnNotifyDrawWeapon) is newer, also while its 3D loads.
-    m_world.emplace_or_replace<RemoteWeaponDrawComponent>(*entity, acMessage.IsWeaponDrawn);
 
     auto& remoteAnimationComponent = m_world.get<RemoteAnimationComponent>(*entity);
     remoteAnimationComponent.TimePoints.push_back(acMessage.LatestAction);
     if (!acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
     LinkPendingRides(acMessage.SessionId);
+    LinkPendingCommanders(acMessage.SessionId);
+    SessionIdHere(acMessage.SessionId);
+}
+
+void CharacterService::SessionIdHere(uint32_t aSessionId) const noexcept
+{
+    if (auto* pRecords = m_world.ctx().find<CopyRecords>())
+        pRecords->OnSessionId(aSessionId);
+}
+
+// A summon spawned before its commander's copy: commanded once that copy is here.
+void CharacterService::LinkPendingCommanders(uint32_t aSessionId) noexcept
+{
+    std::erase_if(m_pendingCommanders, [&](const auto& acPending) {
+        const auto& [cSummon, cCommander] = acPending;
+        if (cCommander != aSessionId)
+            return false;
+        const uint32_t cSummonId = Utils::GetFormIdBySessionId(cSummon);
+        const uint32_t cCommanderId = Utils::GetFormIdBySessionId(cCommander);
+        if (cSummonId && cCommanderId)
+            m_actorBridge.SetActorCommandingActor(cSummonId, cCommanderId);
+        return true;
+    });
 }
 
 // A late joiner hears who rides what right after the spawns, which can still be loading.
@@ -598,25 +639,12 @@ void CharacterService::LinkPendingRides(uint32_t aSessionId) noexcept
         }
     for (const auto& cRide : rides)
         OnNotifyMount(cRide);
-    std::vector<NotifyBoard> boards;
-    for (const auto& [cRider, cMount] : m_pendingBoards)
-        if (cMount == aSessionId || cRider == aSessionId)
-        {
-            auto& board = boards.emplace_back();
-            board.RiderId = cRider;
-            board.MountId = cMount;
-        }
-    for (const auto& cBoard : boards)
-        OnNotifyBoard(cBoard);
 }
 
 bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept
 {
     if (acMessage.BaseId == GameId{})
-    {
-        ApplyOwnerName(aFormId, acMessage.DisplayName);
         return true;
-    }
     const uint32_t cBaseId = ToGame(acMessage.BaseId);
     const bool cResolvedAlike = NpcSnapshot::KeepsResolvedBase(
         m_actorBridge.IsActorNpcTemporary(aFormId), m_actorBridge.GetActorNpcTemplateBaseFormId(aFormId), cBaseId);
@@ -626,30 +654,15 @@ bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterS
                       acMessage.BaseId.BaseId, aFormId);
         return false;
     }
-    ApplyOwnerName(aFormId, acMessage.DisplayName);
     return true;
 }
 
-void CharacterService::ApplyOwnerName(uint32_t aFormId, const std::string& acName) const noexcept
+void CharacterService::OnNotifyActorName(const NotifyActorName& acMessage) const noexcept
 {
-    if (!acName.empty() && !SameName(m_actorBridge.GetActorDisplayName(aFormId), acName))
-        m_actorBridge.SetActorDisplayName(aFormId, acName);
-}
-
-void CharacterService::OnNotifyActorName(const NotifyActorName& acMessage) noexcept
-{
-    // Still loading: its spawn applies the name.
-    if (const auto cPending = m_pendingSpawns.find(acMessage.ActorId); cPending != m_pendingSpawns.end())
-        cPending->second.DisplayName = acMessage.Name;
-    if (const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.ActorId))
-        ApplyOwnerName(cFormId, acMessage.Name);
-}
-
-void CharacterService::OnNotifyPlayerName(const NotifyPlayerName& acMessage) const noexcept
-{
-    for (auto&& [cEntity, cForm, cPlayer, cCopy] : m_world.view<FormIdComponent, PlayerComponent, RemoteComponent>().each())
-        if (cPlayer.Id == acMessage.PlayerId)
-            return ApplyOwnerName(cForm.Id, acMessage.Name);
+    // The host's quest named this game's own actor (a horse its player rides): its name part carries it on.
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.ActorId);
+    if (cFormId && !m_actorBridge.IsActorCopy(cFormId) && !acMessage.Name.empty() && !SameName(m_actorBridge.GetActorDisplayName(cFormId), acMessage.Name))
+        m_actorBridge.SetActorDisplayName(cFormId, acMessage.Name);
 }
 
 void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSpawn& acMessage) const noexcept
@@ -670,7 +683,6 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
     place.LastMove = {};
     if (auto* pWaitingFor3D = m_world.try_get<WaitingFor3D>(aEntity))
         pWaitingFor3D->SpawnRequest = acMessage;
-    m_world.emplace_or_replace<RemoteWeaponDrawComponent>(aEntity, acMessage.IsWeaponDrawn);
     if (pFormId && (cBaseChanged || !m_actorBridge.ActorHas3D(pFormId->Id)) && !acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(aEntity, acMessage.GraphState);
     spdlog::info("Character with remote id {:X} is already spawned: refreshed from the new spawn (cell {:X})", acMessage.SessionId,
@@ -810,25 +822,6 @@ void CharacterService::OnActionEvent(const ActionEvent& acActionEvent) const noe
     }
 }
 
-void CharacterService::OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept
-{
-    // Copies have no CacheComponent (only actors this game owns do, CharacterService::ProcessNewEntity).
-    auto view = m_world.view<RemoteComponent, FormIdComponent>();
-
-    for (const auto& [id, factions] : acEvent.Changes)
-    {
-        const auto itor = std::find_if(std::begin(view), std::end(view), [id = id, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
-
-        if (itor != std::end(view))
-        {
-            const uint32_t cFormId = view.get<FormIdComponent>(*itor).Id;
-            if (auto* pCache = m_world.try_get<CacheComponent>(*itor))
-                pCache->FactionsContent = factions;
-            m_actorBridge.SetActorFactions(cFormId, factions);
-        }
-    }
-}
-
 void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept
 {
     m_pendingLooks.erase(acMessage.SessionId);
@@ -864,6 +857,17 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
         m_world.remove<FormIdComponent, HeldCopyComponent>(cEntity);
         if (m_world.orphan(cEntity))
             m_world.destroy(cEntity);
+    }
+}
+
+void CharacterService::PlaceAt(uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
+{
+    if (acWhereabouts.Where != ActorWhereabouts::State::kPlaced)
+        return;
+    if (const uint32_t cCellId = m_world.GetTravelService().CellAt(acWhereabouts.WorldSpaceId, acWhereabouts.CellId, acWhereabouts.Position))
+    {
+        m_actorBridge.MoveActorTo(aFormId, cCellId, acWhereabouts.Position.x, acWhereabouts.Position.y, acWhereabouts.Position.z);
+        m_actorBridge.SetActorRotation(aFormId, 0.f, acWhereabouts.Heading);
     }
 }
 
@@ -1124,15 +1128,17 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
         return;
     }
 
-    // The host decides who simulates the mount (HostCharacters::OnMount); its answer gives it to us.
-    MountRequest request;
-    request.MountId = mountSessionIdRes.value();
-    request.RiderId = cpRider->Id;
+    // A ride is a claim on its horse (HostCharacters' rule): granted, it is ours to simulate (ClaimService).
+    const uint32_t cMountId = mountSessionIdRes.value();
+    ClaimRequest request;
+    request.Kind = Payloads::Claim::kRide;
+    request.ForId = cpRider->Id;
+    request.Members = {{cMountId, true, false}};
     if (acEvent.RiderID == m_playerBridge.GetPlayerFormId())
     {
-        m_riddenMount = request.MountId;
-        m_partyMounts.insert(request.MountId);
-        m_drivers[request.MountId] = request.RiderId;
+        m_riddenMount = cMountId;
+        m_partyMounts.insert(cMountId);
+        m_drivers[cMountId] = cpRider->Id;
         KeepMount(acEvent.MountID);
     }
     m_transport.Send(request);
@@ -1142,26 +1148,26 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 {
     m_pendingRides.erase(acMessage.MountId);
     m_drivers[acMessage.MountId] = acMessage.RiderId;
-    m_pendingBoards.erase(acMessage.RiderId);
     for (const auto cPlayer : m_world.view<PlayerComponent>())
         if (Utils::GetSessionId(cPlayer) == acMessage.RiderId)
             m_partyMounts.insert(acMessage.MountId);
-    // Our player got on it: the host gave the mount to this game. Not asked for: a handover (HostCharacters::HandOver).
+    // Our player got on it: the host's claim gave the mount to this game (ClaimService, just before). Not asked for: a
+    // handover (HostCharacters::HandOver).
     const bool cHandedOver = m_riddenMount != acMessage.MountId;
     for (const auto cRider : m_world.view<LocalComponent>())
     {
         if (m_world.get<LocalComponent>(cRider).Id != acMessage.RiderId)
             continue;
-        for (const auto cMount : m_world.view<RemoteComponent, FormIdComponent>())
-            if (m_world.get<RemoteComponent>(cMount).Id == acMessage.MountId &&
-                TakeOwnership(m_world.get<FormIdComponent>(cMount).Id, acMessage.MountId, cMount))
+        for (const auto cMount : m_world.view<LocalComponent, FormIdComponent>())
+            if (m_world.get<LocalComponent>(cMount).Id == acMessage.MountId && m_world.ctx().at<ClaimService>().Holds(acMessage.MountId))
             {
                 m_riddenMount = acMessage.MountId;
                 KeepMount(m_world.get<FormIdComponent>(cMount).Id);
                 // A passenger the driver left: ours to steer. Off it already (its ride's end still on its way, or never
                 // heard): handed back at once. Our own ride's answer can come before the get-on links our player.
                 const uint32_t cHorse = m_world.get<FormIdComponent>(cMount).Id;
-                m_boardedMount = 0;
+                if (m_boardedMount)
+                    LeaveBoard();
                 if (!cHandedOver)
                     continue;
                 if (m_actorBridge.GetActorMount(m_playerBridge.GetPlayerFormId()) == cHorse)
@@ -1207,11 +1213,12 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
             mountFormId = m_world.get<FormIdComponent>(entity).Id;
             if (m_partyMounts.contains(acMessage.MountId))
                 KeepMount(mountFormId);
-            GiveUpOwnership(entity, acMessage.MountId, mountFormId);
             break;
         }
     }
 
+    spdlog::info("Ride {:X} on {:X}: its copy {:X} on {:X}, sit {}", acMessage.RiderId, acMessage.MountId, cRiderFormId, mountFormId,
+                 m_actorBridge.GetActorSitState(cRiderFormId));
     if (!mountFormId)
         m_pendingRides[acMessage.MountId] = acMessage.RiderId;
     else if (cRiderFormId && m_actorBridge.GetActorMount(cRiderFormId) == mountFormId)
@@ -1221,13 +1228,29 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 }
 
 // The ride of one of this game's actors ended (any path): the host takes its mount back.
-// Another player got on first (HostCharacters::OnMount): ours gets off, and the horse stays a copy here.
+// A boarding refused (HostCharacters::OnBoard), or a ride (OnRideRefused): ours gets off, the horse stays a copy here.
+void CharacterService::OnRideRefused(const NotifyClaimRefused& acMessage) noexcept
+{
+    if (acMessage.Kind != Payloads::Claim::kRide || acMessage.Members.empty() || acMessage.ForId != m_characterId)
+        return;
+    NotifyMountRefused refused;
+    refused.RiderId = acMessage.ForId;
+    refused.MountId = acMessage.Members[0].ActorId;
+    OnNotifyMountRefused(refused);
+}
+
 void CharacterService::OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept
 {
+    spdlog::info("Ride on {:X} refused (riding {:X}, aboard {:X}): our player gets off", acMessage.MountId, m_riddenMount, m_boardedMount);
+    if (m_boardingMount == acMessage.MountId)
+    {
+        m_boardingMount = 0; // asked only: never seated
+        return;
+    }
     if (m_riddenMount == acMessage.MountId)
         m_riddenMount = 0;
     else if (m_boardedMount == acMessage.MountId)
-        m_boardedMount = 0;
+        LeaveBoard();
     else
         return;
     m_playerBridge.PlayerStopRiding();
@@ -1235,7 +1258,7 @@ void CharacterService::OnNotifyMountRefused(const NotifyMountRefused& acMessage)
 
 void CharacterService::OnBoardEvent(const BoardEvent& acEvent) noexcept
 {
-    if (acEvent.RiderId != m_playerBridge.GetPlayerFormId() || m_riddenMount || m_boardedMount || !m_characterId)
+    if (acEvent.RiderId != m_playerBridge.GetPlayerFormId() || m_riddenMount || m_boardedMount || m_boardingMount || !m_characterId)
     {
         spdlog::info("Board {:X}: not now (riding {:X}, aboard {:X})", acEvent.MountId, m_riddenMount, m_boardedMount);
         return;
@@ -1251,16 +1274,9 @@ void CharacterService::OnBoardEvent(const BoardEvent& acEvent) noexcept
             spdlog::info("Board {:X}: no party player drives it", acEvent.MountId);
             return;
         }
-        if (!m_playerBridge.PlayerBoardMount(acEvent.MountId))
-        {
-            // Its slot was emptied for the get-on (CanRide 38706 refuses more than a ridden horse): the driver's again.
-            if (const uint32_t cDriver = FormOfSession(m_drivers.at(cMount)))
-                m_actorBridge.ActorHoldMount(cDriver, acEvent.MountId);
-            spdlog::info("Board {:X}: the engine's get-on refused (37905)", acEvent.MountId);
-            return;
-        }
-        spdlog::info("Board {:X}: on as a passenger", acEvent.MountId);
-        m_boardedMount = cMount;
+        // Seated once the host says yes (NotifyBoard): nothing to undo on a refusal.
+        spdlog::info("Board {:X}: asking the host", acEvent.MountId);
+        m_boardingMount = cMount;
         BoardRequest request;
         request.RiderId = m_characterId;
         request.MountId = cMount;
@@ -1270,27 +1286,74 @@ void CharacterService::OnBoardEvent(const BoardEvent& acEvent) noexcept
     spdlog::info("Board {:X}: not a copy here", acEvent.MountId);
 }
 
+// The host gave our player a seat: seated at once by the engine's quick get-on (PutActorOnMountQuick, no paired
+// clip: player-mount.md), its copies by its Ride part.
 void CharacterService::OnNotifyBoard(const NotifyBoard& acMessage) noexcept
 {
-    const uint32_t cRider = FormOfSession(acMessage.RiderId);
+    if (acMessage.RiderId != m_characterId || acMessage.MountId != std::exchange(m_boardingMount, 0u))
+        return;
     const uint32_t cMount = FormOfSession(acMessage.MountId);
-    if (!cRider || !cMount)
+    // On another horse meanwhile (its own ride): the seat goes back, PutOnMount would take it off that one.
+    if (!cMount || m_riddenMount || m_playerBridge.IsPlayerMounted() || !m_playerBridge.PlayerSitOnMountQuick(cMount))
     {
-        m_pendingBoards[acMessage.RiderId] = acMessage.MountId;
+        spdlog::info("Board {:X}: riding {:X}, or the engine's quick get-on refused (41530)", cMount, m_riddenMount);
+        UnboardRequest unboard;
+        unboard.RiderId = m_characterId;
+        unboard.MountId = acMessage.MountId;
+        m_transport.Send(unboard);
         return;
     }
-    m_pendingBoards.erase(acMessage.RiderId);
-    // Linked as a driver's copy is: its owner's get-on plays from the ground and seats it at its end. One whose
-    // owner is seated already (a late joiner's) is seated at once.
-    if (m_actorBridge.GetActorSitState(cRider) == ReplayState::kSitSeated)
-        m_actorBridge.ActorSeatOnMount(cRider, cMount);
-    else if (m_actorBridge.GetActorMount(cRider) != cMount)
+    spdlog::info("Board {:X}: on as a passenger", cMount);
+    m_boardedMount = acMessage.MountId;
+    m_world.ctx().at<CopyRecords>().Declare(m_characterId, RecordKind::kRide, ToPartBytes(RidePart{m_world.GetFrameTick(), m_boardedMount}));
+}
+
+// Our player is no passenger now (off, or driving it): its copies stop being seated by its Ride part.
+void CharacterService::LeaveBoard() noexcept
+{
+    m_boardedMount = 0;
+    if (m_characterId)
+        m_world.ctx().at<CopyRecords>().Declare(m_characterId, RecordKind::kRide, ToPartBytes(RidePart{m_world.GetFrameTick(), 0}));
+}
+
+// A passenger's copy seated on its horse once both are here (R5) and its stream reached its owner's quick get-on;
+// Ride{0} leaves getting off to NotifyUnboard.
+std::vector<uint32_t> CharacterService::ApplyRide(uint32_t aId, const std::string& acBytes) noexcept
+{
+    m_dueRides.erase(aId);
+    RidePart part;
+    const uint32_t cRider = FormOfSession(aId);
+    if (!FromPartBytes(acBytes, part) || !part.Mount || !cRider || !m_actorBridge.IsActorCopy(cRider))
+        return {};
+    const uint32_t cMount = FormOfSession(part.Mount);
+    if (!cMount)
+        return {part.Mount};
+    // After its driver: the horse's one slot names the first rider linked (12074), so a joiner hearing the
+    // passenger's spawn before the ride would have the horse name the passenger.
+    const auto cDriver = m_drivers.find(part.Mount);
+    if (cDriver == m_drivers.end() || m_actorBridge.GetActorMount(FormOfSession(cDriver->second)) != cMount)
+    {
+        m_dueRides.insert(aId);
+        return {};
+    }
+    // Linked at once: its capsule collides with nothing until seated (GettingOnMount); unlinked, stepped toward its
+    // owner on the saddle, it pushed the horse (player-mount.md).
+    if (m_actorBridge.GetActorMount(cRider) != cMount)
         m_actorBridge.ActorPutOnMount(cRider, cMount);
+    const auto cPlayback = m_world.GetGraphStreams().StreamPlayback(cRider);
+    if (!ActorStateRules::Due(cPlayback.has_value(), cPlayback.value_or(0), part.Tick))
+    {
+        m_dueRides.insert(aId); // sat on the saddle before its graph's HorseEnterInstant, it stood there (the duo)
+        return {};
+    }
+    // Seated by 41533 even at sit state 3 (its stream's HorseEnterInstant): SeatRider puts the REFRSyncController
+    // (20318) that carries its reference; without it the reference stayed where it got on (the duo).
+    m_actorBridge.ActorSeatOnMount(cRider, cMount);
+    return {};
 }
 
 void CharacterService::OnNotifyUnboard(const NotifyUnboard& acMessage) noexcept
 {
-    m_pendingBoards.erase(acMessage.RiderId);
     // Its owner is off a horse that stays ridden: its copy gets off too, if no exit clip took it off already.
     const uint32_t cRider = FormOfSession(acMessage.RiderId);
     const uint32_t cMount = FormOfSession(acMessage.MountId);
@@ -1340,7 +1403,8 @@ void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
         {
             UnboardRequest unboard;
             unboard.RiderId = m_characterId;
-            unboard.MountId = std::exchange(m_boardedMount, 0u);
+            unboard.MountId = m_boardedMount;
+            LeaveBoard();
             m_transport.Send(unboard);
             return;
         }
@@ -1362,10 +1426,9 @@ void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
         if (!request.RiderId || !request.MountId)
             return;
     }
-    for (const auto cMount : m_world.view<LocalComponent, FormIdComponent>())
-        if (m_world.get<LocalComponent>(cMount).Id == request.MountId)
-            request.Whereabouts = ReadWhereabouts(m_world.get<FormIdComponent>(cMount).Id);
-    m_transport.Send(request);
+    // The mount goes back once its graph's next update is recorded (its exit pair's PairEnd is due with it), the
+    // ride's end told first (mounts.md).
+    m_world.ctx().at<ClaimService>().GiveBack(request.MountId, false, false, [this, request] { m_transport.Send(request); });
 }
 
 void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcept
@@ -1374,31 +1437,21 @@ void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcep
     m_pendingRides.erase(acMessage.MountId);
     m_drivers.erase(acMessage.MountId);
     if (m_boardedMount == acMessage.MountId)
-        m_boardedMount = 0;
+        LeaveBoard();
     // Its owner's ride ended: a copy rider still seated gets off now (its owner's ride ended with no exit clip).
     for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
         if (m_world.get<RemoteComponent>(cEntity).Id == acMessage.RiderId)
             m_actorBridge.ActorEndRide(m_world.get<FormIdComponent>(cEntity).Id);
-    for (const auto cEntity : m_world.view<FormIdComponent>())
-    {
-        if (Utils::GetSessionId(cEntity) != acMessage.MountId)
-            continue;
-        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-        // The rider can arrive before the horse's last movement snapshot. Place it before the host takes it.
-        if (acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
-            FollowOwner(cEntity, cFormId, acMessage.Whereabouts, false);
-        if (m_world.GetHostService().IsHosting())
-        {
-            if (!m_world.all_of<LocalComponent>(cEntity))
-                TakeOwnership(cFormId, acMessage.MountId, cEntity);
-        }
-        else if (m_world.all_of<LocalComponent>(cEntity))
-            GiveUpOwnership(cEntity, acMessage.MountId, cFormId);
-        ReleaseMount(cFormId);
-        break;
-    }
+    // Its owner (the host, given back: ClaimService) keeps it as it would.
+    const uint32_t cMountFormId = FormOfSession(acMessage.MountId);
+    if (cMountFormId)
+        ReleaseMount(cMountFormId);
     if (m_riddenMount == acMessage.MountId)
         m_riddenMount = 0;
+    // Our player's ride ended by the host's word with our player still on it (this game could not take the horse:
+    // HostClaims::OnEnded): off it too. Off already in a dismount of its own.
+    if (acMessage.RiderId == m_characterId && cMountFormId && m_actorBridge.GetActorMount(m_playerBridge.GetPlayerFormId()) == cMountFormId)
+        m_playerBridge.PlayerStopRiding();
 }
 
 void CharacterService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept
@@ -1528,8 +1581,6 @@ void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
     if (m_world.any_of<RemoteComponent, LocalComponent>(aEntity))
         return;
 
-    m_actorBridge.SetupActorCache(formIdComponent.Id, static_cast<uint32_t>(entt::to_integral(aEntity)));
-
     AnnounceCharacter(aEntity);
 }
 
@@ -1587,8 +1638,6 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
         message.PerksContent = m_actorBridge.GetPlayerPerks();
     message.LatestAction = cState.LatestAction;
     message.GraphState = cState.GraphState;
-    if (const auto* pAiState = m_world.ctx().find<AiStateService>())
-        message.AiState = pAiState->ReadState(formIdComponent.Id);
     if (const auto* pEffects = m_world.ctx().find<EffectVisualsService>())
         message.EffectIds = pEffects->ReadEffects(formIdComponent.Id);
 
@@ -1603,19 +1652,17 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     const auto changeFlags = m_actorBridge.SerializeActorNpc(formIdComponent.Id, message.AppearanceBuffer);
     message.ChangeFlags = changeFlags;
     message.Weight = m_actorBridge.GetActorBaseWeight(formIdComponent.Id);
-    message.DisplayName = m_actorBridge.GetActorDisplayName(formIdComponent.Id);
 
     if (isPlayer)
     {
         message.FaceTints = m_playerBridge.GetPlayerFaceTints();
     }
 
-    message.FactionsContent = m_actorBridge.GetActorFactions(formIdComponent.Id);
     message.IsDragon = m_actorBridge.IsActorDragon(formIdComponent.Id);
     message.IsMount = m_actorBridge.IsActorMount(formIdComponent.Id);
 
-    const uint32_t cCommandingActor = m_actorBridge.GetActorCommandingActorFormId(formIdComponent.Id);
-    message.IsPlayerSummon = (cCommandingActor == 0x14);
+    if (const uint32_t cCommander = m_actorBridge.GetActorCommandingActorFormId(formIdComponent.Id))
+        message.CommanderId = Utils::GetSessionIdByFormId(cCommander).value_or(0);
 
     if (!isPlayer)
     {
@@ -1655,6 +1702,11 @@ void CharacterService::AnnounceCharacter(const entt::entity aEntity) const noexc
         return;
 
     m_world.emplace_or_replace<LocalComponent>(aEntity, message->SessionId);
+    if (auto* pRecords = m_world.ctx().find<CopyRecords>())
+    {
+        message->Record = pRecords->ReadAll(message->SessionId, cFormId);
+        pRecords->OnSessionId(message->SessionId);
+    }
     // Its actions from here on follow the graph state just sent.
     (void)m_world.get_or_emplace<LocalAnimationComponent>(aEntity);
     m_actorBridge.SetActorCopy(cFormId, false);
@@ -1709,9 +1761,7 @@ bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpaw
         const auto cState = ReadLiveState(cFormId);
         aSpawn.Position = cState.Position;
         aSpawn.Rotation = cState.Rotation;
-        aSpawn.InventoryContent = cState.Data.InitialInventory;
         aSpawn.IsDead = cState.Data.IsDead;
-        aSpawn.IsWeaponDrawn = cState.Data.IsWeaponDrawn;
         aSpawn.LatestAction = cState.LatestAction;
         aSpawn.GraphState = cState.GraphState;
         return true;
@@ -1749,6 +1799,8 @@ void CharacterService::ReleaseCharacter(const entt::entity aEntity, const uint32
         message.SessionId = pLocalComponent->Id;
         message.Whereabouts = ReadWhereabouts(aFormId);
         m_transport.Send(message);
+        if (auto* pRecords = m_world.ctx().find<CopyRecords>())
+            pRecords->Forget(pLocalComponent->Id);
 
         m_world.remove<LocalAnimationComponent, LocalComponent>(aEntity);
         return;
@@ -1793,9 +1845,7 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
         if (cPool)
             actorData.InitialActorValues.ActorTemporaryValuesList[index] = m_actorBridge.GetActorTemporaryValue(aFormId, index);
     }
-    actorData.InitialInventory = m_actorBridge.GetActorInventory(aFormId);
     actorData.IsDead = m_actorBridge.IsActorDead(aFormId);
-    actorData.IsWeaponDrawn = HandsUp(m_actorBridge.GetWeaponState(aFormId));
 
     return actorData;
 }
@@ -1905,12 +1955,7 @@ void CharacterService::RunRemoteUpdates() noexcept
         const uint32_t cMount = pFormIdComponent ? m_actorBridge.GetActorMount(pFormIdComponent->Id) : 0;
         if (cMount)
         {
-            uint8_t cSit = m_actorBridge.GetActorSitState(pFormIdComponent->Id);
-            if (ReplayState::SeatsAtHoldEnd(cSit, m_actorBridge.IsActorCopy(cMount), m_world.GetGraphStreams().Held(pFormIdComponent->Id)))
-            {
-                m_actorBridge.ActorSeatOnMount(pFormIdComponent->Id, cMount);
-                cSit = ReplayState::kSitSeated;
-            }
+            const uint8_t cSit = m_actorBridge.GetActorSitState(pFormIdComponent->Id);
             if (cSit == ReplayState::kSitSeated)
             {
                 static const AnimationVariables s_still;
@@ -2015,20 +2060,22 @@ void CharacterService::RunRemoteUpdates() noexcept
         if (!m_actorBridge.ActorHas3D(formIdComponent.Id))
             continue;
 
-        m_actorBridge.SetActorInventory(formIdComponent.Id, waitingFor3D.SpawnRequest.InventoryContent);
-        m_actorBridge.SetActorFactions(formIdComponent.Id, waitingFor3D.SpawnRequest.FactionsContent);
         m_actorBridge.ActorLoadAnimationVariables(formIdComponent.Id, waitingFor3D.SpawnRequest.LatestAction.Variables);
 
         const bool cIsDead = m_actorBridge.IsActorDead(formIdComponent.Id);
         if (cIsDead != waitingFor3D.SpawnRequest.IsDead)
             waitingFor3D.SpawnRequest.IsDead ? m_actorBridge.KillActor(formIdComponent.Id) : m_actorBridge.RespawnActor(formIdComponent.Id);
 
+        toRemove.push_back(entity);
+        if (const auto* pCopy = m_world.try_get<RemoteComponent>(entity))
+            SessionIdHere(pCopy->Id);
+
+        // After its owner's items (its record's part), as after the spawn's inventory before.
         if (m_actorBridge.IsActorVampireLord(formIdComponent.Id))
             m_actorBridge.ActorFixVampireLordModel(formIdComponent.Id);
 
-        toRemove.push_back(entity);
-
         spdlog::info("Applied 3D for actor, form id: {:X}", formIdComponent.Id);
+        m_dispatcher.trigger(Copy3DEvent{formIdComponent.Id});
     }
 
     for (auto entity : toRemove)
@@ -2038,28 +2085,6 @@ void CharacterService::RunRemoteUpdates() noexcept
 void CharacterService::OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept
 {
     m_jumped.insert(acEvent.FormId);
-}
-
-void CharacterService::OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-    auto view = m_world.view<LocalComponent, CacheComponent, FormIdComponent>();
-    for (const auto cEntity : view)
-    {
-        if (view.get<FormIdComponent>(cEntity).Id != acEvent.ActorId)
-            continue;
-        auto& cacheComponent = view.get<CacheComponent>(cEntity);
-        auto factions = m_actorBridge.GetActorFactions(acEvent.ActorId);
-        if (cacheComponent.FactionsContent == factions)
-            return;
-        cacheComponent.FactionsContent = factions;
-
-        RequestFactionsChanges message;
-        message.Changes[view.get<LocalComponent>(cEntity).Id] = std::move(factions);
-        m_transport.Send(message);
-        return;
-    }
 }
 
 // Tells the host, which sends what is here and, when the player led, takes the party along.
@@ -2161,6 +2186,8 @@ void CharacterService::RunPresence() noexcept
         spdlog::info("Copy {:X} is not where its owner is (cell {:X}, worldspace {:X}): moved there", cFormId, place.CellId.BaseId,
                      place.WorldSpaceId.BaseId);
         MoveActor(cFormId, place.WorldSpaceId, place.CellId, position);
+        // The move rebuilds the copy's equipment and drops its hand spells (copy-hand-spells.md): it wears its part again.
+        m_world.GetRunner().Trigger(WornResetEvent{cFormId});
     }
 
     for (const auto& [cEntity, cSessionId] : gone)

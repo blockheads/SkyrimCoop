@@ -199,7 +199,6 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
         has(static_cast<LocalAnimationComponent*>(nullptr), "LocalAnimation");
         has(static_cast<RemoteAnimationComponent*>(nullptr), "RemoteAnimation");
         has(static_cast<FaceGenComponent*>(nullptr), "FaceGen");
-        has(static_cast<CacheComponent*>(nullptr), "Cache");
         has(static_cast<ActorValuesComponent*>(nullptr), "ActorValues");
         has(static_cast<PlayerComponent*>(nullptr), "Player");
         mod["components"] = components;
@@ -291,6 +290,7 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
                    {"weapon_drawn", actors.IsWeaponDrawn(aFormId)},
                    {"weapon_state", static_cast<int>(actors.GetWeaponState(aFormId))},
                    {"sneaking", EngineReads::IsSneaking(aFormId)},
+                   {"noise", EngineReads::GetActionNoise(aFormId)},
                    {"sit_sleep", EngineReads::GetSitSleepState(aFormId)},
                    {"knock", EngineReads::GetKnockState(aFormId)},
                    {"deferred_kill", EngineReads::GetKillState(aFormId).Deferred},

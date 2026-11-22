@@ -12,18 +12,14 @@
 #include <Messages/ActivateRequest.h>
 #include <Messages/Relayed.h>
 #include <Messages/LockChangeRequest.h>
+#include <Messages/SummonRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/PlayerLevelRequest.h>
-#include <Messages/NotifyActivate.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
-#include <Messages/NotifyEquipmentChanges.h>
-#include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/NotifyPlayerLevel.h>
 #include <Messages/NotifyRemoveWaypoint.h>
 #include <Messages/NotifySetWaypoint.h>
-#include <Messages/RequestEquipmentChanges.h>
-#include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Messages/RequestSetWaypoint.h>
@@ -34,40 +30,6 @@
 namespace
 {
 // The relays that change what they pass on; the rest share a payload (Messages/Payloads.h).
-
-NotifyInventoryChanges ToNotify(const RequestInventoryChanges& acRequest)
-{
-    NotifyInventoryChanges notify;
-    notify.SessionId = acRequest.SessionId;
-    notify.Item = acRequest.Item;
-    notify.Drop = false; // Dropped items are not synced this way (upstream's experimental item drops).
-    return notify;
-}
-
-NotifyEquipmentChanges ToNotify(const RequestEquipmentChanges& acRequest)
-{
-    // Without the sender's whole equipment: copies get that from the owner's snapshots.
-    NotifyEquipmentChanges notify;
-    notify.SessionId = acRequest.SessionId;
-    notify.ItemId = acRequest.ItemId;
-    notify.EquipSlotId = acRequest.EquipSlotId;
-    notify.Count = acRequest.Count;
-    notify.Unequip = acRequest.Unequip;
-    notify.IsSpell = acRequest.IsSpell;
-    notify.IsShout = acRequest.IsShout;
-    return notify;
-}
-
-// Objects: without the cell (under the party tether every game has the host's cells loaded).
-NotifyActivate ToNotify(const ActivateRequest& acRequest)
-{
-    NotifyActivate notify;
-    notify.Id = acRequest.Id;
-    notify.NpcId = acRequest.NpcId;
-    notify.ActivatorId = acRequest.ActivatorId;
-    notify.PreActivationOpenState = acRequest.PreActivationOpenState;
-    return notify;
-}
 
 NotifySetWaypoint ToNotify(const RequestSetWaypoint& acRequest)
 {
@@ -117,6 +79,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_purse(m_players, m_characters, m_game)
     , m_partyItems(m_players, m_characters, m_game)
     , m_weather(aNetwork, m_players, m_game)
+    , m_eye(m_players, m_characters, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
     , m_items(*this, aNetwork, m_players, m_characters, m_purse, m_partyItems, m_game)
     , m_hands(*this, m_players, m_characters, m_game)
@@ -131,28 +94,36 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_devTools(*this, m_players, m_characters, m_game)
 {
     using enum Delivery;
+    m_records.OnKept = [this](uint32_t aId, const RecordPart& acPart) {
+        ActorAiState state;
+        if (acPart.Kind == RecordKind::kAiState && FromPartBytes(acPart.Bytes, state))
+            m_death.OnAiState(aId, state);
+        // A player's character's name is that player's in the party's lists.
+        if (acPart.Kind == RecordKind::kName && m_characters.IsPlayerCharacter(aId))
+            NamePlayer(m_characters.OwnerOf(aId), acPart.Bytes);
+    };
 
     // Players
     On(*this, &HostAuthority::OnPlayerLevel);
-    On(*this, &HostAuthority::OnPlayerName);
     On(m_transfer, &HostSaveTransfer::OnSaveHeld);
 
+    // A kill move's claim (kill-moves.md, "Claimed pairs"): its NPC victim alive, its graph running (kProcessMe).
+    m_characters.Claims().SetRule(Payloads::Claim::kKillMove, {.Allows = [this](const Payloads::Claim& acClaim) {
+        return std::ranges::all_of(acClaim.Members, [&](const Payloads::ClaimMember& acMember) {
+            return !acMember.Take || !m_game.CanPair || m_game.CanPair(acMember.ActorId);
+        });
+    }});
+
     // Characters (spawning, removal, movement and respawn: HostCharacters)
-    On(*this, &HostAuthority::OnFactionsChanges);
-    // What its AI is doing: its owner's, read 1:1 on every game (copy-contract.md, "AI state").
-    Relay<AiStateRequest, NotifyAiState>(FromOwner, &AiStateRequest::SessionId);
     Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
     Relay<SubtitleRequest, NotifySubtitle>(FromAnyone);
 
     // Inventory and hands
     On(*this, &HostAuthority::OnInventoryChanges);
-    Relay<RequestEquipmentChanges, NotifyEquipmentChanges>(FromAnyone); // like items: a peer can dress the host's follower
-    Relay<RequestEquipmentSnapshot, NotifyEquipmentSnapshot>(FromOwner, &RequestEquipmentSnapshot::SessionId);
     // The graph input stream: ops from each actor's owner; a copy's game asks the owner for a sync point.
     On(*this, &HostAuthority::OnGraphOps);
     Relay<GraphSyncRequest, NotifyGraphSync>(ToOwner, &GraphSyncRequest::Id);
     Relay<GraphSyncPointRequest, NotifyGraphSyncPoint>(FromOwner, &GraphSyncPointRequest::Id);
-    Relay<DrawWeaponRequest, NotifyDrawWeapon>(FromOwner, &DrawWeaponRequest::Id);
 
     // Actor values: a hit lands in its owner's game, which then reports the resulting values.
     Relay<RequestActorValueChanges, NotifyActorValueChanges>(FromOwner, &RequestActorValueChanges::Id);
@@ -161,7 +132,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<RequestHealthChangeBroadcast, NotifyHealthChangeBroadcast>(ToOwner, &RequestHealthChangeBroadcast::Id);
 
     // Magic and combat: an effect landing works like a hit.
-    Relay<SpellCastRequest, NotifySpellCast>(FromOwner, &SpellCastRequest::CasterId);
     Relay<InterruptCastRequest, NotifyInterruptCast>(FromOwner, &InterruptCastRequest::CasterId);
     Relay<ProjectileLaunchRequest, NotifyProjectileLaunch>(FromOwner, &ProjectileLaunchRequest::ShooterID);
     Relay<AddTargetRequest, NotifyAddTarget>(ToOwner, &AddTargetRequest::TargetId);
@@ -176,6 +146,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     On(*this, &HostAuthority::OnActivate);
+    On(*this, &HostAuthority::OnSummon);
     On(*this, &HostAuthority::OnMeleeStagger);
     On(*this, &HostAuthority::OnLockChange);
     On(*this, &HostAuthority::OnContainerChange);
@@ -183,8 +154,30 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // The map and chat
     Relay<RequestSetWaypoint, NotifySetWaypoint>(FromAnyone);
     Relay<RequestRemoveWaypoint, NotifyRemoveWaypoint>(FromAnyone);
+    Watch(*this, &HostAuthority::OnSetWaypoint);
+    Watch(*this, &HostAuthority::OnRemoveWaypoint);
     On(*this, &HostAuthority::OnChatMessage);
     On(*this, &HostAuthority::OnBugReport);
+
+    // Everything a joiner must know, from every store that holds it.
+    m_joinerStores = {
+        {"crime", [this](ConnectionId_t aPlayer, uint32_t) { m_crime.Entered(aPlayer); }},
+        {"clock", [this](ConnectionId_t aPlayer, uint32_t) { m_clock.SendTime(aPlayer); }},
+        {"weather", [this](ConnectionId_t aPlayer, uint32_t) { m_weather.SendWeather(aPlayer); }},
+        {"world state", [this](ConnectionId_t aPlayer, uint32_t) { m_worldState.SendWorldState(aPlayer); }},
+        {"time scale", [this](ConnectionId_t aPlayer, uint32_t) { m_timeScale.SendTimeScale(aPlayer); }},
+        // Every character with its record, and the claims on them.
+        {"characters", [this](ConnectionId_t aPlayer, uint32_t aId) { m_characters.SendExistingCharacters(aPlayer, aId); }},
+        // Its player and every copy carry the party's gold and items, its own brought in replaced.
+        {"purse", [this](ConnectionId_t, uint32_t) { m_purse.Send(); }},
+        {"party items", [this](ConnectionId_t, uint32_t) { m_partyItems.Send(); }},
+        {"cutscene controls", [this](ConnectionId_t aPlayer, uint32_t) { m_playerNatives.SendHeld(aPlayer); }},
+        {"waypoint", [this](ConnectionId_t aPlayer, uint32_t) {
+             if (m_waypoint)
+                 m_network.Send(aPlayer, *m_waypoint);
+         }},
+        {"conversation", [this](ConnectionId_t aPlayer, uint32_t) { m_dialogue.SendCurrent(aPlayer); }},
+    };
 
     m_network.SetFrontDoor([this](const RequestMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     // A player's game ended its connection: the others drop it, then its characters go.
@@ -206,6 +199,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_physics.OnPlayerLeft(aConnection);
         m_hands.OnPlayerLeft(aConnection);
         m_death.Left(aConnection);
+        m_eye.OnPlayerLeft(aConnection);
     });
 }
 
@@ -225,6 +219,7 @@ void HostAuthority::Update(uint64_t aTick, double aDelta, uint64_t aFrameTick) n
     m_clock.Update(aTick);
     m_transfer.Update(aTick);
     m_weather.Update();
+    m_eye.Update();
     m_worldState.Update(aTick);
     m_items.Update();
     m_hands.Update(aTick);
@@ -244,18 +239,29 @@ void HostAuthority::Kick(uint32_t aPlayerId) noexcept
     m_players.Kick(aPlayerId);
 }
 
+void HostAuthority::ActorAnnounced(uint32_t aId, const RecordParts& acRecord) noexcept
+{
+    m_records.Announced(aId, acRecord);
+    ActorAiState state;
+    if (const RecordPart* cpAi = acRecord.Find(RecordKind::kAiState); cpAi && FromPartBytes(cpAi->Bytes, state))
+        m_death.InitialAi(aId, state);
+}
+
 void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept
 {
-    m_wait.OnPlayerEntered();
-    m_crime.Entered(aPlayer);
-    m_clock.SendTime(aPlayer);
-    m_weather.SendWeather(aPlayer);
-    m_worldState.SendWorldState(aPlayer);
-    m_timeScale.SendTimeScale(aPlayer);
-    m_characters.SendExistingCharacters(aPlayer, aCharacterSessionId);
-    // Its player and every copy carry the party's gold and items, its own brought in replaced.
-    m_purse.Send();
-    m_partyItems.Send();
+    m_wait.OnPlayerEntered(); // a joiner ends a shared wait's countdown
+    for (const JoinerStore& cStore : m_joinerStores)
+        cStore.Send(aPlayer, aCharacterSessionId);
+}
+
+void HostAuthority::OnSetWaypoint(const RequestSetWaypoint& acRequest, ConnectionId_t) noexcept
+{
+    m_waypoint = ToNotify(acRequest);
+}
+
+void HostAuthority::OnRemoveWaypoint(const RequestRemoveWaypoint&, ConnectionId_t) noexcept
+{
+    m_waypoint.reset();
 }
 
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
@@ -279,10 +285,17 @@ bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSend
 
 void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept
 {
+    // An actor's items reach its copies as its owner's part (HostRecords, kItems); the party's gold and items here.
     if (m_purse.Change(acRequest, aSender) || m_partyItems.Change(acRequest, aSender))
         return;
-    if (acRequest.UpdateClients)
-        Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+    // The host's script changed another game's actor (a quest taking a guest's claw): its owner runs it, and its part follows.
+    if (aSender == m_players.Host() && acRequest.UpdateClients && m_characters.OwnerOf(acRequest.SessionId) != aSender)
+    {
+        NotifyInventoryChanges notify;
+        notify.SessionId = acRequest.SessionId;
+        notify.Item = acRequest.Item;
+        Deliver(notify, Delivery::ToOwner, acRequest.SessionId, aSender);
+    }
 }
 
 void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept
@@ -297,16 +310,20 @@ void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, Connect
 
 void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
-    if (!acRequest.NpcId)
-    {
-        Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+    // The host's game runs a guest's activation with its copy; the others get what changed as its rows.
+    if (aSender == m_players.Host() || m_characters.OwnerOf(acRequest.ActivatorId) != aSender || !m_game.Activate)
         return;
-    }
-    if (m_characters.OwnerOf(acRequest.ActivatorId) != aSender || m_characters.IsPlayerCharacter(acRequest.NpcId))
+    if (acRequest.NpcId && (m_characters.IsPlayerCharacter(acRequest.NpcId) || m_characters.OwnerOf(acRequest.NpcId) != m_players.Host()))
         return;
-    const auto cOwner = m_characters.OwnerOf(acRequest.NpcId);
-    if (cOwner == m_players.Host() && cOwner != aSender)
-        m_network.Send(cOwner, ToNotify(acRequest));
+    m_game.Activate(acRequest.Id, acRequest.NpcId, acRequest.ActivatorId);
+}
+
+void HostAuthority::OnSummon(const SummonRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    const uint32_t cCaster = aSender != m_players.Host() ? m_characters.PlayerCharacterOf(aSender) : 0;
+    if (!cCaster || !m_game.Summon)
+        return;
+    m_game.Summon(cCaster, acRequest);
 }
 
 void HostAuthority::OnRecipes(const RecipesRequest& acRequest, ConnectionId_t) const noexcept
@@ -333,16 +350,6 @@ void HostAuthority::OnContainerChange(const ContainerChangeRequest& acRequest, C
     items.Value = acRequest.Count;
     items.Stacks = acRequest.Stacks;
     m_game.SetItems(items);
-}
-
-void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyFactionsChanges notify;
-    for (const auto& [cSessionId, cFactions] : acRequest.Changes)
-        if (m_characters.OwnerOf(cSessionId) == aSender)
-            notify.Changes[cSessionId] = cFactions;
-    if (!notify.Changes.empty())
-        m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
 void HostAuthority::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept
@@ -383,26 +390,28 @@ void HostAuthority::OnPlayerLevel(const PlayerLevelRequest& acRequest, Connectio
     m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
-void HostAuthority::OnPlayerName(const PlayerNameRequest& acRequest, ConnectionId_t aSender) noexcept
+void HostAuthority::NamePlayer(ConnectionId_t aPlayer, const std::string& acName) noexcept
 {
-    const std::string cName = ChatText(acRequest.Name);
-    if (cName.empty())
+    const std::string cName = ChatText(acName);
+    if (cName.empty() || cName == m_players.PlayerNameOf(aPlayer))
         return;
-    m_players.SetName(aSender, cName);
-    m_characters.SetPlayerName(aSender, cName);
-    m_network.NameConnection(aSender, cName);
+    m_players.SetName(aPlayer, cName);
+    m_network.NameConnection(aPlayer, cName);
     NotifyPlayerName notify;
-    notify.PlayerId = m_players.PlayerIdOf(aSender);
+    notify.PlayerId = m_players.PlayerIdOf(aPlayer);
     notify.Name = cName;
-    m_players.SendToOthers(notify, aSender, Net::kReliable);
+    m_players.SendToOthers(notify, aPlayer, Net::kReliable);
 }
 
 void HostAuthority::NameActor(uint32_t aSessionId, const std::string& acName) const noexcept
 {
+    const ConnectionId_t cOwner = m_characters.OwnerOf(aSessionId);
+    if (cOwner == m_players.Host())
+        return;
     NotifyActorName notify;
     notify.ActorId = aSessionId;
     notify.Name = acName;
-    m_players.SendToOthers(notify, m_players.Host(), Net::kReliable);
+    m_network.Send(cOwner, notify);
 }
 
 void HostAuthority::OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept

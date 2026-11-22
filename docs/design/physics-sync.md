@@ -298,7 +298,7 @@ Still open: a dead body's pose when a guest loads its cell or joins, a small bug
 The update hook runs in the Papyrus VM job. `BodyService` applies playback and rests through a scoped
 `MainLoopTasks` task between frames, with current state and synchronous bridge results. Received object rows
 (`GuestWorldState`) use the same phase. Updating their scene graphs inside the VM job made a watched held
-tankard flash green ([S2 native evidence](../../playtests/2026-11-01-s2-green-flash.md)).
+tankard flash green (S2).
 
 `PhysicsBodies` still reads physics snapshots during the update. Its left-behind node repairs are queued and
 rechecked before writing, preserving contacts if the engine already followed them. A rested reference's move
@@ -474,7 +474,7 @@ guest holds a body -> BodyFramesRequest (as before)
 
 ### Steered holds (2026-11-01, replaced 2026-11-02)
 
-S1 of `playtests/2026-10-31-fabien.md`: a guest's held object went through people's heads on the host. The host
+S1 of the 2026-10-31 playtest: a guest's held object went through people's heads on the host. The host
 keyframed its body onto the holder's frames (`SetPositionAndRotation` each frame), and a keyframed body moved so
 meets nothing: whatever the holder's game let through, the host's did too (scenario `guest-bucket-on-npc-head`,
 first run: the guest's bucket 50 units over Lydia's feet in its own game, 69 on the host, keyframed).
@@ -865,6 +865,49 @@ passed before the physics work): not looked into.
 A ragdoll driver's graph need not be an actor's (2026-10-28): a loaded Long Bow's comes through the drive-to-pose
 hooks (`CopyRagdollPhysics.cpp`) too, and reading its holder as an actor crashed the client in
 `dialogue-ends-on-travel`; the holder is now cast (`Cast<Actor>`) first. Only Skyrim shows it (the fake has no graphs).
+
+### A dead body is the mover's until it rests (2026-11-21, piece 10e)
+
+A guest's player dragged its copy of a host corpse; the host's never moved (duo: 151 units apart). Now a ragdoll of an
+actor the host owns is an object's bodies on the mover path ("The mover's until its rest"): the guest's grab (40555
+takes a dead actor) makes it the guest's, its frames move the host's corpse (its own actor driven like a copy's), its
+rest is put there and comes back as the host's `kRagdoll` part. A hit on a corpse is the hit path's and moves no corpse
+in either game (measured): left as it is. Plan: `piece-10-plan.md`, 10e.
+
+### A copy's ragdoll rests as a pile (2026-11-21, piece 10)
+
+```text
+owner's ragdoll rests       its game declares its kRagdoll record part (BodyService::DeclareRagdolls): every body's
+                            rest and its time; the host keeps it, every other game gets it, every later spawn carries it
+copy, each graph update     CopyRagdollPhysics, after 58291, all its bodies together (RagdollRest)
+  every body near and still     put to sleep (SleepBody: its joints make it one island), done
+  off, under half a second      steered toward the rest (BodyPrediction::Steer over kRestGlideStep)
+  half a second gone            all put there in one step, awake; the next update, put to sleep
+                            (one SleepBody: inferred that its joints keep it one island, the solver not read;
+                            measured: every copy's bodies slept from that one call, duo 2026-11-21)
+  done                          untouched: a steer wakes a body (78089/78090)
+  woken off it after            taken there again, twice a rest at most
+lying, its bodies               in the played collision group (BodyBridge::Find), given back as it stands
+```
+
+- Before, the rest was steered 30 steps, put there awake and left: Havok settled it again 3 to 14 degrees off
+  (`death-spectate-host`, 11 of 13 traces, 2026-11-12). The island sleep refuses an island with a body this game moves
+  (its group: what sleeping one froze, "A pile sleeps together").
+- Measured (duo, 2026-11-21, the step log `CopyRagdollPhysics: ... at its owner's rest`): the glide never brought the
+  bodies within a unit in half a second, so every rest was placed; right after, the bodies moved against their joints, and
+  waiting for them to stand still they slept 1.3 to 1.8 s later more than a unit off, or never (1 of 3 runs). So the
+  ragdoll's own bodies' motion does not keep its island awake (`SleepBody`'s acOwnMotion), and keeps 60850's HK_REAL_MAX
+  so Havok's last test (62264) lets them sleep: every copy then slept in the update after its place, near its rest and
+  still, in `kill-move-kills-guest` 3 of 3 and `death-spectate-host` 3 of 3 (one run failed on a wolf's stamina).
+- Played (`Physics/BodyGroups.h`): a lying ragdoll is on layer 32, which meets clutter, props and other corpses
+  (`docs/re/systems/physics.md`, "A lying ragdoll's layer and group"); in its owner's game it settled among them, so
+  here it passes what nobody moves and what another game moves, and meets the world and what this game moves.
+- The rest was a reliable `NotifyBodyRests` sent once: a copy made later never got it ("A copy that stays off its
+  owner"). `NotifyBodyRests` carries reference bodies only now.
+
+Tests: ClientTests `[ragdoll-rest]`, `[played-ragdoll]`; GameTests "A dead copy at its owner's rest falls asleep there
+and stays asleep" (the fake learned that a steer wakes a copy's ragdoll body and an unsteered awake one settles off),
+"A guest joining beside a host corpse sees it lie as the host's"; TPTests the part.
 
 ## What a cell load sends
 

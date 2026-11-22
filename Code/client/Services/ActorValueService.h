@@ -48,7 +48,11 @@ private:
     void OnActorValueChanges(const NotifyActorValueChanges&) noexcept;
     void OnActorMaxValueChanges(const NotifyActorMaxValueChanges&) noexcept;
     void OnHealthChange(const HealthChangeEvent&) noexcept;
-    void OnHealthChangeBroadcast(const NotifyHealthChangeBroadcast&) const noexcept;
+    void OnHealthChangeBroadcast(const NotifyHealthChangeBroadcast&) noexcept;
+    void ApplyForwardedHit(const NotifyHealthChangeBroadcast& acMessage, uint32_t aFormId) const noexcept;
+    // Blows of claimed kill moves on this game's actors: dropped once the pair plays here (its clip kills, 42838),
+    // applied as a plain hit if the pair ends first (never played here).
+    void RunHeldBlows() noexcept;
     void OnDeathStateChange(const NotifyDeathStateChange&) noexcept;
     void ApplyDeathState(uint32_t aSessionId) noexcept;
     void ApplyCopyPools() noexcept;
@@ -69,6 +73,7 @@ private:
     TransportService& m_transport;
     IActorBridge& m_actorBridge;
     std::unordered_map<uint32_t, float> m_smallHealthChanges;
+    std::vector<NotifyHealthChangeBroadcast> m_heldBlows;
     std::map<uint32_t, std::set<uint32_t>> m_changedValues;
     std::map<uint32_t, bool> m_changedDeaths; // form id -> final engine event seen
     std::map<uint32_t, std::optional<uint64_t>> m_resurrections;

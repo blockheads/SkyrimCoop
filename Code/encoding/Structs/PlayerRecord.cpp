@@ -117,7 +117,7 @@ void PlayerRecord::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
         cRecipe.Serialize(aWriter);
 }
 
-void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader) noexcept
+void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader, bool aItemOwners) noexcept
 {
     Key = Serialization::ReadString(aReader);
     Name = Serialization::ReadString(aReader);
@@ -154,7 +154,7 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     }
 
     Items = {};
-    Items.Deserialize(aReader);
+    Items.Deserialize(aReader, aItemOwners);
 
     Extras.clear();
     const uint64_t cExtras = Serialization::ReadVarInt(aReader) & 0xFF;

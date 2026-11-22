@@ -99,6 +99,17 @@ public:
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;
     void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept override;
     WeaponState GetWeaponState(uint32_t aFormId) const noexcept override;
+    ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept override;
+    void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override;
+    void SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept override;
+    void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
+    void CopyLeaveKillMove(uint32_t aFormId) noexcept override;
+    void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept override;
+    [[nodiscard]] bool ActorKillCounted(uint32_t aFormId) const noexcept override;
+    void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
+    void ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept override;
+    bool ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept override;
+    [[nodiscard]] bool ActorCanPair(uint32_t aFormId) const noexcept override;
     bool IsActorTemporary(uint32_t aFormId) const noexcept override;
     bool IsActorMount(uint32_t aFormId) const noexcept override;
     bool IsActorDragon(uint32_t aFormId) const noexcept override;
@@ -149,7 +160,6 @@ public:
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
     Tints GetActorFaceTints(uint32_t aFormId) const noexcept override;
     void SetupActorFaceGen(uint32_t aFormId) noexcept override;
-    void SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept override;
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override;
     void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override;
     bool IsActorFacePainted(uint32_t aFormId) const noexcept override;
@@ -205,7 +215,6 @@ public:
     uint8_t GetObjectLockLevel(uint32_t aObjectFormId) const noexcept override;
     bool SetObjectLock(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept override;
     uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept override;
-    void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept override;
     uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept override;
     bool IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept override;
     bool IsLoadDoor(uint32_t aObjectFormId) const noexcept override;
@@ -227,6 +236,7 @@ public:
     Inventory GetActorEquipment(uint32_t aActorFormId) const noexcept override;
     void ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept override;
     void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override;
+    void SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept override;
     Inventory GetActorWornArmor(uint32_t aActorFormId) const noexcept override;
     bool ActorIsWearingBodyPiece(uint32_t aActorFormId) const noexcept override;
     bool ActorShouldWearBodyPiece(uint32_t aActorFormId) const noexcept override;
@@ -257,7 +267,7 @@ public:
     bool IsPlayerAlive() const noexcept override;
     bool IsPlayerMounted() const noexcept override;
     void PlayerStopRiding() noexcept override;
-    bool PlayerBoardMount(uint32_t aMountFormId) noexcept override;
+    bool PlayerSitOnMountQuick(uint32_t aMountFormId) noexcept override;
     void PlayerTakeReins(uint32_t aMountFormId) noexcept override;
     void HoldPlayerDeathReload(bool aHold) noexcept override;
     void RevivePlayer() noexcept override;

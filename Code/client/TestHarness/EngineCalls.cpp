@@ -1,4 +1,6 @@
 #include "EngineCalls.h"
+#include <Forms/MagicItem.h>
+#include <Magic/EffectItem.h>
 #include <Interface/ConsoleLines.h>
 #include <Havok/Raycast.h>
 #include <Havok/SwingCast.h>
@@ -10,6 +12,7 @@
 #include <Misc/MiddleProcess.h>
 #include <Actor.h>
 #include <Forms/TESNPC.h>
+#include <ItemIds.h>
 #include <Games/ActorPools.h>
 #include <BSAnimationGraphManager.h>
 #include <Bridges/ContainerItems.h>
@@ -43,6 +46,8 @@
 #include <Games/Skyrim/Events/EventDispatcher.h>
 #include <Games/Overrides.h>
 #include <Games/References.h>
+#include <ExtraData/ExtraLock.h>
+#include <ExtraData/ExtraTeleport.h>
 #include <Games/Skyrim/BSInput/InputEvent.h>
 #include <Games/TES.h>
 #include <Havok/BShkbAnimationGraph.h>
@@ -852,6 +857,13 @@ bool SeatOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept
     return true;
 }
 
+bool SitOnMountQuick(uint32_t aRiderId, uint32_t aMountId) noexcept
+{
+    Actor* pRider = Cast<Actor>(TESForm::GetById(aRiderId));
+    Actor* pMount = Cast<Actor>(TESForm::GetById(aMountId));
+    return pRider && pMount && pRider->SitOnMountQuick(pMount);
+}
+
 bool BoardRiddenMount(uint32_t aRiderId, uint32_t aMountId) noexcept
 {
     using TSetInteraction = void(ExtraDataList*, void** appInteraction);
@@ -1073,7 +1085,67 @@ void ReadGraph(TESObjectREFR& aRef, ReferenceState& aState) noexcept
 }
 } // namespace
 
-std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
+namespace
+{
+uint32_t ChangesOf(const TESObjectREFR& acRef) noexcept
+{
+    uint32_t changes = 0;
+    if (const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get())
+        for (uint32_t bit = 0; bit < 32; ++bit)
+            if (pSaveLoad->HasChange(acRef, 1u << bit))
+                changes |= 1u << bit;
+    return changes;
+}
+
+// Its own ExtraLock (0x2A) only: whether it holds the lock, locked, level.
+std::tuple<bool, bool, uint8_t> OwnLock(const TESObjectREFR& acRef) noexcept
+{
+    const auto* pExtra = static_cast<const ExtraLock*>(acRef.extraData.GetByType(ExtraDataType::Lock));
+    if (!pExtra || !pExtra->lock)
+        return {false, false, 0};
+    return {true, pExtra->lock->IsLocked(), pExtra->lock->lockLevel};
+}
+} // namespace
+
+DoorLockState GetDoorLock(uint32_t aRefId) noexcept
+{
+    DoorLockState state;
+    const auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aRefId));
+    if (!pRef)
+        return state;
+    state.Exists = true;
+    std::tie(state.OwnLock, state.Locked, state.Level) = OwnLock(*pRef);
+    state.Changes = ChangesOf(*pRef);
+    const auto* pTeleport = static_cast<const ExtraTeleport*>(pRef->extraData.GetByType(ExtraDataType::Teleport));
+    if (!pTeleport || !pTeleport->teleportData)
+        return state;
+    const auto* pLinked = TESObjectREFR::GetByHandle(pTeleport->teleportData->linkedDoor);
+    if (!pLinked)
+        return state;
+    state.Linked = pLinked->formID;
+    state.LinkedExists = true;
+    std::tie(state.LinkedOwnLock, state.LinkedLocked, state.LinkedLevel) = OwnLock(*pLinked);
+    state.LinkedChanges = ChangesOf(*pLinked);
+    return state;
+}
+
+namespace
+{
+// The script object the VM binds to that form, with a reference to release (DecRef).
+BSScript::Object* FindScript(uint32_t aFormId, const char* acpScript) noexcept
+{
+    auto* pForm = TESForm::GetById(aFormId);
+    auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
+    auto* pPolicy = pVm ? pVm->GetObjectHandlePolicy() : nullptr;
+    if (!pForm || !pPolicy)
+        return nullptr;
+    const uint64_t cHandle = pPolicy->GetHandleForObject(static_cast<uint32_t>(pForm->formType), pForm);
+    BSScript::Object* pObject = nullptr;
+    return pVm->FindBoundObject(cHandle, acpScript, &pObject) ? pObject : nullptr;
+}
+} // namespace
+
+std::vector<ReferenceState> GetLoadedReferences(bool aDetails, const std::vector<std::string>& acClasses) noexcept
 {
     std::vector<TESObjectCELL*> cells;
     if (TES* pTes = TES::Get())
@@ -1134,6 +1206,13 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
                 state.Leveled = pRef->CountLeveledEntries();
                 state.Stored = pRef->HasStoredChanges();
             }
+            state.OnPath = pRef->extraData.GetByType(ExtraDataType::RefrPath) != nullptr;
+            for (const auto& cClass : acClasses)
+                if (BSScript::Object* pObject = FindScript(pRef->formID, cClass.c_str()))
+                {
+                    pObject->DecRef();
+                    state.Scripts.push_back(cClass);
+                }
             if (const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get())
                 for (uint32_t bit = 0; bit < 32; ++bit)
                     if (pSaveLoad->HasChange(*pRef, 1u << bit))
@@ -1152,6 +1231,22 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
     return references;
 }
 
+std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    auto* pNpc = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
+    if (!pNpc)
+        return std::nullopt;
+    // As TESNPC::InitWornOn3D (24725) calls it: four bytes (1, process-allows, 0, 0).
+    using TReset = void(TESNPC*, Actor*, bool, bool, bool, bool);
+    POINTER_SKYRIMSE(TReset, s_reset, 418622);
+    s_reset.Get()(pNpc, pActor, true, true, false, false);
+    std::vector<uint32_t> worn;
+    for (const auto& cEntry : pActor->GetEquipment().Entries)
+        worn.push_back(ItemForm(cEntry.BaseId));
+    return worn;
+}
+
 void UnequipAllUnsynced(uint32_t aFormId) noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
@@ -1161,21 +1256,6 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept
     }
 }
 
-namespace
-{
-// The script object the VM binds to that form, with a reference to release (DecRef).
-BSScript::Object* FindScript(uint32_t aFormId, const char* acpScript) noexcept
-{
-    auto* pForm = TESForm::GetById(aFormId);
-    auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
-    auto* pPolicy = pVm ? pVm->GetObjectHandlePolicy() : nullptr;
-    if (!pForm || !pPolicy)
-        return nullptr;
-    const uint64_t cHandle = pPolicy->GetHandleForObject(static_cast<uint32_t>(pForm->formType), pForm);
-    BSScript::Object* pObject = nullptr;
-    return pVm->FindBoundObject(cHandle, acpScript, &pObject) ? pObject : nullptr;
-}
-} // namespace
 
 std::optional<std::string> GetScriptState(uint32_t aFormId, const char* acpScript) noexcept
 {
@@ -1424,6 +1504,40 @@ std::optional<std::vector<std::pair<int32_t, std::vector<uint32_t>>>> GetStackEx
                 stacks.emplace_back(pList->GetCount(), std::move(types));
             }
     return stacks;
+}
+
+std::optional<InventoryEntryRead> GetInventoryEntry(uint32_t aHolder, uint32_t aItem) noexcept
+{
+    auto* pHolder = Cast<TESObjectREFR>(TESForm::GetById(aHolder));
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(aItem));
+    if (!pHolder || !pItem)
+        return std::nullopt;
+    InventoryEntryRead read;
+    if (const TESContainer* pBase = pHolder->GetContainer())
+        for (uint32_t i = 0; i < pBase->count; ++i)
+            if (const auto* pEntry = pBase->entries[i]; pEntry && pEntry->form &&
+                (pEntry->form == pItem || pEntry->form->formType == FormType::LeveledItem))
+                read.Base.emplace_back(pEntry->form->formID, static_cast<int32_t>(pEntry->count));
+    if (const auto* pChanges = pHolder->FindContainerChanges(); pChanges && pChanges->entries)
+        for (auto* pEntry : *pChanges->entries)
+            if (pEntry && pEntry->form == pItem)
+            {
+                read.HasEntry = true;
+                read.Delta = pEntry->count;
+                if (pEntry->dataList)
+                    for (ExtraDataList* pList : *pEntry->dataList)
+                        if (pList)
+                        {
+                            std::vector<uint32_t> types;
+                            for (const BSExtraData* pData = pList->data; pData; pData = pData->next)
+                                types.push_back(static_cast<uint32_t>(pData->GetType()));
+                            read.Lists.emplace_back(pList->GetCount(), std::move(types));
+                        }
+            }
+    read.Count = pHolder->GetContainerCount(pItem).value_or(0);
+    for (const auto& cEntry : pHolder->GetInventory([pItem](TESForm& aForm) { return &aForm == pItem; }).Entries)
+        read.Listed += cEntry.Count;
+    return read;
 }
 
 bool PlayerImproves(uint32_t aItemFormId, float aHealth, uint32_t aEnchantment, uint16_t aCharge) noexcept
@@ -2058,6 +2172,33 @@ bool IsInRagdollState(uint32_t aFormId) noexcept
     POINTER_SKYRIMSE(TIsInRagdollState, s_isInRagdollState, 37491);
     const Actor* pActor = GetActor(aFormId);
     return pActor && s_isInRagdollState.Get()(pActor);
+}
+
+std::vector<uint32_t> SpellEffects(uint32_t aSpellId) noexcept
+{
+    std::vector<uint32_t> effects;
+    if (auto* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellId)))
+        for (EffectItem* pEffect : pSpell->listOfEffects)
+            if (pEffect && pEffect->pEffectSetting)
+                effects.push_back(pEffect->pEffectSetting->formID);
+    return effects;
+}
+
+Commanding ReadCommanding(uint32_t aFormId) noexcept
+{
+    Commanding commanding;
+    const Actor* pActor = GetActor(aFormId);
+    const MiddleProcess* pProcess = pActor && pActor->currentProcess ? pActor->currentProcess->middleProcess : nullptr;
+    if (!pProcess)
+        return commanding;
+    const auto cFormOf = [](uint32_t aHandle) {
+        const TESObjectREFR* pRef = TESObjectREFR::GetByHandle(aHandle);
+        return pRef ? pRef->formID : 0u;
+    };
+    commanding.Commander = cFormOf(pProcess->commandingActor.handle.iBits);
+    for (const CommandedActor& cEntry : pProcess->commandedActors)
+        commanding.Commanded.push_back(cFormOf(cEntry.handle));
+    return commanding;
 }
 
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept

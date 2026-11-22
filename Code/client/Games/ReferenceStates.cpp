@@ -12,6 +12,8 @@
 #include <RTTI.h>
 #include <VersionDb.h>
 #include <Forms/TESBoundObject.h>
+#include <ExtraData/ExtraLock.h>
+#include <ExtraData/ExtraTeleport.h>
 
 namespace ReferenceStates
 {
@@ -82,6 +84,30 @@ bool ApplyOpen(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
     using TSetOpenState = bool(TESObjectREFR*, bool, bool);
     POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287);
     s_setOpenState.Get()(&aObject, acChange.Value != 0, false);
+    return true;
+}
+
+// A plant or tree picked: its form flag 0x2000 (TESObjectREFR::SetHarvestedFlag 14647). 1: harvested.
+constexpr uint32_t kHarvestedFlag = 0x2000;
+
+bool ReadHarvested(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
+{
+    aChange.Value = (acObject.flags & kHarvestedFlag) != 0;
+    return true;
+}
+
+// As TESProduceForm::Harvest (14864) leaves it: the flag, its change, and the model (UpdateHarvestModel 14865, which
+// Load3D calls for one loading later).
+bool ApplyHarvested(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
+{
+    using TSetHarvested = void(TESObjectREFR*, bool);
+    POINTER_SKYRIMSE(TSetHarvested, s_setHarvested, 14647);
+    using TUpdateModel = void(TESObjectREFR*, NiAVObject*);
+    POINTER_SKYRIMSE(TUpdateModel, s_updateModel, 14865);
+    s_setHarvested.Get()(&aObject, acChange.Value != 0);
+    aObject.MarkChanged(TESObjectREFR::CHANGE_OBJECT_EMPTY);
+    if (NiAVObject* p3D = aObject.GetNiNode())
+        s_updateModel.Get()(&aObject, p3D);
     return true;
 }
 
@@ -214,6 +240,7 @@ constexpr ReferenceState cStates[] = {
     {ObjectChange::Kind::kEnabled, TESObjectREFR::CHANGE_FORM_FLAGS, &ReadEnabled, &ApplyEnabled},
     {ObjectChange::Kind::kLock, TESObjectREFR::CHANGE_OBJECT_EXTRA_LOCK, &ReadLock, &ApplyLock},
     {ObjectChange::Kind::kOpenState, TESObjectREFR::CHANGE_OBJECT_OPEN_STATE, &ReadOpen, &ApplyOpen},
+    {ObjectChange::Kind::kHarvested, TESObjectREFR::CHANGE_OBJECT_EMPTY, &ReadHarvested, &ApplyHarvested},
     {ObjectChange::Kind::kMove, TESObjectREFR::CHANGE_REFR_MOVE, &ReadMove, &ApplyMove},
     {ObjectChange::Kind::kScale, TESObjectREFR::CHANGE_REFR_SCALE, &ReadScale, &ApplyScale},
     {ObjectChange::Kind::kOwner, TESObjectREFR::CHANGE_REFR_EXTRA_OWNERSHIP, &ReadOwner, &ApplyOwner},
@@ -257,6 +284,18 @@ uint32_t RecordedRows(const TESObjectREFR& acObject) noexcept
         return 0;
     const uint32_t cFlags = pSaveLoad->ChangeFlags(acObject, RowFlags() | cHavokMove);
     return (cFlags & ~cHavokMove) | (cFlags & cHavokMove ? TESObjectREFR::CHANGE_REFR_MOVE : 0);
+}
+
+uint32_t LinkedLockRows(const TESObjectREFR& acObject) noexcept
+{
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    const auto* pTeleport = static_cast<const ExtraTeleport*>(acObject.extraData.GetByType(ExtraDataType::Teleport));
+    // Its own lock as 20223 and 19512 judge it: an ExtraLock holding a lock.
+    const auto* pOwn = static_cast<const ExtraLock*>(acObject.extraData.GetByType(ExtraDataType::Lock));
+    if (!pSaveLoad || !pTeleport || !pTeleport->teleportData || (pOwn && pOwn->lock))
+        return 0;
+    const TESObjectREFR* pLinked = TESObjectREFR::GetByHandle(pTeleport->teleportData->linkedDoor);
+    return pLinked ? pSaveLoad->ChangeFlags(*pLinked, TESObjectREFR::CHANGE_OBJECT_EXTRA_LOCK) : 0;
 }
 
 uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept

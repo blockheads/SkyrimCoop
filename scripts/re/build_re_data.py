@@ -31,9 +31,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from skyrim_runtime import runtime_version, library_name, pe_version
 from address_library import load as load_address_library
 import journal
+import local_paths
 
-GAME = Path(os.environ.get("SKYRIM_GAME_DIR",
-                           "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition"))
+GAME = Path(os.environ.get("SKYRIM_GAME_DIR", local_paths.STEAM_GAME))
 PLUGINS = ROOT / "reference/plugins"
 MEH_NAMES = ROOT / "reference/AddressLibraryDatabase/skyrimae.rename"
 CLIENT = ROOT / "Code/client"

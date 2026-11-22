@@ -1,5 +1,7 @@
 // HostCharacters: ids, owners, spawns, removal and respawn.
 #include "session.h"
+#include <Structs/ItemsPart.h>
+#include <Structs/RidePart.h>
 
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyPartyTravel.h>
@@ -101,9 +103,9 @@ TEST_CASE("Characters: removed by their owner or their player leaving", "[HostAu
 
     // Gone: the owner no longer speaks for it.
     session.Outbox.clear();
-    DrawWeaponRequest draw;
-    draw.Id = cHostNpc;
-    session.Receive(kHost, draw);
+    RequestDeathStateChange death;
+    death.Id = cHostNpc;
+    session.Receive(kHost, death);
     CHECK(session.Outbox.empty());
 
     session.Outbox.clear();
@@ -644,16 +646,16 @@ TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joine
     Session session;
     const uint32_t cPeerPlayer = BothInQASmoke(session);
 
-    // The peer changed its equipment since it joined, then both go to Riverwood.
+    // The peer changed its equipment since it joined (its items part), then both go to Riverwood.
+    ItemsPart sword;
+    sword.Full = true;
+    sword.Items.Entries.push_back({.BaseId = GameId(0, 0x12EB7), .Count = 1, .ExtraWorn = true});
+    RecordRequest items;
+    items.Id = cPeerPlayer;
+    items.Part = {RecordKind::kItems, 1, ToPartBytes(sword)};
+    session.Receive(kPeer, items);
     session.Receive(kHost, Arrival(0x9732, 0x3C));
-    auto arrival = Arrival(0x9732, 0x3C);
-    Inventory::Entry sword;
-    sword.BaseId = GameId(0, 0x12EB7);
-    sword.Count = 1;
-    sword.ExtraWorn = true;
-    arrival.Data.InitialInventory.Entries.push_back(sword);
-    arrival.Data.IsWeaponDrawn = true;
-    session.Receive(kPeer, arrival);
+    session.Receive(kPeer, Arrival(0x9732, 0x3C));
 
     // The host's copy of it was lost: the host's game asks for it again (RunPresence).
     RequestRespawn again;
@@ -661,8 +663,9 @@ TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joine
     session.Receive(kHost, again);
     const auto cToHost = session.SentTo<NotifyCharacterSpawn>(kHost);
     REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->InventoryContent == arrival.Data.InitialInventory);
-    CHECK(cToHost[0]->IsWeaponDrawn);
+    const RecordPart* cpItems = cToHost[0]->Record.Find(RecordKind::kItems);
+    REQUIRE(cpItems);
+    CHECK(cpItems->Bytes == items.Part.Bytes);
 }
 
 TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared first", "[HostAuthority][Characters]")
@@ -728,9 +731,7 @@ TEST_CASE("Mounts: a player getting on the host's horse makes it its game's to m
     const uint32_t cHorse = session.Character(kHost);
     const uint32_t cPeerPlayer = session.Character(kPeer);
 
-    MountRequest mount;
-    mount.RiderId = cPeerPlayer;
-    mount.MountId = cHorse;
+    ClaimRequest mount = RideClaim(cPeerPlayer, cHorse);
     session.Receive(kPeer, mount);
     // Every game hears it, the rider's to take the horse.
     for (const auto cTo : {kHost, kPeer, kOtherPeer})
@@ -756,23 +757,31 @@ TEST_CASE("Mounts: getting off gives the horse back to the host", "[HostAuthorit
     Session session;
     const uint32_t cHorse = session.Character(kHost);
     const uint32_t cPeerPlayer = session.Character(kPeer);
-    MountRequest mount;
-    mount.RiderId = cPeerPlayer;
-    mount.MountId = cHorse;
+    ClaimRequest mount = RideClaim(cPeerPlayer, cHorse);
     session.Receive(kPeer, mount);
 
     DismountRequest dismount;
     dismount.RiderId = cPeerPlayer;
     dismount.MountId = cHorse;
+    ActorGiveBackRequest giveBack;
+    giveBack.ActorId = cHorse;
+    giveBack.ClaimId = 1;
+    giveBack.Tick = 4242; // its rider's last graph update: the host's game takes it once its copy ran that far
     session.Receive(kOtherPeer, dismount); // not its rider
+    session.Receive(kOtherPeer, giveBack); // nor its holder
     CHECK(session.SentTo<NotifyDismount>(kHost).empty());
+    CHECK(session.SentTo<NotifyActorGiveBack>(kHost).empty());
 
     session.Receive(kPeer, dismount);
+    session.Receive(kPeer, giveBack);
     // Every game hears it, the host's to take the horse back.
     for (const auto cTo : {kHost, kPeer, kOtherPeer})
     {
         REQUIRE(session.SentTo<NotifyDismount>(cTo).size() == 1);
         CHECK(session.SentTo<NotifyDismount>(cTo)[0]->MountId == cHorse);
+        REQUIRE(session.SentTo<NotifyActorGiveBack>(cTo).size() == 1);
+        CHECK(session.SentTo<NotifyActorGiveBack>(cTo)[0]->Tick == 4242);
+        CHECK(session.SentTo<NotifyActorGiveBack>(cTo)[0]->ForId == cPeerPlayer);
     }
 
     // The host's game moves it again; the rider's no longer does.
@@ -790,9 +799,7 @@ TEST_CASE("Mounts: a rider leaving gives its horse back to the host, which keeps
     Session session;
     const uint32_t cHorse = session.Character(kHost);
     const uint32_t cPeerPlayer = session.Character(kPeer);
-    MountRequest mount;
-    mount.RiderId = cPeerPlayer;
-    mount.MountId = cHorse;
+    ClaimRequest mount = RideClaim(cPeerPlayer, cHorse);
     session.Receive(kPeer, mount);
     session.Outbox.clear();
 
@@ -818,9 +825,7 @@ TEST_CASE("Mounts: the host's NPC on its horse reaches the others; no one mounts
     const uint32_t cRider = session.Character(kHost);
     const uint32_t cHorse = session.Character(kHost);
 
-    MountRequest mount;
-    mount.RiderId = cRider;
-    mount.MountId = cHorse;
+    ClaimRequest mount = RideClaim(cRider, cHorse);
     session.Receive(kPeer, mount); // not its rider
     CHECK(session.Outbox.empty());
 
@@ -916,18 +921,14 @@ TEST_CASE("Mounts: a horse has one rider; a second getting on within the round t
     const uint32_t cHorse = session.Character(kHost);
     const uint32_t cPeerPlayer = session.Character(kPeer);
     const uint32_t cOtherPlayer = session.Character(kOtherPeer);
-    MountRequest first;
-    first.RiderId = cPeerPlayer;
-    first.MountId = cHorse;
+    ClaimRequest first = RideClaim(cPeerPlayer, cHorse);
     session.Receive(kPeer, first);
     session.Outbox.clear();
 
-    MountRequest second;
-    second.RiderId = cOtherPlayer;
-    second.MountId = cHorse;
+    ClaimRequest second = RideClaim(cOtherPlayer, cHorse);
     session.Receive(kOtherPeer, second);
-    REQUIRE(session.SentTo<NotifyMountRefused>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer)[0]->RiderId == cOtherPlayer);
+    REQUIRE(session.SentTo<NotifyClaimRefused>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyClaimRefused>(kOtherPeer)[0]->ForId == cOtherPlayer);
     for (const auto cTo : {kHost, kPeer, kOtherPeer})
         CHECK(session.SentTo<NotifyMount>(cTo).empty());
     // Still the first rider's game that moves it.
@@ -936,14 +937,25 @@ TEST_CASE("Mounts: a horse has one rider; a second getting on within the round t
     session.Receive(kOtherPeer, moved);
     CHECK(session.SentTo<NotifyReferencesMove>(kHost).empty());
 
-    // Once the first is off, the second may ride it.
+    // Once the first is off and its game gave the horse back, the second may ride it.
     DismountRequest off;
     off.RiderId = cPeerPlayer;
     off.MountId = cHorse;
     session.Receive(kPeer, off);
     session.Outbox.clear();
     session.Receive(kOtherPeer, second);
-    CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyClaimRefused>(kOtherPeer).size() == 1); // still the first's game's
+    ActorGiveBackRequest giveBack;
+    giveBack.ActorId = cHorse;
+    giveBack.ClaimId = 1;
+    session.Receive(kPeer, giveBack);
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, second);
+    CHECK(session.SentTo<NotifyClaimRefused>(kOtherPeer).size() == 1); // not yet the host's game's again
+    session.Taken(cHorse);
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, second);
+    CHECK(session.SentTo<NotifyClaimRefused>(kOtherPeer).empty());
     CHECK(session.SentTo<NotifyMount>(kHost).size() == 1);
 }
 
@@ -952,9 +964,7 @@ TEST_CASE("Mounts: a player joining later hears who rides what after its spawns"
     Session session;
     const uint32_t cHorse = session.Character(kHost);
     const uint32_t cPeerPlayer = session.Character(kPeer);
-    MountRequest mount;
-    mount.RiderId = cPeerPlayer;
-    mount.MountId = cHorse;
+    ClaimRequest mount = RideClaim(cPeerPlayer, cHorse);
     session.Receive(kPeer, mount);
     session.Outbox.clear();
 
@@ -976,18 +986,15 @@ TEST_CASE("Mounts: a rider's character removed gives its horse back", "[HostAuth
     const uint32_t cHorse = session.Character(kHost);
     const uint32_t cPeerPlayer = session.Character(kPeer);
     const uint32_t cOtherPlayer = session.Character(kOtherPeer);
-    MountRequest mount;
-    mount.RiderId = cPeerPlayer;
-    mount.MountId = cHorse;
+    ClaimRequest mount = RideClaim(cPeerPlayer, cHorse);
     session.Receive(kPeer, mount);
 
     // Announced again (a respawn): its old character goes, and the ride with it.
     session.Character(kPeer);
-    MountRequest other;
-    other.RiderId = cOtherPlayer;
-    other.MountId = cHorse;
+    session.Taken(cHorse);
+    ClaimRequest other = RideClaim(cOtherPlayer, cHorse);
     session.Receive(kOtherPeer, other);
-    CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyClaimRefused>(kOtherPeer).empty());
     CHECK(session.SentTo<NotifyMount>(kHost).size() == 1);
 }
 
@@ -1002,9 +1009,7 @@ struct Ride
     uint32_t Passenger = session.Character(kOtherPeer);
     Ride()
     {
-        MountRequest mount;
-        mount.RiderId = Driver;
-        mount.MountId = Horse;
+        ClaimRequest mount = RideClaim(Driver, Horse);
         session.Receive(kPeer, mount);
         session.Outbox.clear();
     }
@@ -1018,24 +1023,51 @@ struct Ride
 };
 } // namespace
 
-TEST_CASE("Mounts: a player boards a horse another player drives, its copy seated on the other games", "[HostAuthority][Characters][passengers]")
+TEST_CASE("Mounts: a player boards a horse another player drives: its game is given the seat", "[HostAuthority][Characters][passengers]")
 {
     Ride ride;
     ride.Board();
     CHECK(ride.session.SentTo<NotifyMountRefused>(kOtherPeer).empty());
-    CHECK(ride.session.SentTo<NotifyBoard>(kOtherPeer).empty());
+    // Only the asker: its game seats it, its Ride part its copies.
+    REQUIRE(ride.session.SentTo<NotifyBoard>(kOtherPeer).size() == 1);
+    CHECK(ride.session.SentTo<NotifyBoard>(kOtherPeer)[0]->RiderId == ride.Passenger);
+    CHECK(ride.session.SentTo<NotifyBoard>(kOtherPeer)[0]->MountId == ride.Horse);
     for (const auto cTo : {kHost, kPeer})
-    {
-        REQUIRE(ride.session.SentTo<NotifyBoard>(cTo).size() == 1);
-        CHECK(ride.session.SentTo<NotifyBoard>(cTo)[0]->RiderId == ride.Passenger);
-        CHECK(ride.session.SentTo<NotifyBoard>(cTo)[0]->MountId == ride.Horse);
-    }
+        CHECK(ride.session.SentTo<NotifyBoard>(cTo).empty());
     // The driver's game still moves it.
     ReferencesMoveRequest moved;
     moved.Updates[ride.Horse] = {};
     ride.session.Outbox.clear();
     ride.session.Receive(kOtherPeer, moved);
     CHECK(ride.session.SentTo<NotifyReferencesMove>(kHost).empty());
+}
+
+TEST_CASE("Mounts: a Ride part naming a horse the host gave no seat on goes nowhere", "[HostAuthority][Characters][passengers]")
+{
+    Ride ride;
+    RecordRequest seat;
+    seat.Id = ride.Passenger;
+    seat.Part = {RecordKind::kRide, 1, ToPartBytes(RidePart{1, ride.Horse})};
+    ride.session.Receive(kOtherPeer, seat); // never asked: no seat
+    CHECK(ride.session.SentTo<NotifyRecord>(kHost).empty());
+    CHECK(ride.session.SentTo<NotifyRecord>(kPeer).empty());
+
+    ride.Board();
+    seat.Part.Version = 2;
+    ride.session.Receive(kOtherPeer, seat);
+    CHECK(ride.session.SentTo<NotifyRecord>(kHost).size() == 1);
+    // Off again: no seat; getting off (Ride {0}) still goes out.
+    UnboardRequest off;
+    off.RiderId = ride.Passenger;
+    off.MountId = ride.Horse;
+    ride.session.Receive(kOtherPeer, off);
+    ride.session.Outbox.clear();
+    seat.Part.Version = 3;
+    ride.session.Receive(kOtherPeer, seat);
+    CHECK(ride.session.SentTo<NotifyRecord>(kHost).empty());
+    seat.Part = {RecordKind::kRide, 4, ToPartBytes(RidePart{2, 0})};
+    ride.session.Receive(kOtherPeer, seat);
+    CHECK(ride.session.SentTo<NotifyRecord>(kHost).size() == 1);
 }
 
 TEST_CASE("Mounts: no boarding a horse nobody drives, nor for a rider not the sender's", "[HostAuthority][Characters][passengers]")
@@ -1140,6 +1172,10 @@ TEST_CASE("Mounts: the driver leaving hands the horse to its passenger; a late j
 {
     Ride ride;
     ride.Board();
+    RecordRequest seat; // the passenger's game, seated
+    seat.Id = ride.Passenger;
+    seat.Part = {RecordKind::kRide, 1, ToPartBytes(RidePart{1, ride.Horse})};
+    ride.session.Receive(kOtherPeer, seat);
     constexpr ConnectionId_t cLate = 4;
     ride.session.Join(cLate, JoinRequest("Serana"));
     AnnounceCharacterRequest late;
@@ -1147,8 +1183,13 @@ TEST_CASE("Mounts: the driver leaving hands the horse to its passenger; a late j
     late.ReferenceId = GameId(0, 0x14);
     ride.session.Receive(cLate, late);
     REQUIRE(ride.session.SentTo<NotifyMount>(cLate).size() == 1);
-    REQUIRE(ride.session.SentTo<NotifyBoard>(cLate).size() == 1);
-    CHECK(ride.session.SentTo<NotifyBoard>(cLate)[0]->RiderId == ride.Passenger);
+    CHECK(ride.session.SentTo<NotifyBoard>(cLate).empty());
+    bool seated = false; // its Ride part, on the passenger's spawn
+    for (const auto* cpSpawn : ride.session.SentTo<NotifyCharacterSpawn>(cLate))
+        if (cpSpawn->SessionId == ride.Passenger)
+            if (const RecordPart* cpRide = cpSpawn->Record.Find(RecordKind::kRide))
+                seated = cpRide->Bytes == seat.Part.Bytes;
+    CHECK(seated);
 
     ride.session.Outbox.clear();
     ride.session.Leave(kPeer);

@@ -25,6 +25,8 @@ inline constexpr uint32_t kMainFour = 1 << 8;
 // here only. A holder of controls is this game's own scripts (kThisGame) or another game's mirrored tag.
 inline constexpr uint32_t kMirrored = 0xFFFE0000;
 inline constexpr uint32_t kThisPlayerFormId = 0x14;
+// The cause a call the host routed to this game runs with (GuestEngine::RunPlayerNative): its own player's.
+inline constexpr uint32_t kRoutedCallCause = kThisPlayerFormId;
 inline constexpr uint32_t kThisGame = 0xFFFFFFFF;
 [[nodiscard]] constexpr bool IsMirrored(uint32_t aTag) noexcept
 {
@@ -95,6 +97,7 @@ struct CallFacts
     bool PlayerInCall = false;  // this game's player (0x14) is its object or an argument
     bool InSystemQuest = false; // a system quest's script calls it: this game's instance, for its own player
     bool SystemObject = false;  // its object is a system quest or one of its globals: each game's own
+    bool CreatedObject = false; // its object is a reference the host's game created (CreatedIds)
 };
 
 enum class Destination : uint8_t
@@ -113,6 +116,7 @@ struct Routing
     bool Mark = false;       // the player in it (MarkFor's) is each game's own (MarkEachPlayer)
     uint32_t MarkFor = 0;
     bool Ask = false;        // a question with no player's action: asked of the party's player nearest the asker (rule 3)
+    bool Reply = false;      // kHost: the script waits for what the host's game returned (a created reference)
     bool operator==(const Routing&) const = default;
 };
 // Where a call runs (docs/design/party-calls.md). Another game's call (mirrored) runs here only.

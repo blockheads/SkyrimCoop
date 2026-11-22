@@ -12,6 +12,7 @@
 #include <Services/Guest/GuestCopies.h>
 #include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
+#include <Services/Guest/GuestEye.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
 #include <Services/Guest/GuestDialogue.h>
@@ -34,6 +35,7 @@ struct GuestService::Guest
         : Engine(aWorld.ctx().at<IBodyBridge&>())
         , Clock(aWorld, aDispatcher, Engine)
         , Weather(aDispatcher, Engine)
+        , Eye(aDispatcher, Engine)
         , WorldState(aWorld, aDispatcher, Engine)
         , Dialogue(aWorld, aDispatcher, aWorld.ctx().at<DialogueService>())
         , Record(aWorld, aDispatcher, aWorld.ctx().at<IJoinBridge&>())
@@ -48,6 +50,7 @@ struct GuestService::Guest
     GuestEngine Engine;
     GuestClock Clock;
     GuestWeather Weather;
+    GuestEye Eye;
     GuestWorldState WorldState;
     GuestDialogue Dialogue;
     GuestRecord Record;

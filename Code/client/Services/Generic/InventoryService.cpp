@@ -6,14 +6,17 @@
 
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
-#include <Messages/RequestEquipmentChanges.h>
-#include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/Relayed.h>
 
 #include <Events/UpdateEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/EquipmentChangeEvent.h>
 #include <Events/DisconnectedEvent.h>
+#include <Events/ItemsChangedEvent.h>
+#include <Events/ReferenceLoadedEvent.h>
+#include <Events/WornResetEvent.h>
+#include <Services/CopyRecords.h>
+#include <Structs/ItemsPart.h>
 
 #include <World.h>
 #include <Bridges/IActorBridge.h>
@@ -22,10 +25,8 @@
 #include <Games/PartyItems.h>
 #include <set>
 #include <Components/LocalComponent.h>
-#include <Components/LocalWeaponDrawComponent.h>
 #include <Components/RemoteAnimationComponent.h>
 #include <Components/RemoteComponent.h>
-#include <Components/RemoteWeaponDrawComponent.h>
 #include <SessionIds.h>
 #include <Components/FormIdComponent.h>
 #include <Components/WaitingFor3D.h>
@@ -33,41 +34,86 @@
 #include <Diagnostics/Profile.h>
 
 InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
-                                    IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept
+                                    IActorBridge& aActorBridge, IFormBridge& aFormBridge, CopyRecords& aRecords) noexcept
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
     , m_transport(aTransport)
     , m_actorBridge(aActorBridge)
     , m_formBridge(aFormBridge)
+    , m_records(aRecords)
 {
+    m_records.Register(
+        RecordKind::kItems,
+        [this](uint32_t aId, const std::string& acBytes) {
+            ApplyItems(aId, acBytes);
+            return std::vector<uint32_t>{};
+        },
+        [this](uint32_t aFormId) -> std::optional<std::string> { return ToPartBytes(ItemsPart::Of(ReadItems(aFormId))); });
     Listen<UpdateEvent, &InventoryService::OnUpdate>(m_connections, m_dispatcher, this);
     Listen<InventoryChangeEvent, &InventoryService::OnInventoryChangeEvent>(m_connections, m_dispatcher, this);
     Listen<EquipmentChangeEvent, &InventoryService::OnEquipmentChangeEvent>(m_connections, m_dispatcher, this);
+    Listen<ItemsChangedEvent, &InventoryService::OnItemsChanged>(m_connections, m_dispatcher, this);
+    Listen<ReferenceLoadedEvent, &InventoryService::OnReferenceLoaded>(m_connections, m_dispatcher, this);
+    Listen<WornResetEvent, &InventoryService::OnWornReset>(m_connections, m_dispatcher, this);
     Listen<NotifyInventoryChanges, &InventoryService::OnNotifyInventoryChanges>(m_connections, m_dispatcher, this);
-    Listen<NotifyEquipmentChanges, &InventoryService::OnNotifyEquipmentChanges>(m_connections, m_dispatcher, this);
-    Listen<NotifyEquipmentSnapshot, &InventoryService::OnNotifyEquipmentSnapshot>(m_connections, m_dispatcher, this);
-    Listen<NotifyDrawWeapon, &InventoryService::OnNotifyDrawWeapon>(m_connections, m_dispatcher, this);
     Listen<NotifyPartyGold, &InventoryService::OnNotifyPartyGold>(m_connections, m_dispatcher, this);
     Listen<NotifyPartyItem, &InventoryService::OnNotifyPartyItem>(m_connections, m_dispatcher, this);
     Listen<NotifyPartyItems, &InventoryService::OnNotifyPartyItems>(m_connections, m_dispatcher, this);
     Listen<DisconnectedEvent, &InventoryService::OnDisconnected>(m_connections, m_dispatcher, this);
     Listen<&InventoryService::OnSpawnItemsApplied>(m_connections, m_world.on_destroy<WaitingFor3D>(), this);
-    Listen<&InventoryService::OnLocalComponentRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
-    Listen<&InventoryService::OnRemoteComponentRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
+}
+
+InventoryService::~InventoryService() noexcept
+{
+    m_records.Register(RecordKind::kItems, {});
 }
 
 void InventoryService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
     PROFILE_ZONE("InventoryService::OnUpdate");
-    RunWeaponStateUpdates();
-    RunWeaponDrawConvergence(acUpdateEvent.Delta);
-    RunEquipmentSnapshots();
+    DeclareChanges();
+    for (auto it = m_waiting3D.begin(); it != m_waiting3D.end();)
+    {
+        const uint32_t cId = *it;
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(cId);
+        if (cFormId && m_actorBridge.IsActorCopy(cFormId) && !m_actorBridge.ActorHas3D(cFormId))
+        {
+            ++it;
+            continue;
+        }
+        it = m_waiting3D.erase(it);
+        if (cFormId)
+            m_records.ApplyAgain(cId, RecordKind::kItems);
+    }
+    for (auto it = m_unsettled.begin(); it != m_unsettled.end();)
+    {
+        auto& [since, last] = it->second;
+        since += acUpdateEvent.Delta;
+        last += acUpdateEvent.Delta;
+        const uint32_t cId = it->first;
+        if (since >= kGiveUp)
+        {
+            spdlog::warn("InventoryService: copy {:X}'s worn set did not settle in {} s", cId, kGiveUp);
+            it = m_unsettled.erase(it);
+            continue;
+        }
+        ++it;
+        if (last >= kRetry)
+        {
+            last = 0.0;
+            m_records.ApplyAgain(cId, RecordKind::kItems); // may erase cId from m_unsettled: it is past already
+        }
+    }
     RunNakedNPCBugChecks();
 }
 
 void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEvent) noexcept
 {
-    if (!m_transport.IsConnected())
+    Touch(acEvent.FormId);
+    // An actor's items reach its copies as its part; a player character's change still goes to the host for the party's
+    // gold and items (HostPurse, HostPartyItems: the host's scripts may change a guest's copy).
+    const bool cPlayer = acEvent.FormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId() || m_actorBridge.IsOtherPlayer(acEvent.FormId);
+    if (!m_transport.IsConnected() || !cPlayer)
         return;
 
     auto view = m_world.view<FormIdComponent>();
@@ -92,9 +138,8 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
 
     // A key, a quest item or the story's gift arriving on a player is the party's (party-items.md): this game takes its
     // own copy back, and the host gives every player the tagged one.
-    const bool cPlayer = acEvent.FormId == 0x14 || m_actorBridge.IsOtherPlayer(acEvent.FormId);
     const uint32_t cItemId = ToGame(acEvent.Item.BaseId);
-    if (cPlayer && !acEvent.Drop && acEvent.Item.Count > 0 && !acEvent.Item.ExtraName.starts_with(PartyItems::cTag) &&
+    if (!acEvent.Drop && acEvent.Item.Count > 0 && !acEvent.Item.ExtraName.starts_with(PartyItems::cTag) &&
         PartyItems::ArrivesAsParty(cItemId, m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven))
     {
         request.NewPartyItem = true;
@@ -117,51 +162,6 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
                  request.NewPartyItem ? ", a new party item" : "");
 }
 
-void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEvent) noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-
-    auto view = m_world.view<FormIdComponent>();
-
-    const auto iter = std::find_if(std::begin(view), std::end(view), [view, formId = acEvent.ActorId](auto entity) { return view.get<FormIdComponent>(entity).Id == formId; });
-
-    if (iter == std::end(view))
-        return;
-
-    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*iter);
-    if (!sessionIdRes.has_value())
-    {
-        spdlog::error("{}: : failed to find session id, actor id: {:X}, item id: {:X}, isAmmo: {}, unequip: {}, slot: {:X}", __FUNCTION__, acEvent.ActorId, acEvent.ItemId, acEvent.IsAmmo, acEvent.Unequip, acEvent.EquipSlotId);
-        return;
-    }
-
-    if (!m_actorBridge.ActorExists(acEvent.ActorId))
-        return;
-
-    RequestEquipmentChanges request;
-    request.SessionId = *sessionIdRes;
-
-    const auto cSlot = ToSession(acEvent.EquipSlotId);
-    const auto cItem = ToSession(acEvent.ItemId);
-    if (!cSlot || !cItem)
-        return;
-    request.EquipSlotId = *cSlot;
-    request.ItemId = *cItem;
-
-    request.Count = acEvent.Count;
-    request.Unequip = acEvent.Unequip;
-    request.IsSpell = acEvent.IsSpell;
-    request.IsShout = acEvent.IsShout;
-    request.IsAmmo = acEvent.IsAmmo;
-    request.CurrentInventory = m_formBridge.GetActorEquipment(acEvent.ActorId);
-    m_equipmentSnapshots.OnChange();
-
-    m_transport.Send(request);
-
-    spdlog::info("Sending equipment request, item: {:X}, count: {}, target object: {:X}", acEvent.ItemId, acEvent.Count, acEvent.ActorId);
-}
-
 void InventoryService::OnNotifyInventoryChanges(const NotifyInventoryChanges& acMessage) noexcept
 {
     if (acMessage.Drop)
@@ -176,6 +176,7 @@ void InventoryService::OnNotifyInventoryChanges(const NotifyInventoryChanges& ac
         ScopedInventoryOverride _;
 
         m_formBridge.ActorDropOrPickUpObject(cActorFormId, acMessage.Item);
+        Touch(cActorFormId);
     }
     else
     {
@@ -186,113 +187,15 @@ void InventoryService::OnNotifyInventoryChanges(const NotifyInventoryChanges& ac
         ScopedInventoryOverride _;
 
         m_formBridge.ObjectAddOrRemoveItem(cObjectFormId, acMessage.Item);
+        Touch(cObjectFormId); // silent above: this game's own actor's items part goes out
         if (cObjectFormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId())
             m_dispatcher.trigger(PlayerProgressEvent{});
     }
 }
 
-void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& acMessage) noexcept
+bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) noexcept
 {
-    const uint32_t cActorFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
-    if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
-    {
-        spdlog::error("{}: could not find actor session id {:X}", __FUNCTION__, acMessage.SessionId);
-        return;
-    }
-
-    uint32_t itemId = ToGame(acMessage.ItemId);
-    if (!m_formBridge.FormExists(itemId))
-    {
-        spdlog::error("Could not find inventory item {:X}:{:X}", acMessage.ItemId.ModId, acMessage.ItemId.BaseId);
-        return;
-    }
-
-    uint32_t equipSlotId = ToGame(acMessage.EquipSlotId);
-
-    // Determine slot index: 1 = right hand, 0 = left hand
-    uint32_t slotId = m_formBridge.IsRightHandEquipSlot(equipSlotId) ? 1 : 0;
-
-    if (acMessage.IsSpell)
-    {
-        if (acMessage.Unequip)
-            m_formBridge.ActorUnequipSpell(cActorFormId, itemId, slotId);
-        else
-            m_formBridge.ActorEquipSpell(cActorFormId, itemId, slotId);
-        return;
-    }
-    else if (acMessage.IsShout)
-    {
-        if (acMessage.Unequip)
-            m_formBridge.ActorUnequipShout(cActorFormId, itemId);
-        else
-            m_formBridge.ActorEquipShout(cActorFormId, itemId);
-        return;
-    }
-
-    if (acMessage.Unequip)
-    {
-        m_formBridge.ActorUnequipItem(cActorFormId, itemId, equipSlotId, acMessage.Count);
-    }
-    else
-    {
-        CarryForEquip(cActorFormId, acMessage.ItemId);
-        // Unequip all armor first, since the game won't auto unequip armor
-        if (m_formBridge.GetFormType(itemId) == static_cast<uint8_t>(26)) // FormType::Armor = 26
-        {
-            Inventory wornArmor = m_formBridge.GetActorWornArmor(cActorFormId);
-            for (const auto& armor : wornArmor.Entries)
-            {
-                uint32_t armorId = ToGame(armor.BaseId);
-                if (m_formBridge.FormExists(armorId))
-                    m_formBridge.ActorUnequipItem(cActorFormId, armorId, equipSlotId, 1);
-            }
-
-            m_formBridge.ActorEquipItem(cActorFormId, itemId, equipSlotId, acMessage.Count);
-
-            for (const auto& armor : wornArmor.Entries)
-            {
-                uint32_t armorId = ToGame(armor.BaseId);
-                if (m_formBridge.FormExists(armorId))
-                    m_formBridge.ActorEquipItem(cActorFormId, armorId, equipSlotId, 1);
-            }
-        }
-        else
-        {
-            m_formBridge.ActorEquipItem(cActorFormId, itemId, equipSlotId, acMessage.Count);
-        }
-    }
-}
-
-// Equipment changes are sent as events, so a copy that misses or undoes one would stay wrong
-// forever. Like health, the owner re-sends the full worn set now and then and copies converge.
-void InventoryService::RunEquipmentSnapshots() noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-
-    // The hook's event precedes the native equip; read the completed set on the next update.
-    if (!m_equipmentSnapshots.SendAt(std::chrono::steady_clock::now()))
-        return;
-
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    for (auto entity : view)
-    {
-        const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
-        if (!m_actorBridge.ActorExists(cFormId))
-            continue;
-
-        RequestEquipmentSnapshot request;
-        request.SessionId = view.get<LocalComponent>(entity).Id;
-        request.Equipment = m_formBridge.GetActorEquipment(cFormId);
-        m_transport.Send(request);
-    }
-}
-
-void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& acMessage) noexcept
-{
-    const uint32_t cActorFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
-    if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId) || !m_actorBridge.IsActorCopy(cActorFormId))
-        return;
+    const uint32_t cActorFormId = aFormId;
 
     // Worn items as (game form id, left hand) on each side.
     const auto worn = [&](const Inventory& acInventory) {
@@ -303,104 +206,210 @@ void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& 
                     items.insert({cId, entry.ExtraWornLeft});
         return items;
     };
-    const auto cWanted = worn(acMessage.Equipment);
+    const auto cWanted = worn(acWanted);
     const auto cEquipment = m_formBridge.GetActorEquipment(cActorFormId);
-    const auto cCurrent = worn(cEquipment);
     // A copy's move to another cell drops its hand spells (docs/re/systems/copy-hand-spells.md).
-    const auto& cWantedMagic = acMessage.Equipment.CurrentMagicEquipment;
+    const auto& cWantedMagic = acWanted.CurrentMagicEquipment;
     // A spell can stay selected while the hand holds nothing: a loaded copy's hands are read too.
     const bool cLoaded = m_actorBridge.ActorHas3D(cActorFormId);
     const auto holds = [&](const GameId& acSpell, uint32_t aSlot) {
         return !cLoaded || EquipmentRepair::HandHolds(ToGame(acSpell), m_actorBridge.GetEquippedWeaponFormId(cActorFormId, aSlot));
     };
-    const bool cSameHands = cWantedMagic.LeftHandSpell == cEquipment.CurrentMagicEquipment.LeftHandSpell &&
-                            cWantedMagic.RightHandSpell == cEquipment.CurrentMagicEquipment.RightHandSpell &&
-                            holds(cWantedMagic.LeftHandSpell, 0) && holds(cWantedMagic.RightHandSpell, 1);
+    // A worn weapon or torch in the hand too: 418622 empties the process's hands (39811-39813) and leaves worn flags.
+    const auto cHandsHoldWorn = [&] {
+        if (!cLoaded)
+            return true;
+        for (const auto& [cId, cLeft] : cWanted)
+            if (const auto cHand = EquipmentRepair::HandOf(m_formBridge.GetFormType(cId), cLeft))
+                if (m_actorBridge.GetEquippedWeaponFormId(cActorFormId, *cHand) != cId)
+                    return false;
+        return true;
+    };
+    const auto cHandsAgree = [&](const Inventory& acNow) {
+        return cWantedMagic.LeftHandSpell == acNow.CurrentMagicEquipment.LeftHandSpell &&
+               cWantedMagic.RightHandSpell == acNow.CurrentMagicEquipment.RightHandSpell &&
+               holds(cWantedMagic.LeftHandSpell, 0) && holds(cWantedMagic.RightHandSpell, 1) && cHandsHoldWorn();
+    };
+    const bool cSameHands = cHandsAgree(cEquipment);
 
-    EquipmentRepair::Apply(cWanted, cCurrent, cSameHands,
+    EquipmentRepair::Apply(cWanted, [&] { return worn(m_formBridge.GetActorEquipment(cActorFormId)); }, cSameHands,
         [&] {
             spdlog::info("Equipment reconcile {:X}: reset worn set", cActorFormId);
-            m_formBridge.ActorResetEquipment(cActorFormId, acMessage.Equipment.CurrentMagicEquipment);
+            m_formBridge.ActorResetEquipment(cActorFormId, acWanted.CurrentMagicEquipment);
         },
         [&](uint32_t aItemId, bool aLeft) {
             if (!m_formBridge.FormExists(aItemId))
                 return;
-            for (const auto& cEntry : acMessage.Equipment.Entries)
+            for (const auto& cEntry : acWanted.Entries)
                 if (ToGame(cEntry.BaseId) == aItemId)
                 {
                     CarryForEquip(cActorFormId, cEntry.BaseId);
                     break;
                 }
             m_formBridge.ActorEquipItem(cActorFormId, aItemId, EquipmentRepair::EquipSlot(m_formBridge.GetFormType(aItemId), aLeft), 1);
+        },
+        [&](uint32_t aItemId, bool aLeft) {
+            if (m_formBridge.FormExists(aItemId))
+                m_formBridge.ActorUnequipItem(cActorFormId, aItemId, EquipmentRepair::EquipSlot(m_formBridge.GetFormType(aItemId), aLeft), 1);
         });
-}
-
-void InventoryService::RunWeaponStateUpdates() noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    for (auto entity : view)
+    // The selected shout or power (EquipShout): no worn flag, apart from the worn set.
+    const GameId cShout = m_formBridge.GetActorEquipment(cActorFormId).CurrentMagicEquipment.Shout;
+    if (cShout != cWantedMagic.Shout)
     {
-        const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
-        // A dying actor's hands drop with its death, which its copies replay later: sent now, a copy would sheathe first.
-        if (!m_actorBridge.ActorExists(cFormId) || m_actorBridge.IsActorDead(cFormId))
-            continue;
-
-        const bool cHandsUp = HandsUp(m_actorBridge.GetWeaponState(cFormId));
-        const auto* pSent = m_world.try_get<LocalWeaponDrawComponent>(entity);
-        if (pSent && pSent->HandsUp == cHandsUp)
-            continue;
-
-        m_world.emplace_or_replace<LocalWeaponDrawComponent>(entity, cHandsUp);
-
-        DrawWeaponRequest request;
-        request.Id = view.get<LocalComponent>(entity).Id;
-        request.IsWeaponDrawn = cHandsUp;
-        m_transport.Send(request);
+        if (cWantedMagic.Shout)
+            m_formBridge.ActorEquipShout(cActorFormId, ToGame(cWantedMagic.Shout));
+        else
+            m_formBridge.ActorUnequipShout(cActorFormId, ToGame(cShout));
     }
+    const Inventory cAfter = m_formBridge.GetActorEquipment(cActorFormId);
+    return worn(cAfter) == cWanted && cHandsAgree(cAfter) && cAfter.CurrentMagicEquipment.Shout == cWantedMagic.Shout;
 }
 
-void InventoryService::OnNotifyDrawWeapon(const NotifyDrawWeapon& acMessage) noexcept
+Inventory InventoryService::ReadItems(uint32_t aFormId) const noexcept
 {
-    auto view = m_world.view<RemoteComponent>();
-    for (auto entity : view)
-        if (view.get<RemoteComponent>(entity).Id == acMessage.Id)
-            m_world.emplace_or_replace<RemoteWeaponDrawComponent>(entity, acMessage.IsWeaponDrawn);
+    constexpr uint8_t cLeveledItem = 53; // FormType::LeveledItem: a base container's leveled list, listed as it is
+    Inventory items = m_actorBridge.GetActorInventory(aFormId);
+    const bool cPlayer = aFormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId() || m_actorBridge.IsOtherPlayer(aFormId);
+    // A player's gold is the party's purse; its party stacks stay in (their worn state), counted by the party store.
+    std::erase_if(items.Entries, [&](const Inventory::Entry& acEntry) {
+        return m_formBridge.GetFormType(ToGame(acEntry.BaseId)) == cLeveledItem ||
+               (cPlayer && acEntry.BaseId == Payloads::PartyGold::kGold);
+    });
+    return items;
 }
 
-void InventoryService::RunWeaponDrawConvergence(double aDelta) noexcept
+void InventoryService::Touch(uint32_t aFormId) noexcept
 {
-    // Long enough for an accepted replay to land first.
-    constexpr double cDriftGrace = 0.25;
+    if (aFormId && m_transport.IsConnected() && !m_actorBridge.IsActorCopy(aFormId))
+        m_touched.insert(aFormId);
+}
 
-    auto view = m_world.view<FormIdComponent, RemoteAnimationComponent, RemoteWeaponDrawComponent>();
-    for (auto entity : view)
+void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEvent) noexcept
+{
+    Touch(acEvent.ActorId);
+}
+
+void InventoryService::OnItemsChanged(const ItemsChangedEvent& acEvent) noexcept
+{
+    Touch(acEvent.FormId);
+}
+
+void InventoryService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept
+{
+    // A 3D load: hand spells are not equipped again (Actor::Set3D 37178, copy-hand-spells.md), and a living actor's
+    // worn set is reset to its base's outfit (TESNPC::InitWornOn3D 24725).
+    Refresh(acEvent.FormId);
+}
+
+void InventoryService::OnWornReset(const WornResetEvent& acEvent) noexcept
+{
+    Refresh(acEvent.FormId);
+}
+
+void InventoryService::Refresh(uint32_t aFormId) noexcept
+{
+    if (!m_actorBridge.IsActorCopy(aFormId))
+        return Touch(aFormId);
+    if (const auto cId = Utils::GetSessionIdByFormId(aFormId))
+        m_records.ApplyAgain(*cId, RecordKind::kItems);
+}
+
+void InventoryService::DeclareChanges() noexcept
+{
+    if (m_touched.empty())
+        return;
+    const auto cTouched = std::exchange(m_touched, {});
+    for (const auto cEntity : m_world.view<FormIdComponent, LocalComponent>())
     {
-        auto& owner = view.get<RemoteWeaponDrawComponent>(entity);
-        const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
-        if (!m_actorBridge.ActorExists(cFormId) || !m_actorBridge.ActorHas3D(cFormId) || m_actorBridge.IsActorDead(cFormId))
+        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+        if (!cTouched.contains(cFormId) || !m_actorBridge.ActorExists(cFormId))
+            continue;
+        const uint32_t cId = m_world.get<LocalComponent>(cEntity).Id;
+        const Inventory cNow = ReadItems(cFormId);
+        ItemsPart held;
+        const RecordPart* cpHeld = m_records.Find(cId, RecordKind::kItems);
+        if (!cpHeld || !FromPartBytes(cpHeld->Bytes, held))
         {
-            owner.DriftSeconds = 0.0;
+            m_records.Declare(cId, RecordKind::kItems, ToPartBytes(ItemsPart::Of(cNow)));
             continue;
         }
-
-        const WeaponState cState = m_actorBridge.GetWeaponState(cFormId);
-        const bool cDrifted = view.get<RemoteAnimationComponent>(entity).TimePoints.empty() && !IsAnimating(cState) && ShowsHandsUp(cState) != owner.HandsUp;
-        owner.DriftSeconds = cDrifted ? owner.DriftSeconds + aDelta : 0.0;
-        if (owner.DriftSeconds < cDriftGrace)
-            continue;
-
-        spdlog::debug("Copy {:X} hands {} (weapon state {}) while its owner's are {}: converging", cFormId, ShowsHandsUp(cState) ? "up" : "down",
-                      static_cast<int>(cState), owner.HandsUp ? "up" : "down");
-        // On its owner's stream its graph is its owner's already and drops its own events: the result alone.
-        if (m_world.GetGraphStreams().OnStream(cFormId))
-            m_actorBridge.ShowActorWeaponDrawn(cFormId, owner.HandsUp);
-        else
-            m_actorBridge.SetActorWeaponDrawnEx(cFormId, owner.HandsUp);
-        owner.DriftSeconds = 0.0;
+        if (const auto cChange = ItemsPart::Change(held, cNow))
+        {
+            spdlog::debug("Items of {:X}: {} stacks changed", cFormId, cChange->Items.Entries.size());
+            m_records.Declare(cId, RecordKind::kItems, ToPartBytes(*cChange));
+        }
     }
+}
+
+void InventoryService::ApplyItems(uint32_t aId, const std::string& acBytes) noexcept
+{
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(aId);
+    ItemsPart part;
+    // Not a copy here, or its 3D not in yet: applied once it is (m_waiting3D; a new copy's at its first 3D, CharacterService).
+    if (!cFormId || !m_actorBridge.IsActorCopy(cFormId) || !FromPartBytes(acBytes, part))
+        return;
+    if (!m_actorBridge.ActorHas3D(cFormId))
+    {
+        m_waiting3D.insert(aId);
+        return;
+    }
+    const Inventory cHeld = ReadItems(cFormId);
+    // A player's party stacks are the party store's (party-items.md): its copy keeps the ones it holds.
+    const bool cPlayer = m_actorBridge.IsOtherPlayer(cFormId);
+    // Each item's count and its stacks with extra data, worn flags aside: the wearing is ApplyWorn's.
+    std::vector<GameId> items;
+    for (const std::vector<Inventory::Entry>* cpStacks : {&cHeld.Entries, static_cast<const std::vector<Inventory::Entry>*>(&part.Items.Entries)})
+        for (const auto& cStack : *cpStacks)
+            if (std::ranges::find(items, cStack.BaseId) == items.end())
+                items.push_back(cStack.BaseId);
+    const auto cOf = [cPlayer](const std::vector<Inventory::Entry>& acStacks, const GameId& acItem, bool aParty = false) {
+        std::pair<int32_t, std::vector<Inventory::Entry>> of;
+        for (Inventory::Entry stack : acStacks)
+        {
+            if (stack.BaseId != acItem || (cPlayer && PartyItems::IsParty(stack) != aParty))
+                continue;
+            of.first += stack.Count;
+            stack.ExtraWorn = stack.ExtraWornLeft = stack.IsQuestItem = false;
+            if (!stack.ContainsExtraData())
+                continue;
+            const auto it = std::ranges::find_if(of.second, [&](const auto& acSame) { return ItemsPart::SameStack(acSame, stack); });
+            if (it != of.second.end())
+                it->Count += stack.Count;
+            else
+                of.second.push_back(stack);
+        }
+        return of;
+    };
+    const auto cSameStacks = [](std::vector<Inventory::Entry> aHave, const std::vector<Inventory::Entry>& acWanted) {
+        for (const auto& cWanted : acWanted)
+        {
+            const auto it = std::ranges::find_if(aHave, [&](const auto& acHave) { return acHave.Count == cWanted.Count && ItemsPart::SameStack(acHave, cWanted); });
+            if (it == aHave.end())
+                return false;
+            aHave.erase(it);
+        }
+        return aHave.empty();
+    };
+    for (const GameId& cItem : items)
+    {
+        const auto [cWantedCount, cWantedStacks] = cOf(part.Items.Entries, cItem);
+        const auto [cHeldCount, cHeldStacks] = cOf(cHeld.Entries, cItem);
+        if (cWantedCount == cHeldCount && cSameStacks(cHeldStacks, cWantedStacks))
+            continue;
+        spdlog::debug("Copy {:X}: item {:X} {} -> {}", cFormId, cItem.LogFormat(), cHeldCount, cWantedCount);
+        auto [count, stacks] = cOf(part.Items.Entries, cItem);
+        if (cPlayer)
+        {
+            const auto [cPartyCount, cPartyStacks] = cOf(cHeld.Entries, cItem, true);
+            count += cPartyCount;
+            stacks.insert(stacks.end(), cPartyStacks.begin(), cPartyStacks.end());
+        }
+        m_formBridge.SetCopyItemCount(cFormId, cItem, count, stacks);
+    }
+    if (ApplyWorn(cFormId, part.Items))
+        m_unsettled.erase(aId);
+    else
+        m_unsettled.try_emplace(aId, 0.0, 0.0);
 }
 
 void InventoryService::OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexcept
@@ -579,16 +588,6 @@ void InventoryService::OnSpawnItemsApplied(entt::registry& aRegistry, entt::enti
         SetPartyItems(cFormId, *m_partyItems);
 }
 
-void InventoryService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept
-{
-    aRegistry.remove<LocalWeaponDrawComponent>(aEntity);
-}
-
-void InventoryService::OnRemoteComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept
-{
-    aRegistry.remove<RemoteWeaponDrawComponent>(aEntity);
-}
-
 void InventoryService::RunNakedNPCBugChecks() noexcept
 {
     if (!m_transport.IsConnected())
@@ -612,7 +611,8 @@ void InventoryService::RunNakedNPCBugChecks() noexcept
         if (!m_actorBridge.ActorExists(formId))
             continue;
 
-        if (m_actorBridge.IsOtherPlayer(formId))
+        // A copy wears its owner's (its items part); ResetInventory does nothing to one (HookResetInventory).
+        if (m_actorBridge.IsOtherPlayer(formId) || m_actorBridge.IsActorCopy(formId))
             continue;
 
         if (m_actorBridge.IsActorDead(formId))
@@ -624,10 +624,12 @@ void InventoryService::RunNakedNPCBugChecks() noexcept
         if (!m_formBridge.ActorShouldWearBodyPiece(formId))
             continue;
 
+        spdlog::info("InventoryService: {:X} wears no body piece it should: its inventory reset", formId);
         // Don't broadcast changes, it'll just make things messier.
         ScopedEquipOverride seo;
         ScopedInventoryOverride sio;
 
         m_formBridge.ActorResetInventory(formId, false);
+        Touch(formId); // silent above: its items part goes out
     }
 }

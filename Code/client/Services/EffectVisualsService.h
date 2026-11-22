@@ -11,6 +11,7 @@ struct World;
 struct TransportService;
 struct EffectVisualsChangeEvent;
 struct ReferenceLoadedEvent;
+struct Copy3DEvent;
 struct NotifyCharacterSpawn;
 struct NotifyRemoveCharacter;
 struct DisconnectedEvent;
@@ -38,6 +39,8 @@ struct EffectVisualsService
 protected:
     void OnEffectVisualsChange(const EffectVisualsChangeEvent& acEvent) noexcept;
     void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
+    // A copy spawned here has its 3D: the visuals it was told to show before play now.
+    void OnCopy3D(const Copy3DEvent& acEvent) noexcept;
     void OnNotifyActiveEffects(const NotifyActiveEffects& acMessage) noexcept;
     void OnNotifyEffectFlash(const NotifyEffectFlash& acMessage) noexcept;
     void OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) noexcept;

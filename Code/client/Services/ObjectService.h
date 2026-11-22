@@ -7,7 +7,6 @@ class IActorBridge;
 struct World;
 struct ActivateEvent;
 struct TransportService;
-struct NotifyActivate;
 
 /**
  * @brief Handles objects in the environment.
@@ -21,7 +20,6 @@ struct ObjectService
 
 private:
     void OnActivate(const ActivateEvent&) noexcept;
-    void OnActivateNotify(const NotifyActivate&) noexcept;
 
 
     World& m_world;

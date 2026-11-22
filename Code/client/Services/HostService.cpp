@@ -3,6 +3,7 @@
 #include <Events/GameLoadedEvent.h>
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
+#include <Services/Host/HostTakeBacks.h>
 #include <Bridges/IBodyBridge.h>
 #include <Services/BodyService.h>
 #include <Services/CrimeService.h>
@@ -37,6 +38,9 @@
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 #include <Messages/Relayed.h>
+#include <Messages/SummonRequest.h>
+#include <CreatedIds.h>
+#include <ScriptValues.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/GuestScripts.h>
 #include <Papyrus/PlayerNatives.h>
@@ -108,11 +112,23 @@ void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
     if (!IsHosting() || !cGuest || !cCall)
     {
         spdlog::warn("HostService: {}.{} from a guest's script names a form or character not here", acMessage.Call.Class, acMessage.Call.Function);
+        if (IsHosting() && acMessage.ReplyId)
+            QueueWorldAnswer(acMessage.ReplyId, acMessage.SessionId, std::monostate{}); // its waiting script gets None
         return;
     }
     spdlog::info("HostService: {}.{} from guest {:X}'s own script runs here, for it", acMessage.Call.Class, acMessage.Call.Function, cGuest);
     const GuestScripts::ScopedCause cCause(cGuest); // the call runs for that guest (rule 2)
-    GlobalCall::QueueCall(*cCall);
+    if (!acMessage.ReplyId)
+    {
+        GlobalCall::QueueCall(*cCall);
+        return;
+    }
+    // Its script waits (a created reference): what the call returns goes back to it, on the VM's thread.
+    const auto cAnswer = [this, cReplyId = acMessage.ReplyId, cSessionId = acMessage.SessionId](const LocalValue& acResult) {
+        QueueWorldAnswer(cReplyId, cSessionId, acResult);
+    };
+    if (!GlobalCall::QueueCall(*cCall, cAnswer))
+        cAnswer(std::monostate{});
 }
 
 HostService::~HostService() noexcept
@@ -142,8 +158,13 @@ void HostService::MakeAuthority() noexcept
 {
     m_pAggro.reset();
     m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
+    m_world.ctx().at<CreatedIds>().SetHosting(true);
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(),
         [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); });
+    m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(), [this](uint32_t aId) {
+        if (m_pAuthority)
+            m_pAuthority->ActorTaken(aId);
+    });
     HostGame game;
     game.ReadFollowers = [this] { return m_pEngine->ReadFollowers(); };
     game.TakeFollowerOrders = [this] { return m_pEngine->TakeFollowerOrders(); };
@@ -168,6 +189,18 @@ void HostService::MakeAuthority() noexcept
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
     game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
+    game.Claimable = [this](uint32_t aSessionId) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId && !m_world.ctx().at<IActorBridge&>().IsPlayerSummon(cFormId);
+    };
+    game.CanPair = [this](uint32_t aSessionId) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId && m_world.ctx().at<IActorBridge&>().ActorCanPair(cFormId);
+    };
+    game.IsDead = [this](uint32_t aSessionId) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId && m_world.ctx().at<IActorBridge&>().IsActorDead(cFormId);
+    };
     game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
     game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
     game.ConsoleNameOf = [this](uint32_t aSessionId) {
@@ -177,6 +210,7 @@ void HostService::MakeAuthority() noexcept
     game.SetHour = [this](float aHours) { m_pEngine->SetHour(aHours); };
     game.AdvanceTime = [this](float aHours) { m_pEngine->AdvanceTime(aHours); };
     game.ReadWeather = [this] { return m_pEngine->ReadWeather(); };
+    game.ReadEye = [this](uint32_t aSessionId) { return m_pEngine->ReadEye(aSessionId); };
     game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
     game.TakeGlobalChanges = [this] { return m_pEngine->TakeGlobalChanges(); };
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
@@ -184,12 +218,15 @@ void HostService::MakeAuthority() noexcept
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
     game.TakePlaced = [this] { return m_pEngine->TakePlaced(); };
     game.TakeBodies = [this](uint64_t aTick) {
-        return m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
+        HostBodies bodies = m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
             for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
                 if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
                     return m_world.get<LocalComponent>(cEntity).Id;
             return 0;
         });
+        // Its actors' ragdoll rests are their record parts; the references' go to HostPhysics.
+        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake);
+        return bodies;
     };
     // A guest's copy, where the host's game shows it (PlayerComponent: its player id).
     game.ReadPlayerPosition = [this](uint32_t aPlayerId) -> std::optional<glm::vec3> {
@@ -222,6 +259,8 @@ void HostService::MakeAuthority() noexcept
         return m_pEngine->ReadCellState(acCell, acChanged);
     };
     game.ReadContents = [this](const GameId& acObject) { return m_pEngine->ReadContents(acObject); };
+    game.Activate = [this](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) { m_pEngine->Activate(acObject, aNpcId, aActivatorId); };
+    game.Summon = [this](uint32_t aCasterId, const SummonRequest& acSummon) { m_pEngine->Summon(aCasterId, acSummon); };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
     game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { m_pEngine->RaiseStoryEvent(acEvent); };
@@ -266,6 +305,7 @@ void HostService::MakeAuthority() noexcept
 void HostService::StopHosting() noexcept
 {
     m_pAggro.reset();
+    m_pTakeBacks.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();
@@ -278,6 +318,7 @@ void HostService::StopHosting() noexcept
     m_pNetwork.reset();
     m_pAuthority.reset();
     m_pEngine.reset();
+    m_world.ctx().at<CreatedIds>().SetHosting(false);
     m_pSaves.reset();
     spdlog::info("HostService: session stopped");
 }
@@ -300,16 +341,21 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
         return;
     m_pNetwork->Update();
     m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta, m_world.GetFrameTick());
+    SendWorldAnswers();
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);
+    if (m_pTakeBacks)
+        m_pTakeBacks->Update(acEvent);
 }
 
-// The host's game is the only one that names an NPC for the party; a guest's own quests stay on that guest.
+// The host's game is the only one that names an NPC for the party; a guest's own quests stay on that guest. An actor the
+// host owns is declared by its name part (ActorStateService); another's goes to its owner.
 void HostService::OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcept
 {
     if (!IsHosting() || acEvent.FormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId())
         return;
     if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId))
-        m_pAuthority->NameActor(*cSessionId, m_world.ctx().at<IActorBridge&>().GetActorDisplayName(acEvent.FormId));
+        m_pAuthority->NameActor(*cSessionId, acEvent.Name);
 }
+

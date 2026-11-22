@@ -11,17 +11,15 @@ void AnnounceCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const
     Rotation.Serialize(aWriter);
     aWriter.WriteBits(ChangeFlags, 32);
     Serialization::WriteString(aWriter, AppearanceBuffer);
-    Serialization::WriteString(aWriter, DisplayName);
-    FactionsContent.Serialize(aWriter);
     LatestAction.GenerateDifferential(ActionEvent{}, aWriter);
     FaceTints.Serialize(aWriter);
     Serialization::WriteFloat(aWriter, Weight);
     Serialization::WriteBool(aWriter, IsDragon);
     Serialization::WriteBool(aWriter, IsMount);
-    Serialization::WriteBool(aWriter, IsPlayerSummon);
+    Serialization::WriteVarInt(aWriter, CommanderId);
     CurrentActorData.Serialize(aWriter);
     Serialization::WriteString(aWriter, GraphState);
-    AiState.Serialize(aWriter);
+    Record.Serialize(aWriter);
     PerksContent.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, EffectIds.size());
     for (const auto& cEffectId : EffectIds)
@@ -45,10 +43,7 @@ void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noe
     ChangeFlags = dest & 0xFFFFFFFF;
 
     AppearanceBuffer = Serialization::ReadString(aReader);
-    DisplayName = Serialization::ReadString(aReader);
 
-    FactionsContent = {};
-    FactionsContent.Deserialize(aReader);
 
     LatestAction = ActionEvent{};
     LatestAction.ApplyDifferential(aReader);
@@ -58,11 +53,11 @@ void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noe
 
     IsDragon = Serialization::ReadBool(aReader);
     IsMount = Serialization::ReadBool(aReader);
-    IsPlayerSummon = Serialization::ReadBool(aReader);
+    CommanderId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 
     CurrentActorData.Deserialize(aReader);
     GraphState = Serialization::ReadString(aReader);
-    AiState.Deserialize(aReader);
+    Record.Deserialize(aReader);
     PerksContent.Deserialize(aReader);
     EffectIds.clear();
     const auto cEffects = Serialization::ReadVarInt(aReader);

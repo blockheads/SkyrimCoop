@@ -2,7 +2,7 @@
 
 #include "Message.h"
 #include <Structs/Perks.h>
-#include <Structs/ActorAiState.h>
+#include <Structs/RecordPart.h>
 #include <Structs/GameId.h>
 #include <Structs/ActionEvent.h>
 #include <Structs/Tints.h>
@@ -32,9 +32,9 @@ struct NotifyCharacterSpawn final : NotifyMessage
 
     bool operator==(const NotifyCharacterSpawn& acRhs) const noexcept
     {
-        return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer && DisplayName == acRhs.DisplayName &&
-               InventoryContent == acRhs.InventoryContent && FactionsContent == acRhs.FactionsContent && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer && IsWeaponDrawn == acRhs.IsWeaponDrawn &&
-               IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && AiState == acRhs.AiState && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
+        return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
+               FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer &&
+               CommanderId == acRhs.CommanderId && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
     }
 
     uint32_t SessionId{};
@@ -45,14 +45,11 @@ struct NotifyCharacterSpawn final : NotifyMessage
     Rotator2_NetQuantize Rotation{};
     uint32_t ChangeFlags{};
     std::string AppearanceBuffer{};
-    std::string DisplayName{}; // as its owner's game shows it (AnnounceCharacterRequest)
-    Inventory InventoryContent{};
-    Factions FactionsContent{};
     ActionEvent LatestAction{};
     // The owner's behaviour graphs' state: the copy's fresh graph loads it instead of replaying LatestAction.
     std::string GraphState{};
-    // What its AI is doing, for the copy to hold from the start (AiStateService).
-    ActorAiState AiState{};
+    // Its record's parts as its owner last declared them (CopyRecords): the copy holds them from the start.
+    RecordParts Record{};
     Perks PerksContent;
     // The effects showing on it, for the copy to play from the start (EffectVisualsService).
     std::vector<GameId> EffectIds{};
@@ -62,6 +59,5 @@ struct NotifyCharacterSpawn final : NotifyMessage
     uint32_t PlayerId{};
     bool IsDead{};
     bool IsPlayer{};
-    bool IsWeaponDrawn{};
-    bool IsPlayerSummon{};
+    uint32_t CommanderId{}; // a summon's caster, by session id (0: none)
 };

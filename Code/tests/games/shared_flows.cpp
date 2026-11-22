@@ -31,6 +31,22 @@ SCENARIO("A player's map marker shows on everyone's map", "[shared]")
     }
 }
 
+SCENARIO("A guest joining after a marker was placed has it on its map", "[shared][join]")
+{
+    Party party(2, SmokeWorld, false);
+    party.Join(party.Guest(0));
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& late = Party::Engine(party.Guest(1));
+
+    party.As(party.Host(), [&] { host.PlacesMarker({1000.f, 2000.f, 30.f}, kTamriel); });
+    party.Until([&] { return Party::Engine(party.Guest(0)).Waypoint.has_value(); }, "the first guest has the marker");
+
+    party.Join(party.Guest(1));
+    party.Until([&] { return late.Waypoint.has_value(); }, "the late guest has it");
+    CHECK(late.Waypoint->WorldSpace == kTamriel);
+    CHECK(glm::distance(late.Waypoint->Position, glm::vec3(1000.f, 2000.f, 30.f)) < 1.f);
+}
+
 SCENARIO("A player's slowed clock slows everyone's", "[shared]")
 {
     Party party(1, SmokeWorld);

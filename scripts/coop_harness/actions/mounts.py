@@ -291,18 +291,20 @@ class MountsActions:
             ctx.player_command(game, {"cmd": "body_trace", "refs": refs})
             ctx.player_command(game, {"cmd": "anim_trace", "actors": refs})
 
-    def riders_smooth(ctx, step, most=40.0, snap=0.0):
+    def riders_smooth(ctx, step, most=40.0, snap=0.0, forbid=(), pop=0.0):
         """Since watch_riders, on both games: no player's pelvis, own or copy, moved more than `most` units in one frame
         (a warp; more on a slow frame, at up to 1,500 units a second), but once per body up to `snap` (a get-on moves
-        its rider to its mark in one frame, vanilla: 76-83 units measured); and no graph went 0.1 s with a clip not
-        loaded or none playing (the skeleton's rest pose: a T-pose; one frame of it is a clip's file arriving). Fails
-        naming each, per game and actor."""
+        its rider to its mark in one frame, vanilla: 76-83 units measured); no graph went 0.1 s with a clip not
+        loaded or none playing (the skeleton's rest pose: a T-pose; one frame of it is a clip's file arriving); and no
+        graph took an event in `forbid` (a passenger's get-on clip). A move within `pop` seconds after a body's snap is
+        part of it, once (a quick get-on: the reference to the saddle, its riding pose a frame later). Fails naming each, per
+        game and actor."""
         problems = []
         for game in ("", "client"):
             name = game or "host"
             bodies = ctx.player_command(game, {"cmd": "body_trace", "stop": True}).get("entries") or []
             clips = ctx.player_command(game, {"cmd": "anim_trace", "stop": True}).get("entries") or []
-            last, snapped = {}, set()
+            last, snapped = {}, {}
             began = bodies[0]["t"] if bodies else 0
             for entry in bodies:
                 # Its pelvis bone, what a person sees: the engine snaps a rider's root to the saddle in one frame of a
@@ -314,14 +316,17 @@ class MountsActions:
                     seconds = max((entry["t"] - before[0]) / 1e6, 0.0)
                     moved = distance(at, before[1])
                     if moved > max(most, 1500.0 * seconds):
-                        if moved <= snap and entry["id"] not in snapped:
-                            snapped.add(entry["id"])
+                        first, count = snapped.get(entry["id"], (entry["t"], 0))
+                        if moved <= snap and count < (2 if pop else 1) and entry["t"] - first <= pop * 1e6:
+                            snapped[entry["id"]] = (first, count + 1)
                             log(f"  [{name} {entry['id']:X}] its one allowed snap: {moved:.0f} units at {(entry['t'] - began) / 1e6:.2f} s")
                         else:
                             problems.append(f"[{name} {entry['id']:X}] jumped {moved:.0f} units in {seconds * 1000:.0f} ms "
                                             f"at {(entry['t'] - began) / 1e6:.2f} s")
                 last[entry["id"]] = (entry["t"], at)
             problems += bad_clip_spans(name, clips)
+            problems += [f"[{name} {entry['actor']:X}] played {entry['event']}" for entry in clips
+                         if entry.get("kind") in ("graph", "input") and entry.get("taken", True) and entry.get("event") in forbid]
         if problems:
             raise TestFailure(f"{step}: " + "; ".join(sorted(set(problems))[:12]))
 

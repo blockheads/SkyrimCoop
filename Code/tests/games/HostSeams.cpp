@@ -1,3 +1,4 @@
+#include <Events/ItemsChangedEvent.h>
 #include <Events/GameLoadFailedEvent.h>
 #include <Events/GameLoadedEvent.h>
 #include <Events/ActorRenamedEvent.h>
@@ -16,6 +17,8 @@
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/Relayed.h>
 #include <ScriptValues.h>
+#include <Messages/SummonRequest.h>
+#include <CreatedIds.h>
 #include <FormIds.h>
 #include <SessionIds.h>
 #include <Events/DifficultyChangeEvent.h>
@@ -38,6 +41,7 @@
 #include <Services/Host/HostNetwork.h>
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
+#include <Services/Host/HostTakeBacks.h>
 #include <Services/BodyService.h>
 #include <Services/CrimeService.h>
 #include <Services/InventoryService.h>
@@ -82,10 +86,15 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
 
 void HostService::MakeAuthority() noexcept
 {
+    m_world.ctx().at<CreatedIds>().SetHosting(true);
     m_pAggro.reset();
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
         [&engine](const auto& acState) { engine.PartyThreats = acState; });
+    m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, engine, [this](uint32_t aId) {
+        if (m_pAuthority)
+            m_pAuthority->ActorTaken(aId);
+    });
     HostGame game;
     game.ReadFollowers = [&engine]() -> std::optional<std::vector<Followers::State>> {
         auto followers = engine.PartyFollowers;
@@ -127,6 +136,9 @@ void HostService::MakeAuthority() noexcept
         return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn);
     };
     game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
+    game.Claimable = [&engine](uint32_t aSessionId) { return !engine.IsPlayerSummon(Utils::GetFormIdBySessionId(aSessionId)); };
+    game.CanPair = [&engine](uint32_t aSessionId) { return engine.ActorCanPair(Utils::GetFormIdBySessionId(aSessionId)); };
+    game.IsDead = [&engine](uint32_t aSessionId) { return engine.IsActorDead(Utils::GetFormIdBySessionId(aSessionId)); };
     game.AdvanceTime = [&engine](float aHours) {
         MainLoopTasks::Queue([&engine, aHours] {
             DateTime time(engine.Calendar);
@@ -144,6 +156,17 @@ void HostService::MakeAuthority() noexcept
     };
     game.ReadTime = [&engine] { return engine.Calendar; };
     game.SetHour = [&engine](float aHours) { engine.Calendar.Time = aHours; };
+    game.ReadEye = [&engine](uint32_t aSessionId) -> std::optional<DetectionRules::EyeReading> {
+        // HostEngine::ReadEye: a loaded copy's 41408 and 46877.
+        const uint32_t cCopy = Utils::GetFormIdBySessionId(aSessionId);
+        const auto it = engine.Actors.find(cCopy);
+        if (it == engine.Actors.end() || !it->second.Copy || !it->second.Loaded)
+            return std::nullopt;
+        DetectionRules::EyeReading reading;
+        reading.Level = engine.HighestDetection(cCopy, reading.Seeing);
+        reading.Stealth = engine.LowestStealthPoints(cCopy);
+        return reading;
+    };
     game.ReadWeather = [&engine] {
         return engine.Weather.BaseId ? std::optional<GameId>(engine.Weather) : std::optional<GameId>{};
     };
@@ -184,6 +207,18 @@ void HostService::MakeAuthority() noexcept
         return acObject.ModId == ObjectChange::kCreatedModId ? engine.ContentsOf(0xFF000000 | acObject.BaseId) : std::nullopt;
     };
     game.RaiseStoryEvent = [&engine](const StoryEvent& acEvent) { engine.StoriesRaised.push_back(acEvent); };
+    game.Activate = [&engine](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) {
+        const uint32_t cObject = aNpcId ? Utils::GetFormIdBySessionId(aNpcId) : FormIdOf(acObject);
+        const uint32_t cActivator = Utils::GetFormIdBySessionId(aActivatorId);
+        if (cActivator && (!aNpcId || !engine.IsActorCopy(cObject)))
+            engine.RunsActivation(cObject, cActivator);
+    };
+    game.Summon = [&engine](uint32_t aCasterId, const SummonRequest& acSummon) {
+        const uint32_t cCopy = Utils::GetFormIdBySessionId(aCasterId);
+        const uint32_t cSpell = FormIdOf(acSummon.SpellId);
+        if (cCopy && engine.IsOtherPlayer(cCopy) && engine.SpellForms.contains(cSpell) && engine.SpellForms.at(cSpell).Summons)
+            engine.AddMagicTargetEffect(cCopy, cCopy, cSpell, FormIdOf(acSummon.EffectId), acSummon.Magnitude, acSummon.DualCast, false, false);
+    };
     game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
     };
@@ -196,18 +231,46 @@ void HostService::MakeAuthority() noexcept
         const uint32_t cContainer = acRequest.ContainerActorId ? Utils::GetFormIdBySessionId(acRequest.ContainerActorId) : FormIdOf(acRequest.Container);
         const uint32_t cItem = ItemForm(moved.BaseId);
         const bool cTake = moved.Count > 0;
-        const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.References.at(cContainer).Items[cItem]) : engine.CountOf(cPlayer, cItem);
+        const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.ContainerCountOf(cContainer, cItem)) : engine.CountOf(cPlayer, cItem);
         moved.Count = std::min(std::abs(moved.Count), cAvailable) * (cTake ? 1 : -1);
+        // As HostEngine::TransferContainer: a take changes only the container, the player's own game its player; a put
+        // moves from the player's copy here.
         if (moved.Count)
         {
             ScopedInventoryOverride _;
-            engine.GetsItem(cPlayer, moved);
+            if (!cTake)
+                engine.GetsItem(cPlayer, moved);
             Inventory::Entry other = moved;
             other.Count = -other.Count;
             if (acRequest.ContainerActorId)
                 engine.GetsItem(cContainer, other);
             else
+            {
+                // Measured as HostEngine::TransferContainer does: the count before and after the removal.
+                const int32_t cBefore = engine.ContainerCountOf(cContainer, cItem);
                 engine.SetItems(cContainer, cItem, engine.References.at(cContainer).Items[cItem] - moved.Count);
+                const int32_t cAfter = engine.ContainerCountOf(cContainer, cItem);
+                moved.Count = std::clamp(cTake ? cBefore - cAfter : cAfter - cBefore, 0, std::abs(moved.Count)) * (cTake ? 1 : -1);
+            }
+        }
+        if (moved.Count && acRequest.ContainerActorId) // as HostEngine::TransferContainer
+            World::Get().GetRunner().Trigger(ItemsChangedEvent{cContainer});
+        // A theft marks the item as the container's owner's (16059 on its target): an actor's NPC, else the
+        // reference's owner, else its cell's.
+        if (cTake && acRequest.Steal && moved.Count && moved.ExtraOwner == GameId{} && cItem != 0xF)
+        {
+            uint32_t owner{};
+            if (acRequest.ContainerActorId) // its original leveled form, else its base (TESObjectREFR::GetItemsOwner)
+            {
+                const auto& cActor = engine.Actors.at(cContainer);
+                owner = cActor.LeveledBase ? cActor.LeveledBase : cActor.Base ? cActor.Base : cContainer;
+            }
+            else if (const auto& cReference = engine.References.at(cContainer); cReference.Owner)
+                owner = cReference.Owner;
+            else if (const auto cCell = engine.CellOwners.find(engine.References.at(cContainer).Cell); cCell != engine.CellOwners.end())
+                owner = cCell->second;
+            if (owner)
+                moved.ExtraOwner = GameId(0, owner);
         }
         return moved;
     };
@@ -265,6 +328,7 @@ void HostService::MakeAuthority() noexcept
                     bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position,
                                              .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
                 }
+        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake); // as HostService
         return bodies;
     };
     game.FreeBody = [&engine, this](const BodyFrame& acFrame, uint64_t aReleasedAt) {
@@ -312,6 +376,7 @@ void HostService::MakeAuthority() noexcept
 void HostService::StopHosting() noexcept
 {
     m_pAggro.reset();
+    m_pTakeBacks.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();
@@ -320,6 +385,7 @@ void HostService::StopHosting() noexcept
     // As the real one: our own in-process connection goes through it.
     if (m_world.GetTransport().IsConnectedLocally())
         m_world.GetTransport().Close();
+    m_world.ctx().at<CreatedIds>().SetHosting(false);
     m_pConversation.reset();
     m_pNetwork.reset();
     m_pAuthority.reset();
@@ -349,8 +415,18 @@ void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
     if (acMessage.To != CallTo::kHost || !IsHosting())
         return;
     const uint32_t cGuest = Utils::GetFormIdBySessionId(acMessage.SessionId);
-    if (const auto cCall = Utils::ToLocalCall(acMessage.Call); cGuest && cCall)
+    const auto cCall = Utils::ToLocalCall(acMessage.Call);
+    if (!cGuest || !cCall)
+        return;
+    if (!acMessage.ReplyId)
+    {
         m_world.ctx().at<FakeEngine&>().Queue(*cCall, cGuest);
+        return;
+    }
+    // Its script waits: what the call returns goes back (as HostService).
+    m_world.ctx().at<FakeEngine&>().Queue(*cCall, cGuest, [this, cReplyId = acMessage.ReplyId, cSessionId = acMessage.SessionId](LocalValue aResult) {
+        QueueWorldAnswer(cReplyId, cSessionId, std::move(aResult));
+    });
 }
 
 // As HostService::OnActorRenamed.
@@ -359,7 +435,7 @@ void HostService::OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcep
     if (!IsHosting() || acEvent.FormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId())
         return;
     if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId))
-        m_pAuthority->NameActor(*cSessionId, m_world.ctx().at<IActorBridge&>().GetActorDisplayName(acEvent.FormId));
+        m_pAuthority->NameActor(*cSessionId, acEvent.Name); // as HostService
 }
 
 void HostService::OnGameSaving(const GameSavingEvent&) const noexcept
@@ -374,9 +450,12 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
         return;
     m_pNetwork->Update();
     m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta, m_world.GetFrameTick());
+    SendWorldAnswers();
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);
+    if (m_pTakeBacks)
+        m_pTakeBacks->Update(acEvent);
 }
 
 // Never made here (the fake engine is the host's reads), but HostService's members name them.

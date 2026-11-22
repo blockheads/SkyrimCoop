@@ -1,11 +1,11 @@
 #pragma once
 
 #include <Events/Listen.h>
-#include <Messages/RelayedMessages.h>
 #include <Structs/GameId.h>
 #include <NoCopyMove.h>
 
 class GuestEngine;
+struct CopyAiStateEvent;
 struct World;
 
 /**
@@ -22,7 +22,7 @@ struct GuestScene
     NO_COPY_MOVE(GuestScene);
 
 private:
-    void OnAiState(const NotifyAiState& acMessage) noexcept;
+    void OnAiState(const CopyAiStateEvent& acMessage) noexcept;
 
     World& m_world;
     GuestEngine& m_engine;

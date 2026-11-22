@@ -42,6 +42,8 @@ namespace Net
 
         bool Connect(const std::string& acEndpoint) noexcept;
         bool ConnectByIp(const std::string& acEndpoint) noexcept;
+        // A peer or a resolve under way: a second connect is refused (logged).
+        [[nodiscard]] bool IsBusy() const noexcept;
         void Close() noexcept;
 
         void Update() noexcept;

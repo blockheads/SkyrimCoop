@@ -1,0 +1,30 @@
+time	op	id	rva	item
+2026-11-18T17:15:45Z	read	37321	0x678560	{"name": "Actor::Resurrect"}
+2026-11-18T17:15:53Z	read	38989	0x6e1ab0	{"name": "ActorState::sub_38989"}
+2026-11-18T17:15:53Z	read	37613	0x6936b0	{"name": "Actor::ClearDeathState"}
+2026-11-18T17:16:00Z	name	38989	0x6e1ab0	{"addr": "0x1406e1ab0", "name": "ActorState::ResetForResurrect"}
+2026-11-18T17:16:02Z	comment	38989	0x6e1ab0	{"addr": "0x1406e1ab0", "comment": "AddressLib ID 38989. Called by Actor::Resurrect (37321) on actor+0xC0: ActorState1 (flags1, +8) = 0 (knock state, life state bits, sitting/sleeping all cleared); ActorState2 (+0xC) keeps mask 0x9008 bits and sets 0x1008."}
+2026-11-18T17:16:02Z	comment		0x678651	{"addr": "0x140678651", "comment": "ActorState1 = 0: the knock state is back to 0 (kNormal) on every Resurrect, the player's too."}
+2026-11-18T17:16:15Z	read	39896	0x723b60	{"name": "ActorProcess::UpdateKnockState"}
+2026-11-18T17:16:15Z	read	42880	0x7cec80	{"name": "GetUpEndHandler::Handle"}
+2026-11-18T17:16:23Z	read	40150	0x735c20	{"name": "coop_beginGetUp"}
+2026-11-18T17:20:41Z	read	38820	0x6d98f0	{"name": "Character::sub_38820"}
+2026-11-18T17:21:04Z	read		0x723d44	{"name": "ActorProcess::UpdateKnockState"}
+2026-11-18T17:21:13Z	read	39897	0x723ff0	{"name": "sub_140723FF0"}
+2026-11-18T17:21:23Z	read	36918	0x668310	{"name": "sub_140668310"}
+2026-11-18T17:21:35Z	name	39897	0x723ff0	{"addr": "0x140723FF0", "name": "AIProcess::EndKnockState"}
+2026-11-18T17:21:35Z	name	36918	0x668310	{"addr": "0x140668310", "name": "TaskQueueInterface::QueueEndKnockState"}
+2026-11-18T17:21:40Z	comment	39897	0x723ff0	{"addr": "0x140723FF0", "comment": "Ends a get-up: ragdoll keyframed (or out of the world), knock state (ActorState1 bits 25-27) back to 0, the player's bleedout camera left. Run by BSTaskPool task 14 (TaskQueueInterface::QueueEndKnockState), queued by GetUpEndHandler (42880) on the graph's GetUpEnd when iGetUpType is 1 or 2."}
+2026-11-18T17:21:40Z	comment	36918	0x668310	{"addr": "0x140668310", "comment": "Queues BSTaskPool task 14 for the actor: AIProcess::EndKnockState. From GetUpEndHandler::Handle (42880)."}
+2026-11-18T17:21:40Z	comment	42880	0x7cec80	{"addr": "0x1407cec80", "comment": "AddressLib ID 42880. Graph event GetUpEnd: reads iGetUpType (FixedStrings+1424, set by BeginGetUp 40150 to 1 or 2); 1-2 queue EndKnockState (knock state -> 0); 0 finishes a reanimation (Character::sub_38820). If GetUpEnd never comes, the knock state stays 6."}
+2026-11-18T17:21:40Z	comment	40150	0x735c20	{"addr": "0x140735c20", "comment": "AddressLib ID 40150, BeginGetUp(actor, sendAction). Sets iGetUpType 1/2, runs kActionGetUp (default object 108) when sendAction, sets knock state 5 (queued), which UpdateKnockState (39896) turns into 6 (getting up)."}
+2026-11-18T17:21:40Z	comment		0x67861b	{"addr": "0x14067861b", "comment": "kActionResetAnimationGraph (default object 106; its idle is IdleForceDefaultState), run while the actor is still dead: a dead player's graph refuses it (docs/design/small-bugs.md, NPC resurrection)."}
+2026-11-18T18:03:58Z	read	40255	0x739a40	{"name": "Actor::DoReset3D"}
+2026-11-18T18:04:02Z	comment	40255	0x739a40	{"addr": "0x140739a40", "comment": "AddressLib ID 40255 (CommonLibSSE Actor::DoReset3D). With true: biped parts removed (both player bipeds), then Update3DModel (or queued). Rebuilds the worn models only: the behavior graph and its state machine are left as they were (a revived player's graph is not reset here)."}
+2026-11-18T18:27:31Z	read	63621	0xbd36a0	{"name": "BShkbAnimationGraph::Func2_63621"}
+2026-11-18T18:27:47Z	read	42873	0x7ce470	{"name": "AddRagdollHandler::Handle"}
+2026-11-18T18:34:45Z	read	42877	0x7ce8c0	{"name": "RemoveRagdollHandler::Handle"}
+2026-11-18T18:34:54Z	comment	42873	0x7ce470	{"addr": "0x1407ce470", "comment": "AddressLib ID 42873. Graph event AddRagdollToWorld (a kill move victim state sends it at the pair's start): resets each graph's ragdoll, then adds the actor's 3D collision to its cell's bhkWorld (QueueAddToWorld, or bhkWorld vfunc 0x1A8 directly), its ragdoll's bodies included, biped layer 8."}
+2026-11-18T18:34:54Z	comment	42877	0x7ce8c0	{"addr": "0x1407ce8c0", "comment": "AddressLib ID 42877. Graph event RemoveRagdollFromWorld: TaskQueueInterface::QueueRemoveFromWorld (36924) on the 3D, the same call that takes every collision object of the 3D out, ragdoll bodies included. SkyrimCoop's copy layer mirror (Actor::SetBodiesLayer(0)) makes this same call: it took a kill-move victim copy's ragdoll out (docs/re/systems/physics.md)."}
+2026-11-18T18:34:54Z	comment	63621	0xbd36a0	{"addr": "0x140bd36a0", "comment": "AddressLib ID 63621, BShkbAnimationGraph vfunc 2 (BSIRagdollDriver::AddRagdollToWorld): with a ragdoll instance and the graph's world, puts the ragdoll's bodies at the graph's pose (activated) and adds the instance to the world (hkaRagdollInstance 64157). Papyrus ForceAddRagdollToWorld's path."}
+2026-11-18T18:34:55Z	name	63621	0xbd36a0	{"addr": "0x140bd36a0", "name": "BShkbAnimationGraph::AddRagdollToWorld"}

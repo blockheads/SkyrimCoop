@@ -15,6 +15,7 @@ struct ControlsCall
 {
     uint32_t Holder = 0;
     uint32_t Asked = 0;
+    bool Enable = false; // its last ToggleControls gave back
 };
 
 // Around a native's call in a stack run for aCause (GuestScripts' cause: a guest, this game's player 0x14, a mirrored

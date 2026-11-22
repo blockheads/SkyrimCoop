@@ -42,9 +42,8 @@ How sure each link is:
 
  REVIVE LEAVES THE BODY WRONG          SEPARATE, ONLY THE WORD "RAGDOLL"
  ----------------------------          ---------------------------------
-   stays ragdolled                     copy ragdolls at rest (BodyService)
-   kneels in its next conversation     get-up 5->6 handoff
-   knocked down later, stuck in 6      a wolf's slow rest (host's own body)
+   stays ragdolled                     get-up 5->6 handoff
+                                       a wolf's slow rest (host's own body)
 ```
 
 ## Clusters
@@ -145,38 +144,23 @@ The rest of the town entry (fish `10C3BA`, player heights, the inn's containers)
 
 ### E. Created forms
 
-Entries: headtracking's cause 3,
-[References a guest's script creates](bugs.md#references-a-guests-script-creates).
+Entries: headtracking's cause 3. The script-placed references and a guest's summon were piece 7 of one-simulator.md
+(2026-11-21): the host's game makes both (`docs/re/systems/summons.md`). The decision of 2026-11-06 ("the drop's
+path", a twin made at once) gave way to the design's: the guest's script waits for the host's reference.
 
 Read in code: `AiStateService` (the head-track target) uses `ToSession`, which has no id for a created form;
 `ToSessionOrCreated` (`FormIds.h`) already exists for this. The theft entry is gone (fixed 2026-11-07): read in IDA and
 measured, the guest's alarm for a created item names its owner actor, not the item, so it never needed the item's id;
-the host's permission recheck stopped it (crime.md, "A created item's theft names its owner"). Script-placed references
-are the same gap with a design question on top (whose is the reference).
-
-What a guest makes today (read in code and docs; none of it run for this map):
-
-- Items it drops: synced. The guest makes its own at once, the host makes the real one, the guest's becomes its twin
-  (dropped-items.md). So a script could keep its reference and the host still get one: the twin path may fit
-  `PlaceAtMe`, and a blanket "guest-only" rule would wrongly hide a mod's visible object.
-- **Decided 2026-11-06 (the user): one path.** A reference a guest's script places goes the way a drop does, no second
-  mechanism.
-- References its own scripts place, today: its game's alone. World scripts run on the host, so this is the guest's body and UI
-  scripts, and mods' spells.
-- Actors it makes: [A guest's summon](bugs.md#a-guests-summon). Measured: a guest's Conjure Familiar appears on neither
-  game, the host's works. Suspect, read: `RunActorDiscovery` deletes a temporary actor on a guest that is no copy and has
-  no session id, a rule written for saved NPCs.
-
-One task for all of it, on the drop's path: scripts' references and a guest's actors.
+the host's permission recheck stopped it (crime.md, "A created item's theft names its owner").
 
 ### F. Revive
 
-Entries: [Revive leaves the body wrong](bugs.md#revive-leaves-the-body-wrong), and death.md's open item (a revived player
-knocked down stays in knock state 6).
+Entry: [Revive leaves the body wrong](bugs.md#revive-leaves-the-body-wrong) (a revived ragdoll back in the world,
+sometimes).
 
-Read in code: `PlayerCharacter::Revive` restores hands, graph flags and ragdoll, and neither the knock state nor the
-graph's state machines. All three symptoms follow a death; `guest-knockdown-lies-on-host` passes before one and fails
-after. Link inferred, the missing reset not yet read.
+Read in IDA 2026-11-18: `Actor::Resurrect` zeroes the knock state, and only the graph's `GetUpEnd` ends a get-up
+(physics.md, Getting up). The other two symptoms are gone: a revived player knocked down gets up with its copy, and
+its first conversation does not kneel it (`revived-guest-gets-up`, 2026-11-18).
 
 ### G. Lock pairs
 

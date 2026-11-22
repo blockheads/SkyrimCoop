@@ -1,3 +1,4 @@
+#include <Games/ContainerCount.h>
 #include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Games/FormChangeRows.h>
@@ -56,8 +57,8 @@ namespace
 // A container's count of an item; none held is no entry, as the engine's lists keep it.
 void SetCount(FakeEngine::Reference& aReference, uint32_t aItem, int32_t aCount)
 {
-    if (aCount > 0)
-        aReference.Items[aItem] = aCount;
+    if (aCount > 0 || aReference.Rolled.contains(aItem))
+        aReference.Items[aItem] = std::max(aCount, 0); // a roll's entry stays, at 0 (16059 on a non-actor)
     else
         aReference.Items.erase(aItem);
 }
@@ -83,10 +84,11 @@ std::vector<Inventory::Entry> StacksOf(const FakeEngine::Reference& acReference,
 // ReferenceStates' lock row: the level in the low byte, kLocked above it.
 constexpr uint32_t kLocked = 0x100;
 
-ObjectChange LockRow(uint32_t aReference, const FakeEngine::Reference& acReference)
+// acHolder: the reference holding its lock (FakeEngine::LockHolderOf).
+ObjectChange LockRow(uint32_t aReference, const FakeEngine::Reference& acHolder)
 {
     ObjectChange row{.Type = ObjectChange::Kind::kLock, .Object = SessionIdOf(aReference)};
-    row.Value = (acReference.Locked ? kLocked : 0) | acReference.LockLevel;
+    row.Value = (acHolder.Locked ? kLocked : 0) | acHolder.LockLevel;
     return row;
 }
 
@@ -95,6 +97,14 @@ ObjectChange OpenRow(uint32_t aDoor, const FakeEngine::Reference& acReference)
 {
     ObjectChange row{.Type = ObjectChange::Kind::kOpenState, .Object = SessionIdOf(aDoor)};
     row.Value = acReference.Open ? 1 : 0;
+    return row;
+}
+
+// ReferenceStates' harvested row: 1 picked.
+ObjectChange HarvestedRow(uint32_t aPlant, const FakeEngine::Reference& acReference)
+{
+    ObjectChange row{.Type = ObjectChange::Kind::kHarvested, .Object = SessionIdOf(aPlant)};
+    row.Value = acReference.Harvested ? 1 : 0;
     return row;
 }
 
@@ -136,13 +146,26 @@ void FakeEngine::UnloadCell(uint32_t aCell)
         DeleteActor(cId);
 }
 
+int32_t FakeEngine::ContainerCountOf(uint32_t aContainer, uint32_t aItem) const
+{
+    const auto& cReference = References.at(aContainer);
+    const auto cEntry = cReference.Items.find(aItem);
+    return ContainerCount(0, cEntry != cReference.Items.end() ? std::optional(cEntry->second) : std::nullopt, cReference.Rolled.contains(aItem));
+}
+
+uint32_t FakeEngine::LockHolderOf(uint32_t aReference) const
+{
+    const auto it = References.find(aReference);
+    return it != References.end() && it->second.LinkedDoor ? it->second.LinkedDoor : aReference;
+}
+
 void FakeEngine::PlayerSetsLock(uint32_t aReference, bool aLocked, uint8_t aLevel)
 {
     if (IsGuest)
     {
-        References.at(aReference).Locked = aLocked;
-        References.at(aReference).LockLevel = aLevel;
-        Changed.insert(aReference);
+        References.at(LockHolderOf(aReference)).Locked = aLocked;
+        References.at(LockHolderOf(aReference)).LockLevel = aLevel;
+        Changed.insert(LockHolderOf(aReference));
         World::Get().GetDispatcher().trigger(LockChangeEvent(aReference, aLocked, aLevel, true));
         return;
     }
@@ -161,13 +184,15 @@ void FakeEngine::PlayerSetsItems(uint32_t aContainer, uint32_t aItem, int32_t aC
     SetItems(aContainer, aItem, aCount, std::move(aStacks));
 }
 
+// Recorded on the reference holding the lock (AddLockChange 19512).
 void FakeEngine::SetLock(uint32_t aReference, bool aLocked, uint8_t aLevel)
 {
-    auto& reference = References.at(aReference);
-    reference.Locked = aLocked;
-    reference.LockLevel = aLevel;
-    Changed.insert(aReference);
-    Recorded.push_back(LockRow(aReference, reference));
+    const uint32_t cHolder = LockHolderOf(aReference);
+    auto& holder = References.at(cHolder);
+    holder.Locked = aLocked;
+    holder.LockLevel = aLevel;
+    Changed.insert(cHolder);
+    Recorded.push_back(LockRow(cHolder, holder));
 }
 
 void FakeEngine::ScriptSetsCellOwner(uint32_t aCell, uint32_t aOwner)
@@ -213,6 +238,18 @@ void FakeEngine::ToggleDoor(uint32_t aObject)
         SetOpen(aObject, !it->second.Open);
 }
 
+void FakeEngine::Harvest(uint32_t aObject)
+{
+    const auto it = References.find(aObject);
+    if (it == References.end() || !it->second.Plant || it->second.Harvested)
+        return;
+    it->second.Harvested = true;
+    if (IsGuest)
+        return;
+    Changed.insert(aObject);
+    Recorded.push_back(HarvestedRow(aObject, it->second));
+}
+
 uint32_t FakeEngine::PlaceContainer(uint32_t aCell, uint32_t aBase)
 {
     const uint32_t cId = NewTemporary();
@@ -227,6 +264,20 @@ uint32_t FakeEngine::ScriptPlacesContainer(uint32_t aCell, uint32_t aBase, const
     // ReadCreate: its base and where, no contents.
     ObjectChange create{.Type = ObjectChange::Kind::kCreate, .Object = CreatedId(cId), .Item = SessionIdOf(aBase)};
     create.Data = ObjectChange::PackPlacement({.Cell = SessionIdOf(aCell)});
+    Recorded.push_back(std::move(create));
+    return cId;
+}
+
+uint32_t FakeEngine::ScriptPlaces(uint32_t aAt, uint32_t aBase)
+{
+    const auto cActor = Actors.find(aAt);
+    const auto cReference = References.find(aAt);
+    const uint32_t cCell = cActor != Actors.end() ? cActor->second.Cell : cReference != References.end() ? cReference->second.Cell : 0;
+    const uint32_t cId = PlaceContainer(cCell, aBase);
+    if (cActor != Actors.end())
+        References.at(cId).Position = {cActor->second.Position[0], cActor->second.Position[1], cActor->second.Position[2]};
+    ObjectChange create{.Type = ObjectChange::Kind::kCreate, .Object = CreatedId(cId), .Item = SessionIdOf(aBase)};
+    create.Data = ObjectChange::PackPlacement({.Cell = SessionIdOf(cCell)});
     Recorded.push_back(std::move(create));
     return cId;
 }
@@ -256,9 +307,11 @@ void FakeEngine::ApplyContents(Reference& aContainer, const ObjectChange& acCont
 std::vector<ObjectChange> FakeEngine::RowsOf(uint32_t aReference) const
 {
     const auto& cReference = References.at(aReference);
-    std::vector<ObjectChange> rows{LockRow(aReference, cReference)};
+    std::vector<ObjectChange> rows{LockRow(aReference, References.at(LockHolderOf(aReference)))};
     if (cReference.Door)
         rows.push_back(OpenRow(aReference, cReference));
+    if (cReference.Plant)
+        rows.push_back(HarvestedRow(aReference, cReference));
     for (const auto& [cItem, cCount] : cReference.Items)
         rows.push_back(ItemsRow(aReference, cReference, cItem));
     return rows;
@@ -299,20 +352,24 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         }
     }
     const auto it = References.find(FormIdOf(acChange.Object));
-    if (it == References.end() || !InMemory.contains(it->second.Cell))
+    if (it == References.end() || (!InMemory.contains(it->second.Cell) && !it->second.Persistent))
         return false; // its cell never loaded here: "its object is not in this game"
     auto& reference = it->second;
     switch (acChange.Type)
     {
     case ObjectChange::Kind::kRecord: reference.RecordFlags = acChange.Value; break;
     case ObjectChange::Kind::kLock:
-        reference.Locked = (acChange.Value & kLocked) != 0;
-        reference.LockLevel = static_cast<uint8_t>(acChange.Value & 0xFF);
+    {
+        auto& holder = References.at(LockHolderOf(it->first)); // SetLockState through GetLock (20223)
+        holder.Locked = (acChange.Value & kLocked) != 0;
+        holder.LockLevel = static_cast<uint8_t>(acChange.Value & 0xFF);
         break;
+    }
     case ObjectChange::Kind::kItems:
         SetCount(reference, ::ItemForm(acChange.Item), static_cast<int32_t>(acChange.Value), acChange.Stacks);
         break;
     case ObjectChange::Kind::kOpenState: reference.Open = acChange.Value != 0; break;
+    case ObjectChange::Kind::kHarvested: reference.Harvested = acChange.Value != 0; break;
     case ObjectChange::Kind::kContents: ApplyContents(reference, acChange); break;
     default: break;
     }
@@ -326,10 +383,19 @@ std::optional<std::vector<ObjectChange>> FakeEngine::CellState(const GameId& acC
     if (!Attached.contains(cCell))
         return std::nullopt;
     std::vector<ObjectChange> rows;
+    // The host's created ones there first, so the guest makes its own (HostEngine::ReadCellState): base, place, state.
+    for (const auto& [cId, cReference] : References)
+        if (cReference.Cell == cCell && IsCreatedForm(cId) && cReference.Base)
+        {
+            ObjectChange create{.Type = ObjectChange::Kind::kCreate, .Object = CreatedId(cId), .Item = SessionIdOf(cReference.Base)};
+            create.Data = ObjectChange::PackPlacement({.Cell = SessionIdOf(cCell)});
+            rows.push_back(std::move(create));
+            rows.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = CreatedId(cId), .Value = cReference.Disabled ? 0u : 1u});
+        }
     for (const auto& [cId, cReference] : References)
     {
         const bool cNamed = std::ranges::any_of(acChanged, [cId](const ChangedReference& acRef) { return FormIdOf(acRef.Id) == cId; });
-        if (cReference.Cell == cCell && (Changed.contains(cId) || cNamed))
+        if (cReference.Cell == cCell && (Changed.contains(cId) || Changed.contains(LockHolderOf(cId)) || cNamed))
             std::ranges::move(RowsOf(cId), std::back_inserter(rows));
     }
     for (const auto& [cId, cActor] : Actors)
@@ -345,8 +411,9 @@ std::optional<CellStateRequest> FakeEngine::CellChanges(uint32_t aCell) const
         return std::nullopt;
     CellStateRequest request;
     request.Cell = SessionIdOf(aCell);
-    for (const uint32_t cId : Changed)
-        if (References.at(cId).Cell == aCell)
+    // Its changed references there, and a load door whose lock (its linked door's, elsewhere) changed.
+    for (const auto& [cId, cReference] : References)
+        if (cReference.Cell == aCell && (Changed.contains(cId) || Changed.contains(LockHolderOf(cId))))
             request.Changed.push_back({SessionIdOf(cId), 1});
     return request;
 }

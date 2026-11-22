@@ -8,6 +8,8 @@
 #include <Games/ReferenceStates.h>
 #include <Games/Skyrim/PlayerHands.h>
 #include <Havok/bhkCollision.h>
+#include <Actor.h>
+#include <Havok/Ragdoll.h>
 #include <NetImmerse/NiNode.h>
 #include <FormIds.h>
 #include <PlayerCharacter.h>
@@ -97,12 +99,25 @@ std::vector<BodyPush> GuestEngine::TakeHits() noexcept
     return Keyed(PlayerHands::TakeHits());
 }
 
-GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t aTick) noexcept
+GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t aTick, const SessionOf_t& acSessionOf) noexcept
 {
     OwnBodies own;
     const auto cUpdate = m_moving.Take(aTick);
+    // A copy's corpse this game's player moved: its bodies as an object's, by the copy's session id.
+    const auto cCorpse = [&acSessionOf](const PhysicsBodies::Bodies& acBodies) -> uint32_t {
+        return acBodies.Actor && acBodies.FormId != 0x14 && acSessionOf ? acSessionOf(acBodies.FormId) : 0;
+    };
     for (const auto& cAwake : cUpdate.Awake)
     {
+        if (const uint32_t cSession = cCorpse(cAwake))
+        {
+            for (BodyFrame frame : cAwake.Read)
+            {
+                frame.Key = {.Actor = cSession, .Index = frame.Key.Index};
+                own.Objects.push_back(frame);
+            }
+            continue;
+        }
         if (cAwake.Actor)
         {
             own.Ragdoll.insert(own.Ragdoll.end(), cAwake.Read.begin(), cAwake.Read.end());
@@ -120,6 +135,12 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t aTick) noexcept
     }
     for (const auto& cRested : cUpdate.Rested)
     {
+        if (const uint32_t cSession = cCorpse(cRested))
+        {
+            for (const auto& cRead : cRested.Read)
+                own.ObjectsRested.push_back({.Key = {.Actor = cSession, .Index = cRead.Key.Index}, .Position = cRead.Position, .Rotation = cRead.Rotation});
+            continue;
+        }
         if (cRested.Actor)
         {
             for (const auto& cRead : cRested.Read)
@@ -135,10 +156,25 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t aTick) noexcept
     return own;
 }
 
-std::vector<BodyFrame> GuestEngine::ReadHeld() const noexcept
+std::vector<BodyFrame> GuestEngine::ReadHeld(const SessionOf_t& acSessionOf) noexcept
 {
     const PlayerCharacter* pPlayer = PlayerCharacter::Get();
     TESObjectREFR* pObject = pPlayer && pPlayer->grabbedObject ? TESObjectREFR::GetByHandle(pPlayer->grabbedObject) : nullptr;
+    // A copy's corpse: its ragdoll's bodies by the copy's session id, watched until they rest after the let go.
+    if (const auto* pCopy = Cast<Actor>(pObject); pCopy && pCopy->IsDead() && acSessionOf)
+    {
+        const uint32_t cSession = acSessionOf(pCopy->formID);
+        if (!cSession)
+            return {};
+        m_moving.Watch(pCopy->formID);
+        std::vector<BodyFrame> frames;
+        const auto cBodies = RagdollBodiesOf(*pCopy);
+        for (size_t i = 0; i < cBodies.size(); ++i)
+            if (BodyRead read; cBodies[i] && ReadBody(*cBodies[i], read) && read.Dynamic)
+                frames.push_back({.Key = {.Actor = cSession, .Index = static_cast<uint8_t>(i)}, .Position = read.Position, .Rotation = read.Rotation,
+                                  .LinearVelocity = read.LinearVelocity, .AngularVelocity = read.AngularVelocity});
+        return frames;
+    }
     const auto cId = pObject ? HostIdOf(*pObject) : std::nullopt;
     if (!cId)
         return {};

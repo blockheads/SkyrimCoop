@@ -4,7 +4,6 @@
 #include <Events/UpdateEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Messages/ActivateRequest.h>
-#include <Messages/NotifyActivate.h>
 
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IActorBridge.h>
@@ -23,18 +22,10 @@ ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     , m_actorBridge(aActorBridge)
 {
     Listen<ActivateEvent, &ObjectService::OnActivate>(m_connections, aDispatcher, this);
-    Listen<NotifyActivate, &ObjectService::OnActivateNotify>(m_connections, aDispatcher, this);
 }
 
 void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
 {
-    if (acEvent.ActivateFlag)
-    {
-        // Re-activate: delegate to bridge using form IDs from the event struct.
-        m_formBridge.ActivateObjectFromActor(acEvent.ObjectFormId, acEvent.ActivatorFormId,
-                                              acEvent.PreActivationOpenStateValue);
-    }
-
     // A world script's door is the host's world: HostWorldState sends the host's (step 5).
     // Activating a mount rides it (Character::ActivateMount 37864): the ride goes as a MountRequest. Replayed, it
     // would start a mount package on the activator's copy, which no copy runs.
@@ -81,29 +72,6 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
         return;
 
     request.ActivatorId = sessionIdRes.value();
-    request.PreActivationOpenState = acEvent.PreActivationOpenStateValue;
 
     m_transport.Send(request);
-}
-
-void ObjectService::OnActivateNotify(const NotifyActivate& acMessage) noexcept
-{
-    const uint32_t cActorFormId = Utils::GetFormIdBySessionId(acMessage.ActivatorId);
-    if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
-    {
-        spdlog::error("{}: could not find actor session id {:X}", __FUNCTION__, acMessage.ActivatorId);
-        return;
-    }
-
-    const uint32_t cObjectId = acMessage.NpcId ? Utils::GetFormIdBySessionId(acMessage.NpcId) : ToGame(acMessage.Id);
-    if (acMessage.NpcId && m_actorBridge.IsActorCopy(cObjectId))
-        return;
-    if (!m_formBridge.FormExists(cObjectId))
-    {
-        spdlog::error("Failed to retrieve object to activate.");
-        return;
-    }
-
-    m_formBridge.ActivateObjectFromActor(cObjectId, cActorFormId,
-                                          acMessage.PreActivationOpenState);
 }

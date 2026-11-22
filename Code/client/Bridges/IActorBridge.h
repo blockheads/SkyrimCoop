@@ -34,6 +34,20 @@ struct ActorAiFields
     std::array<uint32_t, 6> HeadTrackIds{};
 };
 
+// An actor's state beside its graph (one-simulator.md, piece 2): this game's form ids, 0 for none.
+struct ActorStateFields
+{
+    bool operator==(const ActorStateFields&) const noexcept = default;
+
+    uint32_t Flags1{};       // ActorState flags1
+    uint32_t Flags2{};       // ActorState flags2
+    bool InKillMove{};       // Actor::IsInKillMove (38615)
+    uint32_t KillerFormId{}; // Actor::killerHandle (+0x108), set by EnterKillMove (38613)
+    bool InPair{};           // in a pair's instance (32808) or its clip (bIsSynced)
+    bool Dead{};
+    int32_t Noise{};         // the noise its actions make now (actionValue +0x11C, SetActionValue 37711)
+};
+
 class IActorBridge
 {
 public:
@@ -200,6 +214,30 @@ public:
     virtual void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept = 0;
     virtual WeaponState GetWeaponState(uint32_t aFormId) const noexcept = 0;
 
+    // --- Actor state (ActorStateService) ---
+    virtual ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept = 0;
+    // A copy: its flags as given (the caller masks them, ActorStateRules).
+    virtual void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept = 0;
+    // A copy: its owner's noise, held until its owner's ends (ActorStateRules::CopyNoiseTimer).
+    virtual void SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept = 0;
+    // A copy enters a kill move as EnterKillMove (38613) does, its killer aKillerFormId (0: the attacker's half).
+    virtual void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept = 0;
+    // A copy leaves a kill move without dying: its killer cleared, then EndKillMove (38614).
+    virtual void CopyLeaveKillMove(uint32_t aFormId) noexcept = 0;
+    // A claimed kill move (one-simulator.md, "Action claims"; kill-moves.md). An NPC taken by this game keeps the copy's deferred
+    // kill (true: its clip's KillActor only counts); released, the hold ends and its counted kills are dropped.
+    virtual void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept = 0;
+    // Its clip killed it under the hold (a counted kill, MiddleHigh +0x2F8 above 1).
+    [[nodiscard]] virtual bool ActorKillCounted(uint32_t aFormId) const noexcept = 0;
+    // The host's game kills its NPC a claimed kill move's clip killed, credited to aKillerFormId.
+    virtual void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept = 0;
+    // This game's actor ends its pair with a copy: the host refused its claim, or gave another the claim.
+    virtual void ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept = 0;
+    // The action again with no target, as the engine's own second try after a refused pair (42350); true if taken.
+    virtual bool ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept = 0;
+    // Alive, its graph running (kProcessMe), no player's summon: it can be lent for a pair's half.
+    [[nodiscard]] virtual bool ActorCanPair(uint32_t aFormId) const noexcept = 0;
+
     // --- Actor lifecycle flags ---
     virtual bool IsActorTemporary(uint32_t aFormId) const noexcept = 0;
     virtual bool IsActorMount(uint32_t aFormId) const noexcept = 0;
@@ -297,9 +335,6 @@ public:
     // --- FaceTints ---
     virtual Tints GetActorFaceTints(uint32_t aFormId) const noexcept = 0;
     virtual void SetupActorFaceGen(uint32_t aFormId) noexcept = 0;
-
-    // --- CacheSystem integration ---
-    virtual void SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept = 0;
 
     // --- Systems (CharacterService calls that take Actor*) ---
     /// Run interpolation update for a remote actor.

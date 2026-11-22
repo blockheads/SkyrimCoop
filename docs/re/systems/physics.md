@@ -418,6 +418,28 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
     (state 0) the bodies cannot be read (they have left the world): the last frame read is the rest.
   - Its limbs shake while it gets up (forearm and hand reversing every physics step, 8-12 units, on the host's own
     Lydia about 0.8 s into state 6), so those frames carry no velocity: a copy blends between poses.
+  - How it starts and ends (read in IDA 2026-11-18). `BeginGetUp` (40150; actor, send action) sets the graph's
+    `iGetUpType` to 1 or 2, plays `kActionGetUp` (default object 108) and sets state 5; the knock update turns 5
+    into 6. Only the graph ends it: its `GetUpEnd` event reaches `GetUpEndHandler` (42880), which for `iGetUpType`
+    1 or 2 queues task 14 (`TaskQueueInterface::QueueEndKnockState`, 36918), and the task runs
+    `AIProcess::EndKnockState` (39897: ragdoll keyframed or out of the world, knock state 0, the player's
+    bleedout camera left). A graph that never sends `GetUpEnd` leaves the actor at 6 for good.
+- **A kill move's victim copy keeps its ragdoll** (read in IDA and measured 2026-11-18). The victim state sends the
+  graph event `AddRagdollToWorld` at the pair's start (`AddRagdollHandler` 42873: the 3D's collision, its ragdoll's
+  bodies included, into the cell's world, biped layer 8; `RemoveRagdollHandler` 42877 takes it out with
+  `TaskQueueInterface::QueueRemoveFromWorld` 36924). The owner's victim lies in its powered ragdoll (motions 2/3)
+  for the whole clip. Its copy, on its own body for the pair, added its ragdoll about 200 ms before the owner's
+  stream did. The copy mirrored its owner's body layer (`SkyrimBridge::SetCopyPhysics`, for seated and mounted
+  copies): layer 0 calls the same 36924, so the copy's ragdoll was out of the world for the whole clip (traced
+  `bodies_layer` 0 → 8 → 0, bodies unreadable). At death it went in again, keyframed for one frame and then
+  dynamic, and was steered 20 units from the clip's pose to the owner's. In 1 of 2 runs two bones were off for that
+  one frame: the "flickers" of `kill-move-kills-guest`. A copy in a kill move now keeps its bodies
+  (`ReplayState::TakesOwnerBodies`), as one lying in its ragdoll already did.
+- **Resurrect and the knock state** (read in IDA 2026-11-18). `Actor::Resurrect` (37321) zeroes `ActorState1`
+  (`ActorState::ResetForResurrect`, 38989), so a revived actor's knock state is 0. It also plays
+  `kActionResetAnimationGraph` (106) while the actor is still dead (an NPC copy's dead graph refused it:
+  `docs/design/small-bugs.md`, NPC resurrection). `Actor::DoReset3D` (40255) rebuilds the worn models only, not the
+  graph.
 - **A copy at its owner's rest (2026-11-11).** Setting a body's velocity (78089/78090) wakes it, so a copy steered
   to its owner's rest on every step never sleeps. Its bodies cannot all be brought there one by one either: with the
   others still off, about three of a ragdoll's 18 to 22 are held a little away by their joints. All put at the owner's
@@ -589,3 +611,57 @@ row). Fixed both ways (`docs/design/physics-sync.md`, "A rest's move row comes b
 dynamic and still (`BodyPrediction::StillToSleep`: the counts 60850 skips; a body sliding at a steady speed would pass
 the last test alone) and put each body's w back after 60850, so Havok's own last test has its say too; and the guest
 skips the row of its own rest.
+
+## A lying ragdoll's layer and group (read in IDA on 1.7.104 and in Skyrim.esm, 2026-11-21)
+
+For piece 10 of `docs/design/one-simulator.md`; journal `docs/re/journal/1.7.104/agent-piece-10.tsv`.
+
+```text
+the ragdoll enters the world       AddRagdollHandler (42873) -> task 18 (QueueAddToWorld 36922)
+                                   -> bhkWorld vfunc +0x1A8 (world, 3D, recurse, 1, group, 0)
+                                   group: the actor's character controller's (its filter info's high 16 bits)
+the actor is knocked down          KnockExplosion (39895): NiAVObject::SetCollisionLayer (77998) of the 3D to 32
+the actor dies                     Actor::KillImpl (37896): the same call, 32
+up again / resurrected             EndKnockState (39897), GetUpEndHandler (42880), ClearDeathState (37613): back to 8
+```
+
+So a body lying in its ragdoll is on layer 32 (`L_DEADBIP`) in its actor's own group (read). What layer 32 meets is
+data, not code: Skyrim.esm's `COLL` records (read with a script from the game's Skyrim.esm):
+
+```text
+L_DEADBIP (32) meets   static, anim static, terrain, ground, trees, water, triggers, traps
+                       clutter (4), weapon (5), props (10), small and large debris (19, 20)
+                       other L_DEADBIP (another actor's: a different group)
+                       projectiles, spells, the item picker (40), line of sight (41)
+             not       L_BIPED (8), L_CHARCONTROLLER (30), L_BIPED_NO_CC (33)
+L_BIPED (8) meets      the world only: no clutter, no weapons, no other bipeds
+```
+
+- A character never pushes a corpse with its capsule (30 against 32: no), in any game. The harness's floor probe
+  (`GetBodyPose`, a layer-30 ray) still hit a corpse under a player's feet and read the player 30 to 40 units sunk
+  (measured, 2026-11-21): it looks past actors' bodies now.
+- A lying ragdoll pushes loose objects and other lying ragdolls, and is stopped by them. A copy's ragdoll does
+  that in its own game too, where its owner's never touched them.
+- `Actor::IsInRagdollState` (37491): true when `Actor+0xE8` bit 31 is set, when dead (vfunc 0x99) without flags2
+  `0x10`, at knock state 1 to 5 or 7, or with flags1 bits 21-24 at 3; knock state 6 (getting up) alone does not make it
+  true (read). The transform delta sink (37996) keeps the actor on its ragdoll's root only while it is true.
+
+Not read: Havok's constraint solver for a ragdoll's joints; what `hkbRagdollDriver::driveToPose` does for a dead
+actor's bodies each update (the owner's ragdoll sleeps under it, so it does not wake them: measured, 2026-11-12).
+
+## A translating reference (read in IDA on 1.7.104, 2026-11-21)
+
+Papyrus `TranslateTo` / `SplineTranslateTo` (56237) give the reference an `ExtraRefrPath` (extra 161), mark change
+`0x80000000` and add its handle to its cell's list (`TESObjectCELL::AddTranslateObject` 19417). `TESObjectCELL__UpdateTranslatingRefs` (18898)
+walks that list for each attached cell every frame: `ExtraRefrPath__Advance` (12810) by this game's frame seconds,
+then `SetPosition`, `SetAngle`. That is all that moves a critter (`critterMoth`, `Critter.psc`): the game whose VM
+ran the script moves it, on its own clock; no other game is told. `Critter.psc` also places two landing markers for
+itself (`PlaceAtMe(LandingMarkerForm)`: Skyrim.esm's `C2D47` for 13 critters, `22201` for one) and moves them with
+`SetPosition`.
+
+The harness tells a critter by its script: the VM's `FindBoundObject` (104792, vfunc 0x1C) visits the handle's bound
+objects (104880) and, unless asked for an exact match, walks each one's class up its parents (104912), so a lookup of
+`Critter` finds `critterMoth` (read).
+
+Change flag `0x8000000` is `CHANGE_REFR_LEVELED_INVENTORY`: `InventoryChanges__AddLeveledEntries` (16128) sets it
+when a leveled list's roll is added to a reference's inventory. Each game rolls its own.

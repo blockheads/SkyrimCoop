@@ -4,6 +4,7 @@
 #include <SessionIds.h>
 #include <FormIds.h>
 #include <World.h>
+#include <CreatedIds.h>
 
 namespace Utils
 {
@@ -15,6 +16,8 @@ ScriptValue ToScriptValue(const LocalValue& acValue) noexcept
             form.Form = GameId(0, 0x14);
         else if (const auto cSessionId = GetSessionIdByFormId(acForm.FormId))
             form.SessionId = *cSessionId;
+        else if (const auto cCreated = World::Get().ctx().at<CreatedIds>().ToSession(acForm.FormId))
+            form.Form = *cCreated; // a created reference the other games know (piece 7)
         else
             form.Form = ToSession(acForm.FormId).value_or(GameId{});
         return std::optional(form);
@@ -26,7 +29,8 @@ std::optional<LocalValue> ToLocalValue(const ScriptValue& acValue) noexcept
 {
     const auto cToLocal = [](const ScriptForm& acForm) {
         const uint32_t cFormId = acForm.SessionId ? GetFormIdBySessionId(acForm.SessionId)
-                                                  : ToGame(acForm.Form);
+                                 : IsCreatedId(acForm.Form) ? World::Get().ctx().at<CreatedIds>().ToGame(acForm.Form)
+                                                            : ToGame(acForm.Form);
         return World::Get().GetFormBridge().FormExists(cFormId) ? std::optional(LocalForm{cFormId}) : std::nullopt;
     };
     return MapForm<LocalForm>(acValue, cToLocal);

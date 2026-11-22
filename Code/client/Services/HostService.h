@@ -9,6 +9,10 @@
 #include <spdlog/spdlog.h>
 #include <NoCopyMove.h>
 #include <Messages/RelayedMessages.h>
+#include <Structs/ScriptValue.h>
+
+#include <chrono>
+#include <vector>
 
 struct World;
 struct UpdateEvent;
@@ -29,6 +33,7 @@ struct HostNetwork;
 class HostEngine;
 struct HostConversation;
 struct HostAggro;
+struct HostTakeBacks;
 
 /**
  * @brief Hosting a session: the listener the other players' games join (HostNetwork), the host's
@@ -78,6 +83,18 @@ protected:
 
 private:
     void MakeAuthority() noexcept;
+    // A guest's waiting script's answer, from the VM's thread: kept on the game's, sent each update once it can name
+    // its form (a created actor by its session id, after its announcement; HostWorldCalls.cpp).
+    void QueueWorldAnswer(uint32_t aReplyId, uint32_t aSessionId, LocalValue aResult) noexcept;
+    void SendWorldAnswers() noexcept;
+    struct WorldAnswer
+    {
+        uint32_t ReplyId;
+        uint32_t SessionId;
+        LocalValue Result;
+        std::chrono::steady_clock::time_point Since;
+    };
+    std::vector<WorldAnswer> m_worldAnswers;
     // The host's rules' saves: the library's images and encodings (HostServiceReload.cpp).
     void BindSaves(HostGame& aGame) noexcept;
     // The listener's front door: a join waits while a party reload runs, everything else goes to the host's rules.
@@ -103,6 +120,8 @@ private:
     // Declared first so they outlive the network, which calls into the authority, which reads the engine.
     std::unique_ptr<HostEngine> m_pEngine;
     std::unique_ptr<HostAggro> m_pAggro;
+    // Claimed actors given back, taken by this game (HostClaims).
+    std::unique_ptr<HostTakeBacks> m_pTakeBacks;
     std::unique_ptr<HostAuthority> m_pAuthority;
     std::unique_ptr<HostNetwork> m_pNetwork;
     // The host's game in the party's conversation.

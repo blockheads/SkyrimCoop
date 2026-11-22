@@ -2,7 +2,7 @@
 
 #include "Message.h"
 #include <Structs/Perks.h>
-#include <Structs/ActorAiState.h>
+#include <Structs/RecordPart.h>
 #include <Structs/GameId.h>
 #include <Structs/GridCellCoords.h>
 #include <Structs/ActionEvent.h>
@@ -30,7 +30,7 @@ struct AnnounceCharacterRequest final : RequestMessage
     bool operator==(const AnnounceCharacterRequest& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
-               AppearanceBuffer == acRhs.AppearanceBuffer && DisplayName == acRhs.DisplayName && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && AiState == acRhs.AiState && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
+               AppearanceBuffer == acRhs.AppearanceBuffer && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && CommanderId == acRhs.CommanderId;
     }
 
     // The id the host gave it: the player's from the join answer, the host's actors' from HostCharacters.
@@ -44,13 +44,11 @@ struct AnnounceCharacterRequest final : RequestMessage
     uint32_t ChangeFlags{};
     std::string AppearanceBuffer{};
     // What its game shows for it (GetDisplayFullName): the copy's name, a player's too.
-    std::string DisplayName{};
-    Factions FactionsContent{};
     ActionEvent LatestAction{};
     // The behaviour graphs' state, as a savegame keeps it: what a copy's fresh graph loads.
     std::string GraphState{};
-    // What its AI is doing, for the copy to hold from the start (AiStateService).
-    ActorAiState AiState{};
+    // Its record's parts as its owner last declared them (CopyRecords): the copy holds them from the start.
+    RecordParts Record{};
     Perks PerksContent;
     // The effects showing on it, for the copy to play from the start (EffectVisualsService).
     std::vector<GameId> EffectIds{};
@@ -58,6 +56,6 @@ struct AnnounceCharacterRequest final : RequestMessage
     float Weight{50.f}; // the base's (TESNPC weight): the engine saves it with the actor, not in AppearanceBuffer
     bool IsDragon{};
     bool IsMount{};
-    bool IsPlayerSummon{};
+    uint32_t CommanderId{}; // a summon's caster, by session id (0: none)
     ActorData CurrentActorData{};
 };

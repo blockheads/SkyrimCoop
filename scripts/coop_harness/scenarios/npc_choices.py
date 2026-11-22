@@ -81,9 +81,11 @@ def torch_repair(ctx):
         ctx.wait_for("Aela wears her torch", lambda: torch in equipment("", npc), 10)
         ctx.wait_for("Aela's copy wears its owner's torch", lambda: torch in equipment("client", copy), 10)
         owner = equipment("", npc)
-        ctx.player_command("client", {"cmd": "strip", "actor": copy})
-        ctx.wait_for("the copy's equipment drifted", lambda: equipment("client", copy) != owner, 5)
-        ctx.wait_for("the unchanged owner snapshot repairs every item including the torch",
+        # 418622, as a 3D load runs it: the copy's worn set as the engine left it, before the copy answers.
+        reset = ctx.player_command("client", {"cmd": "reset_worn", "actor": copy})
+        if set(reset.get("worn_after") or []) == owner:
+            raise ctx.failure("the engine's reset left the copy wearing its owner's set: nothing drifted")
+        ctx.wait_for("the copy wears every item of its owner's again, the torch included",
                      lambda: equipment("client", copy) == equipment("", npc) and torch in equipment("client", copy), 10)
         if problems := ctx.check_desync():
             raise ctx.failure("Aela's repaired torch: " + " | ".join(problems))

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chrono>
 #include <cstdint>
+#include <optional>
 
 namespace EquipmentRepair
 {
@@ -16,23 +16,16 @@ constexpr uint32_t EquipSlot(uint8_t aType, bool aLeft) noexcept
     return aType == kWeaponType ? (aLeft ? kLeftHand : kRightHand) : 0;
 }
 
-// When this game sends its actors' worn sets: on the update after an equip change, else every 3 s.
-struct Snapshots
+// The hand a worn item is held in (0 left, 1 right): a weapon's own, a torch the left; none for anything else.
+constexpr std::optional<uint32_t> HandOf(uint8_t aType, bool aLeft) noexcept
 {
-    using Clock = std::chrono::steady_clock;
-    Clock::time_point Last{};
-    bool Changed = false;
-
-    void OnChange() noexcept { Changed = true; }
-    bool SendAt(Clock::time_point aNow) noexcept
-    {
-        if (!Changed && aNow - Last < std::chrono::seconds(3))
-            return false;
-        Last = aNow;
-        Changed = false;
-        return true;
-    }
-};
+    constexpr uint8_t cLight = 31;
+    if (aType == kWeaponType)
+        return aLeft ? 0u : 1u;
+    if (aType == cLight)
+        return 0u;
+    return std::nullopt;
+}
 
 // A hand the owner holds a spell in holds something on a loaded copy: EquipSpell (38928) without a process only
 // selects the spell, leaving the hand empty (docs/re/systems/copy-hand-spells.md).
@@ -41,13 +34,26 @@ constexpr bool HandHolds(uint32_t aWantedSpell, uint32_t aHeld) noexcept
     return !aWantedSpell || aHeld;
 }
 
-// A copy's worn set or hand spells differing from its owner's: cleared and equipped again whole (the reset puts
+// A copy's worn set made its owner's: only the pieces that differ off and on; cleared and equipped again whole when the
+// engine refused one (after a model rebuild, copy-equipment-after-rebuild.md) or the hand spells differ (the reset puts
 // the owner's spells back).
-template <class Set, class Reset, class Equip>
-void Apply(const Set& acWanted, const Set& acCurrent, bool aSameHands, Reset&& aReset, Equip&& aEquip)
+template <class Set, class Read, class Reset, class Equip, class Unequip>
+void Apply(const Set& acWanted, Read&& aRead, bool aSameHands, Reset&& aReset, Equip&& aEquip, Unequip&& aUnequip)
 {
-    if (acWanted == acCurrent && aSameHands)
+    const Set cCurrent = aRead();
+    if (acWanted == cCurrent && aSameHands)
         return;
+    if (aSameHands)
+    {
+        for (const auto& item : cCurrent)
+            if (!acWanted.contains(item))
+                aUnequip(item.first, item.second);
+        for (const auto& item : acWanted)
+            if (!cCurrent.contains(item))
+                aEquip(item.first, item.second);
+        if (aRead() == acWanted)
+            return;
+    }
     aReset();
     for (const auto& item : acWanted)
         aEquip(item.first, item.second);

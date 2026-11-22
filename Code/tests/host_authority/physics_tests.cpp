@@ -254,11 +254,67 @@ TEST_CASE("Physics: a guest's own ragdoll goes to every other game; another's ra
                    {.Key = kLadle, .Position = {1.f, 0.f, 10.f}}};
     session.Receive(kPeer, rests);
     REQUIRE(session.SentTo<NotifyBodyRests>(kHost).size() == 1);
-    // Its own ragdoll's, and the ladle's (a first mover's, its frames unheard); not another's ragdoll.
-    CHECK(session.SentTo<NotifyBodyRests>(kHost)[0]->Rests == std::vector<BodyPose>{rests.Rests[0], rests.Rests[2]});
+    // The ladle's (a first mover's, its frames unheard); a ragdoll's rest is its owner's record part (RecordKind::kRagdoll).
+    CHECK(session.SentTo<NotifyBodyRests>(kHost)[0]->Rests == std::vector<BodyPose>{rests.Rests[2]});
     CHECK(session.SentTo<NotifyBodyRests>(kOtherPeer).size() == 1);
     CHECK(session.SentTo<NotifyBodyRests>(kPeer).empty());
     CHECK(session.Freed.empty());
+}
+
+TEST_CASE("Physics: a host NPC's corpse a guest's player drags is its mover's, as an object", "[HostAuthority][Physics][corpse-drag]")
+{
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    const BodyKey cBone{.Actor = cNpc, .Index = 1};
+    BodyFramesRequest frames;
+    frames.Tick = 1000;
+    frames.Held = true;
+    frames.Frames = {{.Key = cBone, .Position = {5.f, 0.f, 10.f}}};
+    // Alive: its ragdoll is its animation's, nobody's to move (review of PR #91).
+    session.Receive(kPeer, frames);
+    CHECK(session.SentTo<NotifyBodyFrames>(kHost).empty());
+    CHECK(session.SentTo<NotifyBodyFrames>(kOtherPeer).empty());
+    session.Dead.insert(cNpc);
+    session.Receive(kPeer, frames);
+    // Every other game plays its frames, the host's own game too (its corpse steered to them).
+    REQUIRE(session.SentTo<NotifyBodyFrames>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyBodyFrames>(kHost)[0]->Frames[0].Key == cBone);
+    CHECK(session.SentTo<NotifyBodyFrames>(kOtherPeer).size() == 1);
+    // The host's own reads of it while the guest moves it are not streamed.
+    session.Outbox.clear();
+    session.Moving.Awake = {{.Key = cBone, .Position = {0.f, 0.f, 10.f}}};
+    session.Frame(1050);
+    CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
+    CHECK(session.SentTo<NotifyBodyFrames>(kOtherPeer).empty());
+    // A second guest's frames of it lose to the first mover's claim.
+    BodyFramesRequest second = frames;
+    second.Frames[0].Position = {50.f, 0.f, 10.f};
+    session.Receive(kOtherPeer, second);
+    CHECK(session.SentTo<NotifyBodyFrames>(kHost).empty());
+    // Let go (its fall still the mover's), then its rest goes to every other game: the host's game puts its corpse there.
+    BodyReleaseRequest released;
+    released.Tick = 1100;
+    released.Frames = {{.Key = cBone, .Position = {6.f, 0.f, 8.f}}};
+    session.Receive(kPeer, released);
+    CHECK(session.Freed.empty()); // a corpse's bodies stay simulated: nothing for the host's game to free
+    session.Outbox.clear();
+    BodyRestsRequest rests;
+    rests.Tick = 1200;
+    rests.Rests = {{.Key = cBone, .Position = {6.f, 0.f, 0.f}}};
+    session.Receive(kPeer, rests);
+    REQUIRE(session.SentTo<NotifyBodyRests>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyBodyRests>(kHost)[0]->Rests == rests.Rests);
+    CHECK(session.SentTo<NotifyBodyRests>(kOtherPeer).size() == 1);
+
+    // Revived during a drag: its frames and rest are refused from then on.
+    session.Outbox.clear();
+    session.Dead.erase(cNpc);
+    frames.Tick = 1300;
+    session.Receive(kPeer, frames);
+    rests.Tick = 1400;
+    session.Receive(kPeer, rests);
+    CHECK(session.SentTo<NotifyBodyFrames>(kHost).empty());
+    CHECK(session.SentTo<NotifyBodyRests>(kHost).empty());
 }
 
 TEST_CASE("Physics: a reliable release survives lost held frames and rejects older input", "[HostAuthority][Physics][release-order]")

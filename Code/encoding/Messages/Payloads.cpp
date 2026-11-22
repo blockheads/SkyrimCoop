@@ -29,30 +29,6 @@ void ActorPerks::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Content.Deserialize(aReader);
 }
 
-void EquipmentSnapshot::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, SessionId);
-    Equipment.Serialize(aWriter);
-}
-
-void EquipmentSnapshot::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    Equipment.Deserialize(aReader);
-}
-
-void DrawWeapon::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, Id);
-    Serialization::WriteBool(aWriter, IsWeaponDrawn);
-}
-
-void DrawWeapon::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    IsWeaponDrawn = Serialization::ReadBool(aReader);
-}
-
 void ActorValueChanges::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Id);
@@ -145,24 +121,6 @@ void HealthChange::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     DeltaHealth = Serialization::ReadFloat(aReader);
     HasAttacker = Serialization::ReadBool(aReader);
     AttackerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-}
-
-void SpellCast::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, CasterId);
-    SpellFormId.Serialize(aWriter);
-    Serialization::WriteVarInt(aWriter, CastingSource);
-    Serialization::WriteBool(aWriter, IsDualCasting);
-    Serialization::WriteVarInt(aWriter, DesiredTarget);
-}
-
-void SpellCast::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    CasterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    SpellFormId.Deserialize(aReader);
-    CastingSource = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    IsDualCasting = Serialization::ReadBool(aReader);
-    DesiredTarget = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
 void InterruptCast::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
@@ -283,16 +241,62 @@ void RemoveSpell::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     SpellId.Deserialize(aReader);
 }
 
-void Dismount::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+void Claim::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    Mount::SerializePayload(aWriter);
-    Whereabouts.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, ClaimId);
+    Serialization::WriteVarInt(aWriter, Kind);
+    Serialization::WriteVarInt(aWriter, Reason);
+    Serialization::WriteVarInt(aWriter, ForId);
+    Serialization::WriteVarInt(aWriter, Tick);
+    Serialization::WriteVarInt(aWriter, Members.size());
+    for (const auto& cMember : Members)
+    {
+        Serialization::WriteVarInt(aWriter, cMember.ActorId);
+        Serialization::WriteBool(aWriter, cMember.Take);
+        Serialization::WriteBool(aWriter, cMember.DeathOnGiveBack);
+    }
 }
 
-void Dismount::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+void Claim::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
-    Mount::DeserializePayload(aReader);
+    ClaimId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Kind = uint8_t(Serialization::ReadVarInt(aReader));
+    Reason = uint8_t(Serialization::ReadVarInt(aReader));
+    ForId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Tick = Serialization::ReadVarInt(aReader);
+    const auto cCount = Serialization::ReadVarInt(aReader);
+    Members.clear();
+    for (uint64_t i = 0; i < cCount && i < 16; ++i)
+    {
+        ClaimMember& member = Members.emplace_back();
+        member.ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+        member.Take = Serialization::ReadBool(aReader);
+        member.DeathOnGiveBack = Serialization::ReadBool(aReader);
+    }
+}
+
+void ActorGiveBack::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ActorId);
+    Serialization::WriteVarInt(aWriter, ClaimId);
+    Serialization::WriteVarInt(aWriter, ForId);
+    Whereabouts.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, Tick);
+    Serialization::WriteBool(aWriter, Killed);
+    Serialization::WriteBool(aWriter, Taken);
+    Serialization::WriteBool(aWriter, Ended);
+}
+
+void ActorGiveBack::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    ClaimId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    ForId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Whereabouts.Deserialize(aReader);
+    Tick = Serialization::ReadVarInt(aReader);
+    Killed = Serialization::ReadBool(aReader);
+    Taken = Serialization::ReadBool(aReader);
+    Ended = Serialization::ReadBool(aReader);
 }
 
 void PlayerName::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
@@ -331,16 +335,30 @@ void Mount::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     MountId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
-void AiState::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+void Record::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, SessionId);
-    State.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, Id);
+    Part.Serialize(aWriter);
 }
 
-void AiState::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+void Record::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
-    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    State.Deserialize(aReader);
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Part.Deserialize(aReader);
+}
+
+void RecordAsk::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+    aWriter.WriteBits(static_cast<uint8_t>(Kind), 8);
+}
+
+void RecordAsk::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    uint64_t kind = 0;
+    aReader.ReadBits(kind, 8);
+    Kind = static_cast<RecordKind>(kind & 0xFF);
 }
 
 void Dialogue::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
@@ -411,6 +429,7 @@ void RoutedCall::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteVarInt(aWriter, Source);
     Serialization::WriteVarInt(aWriter, ReplyId);
     SerializeScriptCall(aWriter, Call);
+    aWriter.WriteBits(static_cast<uint8_t>(Controls), 2);
 }
 
 void RoutedCall::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -422,6 +441,9 @@ void RoutedCall::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Source = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     ReplyId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     DeserializeScriptCall(aReader, Call);
+    uint64_t controls = 0;
+    aReader.ReadBits(controls, 2);
+    Controls = controls <= static_cast<uint64_t>(CallControls::kGivesBack) ? static_cast<CallControls>(controls) : CallControls::kNone;
 }
 
 void CallEnded::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
@@ -443,6 +465,7 @@ void PlayerNativeResult::SerializePayload(Wire::Buffer::Writer& aWriter) const n
 {
     Serialization::WriteVarInt(aWriter, ReplyId);
     SerializeScriptValue(aWriter, Result);
+    Serialization::WriteVarInt(aWriter, SessionId);
 }
 
 void PlayerNativeResult::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -450,6 +473,7 @@ void PlayerNativeResult::DeserializePayload(Wire::Buffer::Reader& aReader) noexc
     ReplyId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     if (!DeserializeScriptValue(aReader, Result))
         Result = std::monostate{};
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
 } // namespace Payloads

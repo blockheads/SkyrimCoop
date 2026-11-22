@@ -3,6 +3,7 @@
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 #include "FakeDialogue.h"
+#include <Events/FactionsChangeEvent.h>
 #include <Events/PlayerTravelQueuedEvent.h>
 #include <Events/StoryEvents.h>
 
@@ -95,10 +96,15 @@ void FakeEngine::TakeProgress(const LocalCall& acCall, uint32_t aActor)
             Npcs[Actors.at(aActor).Base].Race = cForm;
         return;
     }
-    if (cIs("AddToFaction") || cIs("SetFactionRank"))
-        Factions[aActor][cForm] = ArgumentOf<int32_t>(acCall, 1);
-    else if (cIs("RemoveFromFaction"))
-        Factions[aActor].erase(cForm);
+    if (cIs("AddToFaction") || cIs("SetFactionRank") || cIs("RemoveFromFaction"))
+    {
+        if (cIs("RemoveFromFaction"))
+            Factions[aActor].erase(cForm);
+        else
+            Factions[aActor][cForm] = ArgumentOf<int32_t>(acCall, 1);
+        // FactionEvents' hooks on 37686/37688/37677: the engine raises nothing itself.
+        World::Get().GetRunner().Trigger(FactionsChangeEvent{aActor});
+    }
     else if (cIs("AddSpell"))
         AddedSpells[aActor].insert(cForm);
     else if (cIs("RemoveSpell"))

@@ -1,5 +1,6 @@
 // A guest's side in this process: GuestEngine's calls GuestWorldState makes, on the fake engine's world, and
 // GuestService's making of the guest's parts as it joins (its clock, weather, world state and dialogue).
+#include <CreatedIds.h>
 #include <Physics/BodyRead.h>
 #include "GuestSeams.h"
 #include "FakeEngine.h"
@@ -23,6 +24,7 @@
 #include <Services/Guest/GuestCopies.h>
 #include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
+#include <Services/Guest/GuestEye.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
 #include <Services/HostService.h>
@@ -32,6 +34,7 @@
 #include <ScriptValues.h>
 #include <Messages/Relayed.h>
 #include <SessionIds.h>
+#include <Papyrus/PartyRules.h>
 
 GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
     : m_bodyBridge(aBodies)
@@ -130,6 +133,16 @@ void GuestEngine::ReleaseWeather() noexcept
     FakeEngine::Current().WeatherHeld = false;
 }
 
+void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
+{
+    FakeEngine::Current().HeldEye = acReading;
+}
+
+void GuestEngine::ReleaseEye() noexcept
+{
+    FakeEngine::Current().HeldEye.reset();
+}
+
 bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
@@ -210,14 +223,26 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
         ObjectChange::Placement placement;
         if (!ObjectChange::UnpackPlacement(acChange.Data, placement))
             return false;
-        if (engine.ContainerBases.contains(FormIdOf(acChange.Item)))
+        // Loaded with the host's save as this game joined: a save keeps a created reference's id (as GuestEngine).
+        if (const auto cSaved = engine.References.find(0xFF000000 | acChange.Object.BaseId);
+            cSaved != engine.References.end() && cSaved->second.Base == FormIdOf(acChange.Item) &&
+            !World::Get().ctx().at<CreatedIds>().ToSession(cSaved->first)) // not already another's copy
+        {
+            m_created[acChange.Object.BaseId] = cSaved->first;
+            World::Get().ctx().at<CreatedIds>().Link(cSaved->first, acChange.Object);
+            return true;
+        }
+        // A container, or a script's reference (no item stacks: not a drop).
+        if (engine.ContainerBases.contains(FormIdOf(acChange.Item)) || acChange.Stacks.empty())
         {
             m_created[acChange.Object.BaseId] = engine.PlaceContainer(FormIdOf(placement.Cell), FormIdOf(acChange.Item));
+            World::Get().ctx().at<CreatedIds>().Link(m_created[acChange.Object.BaseId], acChange.Object);
             return true;
         }
         Inventory::Entry item = acChange.Stacks.empty() ? Inventory::Entry{.BaseId = acChange.Item, .Count = 1} : acChange.Stacks[0];
         const uint32_t cId = engine.PlaceLoose(FormIdOf(placement.Cell), item);
         m_created[acChange.Object.BaseId] = cId;
+        World::Get().ctx().at<CreatedIds>().Link(cId, acChange.Object);
         engine.HostDecides.insert(cId);
         return true;
     }
@@ -232,6 +257,8 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
             engine.References.erase(cContainer);
             m_created.erase(cTwin);
         }
+        else if (acChange.Type == ObjectChange::Kind::kEnabled)
+            cContainer->second.Disabled = !(acChange.Value & 1);
         return true;
     }
     if (acChange.Type == ObjectChange::Kind::kEnabled && acChange.Value & 2)
@@ -271,6 +298,7 @@ bool GuestEngine::AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept
         return true;
     }
     m_created[acObject.BaseId] = cOwn;
+    World::Get().ctx().at<CreatedIds>().Link(cOwn, acObject);
     m_adopted.push_back({.Object = acObject});
     return true;
 }
@@ -372,20 +400,22 @@ std::vector<BodyPush> GuestEngine::TakeHits() noexcept
 }
 
 // The player's ragdoll is keyed by its form id here (0x14), by index alone out of GuestEngine.
-GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t) noexcept
+GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t, const SessionOf_t&) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     OwnBodies own;
     own.Moved = std::exchange(engine.OwnMoves, {});
     // Its player's ragdoll, and the host's references its own physics simulates (not keyframed on the host's frames).
     auto bodies = engine.TakeBodies(engine.PhysicsTime(World::Get().GetTransport().GetTick()), [&engine](const BodyKey& acKey) {
-        return acKey.Actor == 0x14 || (!acKey.Actor && !engine.Bodies.at(acKey).Held);
+        return acKey.Actor == 0x14 || engine.WatchedCorpses.contains(acKey.Actor) || (!acKey.Actor && !engine.Bodies.at(acKey).Held);
     });
     for (BodyFrame& frame : bodies.Awake)
     {
-        if (!frame.Key.Actor)
+        // A copy's corpse its player grabbed: as an object's bodies, by the copy's session id (as GuestEngine).
+        if (!frame.Key.Actor || engine.WatchedCorpses.contains(frame.Key.Actor))
         {
-            own.Moved.push_back({.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation});
+            if (!frame.Key.Actor)
+                own.Moved.push_back({.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation});
             own.Objects.push_back(frame);
             continue;
         }
@@ -394,7 +424,7 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t) noexcept
     }
     for (BodyPose& rest : bodies.Rested)
     {
-        if (!rest.Key.Actor)
+        if (!rest.Key.Actor || engine.WatchedCorpses.contains(rest.Key.Actor))
         {
             own.ObjectsRested.push_back(rest);
             continue;
@@ -405,12 +435,26 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t) noexcept
     return own;
 }
 
-std::vector<BodyFrame> GuestEngine::ReadHeld() const noexcept
+std::vector<BodyFrame> GuestEngine::ReadHeld(const SessionOf_t&) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     const auto it = engine.Grabbed ? engine.Bodies.find(*engine.Grabbed) : engine.Bodies.end();
     if (it == engine.Bodies.end())
         return {};
+    // A copy's corpse (keyed by its session id here): every body of its ragdoll, watched until they rest.
+    if (it->first.Actor)
+    {
+        engine.WatchedCorpses.insert(it->first.Actor);
+        std::vector<BodyFrame> frames;
+        for (const auto& [cKey, cBody] : engine.Bodies)
+            if (cKey.Actor == it->first.Actor)
+            {
+                BodyFrame frame = cBody.Flight.Body;
+                frame.Key = cKey;
+                frames.push_back(frame);
+            }
+        return frames;
+    }
     BodyFrame frame = it->second.Flight.Body;
     frame.Key = it->first;
     return {frame};
@@ -420,7 +464,7 @@ struct GuestSeam::Guest
 {
     explicit Guest(World& aWorld)
         : Engine(aWorld.ctx().at<IBodyBridge&>()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
-          Weather(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
+          Weather(aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
           Saves(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
@@ -434,6 +478,7 @@ struct GuestSeam::Guest
     GuestEngine Engine;
     GuestClock Clock;
     GuestWeather Weather;
+    GuestEye Eye;
     GuestWorldState WorldState;
     GuestDialogue Dialogue;
     GuestRecord Record;
@@ -456,9 +501,9 @@ void GuestSeam::OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept
 {
     if (!m_pGuest || acMessage.To != CallTo::kOwner)
         return;
-    // GuestService::OnPlayerNative -> GuestEngine::RunPlayerNative -> GlobalCall::QueueCall.
+    // GuestService::OnPlayerNative -> GuestEngine::RunPlayerNative -> GlobalCall::QueueCall, as this player's own.
     if (const auto cCall = Utils::ToLocalCall(acMessage.Call))
-        FakeEngine::Current().Queue(*cCall, FakeEngine::kPlayer);
+        FakeEngine::Current().Queue(*cCall, PartyRules::kRoutedCallCause);
 }
 
 GuestSeam::~GuestSeam() noexcept = default;

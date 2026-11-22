@@ -95,10 +95,13 @@ TEST_CASE("Bug report: one report, named once, to every game with who typed it",
 
 TEST_CASE("A renamed player's name reaches everyone and its later chat lines", "[HostAuthority][Chat]")
 {
+    // The party's lists follow the name part of the player's character (one-simulator.md, piece 2).
     Session session;
+    const uint32_t cCharacter = session.Character(kPeer);
 
-    PlayerNameRequest renamed;
-    renamed.Name = "Rinara";
+    RecordRequest renamed;
+    renamed.Id = cCharacter;
+    renamed.Part = {RecordKind::kName, 1, "Rinara"};
     session.Receive(kPeer, renamed);
     for (const auto cTo : {kHost, kOtherPeer})
     {
@@ -115,22 +118,33 @@ TEST_CASE("A renamed player's name reaches everyone and its later chat lines", "
     REQUIRE(cLines.size() == 1);
     CHECK(cLines[0]->PlayerName == "Rinara");
 
-    renamed.Name = "\x01";
+    renamed.Part = {RecordKind::kName, 2, "\x01"};
     session.Receive(kPeer, renamed);
     CHECK(session.SentTo<NotifyPlayerName>(kHost).size() == 1); // a name of nothing printable is refused
+
+    // An NPC's name is no player's.
+    const uint32_t cNpc = session.Character(kHost);
+    renamed.Id = cNpc;
+    renamed.Part = {RecordKind::kName, 1, "Lydia"};
+    session.Receive(kHost, renamed);
+    CHECK(session.SentTo<NotifyPlayerName>(kPeer).empty());
 }
 
-TEST_CASE("The host's game names an actor for every guest", "[HostAuthority][Chat]")
+TEST_CASE("The host's game names an actor another game owns: its owner alone is told", "[HostAuthority][Chat]")
 {
     Session session;
+    const uint32_t cPeerHorse = session.Character(kPeer);
+    const uint32_t cHostNpc = session.Character(kHost);
 
-    session.Authority().NameActor(77, "Petra");
-    for (const auto cTo : {kPeer, kOtherPeer})
-    {
-        const auto cNotifies = session.SentTo<NotifyActorName>(cTo);
-        REQUIRE(cNotifies.size() == 1);
-        CHECK(cNotifies[0]->ActorId == 77);
-        CHECK(cNotifies[0]->Name == "Petra");
-    }
+    session.Authority().NameActor(cPeerHorse, "Petra");
+    const auto cNotifies = session.SentTo<NotifyActorName>(kPeer);
+    REQUIRE(cNotifies.size() == 1);
+    CHECK(cNotifies[0]->ActorId == cPeerHorse);
+    CHECK(cNotifies[0]->Name == "Petra");
+    CHECK(session.SentTo<NotifyActorName>(kOtherPeer).empty()); // its owner's name part reaches it
     CHECK(session.SentTo<NotifyActorName>(kHost).empty());
+
+    session.Outbox.clear();
+    session.Authority().NameActor(cHostNpc, "Petra"); // the host's own: its name part says it
+    CHECK(session.Outbox.empty());
 }

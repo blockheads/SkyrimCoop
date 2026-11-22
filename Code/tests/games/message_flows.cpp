@@ -1,6 +1,7 @@
 // The host's messages on every game (docs/design/party-model.md, rule 5; party-calls.md): a story's notification or
 // message box shows on every game; a player's own action's shows on that player's game alone.
 #include "Party.h"
+#include "Fixtures.h"
 
 using namespace PartyRules;
 
@@ -8,6 +9,14 @@ namespace
 {
 const LocalCall cNotification{
     .Class = "Debug", .Function = "Notification", .Arguments = {std::string("The ground shakes")}};
+
+// Everyone stands in QASmoke: the host's game has the guest's character.
+void InSmoke(FakeEngine& aEngine)
+{
+    constexpr uint32_t cSmoke = 0x00031D2E;
+    aEngine.Actors.at(FakeEngine::kPlayer).Cell = cSmoke;
+    aEngine.LoadCell(cSmoke);
+}
 } // namespace
 
 SCENARIO("A story's notification shows on every game", "[messages]")
@@ -103,4 +112,25 @@ SCENARIO("A story's message box: the host answers, the guest's copy closes with 
             THEN("the guest's own answer stands") CHECK(Party::Engine(guest).Answers.at(cGuestBox) == 0);
         }
     }
+}
+
+SCENARIO("A guest's action's message box shows on its game only", "[messages]")
+{
+    // relief-takes-client-relics: the host's script runs for the guest's character; its Message.Show goes to the
+    // guest's game, which shows it as its own player's and sends nothing back.
+    Party party(1, InSmoke);
+    World& host = party.Host();
+    World& guest = party.Guest();
+    party.Until([&] { return PlayerCopy(Party::Engine(host)) != 0; }, "the host's game has the guest's player");
+    const uint32_t cCopy = PlayerCopy(Party::Engine(host));
+
+    party.As(host, [&] { Party::Engine(host).RunScript({.Class = "Message", .Function = "Show", .Self = LocalForm{0x8B0E3}}, cCopy); });
+    party.WorldScript(host, cNotification); // a marker after it
+    party.Until([&] { return Party::Engine(guest).Messages.size() == 2; }, "the guest shows the box and the marker");
+    // The guest's marker after it: the host has had whatever the guest sent before.
+    party.WorldScript(guest, {.Class = "Debug", .Function = "Notification", .Arguments = {std::string("guest's")}});
+    party.Until([&] { return Party::Engine(host).Messages.size() >= 2; }, "the host shows the guest's marker");
+
+    THEN("the host shows only the markers")
+    CHECK(Party::Engine(host).Messages == std::vector<std::string>{"The ground shakes", "guest's"});
 }

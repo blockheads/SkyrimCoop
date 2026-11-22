@@ -579,6 +579,12 @@ class ScenarioOrigins(unittest.TestCase):
         files = {"r/x.py": '"""d"""\n# recorded: 1-x.jsonl, 3 calls\nNAME = 1', "r/y.py": '"""d"""\nNAME = 2', "r/__init__.py": ""}
         self.assertEqual(check_scenarios.unstated(diff, files), [f"a ({check_scenarios.REGISTRATIONS})", "r/y.py"])
 
+    def test_an_edited_registration_is_not_new(self):
+        diff = ("-    registry.add('old', [], lambda ctx: f(ctx), doc='x')\n"
+                "+    registry.add('old', [], lambda ctx: f(ctx), doc='y')\n"
+                "+    registry.add('new', [], lambda ctx: f(ctx), doc='x')\n")
+        self.assertEqual(check_scenarios.unstated(diff, {}), [f"new ({check_scenarios.REGISTRATIONS})"])
+
 
 class ClosesIn(unittest.TestCase):
     def ctx(self, rows, places):

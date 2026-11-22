@@ -6,7 +6,6 @@
     X(AuthenticationRequest)        \
     X(AnnounceCharacterRequest)       \
     X(ReferencesMoveRequest)        \
-    X(RequestFactionsChanges)       \
     X(RequestActorValueChanges)     \
     X(RequestActorMaxValueChanges)  \
     X(RequestHealthChangeBroadcast) \
@@ -14,16 +13,11 @@
     X(LockChangeRequest)            \
     X(RequestDeathStateChange)      \
     X(RequestInventoryChanges)      \
-    X(SpellCastRequest)             \
     X(InterruptCastRequest)         \
     X(AddTargetRequest)             \
     X(RemoveSpellRequest)           \
     X(ProjectileLaunchRequest)      \
-    X(DrawWeaponRequest)            \
-    X(MountRequest)                 \
-    X(AiStateRequest)               \
     X(RequestRespawn)               \
-    X(RequestEquipmentChanges)      \
     X(SendChatMessageRequest)       \
     X(DialogueRequest)              \
     X(SubtitleRequest)              \
@@ -32,7 +26,6 @@
     X(RequestRemoveWaypoint)        \
     X(SetTimeCommandRequest)        \
     X(RequestRemoveCharacter)       \
-    X(RequestEquipmentSnapshot)     \
     X(EnterCellRequest)             \
     X(RequestActiveEffects)         \
     X(TimeScaleRequest)             \
@@ -73,7 +66,6 @@
     X(BugReportRequest)            \
     X(DialogueHighlightRequest)    \
     X(DialogueSkipRequest) \
-    X(PlayerNameRequest)           \
     X(PartySummonRequest)          \
     X(GraphOpsRequest)             \
     X(GraphSyncRequest)            \
@@ -81,31 +73,30 @@
     X(SaveHeldRequest)              \
     X(DevCommandRequest)            \
     X(BoardRequest)                 \
-    X(UnboardRequest)
+    X(UnboardRequest)               \
+    X(RecordRequest)                \
+    X(RecordAskRequest) \
+    X(ActorGiveBackRequest) \
+    X(ClaimRequest)                 \
+    X(SummonRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
     X(NotifyReferencesMove)        \
     X(NotifyTimeSettings)          \
     X(NotifyCharacterSpawn)        \
-    X(NotifyFactionsChanges)       \
     X(NotifyRemoveCharacter)       \
     X(NotifyActorValueChanges)     \
     X(NotifyActorMaxValueChanges)  \
     X(NotifyHealthChangeBroadcast) \
-    X(NotifyActivate)              \
     X(NotifyDeathStateChange)      \
     X(NotifyInventoryChanges)      \
-    X(NotifySpellCast)             \
     X(NotifyInterruptCast)         \
     X(NotifyAddTarget)             \
     X(NotifyRemoveSpell)           \
     X(NotifyProjectileLaunch)      \
-    X(NotifyDrawWeapon)            \
     X(NotifyMount)                 \
-    X(NotifyAiState)               \
     X(NotifyRespawn)               \
-    X(NotifyEquipmentChanges)      \
     X(NotifyChatMessageBroadcast)  \
     X(NotifyDialogue)              \
     X(NotifySubtitle)              \
@@ -116,7 +107,6 @@
     X(NotifyWeatherChange)         \
     X(NotifySetWaypoint)           \
     X(NotifyRemoveWaypoint)        \
-    X(NotifyEquipmentSnapshot)     \
     X(NotifyActiveEffects)         \
     X(NotifyTimeScale)             \
     X(NotifyPartyTravel)           \
@@ -169,7 +159,13 @@
     X(NotifyDevCommand) \
     X(NotifyMountRefused)          \
     X(NotifyBoard)                 \
-    X(NotifyUnboard)
+    X(NotifyUnboard)               \
+    X(NotifyRecord)                \
+    X(NotifyRecordAsk) \
+    X(NotifyActorGiveBack) \
+    X(NotifyClaim) \
+    X(NotifyClaimRefused) \
+    X(NotifyStealthEye)
 
 #define COOP_OPCODE(aName) k##aName,
 

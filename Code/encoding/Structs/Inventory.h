@@ -51,6 +51,7 @@ struct Inventory
         int32_t ExtraSoulLevel{};
 
         std::string ExtraName{}; // a player's name for it (ExtraTextDisplayData, custom), no temper suffix
+        GameId ExtraOwner{}; // its ExtraOwnership (an NPC or a faction): another's makes it stolen
 
         bool ExtraEnchantRemoveUnequip{};
         bool ExtraWorn{};
@@ -61,7 +62,8 @@ struct Inventory
         bool operator!=(const Entry& acRhs) const noexcept;
 
         void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-        void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+        // aOwner false: written before ExtraOwner (character co-saves of version 3).
+        void Deserialize(Wire::Buffer::Reader& aReader, bool aOwner = true) noexcept;
 
         bool ContainsExtraData() const noexcept { return !IsExtraDataEquals(Entry{}); }
 
@@ -73,7 +75,7 @@ struct Inventory
             // since many of these things can and will change, like poison id or charge
             // or the fact that the enchant id can be temp
             return ExtraCharge == acRhs.ExtraCharge && IsSameEnchantment(acRhs) && ExtraEnchantCharge == acRhs.ExtraEnchantCharge && ExtraEnchantRemoveUnequip == acRhs.ExtraEnchantRemoveUnequip && ExtraHealth == acRhs.ExtraHealth && ExtraPoisonId == acRhs.ExtraPoisonId &&
-                   ExtraPoisonCount == acRhs.ExtraPoisonCount && ExtraSoulLevel == acRhs.ExtraSoulLevel && ExtraName == acRhs.ExtraName && ExtraWorn == acRhs.ExtraWorn && ExtraWornLeft == acRhs.ExtraWornLeft && IsQuestItem == acRhs.IsQuestItem;
+                   ExtraPoisonCount == acRhs.ExtraPoisonCount && ExtraSoulLevel == acRhs.ExtraSoulLevel && ExtraName == acRhs.ExtraName && ExtraOwner == acRhs.ExtraOwner && ExtraWorn == acRhs.ExtraWorn && ExtraWornLeft == acRhs.ExtraWornLeft && IsQuestItem == acRhs.IsQuestItem;
         }
 
         bool IsWorn() const noexcept { return ExtraWorn || ExtraWornLeft; }
@@ -92,7 +94,7 @@ struct Inventory
     bool operator!=(const Inventory& acRhs) const noexcept;
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader, bool aOwners = true) noexcept;
 
     std::optional<Entry> GetEntryById(GameId& aItemId) const noexcept;
     int32_t GetEntryCountById(GameId& aItemId) const noexcept;

@@ -65,7 +65,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     }
     bool IsPlayerMounted() const noexcept override { return false; }
     void PlayerStopRiding() noexcept override {}
-    bool PlayerBoardMount(uint32_t) noexcept override { return false; }
+    bool PlayerSitOnMountQuick(uint32_t) noexcept override { return false; }
     void PlayerTakeReins(uint32_t) noexcept override {}
     bool IsPlayerAlive() const noexcept override
     {
@@ -322,10 +322,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
-    void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId,
-                                 uint8_t aPreActivationState) noexcept override
-    {
-    }
     uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept override
     {
         return {};
@@ -367,6 +363,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept override
     {
     }
+    void SetCopyItemCount(uint32_t, const GameId&, int32_t, const std::vector<Inventory::Entry>&) noexcept override {}
     void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override
     {
     }
@@ -671,6 +668,28 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept override
+    {
+        return {};
+    }
+    void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override
+    {
+    }
+    void SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept override
+    {
+    }
+    void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override
+    {
+    }
+    void CopyLeaveKillMove(uint32_t aFormId) noexcept override
+    {
+    }
+    void ActorHoldKill(uint32_t, bool) noexcept override {}
+    [[nodiscard]] bool ActorKillCounted(uint32_t) const noexcept override { return false; }
+    void KillActorBy(uint32_t, uint32_t) noexcept override {}
+    void ActorYieldPair(uint32_t, uint32_t) noexcept override {}
+    bool ActorPerformPlainly(uint32_t, uint32_t) noexcept override { return false; }
+    [[nodiscard]] bool ActorCanPair(uint32_t) const noexcept override { return true; }
     bool IsActorTemporary(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -813,9 +832,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
         return {};
     }
     void SetupActorFaceGen(uint32_t aFormId) noexcept override
-    {
-    }
-    void SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept override
     {
     }
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override

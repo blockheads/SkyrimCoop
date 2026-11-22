@@ -456,3 +456,20 @@ SCENARIO("A guest's pickpocket of an NPC copy takes the item once", "[crime][pic
     pick.party.Agree("the NPC and player inventories agree");
     CHECK(Crime(pick.party.Host()).Judged.empty());
 }
+
+SCENARIO("A guest's pickpocket of a leveled NPC is the leveled form's on the guest's game", "[crime][pickpocket][container-transfer]")
+{
+    // Skyrim: a leveled actor's NPC is a temporary form each game makes, but a theft names the leveled character it
+    // was placed from (ExtraLeveledCreature's original base, 11810), a form every game has.
+    constexpr uint32_t kLeveled = 0x3DF17; // LvlBanditBoss
+    Pickpocket pick;
+    pick.party.As(pick.party.Host(), [&] {
+        pick.host.Actors.at(pick.npc).LeveledBase = kLeveled;
+        pick.host.Actors.at(pick.npc).Base = 0xFF000801;
+    });
+    pick.Try(false);
+    pick.party.Until([&] { return pick.guest.CountOf(FakeEngine::kPlayer, Pickpocket::kSword) == 1; }, "the guest takes a sword");
+    const auto cStacks = pick.guest.EntriesOf(FakeEngine::kPlayer, Pickpocket::kSword);
+    REQUIRE(cStacks.size() == 1);
+    CHECK(cStacks.front().ExtraOwner == GameId(0, kLeveled));
+}

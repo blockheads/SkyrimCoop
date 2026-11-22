@@ -127,9 +127,12 @@ What a copy changes (read and measured):
   there. `HitFrameHandler::Handle` (42828) -> 38603 -> `Actor_GetTarget` (38608) takes a forced target
   (`ExtraForcedTarget`, 0x9D, only UseWeapon procedures set it), else `Actor::sub_47272`: the actor's combat target
   (+0x104) if it is in the swing's cone and within `GetAttackReach` (38538) after both bodies (47273); with no combat
-  target, the nearest actor in the cone within reach. A copy has no combat target, so its swing hits whoever is nearest in
-  front. Measured with the host alive: the pick on the guest's game was the host's copy while the host's Orgnar fought
-  the guest's copy. After the host's death it was the guest.
+  target, the nearest actor in the cone within reach. With no combat target its swing would hit whoever is nearest in
+  front; a copy has its owner's (`SetCopyAiFields`, kept past 37273). Measured 2026-11-06: the pick was the host's copy
+  while the host's Orgnar fought the guest's copy. **Corrected 2026-11-18** (actor-state.md, read in IDA and measured):
+  with `+0x104` set, 47272 takes only that actor or none, and on the duo a wolf fighting the guest's copy, with the
+  host's copy in front of it and nearer (gap -37), picked the guest; its copy's `+0x104` was the guest. The 11-06
+  reading is not explained (a target switch on the host at that moment is one candidate).
 - **Reach**: 145 (mace reach x 141 x scale 1.03) on both games; once 98.9 on the copy, `fCombatBashReach` (96) x scale,
   which 38538 uses while the attack state (actorState1 bits 28-31) reads bash. Vanilla does the same during a bash.
 - **Advance's speed** (`CombatBehaviorAdvance__Enter` 0x140882AB0, `CombatApproachTargetSpeedController__Update`
@@ -173,8 +176,9 @@ all AI detection.
 **Host-death rounds (duo, 2026-11-06, `host_death_watch`, 5 each way, the survivor still).** Host dies: the target moves
 to the copy and the state goes to search at once every time (2.5-7 s, 44-67 units off), twice walking 440-490 units
 away first. Guest dies: the host's player is fought on, never searched for. While both live, the copy's candidate reads
-line of sight false and detection about -6, the host's 42 with line of sight. Why the line of sight to a copy fails is
-the open step 0 (bugs.md, "A still guest unseen up close").
+line of sight false and detection about -6, the host's 42 with line of sight. Read and measured 2026-11-21 (stealth.md,
+"Line of sight" and "A player's noise"): no ray to the copy was blocked; it was out of the NPC's view cone, and it made
+none of its owner's noise (the host's player's bump noise is most of its 42). Its noise is its owner's since: no search.
 
 ## A fight with one player is the party's (2026-11-17)
 

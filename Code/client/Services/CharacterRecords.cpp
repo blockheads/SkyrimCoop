@@ -85,7 +85,7 @@ std::string CharacterRecords::Encode() const noexcept
 bool CharacterRecords::Decode(std::string_view aData, uint32_t aVersion) noexcept
 {
     Clear();
-    if (aVersion != kVersion)
+    if (aVersion != kVersion && aVersion != 3)
     {
         spdlog::warn("CharacterRecords: version {} in the co-save, this build reads {}", aVersion, kVersion);
         return false;
@@ -111,7 +111,7 @@ bool CharacterRecords::Decode(std::string_view aData, uint32_t aVersion) noexcep
         }
         Wire::Buffer::Reader recordReader(std::span(reinterpret_cast<const uint8_t*>(aData.data()) + cStart, size));
         PlayerRecord record;
-        record.Deserialize(recordReader);
+        record.Deserialize(recordReader, aVersion >= 4);
         Put(std::move(record));
         std::vector<uint8_t> skipped(size);
         reader.ReadBytes(skipped);

@@ -26,9 +26,13 @@ CommandServer::~CommandServer()
 
 void CommandServer::Stop()
 {
-    for (const Client& cClient : m_clients)
-        CloseSocket(cClient.Socket);
+    for (Client& client : m_clients)
+    {
+        client.Replies.Wait();
+        CloseSocket(client.Socket);
+    }
     m_clients.clear();
+    m_closed.clear(); // waits: the workers run this DLL's code
     if (m_listener != ~uintptr_t(0))
         CloseSocket(m_listener);
     m_listener = ~uintptr_t(0);
@@ -79,7 +83,7 @@ void CommandServer::Poll()
     for (SOCKET accepted; (accepted = accept(static_cast<SOCKET>(m_listener), nullptr, nullptr)) != INVALID_SOCKET;)
     {
         SetNonBlocking(accepted);
-        m_clients.push_back({static_cast<uintptr_t>(accepted), {}, {}});
+        m_clients.push_back({static_cast<uintptr_t>(accepted), {}, {}, {}});
     }
 
     for (Client& client : m_clients)
@@ -100,9 +104,13 @@ void CommandServer::Poll()
         {
             const std::string cRequest = client.Inbound.substr(0, end);
             client.Inbound.erase(0, end + 1);
-            client.Outbound += m_handler(cRequest);
-            client.Outbound += '\n';
+            // A command that ran is answered this frame: a long frame next (a load) must not hold its reply back.
+            if (Reply reply = m_handler(cRequest); reply.Later)
+                client.Replies.Push(std::move(reply.Later));
+            else
+                client.Replies.Push(std::move(reply.Ready));
         }
+        client.Replies.Drain(client.Outbound);
 
         while (!client.Outbound.empty())
         {
@@ -113,6 +121,10 @@ void CommandServer::Poll()
         }
     }
 
+    for (Client& client : m_clients)
+        if (client.Socket == ~uintptr_t(0) && !client.Replies.Finished())
+            m_closed.push_back(std::move(client.Replies));
     std::erase_if(m_clients, [](const Client& acClient) { return acClient.Socket == ~uintptr_t(0); });
+    std::erase_if(m_closed, [](const ReplyQueue& acReplies) { return acReplies.Finished(); });
 }
 } // namespace TestHarness

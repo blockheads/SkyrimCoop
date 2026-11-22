@@ -115,6 +115,38 @@ SCENARIO("A guest talks to a host NPC: the host's game runs the conversation, th
     CHECK(guest.RefusedAnimations[cCopy] > 0);
 }
 
+SCENARIO("A guest joining mid-conversation talks to the NPC and is in it at its step", "[dialogue][join]")
+{
+    Party party(2, SmokeWorld, false);
+    party.Join(party.Guest(0));
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest(0));
+    FakeEngine& late = Party::Engine(party.Guest(1));
+    for (World* pGame : {&party.Host(), &party.Guest(0), &party.Guest(1)})
+        Topics(*pGame);
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest(0));
+    FakeDialogue& lateTalk = Dialogue(party.Guest(1));
+
+    party.As(party.Host(), [&] { host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the guard");
+    party.As(party.Guest(0), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return guestTalk.Options == std::vector{kNews, kGoodbye}; }, "the guest talks to the guard");
+    party.As(party.Guest(0), [&] { guestTalk.PlayerPicks(0); });
+    party.Until([&] { return guestTalk.Options == std::vector{kMore, kGoodbye}; }, "the conversation is at its second step");
+
+    party.Join(party.Guest(1));
+    party.Until([&] { return late.CopiesOf(kGuard).size() == 1; }, "the late guest's game has a copy of the guard");
+    THEN("its menu stays closed until it talks") CHECK(!lateTalk.MenuOpen);
+    party.As(party.Guest(1), [&] { lateTalk.PlayerTalksTo(late.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return lateTalk.MenuOpen && lateTalk.Options == std::vector{kMore, kGoodbye}; },
+                "talking joins it: the late guest's menu shows the step's list");
+    CHECK(hostTalk.Said == std::vector{kNews});
+
+    party.As(party.Guest(1), [&] { lateTalk.PlayerPicks(1); });
+    party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen && !lateTalk.MenuOpen; }, "its goodbye ends it for everyone");
+}
+
 SCENARIO("Every menu shows the party's list; a player says only its own options", "[dialogue]")
 {
     // Lucan's claw topic: a line for a player holding the claw first, his line for one without it after (TESTopic's

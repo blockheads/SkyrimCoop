@@ -209,6 +209,12 @@ void PhysicsBodies::Forget(uint32_t aFormId) noexcept
     std::erase(m_restedAway, aFormId);
 }
 
+void PhysicsBodies::Watch(uint32_t aFormId) noexcept
+{
+    if (const auto cReference = m_reads.ReadReference(aFormId, false))
+        m_awake.try_emplace(aFormId, Moving{Pose::Of(*cReference)});
+}
+
 bool PhysicsBodies::Follow(uint32_t aFormId) noexcept
 {
     const auto it = m_awake.find(aFormId);

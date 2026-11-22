@@ -17,10 +17,26 @@
 
 #include <Games/Overrides.h>
 #include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
+#include <Services/CopyRecords.h>
+#include <Structs/RecordPart.h>
+#include <algorithm>
 #include <SessionIds.h>
 #include <Components/FormIdComponent.h>
 #include <FormIds.h>
 #include <Diagnostics/Profile.h>
+
+namespace
+{
+// This game's actor's session id (none: not this game's).
+std::optional<uint32_t> LocalIdOf(World& aWorld, uint32_t aFormId) noexcept
+{
+    for (const entt::entity cEntity : aWorld.view<FormIdComponent, LocalComponent>())
+        if (aWorld.get<FormIdComponent>(cEntity).Id == aFormId)
+            return aWorld.get<LocalComponent>(cEntity).Id;
+    return std::nullopt;
+}
+} // namespace
 
 MagicService::MagicService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                            IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept
@@ -32,7 +48,16 @@ MagicService::MagicService(World& aWorld, entt::dispatcher& aDispatcher, Transpo
 {
     Listen<UpdateEvent, &MagicService::OnUpdate>(m_connections, m_dispatcher, this);
     Listen<SpellCastEvent, &MagicService::OnSpellCastEvent>(m_connections, m_dispatcher, this);
-    Listen<NotifySpellCast, &MagicService::OnNotifySpellCast>(m_connections, m_dispatcher, this);
+    m_world.ctx().at<CopyRecords>().Register(
+        RecordKind::kCast, [this](uint32_t aId, const std::string& acBytes) { return ApplyCast(aId, acBytes); },
+        [this](uint32_t aFormId) -> std::optional<std::string> {
+            const auto it = m_held.find(aFormId);
+            if (it == m_held.end() || std::ranges::none_of(it->second.Sources, [](const auto& acCast) { return acCast.has_value(); }))
+                return std::nullopt;
+            return ToPartBytes(it->second);
+        });
+    Listen<&MagicService::OnCopyRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
+    Listen<&MagicService::OnLocalRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
     Listen<InterruptCastEvent, &MagicService::OnInterruptCastEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyInterruptCast, &MagicService::OnNotifyInterruptCast>(m_connections, m_dispatcher, this);
     Listen<AddTargetEvent, &MagicService::OnAddTargetEvent>(m_connections, m_dispatcher, this);
@@ -50,7 +75,7 @@ void MagicService::OnUpdate(const UpdateEvent& acEvent) noexcept
     ApplyQueuedEffects();
 }
 
-void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) const noexcept
+void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) noexcept
 {
     if (!m_transport.IsConnected())
         return;
@@ -61,7 +86,7 @@ void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) const noexcep
         return;
     }
 
-    // only sync concentration spells through spell cast sync, the rest through projectile sync for accuracy
+    // Only held casts are the part; the rest travel as projectiles for accuracy.
     const uint32_t cSpellFormId = acEvent.SpellId;
     if (m_formBridge.FormExists(cSpellFormId))
     {
@@ -71,132 +96,125 @@ void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) const noexcep
         const bool cIsInvis = m_formBridge.IsInvisibilitySpell(cSpellFormId);
 
         if ((!cIsConcentration || cIsHealing) && !cIsWard && !cIsInvis)
-        {
-            spdlog::debug("Canceled magic spell");
             return;
-        }
     }
-
-    const uint32_t cFormId = acEvent.CasterFormId;
-
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    const auto casterEntityIt = std::find_if(std::begin(view), std::end(view), [cFormId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == cFormId; });
-
-    if (casterEntityIt == std::end(view))
+    if (acEvent.CastingSource >= CastPart{}.Sources.size())
         return;
 
-    auto& localComponent = view.get<LocalComponent>(*casterEntityIt);
-
-    SpellCastRequest request{};
-
-    request.CasterId = localComponent.Id;
-    request.CastingSource = acEvent.CastingSource;
-    request.IsDualCasting = acEvent.IsDualCasting;
-
+    const auto cId = LocalIdOf(m_world, acEvent.CasterFormId);
     const auto cSpell = ToSession(acEvent.SpellId);
-    if (!cSpell)
+    if (!cId || !cSpell)
         return;
-    request.SpellFormId = *cSpell;
 
-    if (acEvent.DesiredTargetID != 0)
+    HeldCast cast{*cSpell, acEvent.IsDualCasting, 0};
+    if (acEvent.DesiredTargetID)
+        cast.Target = Utils::GetSessionIdByFormId(acEvent.DesiredTargetID).value_or(0);
+    CastPart& part = m_held[acEvent.CasterFormId];
+    part.Sources[acEvent.CastingSource] = cast;
+    spdlog::debug("MagicService: {:X} casts {:X} in source {}", *cId, cSpell->BaseId, acEvent.CastingSource);
+    auto& records = m_world.ctx().at<CopyRecords>();
+    records.Declare(*cId, RecordKind::kCast, ToPartBytes(part));
+    // A one-shot cast (invisibility) holds nothing: its copies cast it once, a joiner gets none.
+    if (!m_formBridge.IsConcentrationSpell(cSpellFormId))
     {
-        auto targetView = m_world.view<FormIdComponent>();
-        const auto targetEntityIt = std::find_if(std::begin(targetView), std::end(targetView), [id = acEvent.DesiredTargetID, targetView](entt::entity entity) { return targetView.get<FormIdComponent>(entity).Id == id; });
-
-        if (targetEntityIt != std::end(targetView))
-        {
-            auto desiredTargetIdRes = Utils::GetSessionId(*targetEntityIt);
-            if (desiredTargetIdRes.has_value())
-                request.DesiredTarget = desiredTargetIdRes.value();
-            else
-                spdlog::error("{}: failed to find session id", __FUNCTION__);
-        }
+        part.Sources[acEvent.CastingSource].reset();
+        records.Declare(*cId, RecordKind::kCast, ToPartBytes(part));
     }
-
-    spdlog::debug("Spell cast event sent, ID: {:X}, Source: {}, IsDualCasting: {}, desired target: {:X}", request.CasterId, request.CastingSource, request.IsDualCasting, request.DesiredTarget);
-
-    m_transport.Send(request);
 }
 
-void MagicService::OnNotifySpellCast(const NotifySpellCast& acMessage) const noexcept
+std::vector<uint32_t> MagicService::ApplyCast(uint32_t aId, const std::string& acBytes) noexcept
 {
-    const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.CasterId);
-    if (!cFormId)
+    CastPart part;
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(aId);
+    if (!cFormId || !FromPartBytes(acBytes, part))
+        return {};
+    Applied& applied = m_applied[aId];
+    if (applied.FormId != cFormId)
+        applied = {cFormId, {}};
+    std::vector<uint32_t> waiting;
+    for (uint32_t source = 0; source < part.Sources.size(); ++source)
     {
-        spdlog::warn("Caster with remote id {:X} not found.", acMessage.CasterId);
-        return;
+        const auto& cHeld = part.Sources[source];
+        auto& was = applied.Part.Sources[source];
+        if (cHeld == was)
+            continue;
+        // A named target not here yet: this slot waits for it.
+        if (cHeld && cHeld->Target && !Utils::GetFormIdBySessionId(cHeld->Target))
+        {
+            waiting.push_back(cHeld->Target);
+            continue;
+        }
+        if (cHeld)
+            CastOn(cFormId, source, *cHeld);
+        else if (m_formBridge.IsConcentrationSpell(ToGame(was->Spell))) // a one-shot cast has nothing to stop
+        {
+            m_actorBridge.GenerateMagicCasters(cFormId);
+            m_actorBridge.InterruptCast(cFormId, source);
+        }
+        was = cHeld;
     }
+    return waiting;
+}
 
-    m_actorBridge.GenerateMagicCasters(cFormId);
+void MagicService::CastOn(uint32_t aFormId, uint32_t aSource, const HeldCast& acCast) const noexcept
+{
+    m_actorBridge.GenerateMagicCasters(aFormId);
+    // The dual flag on caster 1 (RIGHT_HAND, MagicSystem.h), as the old cast message did; which caster reads it is unread.
+    m_actorBridge.SetMagicCasterDualCasting(aFormId, 1u, acCast.Dual);
 
-    // Only left hand casters need dual casting (?)
-    // CastingSource::LEFT_HAND = 1
-    m_actorBridge.SetMagicCasterDualCasting(cFormId, 1u, acMessage.IsDualCasting);
-
-    if (acMessage.CastingSource >= 4)
-    {
-        spdlog::warn("{}: could not find casting source {}", __FUNCTION__, acMessage.CastingSource);
-        return;
-    }
-
-    // Try to get the currently equipped spell for this casting source slot
-    uint32_t spellFormId = m_actorBridge.GetActiveMagicItemFormId(cFormId, acMessage.CastingSource);
-
+    // The owner's spell, else the one equipped in that source.
+    uint32_t spellFormId = ToGame(acCast.Spell);
+    if (!spellFormId || !m_formBridge.FormExists(spellFormId))
+        spellFormId = m_actorBridge.GetActiveMagicItemFormId(aFormId, aSource);
     if (!spellFormId)
     {
-        spellFormId = ToGame(acMessage.SpellFormId);
-        if (spellFormId == 0)
-        {
-            spdlog::error("Could not find spell form id for GameId base {:X}, mod {:X}", acMessage.SpellFormId.BaseId, acMessage.SpellFormId.ModId);
-            return;
-        }
-
-        if (!m_formBridge.FormExists(spellFormId))
-        {
-            spdlog::error("Cannot find spell form, id: {:X}.", spellFormId);
-            return;
-        }
+        spdlog::error("MagicService: no spell {:X}:{:X} here to cast", acCast.Spell.ModId, acCast.Spell.BaseId);
+        return;
     }
-
-    // Find desired target form ID if applicable
-    uint32_t desiredTargetFormId = 0;
-    if (acMessage.DesiredTarget != 0)
-    {
-        desiredTargetFormId = Utils::GetFormIdBySessionId(acMessage.DesiredTarget);
-    }
+    const uint32_t cTarget = acCast.Target ? Utils::GetFormIdBySessionId(acCast.Target) : 0;
 
     ScopedSpellCastOverride _;
-
-    m_actorBridge.CastSpell(cFormId, spellFormId, acMessage.CastingSource, desiredTargetFormId);
-
-    spdlog::debug("Successfully casted remote spell");
+    m_actorBridge.CastSpell(aFormId, spellFormId, aSource, cTarget);
 }
 
-void MagicService::OnInterruptCastEvent(const InterruptCastEvent& acEvent) const noexcept
+void MagicService::OnInterruptCastEvent(const InterruptCastEvent& acEvent) noexcept
 {
     if (!m_transport.IsConnected())
         return;
 
-    uint32_t formId = acEvent.CasterFormID;
-
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    const auto casterEntityIt = std::find_if(std::begin(view), std::end(view), [formId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == formId; });
-
-    if (casterEntityIt == std::end(view))
+    const uint32_t cFormId = acEvent.CasterFormID;
+    const auto cId = LocalIdOf(m_world, cFormId);
+    if (!cId)
     {
-        spdlog::warn("{}: could not find caster, form id {:X}", __FUNCTION__, formId);
+        spdlog::warn("{}: could not find caster, form id {:X}", __FUNCTION__, cFormId);
         return;
     }
 
-    auto& localComponent = view.get<LocalComponent>(*casterEntityIt);
+    // A held cast's end: its slot cleared in the part.
+    if (const auto it = m_held.find(cFormId); it != m_held.end() && acEvent.CastingSource < it->second.Sources.size() &&
+                                                 it->second.Sources[acEvent.CastingSource])
+    {
+        it->second.Sources[acEvent.CastingSource].reset();
+        m_world.ctx().at<CopyRecords>().Declare(*cId, RecordKind::kCast, ToPartBytes(it->second));
+        return;
+    }
 
     InterruptCastRequest request;
-    request.CasterId = localComponent.Id;
+    request.CasterId = *cId;
     request.CastingSource = acEvent.CastingSource;
-
-    spdlog::debug("Sending out interrupt cast");
-
     m_transport.Send(request);
+}
+
+void MagicService::OnCopyRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept
+{
+    if (const auto* cpRemote = aRegistry.try_get<RemoteComponent>(aEntity))
+        m_applied.erase(cpRemote->Id);
+}
+
+void MagicService::OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept
+{
+    if (const auto* cpForm = aRegistry.try_get<FormIdComponent>(aEntity))
+        m_held.erase(cpForm->Id);
 }
 
 void MagicService::OnNotifyInterruptCast(const NotifyInterruptCast& acMessage) const noexcept

@@ -21,8 +21,8 @@ void AliasOnReference(void* apAlias, const uint32_t* apHandle)
     Actor* pActor = apHandle ? Cast<Actor>(TESObjectREFR::GetByHandle(*apHandle)) : nullptr;
     const std::string cBefore = pActor ? pActor->GetDisplayFullName() : "";
     (*tReal)(apAlias, apHandle);
-    if (pActor && cBefore != pActor->GetDisplayFullName())
-        World::Get().GetRunner().Trigger(ActorRenamedEvent{pActor->formID});
+    if (std::string after = pActor ? pActor->GetDisplayFullName() : ""; pActor && cBefore != after)
+        World::Get().GetRunner().Trigger(ActorRenamedEvent{pActor->formID, std::move(after)});
 }
 
 Hooks::Initializer s_hooks([] {

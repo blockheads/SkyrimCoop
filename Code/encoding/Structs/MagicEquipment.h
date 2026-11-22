@@ -3,7 +3,6 @@
 #include <Structs/GameId.h>
 #include <Wire/Buffer.h>
 
-struct RequestEquipmentChanges;
 
 struct MagicEquipment
 {

@@ -48,6 +48,13 @@ Routing RouteOf(const CallFacts& acFacts) noexcept
     const Call cKind = acFacts.Reach.Kind;
     if (IsMirrored(acFacts.Cause))
         return {};
+    // Enable, Disable: the world's only on the host's created references; elsewhere a guest's own, as before.
+    if (acFacts.Reach.OnCreated && !acFacts.CreatedObject)
+        return {};
+    // A guest's script creating a reference: the host's game makes it, the script gets the host's (piece 7).
+    if (cKind == Call::kCreate)
+        return acFacts.Guest && !acFacts.OwnQuest && !acFacts.SystemObject ? Routing{.To = Destination::kHost, .Original = false, .Reply = true}
+                                                                          : Routing{};
     // A system quest's instance acts for this game's player only; its world changes are still the host's to make.
     if (acFacts.InSystemQuest)
         return acFacts.Guest && cKind == Call::kWorld && !acFacts.OwnQuest && !acFacts.SystemObject

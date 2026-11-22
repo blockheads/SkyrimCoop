@@ -15,7 +15,8 @@
 struct CharacterRecords
 {
     // The co-save's record version (SKSE's per-record version).
-    static constexpr uint32_t kVersion = 3;
+    // 4: items carry their owner (Inventory::Entry::ExtraOwner); a version 3 co-save still reads.
+    static constexpr uint32_t kVersion = 4;
 
     // A guest's record; the place stays the one the host's game set (SetPlace): a guest's record carries none.
     void Put(PlayerRecord aRecord) noexcept;

@@ -1,0 +1,52 @@
+time	op	id	rva	item
+2026-11-21T03:57:39Z	read	34990	0x5e31c0	{"name": "SummonCreatureEffect::Func20_34990"}
+2026-11-21T03:57:45Z	read	34992	0x5e3740	{"name": "SummonCreatureEffect::Func4_34992"}
+2026-11-21T03:58:06Z	read	34993	0x5e3a50	{"name": "ActiveEffect::sub_34993"}
+2026-11-21T06:09:08Z	name	34990	0x5e31c0	{"addr": "0x1405e31c0", "name": "SummonCreatureEffect::Start"}
+2026-11-21T06:09:08Z	name	34992	0x5e3740	{"addr": "0x1405e3740", "name": "SummonCreatureEffect::Update"}
+2026-11-21T06:09:08Z	name	34993	0x5e3a50	{"addr": "0x1405e3a50", "name": "SummonCreatureEffect::CreateSummon"}
+2026-11-21T06:09:08Z	name	34991	0x5e3540	{"addr": "0x1405e3540", "name": "SummonCreatureEffect::Finish"}
+2026-11-21T06:09:08Z	local	34993	0x5e3a50	{"func_addr": "0x1405e3a50", "old": "v4", "new": "pSummonBase"}
+2026-11-21T06:09:08Z	local	34993	0x5e3a50	{"func_addr": "0x1405e3a50", "old": "v5", "new": "pSummon"}
+2026-11-21T06:09:08Z	local	34993	0x5e3a50	{"func_addr": "0x1405e3a50", "old": "OwnerActor", "new": "pCaster"}
+2026-11-21T06:09:08Z	local	34992	0x5e3740	{"func_addr": "0x1405e3740", "old": "OwnerActor", "new": "pCaster"}
+2026-11-21T06:09:08Z	local	34992	0x5e3740	{"func_addr": "0x1405e3740", "old": "v9", "new": "pSummon"}
+2026-11-21T06:11:08Z	read	34991	0x5e3540	{"name": ""}
+2026-11-21T06:13:09Z	read	39950	0x726ce0	{"name": ""}
+2026-11-21T06:21:28Z	name	34990	0x5e31c0	{"addr": "0x1405e31c0", "name": "SummonCreatureEffect::Start"}
+2026-11-21T06:21:28Z	name	34992	0x5e3740	{"addr": "0x1405e3740", "name": "SummonCreatureEffect::Update"}
+2026-11-21T06:21:28Z	name	34993	0x5e3a50	{"addr": "0x1405e3a50", "name": "SummonCreatureEffect::CreateSummon"}
+2026-11-21T06:21:28Z	name	34991	0x5e3540	{"addr": "0x1405e3540", "name": "SummonCreatureEffect::Finish"}
+2026-11-21T06:21:35Z	read	40056	0x72a370	{"name": "sub_14072A370"}
+2026-11-21T06:21:44Z	name	39950	0x726ce0	{"addr": "0x140726ce0", "name": "AIProcess::SetCommandingActor"}
+2026-11-21T06:21:44Z	name	40056	0x72a370	{"addr": "0x14072A370", "name": "AIProcess::AddCommandedActor"}
+2026-11-21T06:21:44Z	name	40057	0x72a5b0	{"addr": "0x14072A5B0", "name": "AIProcess::RemoveCommandedActor"}
+2026-11-21T06:21:44Z	name	34994	0x5e3c70	{"addr": "0x1405e3c70", "name": "SummonCreatureEffect::FindPlacement"}
+2026-11-21T06:21:44Z	local	34993	0x5e3a50	{"func_addr": "0x1405e3a50", "old": "v4", "new": "pSummonBase"}
+2026-11-21T06:21:44Z	local	34993	0x5e3a50	{"func_addr": "0x1405e3a50", "old": "v5", "new": "pSummon"}
+2026-11-21T06:21:44Z	local	34993	0x5e3a50	{"func_addr": "0x1405e3a50", "old": "OwnerActor", "new": "pCaster"}
+2026-11-21T06:21:44Z	local	34992	0x5e3740	{"func_addr": "0x1405e3740", "old": "OwnerActor", "new": "pCaster"}
+2026-11-21T06:21:44Z	local	34992	0x5e3740	{"func_addr": "0x1405e3740", "old": "v9", "new": "pSummon"}
+2026-11-21T06:21:44Z	local	34991	0x5e3540	{"func_addr": "0x1405e3540", "old": "OwnerActor", "new": "pCaster"}
+2026-11-21T06:21:44Z	local	34991	0x5e3540	{"func_addr": "0x1405e3540", "old": "v4", "new": "pSummon"}
+2026-11-21T06:21:51Z	comment	34990	0x5e31c0	{"addr": "0x1405e31c0", "comment": "SummonCreatureEffect::Start (vfunc 0x14, 34990): picks the placement (FindPlacement 34994, else the caster's position) and starts the portal's SummonPlacementEffect (+0xB0). Makes no actor: Update does (CreateSummon)."}
+2026-11-21T06:21:51Z	comment	34992	0x5e3740	{"addr": "0x1405e3740", "comment": "SummonCreatureEffect::Update (vfunc 4, 34992): attaches the portal's 3D; once elapsed >= a setting and +0xB8 (made) is clear, CreateSummon each frame until it makes one. With the summon (+0xA8) loaded: SetCommandingActor(summon, caster, this) once its process is high (+0xB9 set), then Character::sub_38799 each frame. Caster gone or summon dead: Dispel."}
+2026-11-21T06:21:51Z	comment	34993	0x5e3a50	{"addr": "0x1405e3a50", "comment": "SummonCreatureEffect::CreateSummon (34993): the effect's base (assoc item, +0x70 of the MGEF) at +0x90/+0x9C via TESDataHandler::CreateReferenceAtLocation (13723) in the caster's cell; handle into +0xA8; process level updated (made high: +0xB8 set); PromoteReference to the caster; a detection event. The only place a summon is made."}
+2026-11-21T06:21:51Z	comment	34991	0x5e3540	{"addr": "0x1405e3540", "comment": "SummonCreatureEffect::Finish (vfunc 0x15, 34991): the summon (+0xA8) is killed (QueueKill) and faded out, or disabled and deleted; DemoteReference; the portal ends. The effect's end is the summon's end."}
+2026-11-21T06:21:51Z	comment	39950	0x726ce0	{"addr": "0x140726ce0", "comment": "AIProcess::SetCommandingActor (39950): the actor's middle process +0x218 = commander handle; flags2 0x10000 (commanded) set or cleared; removed from the old commander's list, added to the new one's with the effect (AddCommandedActor)."}
+2026-11-21T06:21:51Z	comment	40056	0x72a370	{"addr": "0x14072A370", "comment": "AIProcess::AddCommandedActor: the commander's middle process +0x100 BSTArray<{handle, ActiveEffect*}>. Past the limit (setting + perk entry 68, kModCommandedActorLimit: Twin Souls) it Dispels the oldest entry's effect (the largest elapsed, +0x70). Not during a load."}
+2026-11-21T06:22:03Z	read		0xa4d980	{"name": "sub_140A4A610"}
+2026-11-21T06:22:09Z	read	56203	0xa46de0	{"name": "PlaceAtMe_Native"}
+2026-11-21T06:22:17Z	comment	56203	0xa46de0	{"addr": "0x140a46de0", "comment": "[re]\nAddressLib ID 56203\nmeh321: papyrus::ObjectReference::PlaceAtMe\nSKSE: PlaceAtMe_Native (skse64-2.3.1/skse64/GameReferences.cpp:20)\n(vm, stackId, self, base, count, forcePersist, initiallyDisabled): count references of base at self's position, angle and cell, each by TESDataHandler::CreateReferenceAtLocation (13723) directly; a leveled list (LVLI 0x2C, LVLN 0x35) rolled first at self's calc level. Returns the last made; initiallyDisabled disables it (vfunc 0x89), not an explosion."}
+2026-11-21T06:22:21Z	read		0xa4dab0	{"name": "sub_140A4A610"}
+2026-11-21T06:22:40Z	name	56204	0xa47180	{"addr": "0x140a47180", "name": "PlaceActorAtMe_Native"}
+2026-11-21T06:22:42Z	comment	56204	0xa47180	{"addr": "0x140a47180", "comment": "papyrus ObjectReference.PlaceActorAtMe (self, npc, levelMod, zone): a temporary Character of npc (Character_ctor), its level mod set, placed at self by TESDataHandler::CreateReferenceAtLocation (13723) directly."}
+2026-11-21T07:09:45Z	read	19729	0x2ead30	{"name": "TESObjectREFR::Set3D"}
+2026-11-21T07:18:02Z	read	56155	0xa45510	{"name": "papyrus::ObjectReference::Disable"}
+2026-11-21T07:18:02Z	read	56491	0xa56710	{"name": "papyrus::ObjectReference::DisableImpl"}
+2026-11-21T07:19:09Z	comment	56491	0xa56710	{"addr": "0x140a56710", "comment": "[re]\nAddressLib ID 56491\nmeh321: TESObjectREFR::sub_56491\nPapyrus Disable/DisableNoWait (56155/56156) call it directly: refuses a temporary object (form flag 0x4000), an explosion, one with an enable state parent; fades (abFadeOut); queues a DisableFunctor through QueuePostRenderCall, its stack waiting on it for Disable (a3). NativeReach's kWorld sink (one-simulator.md piece 7: a guest's script's Disable is the host's)."}
+2026-11-21T07:19:09Z	comment	56492	0xa56910	{"addr": "0x140a56910", "comment": "[re]\nAddressLib ID 56492\nPapyrus Enable/EnableNoWait (56158/56160) call it directly; queues the enable as Disable's does. NativeReach's kWorld sink."}
+2026-11-21T16:32:03Z	read	56204	0xa47180	{"name": "PlaceActorAtMe_Native"}
+2026-11-21T16:32:03Z	read	56492	0xa56910	{"name": "papyrus::ObjectReference::EnableImpl"}
+2026-11-21T16:32:22Z	comment	56204	0xa47180	{"addr": "0x140a47180", "comment": "papyrus ObjectReference.PlaceActorAtMe (56204; vm, stackId, self, npc, levelMod, zone): a temporary Character of npc (Character_ctor, 696 bytes), its level mod set (zone: sub_20204), its base set (vfunc 0x420), placed at self's position/angle/cell by TESDataHandler::CreateReferenceAtLocation (13723) directly with that Character as the reference to place; returns it. NativeReach's kCreate sink (piece 7)."}
+2026-11-21T16:32:22Z	comment	56492	0xa56910	{"addr": "0x140a56910", "comment": "[re]\nAddressLib ID 56492\nPapyrus Enable/EnableNoWait (56158/56160) call it directly: refuses a temporary object (form flag 0x4000), an explosion, one with an enable state parent; fades in (a2) or sets form flag 0x8000000; queues an EnableFunctor through QueuePostRenderCall, its stack waiting on it for Enable (a3). NativeReach's kWorld sink, OnCreated (piece 7)."}
