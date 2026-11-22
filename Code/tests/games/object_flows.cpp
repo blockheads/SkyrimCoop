@@ -125,7 +125,8 @@ SCENARIO("A chest the host disables under its own open menu shows one lid once e
         host.ScriptSetsEnabled(kChest, true);
         host.Finishes3D(kChest);
     });
-    party.Until([&] { return !guest.References.at(kChest).Disabled; }, "the guest's chest is enabled");
+    party.Until([&] { return !guest.References.at(kChest).Open && !guest.References.at(kChest).Disabled; },
+                "the guest has the host's close and enable");
     party.As(party.Guest(), [&] { guest.Finishes3D(kChest); });
     party.Until([&] { return host.References.at(kChest).Lid == 0.f && guest.References.at(kChest).Lid == 0.f; },
                 "both lids closed, as both chests' open states read");

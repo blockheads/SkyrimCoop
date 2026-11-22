@@ -268,7 +268,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Door = false;
         bool Open = false; // a door's or chest's (BGSOpenCloseForm's open state)
         bool Chest = false; // a container with a lid (an Open/Close sequence)
-        bool Disabled = false;
         bool Has3D = true; // none while disabled; an enable queues its load (Finishes3D)
         float Lid = 0.f; // a chest's lid: 0 closed, 1 open
         bool Unposed = false; // its open state changed with no 3D: its next 3D comes up part open (measured)
