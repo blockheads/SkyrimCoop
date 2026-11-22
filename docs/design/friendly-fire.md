@@ -68,6 +68,12 @@ deleted. A cast from the world (a trap, a script making the copy cast) was never
   engine as its owner; never placed where its owner lies); a copy getting up on its own timing stays open (`physics-sync.md`, "A copy's ragdoll, steered").
   `kill-move-kills-guest` fails on it today, as it should.
 
+## Disintegrated players
+
+A shout or spell whose effect turns its victim to ash (Dragonborn.esm's Unrelenting Force, the Disintegrate and Deep
+Freeze perks) kills another player the normal way: its game refuses the critical stages and the ash pile for its own
+player, which the engine would leave with no 3D and a frozen frame (`docs/re/systems/death-disintegrate.md`).
+
 ## Kill moves on players
 
 Work as on NPCs (measured 2026-10-26, `KillMoveRandom` 100): the attacker's game pairs its player with the victim's

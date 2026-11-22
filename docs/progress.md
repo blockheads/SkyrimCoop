@@ -49,6 +49,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **a shout that disintegrates a player froze its game** (`agent/shout-kill-crash`;
+[death-disintegrate.md](re/systems/death-disintegrate.md)). Dragonborn.esm's Unrelenting Force carries a disintegrate
+effect; on another player its ash pile script set critical stage `DisintegrateEnd`, the engine took the player's 3D
+(37616), and the frame's jobs waited on the player's update for good. `Actor::SetCriticalStage` (37615) and
+`Actor.AttachAshPile` (54655) now refuse this game's player: it dies the normal way, with its body and no pile.
+Scenario `shout-kills-lying-guest` (MCP verb `shout_at_lying_player`), GameTests `[friendly-fire]`, ClientTests
+`[CriticalStage]`.
+
 2026-11-22: **piece F of bugs-refactor-plan.md, the world check (F1, F2)** (`agent/world-objects`;
 [piece-f-plan.md](design/piece-f-plan.md)). Containers' change `0x8000000` is the host's leveled roll
 (`InventoryChanges__AddLeveledEntries` 16128, read in IDA; a guest skips the roll and is given the host's items), so the

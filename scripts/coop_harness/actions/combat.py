@@ -443,6 +443,58 @@ class CombatActions:
         ctx.hold()
 
 
+    def shout_at_lying_player(ctx, attacker, health=0):
+        """The other player is pushed down on its own game, then the attacker's three-word shout hits it lying;
+        `health` > 0 leaves it that much health first, so the shout's damage kills it."""
+        victim = "client" if attacker == "" else ""
+        copy = ctx.other_player(ctx.actors_on(attacker))
+        if copy is None:
+            raise ctx.failure(f"[{attacker or 'host'}] no copy of the victim")
+        for word in UNRELENTING_FORCE_WORDS:
+            ctx.console_on(attacker, f"player.teachword {word:X}")
+            ctx.console_on(attacker, f"player.unlockword {word:X}")
+        ctx.console_on(attacker, f"player.addshout {UNRELENTING_FORCE:X}")
+        ctx.console_on(attacker, f"player.equipshout {UNRELENTING_FORCE:X}")
+        ctx.console_on(attacker, "player.setav shoutrecoverymult 0")
+        ctx.console_on(victim, "player.restoreav health 10000")
+        ctx.place_before(attacker, copy, 300, bearing=90)
+        ctx.wait_for("the three-word Unrelenting Force shout is equipped",
+                 lambda: ctx.local_player(attacker).get("selected_power") == UNRELENTING_FORCE, 5)
+        def knock(instance, actor):
+            return (ctx.actor_snapshot(instance, actor).get("state") or {}).get("knock", 0)
+        ctx.wait_for(f"[{victim or 'host'}] the victim stands before its push", lambda: not knock(victim, 0x14), 25)
+        ctx.console_on(victim, "player.pushactoraway player 5")
+        ctx.wait_for(f"[{victim or 'host'}] the victim lies in its ragdoll", lambda: 0 < knock(victim, 0x14) <= 4, 5)
+        ctx.wait_for(f"[{attacker or 'host'}] the victim's copy lies", lambda: 0 < knock(attacker, copy) <= 4, 5)
+        if health > 0:
+            full = ctx.player_health(victim)
+            ctx.console_on(victim, f"player.damageav health {max(0.0, full - health):g}")
+        _, since = ctx.engine_events(attacker)
+        frame = ctx.game_frame(attacker)
+        ctx.press(attacker, "shout")
+        try:
+            ctx.wait_for("the shout button is held through a full three-word charge",
+                     lambda: ctx.game_frame(attacker) >= frame + 120, 5)
+        finally:
+            ctx.release(attacker, "shout")
+        ctx.wait_for("the native three-word shout is cast",
+                 lambda: any(e["kind"] == "spell_cast" and e.get("caster") == 0x14 and
+                             e.get("spell") == UNRELENTING_FORCE_THREE
+                             for e in ctx.engine_events(attacker, since)[0]), 5)
+        ctx.console_on(attacker, "player.setav shoutrecoverymult 1")
+        if health > 0:
+            ctx.wait_for(f"[{victim or 'host'}] the shout kills the lying victim",
+                         lambda: ctx.is_dead(ctx.player_snapshot(victim)), 5)
+        frame = ctx.game_frame(victim)
+        ctx.wait_for(f"[{victim or 'host'}] the victim's game keeps running",
+                     lambda: ctx.game_frame(victim) >= frame + 120, 10)
+        if health > 0:
+            def respawned():
+                snapshot = ctx.player_snapshot(victim)
+                return not ctx.is_dead(snapshot) and (snapshot.get("placement") or {}).get("has_3d")
+            ctx.wait_for(f"[{victim or 'host'}] the victim respawns with its body", respawned, 40)
+
+
     def fus_ro_dah_player(ctx, attacker):
         """Use the real three-word shout on the other player; both games see the fall and recovery."""
         recovery = ctx.actor_value(attacker, 0x14, 86)  # kShoutRecoveryMult

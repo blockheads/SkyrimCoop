@@ -113,6 +113,33 @@ SCENARIO("A guest's fire bolt on the host's player burns the host's own player",
     }
 }
 
+SCENARIO("The host's Unrelenting Force with its disintegrate effect kills a guest: a real death, its game runs on",
+         "[death][friendly-fire][magic]")
+{
+    // Dragonborn.esm's shout carries DLC2VoiceDisintegrateFFAimed: its script's DisintegrateEnd took the player's 3D,
+    // and the guest's frame waited on its player's update for good (docs/re/systems/death-disintegrate.md).
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) != 0; }, "the host's game has the guest's player");
+
+    const uint32_t cCopy = CopyOfPlayer(party, party.Host(), party.Guest());
+    party.As(party.Host(), [&] {
+        host.SpellHits(cCopy, FakeEngine::kPlayer, FakeEngine::kUnrelentingForce3, FakeEngine::kDisintegrateEffect, Health(guest));
+    });
+    auto& death = party.Guest().ctx().at<DeathService>();
+    party.Until([&] { return death.Spectating() != 0; }, "the guest spectates once dead", [&] {
+        return std::format("stalled {} dead {} stage {} 3d {}", guest.FrameStalled, guest.Actors.at(FakeEngine::kPlayer).Dead,
+                           guest.Actors.at(FakeEngine::kPlayer).CriticalStage, guest.ActorHas3D(FakeEngine::kPlayer));
+    });
+    THEN("its player kept its body: no ash pile, its 3D kept")
+    {
+        CHECK(guest.Actors.at(FakeEngine::kPlayer).CriticalStage == 0);
+        CHECK(guest.AshPiles.empty());
+        CHECK(guest.ActorHas3D(FakeEngine::kPlayer));
+    }
+}
+
 SCENARIO("A guest killed by another guest: a real death, spectating, and every chat names the killer",
          "[death][friendly-fire]")
 {

@@ -1,3 +1,4 @@
+#include <Games/Skyrim/CriticalStageRules.h>
 #include <Games/Animation/DeferredClips.h>
 #include <Games/FreedWornList.h>
 #include <Diagnostics/HeadTrackRead.h>
@@ -1007,6 +1008,25 @@ bool FakeEngine::HeldOnGuest(uint32_t aFormId) const noexcept
     return it != Actors.end() && GuestNpcs::Held(HoldSession, aFormId == kPlayer, it->second.Copy, it->second.ClaimedIn);
 }
 
+void FakeEngine::SetCriticalStage(uint32_t aFormId, uint32_t aStage)
+{
+    auto& actor = Actors.at(aFormId);
+    if (!CriticalStage::Takes(aFormId == kPlayer, aStage)) // HookSetCriticalStage
+        return;
+    actor.CriticalStage = aStage;
+    if (!CriticalStage::RemovesBody(aStage))
+        return;
+    actor.Loaded = false;
+    if (aFormId == kPlayer)
+        FrameStalled = true;
+}
+
+void FakeEngine::AttachAshPile(uint32_t aFormId)
+{
+    if (CriticalStage::TakesAshPile(aFormId == kPlayer)) // HookAttachAshPile
+        AshPiles.push_back(aFormId);
+}
+
 void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
 {
     if (aActor.Copy || aActor.Dead || aActor.Values.ActorValuesList[kHealth] > 0.f)
@@ -1017,6 +1037,13 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
         return;
     }
     (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
+    if (aActor.Dead && DeathScripts.contains(aFormId))
+    {
+        // The ash pile script's OnDying, on whoever holds the effect (its VM runs it on that game).
+        SetCriticalStage(aFormId, CriticalStage::kDisintegrateStart);
+        AttachAshPile(aFormId);
+        SetCriticalStage(aFormId, CriticalStage::kDisintegrateEnd);
+    }
     if (aActor.Dead)
     {
         // KillImpl performs the death action (37896): an input of its graph, recorded for its copies, and its graph

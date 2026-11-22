@@ -720,6 +720,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool NotOnStealthMeter = false; // boolFlags kDoNotShowOnStealthMeter: 41408 skips it for the player
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
         bool Loaded = true;  // its 3D is loaded (in the process lists)
+        uint32_t CriticalStage = 0; // Actor+0xF0 (ACTOR_CRITICAL_STAGE)
         bool HeadBuilt = false;         // its head is built: the frame its 3D is there (TESNPC::UpdateHeadState 24724)
         std::optional<Tints> HeadTints; // painted on its head (FaceGenSystem); a head built again has none (24731)
         uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
@@ -1093,8 +1094,25 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Damage = false; // its effect damages health
         bool Invisibility = false; // fire and forget, on its caster
         uint32_t Summons = 0; // its effect makes this NPC base, commanded by the caster (SummonCreatureEffect)
+        // Its effect's script turns its target to ash on its death (DLC2AttachAshPileOnDeath25's OnDying):
+        // critical stage DisintegrateStart, then DisintegrateEnd (SetCriticalStage).
+        bool AshPileOnDeath = false;
     };
     static constexpr uint32_t kConjureFamiliar = 0x000640B6;
+    // VoiceUnrelentingForce3 as Dragonborn.esm has it: DLC2VoiceDisintegrateFFAimed (0401FF2B) among its effects.
+    static constexpr uint32_t kUnrelentingForce3 = 0x00013F3A;
+    static constexpr uint32_t kDisintegrateEffect = 0x0401FF2B;
+    // Actor::SetCriticalStage (37615) under our hook's rule; 37616 takes the 3D of an actor at GooEnd or
+    // DisintegrateEnd. This game's player left without it stalls the frame (FrameStalled).
+    void SetCriticalStage(uint32_t aFormId, uint32_t aStage);
+    // The frame's jobs wait on the player's update (Job_Wait_Player_Update_1 39049), which a player with no 3D never
+    // finishes: Main::Update waits for good (35409), and nothing of this game runs again.
+    bool FrameStalled = false;
+    // Actor.AttachAshPile (54655) under our hook's rule: the actors a pile was placed at (AttachAshPileFunctor).
+    void AttachAshPile(uint32_t aFormId);
+    std::vector<uint32_t> AshPiles;
+    // Its target's effects with a script run on its death (OnDying), by spell.
+    std::map<uint32_t, std::set<uint32_t>> DeathScripts;
     static constexpr uint32_t kFamiliarEffect = 0x000640B4;
     static constexpr uint32_t kFamiliar = 0x000CAE0B; // stands for the familiar's base
     std::map<uint32_t, SpellForm> SpellForms{{0x00012FCD, {.Concentration = true}},                  // Flames
@@ -1102,6 +1120,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                              {0x0005AD5C, {.Buff = true}},                           // Oakflesh
                                              {0x00027EB6, {.Invisibility = true}},                   // Invisibility
                                              {0x0001C789, {.Damage = true}},                         // Firebolt
+                                             {kUnrelentingForce3, {.Damage = true, .AshPileOnDeath = true}},
                                              {kConjureFamiliar, {.Summons = kFamiliar}}};
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
     struct Cast
@@ -1152,6 +1171,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                               bool aApplyStaminaPerkBonus) noexcept override
     {
         Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
+        if (Spell(aSpellFormId).AshPileOnDeath)
+            DeathScripts[aTargetFormId].insert(aSpellFormId);
         if (Spell(aSpellFormId).Summons && !HoldSession) // a guest's CreateSummon (34993) makes nothing
             MakesSummon(aCasterFormId, Spell(aSpellFormId).Summons);
         // A damaging effect's value goes through the damage hook while applied (HookApplyActorEffect).
