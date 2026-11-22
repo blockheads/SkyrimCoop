@@ -991,30 +991,34 @@ void Actor::LinkFurnitureGraphs(TESObjectREFR* apFurniture) noexcept
     using TRemoveDependent = bool(BSAnimationGraphManager*, BSAnimationGraphManager** appDependent);
     POINTER_SKYRIMSE(TAddDependent, s_addDependent, 63364);
     POINTER_SKYRIMSE(TRemoveDependent, s_removeDependent, 63366);
-    uint32_t& linked = GetExtension()->LinkedFurniture;
-    const uint32_t cWanted = apFurniture ? apFurniture->formID : 0;
-    if (linked == cWanted)
-        return;
     const auto cGraphsOf = [](const TESObjectREFR* apObject) {
         BSAnimationGraphManager* pManager = nullptr;
         if (apObject)
             EngineVirtual(apObject->animationGraphHolder).GetBSAnimationGraph(&pManager);
         return GraphReference<BSAnimationGraphManager>(pManager);
     };
+    ActorExtension& link = *GetExtension();
+    const uint32_t cWanted = apFurniture ? apFurniture->formID : 0;
     const auto cOwn = cGraphsOf(this);
-    if (!cOwn)
+    const auto cFurniture = cGraphsOf(apFurniture);
+    if (link.LinkedFurniture == cWanted && link.LinkedOwnGraphs == cOwn.get() && link.LinkedFurnitureGraphs == cFurniture.get())
         return;
-    if (auto cOld = cGraphsOf(Cast<TESObjectREFR>(TESForm::GetById(linked))))
+    // The old link, on the same manager of its own (a new one starts with none); the list holds the furniture's.
+    if (link.LinkedFurnitureGraphs && cOwn && link.LinkedOwnGraphs == cOwn.get())
     {
-        BSAnimationGraphManager* pOld = cOld.get();
+        auto* pOld = const_cast<BSAnimationGraphManager*>(static_cast<const BSAnimationGraphManager*>(link.LinkedFurnitureGraphs));
         s_removeDependent(cOwn.get(), &pOld);
     }
-    if (auto cNew = cGraphsOf(apFurniture))
-    {
-        BSAnimationGraphManager* pNew = cNew.get();
-        s_addDependent(cOwn.get(), &pNew, true);
-    }
-    linked = cWanted;
+    link.LinkedFurniture = 0;
+    link.LinkedOwnGraphs = link.LinkedFurnitureGraphs = nullptr;
+    // Either graph missing (a 3D still loading): linked when it loads (AiStateService::RelinkSeats).
+    if (!cOwn || !cFurniture)
+        return;
+    BSAnimationGraphManager* pNew = cFurniture.get();
+    s_addDependent(cOwn.get(), &pNew, true);
+    link.LinkedFurniture = cWanted;
+    link.LinkedOwnGraphs = cOwn.get();
+    link.LinkedFurnitureGraphs = cFurniture.get();
 }
 
 RefrInteraction* Actor::GetOwnInteraction() const noexcept

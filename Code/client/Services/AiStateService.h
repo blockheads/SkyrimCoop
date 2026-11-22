@@ -13,6 +13,8 @@ struct World;
 struct TransportService;
 struct AiStateChangeEvent;
 struct DisconnectedEvent;
+struct ReferenceLoadedEvent;
+struct Copy3DEvent;
 struct UpdateEvent;
 struct NotifyRemoveCharacter;
 struct CopyRecords;
@@ -37,6 +39,8 @@ protected:
     void OnAiStateChange(const AiStateChangeEvent& acEvent) noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
+    void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
+    void OnCopy3D(const Copy3DEvent& acEvent) noexcept;
 
 private:
     void OnUpdate(const UpdateEvent&) noexcept;
@@ -49,6 +53,9 @@ private:
     // actors the state names that are not here yet.
     [[nodiscard]] std::vector<uint32_t> ApplyToCopy(uint32_t aSessionId, const std::string& acBytes) noexcept;
     void CountCopiesFightingPlayer() noexcept;
+    // A furniture's 3D, or a copy's own, loaded: each copy sitting in it takes its seat again, its graphs linked now
+    // that both exist (Actor::LinkFurnitureGraphs; furniture-graphs.md).
+    void RelinkSeats(uint32_t aFormId) noexcept;
     // This game's fields as the session's state, and back.
     [[nodiscard]] ActorAiState ToState(const ActorAiFields& acFields) const noexcept;
     [[nodiscard]] ActorAiFields ToFields(const ActorAiState& acState) const noexcept;

@@ -9,11 +9,13 @@ DOC = "Riverwood's sawmill (71DFC) is driven by its worker's own graph events: w
 
 def run(ctx):
     try:
-        # edited: the place (the recording's duo booted in Riverwood)
+        # edited: the place (the recording's duo booted in Riverwood), and the wait for the mill's own state to move
+        # (its state id, graph.IsLoaded) before comparing: an idle mill agrees too (PR #99 review)
         ctx.scene(save=None, at='coc Riverwood', pin=True)
         ctx.name_handle('mill', {'host': 466428, 'guest': 466428})
         ctx.find('Hod', None)
         ctx.expect('hod', 'actor', within=5.0, game='host', value='mill', field='ai.furniture', seconds=300.0)
+        ctx.reference_follows('mill', 'graph.IsLoaded', seconds=300.0)
         ctx.expect('mill', 'agree', within=5.0, seconds=20.0)
     finally:
         ctx.unstage()

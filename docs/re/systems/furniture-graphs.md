@@ -6,8 +6,9 @@ A furniture with a behaviour graph (Riverwood's sawmill `71DFC`, `ResourceObject
 ```text
 an actor enters the furniture: AIProcess::SetSitSleepState 39912 (new state 1 or 5)
   the furniture's graph manager made a dependent of the actor's:
-    BSAnimationGraphManager__AddDependent 63364 -> 63365 -> AttachManager 63381 (+0x58 list, count +0x68)
-  leaving (state 0): RemoveDependent 63366
+    BSAnimationGraphManager__AddDependent 63364 -> AttachDependent 63382 (+0x58 list, count +0x68)
+  leaving (state 0): RemoveDependent 63366 -> DetachDependent 63389
+  (63365 -> AttachManager 63381 adds to the same list: the mount and tail holders' path, not this one)
 from then, every event of the actor's graphs reaches the dependent's graphs:
   input   NotifyAllGraphs 63362: its own graphs, then NotifyAttachedManagers 63372
   output  a graph's event (63588) -> its event source -> the manager's sink 63371 -> 63372
@@ -21,9 +22,10 @@ from then, every event of the actor's graphs reaches the dependent's graphs:
   input from `BC16AC <- BC15E9 <- 2FA638 <- BCF3E1`). The cut is its script's (`ResourceObjectSawMillScript`,
   `PlayAnimationAndWait`), started by the lever furniture `1B752` (`TrapLever`) Hod pushes; the host already relays it.
 - The furniture handed to 39912 by a graph's sit event (`Actor::SetSitSleepStateFromGraph`) is the actor's occupied
-  furniture, `Character::sub_38708`: middle-high `+0x208`, else the mount. A copy's `+0x208` is never set, so a copy
-  in a furniture has no dependent: on the guest Hod's copy sent `MillLogPileLoadStart` and the mill got nothing
-  (measured, duo 2026-11-22: host `IsLoaded` 3 -> 4 -> 1, guest 0 throughout).
+  furniture, `Character::sub_38708`: middle-high `+0x208` (39916), else the mount. The only writer of `+0x208` read is
+  39912 itself, storing the furniture it is given; a copy's AI never calls it with one, so (inferred) a copy's stays
+  unset and its furniture gets no dependent. Measured: on the guest Hod's copy sent `MillLogPileLoadStart` and the
+  mill got nothing (duo 2026-11-22: host `IsLoaded` 3 -> 4 -> 1, guest 0 throughout).
 - A player's own activation (`TESFurniture::Activate` 17420, furniture with default object 182) sends the action's
   event to the furniture's graph directly, not through a dependent.
 
@@ -39,6 +41,9 @@ copy: SetCopyAiFields -> Actor::LinkFurnitureGraphs: RemoveDependent 63366 the l
 The copy's own replayed events then reach the furniture as its owner's do. GameTests "A copy working a furniture
 drives the furniture's own graph as its owner does"; scenario `copy-worker-drives-furniture`.
 
-Not handled yet: a copy whose graph manager does not exist when the part arrives (spawned with its 3D still loading)
-stays unlinked until its owner's furniture changes again, and a copy whose 3D reloads (a new manager) loses the link
-while `LinkedFurniture` still names it. Neither was seen; each would show as the furniture standing still on the guest.
+A link is recorded only once both graph managers exist, with the two managers linked: either 3D still loading, the
+copy is linked when it loads (`ReferenceLoadedEvent` for the furniture, `Copy3DEvent` for the copy:
+`AiStateService::RelinkSeats`), and a new manager on either side (a reload) is linked again. A furniture the host's
+script created goes by its created id (`CreatedIds`), so a guest's twin under its own id is the one linked. GameTests
+"A copy sitting in a furniture whose 3D loads after links to it as the 3D loads", "A copy sits in the guest's twin of
+a furniture the host's script placed".

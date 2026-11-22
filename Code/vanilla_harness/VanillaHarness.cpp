@@ -190,11 +190,17 @@ void PrintNode(const std::string& acArguments)
     std::string id, name;
     words >> id >> name;
     std::ostringstream out;
-    auto* pRef = id.empty() ? nullptr : At<void* (*)(uint32_t)>(cFormById)(static_cast<uint32_t>(std::stoul(id, nullptr, 16)));
+    // A reference only (LookupByID returns any form: a base has another layout), by a checked hex id.
+    char* pEnd = nullptr;
+    const unsigned long cId = id.empty() ? 0 : std::strtoul(id.c_str(), &pEnd, 16);
+    auto* pForm = cId && pEnd && !*pEnd ? At<Reference* (*)(uint32_t)>(cFormById)(static_cast<uint32_t>(cId)) : nullptr;
+    auto* pRef = pForm && (pForm->formType == cReferenceType || pForm->formType == cActorType) ? pForm : nullptr;
     auto* p3D = pRef ? At<Node* (*)(void*)>(cGet3D)(pRef) : nullptr;
     const BSFixedString cName = Fixed(name.c_str());
     auto* pNode = p3D ? reinterpret_cast<Node* (*)(Node*, const BSFixedString&)>(p3D->vtable[cGetObjectByName])(p3D, cName) : nullptr;
-    if (!pNode)
+    if (!pRef)
+        out << "not a reference: " << id << '\n';
+    else if (!pNode)
         out << "node not found\n";
     else
     {

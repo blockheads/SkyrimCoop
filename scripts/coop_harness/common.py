@@ -276,7 +276,7 @@ CHANGES_ITEM_EXTRA = 0x400
 CHANGES_CONTENTS = 0x20 | 0x8000000
 # Where a loose physics object nobody carried lies: each game's own (piece-f-plan.md, F2).
 LOOSE_ITEM_TYPES = {"SCRL", "ARMO", "BOOK", "INGR", "LIGH", "MISC", "APPA", "WEAP", "AMMO", "KEYM", "ALCH", "SLGM"}
-LOOSE_PLACE_FIELDS = ("position", "rotation", "position_3d", "collision", "pose")
+LOOSE_PLACE_FIELDS = ("position", "rotation", "position_3d", "pose")  # and its bodies' places, not their count
 IDLE_SAMPLES, IDLE_INTERVAL = 3, 0.3
 WORLD_WINDOW = 3.0
 WORLD_CHANGES = [

@@ -1034,6 +1034,20 @@ class ReproActions:
             shown[game] = actor if actor is not None else ctx.world_state(instance, [ref]).get(ref)
         return shown
 
+    def reference_follows(ctx, name, field, seconds=300.0, within=5.0):
+        """Handle `name`'s reference field (dotted: graph.IsLoaded) changes on the host within `seconds`, then the
+        guest's takes the host's value within `within` seconds: a world object's state following what drives it."""
+        def read(instance, game):
+            ref = ctx.handles().get(name, {}).get(game)
+            value = ctx.world_state(instance, [ref]).get(ref) or {}
+            for key in field.split("."):
+                value = value.get(key) if isinstance(value, dict) else None
+            return value
+        start = read("", "host")
+        ctx.wait_for(f"[host] {name}'s {field} changes from {start}", lambda: read("", "host") != start, seconds)
+        ctx.wait_for(f"[client] {name}'s {field} follows the host's ({read('', 'host')})",
+                     lambda: read("client", "guest") == read("", "host"), within)
+
     def observe_handles(ctx, names):
         """{name: {host, guest, apart}}: apart is the distance between the two games' places of it."""
         seen = {}

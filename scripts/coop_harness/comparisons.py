@@ -111,12 +111,16 @@ def loose_object(ref):
     return ref.get("id", 0) < CREATED_ID and FORM_TYPE_NAMES.get(ref.get("type")) in LOOSE_ITEM_TYPES and simulated(ref)
 
 
-def collision_difference(a, b, turns=True):
+def collision_difference(a, b, turns=True, places=True):
     """Two lists of physics bodies ({node, in_world, position, rotation}) that differ, in order; a simulated body's
-    turn too (an animated one turns on each game's clock), unless turns is False (a plant's sway)."""
+    turn too (an animated one turns on each game's clock), unless turns is False (a plant's sway). places False: only
+    how many bodies and which are in the world (a loose item's)."""
     a, b = a or [], b or []
     if len(a) != len(b):
         return f"{len(a)} bodies vs {len(b)}"
+    if not places:
+        return "; ".join(f"{x['node']}: {'in' if x['in_world'] else 'out of'} world vs {'in' if y['in_world'] else 'out of'}"
+                         for x, y in zip(a, b) if x["in_world"] != y["in_world"])
     def turned(x, y):
         return turns and x["motion"] in DYNAMIC_MOTIONS and y["motion"] in DYNAMIC_MOTIONS and not same_turn(x["rotation"], y["rotation"], BODY_TURN_TOLERANCE)
     different = [f"{x['node']}: {'in' if x['in_world'] else 'out of'} world at {show_value('position', x['position'])} vs "
@@ -149,7 +153,7 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
                 differences[field] = text
             continue
         if field == "collision":
-            if text := collision_difference(a, b, turns=not plant):
+            if text := collision_difference(a, b, turns=not plant, places=not loose):
                 differences[field] = text
             continue
         # A physics object's turn is its bodies' (collision, as quaternions): its angles flip near a pitch of 90°.

@@ -98,8 +98,17 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // player AI-driven; its moves are travels (ObjectReference.MoveTo, MoveActorTo).
     std::map<uint32_t, std::vector<uint32_t>> Idles;
     std::map<uint32_t, std::vector<std::string>> GraphEvents;
-    // The events each furniture's own graph got from the actor linked to it (63372; the sawmill's from its worker).
+    // The events each furniture's own graph got from the actor linked to it (63372; the sawmill's from its worker),
+    // and the state its graph is in: FurnitureTransitions {state, event} -> state, from "Idle".
     std::map<uint32_t, std::vector<std::string>> FurnitureGraphEvents;
+    std::map<uint32_t, std::string> FurnitureStates;
+    std::map<std::pair<std::string, std::string>, std::string> FurnitureTransitions;
+    // An actor's graph entering this state sends this event out (its clip's annotation, 63588), to its linked furniture.
+    std::map<std::string, std::string> StateOutputs;
+    // Furniture whose 3D (and graph) is not loaded here: nothing links to it until LoadsFurniture.
+    std::set<uint32_t> FurnitureUnloaded;
+    void LoadsFurniture(uint32_t aFurniture);
+    void FurnitureReceives(uint32_t aFurniture, const std::string& acEvent);
     std::map<uint32_t, std::map<std::string, bool>> GraphBools; // what a graph event sets (Skyrim: BleedOutStart's IsBleedingOut)
     [[nodiscard]] bool GraphBool(uint32_t aActor, const std::string& acName) const
     {
@@ -1349,7 +1358,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         {
             it->second.Ai = acFields;
             it->second.OwnerCombatTarget = acFields.CombatTargetId;
-            it->second.LinkedFurniture = acFields.FurnitureId; // Actor::LinkFurnitureGraphs
+            // Actor::LinkFurnitureGraphs: only with the furniture's graph here.
+            it->second.LinkedFurniture = FurnitureUnloaded.contains(acFields.FurnitureId) ? 0 : acFields.FurnitureId;
             if (!acFields.PackageId)
             {
                 it->second.ProcedureType = CopyPackage::CreateDoNothing([&] { return &(it->second.DoNothing = {}); },

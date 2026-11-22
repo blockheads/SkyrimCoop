@@ -48,6 +48,14 @@ class LooseClutter(unittest.TestCase):
                  "collision": [body]}
         self.assertEqual(reference_differences(self.LADLE, moved), {})
 
+    def test_a_ladle_whose_body_left_the_world_on_one_game_is_still_reported(self):
+        body = {**self.LADLE["collision"][0], "in_world": False}
+        self.assertIn("collision", reference_differences(self.LADLE, {**self.LADLE, "collision": [body]}))
+
+    def test_a_ladle_with_another_body_on_one_game_is_still_reported(self):
+        extra = {**self.LADLE["collision"][0], "node": "WoodenLadle01:1"}
+        self.assertIn("collision", reference_differences(self.LADLE, {**self.LADLE, "collision": [self.LADLE["collision"][0], extra]}))
+
     def test_a_ladle_taken_on_one_game_is_still_reported(self):
         self.assertIn("flags", reference_differences(self.LADLE, {**self.LADLE, "flags": 0x800}))
 
