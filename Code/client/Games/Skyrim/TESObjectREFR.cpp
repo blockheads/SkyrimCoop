@@ -1294,12 +1294,12 @@ static thread_local FreedWornList s_freedWornList;
 bool HookUnequipForRemove(TESObjectREFR* apThis, TESBoundObject* apItem, uint32_t aCount, ExtraDataList* apList)
 {
     const bool cResult = RealUnequipForRemove(apThis, apItem, aCount, apList);
-    bool held = false;
+    std::vector<const void*> held;
     if (const auto* pChanges = apThis ? apThis->GetContainerChanges() : nullptr; pChanges && pChanges->entries)
         for (auto* pEntry : *pChanges->entries)
             if (pEntry && pEntry->form == apItem && pEntry->dataList)
                 for (ExtraDataList* pList : *pEntry->dataList)
-                    held |= pList == apList;
+                    held.push_back(pList);
     s_freedWornList.Unequipped(apList, held);
     return cResult;
 }

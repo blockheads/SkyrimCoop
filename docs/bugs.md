@@ -139,6 +139,7 @@ every other section needs the duo.
 
 **Found by the full run of 2026-11-22**
 
+- [A host 980 units from its saved place after a load](#a-host-980-units-from-its-saved-place-after-a-load): small
 - [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws): small
 - [The party's sword unnamed at a merchant](#the-partys-sword-unnamed-at-a-merchant): small
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
@@ -1357,6 +1358,21 @@ From the run on dev `aa723513` (one-simulator.md pieces 1-10 merged; the header 
 run and again in a shuffled rerun of every failure, unless it says otherwise. Evidence:
 `build/coop-test/results/<time>/at-failure.json` and the client prefix's `SKSE/crash-*.log` in the `bugs-audit-suite`
 worktree. Engine paths are still to be read (step 0, CLAUDE.md) unless an entry says read.
+
+### A host 980 units from its saved place after a load
+
+`held_copy_shown_again_frees_no_list_twice` (2026-11-22, `agent/copy-teardown`): 3 of 10 runs failed
+`host_loads_party`'s "[host] did not return to its saved place: at [-1189, 1513, 6976], saved at [-363, 2035, 6976]",
+each the first run after a duo boot inside a batch; alone it passed 5 of 5 and through the MCP 2 of 2. The party had
+gone to the Ivarstead inn and back to QASmoke seconds before the save. Measured: `coc QASmoke` lands the host at
+(-365, 2034), so the saved place is right and the load (or something after it) left the host elsewhere in QASmoke.
+`host-quickloads-party` (no travel first) passed 4 of 4 beside it. Not read: what is at (-1189, 1513), and the
+host's log through the load.
+
+Agent task: read the host's log from `load HostLoadSelected...` to the check in a failing run (a queued travel or an
+arrival placement replayed after the load?), then the engine path it names.
+
+Size: small. Needs: the duo (`held_copy_shown_again_frees_no_list_twice` after another scenario, `--repeat 4`), IDA.
 
 ### A copy at Sheathed while its owner draws
 

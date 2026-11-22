@@ -474,7 +474,11 @@ struct FakeGraphTarget final : IGraphTarget
         if (aEventId >= cEvents.size())
             return nullptr;
         // As Games/Skyrim's target: between frames, not in the graph's update.
-        return DeferClipRequest([pEngine = &Engine, cFormId = FormId, event = cEvents[aEventId], aSet](const auto& acDone) {
+        const auto cCopy = [pEngine = &Engine, cFormId = FormId] {
+            const auto cActor = pEngine->Actors.find(cFormId);
+            return cActor != pEngine->Actors.end() && cActor->second.Copy;
+        };
+        return DeferClipRequest(cCopy, [pEngine = &Engine, cFormId = FormId, event = cEvents[aEventId], aSet](const auto& acDone) {
             return (aSet == 47 ? pEngine->RequestMovementClips(cFormId, event, acDone) : pEngine->RequestActionClips(cFormId, event, acDone)) != nullptr;
         });
     }
@@ -2337,20 +2341,31 @@ void FakeEngine::EnableActor(uint32_t aFormId) noexcept
     for (const uint32_t cItem : it->second.Outfit)
     {
         const auto& cEntries = it->second.Items.Entries;
-        const bool cWorn = std::ranges::any_of(cEntries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == cItem && acEntry.ExtraWorn; });
-        if (!cWorn)
+        const auto cWorn = std::ranges::find_if(cEntries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == cItem && acEntry.ExtraWorn; });
+        if (cWorn == cEntries.end())
             continue;
         // The worn list: leveled base, worn, and cannot wear when forced. 16059 expects one of three to survive.
-        const bool cForced = it->second.ForcedWorn.contains(cItem);
-        const bool cExpectedToSurvive = cForced;
-        // The unequip strips cannot wear and worn (38920, 16067); what is left merges into an equal unworn list.
-        const bool cFreed = CountOf(aFormId, cItem) > 1;
-        // 19694 answers "survived" always; our hooks on it and on 16059 drop a list that is gone (FreedWornList).
+        const bool cExpectedToSurvive = it->second.ForcedWorn.contains(cItem);
+        // The unequip strips cannot wear and worn (38920, 16067); what is left merges into an EQUAL unworn list (more
+        // of its own stack, or another stack with the same extra data) and is freed. An unequal one leaves it.
+        auto unworn = *cWorn;
+        unworn.ExtraWorn = unworn.ExtraWornLeft = false;
+        const bool cTwin = cWorn->Count > 1 || std::ranges::any_of(cEntries, [&](const auto& acEntry) {
+            return &acEntry != &*cWorn && !acEntry.ExtraWorn && !acEntry.ExtraWornLeft && acEntry.CanBeMerged(unworn);
+        });
+        const int cList = 0, cOther = 0;
+        std::vector<const void*> held; // the entry's lists after the unequip
+        if (cTwin)
+            held = {&cOther};
+        else
+            held = {&cList};
+        // 19694 answers "survived" always; our hooks on it and on 16059 drop a list the entry no longer holds.
         FreedWornList freed;
         freed.Enter();
-        freed.Unequipped(&cItem, !cFreed);
+        freed.Unequipped(&cList, held);
         freed.Enter(); // the nested RemoveItem, handed the list
-        if (cExpectedToSurvive && cFreed && !freed.IsFreed(&cItem))
+        WornListsMerged += cTwin;
+        if (cExpectedToSurvive && cTwin && !freed.IsFreed(&cList))
             ++WornListDoubleFrees;
         it->second.ForcedWorn.erase(cItem);
     }

@@ -1591,6 +1591,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // RemoveItem 16059's no-process unequip (19694). A worn list 16059 expects to survive that the unequip frees is
     // freed again unless 19694 says it is gone (inventory-changes.md, "the list freed twice").
     uint32_t WornListDoubleFrees = 0;
+    // Worn lists an enable's reset unequipped that merged into an equal twin (freed), whoever answered for them.
+    uint32_t WornListsMerged = 0;
     void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;
     void SetActorHidden(uint32_t aFormId, bool aHidden) noexcept override;
     // An enable parent made from its file or a save (InitItemImpl, InitLoadGame): 20271 sets each child's flag raw

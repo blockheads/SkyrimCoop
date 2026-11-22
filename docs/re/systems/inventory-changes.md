@@ -172,7 +172,8 @@ patches 16059, 19694 or 16067 (searched by their IDs).
 
 ```text
 InventoryChanges::RemoveItem 16059, a stack that is worn (stackList = its ExtraDataList, 32 bytes)
-  listDiesWithWorn = the list has 1 extra, or 2 and a count above 1
+  listDiesWithWorn = the list has 1 extra, or 2 and (a count above 1, or 0x140164840's extra, or
+                     type 142 the leveled item base: 0x14022f469, 0x1402301a7)
   owner has an AIProcess   ActorEquipManager::UnequipObject 38901
                              returns EquipData+0x24: "the list is gone" (38920 <- 38002 <- 38005 <- 16067 == 0)
   owner has none           19694: vfunc 0xA1 UnequipItem (Actor 37975), then ALWAYS returns 1
@@ -194,10 +195,12 @@ disabled (19801 frees it).
   by 16067+0x56a (from `Actor::UnequipItem` 37975) on the same thread, 0 ms before. With the quarantine the read
   hangs on the list's lock (`0xDBDBDBDB`); the list had been made by `AddWornItem` 16066 under our equip
   (`InventoryService::ApplyWorn`) 44 s earlier.
-- **Read:** the crashes of bugs.md's "A guest crash through a pointer that holds a vtable" are this free list's
-  victims, not stale pointers of their own: at 92960 and 91958 (`MovementMessagePathFailed` and
-  `MovementMessageActivateDoor` constructors, 32 bytes) the faulting `this` is what `MemoryManager::Allocate(32)`
-  returned (90880), a vtable's address: a free block's link overwritten by a second owner's first field.
+- **Read:** at 92960 and 91958 (`MovementMessagePathFailed` and `MovementMessageActivateDoor` constructors, 32
+  bytes) the faulting `this` is what `MemoryManager::Allocate(32)` returned (90880), a vtable's address: a free
+  block's link overwritten, so those crashes are the heap's victims, not stale pointers of their own.
+  **Inferred:** that the six crashes of 2026-11-22 (bugs.md's "A guest crash through a pointer that holds a vtable",
+  now removed) were all this worn list. What is measured: one free and a stale read under the quarantine, and one
+  crash of the same shape from this path with the hook off (below), with no second free recorded.
 - **Measured, then read:** the list held three extras, `[142 leveled item base, 22 worn, 61 cannot wear]`, beside an
   unworn `[142]` list of the same item (copy `19E08`, item `1BE1A`; a log line at 37975, 3 of 3 runs hung). 16059
   counts three and expects it to survive. The unequip strips `ExtraCannotWear` first (38920 at `0x1406de0ca`,

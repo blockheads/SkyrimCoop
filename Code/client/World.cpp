@@ -1,3 +1,4 @@
+#include <WorldGate.h>
 #include "World.h"
 
 // SkyrimBridge is included here (not in World.h) to keep SKSE headers out of
@@ -293,12 +294,8 @@ void World::Create() noexcept
     if (!entt::locator<World>::has_value())
     {
         entt::locator<World>::emplace();
+        WorldGate::Open();
     }
-}
-
-bool World::Exists() noexcept
-{
-    return entt::locator<World>::has_value();
 }
 
 World& World::Get() noexcept

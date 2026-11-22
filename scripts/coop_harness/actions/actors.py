@@ -184,14 +184,18 @@ class ActorsActions:
         return True
 
 
-    def expect_stack_extra(ctx, instance, holder, item, extra, timeout=15):
+    def expect_stack_extra(ctx, instance, holder, item, extra, beside=None, timeout=15):
         """Some stack of `item` on `holder` in that game holds extra data of type `extra` (harness stack_extras; 22
-        worn, 61 cannot wear, 142 leveled item base), within `timeout`. Its stacks' types."""
+        worn, 61 cannot wear, 142 leveled item base), within `timeout`; with `beside`, another stack holds exactly
+        those types (its twin once un-worn). Its stacks' types."""
         def held():
             reply = ctx.game(instance).rpc({"cmd": "stack_extras", "object": holder, "item": item}, timeout=10) or {}
             stacks = [stack["types"] for stack in reply.get("stacks", [])]
-            return any(extra in types for types in stacks) and stacks
-        return ctx.wait_for(f"[{instance or 'host'}] {holder:X}'s {item:X} has a stack with extra {extra}", held, timeout)
+            with_extra = [types for types in stacks if extra in types]
+            twin = beside is None or any(sorted(types) == sorted(beside) for types in stacks if extra not in types)
+            return with_extra and twin and stacks
+        what = f" beside one of {beside}" if beside is not None else ""
+        return ctx.wait_for(f"[{instance or 'host'}] {holder:X}'s {item:X} has a stack with extra {extra}{what}", held, timeout)
 
 
     def expect_no_double_free(ctx, instance):

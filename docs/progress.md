@@ -2378,8 +2378,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   vtable crashes and the Ivarstead hangs were one engine double free of an item's `ExtraDataList`: a held copy shown
   again (the session's end) has its inventory reset before it has a process, and `RemoveItem` 16059 hands its nested
   call a worn list 19694's unequip freed (`inventory-changes.md`, "the list freed twice"). Fixed by
-  `HookUnequipForRemove` (19694) with `FreedWornList`; the graph hooks run the engine's own when the cog swap has
-  taken the `World` down. Tools: heap history counts double frees (harness `heap`, verb `expect_no_double_free`,
+  `HookUnequipForRemove` (19694) with `FreedWornList`; the graph hooks hold a `WorldGate::Reader`, which the cog swap's
+  unload closes and waits for before it takes the `World` down. Tools: heap history counts double frees (harness `heap`, verb `expect_no_double_free`,
   `duo_start heap_history=2`), and a hang on a lock in freed memory names its free. `guest-ivarstead-fine-mouse-sweep`
   with the quarantine: hung 3 of 3, then passed 2 of 2. The copy teardown between frames was dropped.
 - **Done 2026-11-22: a copy's clip request deadlocked with the loader's callbacks.** Found by the same runs

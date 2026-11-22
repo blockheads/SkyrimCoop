@@ -706,6 +706,36 @@ SCENARIO("A held copy wearing its outfit beside a twin is shown again: no worn l
     {
         party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(DisconnectedEvent{}); });
         REQUIRE_FALSE(guest.IsActorDisabled(kOlava));
-        THEN("the engine freed no worn list twice") CHECK(guest.WornListDoubleFrees == 0);
+        THEN("the engine freed her worn list into its twin once, not twice")
+        {
+            CHECK(guest.WornListsMerged == 1);
+            CHECK(guest.WornListDoubleFrees == 0);
+        }
     }
+}
+
+SCENARIO("A held copy wearing its outfit beside an unequal stack is shown again: its worn list stays", "[copies]")
+{
+    Party party(1, OutdoorsWithOlava);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    Inventory::Entry tempered;
+    tempered.BaseId = SessionIdOf(kOutfitArmor);
+    tempered.Count = 1;
+    tempered.ExtraHealth = 1.2f;
+    party.As(party.Host(), [&] {
+        host.OutfitPutsOn(kOlava, kOutfitArmor);
+        host.GetsItem(kOlava, tempered);
+    });
+    party.As(party.Guest(), [&] { guest.Actors.at(kOlava).Outfit.insert(kOutfitArmor); });
+    party.Until([&] {
+        return guest.IsActorCopy(kOlava) && guest.CountOf(kOlava, kOutfitArmor) == 2 && guest.Actors.at(kOlava).ForcedWorn.contains(kOutfitArmor);
+    }, "the guest's copy wears her outfit armor beside a tempered one");
+
+    party.As(party.Host(), [&] { host.Actors.at(kOlava).Loaded = false; });
+    party.Until([&] { return guest.IsActorDisabled(kOlava); }, "the guest's copy with no owner is hidden");
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(DisconnectedEvent{}); });
+    REQUIRE_FALSE(guest.IsActorDisabled(kOlava));
+    CHECK(guest.WornListsMerged == 0);
+    CHECK(guest.WornListDoubleFrees == 0);
 }

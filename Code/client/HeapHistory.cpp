@@ -335,24 +335,6 @@ bool DoubleFree(const void* apBlock) noexcept
     return true;
 }
 
-void Reallocated(const void* apOld, const void* apNew) noexcept
-{
-    if (!s_sizeStripes || apOld == apNew)
-        return;
-    if (apNew)
-    {
-        SizeStripe& stripe = StripeOf(reinterpret_cast<uintptr_t>(apNew));
-        std::lock_guard lock(stripe.Lock);
-        stripe.Freed.erase(reinterpret_cast<uintptr_t>(apNew));
-    }
-    if (apOld && apNew)
-    {
-        SizeStripe& stripe = StripeOf(reinterpret_cast<uintptr_t>(apOld));
-        std::lock_guard lock(stripe.Lock);
-        stripe.Freed.insert(reinterpret_cast<uintptr_t>(apOld));
-    }
-}
-
 uint64_t DoubleFrees() noexcept
 {
     return s_doubleFrees.load();

@@ -1,3 +1,4 @@
+#include <WorldGate.h>
 #include <Plugin.h>
 #include <World.h>
 #include <Components.h>
@@ -56,6 +57,8 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
         }
         world.ctx().at<PapyrusService>().HandOffFunctions();
         world.GetTransport().Close();
+        // Engine jobs still run our hooks: the ones reading the World leave first.
+        WorldGate::Close();
         entt::locator<World>::reset();
     }
 

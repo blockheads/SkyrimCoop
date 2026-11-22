@@ -108,8 +108,9 @@ Built:
 HookUnequipForRemove (19694)    after the engine's: does the item's entry still hold the list? no -> remember it
 HookRemoveFromInventory (16059) entered next by the nested call: the remembered list -> no list
                                 (19694's answer stays: its other caller, 0x14022f49b, reads 1 as "go on")
-the clip-load and graph hooks   World::Exists(), else the engine's own: the cog swap resets the World
-                                (PluginUnload.cpp) before it removes the hooks, and engine jobs run between
+the clip-load and graph hooks   a WorldGate::Reader, else the engine's own: the cog swap resets the World
+                                (PluginUnload.cpp) before it removes the hooks, and engine jobs run between;
+                                the unload closes the gate and waits for the readers inside
 ```
 
 - Tests: the scenario `held_copy_shown_again_frees_no_list_twice` (the hook off: the guest crashed 1 of 1, a vtable in

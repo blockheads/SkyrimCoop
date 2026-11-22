@@ -85,3 +85,5 @@ time	op	id	rva	item
 2026-11-22T19:14:18Z	read	109588	0x15a743c	{"name": "sub_1415A743C"}
 2026-11-22T19:14:22Z	name	109588	0x15a743c	{"addr": "0x1415A743C", "name": "j_SizedDelete"}
 2026-11-22T19:14:22Z	name	36098	0x10ba70	{"addr": "0x14010BA70", "name": "SizedDelete"}
+2026-11-22T19:25:48Z	read	68116	0xcde4a0	{"name": "MemoryManager::Reallocate"}
+2026-11-22T19:25:51Z	comment		0xcde4db	{"addr": "0x140cde4db", "comment": "Reallocate allocates the new block through MemoryManager::Allocate 68115 and frees the old one through Deallocate 68117 (0x140cde66d): both pass our allocator hooks, so a move needs no bookkeeping of its own."}

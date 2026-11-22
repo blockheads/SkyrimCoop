@@ -11,7 +11,7 @@ def run(ctx):
     try:
         ctx.count_double_frees()
         ctx.both_go(cell='IvarsteadVilemyrInn')
-        ctx.expect_stack_extra(instance='client', holder=105992, item=114202, extra=61)
+        ctx.expect_stack_extra(instance='client', holder=105992, item=114202, extra=61, beside=[142])
         ctx.both_go(cell='QASmoke')
         ctx.host_loads_party(quick=False)
         ctx.expect_no_double_free(instance='client')

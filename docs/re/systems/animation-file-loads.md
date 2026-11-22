@@ -96,8 +96,9 @@ Read in IDA on 1.7.104; the deadlock measured on the duo (`guest-ivarstead-jail-
 
 Both of our orders cross 63997's: the graph lock before the animation lock, and before the manager's. The two jobs
 run at once (measured: `RunOneActorAnimationUpdateJob` 41453 threads beside 63980's). The engine's own callers of
-43621 (39625 the action's, 39291 an instant interaction's, 41694 a movement idle's) run in AI and movement jobs, none
-under 63358 (read: 43621's three callers; their callers up to a graph update were not walked).
+43621 are 39625 (the action's), 39291 (an instant interaction's) and 41694 (a movement idle's) (read). Whether any
+of them can run under 63358 is not established: their callers were not walked up to a graph update, so the engine
+may hold the same inversion.
 
 - **Measured:** thread 436 in 63358 for copy `A8C9C` waited in `ActionClips::Request` for the animation lock;
   thread 440 in 63997 held it and waited in 32932 for the graph lock, owner 436 (`waits for spin lock 0x27add630:
@@ -105,7 +106,8 @@ under 63358 (read: 43621's three callers; their callers up to a graph update wer
   callback). Four more animation threads waited in 63968 for the manager's lock.
 - **The fix** (`Games/Animation/DeferredClips.h`): the stream's request is queued for the frame's start
   (`MainLoopTasks`), where no job runs; the replay already waits on the load's flag, which now exists before the
-  load does. Tests: GameTests "A copy deleted while its movement idle's clips load leaves no load on its lock" (the
+  load does. A request whose actor is no longer a copy at the drain (released as the session ended) is dropped:
+  the action's load would cancel that actor's own (39258). Tests: GameTests "A copy deleted while its movement idle's clips load leaves no load on its lock" (the
   fake counts requests made inside a graph update: `ClipRequestsUnderGraphLock`).
 - The lock-order checker sees none of this: it tracks `BSReadWriteLock`, and these are `BSSpinLock`s.
 

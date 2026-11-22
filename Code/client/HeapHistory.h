@@ -40,8 +40,6 @@ void OnFree(const void* apBlock) noexcept;
 // With the history or the quarantine on: true for a block freed already and not allocated since (logged with its
 // story and counted); the caller must not free it again.
 bool DoubleFree(const void* apBlock) noexcept;
-// The engine's reallocation moved a block: the new one is live, the old one freed.
-void Reallocated(const void* apOld, const void* apNew) noexcept;
 uint64_t DoubleFrees() noexcept;
 // Whether double frees are being counted.
 bool Recording() noexcept;
