@@ -16,9 +16,11 @@ What the dev chat commands rely on (`docs/design/dev-commands.md`). 1.7.104, rea
 - `GameFunc::native::IsLastHostileActor` (21743): 1.0 when `ProcessLists::AreHostileActorsNear` finds none, or exactly
   one and it is the subject.
 
-- `Actor::WouldAttackKill` (38559) in full (read 2026-11-22): false when the target is dead (vfunc 0x99) or
-  `Actor::CanBeKilledBy(target, attacker)` (37229, named here: reanimated, or not essential `+0x204` 0x40000, not
-  vfunc 94, not protected 0x80000 unless the attacker is the player); then the probe hit's fatal flag, false again when
+- `Actor::WouldAttackKill` (38559) in full (read 2026-11-22): false when the target is dead (vfunc 0x99,
+  `Actor::IsDead(false)` 37483: with false an essential-down actor, life state 7, counts as dead; the Papyrus native
+  passes true) or not `Actor::CanBeKilledBy(target, attacker)` (37229, named here: reanimated, or not essential
+  `+0x204` 0x40000, not a child (vfunc 94, on `Character` 40272: race flag 4), not protected 0x80000 unless the
+  attacker is the player); then the probe hit's fatal flag, false again when
   the attacker's process byte (39996: middle-high `+0x324`, meaning not read) is set and it is not `EngagingInCombat`
   (38563). No random number anywhere on the path.
 - The target reaches the condition (read, `TESConditionItem::IsTrue` 29924): the idles give both conditions param 0;

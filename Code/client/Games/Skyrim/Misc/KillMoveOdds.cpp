@@ -36,13 +36,16 @@ uint32_t Roll(const void* apAttacker, const void* apTarget) noexcept
                         [] { return std::uniform_int_distribution<uint32_t>(0, 99)(s_random); });
 }
 
-// Actor::WouldAttackKill 38559 before its hit probe: a living victim the attacker may kill (CanBeKilledBy 37229),
+// Actor::WouldAttackKill 38559 before its hit probe: a living victim (IsDead 37483, false: essential-down counts as
+// dead) the attacker may kill (CanBeKilledBy 37229),
 // and an attacker in combat when its process asks for it (39996, EngagingInCombat 38563).
 bool Killable(void* apSubject, void* apTarget) noexcept
 {
     auto* pAttacker = Cast<Actor>(static_cast<TESForm*>(apSubject));
     auto* pVictim = Cast<Actor>(static_cast<TESForm*>(apTarget));
-    if (!pAttacker || !pVictim || pVictim->IsDead())
+    using TIsDead = bool(Actor*, bool);
+    POINTER_SKYRIMSE(TIsDead, s_isDead, 37483);
+    if (!pAttacker || !pVictim || s_isDead.Get()(pVictim, false))
         return false;
     using TCanBeKilledBy = bool(Actor*, Actor*);
     using TProcessGate = bool(AIProcess*);
