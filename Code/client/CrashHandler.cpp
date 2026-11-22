@@ -314,6 +314,21 @@ int CrashHandler::Backtrace(const CONTEXT& acContext, DWORD64* apFrames, int aMa
     return CaptureBacktrace(acContext, apFrames, aMaxFrames);
 }
 
+__declspec(noinline) int CrashHandler::CaptureStack(void** apFrames, int aMaxFrames, int aSkip) noexcept
+{
+    constexpr int cMost = 64;
+    CONTEXT context;
+    RtlCaptureContext(&context);
+    DWORD64 frames[cMost];
+    // Frame 0 is this function.
+    const int cFirst = aSkip + 1;
+    const int cCount = CaptureBacktrace(context, frames, std::min(cMost, aMaxFrames + cFirst));
+    int kept = 0;
+    for (int i = cFirst; i < cCount; ++i)
+        apFrames[kept++] = reinterpret_cast<void*>(frames[i]);
+    return kept;
+}
+
 // The spin lock a stuck thread waits for, read after the threads run again (a copy: it may be freed memory).
 static void LogSpinLock(DWORD64 aLock)
 {

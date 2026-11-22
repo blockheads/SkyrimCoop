@@ -1,5 +1,7 @@
 #include "HeapHistory.h"
 
+#include "CrashHandler.h"
+
 #include <windows.h>
 
 #include <algorithm>
@@ -101,7 +103,7 @@ void Capture(Event& aEvent, uintptr_t aBlock, uint32_t aSize) noexcept
     aEvent.ThreadId = GetCurrentThreadId();
     aEvent.Ms = GetTickCount64();
     // Skips Capture and Add; crash_report.py leaves out the allocator hook's own frames.
-    const USHORT cCaptured = RtlCaptureStackBackTrace(2, cFrames, aEvent.Frames, nullptr);
+    const int cCaptured = CrashHandler::CaptureStack(aEvent.Frames, cFrames, 2);
     for (int i = cCaptured; i < cFrames; ++i)
         aEvent.Frames[i] = nullptr;
 }

@@ -3,6 +3,7 @@
 #include "ActivateWatch.h"
 #include "Commands.h"
 
+#include <CrashHandler.h>
 #include <Havok/bhkCollision.h>
 #include <MinHook.h>
 #include <NetImmerse/NiNode.h>
@@ -68,7 +69,7 @@ int64_t Now() noexcept
 Event Capture(const char* acpWhat, uint32_t aReference) noexcept
 {
     Event event{.Time = Now(), .What = acpWhat, .Reference = aReference, .Thread = GetCurrentThreadId()};
-    event.Depth = RtlCaptureStackBackTrace(2, cStackDepth, event.Stack.data(), nullptr);
+    event.Depth = static_cast<USHORT>(CrashHandler::CaptureStack(event.Stack.data(), cStackDepth, 2));
     return event;
 }
 

@@ -4,6 +4,7 @@
 #include "LockOrderHistory.h"
 #include "LockOrderAttribution.h"
 
+#include <CrashHandler.h>
 #include <HotReload/Handoff.h>
 #include <Hooks/SkseBranchPatch.h>
 
@@ -112,7 +113,7 @@ void RememberPairStack(uint64_t aOuterCaller, uint64_t aInnerCaller)
         if (seen == 0 && slot.Key.compare_exchange_strong(seen, cKey, std::memory_order_acq_rel))
         {
             void* frames[cPairFrames];
-            slot.Count = RtlCaptureStackBackTrace(2, static_cast<ULONG>(cPairFrames), frames, nullptr);
+            slot.Count = static_cast<uint16_t>(CrashHandler::CaptureStack(frames, static_cast<int>(cPairFrames), 2));
             for (uint16_t i = 0; i < slot.Count; ++i)
                 slot.Frames[i] = reinterpret_cast<uint64_t>(frames[i]);
             slot.Ready.store(true, std::memory_order_release);
@@ -322,11 +323,11 @@ void Report(uint64_t aPattern, std::string aMessage, const PairStack* apOtherSta
     if (cIndex < 64)
     {
         void* frames[32];
-        const USHORT cCount = RtlCaptureStackBackTrace(1, 32, frames, nullptr);
+        const int cCount = CrashHandler::CaptureStack(frames, 32, 1);
         std::string stack;
         // Our frames above the engine's lock call are this checker itself.
         std::array<uintptr_t, 32> addresses{};
-        for (USHORT i = 0; i < cCount; ++i)
+        for (int i = 0; i < cCount; ++i)
         {
             const auto cFrame = reinterpret_cast<uint64_t>(frames[i]);
             addresses[i] = cFrame;
