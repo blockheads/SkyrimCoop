@@ -62,14 +62,9 @@ every other section needs the duo.
 - [A chest lid's pose](#a-chest-lids-pose): small
 - [Physics against vanilla](#physics-against-vanilla): medium
 
-**Dialogue**
-
-- [The picked line overlaps](#the-picked-line-overlaps): small
-
 **Party scripts**
 
 - [The werewolf's turn back](#the-werewolfs-turn-back): medium, no duo
-- [Leaving a crafting station](#leaving-a-crafting-station): small
 
 **Party travel**
 
@@ -527,24 +522,6 @@ Size: medium. Needs: the duo, then GameTests.
 - **The harness's `world_state` crashed the host once** (access violation in `EngineCalls.cpp` `ReadPose`, walking an
   object's 3D), on the first call after staging; not seen again.
 
-## Dialogue
-
-### The picked line overlaps
-
-Stands alone: small and visual.
-
-Agent task: Stop `DialogueBridge::ShowPicked` duplicating the picked line in the claw conversation.
-
-Size: small. Needs: duo (screenshots).
-
-- **The picked line overlaps in the claw conversation** (2026-10-30, the user, playing the duo). In
-  `dialogue-options-are-the-partys`, when an option is picked the dialogue text shows duplicated, overlapping. Not
-  captured. Likely `DialogueBridge::ShowPicked` writing the picked line into `TextCopy_mc` where the menu already
-  shows one (the claw topic lists two lines).
-  - Found 2026-10-30: small and visual.
-  - Start: a screenshot of both menus at the pick (`coop_test.py screenshot`) in that scenario.
-  - Test: the scenario's pick, both screens.
-
 ## Party scripts
 
 ### The werewolf's turn back
@@ -562,27 +539,9 @@ Size: medium. Needs: GameTests (the fake must keep a copy's graph state).
   - Not reproduced (2026-10-29): repeated transitions pass and the historical crash is unproven; a crash in play arrives
     as a crash bundle ([bug-reports.md](design/bug-reports.md)).
   - Follow-up: graph bounds/types, descriptor invalidation and owner-value restoration are implemented; concurrent animation-snapshot protection is also implemented. Repeated native transitions pass, but the historical crash remains open. See [stability follow-up](v1-session-items-2026-10-28.md#stability-follow-up).
+  - Still not reproduced (2026-11-18, `agent/bugs-dialogue`): `host-beast-form-stays-host` passed 2 of 2 on dev.
   - Start: what the copy's graph holds when the owner's race changes back (the respawn from its new base data).
   - Test: a `GameTests` race switch back with the copy mid-transform, once the fake keeps a copy's graph state.
-
-### Leaving a crafting station
-
-Stands alone: one exit path.
-
-Agent task: Make the copy finish its owner's exit from a crafting station instead of staying on sit state 4.
-
-Size: small. Needs: duo, then GameTests.
-
-- **A guest's copy can stay "getting up" after the guest leaves a crafting station** (2026-10-27, party-scripts-2).
-  After the client closed the cooking spit's Crafting Menu, its player went from sit state 4 (want to stand) to 0, while
-  the host's copy went from 0 to 4 and stayed there (twice in four tries, both after the menu was closed with a box
-  still up or mid-craft; `guest-craft-raises-story`'s own path passed twice clean). The baseline then refuses the next
-  scenario ("state.sit_sleep: client (owner) 0 vs host copy 4"). `furniture-client-player` (moveto and activate out)
-  passes, so it is the crafting menu's exit.
-  - Reproduce: client at QASmoke's spit (0x101973), E, E, Tab while the "create this item?" box is up; read
-    `sit_state` on both games.
-  - Start: what the owner's graph sends on a crafting furniture's exit, and whether the copy's replay (copies run no
-    AI) can finish an exit it began. A `copy_flows.cpp` case once the fake has the furniture states.
 
 ## Party travel
 

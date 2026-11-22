@@ -245,6 +245,16 @@ pushed off their goal, and a step out of furniture turns collision back on; fail
 ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest` (the new field), scenario
 `copy-leaves-furniture-steady`.
 
+**Getting up** (2026-11-18, read in IDA, 1.7.104; measured on the duo): the owner's exit is an action whose graph
+event is `IdleChairExitStart`. Applied to the copy, `ApplyActionGraphEffects` (39004), on its started-action path
+(`a3` set), sees `chairExitStart` (and four other exit events) and sets sit state 4, wants to stand, through
+`Actor::SetSitSleepStateFromGraph` (39000). Nothing there ends 4: an NPC's 4 ends only in the exit clip's
+`ChairFurnitureExitHandler` (42835), which sets 0 from states 1 to 4; the player's `PlayerFurnitureExitHandler` (42837)
+sets 0 with no state check. Inferred, not measured: a copy whose graph plays no exit clip after the 4 would stay on 4,
+which may be how the 2026-10-27 copy was left there. Measured at QASmoke's cooking spit: the copy went 0, 3
+(`IdleCookingSpitEnter`), 0 on the guest's Tab out, after a plain exit and after Tab right after the craft box's Yes
+(`guest-leaves-crafting-mid-craft`). The 2026-10-27 copy left on 4 was not seen again.
+
 ## A culled actor keeps its pose (2026-11-05)
 
 Read in IDA on 1.7.104 (`owners-walk-slide`: 40335, 106433, 38054, 38009, 37361), checked on the duo. Why the host's

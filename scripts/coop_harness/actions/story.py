@@ -139,6 +139,16 @@ class StoryActions:
             ctx.wait_for(f"{tag} the selection moves", lambda: int(ctx.crafting_entries(instance, "selectedIndex")) != at, 3)
 
 
+    def select_makeable_crafting_entry(ctx, instance):
+        """Selects the first recipe the player can make (the list greys the rest: enabled 0); returns its index."""
+        count = int(ctx.crafting_entries(instance, "entryList.length") or 0)
+        target = next((i for i in range(count) if ctx.crafting_entries(instance, f"entryList.{i}.enabled")), None)
+        if target is None:
+            raise ctx.failure(f"[{instance or 'host'}] none of the {count} recipes can be made")
+        ctx.select_crafting_entry(instance, target)
+        return target
+
+
     def leave_crafting_station(ctx, instance, what):
         """Tab out of a crafting menu, answering its boxes with their first button (alchemy's "Created ... Discovered
         effects" note and "Quit alchemy?"), and stand up."""
