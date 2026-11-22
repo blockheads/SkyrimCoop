@@ -83,7 +83,6 @@ every other section needs the duo.
 **Plugin compatibility**
 
 - [Quest start and stop events](#quest-start-and-stop-events): medium
-- [Clutter flags after a vampire rejoin](#clutter-flags-after-a-vampire-rejoin): small
 
 **Crime and aggro**
 
@@ -115,7 +114,6 @@ every other section needs the duo.
 - [A player at a chest reads lower than its copy](#a-player-at-a-chest-reads-lower-than-its-copy): small
 - [A rider at a scenario's end](#a-rider-at-a-scenarios-end): small
 - [A guest crashed loading a copy's idle clips](#a-guest-crashed-loading-a-copys-idle-clips): small
-- [Riverwood's scenery drifts apart](#riverwoods-scenery-drifts-apart): small
 - [Cover plates after the host leaves](#cover-plates-after-the-host-leaves): small
 - [A follower's party ahead of its copies](#a-followers-party-ahead-of-its-copies): small
 - [Failures only deep in a long run](#failures-only-deep-in-a-long-run): medium
@@ -175,18 +173,14 @@ Size: small. Needs: IDA, the duo (`party-buys-house-host`, `--repeat`), then Gam
 ### After a guest rejoins
 
 The harness's `rejoin_client` joins again from a running game, keeping that game's world; a player leaves to the main menu and joins
-with the host's save (`joins_with_world`). Differences follow both paths at Lucan's in Riverwood (2026-11-07). The scenario
-`guest-rejoins-while-joined` (2026-11-18) takes both paths there: every step passes, then its end comparison fails on the
-references below (5: a fork, a wine bottle, a salmon, the two hanging plants).
+with the host's save (`joins_with_world`). Differences follow both paths at Lucan's in Riverwood (2026-11-07). The
+references its end comparison found (a fork, a wine bottle, a salmon, the hanging plants, containers by `0x8000000`)
+are no longer compared (piece 10, and piece F 2026-11-22: [piece-f-plan.md](design/piece-f-plan.md)).
 
-Agent task: read why each reference differs after a rejoin, starting from that scenario.
+Agent task: find why a rejoined guest's armor and Lucan's head tracking differ, starting from the scenarios below.
 
 Size: small. Needs: the duo (Riverwood), then GameTests.
 
-- **References differ** (4 of 4): 13 to 15 references, containers by the change flag `0x8000000` on the host only (CommonLib
-  `kLeveledInventory`, not read here) and loose objects' poses. It does not depend on time away: 1 s did it.
-- **Also after a join with the host's save** (2 of 3): one hanging plant in the shop (`FLOR 38B0C`, `38BE6` or `38BE7`), its `b_Lower` bone
-  turned differently. `released-copy-takes-up-its-ai` ends in the blank cell, so it does not fail on this.
 - **A guest joining again does not wear what it wore** (`guest-swaps-armor-after-join`, 2026-11-10): `[client] the guest
   wears iron armor again` times out, on dev's plugin 3 runs in 4 and on the graph input stream's 2 in 3 and 2 in 4
   (with and without players on the stream). The first run of a session passes more often than the next ones. Not
@@ -365,31 +359,29 @@ Size: medium. Needs: duo.
   `10C3BA`) posed differently, the guest's player 19 units above the floor, the host player's copy 18 units
   into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again).
   `faendal-letter` fails its end comparison the same way, and `copy-holds-spell-after-trip` in Whiterun (2026-11-07: 59
-  references, containers with change flag `0x8000000` on the host only, loose food posed differently). (Hod's `pose.head` 117 against 88, once, was a culled
+  references). (Hod's `pose.head` 117 against 88, once, was a culled
   skeleton read as visible through the stale `was_in_frustum`: the observer now reads `pose_visibility.drawn`,
   culled-npc-pose-readings.md, 2026-11-05.)
   - Test: that scenario, after its steps.
-  - Containers in the Bannered Mare differ at the end too (2026-11-06): `changes 0x8000000` on the host's and none on
-    the guest's, 39 references (`held-copy-goes-with-owner` run there).
   - The rabbit and Olava with no owner are fixed: [copy-lifecycle.md](re/systems/copy-lifecycle.md).
   - A creature's copy 57-58 units off its owner in height, x and y within a unit, at the end of
     `wolf_copy_turns_with_owner` (2026-11-09: wolf `9B0DB` 58 below, deer `8480B` 57 above, one each in two runs). Their
     graphs matched their owners' at every update through those runs (the live check), so not the graph. Unread: what
     holds the copy's capsule at that height.
-  - `copies_follow_owners_graphs_in_town` (Whiterun, 2026-11-09) ends with the same containers (`0x8000000` on the host
-    only), loose food and a door, 45-52 references.
-  - `copy_holds_furniture_prop` (Riverwood, 2026-11-16) passes its steps and ends with the fish (`10C3BA`, `10B035`), the
-    containers (`0x8000000`) and Riverwood's mill log, 47 references.
+  - `copies_follow_owners_graphs_in_town` (Whiterun, 2026-11-09) ends with a door among 45-52 references.
+  - Piece F (2026-11-22, [piece-f-plan.md](design/piece-f-plan.md)): containers' `0x8000000` (the host's leveled
+    roll, 16128; the guest is given the same items) and where loose items lie are no longer compared; Riverwood's mill
+    log follows its worker on every game (F3: a copy's furniture gets its graph events, scenario
+    `copy-worker-drives-furniture` 2 of 2).
   - `guest-trips-platform-guard` (Solitude, 2026-11-17, three runs) passes its steps and ends with townsfolk scattering
     from the interrupted execution 57-94 units off their owners (Lisette, Greta, Jala; Roggvir 66 off and facing 57 deg
     apart), and once the guest's player 40 units into the floor, owner and copy alike. Unread: whether the copies lag a
     run or hold a stale point.
 - 2026-11-22, dev `aa723513`: `copies_follow_owners_graphs_in_town` passed; `copy_holds_furniture_prop` ended on
-  Dorthe's copy 58 units off, `copy-leaves-furniture-steady` on the mill log, `copy-holds-spell-after-trip` on four
-  pieces of food, `guest-trips-platform-guard` on Evette San 75 units off and the guest's copy. On the
+  Dorthe's copy 58 units off, `guest-trips-platform-guard` on Evette San 75 units off and the guest's copy. On the
   `LateAfterDragonslayerBackinSkyrim` boot `faendal-letter` passed whole (once), and
-  `copy-keeps-spell-after-party-travel` ended on 12 references (apples turned, activators `8AF59` with `0x8000000` on
-  one game).
+  `copy-keeps-spell-after-party-travel` ended on 12 references (weapon racks, ACTI `8AF59`
+  `WeaponRackMidACTIVATOR`, with `0x8000000` on one game: not read, an activator has no container).
 
 ### A strafing copy catches for a frame
 
@@ -431,7 +423,7 @@ Size: small. Needs: IDA, the duo.
   runs where the host also won and "Ride on 1C refused ... our player gets off" logged; 0 of 2 runs before the claim
   refactor (those failed on Riverwood's drift). Not read yet whether the refactor changed the refusal's timing.
 - 2026-11-22, dev `aa723513`: 1 of 4 runs passed; the three failures were other shapes (a rabbit's and a fox's copy off
-  their owners, the mill's log: [Riverwood's scenery](#riverwoods-scenery-drifts-apart)), none crouched. Not enough
+  their owners, the mill's log: fixed by piece F, 2026-11-22), none crouched. Not enough
   runs to say the crouch is gone.
 
 ### The Greybeards scene never casts the host's player
@@ -680,42 +672,6 @@ Size: medium. Needs: duo with mods.
   - Start: investigate actual native notification sources with the intended consumer installed. Do not synthesize
     another stop from flag changes or add a timing-based duplicate filter. Native counters remain available through
     `quest_fragments`; journal/reward tests keep their vanilla stage and completion assertions.
-
-### Clutter flags after a vampire rejoin
-
-Three ladles in the baseline cell differ between the games: on vanilla too, in about one flow in fifty.
-
-Agent task: Find what moves or flags the three ladles (`32AFE`, `32AFF`, `32B00`) on one game only, starting from a run
-that just reported one (`unsynced`, `save-diff`).
-
-Size: small. Needs: duo.
-
-- **Movement-record flags on guest clutter after a vampire rejoin** (B8, 2026-10-29).
-  With all six fix mods, `vampirism-kept-across-rejoin` passes its behavior checks, then the world check finds only
-  movement-record change flags differing on three clutter references (`32AFF`, `32AFE`, `32B00`, base `319E5`), set
-  only on the guest; positions agree within the check's tolerance. Once, not seen on vanilla (2026-10-29: the scenario
-  passes with no world difference and `unsynced` reports every host change sent with a row). A guest's game refuses
-  every save, so its records never persist. Evidence: [mod-compatibility.md](mod-compatibility.md),
-  [lock-history follow-up](re/crashes/2026-10-29-lock-history-and-button-pose.md).
-  - Start: `coop_test.py unsynced` and `save-diff` right after the scenario on the six-mod profile; if the host
-    lacks a move the guest has, which engine path moved the clutter on the guest only.
-- **The same three references on vanilla, with no rejoin and no vampire** (2026-11-11, both builds). They are wooden
-  ladles (`WoodenLadle01`, MISC `319E5`) near (2623, 1985, 7043). The world check found, on one of them or all three:
-  - the rotation differing by 0.02 to 0.3 rad (`host-enchantment-knowledge-control`, `host-quickloads-party`,
-    `party-travel-mounted-guest` on the branch; `party-buys-house-guest` on dev's plugin);
-  - change bit `0x2` on the guest only, on all three (`late-join-gets-calendar`);
-  - the pose and the collision body turned differently (`guest-murder-party-alarm`).
-  Six of about 500 flows run that day; each passed when rerun. Again 2026-11-16 on dev: change bit `0x2` on the guest
-  only on all three (`late-join-gets-calendar`), and `32AFE` 5 units off with bit `0x2`
-  (`death-wipe-twice-keeps-character`), 2 of 402 flows. No scenario touches them, so something in the cell
-  pushes them (a player or a copy walking through, or a body settling) and the two games' physics disagree.
-  - Start: which game moved it and when: `body_trace` on `32AFE` through a scenario that staged players beside it.
-- 2026-11-22, dev `aa723513`: the same ladles in 7 flows of about 500 run that day: change bit `0x2` on the guest
-  only on all three (`vampirism-kept-across-rejoin`, `late-join-gets-calendar`), `32AFE` turned (`party-stacks-on-arrival`,
-  `party-uses-door` 2 of 2, `guest-container-theft-and-fine`), 2 units off (`guest-murder-party-alarm`). In another
-  cell the same base (`38C1B`, `guest-crosshair-skips-leaning-npc`). `guest-throw-lands-on-host` once could not grab
-  `32AFE` ("holds nothing"). `vampirism-kept-across-rejoin`, `late-join-gets-calendar` and `party-stacks-on-arrival`
-  passed when rerun; `party-uses-door` did not.
 
 ## Crime and aggro
 
@@ -1078,33 +1034,6 @@ Size: small. Needs: IDA, then the duo.
   - Probably fixed by `agent/coc-whiterun-crash` (PR #71, merged 2026-11-17: the same job, 63997, faulting on a
     deleted copy's held clip load after a `coc`); rerun a `coc` with riders to confirm, then delete this entry.
 
-### Riverwood's scenery drifts apart
-
-2026-11-21 (piece 10): the fish (FishController, `FXfakeCritterScript`) are no longer compared; `copy_holds_furniture_prop`
-passed its end comparison after it. Left: the mill's log (FURN 71C47), state the user keeps compared, and loose items.
-
-Stands alone: every long scenario in Riverwood.
-
-Agent task: Find why Riverwood's fish, mill logs and loose items end up in different places on the two games, and
-make the horse recordings' end check pass there.
-
-Size: small. Needs: the duo.
-
-- 2026-11-18 (`agent/horse-riding-copy`): `horse-passes-between-riders` passed whole once (its steps every run since its
-  third ride's fix); `two-players-race-for-horse` failed on the mill's log (FURN 71C47) the same day.
-- The recorded horse scenarios (`horse-passes-between-riders`, `two-players-race-for-horse`,
-  `rejoined-guest-sees-rider`; 2026-11-17) pass every step, then fail the end comparison on one or two of: a
-  FishController's position (ACTI 10C3BA/10B035, the river's fish), the mill's log (FURN 71C47), cabbages or ingots
-  turned differently. With the clock pinned (`scene(pin=True)`) many more drift, the mill and every fish. None was
-  touched by the scenario; the short `mount_roundtrip` scenarios in the same cell pass.
-  - Start: `scene` now baselines the world differences already there; these appear during the run. Read which of
-    them the host sends (HostWorldState) and which each game simulates alone.
-- 2026-11-22, dev `aa723513`: the mill's log (FURN 71C47, `71DFC` posed 32-38 units apart) failed
-  `copy-leaves-furniture-steady`, `guest-talk-nothing-to-say`, `wolf_copy_turns_with_owner` and one
-  `two-players-race-for-horse`; Riverwood's tomatoes and food `copy-holds-spell-after-trip`. `horse-passes-between-riders`
-  failed twice on other shapes ("[client] activating horse did nothing in 5 s", then a rabbit's copy 70 units off),
-  `rejoined-guest-sees-rider` on a copy's bow ([A copy without its weapon](#a-copy-without-its-weapon)).
-
 ### Cover plates after the host leaves
 
 Stands alone: seven references' pose.
@@ -1122,6 +1051,29 @@ Size: small. Needs: the duo.
   - Start: whether the plates animate with nobody touching them (two world checks a few seconds apart on one game).
 - 2026-11-22, dev `aa723513`: `host-quits-to-main-menu` 2 of 2 and `host-ingredient-knowledge-control` once (its
   rerun crashed the guest first), the same seven plates.
+- **Read, 2026-11-22 (piece F, duo, plate `402A89C`):** before the quit both games agree. After it the graph
+  states are byte-equal (`Ready`) and `CoverPlate01`'s local turn is equal (about 13 degrees about x); only its world
+  turn differs, and the stale side is the **host**, which loaded its own save: its world turn is the parent's alone
+  (the local turn never carried up), and its 3D lost flag `0x4000000`. The guest is right because our `ApplyGraph`
+  updates the node after restoring (2026-10-29). One run also failed earlier, on the guest's rejoin ("couldn't join
+  (unreachable)"). Vanilla (the stand-in, no plugin of ours; its new `@node` readout): after an
+  in-game save and load in QASmoke (the load shown by the player put back from z 8884 to 6976) the cover's world turn
+  is still right, flags `0x8000e`. So vanilla's load does not leave it stale; the host in session does.
+- **Narrowed, 2026-11-22 (duo; the stand-in's `@node` and `@quit`, the MCP's `quit_to_main_menu` verb):**
+  - Right: vanilla after an in-game load, after a load from the main menu at boot, and after `@quit`
+    (`Game.QuitToMainMenu` 55490) then a load; our plugin after a fresh load from the main menu at boot, and after an
+    in-game save and load in session.
+  - Stale: our host, on the load right after it quits its session to the main menu (System > Quit > Main Menu), before
+    any guest joins (world turn `0, -1, 0`, the parent's alone); a second, in-game load puts it right.
+  - Still stale with these hook files off (`SKYRIMCOOP_DISABLE_HOOKS`, three runs): Animation, FormChanges, References,
+    TESObjectREFR, SaveLoad, SaveLoadManager, LoadGameEvents, PortalGraphFix; HavokStepFix, TimeManager, Sky,
+    CopyRagdollPhysics, RagdollWatch, PlayerHands, PlayerCollision, SwingWatch, KnockState, MeleeStagger, Projectile,
+    NiCamera; and the 41 gameplay files from Actor to WorldEvents. Not tested: BSTimer, BSThread, LoadingScreen,
+    LockOrder, PlayerCharacter, QuitToMainMenu, VirtualMachine, HUDMenuUtils, BSTaskletManager (a run with these off
+    booted, then was not read); SkyrimVM64 (the main loop), BSGraphicsRenderer, Memory, input, menus and UI stay on
+    for the session to run; and code the switch does not cover (the graph stream's hooks, our services).
+  - Cosmetic (a cover drawn at another angle on the host until the next load); parked by the user, 2026-11-22.
+  - Start: the run with the nine untested files off; then what our session's end leaves for the next load.
 
 ### A follower's party ahead of its copies
 

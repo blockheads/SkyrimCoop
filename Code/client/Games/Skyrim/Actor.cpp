@@ -3,6 +3,8 @@
 #include <Games/Animation/TESActionData.h>
 #include <Games/Animation/ReplayState.h>
 #include <Games/Animation/ActorStateRules.h>
+#include <Games/Animation/GraphReference.h>
+#include <BSAnimationGraphManager.h>
 #include <CrashHandler.h>
 #include <HookSwitch.h>
 #include <BSCore/LockOrder.h>
@@ -968,6 +970,51 @@ void Actor::SeatOnMount(Actor* apMount) noexcept
 bool Actor::SitOnMountQuick(Actor* apMount) noexcept
 {
     return PutOnMount(apMount) && PutActorOnMountQuick();
+}
+
+TESObjectREFR* Actor::GetSeatFurniture() const noexcept
+{
+    using TGetOccupiedFurniture = uint32_t*(const Actor*, uint32_t* apHandle);
+    POINTER_SKYRIMSE(TGetOccupiedFurniture, s_getOccupiedFurniture, 38708);
+    // The engine leaves the handle set after the actor stands (actor-ai-and-copies.md).
+    if (!actorState.GetSitSleepState())
+        return nullptr;
+    uint32_t handle = 0;
+    s_getOccupiedFurniture(this, &handle);
+    TESObjectREFR* pFurniture = TESObjectREFR::GetByHandle(handle);
+    return pFurniture && pFurniture->formType != FormType::Character ? pFurniture : nullptr;
+}
+
+void Actor::LinkFurnitureGraphs(TESObjectREFR* apFurniture) noexcept
+{
+    using TAddDependent = bool(BSAnimationGraphManager*, BSAnimationGraphManager** appDependent, bool aShare);
+    using TRemoveDependent = bool(BSAnimationGraphManager*, BSAnimationGraphManager** appDependent);
+    POINTER_SKYRIMSE(TAddDependent, s_addDependent, 63364);
+    POINTER_SKYRIMSE(TRemoveDependent, s_removeDependent, 63366);
+    uint32_t& linked = GetExtension()->LinkedFurniture;
+    const uint32_t cWanted = apFurniture ? apFurniture->formID : 0;
+    if (linked == cWanted)
+        return;
+    const auto cGraphsOf = [](const TESObjectREFR* apObject) {
+        BSAnimationGraphManager* pManager = nullptr;
+        if (apObject)
+            EngineVirtual(apObject->animationGraphHolder).GetBSAnimationGraph(&pManager);
+        return GraphReference<BSAnimationGraphManager>(pManager);
+    };
+    const auto cOwn = cGraphsOf(this);
+    if (!cOwn)
+        return;
+    if (auto cOld = cGraphsOf(Cast<TESObjectREFR>(TESForm::GetById(linked))))
+    {
+        BSAnimationGraphManager* pOld = cOld.get();
+        s_removeDependent(cOwn.get(), &pOld);
+    }
+    if (auto cNew = cGraphsOf(apFurniture))
+    {
+        BSAnimationGraphManager* pNew = cNew.get();
+        s_addDependent(cOwn.get(), &pNew, true);
+    }
+    linked = cWanted;
 }
 
 RefrInteraction* Actor::GetOwnInteraction() const noexcept

@@ -69,7 +69,19 @@ struct SceneSink final : BSTEventSink<TESSceneEvent>
     }
 };
 
+// It sat in or stood from a furniture (AIProcess::SetSitSleepState 39912 sends both).
+struct FurnitureSink final : BSTEventSink<TESFurnitureEvent>
+{
+    BSTEventResult OnEvent(const TESFurnitureEvent* apEvent, const EventDispatcher<TESFurnitureEvent>*) override
+    {
+        if (apEvent)
+            Raise(apEvent->actor);
+        return BSTEventResult::kOk;
+    }
+};
+
 PackageSink s_package;
+FurnitureSink s_furniture;
 CombatSink s_combat;
 DeathSink s_death;
 SceneSink s_scene;
@@ -166,6 +178,7 @@ void Start() noexcept
     pEvents->combatEvent.RegisterSink(&s_combat);
     pEvents->deathEvent.RegisterSink(&s_death);
     pEvents->sceneEvent.RegisterSink(&s_scene);
+    pEvents->furnitureEvent.RegisterSink(&s_furniture);
 }
 
 void Stop() noexcept
@@ -177,5 +190,6 @@ void Stop() noexcept
     pEvents->combatEvent.UnRegisterSink(&s_combat);
     pEvents->deathEvent.UnRegisterSink(&s_death);
     pEvents->sceneEvent.UnRegisterSink(&s_scene);
+    pEvents->furnitureEvent.UnRegisterSink(&s_furniture);
 }
 } // namespace AiStateEvents

@@ -176,7 +176,7 @@ pair closed 2026-11-22: the engine's alias/list order, tagged ours only by a sta
 - **Ragdolls.** Copy ragdolls at rest is `BodyService` steering (read in the entry). It does not run through Revive.
 - **Dialogue.** All three closed: the queued greeting and the lost press 2026-11-16 (their scenarios passed every
   run), the picked line's overlap 2026-11-18 (not seen on dev, progress.md "News").
-- **Vampirism.** Clutter flags and the marker share a scenario family, not a path: inferred, nobody has read the clutter's.
+- **Vampirism.** Clutter flags closed 2026-11-22 (piece F: loose items' places no longer compared).
 
 ## Standalone
 

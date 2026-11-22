@@ -272,6 +272,11 @@ CHANGES_FORM_FLAGS = 0x1
 CHANGES_OWN = 0x10000000 | 0x2000000 | 0x80000000
 CHANGES_MOVED, CHANGES_HAVOK_MOVED = 0x2, 0x4
 CHANGES_ITEM_EXTRA = 0x400
+# Contents' records: counts (0x20) and the leveled roll (0x8000000, 16128: the host rolls, a guest is given its items).
+CHANGES_CONTENTS = 0x20 | 0x8000000
+# Where a loose physics object nobody carried lies: each game's own (piece-f-plan.md, F2).
+LOOSE_ITEM_TYPES = {"SCRL", "ARMO", "BOOK", "INGR", "LIGH", "MISC", "APPA", "WEAP", "AMMO", "KEYM", "ALCH", "SLGM"}
+LOOSE_PLACE_FIELDS = ("position", "rotation", "position_3d", "collision", "pose")
 IDLE_SAMPLES, IDLE_INTERVAL = 3, 0.3
 WORLD_WINDOW = 3.0
 WORLD_CHANGES = [

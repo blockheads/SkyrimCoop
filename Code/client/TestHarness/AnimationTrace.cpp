@@ -244,11 +244,12 @@ void AnimationTrace::Update()
     }
 }
 
+// Any reference's graphs: an actor's, or an object's (a furniture's own, a door's).
 void AnimationTrace::ListenToGraphs(uint32_t aFormId)
 {
-    Actor* pActor = GetActor(aFormId);
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
     BSAnimationGraphManager* pManager = nullptr;
-    if (!pActor || !EngineVirtual(pActor->animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+    if (!pObject || !EngineVirtual(pObject->animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
         return;
     {
         BSScopedLock<BSRecursiveLock> _{pManager->lock};

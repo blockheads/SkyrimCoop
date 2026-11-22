@@ -24,6 +24,44 @@ class ContainerComparison(unittest.TestCase):
     def test_inventory_flags_without_a_contents_snapshot_are_still_reported(self):
         self.assertIn("changes", reference_differences({"changes": 0x40}, {"changes": 0x60}))
 
+    def test_the_hosts_leveled_roll_with_the_same_items_is_not_a_difference(self):
+        # End comparisons in towns: 0x8000000 (16128) on the host's containers only, the guest given its items.
+        self.assertEqual(reference_differences({"items": {15: 3}, "changes": 0x8000020},
+                                              {"items": {15: 3}, "changes": 0x20}), {})
+
+    def test_the_leveled_roll_with_other_items_is_still_reported(self):
+        differences = reference_differences({"items": {15: 3}, "changes": 0x8000020}, {"items": {15: 2}, "changes": 0x20})
+        self.assertIn("items", differences)
+        self.assertIn("changes", differences)
+
+
+class LooseClutter(unittest.TestCase):
+    """Where a placed physics object lies is each game's own (piece-f-plan.md, F2): bugs.md's ladles."""
+    LADLE = {"id": 0x32AFE, "base": 0x319E5, "type": 32, "cell": 0x32AE7, "flags": 0, "position": [2623.0, 1985.0, 7043.0],
+             "rotation": [0.0, 0.0, 1.0],
+             "collision": [{"node": "WoodenLadle01", "in_world": True, "motion": 2, "position": [2623.0, 1985.0, 7043.0],
+                            "rotation": [0.0, 0.0, 0.0, 1.0]}]}
+
+    def test_a_ladle_turned_and_moved_on_one_game_is_not_a_difference(self):
+        body = {**self.LADLE["collision"][0], "position": [2628.0, 1985.0, 7043.0], "rotation": [0.0, 0.0, 0.15, 0.99]}
+        moved = {**self.LADLE, "position": [2628.0, 1985.0, 7043.0], "rotation": [0.0, 0.0, 1.3], "changes": 0x2,
+                 "collision": [body]}
+        self.assertEqual(reference_differences(self.LADLE, moved), {})
+
+    def test_a_ladle_taken_on_one_game_is_still_reported(self):
+        self.assertIn("flags", reference_differences(self.LADLE, {**self.LADLE, "flags": 0x800}))
+
+    def test_a_ladle_on_one_game_only_is_still_reported(self):
+        self.assertEqual(len(world_differences({self.LADLE["id"]: self.LADLE}, {})), 1)
+
+    def test_a_created_items_place_is_still_compared(self):
+        dropped = {**self.LADLE, "id": 0xFF000901}
+        self.assertIn("position", reference_differences(dropped, {**dropped, "position": [2700.0, 1985.0, 7043.0]}))
+
+    def test_a_keyframed_objects_place_is_still_compared(self):
+        door = {**self.LADLE, "collision": [{**self.LADLE["collision"][0], "motion": 4}]}
+        self.assertIn("position", reference_differences(door, {**door, "position": [2700.0, 1985.0, 7043.0]}))
+
 
 class Scenery(unittest.TestCase):
     """Critters, fish, their markers and plants' sway are each game's own (one-simulator.md, piece 10); state stays

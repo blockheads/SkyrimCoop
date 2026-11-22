@@ -29,6 +29,10 @@ void ActorAiState::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     for (size_t i = 0; i < HeadTrack.size(); ++i)
         if (set & (uint64_t{1} << i))
             HeadTrack[i].Serialize(aWriter);
+    const bool cSits = Furniture != AiTarget{};
+    aWriter.WriteBits(cSits, 1);
+    if (cSits)
+        Furniture.Serialize(aWriter);
 }
 
 void ActorAiState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -46,4 +50,9 @@ void ActorAiState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     for (size_t i = 0; i < HeadTrack.size(); ++i)
         if (set & (uint64_t{1} << i))
             HeadTrack[i].Deserialize(aReader);
+    uint64_t sits = 0;
+    aReader.ReadBits(sits, 1);
+    Furniture = AiTarget{};
+    if (sits)
+        Furniture.Deserialize(aReader);
 }

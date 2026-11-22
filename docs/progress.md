@@ -49,6 +49,26 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **piece F of bugs-refactor-plan.md, the world check (F1, F2)** (`agent/world-objects`;
+[piece-f-plan.md](design/piece-f-plan.md)). Containers' change `0x8000000` is the host's leveled roll
+(`InventoryChanges__AddLeveledEntries` 16128, read in IDA; a guest skips the roll and is given the host's items), so the
+world check masks it with `0x20` when the items agree. Where a placed loose item lies (position, turn, bodies, pose and
+its move flags) is each game's own and no longer compared (the user, 2026-11-22: negligible); the physics scenarios
+keep their own rest checks. `scripts/test_world_diff.py` covers both. bugs.md: "Clutter flags after a vampire rejoin"
+closed, the reference bullets of "After a guest rejoins" and the containers and food of "End comparisons in towns"
+and "Riverwood's scenery" gone. Not carried over: `guest-throw-lands-on-host` once could not grab ladle `32AFE`
+("holds nothing", 2026-11-22). **F3, the mill log:** an actor sitting in a furniture has the furniture's graph manager
+made a dependent of its own (`SetSitSleepState` 39912 -> `AddDependent` 63364), so its graph events drive the
+furniture (Hod's load of Riverwood's sawmill); a copy never got that link. The owner's AI state part now carries the
+furniture it sits in (from `TESFurnitureEvent`) and the copy's graphs are linked the same way
+(`Actor::LinkFurnitureGraphs`). Scenario `copy-worker-drives-furniture` (recorded failing, passes after), GameTests "A
+copy working a furniture drives the furniture's own graph as its owner does", TPTests round trip; bugs.md's "Riverwood's scenery drifts apart" closed;
+[furniture-graphs.md](re/systems/furniture-graphs.md). The harness's animation trace now follows any reference's
+graph. **F4, the cover plates:** read, not fixed, parked as cosmetic (bugs.md's entry): the host's cover goes stale
+only on the load right after it quits its session to the main menu; vanilla does not; not in the 60 hook files
+switched off. Harness: the vanilla stand-in reads a node (`@node`) and quits to the main menu (`@quit`), the MCP's
+`vanilla_start` takes a save, and `quit_to_main_menu` is a verb.
+
 2026-11-22: **the floating body after a death: piece B of bugs-refactor-plan.md, fixed** (`agent/floating-body`;
 `docs/re/systems/physics.md`, "A revived player's ragdoll stays in the world"; `docs/design/death.md`, "The ragdoll").
 Not the kill move: any death. The revive took the player's ragdoll out of the world from our update, between the

@@ -42,6 +42,8 @@ struct ActorExtension
     // Its headtrack slots (HighProcessData::headTrackTarget, form ids): a copy's owner's, put in before the engine
     // reads them; an owner's last sent (AiStateEvents' ProcessTracking hook).
     std::array<std::atomic<uint32_t>, 6> HeadTrack{};
+    // A copy: the furniture its graphs are linked to (Actor::LinkFurnitureGraphs), 0 none.
+    uint32_t LinkedFurniture = 0;
 
     // The guest session this game claimed it in (GuestNpcs::Held), and its 3D refused while held (HookLoad3D), loaded
     // once it is not (Actor::ApplyHeld3D).

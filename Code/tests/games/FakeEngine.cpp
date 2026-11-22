@@ -200,6 +200,9 @@ void FakeEngine::HoldAnimObjects(Actor& aActor, std::span<const std::pair<uint32
 
 bool FakeEngine::TakeGraphEvent(Actor& aActor, const std::string& acEvent)
 {
+    // NotifyAllGraphs 63362: its linked furniture's graphs get every event too, taken or not (63372).
+    if (aActor.LinkedFurniture && !acEvent.empty())
+        FurnitureGraphEvents[aActor.LinkedFurniture].push_back(acEvent);
     if (const auto* pBlend = Graph ? Graph->BlendOf(aActor.GraphState) : nullptr; pBlend && !pBlend->FreezeOn.empty() && pBlend->FreezeOn == acEvent)
     {
         const auto& cIntegers = aActor.GraphVariables.Integers;
@@ -3147,6 +3150,16 @@ void FakeEngine::AttackedBy(uint32_t aVictim, uint32_t aAttacker)
     auto& victim = Actors.at(aVictim);
     if (CopyCombat::MayStart(victim.Copy))
         victim.OwnCombatTarget = aAttacker;
+}
+
+void FakeEngine::SitsIn(uint32_t aActor, uint32_t aFurniture)
+{
+    auto& actor = Actors.at(aActor);
+    actor.State1 = (actor.State1 & ~(0xFu << kSitShift)) | uint32_t(aFurniture ? 3 : 0) << kSitShift;
+    actor.InFurniture = aFurniture != 0;
+    actor.LinkedFurniture = aFurniture;
+    actor.Ai.FurnitureId = aFurniture;
+    World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
 }
 
 void FakeEngine::LooksAt(uint32_t aActor, uint32_t aSlot, uint32_t aTarget)

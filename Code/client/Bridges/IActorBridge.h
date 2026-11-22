@@ -32,6 +32,8 @@ struct ActorAiFields
     // HighProcessData::headTrackTarget: what it looks at, for each reason (default, action, script, combat,
     // dialogue, procedure); 0 none. The engine looks at the highest set one (39484).
     std::array<uint32_t, 6> HeadTrackIds{};
+    // The furniture it sits or sleeps in (38708), 0 none. A copy's has its graph linked as 39912 links an owner's.
+    uint32_t FurnitureId{};
 };
 
 // An actor's state beside its graph (one-simulator.md, piece 2): this game's form ids, 0 for none.

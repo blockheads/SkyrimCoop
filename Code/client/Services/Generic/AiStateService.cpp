@@ -168,6 +168,7 @@ ActorAiState AiStateService::ToState(const ActorAiFields& acFields) const noexce
     state.Combat = acFields.CombatState;
     state.CombatTarget = ToTarget(acFields.CombatTargetId);
     std::ranges::transform(acFields.HeadTrackIds, state.HeadTrack.begin(), &AiStateService::ToTarget);
+    state.Furniture = ToTarget(acFields.FurnitureId);
     return state;
 }
 
@@ -181,6 +182,7 @@ ActorAiFields AiStateService::ToFields(const ActorAiState& acState) const noexce
     fields.CombatState = acState.Combat;
     fields.CombatTargetId = ToFormId(acState.CombatTarget);
     std::ranges::transform(acState.HeadTrack, fields.HeadTrackIds.begin(), &AiStateService::ToFormId);
+    fields.FurnitureId = ToFormId(acState.Furniture);
     return fields;
 }
 

@@ -4,7 +4,8 @@
 //
 // It speaks the subset of the client's control files the harness falls back to without the
 // command socket (Code/client/TestHarness/ControlFiles.h): boot.txt (one command once the main menu is
-// up), console.txt ("<id> <command>", or "<id> @show Menu" / "@hide Menu"), console_out.txt (the id, then what
+// up), console.txt ("<id> <command>", "<id> @show Menu" / "@hide Menu", or "<id> @node <form id> <node>": a node of
+// that reference's 3D, its local and world rotation and flags; "<id> @quit": Game.QuitToMainMenu), console_out.txt (the id, then what
 // the console printed for that line), and status.json (heartbeat_ms, pid, console_id, session.world_ready).
 // player_trace.on and ref_trace.on trace places each frame. Nothing else of ours is loaded.
 //
@@ -41,6 +42,21 @@ constexpr uint32_t cMessageQueue = 400445;
 constexpr uint32_t cConsoleVPrint = 51110; // ConsoleLog::VPrint
 constexpr uint32_t cCompileAndRun = 441582; // Script::CompileAndRun_Impl
 constexpr uint32_t cFormById = 14617;            // TESForm::LookupByID
+constexpr uint32_t cGet3D = 19735;               // TESObjectREFR::Get3D
+constexpr uint32_t cQuitToMainMenu = 55490;      // papyrus::Game::QuitToMainMenu: fade, then the main menu
+// The head of a NiAVObject (CommonLibSSE-NG; Code/client/Games/Skyrim/NetImmerse/NiAVObject.h): what @node reads.
+struct Node
+{
+    void** vtable;
+    uint8_t pad8[0x48 - 0x8];
+    float localRotate[9];  // 48, then translate and scale
+    uint8_t pad6C[0x7C - 0x6C];
+    float worldRotate[9];  // 7C
+    uint8_t padA0[0xF4 - 0xA0];
+    uint32_t flags;        // F4
+};
+static_assert(offsetof(Node, localRotate) == 0x48 && offsetof(Node, worldRotate) == 0x7C && offsetof(Node, flags) == 0xF4);
+constexpr size_t cGetObjectByName = 0x2A; // NiAVObject's vfunc
 // The head of a TESObjectREFR (CommonLibSSE): what the traces read.
 struct Reference
 {
@@ -167,9 +183,47 @@ void HookCompileAndRun(void* apScript, void* apCompiler, uint32_t aName, void* a
     s_realCompileAndRun(apScript, apCompiler, aName, pTarget);
 }
 
+// "@node <form id> <name>": its local and world rotation (row-major) and flags, printed as the console's output.
+void PrintNode(const std::string& acArguments)
+{
+    std::istringstream words(acArguments);
+    std::string id, name;
+    words >> id >> name;
+    std::ostringstream out;
+    auto* pRef = id.empty() ? nullptr : At<void* (*)(uint32_t)>(cFormById)(static_cast<uint32_t>(std::stoul(id, nullptr, 16)));
+    auto* p3D = pRef ? At<Node* (*)(void*)>(cGet3D)(pRef) : nullptr;
+    const BSFixedString cName = Fixed(name.c_str());
+    auto* pNode = p3D ? reinterpret_cast<Node* (*)(Node*, const BSFixedString&)>(p3D->vtable[cGetObjectByName])(p3D, cName) : nullptr;
+    if (!pNode)
+        out << "node not found\n";
+    else
+    {
+        out << "local";
+        for (const float cValue : pNode->localRotate)
+            out << ' ' << cValue;
+        out << "\nworld";
+        for (const float cValue : pNode->worldRotate)
+            out << ' ' << cValue;
+        out << "\nflags " << std::hex << pNode->flags << '\n';
+    }
+    std::scoped_lock lock(s_printLock);
+    s_printed += out.str();
+    s_printedChanged = true;
+}
+
 void Run(const std::string& acLine)
 {
     s_pTarget = nullptr; // a line that never compiled leaves no target behind
+    if (acLine == "@quit")
+    {
+        At<void (*)()>(cQuitToMainMenu)();
+        return;
+    }
+    if (acLine.rfind("@node ", 0) == 0)
+    {
+        PrintNode(acLine.substr(6));
+        return;
+    }
     if (acLine.rfind("@show ", 0) == 0 || acLine.rfind("@hide ", 0) == 0)
     {
         SetMenuShown(acLine.c_str() + 6, acLine[1] == 's');

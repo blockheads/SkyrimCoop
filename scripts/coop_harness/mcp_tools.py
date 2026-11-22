@@ -129,18 +129,20 @@ def gated_hook_files() -> str:
 
 
 @tool
-def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False, disable_hooks: str = "") -> dict:
+def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False, disable_hooks: str = "", save: str = "") -> dict:
     """Holds the duo (as duo_start) and boots its host game without our plugin (the vanilla stand-in: player_trace, console),
     in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true). plugin=true boots
     one game with our plugin and no session instead: what the plugin costs alone (profile game="host"). disable_hooks (with
-    plugin): SKYRIMCOOP_DISABLE_HOOKS, the hook files left out (HookSwitch.h), or "all" for every gated file."""
+    plugin): SKYRIMCOOP_DISABLE_HOOKS, the hook files left out (HookSwitch.h), or "all" for every gated file. save: loaded
+    from the main menu instead of the coc (a save this game wrote, by name)."""
     held = (lock := session.duo_lock(OWNER)) is not None and lock.role in ("holder", "joined")
     session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True, capped=True)
     if not held:
         forget_old_crashes()
     duo["log"] = TEST_HOME / "mcp" / f"vanilla-{time.strftime('%Y%m%d-%H%M%S')}.log"
     duo["log"].parent.mkdir(parents=True, exist_ok=True)
-    command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", *([] if plugin else ["--vanilla"]), "--cell", cell]
+    command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", *([] if plugin else ["--vanilla"]), "--cell", cell,
+               *(["--save", save] if save else [])]
     env = dict(os.environ)
     if disable_hooks:
         env["SKYRIMCOOP_DISABLE_HOOKS"] = gated_hook_files() if disable_hooks == "all" else disable_hooks

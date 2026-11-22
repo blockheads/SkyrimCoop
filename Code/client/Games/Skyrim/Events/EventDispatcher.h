@@ -131,9 +131,20 @@ struct TESFormDeleteEvent
 {
 };
 
+// CommonLibSSE-NG TESFurnitureEvent; sent by AIProcess::SetSitSleepState (39912).
 struct TESFurnitureEvent
 {
+    enum Type : uint32_t
+    {
+        kEnter = 0,
+        kExit = 1
+    };
+
+    TESObjectREFR* actor;     // 00
+    TESObjectREFR* furniture; // 08
+    Type type;                // 10
 };
+static_assert(sizeof(TESFurnitureEvent) == 0x18);
 
 struct TESGrabReleaseEvent
 {

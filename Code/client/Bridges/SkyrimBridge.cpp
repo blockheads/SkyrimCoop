@@ -2037,6 +2037,8 @@ ActorAiFields SkyrimBridge::GetActorAiFields(uint32_t aFormId) const noexcept
         fields.CombatTargetId = pTarget->formID;
     if (const HighProcessData* pHigh = pActor->currentProcess->highProcess)
         fields.HeadTrackIds = pHigh->GetHeadTrackTargets();
+    if (const TESObjectREFR* pFurniture = pActor->GetSeatFurniture())
+        fields.FurnitureId = pFurniture->formID;
     return fields;
 }
 
@@ -2120,6 +2122,7 @@ void SkyrimBridge::SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFiel
     pActor->GetExtension()->OwnerCombatTargetHandle.store(cTargetHandle, std::memory_order_relaxed);
     if (pActor->combatHandle != cTargetHandle)
         pActor->combatHandle = cTargetHandle;
+    pActor->LinkFurnitureGraphs(acFields.FurnitureId ? Cast<TESObjectREFR>(TESForm::GetById(acFields.FurnitureId)) : nullptr);
     if (!pActor->currentProcess)
         return;
     // The owner's package in the running slot, read by conditions, Papyrus and plugins as for any NPC. No target: the
