@@ -171,14 +171,14 @@ Both turn on `ExtraAliasInstanceArray` (12718-12721). Same lock, different partn
 ## Only the word is shared
 
 - **Ragdolls.** Copy ragdolls at rest is `BodyService` steering (read in the entry). It does not run through Revive.
-- **Dialogue.** The overlap is `ShowPicked`; the queued greeting and the lost press were closed 2026-11-16 (their
-  scenarios passed every run).
+- **Dialogue.** All three closed: the queued greeting and the lost press 2026-11-16 (their scenarios passed every
+  run), the picked line's overlap 2026-11-18 (not seen on dev, progress.md "News").
 - **Vampirism.** Clutter flags and the marker share a scenario family, not a path: inferred, nobody has read the clutter's.
 
 ## Standalone
 
-No link found, each stays one task: creature wobble, Open Animation Replacer's picks, the werewolf, crafting
-station exit, follower stops following, scratch save, quest start/stop events, older crime scenarios, a mod's rename.
+No link found, each stays one task: creature wobble, Open Animation Replacer's picks, the werewolf, follower stops
+following, scratch save, quest start/stop events, older crime scenarios, a mod's rename.
 
 [After the host dies](bugs.md#after-the-host-dies) waits for PR #25, which refuses copies' combat trees and finds the
 half-stop is the engine's detection.
