@@ -154,8 +154,15 @@ class CombatActions:
                     ctx.wait_for("the victim dies on both games", lambda: all(dead(game) for game in games), 10)
                 except TestFailure:
                     report["problems"] += [f"[{said(game)}] the victim is alive 10 s after the blow" for game in games if not dead(game)]
-                since = time.monotonic()
-                ctx.wait_for(f"{watch:.0f} s after the death", lambda: time.monotonic() - since >= watch, watch + 1)
+                def last_states():
+                    trace.take()
+                    return {(game, who): next((e["state"] for e in reversed(trace.entries) if e["game"] == game and e["who"] == who
+                                               and e["kind"] == "state"), {}) for game in games for who in ("attacker", "victim")}
+                try:
+                    ctx.wait_for("everyone has left the pair on both games",
+                                 lambda: not any(state.get("kill_move") or state.get("bIsSynced") for state in last_states().values()), watch)
+                except TestFailure:
+                    pass  # said below: who, on which game, in what state
                 trace.take()
                 for game in games:
                     for who in ("attacker", "victim"):
@@ -171,6 +178,11 @@ class CombatActions:
                         blow = trace.find(game, who, "KillActor")
                         if who == "victim" and died and started:
                             report[f"{said(game)}_death_s"] = round(died["time"] - started["time"], 2)
+                        # A pair that played is measured on each game: its blow, then its death.
+                        if who == "victim" and started and not (died and blow):
+                            report["problems"].append(f"[{said(game)}] the victim's {'KillActor' if not blow else 'death'} was never seen in the trace")
+                        if who == "victim" and died and blow and died["time"] < blow["time"] - 0.1:
+                            report["problems"].append(f"[{said(game)}] the victim died {blow['time'] - died['time']:.2f} s before its clip's KillActor")
                         if who == "victim" and died and blow:
                             report[f"{said(game)}_blow_to_death_s"] = round(died["time"] - blow["time"], 2)
                             # Its clip's KillActor is the blow: it drops then, not a pose hold later (kill-moves.md).

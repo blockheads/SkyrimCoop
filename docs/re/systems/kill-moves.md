@@ -107,8 +107,10 @@ guest (claimer): the taken victim's graph update, one update
 
 - **Read in IDA.** `Actor::QueueKill` 37316 only records the killer and queues task 10 unless a kill is queued
   (`ActorProcess::IsKillQueued` 40011, MiddleHigh `+0x331`; CommonLib `killQueued`). `KillImpl` 37896 clears that
-  byte first (`ActorProcess::SetKillQueued`, our name, `0x140727F40`), then tests the deferred kill and counts. So
-  a clip's kill is counted when the task runs, never in the graph update that sent `KillActor`.
+  byte first (`ActorProcess::SetKillQueued` 40012, our name), then tests the deferred kill and counts. So a clip's
+  kill is counted when the task runs. `QueueKill` goes through `TaskQueueInterface::QueueKillActor` 36911 to
+  `TaskQueueInterface::Push` 36993, which runs the task inline when the task pool is off (`gEnableTaskPoolThread`)
+  or its queue refuses it: later than the graph update is what the duo showed (below), not what the code forces.
 - **Measured (duo, `kill_move_on`, a bandit `3DE53`).** Every person's victim clip sent the three events in one
   update, 12 of 12 (`KillMoveI`, `D`, `ShortA`-`D`, `1HMBackStab`, `1HMGrappleStab`, `1HMStabDownChest`, `2HM3Slash`,
   `2HWChopKick`, `H2HBodySlam`); a wolf's (`KillMove1HMWolfA/B`) sends `KillActor` first and ends updates later,
@@ -125,9 +127,9 @@ until the host's death action comes back. Measured after the fix above, guest `K
 to 0.44 s, and 0.69 and 0.93 s (`H2HBodySlam`, `1HMGrappleStab`). Two parts:
 
 - The host kills at its own replay's `KillActor` (`HostTakeBacks`), 0.11 to 0.34 s behind the guest's.
-- Then the guest, a copy again, took the death at its playback time, behind whatever its queue held: the host's
-  half of the pair first (`paired action ... not played on 14`), on a playback clock that had no samples of this
-  actor through the claim. 0.18 to 0.52 s (`1HMGrappleStab`: host death at 4788 ms, guest's at 5313).
+- Then the guest, a copy again, took the death 0.18 to 0.52 s later. Inferred from its log, not traced: at its
+  playback time, behind what its queue held (the host's half of the pair first, `paired action ... not played on
+  14`), on a playback clock with no samples of this actor through the claim (`1HMGrappleStab`: host death at 4788 ms, guest's at 5313).
 
 A copy holding its pose is ahead of its owner's timeline (its own clip reached the blow first), so its death is
 overdue when heard: it is taken at once, the actions queued before it dropped (`ReplayState::TakeOverdueDeath`,
@@ -138,7 +140,8 @@ is left is the host's replay lag; killing on the claimer first would start its r
 ## By weapon (measured 2026-11-22, `kill-moves-by-weapon`)
 
 A restrained bandit (`3DE53`) or wolf, one hit from death, `KillMoveRandom` 100. Each paired on both games, the
-victim dead on both, nobody left in the kill move, both bodies at rest alike, the attacker walking after.
+victim dead on both, nobody left in the kill move, the attacker walking after. The bodies at rest: alike in 10 of
+14 rows, then 13 of 14 (`docs/bugs.md`, "A kill move's dead copy awake or lying apart").
 
 - Guest: sword `KillMoveI`, `KillMoveD`, `ShortD`, `1HMStabDownChest`; from behind `1HMBackStab`; dagger
   `1HMGrappleStab`, `1HMStabUpFace`; greatsword `2HM3Slash`; battleaxe `2HWChopKick`; warhammer `2HWB`; mace and
@@ -147,7 +150,7 @@ victim dead on both, nobody left in the kill move, both bodies at rest alike, th
 - Lydia (a follower) gets no kill move: `kill_move_check` says no, and a plain swing at 3 health does not kill her.
 
 `KillImpl` 37896 with a ragdoll (read 2026-11-22): any graph's driver holding a ragdoll instance
-(`IAnimationGraphManagerHolder::HasRagdoll`, vfunc 1) means no animated death: every graph's ragdoll into the
+(`IAnimationGraphManagerHolder::HasRagdoll` 38085, vfunc 1) means no animated death: every graph's ragdoll into the
 world, motion type dynamic, then the death action again with type 2 (flags2 `0x20000000`; cleared if refused), or
 `Character::PlayRagdollInstant` 37186 when told to ragdoll at once. An actor already knocked (states 1-5, 7) skips
 that part. It also clears the kill move flag (flags2 `0x4000`) itself: a dead actor is in no kill move.
@@ -232,8 +235,8 @@ death action
 `BSRagdollContactListenerModifier::contactPointCallback` 63092, `::Modify` 63091, `::AddListeners` 63093, `::Activate` 63088,
 `::Deactivate` 63089;
 `Character::EndKillMove` 38614. Each has a comment in the database. Added 2026-11-22: `ActorProcess::IsKillQueued` 40011,
-`ActorProcess::SetKillQueued` (`0x140727F40`), `Actor::DeferKill` 38617, `Character::PlayRagdollInstant` 37186,
-`IAnimationGraphManagerHolder::HasRagdoll` (`0x1406B7C40`), `::SetRagdollMotionType` (`0x1406B7B30`), and their visitors.
+`ActorProcess::SetKillQueued` 40012, `Actor::DeferKill` 38617, `Character::PlayRagdollInstant` 37186,
+`IAnimationGraphManagerHolder::HasRagdoll` 38085, `::SetRagdollMotionType` 38084, and their visitors.
 
 ## The clip's own timing
 

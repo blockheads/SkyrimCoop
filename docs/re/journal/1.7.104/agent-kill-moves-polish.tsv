@@ -25,3 +25,5 @@ time	op	id	rva	item
 2026-11-22T20:26:46Z	comment	40012	0x727f40	{"addr": "0x140727F40", "comment": "kill-moves-polish: ActorProcess::SetKillQueued (our name): MiddleHigh +0x331 (killQueued, read by 40011). KillImpl 37896 clears it first thing, before its deferred-kill test: a kill queued by QueueKill 37316 (task 10) is only counted (DeferKill 38617) when that task runs, frames after the graph event that queued it."}
 2026-11-22T20:26:46Z	comment		0x6a9ea8	{"addr": "0x1406a9ea8", "comment": "kill-moves-polish: killQueued (MiddleHigh +0x331) cleared here, then the deferred-kill test: a held kill is counted only now, when the queued task runs. KillActorHandler 42838's QueueKill and this are frames apart: a pair whose clip sends PairEnd, KillMoveEnd and KillActor in one update (pa_KillMoveI on a bandit, measured 2026-11-22) has left the pair before its kill counts."}
 2026-11-22T20:48:32Z	name	40011	0x727f20	{"addr": "0x140727f20", "name": "ActorProcess::IsKillQueued"}
+2026-11-22T21:25:52Z	read	36993	0x66bfc0	{"name": "TaskQueueInterface::Push"}
+2026-11-22T21:25:53Z	read	36911	0x668030	{"name": "TaskQueueInterface::QueueKillActor"}

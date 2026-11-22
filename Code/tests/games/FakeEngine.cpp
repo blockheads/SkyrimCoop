@@ -570,7 +570,7 @@ void FakeEngine::Frame()
         // A held pose: its graph takes no update (HookUpdateAnimationGraphs), so it records none either.
         if (!actor.GraphUpdating || PoseHeld(cId))
         {
-            actor.Graph.Updated = actor.Graph.Updated && actor.GraphUpdating;
+            actor.Graph.Updated = actor.Graph.Updated && !PoseHeld(cId);
             continue;
         }
         // A recorded owner's is not interpolated (the 63587 hook's interpAllowed), so it steps every frame.
@@ -624,7 +624,7 @@ void FakeEngine::Frame()
             if (actor.Copy && World::Get().GetGraphStreams().OnStream(cId))
             {
                 actor.ExitIn = 0; // its sync point replaced its own clip: no exit event
-                if (actor.GraphUpdating)
+                if (actor.GraphUpdating && !PoseHeld(cId))
                     ReplayStream(cId, actor);
             }
             else

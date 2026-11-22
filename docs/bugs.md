@@ -1242,7 +1242,8 @@ ragdoll still awake 30 s after the death, twice (a bandit under `2HMSlash`, a wo
 `CopyRagdollPhysics: ... at its owner's rest: step 0 (22 bodies, near false, still false, woken true)` and no later
 step), and asleep but 6 to 10 units and 12 to 29 degrees off its owner's body on 8 and 2 bones (`KillMoveD`,
 `ShortC`; `rests asleep` then `step 3 (near false)`). The other 10 rows, the host's four among them, lay alike. The next run: 1 of
-14 (`ShortA`, 11 bones 8 to 9 units off). Not
+14 (`ShortA`, 11 bones 8 to 9 units off). Also unread: the host's `2HMSlash` row gave no `KillActor` and no dying
+state in its trace on either game, both runs (the verb now says so). Not
 read. Not known: whether the copy's death taken when heard (that day's change, about 100 ms before its owner's
 frames) adds to it; 16 rows on the builds before and after that change lay alike with a 15 s wait.
 

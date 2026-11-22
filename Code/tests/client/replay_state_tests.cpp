@@ -67,6 +67,13 @@ TEST_CASE("A copy holding its pose takes its owner's death when heard, the actio
     Queue playing{{false, 1}, {true, 2}};
     CHECK_FALSE(ReplayState::TakeOverdueDeath(playing, false, cDying));
     CHECK(playing.size() == 2);
+    // The overdue death alone is early: with playback at 100, [death@100, action@200] leaves the action queued.
+    bool deathNow = true;
+    CHECK(ReplayState::ActionDue(100, 100, deathNow));
+    CHECK_FALSE(ReplayState::ActionDue(200, 100, deathNow));
+    deathNow = true;
+    CHECK(ReplayState::ActionDue(300, 100, deathNow));
+    CHECK_FALSE(ReplayState::ActionDue(400, 100, deathNow));
     Queue waiting{{false, 1}};
     CHECK_FALSE(ReplayState::TakeOverdueDeath(waiting, true, cDying));
     CHECK(waiting.size() == 1);
