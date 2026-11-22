@@ -707,13 +707,20 @@ void FakeEngine::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
         it->second.Weapon = aDraw ? WeaponState::WantToDraw : WeaponState::WantToSheathe;
         return;
     }
-    it->second.Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed;
+    // Already where it was asked to go: nothing plays.
+    if (!aDraw && it->second.Weapon == WeaponState::Sheathed)
+        return;
+    it->second.Weapon = aDraw ? WeaponState::Drawing : WeaponState::Sheathing;
+    it->second.WeaponEventIn = WeaponClipFrames;
 }
 
 void FakeEngine::ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
         it->second.Weapon = aDrawn ? WeaponState::Drawn : WeaponState::Sheathed;
+        it->second.WeaponEventIn = 0;
+    }
 }
 
 

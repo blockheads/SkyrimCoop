@@ -1,0 +1,38 @@
+time	op	id	rva	item
+2026-11-22T14:39:58Z	read	42824	0x7ccac0	{"name": "RightHandWeaponDrawHandler::Process_Origin"}
+2026-11-22T14:39:58Z	read	42825	0x7ccc20	{"name": "RightHandWeaponSheatheHandler::Process_Origin"}
+2026-11-22T14:40:12Z	read	37169	0x66fca0	{"name": "Character::sub_37169"}
+2026-11-22T14:40:52Z	read	38821	0x6d9a20	{"name": "ActorState::Func21_38821"}
+2026-11-22T14:40:52Z	read	37374	0x67e830	{"name": "Actor::Func180_37374"}
+2026-11-22T14:41:06Z	read	38979	0x6e13c0	{"name": "ActorState::Func21_38979"}
+2026-11-22T14:41:07Z	read	37279	0x675930	{"name": "Actor::DrawWeaponMagicHands"}
+2026-11-22T14:41:49Z	read	40028	0x728500	{"name": "sub_140728500"}
+2026-11-22T14:41:55Z	read	38000	0x6b2330	{"name": "PlayerCharacter::sub_38000"}
+2026-11-22T14:42:01Z	name	38979	0x6e13c0	{"addr": "0x1406e13c0", "name": "ActorState::SetWeaponDrawn"}
+2026-11-22T14:42:01Z	name	38821	0x6d9a20	{"addr": "0x1406d9a20", "name": "Character_ActorState::SetWeaponDrawn"}
+2026-11-22T14:42:01Z	name	37374	0x67e830	{"addr": "0x14067e830", "name": "Actor::PlaceWeapon3D"}
+2026-11-22T14:42:01Z	name	38000	0x6b2330	{"addr": "0x1406b2330", "name": "Actor::PlaceWeapon3DNow"}
+2026-11-22T14:42:01Z	name	37169	0x66fca0	{"addr": "0x14066fca0", "name": "Actor::FinishSheathe"}
+2026-11-22T14:42:12Z	comment	38979	0x6e13c0	{"addr": "0x1406e13c0", "comment": "ActorState vfunc 0x15 base (38979). Settles weapon state: a2 true -> 3 (Drawn), false -> 0 (Sheathed), skipped while the opposite request is pending (4 WantToSheathe for a draw, 1 WantToDraw for a sheathe). SkyrimCoop: call as setWeaponState (Code/client/Games/Skyrim/Misc/ActorState.cpp:7)"}
+2026-11-22T14:42:12Z	comment	38821	0x6d9a20	{"addr": "0x1406d9a20", "comment": "ActorState vfunc 21 (magic drawn/sheathed): sheathing (a2 false) interrupts both hand casters (MagicCaster::InterruptCast 34408), then sets iMagicEquipped and the hands' item types.\nCharacter override of ActorState vfunc 0x15 (38821): queues the hand casters' 3D (sub_140669050), graph ints iMagicEquipped, iLeftHandType/iRightHandType (0 when sheathed), an NPC's Actor vfunc 0xD1 with its weapon, then the base 38979 writes weapon state 3/0. Called by 42824 (draw end) and 37169 (sheathe end)."}
+2026-11-22T14:42:12Z	comment	37374	0x67e830	{"addr": "0x14067e830", "comment": "Actor vfunc 0xB4 (37374): (weapon, drawn, leftHand). Moves the weapon's 3D between its sheath node and the hand node (38000), through the task queue when needed. 42824 passes drawn=1, 37169 drawn=0."}
+2026-11-22T14:42:12Z	comment	38000	0x6b2330	{"addr": "0x1406b2330", "comment": "37374's body (38000): bows/crossbows (type 7/9) clear the quiver's arrows on draw; then BSFadeNode::sub_36849 reparents the weapon 3D sheath node <-> hand node, or for a shield/left (a5) toggles the node's AppCulled flag (+0xF4 bit 0)."}
+2026-11-22T14:42:12Z	comment	37169	0x66fca0	{"addr": "0x14066fca0", "comment": "Sheathe's end (37169), the body of RightHandWeaponSheatheHandler 42825: each hand's weapon (form type 41) back to its sheath node (37374 drawn=0), ActorState vfunc 0x15 false (38821 -> weapon state 0), process sub_140728500(2,1),(2,0), third-person camera update."}
+2026-11-22T14:42:12Z	comment	42824	0x7ccac0	{"addr": "0x1407ccac0", "comment": "weaponDraw event handler (42824): the draw's end. Right hand weapon (37168 slot 1) and left (slot 0) to their hand nodes (Actor vfunc 0xB4, 37374 drawn=1), ActorState vfunc 0x15 true (38821 -> weapon state 3), process sub_140728500(1,1),(1,0). The only writer of Drawn after a draw action: a copy whose graph never raises weaponDraw stays at 2 (Drawing). SkyrimCoop calls it directly (Actor::ShowWeaponDrawn)."}
+2026-11-22T14:42:46Z	read	42835	0x7cd1f0	{"name": "ChairFurnitureExitHandler::Handle"}
+2026-11-22T14:42:54Z	read	39912	0x7246a0	{"name": "sub_1407246A0"}
+2026-11-22T14:44:17Z	read	39811	0x720740	{"name": "ActorProcess::sub_39811"}
+2026-11-22T14:45:07Z	read	38929	0x6de920	{"name": "coop_RealEquip"}
+2026-11-22T14:45:07Z	read	38911	0x6dd610	{"name": "sub_1406DD610"}
+2026-11-22T14:45:17Z	read	38926	0x6de4c0	{"name": "sub_1406DE4C0"}
+2026-11-22T14:45:20Z	read	39192	0x6eb1a0	{"name": "ActorProcess::AddEquippedObject"}
+2026-11-22T14:45:39Z	name	38911	0x6dd610	{"addr": "0x1406dd610", "name": "ActorEquipManager::DefaultSlotFor"}
+2026-11-22T14:45:39Z	name	38926	0x6de4c0	{"addr": "0x1406de4c0", "name": "ActorEquipManager::TakesPassedHandSlot"}
+2026-11-22T14:45:39Z	name	39811	0x720740	{"addr": "0x140720740", "name": "ActorProcess::SetHandEntry"}
+2026-11-22T14:45:39Z	name	39912	0x7246a0	{"addr": "0x1407246a0", "name": "AIProcess::SetSitSleepState"}
+2026-11-22T14:45:46Z	comment	38911	0x6dd610	{"addr": "0x1406dd610", "comment": "38911: the equip slot when the caller passes none (38894). Weapon (41): RightHand; shield (26): LeftHand if its biped slot is the shield's; spell/scroll (22/23): its own slot, or the free hand. A bow gets RightHand here too: its BothHands comes only from 38929's slot choice."}
+2026-11-22T14:45:46Z	comment	38926	0x6de4c0	{"addr": "0x1406de4c0", "comment": "38929's test: keep the caller's hand slot (left or right) instead of the item's own equip slot when the actor's race (+0x1F8) has flags bit 30 and the item is a weapon. Else 38929 keeps its own slot (BothHands for a bow, UseAllParents), filling both hands (AddEquippedObject)."}
+2026-11-22T14:45:46Z	comment	38929	0x6de920	{"addr": "0x1406de920", "comment": "Slot choice: the passed slot (a4+0x10) wins if 0x1406DE4C0 says so, or if the item's own slot lacks UseAllParents (+0x38 bit 0) and has parents; else the item's own slot is stored back in a4+0x10. Then AddEquippedObject (process hands by slot: BothHands fills both)."}
+2026-11-22T14:45:46Z	comment	39811	0x720740	{"addr": "0x140720740", "comment": "39811 (process, entry, left, 3D): one hand's InventoryEntryData (middle-high +0x220 left, +0x260 right) replaced, its sounds precached, its 3D node (+0x148) found. Replacing a two-hander (types 5-7, 9) in the right also updates the left's state. One hand per call."}
+2026-11-22T14:45:46Z	comment	40028	0x728500	{"addr": "0x140728500", "comment": "40028: forwards (kind, flag) to middle-high sub_140736230 when the process has one. 42824 passes (1,1),(1,0) at a draw's end, 37169 (2,1),(2,0) at a sheathe's end; 39811 (0, left). What 0x140736230 updates is not read."}
+2026-11-22T15:45:50Z	comment	38926	0x6de4c0	{"addr": "0x1406de4c0", "comment": "38929's test: keep the caller's hand slot (left or right) instead of the item's own equip slot when the actor's race (+0x1F8) has flags bit 30 and the item is a weapon. Else 38929 keeps its own slot (BothHands for a bow, UseAllParents), filling both hands (AddEquippedObject). Measured 2026-11-22: a RightHand equip of a bow on Faendal's copy (Wood Elf) filled both hands, so this was false for him."}

@@ -109,7 +109,7 @@ class Runner:
         if world := ctx.check_world(known_world | getattr(ctx, "SCENE_KNOWN_WORLD", set())):
             raise ctx.failure(f"world differs afterwards ({len(world)} references): " +
                               " | ".join(describe_world_differences(world, 20)))
-        new_locks = [v for k, v in ctx.lock_order_reports().items() if k not in known_locks]
+        new_locks = ctx.new_lock_orders(known_locks)
         for game, report, ours in new_locks:
             if KEPT_APART in report and not ours:
                 log(f"lock order the frame keeps apart (not a failure; live overlaps still fail) on {game}: {report}")

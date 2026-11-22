@@ -223,3 +223,12 @@ def scenario_difficulty_follows_host(ctx):
         if ctx.game_state("client").get("online") is False:
             ctx.rejoin_client()
         ctx.wait_for(f"[client] back at the host's {start}", lambda: ctx.difficulty("client") == start, 5)
+
+
+def scenario_stack_walk_stops_at_stub(ctx):
+    """Our stack walk, under a stub with a frame of its own and no unwind data (the shape of SKSE's camera hook),
+    ends at the stub on both games: no frame guessed past it, no crash."""
+    for name in ("", "client"):
+        walk = ctx.player_command(name, {"cmd": "stack_walk_check"})
+        if not walk["ends_at_stub"]:
+            raise ctx.failure(f"[{name or 'host'}] the walk went past the stub (returns at {walk['stub_return']}): {walk['frames']}")

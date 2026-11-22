@@ -354,8 +354,7 @@ def plays_on(ctx, after, seconds=60):
             frames = {game: ctx.game_frame(game) for game in ("", "client")}
             ctx.wait_for(f"[both] keep playing after the {after}", lambda: all(ctx.game_frame(game) > frame + 300
                                                                             for game, frame in frames.items()), 20)
-            ours = [f"{game}: {report}" for sites, (game, report, mine) in ctx.lock_order_reports().items()
-                    if mine and sites not in known]
+            ours = [f"{game}: {report}" for game, report, mine in ctx.new_lock_orders(known) if mine]
             if ours:
                 raise ctx.failure(f"lock order after the {after} (our code on the stack): " + " | ".join(ours))
     finally:

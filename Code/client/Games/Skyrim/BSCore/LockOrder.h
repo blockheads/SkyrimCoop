@@ -20,8 +20,8 @@ void SetLockDescriber(TDescribeLock apDescribe) noexcept;
 void AcquiredWithoutWaiting(const void* apLock, const void* apCaller) noexcept;
 
 // A hook of ours that only passes a frame's engine work through (the main loop's): its frame on a stack does not make
-// a report ours. aBytes: the function's code size, or more.
-void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept;
+// a report ours. Its code is measured from its unwind entry; one without is a critical log and Stats::Unmeasured.
+void IgnoreFrames(const void* apFunction) noexcept;
 
 // This thread's locks are taken in one stretch of the frame (LockOrderAttribution::Stretch) until it ends: an inversion
 // against a stretch that never runs alongside is reported as kept apart (lock-order.md).
@@ -48,6 +48,7 @@ struct Stats
     uint32_t TableFull;   // lock pairs not recorded because the edge table is full
     uint32_t TableResets; // times the edge table filled up and started over
     bool StretchesOverlapped; // main loop tasks and our update ran at once: nothing is kept apart
+    uint32_t Unmeasured;      // IgnoreFrames calls not listed: their frames read as ours
 };
 Stats GetStats() noexcept;
 // Each inversion pattern seen: its asks, how many found the lock held by another thread, how many from the reverse

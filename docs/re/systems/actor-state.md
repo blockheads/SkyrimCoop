@@ -100,3 +100,34 @@ target, within reach on the game where it lands. Measured on the duo (2026-11-18
 copy, the host's player staged in front of it and nearer (gap -37 against the guest's farther place): on the guest the
 wolf copy's `+0x104` read the guest's player and 47272 picked the guest. The 2026-11-06 reading of the nearest
 (combat-targets.md) did not come back; bugs.md's "An NPC copy's swing picks the nearest" closed.
+
+## What a copy's start leaves out (2026-11-22, piece D step 0)
+
+Read in IDA 1.7.104 unless marked.
+
+- **The draw's end writes Drawn, nothing else does.** `RightHandWeaponDrawHandler` 42824 (`weaponDraw`): each hand's
+  weapon 3D to its hand node (Actor vfunc 0xB4, 37374 -> 38000 reparents sheath <-> hand), then ActorState vfunc 0x15
+  (Character override 38821: iMagicEquipped, iLeft/iRightHandType graph ints; base 38979 writes weapon state 3).
+  The sheathe's end is 37169 (42825's body), the same with 0. 38979 skips the write while the opposite request is
+  pending (4 for a draw, 1 for a sheathe). 37279 (`DrawWeaponMagicHands`) leaves 2 when its draw action is taken.
+- **So a copy at 2 waits for a `weaponDraw` its graph must raise.** Measured on `late-join-client` (2026-11-22, 3
+  of 4 failed): the host player's copy is put up off its stream ("hands up ... (weapon state 0)": 37279 takes the draw,
+  2), its stream's sync point restores its graph 60-500 ms later, and it stays at 2 with the sword in its hand slot
+  against its owner's 3. Inferred, not traced: the restore (58373) displaces the draw clip before its `weaponDraw`
+  reaches 42824 (the log's "events dropped" counts the queue, unnamed). `PutsHandsRight` then waited on `IsAnimating`
+  for good. `Actor::ShowWeaponDrawn` (42824 / 37169 called directly) settles any state.
+- **Sit state comes with the spawn's graph state, not the stream's sync point.** A `GraphSyncPoint` holds Havok node
+  state and graph variables only (`LoadPoint` -> 58373). The actor flag words travel in the spawn's snapshot:
+  `LoadAnimationGraphState` (or `LoadGraphStateFlags`, AnimationSystem, when the stream started first) takes the
+  owner's flags1 except the part bits, so sit state included, and flags2 except the weapon bits (read in our code). A
+  later sync point cannot correct a stale sit flag. No furniture handle: only `AIProcess::SetSitSleepState` 39912
+  stores it (middle-high +0x208), and a copy runs no AI.
+- **Hand slots by equip slot.** `ActorEquipManager::EquipObject` 38894 defaults a weapon to RightHand (38911).
+  `coop_RealEquip` 38929 keeps the passed slot when 38926 says so (the race's flags bit 30, a weapon, a hand slot
+  passed) or when the item's own slot has parents and lacks UseAllParents; else the item's own (a bow's BothHands).
+  `ActorProcess::AddEquippedObject` 39192 fills each hand the slot covers. Measured (`rejoined-guest-sees-rider`,
+  2026-11-22) for one bow: our repair's RightHand equip of Faendal's Hunting Bow (13985) on his copy left
+  `[13985, 13985]`, so the repair is not what leaves the scenarios' `[0, bow]`. Which writer does is not found; 39811
+  (`ActorProcess::SetHandEntry`) sets one hand's entry per call from other paths (outfit reset, MoveToHigh, disarm).
+- **A copy's last action** (`ActorExtension::LatestAnimation`) is read by the harness's comparison and the owner's
+  resurrect stamp (`HookResurrect`), nothing else in our code: on its stream the graph is its owner's.

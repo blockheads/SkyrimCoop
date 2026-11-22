@@ -71,7 +71,6 @@ every other section needs the duo.
 
 **Party travel**
 
-- [The AI/quest lock pair](#the-aiquest-lock-pair): small
 - [A follower stops following](#a-follower-stops-following): not reproducible on 1.7.104 (2026-11-07), not worked on
 - [A guest's recruitment stalls](#a-guests-recruitment-stalls): small
 - [A deleted copy in an AI job](#a-deleted-copy-in-an-ai-job): small
@@ -142,7 +141,6 @@ every other section needs the duo.
 
 - [A guest crash through a pointer that holds a vtable](#a-guest-crash-through-a-pointer-that-holds-a-vtable): medium
 - [A guest crash in the clip-load hook with no World](#a-guest-crash-in-the-clip-load-hook-with-no-world): small
-- [A late joiner sees the host's copy stuck drawing](#a-late-joiner-sees-the-hosts-copy-stuck-drawing): small
 - [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws): small
 - [The party's sword unnamed at a merchant](#the-partys-sword-unnamed-at-a-merchant): small
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
@@ -150,9 +148,7 @@ every other section needs the duo.
 
 **Test tools**
 
-- [Heap history crashes the host at a kill move](#heap-history-crashes-the-host-at-a-kill-move): small
 - [The gate fails on GameTests now and then](#the-gate-fails-on-gametests-now-and-then): small
-- [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours): small
 - [A scenario stages its speaker frozen](#a-scenario-stages-its-speaker-frozen): small
 - [A staging spot 1500 units off with no floor](#a-staging-spot-1500-units-off-with-no-floor): small
 
@@ -350,6 +346,10 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   `weapon_drawn` false), the copy still holding the bow in the other slot. So it is a slot-0 mismatch on a sheathed
   bow; whether it shows (a drawn bow, its 3D) is not observed, and the user's report stays unreproduced. Start from
   `rejoined-guest-sees-rider`'s `at-failure.json`: what the hand repair compares for a form held in both slots.
+- **Not the repair's equip** (2026-11-22, piece D step 0): read in IDA, `coop_RealEquip` (38929) takes a bow's own
+  BothHands slot unless the race's flags bit 30 keeps the passed hand; measured on `rejoined-guest-sees-rider`, the
+  repair's RightHand equip of Faendal's bow on his copy left `[13985, 13985]`. The `[0, bow]` writer is still unread
+  (39811 sets one hand per call: outfit reset, MoveToHigh, disarm; `docs/re/systems/actor-state.md`).
 
 ### End comparisons in towns
 
@@ -559,44 +559,6 @@ Size: medium. Needs: GameTests (the fake must keep a copy's graph state).
   - Test: a `GameTests` race switch back with the copy mid-transform, once the fake keeps a copy's graph state.
 
 ## Party travel
-
-### The AI/quest lock pair
-
-Stands alone: may be gone since 2026-10-31.
-
-Agent task: Rerun the lock audits of `party-loads-overlap` and `party-fast-travels`, then close the entry or classify
-the pair in lock-order.md.
-
-Size: small. Needs: duo.
-
-- **An AI/quest lock inversion was reported during travel** (2026-10-27, party-travel). The departure timing
-  assertions pass, but `party-loads-overlap` fails the scenario's final lock audit. The reported path is native
-  low-actor AI/package evaluation -> `TESQuest::sub_25066`, through the existing `HookUpdateAI`; the opposite
-  pair is quest alias processing. No deadlock occurred in that run. Evidence:
-  `.worktrees/party-travel/build/final-native-lock.log` and `build/regression-final-native.log`.
-  - Start: reproduce the pair on unchanged dev and inspect quest/AI lock ordering; that baseline comparison
-    has not been performed. This is not evidence that the new destination announcement itself holds these locks.
-  - Baseline (2026-10-28, party-scripts-2): dev's own DLL (`e4085691`) reports the same pair in `dive-host-player`
-    (`SkyrimSE.exe+0x1823d0 > +0x3d1507 vs +0x3cdf46 > +0x1820ef`), untagged because its first reporter had none of
-    our frames. The pair: an AI job's package conditions (`ExtraAliasInstanceArray` 12721, then `GetIsAliasRef` and
-    `TESQuest::sub_25066`) against the guest's quest sync forcing an alias on the main thread
-    (`GuestEngine::ApplyFills` -> `TESQuest::ForceRefIntoAlias` 25052 -> `ExtraAliasInstanceArray` 12718). Whether it is
-    tagged ours depends on which thread reports it first (`HookUpdateAI`, `HookCheckForNewPackage` count as ours).
-  - 2026-10-28, adaptive playback run: `party-fast-travels` failed once on the client's lock audit with the same
-    family (`SkyrimSE.exe+0x3cdb45 > +0x182241 vs +0x1823d0 > +0x3d1507`), then passed on the rerun.
-  - 2026-11-05 audit: the 2026-10-31 fix moved guest quest writes to between frames, and its "checkpoint" family has the
-    same addresses (`+0x3cdb45 > +0x182241`).
-  - 2026-11-16, dev: `party-loads-overlap` and `party-fast-travels` passed their lock audits 3 of 3. The same lock pair
-    showed in `party-buys-house-guest`'s audit on the host instead (full run, our code on the stack): `+0x187a10 >
-    +0x165490` against `+0x172a5b > +0x187881`. Read in IDA, each named that day:
-    `ExtraAliasInstanceArray::FindAliasPackageThatCanRun` (12721, the alias array's lock for read) asks
-    `TESPackage::CanRunFor` (29619) of each alias package, which for a once-per-day package looks in the reference's
-    run-once packs under the extra-data list's lock (`ExtraDataList::HasRunOncePack` 11737, `0x140165460`); the other thread is
-    `ExtraDataList::RemoveAliasInstance` (12047: the list's lock for write, then 12719 the array's). So the pair is an
-    alias leaving a reference while that reference's packages are judged. Its `[ours]` was wrong: see
-    [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours).
-- 2026-11-22, dev `aa723513`: `party-loads-overlap` and `party-fast-travels` passed their lock audits; the pair still
-  shows in `party-buys-house-guest` and `party-buys-house-host` (see the pass-through entry).
 
 ### A follower stops following
 
@@ -833,6 +795,8 @@ Size: small. Needs: duo.
   (0x1406756F4), against 0x140172A5B then 12719 (0x140187881); our code on the stack, which frame not read.
 - 2026-11-22, dev `aa723513`: `host-dies-guest-still-fought` passed 3 of 3 (its lock audit too). At 2 of 6 before,
   three runs do not show the pair gone.
+- 2026-11-22, measured hook sizes (agent/hook-sizes): passed 1 of 1 without the pair; only the engine's Havok/list pair
+  (lock-order.md). If it returns, its report's `ours from` line names the frame that tagged it.
 
 ## Found by the playthrough flow
 
@@ -997,7 +961,11 @@ Size: small. Needs: GameTests.
   - Start: which spawn the host's new copy came from after the travel: the record, or an earlier one in flight.
 - 2026-11-22, dev `aa723513`: `party-travel-mounted-guest`, `party-fast-travels` passed; `party-buys-house-host`
   ended once on the shape (the guest's player `JumpLandEnd`, idle 704248; the host's copy `JumpLand`, idle 689444),
-  then on the lock pair of [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours).
+  then on the alias/list lock pair tagged ours by a stale hook size (measured since 2026-11-22: lock-order.md).
+- **2026-11-22, piece D:** the window is not found by reading. A host NPC's spawn is built from its live state when
+  sent (a GameTests flow of an action before the copy exists passes), and the host's record of a player takes the
+  last action of every movement update. Next: trace `party-travel-mounted-guest` for which message the host's game
+  drops. A copy's last action is read only by the comparison and the owner's resurrect stamp (`HookResurrect`).
 
 ### The green flash scenarios' grab
 
@@ -1364,8 +1332,8 @@ Size: small. Needs: the duo (`death-spectate-host --repeat 6`).
 
 `party-fast-travels`, 1 of 5 runs (the full run; `20261116-172932-1b1cf2`, `-172936-b39f96`): "[client] arrived in
 QASmoke" timed out after 60 s, and the cleanup then got no answer from the guest's game (`{'cmd': 'dialogue'}
-refused: no answer`), so the duo was booted again. It passed 3 of 3 after; its lock audit passed each time (see
-[The AI/quest lock pair](#the-aiquest-lock-pair)). Not read: the guest's log through the travel.
+refused: no answer`), so the duo was booted again. It passed 3 of 3 after; its lock audit passed each time (the alias/list
+pair: lock-order.md, "Reports read"). Not read: the guest's log through the travel.
 
 Agent task: read the guest's log from the travel to the timeout: a load that never ended, or a hang.
 
@@ -1389,9 +1357,8 @@ The guest's game crashed six times in about three hours of scenarios, every time
 value is the address of a class's vtable in `.rdata` (measured in the crash logs; the addresses identified in IDA as
 vtables, each crash site commented in the database). Never the host's game.
 
-Agent task: catch one with the heap history on (`coop_test.py repro`, [Heap history crashes the host at a kill
-move](#heap-history-crashes-the-host-at-a-kill-move) first) and name the object freed while a movement or package
-pointer still held it.
+Agent task: catch one with the heap history on (`coop_test.py repro --heap-history`) and name the object freed while a
+movement or package pointer still held it.
 
 Size: medium. Needs: IDA, the duo (`guest-ivarstead-fine-mouse-sweep` crashed 2 of 2, `guest-ivarstead-jail-mouse`
 1 of 2), then GameTests.
@@ -1428,20 +1395,6 @@ Agent task: find when the locator holds no `World` while the engine's jobs run (
 hook safe then.
 
 Size: small. Needs: the code, then the duo (`hands-survive-reload-host-player --repeat 4`).
-
-### A late joiner sees the host's copy stuck drawing
-
-`late-join-client` 2 of 2 (2026-11-22): the guest leaves and joins again while the host draws a sword; after the join
-"[client] the host's character has the sword drawn" times out after 15 s, though the NPC's copy holds its sword and
-shows its health. Measured at the failure (`at-failure.json`): the host's player at `weapon_state` 3 (Drawn,
-`WeaponState.h`) with the sword `12EB7` in its right hand; its new copy on the guest holds the sword in the same hand
-slot but stays at 2 (Drawing), `weapon_drawn` false. Not read: what finishes a draw on a copy spawned while its owner
-is already drawn.
-
-Agent task: read what carries a drawn state to a copy spawned after the draw, and why the copy's draw never reaches
-Drawn.
-
-Size: small. Needs: the duo, then GameTests.
 
 ### A copy at Sheathed while its owner draws
 
@@ -1500,18 +1453,6 @@ Size: small. Needs: the duo.
 
 ## Test tools
 
-### Heap history crashes the host at a kill move
-
-With `SKYRIMCOOP_HEAP_HISTORY` set on a duo boot (2026-11-12), the host crashed 4 of 4 at the start of
-`spectator-watches-kill-move`, inside the tool: `HeapHistory::Capture` (its `RtlCaptureStackBackTrace`) under
-`HookFormAllocate`, an access violation in ntdll's unwinder. Read, not measured: Wine's unwinder faults on a frame with no
-unwind data where Windows' stops (a hook's trampoline is one). The other four scenarios of that run passed under it.
-
-Agent task: make the capture stop at a frame with no unwind data (`RtlLookupFunctionEntry` first, or a guarded walk),
-then use it on "A guest crash in the garbage collector's job".
-
-Size: small. Needs: the duo.
-
 ### The gate fails on GameTests now and then
 
 `scripts/check.sh` at a push, 2026-11-11 and 2026-11-12 on `agent/copy-idle-graph`: `check: FAILED (run GameTests)`, twice in
@@ -1523,26 +1464,6 @@ Agent task: loop `GameTests` until it fails and fix that case's timing.
 
 Size: small. Needs: nothing but the fast suite.
 - 2026-11-22: `scripts/check.sh` passed 2 of 2 in this worktree (one full, `CHECK_FORCE=1`).
-
-### A pass-through hook counted as ours
-
-The lock-order checker tagged an engine-only inversion `[ours]` and failed `party-buys-house-guest` (the full run of
-2026-11-16; [The AI/quest lock pair](#the-aiquest-lock-pair)). Our frames on its two stacks (symbolized from the
-host's `tp_client.2.log`, 18:25:09) are `HookCheckForNewPackage` (+0x5d), `HookUpdateAI` (+0x59) and
-`AliasOnReference<RealClearRefAlias>` (+0x91), all pass-through hooks `LockOrder::IgnoreFrames` lists. But
-`HookUpdateAI` is listed with 0x50 bytes (`Actor.cpp`), and its call returns at +0x59: the hook has grown past its size,
-so its frame counts as ours.
-
-- 2026-11-20 (piece 6): the same in Whiterun from `GuestScripts::HookNativeCalled`, which runs every native and was
-  not listed (an extra-data list's lock against the VM's, `late-join-gets-load-door-lock` every run). Listed now with
-  its PDB size (0x984, given 0xA00); a measured size would have caught both.
-
-Agent task: give `HookUpdateAI` a size that covers it, and make the checker fail loudly when a listed hook's code is
-longer than its size (or measure the size instead of writing it).
-
-Size: small. Needs: a build; the duo to confirm (`party-buys-house-guest`).
-- 2026-11-22, dev `aa723513`: still, `party-buys-house-guest` 2 of 2 and `party-buys-house-host` once, the same pair
-  tagged `[ours]` on the host (`+0x187a10 > +0x165490` against `+0x172a5b > +0x187881`).
 
 ### A scenario stages its speaker frozen
 

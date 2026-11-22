@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <utility>
 
@@ -12,20 +13,36 @@ using Range = std::pair<uintptr_t, uintptr_t>;
 // LockOrder::IgnoreFrames' slots; test_coop_harness checks the calls fit.
 inline constexpr size_t kMaxPassThrough = 32;
 
-inline bool IntroducedByUs(std::span<const uintptr_t> aFrames, Range aModule, std::span<const Range> aPassThrough) noexcept
+// The frame that makes a stack ours: our DLL below an engine frame, not a pass-through hook; -1 when none.
+inline int OurFrame(std::span<const uintptr_t> aFrames, Range aModule, std::span<const Range> aPassThrough) noexcept
 {
     bool belowEngine = false;
-    for (const auto frame : aFrames)
+    for (size_t i = 0; i < aFrames.size(); ++i)
     {
+        const auto frame = aFrames[i];
         bool ours = frame >= aModule.first && frame < aModule.second;
         for (const auto& range : aPassThrough)
             if (frame >= range.first && frame < range.second)
                 ours = false;
         if (belowEngine && ours)
-            return true;
+            return static_cast<int>(i);
         belowEngine |= !ours;
     }
-    return false;
+    return -1;
+}
+
+inline bool IntroducedByUs(std::span<const uintptr_t> aFrames, Range aModule, std::span<const Range> aPassThrough) noexcept
+{
+    return OurFrame(aFrames, aModule, aPassThrough) >= 0;
+}
+
+// A pass-through hook's code from its unwind entry (RUNTIME_FUNCTION, image-relative): none unless the entry starts at
+// the hook. The entry ends before the hook's cleanup funclets, which run only while an exception unwinds.
+inline std::optional<Range> PassThroughRange(uintptr_t aStart, uintptr_t aImageBase, uint32_t aBegin, uint32_t aEnd) noexcept
+{
+    if (aBegin >= aEnd || aImageBase + aBegin != aStart)
+        return std::nullopt;
+    return Range{aStart, aImageBase + aEnd};
 }
 
 // The frame's stretches a lock order is taken in, as bits (lock-order.md, Orders the frame keeps apart).

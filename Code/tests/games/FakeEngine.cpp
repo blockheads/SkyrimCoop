@@ -451,6 +451,7 @@ struct FakeGraphTarget final : IGraphTarget
         if (!Engine.LoadGraphInternalState(FormId, acPoint.State))
             return false;
         Actor.Graph.ActiveNodesChanged = acPoint.ActiveNodesChanged; // the restore's own walk cleared it
+        Actor.WeaponEventIn = 0; // its own draw's weaponDraw went with the graph it replaced
         Actor.GraphRandom = acPoint.Seed.Seed;
         if (!Actor.Graph.History.empty())
             Actor.Graph.History.back().Input = "sync point";
@@ -488,6 +489,7 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 {
     auto& actor = Actors.at(aFormId);
     ++actor.GraphGeneration;
+    actor.WeaponEventIn = 0;
     if (aProject)
         actor.GraphProject = aProject;
     actor.GraphState = aState;
@@ -513,6 +515,11 @@ void FakeEngine::Frame()
         }
         else
             ++it;
+    // A draw 37279 took ends at its own weaponDraw (42824) or weaponSheathe (37169); a copy on its stream drops it.
+    for (auto& [cId, actor] : Actors)
+        if (actor.WeaponEventIn && --actor.WeaponEventIn == 0 && !(actor.Copy && World::Get().GetGraphStreams().OnStream(cId)))
+            if (IsAnimating(actor.Weapon))
+                actor.Weapon = actor.Weapon == WeaponState::Drawing ? WeaponState::Drawn : WeaponState::Sheathed;
     // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
     for (auto& [cId, actor] : Actors)
         if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))

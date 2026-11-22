@@ -326,6 +326,8 @@ DESYNC_INTERVAL = 0.1
 TURN_SAMPLES = int(3.0 / DESYNC_INTERVAL) + 1
 # Group 1 ours, 2 the kind, 3 the sites. KEPT_APART: an inversion the frame keeps apart (lock-order.md), never a failure.
 KEPT_APART = "kept apart by the frame: "
+# lock_order_reports' key for pass-through hooks the plugin could not measure: never part of a baseline.
+UNMEASURED_HOOKS = "unmeasured hooks"
 LOCK_PATTERN = re.compile(r"^(\[ours\] )?(?:kept apart by the frame: )?(live lock order inversion|lock order inversion|self-deadlock) \[([^\]]*)\]")
 KNOWN_LOCK_PATTERNS = ROOT / ("scripts/lock_order_known.txt" if SKYRIM_VERSION == "1.6.1170.0"
                               else "scripts/lock_order_known-1.7.104.txt")
