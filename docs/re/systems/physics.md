@@ -621,8 +621,8 @@ the ragdoll enters the world       AddRagdollHandler (42873) -> task 18 (QueueAd
                                    -> bhkWorld vfunc +0x1A8 (world, 3D, recurse, 1, group, 0)
                                    group: the actor's character controller's (its filter info's high 16 bits)
 the actor is knocked down          KnockExplosion (39895): NiAVObject::SetCollisionLayer (77998) of the 3D to 32
-the actor dies                     Actor::KillImpl: the same call, 32
-up again / resurrected             EndKnockState (39897), GetUpEndHandler (42880), ClearDeathState: back to 8
+the actor dies                     Actor::KillImpl (37896): the same call, 32
+up again / resurrected             EndKnockState (39897), GetUpEndHandler (42880), ClearDeathState (37613): back to 8
 ```
 
 So a body lying in its ragdoll is on layer 32 (`L_DEADBIP`) in its actor's own group (read). What layer 32 meets is
@@ -642,8 +642,9 @@ L_BIPED (8) meets      the world only: no clutter, no weapons, no other bipeds
   (measured, 2026-11-21): it looks past actors' bodies now.
 - A lying ragdoll pushes loose objects and other lying ragdolls, and is stopped by them. A copy's ragdoll does
   that in its own game too, where its owner's never touched them.
-- `Actor::IsInRagdollState` (37491): true for a dead actor, or knock state 1 to 5 or 7; **not 6** (getting up). The
-  transform delta sink (37996) keeps the actor on its ragdoll's root only while it is true.
+- `Actor::IsInRagdollState` (37491): true when `Actor+0xE8` bit 31 is set, when dead (vfunc 0x99) without flags2
+  `0x10`, at knock state 1 to 5 or 7, or with flags1 bits 21-24 at 3; knock state 6 (getting up) alone does not make it
+  true (read). The transform delta sink (37996) keeps the actor on its ragdoll's root only while it is true.
 
 Not read: Havok's constraint solver for a ragdoll's joints; what `hkbRagdollDriver::driveToPose` does for a dead
 actor's bodies each update (the owner's ragdoll sleeps under it, so it does not wake them: measured, 2026-11-12).
@@ -651,7 +652,7 @@ actor's bodies each update (the owner's ragdoll sleeps under it, so it does not 
 ## A translating reference (read in IDA on 1.7.104, 2026-11-21)
 
 Papyrus `TranslateTo` / `SplineTranslateTo` (56237) give the reference an `ExtraRefrPath` (extra 161), mark change
-`0x80000000` and add its handle to its cell's list (`0x1402D8EF0`). `TESObjectCELL__UpdateTranslatingRefs` (18898)
+`0x80000000` and add its handle to its cell's list (`TESObjectCELL::AddTranslateObject` 19417). `TESObjectCELL__UpdateTranslatingRefs` (18898)
 walks that list for each attached cell every frame: `ExtraRefrPath__Advance` (12810) by this game's frame seconds,
 then `SetPosition`, `SetAngle`. That is all that moves a critter (`critterMoth`, `Critter.psc`): the game whose VM
 ran the script moves it, on its own clock; no other game is told. `Critter.psc` also places two landing markers for

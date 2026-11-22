@@ -9,6 +9,8 @@
 #include <Messages/Relayed.h>
 #include <Physics/BodyPrediction.h>
 #include <Bridges/PhysicsBodies.h>
+#include <Services/CopyRecords.h>
+#include <Structs/RagdollPart.h>
 
 #include <chrono>
 #include <format>
@@ -650,6 +652,16 @@ SCENARIO("A guest joining beside a host corpse sees it lie as the host's", "[phy
         party.Frame();
     const uint32_t cSession = SessionOf(party.Host(), guard);
     REQUIRE(cSession != 0);
+    const auto cRestsHeld = [&] {
+        RagdollPart part;
+        const auto* pPart = party.Host().ctx().at<CopyRecords>().Find(cSession, RecordKind::kRagdoll);
+        return pPart && FromPartBytes(pPart->Bytes, part) ? part.Rests.size() : 0;
+    };
+    REQUIRE(cRestsHeld() == kRagdollBodies);
+    // Woken again (a kick), its rest is gone until it lies still once more: a spawn meanwhile gets none.
+    party.As(party.Host(), [&] { host.Knock({.Actor = guard, .Index = 0}, {40.f, 0.f, 0.f}, {}); });
+    party.Until([&] { return cRestsHeld() == 0; }, "the woken corpse's rest part is cleared");
+    party.Until([&] { return cRestsHeld() == kRagdollBodies; }, "it rests again and declares it");
     // The guest's engine drops its own copy's ragdoll where it stands (as Skyrim's spawning a dead actor does).
     for (uint8_t i = 0; i < kRagdollBodies; ++i)
     {
@@ -710,6 +722,9 @@ SCENARIO("A guest's player drags a host NPC's corpse: it lies where the guest le
     party.Until(cAllAsleep, "the guard lies at rest on both games");
     const glm::vec3 cLay = cHostBone(0).Flight.Body.Position;
 
+    // Played: it passes what nobody moves in the guest's game (its owner's game settled those).
+    const BodyKey cGrabbed{.Actor = cSession, .Index = 0};
+    CHECK(guest.Classes.at(cGrabbed) == BodyClass::kPlayed);
     // The guest's player drags its copy 120 units along x (its own mouse spring), then lets go.
     const glm::vec3 cDrag{120.f, 0.f, 0.f};
     guest.Grabbed = BodyKey{.Actor = cSession, .Index = 0};
@@ -728,6 +743,8 @@ SCENARIO("A guest's player drags a host NPC's corpse: it lies where the guest le
         }
         party.Frame();
     }
+    // The guest's own now: it meets what the guest's game moves and what nobody does, as any body it moves.
+    CHECK(guest.Classes.at(cGrabbed) == BodyClass::kMoving);
     party.As(party.Guest(), [&] { guest.Grabbed.reset(); });
     const auto cWhere = [&] {
         return std::format("host's bone 0 at x {:.1f} {}, guest's at x {:.1f} {}", cHostBone(0).Flight.Body.Position.x,
@@ -748,6 +765,24 @@ SCENARIO("A guest's player drags a host NPC's corpse: it lies where the guest le
     CHECK(glm::distance(cHostBone(0).Flight.Body.Position, cLay) > 100.f);
     for (uint8_t i = 0; i < kRagdollBodies; ++i)
         CHECK(glm::distance(cHostBone(i).Flight.Body.Position, cCopyBone(i).Flight.Body.Position) < RagdollRest::kNear);
+    CHECK(guest.Classes.at(cGrabbed) == BodyClass::kPlayed); // at rest: the host's again
+
+    // The host's own physics moves it next (a blast): it goes where that puts it, the guest's rest played no more.
+    const glm::vec3 cGuestRest = cHostBone(0).Flight.Body.Position;
+    party.As(party.Host(), [&] {
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            host.Knock({.Actor = guard, .Index = i}, {300.f, 0.f, 0.f}, {});
+    });
+    party.Until([&] {
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            if (cHostBone(i).Awake)
+                return false;
+        return true;
+    }, "the host's corpse rests where its blast put it", cWhere);
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    INFO(cWhere());
+    CHECK(glm::distance(cHostBone(0).Flight.Body.Position, cGuestRest) > 30.f);
 }
 
 SCENARIO("A host NPC is knocked down alive: its copy goes down with it and lies as the host's, bone by bone", "[physics]")

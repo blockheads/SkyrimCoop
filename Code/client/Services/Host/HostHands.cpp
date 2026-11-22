@@ -27,7 +27,7 @@ bool HostHands::OwnsRagdoll(const BodyKey& acKey, ConnectionId_t aSender) const 
 
 bool HostHands::HostsBody(const BodyKey& acKey) const noexcept
 {
-    return !acKey.Actor || m_characters.OwnerOf(acKey.Actor) == m_players.Host();
+    return !acKey.Actor || (m_characters.OwnerOf(acKey.Actor) == m_players.Host() && m_game.IsDead && m_game.IsDead(acKey.Actor));
 }
 
 void HostHands::OnHeld(const BodyFramesRequest& acMessage, ConnectionId_t aSender) noexcept

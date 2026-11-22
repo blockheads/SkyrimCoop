@@ -205,10 +205,11 @@ def world_differences(host, guest, host_again=(), guest_again=()):
     """Where the guest's world differs from the host's: {reference: {field: 'host vs guest'}}. A reference one game
     lacks differs in "present"; created references pair up by base and position (their ids differ per game).
     host_again, guest_again: each game sampled again, so what animates on its own is skipped."""
-    # Scenery on either game is left out (a created one by its own fields: its id differs per game).
-    left_out = {i for world in (host, guest) for i, r in world.items() if scenery(r)}
-    host = {i: r for i, r in host.items() if i not in left_out}
-    guest = {i: r for i, r in guest.items() if i not in left_out}
+    # Scenery is left out: a placed one if either game reads it so, a created one by its own fields (created ids are
+    # each game's own).
+    left_out = {i for world in (host, guest) for i, r in world.items() if i < CREATED_ID and scenery(r)}
+    host = {i: r for i, r in host.items() if i not in left_out and not (i >= CREATED_ID and scenery(r))}
+    guest = {i: r for i, r in guest.items() if i not in left_out and not (i >= CREATED_ID and scenery(r))}
     differences = {}
     for ref_id, ref in host.items():
         if ref_id < CREATED_ID:

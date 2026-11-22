@@ -17,8 +17,8 @@ read (IDA)      a lying ragdoll's bodies: layer 32 (L_DEADBIP), the actor's own 
 read (IDA)      a critter moves by TranslateTo: its cell's update (18898) advances an ExtraRefrPath on this game's
                   clock; only the game whose VM ran the script moves it
 read (IDA)      change flag 0x8000000 = leveled inventory rolled (16128): each game's own roll
-read (IDA)      Actor::IsInRagdollState (37491) is false from knock state 6: the engine stops keeping a getting-up
-                  actor on its ragdoll's root there
+read (IDA)      Actor::IsInRagdollState (37491): knock state 6 alone does not make it true (its other conditions:
+                  +0xE8 bit 31, dead without flags2 0x10, knock 1-5 or 7, flags1 bits 21-24 at 3)
 read (esm)      layer 32 meets clutter, weapons, props, debris and other actors' layer 32; never a capsule (30)
 read (esm)      the bug list's scenery: CritterMoth* (critterMoth), FCAmbWaterfallSalmon* (FXfakeCritterScript),
                   DoNotPlaceSmallCritterLandingMarkerHelper (a moth's landing marker), HangingPheasant02 (FLOR),

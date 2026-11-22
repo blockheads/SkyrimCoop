@@ -100,10 +100,8 @@ public:
     [[nodiscard]] std::vector<BodyPush> TakePushes() noexcept;
     // Its weapon swings' hits on the host's references' bodies since the last call (PlayerHands::TakeHits), one per body.
     [[nodiscard]] std::vector<BodyPush> TakeHits() noexcept;
-    // The host's reference this game's player holds (Activate held: PlayerCharacter::grabbedObject): its dynamic
-    // bodies read now; none while it holds nothing of the host's (a body the host's frames still move is keyframed, so
-    // the engine's grab refuses it). A copy's corpse (40555 grabs a dead actor): its ragdoll's bodies, keyed by the
-    // session id acSessionOf gives its copy, and watched until they rest (OwnBodies::Corpses).
+    // What this game's player holds (PlayerCharacter::grabbedObject): a host reference's bodies, or a copy's corpse's by
+    // its session id, watched until they rest (40555 grabs a dead actor).
     using SessionOf_t = std::function<uint32_t(uint32_t aFormId)>;
     [[nodiscard]] std::vector<BodyFrame> ReadHeld(const SessionOf_t& acSessionOf) noexcept;
     // What this game's own physics moves: the host's references' bodies awake and simulated here, where they are

@@ -73,6 +73,11 @@ class Scenery(unittest.TestCase):
         moved = {**self.CABBAGE, "position": [40.0, 0.0, 0.0]}
         self.assertIn("position", next(iter(world_differences({self.CABBAGE["id"]: self.CABBAGE}, {moved["id"]: moved}).values())))
 
+    def test_a_created_item_on_one_game_is_reported_whatever_the_other_game_has_under_its_id(self):
+        # Review of PR #91: created ids are each game's own; a host moth at the guest item's id hid it.
+        item = {"id": 0xFF000A01, "base": 0x64B3F, "type": 32, "cell": 0x3C, "flags": 0, "position": [1.0, 2.0, 3.0]}
+        self.assertEqual(list(world_differences({self.MOTH["id"]: self.MOTH}, {item["id"]: item}).values()), [{"present": "client only"}])
+
     def test_a_cabbage_on_one_game_only_is_still_a_difference(self):
         self.assertEqual(list(world_differences({self.CABBAGE["id"]: self.CABBAGE}, {}).values()), [{"present": "host only"}])
 

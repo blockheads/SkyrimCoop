@@ -197,6 +197,10 @@ void HostService::MakeAuthority() noexcept
         const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
         return cFormId && m_world.ctx().at<IActorBridge&>().ActorCanPair(cFormId);
     };
+    game.IsDead = [this](uint32_t aSessionId) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId && m_world.ctx().at<IActorBridge&>().IsActorDead(cFormId);
+    };
     game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
     game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
     game.ConsoleNameOf = [this](uint32_t aSessionId) {
@@ -221,7 +225,7 @@ void HostService::MakeAuthority() noexcept
             return 0;
         });
         // Its actors' ragdoll rests are their record parts; the references' go to HostPhysics.
-        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested);
+        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake);
         return bodies;
     };
     // A guest's copy, where the host's game shows it (PlayerComponent: its player id).

@@ -468,6 +468,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
         std::optional<glm::vec3> RestAt; // a copy's ragdoll body: its owner's rest it is being taken to
+        glm::quat RestTurn{1.f, 0.f, 0.f, 0.f};
         // A copy's ragdoll body awake that nothing steered: its joints settle it off where it was put, until Havok
         // sleeps it (duo, death-spectate-host's RagdollTrace, 2026-11-12: a few degrees off, about half a second).
         uint16_t SettleFrames = 0;
@@ -535,6 +536,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<BodyKey, BodyClass> Classes;
     void SetMoving(const BodyKey& acKey, bool aMoving) noexcept override
     {
+        // A copy's corpse this game's player took: moving, then played again (BodyBridge::SetMoving).
+        if (acKey.Actor)
+        {
+            if (const auto it = Classes.find(acKey); it != Classes.end())
+                it->second = aMoving ? BodyClass::kMoving : BodyClass::kPlayed;
+            return;
+        }
         if (const auto it = Classes.find(acKey); it != Classes.end() && it->second == BodyClass::kPlayed)
             return;
         // As BodyBridge::SetMoving: its owner's rest being put here wakes it, which is not this game moving it.
@@ -546,7 +554,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         }
         if (aMoving) Classes[acKey] = BodyClass::kMoving; else Classes.erase(acKey);
     }
-    void Forget(const BodyKey& acKey) noexcept override { Classes.erase(acKey); }
+    void Forget(const BodyKey& acKey) noexcept override
+    {
+        if (!acKey.Actor) // a ragdoll keeps its group (BodyBridge::Forget)
+            Classes.erase(acKey);
+    }
     void ForgetAll() noexcept override { Classes.clear(); }
     // Body acKey runs into acInto in this game: knocked at that velocity, unless acKey is played and nobody moves
     // acInto (its owner's game never hit that one).

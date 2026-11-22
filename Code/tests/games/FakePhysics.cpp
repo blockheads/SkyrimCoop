@@ -120,6 +120,9 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
         Body& body = it->second;
         body.RagdollOf = aCopy;
         body.Held = false; // its ragdoll driver keeps it simulated (motion 2/3)
+        // A copy's: played (BodyBridge::Find), unless this game's player moves it now.
+        if (Actors.contains(aCopy) && Actors.at(aCopy).Copy)
+            Classes.try_emplace(it->first, BodyClass::kPlayed);
         if (cDrive.Rest)
         {
             rests.push_back({it->first, &body, &cDrive.Frame});
@@ -140,8 +143,9 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
         bool fresh = false, allNear = true, allStill = true, anyWoken = false;
         for (auto& [cKey, pBody, pRest] : rests)
         {
-            fresh |= pBody->RestAt != pRest->Position;
+            fresh |= pBody->RestAt != pRest->Position || pBody->RestTurn != pRest->Rotation;
             pBody->RestAt = pRest->Position;
+            pBody->RestTurn = pRest->Rotation;
             const bool cNear = glm::distance(pBody->Flight.Body.Position, pRest->Position) <= RagdollRest::kNear;
             allNear &= cNear;
             allStill &= BodyPrediction::StillToSleep(true, glm::length(pBody->Flight.Body.LinearVelocity), 0.f);

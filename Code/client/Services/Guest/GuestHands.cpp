@@ -260,7 +260,10 @@ void GuestHands::SendRagdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::
         spdlog::info("GuestHands: this game's player's ragdoll moves ({} bodies awake)", aOwn.Ragdoll.size());
     aFrames.insert(aFrames.end(), aOwn.Ragdoll.begin(), aOwn.Ragdoll.end());
     if (aOwn.RagdollRested.empty())
+    {
+        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, aOwn.RagdollRested, aOwn.Ragdoll);
         return;
+    }
     for (BodyPose& rest : aOwn.RagdollRested)
     {
         rest.Key.Actor = cPlayer;
@@ -268,7 +271,7 @@ void GuestHands::SendRagdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::
         m_motions.Forget(rest.Key);
     }
     spdlog::info("GuestHands: this game's player's ragdoll rests ({} bodies, {} updates moving)", aOwn.RagdollRested.size(), std::exchange(m_ragdollFrames, 0));
-    m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, aOwn.RagdollRested);
+    m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, aOwn.RagdollRested, aOwn.Ragdoll);
 }
 
 void GuestHands::TrackMoved(uint64_t aTick, const std::set<BodyKey>& acPlayed, const std::vector<BodyPose>& acMoved) noexcept

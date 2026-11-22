@@ -138,6 +138,7 @@ void HostService::MakeAuthority() noexcept
     game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
     game.Claimable = [&engine](uint32_t aSessionId) { return !engine.IsPlayerSummon(Utils::GetFormIdBySessionId(aSessionId)); };
     game.CanPair = [&engine](uint32_t aSessionId) { return engine.ActorCanPair(Utils::GetFormIdBySessionId(aSessionId)); };
+    game.IsDead = [&engine](uint32_t aSessionId) { return engine.IsActorDead(Utils::GetFormIdBySessionId(aSessionId)); };
     game.AdvanceTime = [&engine](float aHours) {
         MainLoopTasks::Queue([&engine, aHours] {
             DateTime time(engine.Calendar);
@@ -327,7 +328,7 @@ void HostService::MakeAuthority() noexcept
                     bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position,
                                              .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
                 }
-        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested); // as HostService
+        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake); // as HostService
         return bodies;
     };
     game.FreeBody = [&engine, this](const BodyFrame& acFrame, uint64_t aReleasedAt) {

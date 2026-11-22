@@ -883,6 +883,8 @@ copy, each graph update     CopyRagdollPhysics, after 58291, all its bodies toge
   every body near and still     put to sleep (SleepBody: its joints make it one island), done
   off, under half a second      steered toward the rest (BodyPrediction::Steer over kRestGlideStep)
   half a second gone            all put there in one step, awake; the next update, put to sleep
+                            (one SleepBody: inferred that its joints keep it one island, the solver not read;
+                            measured: every copy's bodies slept from that one call, duo 2026-11-21)
   done                          untouched: a steer wakes a body (78089/78090)
   woken off it after            taken there again, twice a rest at most
 lying, its bodies               in the played collision group (BodyBridge::Find), given back as it stands

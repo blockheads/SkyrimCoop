@@ -26,7 +26,7 @@ RagdollPending s_bodies;
 // Each copy at its owner's rest: the rest's poses by body, and where it is in RagdollRest.
 struct CopyRest
 {
-    std::map<uint8_t, glm::vec3> Poses;
+    std::map<uint8_t, std::pair<glm::vec3, glm::quat>> Poses;
     RagdollRest Rest;
     std::optional<RagdollRest::Step> Logged; // the last step logged: each change once
 };
@@ -53,8 +53,9 @@ void RestBodies(Actor& aCopy, std::vector<Resting>& aBodies)
     for (const auto& cBody : aBodies)
     {
         auto& pose = rest.Poses[cBody.Frame.Key.Index];
-        fresh |= pose != cBody.Frame.Position;
-        pose = cBody.Frame.Position;
+        const auto cPose = std::make_pair(cBody.Frame.Position, cBody.Frame.Rotation);
+        fresh |= pose != cPose;
+        pose = cPose;
         const auto cError = BodyPrediction::Between({.Position = cBody.Read.Position, .Rotation = cBody.Read.Rotation}, cBody.Frame);
         const bool cNear = cError.Distance <= RagdollRest::kNear && cError.Angle <= RagdollRest::kNearAngle;
         allNear &= cNear;

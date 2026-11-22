@@ -218,6 +218,7 @@ struct Session
     std::map<uint32_t, DetectionRules::EyeReading> Eyes;      // the host's NPCs' reading of a character's copy, by id
     std::vector<std::string> ConsoleLines;                   // the dev commands' lines the host's console ran
     std::set<uint32_t> CannotPair;                           // the host's NPCs dead or with their graph stopped
+    std::set<uint32_t> Dead;                                 // the host's actors dead (HostGame::IsDead)
     std::map<uint32_t, std::string> ConsoleNames;            // a character as the host's console names it
     uint32_t HostilesKilled = 0;                             // /killall's kills in the host's game
     uint32_t GlobalReads = 0;
@@ -326,6 +327,7 @@ private:
             return CrimeCaught;
         };
         game.CanPair = [this](uint32_t aSessionId) { return !CannotPair.contains(aSessionId); };
+        game.IsDead = [this](uint32_t aSessionId) { return Dead.contains(aSessionId); };
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.AdvanceTime = [this](float aHours) { HostClock.Time += aHours; };

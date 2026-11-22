@@ -85,6 +85,16 @@ void BodyBridge::SetClass(const BodyKey& acKey, bhkWorldObject* apBody, BodyClas
 
 void BodyBridge::SetMoving(const BodyKey& acKey, bool aMoving) noexcept
 {
+    // A copy's corpse this game's player took (its mover's until it rests): moving, then played again.
+    if (acKey.Actor)
+    {
+        const auto cRagdoll = m_ragdolls.find(acKey);
+        auto* pCopy = cRagdoll != m_ragdolls.end() ? Cast<Actor>(TESForm::GetById(cRagdoll->second.first)) : nullptr;
+        if (const auto cBodies = pCopy && m_ragdollGroups.contains(acKey) ? RagdollBodiesOf(*pCopy) : std::vector<bhkWorldObject*>{};
+            acKey.Index < cBodies.size() && cBodies[acKey.Index])
+            SetBodyGroup(*cBodies[acKey.Index], aMoving ? BodyGroups::kMoving : BodyGroups::kPlayed);
+        return;
+    }
     const auto it = m_classes.find(acKey);
     // Played: its owner's frames decide until they end. Already so: nothing to look up.
     if (acKey.Actor || (it == m_classes.end() ? !aMoving : it->second.Is == BodyClass::kPlayed || aMoving))

@@ -24,14 +24,25 @@ BodyService::BodyService(World& aWorld, entt::dispatcher& aDispatcher, IBodyBrid
     // Its owner's ragdoll rest, also for a copy made after it (docs/design/one-simulator.md, piece 10).
     m_world.ctx().at<CopyRecords>().Register(RecordKind::kRagdoll, [this](uint32_t aId, const std::string& acBytes) {
         RagdollPart part;
-        if (CopyOf(aId) && FromPartBytes(acBytes, part))
+        if (!CopyOf(aId) || !FromPartBytes(acBytes, part))
+            return std::vector<uint32_t>{};
+        // Its record's actor alone (the host checked who declared it): a body naming another is dropped.
+        std::erase_if(part.Rests, [aId](const BodyPose& acRest) { return acRest.Key.Actor != aId || acRest.Key.Object != GameId{}; });
+        if (part.Rests.empty())
+            EndRagdoll(aId, UINT64_MAX); // its owner's ragdoll woke: the rest it had is gone
+        else
             m_ragdolls.Rest(part.Tick, part.Rests);
         return std::vector<uint32_t>{};
     });
 }
 
-void BodyService::DeclareRagdolls(uint64_t aTick, std::vector<BodyPose>& aRests) noexcept
+void BodyService::DeclareRagdolls(uint64_t aTick, std::vector<BodyPose>& aRests, const std::vector<BodyFrame>& acAwake) noexcept
 {
+    auto& records = m_world.ctx().at<CopyRecords>();
+    // Awake again: the rest it had is gone (a spawn meanwhile lies it where its frames take it).
+    for (const BodyFrame& cFrame : acAwake)
+        if (cFrame.Key.Actor && m_declaredRests.erase(cFrame.Key.Actor))
+            records.Declare(cFrame.Key.Actor, RecordKind::kRagdoll, ToPartBytes(RagdollPart{.Tick = aTick}));
     std::map<uint32_t, RagdollPart> parts;
     std::erase_if(aRests, [&parts, aTick](const BodyPose& acRest) {
         if (!acRest.Key.Actor)
@@ -41,9 +52,13 @@ void BodyService::DeclareRagdolls(uint64_t aTick, std::vector<BodyPose>& aRests)
         part.Rests.push_back(acRest);
         return true;
     });
-    auto& records = m_world.ctx().at<CopyRecords>();
     for (const auto& [cId, cPart] : parts)
+    {
         records.Declare(cId, RecordKind::kRagdoll, ToPartBytes(cPart));
+        m_declaredRests.insert(cId);
+        // Its own physics has its rest now: a rest another game's mover put on it here is played no more.
+        EndRagdoll(cId, UINT64_MAX);
+    }
 }
 
 void BodyService::Forget(const BodyKey& acKey, uint64_t aReleasedAt) noexcept
@@ -131,6 +146,7 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_playback = {};
     m_ragdolls = {};
+    m_declaredRests.clear();
     m_following.clear();
     m_held.clear();
     m_heldElsewhere.clear();
