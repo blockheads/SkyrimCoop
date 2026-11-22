@@ -435,6 +435,22 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t, const SessionOf_t&) 
     return own;
 }
 
+std::vector<GuestEngine::IslandBody> GuestEngine::ReadIslands(const std::vector<BodyKey>& acKeys) noexcept
+{
+    std::vector<IslandBody> bodies;
+    for (const auto& [cPose, cIsland] : FakeEngine::Current().AwakeIslands(acKeys))
+        bodies.push_back({cPose, cIsland});
+    return bodies;
+}
+
+// As PhysicsBodies::Follow: read as moved from now, so its rest goes out when it lies still.
+void GuestEngine::FollowOwn(const BodyKey& acKey) noexcept
+{
+    FakeEngine& engine = FakeEngine::Current();
+    if (const auto it = engine.Bodies.find(acKey); it != engine.Bodies.end() && !it->second.Awake)
+        engine.Wake(acKey, 32);
+}
+
 std::vector<BodyFrame> GuestEngine::ReadHeld(const SessionOf_t&) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();

@@ -22,6 +22,9 @@ struct World;
  *   hold, drop    decides; its pushes, held frames (then a let go), free frames and its rest go to the host for the
  *                 others, and the host's frames and rests of it are not taken meanwhile
  *   ragdoll       its player's while it simulates (dead): its frames, then its rest, to the host for the others
+ *   its pile      what shares a simulation island with one of those: its own from its first move there, and the
+ *                 host's rest of it not put while the island is awake (docs/re/systems/physics.md, "A body landing
+ *                 on a sleeping pile")
  *   moved alone   a body this game's physics moved by itself (its copy of a blast, a bump of its own body) that the
  *                 host's frames never follow asks the host where it is, kOwnMs later
  *
@@ -35,6 +38,10 @@ struct GuestHands final : BodyService::Keeper
     // physics will not keep it there, and it is left where it lies (asked on, a ladle leaning at the host's rest fell
     // and was put back every 1.2 s for good, duo 2026-11-15).
     static constexpr uint8_t kAsksAtMost = 2;
+    // An own body lying still waits for the own bodies in its island to lie still too (Havok sleeps a pile as one:
+    // 61507), this long at most; one its player touched this lately is not still (its capsule leans on it: 62648).
+    static constexpr uint64_t kPileRestMs = 5000;
+    static constexpr uint64_t kLeanMs = 500;
 
     GuestHands(World& aWorld, GuestEngine& aEngine) noexcept;
     ~GuestHands() noexcept override;
@@ -69,6 +76,9 @@ private:
         uint64_t Seen{};              // last awake here
         bool Moving{};                // this game's physics or hands moved it since
         std::optional<BodyPose> Last; // where it was then
+        std::optional<BodyPose> From; // where it lay when it became this game's
+        std::optional<BodyPose> Rest; // lying still here, its rest not sent yet: its pile still moves (SendOwn)
+        uint64_t RestSince{};
     };
     struct Moved
     {
@@ -84,6 +94,12 @@ private:
     // What its own bodies knock is its own too (acAwake: the bodies this game's physics moves now, not played): a body
     // that left its rest within kKnockReach of one, so one game alone simulates the whole pile.
     void OwnKnocked(uint64_t aTick, const std::set<BodyKey>& acPlayed, const std::vector<BodyFrame>& acAwake, std::vector<BodyKey>& aOwned) noexcept;
+    // An own body its player's touch shifted, however little (under PhysicsBodies' 2 units), moved here: its rest
+    // goes to the host, whose old rest of it would be put back into the capsule that shifted it (62648).
+    void OwnNudged() noexcept;
+    // What shares a simulation island with its own bodies (Havok wakes and simulates a pile whole: 61509) is its own
+    // once it leaves where it lay, however little; the host's rests of the others are not put meanwhile (m_pile).
+    void OwnIsland(uint64_t aTick, const std::set<BodyKey>& acPlayed, std::vector<BodyKey>& aOwned) noexcept;
     // Its own bodies not held: their frames into aFrames while they move here, their rests to the host.
     void SendOwn(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyFrame>& aFrames) noexcept;
     // An own body's rest into aRests: the host's to place everywhere else.
@@ -110,4 +126,6 @@ private:
     std::map<BodyKey, BodyPose> m_hostRests; // where the host's rests put them
     std::map<BodyKey, uint8_t> m_asked; // asks the host answered with the rest the body already had (kAsksAtMost)
     std::map<BodyKey, BodyPose> m_ownRests;  // the rests this game sent of its own
+    std::map<BodyKey, BodyPose> m_pile;      // in an own body's island, not its own: where each lay when it joined
+    std::map<BodyKey, uint32_t> m_islands;   // its own bodies in awake islands: which (this update's ReadIslands)
 };

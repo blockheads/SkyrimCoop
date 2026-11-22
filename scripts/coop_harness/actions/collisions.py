@@ -48,6 +48,19 @@ TRIALS = {
     # back (`moves`), lifted, held still over the stack and let go.
     "pile_carry_release": {"items": [(CHEESE_WHEEL, 100, 0), (CHEESE_WHEEL, 100, 0, 16)] + _grid([CHEESE_WHEEL] * 4, columns=2, first=135, spacing=34),
                            "lift": 8, "walk": 0, "grab": 1, "moves": [(["forward"], 0.5), (["back"], 0.4)], "hold": 1.5, "group": True},
+    # Picked up and dropped on a pile: the first item grabbed, lifted (`raise` degrees, before the walk: `lift_first`),
+    # carried over the pile, held still there and let go, so it falls onto a pile asleep (docs/re/systems/physics.md,
+    # "A body landing on a sleeping pile"). A bucket onto a tavern pile, a cheese wheel onto wheels, a cabbage onto
+    # standing bottles.
+    "drop_on_pile": {"items": [(BUCKET, 90, 0)] + _grid([CHEESE_WHEEL, NORD_MEAD, CABBAGE, ALTO_WINE, BREAD, KETTLE, APPLE, CAST_IRON_POT,
+                                                         POTATO], columns=3, first=140, spacing=24),
+                     "lift": 14, "walk": 0, "grab": 0, "raise": 28, "lift_first": True, "moves": [(["forward"], 0.3)], "hold": 0.8, "group": True},
+    "drop_wheel_on_wheels": {"items": [(CHEESE_WHEEL, 90, 0)] + _grid([CHEESE_WHEEL] * 6, columns=3, first=140, spacing=30),
+                             "lift": 8, "walk": 0, "grab": 0, "raise": 28, "lift_first": True, "moves": [(["forward"], 0.3)], "hold": 0.8,
+                             "group": True},
+    "drop_on_bottles": {"items": [(CABBAGE, 90, 0)] + _grid([NORD_MEAD, ALTO_WINE, NORD_MEAD, ALTO_WINE, NORD_MEAD, ALTO_WINE], columns=3,
+                                                            first=140, spacing=20),
+                        "lift": 14, "walk": 0, "grab": 0, "raise": 28, "lift_first": True, "moves": [(["forward"], 0.3)], "hold": 0.8, "group": True},
 }
 
 
@@ -166,11 +179,16 @@ class CollisionActions:
             if "grab" in trial:
                 held_id = objects[trial["grab"]][mine]
                 ctx.grab(walker, held_id)
+                # Lifted by looking up (the hand holds it on the crosshair's line), before or after the walk, then held still.
+                def lifts():
+                    pitch = ctx.camera_view(walker)[2]
+                    ctx.turn_to(walker, pitch=pitch - trial.get("raise", 12), rate=30, keep=[{"holding": held_id}], name="lifts it")
+                if trial.get("lift_first"):
+                    lifts()
                 for buttons, seconds in trial.get("moves", []):
                     ctx.carry(walker, held_id, buttons, seconds)
-                # Lifted off the stack by looking up (the hand holds it on the crosshair's line), then held still.
-                pitch = ctx.camera_view(walker)[2]
-                ctx.turn_to(walker, pitch=pitch - trial.get("raise", 12), rate=30, keep=[{"holding": held_id}], name="lifts it")
+                if not trial.get("lift_first"):
+                    lifts()
                 ctx.carry(walker, held_id, [], trial["hold"])
                 let_go = ctx.body_of(walker, held_id)["position"]
                 ctx.tap(walker, "activate")
@@ -183,6 +201,8 @@ class CollisionActions:
                 if held:
                     ctx.tap(walker, "activate")
                     ctx.wait_for(f"[{walker or 'host'}] lets go of it", lambda: not ctx.local_player(walker).get("grabbed"), 4)
+            if probe := ctx.__dict__.get("COLLISION_PROBE"):
+                probe(walker, [o[mine] for o in objects])
             still = {}
             def all_rest():
                 for game in games:
@@ -252,6 +272,33 @@ class CollisionActions:
                                  f"{b['position'][2]:.1f}) speed {math.hypot(*b['velocity']):.0f} motion {b['motion']} {'awake' if b['awake'] else 'asleep'}")
             watched[f"{ref:X}"] = {"frames": len(mine), "changes": len(lines), "lines": lines[-limit:]}
         return watched
+
+    def collision_restless(ctx, walker="client", kind="drop_wheel_on_wheels", rounds=6, seconds=4.0, after=4.5):
+        """Trials until one leaves `walker`'s game creeping: `after` seconds past the let go its objects still move a
+        little (0.1 to 3 units in a second, no rest). Then, still inside that trial, who_wakes on them there for
+        `seconds`, with where the walker's player stands: what keeps a pile from its rest. None found: the rounds run."""
+        game = "client" if walker in ("client", "guest") else ""
+        found = {}
+        def probe(_, refs):
+            time.sleep(after)
+            before = [ctx.body_of(game, ref) for ref in refs]
+            time.sleep(1.0)
+            now = [ctx.body_of(game, ref) for ref in refs]
+            crept = {f"{ref:X}": round(math.dist(a["position"], b["position"]), 2) for ref, a, b in zip(refs, before, now)
+                     if a and b and 0.1 < math.dist(a["position"], b["position"]) < 3.0}
+            if len(crept) >= 2:
+                found.update(crept=crept, player=[round(x, 1) for x in ctx.my_position(walker)],
+                             bodies={f"{ref:X}": [round(x, 1) for x in b["position"]] for ref, b in zip(refs, now) if b},
+                             wakers=ctx.who_wakes(game, refs, seconds))
+        ctx.COLLISION_PROBE = probe
+        try:
+            for n in range(rounds):
+                run = ctx.collision_trial(walker, kind)
+                if found:
+                    return {"round": n + 1, "trace": run["trace"], **found}
+        finally:
+            ctx.COLLISION_PROBE = None
+        return {"rounds": rounds, "crept": {}}
 
     def collision_apart(ctx, apart=0.5):
         """Every trial object made this session whose body the two games have at different places (more than `apart`

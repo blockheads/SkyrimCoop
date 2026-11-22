@@ -6,6 +6,60 @@ holds what it grabs; only the host's loaded cells; frames sent on prediction err
 (`docs/progress.md`, "v1.0.0 features"). Replaced the rest detection of `docs/design/world-state-sync.md`, "Physics
 objects' rest" (`Bridges/PhysicsRests`, now `PhysicsBodies`), keeps its move rows.
 
+## A drop onto a pile (2026-11-22, built)
+
+A guest picks an object up, carries it over a pile and lets go. Vanilla (`docs/re/systems/physics.md`, "A body landing
+on a sleeping pile"): the pile wakes whole as the islands merge (61509), is pressed aside a little, and sleeps as one.
+In a session the guest's pile ended 3 to 8 units off the host's in 1 round in 3, and crept for 15 s.
+
+```text
+before                                              now
+guest: its wheel lands, presses two wheels          the island of an own body is the guest's pile (GuestHands::OwnIsland,
+       aside 1.5 units: under PhysicsBodies'          GuestEngine::ReadIslands: hkpSimulationIsland's entities)
+       2 units, so "never moved", nobody told         a mate off where it lay (0.5 units, 0.005 rad): its own, followed
+host:  its pile woke under the played wheel and        (FollowOwn), its rest to the host
+       slept: its rests of it go to the guest         the host's rests of the others: not put while the island is awake
+guest: puts them back under its own wheel             (KeepsRest, m_pile)
+       -> shoved, asked about twice, left apart
+
+guest: carrying, its player walks into a wheel,     an own body its player's touch shifted at all moved here
+       shifts it 1.6 units: "touched, never moved"    (GuestHands::OwnNudged): followed, its rest to the host
+host:  rest of that wheel, where it always lay
+guest: puts it back, into its player's capsule
+       -> 62648 pushes it out every step: the pile
+          creeps 0.3 units/s, never sleeps
+```
+
+- **A moving body's group waits for a played one** (`BodyBridge::SetClass`, `BodyGroups::WritesMoving`): with the
+  two fixes above the pile agreed in both games but still slid for 15 s in 2 rounds of 3. The wheel under the
+  standing player's capsule was claimed ("pushes") and rested every 0.7 s, and each claim and rest wrote its
+  collision group (`SetBodyGroup`, 77794). Read: 77794 makes the world redo that body's agents, so its contacts start
+  over. Inferred from the measurement, not read in the solver: without the floor's friction for a step the capsule's
+  standing push (62648) slides it. Measured: with the write left out while nothing here is played, the guest's pile
+  settled in 3.4 to 6.7 s in 9 of 9 rounds (vanilla 3.3 to 5.3 in 20; before, 15 s in 2 of 3); the host's moved 13 s
+  in one of them (`docs/bugs.md`). The moving group changes a pair only
+  against a played body (`Decide`), so it is written when the first played body (or lying copy's ragdoll) appears.
+- **A pile's rests go out together** (`GuestHands::SendOwn`, `kPileRestMs`, `kLeanMs`): an own body lying still
+  (`PhysicsBodies`' 300 ms) keeps its rest back while an own body in its island (`GuestEngine::ReadIslands`) still moves or
+  the player's capsule touched it in the last half second, 5 s at most, and is sent from where it lies then. With the island rule alone
+  `carry_into_pile` got worse: the player wading through the pile nudged each body again and again, one was claimed
+  and rested 76 times in a trial (211 claims), the host put each rest among neighbours the guest still moved, and the
+  carried object moved 19 s (vanilla up to 10.5). As Havok does it: an island sleeps when all of it is still (61507). Held back for every own body
+  instead of its island's, objects apart rested late on the host (`push_mixed`: the first wheel 3.3 to 4 s, vanilla
+  up to 2.8).
+- The first two were one rule missing: what this game's player or its own bodies displace is this game's, however little.
+  The 2 units of `BodyPrediction::LeftRest` are for a body Skyrim wakes without anyone moving it ("Woken still"),
+  not for one a player's capsule or own object leans on.
+- Trials (`collisions.py`): `drop_on_pile` (a bucket onto nine tavern items), `drop_wheel_on_wheels` (a cheese wheel
+  onto six), `drop_on_bottles` (a cabbage onto six standing bottles): grabbed, lifted, carried over, held, let go.
+  Baselines: 20 session-idle rounds each. Scenarios `guest-drops-on-pile-like-vanilla`,
+  `guest-drops-wheel-on-wheels-like-vanilla`, `guest-drops-on-bottles-like-vanilla`.
+- MCP verb `collision_restless`: trials until the walker's pile still creeps 4.5 s after the let go, then `who_wakes`
+  inside that trial (the creep ends with the trial, so a check after it found nothing in 14 rounds).
+- Tests: GameTests `[mover]` "A guest's player drops the bucket onto the plate..." (the fake's `Lands`, `Islands`),
+  "A guest's player leans on the bucket and shifts it a unit...", "A guest's player knocks the bucket and the plate: the
+  plate's rest waits for the bucket's..."; ClientTests "A moving body's group waits for a played body...".
+
 ## One simulator per pile, held to vanilla (2026-11-15, built)
 
 The reverted #56 ("One rule") and #58 ("The mover's until its rest") are back, measured this time against a game

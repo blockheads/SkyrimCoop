@@ -53,10 +53,17 @@ private:
 
     // Its class set on its body (its collision group): the group it had is kept to give back.
     void SetClass(const BodyKey& acKey, bhkWorldObject* apBody, BodyClass aClass) noexcept;
+    // Whether anything here is played (a reference's body or a copy's lying ragdoll).
+    [[nodiscard]] bool AnyPlayed() const noexcept;
+    // The first played body is here: every moving body waiting for its group gets it.
+    void WriteMoving() noexcept;
     struct Class
     {
         BodyClass Is{};
         uint16_t Group{}; // its own, before ours
+        // Our group written on its body. A moving body's waits for the first played one: only that pair needs it, and
+        // each write makes Havok redo the body's agents (77794), which drops its contacts for a step.
+        bool Applied = true;
     };
     std::map<BodyKey, Class> m_classes;
     std::function<uint32_t(const GameId& acId)> m_formIdOf;

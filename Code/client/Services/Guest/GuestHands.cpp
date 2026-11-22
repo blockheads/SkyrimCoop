@@ -3,6 +3,7 @@
 #include <Bridges/IBodyBridge.h>
 #include <Bridges/PhysicsBodies.h>
 #include <Physics/BodyPrediction.h>
+#include <Physics/BodyRead.h>
 
 #include <Components.h>
 #include <Messages/Relayed.h>
@@ -32,6 +33,8 @@ std::vector<BodyKey> GuestHands::Update(uint64_t aTick, const std::set<BodyKey>&
         Own(cKey, aTick, "dropped", owned);
     SendHands(aTick, owned, frames);
     OwnKnocked(aTick, acPlayed, own.Objects, owned);
+    OwnNudged();
+    OwnIsland(aTick, acPlayed, owned);
     SendOwn(aTick, own, frames);
     SendRagdoll(aTick, own, frames);
     // Its frames, where the others' guess of them goes wrong (the host's send rule): holds apart, played keyframed.
@@ -64,7 +67,8 @@ bool GuestHands::TakesFrame(const BodyKey& acKey) noexcept
 
 bool GuestHands::KeepsRest(const BodyPose& acRest) const noexcept
 {
-    if (m_own.contains(acRest.Key))
+    // Its own, or in its own bodies' island: this game simulates that pile until it sleeps.
+    if (m_own.contains(acRest.Key) || m_pile.contains(acRest.Key))
         return true;
     const auto it = m_ownRests.find(acRest.Key);
     if (it == m_ownRests.end())
@@ -117,6 +121,7 @@ void GuestHands::Own(const BodyKey& acKey, uint64_t aTick, const char* acpHow, s
     it->second.Touched = aTick;
     if (!cNew)
         return;
+    it->second.From = m_world.ctx().at<IBodyBridge&>().ReadPose(acKey);
     aOwned.push_back(acKey);
     spdlog::info("GuestHands: this game's player {} the host's {}", acpHow, WorldStateLog::DescribeBody(acKey));
 }
@@ -185,6 +190,65 @@ void GuestHands::OwnKnocked(uint64_t aTick, const std::set<BodyKey>& acPlayed, c
     }
 }
 
+namespace
+{
+// Off where it lay: past a settle in place (kBodySameDistance, kBodySameAngle).
+bool LeftWhereItLay(const BodyPose& acNow, const BodyPose& acLay) noexcept
+{
+    const auto cApart = BodyPrediction::Between({.Position = acNow.Position, .Rotation = acNow.Rotation},
+                                                {.Position = acLay.Position, .Rotation = acLay.Rotation});
+    return cApart.Distance >= kBodySameDistance || cApart.Angle >= kBodySameAngle;
+}
+} // namespace
+
+void GuestHands::OwnNudged() noexcept
+{
+    auto& bridge = m_world.ctx().at<IBodyBridge&>();
+    for (auto& [cKey, owned] : m_own)
+    {
+        if (cKey.Actor || owned.Moving || !owned.From || m_holding.contains(cKey))
+            continue;
+        const auto cNow = bridge.ReadPose(cKey);
+        if (!cNow || !LeftWhereItLay(*cNow, *owned.From))
+            continue;
+        owned.Moving = true;
+        owned.Last = cNow;
+        m_engine.FollowOwn(cKey);
+    }
+}
+
+void GuestHands::OwnIsland(uint64_t aTick, const std::set<BodyKey>& acPlayed, std::vector<BodyKey>& aOwned) noexcept
+{
+    std::vector<BodyKey> own;
+    for (const auto& [cKey, cOwned] : m_own)
+        if (!cKey.Actor)
+            own.push_back(cKey);
+    std::map<BodyKey, BodyPose> pile;
+    m_islands.clear();
+    for (const auto& [cMate, cIsland] : own.empty() ? std::vector<GuestEngine::IslandBody>{} : m_engine.ReadIslands(own))
+    {
+        if (m_own.contains(cMate.Key))
+            m_islands[cMate.Key] = cIsland;
+        if (acPlayed.contains(cMate.Key) || m_own.contains(cMate.Key))
+            continue;
+        const auto cLay = m_pile.find(cMate.Key);
+        const BodyPose& cFrom = cLay != m_pile.end() ? cLay->second : cMate;
+        if (!LeftWhereItLay(cMate, cFrom))
+        {
+            pile[cMate.Key] = cFrom;
+            continue;
+        }
+        // Moved by its own bodies: its frames and rest go out from here, whatever PhysicsBodies had seen of it.
+        Own(cMate.Key, aTick, "lands on", aOwned);
+        auto& owned = m_own.at(cMate.Key);
+        owned.Moving = true;
+        owned.Last = cMate;
+        m_engine.FollowOwn(cMate.Key);
+        m_islands[cMate.Key] = cIsland;
+    }
+    m_pile = std::move(pile);
+}
+
 void GuestHands::SendOwn(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyFrame>& aFrames) noexcept
 {
     std::vector<BodyFrame> free;
@@ -194,6 +258,8 @@ void GuestHands::SendOwn(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vect
             it->second.Moving = true;
             it->second.Seen = aTick;
             it->second.Last = BodyPose{.Key = cFrame.Key, .Position = cFrame.Position, .Rotation = cFrame.Rotation};
+            it->second.Rest.reset();
+            it->second.RestSince = 0;
             if (!m_holding.contains(cFrame.Key))
                 free.push_back(cFrame);
         }
@@ -207,9 +273,34 @@ void GuestHands::SendOwn(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vect
         const auto it = m_own.find(cRest.Key);
         if (it == m_own.end() || m_holding.contains(cRest.Key) || !it->second.Moving)
             continue;
+        it->second.Rest = it->second.Last = cRest;
+        if (!it->second.RestSince)
+            it->second.RestSince = aTick;
+    }
+    // A pile's rests go together: sent one by one the host put each among neighbours this game still moved, and a
+    // body nudged again was claimed and rested many times a second (carry_into_pile, duo 2026-11-22).
+    std::set<uint32_t> moving;
+    for (const auto& [cKey, cOwned] : m_own)
+        if (const auto cIsland = m_islands.find(cKey);
+            cIsland != m_islands.end() && !m_holding.contains(cKey) && !cOwned.Rest && cOwned.Moving && cOwned.Seen == aTick)
+            moving.insert(cIsland->second);
+    for (auto it = m_own.begin(); it != m_own.end();)
+    {
+        // Its island still moves, or its player's capsule leans on it.
+        const auto cIsland = m_islands.find(it->first);
+        const bool cWaits = (cIsland != m_islands.end() && moving.contains(cIsland->second)) || aTick - it->second.Touched < kLeanMs;
+        if (!it->second.Rest || (cWaits && aTick - it->second.RestSince < kPileRestMs))
+        {
+            ++it;
+            continue;
+        }
+        // Where it lies now: pressed on a little while it waited, PhysicsBodies read nothing new of it.
+        BodyPose cRest = *it->second.Rest;
+        if (const auto cNow = cRest.Key.Actor ? std::nullopt : m_world.ctx().at<IBodyBridge&>().ReadPose(cRest.Key))
+            cRest = {.Key = cRest.Key, .Position = cNow->Position, .Rotation = cNow->Rotation};
         spdlog::info("GuestHands: the host's {} rests where this game's player put it, at ({:.0f}, {:.0f}, {:.0f})",
                      WorldStateLog::DescribeBody(cRest.Key), cRest.Position.x, cRest.Position.y, cRest.Position.z);
-        m_own.erase(it);
+        it = m_own.erase(it);
         m_world.ctx().at<IBodyBridge&>().SetMoving(cRest.Key, false);
         Rested(cRest, aTick, rests);
     }
@@ -280,7 +371,7 @@ void GuestHands::TrackMoved(uint64_t aTick, const std::set<BodyKey>& acPlayed, c
         moved.Seen = false;
     for (const auto& cMove : acMoved)
     {
-        if (m_own.contains(cMove.Key) || acPlayed.contains(cMove.Key))
+        if (m_own.contains(cMove.Key) || acPlayed.contains(cMove.Key) || m_pile.contains(cMove.Key))
             continue;
         const auto cRest = m_hostRests.find(cMove.Key);
         auto& moved = m_moved.try_emplace(cMove.Key, Moved{aTick, cRest != m_hostRests.end() ? cRest->second : cMove}).first->second;
@@ -302,7 +393,7 @@ void GuestHands::AskHost(uint64_t aTick) noexcept
     rests.Tick = aTick;
     for (auto it = m_own.begin(); it != m_own.end();)
     {
-        if (m_holding.contains(it->first) || aTick - std::max(it->second.Touched, it->second.Seen) < kOwnMs)
+        if (m_holding.contains(it->first) || it->second.Rest || aTick - std::max(it->second.Touched, it->second.Seen) < kOwnMs)
         {
             ++it;
             continue;

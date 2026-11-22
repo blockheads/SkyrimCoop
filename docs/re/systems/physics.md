@@ -612,6 +612,62 @@ dynamic and still (`BodyPrediction::StillToSleep`: the counts 60850 skips; a bod
 the last test alone) and put each body's w back after 60850, so Havok's own last test has its say too; and the guest
 skips the row of its own rest.
 
+## A body landing on a sleeping pile (read in IDA on 1.7.104, 2026-11-22)
+
+What vanilla does when a let go or dropped object comes down on clutter asleep. Names ours, from Havok 2010's; each
+function below read whole and commented in the database (`docs/re/journal/1.7.104/agent-physics-piles-drop.tsv`).
+
+```text
+the falling body's AABB overlaps a pile body's (broadphase pair), and the filter (78553) lets the pair through
+  hkpWorldAgentUtil::addAgent (0x140B7ED40)
+    neither fixed, different islands -> hkpWorldOperationUtil::mergeIslands (61508)
+      now, or queued as world operation 13 while the world is locked (world+0xF8)
+      internalMergeTwoIslands (61509): the smaller island's entities, agents and constraints into the larger
+        one active, one asleep -> internalActivateIsland (61506) on the sleeping one first
+          the island to the world's active list, EVERY body's stillness counts zeroed (entity+0x162, +0x164)
+          activation listeners (61777): FOIslandActivationListener 25849 -> OnActivated 25857 per body
+            -> each reference's havok move (AddChange 0x4), its 3D under the DynamicNode
+then the narrowphase agent is made in the merged island's track (+0x98)
+```
+
+- **A pile wakes whole, and before contact**: the merge is at AABB overlap, so every body of the sleeping island is
+  awake (and each of its references records a havok move) a step or more before the falling one touches any of them.
+  Awake is not moved ("Woken still").
+- **A pair the filter refuses never merges**: no agent, so no merge and no wake. A played body (our group,
+  `BodyGroups`) coming down on loose objects nobody moves wakes none of them (read: `BodyGroups::Decide` and 78553; that it then passes through them is inferred, on the host
+  it is steered onto its mover's frames anyway).
+- **The merged island sleeps as one again** ("When an island sleeps"): `cleanupDirtyIslands` (61522) asks
+  `deactivateIslandIfStill` (61507), and `hkRigidMotionUtilCanDeactivateFinal` (62264) fails at the first body still
+  moving, so the pile stays awake until the dropped one is still too. Islands split again only on a split check
+  (61513, from 60850 or the world's own).
+- The let go itself (`PlayerCharacter::DestroyMouseSprings` 40557, read again): each spring's vfunc +0x150 takes it
+  out of the world, then `hkpEntity::Activate` (60849) on its body under the world's write lock; nothing writes a
+  velocity.
+
+## A body put into a capsule creeps out (read in IDA on 1.7.104, measured 2026-11-22)
+
+`hkpCharacterProxy`'s push of the bodies in its manifold (62648, named `hkpCharacterProxy__updateRigidBodyInteractions`
+in the database; from the proxy's integrate 62646, inside `Actor::ApplyMovement` 37356, every character step). Read
+whole:
+
+```text
+each manifold contact whose body is not keyframed or fixed (motion type 4, 5)
+  impulse = -0.9 * (the two's relative speed along the contact normal)
+  contact distance < 0 (the body is inside the capsule)  -> + distance * (1 / timestep) * 0.4
+  -> the object interaction callback (62654 -> 79133, ScaleObjectImpulse 78304)
+  -> hkpEntity::Activate (60849), applyPointImpulse
+```
+
+- The second term needs no motion: a body overlapping a standing character's capsule is activated and pushed out
+  every step until it is clear. Walked into, a body never overlaps (the first term moves it first), so vanilla
+  seldom shows it.
+- Measured on the duo (`collision_restless`, harness `activate_watch`): the guest's player, carrying, walked into a
+  cheese wheel and shifted it 1.6 units; the host's rest of it was put back, into the capsule; 229 activations in 4 s,
+  every one through that wheel from 62648, and the wheel crept out at 0.3 units/s with the six wheels touching it
+  (their island never slept: counts reached 6 to 11, the last test 62264 failed each time). 20 vanilla rounds: none.
+- So nothing may put a body back where this game's own character has pushed it from: the fix is in who reports the
+  shift (`docs/design/physics-sync.md`, "A drop onto a pile").
+
 ## A lying ragdoll's layer and group (read in IDA on 1.7.104 and in Skyrim.esm, 2026-11-21)
 
 For piece 10 of `docs/design/one-simulator.md`; journal `docs/re/journal/1.7.104/agent-piece-10.tsv`.
