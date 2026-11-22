@@ -2059,9 +2059,9 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37322, &RealResetInventory, HookResetInventory);
         HOOK_ID(37347, &RealUpdateAI, HookUpdateAI);
         // Every actor's AI runs through it: a lock order there is the engine's unless a copy's runs (UpdateCopyAI).
-        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookUpdateAI), 0x50);
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookUpdateAI));
         // Every actor's movement step (pathing locks): the engine's; a copy's step is StepCopy.
-        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookApplyMovement), 0x60);
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookApplyMovement));
         HOOK_ID(19790, &RealSetPosition, HookSetPosition);
         HOOK_ID(37996, &RealTransformDelta, HookTransformDelta);
         HOOK_ID(38717, &RealRemoveSpell, HookRemoveSpell);

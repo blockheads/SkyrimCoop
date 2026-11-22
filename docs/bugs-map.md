@@ -165,9 +165,8 @@ its first conversation does not kneel it (`revived-guest-gets-up`, 2026-11-18).
 
 ### G. Lock pairs
 
-Entries: [The AI/quest lock pair](bugs.md#the-aiquest-lock-pair), and PR #25's report with the host's player dead.
-
-Both turn on `ExtraAliasInstanceArray` (12718-12721). Same lock, different partner: inferred. One rerun answers both.
+Entries: PR #25's report with the host's player dead ([After the host dies](bugs.md#after-the-host-dies)). The AI/quest
+pair closed 2026-11-22: the engine's alias/list order, tagged ours only by a stale hook size (lock-order.md).
 
 ## Only the word is shared
 

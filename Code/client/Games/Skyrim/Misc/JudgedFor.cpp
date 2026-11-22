@@ -156,7 +156,7 @@ Hooks::Initializer s_judgedHooks(
         const HookGate cGate(__FILE__);
         HOOK_ID(29924, &RealIsTrue, HookIsTrue);
         // On every condition's stack: a lock report there is the engine's unless a judgement runs (JudgedIsTrue).
-        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookIsTrue), 0x100);
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookIsTrue));
     });
 } // namespace
 

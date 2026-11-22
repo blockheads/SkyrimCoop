@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **lock checker: hook sizes measured, not written, piece A2 of bugs-refactor-plan.md** (`agent/hook-sizes`;
+[lock-order.md](re/systems/lock-order.md)). `LockOrder::IgnoreFrames(&Hook)` takes a pass-through hook's code from its own
+unwind entry; the written sizes had drifted both ways (`HookUpdateAI` 0x5F against 0x50, four covering the next
+function). A hook without an entry fails every lock audit (`lock_order.unmeasured_hooks`), and an `[ours]` report names
+the frame that tagged it. On the duo the alias/list pair now reads engine-only (`party-buys-house-guest` passed); the
+Havok/list pairs left were read in IDA and reviewed. Closed: "A pass-through hook counted as ours", "The AI/quest lock
+pair". ClientTests `[locks]`, a harness unit. `party-buys-house-host` failed on its staging (`place`: no clear spot),
+not a lock.
+
 2026-11-22: **the full suite on dev after one-simulator pieces 1-10** (`agent/bugs-audit-suite`): 364 of 423 default
 scenarios pass; of bugs.md's 62 entries 3 closed, 3 unclear, 56 still open; 8 new (six guest crashes through a pointer that holds a vtable among them).
 Details: "Test suite", 2026-11-22.

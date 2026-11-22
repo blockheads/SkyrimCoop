@@ -238,6 +238,10 @@ class Observations:
             status = _game.read_status() or {}
             # Kept apart stands only while the two stretches never ran at once in that game (lock-order.md).
             overlapped = status.get("lock_order", {}).get("stretches_overlapped", False)
+            # A pass-through hook the plugin could not measure reads as ours everywhere: fail every lock audit on it.
+            if unmeasured := status.get("lock_order", {}).get("unmeasured_hooks", 0):
+                found.setdefault("unmeasured hooks", (name or "host", f"{unmeasured} pass-through hooks not measured "
+                                                      "(LockOrder::IgnoreFrames: no unwind entry of their own)", True))
             for report in status.get("lock_order", {}).get("reports", []):
                 match = LOCK_PATTERN.match(report)
                 sites = match.group(3) if match else report

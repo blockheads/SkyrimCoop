@@ -30,7 +30,7 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(24011, &RealInitializeRefAlias, AliasOnReference<&RealInitializeRefAlias>);
     HOOK_ID(24012, &RealClearRefAlias, AliasOnReference<&RealClearRefAlias>);
     // Pass-through: the quest and alias locks the call takes are the engine's own order (lock-order.md).
-    LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&AliasOnReference<&RealInitializeRefAlias>), 0x180);
-    LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&AliasOnReference<&RealClearRefAlias>), 0x180);
+    LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&AliasOnReference<&RealInitializeRefAlias>));
+    LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&AliasOnReference<&RealClearRefAlias>));
 });
 } // namespace

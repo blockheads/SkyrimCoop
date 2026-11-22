@@ -80,6 +80,15 @@ class RuntimeTests(unittest.TestCase):
         ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": reports[:1], "stretches_overlapped": True}}
         self.assertTrue(Observations.lock_order_reports(ctx)[sites][2])
 
+    def test_an_unmeasured_pass_through_hook_fails_the_lock_audit(self):
+        from coop_harness.observations import Observations
+        ctx = Mock()
+        ctx.known_lock_patterns.return_value = set()
+        ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": [], "unmeasured_hooks": 1}}
+        self.assertTrue(Observations.lock_order_reports(ctx)["unmeasured hooks"][2])
+        ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": [], "unmeasured_hooks": 0}}
+        self.assertEqual(Observations.lock_order_reports(ctx), {})
+
     def test_switching_runtime_replaces_an_older_same_size_loader(self):
         from coop_harness.runtime import Runtime
         with tempfile.TemporaryDirectory() as folder:

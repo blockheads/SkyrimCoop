@@ -180,6 +180,8 @@ uintptr_t s_ourEnd = 0;
 // Our pass-through hooks' code (IgnoreFrames), set at startup.
 std::pair<uintptr_t, uintptr_t> s_ignored[LockOrderAttribution::kMaxPassThrough]{};
 std::atomic<uint32_t> s_ignoredCount{0};
+// IgnoreFrames calls left unlisted: no unwind entry, or past the slots.
+std::atomic<uint32_t> s_unmeasured{0};
 
 std::atomic<LockOrder::TDescribeLock> s_describe{nullptr};
 
@@ -333,9 +335,14 @@ void Report(uint64_t aPattern, std::string aMessage, const PairStack* apOtherSta
             stack += std::format("\n  backtrace #{:02} {}", i, FormatAddress(cFrame));
         }
         const auto cIgnoredCount = std::min<uint32_t>(s_ignoredCount.load(std::memory_order_acquire), std::size(s_ignored));
-        if (LockOrderAttribution::IntroducedByUs(std::span(addresses).first(cCount), {s_ourBase, s_ourEnd},
-                                                std::span(s_ignored).first(cIgnoredCount)))
+        const int cOurs = LockOrderAttribution::OurFrame(std::span(addresses).first(cCount), {s_ourBase, s_ourEnd},
+                                                         std::span(s_ignored).first(cIgnoredCount));
+        if (cOurs >= 0)
+        {
             aMessage = "[ours] " + aMessage;
+            // The frame that tagged it: a hook missing from IgnoreFrames shows here.
+            stack = std::format("\n  ours from backtrace #{:02} {}", cOurs, FormatAddress(addresses[cOurs])) + stack;
+        }
         if (apOtherStack)
         {
             stack += "\n  the other thread, when it first took this pair of locks:";
@@ -653,22 +660,34 @@ void LogHeldLocks() noexcept
 Stats GetStats() noexcept
 {
     return {s_enabled, s_edgeCount.load(), s_reportCount.load(), s_tooDeep.load(), s_tableFull.load(), s_tableResets.load(),
-            s_stretchOverlap.Seen.load()};
+            s_stretchOverlap.Seen.load(), s_unmeasured.load()};
 }
 
-void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept
+void IgnoreFrames(const void* apFunction) noexcept
 {
     auto cStart = reinterpret_cast<uintptr_t>(apFunction);
     // An incremental link's thunk: jmp rel32 to the body.
     if (*reinterpret_cast<const uint8_t*>(cStart) == 0xE9)
         cStart += 5 + *reinterpret_cast<const int32_t*>(cStart + 1);
+    DWORD64 imageBase = 0;
+    const auto* pEntry = RtlLookupFunctionEntry(cStart, &imageBase, nullptr);
+    const auto cRange = pEntry ? LockOrderAttribution::PassThroughRange(cStart, imageBase, pEntry->BeginAddress, pEntry->EndAddress)
+                               : std::nullopt;
+    if (!cRange)
+    {
+        s_unmeasured.fetch_add(1, std::memory_order_relaxed);
+        spdlog::critical("LockOrder: pass-through hook SkyrimTogetherClient.dll+{:#x} has no unwind entry of its own: its frames read as ours",
+                         cStart - reinterpret_cast<uintptr_t>(&__ImageBase));
+        return;
+    }
     const uint32_t cIndex = s_ignoredCount.load(std::memory_order_relaxed);
     if (cIndex >= std::size(s_ignored))
     {
+        s_unmeasured.fetch_add(1, std::memory_order_relaxed);
         spdlog::critical("LockOrder: more than {} pass-through hooks: the engine's own orders would read as ours", std::size(s_ignored));
         return;
     }
-    s_ignored[cIndex] = {cStart, cStart + aBytes};
+    s_ignored[cIndex] = *cRange;
     s_ignoredCount.store(cIndex + 1, std::memory_order_release);
 }
 
