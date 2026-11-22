@@ -132,15 +132,15 @@ TEST_CASE("Dev commands: kill move odds answer the two conditions; none leaves t
     CHECK_FALSE(Parse("/killmove default").Run->Odds);
 
     // The game's own: a fatal hit on the last enemy.
-    CHECK(ShouldAttackKill(true, std::nullopt, 99));
-    CHECK_FALSE(ShouldAttackKill(false, std::nullopt, 0));
+    CHECK(ShouldAttackKill(true, true, std::nullopt, 99));
+    CHECK_FALSE(ShouldAttackKill(false, true, std::nullopt, 0));
     CHECK_FALSE(IsLastHostileActor(false, std::nullopt));
-    // Odds: a fatal hit whose roll is under them, on any enemy.
-    CHECK(ShouldAttackKill(true, 30, 29));
-    CHECK_FALSE(ShouldAttackKill(true, 30, 30));
-    CHECK_FALSE(ShouldAttackKill(false, 100, 0));
-    CHECK_FALSE(ShouldAttackKill(true, 0, 0));
-    CHECK(ShouldAttackKill(true, 100, 99));
+    // Odds: any swing at a victim the attacker may kill whose roll is under them, fatal or not, on any enemy.
+    CHECK(ShouldAttackKill(false, true, 100, 99)); // /killmove 100: every swing, not only the killing blow
+    CHECK(ShouldAttackKill(false, true, 30, 29));
+    CHECK_FALSE(ShouldAttackKill(true, true, 30, 30));
+    CHECK_FALSE(ShouldAttackKill(true, true, 0, 0));
+    CHECK_FALSE(ShouldAttackKill(true, false, 100, 0)); // essential, dead, or not the attacker's to kill
     CHECK(IsLastHostileActor(false, 30));
 }
 

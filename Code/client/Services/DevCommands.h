@@ -64,8 +64,9 @@ struct Parsed
 [[nodiscard]] std::vector<std::string> WorldLines(const Command& acCommand, std::string_view aAt) noexcept;
 
 // The kill move conditions with odds set (/killmove): ShouldAttackKill 21744 and IsLastHostileActor 21743.
-// aRoll is 0-99. Without odds the game's own answers stand.
-[[nodiscard]] bool ShouldAttackKill(bool aFatal, std::optional<uint8_t> aOdds, uint32_t aRoll) noexcept;
+// aFatal: the game's answer (Actor::WouldAttackKill 38559); aKillable: its checks before the hit (a living victim
+// the attacker may kill). With odds any swing at such a victim rolls, fatal or not. aRoll is 0-99.
+[[nodiscard]] bool ShouldAttackKill(bool aFatal, bool aKillable, std::optional<uint8_t> aOdds, uint32_t aRoll) noexcept;
 [[nodiscard]] bool IsLastHostileActor(bool aLast, std::optional<uint8_t> aOdds) noexcept;
 
 // One roll per attacker and target a second: the idle tree asks each candidate's conditions many times a swing.

@@ -1,0 +1,31 @@
+time	op	id	rva	item
+2026-11-22T22:09:47Z	read	21744	0x33e920	{"name": "GameFunc::native::ShouldAttackKill"}
+2026-11-22T22:09:47Z	read	21743	0x33e840	{"name": "GameFunc::native::IsLastHostileActor"}
+2026-11-22T22:09:47Z	read	38559	0x6c9200	{"name": "Actor::sub_38559"}
+2026-11-22T22:10:14Z	read	26452	0x4206c0	{"name": "sub_1404206C0"}
+2026-11-22T22:12:16Z	read		0x369a30	{"name": "GameFunc::handler::ShouldAttackKill"}
+2026-11-22T22:12:57Z	read	29924	0x4a7b10	{"name": "TESConditionItem::IsTrue"}
+2026-11-22T22:14:01Z	read	37229	0x674030	{"name": "Character::sub_37229"}
+2026-11-22T22:14:10Z	read	39996	0x727d30	{"name": "ActorProcess::sub_39996"}
+2026-11-22T22:14:10Z	read	38563	0x6c9870	{"name": "Actor::EngagingInCombat"}
+2026-11-22T22:14:21Z	read	29940	0x4a8dc0	{"name": "sub_1404A8DC0"}
+2026-11-22T22:14:26Z	name	38559	0x6c9200	{"addr": "0x1406c9200", "name": "Actor::WouldAttackKill"}
+2026-11-22T22:14:26Z	name	37229	0x674030	{"addr": "0x140674030", "name": "Actor::CanBeKilledBy"}
+2026-11-22T22:14:26Z	name	26452	0x4206c0	{"addr": "0x1404206C0", "name": "coop_KillCamOddsRoll"}
+2026-11-22T22:14:26Z	name	29940	0x4a8dc0	{"addr": "0x1404A8DC0", "name": "coop_ConditionParamIsReference"}
+2026-11-22T22:14:26Z	name	39996	0x727d30	{"addr": "0x140727d30", "name": "ActorProcess::coop_MiddleHighByte324"}
+2026-11-22T22:14:36Z	comment	38559	0x6c9200	{"addr": "0x1406c9200", "comment": "[re]\nAddressLib ID 38559\nSkyrimCoop: call as s_shouldAttackKill (Code/client/TestHarness/EngineCalls.cpp)\nWould this attacker's swing kill the target: false if target IsDead (vfunc 0x99) or !CanBeKilledBy(target, attacker) 37229; else a predicted HitData (flag 0x2000 kPredictDamage) with the current weapon, answer = kFatal (0x20); false when coop_MiddleHighByte324 39996 is set and the attacker is not EngagingInCombat 38563. No random roll: kill moves have no odds in the engine."}
+2026-11-22T22:14:36Z	comment	37229	0x674030	{"addr": "0x140674030", "comment": "[re]\nAddressLib ID 37229\nSkyrimCoop: call as s_killable (Code/client/TestHarness/EngineCalls.cpp)\nTarget a1 can be killed by a2: lifeState (+0xC8 bits 21-24) == 4 (reanimated), or not essential (+0x204 0x40000), not vfunc 94 (ghost/invulnerable), and not protected (+0x204 0x80000) unless a2 is the player."}
+2026-11-22T22:14:36Z	comment	26452	0x4206c0	{"addr": "0x1404206C0", "comment": "AddressLib ID 26452\nKill cam odds (fKillCamBaseOdds + level bias, fKillCamLevel*): (attackerLevel, targetLevel) -> roll. No caller found: no E8/E9 rel32, no stored pointer (only .pdata). Not part of the kill move pick."}
+2026-11-22T22:14:36Z	comment	29940	0x4a8dc0	{"addr": "0x1404A8DC0", "comment": "Condition function param aIndex of item->function is a reference type (param types 4, 6, 24, 26). TESConditionItem::IsTrue 29924 fills an empty such param1 with the check's targetRef: ShouldAttackKill/IsLastHostileActor with param 0 in the idle get the attack target."}
+2026-11-22T22:14:36Z	comment	39996	0x727d30	{"addr": "0x140727d30", "comment": "[re]\nAddressLib ID 39996\nActorProcess: middleHigh != null && middleHigh byte +0x324. In WouldAttackKill 38559: set and the attacker not EngagingInCombat -> no kill. Meaning of the byte not read."}
+2026-11-22T22:14:36Z	comment		0x4a81ca	{"addr": "0x1404a81ca", "comment": "The condition function (CommandTable entry +0x40, e.g. ShouldAttackKill 21744) called as (subject, param1, param2, &result); param1 defaulted to targetRef above (coop_ConditionParamIsReference)."}
+2026-11-22T22:14:42Z	comment	21744	0x33e920	{"addr": "0x14033e920", "comment": "[re]\nAddressLib ID 21744\nCondition ShouldAttackKill (index 678): subject and param1 (the attack target, filled by IsTrue 29924) both Actors -> 1.0 when Actor::WouldAttackKill 38559 (the swing is fatal). Gate of every kill move root idle (KillMoveFrontSideRoot/BackSideRoot, AttackRightRoot and PowerAttackRoot, Skyrim.esm), beside GetGlobalValue KillMove (0x100F19) == 1 and, for the player, IsLastHostileActor on the target."}
+2026-11-22T22:14:42Z	comment	21743	0x33e840	{"addr": "0x14033e840", "comment": "[re]\nAddressLib ID 21743\nCondition IsLastHostileActor (index 674), run on the target: 1.0 when ProcessLists::AreHostileActorsNear finds none, or only the subject. Kill move roots: GetIsID(player) == 0 OR this == 1, so only the player's kill moves need the last enemy."}
+2026-11-22T22:40:36Z	read		0x6f6300	{"name": "AIProcess::UpdateLipSyncGraph"}
+2026-11-22T22:40:40Z	read	40272	0x73a9d0	{"name": "sub_14073A9D0"}
+2026-11-22T22:40:40Z	read	37483	0x6879a0	{"name": "Actor::IsDead"}
+2026-11-22T22:40:54Z	name	40272	0x73a9d0	{"addr": "0x14073a9d0", "name": "Character::coop_RaceIsChild"}
+2026-11-22T22:40:58Z	comment	40272	0x73a9d0	{"addr": "0x14073a9d0", "comment": "AddressLib ID 40272\nCharacter vfunc 94 (0x2F0): race (+0x1F8) data flags & 4, the child flag. Read by Actor::CanBeKilledBy 37229: children cannot be killed."}
+2026-11-22T22:40:58Z	comment	37229	0x674030	{"addr": "0x140674030", "comment": "[re]\nAddressLib ID 37229\nSkyrimCoop: call as s_killable (Code/client/TestHarness/EngineCalls.cpp)\nTarget a1 can be killed by a2: lifeState (+0xC8 bits 21-24) == 4 (reanimated), or not essential (+0x204 0x40000), not a child (vfunc 94, Character: 40272 race flag 4), and not protected (+0x204 0x80000) unless a2 is the player."}
+2026-11-22T22:40:58Z	comment	38559	0x6c9200	{"addr": "0x1406c9200", "comment": "[re]\nAddressLib ID 38559\nSkyrimCoop: call as s_shouldAttackKill (Code/client/TestHarness/EngineCalls.cpp)\nWould this attacker's swing kill the target: false if Actor::IsDead(target, false) 37483 (vfunc 0x99; false also counts essential-down, state 7) or !CanBeKilledBy(target, attacker) 37229; else a predicted HitData (flag 0x2000 kPredictDamage) with the current weapon, answer = kFatal (0x20); false when coop_MiddleHighByte324 39996 is set and the attacker is not EngagingInCombat 38563. No random roll: kill moves have no odds in the engine."}
