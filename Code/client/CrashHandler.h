@@ -20,6 +20,9 @@ class CrashHandler
     static void SetSpinLockWait(DWORD64 aFunction, TSpinLockOfFrame apLockOfFrame) noexcept;
     // A suspended thread's return addresses from its context (unwind tables only: no allocation, no loader lock).
     static int Backtrace(const CONTEXT& acContext, DWORD64* apFrames, int aMaxFrames) noexcept;
+    // This thread's return addresses past aSkip callers, in place of RtlCaptureStackBackTrace: ends at the first frame
+    // with no unwind data (docs/re/systems/stack-walk.md).
+    static int CaptureStack(void** apFrames, int aMaxFrames, int aSkip = 0) noexcept;
     static inline LPTOP_LEVEL_EXCEPTION_FILTER GetOriginalUnhandledExceptionFilter()
     {
         return m_pUnhandled;

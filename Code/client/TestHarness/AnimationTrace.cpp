@@ -4,6 +4,7 @@
 #include "EngineCalls.h"
 
 #include <Actor.h>
+#include <CrashHandler.h>
 #include <BSAnimationGraphManager.h>
 #include <Games/Events.h>
 #include <Havok/BShkbAnimationGraph.h>
@@ -75,10 +76,10 @@ const BShkbAnimationGraph* s_inputGraphs[16]{};
 nlohmann::json CallerRvas()
 {
     void* frames[10];
-    const USHORT cCount = RtlCaptureStackBackTrace(1, 10, frames, nullptr);
+    const int cCount = CrashHandler::CaptureStack(frames, 10, 1);
     const auto cBase = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     nlohmann::json rvas = nlohmann::json::array();
-    for (USHORT i = 0; i < cCount; ++i)
+    for (int i = 0; i < cCount; ++i)
     {
         const auto cAddress = reinterpret_cast<uintptr_t>(frames[i]);
         if (cAddress > cBase && cAddress - cBase < 0x4000000)

@@ -49,6 +49,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **a plan for the open bugs after the ten pieces** ([bugs-refactor-plan.md](design/bugs-refactor-plan.md)):
+about half of the 56 share five causes. Two refactors (one copy teardown between frames, for the guest's crashes;
+"a copy starts whole", for copies made after a draw, a sit or an action), two tools first, the rest one at a time.
+Proposed, nothing built.
+
 2026-11-22: **lock checker: hook sizes measured, not written, piece A2 of bugs-refactor-plan.md** (`agent/hook-sizes`;
 [lock-order.md](re/systems/lock-order.md)). `LockOrder::IgnoreFrames(&Hook)` takes a pass-through hook's code from its own
 unwind entry; the written sizes had drifted both ways (`HookUpdateAI` 0x5F against 0x50, four covering the next

@@ -1,0 +1,3 @@
+time	op	id	rva	item
+2026-11-22T14:23:16Z	read	39372	0x6f6030	{"name": "sub_1406F6030"}
+2026-11-22T14:23:17Z	read	37541	0x68cc00	{"name": "Actor::UpdateInDialogue"}

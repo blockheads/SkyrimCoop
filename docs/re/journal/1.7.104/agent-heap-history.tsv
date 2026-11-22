@@ -1,0 +1,23 @@
+time	op	id	rva	item
+2026-11-22T14:52:28Z	read	33026	0x558f90	{"name": "TESCamera::SetState"}
+2026-11-22T14:56:39Z	read	68163	0xce0a20	{"name": "BSTArrayBase::sub_68163"}
+2026-11-22T14:56:39Z	read	68168	0xce0cd0	{"name": "ArrayAllocate"}
+2026-11-22T14:56:45Z	read	42357	0x7af3e0	{"name": "PlayerControls::UnregisterHandler"}
+2026-11-22T14:57:25Z	name	68163	0xce0a20	{"addr": "0x140ce0a20", "name": "BSTArrayBase::PreparePush"}
+2026-11-22T14:57:25Z	name	68168	0xce0cd0	{"addr": "0x140ce0cd0", "name": "BSTArrayHeapAllocator::Allocate"}
+2026-11-22T14:57:25Z	local	68163	0xce0a20	{"func_addr": "0x140ce0a20", "old": "a1", "new": "apSize"}
+2026-11-22T14:57:25Z	local	68163	0xce0a20	{"func_addr": "0x140ce0a20", "old": "a2", "new": "apAllocator"}
+2026-11-22T14:57:25Z	local	68163	0xce0a20	{"func_addr": "0x140ce0a20", "old": "a3", "new": "aCapacity"}
+2026-11-22T14:57:25Z	local	68163	0xce0a20	{"func_addr": "0x140ce0a20", "old": "a4", "new": "aElementSize"}
+2026-11-22T14:57:25Z	local	42357	0x7af3e0	{"func_addr": "0x1407af3e0", "old": "a1", "new": "apControls"}
+2026-11-22T14:57:25Z	local	42357	0x7af3e0	{"func_addr": "0x1407af3e0", "old": "a2", "new": "apHandler"}
+2026-11-22T14:57:25Z	local	33026	0x558f90	{"func_addr": "0x140558f90", "old": "a1", "new": "apCamera"}
+2026-11-22T14:57:25Z	local	33026	0x558f90	{"func_addr": "0x140558f90", "old": "a2", "new": "apState"}
+2026-11-22T14:57:28Z	comment		0x558fac	{"addr": "0x140558fac", "comment": "old currentState(+0x28)->End() (TESCameraState vfunc 2). Kill move 2026-11-22: End -> PlayerControls::UnregisterHandler 42357 -> heap allocation"}
+2026-11-22T14:57:28Z	comment		0x7af403	{"addr": "0x1407af403", "comment": "+0xA0 set while PlayerControls walks its handlers: the removal is queued in the pending array at +0x88 (pairs {handler, bool}), not done"}
+2026-11-22T14:57:28Z	comment		0x7af538	{"addr": "0x1407af538", "comment": "PreparePush on the pending-removal array: its first push allocates (BSTArrayHeapAllocator::Allocate 68168 -> MemoryManager::Allocate 68115)"}
+2026-11-22T14:57:28Z	comment		0xce0a4f	{"addr": "0x140ce0a4f", "comment": "capacity 0: allocator functor slot 0 (allocate); else slot 1 (grow). Returns the new element's index, -1 on failure"}
+2026-11-22T14:57:28Z	comment		0xce0cec	{"addr": "0x140ce0cec", "comment": "at least 4 elements, from the main heap (MemoryManager::Allocate 68115)"}
+2026-11-22T15:04:17Z	comment		0x558f95	{"addr": "0x140558f95", "comment": "SKSE (Hooks_Camera.cpp) replaces the 5-byte first instruction with a branch to a stub in its local trampoline (push r12; push r13; sub rsp,28h; mov [rsp],rbx; call here) and sends SKSECameraEvent after. The stub has no unwind data: a stack walk under SetState ends at stub+0x19 (run of 2026-11-22: 0x6ffffc26003c, stub at trampoline+0x23)"}
+2026-11-22T15:04:17Z	comment		0x8f478a	{"addr": "0x1408f478a", "comment": "tail jump: under a first-person exit the stack reads PlayerControls::UnregisterHandler -> TESCamera::SetState+0x1f, with no frame of this function"}
+2026-11-22T15:35:15Z	read	50723	0x8f4770	{"name": "FirstPersonState::OnExitState"}
