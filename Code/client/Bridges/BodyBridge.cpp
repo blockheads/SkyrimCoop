@@ -7,6 +7,7 @@
 #include <Havok/Ragdoll.h>
 #include <AI/AIProcess.h>
 #include <Actor.h>
+#include <Games/ActorExtension.h>
 #include <FormIds.h>
 #include <Games/KnockReplay.h>
 #include <Messages/WorldState.h>
@@ -122,6 +123,19 @@ bool BodyBridge::KnockDown(uint32_t aCopyFormId) noexcept
     return pCopy && !pCopy->IsDeleted() && !pCopy->IsDead() && KnockedDown(*pCopy, true);
 }
 
+void BodyBridge::StandRagdoll(Actor& aCopy, const BodyKey& acKey) noexcept
+{
+    if (acKey.Actor == 0 || !m_ragdolls.erase(acKey))
+        return;
+    const auto it = m_ragdollGroups.find(acKey);
+    if (it == m_ragdollGroups.end())
+        return;
+    // Its bodies read again from the copy: a stale pointer from before its 3D was rebuilt is never written.
+    if (const auto cBodies = RagdollBodiesOf(aCopy); acKey.Index < cBodies.size() && cBodies[acKey.Index])
+        SetBodyGroup(*cBodies[acKey.Index], it->second);
+    m_ragdollGroups.erase(it);
+}
+
 BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, bool aKnock) noexcept
 {
     if (acKey.Actor)
@@ -130,12 +144,17 @@ BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, b
         if (!pCopy || pCopy->IsDeleted())
             return {};
         if (!pCopy->IsDead() && !m_knocked.contains(pCopy->formID))
-            std::erase_if(m_ragdolls, [&](const auto& acBody) { return acBody.first.Actor == acKey.Actor; });
+            for (auto it = m_ragdolls.begin(); it != m_ragdolls.end();)
+            {
+                const BodyKey cKey = (it++)->first;
+                if (cKey.Actor == acKey.Actor)
+                    StandRagdoll(*pCopy, cKey);
+            }
         // Its animation's while the copy stands (a creature's powered ragdoll is dynamic then, a revived one's again);
         // lying and getting up, its owner's (58291 only drives its simulated bodies toward the animation).
         if (!pCopy->IsDead() && !KnockedDown(*pCopy, aKnock))
         {
-            m_ragdolls.erase(acKey);
+            StandRagdoll(*pCopy, acKey);
             return {.Waiting = true};
         }
         if (!pCopy->IsDead() && !KnockReplay::BodiesSimulated(pCopy->actorState.GetKnockState()))
@@ -156,6 +175,11 @@ BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, b
                 return {.Waiting = true};
             m_ragdolls[acKey] = cGeneration;
             first = true;
+            // A copy's: its owner's game settled what it lies among; it meets the world, characters and what this game
+            // moves (this game's own corpse another game moves stays as the engine has it).
+            if (pCopy->GetExtension()->IsCopy())
+                if (const auto cOwn = SetBodyGroup(*pBody, BodyGroups::kPlayed); cOwn && *cOwn != BodyGroups::kPlayed)
+                    m_ragdollGroups[acKey] = *cOwn;
         }
         return {.pBody = pBody, .First = first};
     }

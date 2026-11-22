@@ -26,7 +26,7 @@ std::vector<BodyKey> GuestHands::Update(uint64_t aTick, const std::set<BodyKey>&
 {
     std::vector<BodyKey> owned;
     std::vector<BodyFrame> frames;
-    auto own = m_engine.TakeOwnBodies(aTick);
+    auto own = m_engine.TakeOwnBodies(aTick, CopySessions());
     // Its player's drop falls as this game's physics drops it until the host's rest.
     for (const BodyKey& cKey : m_engine.TakeAdoptedDrops())
         Own(cKey, aTick, "dropped", owned);
@@ -134,7 +134,7 @@ void GuestHands::SendHands(uint64_t aTick, std::vector<BodyKey>& aOwned, std::ve
             Own(cHit.Key, aTick, "hits", aOwned);
 
     // Let go: what it held and holds no more, from its last frame.
-    const auto cHeld = m_engine.ReadHeld();
+    const auto cHeld = m_engine.ReadHeld(CopySessions());
     BodyReleaseRequest released;
     released.Tick = aTick;
     for (auto it = m_holding.begin(); it != m_holding.end();)
@@ -228,6 +228,16 @@ void GuestHands::Rested(const BodyPose& acRest, uint64_t aTick, BodyRestsRequest
     aRests.Rests.push_back(acRest);
 }
 
+GuestEngine::SessionOf_t GuestHands::CopySessions() const noexcept
+{
+    return [this](uint32_t aFormId) -> uint32_t {
+        for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
+            if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
+                return m_world.get<RemoteComponent>(cEntity).Id;
+        return 0;
+    };
+}
+
 uint32_t GuestHands::PlayerId() const noexcept
 {
     for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
@@ -251,17 +261,14 @@ void GuestHands::SendRagdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::
     aFrames.insert(aFrames.end(), aOwn.Ragdoll.begin(), aOwn.Ragdoll.end());
     if (aOwn.RagdollRested.empty())
         return;
-    BodyRestsRequest rests;
-    rests.Tick = aTick;
     for (BodyPose& rest : aOwn.RagdollRested)
     {
         rest.Key.Actor = cPlayer;
         m_sends.Forget(rest.Key);
         m_motions.Forget(rest.Key);
-        rests.Rests.push_back(rest);
     }
-    spdlog::info("GuestHands: this game's player's ragdoll rests ({} bodies, {} updates moving)", rests.Rests.size(), std::exchange(m_ragdollFrames, 0));
-    m_world.GetTransport().Send(rests);
+    spdlog::info("GuestHands: this game's player's ragdoll rests ({} bodies, {} updates moving)", aOwn.RagdollRested.size(), std::exchange(m_ragdollFrames, 0));
+    m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, aOwn.RagdollRested);
 }
 
 void GuestHands::TrackMoved(uint64_t aTick, const std::set<BodyKey>& acPlayed, const std::vector<BodyPose>& acMoved) noexcept

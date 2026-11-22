@@ -102,12 +102,15 @@ public:
     [[nodiscard]] std::vector<BodyPush> TakeHits() noexcept;
     // The host's reference this game's player holds (Activate held: PlayerCharacter::grabbedObject): its dynamic
     // bodies read now; none while it holds nothing of the host's (a body the host's frames still move is keyframed, so
-    // the engine's grab refuses it).
-    [[nodiscard]] std::vector<BodyFrame> ReadHeld() const noexcept;
+    // the engine's grab refuses it). A copy's corpse (40555 grabs a dead actor): its ragdoll's bodies, keyed by the
+    // session id acSessionOf gives its copy, and watched until they rest (OwnBodies::Corpses).
+    using SessionOf_t = std::function<uint32_t(uint32_t aFormId)>;
+    [[nodiscard]] std::vector<BodyFrame> ReadHeld(const SessionOf_t& acSessionOf) noexcept;
     // What this game's own physics moves: the host's references' bodies awake and simulated here, where they are
     // (Moved, and as frames in Objects), those that came to rest here (ObjectsRested: Havok's sleep or still, as on
     // the host); this game's player's ragdoll while it simulates (dead), its awake bodies read now (Ragdoll) or every
-    // body once all sleep (RagdollRested), keyed by index alone.
+    // body once all sleep (RagdollRested), keyed by index alone; a copy's corpse its player grabbed, as an object's
+    // bodies (Objects, ObjectsRested), keyed by the copy's session id.
     struct OwnBodies
     {
         std::vector<BodyPose> Moved;
@@ -116,7 +119,7 @@ public:
         std::vector<BodyFrame> Ragdoll;
         std::vector<BodyPose> RagdollRested;
     };
-    [[nodiscard]] OwnBodies TakeOwnBodies(uint64_t aTick) noexcept;
+    [[nodiscard]] OwnBodies TakeOwnBodies(uint64_t aTick, const SessionOf_t& acSessionOf) noexcept;
 
     // Dropped items (docs/design/dropped-items.md). This game's player's drop: the item (count, extra data) and where,
     // tagged with its reference here, now a drop of its own until the host's answer; none for no loose item.

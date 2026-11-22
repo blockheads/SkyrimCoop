@@ -17,6 +17,7 @@ enum class RecordKind : uint8_t
     kItems = 5,      // ItemsPart (InventoryService): a change carries only the stacks that changed
     kRide = 6,       // RidePart (CharacterService): a passenger's horse
     kCast = 7,       // CastPart (MagicService): the casts it holds
+    kRagdoll = 8,    // RagdollPart (BodyService): where its ragdoll last came to rest
 };
 
 // One part of an actor's record as its owner last declared it: the owner's own counter and the part's bytes.

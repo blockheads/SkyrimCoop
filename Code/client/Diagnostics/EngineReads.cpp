@@ -232,7 +232,13 @@ std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept
     const glm::vec3 cFeet(pActor->position.x, pActor->position.y, pActor->position.z);
     const float cFrom[3]{cFeet.x, cFeet.y, cFeet.z + 50.f};
     const float cTo[3]{cFeet.x, cFeet.y, cFeet.z - 2000.f};
-    const auto cFloor = GameRaycast::CastRay(cFrom, cTo, 30, aFormId);
+    auto cFloor = GameRaycast::CastRay(cFrom, cTo, 30, aFormId);
+    // A character never stands on an actor's body (its capsule passes a corpse, layer 30 against 32): looked past.
+    for (int i = 0; i < 3 && cFloor && cFloor->Hit && Cast<Actor>(TESForm::GetById(cFloor->Reference)); ++i)
+    {
+        const float cBelow[3]{cFeet.x, cFeet.y, cFloor->Point[2] - 0.5f};
+        cFloor = GameRaycast::CastRay(cBelow, cTo, 30, aFormId);
+    }
     if (!cFloor || !cFloor->Hit)
         return std::nullopt;
     const float cFloorZ = cFloor->Point[2];

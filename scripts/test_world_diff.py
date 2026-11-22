@@ -25,6 +25,58 @@ class ContainerComparison(unittest.TestCase):
         self.assertIn("changes", reference_differences({"changes": 0x40}, {"changes": 0x60}))
 
 
+class Scenery(unittest.TestCase):
+    """Critters, fish, their markers and plants' sway are each game's own (one-simulator.md, piece 10); state stays
+    compared. References from bugs.md's Riverwood, plains and rejoin runs."""
+    MOTH = {"id": 0xFF000A01, "base": 0xB97AF, "type": 24, "cell": 0x3C, "flags": 0, "position": [100.0, 200.0, 300.0],
+            "scripts": ["Critter"], "on_path": True, "changes": 0x80000000}
+    SALMON = {"id": 0x10C3BA, "base": 0x10C3BA, "type": 24, "cell": 0x9732, "flags": 0, "position": [10.0, 20.0, 30.0],
+              "scripts": ["FXfakeCritterScript"]}
+    MARKER = {"id": 0xFF000A02, "base": 0xC2D47, "type": 32, "cell": 0x3C, "flags": 0, "position": [5.0, 5.0, 5.0]}
+    PHEASANT = {"id": 0x38BE6, "base": 0x38B0C, "type": 39, "cell": 0x133C6, "flags": 0, "changes": 0x2, "position": [1.0, 1.0, 1.0],
+                "pose": {"b_Lower": {"position": [1.0, 1.0, 1.0], "rotate": [1.0] + [0.0] * 8}}}
+    CABBAGE = {"id": 0x6A0BB, "base": 0x64B3F, "type": 32, "cell": 0x133C6, "flags": 0, "position": [0.0, 0.0, 0.0]}
+
+    def test_a_moth_on_one_game_only_is_not_a_difference(self):
+        self.assertEqual(world_differences({self.MOTH["id"]: self.MOTH}, {}), {})
+
+    def test_a_critters_marker_on_one_game_only_is_not_a_difference(self):
+        self.assertEqual(world_differences({}, {self.MARKER["id"]: self.MARKER}), {})
+
+    def test_a_fish_elsewhere_is_not_a_difference(self):
+        moved = {**self.SALMON, "position": [500.0, 20.0, 30.0]}
+        self.assertEqual(world_differences({self.SALMON["id"]: self.SALMON}, {moved["id"]: moved}), {})
+
+    def test_a_fish_whose_script_only_one_game_reads_is_still_left_out(self):
+        bare = {key: value for key, value in self.SALMON.items() if key != "scripts"}
+        moved = {**bare, "position": [500.0, 20.0, 30.0]}
+        self.assertEqual(world_differences({self.SALMON["id"]: self.SALMON}, {moved["id"]: moved}), {})
+
+    def test_a_plants_sway_is_not_a_difference(self):
+        turned = {**self.PHEASANT, "pose": {"b_Lower": {"position": [1.0, 1.0, 1.0], "rotate": [0.0, 1.0] + [0.0] * 7}}}
+        self.assertEqual(world_differences({self.PHEASANT["id"]: self.PHEASANT}, {turned["id"]: turned}), {})
+
+    def test_a_hanging_plants_bodies_swung_differently_are_not_a_difference(self):
+        # guest-rejoins-while-joined, 2026-11-21: Lucan's pheasants, b_Upper and b_Lower within a unit, turned.
+        body = {"node": "b_Upper", "in_world": True, "motion": 2, "position": [-340.0, -2.0, 167.0], "rotation": [0.0, 0.0, 0.0, 1.0]}
+        swung = {**body, "position": [-339.0, -2.0, 168.0], "rotation": [0.0, 0.3, 0.0, 0.95]}
+        host, guest = {**self.PHEASANT, "collision": [body]}, {**self.PHEASANT, "collision": [swung]}
+        self.assertEqual(world_differences({host["id"]: host}, {guest["id"]: guest}), {})
+        moved = {**body, "position": [-300.0, -2.0, 167.0]}
+        self.assertIn("collision", next(iter(world_differences({host["id"]: host}, {guest["id"]: {**guest, "collision": [moved]}}).values())))
+
+    def test_a_harvested_plant_is_still_a_difference(self):
+        picked = {**self.PHEASANT, "flags": 0x2000}
+        self.assertIn("flags", next(iter(world_differences({self.PHEASANT["id"]: self.PHEASANT}, {picked["id"]: picked}).values())))
+
+    def test_a_moved_cabbage_is_still_a_difference(self):
+        moved = {**self.CABBAGE, "position": [40.0, 0.0, 0.0]}
+        self.assertIn("position", next(iter(world_differences({self.CABBAGE["id"]: self.CABBAGE}, {moved["id"]: moved}).values())))
+
+    def test_a_cabbage_on_one_game_only_is_still_a_difference(self):
+        self.assertEqual(list(world_differences({self.CABBAGE["id"]: self.CABBAGE}, {}).values()), [{"present": "host only"}])
+
+
 class DeathDropSword(unittest.TestCase):
     """A death drop and its twin, the same sword at rest (measured 2026-11-05 on the host's death, before players kept theirs)."""
     HOST = {"id": 0xFF00087D, "base": 0x12EB7, "type": 41, "cell": 0x32AE7, "flags": 0x100008, "owner": 7, "changes": 0x446,

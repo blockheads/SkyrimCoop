@@ -30,6 +30,7 @@
 #include <Structs/RecordPart.h>
 #include <Structs/RidePart.h>
 #include <Structs/CastPart.h>
+#include <Structs/RagdollPart.h>
 #include <Structs/Vector2_NetQuantize.h>
 #include <Messages/ActivateRequest.h>
 #include <Structs/SystemQuestState.h>
@@ -2551,6 +2552,21 @@ TEST_CASE("A cast part carries each source's held cast, and a cleared one", "[en
     CHECK(read == sent);
     REQUIRE(FromPartBytes(ToPartBytes(CastPart{}), read));
     CHECK(read == CastPart{});
+}
+
+TEST_CASE("A ragdoll part carries every body's rest and its time", "[encoding][record-parts]")
+{
+    RagdollPart sent;
+    sent.Tick = 900000000456;
+    sent.Rests = {{.Key = {.Actor = 0x2A, .Index = 0}, .Position = {1.5f, -2.f, 300.f}, .Rotation = {0.f, 0.f, 0.f, 1.f}},
+                  {.Key = {.Actor = 0x2A, .Index = 17}, .Position = {4.f, 5.f, 6.f}, .Knocked = true}};
+    RagdollPart read;
+    REQUIRE(FromPartBytes(ToPartBytes(sent), read));
+    CHECK(read.Tick == sent.Tick);
+    REQUIRE(read.Rests.size() == 2);
+    CHECK(read.Rests[1].Key.Index == 17);
+    CHECK(read.Rests[1].Knocked);
+    CHECK(glm::distance(read.Rests[0].Position, sent.Rests[0].Position) < 0.1f);
 }
 
 TEST_CASE("An actor state part round-trips with its noise", "[encoding][record-parts]")

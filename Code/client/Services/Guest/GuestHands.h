@@ -91,6 +91,8 @@ private:
     // This game's player's ragdoll: its awake bodies' frames into aFrames, its rest to the host.
     void SendRagdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyFrame>& aFrames) noexcept;
     // This game's player's session id (its LocalComponent), 0 before it has one.
+    // A copy's session id by its form id here (its corpse grabbed: GuestEngine::ReadHeld).
+    [[nodiscard]] GuestEngine::SessionOf_t CopySessions() const noexcept;
     [[nodiscard]] uint32_t PlayerId() const noexcept;
     void Own(const BodyKey& acKey, uint64_t aTick, const char* acpHow, std::vector<BodyKey>& aOwned) noexcept;
     void TrackMoved(uint64_t aTick, const std::set<BodyKey>& acPlayed, const std::vector<BodyPose>& acMoved) noexcept;

@@ -611,3 +611,56 @@ row). Fixed both ways (`docs/design/physics-sync.md`, "A rest's move row comes b
 dynamic and still (`BodyPrediction::StillToSleep`: the counts 60850 skips; a body sliding at a steady speed would pass
 the last test alone) and put each body's w back after 60850, so Havok's own last test has its say too; and the guest
 skips the row of its own rest.
+
+## A lying ragdoll's layer and group (read in IDA on 1.7.104 and in Skyrim.esm, 2026-11-21)
+
+For piece 10 of `docs/design/one-simulator.md`; journal `docs/re/journal/1.7.104/agent-piece-10.tsv`.
+
+```text
+the ragdoll enters the world       AddRagdollHandler (42873) -> task 18 (QueueAddToWorld 36922)
+                                   -> bhkWorld vfunc +0x1A8 (world, 3D, recurse, 1, group, 0)
+                                   group: the actor's character controller's (its filter info's high 16 bits)
+the actor is knocked down          KnockExplosion (39895): NiAVObject::SetCollisionLayer (77998) of the 3D to 32
+the actor dies                     Actor::KillImpl: the same call, 32
+up again / resurrected             EndKnockState (39897), GetUpEndHandler (42880), ClearDeathState: back to 8
+```
+
+So a body lying in its ragdoll is on layer 32 (`L_DEADBIP`) in its actor's own group (read). What layer 32 meets is
+data, not code: Skyrim.esm's `COLL` records (read with a script from the game's Skyrim.esm):
+
+```text
+L_DEADBIP (32) meets   static, anim static, terrain, ground, trees, water, triggers, traps
+                       clutter (4), weapon (5), props (10), small and large debris (19, 20)
+                       other L_DEADBIP (another actor's: a different group)
+                       projectiles, spells, the item picker (40), line of sight (41)
+             not       L_BIPED (8), L_CHARCONTROLLER (30), L_BIPED_NO_CC (33)
+L_BIPED (8) meets      the world only: no clutter, no weapons, no other bipeds
+```
+
+- A character never pushes a corpse with its capsule (30 against 32: no), in any game. The harness's floor probe
+  (`GetBodyPose`, a layer-30 ray) still hit a corpse under a player's feet and read the player 30 to 40 units sunk
+  (measured, 2026-11-21): it looks past actors' bodies now.
+- A lying ragdoll pushes loose objects and other lying ragdolls, and is stopped by them. A copy's ragdoll does
+  that in its own game too, where its owner's never touched them.
+- `Actor::IsInRagdollState` (37491): true for a dead actor, or knock state 1 to 5 or 7; **not 6** (getting up). The
+  transform delta sink (37996) keeps the actor on its ragdoll's root only while it is true.
+
+Not read: Havok's constraint solver for a ragdoll's joints; what `hkbRagdollDriver::driveToPose` does for a dead
+actor's bodies each update (the owner's ragdoll sleeps under it, so it does not wake them: measured, 2026-11-12).
+
+## A translating reference (read in IDA on 1.7.104, 2026-11-21)
+
+Papyrus `TranslateTo` / `SplineTranslateTo` (56237) give the reference an `ExtraRefrPath` (extra 161), mark change
+`0x80000000` and add its handle to its cell's list (`0x1402D8EF0`). `TESObjectCELL__UpdateTranslatingRefs` (18898)
+walks that list for each attached cell every frame: `ExtraRefrPath__Advance` (12810) by this game's frame seconds,
+then `SetPosition`, `SetAngle`. That is all that moves a critter (`critterMoth`, `Critter.psc`): the game whose VM
+ran the script moves it, on its own clock; no other game is told. `Critter.psc` also places two landing markers for
+itself (`PlaceAtMe(LandingMarkerForm)`: Skyrim.esm's `C2D47` for 13 critters, `22201` for one) and moves them with
+`SetPosition`.
+
+The harness tells a critter by its script: the VM's `FindBoundObject` (104792, vfunc 0x1C) visits the handle's bound
+objects (104880) and, unless asked for an exact match, walks each one's class up its parents (104912), so a lookup of
+`Critter` finds `critterMoth` (read).
+
+Change flag `0x8000000` is `CHANGE_REFR_LEVELED_INVENTORY`: `InventoryChanges__AddLeveledEntries` (16128) sets it
+when a leveled list's roll is added to a reference's inventory. Each game rolls its own.

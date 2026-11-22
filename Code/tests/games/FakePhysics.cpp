@@ -98,6 +98,120 @@ void FakeEngine::PlaceByGame(const BodyKey& acKey, const glm::vec3& acPosition)
     Placed.emplace_back(acKey.Object, acPosition);
 }
 
+void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPending::Drive>& acDrives) noexcept
+{
+    constexpr float cStep = 1.f / 60.f;
+    constexpr float cSettle = 0.05f;          // units an awake, unsteered body is moved by its joints each frame
+    constexpr uint16_t cSettleFrames = 30;     // then Havok sleeps it
+    const float cNow = static_cast<float>(m_frameCount) * cStep;
+    std::set<BodyKey> driven;
+    struct Resting
+    {
+        BodyKey Key;
+        Body* pBody;
+        const BodyFrame* pRest;
+    };
+    std::vector<Resting> rests;
+    for (const auto& cDrive : acDrives)
+    {
+        const auto it = Bodies.find(RagdollKey(cDrive.Frame.Key, aCopy));
+        if (it == Bodies.end())
+            continue;
+        Body& body = it->second;
+        body.RagdollOf = aCopy;
+        body.Held = false; // its ragdoll driver keeps it simulated (motion 2/3)
+        if (cDrive.Rest)
+        {
+            rests.push_back({it->first, &body, &cDrive.Frame});
+            continue;
+        }
+        // Steered onto its owner's frame (78089/78090): a steer wakes it.
+        body.RestAt.reset();
+        body.Flight.Body.Position = cDrive.Frame.Position;
+        body.Flight.Body.Rotation = cDrive.Frame.Rotation;
+        body.Flight.Body.LinearVelocity = cDrive.Frame.LinearVelocity;
+        body.Awake = true;
+        ++body.Drives;
+        driven.insert(it->first);
+    }
+    if (!rests.empty())
+    {
+        auto& rest = m_copyRests[aCopy];
+        bool fresh = false, allNear = true, allStill = true, anyWoken = false;
+        for (auto& [cKey, pBody, pRest] : rests)
+        {
+            fresh |= pBody->RestAt != pRest->Position;
+            pBody->RestAt = pRest->Position;
+            const bool cNear = glm::distance(pBody->Flight.Body.Position, pRest->Position) <= RagdollRest::kNear;
+            allNear &= cNear;
+            allStill &= BodyPrediction::StillToSleep(true, glm::length(pBody->Flight.Body.LinearVelocity), 0.f);
+            anyWoken |= pBody->Awake && !cNear;
+        }
+        if (fresh)
+            rest.Start(cNow);
+        switch (rest.Next(allNear, allStill, anyWoken, cNow))
+        {
+        case RagdollRest::Step::kGlide:
+            for (auto& [cKey, pBody, pRest] : rests)
+            {
+                driven.insert(cKey);
+                const glm::vec3 cGap = pRest->Position - pBody->Flight.Body.Position;
+                pBody->Flight.Body.LinearVelocity = cGap / BodyPrediction::kRestGlideStep;
+                pBody->Flight.Body.Position += cGap * (cStep / BodyPrediction::kRestGlideStep);
+                pBody->Flight.Body.Rotation = pRest->Rotation;
+                pBody->Awake = true;
+                ++pBody->Drives;
+            }
+            break;
+        case RagdollRest::Step::kPlace:
+            for (auto& [cKey, pBody, pRest] : rests)
+            {
+                driven.insert(cKey);
+                pBody->Flight.Body.Position = pRest->Position;
+                pBody->Flight.Body.Rotation = pRest->Rotation;
+                pBody->Flight.Body.LinearVelocity = {};
+                pBody->Awake = true;
+                ++pBody->Drives;
+            }
+            break;
+        case RagdollRest::Step::kSleep:
+        {
+            // 60850 sleeps the island (its joints make the ragdoll one); its own bodies' settling does not keep it awake
+            // (CopyRagdollPhysics: duo 2026-11-21, they never stood still in 2 s in 1 of 3 runs after the place).
+            const bool cAsleep = true;
+            if (cAsleep)
+                for (auto& [cKey, pBody, pRest] : rests)
+                {
+                    pBody->Awake = false;
+                    pBody->Flight.Body.LinearVelocity = {};
+                }
+            rest.Slept(cAsleep, cNow);
+            break;
+        }
+        case RagdollRest::Step::kLeave: break;
+        }
+    }
+    else
+        m_copyRests.erase(aCopy);
+    const bool cCopy = Actors.contains(aCopy) && Actors.at(aCopy).Copy;
+    for (auto& [cKey, body] : Bodies)
+    {
+        if (!cCopy || body.RagdollOf != aCopy || !body.Awake || driven.contains(cKey))
+        {
+            body.SettleFrames = 0;
+            continue;
+        }
+        if (++body.SettleFrames > cSettleFrames)
+        {
+            body.Awake = false;
+            body.Flight.Body.LinearVelocity = {};
+            continue;
+        }
+        body.Flight.Body.Position.x += cSettle;
+        body.Flight.Body.LinearVelocity = {cSettle / cStep, 0.f, 0.f};
+    }
+}
+
 void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin)
 {
     Body& body = Bodies.at(acKey);
@@ -157,9 +271,17 @@ bool FakeEngine::KnockDown(uint32_t aCopyFormId) noexcept
     return true;
 }
 
+BodyKey FakeEngine::RagdollKey(const BodyKey& acKey, uint32_t aActor) const noexcept
+{
+    // A copy's ragdoll here by its session id; this game's own actor's by its form id (BodyBridge finds both by actor).
+    if (!acKey.Actor || Bodies.contains(acKey))
+        return acKey;
+    return {.Actor = aActor, .Index = acKey.Index};
+}
+
 bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHeld) noexcept
 {
-    const auto it = Bodies.find(acFrame.Key);
+    const auto it = Bodies.find(RagdollKey(acFrame.Key, aCopyFormId));
     // An actor's body needs its copy here (BodyBridge::Find): none yet, or gone, is not loaded here.
     if (it == Bodies.end() || (acFrame.Key.Actor && !Actors.contains(aCopyFormId)))
         return false;
@@ -247,7 +369,7 @@ void FakeEngine::HoldTo(const BodyKey& acKey, const glm::vec3& acTo) noexcept
 
 bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
 {
-    const auto it = Bodies.find(acPose.Key);
+    const auto it = Bodies.find(RagdollKey(acPose.Key, aCopyFormId));
     if (it == Bodies.end() || (acPose.Key.Actor && !Actors.contains(aCopyFormId)))
         return false;
     if (!acPose.Key.Actor)

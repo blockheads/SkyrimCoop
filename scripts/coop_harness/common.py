@@ -255,6 +255,12 @@ WORLD_FIELDS = ("base", "cell", "flags", "position", "rotation", "scale", "has_3
 WORLD_TOLERANCES = {"position": 1.0, "position_3d": 1.0, "rotation": 0.01, "scale": 0.001}
 POSE_TOLERANCE, ROTATE_TOLERANCE, BODY_TOLERANCE, BODY_TURN_TOLERANCE = 1.0, 0.01, 2.0, 0.02
 CREATED_ID = 0xFF000000
+# Scenery: each game's own, never compared (one-simulator.md, piece 10). A reference with a script of these classes
+# or one extending them (world_state's "scripts"), or one on a TranslateTo path ("on_path": moved on its game's clock).
+SCENERY_SCRIPTS = ("Critter", "FXfakeCritterScript")
+# The landing markers Critter.psc places for itself (LandingMarkerForm in Skyrim.esm: DoNotPlaceSmallCritterLanding-
+# MarkerHelper, CritterLandingMarker_Small), moved about with it.
+CRITTER_MARKERS = (0xC2D47, 0x22201)
 FORM_DISABLED = 0x800
 FORM_DELETED = 0x20
 FORM_PERSISTENT = 0x400

@@ -75,6 +75,10 @@ struct BodyService
         return m_playback.RestComing(acObject) ||
                std::ranges::any_of(m_pendingRests, [&](const auto& acRest) { return acRest.first.Object == acObject; });
     }
+    // This game's actors' ragdolls came to rest (its own physics read them, keyed by session id): each one's rest is its
+    // record part (RecordKind::kRagdoll), which every other game gets and every later spawn of it carries. Taken out of
+    // aRests.
+    void DeclareRagdolls(uint64_t aTick, std::vector<BodyPose>& aRests) noexcept;
     // This game's own physics has the body again (a guest let go of the host's): its playback ends.
     void Forget(const BodyKey& acKey, uint64_t aReleasedAt = 0) noexcept;
     // A reference another game's player holds (its frames come as a hold): its holder's alone, so this game's player
@@ -103,6 +107,10 @@ private:
     // This game's entity for a copy, entt::null without one.
     [[nodiscard]] entt::entity CopyEntity(uint32_t aSessionId) const noexcept;
     [[nodiscard]] uint32_t CopyOf(uint32_t aSessionId) const noexcept;
+    // This game's own actor of that session id (its corpse another game's player moves), or none.
+    [[nodiscard]] uint32_t OwnActorOf(uint32_t aSessionId) const noexcept;
+    // The actor a ragdoll's frames play here: its copy, or this game's own when another game's player moves it.
+    [[nodiscard]] uint32_t ActorOf(uint32_t aSessionId) const noexcept;
 
     World& m_world;
     IBodyBridge& m_bridge;

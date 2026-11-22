@@ -500,6 +500,7 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 
 void FakeEngine::Frame()
 {
+    ++m_frameCount;
     for (const auto [cRider, cMount] : std::map(std::exchange(MountRetryOf, {})))
         ActivateMount(cRider, cMount);
     for (auto it = DismountIn.begin(); it != DismountIn.end();)
@@ -689,43 +690,19 @@ void FakeEngine::Frame()
     }
     for (auto& [cId, actor] : Actors)
     {
+        // This game's own corpse another game's player moves: its frames drive it too (CopyRagdollPhysics' Played).
         if (!actor.Copy)
+        {
+            if (actor.Dead && (m_pendingRagdolls.Has(cId) || m_copyRests.contains(cId)))
+                DriveCopyRagdoll(cId, m_pendingRagdolls.Take(cId));
             continue;
+        }
         if (actor.KnockIn && !--actor.KnockIn)
             actor.KnockedDown = true;
-        for (const auto& cDrive : m_pendingRagdolls.Take(cId))
-        {
-            // After its own physics (CopyRagdollPhysics steers after 58291): lying or getting up, never standing.
-            if (!actor.Dead && !KnockReplay::BodiesSimulated(KnockStateOf(cId)))
-                continue;
-            const auto it = Bodies.find(cDrive.Frame.Key);
-            if (it == Bodies.end())
-                continue;
-            auto& body = it->second;
-            // At its owner's rest it is left alone (CopyRagdollPhysics): steered on, Havok never lets it sleep.
-            if (cDrive.Rest)
-            {
-                if (body.RestAt != cDrive.Frame.Position)
-                {
-                    body.RestAt = cDrive.Frame.Position;
-                    body.RestSteps = 0;
-                }
-                // Steered a while, put exactly there, then left alone (CopyRagdollPhysics).
-                const auto cStep = BodyPrediction::StepToRest(body.RestSteps);
-                if (body.RestSteps <= BodyPrediction::kRestSettleSteps)
-                    ++body.RestSteps;
-                if (cStep == BodyPrediction::RestStep::kLeave)
-                    continue;
-            }
-            else
-                body.RestAt.reset();
-            body.Held = true;
-            body.Awake = false;
-            body.RagdollOf = cId;
-            body.Flight.Body.Position = cDrive.Frame.Position;
-            body.Flight.Body.Rotation = cDrive.Frame.Rotation;
-            ++body.Drives;
-        }
+        // After its own physics (CopyRagdollPhysics steers after 58291): lying or getting up, never standing.
+        const auto cDrives = m_pendingRagdolls.Take(cId);
+        if (actor.Dead || KnockReplay::BodiesSimulated(KnockStateOf(cId)))
+            DriveCopyRagdoll(cId, cDrives);
         // Drawn: moved since its graph update while its ragdoll poses it, its old pose shows at the new place.
         const float cTurn = std::abs(std::remainder(actor.Rotation[2] - actor.GraphPlace[3], 6.28318531f));
         const float cSnap = glm::distance(glm::vec3(actor.Position[0], actor.Position[1], actor.Position[2]),

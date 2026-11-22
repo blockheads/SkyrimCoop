@@ -66,6 +66,9 @@ private:
     // Whether a rest with no claim heard is a defeated mover's (or the host's game took the body back).
     [[nodiscard]] bool Defeated(const BodyKey& acKey, ConnectionId_t aSender) noexcept;
     [[nodiscard]] bool OwnsRagdoll(const BodyKey& acKey, ConnectionId_t aSender) const noexcept;
+    // A body the host's game owns: a reference's, or the ragdoll of an actor it owns (a corpse a guest's player
+    // grabbed: its mover's until it rests, as an object; one-simulator.md, piece 10e).
+    [[nodiscard]] bool HostsBody(const BodyKey& acKey) const noexcept;
     // Simulated again where the holder left it.
     void Free(const BodyFrame& acFrame, uint64_t aReleasedAt = 0) noexcept;
 

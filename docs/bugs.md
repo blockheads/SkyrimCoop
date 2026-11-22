@@ -56,7 +56,6 @@ every other section needs the duo.
 **Ragdolls and death poses**
 
 - [Revive leaves the body wrong](#revive-leaves-the-body-wrong): medium
-- [Copy ragdolls at rest](#copy-ragdolls-at-rest): medium
 
 **Physics**
 
@@ -132,7 +131,6 @@ every other section needs the duo.
 - [A guest's console kill that never downs it](#a-guests-console-kill-that-never-downs-it): small, not read
 - [A kill move that never pairs](#a-kill-move-that-never-pairs): small
 - [A guest crash in the garbage collector's job](#a-guest-crash-in-the-garbage-collectors-job): medium
-- [A dead player's copy a little off its owner's body](#a-dead-players-copy-a-little-off-its-owners-body): small
 - [A respawned player's draw that does nothing](#a-respawned-players-draw-that-does-nothing): small
 - [The attacker's copy not in its kill move](#the-attackers-copy-not-in-its-kill-move): small
 - [A knocked-down copy placed 62 units off](#a-knocked-down-copy-placed-62-units-off): small
@@ -189,6 +187,9 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
   rejoin with a guest holding its own NPCs (copy-contract.md, "A guest's own NPCs"), where each NPC is hidden and gets
   its 3D again only after the host's spawn; the same scenario without the rejoin agreed on it. Not read: where a
   ragdolled copy's body settles when its 3D loads after its spawn placed it.
+  - 2026-11-21 (piece 10): a ragdoll's rest is its actor's record part now, so a copy made after it lies there
+    (GameTests "A guest joining beside a host corpse sees it lie as the host's"). One duo run of the scenario after it:
+    no difference on the Skeleton (it failed on townsfolk's animation picks instead). Delete after a second clean run.
 - **Also after a join with the host's save** (2 of 3): one hanging plant in the shop (`FLOR 38B0C`, `38BE6` or `38BE7`), its `b_Lower` bone
   turned differently. `released-copy-takes-up-its-ai` ends in the blank cell, so it does not fail on this.
 - **A guest joining again does not wear what it wore** (`guest-swaps-armor-after-join`, 2026-11-10): `[client] the guest
@@ -461,29 +462,6 @@ flow.
     out once (`RemoveRagdollFromWorld`); what puts it back is not known.
   - Start: a failing run's `RagdollTrace` of the guest after its revive: when its bodies go back in the world, and
     which graph event (`AddRagdollToWorld`, 42873) or death action came just before.
-
-### Copy ragdolls at rest
-
-A dead copy's bodies against its owner's, after its death.
-
-Agent task: find why the killed guest's copy shakes as it falls, or never sleeps, where its owner does not in
-`kill-move-kills-guest`, from the copy's `RagdollTrace` samples against its steering (`CopyRagdollPhysics`).
-
-Size: medium. Needs: duo (`RagdollTrace`), then a fast test.
-
-- **A killed guest's copy shakes as it falls, or never comes to rest** (`kill-move-kills-guest`, 2026-11-18 on the
-  fix below, 5 runs: 2 passed, 1 the pairing timeout of [A kill move that never pairs](#a-kill-move-that-never-pairs)).
-  - "A series turned back 11 times within a second, its owner's 1" (samples `20261118-123756-kill-move-kills-guest`):
-    body 9 shook in moves of 0.6 units while the copy fell, from its death (4.49 s, 0.74 s after its owner's) for a
-    second, steered toward its owner's falling bodies at 100 to 390 units/s. Came to rest 8.3 s in.
-  - "NEVER came to rest, its owner's did 2.0 s before the trace's end" (`20261118-123709-kill-move-kills-guest`):
-    18 bodies awake at 5 to 36 units/s to the end; the owner's slept 4.8 s in.
-  - The flickers are fixed (2026-11-18): the victim copy's ragdoll was out of the world for the whole kill move and
-    came back at death keyframed for one frame (`docs/re/systems/physics.md`, "A kill move's victim copy keeps its
-    ragdoll"). 0 flickers in the 4 runs that reached the death since; 1 run of 2 had them before.
-  - Start: the copy's death 0.3 to 0.7 s after its owner's (its owner's death action, `kill-moves.md`, "A copy's death
-    at the end of its clip") leaves its bodies far from the owner's frames; `BodyPrediction::Steer`'s 0.05 s
-    correction on that gap, then `StepToRest`.
 
 ## Physics
 
@@ -1127,6 +1105,10 @@ Size: small. Needs: IDA, then the duo.
 
 ### Whiterun plains' critters differ
 
+2026-11-21 (piece 10): critters, their landing markers and references on a TranslateTo path are each game's own and no
+longer compared (`comparisons.scenery`). Left to see on the duo: the horse and elk copies apart at the end (the run of
+2026-11-21 failed earlier, on the guest's 71-unit jump getting on: "A passenger jumps 57 units as it takes the reins").
+
 Stands alone: `party-shares-a-horse` (Whiterun plains, `cow Tamriel 0 -4`).
 
 Agent task: Find why the critters the plains spawn differ between the games, and make the scenario's end check pass.
@@ -1145,6 +1127,9 @@ Size: small. Needs: the duo.
   elks, the guest's copies about 159 units off their owners (wild NPCs nobody touched; not read).
 
 ### Riverwood's scenery drifts apart
+
+2026-11-21 (piece 10): the fish (FishController, `FXfakeCritterScript`) are no longer compared; `copy_holds_furniture_prop`
+passed its end comparison after it. Left: the mill's log (FURN 71C47), state the user keeps compared, and loose items.
 
 Stands alone: every long scenario in Riverwood.
 
@@ -1270,8 +1255,8 @@ Size: small. Needs: the duo. Waits for: nothing.
 runs on builds with the review's edits (once with the player left 100 units off its baseline, so the duo booted again),
 then none in 40 on `1a4a44a4` and none in 40 on `0492014e` (2026-11-12). Chance, or the wrong check those builds carried.
 The same 80 runs passed 27 of 40 and 24 of 40: the scenario failed a third of the time on both, always in the dead copy's
-ragdoll (flicker, `NEVER came to rest`). With deaths on the stream (2026-11-12): 20 of 23, three flickers of 2 to 5. The same scenario's other intermittents (flicker, `NEVER came to rest`) are under
-[Copy ragdolls at rest](#copy-ragdolls-at-rest).
+ragdoll (flicker, `NEVER came to rest`). With deaths on the stream (2026-11-12): 20 of 23, three flickers of 2 to 5. The dead copy's `NEVER came to rest` is fixed (2026-11-21, one-simulator.md piece 10:
+its rest is glided to, put once and slept; 6 of 6 runs asleep on the duo).
 
 Agent task: run `kill-move-kills-guest --repeat 20` on `1a4a44a4` and on the current code, then read why the pair did not
 start (`HookTryMoveTo`, the instance, `PairOnStream`).
@@ -1287,24 +1272,6 @@ Size: small. Needs: the duo, IDA.
 Agent task: reproduce with the heap history on (`coop_test.py repro`), running the five scenarios the crash note names.
 
 Size: medium. Needs: the duo, IDA.
-
-### A dead player's copy a little off its owner's body
-
-`death-spectate-host`, 4 of 46 runs with deaths on the stream (2026-11-12), none in 8 on the build before it, then none in
-25 more: `[client] the copy does not lie as the host's body`, once 13 to 16 units and about 30 degrees off, the other
-times within a unit but turned 3 to 14 degrees, over the check's 0.05 radians.
-
-Measured (`RagdollTrace` on the dead player's copy, now part of the scenario): the copy's bodies reach the owner's rest
-within 0.2 to 0.8 units and fall asleep at about the moment the owner's do, then wake again: sleep for a frame, awake
-about half a second, sleep, in 11 of 13 traces, the owner's staying asleep. One wake lines up with the owner's rest
-arriving (steering wakes a body each step, `StepToRest`), the next with its place step 30 steps later. Woken, they settle
-again a few degrees off. Tried: leaving a copy whose every body is already asleep near its rest; the condition never
-held in 13 runs (the reason not found: its angle, or what `BodyRead::Active` means), so it was taken out.
-
-Agent task: log, at the owner's rest's arrival, each of the copy's bodies' awake flag, distance and angle from the rest,
-and read why "asleep and there" never holds; then leave such a copy alone.
-
-Size: small. Needs: the duo.
 
 ### A respawned player's draw that does nothing
 

@@ -11,6 +11,7 @@
 #include <Physics/BodyGroups.h>
 #include <Physics/BodyPlayback.h>
 #include <Physics/RagdollPending.h>
+#include <Physics/RagdollRest.h>
 #include <Physics/BodyRelevance.h>
 #include <Physics/BodySends.h>
 #include <Physics/HavokStep.h>
@@ -515,14 +516,64 @@ TEST_CASE("A copy's first ragdoll frame is steered unless it is well off", "[bod
     CHECK(BodyPrediction::PlaceDistance(true) > 12.f); // a kill move's start, measured
 }
 
-TEST_CASE("A copy's ragdoll is steered to its owner's rest, put there, then left alone", "[physics][rest]")
+TEST_CASE("A copy's ragdoll rests as a pile: glided, put there once, put to sleep, then left alone", "[physics][ragdoll-rest]")
 {
-    using namespace BodyPrediction;
-    // Steered toward its rest for half a second, put exactly there with every other body in one step, then left.
-    CHECK(StepToRest(0) == RestStep::kSteer);
-    CHECK(StepToRest(kRestSettleSteps - 1) == RestStep::kSteer);
-    CHECK(StepToRest(kRestSettleSteps) == RestStep::kPlace);
-    CHECK(StepToRest(kRestSettleSteps + 1) == RestStep::kLeave);
+    using Step = RagdollRest::Step;
+    RagdollRest rest;
+    rest.Start(10.f);
+    // Off its rest: glided there for half a second at most, then every body put there in one step.
+    CHECK(rest.Next(false, false, false, 10.f) == Step::kGlide);
+    CHECK(rest.Next(false, true, false, 10.4f) == Step::kGlide);
+    CHECK(rest.Next(false, false, false, 10.5f) == Step::kPlace);
+    // Put there: the next update puts the island to sleep; asleep, it is left alone for good.
+    CHECK(rest.Next(false, false, false, 10.52f) == Step::kSleep);
+    rest.Slept(true, 10.52f);
+    CHECK(rest.Next(false, false, false, 10.54f) == Step::kLeave);
+    CHECK(rest.Next(true, true, false, 20.f) == Step::kLeave);
+}
+
+TEST_CASE("A copy's ragdoll already at its rest and still is put to sleep at once, without a place", "[physics][ragdoll-rest]")
+{
+    RagdollRest rest;
+    rest.Start(0.f);
+    CHECK(rest.Next(true, true, false, 0.f) == RagdollRest::Step::kSleep);
+    // Near but still moving (a glide's last steer): glided on.
+    RagdollRest moving;
+    moving.Start(0.f);
+    CHECK(moving.Next(true, false, false, 0.f) == RagdollRest::Step::kGlide);
+}
+
+TEST_CASE("A copy's ragdoll whose island will not sleep is left after two seconds of trying", "[physics][ragdoll-rest]")
+{
+    RagdollRest rest;
+    rest.Start(0.f);
+    REQUIRE(rest.Next(true, true, false, 0.f) == RagdollRest::Step::kSleep);
+    rest.Slept(false, 0.f);
+    CHECK(rest.Next(true, true, false, 1.f) == RagdollRest::Step::kSleep);
+    rest.Slept(false, 1.f);
+    CHECK(rest.Next(true, true, false, 1.5f) == RagdollRest::Step::kSleep);
+    rest.Slept(false, BodyPrediction::kRestSleepSeconds);
+    CHECK(rest.Next(true, true, false, 3.f) == RagdollRest::Step::kLeave);
+}
+
+TEST_CASE("A copy's ragdoll knocked off its rest after it slept is taken there again, twice at most", "[physics][ragdoll-rest]")
+{
+    RagdollRest rest;
+    float now = 0.f;
+    const auto cSettle = [&] {
+        REQUIRE(rest.Next(true, true, false, now) == RagdollRest::Step::kSleep);
+        rest.Slept(true, now);
+    };
+    rest.Start(now);
+    cSettle();
+    for (uint8_t i = 0; i < RagdollRest::kAgainAtMost; ++i)
+    {
+        now += 5.f;
+        CHECK(rest.Next(false, false, true, now) == RagdollRest::Step::kGlide);
+        cSettle();
+    }
+    // Its game's physics will not keep it there: left where it lies.
+    CHECK(rest.Next(false, false, true, now + 5.f) == RagdollRest::Step::kLeave);
 }
 
 TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", "[physics][rising][shake]")
@@ -693,4 +744,22 @@ TEST_CASE("What a body meets: a played one passes loose objects nobody moves, an
     // The world (static, layer 1) and a character's capsule (layer 30, its own group) are the engine's to say.
     CHECK(Decide(cPlayed, cInfo(1, 0)) == Meet::kEngine);
     CHECK(Decide(cPlayed, cInfo(30, 7)) == Meet::kEngine);
+}
+
+TEST_CASE("A lying copy's ragdoll, played, meets the world and what this game moves, not what its owner's settled", "[physics][played-ragdoll]")
+{
+    using BodyGroups::Decide;
+    using BodyGroups::Meet;
+    // A lying ragdoll's bodies are on layer 32 (L_DEADBIP: KillImpl, KnockExplosion 39895), which meets clutter, props,
+    // debris and another actor's layer 32 (Skyrim.esm's COLL; docs/re/systems/physics.md, "A lying ragdoll's layer").
+    const auto cInfo = [](uint32_t aLayer, uint32_t aGroup) { return aLayer | (aGroup << 16); };
+    const uint32_t cCopy = cInfo(32, BodyGroups::kPlayed);
+    CHECK(Decide(cCopy, cInfo(4, 0)) == Meet::kPass);                     // a ladle nobody moves
+    CHECK(Decide(cCopy, cInfo(10, 0)) == Meet::kPass);                    // a prop nobody moves
+    CHECK(Decide(cCopy, cInfo(4, BodyGroups::kPlayed)) == Meet::kPass);   // an object another game moves
+    CHECK(Decide(cCopy, cInfo(32, BodyGroups::kPlayed)) == Meet::kPass);  // another copy's ragdoll
+    CHECK(Decide(cCopy, cInfo(4, BodyGroups::kMoving)) == Meet::kCollide); // what this game's player carries
+    CHECK(Decide(cCopy, cInfo(1, 0)) == Meet::kEngine);                   // the floor
+    CHECK(Decide(cCopy, cInfo(13, 0)) == Meet::kEngine);                  // terrain
+    CHECK(Decide(cCopy, cInfo(32, 9)) == Meet::kEngine);                  // this game's own corpse: the layers say
 }

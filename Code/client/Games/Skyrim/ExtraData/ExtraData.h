@@ -30,6 +30,7 @@ enum class ExtraDataType : uint32_t
     TextDisplayData = 0x99,
     Enchantment = 0x9B,
     Soul = 0x9C,
+    RefrPath = 0xA1,    // a TranslateTo path (ExtraRefrPath, 56237): the cell moves it each frame (18898)
     Interaction = 0xA9, // a mount's rider and a rider's mount (ExtraInteraction)
 };
 

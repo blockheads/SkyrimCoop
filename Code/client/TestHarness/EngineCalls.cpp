@@ -1129,7 +1129,23 @@ DoorLockState GetDoorLock(uint32_t aRefId) noexcept
     return state;
 }
 
-std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
+namespace
+{
+// The script object the VM binds to that form, with a reference to release (DecRef).
+BSScript::Object* FindScript(uint32_t aFormId, const char* acpScript) noexcept
+{
+    auto* pForm = TESForm::GetById(aFormId);
+    auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
+    auto* pPolicy = pVm ? pVm->GetObjectHandlePolicy() : nullptr;
+    if (!pForm || !pPolicy)
+        return nullptr;
+    const uint64_t cHandle = pPolicy->GetHandleForObject(static_cast<uint32_t>(pForm->formType), pForm);
+    BSScript::Object* pObject = nullptr;
+    return pVm->FindBoundObject(cHandle, acpScript, &pObject) ? pObject : nullptr;
+}
+} // namespace
+
+std::vector<ReferenceState> GetLoadedReferences(bool aDetails, const std::vector<std::string>& acClasses) noexcept
 {
     std::vector<TESObjectCELL*> cells;
     if (TES* pTes = TES::Get())
@@ -1190,6 +1206,13 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
                 state.Leveled = pRef->CountLeveledEntries();
                 state.Stored = pRef->HasStoredChanges();
             }
+            state.OnPath = pRef->extraData.GetByType(ExtraDataType::RefrPath) != nullptr;
+            for (const auto& cClass : acClasses)
+                if (BSScript::Object* pObject = FindScript(pRef->formID, cClass.c_str()))
+                {
+                    pObject->DecRef();
+                    state.Scripts.push_back(cClass);
+                }
             if (const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get())
                 for (uint32_t bit = 0; bit < 32; ++bit)
                     if (pSaveLoad->HasChange(*pRef, 1u << bit))
@@ -1233,21 +1256,6 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept
     }
 }
 
-namespace
-{
-// The script object the VM binds to that form, with a reference to release (DecRef).
-BSScript::Object* FindScript(uint32_t aFormId, const char* acpScript) noexcept
-{
-    auto* pForm = TESForm::GetById(aFormId);
-    auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
-    auto* pPolicy = pVm ? pVm->GetObjectHandlePolicy() : nullptr;
-    if (!pForm || !pPolicy)
-        return nullptr;
-    const uint64_t cHandle = pPolicy->GetHandleForObject(static_cast<uint32_t>(pForm->formType), pForm);
-    BSScript::Object* pObject = nullptr;
-    return pVm->FindBoundObject(cHandle, acpScript, &pObject) ? pObject : nullptr;
-}
-} // namespace
 
 std::optional<std::string> GetScriptState(uint32_t aFormId, const char* acpScript) noexcept
 {

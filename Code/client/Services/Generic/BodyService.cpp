@@ -5,7 +5,9 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/Relayed.h>
+#include <Services/CopyRecords.h>
 #include <Services/TransportService.h>
+#include <Structs/RagdollPart.h>
 #include <Services/WorldStateLog.h>
 #include <Systems/InterpolationSystem.h>
 #include <World.h>
@@ -19,6 +21,29 @@ BodyService::BodyService(World& aWorld, entt::dispatcher& aDispatcher, IBodyBrid
     Listen<NotifyBodyRests, &BodyService::OnRests>(m_connections, aDispatcher, this);
     Listen<UpdateEvent, &BodyService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &BodyService::OnDisconnected>(m_connections, aDispatcher, this);
+    // Its owner's ragdoll rest, also for a copy made after it (docs/design/one-simulator.md, piece 10).
+    m_world.ctx().at<CopyRecords>().Register(RecordKind::kRagdoll, [this](uint32_t aId, const std::string& acBytes) {
+        RagdollPart part;
+        if (CopyOf(aId) && FromPartBytes(acBytes, part))
+            m_ragdolls.Rest(part.Tick, part.Rests);
+        return std::vector<uint32_t>{};
+    });
+}
+
+void BodyService::DeclareRagdolls(uint64_t aTick, std::vector<BodyPose>& aRests) noexcept
+{
+    std::map<uint32_t, RagdollPart> parts;
+    std::erase_if(aRests, [&parts, aTick](const BodyPose& acRest) {
+        if (!acRest.Key.Actor)
+            return false;
+        auto& part = parts[acRest.Key.Actor];
+        part.Tick = aTick;
+        part.Rests.push_back(acRest);
+        return true;
+    });
+    auto& records = m_world.ctx().at<CopyRecords>();
+    for (const auto& [cId, cPart] : parts)
+        records.Declare(cId, RecordKind::kRagdoll, ToPartBytes(cPart));
 }
 
 void BodyService::Forget(const BodyKey& acKey, uint64_t aReleasedAt) noexcept
@@ -135,6 +160,20 @@ uint32_t BodyService::CopyOf(uint32_t aSessionId) const noexcept
     return pFormId ? pFormId->Id : 0;
 }
 
+uint32_t BodyService::OwnActorOf(uint32_t aSessionId) const noexcept
+{
+    for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
+        if (m_world.get<LocalComponent>(cEntity).Id == aSessionId)
+            return m_world.get<FormIdComponent>(cEntity).Id;
+    return 0;
+}
+
+uint32_t BodyService::ActorOf(uint32_t aSessionId) const noexcept
+{
+    const uint32_t cCopy = CopyOf(aSessionId);
+    return cCopy ? cCopy : OwnActorOf(aSessionId);
+}
+
 void BodyService::OnUpdate(const UpdateEvent&) noexcept
 {
     if (std::exchange(m_updateQueued, true))
@@ -168,7 +207,11 @@ void BodyService::Apply() noexcept
         }
     m_restsTried.clear();
     Show(m_playback, [cAt = PlaybackTick(cTick)](const BodyKey&) { return cAt; });
-    Show(m_ragdolls, [this](const BodyKey& acKey) { return CopyTickOf(acKey.Actor); });
+    // A copy's ragdoll at its copy's time; this game's own corpse another game's player moves, at the references'.
+    Show(m_ragdolls, [this, cAt = PlaybackTick(cTick)](const BodyKey& acKey) {
+        const uint64_t cCopyTick = CopyTickOf(acKey.Actor);
+        return cCopyTick ? cCopyTick : (OwnActorOf(acKey.Actor) ? cAt : 0);
+    });
     for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
     {
         if (m_restsTried.contains(it->first))
@@ -188,7 +231,13 @@ void BodyService::Apply() noexcept
     for (auto it = m_ragdollRests.begin(); it != m_ragdollRests.end();)
     {
         const auto& cRest = it->second.second;
-        const uint32_t cCopy = CopyOf(cRest.Key.Actor);
+        // This game's player moves that corpse now (Keeper): its own flight decides until it rests.
+        if (m_pKeeper && m_pKeeper->KeepsRest(cRest))
+        {
+            it = m_ragdollRests.erase(it);
+            continue;
+        }
+        const uint32_t cCopy = ActorOf(cRest.Key.Actor);
         const BodyFrame cFrame{.Key = cRest.Key, .Position = cRest.Position, .Rotation = cRest.Rotation, .Knocked = cRest.Knocked};
         if (!cCopy || !m_bridge.Rest(cRest, cCopy) || !m_bridge.Drive(cFrame, cCopy))
             it = m_ragdollRests.erase(it);
@@ -219,8 +268,10 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
     for (const auto& cPose : aPlayback.At(acTickOf))
     {
         const BodyKey& cKey = cPose.Body.Key;
-        const uint32_t cCopy = cKey.Actor ? CopyOf(cKey.Actor) : 0;
+        const uint32_t cCopy = cKey.Actor ? ActorOf(cKey.Actor) : 0;
         const BodyPose cAt{.Key = cKey, .Position = cPose.Body.Position, .Rotation = cPose.Body.Rotation, .Knocked = cPose.Body.Knocked};
+        if (cPose.Rest && cKey.Actor && m_pKeeper && m_pKeeper->KeepsRest(cAt))
+            continue;
         if (cPose.Rest && cKey.Actor)
             m_ragdollRests[cKey] = {cPose.Tick, cAt};
         else

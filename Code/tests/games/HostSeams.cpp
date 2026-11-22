@@ -327,6 +327,7 @@ void HostService::MakeAuthority() noexcept
                     bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position,
                                              .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
                 }
+        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested); // as HostService
         return bodies;
     };
     game.FreeBody = [&engine, this](const BodyFrame& acFrame, uint64_t aReleasedAt) {

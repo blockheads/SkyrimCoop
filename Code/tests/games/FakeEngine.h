@@ -23,6 +23,7 @@
 #include <Bridges/IBodyReads.h>
 #include <Games/KnockReplay.h>
 #include <Physics/RagdollPending.h>
+#include <Physics/RagdollRest.h>
 
 #include <Games/QuestChanges.h>
 #include <Games/HitVisualsRules.h>
@@ -466,8 +467,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         size_t MoveRows = 0;  // world state move rows written into its 3D (GuestEngine::PlaceAtHostRest)
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
-        std::optional<glm::vec3> RestAt; // a copy's ragdoll body: the rest it is being taken to, and for how many steps
-        uint16_t RestSteps = 0;
+        std::optional<glm::vec3> RestAt; // a copy's ragdoll body: its owner's rest it is being taken to
+        // A copy's ragdoll body awake that nothing steered: its joints settle it off where it was put, until Havok
+        // sleeps it (duo, death-spectate-host's RagdollTrace, 2026-11-12: a few degrees off, about half a second).
+        uint16_t SettleFrames = 0;
         bool Caught = false;    // this game's world holds it (a head under a table's edge): its get-up cannot move it
         bool OutOfWorld = false; // its actor stood up: not in the physics world, not read, until its next knock
         uint64_t StillFor = 0;  // woken without a push: awake, unmoved, this long (Wake)
@@ -519,6 +522,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // its own physics moves too (OwnMoves). Swing() makes one.
     std::vector<BodyPush> PlayerHits;
     std::optional<BodyKey> Grabbed;
+    std::set<uint32_t> WatchedCorpses; // copies' corpses this game's player grabbed: read as its own until they rest
     // A guest's own physics moved these (GuestEngine::TakeOwnBodies): its own blast, not the host's.
     std::vector<BodyPose> OwnMoves;
     // IBodyBridge: the bodies other games own, played here as Skyrim's would be (BodyBridge).
@@ -1789,6 +1793,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     };
     std::deque<QueuedCall> m_queued;
     RagdollPending m_pendingRagdolls;
+    // A copy's ragdoll's frames from its owner, after its graph's driveToPose (as CopyRagdollPhysics).
+    void DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPending::Drive>& acDrives) noexcept;
+    [[nodiscard]] BodyKey RagdollKey(const BodyKey& acKey, uint32_t aActor) const noexcept;
+    std::map<uint32_t, RagdollRest> m_copyRests;
+    uint64_t m_frameCount = 0; // frames run: the fake's 60 a second
     bool m_inSystemQuest = false; // a system quest's function runs (CallsQuest): its natives are its instance's
     std::chrono::steady_clock::time_point m_lastFrame;
     // An actor's cell changed from aFrom: this game's player in another location raises CLOC.
