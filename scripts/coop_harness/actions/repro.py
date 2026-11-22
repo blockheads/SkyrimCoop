@@ -77,6 +77,29 @@ def name_handles(actors):
     return named
 
 
+def stand_problems(row):
+    """Why a player's snapshot does not show it standing on its feet: a subject `body_problems` does not judge (not a
+    player, dead, knocked down, seated, riding, swimming, no pose) is a problem too, then its body's, then ragdoll
+    bodies left in the physics world. Empty: it stands."""
+    if not row:
+        return ["no snapshot"]
+    if not row.get("player"):
+        return ["not a player: its body is not judged"]
+    state, placement = row.get("state") or {}, row.get("placement") or {}
+    water = (row.get("mod") or {}).get("water") or {}
+    held = [why for why, on in (("dead", state.get("dead")), (f"knock state {state.get('knock')}", state.get("knock")),
+                                (f"seated {state.get('sit_sleep')}", state.get("sit_sleep")), ("riding", placement.get("riding")),
+                                ("getting on or off", placement.get("getting_on_off")), ("swimming", water.get("swimming"))) if on]
+    if held:
+        return ["not standing: " + ", ".join(held)]
+    if not row.get("pose"):
+        return ["body: no pose reading"]
+    problems = body_problems(row)
+    if in_world := (row.get("ragdoll") or {}).get("in_world"):
+        problems.append(f"ragdoll: {in_world} bodies still in the physics world")
+    return problems
+
+
 def brief(row, full=False):
     """An actor's snapshot or a reference's row, flat: the fields a repro reads, places rounded."""
     fields = flatten(row or {})
@@ -1260,20 +1283,13 @@ class ReproActions:
         return {"degrees_off": got}
 
     def expect_stands(ctx, name, game, seconds=0.0):
-        """`name`'s body stands as a person sees it in `game` (or each) within `seconds`: no body problem (floats, sunk,
-        skeleton lifted or lying: comparisons.body_problems) and no ragdoll body left in the physics world."""
+        """`name`, a player, stands on its feet as a person sees it in `game` (or each) within `seconds` (stand_problems)."""
         games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
         ctx.refresh_handles()
         def problems():
             found = {}
             for label, instance in games:
-                row = ctx.actor_row(instance, ctx.resolve(name, label)) or {}
-                wrong = body_problems(row)
-                if in_world := (row.get("ragdoll") or {}).get("in_world"):
-                    wrong.append(f"ragdoll: {in_world} bodies still in the physics world")
-                if not row.get("pose"):
-                    wrong.append("body: no pose reading")
-                if wrong:
+                if wrong := stand_problems(ctx.actor_row(instance, ctx.resolve(name, label))):
                     found[label] = wrong
             return found
         if seconds and problems():

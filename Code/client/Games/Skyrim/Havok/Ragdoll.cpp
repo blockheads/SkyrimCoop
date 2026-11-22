@@ -13,11 +13,8 @@ bool QueueRagdollOutOfWorld(TESObjectREFR& aActor) noexcept
     if (!p3D || !pQueue)
         return false;
     using TRemoveFromWorld = void(void*, NiAVObject*);
-    using TSetMotionType = void(void*, NiAVObject*, uint32_t, bool);
     POINTER_SKYRIMSE(TRemoveFromWorld, s_removeFromWorld, 36924); // TaskQueueInterface::QueueRemoveFromWorld
-    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 36925);     // TaskQueueInterface::QueueSetMotionType
     s_removeFromWorld.Get()(pQueue, p3D);
-    s_setMotionType.Get()(pQueue, p3D, hkpRigidBody::kKeyframed, false);
     return true;
 }
 

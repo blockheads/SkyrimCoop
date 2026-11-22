@@ -1210,6 +1210,26 @@ class Scenes(unittest.TestCase):
         with self.assertRaisesRegex(TestFailure, "the same in both"):
             actions.expect(ctx, "lydia", "actor", field="ai.follow_target")
 
+    def test_expect_stands_judges_only_a_standing_player(self):
+        ctx, actions = self.expect_ctx()
+        ctx.expect_stands = lambda *args: actions.expect_stands(ctx, *args)
+        standing = {"player": True, "state": {}, "placement": {}, "pose": {"floor_gap": 0.0, "pelvis": 71.0, "head": 120.0},
+                    "ragdoll": {"bodies": 18, "in_world": 0}}
+        lifted = {**standing, "pose": {"floor_gap": 0.0, "pelvis": 2100.0, "head": 2150.0}}
+        for row, why in ((standing, None),
+                         ({**lifted, "player": False}, "not a player"),
+                         ({**lifted, "state": {"sit_sleep": 3}}, "not standing: seated 3"),
+                         ({**lifted, "state": {"dead": True}}, "not standing: dead"),
+                         ({**standing, "pose": None}, "no pose reading"),
+                         (lifted, "skeleton lifted"),
+                         ({**standing, "ragdoll": {"bodies": 18, "in_world": 18}}, "18 bodies still in the physics world")):
+            ctx.actor_row.side_effect = lambda instance, ref, row=row: row
+            if why is None:
+                self.assertEqual(actions.expect(ctx, "guest_player", "stands", game="guest"), {"stands": ["guest"]})
+            else:
+                with self.assertRaisesRegex(TestFailure, why):
+                    actions.expect(ctx, "guest_player", "stands", game="guest")
+
     def test_expect_faces_measures_the_heading_against_the_bearing(self):
         import math
         from coop_harness.actions.repro import facing_off

@@ -115,7 +115,7 @@ LatestAnimation cleared                                     a copy made now star
   (`RemoveRagdollFromWorld` 63622, as Revive did until 2026-11-22) lasts one frame: the graph was listed for the
   physics step at its update, and the step's ragdoll pass puts every body back. So `DeathService` asks the bridge
   after the revive (`EndPlayerRagdoll`), which queues it on the engine's task pool as vanilla ends a ragdoll
-  (`QueueRemoveFromWorld` 36924, keyframed 36925; `docs/re/systems/physics.md`, "A revived player's ragdoll stays
+  (`QueueRemoveFromWorld` 36924; `docs/re/systems/physics.md`, "A revived player's ragdoll stays
   in the world"). `revived-guest-stands-after-travel` and GameTests "A revived guest's skeleton stays on its feet
   after it travels" check it.
 

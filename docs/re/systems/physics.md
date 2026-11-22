@@ -681,10 +681,10 @@ Read in IDA (1.7.104):
 ```
 each frame (job table, actor-movement.md "Where a copy's step falls in the frame")
   Job_Actor_animation  graph update 63587: 63564 (a world, its ragdoll's first body in one)
-                         -> GraphPhysicsStepListener::AddGraph 63761 (static listener 0x1420C5B40)
+                         -> GraphPhysicsStepListener::AddGraph 63761 (static listener 385965)
   Job_VM_update        our World::Update
   Job_Cell_animations  bhkWorld::Step
-    listener prePhysics  -> UpdateRagdollPrePhysics 63562: every body not in the world added (hkpWorld_AddEntity),
+    listener prePhysics  -> UpdateRagdollPrePhysics 63562: every body not in the world added (hkpWorld_AddEntity 61304),
                             then hkbRagdollDriver::driveToPose 58291: powered (+0xC7) = track 6 on,
                             rigid body (+0xC8) = track 4 on; with one on, a body not marked keyframed
                             (track 8 > 1 or track 9) is set dynamic
@@ -697,16 +697,22 @@ each frame (job table, actor-movement.md "Where a copy's step falls in the frame
   then puts back any body that left the world since.
 - Our revive (`PlayerCharacter::Revive`, from `World::Update`) took the ragdoll out with
   `RemoveRagdollFromWorld` 63622 between the listing and the step. Measured with the harness's `ragdoll_adds`
-  (watches on the add visitor 32953 and on 63562): the only visitor adds were the death's (`KillImpl`, then its
-  queued task), and exactly one 63562 pass found the bodies out of the world, at the revive, and added them back.
-  From the next frame the graph is listed every frame, its bodies dynamic under the rigid-body controller.
+  (watches on the add visitor 32953 and on 63562, each counting a call only if the player's ragdoll was out of the
+  world before it and in after; rerun 2026-11-22 after the review fixed 63562's detour to pass its two floats):
+  with that removal in the revive, the only visitor add was the death's (`KillImpl`), and exactly one 63562 pass put
+  the ragdoll back, at the revive. The same direct removal from the harness's poll (`HookMainLoop`, the frame's start,
+  outside the window) stayed out: 0 bodies in the world, no re-add.
 - Vanilla ends a ragdoll from the task pool (`TaskQueueInterface::Push` 36993): the graph's `RemoveRagdoll`
-  event (`RemoveRagdollHandler` 42877) queues `QueueRemoveFromWorld` 36924 on the 3D, and `GetUpEnd` queues task 14,
+  event (`RemoveRagdollHandler` 42877) queues `QueueRemoveFromWorld` 36924 on the 3D (or removes at once when
+  `ShouldUseTaskQueue` 39033 says no, 77864; no motion type change), and `GetUpEnd` queues task 14,
   `AIProcess::EndKnockState` 39897 (every graph's ragdoll out, the 3D keyframed on layer 8, knock state 0). 39897
   returns at once with knock state 0, which `Resurrect` already set, so a revive cannot use it.
 - So the revive no longer takes it out itself: `DeathService` asks `IPlayerBridge::EndPlayerRagdoll`, which queues
-  36924 and 36925 on the 3D (`QueueRagdollOutOfWorld`), as `RemoveRagdollHandler` does. Measured after the fix:
+  36924 on the 3D (`QueueRagdollOutOfWorld`), as `RemoveRagdollHandler` does. Measured after the fix:
   `revived-guest-stands-after-travel` stands in Riverwood; `kill-moves-cross` then `host-rides-horse` passes.
-  That the task pool drains outside the listing-to-step window is inferred from vanilla's own get-up and that run.
+  That the task pool drains outside the listing-to-step window is inferred from vanilla's get-up and those runs.
+- A queued task runs at once (36993) only while `gEnableTaskPoolThread` (381120) is off: `TESDataHandler::ClearData`
+  (13754, before a load) saves, clears and restores it, and the quit teardown (36551) clears it for good. A revive
+  runs from our update after the respawn's arrival, never inside either (read in IDA).
 - Driver layout: CommonLibSSE-NG `hkbRagdollDriver` (from activeragdoll); the output tracks are
   `hkbGeneratorOutputTracks` in `Havok/BShkbAnimationGraph.h`.

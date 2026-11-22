@@ -35,9 +35,7 @@ struct hkbRagdollDriver
 };
 
 [[nodiscard]] std::vector<bhkWorldObject*> RagdollBodiesOf(const TESObjectREFR& acActor) noexcept;
-// Its ragdoll out of the physics world and its 3D keyframed, queued on the engine's task pool as the graph's
-// RemoveRagdoll (42877) and a get-up's end (39897) do: taken out between our update and the step, the step's ragdoll
-// pass (63562) would put the bodies back (physics.md, "A revived player's ragdoll stays in the world").
+// Its ragdoll out of the physics world on the engine's task pool, as RemoveRagdollHandler (42877) queues it (36924).
 bool QueueRagdollOutOfWorld(TESObjectREFR& aActor) noexcept;
 // A graph of its steps with the physics world (BShkbAnimationGraph +0x238): its ragdoll driver then drives the ragdoll's
 // bodies (63562). The engine detaches every graph in furniture (40063) and attaches them again as the actor gets up (39912).
