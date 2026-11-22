@@ -9,7 +9,7 @@ How sure each cause is: **read** (in our code or IDA), **measured** (a run named
 
 ```text
 A  two tools: heap history, measured hook sizes      days       unblocks C and the lock entries
-B  the floating body after a kill move               one bug    it fails every scenario run after it
+B  the floating body after a death (done, PR #94)   one bug    it failed every scenario run after it
 C  one copy teardown, between frames                 refactor   8 guest crash entries (cause inferred)
 D  a copy starts whole                               refactor   9 entries (cause read)
 E  copies 57-160 units off at a comparison           one read   6 entries
@@ -61,23 +61,27 @@ calls gains "every listed hook's size is its unwind entry's". Then the duo: `par
 `party-buys-house-host`, `host-dies-guest-still-fought`, `host-guard-arrest-jail`: each report left is read in IDA
 and classified in `docs/re/systems/lock-order.md`, and its entry closed or kept with the pair named.
 
-## Piece B: the floating body after a kill move
+## Piece B: the floating body after a death (done, PR #94)
 
-Measured 4 of 4 again on 2026-11-22: after `kill-moves-cross` or `spectator-watches-kill-move` the guest's own
-third-person skeleton stands about 2,100 units above its root; `host-rides-horse` then fails every time, and the
-garbage collector crash followed one such run. It goes before C so C's crash hunt runs on a clean boot.
-
-Step 0 (nothing read yet):
+Step 0 disproved the plan's cause: no kill move is needed, a plain `player.kill` does it. It was the revive.
 
 ```text
-1  harness readout: each bone from the root up, its local z   -> which node carries the 2,100
-2  IDA: who writes that node at a pair's end: the paired clip's end (EndPairsOf 32809), the third-person
-   camera's return, foot IK, the yielded half of a crossed pair
-3  hypothesis stated from 2, then the scenario
+frame N   graph update 63587: ragdoll in world -> listed for the physics step (63761, gate 63564)
+          our update: Revive -> RemoveRagdollFromWorld 63622 (bodies out)
+          bhkWorld::Step: ragdoll pass 63562 on the listed graph -> every body back in, dynamic
+then      listed every frame; the standing graph's rigid-body controls (track 4) keep the skeleton on the
+          bodies (58291, 58293); a trip leaves them behind: 2,100 units up, 48,000 across
 ```
 
-Scenario: `kill-moves-cross` then `expect` the guest's `pose.pelvis` within 80 of its root after a `coc`.
-GameTests flow once the fake knows the fact. No design until step 0 names the writer.
+- Read in IDA and measured on the duo (harness `ragdoll`, `ragdoll_adds`, `ragdoll_out`): with the old removal in
+  the revive, one 63562 pass put the ragdoll back at the revive; the same removal at the frame's start stays out.
+- Fix: `DeathService` calls `IPlayerBridge::EndPlayerRagdoll`, which queues `QueueRemoveFromWorld` 36924 on the
+  task pool, as vanilla's `RemoveRagdollHandler` 42877 does.
+- Tests: scenario `revived-guest-stands-after-travel` (`expect` check `stands`); GameTests "A revived guest's
+  skeleton stays on its feet after it travels" and the engine fact's flow. `kill-moves-cross` then
+  `host-rides-horse` passes.
+- Write-up: `docs/re/systems/physics.md`, "A revived player's ragdoll stays in the world"; `docs/design/death.md`,
+  "The ragdoll".
 
 ## Piece C: one copy teardown, between frames
 
@@ -285,7 +289,8 @@ standalone     headtracking, creature wobble, revive's body, the scratch save, q
 ## What each piece should close (bugs.md, 2026-11-22)
 
 - **A (4):** the two tools' entries, "The AI/quest lock pair", the lock order left in "After the host dies".
-- **B (1, and the scenarios it fails):** "After a kill move the guest's own body floats".
+- **B (1, and the scenarios it failed):** "After a kill move the guest's own body floats", closed by PR #94 (any
+  death's ragdoll left in the world, not a kill move's).
 - **C (up to 8):** the crash entries above. Counted only once heap history names the free.
 - **D (9):** the entries above; "A character's base bytes after joining" is beside it (a check reading the base
   where the engine wrote the reference).
