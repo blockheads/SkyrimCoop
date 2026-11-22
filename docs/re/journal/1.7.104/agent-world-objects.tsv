@@ -1,0 +1,71 @@
+time	op	id	rva	item
+2026-11-22T16:34:54Z	read	16129	0x23c380	{"name": "InventoryChanges::InitLeveledItems"}
+2026-11-22T16:35:05Z	read	16038	0x22b060	{"name": "TESObjectREFR::InitInventoryIfRequired"}
+2026-11-22T16:35:27Z	read		0x23c350	{"name": "InventoryChanges__AddLeveledEntries"}
+2026-11-22T16:37:42Z	read		0x2fd1bd	{"name": "TESObjectREFR::sub_20103"}
+2026-11-22T16:37:48Z	comment		0x2fd1bd	{"addr": "0x1402fd1bd", "comment": "world-objects: the only AddChange(0x10000000 CHANGE_REFR_ANIMATION) on this path: after the reference's graph is made or loaded for its 3D. Not per animation event, so a later PlayAnimation (a sawmill's log, a DweButton's cover) records no new change."}
+2026-11-22T16:37:52Z	read	56205	0xa47370	{"name": "papyrus::ObjectReference::PlayAnimation"}
+2026-11-22T16:38:17Z	read		0x23c840	{"name": "InventoryChanges__DropLeveledEntries"}
+2026-11-22T16:45:15Z	read	39000	0x6e1bd0	{"name": "Actor::SetSitSleepStateFromGraph"}
+2026-11-22T16:48:56Z	read	17420	0x26f340	{"name": "TESFurniture::Activate"}
+2026-11-22T16:49:02Z	comment		0x26f547	{"addr": "0x14026f547", "comment": "world-objects: furniture whose keywords hold default object 182: builds a BGSActionData (action = default object 55) on the furniture and, if it yields an animation event, sends it to the furniture's own graph (a2+0x38 vfunc +8, NotifyAnimationGraph). Player only (a3 == player above); an NPC's use goes through AI, not here."}
+2026-11-22T16:52:09Z	read	55214	0xa17b30	{"name": "sub_140A17B30"}
+2026-11-22T16:53:14Z	read	39912	0x7246a0	{"name": "AIProcess::SetSitSleepState"}
+2026-11-22T16:54:00Z	read	37997	0x6b2000	{"name": "BSTEventSink_BSAnimationGraphEvent_::Handle_2"}
+2026-11-22T16:54:04Z	read	39838	0x721710	{"name": "sub_140721710"}
+2026-11-22T16:54:04Z	read	38447	0x6c4370	{"name": "sub_1406C4370"}
+2026-11-22T16:54:11Z	name	39838	0x721710	{"addr": "0x140721710", "name": "AIProcess__GetAnimEventHandlers"}
+2026-11-22T16:54:11Z	name	38447	0x6c4370	{"addr": "0x1406c4370", "name": "AnimEventHandlers__Dispatch"}
+2026-11-22T16:54:17Z	comment	39838	0x721710	{"addr": "0x140721710", "comment": "world-objects (39838): (process, out ref) the refcounted handler table at middle-high +0xF8: the actor's graph-event handlers (IHandlerFunctor<Actor, BSFixedStringCI>) now; false with none."}
+2026-11-22T16:54:17Z	comment	38447	0x6c4370	{"addr": "0x1406c4370", "comment": "world-objects (38447): (table, event name, actor, payload, out handled) finds the event's handler by CRC32 of its name in the table (+0x38 buckets, +0x1C size), calls its vfunc +8 (actor, payload); not found: the parent table at +0x40, else handled = false."}
+2026-11-22T16:54:17Z	comment	37997	0x6b2000	{"addr": "0x1406b2000", "comment": "world-objects: Actor's BSAnimationGraphEvent sink (37997): TESObjectREFR::ProcessEvent first (Papyrus OnAnimationEvent), then the process's handler table (39838 -> 38447), else footsteps or the NPC's sound."}
+2026-11-22T16:54:17Z	comment	55214	0xa17b30	{"addr": "0x140a17b30", "comment": "world-objects: not on the path: registers Location natives (SetCleared, IsLoaded...); the string IsLoaded found here is Location.IsLoaded, not the mill graph's variable."}
+2026-11-22T16:54:22Z	read	20102	0x2fcb80	{"name": "TESObjectREFR::ProcessEvent"}
+2026-11-22T17:01:33Z	read	43577	0x7d88f0	{"name": "sub_1407D88F0"}
+2026-11-22T17:01:45Z	comment	43577	0x7d88f0	{"addr": "0x1407d88f0", "comment": "world-objects: not the furniture forward: AnimationObjects' (holder handle, event): detaches the anim object a matching entry holds for that holder and event (QueueNodeDetach), removes the entry; re-enables a control (32) for the barter target."}
+2026-11-22T17:08:38Z	read	20036	0x2fa4b0	{"name": "sub_1402FA4B0"}
+2026-11-22T17:08:38Z	read	63372	0xbc1600	{"name": "BSAnimationGraphManager::sub_63372"}
+2026-11-22T17:08:39Z	read	63362	0xbc0c90	{"name": "BSAnimationGraphManager::NotifyAllGraphs"}
+2026-11-22T17:08:50Z	name	63372	0xbc1600	{"addr": "0x140bc1600", "name": "BSAnimationGraphManager__NotifyAttachedManagers"}
+2026-11-22T17:08:50Z	name	20036	0x2fa4b0	{"addr": "0x1402fa4b0", "name": "BSTEventSource_BSAnimationGraphEvent__SendEvent"}
+2026-11-22T17:08:55Z	comment	63372	0xbc1600	{"addr": "0x140bc1600", "comment": "63372 (world-objects, read and measured 2026-11-22): (manager, event) sends the event to every graph of each manager attached to this one (+0x58 tagged pointers, count +0x68; low bit masked), then recursively to theirs; true if any took it. A worker's manager has its furniture's attached: Hod's MillLogPileLoadStart reached the sawmill 71DFC's graph this way on the host (callers BC16AC <- BC15E9 sink <- 2FA638 event source <- BCF3E1), never on the guest's copy. Also called by NotifyAllGraphs 63362 after its own graphs (Hod's input IdleMillLoadStart reached the mill, not taken)."}
+2026-11-22T17:08:55Z	comment	20036	0x2fa4b0	{"addr": "0x1402fa4b0", "comment": "world-objects: BSTEventSource<BSAnimationGraphEvent>::SendEvent shape: (source, event) under its lock, adds pending sinks (+0x18), calls each registered sink's vfunc +8 (sink, event, source) until one stops, removes pending ones (+0x30). Here: a graph's output event (63588) to its manager's sink (BC15E0), which forwards to attached managers (63372)."}
+2026-11-22T17:08:55Z	comment	63362	0xbc0c90	{"addr": "0x140bc0c90", "comment": "63362 NotifyAllGraphs: sends an event to every graph of the manager (a player's 1st and 3rd person graphs), returns how many took it; then to every attached manager's graphs (63372, a worker's furniture). NotifyAnimationGraph 32901 returns true if any did"}
+2026-11-22T17:09:23Z	read	63373	0xbc1770	{"name": "BSAnimationGraphManager::sub_63373"}
+2026-11-22T17:09:24Z	read	63374	0xbc1860	{"name": "BSAnimationGraphManager::sub_63374"}
+2026-11-22T17:09:27Z	read	63370	0xbc14e0	{"name": "sub_140BC14E0"}
+2026-11-22T17:09:31Z	read	63381	0xbc1c10	{"name": "BSAnimationGraphManager::sub_63381"}
+2026-11-22T17:09:38Z	read	63365	0xbc0e70	{"name": "BSAnimationGraphManager::sub_63365"}
+2026-11-22T17:09:57Z	name	63364	0xbc0e60	{"addr": "0x140bc0e60", "name": "BSAnimationGraphManager__AddDependent"}
+2026-11-22T17:09:57Z	name	63366	0xbc0fb0	{"addr": "0x140bc0fb0", "name": "BSAnimationGraphManager__RemoveDependent"}
+2026-11-22T17:09:57Z	name	63365	0xbc0e70	{"addr": "0x140bc0e70", "name": "BSAnimationGraphManager__AddDependentImpl"}
+2026-11-22T17:09:57Z	name	63367	0xbc0fc0	{"addr": "0x140bc0fc0", "name": "BSAnimationGraphManager__RemoveDependentImpl"}
+2026-11-22T17:09:57Z	name	63381	0xbc1c10	{"addr": "0x140bc1c10", "name": "BSAnimationGraphManager__AttachManager"}
+2026-11-22T17:10:03Z	comment	63364	0xbc0e60	{"addr": "0x140bc0e60", "comment": "63364 (world-objects): (manager, BSTSmartPointer<manager>* dependent, bool) wrapper of 63365: the dependent's graphs get this manager's input (NotifyAllGraphs) and output events (63371 -> 63372) from now on. Callers: AIProcess::SetSitSleepState 39912 (an actor entering a furniture: the furniture's manager on the actor's), FurnitureAfterLoad, Papyrus AddDependentAnimatedObjectReference, ExtraScriptedAnimDependence, the weapon/simple holders."}
+2026-11-22T17:10:03Z	comment	63366	0xbc0fb0	{"addr": "0x140bc0fb0", "comment": "63366 (world-objects): wrapper of 63367, detaches a dependent manager (SetSitSleepState 39912 on leaving a furniture, Papyrus RemoveDependentAnimatedObjectReference)."}
+2026-11-22T17:10:03Z	comment	63381	0xbc1c10	{"addr": "0x140bc1c10", "comment": "63381 (world-objects): (manager, BSTSmartPointer<manager>* other, bool, data) adds other to the attached list (+0x58 tagged pointers, count +0x68) once, refcounted; with the flag also hands it data (22D0). Read by NotifyAttachedManagers 63372."}
+2026-11-22T17:10:03Z	comment		0x7248e1	{"addr": "0x1407248e1", "comment": "world-objects: entering (new state 1 or 5): the furniture's graph manager made a dependent of the actor's (63364), so the worker's graph events drive the furniture's graph (Hod -> sawmill 71DFC MillLogPileLoadStart, measured 2026-11-22). A copy never runs this: its furniture gets none of its events."}
+2026-11-22T17:10:03Z	comment		0x724984	{"addr": "0x140724984", "comment": "world-objects: leaving (state 0): the old furniture's manager detached (63366)."}
+2026-11-22T17:10:17Z	read	38708	0x6d39c0	{"name": "Character::sub_38708"}
+2026-11-22T17:10:17Z	read	39916	0x725300	{"name": "sub_140725300"}
+2026-11-22T17:44:38Z	comment		0x724a5b	{"addr": "0x140724a5b", "comment": "world-objects: TESFurnitureEvent {actor, furniture, kEnter 0} to ScriptEventSourceHolder+0x528 (sub_140736480: its SendEvent)."}
+2026-11-22T17:44:38Z	comment		0x724b39	{"addr": "0x140724b39", "comment": "world-objects: TESFurnitureEvent {actor, old furniture, kExit 1} to ScriptEventSourceHolder+0x528."}
+2026-11-22T18:58:14Z	read		0x9cfc20	{"name": "sub_1409CFA60"}
+2026-11-22T18:58:18Z	read	55490	0xa253e0	{"name": "papyrus::Game::QuitToMainMenu"}
+2026-11-22T18:58:21Z	comment	63370	0xbc14e0	{"addr": "0x140bc14e0", "comment": "world-objects: not on the furniture path: (manager) checks each graph (BD2F20) and hands the active graph to +0x70 (BEBE90); read while looking for the dependents' writer."}
+2026-11-22T18:58:21Z	comment	39916	0x725300	{"addr": "0x140725300", "comment": "world-objects (39916): (process, out handle) the occupied furniture handle at middle-high +0x208 (520), else invalid. Read by Character::sub_38708 (GetOccupiedFurniture)."}
+2026-11-22T18:58:21Z	comment		0x9cfc20	{"addr": "0x1409cfc20", "comment": "world-objects: not on the path: opened by a wrong address while looking up papyrus::Game::QuitToMainMenu."}
+2026-11-22T19:35:37Z	read	63364	0xbc0e60	{"name": "BSAnimationGraphManager__AddDependent"}
+2026-11-22T19:35:38Z	read	63366	0xbc0fb0	{"name": "BSAnimationGraphManager__RemoveDependent"}
+2026-11-22T19:35:44Z	read	63382	0xbc1d80	{"name": "sub_140BC1D80"}
+2026-11-22T19:35:45Z	read	63389	0xbc2df0	{"name": "sub_140BC2DF0"}
+2026-11-22T19:35:58Z	name	63382	0xbc1d80	{"addr": "0x140bc1d80", "name": "BSAnimationGraphManager__AttachDependent"}
+2026-11-22T19:35:58Z	name	63389	0xbc2df0	{"addr": "0x140bc2df0", "name": "BSAnimationGraphManager__DetachDependent"}
+2026-11-22T19:36:00Z	comment	63382	0xbc1d80	{"addr": "0x140bc1d80", "comment": "63382 (world-objects, read 2026-11-22): (manager, BSTSmartPointer<manager>* dependent, bool share, data) the body AddDependent 63364 jumps to: adds the dependent to the +0x58 list once (tagged pointer, count +0x68), refcounted; with share set hands it data (BC2740, data = manager+0x10). Twin of AttachManager 63381 (reached from 63365), which hands data through BC22D0."}
+2026-11-22T19:36:00Z	comment	63389	0xbc2df0	{"addr": "0x140bc2df0", "comment": "63389 (world-objects, read 2026-11-22): (manager, BSTSmartPointer<manager>* dependent, data) the body RemoveDependent 63366 jumps to: finds the dependent in the +0x58 list and removes it; one added with share (tag bit 1) has what it was handed gathered (BC3410), each item's vfunc +0x10 called and released. True if it was there."}
+2026-11-22T19:36:00Z	comment	63364	0xbc0e60	{"addr": "0x140bc0e60", "comment": "63364 (world-objects): (manager, BSTSmartPointer<manager>* dependent, bool share) jumps to AttachDependent 63382 with data = manager+0x10: the dependent's graphs get this manager's input (NotifyAllGraphs) and output events (63371 -> 63372) from now on. Callers: AIProcess::SetSitSleepState 39912 (an actor entering a furniture: the furniture's manager on the actor's), FurnitureAfterLoad, Papyrus AddDependentAnimatedObjectReference, ExtraScriptedAnimDependence, the weapon/simple holders."}
+2026-11-22T19:36:00Z	comment	63366	0xbc0fb0	{"addr": "0x140bc0fb0", "comment": "63366 (world-objects): (manager, BSTSmartPointer<manager>* dependent) jumps to DetachDependent 63389 with data = manager+0x10 (SetSitSleepState 39912 on leaving a furniture, Papyrus RemoveDependentAnimatedObjectReference)."}
+2026-11-22T19:36:08Z	name	63365	0xbc0e70	{"addr": "0x140bc0e70", "name": "BSAnimationGraphManager__AttachSyncedManager"}
+2026-11-22T19:36:08Z	name	63367	0xbc0fc0	{"addr": "0x140bc0fc0", "name": "BSAnimationGraphManager__DetachSyncedManager"}
+2026-11-22T19:36:11Z	comment	63365	0xbc0e70	{"addr": "0x140bc0e70", "comment": "63365 (world-objects): not the furniture path. (manager, BSTSmartPointer<manager>* other, data) gathers both managers' graphs and attaches other by AttachManager 63381 with them. Callers: MountInteraction::SeatRider, TailAnimationGraphManagerHolder (the rider and mount, a tail)."}
+2026-11-22T19:36:11Z	comment	63367	0xbc0fc0	{"addr": "0x140bc0fc0", "comment": "63367 (world-objects): not the furniture path. The detach paired with 63365 (MountInteraction, TailAnimationGraphManagerHolder)."}

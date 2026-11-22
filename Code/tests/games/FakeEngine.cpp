@@ -202,6 +202,9 @@ void FakeEngine::HoldAnimObjects(Actor& aActor, std::span<const std::pair<uint32
 
 bool FakeEngine::TakeGraphEvent(Actor& aActor, const std::string& acEvent)
 {
+    // NotifyAllGraphs 63362: its linked furniture's graphs get every event too, taken or not (63372).
+    if (aActor.LinkedFurniture && !acEvent.empty())
+        FurnitureReceives(aActor.LinkedFurniture, acEvent);
     if (const auto* pBlend = Graph ? Graph->BlendOf(aActor.GraphState) : nullptr; pBlend && !pBlend->FreezeOn.empty() && pBlend->FreezeOn == acEvent)
     {
         const auto& cIntegers = aActor.GraphVariables.Integers;
@@ -223,6 +226,8 @@ bool FakeEngine::TakeGraphEvent(Actor& aActor, const std::string& acEvent)
     aActor.GraphState = it->second;
     if (const auto cPicks = GraphPicks.find(aActor.GraphState); cPicks != GraphPicks.end())
         aActor.GraphState = cPicks->second[(DrawGraphRandom(aActor) >> 13) % cPicks->second.size()];
+    if (const auto cOut = StateOutputs.find(aActor.GraphState); cOut != StateOutputs.end() && aActor.LinkedFurniture)
+        FurnitureReceives(aActor.LinkedFurniture, cOut->second);
     EnterClip(aActor);
     if (Graph)
         GraphEntry(aActor, "event " + acEvent);
@@ -3193,6 +3198,30 @@ void FakeEngine::AttackedBy(uint32_t aVictim, uint32_t aAttacker)
     auto& victim = Actors.at(aVictim);
     if (CopyCombat::MayStart(victim.Copy))
         victim.OwnCombatTarget = aAttacker;
+}
+
+void FakeEngine::FurnitureReceives(uint32_t aFurniture, const std::string& acEvent)
+{
+    FurnitureGraphEvents[aFurniture].push_back(acEvent);
+    auto& state = FurnitureStates.try_emplace(aFurniture, "Idle").first->second;
+    if (const auto it = FurnitureTransitions.find({state, acEvent}); it != FurnitureTransitions.end())
+        state = it->second;
+}
+
+void FakeEngine::LoadsFurniture(uint32_t aFurniture)
+{
+    FurnitureUnloaded.erase(aFurniture);
+    World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFurniture});
+}
+
+void FakeEngine::SitsIn(uint32_t aActor, uint32_t aFurniture)
+{
+    auto& actor = Actors.at(aActor);
+    actor.State1 = (actor.State1 & ~(0xFu << kSitShift)) | uint32_t(aFurniture ? 3 : 0) << kSitShift;
+    actor.InFurniture = aFurniture != 0;
+    actor.LinkedFurniture = aFurniture;
+    actor.Ai.FurnitureId = aFurniture;
+    World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
 }
 
 void FakeEngine::LooksAt(uint32_t aActor, uint32_t aSlot, uint32_t aTarget)

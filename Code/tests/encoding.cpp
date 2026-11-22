@@ -2285,6 +2285,17 @@ TEST_CASE("An actor's AI state carries what it looks at for each reason, as a pa
     CHECK_FALSE(FromPartBytes(std::string{}, read));
 }
 
+TEST_CASE("An actor's AI state carries the furniture it sits in", "[encoding.ai_state]")
+{
+    ActorAiState state;
+    state.Furniture.RefId = GameId(0, 0x71DFC); // Riverwood's sawmill
+    ActorAiState read;
+    REQUIRE(FromPartBytes(ToPartBytes(state), read));
+    CHECK(read == state);
+    REQUIRE(FromPartBytes(ToPartBytes(ActorAiState{}), read));
+    CHECK(read.Furniture == AiTarget{});
+}
+
 TEST_CASE("A spawn carries its actor's record and an ask names one part", "[encoding.record]")
 {
     NotifyCharacterSpawn spawn;

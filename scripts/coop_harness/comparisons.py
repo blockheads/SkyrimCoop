@@ -12,6 +12,7 @@ from .common import (
     ANGLE_TOLERANCE,
     BODY_TOLERANCE,
     BODY_TURN_TOLERANCE,
+    CHANGES_CONTENTS,
     CHANGES_FORM_FLAGS,
     CHANGES_HAVOK_MOVED,
     CHANGES_MOVED,
@@ -24,6 +25,8 @@ from .common import (
     FORM_NOT_SYNCED,
     CHANGES_ITEM_EXTRA,
     FORM_TYPE_NAMES,
+    LOOSE_ITEM_TYPES,
+    LOOSE_PLACE_FIELDS,
     LOW_PELVIS,
     POSE_TOLERANCE,
     POSITION_TOLERANCE,
@@ -102,12 +105,22 @@ def simulated(ref):
     return (first_body(ref) or {}).get("motion") in DYNAMIC_MOTIONS
 
 
-def collision_difference(a, b, turns=True):
+def loose_object(ref):
+    """A placed item lying in the world (its first body dynamic): where it lies is each game's own unless a player
+    carried it, which the physics scenarios check themselves (piece-f-plan.md, F2). Not plants, doors or activators."""
+    return ref.get("id", 0) < CREATED_ID and FORM_TYPE_NAMES.get(ref.get("type")) in LOOSE_ITEM_TYPES and simulated(ref)
+
+
+def collision_difference(a, b, turns=True, places=True):
     """Two lists of physics bodies ({node, in_world, position, rotation}) that differ, in order; a simulated body's
-    turn too (an animated one turns on each game's clock), unless turns is False (a plant's sway)."""
+    turn too (an animated one turns on each game's clock), unless turns is False (a plant's sway). places False: only
+    how many bodies and which are in the world (a loose item's)."""
     a, b = a or [], b or []
     if len(a) != len(b):
         return f"{len(a)} bodies vs {len(b)}"
+    if not places:
+        return "; ".join(f"{x['node']}: {'in' if x['in_world'] else 'out of'} world vs {'in' if y['in_world'] else 'out of'}"
+                         for x, y in zip(a, b) if x["in_world"] != y["in_world"])
     def turned(x, y):
         return turns and x["motion"] in DYNAMIC_MOTIONS and y["motion"] in DYNAMIC_MOTIONS and not same_turn(x["rotation"], y["rotation"], BODY_TURN_TOLERANCE)
     different = [f"{x['node']}: {'in' if x['in_world'] else 'out of'} world at {show_value('position', x['position'])} vs "
@@ -120,9 +133,12 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
     """Where the guest's reference differs from the host's: {field: 'host value vs guest value'}. host_again,
     guest_again: the reference sampled again in each game, to skip what animates on its own."""
     differences = {}
+    loose = loose_object(host) and loose_object(guest)
     for field in WORLD_FIELDS:
         a, b = host.get(field), guest.get(field)
         plant = FORM_TYPE_NAMES.get(host.get("type")) == "FLOR"
+        if loose and field in LOOSE_PLACE_FIELDS:
+            continue
         if field == "pose":
             # A plant's pose is its own sway (a hanging pheasant's chain swings on each game's physics); harvested is its
             # flag and where it hangs its bodies' places, compared as any.
@@ -137,7 +153,7 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
                 differences[field] = text
             continue
         if field == "collision":
-            if text := collision_difference(a, b, turns=not plant):
+            if text := collision_difference(a, b, turns=not plant, places=not loose):
                 differences[field] = text
             continue
         # A physics object's turn is its bodies' (collision, as quaternions): its angles flip near a pitch of 90°.
@@ -150,7 +166,9 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
         if field == "changes":
             # INVENTORY records deltas from each game's rolled base; the actual contents are compared above.
             if "items" in host and "items" in guest and host["items"] == guest["items"]:
-                a, b = (a or 0) & ~0x20, (b or 0) & ~0x20
+                a, b = (a or 0) & ~CHANGES_CONTENTS, (b or 0) & ~CHANGES_CONTENTS
+            if loose:
+                a, b = (a or 0) & ~(CHANGES_MOVED | CHANGES_HAVOK_MOVED), (b or 0) & ~(CHANGES_MOVED | CHANGES_HAVOK_MOVED)
             a, b = (a or 0) & ~CHANGES_OWN or None, (b or 0) & ~CHANGES_OWN or None
             # A form-flags record for a flag each game keeps itself (a look-at target): equal flags otherwise.
             if ((host.get("flags") or 0) ^ (guest.get("flags") or 0)) & ~FORM_NOT_SYNCED == 0:

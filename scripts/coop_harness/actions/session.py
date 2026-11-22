@@ -42,6 +42,12 @@ class SessionActions:
             raise ctx.failure("[host] the client's leave stopped the session")
 
 
+    def quit_to_main_menu(ctx, instance):
+        """That game quits through its native menu (System > Quit > Main Menu), as host-quits-to-main-menu does."""
+        from ..scenarios.v1 import quit_to_menu
+        quit_to_menu(ctx, "" if instance in ("", "host") else "client")
+
+
     def party_panel_lists_the_other(ctx, when):
         """Each game's party panel shows the other player, with its character's health: the client's
         lists the host (as the host), the host's lists the client."""

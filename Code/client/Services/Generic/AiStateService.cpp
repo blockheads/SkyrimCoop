@@ -16,6 +16,9 @@
 #include <SessionIds.h>
 #include <World.h>
 #include <FormIds.h>
+#include <CreatedIds.h>
+#include <Events/ReferenceLoadedEvent.h>
+#include <Events/Copy3DEvent.h>
 #include <Diagnostics/Profile.h>
 
 namespace
@@ -37,9 +40,33 @@ AiStateService::AiStateService(World& aWorld, entt::dispatcher& aDispatcher, Tra
     Listen<AiStateChangeEvent, &AiStateService::OnAiStateChange>(m_connections, aDispatcher, this);
     Listen<NotifyRemoveCharacter, &AiStateService::OnRemoveCharacter>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &AiStateService::OnDisconnected>(m_connections, aDispatcher, this);
+    Listen<ReferenceLoadedEvent, &AiStateService::OnReferenceLoaded>(m_connections, aDispatcher, this);
+    Listen<Copy3DEvent, &AiStateService::OnCopy3D>(m_connections, aDispatcher, this);
     Listen<&AiStateService::OnLocalRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
     Listen<&AiStateService::OnSessionActor>(m_connections, m_world.on_construct<LocalComponent>(), this);
     Listen<&AiStateService::OnSessionActor>(m_connections, m_world.on_construct<RemoteComponent>(), this);
+}
+
+void AiStateService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept
+{
+    RelinkSeats(acEvent.FormId);
+}
+
+void AiStateService::OnCopy3D(const Copy3DEvent& acEvent) noexcept
+{
+    RelinkSeats(acEvent.FormId);
+}
+
+void AiStateService::RelinkSeats(uint32_t aFormId) noexcept
+{
+    m_records.ForEach(RecordKind::kAiState, [&](uint32_t aSessionId, const std::string& acBytes) {
+        const uint32_t cCopy = Utils::GetFormIdBySessionId(aSessionId);
+        ActorAiState state;
+        if (!cCopy || !m_actorBridge.IsActorCopy(cCopy) || !FromPartBytes(acBytes, state) || state.Furniture == AiTarget{})
+            return;
+        if (cCopy == aFormId || ToFormId(state.Furniture) == aFormId)
+            m_actorBridge.SetCopyAiFields(cCopy, ToFields(state));
+    });
 }
 
 void AiStateService::OnSessionActor(entt::registry&, entt::entity) noexcept
@@ -168,6 +195,7 @@ ActorAiState AiStateService::ToState(const ActorAiFields& acFields) const noexce
     state.Combat = acFields.CombatState;
     state.CombatTarget = ToTarget(acFields.CombatTargetId);
     std::ranges::transform(acFields.HeadTrackIds, state.HeadTrack.begin(), &AiStateService::ToTarget);
+    state.Furniture = ToTarget(acFields.FurnitureId);
     return state;
 }
 
@@ -181,6 +209,7 @@ ActorAiFields AiStateService::ToFields(const ActorAiState& acState) const noexce
     fields.CombatState = acState.Combat;
     fields.CombatTargetId = ToFormId(acState.CombatTarget);
     std::ranges::transform(acState.HeadTrack, fields.HeadTrackIds.begin(), &AiStateService::ToFormId);
+    fields.FurnitureId = ToFormId(acState.Furniture);
     return fields;
 }
 
@@ -191,6 +220,8 @@ AiTarget AiStateService::ToTarget(uint32_t aFormId) noexcept
         return target;
     if (const auto cSessionId = Utils::GetSessionIdByFormId(aFormId))
         target.SessionId = *cSessionId;
+    else if (IsCreatedForm(aFormId)) // a created reference by the id the others know it by (a host's furniture)
+        target.RefId = World::Get().ctx().at<CreatedIds>().ToSession(aFormId).value_or(GameId{});
     else
         target.RefId = ToSession(aFormId).value_or(GameId{});
     return target;
@@ -200,5 +231,7 @@ uint32_t AiStateService::ToFormId(const AiTarget& acTarget) noexcept
 {
     if (acTarget.SessionId)
         return Utils::GetFormIdBySessionId(acTarget.SessionId);
+    if (IsCreatedId(acTarget.RefId))
+        return World::Get().ctx().at<CreatedIds>().ToGame(acTarget.RefId);
     return acTarget.RefId != GameId{} ? ToGame(acTarget.RefId) : 0;
 }

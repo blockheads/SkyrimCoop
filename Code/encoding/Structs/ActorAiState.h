@@ -34,4 +34,6 @@ struct ActorAiState
     // HighProcessData::headTrackTarget: what it looks at for each reason (default, action, script, combat, dialogue,
     // procedure); the engine looks at the highest set one.
     std::array<AiTarget, 6> HeadTrack{};
+    // The furniture it sits or sleeps in (Actor::GetOccupiedFurniture 38708); empty: none.
+    AiTarget Furniture{};
 };

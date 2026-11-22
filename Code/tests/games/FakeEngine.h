@@ -98,6 +98,17 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // player AI-driven; its moves are travels (ObjectReference.MoveTo, MoveActorTo).
     std::map<uint32_t, std::vector<uint32_t>> Idles;
     std::map<uint32_t, std::vector<std::string>> GraphEvents;
+    // The events each furniture's own graph got from the actor linked to it (63372; the sawmill's from its worker),
+    // and the state its graph is in: FurnitureTransitions {state, event} -> state, from "Idle".
+    std::map<uint32_t, std::vector<std::string>> FurnitureGraphEvents;
+    std::map<uint32_t, std::string> FurnitureStates;
+    std::map<std::pair<std::string, std::string>, std::string> FurnitureTransitions;
+    // An actor's graph entering this state sends this event out (its clip's annotation, 63588), to its linked furniture.
+    std::map<std::string, std::string> StateOutputs;
+    // Furniture whose 3D (and graph) is not loaded here: nothing links to it until LoadsFurniture.
+    std::set<uint32_t> FurnitureUnloaded;
+    void LoadsFurniture(uint32_t aFurniture);
+    void FurnitureReceives(uint32_t aFurniture, const std::string& acEvent);
     std::map<uint32_t, std::map<std::string, bool>> GraphBools; // what a graph event sets (Skyrim: BleedOutStart's IsBleedingOut)
     [[nodiscard]] bool GraphBool(uint32_t aActor, const std::string& acName) const
     {
@@ -719,6 +730,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t KilledBy = 0;            // the attacker of the hit that killed it (the engine's kill credit)
         uint32_t LocalScene = 0; // a copy's independent native scene, distinct from its owner's answer
         ActorAiFields Ai;                 // package, scene, combat (a copy's set by AiStateService)
+        uint32_t LinkedFurniture = 0;     // the furniture whose graphs get its graphs' events (63364), 0 none
         FakePackage DoNothing;            // the do-nothing package a copy holds with no owner's to show
         int32_t ProcedureType = 0;        // the running package's: the engine indexes a table with it unchecked
         uint8_t RunningPackageType = 0;   // TESPackage::packType of the package in its running slot
@@ -1329,6 +1341,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // ProcessTracking hook raises AiStateChangeEvent.
     static constexpr uint32_t kDialogueHeadTrack = 4;
     void LooksAt(uint32_t aActor, uint32_t aSlot, uint32_t aTarget);
+    // AI: an owner sits in a furniture, or stands (0), as AIProcess::SetSitSleepState 39912 does: sit state, its
+    // furniture's graphs linked to its own (63364), TESFurnitureEvent.
+    void SitsIn(uint32_t aActor, uint32_t aFurniture);
     void EndScene(uint32_t aActor);
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override
     {
@@ -1351,6 +1366,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         {
             it->second.Ai = acFields;
             it->second.OwnerCombatTarget = acFields.CombatTargetId;
+            // Actor::LinkFurnitureGraphs: only with the furniture's graph here.
+            it->second.LinkedFurniture = FurnitureUnloaded.contains(acFields.FurnitureId) ? 0 : acFields.FurnitureId;
             if (!acFields.PackageId)
             {
                 it->second.ProcedureType = CopyPackage::CreateDoNothing([&] { return &(it->second.DoNothing = {}); },

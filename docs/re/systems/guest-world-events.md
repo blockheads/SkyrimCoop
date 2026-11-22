@@ -155,6 +155,14 @@ Opening a chest does not call it. So the host's contents, read at its create row
 what it rolled. The guest's twin rolls nothing at its own creation (16129 skipped, `HookInitLeveledItems`) and holds
 the host's contents, and opening it adds nothing (`created-chest-reaches-guest-empty`, passing since the 2026-11-04 fix).
 
+**The roll's change flag (2026-11-22, IDA 1.7.104).** `InitLeveledItems` (16129) adds each roll through
+`InventoryChanges__AddLeveledEntries` (16128), which then records change `0x8000000` (`CHANGE_REFR_LEVELED_INVENTORY`,
+`AddChangeForced` 14608) on the owner, unless a load is running (`BGSSaveLoadGame` +0x340 bit 2 without bit
+0x20). It is the only immediate `0x8000000` passed to the change funnel in the executable (searched); its
+opposite, `InventoryChanges__DropLeveledEntries`, passes it to the owner's vfunc `0x50` (inferred: its remove). The host rolls a world container at load
+(`InitItemImpl` 19507 -> 16038); a guest skips 16129 for world containers and is given the host's items as count
+changes (bit `0x20`). So the same contents carry `0x8000000` on the host only: how they came, not what they are.
+
 ## A lid after a disable
 
 Read in IDA 1.7.104 (2026-11-18) and measured in the duo the same day (`guest-chest-lid-after-disable`,

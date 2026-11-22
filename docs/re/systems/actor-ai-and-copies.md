@@ -739,9 +739,11 @@ meh321 where they have one, ours otherwise.
   (`HookPerformAction`).
 - **Sit/sleep state** (`actorState1` bits `0x3C000`, `GetSitting` 21441, `GetSleeping` 21440): a copy already gets
   its owner's from the replayed furniture actions (`furniture-*`) and the graph state at spawn; nothing written.
-- **Occupied furniture** (`MiddleHighProcessData +0x208`, `IsCurrentFurnitureRef` 21442 through 0x1407127C0) and
-  **follow target** (`AIProcess +0x110`): not sent (no vanilla dialogue line reads them; the furniture field stays
-  set after the actor leaves the furniture, e.g. Vilkas's bed in QASmoke); the status shows them.
+- **Occupied furniture** (`MiddleHighProcessData +0x208`, `IsCurrentFurnitureRef` 21442 through 0x1407127C0): sent
+  while the owner sits or sleeps (the field stays set after the actor leaves, e.g. Vilkas's bed in QASmoke, so the sit
+  state gates it), from `TESFurnitureEvent`; the copy's graphs are linked to that furniture's as 39912 links its
+  owner's, not its `+0x208` written (2026-11-22, [furniture-graphs.md](furniture-graphs.md)). **Follow target**
+  (`AIProcess +0x110`): not sent (no vanilla dialogue line reads it); the status shows it.
 - **When it changes.** `TESPackageEvent` (actor `+0`, package form id `+8`, type `+0xC`: 0 start, 1 end, 2 change, as
   the VM's sink 53984 reads it; sent by 39434-39436 through `BSTEventSource<TESPackageEvent>::SendEvent` 39769, from
   `Actor::EvaluatePackage`, the procedures and scene actions, some on the AI's job threads), `TESCombatEvent`

@@ -301,6 +301,11 @@ struct Actor : TESObjectREFR
     void SeatOnMount(Actor* apMount) noexcept;
     // Linked and seated at once by the engine's quick get-on (HorseEnterInstant, no paired clip), a ridden mount too.
     bool SitOnMountQuick(Actor* apMount) noexcept;
+    // The furniture it sits or sleeps in: Character::GetOccupiedFurniture (38708), not a mount; null while standing.
+    [[nodiscard]] TESObjectREFR* GetSeatFurniture() const noexcept;
+    // A copy: that furniture's graphs get its graphs' events, as 39912 links an owner's (AddDependent 63364, the last
+    // one unlinked by RemoveDependent 63366); null unlinks (docs/re/systems/furniture-graphs.md).
+    void LinkFurnitureGraphs(TESObjectREFR* apFurniture) noexcept;
     // Its own ExtraInteraction's link (a rider's to its mount), else null.
     [[nodiscard]] RefrInteraction* GetOwnInteraction() const noexcept;
     // On a mount: its one slot (ExtraDataList::SetInteractionData 12074, which adds only to an empty one) set to
