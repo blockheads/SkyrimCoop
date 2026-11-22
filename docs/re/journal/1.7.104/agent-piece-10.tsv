@@ -1,0 +1,44 @@
+time	op	id	rva	item
+2026-11-21T22:27:43Z	read	63621	0xbd36a0	{"name": "BShkbAnimationGraph::Func2_63621"}
+2026-11-21T22:27:44Z	read	42873	0x7ce470	{"name": "AddRagdollHandler::Handle"}
+2026-11-21T22:27:49Z	read		0x6a4bff	{"name": "Actor::sub_37783"}
+2026-11-21T22:27:49Z	read		0x6ac189	{"name": "Actor::sub_37905"}
+2026-11-21T22:27:50Z	read		0x68b927	{"name": "sub_14068B750"}
+2026-11-21T22:28:55Z	comment		0x6ab1d6	{"addr": "0x1406AB1D6", "comment": "piece-10: a dying actor's whole 3D (its ragdoll's bodies too) goes to collision layer 32 (kDeadBip); the group stays the actor's"}
+2026-11-21T22:28:55Z	comment		0x7239ec	{"addr": "0x1407239EC", "comment": "piece-10: a knocked-down actor's 3D goes to layer 32 (kDeadBip) as it takes its ragdoll; EndKnockState (39897) puts 8 (kBiped) back"}
+2026-11-21T22:28:55Z	comment		0x724164	{"addr": "0x140724164", "comment": "piece-10: knock state ends: the 3D back to layer 8 (kBiped)"}
+2026-11-21T22:28:55Z	comment		0x69380f	{"addr": "0x14069380F", "comment": "piece-10: death state cleared (resurrect): the 3D back to layer 8 (kBiped)"}
+2026-11-21T22:28:55Z	comment		0x66a452	{"addr": "0x14066A452", "comment": "piece-10: task 18 (QueueAddToWorld 36922): bhkWorld vfunc +0x1A8 (world, 3D, recurse 1, 1, group, 0) adds the 3D's bodies with that collision group; AddRagdollHandler 42873 passes the actor's controller's group"}
+2026-11-21T22:31:33Z	read	16131	0x23c830	{"name": "sub_14023C830"}
+2026-11-21T22:31:33Z	read	16128	0x23c0b0	{"name": "sub_14023C0B0"}
+2026-11-21T22:31:39Z	comment	16128	0x23c0b0	{"addr": "0x14023C0B0", "comment": "piece-10 (16128): InventoryChanges (changes, leveled result array, count?, extra): adds each rolled leveled entry to the owner's inventory changes, then marks the owner change flag 0x8000000 (CHANGE_REFR_LEVELED_INVENTORY) unless a load is running. The flag the world check sees on the host's containers and critters only: each game rolls its own."}
+2026-11-21T22:31:39Z	comment	16131	0x23c830	{"addr": "0x14023C830", "comment": "piece-10 (16131): InventoryChanges: marks the owner 0x8000000 (leveled inventory) and drops entries whose extra lists are leveled-made (164830); the reset side of 16128."}
+2026-11-21T22:31:39Z	comment	37524	0x68b750	{"addr": "0x14068B750", "comment": "piece-10: not on the path (an actor's drawn weapon dropped at a disarm; its 3D gets layer 5 and a new collision group from the filter's counter, bhkCollisionFilter+76)."}
+2026-11-21T22:31:41Z	name	16128	0x23c0b0	{"addr": "0x14023C0B0", "name": "InventoryChanges__AddLeveledEntries"}
+2026-11-21T22:31:41Z	name	16131	0x23c830	{"addr": "0x14023C830", "name": "InventoryChanges__DropLeveledEntries"}
+2026-11-21T22:31:41Z	name	37524	0x68b750	{"addr": "0x14068B750", "name": "Actor__DropDrawnWeaponOnDisarm"}
+2026-11-21T22:31:54Z	read	56237	0xa49780	{"name": "papyrus::ObjectReference::TranslateTo"}
+2026-11-21T22:32:08Z	read	12810	0x18b650	{"name": "ExtraRefrPath::sub_12810"}
+2026-11-21T22:32:10Z	read		0x2baa39	{"name": "TESObjectCELL::sub_18898"}
+2026-11-21T22:32:43Z	name	18898	0x2ba8b0	{"addr": "0x1402ba8b0", "name": "TESObjectCELL__UpdateTranslatingRefs"}
+2026-11-21T22:32:43Z	name	12810	0x18b650	{"addr": "0x14018b650", "name": "ExtraRefrPath__Advance"}
+2026-11-21T22:32:48Z	comment	18898	0x2ba8b0	{"addr": "0x1402ba8b0", "comment": "[re] 18898 (cell, scrap array): an attached cell (state 7) walks its translating references (cell+304 -> +280 handles, +296 count; added by 0x1402D8EF0 from Papyrus TranslateTo/SplineTranslateTo). Each one's ExtraRefrPath (161) is advanced by this game's frame seconds (ExtraRefrPath__Advance 12810), then TESObjectREFR::SetPosition, SetAngle and vfunc 0x3F. At the path's end: TESObjectREFRTranslationEvent (OnTranslationComplete) and the extra removed. piece-10: this is what moves a critter; only the game whose VM ran the script's TranslateTo moves it, on its own clock."}
+2026-11-21T22:32:48Z	comment	12810	0x18b650	{"addr": "0x14018b650", "comment": "[re] 12810 (path, position in/out, seconds, new position, new angle, almost-complete out): the next point on a TranslateTo / spline path; true once it is done."}
+2026-11-21T22:32:48Z	comment		0xa498c1	{"addr": "0x140A498C1", "comment": "piece-10: a reference given a path is marked change 0x80000000 (game-only extra); nothing else of TranslateTo is kept"}
+2026-11-21T22:32:58Z	read	37491	0x687c20	{"name": "Actor::IsInRagdollState"}
+2026-11-21T22:32:59Z	read	37996	0x6b1ab0	{"name": "BSTEventSink_BSTransformDeltaEvent_::Handle"}
+2026-11-21T22:33:20Z	comment		0x687c7e	{"addr": "0x140687c7e", "comment": "piece-10: true when actor+0xE8 bit 31 is set, or dead (vfunc 0x99 with true) without flags2 0x10, or knock state (flags1 bits 25-27) 1-5 or 7, or flags1 bits 21-24 == 3. Knock state 6 (getting up) is NOT in it: the transform delta sink (37996) stops keeping the actor on its ragdoll's root from state 6 on."}
+2026-11-21T22:49:26Z	read	104792	0x14b2710	{"name": "BSScript::Internal::VirtualMachine::Func28_104792"}
+2026-11-21T22:49:29Z	read	104880	0x14bda90	{"name": "sub_1414BDA90"}
+2026-11-21T22:49:33Z	read	104912	0x14c3130	{"name": "sub_1414C3130"}
+2026-11-21T22:49:39Z	name	104880	0x14bda90	{"addr": "0x1414BDA90", "name": "VirtualMachine__FindBoundObjectImpl"}
+2026-11-21T22:49:39Z	name	104912	0x14c3130	{"addr": "0x1414C3130", "name": "FindBoundObjectFunctor__Visit"}
+2026-11-21T22:49:39Z	name	104792	0x14b2710	{"addr": "0x1414b2710", "name": "BSScript::Internal::VirtualMachine::FindBoundObject"}
+2026-11-21T22:49:42Z	comment	104792	0x14b2710	{"addr": "0x1414b2710", "comment": "[re] 104792, VM vfunc 0x1C (handle, class name, out object): under the VM's attached-scripts lock, FindBoundObjectImpl with exact = false"}
+2026-11-21T22:49:42Z	comment	104880	0x14bda90	{"addr": "0x1414BDA90", "comment": "104880 (vm, handle, class name, exact, out): the handle's attached objects (vm+37800) visited by FindBoundObjectFunctor"}
+2026-11-21T22:49:42Z	comment	104912	0x14c3130	{"addr": "0x1414C3130", "comment": "104912: for each attached object, its class info (+8) compared by name (+8), then its parent (+16) up the chain unless exact (functor+8). So FindBoundObject(\"Critter\") finds a critterMoth. piece-10's scenery test relies on it."}
+2026-11-21T23:16:47Z	read		0x73ec70	{"name": "sub_14073EAD0"}
+2026-11-21T23:17:04Z	read	40552	0x751870	{"name": "PlayerCharacter::StartGrabObject"}
+2026-11-21T23:17:52Z	comment		0x6cdb73	{"addr": "0x1406cdb73", "comment": "piece-10: the swing's first hit belongs to an actor (form type 62, a corpse too): returned as the hit target, no knock in place. Only a body with no actor reference gets the impulse below (layers 8, 32, 33 scaled by 0x1420A6698)."}
+2026-11-21T23:17:52Z	comment		0x7526f7	{"addr": "0x1407526f7", "comment": "piece-10: an actor is grabbed when vfunc 0x99 (IsDead, true) or byte_1420B7200; a living one is refused. The spring goes on the crosshair's picked body (CrosshairPickData+32, a ragdoll body for a corpse)."}
+2026-11-21T23:17:52Z	comment		0x7529c8	{"addr": "0x1407529c8", "comment": "piece-10: the picked collidable (CrosshairPickData+32) and its point: the spring's body and anchor"}

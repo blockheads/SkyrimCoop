@@ -2,7 +2,7 @@
 
 Status: **pieces 1 to 5 built (2026-11-18: the copy record; AI state, actor state, factions and name parts;
 2026-11-19: items, a mount handed back between pairs; 2026-11-20: kill moves as claimed pairs, passengers seated at
-once; piece 6 revised to its four fixes; 2026-11-21: the host creates, piece 7; the eye is the host's, piece 8); the rest proposed.** Direction agreed 2026-11-18 (the four
+once; piece 6 revised to its four fixes; 2026-11-21: the host creates, piece 7; the eye is the host's, piece 8; held-now state, piece 9; ragdolls and scenery, piece 10); the rest proposed.** Direction agreed 2026-11-18 (the four
 decisions below). Physics
 ([physics-sync.md](physics-sync.md), "One simulator per pile") and the graph stream
 ([graph-input-stream.md](graph-input-stream.md)) already work this way; this puts the rest of the code on the same
@@ -707,6 +707,19 @@ copy: ApplyCast casts the owner's spell in a slot newly held (a named target not
   comparison) leaves out: references of a critter spawner, FishController activators, FLOR and ACTI node poses
   with no open state, and created references whose base is a critter. A critter a player catches is that
   player's loot, as any pickup.
+
+**As built (2026-11-21), parts a to e** (plan: [piece-10-plan.md](piece-10-plan.md)):
+
+```text
+world check     world_state reads each reference's script classes (FindBoundObject 104792 walks parents) and its
+                TranslateTo path (extra 161); comparisons.scenery leaves out Critter, FXfakeCritterScript, a path,
+                a critter's landing marker (created, base C2D47 or 22201); a FLOR's pose is never compared
+copy ragdoll    at its owner's rest: glided, put once, slept, left (RagdollRest); lying, played (BodyGroups)
+its rest        the kRagdoll record part (BodyService::DeclareRagdolls on the host's game and in GuestHands)
+a corpse moved  a guest's grab of a host corpse is the mover's until it rests (HostHands::HostsBody); hits need nothing
+```
+
+- The sawmill's log and the Dwemer plates are state (the user): still compared, their entries stay open.
 
 ## Build order
 

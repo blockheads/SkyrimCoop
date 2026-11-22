@@ -400,20 +400,22 @@ std::vector<BodyPush> GuestEngine::TakeHits() noexcept
 }
 
 // The player's ragdoll is keyed by its form id here (0x14), by index alone out of GuestEngine.
-GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t) noexcept
+GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t, const SessionOf_t&) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     OwnBodies own;
     own.Moved = std::exchange(engine.OwnMoves, {});
     // Its player's ragdoll, and the host's references its own physics simulates (not keyframed on the host's frames).
     auto bodies = engine.TakeBodies(engine.PhysicsTime(World::Get().GetTransport().GetTick()), [&engine](const BodyKey& acKey) {
-        return acKey.Actor == 0x14 || (!acKey.Actor && !engine.Bodies.at(acKey).Held);
+        return acKey.Actor == 0x14 || engine.WatchedCorpses.contains(acKey.Actor) || (!acKey.Actor && !engine.Bodies.at(acKey).Held);
     });
     for (BodyFrame& frame : bodies.Awake)
     {
-        if (!frame.Key.Actor)
+        // A copy's corpse its player grabbed: as an object's bodies, by the copy's session id (as GuestEngine).
+        if (!frame.Key.Actor || engine.WatchedCorpses.contains(frame.Key.Actor))
         {
-            own.Moved.push_back({.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation});
+            if (!frame.Key.Actor)
+                own.Moved.push_back({.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation});
             own.Objects.push_back(frame);
             continue;
         }
@@ -422,7 +424,7 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t) noexcept
     }
     for (BodyPose& rest : bodies.Rested)
     {
-        if (!rest.Key.Actor)
+        if (!rest.Key.Actor || engine.WatchedCorpses.contains(rest.Key.Actor))
         {
             own.ObjectsRested.push_back(rest);
             continue;
@@ -433,12 +435,26 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t) noexcept
     return own;
 }
 
-std::vector<BodyFrame> GuestEngine::ReadHeld() const noexcept
+std::vector<BodyFrame> GuestEngine::ReadHeld(const SessionOf_t&) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     const auto it = engine.Grabbed ? engine.Bodies.find(*engine.Grabbed) : engine.Bodies.end();
     if (it == engine.Bodies.end())
         return {};
+    // A copy's corpse (keyed by its session id here): every body of its ragdoll, watched until they rest.
+    if (it->first.Actor)
+    {
+        engine.WatchedCorpses.insert(it->first.Actor);
+        std::vector<BodyFrame> frames;
+        for (const auto& [cKey, cBody] : engine.Bodies)
+            if (cKey.Actor == it->first.Actor)
+            {
+                BodyFrame frame = cBody.Flight.Body;
+                frame.Key = cKey;
+                frames.push_back(frame);
+            }
+        return frames;
+    }
     BodyFrame frame = it->second.Flight.Body;
     frame.Key = it->first;
     return {frame};

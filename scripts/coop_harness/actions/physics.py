@@ -25,6 +25,7 @@ from ..common import (
     KEYFRAMED_MOTION,
     OBJECT_EVENTS,
     PLAYER_WEREWOLF_QUEST,
+    SCENERY_SCRIPTS,
     WORLD_WINDOW,
 )
 from ..errors import TestFailure
@@ -45,7 +46,8 @@ class PhysicsActions:
     def world_state(ctx, instance, ids=None):
         """The references in that game's loaded cells (or only `ids`), actors aside (copies: `desync`): {id: fields}."""
         _game = ctx.game(instance)
-        response = _game.rpc({"cmd": "world_state", "details": True, **({"ids": ids} if ids else {})}, timeout=20) or {}
+        response = _game.rpc({"cmd": "world_state", "details": True, "scripts": list(SCENERY_SCRIPTS),
+                              **({"ids": ids} if ids else {})}, timeout=20) or {}
         if not response.get("ok"):
             raise ctx.failure(f"[{instance or 'host'}] world_state refused: {response.get('error', 'no answer')}")
         return {r["id"]: r for r in response["references"] if not r.get("actor")}
@@ -490,7 +492,8 @@ class PhysicsActions:
 
     def ragdoll_lies_as_owner(ctx, owner, actor, other, copy, trace=None):
         """Once the owner's game's ragdoll of `actor` comes to rest, the other game's copy lies as it, bone by bone.
-        `trace`: a RagdollTrace kept from filling while it waits."""
+        `trace`: a RagdollTrace kept from filling while it waits. `actor`, `copy`: form ids or a handle name."""
+        actor, copy = ctx.resolve(actor, owner), ctx.resolve(copy, other)
         who, where = owner or "host", other or "host"
         def owner_rests():
             if trace:

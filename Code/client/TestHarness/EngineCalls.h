@@ -561,6 +561,8 @@ struct ReferenceState
     std::optional<std::vector<std::pair<uint32_t, int32_t>>> Items; // not actors' (GetContainerItems)
     uint32_t Leveled{};
     bool Stored{};       // its changes in a stored buffer (TESForm::HasStoredChanges)                                              // its base container's leveled entries
+    bool OnPath{};       // moved by a TranslateTo path on this game's clock (ExtraRefrPath, 18898)
+    std::vector<std::string> Scripts; // of the classes asked for, those a script bound to it is or extends (104792)
 
     // With details: the side effects a change has on what the player sees and touches.
     struct Node
@@ -578,8 +580,8 @@ struct ReferenceState
     std::vector<uint32_t> Effects;                    // effect shaders and art objects playing on it
 };
 // Every reference in the loaded cells: the interior, or the attached exterior grid (TES). With aDetails, each
-// one's pose, physics, graph and effects too (larger).
-std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept;
+// one's pose, physics, graph and effects too (larger); acClasses: the script classes to look for on each.
+std::vector<ReferenceState> GetLoadedReferences(bool aDetails, const std::vector<std::string>& acClasses = {}) noexcept;
 
 // Every reference effect playing on the reference or aimed at it (a VisualEffect's facing target): what shows, and
 // whether its art's model loaded, hangs in the scene and is hidden.

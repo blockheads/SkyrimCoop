@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-21: **ragdolls follow the pile rule, scenery is nobody's: piece 10 of one-simulator.md, built**
+(`agent/piece-10`; plan `docs/design/piece-10-plan.md`; `docs/re/systems/physics.md`, "A lying ragdoll's layer and
+group", "A translating reference"). The world check leaves out critters, fish, their landing markers, references on a
+TranslateTo path and plants' sway (`world_state`'s `scripts` and `on_path`). A copy's ragdoll at its owner's rest is
+glided there, put there once, put to sleep and left (`RagdollRest`), so it no longer wakes after its first sleep; a lying
+copy's ragdoll is in the played collision group; an actor's ragdoll rest is its `kRagdoll` record part, so a copy made
+after it (a join, a cell load) lies there too. A guest's grab of a host corpse is the mover's until it rests (it lay
+151 units apart before); a hit on a corpse was checked on the duo and needs nothing.
+
 2026-11-21: **held-now state for a joiner, piece 9 of one-simulator.md, built** (`agent/piece-9`;
 `docs/re/systems/actor-ai-and-copies.md`, "A held cast's end"). A game joining mid-cutscene, mid-conversation, after a
 map marker or while another player channelled a spell got none of it. `HostAuthority::PlayerEntered` now sends from one

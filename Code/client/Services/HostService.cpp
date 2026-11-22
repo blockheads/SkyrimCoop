@@ -197,6 +197,10 @@ void HostService::MakeAuthority() noexcept
         const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
         return cFormId && m_world.ctx().at<IActorBridge&>().ActorCanPair(cFormId);
     };
+    game.IsDead = [this](uint32_t aSessionId) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId && m_world.ctx().at<IActorBridge&>().IsActorDead(cFormId);
+    };
     game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
     game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
     game.ConsoleNameOf = [this](uint32_t aSessionId) {
@@ -214,12 +218,15 @@ void HostService::MakeAuthority() noexcept
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
     game.TakePlaced = [this] { return m_pEngine->TakePlaced(); };
     game.TakeBodies = [this](uint64_t aTick) {
-        return m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
+        HostBodies bodies = m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
             for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
                 if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
                     return m_world.get<LocalComponent>(cEntity).Id;
             return 0;
         });
+        // Its actors' ragdoll rests are their record parts; the references' go to HostPhysics.
+        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake);
+        return bodies;
     };
     // A guest's copy, where the host's game shows it (PlayerComponent: its player id).
     game.ReadPlayerPosition = [this](uint32_t aPlayerId) -> std::optional<glm::vec3> {

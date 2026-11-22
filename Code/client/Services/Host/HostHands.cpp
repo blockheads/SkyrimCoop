@@ -25,6 +25,11 @@ bool HostHands::OwnsRagdoll(const BodyKey& acKey, ConnectionId_t aSender) const 
     return acKey.Actor && m_characters.OwnerOf(acKey.Actor) == aSender;
 }
 
+bool HostHands::HostsBody(const BodyKey& acKey) const noexcept
+{
+    return !acKey.Actor || (m_characters.OwnerOf(acKey.Actor) == m_players.Host() && m_game.IsDead && m_game.IsDead(acKey.Actor));
+}
+
 void HostHands::OnHeld(const BodyFramesRequest& acMessage, ConnectionId_t aSender) noexcept
 {
     NotifyBodyFrames ragdolls, held;
@@ -32,7 +37,7 @@ void HostHands::OnHeld(const BodyFramesRequest& acMessage, ConnectionId_t aSende
     held.Held = acMessage.Held;
     for (const auto& cFrame : acMessage.Frames)
     {
-        if (cFrame.Key.Actor)
+        if (cFrame.Key.Actor && !HostsBody(cFrame.Key))
         {
             if (!OwnsRagdoll(cFrame.Key, aSender))
                 continue;
@@ -91,7 +96,7 @@ void HostHands::OnRests(const BodyRestsRequest& acMessage, ConnectionId_t aSende
     rests.Tick = acMessage.Tick;
     std::vector<BodyKey> refused;
     for (const auto& cRest : acMessage.Rests)
-        if (!cRest.Key.Actor)
+        if (HostsBody(cRest.Key))
         {
             // What its player moved, at rest in its game: where it lies in every game.
             const auto it = m_holds.find(cRest.Key);
@@ -102,7 +107,8 @@ void HostHands::OnRests(const BodyRestsRequest& acMessage, ConnectionId_t aSende
                 {
                     spdlog::info("HostHands: {:x}'s {} rests at ({:.0f}, {:.0f}, {:.0f}), no frame of it heard", aSender,
                                  WorldStateLog::DescribeBody(cRest.Key), cRest.Position.x, cRest.Position.y, cRest.Position.z);
-                    m_guestRests[cRest.Key] = {cRest, m_tick, aSender};
+                    if (!cRest.Key.Actor) // a corpse's rest becomes the host's part, not a guest's rest kept here
+                        m_guestRests[cRest.Key] = {cRest, m_tick, aSender};
                     rests.Rests.push_back(cRest);
                     continue;
                 }
@@ -115,17 +121,9 @@ void HostHands::OnRests(const BodyRestsRequest& acMessage, ConnectionId_t aSende
             spdlog::info("HostHands: {:x}'s {} rests at ({:.0f}, {:.0f}, {:.0f})", aSender, WorldStateLog::DescribeBody(cRest.Key), cRest.Position.x,
                          cRest.Position.y, cRest.Position.z);
             m_holds.erase(it);
-            m_guestRests[cRest.Key] = {cRest, m_tick, aSender};
+            if (!cRest.Key.Actor)
+                m_guestRests[cRest.Key] = {cRest, m_tick, aSender};
             rests.Rests.push_back(cRest);
-        }
-        else if (OwnsRagdoll(cRest.Key, aSender))
-        {
-            rests.Rests.push_back(cRest);
-            const auto it = m_ragdolls.find(cRest.Key);
-            spdlog::info("HostHands: {:x}'s {} rests at ({:.0f}, {:.0f}, {:.0f}) after {} frames", aSender, WorldStateLog::DescribeBody(cRest.Key),
-                         cRest.Position.x, cRest.Position.y, cRest.Position.z, it != m_ragdolls.end() ? it->second : 0);
-            if (it != m_ragdolls.end())
-                m_ragdolls.erase(it);
         }
     if (!rests.Rests.empty())
         m_players.SendToOthers(rests, aSender, Net::kReliable);
@@ -149,7 +147,7 @@ void HostHands::OnReleased(const BodyReleaseRequest& acMessage, ConnectionId_t a
     for (const auto& cFrame : acMessage.Frames)
     {
         const auto it = m_holds.find(cFrame.Key);
-        if (cFrame.Key.Actor || (it != m_holds.end() && (it->second.Holder != aSender || acMessage.Tick < it->second.Tick)))
+        if (!HostsBody(cFrame.Key) || (it != m_holds.end() && (it->second.Holder != aSender || acMessage.Tick < it->second.Tick)))
             continue;
         if (const auto cLast = m_released.find(cFrame.Key); cLast != m_released.end() && acMessage.Tick <= cLast->second)
             continue;
@@ -168,6 +166,9 @@ void HostHands::OnReleased(const BodyReleaseRequest& acMessage, ConnectionId_t a
 void HostHands::Free(const BodyFrame& acFrame, uint64_t aReleasedAt) noexcept
 {
     m_holds.erase(acFrame.Key);
+    // A corpse's bodies stay simulated while played (steered): nothing to free.
+    if (acFrame.Key.Actor)
+        return;
     if (m_game.FreeBody && !m_game.FreeBody(acFrame, aReleasedAt ? aReleasedAt : m_tick))
         spdlog::warn("HostHands: {} is not here to let go of", WorldStateLog::DescribeBody(acFrame.Key));
 }

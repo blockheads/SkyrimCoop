@@ -393,8 +393,9 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"objects", objects}};
 }
 
-// {"cmd": "world_state", "ids"?: [id, ...], "details"?: true}: the loaded cells' references as this game shows them,
-// details adding pose, physics, graph, effects (GetLoadedReferences); defaults left out, JSON built off the game thread.
+// {"cmd": "world_state", "ids"?: [id, ...], "details"?: true, "scripts"?: [class, ...]}: the loaded cells' references as
+// this game shows them, details adding pose, physics, graph, effects, scripts the classes each one's bound scripts are
+// or extend (GetLoadedReferences); defaults left out, JSON built off the game thread.
 nlohmann::json WorldStateReply(const std::vector<EngineCalls::ReferenceState>& acRefs)
 {
     auto references = nlohmann::json::array();
@@ -430,6 +431,10 @@ nlohmann::json WorldStateReply(const std::vector<EngineCalls::ReferenceState>& a
             ref["leveled"] = cRef.Leveled;
         if (cRef.Stored)
             ref["stored"] = true;
+        if (cRef.OnPath)
+            ref["on_path"] = true;
+        if (!cRef.Scripts.empty())
+            ref["scripts"] = cRef.Scripts;
         if (cRef.Items)
         {
             auto items = nlohmann::json::object();
@@ -478,7 +483,7 @@ nlohmann::json WorldStateReply(const std::vector<EngineCalls::ReferenceState>& a
 std::function<nlohmann::json()> WorldState(Harness&, const nlohmann::json& acRequest)
 {
     const auto cIds = acRequest.value("ids", std::vector<uint32_t>{});
-    auto refs = EngineCalls::GetLoadedReferences(acRequest.value("details", false));
+    auto refs = EngineCalls::GetLoadedReferences(acRequest.value("details", false), acRequest.value("scripts", std::vector<std::string>{}));
     if (!cIds.empty())
         std::erase_if(refs, [&cIds](const auto& acRef) { return std::ranges::find(cIds, acRef.Id) == cIds.end(); });
     return [refs = std::move(refs)] { return WorldStateReply(refs); };

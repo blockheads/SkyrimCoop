@@ -62,7 +62,7 @@ void HostPhysics::SendBodies(uint64_t aTick) noexcept
     if (!cHost)
         return;
     // What a guest's player holds or moved is its game's: its frames and rest go out from there (HostHands).
-    std::erase_if(bodies.Awake, [this](const BodyFrame& acFrame) { return !acFrame.Key.Actor && m_hands.MovedByGuest(acFrame.Key); });
+    std::erase_if(bodies.Awake, [this](const BodyFrame& acFrame) { return m_hands.MovedByGuest(acFrame.Key); });
     std::erase_if(bodies.Rested, [this](const BodyPose& acRest) {
         return !acRest.Key.Actor && !m_hands.HostRests(acRest);
     });

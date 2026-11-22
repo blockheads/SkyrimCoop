@@ -58,6 +58,9 @@ public:
     // A reference awake here though it never left where it woke (it leans on a character, who holds it up): read as
     // moving from now, so another game, where it fell, is given its frames. False: not awake here.
     bool Follow(uint32_t aFormId) noexcept;
+    // An actor whose ragdoll this game's player moves (a guest's grab of a copy's corpse): read until it rests,
+    // though a guest's reads leave out other actors.
+    void Watch(uint32_t aFormId) noexcept;
 
 private:
     struct Pose

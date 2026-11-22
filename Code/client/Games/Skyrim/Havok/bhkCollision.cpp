@@ -31,7 +31,8 @@ struct alignas(16) HavokVector
 
 // 60850 on aBody's island (world write lock held) if every other body is still and none kept awake; each body keeps
 // its fastest speeds, not 60850's HK_REAL_MAX (physics.md, "When an island sleeps").
-bool DeactivateIsland(hkpRigidBody& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake) noexcept
+bool DeactivateIsland(hkpRigidBody& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake,
+                      const std::function<bool(const bhkWorldObject*)>& acOwnMotion = {}) noexcept
 {
     using TDeactivate = void(hkpRigidBody*);
     POINTER_SKYRIMSE(TDeactivate, s_deactivate, 60850);
@@ -47,10 +48,13 @@ bool DeactivateIsland(hkpRigidBody& aBody, const std::function<bool(const bhkWor
             continue;
         if (pOther != &aBody &&
             ((acKeepsAwake && acKeepsAwake(pOther->userData)) ||
-             !BodyPrediction::StillToSleep(pOther->IsDynamic(), glm::length(cVector(pOther->linearVelocity)) * cHavokToGame,
-                                           glm::length(cVector(pOther->angularVelocity)))))
+             (!(acOwnMotion && acOwnMotion(pOther->userData)) &&
+              !BodyPrediction::StillToSleep(pOther->IsDynamic(), glm::length(cVector(pOther->linearVelocity)) * cHavokToGame,
+                                           glm::length(cVector(pOther->angularVelocity))))))
             return false;
-        fastest.push_back({pOther, {pOther->deactivationReference[0][3], pOther->deactivationReference[1][3]}});
+        // An own body keeps 60850's HK_REAL_MAX: Havok's last test (62264) then lets its settling motion sleep too.
+        if (!(acOwnMotion && acOwnMotion(pOther->userData)))
+            fastest.push_back({pOther, {pOther->deactivationReference[0][3], pOther->deactivationReference[1][3]}});
     }
     s_deactivate(&aBody);
     for (auto& [pOther, cFastest] : fastest)
@@ -229,14 +233,15 @@ bool SteerKeyframed(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, co
     return true;
 }
 
-bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake) noexcept
+bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake,
+               const std::function<bool(const bhkWorldObject*)>& acOwnMotion) noexcept
 {
     hkpRigidBody* pBody = aBody.referencedObject;
     bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
     if (!pWorld || !pBody->IsDynamic())
         return false;
     BSWriteLockGuard _(pWorld->worldLock);
-    return DeactivateIsland(*pBody, acKeepsAwake);
+    return DeactivateIsland(*pBody, acKeepsAwake, acOwnMotion);
 }
 
 std::optional<uint16_t> SetBodyGroup(bhkWorldObject& aBody, uint16_t aGroup) noexcept

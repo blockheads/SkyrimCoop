@@ -6,10 +6,14 @@
 #include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
+#include <Physics/BodyGroups.h>
 #include <Physics/BodyPrediction.h>
 #include <Physics/RagdollPending.h>
+#include <Physics/RagdollRest.h>
 #include <RTTI.h>
+#include <chrono>
 #include <map>
+#include <set>
 #include <mutex>
 
 struct hkbContext;
@@ -19,13 +23,94 @@ namespace
 {
 std::mutex s_bodyLock;
 RagdollPending s_bodies;
-// A copy's body on its way to its owner's rest: which rest, and the physics steps it has been at it.
+// Each copy at its owner's rest: the rest's poses by body, and where it is in RagdollRest.
+struct CopyRest
+{
+    std::map<uint8_t, std::pair<glm::vec3, glm::quat>> Poses;
+    RagdollRest Rest;
+    std::optional<RagdollRest::Step> Logged; // the last step logged: each change once
+};
+std::map<uint32_t, CopyRest> s_rests;
+
+float Seconds() noexcept
+{
+    return std::chrono::duration<float>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 struct Resting
 {
-    glm::vec3 Position{};
-    uint16_t Steps{};
+    bhkWorldObject* pBody;
+    BodyFrame Frame;
+    BodyRead Read;
 };
-std::map<std::pair<uint32_t, uint8_t>, Resting> s_rested;
+
+// Its owner's rest, all its bodies together (RagdollRest): glided there, put there once, put to sleep, then left alone.
+void RestBodies(Actor& aCopy, std::vector<Resting>& aBodies)
+{
+    bool fresh = false, allNear = true, allStill = true, anyWoken = false;
+    std::unique_lock lock(s_bodyLock);
+    CopyRest& rest = s_rests[aCopy.formID];
+    for (const auto& cBody : aBodies)
+    {
+        auto& pose = rest.Poses[cBody.Frame.Key.Index];
+        const auto cPose = std::make_pair(cBody.Frame.Position, cBody.Frame.Rotation);
+        fresh |= pose != cPose;
+        pose = cPose;
+        const auto cError = BodyPrediction::Between({.Position = cBody.Read.Position, .Rotation = cBody.Read.Rotation}, cBody.Frame);
+        const bool cNear = cError.Distance <= RagdollRest::kNear && cError.Angle <= RagdollRest::kNearAngle;
+        allNear &= cNear;
+        allStill &= BodyPrediction::StillToSleep(cBody.Read.Dynamic, glm::length(cBody.Read.LinearVelocity), glm::length(cBody.Read.AngularVelocity));
+        anyWoken |= cBody.Read.Active && !cNear;
+    }
+    const float cNow = Seconds();
+    if (fresh)
+        rest.Rest.Start(cNow);
+    const auto cStep = rest.Rest.Next(allNear, allStill, anyWoken, cNow);
+    if (std::exchange(rest.Logged, cStep) != cStep)
+        spdlog::info("CopyRagdollPhysics: {:X} at its owner's rest: step {} ({} bodies, near {}, still {}, woken {}, again {})", aCopy.formID,
+                     static_cast<int>(cStep), aBodies.size(), allNear, allStill, anyWoken, rest.Rest.Again);
+    lock.unlock(); // the engine calls below take the world's lock
+    switch (cStep)
+    {
+    case RagdollRest::Step::kGlide:
+        for (const auto& cBody : aBodies)
+        {
+            const auto cSteer = BodyPrediction::Steer(cBody.Read.Position, cBody.Read.Rotation, cBody.Frame, BodyPrediction::kRestGlideStep);
+            SteerBody(*cBody.pBody, cSteer.Linear, cSteer.Angular);
+        }
+        break;
+    case RagdollRest::Step::kPlace:
+        // All in one step: one at a time, its joints held about three of them off (physics.md, A copy at its owner's rest).
+        for (const auto& cBody : aBodies)
+            PlaceBody(*cBody.pBody, cBody.Frame.Position, cBody.Frame.Rotation, {}, {}, true);
+        break;
+    case RagdollRest::Step::kSleep:
+    {
+        // What this game moves keeps the island awake (sleeping it froze a carried wheel: physics.md, A pile sleeps together).
+        const auto cMoved = [](const bhkWorldObject* apOther) {
+            return apOther && apOther->referencedObject && (apOther->referencedObject->CollisionFilterInfo() >> 16) == BodyGroups::kMoving;
+        };
+        // Its own bodies settle against their joints after the place: their motion does not keep it awake.
+        std::set<const bhkWorldObject*> own;
+        for (const auto& cBody : aBodies)
+            own.insert(cBody.pBody);
+        const bool cAsleep = SleepBody(*aBodies.front().pBody, cMoved, [&own](const bhkWorldObject* apOther) { return own.contains(apOther); });
+        std::scoped_lock again(s_bodyLock);
+        auto& slept = s_rests[aCopy.formID].Rest;
+        slept.Slept(cAsleep, cNow);
+        if (slept.Done)
+            spdlog::info("CopyRagdollPhysics: {:X} rests {}", aCopy.formID, cAsleep ? "asleep" : "awake: its island would not sleep in 2 s");
+        break;
+    }
+    case RagdollRest::Step::kLeave: break;
+    }
+}
+
+bool Played(uint32_t aFormId) noexcept
+{
+    std::scoped_lock lock(s_bodyLock);
+    return s_bodies.Has(aFormId) || s_rests.contains(aFormId);
+}
 
 void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
 {
@@ -37,6 +122,7 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
     if (!aCopy.IsDead() && !KnockReplay::BodiesSimulated(aCopy.actorState.GetKnockState()))
         return;
     const auto* pRagdoll = aDriver.ragdoll;
+    std::vector<Resting> resting;
     for (const auto& cDrive : bodies)
     {
         const auto& cFrame = cDrive.Frame;
@@ -44,41 +130,28 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
                            ? pRagdoll->rigidBodies[cFrame.Key.Index]
                            : nullptr;
         auto* pBody = pRigid ? pRigid->userData : nullptr;
-        if (!pBody || !pRigid->IsDynamic())
-            continue;
         BodyRead read;
-        // At its owner's rest: steered there a while, every body put exactly there in one step, then left to fall
-        // asleep (steering wakes it each step).
-        const auto cBody = std::make_pair(aCopy.formID, cFrame.Key.Index);
-        if (cDrive.Rest && ReadBody(*pBody, read))
+        if (!pBody || !pRigid->IsDynamic() || !ReadBody(*pBody, read))
+            continue;
+        if (cDrive.Rest)
         {
-            std::scoped_lock lock(s_bodyLock);
-            Resting& resting = s_rested[cBody];
-            if (resting.Position != cFrame.Position)
-                resting = {.Position = cFrame.Position};
-            const auto cStep = BodyPrediction::StepToRest(resting.Steps);
-            if (resting.Steps <= BodyPrediction::kRestSettleSteps)
-                ++resting.Steps;
-            if (cStep == BodyPrediction::RestStep::kLeave)
-                continue;
-            if (cStep == BodyPrediction::RestStep::kPlace)
-            {
-                PlaceBody(*pBody, cFrame.Position, cFrame.Rotation, {}, {}, true);
-                continue;
-            }
+            resting.push_back({pBody, cFrame, read});
+            continue;
         }
-        else
-        {
-            std::scoped_lock lock(s_bodyLock);
-            s_rested.erase(cBody);
-        }
-        if (ReadBody(*pBody, read) && glm::distance(read.Position, cFrame.Position) < BodyPrediction::PlaceDistance(cDrive.Place))
+        if (glm::distance(read.Position, cFrame.Position) < BodyPrediction::PlaceDistance(cDrive.Place))
         {
             const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, cFrame);
             SteerBody(*pBody, cSteer.Linear, cSteer.Angular);
         }
         else
             PlaceBody(*pBody, cFrame.Position, cFrame.Rotation, cFrame.LinearVelocity, cFrame.AngularVelocity, true);
+    }
+    if (!resting.empty())
+        RestBodies(aCopy, resting);
+    else if (!bodies.empty())
+    {
+        std::scoped_lock lock(s_bodyLock);
+        s_rests.erase(aCopy.formID);
     }
 }
 
@@ -97,7 +170,8 @@ void DriveToPose(TDriveToPose* apOriginal, hkbRagdollDriver* apDriver, float aDe
                        : nullptr;
     // A graph's holder need not be an actor: a loaded Long Bow's ragdoll driver comes here too (a crash, 2026-10-28).
     Actor* pActor = pGraph ? Cast<Actor>(static_cast<TESForm*>(pGraph->holder)) : nullptr;
-    if (pActor && pActor->GetExtension()->IsCopy())
+    // A copy's, or this game's own corpse another game's player moves (its frames queued here).
+    if (pActor && (pActor->GetExtension()->IsCopy() || Played(pActor->formID)))
         ApplyBodies(*pActor, *apDriver);
 }
 

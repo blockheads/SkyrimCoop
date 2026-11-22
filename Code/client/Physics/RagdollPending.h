@@ -12,7 +12,7 @@ class RagdollPending
     {
         BodyFrame Frame;
         bool Place{};
-        bool Rest{}; // its owner's rest: steered a while, put there, then left (BodyPrediction::StepToRest)
+        bool Rest{}; // its owner's rest: glided, put there once, put to sleep, then left (RagdollRest)
     };
 
     void Put(uint32_t aCopy, const BodyFrame& acFrame, bool aPlace, bool aRest = false)
@@ -24,6 +24,8 @@ class RagdollPending
         drive.Place |= aPlace;
         drive.Rest |= aRest;
     }
+
+    [[nodiscard]] bool Has(uint32_t aActor) const noexcept { return m_copies.contains(aActor); }
 
     std::vector<Drive> Take(uint32_t aCopy)
     {
