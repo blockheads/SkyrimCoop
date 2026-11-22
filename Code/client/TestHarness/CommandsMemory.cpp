@@ -81,7 +81,6 @@ __declspec(noinline) void WalkUnderStub(WalkResult* apResult) noexcept
 // of its own, no unwind data; docs/re/systems/stack-walk.md). "ntdll": the system's walk instead, which may crash.
 nlohmann::json StackWalkCheck(Harness&, const nlohmann::json& acRequest)
 {
-    static uint8_t* s_pStub = nullptr;
     constexpr uint8_t cCode[] = {0x41, 0x54,             // push r12
                                  0x41, 0x55,             // push r13
                                  0x48, 0x83, 0xEC, 0x28, // sub rsp, 28h
@@ -93,23 +92,22 @@ nlohmann::json StackWalkCheck(Harness&, const nlohmann::json& acRequest)
                                  0x41, 0x5C,             // pop r12
                                  0xC3};                  // ret
     constexpr size_t cReturnOffset = 16;
-    if (!s_pStub)
-    {
-        s_pStub = static_cast<uint8_t*>(VirtualAlloc(nullptr, sizeof(cCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
-        if (!s_pStub)
-            return Error("no page for the stub");
-        std::memcpy(s_pStub, cCode, sizeof(cCode));
-        FlushInstructionCache(GetCurrentProcess(), s_pStub, sizeof(cCode));
-    }
+    auto* pStub = static_cast<uint8_t*>(VirtualAlloc(nullptr, sizeof(cCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+    if (!pStub)
+        return Error("no page for the stub");
+    std::memcpy(pStub, cCode, sizeof(cCode));
+    FlushInstructionCache(GetCurrentProcess(), pStub, sizeof(cCode));
     WalkResult result{.Ntdll = acRequest.value("ntdll", false)};
-    reinterpret_cast<void (*)(void (*)(WalkResult*) noexcept, WalkResult*)>(s_pStub)(&WalkUnderStub, &result);
+    reinterpret_cast<void (*)(void (*)(WalkResult*) noexcept, WalkResult*)>(pStub)(&WalkUnderStub, &result);
 
     nlohmann::json frames = nlohmann::json::array();
     for (int i = 0; i < result.Count; ++i)
         frames.push_back(Address(result.Frames[i]));
     // The walk's own caller, then the stub's return address, and nothing guessed past it.
-    const bool cEndsAtStub = result.Count == 2 && result.Frames[1] == s_pStub + cReturnOffset;
-    return {{"ok", true}, {"ends_at_stub", cEndsAtStub}, {"stub_return", Address(s_pStub + cReturnOffset)}, {"frames", std::move(frames)}};
+    const bool cEndsAtStub = result.Count == 2 && result.Frames[1] == pStub + cReturnOffset;
+    nlohmann::json reply = {{"ok", true}, {"ends_at_stub", cEndsAtStub}, {"stub_return", Address(pStub + cReturnOffset)}, {"frames", std::move(frames)}};
+    VirtualFree(pStub, 0, MEM_RELEASE);
+    return reply;
 }
 
 constexpr Command cCommands[] = {{"memory_sites", false, &MemorySites}, {"perf", false, &Perf}, {"stack_walk_check", false, &StackWalkCheck}};

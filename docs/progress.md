@@ -50,8 +50,9 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 ## News
 
 2026-11-22: **stack walks end at a frame with no unwind data: piece A1 of bugs-refactor-plan.md**
-(`agent/heap-history`; `docs/re/systems/stack-walk.md`). Heap history crashed the host at any allocation under a camera
-change (5 of 5 at `spectator-watches-kill-move`'s kill move): SKSE hooks `TESCamera::SetState` (33026) with a stub that
+(`agent/heap-history`; `docs/re/systems/stack-walk.md`). Heap history crashed the host 5 of 5 at
+`spectator-watches-kill-move`'s kill move, an allocation under a camera change (`FirstPersonState::OnExitState` 50723;
+any capture under one is exposed, only this one was measured): SKSE hooks `TESCamera::SetState` (33026) with a stub that
 has a frame and no unwind data, and Wine's `RtlCaptureStackBackTrace` guesses on past it. Heap history, the lock-order
 checker, the activation and animation traces and the abort log now capture through `CrashHandler::CaptureStack`, the
 crash handler's guarded walk. With heap history on the scenario passes 4 of 4; `stack-walk-stops-at-stub` checks the walk

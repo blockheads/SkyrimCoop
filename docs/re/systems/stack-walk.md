@@ -14,7 +14,8 @@ With `SKYRIMCOOP_HEAP_HISTORY` set, the host crashed 5 of 5 at the kill move of 
 ```text
 SKSE's camera stub        no module, no unwind data (0x6ffffc26003c in that run)
  └ TESCamera::SetState 33026 +0x1f
-    the old state's End() (vfunc 2); FirstPersonState::OnExitState tail-jumps on
+    the old state's End() (vfunc 2): FirstPersonState::OnExitState 50723, which unregisters its
+    handler (state+0x20) by a tail jump at +0x1a, so it leaves no frame
     └ PlayerControls::UnregisterHandler 42357
        PlayerControls is walking its handlers (+0xA0): the removal is queued (array at +0x88)
        └ BSTArrayBase::PreparePush 68163, the array's first push
@@ -42,9 +43,10 @@ add rsp,28h; pop r13; pop r12; ret
 - It is the second stub in that trampoline: the first (the Papyrus delay-functor queue, `Hooks_Papyrus.cpp`) is 0x23
   bytes, so a walk under `SetState` sees `trampoline + 0x23 + 0x19 = +0x3c`. The run's frame was `...26003c`. Read
   (the sizes) and measured (the address).
-- So every camera state change has this frame on the stack, not only a kill move.
-- SKSE writes five more stubs that call out: the delay-functor queue and four Scaleform menu hooks
-  (`Hooks_Scaleform.cpp`). Read, not seen on a stack.
+- So every camera state change has this frame on the stack, not only a kill move: any capture under one meets the
+  same walk. Inferred; only the kill move's crash was measured.
+- SKSE writes eight more stubs that call out: the delay-functor queue and seven in `Hooks_Scaleform.cpp` (three for
+  favorites data, four for crafting menus). Read in SKSE 2.3.1's source, not seen on a stack.
 
 ## Wine's walk
 
@@ -70,6 +72,9 @@ the crash handler and the stack sampler already used.
 - Each unwind runs under `__try`; the vectored handler lets those faults through.
 - So a stack under a camera change ends at SKSE's stub: who changed the camera is not in it. Registering unwind data
   for the stub (`RtlAddFunctionTable`) would give every walker the rest (docs/ideas.md).
+
+The gate keeps every capture on it (`scripts/test_stack_walk.py`: no system walk in `Code/client`, the five tools call
+`CaptureStack`); the native tests cannot run a Windows unwinder.
 
 Checked by the harness's `stack_walk_check` (a stub of the same shape, `stack-walk-stops-at-stub`): the walk returns
 its caller and the stub's return address, nothing more. With `"ntdll": true` it runs the system's walk instead.
