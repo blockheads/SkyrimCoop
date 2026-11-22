@@ -49,14 +49,10 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-22: **stack walks end at a frame with no unwind data: piece A1 of bugs-refactor-plan.md**
-(`agent/heap-history`; `docs/re/systems/stack-walk.md`). Heap history crashed the host 5 of 5 at
-`spectator-watches-kill-move`'s kill move, an allocation under a camera change (`FirstPersonState::OnExitState` 50723;
-any capture under one is exposed, only this one was measured): SKSE hooks `TESCamera::SetState` (33026) with a stub that
-has a frame and no unwind data, and Wine's `RtlCaptureStackBackTrace` guesses on past it. Heap history, the lock-order
-checker, the activation and animation traces and the abort log now capture through `CrashHandler::CaptureStack`, the
-crash handler's guarded walk. With heap history on the scenario passes 4 of 4; `stack-walk-stops-at-stub` checks the walk
-under a stub of that shape. bugs.md's "Heap history crashes the host at a kill move" is closed.
+2026-11-22: **a plan for the open bugs after the ten pieces** ([bugs-refactor-plan.md](design/bugs-refactor-plan.md)):
+about half of the 56 share five causes. Two refactors (one copy teardown between frames, for the guest's crashes;
+"a copy starts whole", for copies made after a draw, a sit or an action), two tools first, the rest one at a time.
+Proposed, nothing built.
 
 2026-11-22: **the full suite on dev after one-simulator pieces 1-10** (`agent/bugs-audit-suite`): 364 of 423 default
 scenarios pass; of bugs.md's 62 entries 3 closed, 3 unclear, 56 still open; 8 new (six guest crashes through a pointer that holds a vtable among them).
