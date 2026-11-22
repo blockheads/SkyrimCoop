@@ -67,8 +67,7 @@ bool GuestHands::TakesFrame(const BodyKey& acKey) noexcept
 
 bool GuestHands::KeepsRest(const BodyPose& acRest) const noexcept
 {
-    // Its own, or in its own bodies' island: this game simulates that pile until it sleeps.
-    if (m_own.contains(acRest.Key) || m_pile.contains(acRest.Key))
+    if (m_own.contains(acRest.Key))
         return true;
     const auto it = m_ownRests.find(acRest.Key);
     if (it == m_ownRests.end())
@@ -121,7 +120,8 @@ void GuestHands::Own(const BodyKey& acKey, uint64_t aTick, const char* acpHow, s
     it->second.Touched = aTick;
     if (!cNew)
         return;
-    it->second.From = m_world.ctx().at<IBodyBridge&>().ReadPose(acKey);
+    if (const auto cNow = m_world.ctx().at<IBodyBridge&>().ReadPose(acKey))
+        it->second.From = LayAt(*cNow);
     aOwned.push_back(acKey);
     spdlog::info("GuestHands: this game's player {} the host's {}", acpHow, WorldStateLog::DescribeBody(acKey));
 }
@@ -201,6 +201,12 @@ bool LeftWhereItLay(const BodyPose& acNow, const BodyPose& acLay) noexcept
 }
 } // namespace
 
+BodyPose GuestHands::LayAt(const BodyPose& acNow) const noexcept
+{
+    const auto cRest = m_hostRests.find(acNow.Key);
+    return cRest != m_hostRests.end() && glm::distance(cRest->second.Position, acNow.Position) <= BodySendLimits{}.Distance ? cRest->second : acNow;
+}
+
 void GuestHands::OwnNudged() noexcept
 {
     auto& bridge = m_world.ctx().at<IBodyBridge&>();
@@ -232,7 +238,14 @@ void GuestHands::OwnIsland(uint64_t aTick, const std::set<BodyKey>& acPlayed, st
         if (acPlayed.contains(cMate.Key) || m_own.contains(cMate.Key))
             continue;
         const auto cLay = m_pile.find(cMate.Key);
-        const BodyPose& cFrom = cLay != m_pile.end() ? cLay->second : cMate;
+        const BodyPose cFrom = cLay != m_pile.end() ? cLay->second : LayAt(cMate);
+        // Beside one of its own, as a knock's reach: Havok also merges small islands that never touch (61522).
+        const bool cBeside = std::ranges::any_of(m_own, [&](const auto& acOwn) {
+            const auto& cAt = acOwn.second.Last ? acOwn.second.Last : acOwn.second.From;
+            return !acOwn.first.Actor && cAt && glm::distance(cAt->Position, cMate.Position) <= kKnockReach;
+        });
+        if (!cBeside)
+            continue;
         if (!LeftWhereItLay(cMate, cFrom))
         {
             pile[cMate.Key] = cFrom;

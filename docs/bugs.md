@@ -525,6 +525,8 @@ Size: medium. Needs: the duo, then GameTests.
   the middle round's seconds 5.8, 5.0 and 6.4 against vanilla's 2.5 to 5.8 (the let go bucket's 2.7 to 5.0) in 3 runs
   of 4, so `guest-drops-on-pile-like-vanilla` fails about as often as it passes; rests agree, no jump, no shake. Not
   traced: which bodies move last (the host's rests of the pile coming back after the guest's went out is the guess).
+  After the review's changes (one run each): `carry_into_pile`, `drop_wheel_on_wheels` and `drop_on_bottles` as
+  vanilla, `drop_on_pile` a staging timeout.
   Seen once and not traced: the host's copy of the wheel pile moving 13 s where the guest's settled in 6. The host's
   own drops onto a pile were not run.
 - **2026-11-22, dev `aa723513`:** the full run passed `guest-push`, `host-push`, `guest-push-mixed`, `guest-tavern`;

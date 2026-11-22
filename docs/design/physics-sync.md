@@ -47,6 +47,14 @@ guest: puts it back, into its player's capsule
   carried object moved 19 s (vanilla up to 10.5). As Havok does it: an island sleeps when all of it is still (61507). Held back for every own body
   instead of its island's, objects apart rested late on the host (`push_mixed`: the first wheel 3.3 to 4 s, vanilla
   up to 2.8).
+- **Review (PR #101)**: a body's "where it lay" is the host's last rest of it when that is within 2 units
+  (`GuestHands::LayAt`: a shift between two updates was already in the first read); only island mates within a knock's
+  reach of an own body count (Havok also merges small islands that never touch, 61522); a host rest of an unclaimed
+  pile body is held, and put when the pile is done if the host has the body elsewhere by more than the send limits
+  (`BodyService::m_heldRests`, `Keeper::HoldsRest`; put back whenever it differed, it shoved the pile again: 28
+  placements and 16 asks in one `carry_into_pile` trial, which never settled); the
+  island is read whole under the world's lock. Kept as is: until something is played, two of this game's moving
+  bodies with one nonzero engine group pass each other as in vanilla (they collided under our moving group).
 - The first two were one rule missing: what this game's player or its own bodies displace is this game's, however little.
   The 2 units of `BodyPrediction::LeftRest` are for a body Skyrim wakes without anyone moving it ("Woken still"),
   not for one a player's capsule or own object leans on.

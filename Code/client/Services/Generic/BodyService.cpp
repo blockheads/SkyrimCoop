@@ -1,6 +1,8 @@
 #include <Services/BodyService.h>
 
 #include <Bridges/IBodyBridge.h>
+#include <Physics/BodySends.h>
+#include <Physics/BodyPrediction.h>
 #include <Components.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
@@ -69,6 +71,7 @@ void BodyService::Forget(const BodyKey& acKey, uint64_t aReleasedAt) noexcept
         PlaybackOf(acKey).Forget(acKey);
     m_ragdollRests.erase(acKey);
     m_pendingRests.erase(acKey);
+    m_heldRests.erase(acKey);
     m_following.erase(acKey);
     Hold(acKey, false);
     m_bridge.Forget(acKey);
@@ -135,7 +138,9 @@ void BodyService::OnRests(const NotifyBodyRests& acMessage) noexcept
         Hold(cRest.Key, false);
         if (acMessage.Placed && m_pKeeper)
             m_pKeeper->GiveBack(cRest.Key);
-        if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest))
+        if (m_pKeeper && !cRest.Key.Actor && m_pKeeper->HoldsRest(cRest.Key))
+            m_heldRests[cRest.Key] = {acMessage.Tick, cRest};
+        else if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest))
             (cRest.Key.Actor ? ragdolls : rests).push_back(cRest);
     }
     m_playback.Rest(acMessage.Tick, rests);
@@ -152,6 +157,7 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_heldElsewhere.clear();
     m_ragdollRests.clear();
     m_pendingRests.clear();
+    m_heldRests.clear();
     m_missing.clear();
     m_bridge.ForgetAll();
 }
@@ -222,6 +228,25 @@ void BodyService::Apply() noexcept
             m_bridge.SetMoving(cKey, true); // this game's now: it meets what other games move
         }
     m_restsTried.clear();
+    // Held for the keeper's pile: put once the pile is done, unless the body became this game's own (Forget).
+    for (auto it = m_heldRests.begin(); it != m_heldRests.end();)
+    {
+        if (m_pKeeper && m_pKeeper->HoldsRest(it->first))
+        {
+            ++it;
+            continue;
+        }
+        // Only where the owner has it elsewhere: put back within the send limits it shoved the pile it lay in.
+        const BodyPose& cRest = it->second.second;
+        const auto cNow = m_bridge.ReadPose(cRest.Key);
+        const BodySendLimits cLimits;
+        const auto cApart = cNow ? BodyPrediction::Between({.Position = cNow->Position, .Rotation = cNow->Rotation},
+                                                           {.Position = cRest.Position, .Rotation = cRest.Rotation})
+                                 : BodyPrediction::Error{cLimits.Distance + 1.f, 0.f};
+        if ((cApart.Distance > cLimits.Distance || cApart.Angle > cLimits.Angle) && (!m_pKeeper || !m_pKeeper->KeepsRest(cRest)))
+            m_playback.Rest(it->second.first, {cRest});
+        it = m_heldRests.erase(it);
+    }
     Show(m_playback, [cAt = PlaybackTick(cTick)](const BodyKey&) { return cAt; });
     // A copy's ragdoll at its copy's time; this game's own corpse another game's player moves, at the references'.
     Show(m_ragdolls, [this, cAt = PlaybackTick(cTick)](const BodyKey& acKey) {
@@ -288,6 +313,13 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
         const BodyPose cAt{.Key = cKey, .Position = cPose.Body.Position, .Rotation = cPose.Body.Rotation, .Knocked = cPose.Body.Knocked};
         if (cPose.Rest && cKey.Actor && m_pKeeper && m_pKeeper->KeepsRest(cAt))
             continue;
+        // Queued before its body joined the keeper's pile: it waits with the others.
+        if (cPose.Rest && !cKey.Actor && m_pKeeper && m_pKeeper->HoldsRest(cKey))
+        {
+            m_heldRests[cKey] = {cPose.Tick, cAt};
+            aPlayback.Forget(cKey);
+            continue;
+        }
         if (cPose.Rest && cKey.Actor)
             m_ragdollRests[cKey] = {cPose.Tick, cAt};
         else

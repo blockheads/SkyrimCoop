@@ -57,6 +57,7 @@ struct GuestHands final : BodyService::Keeper
     // Its rest is not the host's to place while it is this game's own (this game's rest goes out instead), nor when it
     // is that rest come back.
     [[nodiscard]] bool KeepsRest(const BodyPose& acRest) const noexcept override;
+    [[nodiscard]] bool HoldsRest(const BodyKey& acKey) const noexcept override { return m_pile.contains(acKey); }
     void GiveBack(const BodyKey& acKey) noexcept override;
     [[nodiscard]] bool Moves(const GameId& acObject) const noexcept override
     {
@@ -110,6 +111,9 @@ private:
     // A copy's session id by its form id here (its corpse grabbed: GuestEngine::ReadHeld).
     [[nodiscard]] GuestEngine::SessionOf_t CopySessions() const noexcept;
     [[nodiscard]] uint32_t PlayerId() const noexcept;
+    // Where a body lay before this update's read of it: the host's last rest of it when that is near (a shift that
+    // came between two updates is in the first read already), else where it is.
+    [[nodiscard]] BodyPose LayAt(const BodyPose& acNow) const noexcept;
     void Own(const BodyKey& acKey, uint64_t aTick, const char* acpHow, std::vector<BodyKey>& aOwned) noexcept;
     void TrackMoved(uint64_t aTick, const std::set<BodyKey>& acPlayed, const std::vector<BodyPose>& acMoved) noexcept;
     // Own bodies that never moved here given back; bodies moved alone: the host's poses asked for.

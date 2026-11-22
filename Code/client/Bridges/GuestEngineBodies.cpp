@@ -176,12 +176,16 @@ std::vector<GuestEngine::IslandBody> GuestEngine::ReadIslands(const std::vector<
         const auto cOwn = ReferenceBodies::At(cFormId ? Cast<TESObjectREFR>(TESForm::GetById(cFormId)) : nullptr, cKey.Index);
         hkpRigidBody* pOwn = cOwn.pBody ? cOwn.pBody->referencedObject : nullptr;
         // One island's bodies once, whichever of its own bodies named it.
-        if (!pOwn || islandOf.contains(pOwn) || !pOwn->IsActive())
+        if (!pOwn || islandOf.contains(pOwn))
+            continue;
+        // Awake and dynamic, read under the world's lock; none: its island sleeps (alone in one: itself only).
+        const auto cMates = IslandMatesOf(*cOwn.pBody);
+        if (!cMates)
             continue;
         const auto cIsland = static_cast<uint32_t>(islandOf.size());
         islandOf[pOwn] = cIsland;
         cAdd(*pOwn, cIsland);
-        for (hkpRigidBody* pMate : IslandMatesOf(*cOwn.pBody))
+        for (hkpRigidBody* pMate : *cMates)
             if (islandOf.try_emplace(pMate, cIsland).second)
                 cAdd(*pMate, cIsland);
     }
