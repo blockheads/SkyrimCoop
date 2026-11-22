@@ -15,6 +15,7 @@ from ..common import (
     HOME_CELL,
     INN,
     KILL_MOVE_BLOW_WINDOW,
+    KILL_MOVE_DROP,
     KILL_MOVE_RANDOM,
     LYDIA,
     MELEE_GAP,
@@ -100,6 +101,133 @@ class CombatActions:
                     if down[game]:
                         trace.wait_state(game, "player", "kill_move", True, 1, after=trace.start)
         return crossed
+
+
+    def kill_move_on(ctx, attacker, base, weapon, behind=False, watch=6.0, strict=False, rest=True):
+        """`attacker`'s player ("" the host, "client") strikes a restrained host NPC of `base`, one hit from death, with
+        `weapon` (a form id; 0 bare hands) from its front or from `behind`. Returns what played (`action`; None: a plain
+        swing), each game's time from the action to the death, and `problems`: what a player would see wrong `watch`
+        seconds after it (someone still in a kill move or its pair, the victim alive or its kill held, its ragdoll
+        missing, keyframed or awake, the two games' bodies apart, an attacker that cannot walk). `strict`: fails on any
+        problem, or when no kill move played. `rest` False leaves the lying bodies unread (bugs.md, "A kill move's dead
+        copy awake or lying apart")."""
+        games = ("", "client")
+        other = "client" if attacker == "" else ""
+        said = lambda game: game or "host"
+        npc, _, copy = ctx.spawn_host_npc(base, restrained=True)
+        victim = {"": npc, "client": copy}
+        killer = {attacker: 0x14, other: ctx.other_player(ctx.actors_on(other))}
+        report = {"attacker": said(attacker), "weapon": f"{weapon:X}", "behind": behind, "action": None, "problems": []}
+        ctx.console_on(attacker, "set KillMoveRandom to 100")
+        try:
+            ctx.equip_weapon(attacker, weapon)
+            ctx.draw(attacker)
+            ctx.console_on("", f"{npc:08X}.damageav health {ctx.host_world(npc)['values']['health'] - 3:.0f}")
+            ctx.wait_on("client", "the victim's copy shows it one hit from death",
+                        lambda actors: (actors.get(str(copy), {}).get("health") or 100) < 5, 3)
+            front = math.degrees(ctx.actors_on("client")[str(copy)]["rotation"][2])
+            ctx.place_before(attacker, victim[attacker], MELEE_GAP, front + (180 if behind else 0))
+            ctx.place_before(other, victim[other], 300, front + 90)
+            check = {}
+            def will_kill():
+                check.update(ctx.player_command(attacker, {"cmd": "kill_move_check", "victim": victim[attacker]}))
+                return check.get("should_attack_kill") and check.get("attack_target") == victim[attacker]
+            try:
+                ctx.wait_for(f"[{said(attacker)}] a blow now is a kill move", will_kill, 3)
+            except TestFailure:
+                pass
+            report["check"] = {key: check.get(key) for key in ("should_attack_kill", "killable", "attack_target")}
+            trace = AnimTrace(ctx, "kill-move-on", {game: {killer[game]: "attacker", victim[game]: "victim"} for game in games}, video=False)
+            with trace:
+                ctx.press(attacker, "right")
+                try:
+                    started = trace.wait_state(attacker, "attacker", "kill_move", True, 3)
+                except TestFailure:
+                    started = None
+                finally:
+                    ctx.release(attacker, "right")
+                if started:
+                    action = trace.action_before(started)
+                    report["action"] = action and action["event"]
+                dead = lambda game: ctx.is_dead(ctx.actor_snapshot(game, victim[game]))
+                try:
+                    ctx.wait_for("the victim dies on both games", lambda: all(dead(game) for game in games), 10)
+                except TestFailure:
+                    report["problems"] += [f"[{said(game)}] the victim is alive 10 s after the blow" for game in games if not dead(game)]
+                def last_states():
+                    trace.take()
+                    return {(game, who): next((e["state"] for e in reversed(trace.entries) if e["game"] == game and e["who"] == who
+                                               and e["kind"] == "state"), {}) for game in games for who in ("attacker", "victim")}
+                try:
+                    ctx.wait_for("everyone has left the pair on both games",
+                                 lambda: not any(state.get("kill_move") or state.get("bIsSynced") for state in last_states().values()), watch)
+                except TestFailure:
+                    pass  # said below: who, on which game, in what state
+                trace.take()
+                for game in games:
+                    for who in ("attacker", "victim"):
+                        states = [e for e in trace.entries if e["game"] == game and e["who"] == who and e["kind"] == "state"]
+                        last = states[-1]["state"] if states else {}
+                        if last.get("kill_move") or last.get("bIsSynced"):
+                            report["problems"].append(f"[{said(game)}] the {who} is still in the kill move (kill_move {last.get('kill_move')}, bIsSynced {last.get('bIsSynced')})")
+                        # One pair on every game: the other game's copies are in the kill move too (bugs.md, "The
+                        # attacker's copy not in its kill move").
+                        if started and not any(e["state"].get("kill_move") for e in states):
+                            report["problems"].append(f"[{said(game)}] the {who} never entered the kill move")
+                        died = next((e for e in states if e["state"].get("life") in (1, 2)), None)  # dying, dead (6: restrained)
+                        blow = trace.find(game, who, "KillActor")
+                        if who == "victim" and died and started:
+                            report[f"{said(game)}_death_s"] = round(died["time"] - started["time"], 2)
+                        # A pair that played is measured on each game: its blow, then its death.
+                        if who == "victim" and started and not (died and blow):
+                            report["problems"].append(f"[{said(game)}] the victim's {'KillActor' if not blow else 'death'} was never seen in the trace")
+                        if who == "victim" and died and blow and died["time"] < blow["time"] - 0.1:
+                            report["problems"].append(f"[{said(game)}] the victim died {blow['time'] - died['time']:.2f} s before its clip's KillActor")
+                        if who == "victim" and died and blow:
+                            report[f"{said(game)}_blow_to_death_s"] = round(died["time"] - blow["time"], 2)
+                            # Its clip's KillActor is the blow: it drops then, not a pose hold later (kill-moves.md).
+                            if died["time"] - blow["time"] > KILL_MOVE_DROP:
+                                report["problems"].append(f"[{said(game)}] the victim stood {died['time'] - blow['time']:.2f} s after its clip's KillActor before it died")
+                    state = ctx.actor_snapshot(game, victim[game]).get("state") or {}
+                    if state.get("deferred_kill") or state.get("kill_queued"):
+                        report["problems"].append(f"[{said(game)}] the victim's kill is still held (deferred {state.get('deferred_kill')}, queued {state.get('kill_queued')})")
+            def lying():
+                return {game: ctx.ragdoll_of(game, victim[game]) if rest and dead(game) else [] for game in games}
+            try:
+                # The host's body settles in its own time; its copy is put at that rest and sleeps (physics-sync.md).
+                ctx.wait_for("both games' bodies of the victim come to rest",
+                             lambda: not any(body["awake"] for bodies in lying().values() for body in bodies), 30)
+            except TestFailure:
+                pass  # said below, body by body
+            bodies = lying()
+            for game in games:
+                out = [i for i, body in enumerate(bodies[game]) if not body["in_world"]]
+                held = [i for i, body in enumerate(bodies[game]) if body["motion"] == 4]
+                awake = [i for i, body in enumerate(bodies[game]) if body["awake"]]
+                for what, which in (("out of the world", out), ("keyframed", held), ("awake", awake)):
+                    if which:
+                        report["problems"].append(f"[{said(game)}] the dead victim's ragdoll: bodies {which} {what}")
+            if apart := ctx.ragdoll_apart(bodies[""], bodies["client"], units=8.0, turn=0.25):
+                report["problems"].append(f"the victim's body lies differently: {apart}")
+            # The attacker walks: a kill move or a held pair leaves its controls dead.
+            at = ctx.player_snapshot(attacker)["placement"]["position"]
+            ctx.player_command(attacker, {"cmd": "input", "button": "back", "down": True})
+            try:
+                ctx.wait_for(f"[{said(attacker)}] the attacker walks", lambda: distance(ctx.player_snapshot(attacker)["placement"]["position"], at) > 30, 3)
+            except TestFailure:
+                report["problems"].append(f"[{said(attacker)}] the attacker cannot walk after its kill move")
+            finally:
+                ctx.player_command(attacker, {"cmd": "input", "button": "back", "down": False})
+        finally:
+            ctx.console_on(attacker, f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+            if weapon:  # the one it was given: a second of its kind would take the hand when one is unequipped
+                ctx.console_on(attacker, f"player.removeitem {weapon:08X} 1")
+            ctx.console_on("", f"{npc:08X}.disable")
+            ctx.console_on("", f"{npc:08X}.markfordelete")
+        # strict: a scenario's check. A kill move must have played, with nothing wrong after it.
+        if strict and (not report["action"] or report["problems"]):
+            raise ctx.failure(f"kill move {report['action'] or '(none: a plain swing)'} with {weapon:X}: " + ("; ".join(report["problems"]) or "no pair started"))
+        return report
 
 
     def combat_watch(ctx, npc, seconds=5.0, every=0.33, sight=None):

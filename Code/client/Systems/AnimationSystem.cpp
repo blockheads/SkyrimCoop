@@ -115,9 +115,17 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     // are bookkeeping only. Its death too: the kill beside the graph is done here, its death's clip is its stream's.
     auto& streams = aWorld.GetGraphStreams();
     streams.SetPlayback(apActor->formID, aTick);
+    // Holding its pose for its owner's death: taken as soon as it is heard (ReplayState::TakeOverdueDeath).
+    const bool cPoseHeld = ReplayState::PoseHeld(aWorld.GetFrameTick(), apActor->GetExtension()->PoseHeldUntil.load(std::memory_order_relaxed), apActor->IsDead());
+    // A stale step still waiting for its clips (ours alone to end) goes with the queue; one in the job plays out first.
+    auto& staged = apActor->GetExtension()->Replay;
+    if (uint8_t waiting = ActorExtension::ReplayStep::kClips; cPoseHeld && staged.Phase.compare_exchange_strong(waiting, ActorExtension::ReplayStep::kIdle))
+        aAnimationComponent.StagedUpdates = 0;
+    const bool cStepFree = streams.OnStream(apActor->formID) || staged.Phase.load(std::memory_order_acquire) == ActorExtension::ReplayStep::kIdle;
+    bool deathNow = cStepFree && ReplayState::TakeOverdueDeath(actions, cPoseHeld, [](const ActionEvent& acAction) { return ActorState::LifeStateOf(acAction.State1) == ActorState::kLifeDying; });
     if (streams.OnStream(apActor->formID))
     {
-        while (!actions.empty() && actions.front().Tick <= aTick)
+        while (!actions.empty() && ReplayState::ActionDue(actions.front().Tick, aTick, deathNow))
         {
             ActionEvent action = actions.front();
             if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying && !apActor->IsDead())
@@ -239,7 +247,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         streams.PairPlayed(apActor->formID);
 
     const auto it = std::begin(actions);
-    if (it != std::end(actions) && it->Tick <= aTick)
+    if (it != std::end(actions) && ReplayState::ActionDue(it->Tick, aTick, deathNow))
     {
         // Check if animation graph is ready before attempting to play animations
         if (!EngineVirtual(apActor->animationGraphHolder).IsReady())

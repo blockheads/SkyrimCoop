@@ -1298,6 +1298,12 @@ bool Actor::KillCounted() const noexcept
     return pMiddle && pMiddle->deferredKill > 1;
 }
 
+bool Actor::KillQueued() const noexcept
+{
+    const auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr;
+    return pMiddle && pMiddle->killQueued;
+}
+
 void Actor::KillBy(Actor* apKiller) noexcept
 {
     if (GetExtension()->IsLocalPlayer())

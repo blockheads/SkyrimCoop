@@ -116,7 +116,8 @@ void KillMoveService::OnUpdate(const UpdateEvent&) noexcept
         const auto cActor = m_actorBridge.GetActorStateFields(own.ActorFormId);
         const auto cPartner = m_actorBridge.GetActorStateFields(own.PartnerFormId);
         const bool cKilled = own.Taken && m_actorBridge.ActorKillCounted(own.PartnerFormId);
-        if (ReplayState::PairDone(own.Taken, cKilled, cPartner.InKillMove || cPartner.InPair, cActor.InKillMove || cActor.InPair))
+        const bool cQueued = own.Taken && m_actorBridge.ActorKillQueued(own.PartnerFormId);
+        if (ReplayState::PairDone(own.Taken, cKilled, cQueued, cPartner.InKillMove || cPartner.InPair, cActor.InKillMove || cActor.InPair))
             SendDone(own);
     }
     std::erase_if(m_swings, [&](const Swing& acSwing) {

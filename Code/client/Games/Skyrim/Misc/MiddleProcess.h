@@ -67,7 +67,8 @@ struct MiddleProcess
     InventoryEntry* ammoEquippedObject; // could be more than just ammo
     uint8_t pad270[0x2F8 - 0x270];
     uint32_t deferredKill; // 2F8: 0 none, 1 held, above 1 kills counted (DeferKill 38617, ended by 40036)
-    uint8_t pad2FC[0x332 - 0x2FC];
+    uint8_t pad2FC[0x331 - 0x2FC];
+    bool killQueued; // 331: QueueKill 37316's task is waiting (40011); KillImpl 37896 clears it (CommonLib killQueued)
     bool inDeferredKill; // 332, the scripted flag (CommonLib inDeferredKill)
     // 0xB8 - direction
     //
@@ -84,4 +85,5 @@ static_assert(offsetof(MiddleProcess, instantClipsLoaded) == 0x230);
 static_assert(offsetof(MiddleProcess, charController) == 0x250);
 static_assert(offsetof(MiddleProcess, rightEquippedObject) == 0x260);
 static_assert(offsetof(MiddleProcess, deferredKill) == 0x2F8);
+static_assert(offsetof(MiddleProcess, killQueued) == 0x331);
 static_assert(offsetof(MiddleProcess, inDeferredKill) == 0x332);

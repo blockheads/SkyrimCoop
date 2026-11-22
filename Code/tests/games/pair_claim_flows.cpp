@@ -88,6 +88,132 @@ SCENARIO("A guest's kill move on a host NPC runs on the guest's game alone, and 
                      "the guest's guard is a copy again and dies with its owner");
 }
 
+SCENARIO("A kill move whose clip ends in the update of its blow drops its victim then, not a pose hold later", "[combat][kill-move][pair-claim]")
+{
+    // Skyrim (duo, pa_KillMoveI on a bandit, 2026-11-22): the victim's clip sent PairEnd, KillMoveEnd and KillActor in one
+    // update. Its kill is a task (QueueKill 37316), counted when that runs (37896), and its pose is held from KillActor:
+    // done "alive", the give-back waited for an update of a graph that takes none, 1.5 s (kill-moves.md).
+    GuardPair pair;
+    for (FakeEngine* pEngine : {&pair.host, &pair.guest})
+        pEngine->Graph = FakeGraphRules{};
+    pair.GuestSwings();
+    pair.Lent();
+    pair.party.Until([&] { return pair.host.Actors.at(pair.guard).InPair; }, "the host's game plays the pair");
+    pair.party.Until([&] { return pair.party.Guest().GetGraphStreams().Updates(pair.copy).has_value(); }, "the guest's game records its guard");
+    const uint64_t cBlow = pair.party.Host().GetTick();
+    pair.party.As(pair.party.Guest(), [&] { pair.guest.ClipEndsAtBlow(pair.copy); });
+    pair.party.As(pair.party.Host(), [&] { pair.host.ClipEndsAtBlow(pair.guard); });
+    pair.party.Until([&] { return pair.host.IsActorDead(pair.guard); }, "the host's game kills its guard");
+    CHECK(pair.party.Host().GetTick() - cBlow < ReplayState::cPoseHoldMs / 3);
+    CHECK(pair.host.Actors.at(pair.guard).KilledBy == PlayerCopy(pair.host));
+    pair.party.Until([&] { return pair.guest.IsActorDead(pair.copy); }, "the guest's guard dies with its owner");
+}
+
+SCENARIO("The claimer's victim, holding its pose for its death, dies when the host's word is heard, not at playback", "[combat][kill-move][pair-claim]")
+{
+    // Skyrim (duo, pa_KillMove1HMGrappleStab, 2026-11-22): the guest's victim stood 0.93 s after its clip's KillActor.
+    // The host's death came 0.34 s after it (its own replay's blow); the guest then took 0.52 s more: a copy again,
+    // its queue held the host's stale half before the death, each waiting for a playback clock just restarted.
+    GuardPair pair;
+    for (FakeEngine* pEngine : {&pair.host, &pair.guest})
+        pEngine->Graph = FakeGraphRules{};
+    pair.GuestSwings();
+    pair.Lent();
+    pair.party.Until([&] { return pair.host.Actors.at(pair.guard).InPair; }, "the host's game plays the pair");
+    pair.party.Until([&] { return pair.party.Guest().GetGraphStreams().Updates(pair.copy).has_value(); }, "the guest's game records its guard");
+    pair.party.As(pair.party.Guest(), [&] { pair.guest.ClipEndsAtBlow(pair.copy); });
+    pair.party.As(pair.party.Host(), [&] { pair.host.ClipEndsAtBlow(pair.guard); });
+    pair.party.Until([&] { return pair.host.IsActorDead(pair.guard); }, "the host's game kills its guard");
+    const uint64_t cDied = pair.party.Host().GetTick();
+    CHECK(pair.guest.PoseHeld(pair.copy));
+    pair.party.Until([&] { return pair.guest.IsActorDead(pair.copy); }, "the guest's guard dies with its owner");
+    INFO("the guest's guard died " << pair.party.Host().GetTick() - cDied << " ms after the host's");
+    CHECK(pair.party.Host().GetTick() - cDied < 60);
+}
+
+SCENARIO("Each kill move drops its victim at its clip's blow on every game, whoever swings", "[combat][kill-move][pair-claim][kill-move-table]")
+{
+    // Skyrim (duo, kill_move_on on a bandit and a wolf, 2026-11-22; kill-moves.md, "By weapon"): the pairs each
+    // weapon picked. A person's victim clip sends PairEnd, KillMoveEnd and KillActor in one update; a wolf's sends
+    // KillActor first and ends updates later.
+    struct Move
+    {
+        const char* Event;
+        const char* TargetEvent;
+        bool EndsAtBlow;
+    };
+    const Move cMove = GENERATE(Move{"pa_KillMoveI", "KillMoveI", true}, Move{"pa_KillMoveD", "KillMoveD", true},
+                                Move{"pa_KillMoveShortA", "KillMoveShortA", true}, Move{"pa_KillMove1HMBackStab", "KillMove1HMBackStab", true},
+                                Move{"pa_KillMove1HMGrappleStab", "KillMove1HMGrappleStab", true},
+                                Move{"pa_KillMove2HM3Slash", "KillMove2HM3Slash", true}, Move{"pa_KillMove2HWChopKick", "KillMove2HWChopKick", true},
+                                Move{"pa_KillMoveH2HBodySlam", "KillMoveH2HBodySlam", true}, Move{"pa_KillMove1HMWolfA", "KillMove1HMWolfA", false});
+    const bool cGuestSwings = GENERATE(true, false);
+    INFO(cMove.Event << (cGuestSwings ? ", the guest's" : ", the host's"));
+    GuardPair pair;
+    for (FakeEngine* pEngine : {&pair.host, &pair.guest})
+        pEngine->Graph = FakeGraphRules{};
+    auto swing = [&](uint32_t aTarget) {
+        ActionEvent kill = KillMoveOn(aTarget);
+        kill.EventName = cMove.Event;
+        kill.TargetEventName = cMove.TargetEvent;
+        return kill;
+    };
+    auto blow = [&](FakeEngine& aEngine, uint32_t aVictim) {
+        if (cMove.EndsAtBlow)
+            return aEngine.ClipEndsAtBlow(aVictim);
+        aEngine.ClipKillActor(aVictim);
+    };
+    uint64_t at = 0;
+    if (cGuestSwings)
+    {
+        pair.party.As(pair.party.Guest(), [&] { REQUIRE(pair.guest.PerformAnimation(FakeEngine::kPlayer, swing(pair.copy))); });
+        pair.Lent();
+        pair.party.Until([&] { return pair.host.Actors.at(pair.guard).InPair; }, "the host's game plays the pair");
+        pair.party.Until([&] { return pair.party.Guest().GetGraphStreams().Updates(pair.copy).has_value(); }, "the guest's game records its guard");
+        at = pair.party.Host().GetTick();
+        pair.party.As(pair.party.Guest(), [&] { blow(pair.guest, pair.copy); });
+        pair.party.As(pair.party.Host(), [&] { blow(pair.host, pair.guard); });
+    }
+    else
+    {
+        pair.party.As(pair.party.Host(), [&] { REQUIRE(pair.host.PerformAnimation(FakeEngine::kPlayer, swing(pair.guard))); });
+        pair.party.Until([&] { return pair.guest.Actors.at(pair.copy).InKillMove; }, "the guest's copy of the guard is in the kill move");
+        CHECK_FALSE(pair.host.Actors.at(pair.guard).Copy); // both the host's: no claim
+        at = pair.party.Host().GetTick();
+        pair.party.As(pair.party.Host(), [&] { blow(pair.host, pair.guard); });
+    }
+    pair.party.Until([&] { return pair.host.IsActorDead(pair.guard); }, "the host's guard dies");
+    CHECK(pair.party.Host().GetTick() - at < ReplayState::cPoseHoldMs / 3);
+    CHECK(pair.host.Actors.at(pair.guard).KilledBy == (cGuestSwings ? PlayerCopy(pair.host) : FakeEngine::kPlayer));
+    pair.party.Until([&] { return pair.guest.IsActorDead(pair.copy); }, "the guest's guard dies with it");
+    CHECK(pair.guest.Actors.at(pair.copy).Copy);
+    CHECK_FALSE(pair.host.Actors.at(pair.guard).Copy);
+    // Nobody is left in the pair: the swinger's own clip ends, and its copy's with it.
+    FakeEngine& swinger = cGuestSwings ? pair.guest : pair.host;
+    FakeEngine& watcher = cGuestSwings ? pair.host : pair.guest;
+    pair.party.As(cGuestSwings ? pair.party.Guest() : pair.party.Host(), [&] {
+        swinger.EndKillMove(FakeEngine::kPlayer);
+        swinger.StopPairClip(FakeEngine::kPlayer);
+    });
+    // The host's game played the guest's pair in an instance of its own (two copies): that clip ends there too.
+    if (cGuestSwings)
+        pair.party.As(pair.party.Host(), [&] {
+            for (const uint32_t cHalf : {PlayerCopy(pair.host), pair.guard})
+            {
+                pair.host.EndKillMove(cHalf);
+                pair.host.StopPairClip(cHalf);
+            }
+        });
+    pair.party.Until([&] { return !watcher.Actors.at(PlayerCopy(watcher)).InKillMove; }, "the swinger's copy leaves the kill move");
+    for (FakeEngine* pEngine : {&pair.host, &pair.guest})
+        for (const auto& [cId, actor] : pEngine->Actors)
+        {
+            INFO(pEngine->Name << " " << std::hex << cId);
+            CHECK_FALSE(actor.InKillMove);
+            CHECK_FALSE(pEngine->PoseHeld(cId));
+        }
+}
+
 SCENARIO("An NPC the host takes back from a pair that did not kill it can still die", "[combat][kill-move][pair-claim]")
 {
     // Skyrim (kill-moves.md, read): a copy's scripted deferred kill (UpdateCopyAI) is ended by no engine path

@@ -328,6 +328,7 @@ struct Actor : TESObjectREFR
     void HoldKill(bool aHold) noexcept;
     // A kill counted under the deferred kill (DeferKill 38617: KillActor 42838 or KillMoveEnd 38614's QueueKill).
     [[nodiscard]] bool KillCounted() const noexcept;
+    [[nodiscard]] bool KillQueued() const noexcept; // QueueKill 37316's task has not run yet (MiddleHigh +0x331)
     // Dies now, credited to apKiller: the hold ended, then KillImpl.
     void KillBy(Actor* apKiller) noexcept;
     // The action again with no target and no events, as PlayerControls' second try (42350) after a refused pair:
