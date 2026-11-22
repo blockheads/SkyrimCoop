@@ -12,6 +12,7 @@ from .common import (
     DESYNC_WINDOW,
     FORM_TYPE_NAMES,
     KEPT_APART,
+    UNMEASURED_HOOKS,
     KNOWN_LOCK_PATTERNS,
     LOCK_PATTERN,
     ROOT,
@@ -238,6 +239,10 @@ class Observations:
             status = _game.read_status() or {}
             # Kept apart stands only while the two stretches never ran at once in that game (lock-order.md).
             overlapped = status.get("lock_order", {}).get("stretches_overlapped", False)
+            # A pass-through hook the plugin could not measure reads as ours everywhere: fail every lock audit on it.
+            if unmeasured := status.get("lock_order", {}).get("unmeasured_hooks", 0):
+                found.setdefault(UNMEASURED_HOOKS, (name or "host", f"{unmeasured} pass-through hooks not measured "
+                                                      "(LockOrder::IgnoreFrames: no unwind entry of their own)", True))
             for report in status.get("lock_order", {}).get("reports", []):
                 match = LOCK_PATTERN.match(report)
                 sites = match.group(3) if match else report
@@ -251,6 +256,10 @@ class Observations:
                     sites = "kept apart: " + sites
                 found.setdefault(sites, (name or "host", report, bool(match and match.group(1)) and not kept_apart))
         return found
+
+    def new_lock_orders(ctx, known):
+        """lock_order_reports' (game, report, ours) since a baseline of them; an unmeasured hook stays a failure throughout."""
+        return [v for k, v in ctx.lock_order_reports().items() if k not in known or k == UNMEASURED_HOOKS]
 
     def save_file(ctx, instance, name):
         _game = ctx.game(instance)

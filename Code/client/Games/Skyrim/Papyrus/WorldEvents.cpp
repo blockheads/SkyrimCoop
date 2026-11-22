@@ -63,7 +63,7 @@ Hooks::Initializer s_hooks(
         const HookGate cGate(__FILE__);
         HOOK_ID(104800, &RealSendEvent, HookSendEvent);
         // Passes every script event through (trigger events under the Havok world lock): their lock orders are the engine's.
-        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookSendEvent), 0x150);
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookSendEvent));
     });
 } // namespace
 

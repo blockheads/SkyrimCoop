@@ -2,6 +2,7 @@
 #include "UpdateTrace.h"
 
 #include <Actor.h>
+#include <CrashHandler.h>
 #include <Diagnostics/Snapshot.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/HostService.h>
@@ -63,7 +64,53 @@ nlohmann::json Perf(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"perf", Diagnostics::PerfStatus(true, acRequest.value("window_ms", int64_t{60000}))}};
 }
 
-constexpr Command cCommands[] = {{"memory_sites", false, &MemorySites}, {"perf", false, &Perf}};
+struct WalkResult
+{
+    void* Frames[16];
+    int Count;
+    bool Ntdll;
+};
+
+__declspec(noinline) void WalkUnderStub(WalkResult* apResult) noexcept
+{
+    apResult->Count = apResult->Ntdll ? RtlCaptureStackBackTrace(0, 16, apResult->Frames, nullptr)
+                                      : CrashHandler::CaptureStack(apResult->Frames, 16);
+}
+
+// {"cmd": "stack_walk_check", "ntdll"?: true}: a stack walk under a stub shaped like SKSE's camera hook (a frame
+// of its own, no unwind data; docs/re/systems/stack-walk.md). "ntdll": the system's walk instead, which may crash.
+nlohmann::json StackWalkCheck(Harness&, const nlohmann::json& acRequest)
+{
+    constexpr uint8_t cCode[] = {0x41, 0x54,             // push r12
+                                 0x41, 0x55,             // push r13
+                                 0x48, 0x83, 0xEC, 0x28, // sub rsp, 28h
+                                 0x48, 0x89, 0xC8,       // mov rax, rcx
+                                 0x48, 0x89, 0xD1,       // mov rcx, rdx
+                                 0xFF, 0xD0,             // call rax
+                                 0x48, 0x83, 0xC4, 0x28, // add rsp, 28h
+                                 0x41, 0x5D,             // pop r13
+                                 0x41, 0x5C,             // pop r12
+                                 0xC3};                  // ret
+    constexpr size_t cReturnOffset = 16;
+    auto* pStub = static_cast<uint8_t*>(VirtualAlloc(nullptr, sizeof(cCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+    if (!pStub)
+        return Error("no page for the stub");
+    std::memcpy(pStub, cCode, sizeof(cCode));
+    FlushInstructionCache(GetCurrentProcess(), pStub, sizeof(cCode));
+    WalkResult result{.Ntdll = acRequest.value("ntdll", false)};
+    reinterpret_cast<void (*)(void (*)(WalkResult*) noexcept, WalkResult*)>(pStub)(&WalkUnderStub, &result);
+
+    nlohmann::json frames = nlohmann::json::array();
+    for (int i = 0; i < result.Count; ++i)
+        frames.push_back(Address(result.Frames[i]));
+    // The walk's own caller, then the stub's return address, and nothing guessed past it.
+    const bool cEndsAtStub = result.Count == 2 && result.Frames[1] == pStub + cReturnOffset;
+    nlohmann::json reply = {{"ok", true}, {"ends_at_stub", cEndsAtStub}, {"stub_return", Address(pStub + cReturnOffset)}, {"frames", std::move(frames)}};
+    VirtualFree(pStub, 0, MEM_RELEASE);
+    return reply;
+}
+
+constexpr Command cCommands[] = {{"memory_sites", false, &MemorySites}, {"perf", false, &Perf}, {"stack_walk_check", false, &StackWalkCheck}};
 } // namespace
 
 std::span<const Command> MemoryCommands()

@@ -80,6 +80,24 @@ class RuntimeTests(unittest.TestCase):
         ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": reports[:1], "stretches_overlapped": True}}
         self.assertTrue(Observations.lock_order_reports(ctx)[sites][2])
 
+    def test_an_unmeasured_pass_through_hook_fails_the_lock_audit(self):
+        from coop_harness.observations import Observations
+        ctx = Mock()
+        ctx.known_lock_patterns.return_value = set()
+        ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": [], "unmeasured_hooks": 1}}
+        self.assertTrue(Observations.lock_order_reports(ctx)["unmeasured hooks"][2])
+        ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": [], "unmeasured_hooks": 0}}
+        self.assertEqual(Observations.lock_order_reports(ctx), {})
+        # Unmeasured from boot, so already in every flow's baseline: it still fails the flow's audit.
+        ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": [], "unmeasured_hooks": 1}}
+        ctx.lock_order_reports.side_effect = lambda: Observations.lock_order_reports(ctx)
+        baseline = ctx.lock_order_reports()
+        self.assertEqual([ours for _, _, ours in Observations.new_lock_orders(ctx, baseline)], [True])
+        # Any other report in the baseline is still left out.
+        sites = "SkyrimSE.exe+0x1 > SkyrimSE.exe+0x2 vs SkyrimSE.exe+0x3 > SkyrimSE.exe+0x4"
+        ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": [f"[ours] lock order inversion [{sites}]"]}}
+        self.assertEqual(Observations.new_lock_orders(ctx, ctx.lock_order_reports()), [])
+
     def test_switching_runtime_replaces_an_older_same_size_loader(self):
         from coop_harness.runtime import Runtime
         with tempfile.TemporaryDirectory() as folder:

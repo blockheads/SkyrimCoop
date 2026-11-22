@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <CrashHandler.h>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -99,12 +100,12 @@ static std::filesystem::path s_abortLogPath;
 static void LogAbort(const char* apReason)
 {
     void* frames[48];
-    const USHORT cCount = RtlCaptureStackBackTrace(1, 48, frames, nullptr);
+    const int cCount = CrashHandler::CaptureStack(frames, 48, 1);
     FILE* pFile = _wfopen(s_abortLogPath.c_str(), L"a");
     if (!pFile)
         return;
     fprintf(pFile, "%s (thread %lu)\n", apReason, GetCurrentThreadId());
-    for (USHORT i = 0; i < cCount; ++i)
+    for (int i = 0; i < cCount; ++i)
     {
         HMODULE module = nullptr;
         char name[MAX_PATH] = "?";
