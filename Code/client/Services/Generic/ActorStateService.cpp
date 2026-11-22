@@ -140,7 +140,7 @@ ActorStateService::Applied ActorStateService::TryApply(uint32_t aId) noexcept
     const WeaponState cWeapon = m_actorBridge.GetWeaponState(cFormId);
     Applied applied{cFields.Dead || ActorStateRules::HandsSettled(part.HandsUp, cWeapon), {}};
     const auto cTried = m_handsTried.find(aId);
-    if (!cFields.Dead && ActorStateRules::PutsHandsRight(part.HandsUp, cWeapon) &&
+    if (!cFields.Dead && ActorStateRules::PutsHandsRight(part.HandsUp, cWeapon, cPlayback.has_value()) &&
         (cTried == m_handsTried.end() || cTried->second >= ActorStateRules::kHandsRetry))
     {
         m_handsTried[aId] = 0.0;

@@ -48,22 +48,29 @@ TEST_CASE("A copy enters its owner's kill move from the record, and leaves one i
     CHECK_FALSE(LeavesKillMove(false, true, false, true));
 }
 
-TEST_CASE("Drawn hands: the owner's settled state, put right on a copy once it is not mid-draw", "[actor-state][weapon-draw]")
+TEST_CASE("Drawn hands: the owner's settled state, put right on a copy once it is not mid-draw or on its stream", "[actor-state][weapon-draw]")
 {
     CHECK(SettledHands(WeaponState::Drawn, false) == true);
     CHECK(SettledHands(WeaponState::Sheathed, false) == false);
     CHECK_FALSE(SettledHands(WeaponState::Drawing, false).has_value()); // its copy's own draw handlers are on their way
     // A dying owner's hands drop with its death, which its copies play later: sent now, a copy would sheathe first.
     CHECK_FALSE(SettledHands(WeaponState::Sheathed, true).has_value());
-    CHECK(PutsHandsRight(true, WeaponState::Sheathed));
-    CHECK(PutsHandsRight(true, WeaponState::WantToDraw)); // a copy's refused request stays pending for good
-    CHECK_FALSE(PutsHandsRight(true, WeaponState::Drawing));
+    CHECK(PutsHandsRight(true, WeaponState::Sheathed, false));
+    CHECK(PutsHandsRight(true, WeaponState::WantToDraw, false)); // a copy's refused request stays pending for good
+    CHECK_FALSE(PutsHandsRight(true, WeaponState::Drawing, false));
+    // On its stream its own weaponDraw (42824) never comes: a draw left from before its stream is ended now.
+    CHECK(PutsHandsRight(true, WeaponState::Drawing, true));
+    CHECK(PutsHandsRight(false, WeaponState::Sheathing, false) == false);
+    CHECK(PutsHandsRight(true, WeaponState::Sheathing, true));
+    CHECK(PutsHandsRight(false, WeaponState::Sheathing, true)); // a sheathe the stream cut off ends sheathed
+    CHECK(PutsHandsRight(false, WeaponState::Drawing, true));   // a draw its owner has since put away
+    CHECK_FALSE(PutsHandsRight(false, WeaponState::Sheathed, true));
     CHECK_FALSE(HandsSettled(true, WeaponState::Drawing));    // looked at again once its animation ends
     CHECK_FALSE(HandsSettled(true, WeaponState::WantToDraw)); // a refused draw (37279) is tried again
     CHECK(HandsSettled(true, WeaponState::Drawn));
     CHECK(HandsSettled(false, WeaponState::Sheathed));
-    CHECK_FALSE(PutsHandsRight(true, WeaponState::Drawn));
-    CHECK(PutsHandsRight(false, WeaponState::WantToSheathe));
+    CHECK_FALSE(PutsHandsRight(true, WeaponState::Drawn, true));
+    CHECK(PutsHandsRight(false, WeaponState::WantToSheathe, false));
 }
 
 TEST_CASE("A copy's noise is its owner's: held while its owner's lasts, never its own engine's", "[actor-state][stealth]")

@@ -151,6 +151,11 @@ void CopyTeardown::Queue(uint32_t aFormId) noexcept        // any thread, any po
 
 ## Piece D: a copy starts whole
 
+**2026-11-22, step 0 rewrote it** (PR #95, `docs/re/systems/actor-state.md`, "What a copy's start leaves out"): no
+`StartPart`. Built: a copy on its stream not settled as its owner's is put right (the stuck draw, measured). Not
+built: sit state comes with the spawn's graph state already, the last action's window and the bow's `[0, bow]` writer
+were not found (bugs.md), and no drift needed the R3 ask.
+
 Entries: "A late joiner sees the host's copy stuck drawing", "A copy at Sheathed while its owner draws", "An action
 sent before its copy exists", "A seated owner's copy keeps an old action", townsfolk sitting on the host and standing
 on the guest ("After a guest rejoins", "A follower's party ahead of its copies"), the werewolf's copy stuck on its

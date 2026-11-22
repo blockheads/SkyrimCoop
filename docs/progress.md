@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **piece D of bugs-refactor-plan.md, rewritten by its step 0** (`agent/copy-starts-whole`;
+`docs/re/systems/actor-state.md`, "What a copy's start leaves out"). Read in IDA: only a draw's own `weaponDraw`
+(42824 -> ActorState vfunc 0x15, 38821/38979) writes Drawn; sit state comes with the spawn's graph state (not the
+stream's sync point). Measured: a copy put up off its stream (37279, weapon state 2) stayed at 2 once its stream's sync
+point restored its graph (its `weaponDraw` lost to the restore: inferred). On its stream a copy not settled as its
+owner's is now put right (`PutsHandsRight`'s `aOnStream`, both ways); `late-join-client` 4 of 4 (1 of 4 before),
+GameTests "A copy put right before its stream starts ends drawn" and "A copy mid-draw whose owner sheathed before its
+stream starts ends sheathed" (the fake's draw now ends at its own event, dropped by a sync point). No `StartPart`: the last action's window and the bow's
+`[0, bow]` writer were not found (bugs.md notes); sit state needs a measurement first.
+
 2026-11-22: **a plan for the open bugs after the ten pieces** ([bugs-refactor-plan.md](design/bugs-refactor-plan.md)):
 about half of the 56 share five causes. Two refactors (one copy teardown between frames, for the guest's crashes;
 "a copy starts whole", for copies made after a draw, a sit or an action), two tools first, the rest one at a time.
