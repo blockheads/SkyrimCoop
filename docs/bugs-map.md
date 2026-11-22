@@ -9,6 +9,9 @@ How sure each link is:
 - **measured**: seen on the duo, with the run named.
 - **inferred**: fits the evidence, nobody has shown it.
 
+The grouping of 2026-11-22 (after one-simulator's ten pieces) and what to build for it:
+[bugs-refactor-plan.md](design/bugs-refactor-plan.md).
+
 ## The map
 
 ```

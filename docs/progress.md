@@ -49,6 +49,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **a plan for the open bugs after the ten pieces** ([bugs-refactor-plan.md](design/bugs-refactor-plan.md)):
+about half of the 56 share five causes. Two refactors (one copy teardown between frames, for the guest's crashes;
+"a copy starts whole", for copies made after a draw, a sit or an action), two tools first, the rest one at a time.
+Proposed, nothing built.
+
 2026-11-22: **the full suite on dev after one-simulator pieces 1-10** (`agent/bugs-audit-suite`): 364 of 423 default
 scenarios pass; of bugs.md's 62 entries 3 closed, 3 unclear, 56 still open; 8 new (six guest crashes through a pointer that holds a vtable among them).
 Details: "Test suite", 2026-11-22.
