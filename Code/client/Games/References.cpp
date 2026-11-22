@@ -222,7 +222,7 @@ static Hooks::Initializer s_referencesHooks(
         HOOK_ID(38959, &RealInitFromPackage, HookInitFromPackage);
         HOOK_ID(39114, &RealCheckForNewPackage, HookCheckForNewPackage);
         // Every actor's package pick runs through it: a lock order there is the engine's unless a copy's (KeepCopyPackage).
-        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookCheckForNewPackage), 0x70);
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookCheckForNewPackage));
         HOOK_ID(51093, &RealSetCurrentPickREFR, HookSetCurrentPickREFR);
         HOOK_ID(37570, &RealPutCreatedPackage, HookPutCreatedPackage);
     });

@@ -21,6 +21,34 @@ TEST_CASE("Pass-through travel frames do not hide a real engine callback", "[loc
     CHECK(IntroducedByUs(boundary, module, passThrough));
 }
 
+TEST_CASE("A report names the frame that made it ours", "[locks]")
+{
+    using namespace LockOrderAttribution;
+    constexpr Range module{0x1000, 0x3000};
+    constexpr std::array passThrough{Range{0x2000, 0x2100}};
+    // Checker -> engine -> pass-through hook -> engine -> our service.
+    constexpr std::array<uintptr_t, 5> frames{0x1100, 0x5000, 0x2050, 0x6000, 0x1800};
+    CHECK(OurFrame(frames, module, passThrough) == 4);
+    CHECK(OurFrame(frames, module, {}) == 2);
+    constexpr std::array<uintptr_t, 3> engineOnly{0x1100, 0x5000, 0x2050};
+    CHECK(OurFrame(engineOnly, module, passThrough) == -1);
+}
+
+TEST_CASE("A pass-through hook's code is its own unwind entry", "[locks]")
+{
+    using namespace LockOrderAttribution;
+    // HookUpdateAI in the 2026-11-16 build: written as 0x50, its entry 0x5F long, its call returning at +0x59.
+    constexpr uintptr_t cBase = 0x180000000;
+    const auto cRange = PassThroughRange(0x180BDA8E0, cBase, 0xBDA8E0, 0xBDA93F);
+    REQUIRE(cRange);
+    CHECK(cRange->second - cRange->first == 0x5F);
+    constexpr std::array<uintptr_t, 3> frames{0x180001100, 0x140005000, 0x180BDA8E0 + 0x59};
+    CHECK_FALSE(IntroducedByUs(frames, {cBase, 0x182000000}, std::array{*cRange}));
+    // An entry that is not the hook's own (a leaf hook inside its caller's entry), or empty: none.
+    CHECK_FALSE(PassThroughRange(0x180BDA8E0, cBase, 0xBDA800, 0xBDA93F));
+    CHECK_FALSE(PassThroughRange(0x180BDA8E0, cBase, 0xBDA8E0, 0xBDA8E0));
+}
+
 TEST_CASE("An inversion between the main loop's tasks and our update is kept apart by the frame", "[locks]")
 {
     using namespace LockOrderAttribution;

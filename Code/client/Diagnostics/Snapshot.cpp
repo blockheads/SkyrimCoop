@@ -45,7 +45,8 @@ nlohmann::json LockOrderStatus()
     const auto cStats = LockOrder::GetStats();
     return {{"enabled", cStats.Enabled}, {"edges", cStats.Edges}, {"reports", LockOrder::GetReports()},
             {"overlaps", LockOrder::GetOverlaps()}, {"report_count", cStats.Reports}, {"too_deep", cStats.TooDeep},
-            {"table_full", cStats.TableFull}, {"table_resets", cStats.TableResets}, {"stretches_overlapped", cStats.StretchesOverlapped}};
+            {"table_full", cStats.TableFull}, {"table_resets", cStats.TableResets}, {"stretches_overlapped", cStats.StretchesOverlapped},
+            {"unmeasured_hooks", cStats.Unmeasured}};
 }
 
 // Game form IDs of the items an actor has equipped (worn armor, weapons, spells).

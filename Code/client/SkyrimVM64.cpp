@@ -29,8 +29,8 @@ static TVMDestructor* VMDestructor = nullptr;
 // The VM's update ran since the last main loop tick (it does not at the main menu).
 static std::atomic<bool> s_vmUpdated{false};
 
-// Each in its stretch of the frame for the lock checker (lock-order.md); out of line, so the pass-through hooks
-// keep the sizes IgnoreFrames gives them.
+// Each in its stretch of the frame for the lock checker (lock-order.md); out of line, so what they run counts as
+// ours and not as the pass-through hook.
 __declspec(noinline) static void UpdateInStretch()
 {
     const LockOrder::FrameStretch cStretch(LockOrderAttribution::kOurUpdate);
@@ -95,8 +95,8 @@ static Hooks::Initializer s_mainHooks(
         HOOK_ID(53926, &VMUpdate, HookVMUpdate);
         HOOK_ID(36564, &MainLoop, HookMainLoop);
         // Every main thread stack runs through them: the engine's own lock orders there are not ours.
-        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookMainLoop), 0x180);
-        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookVMUpdate), 0x80);
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookMainLoop));
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookVMUpdate));
         HOOK_ID(40412, &VMDestructor, HookVMDestructor);
     });
 
