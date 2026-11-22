@@ -258,18 +258,20 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
                                {"mount", actors.IsActorMount(aFormId)}, {"dragon", actors.IsActorDragon(aFormId)}};
     if (const auto cLooks = EngineReads::GetBaseLooks(aFormId))
         identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}, {"level", cLooks->Level}});
-    // Its ragdoll now: how many bodies are awake and the fastest one's speed (a body still moving or jittering).
+    // Its ragdoll now: how many bodies are in the physics world and awake, and the fastest one's speed (a body still
+    // moving or jittering). A standing actor's are out of the world.
     nlohmann::json ragdoll;
     if (const auto cBodies = EngineReads::GetRagdoll(aFormId); cBodies && !cBodies->empty())
     {
-        int awake = 0;
+        int awake = 0, inWorld = 0;
         float fastest = 0.f;
         for (const auto& cBody : *cBodies)
         {
+            inWorld += cBody.InWorld;
             awake += cBody.Awake;
             fastest = std::max(fastest, std::hypot(cBody.Velocity[0], cBody.Velocity[1], cBody.Velocity[2]));
         }
-        ragdoll = {{"bodies", cBodies->size()}, {"awake", awake}, {"fastest", fastest}};
+        ragdoll = {{"bodies", cBodies->size()}, {"in_world", inWorld}, {"awake", awake}, {"fastest", fastest}};
     }
     nlohmann::json pose; // null: no 3D or no floor found
     if (const auto cPose = EngineReads::GetBodyPose(aFormId))

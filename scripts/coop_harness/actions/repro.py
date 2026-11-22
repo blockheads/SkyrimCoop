@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
-from ..comparisons import describe_world_differences, flatten
+from ..comparisons import body_problems, describe_world_differences, flatten
 from ..duo_lock import IDLE_MINUTES
 from ..errors import TestFailure
 from ..utilities import log
@@ -75,6 +75,29 @@ def name_handles(actors):
             handle = f"{base}_{count}"
         named[handle] = actor
     return named
+
+
+def stand_problems(row):
+    """Why a player's snapshot does not show it standing on its feet: a subject `body_problems` does not judge (not a
+    player, dead, knocked down, seated, riding, swimming, no pose) is a problem too, then its body's, then ragdoll
+    bodies left in the physics world. Empty: it stands."""
+    if not row:
+        return ["no snapshot"]
+    if not row.get("player"):
+        return ["not a player: its body is not judged"]
+    state, placement = row.get("state") or {}, row.get("placement") or {}
+    water = (row.get("mod") or {}).get("water") or {}
+    held = [why for why, on in (("dead", state.get("dead")), (f"knock state {state.get('knock')}", state.get("knock")),
+                                (f"seated {state.get('sit_sleep')}", state.get("sit_sleep")), ("riding", placement.get("riding")),
+                                ("getting on or off", placement.get("getting_on_off")), ("swimming", water.get("swimming"))) if on]
+    if held:
+        return ["not standing: " + ", ".join(held)]
+    if not row.get("pose"):
+        return ["body: no pose reading"]
+    problems = body_problems(row)
+    if in_world := (row.get("ragdoll") or {}).get("in_world"):
+        problems.append(f"ragdoll: {in_world} bodies still in the physics world")
+    return problems
 
 
 def brief(row, full=False):
@@ -1088,6 +1111,8 @@ class ReproActions:
             return {"eye": ctx.eyes(name)}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
+        if check == "stands":  # `name`'s body in `game` (or each) stands on its feet, its ragdoll out of the world
+            return ctx.expect_stands(name, game, seconds)
         if check == "crosshair":
             return ctx.expect_crosshair(name, game, seconds or 2.0)
         if check == "stays":
@@ -1256,6 +1281,25 @@ class ReproActions:
                 raise ctx.failure(f"{name}: its body is {got} degrees off facing {of}, expected within {within:g}")
             time.sleep(0.2)
         return {"degrees_off": got}
+
+    def expect_stands(ctx, name, game, seconds=0.0):
+        """`name`, a player, stands on its feet as a person sees it in `game` (or each) within `seconds` (stand_problems)."""
+        games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
+        ctx.refresh_handles()
+        def problems():
+            found = {}
+            for label, instance in games:
+                if wrong := stand_problems(ctx.actor_row(instance, ctx.resolve(name, label))):
+                    found[label] = wrong
+            return found
+        if seconds and problems():
+            try:
+                ctx.wait_for(f"{name}: stands on its feet", lambda: not problems(), seconds)
+            except TestFailure:
+                pass
+        if found := problems():
+            raise ctx.failure(f"{name}: does not stand: " + " | ".join(f"[{label}] {'; '.join(p)}" for label, p in found.items()))
+        return {"stands": [label for label, _ in games]}
 
     def expect_actor(ctx, name, field, game, value, seconds=0.0, stays=False):
         """`field` of a handle's snapshot (ai.follow_target, state.dead) as expected within `seconds`, or, with `stays`,

@@ -569,3 +569,40 @@ SCENARIO("A player dies holding a drawn sword: it stays in their hands, out of r
         }
     }
 }
+
+// Skyrim, 2026-11-22 (physics.md, "A revived player's ragdoll stays in the world"): a graph whose ragdoll is in the
+// world at its update is listed for the step, and the step's ragdoll pass (63562) puts back any body taken out since.
+SCENARIO("A death's ragdoll taken out in our update comes back at the step; queued, it stays out", "[death][physics]")
+{
+    Party party(1, Plugins);
+    auto& guest = Party::Engine(party.Guest());
+    party.Agree("the players are present");
+    party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+    party.Until([&] { return guest.Actors.at(FakeEngine::kPlayer).RagdollInWorld; }, "the guest's death puts its ragdoll in the world");
+    Frames(party, 2);
+    party.As(party.Guest(), [&] { guest.RemoveRagdollAtOnce(FakeEngine::kPlayer); });
+    Frames(party, 2);
+    CHECK(guest.Actors.at(FakeEngine::kPlayer).RagdollInWorld);
+    party.As(party.Guest(), [&] { guest.EndPlayerRagdoll(); });
+    Frames(party, 2);
+    CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).RagdollInWorld);
+}
+
+SCENARIO("A revived guest's skeleton stays on its feet after it travels", "[death][physics]")
+{
+    Party party(1, Plugins);
+    auto& guest = Party::Engine(party.Guest());
+    party.Agree("the players are present");
+    party.As(party.Guest(), [&] { guest.PlayerStands(kSmoke, {-300.f, 100.f, 0.f}); });
+    party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+    auto& death = party.Guest().ctx().at<DeathService>();
+    party.Until([&] { return death.IsDown(); }, "the guest is down");
+    party.Until([&] { return guest.Actors.at(FakeEngine::kPlayer).RagdollInWorld; }, "its death puts its ragdoll in the world");
+    party.Until([&] { return !death.IsDown(); }, "the guest respawns", {}, nullptr, std::chrono::seconds(30));
+    Frames(party, 10);
+    // A trip somewhere 2,100 units lower (QASmoke to Riverwood, as kill-moves-cross then host-rides-horse did).
+    party.As(party.Guest(), [&] { guest.PlayerStands(kSmoke, {-300.f, 100.f, -2100.f}); });
+    Frames(party, 10);
+    CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).RagdollInWorld);
+    CHECK(guest.PelvisAboveFeet(FakeEngine::kPlayer) == Approx(71.f));
+}

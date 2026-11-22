@@ -86,7 +86,6 @@ Actor::CastPermanentMagic(true, false, false, false)        worn enchantments
 Actor::ApplyPerksFromBase (vfunc 0x101)                     perks' abilities (no duplicates on a repeat)
 addedSpells through the instant caster               34402  AddSpell abilities, diseases too
 Actor::DoReset3D(true)                               40255  the skeleton out of the death ragdoll
-RemoveRagdollFromWorld on every graph                63622  the ragdoll out of the physics world (below)
 boolFlags |= kShouldAnimGraphUpdate | kCanSpeak             the graph runs, it speaks
 the hands again (UnEquip, Equip; EquipSpell)                PlayerCharacter::Resurrect 40491 replaced the process
 PlayerCamera::LeaveBleedout                          50824  the death camera (bleedout state 11) back to the player
@@ -109,14 +108,16 @@ LatestAnimation cleared                                     a copy made now star
   an actor's 3D loads (`Actor::Load3D`, `Set3D`, `SwitchRace` call 38753); a save load takes them the other way, never
   at the same time (`scripts/lock_order_known.txt`).
 
-- **The ragdoll** (2026-10-26). After a death by kill move, `DoReset3D` left the player's ragdoll in the physics
-  world: 18 bodies dynamic and awake at 300-500 units/s while the revived player stood, its skeleton half driven by
-  them (pelvis 90-104 above its feet, 71 standing; the body seen floating and twitching). A plain death left it too
-  once a kill-move death had. A living player has no ragdoll in the world (0 bodies), so Revive takes it out as
-  Papyrus `ObjectReference.ForceRemoveRagdollFromWorld` does: the functor (56128) calls
-  `BShkbAnimationGraph::RemoveRagdollFromWorld` (vfunc 3, 63622; CommonLibSSE-NG `BSIRagdollDriver`) on every graph
-  under the manager's lock (`Havok/Ragdoll.cpp`). `kill-move-kills-guest` checks the respawned body (fails without it:
-  pelvis 95, 18 bodies awake; passes with it).
+- **The ragdoll** (2026-10-26, corrected 2026-11-22). A death puts the player's ragdoll in the physics world, and a
+  revive does not take it out: its bodies stay dynamic, and the standing graph's rigid-body controls keep the skeleton
+  on them. In place it looks almost right (pelvis 90-104 above its feet against 71); after a trip the skeleton stays
+  with the bodies (2,100 units up and 48,000 across after `coc Riverwood`). Taking it out from our update
+  (`RemoveRagdollFromWorld` 63622, as Revive did until 2026-11-22) lasts one frame: the graph was listed for the
+  physics step at its update, and the step's ragdoll pass puts every body back. So `DeathService` asks the bridge
+  after the revive (`EndPlayerRagdoll`), which queues it on the engine's task pool as vanilla ends a ragdoll
+  (`QueueRemoveFromWorld` 36924; `docs/re/systems/physics.md`, "A revived player's ragdoll stays
+  in the world"). `revived-guest-stands-after-travel` and GameTests "A revived guest's skeleton stays on its feet
+  after it travels" check it.
 
 A revived player knocked down later gets up again, and its copy lies with it (`revived-guest-gets-up`: after a plain
 death and after a kill move, 2026-11-18; it stayed getting up, knock state 6, on 2026-10-26, before copies went down

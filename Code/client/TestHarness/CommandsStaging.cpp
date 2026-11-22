@@ -1,6 +1,7 @@
 #include "Commands.h"
 #include "ConsoleOutput.h"
 #include "EngineCalls.h"
+#include "RagdollWatch.h"
 #include "SwingWatch.h"
 
 // Setting up a scenario: console lines, menus, the camera, where the player stands, a copy's drift.
@@ -202,6 +203,25 @@ nlohmann::json LastSwing(Harness&, const nlohmann::json&)
     return answer;
 }
 
+// {"cmd": "ragdoll_adds", "clear": false}: each time this game's player's ragdoll was added to the world, with the
+// caller's RVA, and each pre-physics pass that found it out of the world and put it back (TestHarness::RagdollWatch).
+nlohmann::json RagdollAdds(Harness&, const nlohmann::json& acRequest)
+{
+    auto adds = nlohmann::json::array();
+    for (const auto& cAdd : RagdollWatch::Adds(acRequest.value("clear", false)))
+        adds.push_back({{"tick", cAdd.Tick}, {"caller", std::format("{:X}", 0x140000000 + cAdd.CallerRva)}});
+    auto readds = nlohmann::json::array();
+    for (const auto& cReadd : RagdollWatch::PrePhysicsReadds(acRequest.value("clear", false)))
+        readds.push_back(cReadd.Tick);
+    return {{"ok", true}, {"adds", adds}, {"pre_physics_readds", readds}, {"now", GetTickCount64()}};
+}
+
+// {"cmd": "ragdoll_out", "queued": false}: the player's ragdoll out of the world now (TestHarness::RagdollWatch::TakeOut).
+nlohmann::json RagdollOut(Harness&, const nlohmann::json& acRequest)
+{
+    return RagdollWatch::TakeOut(acRequest.value("queued", false)) ? Ok() : Error("no player or no graph");
+}
+
 // {"cmd": "place", "target": id, "distance": 120, "bearing": 90}: the player stands that far from the reference (on the
 // bearing's side if given), facing it (a move, not a teleport). With "position": [x, y, z], it stands there (its
 // feet), facing the target if one is given: coop_test.py picks a spot it checked with rays.
@@ -243,7 +263,7 @@ nlohmann::json Wake(Harness&, const nlohmann::json& acRequest)
 
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
-    {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing},
+    {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing}, {"ragdoll_adds", false, &RagdollAdds}, {"ragdoll_out", false, &RagdollOut},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"put_on_mount", true, &PutOnMount}, {"board_ridden", true, &BoardRidden}, {"seat_on_mount", true, &SeatOnMountCommand}, {"sit_on_mount_quick", true, &SitOnMountQuickCommand}, {"take_reins", true, &TakeReinsCommand}, {"graph_event", true, &GraphEventCommand}, {"activate_text", true, &ActivateTextCommand}, {"clear_map_marker", true, &ClearMapMarker},
     {"wake", true, &Wake},
     {"body_velocity", true, &BodyVelocity},

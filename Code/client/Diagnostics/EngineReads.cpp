@@ -528,6 +528,43 @@ std::optional<std::vector<RagdollBody>> GetRagdoll(uint32_t aActorFormId) noexce
     return bodies;
 }
 
+std::optional<RagdollDriverRead> GetRagdollDriver(uint32_t aActorFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aActorFormId));
+    BSAnimationGraphManager* pManager = nullptr;
+    if (!pActor || !EngineVirtual(pActor->animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+        return std::nullopt;
+    std::optional<RagdollDriverRead> read;
+    {
+        BSScopedLock<BSRecursiveLock> _{pManager->lock};
+        const BShkbAnimationGraph* pGraph = pManager->animationGraphIndex < pManager->animationGraphs.size
+                                                ? pManager->animationGraphs.Get(pManager->animationGraphIndex)
+                                                : nullptr;
+        if (const hkbRagdollDriver* pDriver = pGraph ? pGraph->character.ragdollDriver : nullptr; pDriver && pDriver->ragdoll)
+        {
+            read = RagdollDriverRead{pDriver->isEnabled, pDriver->isPoweredControllerEnabled, pDriver->isRigidBodyControllerEnabled,
+                                     pDriver->ragdollPoseWasUsed, pDriver->allBonesKeyframed, pGraph->hkWorldM != nullptr, {-1.f, -1.f, -1.f, -1.f}, {}};
+            const hkbGeneratorOutput* pOutput = pGraph->generatorOutputs[0];
+            if (const hkbGeneratorOutputTracks* pTracks = pOutput ? pOutput->tracks : nullptr)
+            {
+                constexpr int cTracks[4]{4, 6, 8, 9};
+                for (int i = 0; i < 4; ++i)
+                    if (cTracks[i] < pTracks->numTracks)
+                        read->Tracks[i] = pTracks->headers[cTracks[i]].onFraction;
+                if (pTracks->numTracks > 8)
+                {
+                    const auto& cBones = pTracks->headers[8];
+                    const auto* pValues = reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(pTracks) + cBones.dataOffset);
+                    for (int16_t i = 0; i < cBones.numData && i < 255; ++i)
+                        read->KeyframedBones.push_back(pValues[i]);
+                }
+            }
+        }
+    }
+    pManager->Release();
+    return read;
+}
+
 float GetRawDaysPassed() noexcept
 {
     const TimeData* pTime = TimeData::Get();

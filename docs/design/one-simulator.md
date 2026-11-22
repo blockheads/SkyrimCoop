@@ -779,7 +779,8 @@ stream themselves.
   weapon", "References differ" (the leveled containers).
 - **Piece 4 (5):** "Crossed kill moves: a short winner's blow lands first", "A kill move that never pairs", "A
   frozen NPC a guest's kill move missed", `host-kill-move`'s missing `KillActor`, "A passenger jumps 57 units as
-  it takes the reins". To watch: "After a kill move the guest's own body floats" (unread).
+  it takes the reins". "After a kill move the guest's own body floats" was not a kill move's: any death's ragdoll left in the world (fixed
+  2026-11-22, physics.md, "A revived player's ragdoll stays in the world").
 - **Piece 6 (4):** "A chest lid's pose", "The host shows a guest's relief box", "Doors the host's NPCs unlock",
   "The host's roll for a guest's loot".
 - **Piece 7 (2):** "A guest's summon", "References a guest's script creates".
