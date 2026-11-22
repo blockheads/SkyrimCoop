@@ -50,7 +50,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 ## News
 
 2026-11-22: **the full suite on dev after one-simulator pieces 1-10** (`agent/bugs-audit-suite`): 364 of 423 default
-scenarios pass; of bugs.md's 62 entries 4 closed, 2 unclear, 56 still open; 8 new (six guest crashes through a pointer that holds a vtable among them).
+scenarios pass; of bugs.md's 62 entries 3 closed, 3 unclear, 56 still open; 8 new (six guest crashes through a pointer that holds a vtable among them).
 Details: "Test suite", 2026-11-22.
 
 2026-11-21: **ragdolls follow the pile rule, scenery is nobody's: piece 10 of one-simulator.md, built**
@@ -2177,9 +2177,8 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   failure ran again in a shuffled order (23 of 59 passed: order or chance), each entry's passing scenario 3 more times,
   and the kill-move-then-ride pairs twice. Run logs: the worktree's `build/coop-test/results/`. Against
   [bugs.md](bugs.md):
-  - Closed, 4 (scenario passes and a fast test covers it, or the comparison it failed is gone by design): "A copy's graph after a turn or a pick" (the live check read no
-    run of 2 s apart through `death-spectate-host`, `death-spectate-guest`, `party-travel-dead-guest`; GameTests "Each
-    player's copy is on its owner's graph stream on every other game"), "The guest player's copy wears nothing"
+  - Closed, 3 (scenario passes and a fast test covers it, or the comparison it failed is gone by design): "The guest
+    player's copy wears nothing"
     (`dialogue-picked-text-visual` 4 of 4, the entry's own close condition; `quest-gold-turn-in-guest` and
     `dialogue-options-are-the-partys` pass; GameTests "A quest's outfit rebuild cannot leave a player's copy partly
     undressed"), "A spawn's inventory over a newer equip" (`host-loads-party` 4 of 4, `host-quickloads-party` 3 of 4,
@@ -2189,16 +2188,25 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
     showed again), a bullet each of "After a guest rejoins" (the Skeleton: its second clean run), "Failures only deep"
     (`party-aggro-host-first`, `furniture-host-player` 4 of 4), and the index's stale line for "A party wipe's fight
     that misfires" (its section was gone).
-  - Unclear, kept: "A strafing copy catches for a frame" and "A player at a chest reads lower than its copy" pass 4 of
-    4 where they failed every run, but nothing shows what fixed them and no fast test covers them; the same for
+  - Unclear, kept, 3: "A strafing copy catches for a frame" and "A player at a chest reads lower than its copy" pass 4
+    of 4 where they failed every run, but nothing shows what fixed them and no fast test covers them; "A copy's graph
+    after a turn or a pick" (the live check read no run of 2 s apart through the three death scenarios, but no fast
+    test has a wolf's copy beside a player's death). The same for
     `guest-swaps-armor-after-join` and `party-buys-horse-guest` (bullets in their entries).
+  - Not exercised by the run (no scenario, mods, a dump, or a playthrough flow; each entry says so or has no line
+    of 2026-11-22): "A copy's interaction idle", "Animation mods' random picks", "Creature copies wobble", "A
+    follower stops following" (its scenario failed on another shape), "A deleted copy in an AI job", "The scratch
+    save in the Load list", "Quest start and stop events", "The host's copy after a door", "Players stacked after a
+    door", "A guest's crash loading a wipe's save", "A guest crash at the main menu", "A guest's store of an item held
+    in a list", "A guest crashed loading a copy's idle clips", "Sync points asked for over and over", "Heap history
+    crashes the host at a kill move".
   - Still open, with the run's evidence in each: the other 56, among them the floating body after a kill
     move (4 of 4), the refused joins, the highlight, cover plates, clutter, the crime scenarios (two arrests pass now),
-    the werewolf's copy (2 of 2: the stuck transform shows, no crash), a copy without its weapon (shown by scenarios
-    now: a bow's left hand).
-  - New: "A guest crash through a pointer that holds a vtable" (six guest crashes, the written addresses vtables;
-    the crash sites commented in IDA), "A guest crash in the clip-load hook with no World", "A late joiner never sees
-    the host's drawn sword", "A copy that sheathes while its owner fights", "The party's sword unnamed at a
+    the werewolf's copy (2 of 2: the stuck transform shows, no crash), a copy without its weapon (still unreproduced;
+    a sheathed bow's hand slot differs in two scenarios).
+  - New: "A guest crash through a pointer that holds a vtable" (six guest crashes writing through a register that
+    holds a vtable's address, measured; the crash sites commented in IDA; freed memory reused is inferred), "A guest crash in the clip-load hook with no World", "A late joiner sees the
+    host's copy stuck drawing", "A copy at Sheathed while its owner draws", "The party's sword unnamed at a
     merchant", "A dragged corpse's copy apart from its owner", "A staging spot 1500 units off with no floor" (test
     tools), and "Seen once in the run of 2026-11-22" (ten one-off failures).
 ## Loose ends

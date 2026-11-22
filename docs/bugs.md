@@ -47,6 +47,7 @@ every other section needs the duo.
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
+- [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
@@ -142,8 +143,8 @@ every other section needs the duo.
 
 - [A guest crash through a pointer that holds a vtable](#a-guest-crash-through-a-pointer-that-holds-a-vtable): medium
 - [A guest crash in the clip-load hook with no World](#a-guest-crash-in-the-clip-load-hook-with-no-world): small
-- [A late joiner never sees the host's drawn sword](#a-late-joiner-never-sees-the-hosts-drawn-sword): small
-- [A copy that sheathes while its owner fights](#a-copy-that-sheathes-while-its-owner-fights): small
+- [A late joiner sees the host's copy stuck drawing](#a-late-joiner-sees-the-hosts-copy-stuck-drawing): small
+- [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws): small
 - [The party's sword unnamed at a merchant](#the-partys-sword-unnamed-at-a-merchant): small
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
 - [Seen once in the run of 2026-11-22](#seen-once-in-the-run-of-2026-11-22): small
@@ -221,6 +222,26 @@ Size: small. Needs: IDA, then the duo (Riverwood), then GameTests.
   `MT_Standing_State` with `MT_Idle.HKX`, her copy in `MT_LocomotionType_State`. Same actor, not shown to be the same
   cause. `actors-walk-after-arrival`'s 12 s in Riverwood is too short: watch her by `ids`.
 - Loading the owner's snapshot (tried and reverted) put the copy in it, and it left at once.
+
+### A copy's graph after a turn or a pick
+
+**Unclear, 2026-11-22:** the live check read no run of 2 s apart through `death-spectate-host` (48 samples),
+`death-spectate-guest` (84) and `party-travel-dead-guest` (69) on dev `aa723513`, one run each. No fast test has a
+wolf's copy beside a player's death, so the entry stays until one does.
+
+One shape left of the old live check's runs of 2 s or more. The others (a wolf's turns, creatures' idle picks, the
+counter idle's pick) were a copy's graph fed different inputs: on the graph input stream every streamed copy equals
+its owner at every update (`wolf_copy_turns_with_owner` 180 s, Whiterun 120 s, `npc-counter-copy-falls-back-in`,
+2026-11-09).
+
+Agent task: rerun the death scenarios with the stream's live check (`expect stream`) and say whether this shape is left.
+
+Size: small. Needs: the duo (`death-spectate-host`, `death-spectate-guest`, `party-travel-dead-guest`).
+
+- **A wolf `Attack1State` beside a player's death** (`FF000E05`, 13.8 s, `death-spectate-host`; `FF000826`, 15.4 s,
+  `death-spectate-guest`; `FF000859`, 7.7 s, and `FF000D74`, 8.8 s, `party-travel-dead-guest`, until the actor stopped being
+  read; all before the stream): its owner's `RootBehavior` stays in the attack, its copy in combat idle. May be the
+  owner's graph held by the kill: [After the host dies](#after-the-host-dies).
 
 ### Headtracking on copies
 
@@ -323,12 +344,13 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   nothing (harness `reset_worn` on Aela's copy: hands [0, 0], her owner's torch and bow). The repair now checks each
   hand holds its worn weapon or torch (GameTests "A copy whose hands the engine's outfit reset emptied holds its
   owner's weapon again"). Not closed: no scenario of play that fails on dev shows a copy without its weapon.
-- **Shown by scenarios now** (2026-11-22, dev `aa723513`): `rejoined-guest-sees-rider` 2 of 2 ends with Faendal's copy
-  on the guest holding `[0, 80261]` where his owner holds `[80261, 80261]` (`state.hands`, left hand empty), and
-  `elder-scroll-vision-reaches-party` (late save) ends with the host player's copy on the guest at `[0, 80260]` against
-  `[80260, 80260]`. Both are bows (`13985` Hunting Bow, `13984` Long Bow), one form the process holds in both hands,
-  and the copy lost the left: the hand a bow is drawn in. Start from `rejoined-guest-sees-rider`'s `at-failure.json`:
-  what the hand repair compares for a form held in both hands, and whether the bow's 3D shows.
+- **A hand-slot difference in scenarios** (2026-11-22, dev `aa723513`): `rejoined-guest-sees-rider` 2 of 2 ends with
+  Faendal's copy on the guest holding `[0, 80261]` where his owner holds `[80261, 80261]` (`state.hands`, the process's
+  slots), and `elder-scroll-vision-reaches-party` (late save) with the host player's copy at `[0, 80260]` against
+  `[80260, 80260]`. Both are bows (`13985` Hunting Bow, `13984` Long Bow), sheathed on both games (`weapon_state` 0,
+  `weapon_drawn` false), the copy still holding the bow in the other slot. So it is a slot-0 mismatch on a sheathed
+  bow; whether it shows (a drawn bow, its 3D) is not observed, and the user's report stays unreproduced. Start from
+  `rejoined-guest-sees-rider`'s `at-failure.json`: what the hand repair compares for a form held in both slots.
 
 ### End comparisons in towns
 
@@ -643,6 +665,8 @@ counts as in combat (the restart skipped, no later package change).
     deleted or other-interior target, its load drops a temporary target, and the package pick never restarts an
     unchanged package ([followers.md](re/systems/followers.md)). Staged NPCs are restrained (`stage`'s default
     `frozen`): a restrained follower reads no target until released, which looks like this entry.
+- 2026-11-22, dev `aa723513`: `save-load-gate` failed 2 of 2 on townsfolk copies at its comparison before removing
+  its follower ([A follower's party ahead of its copies](#a-followers-party-ahead-of-its-copies)), not on this shape.
 
 ### A guest's recruitment stalls
 
@@ -932,6 +956,8 @@ two expected items. First seen in this run. Unread: what `F11B6` is and which si
 Agent task: read where `F11B6` came from, in the guest's log and the host's.
 
 Size: small. Needs: the duo.
+- 2026-11-22, dev `aa723513`: not seen in 2 runs (the full run stopped earlier, at "[client] the Body category is
+  open"; the rerun passed whole).
 
 ### A guest's store of an item held in a list
 
@@ -1273,6 +1299,7 @@ Size: small. Needs: the duo, IDA.
 Agent task: reproduce with the heap history on (`coop_test.py repro`), running the five scenarios the crash note names.
 
 Size: medium. Needs: the duo, IDA.
+- 2026-11-22, dev `aa723513`: `guest-rides-across-border` passed 1 of 1 (not after a failed `host-rides-horse`).
 
 ### A respawned player's draw that does nothing
 
@@ -1386,9 +1413,9 @@ worktree. Engine paths are still to be read (step 0, CLAUDE.md) unless an entry 
 
 ### A guest crash through a pointer that holds a vtable
 
-The guest's game crashed six times in about three hours of scenarios, every time writing through an object pointer
-whose value is the address of a class's vtable in `.rdata` (read in IDA: the written addresses are vtables or vtable+8,
-each crash site commented in the database). Never the host's game.
+The guest's game crashed six times in about three hours of scenarios, every time writing through a register whose
+value is the address of a class's vtable in `.rdata` (measured in the crash logs; the addresses identified in IDA as
+vtables, each crash site commented in the database). Never the host's game.
 
 Agent task: catch one with the heap history on (`coop_test.py repro`, [Heap history crashes the host at a kill
 move](#heap-history-crashes-the-host-at-a-kill-move) first) and name the object freed while a movement or package
@@ -1397,58 +1424,62 @@ pointer still held it.
 Size: medium. Needs: IDA, the duo (`guest-ivarstead-fine-mouse-sweep` crashed 2 of 2, `guest-ivarstead-jail-mouse`
 1 of 2), then GameTests.
 
-- The six, measured (crash logs, 2026-11-22 03:25 to 05:08):
-  - `sub_141236FC0` (92960) writes `[rcx+8]` with rcx a vtable: `BGSAIWorldLocationRefRadius`'s
-    (`guest-ivarstead-jail-mouse`, 03:25) and `MovementMessagePathFailed`'s (`host-ingredient-knowledge-control`,
-    05:06); both from `Actor::SetMovementPath` (37801) -> `ActorMover::SetGoal` (41607) ->
-    `MovementPathManagerArbiter::EndPath` (90880), an AI package's procedure tree (28920-28930) under
+- The six, measured (crash logs, 2026-11-22 03:25 to 05:08). The vtables, by Address Library ID:
+  `BGSAIWorldLocationRefRadius` 200713, `BGSPackageDataLocation` 200914, `MovementMessagePathFailed` 246823,
+  `BaseExtraList` 422045. The caller chains are the crash logger's stacks, not read in IDA.
+  - At 92960 (`[rcx+8]` written): rcx = 200713 (`guest-ivarstead-jail-mouse`, 03:25) and rcx = 246823
+    (`host-ingredient-knowledge-control`, 05:06). Stack: `Actor::SetMovementPath` (37801) -> `ActorMover::SetGoal`
+    (41607) -> `MovementPathManagerArbiter::EndPath` (90880), under an AI package's procedure tree (28920-28930),
     `Actor::UpdateAI` (37347) and our AI hook.
-  - `BGSPackageDataLocation`'s vtable written: `guest-ivarstead-fine-mouse-sweep` (03:26, at `0x1401DB590`; the log
-    was cut short) and `guest-ivarstead-fine-mouse` (05:01, `sub_141217470` (91958) from the path builder 31483).
-  - `guest-ivarstead-fine-mouse-sweep` again (05:08): a refcount add (`sub_14079A210`, 41783) on
-    `MovementMessagePathFailed`'s vtable, from `Actor::Revert` (37653) -> `MovementControllerNPC` (41692).
-  - `host-quickloads-party` (04:44): `ExtraDataList::ctor` (11583) with this = `BaseExtraList`'s vtable, from
-    `InventoryChanges::InitLeveledItems` (16129) under our `InitInventoryIfRequired` hook (16038) at a reference's 3D
-    load.
-- Read from the logs, inferred: a field holding a pointer read as an object's first word, which is what a freed
-  block reused by another object of a vtable'd class gives. Five of six are movement and package-location objects
-  (refcounted), so the first suspect is an actor's path or package target released on the guest while its mover still
-  holds it.
+  - rcx = 200914: `guest-ivarstead-fine-mouse-sweep` (03:26, at `0x1401DB590`; the log was cut short) and
+    `guest-ivarstead-fine-mouse` (05:01, at 91958, `[rcx+8]` written; stack: the path builder 31483).
+  - `guest-ivarstead-fine-mouse-sweep` again (05:08): a refcount add at 41783 on `[rcx+8]`, rcx = 246823. Stack:
+    `Actor::Revert` (37653) -> `MovementControllerNPC` (41692).
+  - `host-quickloads-party` (04:44): `ExtraDataList::ctor` (11583) with this = 422045. Stack:
+    `InventoryChanges::InitLeveledItems` (16129) under our `InitInventoryIfRequired` hook (16038) at a reference's
+    3D load.
+- Inferred, nothing measured about lifetimes: a register holding a vtable's address is what reading a pointer field
+  gives when its block was freed and reused by an object of a vtable'd class. Five of six are movement and
+  package-location objects (refcounted), so the first suspect is an actor's path or package target released on the
+  guest while its mover still holds it.
 
 ### A guest crash in the clip-load hook with no World
 
 `hands-survive-reload-host-player` (2026-11-22 05:34, the shuffled rerun; the full run failed it on "[client] host's
 character's respawned copy has the hands raised"): the guest crashed in our code, a read of `0x2A8` (a null base).
-Symbolized: `GraphStreams::FindOwned` (`GraphStream.cpp:268`, its mutex) from `GraphStreams::Recording` <- `LogOwnerLoad`
-<- `HookLoadEventClips` (`GraphStreamHooks.cpp:502-511`), called from the engine's clip load (39291, from 37325 on an AI
-job). So `World::Get()` gave a null `World` (an empty `entt::locator`) while an AI job loaded clips. Read in code, not
-measured: when the locator is empty.
+Symbolized (measured): `GraphStreams::FindOwned` (`GraphStream.cpp:268`, its mutex) from `GraphStreams::Recording` <-
+`LogOwnerLoad` <- `HookLoadEventClips` (`GraphStreamHooks.cpp`, our hook on `coop_LoadEventClips` 43621), entered
+from 43621's caller 39291+0x126 (from 37325, on an AI job). Inferred, not observed: `World::Get()` gave a null `World`
+(an empty `entt::locator`) while an AI job loaded clips; nothing in the capture shows the locator's state.
 
 Agent task: find when the locator holds no `World` while the engine's jobs run (a quit, a load, a swap), and make the
 hook safe then.
 
 Size: small. Needs: the code, then the duo (`hands-survive-reload-host-player --repeat 4`).
 
-### A late joiner never sees the host's drawn sword
+### A late joiner sees the host's copy stuck drawing
 
 `late-join-client` 2 of 2 (2026-11-22): the guest leaves and joins again while the host draws a sword; after the join
 "[client] the host's character has the sword drawn" times out after 15 s, though the NPC's copy holds its sword and
-shows its health. The host's copy on the guest is spawned with its worn set (`Equipment reconcile FF00206A: reset worn
-set`, the engine's own equip refused) but not the drawn weapon. Not read: what carries a player's drawn state to a
-copy spawned after the draw.
+shows its health. Measured at the failure (`at-failure.json`): the host's player at `weapon_state` 3 (Drawn,
+`WeaponState.h`) with the sword `12EB7` in its right hand; its new copy on the guest holds the sword in the same hand
+slot but stays at 2 (Drawing), `weapon_drawn` false. Not read: what finishes a draw on a copy spawned while its owner
+is already drawn.
 
-Agent task: read what puts a new copy in its owner's weapon state, and make a fresh copy of a player with its weapon
-out draw it.
+Agent task: read what carries a drawn state to a copy spawned after the draw, and why the copy's draw never reaches
+Drawn.
 
 Size: small. Needs: the duo, then GameTests.
 
-### A copy that sheathes while its owner fights
+### A copy at Sheathed while its owner draws
 
 `client-angers-host-ally` 2 of 2 (2026-11-22): the guest burns the host's ally Lydia until she turns on it; every step
-passes, then the end comparison finds Lydia's copy on the guest with `state.weapon_state` 0 (sheathed) while her owner
-holds 2 (drawn). Not read: whether her copy ever drew, or drew and sheathed again.
+passes, then the end comparison finds her owner at `state.weapon_state` 2 (Drawing, `WeaponState.h`) and her copy on
+the guest at 0 (Sheathed), both times. Neither capture shows a transition: whether the copy's draw never started, or
+started and was undone, is not read.
 
-Agent task: trace Lydia's weapon state on both games through the fight, then read what sheathed the copy.
+Agent task: trace Lydia's weapon state on both games through the fight, then read where the copy's draw starts or
+fails to.
 
 Size: small. Needs: the duo, then GameTests.
 
@@ -1519,6 +1550,7 @@ log and prints the failed case (`check.sh`, `build/check/`), so the next one nam
 Agent task: loop `GameTests` until it fails and fix that case's timing.
 
 Size: small. Needs: nothing but the fast suite.
+- 2026-11-22: `scripts/check.sh` passed 2 of 2 in this worktree (one full, `CHECK_FORCE=1`).
 
 ### A pass-through hook counted as ours
 
@@ -1559,11 +1591,12 @@ Size: small. Needs: the duo.
 ### A staging spot 1500 units off with no floor
 
 `dialogue-nobody-moves` 2 of 2 (2026-11-22) stops at its staging: `place` puts the host's player 1500 units from the
-guest at bearing 90 and finds "no clear spot" (90: a copy in the way 832 units from the spot; every other bearing: no
-floor). QASmoke has no floor that far out on those bearings, so the scenario asks for a spot its cell does not have,
-and whether a conversation goes on with nobody moving has no running check.
+guest at bearing 90 and finds "no clear spot". Both failure files report obstructions at 90 (a copy 832 units from the
+spot), 230, 250 and 270 degrees, and no floor at the other bearings. `place` checks the sight line only after its floor
+ray hits (`EngineCalls.cpp`), so the obstructed bearings have floor: no candidate passes every check, which is the
+measured failure. Whether a conversation goes on with nobody moving has no running check meanwhile.
 
-Agent task: stage the host where QASmoke has floor (a shorter distance, or a bearing `place` finds), and see what the
-scenario then shows.
+Agent task: stage the host where `place` finds a clear spot (a shorter distance, or a bearing clear of the copy), and
+see what the scenario then shows.
 
 Size: small. Needs: the duo.
