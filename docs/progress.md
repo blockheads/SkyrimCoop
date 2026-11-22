@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **piece D of bugs-refactor-plan.md, rewritten by its step 0** (`agent/copy-starts-whole`;
+`docs/re/systems/actor-state.md`, "What a copy's start leaves out"). Read in IDA: only a draw's own `weaponDraw`
+(42824 -> ActorState vfunc 0x15, 38821/38979) writes Drawn; the sync point carries sit state; a bow takes its own
+BothHands slot. Measured: a copy put up off its stream (37279, weapon state 2) lost its `weaponDraw` to its stream's
+sync point and stayed at 2. A copy on its stream mid-draw is now put right (`PutsHandsRight`'s `aOnStream`);
+`late-join-client` 4 of 4 (1 of 4 before), GameTests "A copy put right before its stream starts ends drawn" (the fake's
+draw now ends at its own event, dropped by a sync point). No `StartPart`: the last action's window and the bow's
+`[0, bow]` writer were not found (bugs.md notes); sit state needs a measurement first.
+
 2026-11-22: **the full suite on dev after one-simulator pieces 1-10** (`agent/bugs-audit-suite`): 364 of 423 default
 scenarios pass; of bugs.md's 62 entries 3 closed, 3 unclear, 56 still open; 8 new (six guest crashes through a pointer that holds a vtable among them).
 Details: "Test suite", 2026-11-22.

@@ -143,7 +143,6 @@ every other section needs the duo.
 
 - [A guest crash through a pointer that holds a vtable](#a-guest-crash-through-a-pointer-that-holds-a-vtable): medium
 - [A guest crash in the clip-load hook with no World](#a-guest-crash-in-the-clip-load-hook-with-no-world): small
-- [A late joiner sees the host's copy stuck drawing](#a-late-joiner-sees-the-hosts-copy-stuck-drawing): small
 - [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws): small
 - [The party's sword unnamed at a merchant](#the-partys-sword-unnamed-at-a-merchant): small
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
@@ -351,6 +350,10 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   `weapon_drawn` false), the copy still holding the bow in the other slot. So it is a slot-0 mismatch on a sheathed
   bow; whether it shows (a drawn bow, its 3D) is not observed, and the user's report stays unreproduced. Start from
   `rejoined-guest-sees-rider`'s `at-failure.json`: what the hand repair compares for a form held in both slots.
+- **Not the repair's equip** (2026-11-22, piece D step 0): read in IDA, `coop_RealEquip` (38929) takes a bow's own
+  BothHands slot unless the race's flags bit 30 keeps the passed hand; measured on `rejoined-guest-sees-rider`, the
+  repair's RightHand equip of Faendal's bow on his copy left `[13985, 13985]`. The `[0, bow]` writer is still unread
+  (39811 sets one hand per call: outfit reset, MoveToHigh, disarm; `docs/re/systems/actor-state.md`).
 
 ### End comparisons in towns
 
@@ -1026,6 +1029,10 @@ Size: small. Needs: GameTests.
 - 2026-11-22, dev `aa723513`: `party-travel-mounted-guest`, `party-fast-travels` passed; `party-buys-house-host`
   ended once on the shape (the guest's player `JumpLandEnd`, idle 704248; the host's copy `JumpLand`, idle 689444),
   then on the lock pair of [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours).
+- **2026-11-22, piece D:** the window is not found by reading. A host NPC's spawn is built from its live state when
+  sent (a GameTests flow of an action before the copy exists passes), and the host's record of a player takes the
+  last action of every movement update. Next: trace `party-travel-mounted-guest` for which message the host's game
+  drops. A copy's last action is read only by the comparison and the owner's resurrect stamp (`HookResurrect`).
 
 ### The green flash scenarios' grab
 
@@ -1456,20 +1463,6 @@ Agent task: find when the locator holds no `World` while the engine's jobs run (
 hook safe then.
 
 Size: small. Needs: the code, then the duo (`hands-survive-reload-host-player --repeat 4`).
-
-### A late joiner sees the host's copy stuck drawing
-
-`late-join-client` 2 of 2 (2026-11-22): the guest leaves and joins again while the host draws a sword; after the join
-"[client] the host's character has the sword drawn" times out after 15 s, though the NPC's copy holds its sword and
-shows its health. Measured at the failure (`at-failure.json`): the host's player at `weapon_state` 3 (Drawn,
-`WeaponState.h`) with the sword `12EB7` in its right hand; its new copy on the guest holds the sword in the same hand
-slot but stays at 2 (Drawing), `weapon_drawn` false. Not read: what finishes a draw on a copy spawned while its owner
-is already drawn.
-
-Agent task: read what carries a drawn state to a copy spawned after the draw, and why the copy's draw never reaches
-Drawn.
-
-Size: small. Needs: the duo, then GameTests.
 
 ### A copy at Sheathed while its owner draws
 

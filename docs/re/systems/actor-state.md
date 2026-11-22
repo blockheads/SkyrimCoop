@@ -100,3 +100,31 @@ target, within reach on the game where it lands. Measured on the duo (2026-11-18
 copy, the host's player staged in front of it and nearer (gap -37 against the guest's farther place): on the guest the
 wolf copy's `+0x104` read the guest's player and 47272 picked the guest. The 2026-11-06 reading of the nearest
 (combat-targets.md) did not come back; bugs.md's "An NPC copy's swing picks the nearest" closed.
+
+## What a copy's start leaves out (2026-11-22, piece D step 0)
+
+Read in IDA 1.7.104 unless marked.
+
+- **The draw's end writes Drawn, nothing else does.** `RightHandWeaponDrawHandler` 42824 (`weaponDraw`): each hand's
+  weapon 3D to its hand node (Actor vfunc 0xB4, 37374 -> 38000 reparents sheath <-> hand), then ActorState vfunc 0x15
+  (Character override 38821: iMagicEquipped, iLeft/iRightHandType graph ints; base 38979 writes weapon state 3).
+  The sheathe's end is 37169 (42825's body), the same with 0. 38979 skips the write while the opposite request is
+  pending (4 for a draw, 1 for a sheathe). 37279 (`DrawWeaponMagicHands`) leaves 2 when its draw action is taken.
+- **So a copy at 2 waits for a `weaponDraw` its graph must raise.** A draw taken off its stream (`SetWeaponDrawnEx` ->
+  37279) whose graph is then replaced by a sync point never raises it: weapon state stays 2, and
+  `PutsHandsRight` waits on `IsAnimating` for good. Measured on `late-join-client` (2026-11-22, 3 of 4 failed): the
+  host player's copy is put right off its stream ("hands up ... (weapon state 0)"), its stream starts 60-500 ms later
+  ("events dropped"), and it stays at 2 with the sword in its hand slot against its owner's 3.
+  `Actor::ShowWeaponDrawn` (42824 / 37169 called directly) settles any state.
+- **The sync point carries sit state, not weapon state.** `LoadAnimationGraphState` takes the owner's flags1 but the
+  part bits (sit state included) and flags2 but the weapon bits (read in our code). No furniture handle: only
+  `AIProcess::SetSitSleepState` 39912 stores it (middle-high +0x208), and a copy runs no AI.
+- **Hand slots by equip slot.** `ActorEquipManager::EquipObject` 38894 defaults a weapon to RightHand (38911).
+  `coop_RealEquip` 38929 then keeps the passed hand slot when the race has flags bit 30 (0x1406DE4C0), else the
+  item's own (a bow's BothHands, UseAllParents); `ActorProcess::AddEquippedObject` fills each hand the slot covers.
+  Measured (`rejoined-guest-sees-rider`, 2026-11-22): our repair's RightHand equip of Faendal's bow (13985) on his
+  copy left `[13985, 13985]`, both hands, so the repair is not what leaves the scenarios' `[0, bow]`. Which writer
+  does is not found; 39811 (`ActorProcess::SetHandEntry`) sets one hand's entry per call from other paths (outfit
+  reset, MoveToHigh, disarm).
+- **A copy's last action** (`ActorExtension::LatestAnimation`) is read by the harness's comparison and the owner's
+  resurrect stamp (`HookResurrect`), nothing else in our code: on its stream the graph is its owner's.

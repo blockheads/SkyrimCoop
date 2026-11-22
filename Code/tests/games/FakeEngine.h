@@ -712,6 +712,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
         uint32_t DeadFrames = 0;   // the player's: dying or dead, the reload's countdown (40748)
         WeaponState Weapon = WeaponState::Sheathed;
+        // Frames until its own graph raises weaponDraw/weaponSheathe (42824/37169) for a draw 37279 took, 0 none. Dropped
+        // on its owner's stream (63591's hook) and by a sync point replacing its graph.
+        uint32_t WeaponEventIn = 0;
         uint32_t KilledBy = 0;            // the attacker of the hit that killed it (the engine's kill credit)
         uint32_t LocalScene = 0; // a copy's independent native scene, distinct from its owner's answer
         ActorAiFields Ai;                 // package, scene, combat (a copy's set by AiStateService)
@@ -1743,8 +1746,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         const auto it = Actors.find(aFormId);
         return it != Actors.end() && it->second.Commander == kPlayer;
     }
-    // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played; refused on
-    // a copy on its owner's stream (weapon state 1 or 4).
+    // Actor::SetWeaponDrawnEx (the hands' put-right off a stream): 37279 takes the draw, weapon state 2 (5), and the
+    // actor's own weaponDraw (weaponSheathe) ends it WeaponClipFrames later; refused on a copy on its owner's stream
+    // (weapon state 1 or 4).
+    uint32_t WeaponClipFrames = 4;
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;
     // Actor::ShowWeaponDrawn: the weaponDraw or weaponSheathe event's result (42824, 37169), no action.
     void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept override;
