@@ -213,6 +213,18 @@ std::optional<std::vector<BaseTintLayer>> GetBaseTintLayers(uint32_t aFormId) no
 // An actor's ragdoll bodies in the ragdoll's order (Havok/Ragdoll.h), each with its node empty; none for no such actor.
 std::optional<std::vector<RagdollBody>> GetRagdoll(uint32_t aActorFormId) noexcept;
 
+// Its active graph's ragdoll driver (hkbRagdollDriver +0xC6..+0xCB) and the onFraction of the output tracks its
+// ragdoll passes read (4 rigid body controls, 6 powered controls, 8 keyframed bones, 9 keyframe targets; -1 absent).
+// None without a ragdoll.
+struct RagdollDriverRead
+{
+    bool Enabled, Powered, RigidBody, PoseWasUsed, AllKeyframed;
+    bool StepsPhysics; // the graph has a physics world (+0x238)
+    std::array<float, 4> Tracks;
+    std::vector<float> KeyframedBones; // track 8's value per bone: > 1 keyframes that body (58291)
+};
+std::optional<RagdollDriverRead> GetRagdollDriver(uint32_t aActorFormId) noexcept;
+
 // The calendar's whole days passed (TimeData::rawDaysPassed), which its clock counts on from.
 float GetRawDaysPassed() noexcept;
 

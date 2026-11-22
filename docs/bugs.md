@@ -54,7 +54,6 @@ every other section needs the duo.
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
-- [After a kill move the guest's own body floats](#after-a-kill-move-the-guests-own-body-floats): small
 - [A refused rider left crouched](#a-refused-rider-left-crouched): small
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
 
@@ -415,33 +414,6 @@ Size: small. Needs: duo, IDA (the copy's step, `StepCopy` under 37356).
   (`movement.py` `frame_speeds`), so a 25 ms frame of either game shows a move half again as long. Runs with other
   load on the machine had 100-200 such frames of 600 and failed most often. The trace stamps each frame (`t`, in the
   plugin): judging only frames whose neighbours ran evenly drops those and leaves the shape above.
-
-### After a kill move the guest's own body floats
-
-After `kill-moves-cross` or `spectator-watches-kill-move`, the guest's own third-person skeleton stands about 2,100
-units above its feet wherever it next arrives, sinking about 20 units a second; its root and its copy on the host are
-right. In first person the guest does not see it (its shadow may show it). Every scenario after it that compares the
-guest's body then fails: `host-rides-horse` 14 runs of 14, "skeleton lifted off its feet (pelvis 2123 above them)".
-
-Agent task: find what the kill move leaves on the guest's player that lifts its pelvis and head (the yielded or
-watched pair's end, or its foot IK), starting with which bone above the root carries the offset.
-
-Size: small. Needs: IDA, the duo, then GameTests.
-
-- **Measured** (2026-11-10): from a fresh duo, `kill-moves-cross` then a trip to Riverwood: `pose.pelvis` 2138 on the
-  guest's own player (72 standing), `pose.root` 0.5; the host's own player 72. Dev's plugin (the `devcheck`
-  worktree's build of `2fcb5452`) the same: 2117 on `host-rides-horse` straight after it. So it is not the graph input stream's.
-- In the cell the scenarios start from it reads low instead (21-40), and it lasts through a cog swap.
-- None of `host-kill-move`, `client-kill-move`, `teleport-keeps-copies`, `copy-jumps-with-owner`, `sneak-*`,
-  `dialogue-copy-looks-at-speaker` or the rides leaves it (one run each from a fresh duo).
-- After `spectator-watches-kill-move` too (2026-11-11 and -12, merged here 2026-11-16): `host-rides-horse` straight
-  after it 4 of 4 on dev's plugin `2fcb5452`, and on the stream's branch; it passes when it does not follow either.
-- 2026-11-16, dev (`0a2f618a`): `kill-moves-cross` then `host-rides-horse` 2 of 2 (pelvis 2115-2146), and
-  `spectator-watches-kill-move` then `host-rides-horse` 2 of 2 (2110-2122). `ragdoll-lies-as-host` right after each
-  failed ride passed (2 of 2), so the lifted skeleton does not unsettle the next ragdoll (that entry, "A ragdoll that
-  never settles after a failed ride", closed: 8 of 8 that day).
-- 2026-11-22, dev `aa723513` (pieces 1-10): `kill-moves-cross` then `host-rides-horse` 2 of 2 (pelvis 2099, 2106), and
-  `spectator-watches-kill-move` then `host-rides-horse` 2 of 2 (2083, 2097). The kill moves themselves pass.
 
 ### A refused rider left crouched
 

@@ -56,6 +56,8 @@ public:
     virtual void HoldPlayerDeathReload(bool aHold) noexcept = 0;
     // Back alive from a real death (docs/design/death.md, "Real death").
     virtual void RevivePlayer() noexcept = 0;
+    // Its death's ragdoll out of the physics world, queued as the engine ends a ragdoll (a revive does not end it).
+    virtual void EndPlayerRagdoll() noexcept = 0;
     virtual void SetSpectatorTarget(uint32_t aFormId) noexcept = 0;
     // Each frame while spectating: the view stays third person (docs/design/death.md, "Spectating").
     virtual void KeepSpectatorView() noexcept = 0;

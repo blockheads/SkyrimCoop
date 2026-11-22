@@ -1,0 +1,65 @@
+time	op	id	rva	item
+2026-11-22T14:40:09Z	read	63622	0xbd3a00	{"name": "BShkbAnimationGraph::Func3_63622"}
+2026-11-22T14:40:37Z	name	63622	0xbd3a00	{"addr": "0x140bd3a00", "name": "BShkbAnimationGraph::RemoveRagdollFromWorld"}
+2026-11-22T14:41:31Z	read	63621	0xbd36a0	{"name": "BShkbAnimationGraph::Func2_63621"}
+2026-11-22T14:42:14Z	name	63621	0xbd36a0	{"addr": "0x140bd36a0", "name": "BShkbAnimationGraph::AddRagdollToWorld"}
+2026-11-22T14:42:17Z	comment	63621	0xbd36a0	{"addr": "0x140bd36a0", "comment": "BSIRagdollDriver vfunc 2 (63621). Needs physicsWorld (+0x238) and the hkbCharacter's ragdoll driver (+0xF0). If the ragdoll's bodies sit in another world, reposes every body (vfunc 6) before hkaRagdollInstance 64157 adds them; then vfunc 0x0A(true). Returns: the ragdoll has a world."}
+2026-11-22T14:42:17Z	comment	63622	0xbd3a00	{"addr": "0x140bd3a00", "comment": "BSIRagdollDriver vfunc 3 (63622). Under the world's write lock: hkaRagdollInstance 64158 removes the bodies, then vfunc 0x0A(false). Returns: the ragdoll has no world. Papyrus ForceRemoveRagdollFromWorld (56128) and our Revive call it."}
+2026-11-22T14:42:19Z	read	63562	0xbca840	{"name": "BShkbAnimationGraph::UpdateRagdollPrePhysics"}
+2026-11-22T14:42:36Z	read	63563	0xbcab40	{"name": "BShkbAnimationGraph::sub_63563"}
+2026-11-22T14:42:43Z	name	63563	0xbcab40	{"addr": "0x140bcab40", "name": "BShkbAnimationGraph::UpdateRagdollPostPhysics"}
+2026-11-22T14:42:45Z	comment	63563	0xbcab40	{"addr": "0x140bcab40", "comment": "63563 (Precision hooks it, beside 63562). Runs when the generator output's pose track (track 2: numData +50, onFraction +56) is on. With a world (+0x238): hkbRagdollDriver 58293 (postPhysics) maps the ragdoll bodies into the pose, memcpy into hkbCharacter's local pose, 63569 writes the bones (worldFromModel from the output). No world: 63581."}
+2026-11-22T14:46:36Z	read	63776	0xbda2c0	{"name": "sub_140BDA2C0"}
+2026-11-22T14:46:53Z	name	63776	0xbda2c0	{"addr": "0x140bda2c0", "name": "coop_GeneratorOutputDrivesRagdollToPose"}
+2026-11-22T14:46:53Z	name		0xbca8db	{"addr": "0x140bca8db", "name": ""}
+2026-11-22T14:46:53Z	read	58293	0xac8b80	{"name": "hkbRagdollDriver::sub_58293"}
+2026-11-22T14:47:07Z	read	63627	0xbd3fe0	{"name": "BShkbAnimationGraph::Func8_63627"}
+2026-11-22T14:47:35Z	read	58291	0xac6fb0	{"name": "hkbRagdollDriver::sub_58291"}
+2026-11-22T14:47:58Z	read	63629	0xbd4700	{"name": "BShkbAnimationGraph::Func10_63629"}
+2026-11-22T14:48:18Z	name	63629	0xbd4700	{"addr": "0x140bd4700", "name": "BShkbAnimationGraph::ToggleSyncOnUpdate"}
+2026-11-22T14:48:18Z	name	58291	0xac6fb0	{"addr": "0x140ac6fb0", "name": "hkbRagdollDriver::driveToPose"}
+2026-11-22T14:48:18Z	name	58293	0xac8b80	{"addr": "0x140ac8b80", "name": "hkbRagdollDriver::postPhysics"}
+2026-11-22T14:48:18Z	name	63627	0xbd3fe0	{"addr": "0x140bd3fe0", "name": "BShkbAnimationGraph::SetMotionType"}
+2026-11-22T14:48:24Z	comment	58291	0xac6fb0	{"addr": "0x140ac6fb0", "comment": "58291 hkbRagdollDriver::driveToPose. Needs ragdoll (+0x88) and isEnabled (+0xC6). Each frame: isPoweredControllerEnabled (+0xC7) = output track 6 (powered ragdoll controls) on; isRigidBodyControllerEnabled (+0xC8) = track 4 (rigid body controls) on. Neither: bodies keyframed to the pose (+0xCB allBonesKeyframed)."}
+2026-11-22T14:48:24Z	comment	58293	0xac8b80	{"addr": "0x140ac8b80", "comment": "58293 hkbRagdollDriver::postPhysics. With ragdoll and isEnabled: if a controller is on (+0xC7 or +0xC8) the pose takes the ragdoll's (58311) unless +0xCA/+0xCB; else blends out of the last ragdoll pose (+0xA0) for ragdollBlendOutTime (+0x10). Revived guest (2026-11-22): skeleton followed its dynamic bodies, so a controller was on."}
+2026-11-22T14:48:24Z	comment	63776	0xbda2c0	{"addr": "0x140bda2c0", "comment": "(generator output, ragdoll bone count): true unless global byte_1420C5C70 is off and the only ragdoll track on is 6 (powered) with every bone's weight 0. Tracks: header 16 bytes each from +0x10, onFraction at +8: track 4 +88, 6 +120, 8 +152, 9 +168. True -> 58291 driveToPose, false -> 58292."}
+2026-11-22T14:48:24Z	comment	63629	0xbd4700	{"addr": "0x140bd4700", "comment": "BSIRagdollDriver vfunc 0x0A (63629) ToggleSyncOnUpdate: each ragdoll body's bhkCollisionObject flag 0x80 cleared (true) or set (false), two floats on its body set 0 (true) or 1. Add calls it true, Remove false."}
+2026-11-22T14:57:06Z	comment	63627	0xbd3fe0	{"addr": "0x140bd3fe0", "comment": "BSIRagdollDriver vfunc 8 (63627) SetMotionType(type): collects every Havok object under the graph's root (+0x218) and sets the motion type of those that are not ragdoll bodies (the driver's own bodies are skipped). Read 2026-11-22, first half only."}
+2026-11-22T15:05:55Z	read	42877	0x7ce8c0	{"name": "RemoveRagdollHandler::Handle"}
+2026-11-22T15:05:55Z	read	42873	0x7ce470	{"name": "AddRagdollHandler::Handle"}
+2026-11-22T15:12:57Z	read	42880	0x7cec80	{"name": "GetUpEndHandler::Handle"}
+2026-11-22T15:13:07Z	read	38820	0x6d98f0	{"name": "Character::sub_38820"}
+2026-11-22T15:13:15Z	read	58285	0xac6b80	{"name": "hkbRagdollDriver::sub_58285"}
+2026-11-22T15:13:33Z	read	63952	0xbe6520	{"name": "sub_140BE6520"}
+2026-11-22T15:13:56Z	read	63596	0xbcfdb0	{"name": "BShkbAnimationGraph::sub_63596"}
+2026-11-22T15:14:15Z	read	63551	0xbc9810	{"name": "sub_140BC9810"}
+2026-11-22T15:14:27Z	name	63551	0xbc9810	{"addr": "0x140bc9810", "name": "GraphPhysicsStepListener::prePhysics"}
+2026-11-22T15:14:27Z	name	63552	0xbc9920	{"addr": "0x140bc9920", "name": "GraphPhysicsStepListener::postPhysics"}
+2026-11-22T15:14:27Z	name	58285	0xac6b80	{"addr": "0x140ac6b80", "name": "hkbRagdollDriver::setRagdoll"}
+2026-11-22T15:14:27Z	name	63952	0xbe6520	{"addr": "0x140be6520", "name": "coop_AttachRagdollFromHkx"}
+2026-11-22T15:14:40Z	read	63564	0xbcae00	{"name": "BShkbAnimationGraph::sub_63564"}
+2026-11-22T15:15:02Z	read	32952	0x555f80	{"name": "sub_140555F80"}
+2026-11-22T15:15:02Z	read	32953	0x555fd0	{"name": "sub_140555FD0"}
+2026-11-22T15:15:07Z	name	32953	0x555fd0	{"addr": "0x140555fd0", "name": "AnimationGraphVisitor_AddRagdollToWorld"}
+2026-11-22T15:15:07Z	name	32952	0x555f80	{"addr": "0x140555f80", "name": "AnimationGraphVisitor_RemoveRagdollFromWorld"}
+2026-11-22T15:15:15Z	read	40121	0x734b90	{"name": "sub_140734B90"}
+2026-11-22T15:15:17Z	read	43668	0x7dc2e0	{"name": "sub_1407DC2E0"}
+2026-11-22T15:20:15Z	read	63761	0xbd9ad0	{"name": "sub_140BD9AD0"}
+2026-11-22T15:20:15Z	read	63553	0xbc9690	{"name": "sub_140BC9690"}
+2026-11-22T15:20:23Z	name	40121	0x734b90	{"addr": "0x140734b90", "name": "coop_AddRagdollToWorldForKnock"}
+2026-11-22T15:20:23Z	name	43668	0x7dc2e0	{"addr": "0x1407dc2e0", "name": "coop_AddLivingActorRagdollToWorld"}
+2026-11-22T15:20:23Z	name	63761	0xbd9ad0	{"addr": "0x140bd9ad0", "name": "GraphPhysicsStepListener::AddGraph"}
+2026-11-22T15:20:28Z	comment	40121	0x734b90	{"addr": "0x140734b90", "comment": "40121: every graph's AddRagdollToWorld (visitor 32953) under the manager's lock; from AIProcess::KnockParalyze and KnockExplosion. Not on the revived player's path (2026-11-22: no add after a revive)."}
+2026-11-22T15:20:28Z	comment	43668	0x7dc2e0	{"addr": "0x1407dc2e0", "comment": "43668 (behind setting byte_1420B8BA8, from TESObjectREFR 38586): records a handle in a table; for a new actor not in a ragdoll state (and flags +0xC8 & 0x3C000 clear) adds every graph's ragdoll to the world (32953) and updates its 3D's rigid constraints. Not on the revived player's path (2026-11-22)."}
+2026-11-22T15:20:28Z	comment	63761	0xbd9ad0	{"addr": "0x140bd9ad0", "comment": "63761 GraphPhysicsStepListener::AddGraph (listener 0x1420C5B40): the graph into its list (30 inline, then an array), once. The graph update 63587 calls it each frame while 63564 holds (a world and its ragdoll in one), so the ragdoll passes 63562/63563 run only for a graph whose ragdoll is in the world."}
+2026-11-22T15:20:28Z	comment	63564	0xbcae00	{"addr": "0x140bcae00", "comment": "63564: the graph has a physics world (+0x238) and its ragdoll's first body is in a world. Gates the step listener (63587)."}
+2026-11-22T15:20:28Z	comment	63551	0xbc9810	{"addr": "0x140bc9810", "comment": "GraphPhysicsStepListener slot 1: UpdateRagdollPrePhysics (63562) on each listed graph."}
+2026-11-22T15:20:39Z	read	63552	0xbc9920	{"name": "GraphPhysicsStepListener::postPhysics"}
+2026-11-22T15:25:05Z	read	39897	0x723ff0	{"name": "sub_140723FF0"}
+2026-11-22T15:25:37Z	read	36993	0x66bfc0	{"name": "sub_14066BFC0"}
+2026-11-22T15:25:43Z	name	63553	0xbc9690	{"addr": "0x140bc9690", "name": "GraphPhysicsStepListener::dtor"}
+2026-11-22T15:25:43Z	name	39897	0x723ff0	{"addr": "0x140723ff0", "name": "AIProcess::EndKnockState"}
+2026-11-22T15:25:43Z	name	36993	0x66bfc0	{"addr": "0x14066bfc0", "name": "TaskQueueInterface::Push"}
+2026-11-22T15:25:47Z	comment	39897	0x723ff0	{"addr": "0x140723ff0", "comment": "39897 AIProcess::EndKnockState (task 14). Returns at once unless knock state (ActorState1 bits 25-27, a2[50] & 0xE000000) is set. Then: every graph's RemoveRagdollFromWorld (visitor 0x140555F80) under the manager's lock; if any took it out, the 3D on layer 8 and keyframed (SetMotionType 4); knock state 0; the player's bleedout camera left. A revived player (Resurrect zeroed the knock state) never gets here."}
+2026-11-22T15:25:47Z	comment	36993	0x66bfc0	{"addr": "0x14066bfc0", "comment": "36993 TaskQueueInterface::Push (task): with the task pool thread on (gEnableTaskPoolThread), pushed onto the queue under its spin lock (vfunc +8); refused or off, run at once (BSTaskPool_HandleTask). Vanilla's queued ragdoll removals (RemoveRagdollHandler 42877, GetUpEnd's task 14) go this way and stick."}
+2026-11-22T15:25:47Z	comment	63553	0xbc9690	{"addr": "0x140bc9690", "comment": "63553 GraphPhysicsStepListener dtor (static listener 0x1420C5B40). Not on the path."}

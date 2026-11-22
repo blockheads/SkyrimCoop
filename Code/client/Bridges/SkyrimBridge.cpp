@@ -1438,6 +1438,12 @@ void SkyrimBridge::RevivePlayer() noexcept
         pPlayer->Revive();
 }
 
+void SkyrimBridge::EndPlayerRagdoll() noexcept
+{
+    if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
+        QueueRagdollOutOfWorld(*pPlayer);
+}
+
 uint32_t SkyrimBridge::GetDifficulty() const noexcept
 {
     return static_cast<uint32_t>(*Settings::GetDifficulty());

@@ -665,3 +665,48 @@ objects (104880) and, unless asked for an exact match, walks each one's class up
 
 Change flag `0x8000000` is `CHANGE_REFR_LEVELED_INVENTORY`: `InventoryChanges__AddLeveledEntries` (16128) sets it
 when a leveled list's roll is added to a reference's inventory. Each game rolls its own.
+
+## A revived player's ragdoll stays in the world (read and measured, 2026-11-22)
+
+Measured (fresh duos; a plain `player.kill` does it, no kill move needed): a living player has no ragdoll instance
+(0 bodies). After a death and our revive, its 18 bodies are in the world, dynamic (motions 2/3), the driver's
+rigid-body controller on (output track 4 at 1.0, track 8 at 1.0 with no bone above 1), and every bone under
+`NPC Root` on the bodies. After `coc Riverwood` the actor stood at (17226, -47203, -128) and `NPC COM` at
+(-168, 1706, 2125) by the bodies: bugs.md's "pelvis 2,100 above its feet", 48,000 units off in x/y too.
+For comparison: a living NPC (the host's Lydia) has the same tracks, but her ragdoll is out of the world and her
+driver's controllers are off; the host's player after a knockdown and vanilla get-up has no ragdoll instance at all.
+
+Read in IDA (1.7.104):
+
+```
+each frame (job table, actor-movement.md "Where a copy's step falls in the frame")
+  Job_Actor_animation  graph update 63587: 63564 (a world, its ragdoll's first body in one)
+                         -> GraphPhysicsStepListener::AddGraph 63761 (static listener 0x1420C5B40)
+  Job_VM_update        our World::Update
+  Job_Cell_animations  bhkWorld::Step
+    listener prePhysics  -> UpdateRagdollPrePhysics 63562: every body not in the world added (hkpWorld_AddEntity),
+                            then hkbRagdollDriver::driveToPose 58291: powered (+0xC7) = track 6 on,
+                            rigid body (+0xC8) = track 4 on; with one on, a body not marked keyframed
+                            (track 8 > 1 or track 9) is set dynamic
+    listener postPhysics -> UpdateRagdollPostPhysics 63563 -> hkbRagdollDriver::postPhysics 58293:
+                            a controller on -> the skeleton takes the ragdoll's pose (58311)
+                            the list is cleared after each step
+```
+
+- So a graph runs the ragdoll passes in a frame only if its ragdoll was in the world at its update, and a pass
+  then puts back any body that left the world since.
+- Our revive (`PlayerCharacter::Revive`, from `World::Update`) took the ragdoll out with
+  `RemoveRagdollFromWorld` 63622 between the listing and the step. Measured with the harness's `ragdoll_adds`
+  (watches on the add visitor 32953 and on 63562): the only visitor adds were the death's (`KillImpl`, then its
+  queued task), and exactly one 63562 pass found the bodies out of the world, at the revive, and added them back.
+  From the next frame the graph is listed every frame, its bodies dynamic under the rigid-body controller.
+- Vanilla ends a ragdoll from the task pool (`TaskQueueInterface::Push` 36993): the graph's `RemoveRagdoll`
+  event (`RemoveRagdollHandler` 42877) queues `QueueRemoveFromWorld` 36924 on the 3D, and `GetUpEnd` queues task 14,
+  `AIProcess::EndKnockState` 39897 (every graph's ragdoll out, the 3D keyframed on layer 8, knock state 0). 39897
+  returns at once with knock state 0, which `Resurrect` already set, so a revive cannot use it.
+- So the revive no longer takes it out itself: `DeathService` asks `IPlayerBridge::EndPlayerRagdoll`, which queues
+  36924 and 36925 on the 3D (`QueueRagdollOutOfWorld`), as `RemoveRagdollHandler` does. Measured after the fix:
+  `revived-guest-stands-after-travel` stands in Riverwood; `kill-moves-cross` then `host-rides-horse` passes.
+  That the task pool drains outside the listing-to-step window is inferred from vanilla's own get-up and that run.
+- Driver layout: CommonLibSSE-NG `hkbRagdollDriver` (from activeragdoll); the output tracks are
+  `hkbGeneratorOutputTracks` in `Havok/BShkbAnimationGraph.h`.

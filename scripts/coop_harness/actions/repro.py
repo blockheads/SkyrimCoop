@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
-from ..comparisons import describe_world_differences, flatten
+from ..comparisons import body_problems, describe_world_differences, flatten
 from ..duo_lock import IDLE_MINUTES
 from ..errors import TestFailure
 from ..utilities import log
@@ -1088,6 +1088,8 @@ class ReproActions:
             return {"eye": ctx.eyes(name)}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
+        if check == "stands":  # `name`'s body in `game` (or each) stands on its feet, its ragdoll out of the world
+            return ctx.expect_stands(name, game, seconds)
         if check == "crosshair":
             return ctx.expect_crosshair(name, game, seconds or 2.0)
         if check == "stays":
@@ -1256,6 +1258,32 @@ class ReproActions:
                 raise ctx.failure(f"{name}: its body is {got} degrees off facing {of}, expected within {within:g}")
             time.sleep(0.2)
         return {"degrees_off": got}
+
+    def expect_stands(ctx, name, game, seconds=0.0):
+        """`name`'s body stands as a person sees it in `game` (or each) within `seconds`: no body problem (floats, sunk,
+        skeleton lifted or lying: comparisons.body_problems) and no ragdoll body left in the physics world."""
+        games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
+        ctx.refresh_handles()
+        def problems():
+            found = {}
+            for label, instance in games:
+                row = ctx.actor_row(instance, ctx.resolve(name, label)) or {}
+                wrong = body_problems(row)
+                if in_world := (row.get("ragdoll") or {}).get("in_world"):
+                    wrong.append(f"ragdoll: {in_world} bodies still in the physics world")
+                if not row.get("pose"):
+                    wrong.append("body: no pose reading")
+                if wrong:
+                    found[label] = wrong
+            return found
+        if seconds and problems():
+            try:
+                ctx.wait_for(f"{name}: stands on its feet", lambda: not problems(), seconds)
+            except TestFailure:
+                pass
+        if found := problems():
+            raise ctx.failure(f"{name}: does not stand: " + " | ".join(f"[{label}] {'; '.join(p)}" for label, p in found.items()))
+        return {"stands": [label for label, _ in games]}
 
     def expect_actor(ctx, name, field, game, value, seconds=0.0, stays=False):
         """`field` of a handle's snapshot (ai.follow_target, state.dead) as expected within `seconds`, or, with `stays`,

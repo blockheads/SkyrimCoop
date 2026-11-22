@@ -5,18 +5,19 @@
 #include <TESObjectREFR.h>
 #include <Utils.h>
 
-bool RemoveRagdollFromWorld(TESObjectREFR& aActor) noexcept
+bool QueueRagdollOutOfWorld(TESObjectREFR& aActor) noexcept
 {
-    BSAnimationGraphManager* pManager = nullptr;
-    if (!EngineVirtual(aActor.animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+    NiAVObject* p3D = aActor.Get3D1(false);
+    POINTER_SKYRIMSE(void*, s_queue, 403759); // TaskQueueInterface::singleton
+    void* pQueue = *s_queue.Get();
+    if (!p3D || !pQueue)
         return false;
-    {
-        BSScopedLock<BSRecursiveLock> _{pManager->lock};
-        for (uint32_t i = 0; i < pManager->animationGraphs.size; ++i)
-            if (BShkbAnimationGraph* pGraph = pManager->animationGraphs.Get(i))
-                EngineVirtual(*pGraph).RemoveRagdollFromWorld();
-    }
-    pManager->Release();
+    using TRemoveFromWorld = void(void*, NiAVObject*);
+    using TSetMotionType = void(void*, NiAVObject*, uint32_t, bool);
+    POINTER_SKYRIMSE(TRemoveFromWorld, s_removeFromWorld, 36924); // TaskQueueInterface::QueueRemoveFromWorld
+    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 36925);     // TaskQueueInterface::QueueSetMotionType
+    s_removeFromWorld.Get()(pQueue, p3D);
+    s_setMotionType.Get()(pQueue, p3D, hkpRigidBody::kKeyframed, false);
     return true;
 }
 

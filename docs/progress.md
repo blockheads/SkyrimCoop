@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **the floating body after a death: piece B of bugs-refactor-plan.md, fixed** (`agent/floating-body`;
+`docs/re/systems/physics.md`, "A revived player's ragdoll stays in the world"; `docs/design/death.md`, "The ragdoll").
+Not the kill move: any death. The revive took the player's ragdoll out of the world from our update, between the
+graph's listing for the physics step and the step, whose ragdoll pass (63562) put every body back, dynamic; the
+standing graph's rigid-body controls then kept the skeleton on them, so after a trip it stood 2,100 units up and
+48,000 across. `DeathService` now ends it through the bridge (`EndPlayerRagdoll`), queued on the engine's task pool
+as vanilla ends a ragdoll (36924, 36925). `kill-moves-cross` then `host-rides-horse` pass (2 of 2 failed before);
+new scenario `revived-guest-stands-after-travel` (`expect` gains `stands`), GameTests "A revived guest's skeleton stays
+on its feet after it travels" and the engine fact's flow. Harness: `ragdoll` adds the driver's controllers and output
+tracks; `ragdoll_adds` names who put the player's ragdoll in the world. bugs.md's entry closed.
+
 2026-11-22: **the full suite on dev after one-simulator pieces 1-10** (`agent/bugs-audit-suite`): 364 of 423 default
 scenarios pass; of bugs.md's 62 entries 3 closed, 3 unclear, 56 still open; 8 new (six guest crashes through a pointer that holds a vtable among them).
 Details: "Test suite", 2026-11-22.

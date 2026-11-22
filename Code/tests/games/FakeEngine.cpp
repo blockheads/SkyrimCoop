@@ -501,6 +501,7 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 void FakeEngine::Frame()
 {
     ++m_frameCount;
+    StepDeathRagdolls();
     for (const auto [cRider, cMount] : std::map(std::exchange(MountRetryOf, {})))
         ActivateMount(cRider, cMount);
     for (auto it = DismountIn.begin(); it != DismountIn.end();)

@@ -77,6 +77,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void RevivePlayer() noexcept override
     {
     }
+    void EndPlayerRagdoll() noexcept override
+    {
+    }
     void SetSpectatorTarget(uint32_t) noexcept override {}
     void KeepSpectatorView() noexcept override {}
     void HoldDeathControls(bool) noexcept override {}

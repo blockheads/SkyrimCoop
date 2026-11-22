@@ -547,6 +547,34 @@ std::vector<uint32_t> FakeEngine::TakeMovedReferences() noexcept
     return moved;
 }
 
+void FakeEngine::StepDeathRagdolls()
+{
+    for (auto& [cId, actor] : Actors)
+        if (actor.RagdollListed && !actor.RagdollInWorld)
+            actor.RagdollInWorld = true; // 63562: every body not in the world added back
+    for (const uint32_t cId : std::exchange(QueuedRagdollEnds, {}))
+        if (Actors.contains(cId))
+            Actors.at(cId).RagdollInWorld = false;
+    for (auto& [cId, actor] : Actors)
+    {
+        if (cId == kPlayer && actor.Dead && !actor.RagdollForDeath)
+        {
+            actor.RagdollForDeath = actor.RagdollInWorld = true;
+            actor.RagdollAt = {actor.Position[0], actor.Position[1], actor.Position[2]};
+        }
+        if (!actor.Dead)
+            actor.RagdollForDeath = false;
+        actor.RagdollListed = actor.RagdollInWorld;
+    }
+}
+
+float FakeEngine::PelvisAboveFeet(uint32_t aFormId) const
+{
+    constexpr float cStanding = 71.f;
+    const auto& cActor = Actors.at(aFormId);
+    return cActor.RagdollInWorld && !cActor.Dead ? cActor.RagdollAt.z + cStanding - cActor.Position[2] : cStanding;
+}
+
 uint32_t FakeEngine::PlayerInRagdoll() noexcept
 {
     const auto it = Actors.find(kPlayer);

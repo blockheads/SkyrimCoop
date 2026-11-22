@@ -779,6 +779,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // Where it stood at its last graph update (Frame). A skeleton its ragdoll poses, its actor moved after the graph
         // update, is drawn in its old pose at the new place for a frame: a snap.
         float GraphPlace[4]{}; // x, y, z, heading
+        // A player's death ragdoll (physics.md, "A revived player's ragdoll stays in the world"): its death puts it in
+        // the world (KillImpl); while in the world, a living actor's skeleton stands on its bodies, which stay where
+        // they were. RagdollListed: its graph's ragdoll passes run at this frame's step (listed by 63587 via 63761; 63562).
+        bool RagdollInWorld = false;
+        bool RagdollForDeath = false;
+        bool RagdollListed = false;
+        glm::vec3 RagdollAt{};
         uint32_t Snaps = 0;
         float WorstSnap = 0.f; // units: the move, and the turn at a body's reach (kSnapReach)
     };
@@ -1660,6 +1667,17 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetGreetDistance(float aDistance) noexcept override { GreetDistance = aDistance; }
     void HoldPlayerDeathReload(bool aHold) noexcept override { DeathReloadHeld = aHold; }
     void RevivePlayer() noexcept override;
+    void EndPlayerRagdoll() noexcept override { QueuedRagdollEnds.push_back(kPlayer); }
+    // The engine's task pool's ragdoll removals (TaskQueueInterface 36924): run after the step, before the next listing.
+    std::vector<uint32_t> QueuedRagdollEnds;
+    // Its ragdoll out of the world at once, in our update (63622, as the revive did): the step's pass puts it back.
+    void RemoveRagdollAtOnce(uint32_t aFormId) { Actors.at(aFormId).RagdollInWorld = false; }
+    // Where its skeleton's pelvis stands above its feet: its animation's ~71, or on its ragdoll's bodies while a
+    // living actor's are in the world (58293 with the standing graph's rigid-body controls).
+    [[nodiscard]] float PelvisAboveFeet(uint32_t aFormId) const;
+    // A frame's ragdoll phases, at its start: the step for last frame's listed graphs, the task pool, the deaths' adds,
+    // the next listing.
+    void StepDeathRagdolls();
     uint32_t CameraTarget = kPlayer;
     uint32_t DeathControlsBefore{};
     bool DeathControlsHeld{};

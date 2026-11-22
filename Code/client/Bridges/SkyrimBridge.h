@@ -272,6 +272,7 @@ public:
     void PlayerTakeReins(uint32_t aMountFormId) noexcept override;
     void HoldPlayerDeathReload(bool aHold) noexcept override;
     void RevivePlayer() noexcept override;
+    void EndPlayerRagdoll() noexcept override;
     void SetSpectatorTarget(uint32_t aFormId) noexcept override;
     void KeepSpectatorView() noexcept override;
     void HoldDeathControls(bool aHold) noexcept override;

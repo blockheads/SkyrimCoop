@@ -766,7 +766,8 @@ nlohmann::json StackExtras(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "ragdoll", "actor": id}: the actor's ragdoll bodies in order: motion type (4 keyframed), awake, position,
-// rotation (x, y, z, w) and velocity in game units; and its character controller's flags and filter info.
+// rotation (x, y, z, w) and velocity in game units; its character controller's flags and filter info; and its ragdoll
+// driver's controllers and the graph output tracks they follow (GetRagdollDriver).
 nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
 {
     const auto cBodies = EngineCalls::GetRagdoll(acRequest.value("actor", 0u));
@@ -780,6 +781,13 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
     nlohmann::json result = {{"ok", true}, {"bodies", bodies}};
     if (const auto cController = EngineCalls::GetController(acRequest.value("actor", 0u)))
         result["controller"] = {{"flags", cController->Flags}, {"filter", cController->Filter}};
+    if (const auto cDriver = EngineCalls::GetRagdollDriver(acRequest.value("actor", 0u)))
+        result["driver"] = {{"enabled", cDriver->Enabled}, {"powered", cDriver->Powered}, {"rigid_body", cDriver->RigidBody},
+                            {"pose_was_used", cDriver->PoseWasUsed}, {"all_keyframed", cDriver->AllKeyframed},
+                            {"steps_physics", cDriver->StepsPhysics},
+                            {"tracks", {{"rigid_body", cDriver->Tracks[0]}, {"powered", cDriver->Tracks[1]},
+                                        {"keyframed_bones", cDriver->Tracks[2]}, {"keyframe_targets", cDriver->Tracks[3]}}},
+                            {"keyframed_bone_values", cDriver->KeyframedBones}};
     return result;
 }
 

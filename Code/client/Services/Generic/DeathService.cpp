@@ -169,6 +169,8 @@ void DeathService::OnRespawnArrival(const PlayerArrivedEvent& acEvent) noexcept
         return;
     m_respawn.reset();
     m_playerBridge.RevivePlayer();
+    // Its death's ragdoll would stay in the world, the skeleton on its bodies (physics.md, "A revived player's ragdoll").
+    m_playerBridge.EndPlayerRagdoll();
     StandUp();
     m_dispatcher.trigger(PlayerRevivedEvent{});
     SendDeathState();
