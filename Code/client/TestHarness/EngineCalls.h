@@ -555,7 +555,7 @@ struct ReferenceState
     bool HasLock;
     bool Locked;
     uint8_t LockLevel;
-    uint8_t OpenState;      // doors only (TESObjectREFR::OpenState)
+    uint8_t OpenState;      // doors and containers (TESObjectREFR::OpenState)
     uint32_t Owner;         // ExtraOwnership, 0 none
     uint32_t Changes;       // its change record's flags: what this game keeps when its cell unloads
     std::optional<std::vector<std::pair<uint32_t, int32_t>>> Items; // not actors' (GetContainerItems)

@@ -326,6 +326,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    bool PoseObjectOpenState(uint32_t aObjectFormId) noexcept override
+    {
+        return true;
+    }
     bool IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept override
     {
         return {};

@@ -998,13 +998,13 @@ nlohmann::json DoorLock(Harness&, const nlohmann::json& acRequest)
             {"linked_locked", c.LinkedLocked}, {"linked_level", c.LinkedLevel}, {"linked_changes", c.LinkedChanges}};
 }
 
-// {"cmd": "door_open", "object": id, "open": false, "snap": true}: sets the door's state in this game only
+// {"cmd": "door_open", "object": id, "open": false, "snap": true}: sets a door's or container's state in this game only
 // (staging: puts a door back the way a scenario found it).
 nlohmann::json DoorOpen(Harness&, const nlohmann::json& acRequest)
 {
     const uint32_t cObject = acRequest.value("object", 0u);
     if (!EngineCalls::SetDoorOpen(cObject, acRequest.value("open", false), acRequest.value("snap", true)))
-        return Error("no such door");
+        return Error("no such door or container");
     spdlog::info("Door (rpc): {:X} open {}", cObject, acRequest.value("open", false));
     return Ok();
 }

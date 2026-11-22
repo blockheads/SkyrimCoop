@@ -259,6 +259,17 @@ Tab with the box still up does nothing, the box takes only the mouse). New scena
 (two mid-craft exits a run) passes 2 of 2; the copy's exit path is in `docs/re/systems/actor-movement.md`, "Getting up".
 MCP: verb `select_makeable_crafting_entry`. `host-beast-form-stays-host` passed 2 of 2 (the werewolf entry stays open).
 
+2026-11-18: a chest's lid agrees after the host disables it under an open menu (`bugs.md`, "A chest lid's pose",
+gone). The disable drops the chest's 3D (19801); our live menu's auto-close, or the host's close row on a guest, then
+flips its open state with no 3D, and the enable's new 3D (19800) came up part open in each game where that happened.
+Vanilla never gets here (its menus pause the game). Every game now puts such a lid at its open state once it is
+enabled and loaded again (`LidUnposedEvent`, `ObjectService`; `SetOpenState` 14287 with its snap, as a 3D load does,
+`InitNonNPCAnimation` 19757; `docs/re/systems/guest-world-events.md`, "A lid after a disable"). Scenarios
+`guest-chest-lid-after-disable`, `host-/guest-menus-close-when-target-goes`; GameTests "A chest the host disables
+under ... open menu shows one lid once enabled" (the fake learned lids, a chest's 3D and Enable's queued load). The
+harness reads a container's open state (`open_state`), `door_open` takes containers, and the MCP's `expect agree`
+runs the world check too.
+
 2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`). One player drives,
 the others ride along: a player's Activate on a horse a party player drives boards it (our hook on
 `Character::ActivateMount` 37864 raises `BoardEvent`; the horse's slot emptied, then the engine's own get-on), and the
@@ -2177,6 +2188,11 @@ removed (git history keeps them).
 
 ### World state
 
+- **Why a lid flipped without 3D comes back part open is unread** (2026-11-18, `docs/re/systems/guest-world-events.md`,
+  "A lid after a disable"): `InitNonNPCAnimation` (19757) already calls `SetOpenState` with snap at a 3D load, yet the
+  new 3D shows 0.116 of the open 0.128 rad. The fix poses it afterwards (`ObjectService`, measured to agree); what
+  defeats the load's own pose (the queued load's order, the sequence state the flip leaves) is still to read. Our
+  `QueuedReference::Finish` hook (13022) never fired for the chest's job, so its queued kind is unread too.
 - **A guest's quest fills are not in its own save** (2026-10-20): `ForceRefIntoAlias` records no change; harmless while a guest never saves in a session (`join-flow.md`).
 - **The save's running bounty was not running on one boot** (2026-10-20, `LateAfterDragonslayerBackinSkyrim`): `quest-walk BQ01` found it stopped where earlier boots had it at stage 0; not looked into.
 - **Step 5 after slice 1** (2026-10-21; superseded the same day by option 1, under "Tests and harness": a guest runs only its own player's and UI's scripts, so the world-script cases below are closed except what bypasses the gate). Of delayed natives only `Spell.Cast` carries the guest whose script called it (`GuestScripts`, `CastFunctor`); the others do not. Not measured: an engine-only hazard (no script) hitting a guest on both games now hurts it twice (the host's goes to its owner), and a host NPC's hostile spell on a guest now reaches it (the PvP rule covers players' casts only; an NPC's arrow hit the guest in `statue-fires-at-client`), no scenario of its own. The host's messages for a guest's action (`BlessingMessage.Show()` for the guest's prayer) show on the host's game: rule 5, not built. Enabled state (2026-10-21): a guest's own timers and loads can still enable or disable references on its game until step 5 covers them; a guest joining later gets no enabled states (save transfer at join will carry them); actors are left to their owner. Locks (2026-10-21): a guest's own world scripts (timers, loads) locking something are proposals too until step 5 covers them; a guest's lockpicking is not checked against the host's lock (it is taken as is).
@@ -2601,7 +2617,7 @@ What the first playtest build has besides what works today (the table above):
     damage). Live chest and barter menus close when their target goes, dies or leaves (`MenuAutoClose`, Skyrim Souls'
     rule), and an open chest's list follows another game's change (`SendInventoryUpdateMessage`). ClientTests
     `menu_auto_close_tests.cpp`, GameTests `perk_flows.cpp` (rejoin); Skyrim `ability-stays-on-copy` and the
-    `coop_menus.py` live-menu checks pass; a chest lid's pose after an interrupted open is in `docs/bugs.md`.
+    `coop_menus.py` live-menu checks pass; a chest lid's pose after an interrupted open is fixed (News, 2026-11-18).
 
 Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, mod support
 (RaceMenu adapter, animation mods, mod sync). Party map/compass markers are implemented on dev as recorded above.

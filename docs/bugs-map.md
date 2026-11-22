@@ -177,7 +177,8 @@ Both turn on `ExtraAliasInstanceArray` (12718-12721). Same lock, different partn
 
 ## Standalone
 
-No link found, each stays one task: creature wobble, Open Animation Replacer's picks, chest lid, the werewolf, follower stops following, scratch save, quest start/stop events, older crime scenarios, a mod's rename.
+No link found, each stays one task: creature wobble, Open Animation Replacer's picks, the werewolf, follower stops
+following, scratch save, quest start/stop events, older crime scenarios, a mod's rename.
 
 [After the host dies](bugs.md#after-the-host-dies) waits for PR #25, which refuses copies' combat trees and finds the
 half-stop is the engine's detection.

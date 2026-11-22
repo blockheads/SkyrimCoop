@@ -13,6 +13,7 @@
 #include <Breadcrumbs.h>
 #include <Games/Animation/ActorStateRules.h>
 #include <Games/HiddenCopies.h>
+#include <Games/ReferenceStates.h>
 #include <Games/GuestNpcs.h>
 #include <MainLoopTasks.h>
 #include <FormIds.h>
@@ -1065,6 +1066,17 @@ uint8_t SkyrimBridge::GetObjectOpenState(uint32_t aObjectFormId) const noexcept
     if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
         return static_cast<uint8_t>(pObj->GetOpenState());
     return 0;
+}
+
+bool SkyrimBridge::PoseObjectOpenState(uint32_t aObjectFormId) noexcept
+{
+    TESObjectREFR* pObject = GetRefr(aObjectFormId);
+    if (!pObject || pObject->IsDeleted())
+        return true;
+    if (pObject->IsDisabled() || !pObject->GetNiNode())
+        return false;
+    ReferenceStates::PoseOpenState(*pObject);
+    return true;
 }
 
 bool SkyrimBridge::IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept

@@ -1,6 +1,8 @@
 #include <Games/ReferenceStates.h>
 
 #include <Games/FormState.h>
+#include <Events/LidUnposedEvent.h>
+#include <World.h>
 #include <SaveLoad.h>
 #include <FormIds.h>
 
@@ -84,6 +86,8 @@ bool ApplyOpen(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
     using TSetOpenState = bool(TESObjectREFR*, bool, bool);
     POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287);
     s_setOpenState.Get()(&aObject, acChange.Value != 0, false);
+    if (!aObject.GetNiNode())
+        World::Get().GetRunner().Trigger(LidUnposedEvent{aObject.formID});
     return true;
 }
 
@@ -111,6 +115,20 @@ bool ApplyHarvested(TESObjectREFR& aObject, const ObjectChange& acChange) noexce
     return true;
 }
 
+} // namespace
+
+void PoseOpenState(TESObjectREFR& aObject) noexcept
+{
+    const auto cType = aObject.baseForm ? aObject.baseForm->formType : FormType::Count;
+    if (cType != FormType::Door && cType != FormType::Container)
+        return;
+    using TSetOpenState = bool(TESObjectREFR*, bool, bool);
+    POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287);
+    s_setOpenState.Get()(&aObject, IsOpen(aObject), true);
+}
+
+namespace
+{
 // Position, then angle.
 bool ReadMove(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {

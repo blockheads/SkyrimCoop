@@ -3,6 +3,7 @@
 #include <World.h>
 #include <Events/UpdateEvent.h>
 #include <Events/ActivateEvent.h>
+#include <Events/LidUnposedEvent.h>
 #include <Messages/ActivateRequest.h>
 
 #include <Bridges/IFormBridge.h>
@@ -22,6 +23,23 @@ ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     , m_actorBridge(aActorBridge)
 {
     Listen<ActivateEvent, &ObjectService::OnActivate>(m_connections, aDispatcher, this);
+    Listen<LidUnposedEvent, &ObjectService::OnLidUnposed>(m_connections, aDispatcher, this);
+    Listen<UpdateEvent, &ObjectService::OnUpdate>(m_connections, aDispatcher, this);
+}
+
+void ObjectService::OnLidUnposed(const LidUnposedEvent& acEvent) noexcept
+{
+    m_lidsToPose.insert(acEvent.FormId);
+}
+
+void ObjectService::OnUpdate(const UpdateEvent&) noexcept
+{
+    std::erase_if(m_lidsToPose, [this](uint32_t aObject) {
+        if (!m_formBridge.PoseObjectOpenState(aObject))
+            return false;
+        spdlog::debug("ObjectService: {:X}'s lid posed at its open state {}", aObject, m_formBridge.GetObjectOpenState(aObject));
+        return true;
+    });
 }
 
 void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
