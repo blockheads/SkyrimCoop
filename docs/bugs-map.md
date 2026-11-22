@@ -16,7 +16,7 @@ How sure each link is:
  --------------------------------------        --------------------------
  Drift detector, fixed: reads live ----------> Owner cancels an idle, copy plays it
    entries deleted 11-06                         "interaction idle"  (real, reworded)
-                                                 "after a turn or a pick" (new)
+                                                 "after a turn or a pick" (unclear 11-22)
  ai_state.head_track, fixed -----------------> a player's copy's look target
    dead actors, self slots (not read)
  town end comparison ------------------------> copy lifecycle (below)
@@ -26,7 +26,7 @@ How sure each link is:
    a move or a rebuilt process can change either, and they are checked apart
      |-- hand spells on a copy     fixed 11-04, held 11-07
      |-- Revive's hands            fixed
-     `-- a copy without its weapon OPEN: seen by the user, not reproduced
+     `-- a copy without its weapon OPEN: unreproduced (a sheathed bow's slot, 11-22)
 
  COPY LIFECYCLE: an owner's actor unloads, moves or is removed
  -------------------------------------------------------------
@@ -54,7 +54,8 @@ How sure each link is:
 "A copy walks while its owner turns" and "A copy's idle variant" are deleted: the evidence is here. Measured after the fix:
 Camilla's `npc-counter-matches`, 1144 samples over two runs, no run of 2 s; no owner turning against a walking copy in the second run's 30 flows (the reverse, a wolf, is in the
 entry below). Left: [A copy's interaction idle](bugs.md#a-copys-interaction-idle),
-[A copy's graph after a turn or a pick](bugs.md#a-copys-graph-after-a-turn-or-a-pick).
+[A copy's graph after a turn or a pick](bugs.md#a-copys-graph-after-a-turn-or-a-pick) (2026-11-22: the live check
+read no run of 2 s apart through the three death scenarios, measured; no fast test covers it yet).
 
 Cause, read: `PerformAction` (38949) sends its event through `NotifyAnimationGraph` (32901, 63362, 63591) to
 `hkbBehaviorGraph::HandleEventOnActiveNodes` (58377), which updates active nodes at once (60079). So the owner's
