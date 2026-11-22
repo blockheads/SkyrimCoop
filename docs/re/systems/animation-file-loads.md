@@ -79,3 +79,35 @@ The quarantine (`SKYRIMCOOP_HEAP_QUARANTINE`, verb `heap_quarantine` before `duo
   request while the gone one's load is queued) and a threaded probe of 63997's order under ASan.
 - **With the no-cancel fix,** quarantine on: the scenario passes, and two copies deleted while each had a turn load
   queued (two loads left, neither cancelled) were released with no stall; the guest's main loop ran on.
+
+## A request under a graph's lock (2026-11-22)
+
+Read in IDA on 1.7.104; the deadlock measured on the duo (`guest-ivarstead-jail-mouse`, the hang watchdog's stacks).
+
+```text
+63997 (Job_Animation_files, 63980)        takes every finished load's caller lock (+0x58: a process's animationLock)
+                                          then the manager's lock (+0xC), and runs every callback holding both
+  a callback: Actor::OnItemEquipped 37373 -> 37974 -> SetGraphVariableInt 32886 -> 32932: the graph manager's lock
+
+63358 BSAnimationGraphManager::Update     holds the graph manager's lock (+0xA0) through the graph's update
+  our HookUpdate -> GraphStreams::Replay -> ActionClips::Request
+    the process's animationLock, then 43621 -> 63968: the manager's lock (+0xC)
+```
+
+Both of our orders cross 63997's: the graph lock before the animation lock, and before the manager's. The two jobs
+run at once (measured: `RunOneActorAnimationUpdateJob` 41453 threads beside 63980's). The engine's own callers of
+43621 are 39625 (the action's), 39291 (an instant interaction's) and 41694 (a movement idle's) (read). Whether any
+of them can run under 63358 is not established: their callers were not walked up to a graph update, so the engine
+may hold the same inversion.
+
+- **Measured:** thread 436 in 63358 for copy `A8C9C` waited in `ActionClips::Request` for the animation lock;
+  thread 440 in 63997 held it and waited in 32932 for the graph lock, owner 436 (`waits for spin lock 0x27add630:
+  owner thread 436`). Our equipment reconcile had equipped the copy just before (the equip's clip load is the
+  callback). Four more animation threads waited in 63968 for the manager's lock.
+- **The fix** (`Games/Animation/DeferredClips.h`): the stream's request is queued for the frame's start
+  (`MainLoopTasks`), where no job runs; the replay already waits on the load's flag, which now exists before the
+  load does. A request whose actor is no longer a copy at the drain (released as the session ended) is dropped:
+  the action's load would cancel that actor's own (39258). Tests: GameTests "A copy deleted while its movement idle's clips load leaves no load on its lock" (the
+  fake counts requests made inside a graph update: `ClipRequestsUnderGraphLock`).
+- The lock-order checker sees none of this: it tracks `BSReadWriteLock`, and these are `BSSpinLock`s.
+

@@ -109,7 +109,8 @@ class JoinActions:
         names = {instance: ctx.player_record(instance)["name"] for instance in ("", "client")}
         guest_level = ctx.player_record("client")["level"]
         ctx.console_on("", "set gamehour to 12")
-        positions = {instance: ctx.my_position(instance) for instance in ("", "client")}
+        # Each at rest first: a player still landing from an arrival is saved where it is not.
+        positions = {instance: ctx.player_rests(instance) for instance in ("", "client")}
         # Save sync: each save the host makes goes ahead to the guest's store (My Games/.../SkyrimCoop/worlds).
         worlds = ctx.game("client").my_games / "SkyrimCoop" / "worlds"
         held = set(worlds.glob("*.world"))
@@ -139,8 +140,20 @@ class JoinActions:
         for instance in ("", "client"):
             if ctx.player_record(instance)["name"] != names[instance]:
                 raise ctx.failure(f"[{instance or 'host'}] the load restored another player's character")
-            if distance(ctx.my_position(instance), positions[instance]) > 100:
-                raise ctx.failure(f"[{instance or 'host'}] did not return to its saved place")
+            if distance(at := ctx.my_position(instance), positions[instance]) > 100:
+                raise ctx.failure(f"[{instance or 'host'}] did not return to its saved place: at "
+                                  f"{[round(v) for v in at]}, saved at {[round(v) for v in positions[instance]]}")
+
+
+    def player_rests(ctx, instance, frames=5, timeout=10):
+        """That game's player has not moved for `frames` game frames; where it rests."""
+        seen = {}
+        def rests():
+            frame, at = ctx.game_frame(instance), ctx.my_position(instance)
+            if "at" not in seen or distance(at, seen["at"]) >= 1:
+                seen.update(frame=frame, at=at)
+            return frame >= seen["frame"] + frames and (at,)
+        return ctx.wait_for(f"[{instance or 'host'}] rests where it stands", rests, timeout)[0]
 
 
     def moves_past_save(ctx, guest_level):

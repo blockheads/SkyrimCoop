@@ -93,7 +93,7 @@ void ClipsLoaded::Loaded(uint32_t aKind, AnimationClipSet* apSet)
 
 namespace ActionClips
 {
-std::shared_ptr<std::atomic<bool>> Request(Actor& aActor, const char* acEvent, Set aSet) noexcept
+std::shared_ptr<std::atomic<bool>> Request(Actor& aActor, const char* acEvent, Set aSet, std::shared_ptr<std::atomic<bool>> aDone) noexcept
 {
     using TCancel = void(AIProcess*);
     using TAssign = void*(void**, ClipsLoaded*);
@@ -112,7 +112,7 @@ std::shared_ptr<std::atomic<bool>> Request(Actor& aActor, const char* acEvent, S
     // The action's load replaces one under way (39625); an instant interaction's callback is replaced below.
     if (aSet == kAction)
         CancelLoad(pProcess);
-    auto done = std::make_shared<std::atomic<bool>>(false);
+    auto done = aDone ? std::move(aDone) : std::make_shared<std::atomic<bool>>(false);
     BSFixedString event(acEvent);
     void* pLoad = nullptr;
     if (aSet == kMovement)

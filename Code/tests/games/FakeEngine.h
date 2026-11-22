@@ -687,6 +687,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Collectable = false; // a plugin's non-persistent reference: moved out of the loaded cells, the engine
                                   // frees it (37501, 19113; a guard on the guest, 2026-11-06 and 2026-11-07)
         bool Hidden = false;      // a held copy hidden: its enables refused (HookEnable, HookSetDisabled)
+        std::set<uint32_t> Outfit;     // its outfit's items: an enable's inventory reset removes them (19690)
+        std::set<uint32_t> ForcedWorn; // worn items whose list holds ExtraCannotWear (an equip with forceEquip: ours)
         uint32_t EnableParent = 0; // its enable parent (XESP): takes the parent's state as the parent loads
         bool NoProcess = false;   // its process freed, its handle still valid (marked deleted, MarkForDelete)
         bool Essential = false;  // goes down at 0 health instead of dying
@@ -924,8 +926,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static constexpr uint32_t kSitShift = 14;
     [[nodiscard]] uint8_t SitState(uint32_t aFormId) const { return Actors.at(aFormId).State1 >> kSitShift & 0xF; }
     uint32_t ClipLoadFrames = 3;
-    // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in.
-    std::shared_ptr<std::atomic<bool>> RequestActionClips(uint32_t aFormId, const std::string& acEvent);
+    // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in (aDone, or a
+    // new one).
+    std::shared_ptr<std::atomic<bool>> RequestActionClips(uint32_t aFormId, const std::string& acEvent,
+                                                         std::shared_ptr<std::atomic<bool>> aDone = nullptr);
+    // Clip requests made inside a copy's graph update, its graph manager's lock held (63358): the loader's job takes
+    // that lock under the locks a request takes (63997), so Skyrim can stop there for good (animation-file-loads.md).
+    size_t ClipRequestsUnderGraphLock = 0;
     struct ClipLoad
     {
         uint32_t FormId;
@@ -942,7 +949,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // An owner's movement selector loads an idle's clips into its own set (IMovementSelectIdle 41694, kind 47).
     void LoadMovementClips(uint32_t aFormId, const std::string& acEvent);
     // A copy's movement idle set, loaded as its owner's stream says (ActionClips::Request, kMovement).
-    std::shared_ptr<std::atomic<bool>> RequestMovementClips(uint32_t aFormId, const std::string& acEvent);
+    std::shared_ptr<std::atomic<bool>> RequestMovementClips(uint32_t aFormId, const std::string& acEvent,
+                                                           std::shared_ptr<std::atomic<bool>> aDone = nullptr);
     struct MovementSet
     {
         std::string Event;
@@ -1579,6 +1587,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool IsActorStillLoading(uint32_t aFormId) const noexcept override;
     bool IsActorDeleted(uint32_t aFormId) const noexcept override;
     void EnableActor(uint32_t aFormId) noexcept override;
+    // Enable 19800 resets an actor's inventory before it has a process: each worn outfit item goes through
+    // RemoveItem 16059's no-process unequip (19694). A worn list 16059 expects to survive that the unequip frees is
+    // freed again unless 19694 says it is gone (inventory-changes.md, "the list freed twice").
+    uint32_t WornListDoubleFrees = 0;
+    // Worn lists an enable's reset unequipped that merged into an equal twin (freed), whoever answered for them.
+    uint32_t WornListsMerged = 0;
     void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;
     void SetActorHidden(uint32_t aFormId, bool aHidden) noexcept override;
     // An enable parent made from its file or a save (InitItemImpl, InitLoadGame): 20271 sets each child's flag raw

@@ -163,3 +163,72 @@ above high; else `Character::EquipNow` (38001). `ActorEquipManager::EquipEntryQu
 `DropObject`, `StartCombat`, AI packages) always queues. `AIProcess::ApplyQueuedEquips` (0x140720D90, from
 `Job_Non_render_safe_AI`) drains the list through the public `EquipObject`/`UnequipObject` with `abQueueEquip` 0, so
 every queued equip passes our hook again when it lands: the owner reads its items then, no timer needed.
+
+## A worn item removed from an actor with no process: the list freed twice (2026-11-22)
+
+Read in IDA on 1.7.104; the free and the stale use measured on the duo (`guest-ivarstead-fine-mouse-sweep`, heap
+history and quarantine on, 2 of 2). Searched `reference/plugins` (EngineFixes, po3-Tweaks, PapyrusExtender): none
+patches 16059, 19694 or 16067 (searched by their IDs).
+
+```text
+InventoryChanges::RemoveItem 16059, a stack that is worn (stackList = its ExtraDataList, 32 bytes)
+  listDiesWithWorn = the list has 1 extra, or 2 and (a count above 1, or 0x140164840's extra, or
+                     type 142 the leveled item base: 0x14022f469, 0x1402301a7)
+  owner has an AIProcess   ActorEquipManager::UnequipObject 38901
+                             returns EquipData+0x24: "the list is gone" (38920 <- 38002 <- 38005 <- 16067 == 0)
+  owner has none           19694: vfunc 0xA1 UnequipItem (Actor 37975), then ALWAYS returns 1
+                             16059 reads 1 as "the list survived"
+  survived and not listDiesWithWorn  ->  stackList kept, passed to a nested RemoveItem (0x1402304ce)
+    its entry (0x14022dca8): a list with no extras is destroyed and freed
+
+InventoryChanges::UnequipWornList 16067 (under 37975 and 38901): un-worn, the list is freed (0x140232895) when
+  nothing is left on it, or when it merges into an equal list of the same entry
+```
+
+So for an owner with no process, a worn list with two or more extras that 16067 frees is used again by 16059, and
+freed a second time: the 32-byte free list then hands one block to two objects. An actor has no process while
+disabled (19801 frees it).
+
+- **Measured:** the guest, as the host loaded a save: `CharacterService::OnDisconnected` -> `EnableActor` on a held
+  copy we had disabled (`19E08`) -> `Enable` 19800 -> `ResetInventory` 37322 -> 19802 -> 16038 -> 19690 -> 37797 ->
+  `RemoveItem` 19689 -> 16059 -> (nested) 16059 -> `ExtraDataList` extras count 12336 on the list. The list was freed
+  by 16067+0x56a (from `Actor::UnequipItem` 37975) on the same thread, 0 ms before. With the quarantine the read
+  hangs on the list's lock (`0xDBDBDBDB`); the list had been made by `AddWornItem` 16066 under our equip
+  (`InventoryService::ApplyWorn`) 44 s earlier.
+- **Read:** at 92960 and 91958 (`MovementMessagePathFailed` and `MovementMessageActivateDoor` constructors, 32
+  bytes) the faulting `this` is what `MemoryManager::Allocate(32)` returned (90880), a vtable's address: a free
+  block's link overwritten, so those crashes are the heap's victims, not stale pointers of their own.
+  **Inferred:** that the six crashes of 2026-11-22 (bugs.md's "A guest crash through a pointer that holds a vtable",
+  now removed) were all this worn list. What is measured: one free and a stale read under the quarantine, and one
+  crash of the same shape from this path with the hook off (below), with no second free recorded.
+- **Measured, then read:** the list held three extras, `[142 leveled item base, 22 worn, 61 cannot wear]`, beside an
+  unworn `[142]` list of the same item (copy `19E08`, item `1BE1A`; a log line at 37975, 3 of 3 runs hung). 16059
+  counts three and expects it to survive. The unequip strips `ExtraCannotWear` first (38920 at `0x1406de0ca`,
+  `ExtraDataList__SetCannotWear` off), 16067 takes the worn extra, and the `[142]` left merges into its twin: freed.
+  The copy's `ExtraCannotWear` is ours: our equip of a copy's worn set forces it (16066's `forceEquip`).
+- **Not run:** a plain game. The path has no code of ours, but needs a disabled actor, a worn stack marked cannot
+  wear (a script's `EquipItem` with `abPreventRemoval`) with an equal unworn twin, and an inventory reset; the
+  vanilla stand-in has no heap tools to show it.
+- **Measured 2026-11-22, the hook off** (`held_copy_shown_again_frees_no_list_twice`, heap history on, 1 of 1): the
+  guest crashed 2 s after the disconnect in `NiObject`'s constructor (70199) writing `[rcx+8]`, rcx a vtable's
+  address: the vtable crashes' shape, from this path alone. No `DOUBLE FREE` was counted. Inferred: the freed block
+  was allocated again between the unequip and the nested call (the unequip's events and messages allocate), so the
+  second free took a live object's block from under its owner (both frees go through 36098, the sized delete behind
+  the thunk `0x1415A743C`, and 68117). With the quarantine the block is not reused and the read hangs instead.
+- **Read:** an actor's enable is the way in. `Enable` 19800 (at `0x1402f293d`) calls `ResetInventory` (vfunc 0x8A,
+  37322 -> 19802 -> 16038 -> `RemoveOutfitItems` 19690) before it makes the new AIProcess, so every worn outfit item
+  of an actor being enabled goes through the no-process branch: a held copy shown again, in a session or at its end.
+- **Read:** 19694 has a second caller in 16059 (`0x14022f49b`), where its 1 means "unequipped, go on"; a 0 there
+  skips the removal. So its answer is left alone.
+
+**The fix** (`Games/FreedWornList.h`, `TESObjectREFR.cpp`): `HookUnequipForRemove` (19694) looks, after the engine's
+call, whether the item's entry still holds the list, and remembers one that is gone (per thread) until the
+`RemoveItem` it ran in returns; `HookRemoveFromInventory` (16059) passes no list in its place to each nested call
+(16059 makes up to two with the same list: `0x14022f51d`, `0x1402305e0`). Tests: ClientTests
+`[freed-worn-list]`; GameTests "A held copy wearing its outfit beside a twin is shown again: no worn list is freed
+twice" (the fake's `EnableActor` counts the second free); the duo: `held_copy_shown_again_frees_no_list_twice` (it
+boots the games with the heap history itself: `count_double_frees`, then `expect_no_double_free`).
+
+- `ObjectReference.Delete` 56154 frees nothing itself: `SetDelete`, `Set3D(null)` (inline under the reference's
+  lock 12358, or task 24 through 36943), then a `DeleteFunctor` after the frame's render -> `GarbageCollector::Add`
+  36459 -> `Job_Garbage` (36479). No free of it showed in either run.

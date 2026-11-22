@@ -1,3 +1,4 @@
+#include <Games/FreedWornList.h>
 #include <Games/Memory.h>
 #include <Games/Animation/GraphReference.h>
 #include <Games/Animation/VariableSync.h>
@@ -1284,12 +1285,39 @@ void HookSetAngleOnAxis(TESObjectREFR* apThis, char aAxis, float aValue)
     RaiseJump(apThis);
 }
 
+// RemoveItem's unequip of a worn stack for an owner with no process (19694): it may free the stack's list (16067)
+// and always answers 1. The freed list is remembered for the RemoveItem that follows.
+using TUnequipForRemove = bool(TESObjectREFR*, TESBoundObject* apItem, uint32_t aCount, ExtraDataList* apList);
+static TUnequipForRemove* RealUnequipForRemove = nullptr;
+static thread_local FreedWornList s_freedWornList;
+
+bool HookUnequipForRemove(TESObjectREFR* apThis, TESBoundObject* apItem, uint32_t aCount, ExtraDataList* apList)
+{
+    const bool cResult = RealUnequipForRemove(apThis, apItem, aCount, apList);
+    std::vector<const void*> held;
+    if (const auto* pChanges = apThis ? apThis->GetContainerChanges() : nullptr; pChanges && pChanges->entries)
+        for (auto* pEntry : *pChanges->entries)
+            if (pEntry && pEntry->form == apItem && pEntry->dataList)
+                for (ExtraDataList* pList : *pEntry->dataList)
+                    held.push_back(pList);
+    s_freedWornList.Unequipped(apList, held);
+    return cResult;
+}
+
 // A removal the engine makes on the inventory itself, not through TESObjectREFR::RemoveItem (the Training Menu's and a
 // fine's gold, PayGoldToContainer 37511; a trapped soul's gem): sent as that one is.
 BSPointerHandle<TESObjectREFR>* HookRemoveFromInventory(ExtraContainerChanges::Data* apThis, BSPointerHandle<TESObjectREFR>* apResult, TESObjectREFR* apRef, TESBoundObject* apItem,
                                                         int32_t aCount, ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc,
                                                         TESObjectREFR* apDropRef)
 {
+    struct Depth
+    {
+        Depth() noexcept { s_freedWornList.Enter(); }
+        ~Depth() { s_freedWornList.Leave(); }
+    } depth;
+    // The list 19694's unequip just freed: taken from no stack, not freed again.
+    if (s_freedWornList.IsFreed(apExtraList))
+        apExtraList = nullptr;
     TESObjectREFR* pOwner = apRef ? apRef : apThis ? apThis->parent : nullptr;
     if (!ScopedItemRemovalOverride::IsOverriden() &&
         ProposeContainerTransfer(pOwner, apMoveToRef, apItem, aCount, apExtraList, aReason))
@@ -1506,6 +1534,7 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK_ID(16146, &RealEnchantObject, HookEnchantObject);
         HOOK_ID(19689, &RealRemoveInventoryItem, HookRemoveInventoryItem);
         HOOK_ID(16059, &RealRemoveFromInventory, HookRemoveFromInventory);
+        HOOK_ID(19694, &RealUnequipForRemove, HookUnequipForRemove);
         HOOK_ID(56626, &RealMoveTo, HookMoveTo);
         HOOK_ID(22053, &RealSetPositionOnAxis, HookSetPositionOnAxis);
         HOOK_ID(22054, &RealSetAngleOnAxis, HookSetAngleOnAxis);

@@ -1,3 +1,5 @@
+#include <Games/Animation/DeferredClips.h>
+#include <Games/FreedWornList.h>
 #include <Diagnostics/HeadTrackRead.h>
 #include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
@@ -471,7 +473,14 @@ struct FakeGraphTarget final : IGraphTarget
         const auto cEvents = Engine.GraphEventTable();
         if (aEventId >= cEvents.size())
             return nullptr;
-        return aSet == 47 ? Engine.RequestMovementClips(FormId, cEvents[aEventId]) : Engine.RequestActionClips(FormId, cEvents[aEventId]);
+        // As Games/Skyrim's target: between frames, not in the graph's update.
+        const auto cCopy = [pEngine = &Engine, cFormId = FormId] {
+            const auto cActor = pEngine->Actors.find(cFormId);
+            return cActor != pEngine->Actors.end() && cActor->second.Copy;
+        };
+        return DeferClipRequest(cCopy, [pEngine = &Engine, cFormId = FormId, event = cEvents[aEventId], aSet](const auto& acDone) {
+            return (aSet == 47 ? pEngine->RequestMovementClips(cFormId, event, acDone) : pEngine->RequestActionClips(cFormId, event, acDone)) != nullptr;
+        });
     }
 };
 } // namespace
@@ -1787,12 +1796,14 @@ void FakeEngine::LoadMovementClips(uint32_t aFormId, const std::string& acEvent)
         streams.OnClips(aFormId, streams.Tick(), 47, GraphEventId(acEvent));
 }
 
-std::shared_ptr<std::atomic<bool>> FakeEngine::RequestMovementClips(uint32_t aFormId, const std::string& acEvent)
+std::shared_ptr<std::atomic<bool>> FakeEngine::RequestMovementClips(uint32_t aFormId, const std::string& acEvent,
+                                                                   std::shared_ptr<std::atomic<bool>> aDone)
 {
+    ClipRequestsUnderGraphLock += m_replaying;
     const auto cActor = Actors.find(aFormId);
     if (cActor == Actors.end() || (!ClipFiles.contains(acEvent) && !OtherSetClips.contains(acEvent)))
         return nullptr;
-    auto done = std::make_shared<std::atomic<bool>>(false);
+    auto done = aDone ? std::move(aDone) : std::make_shared<std::atomic<bool>>(false);
     // As ActionClips: the holder's lock and callback; the holder goes once none of its loads is queued.
     void* pLoad = MovementSets.Request(
         aFormId, [this](uint32_t aId) { return !Actors.contains(aId); },
@@ -1809,11 +1820,13 @@ std::shared_ptr<std::atomic<bool>> FakeEngine::RequestMovementClips(uint32_t aFo
     return pLoad ? done : nullptr;
 }
 
-std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aFormId, const std::string& acEvent)
+std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aFormId, const std::string& acEvent,
+                                                                 std::shared_ptr<std::atomic<bool>> aDone)
 {
+    ClipRequestsUnderGraphLock += m_replaying;
     if (!ClipFiles.contains(acEvent) && !OtherSetClips.contains(acEvent))
         return nullptr;
-    auto done = std::make_shared<std::atomic<bool>>(false);
+    auto done = aDone ? std::move(aDone) : std::make_shared<std::atomic<bool>>(false);
     ClipLoads.push_back({aFormId, acEvent, ClipLoadFrames, done});
     return done;
 }
@@ -2321,8 +2334,41 @@ bool FakeEngine::IsActorDeleted(uint32_t aFormId) const noexcept
 // Every enable is TESObjectREFR::Enable (19800), which the plugin refuses for a hidden copy.
 void FakeEngine::EnableActor(uint32_t aFormId) noexcept
 {
-    if (const auto it = Actors.find(aFormId); it != Actors.end() && !it->second.Hidden)
-        it->second.Disabled = false;
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || it->second.Hidden || !it->second.Disabled)
+        return;
+    it->second.Disabled = false;
+    for (const uint32_t cItem : it->second.Outfit)
+    {
+        const auto& cEntries = it->second.Items.Entries;
+        const auto cWorn = std::ranges::find_if(cEntries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == cItem && acEntry.ExtraWorn; });
+        if (cWorn == cEntries.end())
+            continue;
+        // The worn list: leveled base, worn, and cannot wear when forced. 16059 expects one of three to survive.
+        const bool cExpectedToSurvive = it->second.ForcedWorn.contains(cItem);
+        // The unequip strips cannot wear and worn (38920, 16067); what is left merges into an EQUAL unworn list (more
+        // of its own stack, or another stack with the same extra data) and is freed. An unequal one leaves it.
+        auto unworn = *cWorn;
+        unworn.ExtraWorn = unworn.ExtraWornLeft = false;
+        const bool cTwin = cWorn->Count > 1 || std::ranges::any_of(cEntries, [&](const auto& acEntry) {
+            return &acEntry != &*cWorn && !acEntry.ExtraWorn && !acEntry.ExtraWornLeft && acEntry.CanBeMerged(unworn);
+        });
+        const int cList = 0, cOther = 0;
+        std::vector<const void*> held; // the entry's lists after the unequip
+        if (cTwin)
+            held = {&cOther};
+        else
+            held = {&cList};
+        // 19694 answers "survived" always; our hooks on it and on 16059 drop a list the entry no longer holds.
+        FreedWornList freed;
+        freed.Enter();
+        freed.Unequipped(&cList, held);
+        freed.Enter(); // the nested RemoveItem, handed the list
+        WornListsMerged += cTwin;
+        if (cExpectedToSurvive && cTwin && !freed.IsFreed(&cList))
+            ++WornListDoubleFrees;
+        it->second.ForcedWorn.erase(cItem);
+    }
 }
 
 void FakeEngine::EnableParentLoads(uint32_t aParent, bool aDisabled)

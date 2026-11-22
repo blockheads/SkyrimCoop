@@ -17,6 +17,8 @@ enum Set : uint8_t
 };
 
 // Loads an event's clip files into one of the actor's process's sets, as its owner's game did (coop_LoadEventClips
-// 43621). Null: nothing to wait for. Otherwise set once they are in.
-std::shared_ptr<std::atomic<bool>> Request(Actor& aActor, const char* acEvent, Set aSet = kAction) noexcept;
+// 43621). Null: nothing to wait for. Otherwise set once they are in (aDone, or a new one). Takes the process's
+// animation lock and the loader's: never under a graph's update (DeferredClips.h).
+std::shared_ptr<std::atomic<bool>> Request(Actor& aActor, const char* acEvent, Set aSet = kAction,
+                                           std::shared_ptr<std::atomic<bool>> aDone = nullptr) noexcept;
 } // namespace ActionClips

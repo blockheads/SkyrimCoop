@@ -4,6 +4,7 @@
 #include <Actor.h>
 #include <CrashHandler.h>
 #include <Diagnostics/Snapshot.h>
+#include <HeapHistory.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/HostService.h>
 #include <World.h>
@@ -110,7 +111,15 @@ nlohmann::json StackWalkCheck(Harness&, const nlohmann::json& acRequest)
     return reply;
 }
 
-constexpr Command cCommands[] = {{"memory_sites", false, &MemorySites}, {"perf", false, &Perf}, {"stack_walk_check", false, &StackWalkCheck}};
+// {"cmd": "heap"}: whether the heap history counts double frees (SKYRIMCOOP_HEAP_HISTORY or _QUARANTINE at boot), and
+// how many it caught: frees of an engine block freed already and not allocated since.
+nlohmann::json Heap(Harness&, const nlohmann::json&)
+{
+    return {{"ok", true}, {"recording", HeapHistory::Recording()}, {"double_frees", HeapHistory::DoubleFrees()}};
+}
+
+constexpr Command cCommands[] = {
+    {"memory_sites", false, &MemorySites}, {"perf", false, &Perf}, {"stack_walk_check", false, &StackWalkCheck}, {"heap", false, &Heap}};
 } // namespace
 
 std::span<const Command> MemoryCommands()

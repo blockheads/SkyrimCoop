@@ -5,6 +5,7 @@
 #include "LockOrderAttribution.h"
 
 #include <CrashHandler.h>
+#include <HeapHistory.h>
 #include <HotReload/Handoff.h>
 #include <Hooks/SkseBranchPatch.h>
 
@@ -653,6 +654,9 @@ void LogHeldLocks() noexcept
             spdlog::error("  {} {} {} for {}ms, taken by {} (lock: writer thread {}, word {:#x})",
                           cHeld.Acquired ? "holds" : "WAITS FOR", ModeName(cHeld.Mode), DescribeLock(cHeld.Lock),
                           cNow - cHeld.SinceMs, FormatAddress(cHeld.Caller), uint32_t(pWords[0]), uint32_t(pWords[1]));
+            // A lock waited for in freed memory: who freed it.
+            if (!cHeld.Acquired)
+                HeapHistory::Explain("waited lock", reinterpret_cast<uintptr_t>(cHeld.Lock));
         }
     }
     spdlog::error("LockOrder: (end of held locks; {} edges, {} reports)", s_edgeCount.load(), s_reportCount.load());

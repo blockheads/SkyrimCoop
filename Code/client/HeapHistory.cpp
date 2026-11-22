@@ -12,6 +12,7 @@
 #include <deque>
 #include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace
 {
@@ -69,7 +70,9 @@ struct SizeStripe
 {
     SpinLock Lock;
     std::unordered_map<uintptr_t, uint32_t> Sizes;
+    std::unordered_set<uintptr_t> Freed; // freed and not allocated again: a second free of one is a double free
 };
+std::atomic<uint64_t> s_doubleFrees{0};
 SizeStripe* s_sizeStripes = nullptr;
 SizeStripe& StripeOf(uintptr_t aBlock) noexcept
 {
@@ -255,7 +258,6 @@ bool Start() noexcept
         {
             const int cMegabytes = std::atoi(pQuarantine);
             s_quarantineLimit = static_cast<size_t>(cMegabytes > 1 ? cMegabytes : 256) << 20;
-            s_sizeStripes = new SizeStripe[cStripes];
             spdlog::warn("Heap quarantine on: freed blocks are filled with {:#x} and held back from reuse ({} MB)", cPoison,
                          s_quarantineLimit >> 20);
         }
@@ -289,6 +291,8 @@ bool Start() noexcept
             else
                 spdlog::error("Heap history: could not reserve {} MB", s_capacity * sizeof(Event) >> 20);
         }
+        if (s_events || s_quarantineLimit)
+            s_sizeStripes = new SizeStripe[cStripes];
         return s_events || s_watchCount || s_quarantineLimit || s_guardSizeCount;
     }();
     return s_started;
@@ -298,13 +302,47 @@ void OnAllocate(const void* apBlock, size_t aSize) noexcept
 {
     if (s_events || s_watchCount)
         Add(apBlock, static_cast<uint32_t>(aSize ? aSize : 1));
-    if (s_quarantineLimit)
+    if (s_sizeStripes)
     {
         const auto cBlock = reinterpret_cast<uintptr_t>(apBlock);
         SizeStripe& stripe = StripeOf(cBlock);
         std::lock_guard lock(stripe.Lock);
-        stripe.Sizes[cBlock] = static_cast<uint32_t>(aSize);
+        stripe.Freed.erase(cBlock);
+        if (s_quarantineLimit)
+            stripe.Sizes[cBlock] = static_cast<uint32_t>(aSize);
     }
+}
+
+bool DoubleFree(const void* apBlock) noexcept
+{
+    if (!s_sizeStripes)
+        return false;
+    const auto cBlock = reinterpret_cast<uintptr_t>(apBlock);
+    {
+        SizeStripe& stripe = StripeOf(cBlock);
+        std::lock_guard lock(stripe.Lock);
+        if (stripe.Freed.insert(cBlock).second)
+            return false;
+    }
+    if (s_doubleFrees.fetch_add(1) < 8)
+    {
+        Event second;
+        Capture(second, cBlock, 0);
+        spdlog::error("Heap history: DOUBLE FREE of {:#x} (not passed on to the engine)", cBlock);
+        LogEvent("FREED AGAIN", second, second.Ms);
+        Explain("the block", cBlock);
+    }
+    return true;
+}
+
+uint64_t DoubleFrees() noexcept
+{
+    return s_doubleFrees.load();
+}
+
+bool Recording() noexcept
+{
+    return Start() && s_sizeStripes;
 }
 
 void OnFree(const void* apBlock) noexcept
@@ -499,5 +537,29 @@ void Dump(const _CONTEXT& acContext, uintptr_t aFaultAddress) noexcept
         story(where, *pSlot);
     }
     spdlog::error("End of heap history");
+}
+
+void Explain(const char* acpWhere, uintptr_t aAddress) noexcept
+{
+    if (!Start() || !s_events)
+        return;
+    // Held by the quarantine: its block's start, for a free recorded when the allocation no longer is.
+    uintptr_t block = aAddress;
+    {
+        std::scoped_lock lock(s_heldLock);
+        for (const Held& cHeld : s_held)
+        {
+            const auto cStart = reinterpret_cast<uintptr_t>(cHeld.Block);
+            if (aAddress >= cStart && aAddress - cStart < cHeld.Size)
+            {
+                spdlog::error("  {} {:#x}: {:#x} into a freed block of {:#x} bytes held by the quarantine", acpWhere, aAddress,
+                              aAddress - cStart, cHeld.Size);
+                block = cStart;
+                break;
+            }
+        }
+    }
+    const uint64_t cEnd = s_next.load();
+    LogStory(acpWhere, block, cEnd > s_capacity ? cEnd - s_capacity : 0, cEnd, GetTickCount64());
 }
 } // namespace HeapHistory

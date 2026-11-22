@@ -123,6 +123,10 @@ void FakeEngine::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uin
 {
     ScopedEquipOverride _;
     Equip(aActorFormId, aItemFormId, aEquipSlotFormId);
+    // Ours forces the equip (abForceEquip): 16066 marks the worn list cannot wear.
+    if (const auto actor = Actors.find(aActorFormId); actor != Actors.end() &&
+        std::ranges::any_of(actor->second.Items.Entries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == aItemFormId && acEntry.ExtraWorn; }))
+        actor->second.ForcedWorn.insert(aItemFormId);
 }
 
 void FakeEngine::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t) noexcept
@@ -196,6 +200,7 @@ void FakeEngine::Unequip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
     for (auto& held : cActor->second.HeldWeapons)
         if (held == aItem)
             held = 0;
+    cActor->second.ForcedWorn.erase(aItem);
     const GameId cId = ServerId(aItem);
     for (auto& entry : cActor->second.Items.Entries)
         if (entry.BaseId == cId)
@@ -308,6 +313,8 @@ void FakeEngine::QuestGivesItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
 void FakeEngine::OutfitPutsOn(uint32_t aActor, uint32_t aItem)
 {
     AddItems(aActor, aItem, 1);
+    if (const auto actor = Actors.find(aActor); actor != Actors.end())
+        actor->second.Outfit.insert(aItem);
     Equips(aActor, aItem, 0);
 }
 

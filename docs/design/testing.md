@@ -209,6 +209,12 @@ python3 scripts/coop_test.py repro quit-main-menu
 python3 scripts/coop_test.py repro quit-in-game
 ```
 
+**Heap tools on the duo** (`Code/client/HeapHistory.h`): boot with `SKYRIMCOOP_HEAP_HISTORY=2` (the MCP's
+`duo_start heap_history=2`) and the games record the engine's allocations and frees and count double frees: the
+harness's `heap` readout, the verb `expect_no_double_free`, a `DOUBLE FREE` log entry with both frees' stacks (the
+second free is not passed on). With `SKYRIMCOOP_HEAP_QUARANTINE=256` a use after free stops at once; a hang on a lock
+in freed memory names who freed it in the watchdog's report.
+
 They use the same duo reservation, off-screen display and prefix ownership rules. The corresponding GameTests
 flow is `[quit-desktop]`; `[native-lifetime]` checks deletion of independently registered VM natives.
 

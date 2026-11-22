@@ -1,6 +1,7 @@
 #include <Actor.h>
 #include <Games/ActorExtension.h>
 #include <Games/Animation/BSAnimationUpdateData.h>
+#include <Games/Animation/DeferredClips.h>
 #include <Games/Animation/GraphStream.h>
 #include <Games/Animation/ReplayState.h>
 #include <Games/Skyrim/ActionClips.h>
@@ -18,8 +19,10 @@
 #include <Hooks/Initializer.h>
 #include <Misc/BSFixedString.h>
 #include <World.h>
+#include <WorldGate.h>
 #include <map>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 
 // The graph input stream's hooks (docs/design/graph-input-stream.md): an owned actor's graph inputs recorded; a copy on
@@ -270,10 +273,22 @@ struct SkyrimGraphTarget final : IGraphTarget
         if (!Mirrored(aSet))
             return nullptr;
         const auto* pName = EventName(Graph, aEventId);
-        auto loading = pName && Graph.holder ? ActionClips::Request(*Graph.holder, pName->data, ActionClips::Set(aSet)) : nullptr;
-        spdlog::debug("Graph stream: copy {:X} loads {}'s clip files into set {}: {}", Graph.holder ? Graph.holder->formID : 0,
-                      pName && pName->data ? pName->data : "?", aSet, loading ? "loading" : "none");
-        return loading;
+        if (!pName || !pName->data || !Graph.holder)
+            return nullptr;
+        // Between frames: this is the graph's update, its manager's lock held.
+        const uint32_t cHandle = Graph.holder->GetHandle().handle.iBits;
+        // Released since (the session ended): the actor is its own game's, its process's loads its own.
+        const auto cCopy = [cHandle] {
+            auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(cHandle));
+            return pActor && pActor->GetExtension()->IsCopy() ? pActor : nullptr;
+        };
+        return DeferClipRequest([cCopy] { return cCopy() != nullptr; }, [cCopy, event = std::string(pName->data), aSet](const auto& acDone) {
+            Actor* pActor = cCopy();
+            const bool cLoading = pActor && ActionClips::Request(*pActor, event.c_str(), ActionClips::Set(aSet), acDone);
+            spdlog::debug("Graph stream: copy {:X} loads {}'s clip files into set {}: {}", pActor ? pActor->formID : 0, event, aSet,
+                          cLoading ? "loading" : "none");
+            return cLoading;
+        });
     }
     std::vector<GraphPick> OwnersPicks;
     void Picks(std::span<const GraphPick> aPicks) override { OwnersPicks.assign(aPicks.begin(), aPicks.end()); }
@@ -304,7 +319,8 @@ struct SkyrimGraphTarget final : IGraphTarget
 // coop_BShkbAnimationGraph_UpdateInterpolated (63587): one graph's update, its channels already applied (63590).
 char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, void* apScratch)
 {
-    if (s_inStream || !apGraph || !apGraph->holder || !apGraph->behaviorGraph || !apData || !CopiesHave(*apGraph))
+    const WorldGate::Reader cWorld;
+    if (!cWorld || s_inStream || !apGraph || !apGraph->holder || !apGraph->behaviorGraph || !apData || !CopiesHave(*apGraph))
         return RealUpdate(apGraph, apData, apScratch);
     auto& streams = World::Get().GetGraphStreams();
     const uint32_t cFormId = apGraph->holder->formID;
@@ -346,7 +362,8 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
 void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContext, float aStep)
 {
     BShkbAnimationGraph* pGraph = s_owner;
-    if (s_inStream || !pGraph || pGraph->behaviorGraph != apBehaviour)
+    const WorldGate::Reader cWorld;
+    if (!cWorld || s_inStream || !pGraph || pGraph->behaviorGraph != apBehaviour)
         return RealBehaviourUpdate(apBehaviour, apContext, aStep); // a sub-behaviour's, or no owner's
     s_owner = nullptr;
     auto& streams = World::Get().GetGraphStreams();
@@ -399,7 +416,8 @@ void HookMatchRagdollPose(hkbPoseMatchingGenerator* apNode, void* apContext, flo
         return;
     const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(pContext->character) -
                                                                       offsetof(BShkbAnimationGraph, character));
-    if (!pGraph->holder || !CopiesHave(*pGraph))
+    const WorldGate::Reader cWorld;
+    if (!cWorld || !pGraph->holder || !CopiesHave(*pGraph))
         return;
     if (apNode->currentMatch != cBefore)
         spdlog::debug("Graph stream: {:X}'s node {} '{}' matched {} (had {})", pGraph->holder->formID, apNode->id,
@@ -462,7 +480,7 @@ void HookUpdateSynchronizedClip(BSSynchronizedClipGenerator* apThis, const hkbCo
         apThis->atMark = true;
         return;
     }
-    if (CopiesHave(*pGraph))
+    if (const WorldGate::Reader cWorld; cWorld && CopiesHave(*pGraph))
         World::Get().GetGraphStreams().OnPick(pGraph->holder->formID, apThis->id,
                                               (apThis->allAtMarks ? kAllAtMarks : 0) | (apThis->allInScene ? kAllInScene : 0) |
                                                   (apThis->atMark ? kAtMark : 0));
@@ -471,7 +489,8 @@ void HookUpdateSynchronizedClip(BSSynchronizedClipGenerator* apThis, const hkbCo
 // BShkbAnimationGraph::SendEvent (63591): every input event of a graph, before it handles it.
 bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
 {
-    if (s_inStream || !apGraph || !apGraph->holder || !apEvent || !CopiesHave(*apGraph))
+    const WorldGate::Reader cWorld;
+    if (!cWorld || s_inStream || !apGraph || !apGraph->holder || !apEvent || !CopiesHave(*apGraph))
         return RealSendEvent(apGraph, apEvent);
     auto& streams = World::Get().GetGraphStreams();
     const uint32_t cFormId = apGraph->holder->formID;
@@ -499,7 +518,7 @@ TLoadManagerClips* RealLoadManagerClips = nullptr;
 
 void LogOwnerLoad(Actor* apActor, const BSFixedString* apEvent, uint32_t aSet)
 {
-    if (apActor && apEvent && apEvent->data && World::Get().GetGraphStreams().Recording(apActor->formID))
+    if (const WorldGate::Reader cWorld; cWorld && apActor && apEvent && apEvent->data && World::Get().GetGraphStreams().Recording(apActor->formID))
         spdlog::debug("Graph stream: owner {:X} loads {}'s clip files into set {}", apActor->formID, apEvent->data, aSet);
 }
 
@@ -537,7 +556,7 @@ void* HookLoadManagerClips(BSFixedString* apEvent, void* apManager, uint32_t aSe
 // coop_BShkbAnimationGraph_Generate (63568), from 63589 when the graph updated this frame: an owner's, for its copies.
 uint64_t HookGenerate(BShkbAnimationGraph* apGraph, char aQueued)
 {
-    if (!s_inStream && apGraph && apGraph->holder && CopiesHave(*apGraph))
+    if (const WorldGate::Reader cWorld; cWorld && !s_inStream && apGraph && apGraph->holder && CopiesHave(*apGraph))
     {
         auto& streams = World::Get().GetGraphStreams();
         if (streams.Recording(apGraph->holder->formID))
