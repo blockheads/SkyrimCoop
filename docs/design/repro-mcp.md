@@ -67,6 +67,11 @@ player, camera). The animation trace's `pos` entries also carry `sit`, `goal` an
 
 Kill moves (2026-11-04): `equip` (hex item, "0" bare hands), `kill_move_check`, `kill_move_exchange` (both players swing
 at once, moving). They appear once the server restarts; the scenario `kill-moves-cross` runs the same code.
+2026-11-22: the verb `kill_move_on(attacker, base, weapon, behind, watch, strict)` (through `verb`, or `rounds`): one
+player kills a restrained host NPC of `base`, one hit from death, with any weapon; it returns the pair that played, each
+game's blow-to-death time and `problems` (someone left in the kill move, a held kill, a victim standing after its
+blow, a ragdoll out of the world, keyframed or awake, bodies apart, an attacker that cannot walk). `strict` fails on
+any. The scenarios `kill-move-drops-at-blow` and `kill-moves-by-weapon` run it.
 
 Not built: a fast retry on a save (reload a checkpoint, the guest rejoining; loads froze guests in the 2026-10-31
 playtest), `equip`, `cast` (`together`: built 2026-11-09, below). Open: these runs called the tool functions from a scratch process, not through

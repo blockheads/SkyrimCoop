@@ -1815,6 +1815,12 @@ bool SkyrimBridge::ActorKillCounted(uint32_t aFormId) const noexcept
     return pActor && pActor->KillCounted();
 }
 
+bool SkyrimBridge::ActorKillQueued(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->KillQueued();
+}
+
 void SkyrimBridge::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
 {
     Breadcrumbs::Record("KillActorBy", aFormId, aKillerFormId);

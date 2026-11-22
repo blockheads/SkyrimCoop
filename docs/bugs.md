@@ -126,6 +126,8 @@ every other section needs the duo.
 - [A guest crash in the garbage collector's job](#a-guest-crash-in-the-garbage-collectors-job): medium
 - [A respawned player's draw that does nothing](#a-respawned-players-draw-that-does-nothing): small
 - [The attacker's copy not in its kill move](#the-attackers-copy-not-in-its-kill-move): small
+- [A kill move's dead copy awake or lying apart](#a-kill-moves-dead-copy-awake-or-lying-apart): small
+- [A claimed kill's victim holds its pose for the host's replay](#a-claimed-kills-victim-holds-its-pose-for-the-hosts-replay): small
 - [A knocked-down copy placed 62 units off](#a-knocked-down-copy-placed-62-units-off): small
 - [Sync points asked for over and over](#sync-points-asked-for-over-and-over): medium
 
@@ -1186,6 +1188,8 @@ start (`HookTryMoveTo`, the instance, `PairOnStream`).
 
 Size: small. Needs: the duo, IDA.
 - 2026-11-22, dev `aa723513`: `kill-move-kills-guest` passed 1 of 1. Too few runs to close.
+- 2026-11-22, `agent/kill-moves-polish`: passed 1 of 1 again; `kill_move_on` paired 35 of 35 (a bandit or a wolf, eight
+  weapon classes, either player). Still too few of this scenario to close.
 
 ### A guest crash in the garbage collector's job
 
@@ -1227,6 +1231,38 @@ Agent task: log which branch took the `pa_Kill` action for the attacker's copy, 
 Size: small. Needs: the duo.
 - 2026-11-22, dev `aa723513`: `host-kill-move` passed; `frozen-wolf-kill-move` failed once with the same message
   ("[client] player's kill_move is True" timed out after 3 s) and passed in the rerun.
+- 2026-11-22, `agent/kill-moves-polish`: `kill_move_on` now says when either game's attacker or victim never entered
+  the kill move: 0 of 23 kill moves (7 the host's), and `host-kill-move` and `frozen-wolf-kill-move` passed 1 of 1.
+  Not read further. `frozen-wolf-kill-move` waits on a state that lasts only until the host's refusal comes back.
+
+### A kill move's dead copy awake or lying apart
+
+`kill-moves-by-weapon`, 4 of 14 rows in one run (2026-11-22), all a guest's kill move, the copy on the guest: its
+ragdoll still awake 30 s after the death, twice (a bandit under `2HMSlash`, a wolf under `1HMWolfA`: the log shows
+`CopyRagdollPhysics: ... at its owner's rest: step 0 (22 bodies, near false, still false, woken true)` and no later
+step), and asleep but 6 to 10 units and 12 to 29 degrees off its owner's body on 8 and 2 bones (`KillMoveD`,
+`ShortC`; `rests asleep` then `step 3 (near false)`). The other 10 rows, the host's four among them, lay alike. The next run: 1 of
+14 (`ShortA`, 11 bones 8 to 9 units off). Not
+read. Not known: whether the copy's death taken when heard (that day's change, about 100 ms before its owner's
+frames) adds to it; 16 rows on the builds before and after that change lay alike with a 15 s wait.
+
+Agent task: `kill-moves-by-weapon --repeat 3` with a `RagdollTrace` of each victim, then read why the rest's steps
+stop at 0 (`CopyRagdollPhysics`, `BodyPrediction::StepToRest`).
+
+Size: small. Needs: the duo.
+
+### A claimed kill's victim holds its pose for the host's replay
+
+On the game of a guest that kills a host NPC with a kill move, the victim holds its clip's last pose 0.08 to 0.35 s
+after the blow before it drops (26 kill moves, 2026-11-22, `kill_move_on`; 1.5 s and more before that day's two fixes,
+`docs/re/systems/kill-moves.md`, "The claimer's victim waits for the host's word"). The death is the host's, and
+the host's game kills at its own replay's `KillActor` (`HostTakeBacks`), which runs that far behind the guest's clip.
+
+Agent task: decide whose ragdoll starts first. The host killing at the give-back (before its own replay's blow) or
+the claimer dropping its victim at its own `KillActor` both start one game's ragdoll ahead of the other's frames;
+measure the pull that gives a copy (`RagdollTrace`) before choosing.
+
+Size: small. Needs: the duo.
 
 ### A knocked-down copy placed 62 units off
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <string_view>
 
@@ -127,6 +128,20 @@ constexpr bool PoseHeld(uint64_t aNow, uint64_t aHeldUntil, bool aDead) noexcept
     return !aDead && aNow < aHeldUntil;
 }
 
+// A copy holding its pose reached its clip's KillActor before its owner's death was heard: the death is overdue on
+// its own clock. It is taken when heard, not at playback, and the actions queued before it are dropped (its graph
+// takes no update while held). kill-moves.md, "The claimer's victim waits for the host's word"
+template <class TQueue, class TIsDying> bool TakeOverdueDeath(TQueue& aActions, bool aPoseHeld, TIsDying&& aIsDying)
+{
+    if (!aPoseHeld)
+        return false;
+    const auto cDeath = std::find_if(aActions.begin(), aActions.end(), aIsDying);
+    if (cDeath == aActions.end())
+        return false;
+    aActions.erase(aActions.begin(), cDeath);
+    return true;
+}
+
 // A kill move on an actor of another game is claimed through the host (HostClaims; one-simulator.md piece 4b): what a
 // game knows of the claim of the pair a copy replays.
 enum class ClaimAnswer
@@ -195,11 +210,12 @@ constexpr bool PairsHere(bool aPartnerIsCopy, bool aPartnerIsMount, bool aPartne
     return (!aPartnerIsCopy || aVictimTaken) && !aPartnerIsMount && !ClaimedAway(aKillMove, aPartnerIsCopy, aPartnerIsPlayer);
 }
 
-// A claimed kill move is done on its claimer's game: a taken victim's clip killed it, or it left the pair; a player
-// partner's once the claimer's own actor left its kill move.
-constexpr bool PairDone(bool aTaken, bool aKilled, bool aPartnerPaired, bool aActorPaired) noexcept
+// A claimed kill move is done on its claimer's game: a taken victim's clip killed it, or it left the pair with no
+// kill queued (37316's task counts it frames after its KillActor: kill-moves.md, "A blow and its clip's end in one
+// update"); a player partner's once the claimer's own actor left its kill move.
+constexpr bool PairDone(bool aTaken, bool aKilled, bool aKillQueued, bool aPartnerPaired, bool aActorPaired) noexcept
 {
-    return aTaken ? aKilled || !aPartnerPaired : !aActorPaired;
+    return aTaken ? aKilled || (!aPartnerPaired && !aKillQueued) : !aActorPaired;
 }
 
 // An accepted action carries its owner's whole graph state for a copy that refuses it (ReplayGraph::Recover). A pair's

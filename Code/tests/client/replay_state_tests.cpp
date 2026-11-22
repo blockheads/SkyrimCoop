@@ -1,3 +1,5 @@
+#include <deque>
+#include <utility>
 #include <catch2/catch.hpp>
 #include <Games/Animation/ActionClaims.h>
 #include <Messages/Payloads.h>
@@ -44,11 +46,30 @@ TEST_CASE("A kill move replayed on an NPC of this game's is never paired here", 
 TEST_CASE("A claimed kill move is done when its taken victim was killed or left it, a player partner's with the claimer's own kill move", "[copies][replay-state][kill-move]")
 {
     using namespace ReplayState;
-    CHECK_FALSE(PairDone(true, false, true, true));
-    CHECK(PairDone(true, true, true, true));   // its clip's KillActor
-    CHECK(PairDone(true, false, false, true)); // it left the pair alive
-    CHECK_FALSE(PairDone(false, false, false, true));
-    CHECK(PairDone(false, false, true, false));
+    CHECK_FALSE(PairDone(true, false, false, true, true));
+    CHECK(PairDone(true, true, false, true, true));   // its clip's KillActor
+    CHECK(PairDone(true, false, false, false, true)); // it left the pair alive
+    // PairEnd and KillActor in one update: its kill is a queued task (37316), counted a frame on (37896).
+    CHECK_FALSE(PairDone(true, false, true, false, true));
+    CHECK_FALSE(PairDone(false, false, false, false, true));
+    CHECK(PairDone(false, false, false, true, false));
+}
+
+TEST_CASE("A copy holding its pose takes its owner's death when heard, the actions before it dropped", "[copies][replay-state][kill-move]")
+{
+    // {dying, tick}: the host's stale half of the pair, then its death (duo, pa_KillMove1HMGrappleStab, 2026-11-22).
+    using Queue = std::deque<std::pair<bool, int>>;
+    const auto cDying = [](const std::pair<bool, int>& acAction) { return acAction.first; };
+    Queue held{{false, 1}, {false, 2}, {true, 3}, {false, 4}};
+    CHECK(ReplayState::TakeOverdueDeath(held, true, cDying));
+    CHECK(held == Queue{{true, 3}, {false, 4}});
+    // Not holding its pose, or no death heard yet: its queue plays at its playback time, untouched.
+    Queue playing{{false, 1}, {true, 2}};
+    CHECK_FALSE(ReplayState::TakeOverdueDeath(playing, false, cDying));
+    CHECK(playing.size() == 2);
+    Queue waiting{{false, 1}};
+    CHECK_FALSE(ReplayState::TakeOverdueDeath(waiting, true, cDying));
+    CHECK(waiting.size() == 1);
 }
 
 TEST_CASE("A blocked mark refuses an owner's pair, never a replayed one", "[copies][replay-state][kill-move]")
