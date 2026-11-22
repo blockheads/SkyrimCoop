@@ -151,7 +151,6 @@ every other section needs the duo.
 
 **Test tools**
 
-- [Heap history crashes the host at a kill move](#heap-history-crashes-the-host-at-a-kill-move): small
 - [The gate fails on GameTests now and then](#the-gate-fails-on-gametests-now-and-then): small
 - [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours): small
 - [A scenario stages its speaker frozen](#a-scenario-stages-its-speaker-frozen): small
@@ -1417,9 +1416,8 @@ The guest's game crashed six times in about three hours of scenarios, every time
 value is the address of a class's vtable in `.rdata` (measured in the crash logs; the addresses identified in IDA as
 vtables, each crash site commented in the database). Never the host's game.
 
-Agent task: catch one with the heap history on (`coop_test.py repro`, [Heap history crashes the host at a kill
-move](#heap-history-crashes-the-host-at-a-kill-move) first) and name the object freed while a movement or package
-pointer still held it.
+Agent task: catch one with the heap history on (`coop_test.py repro --heap-history`) and name the object freed while a
+movement or package pointer still held it.
 
 Size: medium. Needs: IDA, the duo (`guest-ivarstead-fine-mouse-sweep` crashed 2 of 2, `guest-ivarstead-jail-mouse`
 1 of 2), then GameTests.
@@ -1527,18 +1525,6 @@ Size: small. Needs: the duo.
 - `guest-rejoins-while-joined` and `guest_shows_only_hosts_npcs` (scenes): see [After a guest rejoins](#after-a-guest-rejoins).
 
 ## Test tools
-
-### Heap history crashes the host at a kill move
-
-With `SKYRIMCOOP_HEAP_HISTORY` set on a duo boot (2026-11-12), the host crashed 4 of 4 at the start of
-`spectator-watches-kill-move`, inside the tool: `HeapHistory::Capture` (its `RtlCaptureStackBackTrace`) under
-`HookFormAllocate`, an access violation in ntdll's unwinder. Read, not measured: Wine's unwinder faults on a frame with no
-unwind data where Windows' stops (a hook's trampoline is one). The other four scenarios of that run passed under it.
-
-Agent task: make the capture stop at a frame with no unwind data (`RtlLookupFunctionEntry` first, or a guarded walk),
-then use it on "A guest crash in the garbage collector's job".
-
-Size: small. Needs: the duo.
 
 ### The gate fails on GameTests now and then
 
