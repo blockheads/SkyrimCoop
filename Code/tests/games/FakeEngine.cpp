@@ -1021,6 +1021,12 @@ void FakeEngine::SetCriticalStage(uint32_t aFormId, uint32_t aStage)
         FrameStalled = true;
 }
 
+void FakeEngine::StartsAshPileEffect(uint32_t aTarget, uint32_t aEffect)
+{
+    if (const auto cAsh = AshPileEffects.find(aEffect); cAsh != AshPileEffects.end())
+        AshPileUntil[aTarget] = World::Get().GetTick() + cAsh->second;
+}
+
 void FakeEngine::AttachAshPile(uint32_t aFormId)
 {
     if (CriticalStage::TakesAshPile(aFormId == kPlayer)) // HookAttachAshPile
@@ -1037,7 +1043,7 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
         return;
     }
     (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
-    if (aActor.Dead && DeathScripts.contains(aFormId))
+    if (const auto cAsh = AshPileUntil.find(aFormId); aActor.Dead && cAsh != AshPileUntil.end() && World::Get().GetTick() <= cAsh->second)
     {
         // The ash pile script's OnDying, on whoever holds the effect (its VM runs it on that game).
         SetCriticalStage(aFormId, CriticalStage::kDisintegrateStart);

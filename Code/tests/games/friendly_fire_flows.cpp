@@ -9,6 +9,7 @@
 #include <Events/MeleeStaggerEvent.h>
 #include <Services/DeathService.h>
 #include <SessionIds.h>
+#include <Games/Skyrim/CriticalStageRules.h>
 
 namespace
 {
@@ -138,6 +139,34 @@ SCENARIO("The host's Unrelenting Force with its disintegrate effect kills a gues
         CHECK(guest.AshPiles.empty());
         CHECK(guest.ActorHas3D(FakeEngine::kPlayer));
     }
+}
+
+SCENARIO("The disintegrate effect turns an NPC to ash only if it dies while the effect lasts", "[death][magic]")
+{
+    constexpr uint32_t kPushEffect = 0x0007F82F; // VoiceUnrelentingForce3's first effect, no script
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    uint32_t pushed = 0, expired = 0, ashed = 0;
+    party.As(party.Host(), [&] {
+        pushed = host.LoadNpc(0x13BA1, kSmoke, {});
+        expired = host.LoadNpc(0x13BA1, kSmoke, {});
+        ashed = host.LoadNpc(0x13BA1, kSmoke, {});
+        host.AddMagicTargetEffect(pushed, FakeEngine::kPlayer, FakeEngine::kUnrelentingForce3, kPushEffect, 10.f, false, false, false);
+        host.AddMagicTargetEffect(expired, FakeEngine::kPlayer, FakeEngine::kUnrelentingForce3, FakeEngine::kDisintegrateEffect, 10.f,
+                                  false, false, false);
+    });
+    const uint64_t cHit = World::Get().GetTick();
+    party.Until([&] { return World::Get().GetTick() > cHit + 1100; }, "the disintegrate effect has run out");
+    party.As(party.Host(), [&] {
+        host.DamageActorHealth(pushed, FakeEngine::kPlayer, 10000.f);
+        host.DamageActorHealth(expired, FakeEngine::kPlayer, 10000.f);
+        host.AddMagicTargetEffect(ashed, FakeEngine::kPlayer, FakeEngine::kUnrelentingForce3, FakeEngine::kDisintegrateEffect, 10000.f,
+                                  false, false, false);
+    });
+    CHECK(host.AshPiles == std::vector<uint32_t>{ashed});
+    CHECK(host.Actors.at(ashed).CriticalStage == CriticalStage::kDisintegrateEnd);
+    CHECK(host.Actors.at(pushed).CriticalStage == 0);
+    CHECK(host.Actors.at(expired).CriticalStage == 0);
 }
 
 SCENARIO("A guest killed by another guest: a real death, spectating, and every chat names the killer",

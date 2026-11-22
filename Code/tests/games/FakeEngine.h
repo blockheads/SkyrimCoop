@@ -1094,9 +1094,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Damage = false; // its effect damages health
         bool Invisibility = false; // fire and forget, on its caster
         uint32_t Summons = 0; // its effect makes this NPC base, commanded by the caster (SummonCreatureEffect)
-        // Its effect's script turns its target to ash on its death (DLC2AttachAshPileOnDeath25's OnDying):
-        // critical stage DisintegrateStart, then DisintegrateEnd (SetCriticalStage).
-        bool AshPileOnDeath = false;
     };
     static constexpr uint32_t kConjureFamiliar = 0x000640B6;
     // VoiceUnrelentingForce3 as Dragonborn.esm has it: DLC2VoiceDisintegrateFFAimed (0401FF2B) among its effects.
@@ -1105,14 +1102,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Actor::SetCriticalStage (37615) under our hook's rule; 37616 takes the 3D of an actor at GooEnd or
     // DisintegrateEnd. This game's player left without it stalls the frame (FrameStalled).
     void SetCriticalStage(uint32_t aFormId, uint32_t aStage);
-    // The frame's jobs wait on the player's update (Job_Wait_Player_Update_1 39049), which a player with no 3D never
-    // finishes: Main::Update waits for good (35409), and nothing of this game runs again.
+    // Measured: a player left with no 3D froze its game, Main::Update waiting for the frame's jobs (35409) and a job
+    // in WaitForJobTask (69516) for good; which wait job, inferred (death-disintegrate.md). Nothing of it runs again.
     bool FrameStalled = false;
     // Actor.AttachAshPile (54655) under our hook's rule: the actors a pile was placed at (AttachAshPileFunctor).
     void AttachAshPile(uint32_t aFormId);
     std::vector<uint32_t> AshPiles;
-    // Its target's effects with a script run on its death (OnDying), by spell.
-    std::map<uint32_t, std::set<uint32_t>> DeathScripts;
+    // Effects whose script turns their target to ash if it dies while they last (DLC2AttachAshPileOnDeath25's
+    // OnDying: critical stage DisintegrateStart, AttachAshPile, DisintegrateEnd), and how long they last (ms).
+    std::map<uint32_t, uint64_t> AshPileEffects{{kDisintegrateEffect, 1000}};
+    // Each actor's such effect: the tick it ends at.
+    std::map<uint32_t, uint64_t> AshPileUntil;
+    void StartsAshPileEffect(uint32_t aTarget, uint32_t aEffect);
     static constexpr uint32_t kFamiliarEffect = 0x000640B4;
     static constexpr uint32_t kFamiliar = 0x000CAE0B; // stands for the familiar's base
     std::map<uint32_t, SpellForm> SpellForms{{0x00012FCD, {.Concentration = true}},                  // Flames
@@ -1120,7 +1121,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                              {0x0005AD5C, {.Buff = true}},                           // Oakflesh
                                              {0x00027EB6, {.Invisibility = true}},                   // Invisibility
                                              {0x0001C789, {.Damage = true}},                         // Firebolt
-                                             {kUnrelentingForce3, {.Damage = true, .AshPileOnDeath = true}},
+                                             {kUnrelentingForce3, {.Damage = true}},
                                              {kConjureFamiliar, {.Summons = kFamiliar}}};
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
     struct Cast
@@ -1171,8 +1172,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                               bool aApplyStaminaPerkBonus) noexcept override
     {
         Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
-        if (Spell(aSpellFormId).AshPileOnDeath)
-            DeathScripts[aTargetFormId].insert(aSpellFormId);
+        StartsAshPileEffect(aTargetFormId, aEffectFormId);
         if (Spell(aSpellFormId).Summons && !HoldSession) // a guest's CreateSummon (34993) makes nothing
             MakesSummon(aCasterFormId, Spell(aSpellFormId).Summons);
         // A damaging effect's value goes through the damage hook while applied (HookApplyActorEffect).

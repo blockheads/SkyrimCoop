@@ -18,7 +18,7 @@ constexpr uint32_t kDisintegrateEnd = 4;
     return aStage == kGooEnd || aStage == kDisintegrateEnd;
 }
 
-// This game's player never turns to ash or goo: without its 3D the frame waits on its update for good.
+// This game's player never turns to ash or goo: without its 3D its game froze (measured; the job it waits on, inferred).
 [[nodiscard]] constexpr bool Takes(bool aThisGamesPlayer, uint32_t aStage) noexcept
 {
     return !aThisGamesPlayer || aStage == kNone;
