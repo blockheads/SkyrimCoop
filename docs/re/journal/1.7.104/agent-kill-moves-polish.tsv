@@ -1,0 +1,29 @@
+time	op	id	rva	item
+2026-11-22T20:08:11Z	read	42838	0x7cd430	{"name": "KillActorHandler::Handle"}
+2026-11-22T20:08:11Z	read	37896	0x6a9e50	{"name": "Actor::KillImpl"}
+2026-11-22T20:15:28Z	read	38085	0x6b7c40	{"name": "sub_1406B7C40"}
+2026-11-22T20:18:12Z	name	32951	0x555f30	{"addr": "0x140555F30", "name": "AnimationGraphVisitor_HasRagdoll"}
+2026-11-22T20:18:12Z	name	38085	0x6b7c40	{"addr": "0x1406B7C40", "name": "IAnimationGraphManagerHolder::HasRagdoll"}
+2026-11-22T20:18:12Z	name	32959	0x556110	{"addr": "0x140556110", "name": "AnimationGraphVisitor_SetRagdollMotionType"}
+2026-11-22T20:18:12Z	name	38084	0x6b7b30	{"addr": "0x1406B7B30", "name": "IAnimationGraphManagerHolder::SetRagdollMotionType"}
+2026-11-22T20:18:12Z	name	32962	0x5561a0	{"addr": "0x1405561A0", "name": "AnimationGraphVisitor_RagdollVfunc12"}
+2026-11-22T20:18:12Z	name	38089	0x6b8080	{"addr": "0x1406B8080", "name": "IAnimationGraphManagerHolder::RagdollVfunc12"}
+2026-11-22T20:18:12Z	name	32957	0x5560b0	{"addr": "0x1405560B0", "name": "AnimationGraphVisitor_SetRagdollConstraintsFromBhk"}
+2026-11-22T20:18:12Z	name	38090	0x6b8190	{"addr": "0x1406B8190", "name": "IAnimationGraphManagerHolder::SetRagdollConstraintsFromBhk"}
+2026-11-22T20:18:12Z	name	38617	0x6cc930	{"addr": "0x1406CC930", "name": "Actor::DeferKill_count"}
+2026-11-22T20:18:26Z	name	38617	0x6cc930	{"addr": "0x1406CC930", "name": "Actor::DeferKill"}
+2026-11-22T20:20:10Z	read	37186	0x671dc0	{"name": "Character::sub_37186"}
+2026-11-22T20:20:14Z	name	37186	0x671dc0	{"addr": "0x140671dc0", "name": "Character::PlayRagdollInstant"}
+2026-11-22T20:20:20Z	comment		0x6aa9b4	{"addr": "0x1406aa9b4", "comment": "kill-moves-polish: hasRagdoll (v170) = any graph's driver has a ragdoll instance (BShkbAnimationGraph vfunc 1, 63620). Without one the death is animated: default action +792 performed (v262 = 1 on success), the ragdoll part below skipped."}
+2026-11-22T20:20:20Z	comment		0x6ab1ab	{"addr": "0x1406ab1ab", "comment": "kill-moves-polish: the ragdoll part is skipped for an animated death (v262) and for an actor already knocked (knock state 1-5, 7; 6 getting up goes on)."}
+2026-11-22T20:20:20Z	comment		0x6ab38b	{"addr": "0x1406ab38b", "comment": "kill-moves-polish: with a ragdoll: AddRagdollToWorld on every graph, SetRagdollMotionType(1 dynamic), vfunc 12(0); then, not instant (a5 == 0), flags2 |= 0x20000000 and the death action again with +0x58 = 2; refused, the flag is cleared. Instant (a5): Character::PlayRagdollInstant 37186 instead."}
+2026-11-22T20:20:20Z	comment	37186	0x671dc0	{"addr": "0x140671dc0", "comment": "kill-moves-polish: Character::PlayRagdollInstant (our name; KillImpl 37896's a5 path). Args {target ref, set dynamic, vfunc12}: optional SetRagdollMotionType(1) and ragdoll vfunc 12(0) on every graph, then performs default action +912 (the graph's RagdollInstant) through TESActionData::Func5 41557.\n[re]\nAddressLib ID 37186"}
+2026-11-22T20:26:26Z	read		0x681980	{"name": "Character::sub_37417"}
+2026-11-22T20:26:31Z	read	40012	0x727f40	{"name": "sub_140727F40"}
+2026-11-22T20:26:32Z	read	37316	0x6779c0	{"name": "Actor::QueueKill"}
+2026-11-22T20:26:43Z	name	40012	0x727f40	{"addr": "0x140727F40", "name": "ActorProcess::SetKillQueued"}
+2026-11-22T20:26:46Z	comment	40012	0x727f40	{"addr": "0x140727F40", "comment": "kill-moves-polish: ActorProcess::SetKillQueued (our name): MiddleHigh +0x331 (killQueued, read by 40011). KillImpl 37896 clears it first thing, before its deferred-kill test: a kill queued by QueueKill 37316 (task 10) is only counted (DeferKill 38617) when that task runs, frames after the graph event that queued it."}
+2026-11-22T20:26:46Z	comment		0x6a9ea8	{"addr": "0x1406a9ea8", "comment": "kill-moves-polish: killQueued (MiddleHigh +0x331) cleared here, then the deferred-kill test: a held kill is counted only now, when the queued task runs. KillActorHandler 42838's QueueKill and this are frames apart: a pair whose clip sends PairEnd, KillMoveEnd and KillActor in one update (pa_KillMoveI on a bandit, measured 2026-11-22) has left the pair before its kill counts."}
+2026-11-22T20:48:32Z	name	40011	0x727f20	{"addr": "0x140727f20", "name": "ActorProcess::IsKillQueued"}
+2026-11-22T21:25:52Z	read	36993	0x66bfc0	{"name": "TaskQueueInterface::Push"}
+2026-11-22T21:25:53Z	read	36911	0x668030	{"name": "TaskQueueInterface::QueueKillActor"}

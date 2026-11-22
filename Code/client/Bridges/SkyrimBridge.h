@@ -106,6 +106,7 @@ public:
     void CopyLeaveKillMove(uint32_t aFormId) noexcept override;
     void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept override;
     [[nodiscard]] bool ActorKillCounted(uint32_t aFormId) const noexcept override;
+    [[nodiscard]] bool ActorKillQueued(uint32_t aFormId) const noexcept override;
     void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
     void ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept override;
     bool ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept override;

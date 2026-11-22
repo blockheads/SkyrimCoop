@@ -231,6 +231,8 @@ public:
     virtual void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept = 0;
     // Its clip killed it under the hold (a counted kill, MiddleHigh +0x2F8 above 1).
     [[nodiscard]] virtual bool ActorKillCounted(uint32_t aFormId) const noexcept = 0;
+    // A kill is queued and not run yet (QueueKill 37316's task; MiddleHigh +0x331): a clip's kill counts frames later.
+    [[nodiscard]] virtual bool ActorKillQueued(uint32_t aFormId) const noexcept = 0;
     // The host's game kills its NPC a claimed kill move's clip killed, credited to aKillerFormId.
     virtual void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept = 0;
     // This game's actor ends its pair with a copy: the host refused its claim, or gave another the claim.

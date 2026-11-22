@@ -196,6 +196,7 @@ TURN_UN_DISINTEGRATE = 0x8C1A9  # the ash pile scripts' shader (TurnUnDisintegra
 KILL_MOVE_RANDOM = 50
 KILL_MOVE_LAG = 0.6
 KILL_MOVE_BLOW_WINDOW = 5.0  # past every crossed clip's blow (HitFrame) and KillActor
+KILL_MOVE_DROP = 0.6  # s from a victim's clip's KillActor to its death on any game: the hand-back's round trip, no hold
 PAIR_TOLERANCE = 15
 BLOW_TOLERANCE = 0.35
 OAKFLESH = 0x5AD5C

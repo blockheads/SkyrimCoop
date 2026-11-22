@@ -518,6 +518,10 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 void FakeEngine::Frame()
 {
     ++m_frameCount;
+    // The task queue's kills (36993): counted under a hold (37896 -> 38617).
+    for (auto& [cId, actor] : Actors)
+        if (std::exchange(actor.KillQueued, false) && (actor.Copy || actor.KillHeld))
+            actor.KillCounted = true;
     StepDeathRagdolls();
     for (const auto [cRider, cMount] : std::map(std::exchange(MountRetryOf, {})))
         ActivateMount(cRider, cMount);
@@ -564,8 +568,12 @@ void FakeEngine::Frame()
     for (auto& [cId, actor] : Actors)
     {
         actor.AnimationStepMs = 0.0;
-        if (!actor.GraphUpdating)
+        // A held pose: its graph takes no update (HookUpdateAnimationGraphs), so it records none either.
+        if (!actor.GraphUpdating || PoseHeld(cId))
+        {
+            actor.Graph.Updated = actor.Graph.Updated && !PoseHeld(cId);
             continue;
+        }
         // A recorded owner's is not interpolated (the 63587 hook's interpAllowed), so it steps every frame.
         if (FarOwnerChunkMs <= 0.0 || actor.Copy || World::Get().GetGraphStreams().Recording(cId))
         {
@@ -617,7 +625,7 @@ void FakeEngine::Frame()
             if (actor.Copy && World::Get().GetGraphStreams().OnStream(cId))
             {
                 actor.ExitIn = 0; // its sync point replaced its own clip: no exit event
-                if (actor.GraphUpdating)
+                if (actor.GraphUpdating && !PoseHeld(cId))
                     ReplayStream(cId, actor);
             }
             else
@@ -1522,6 +1530,7 @@ void FakeEngine::KillActor(uint32_t aFormId) noexcept
         {
             it->second.GraphUpdating = false;
             it->second.GraphState = "dead";
+            it->second.InKillMove = false; // KillImpl 37896 clears flags2 0x4000
         }
         if (!cWasDead && it->second.Dead)
             World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId});
@@ -1541,6 +1550,7 @@ void FakeEngine::KillBesideGraph(uint32_t aFormId, const ActionEvent& acAction)
     actor.PoseHeldUntil = 0;
     const bool cWasDead = actor.Dead;
     actor.Dead = true;
+    actor.InKillMove = false; // KillImpl 37896 clears flags2 0x4000
     actor.LatestAnimation = acAction;
     if (!cWasDead)
         World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId});
@@ -1602,12 +1612,20 @@ void FakeEngine::ClipKillActor(uint32_t aFormId)
     auto& actor = Actors.at(aFormId);
     if (actor.Copy || actor.KillHeld)
     {
+        // QueueKill 37316: the kill is a task; KillImpl 37896 counts it when that runs, a frame on.
         actor.PoseHeldUntil = World::Get().GetFrameTick() + ::ReplayState::cPoseHoldMs;
-        actor.KillCounted = true;
+        actor.KillQueued = true;
         return;
     }
     actor.KilledBy = actor.Killer;
     KillActor(aFormId);
+}
+
+void FakeEngine::ClipEndsAtBlow(uint32_t aFormId)
+{
+    EndKillMove(aFormId);
+    StopPairClip(aFormId);
+    ClipKillActor(aFormId);
 }
 
 void FakeEngine::ActorHoldKill(uint32_t aFormId, bool aHold) noexcept

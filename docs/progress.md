@@ -58,6 +58,25 @@ effect; on another player its ash pile script set critical stage `DisintegrateEn
 Scenario `shout-kills-lying-guest` (MCP verb `shout_at_lying_player`), GameTests `[friendly-fire]`, ClientTests
 `[CriticalStage]`.
 
+2026-11-22: **kill moves: the frozen victim, and every weapon tried** (`agent/kill-moves-polish`;
+[kill-moves.md](re/systems/kill-moves.md), "A blow and its clip's end in one update"). A guest's kill move on a person
+left its victim standing in the clip's last pose for 1.5 s after the blow on every game, and a second swing then
+started another kill move on it. A person's victim clip sends `PairEnd`, `KillMoveEnd` and `KillActor` in one update
+(12 of 12 measured; a wolf's does not, so the wolf scenarios never showed it); the kill is a queued task (`QueueKill`
+37316) counted a frame later (`KillImpl` 37896, read), so the claimer called the pair done with its victim alive, and
+the give-back then waited for an update of a graph our own pose hold had stopped. Now a taken victim is not done
+while its kill is queued (`ReplayState::PairDone`, `ActorKillQueued`), and a copy holding its pose takes its owner's
+death when heard, not at playback behind a stale queue (`ReplayState::TakeOverdueDeath`). Measured on the duo: the
+host's victim dies 0.01 to 0.07 s after its clip's blow (21 of 21), the guest attacker's own 0.08 to 0.35 s (26 kill moves;
+1.5 s and more before). New: the MCP verb `kill_move_on` (any weapon, either player, front or behind, with what a
+player would see wrong after), scenarios `kill-move-drops-at-blow` (recorded) and `kill-moves-by-weapon` (14 rows:
+sword, dagger, greatsword, battleaxe, warhammer, mace, war axe, unarmed, a wolf, both players), GameTests for both
+fixes and a table of nine kill moves by either player, ClientTests for the two rules. The fake learned: a clip's
+kill is counted a frame after its `KillActor`, a held pose's graph records no update, a dead actor is in no kill move
+(37896 clears flags2 `0x4000`, read). On the duo the eight older kill-move scenarios and `kill-move-drops-at-blow`
+pass; `kill-moves-by-weapon` paired and dropped 14 of 14 and fails on a dead copy's rest (awake, or 6 to 10 units
+off: 4 rows, then 1). Left open (bugs.md): that rest, and the 0.08 to 0.35 s, the host's replay lag.
+
 2026-11-22: **piece F of bugs-refactor-plan.md, the world check (F1, F2)** (`agent/world-objects`;
 [piece-f-plan.md](design/piece-f-plan.md)). Containers' change `0x8000000` is the host's leveled roll
 (`InventoryChanges__AddLeveledEntries` 16128, read in IDA; a guest skips the roll and is given the host's items), so the

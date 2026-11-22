@@ -656,6 +656,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool KillHeld = false;    // a scripted deferred kill (38616): every copy's (UpdateCopyAI), and it outlives the
                                   // copy (no engine path ends one, 38618's callers); held, a kill is only counted (37896)
         bool KillCounted = false; // a kill held back (MiddleHigh +0x2F8 above 1); our release drops it (Actor::HoldKill)
+        bool KillQueued = false;  // QueueKill 37316's task waiting (MiddleHigh +0x331): run at the next frame's start
         uint32_t Commander = 0; // a summon's caster (MiddleProcess 0x218); this game's player's: Actor::IsPlayerSummon
         bool Teammate = false;  // a follower of the player (flags1 kPlayerTeammate): off a player's eye (41408)
         bool ProcessMe = true; // kProcessMe: EnableAI(false) (37504, the harness's freeze) clears it, and the graph job skips it (41466)
@@ -859,6 +860,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // KillActorHandler 42838, a victim's clip's KillActor: dies credited to its pair partner, unless its kill is held
     // (a copy, an NPC taken for a claimed kill move): then counted, its pose held.
     void ClipKillActor(uint32_t aFormId);
+    // A clip whose last update sends PairEnd, KillMoveEnd and KillActor together (pa_KillMoveI's victim, duo 2026-11-22).
+    void ClipEndsAtBlow(uint32_t aFormId);
     bool m_applyingOwnHit = false; // TakesDamage's Apply: the engine's own hit, not the bridge's forwarded one
     uint32_t PlainSwings = 0; // ActorPerformPlainly taken: the engine's second try after a refused pair (42350)
     static constexpr const char* kPlainSwing = "attackStart";
@@ -1799,6 +1802,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         const auto it = Actors.find(aFormId);
         return it != Actors.end() && it->second.KillCounted;
+    }
+    [[nodiscard]] bool ActorKillQueued(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && it->second.KillQueued;
     }
     void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override
     {

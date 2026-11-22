@@ -276,9 +276,16 @@ void World::Update() noexcept
         auto& streams = GetGraphStreams();
         const uint64_t cPlayback = InterpolationSystem::PlaybackTick(*this, cEntity);
         streams.SetPlayback(form.Id, cPlayback);
+        // As AnimationSystem: holding its pose for its owner's death, it takes it when heard.
+        auto& staged = actor.Replay;
+        if (uint8_t waiting = AnimationReplayStep::kClips; engine.PoseHeld(form.Id) && staged.Phase.compare_exchange_strong(waiting, AnimationReplayStep::kIdle))
+            animation.StagedUpdates = 0;
+        const bool cStepFree = streams.OnStream(form.Id) || staged.Phase.load() == AnimationReplayStep::kIdle;
+        bool deathNow = cStepFree && ::ReplayState::TakeOverdueDeath(animation.TimePoints, engine.PoseHeld(form.Id),
+                                                                     [](const ActionEvent& acAction) { return DeathActions::IsDying(acAction.State1); });
         if (streams.OnStream(form.Id))
         {
-            while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
+            while (!animation.TimePoints.empty() && ::ReplayState::ActionDue(animation.TimePoints.front().Tick, cPlayback, deathNow))
             {
                 const ActionEvent cAction = animation.TimePoints.front();
                 // Its death on its stream: the kill beside the graph, its death's clip its stream's (AnimationSystem).
@@ -384,7 +391,7 @@ void World::Update() noexcept
             streams.PairPlayed(form.Id);
         if (animation.TimePoints.empty()) continue;
         const auto& action = animation.TimePoints.front();
-        if (InterpolationSystem::PlaybackTick(*this, cEntity) < action.Tick) continue;
+        if (!::ReplayState::ActionDue(action.Tick, InterpolationSystem::PlaybackTick(*this, cEntity), deathNow)) continue;
         if (!engine.IsAnimationGraphReady(form.Id)) continue;
         if (DeathActions::IsDying(action.State1))
         {
