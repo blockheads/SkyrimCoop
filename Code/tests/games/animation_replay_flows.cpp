@@ -1741,6 +1741,9 @@ TEST_CASE("A copy deleted while its movement idle's clips load leaves no load on
     REQUIRE(std::ranges::any_of(guest.ClipLoads, [&](const auto& acLoad) { return acLoad.FormId == cCopy; }));
     party.Until([&] { return guest.ClipLoads.empty(); }, "the guest's clip loads end");
     CHECK(guest.ClipLoadHangs == 0);
+    // guest-ivarstead-jail-mouse (Skyrim 2026-11-22): asked for inside the graph's update, the load deadlocked with
+    // the loader's callbacks.
+    CHECK(guest.ClipRequestsUnderGraphLock == 0);
 }
 
 TEST_CASE("A copy starting mid-idle holds the props its owner's idle drew before its sync point", "[animation][replay-start][props]")

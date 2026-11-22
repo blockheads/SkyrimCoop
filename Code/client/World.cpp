@@ -296,6 +296,11 @@ void World::Create() noexcept
     }
 }
 
+bool World::Exists() noexcept
+{
+    return entt::locator<World>::has_value();
+}
+
 World& World::Get() noexcept
 {
     return entt::locator<World>::value();

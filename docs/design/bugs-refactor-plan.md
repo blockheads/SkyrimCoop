@@ -10,7 +10,7 @@ How sure each cause is: **read** (in our code or IDA), **measured** (a run named
 ```text
 A  two tools: heap history, measured hook sizes      days       unblocks C and the lock entries
 B  the floating body after a death (done, PR #94)   one bug    it failed every scenario run after it
-C  one copy teardown, between frames                 refactor   8 guest crash entries (cause inferred)
+C  a worn list freed twice (step 0 rewrote it)      one bug    the vtable crashes, the no-World hook
 D  a copy starts whole                               refactor   9 entries (cause read)
 E  copies 57-160 units off at a comparison           one read   6 entries
 F  world objects nobody owns                         decision   5 entries
@@ -83,71 +83,44 @@ then      listed every frame; the standing graph's rigid-body controls (track 4)
 - Write-up: `docs/re/systems/physics.md`, "A revived player's ragdoll stays in the world"; `docs/design/death.md`,
   "The ragdoll".
 
-## Piece C: one copy teardown, between frames
+## Piece C: a worn list freed twice (step 0 rewrote it)
 
-Entries: "A guest crash through a pointer that holds a vtable" (six crashes), "A deleted copy in an AI job", "A
-guest crash in the garbage collector's job", "A guest's crash loading a wipe's save", "A guest crashed loading a
-copy's idle clips", "A guest crash in the clip-load hook with no World", "A guest that never arrives after a fast
-travel" (a graph crash), the werewolf's old crash.
-
-What is known:
-
-- **Read, our code:** a copy is deleted from four places in `CharacterService` (lines 306, 347, 844, 1782) through
-  `SkyrimBridge::DeleteActor`, the Papyrus `ObjectReference.Delete`, called inside `World::Update`.
-- **Read, IDA** (the frame's job table `0x1420B4D00`): `World::Update` runs in `Job_VM_update`, entry 23, after
-  `Job_Actor_update` (6), `Job_Actor_movement` (10), `Job_Animation_files` (14) and `Job_Actor_animation` (20), and
-  before `Job_Combat_and_magic` (26), `Job_Process_lists` (32), `Job_Garbage` (48), `Job_Path_update` (51),
-  `Job_Non_render_safe_AI` (62). So a delete lands mid-frame, with later jobs of the same frame still to run on
-  lists built before it.
-- **Measured:** every crash is the guest's; the AI job crash came 15 ms after `DeleteActor`, the wipe's 1.3 s after
-  `Temporary Remote Deleted`; PR #71 fixed one case of this shape (a deleted copy's held clip load).
-- **Inferred, not shown:** that the six vtable crashes are this. Their objects are movement and package data under
-  `Actor::UpdateAI`; which actor ran AI on the guest is unread.
-
-Step 0:
+**2026-11-22, step 0 disproved the teardown** (`docs/re/systems/inventory-changes.md`, "A worn item removed from an
+actor with no process"). Heap history and the quarantine on `guest-ivarstead-fine-mouse-sweep` (hung 3 of 3): no free
+by `ObjectReference.Delete` (56154 frees nothing itself: `SetDelete`, `Set3D(null)`, a `DeleteFunctor` after the
+render, the collector's job later). The freed block was an item's `ExtraDataList`, freed twice by the engine:
 
 ```text
-1  A1, then coop_test.py repro with heap history: guest-ivarstead-fine-mouse-sweep (crashed 2 of 2)
-     -> the freed block's allocation and free stacks: who freed it, and in which job
-2  IDA: ObjectReference.Delete's native to the end: what it frees at once, what it queues (the collector 36479),
-     what keeps a pointer (process lists, the mover 41607, path requests, clip loads 63980, dialogue 37541)
-3  the free is ours and mid-frame  -> build the design below
-   the free is the engine's own    -> C becomes that bug alone; the teardown is dropped
+CharacterService::OnDisconnected -> EnableActor (a held copy we disabled)
+  Enable 19800: ResetInventory (37322 -> 19802 -> 16038 -> 19690) BEFORE the new AIProcess
+    RemoveItem 16059, a worn outfit item, list [142 leveled, 22 worn, 61 cannot wear] beside a twin [142]
+      3 extras: 16059 expects the list to survive the unequip
+      no process: 19694 -> UnequipItem 37975 -> 38920 strips 61, 16067 strips 22, merges into the twin: FREED
+      19694 answers 1 always -> the freed list goes to the nested RemoveItem -> freed AGAIN
 ```
 
-The design, if step 0 confirms:
+The cannot-wear extra is ours (`ActorEquipItem` forces the equip). A 32-byte block with two owners: the movement
+messages at 92960 / 91958 are the allocator's return, not stale pointers of their own (read).
+
+Built:
 
 ```text
-today                                      after
-CharacterService (in World::Update)        CharacterService: CopyTeardown::Queue(formId)   (nothing else)
-  DeleteActor x4, mid-frame                HookMainLoop -> MainLoopTasks, before the frame's jobs start:
-                                             1 detach   stream and its clip loads, mover's path, dialogue
-                                                        speaker, AI process lists (the engine's own calls)
-                                             2 delete   the engine's Delete
-                                           the entity's components go at Queue; the form id is not reused
-                                             until step 2 ran (IsActorCopy stays true)
+HookUnequipForRemove (19694)    after the engine's: does the item's entry still hold the list? no -> remember it
+HookRemoveFromInventory (16059) entered next by the nested call: the remembered list -> no list
+                                (19694's answer stays: its other caller, 0x14022f49b, reads 1 as "go on")
+the clip-load and graph hooks   World::Exists(), else the engine's own: the cog swap resets the World
+                                (PluginUnload.cpp) before it removes the hooks, and engine jobs run between
 ```
 
-```cpp
-void CopyTeardown::Queue(uint32_t aFormId) noexcept        // any thread, any point of the frame
-{
-    m_tasks.Queue([aFormId] {                               // MainLoopTasks::Scope: between frames
-        Actor* pCopy = ActorOf(aFormId);
-        if (!pCopy || !IsActorCopy(aFormId)) return;        // already gone, or the id is another reference's
-        GraphStreams::Drop(aFormId);                        // no clip load holds it (PR #71's rule, for all)
-        pCopy->StopMoving();                                // names from step 0's reading
-        pCopy->LeaveDialogue();
-        pCopy->Delete();
-    });
-}
-```
-
-- Our hooks that run in engine jobs (`HookLoadEventClips`, the graph hooks) return the original when no `World`
-  is there: the "no World" crash, fixed in this piece whatever step 0 says.
-- Files: `Services/CopyTeardown.{h,cpp}`, `CharacterService.cpp` (the four sites), `Bridges/SkyrimBridge.cpp`,
-  `GraphStreamHooks.cpp`. Tests: the fake engine learns step 0's fact (a reference deleted mid-frame is still in
-  the frame's later lists); GameTests "A copy deleted while its conversation is open", "...while its clips load",
-  "...as the party leaves a cell"; ClientTests for the queue's order. Duo: the Ivarstead three, `--repeat`.
+- Tests: the scenario `held_copy_shown_again_frees_no_list_twice` (the hook off: the guest crashed 1 of 1, a vtable in
+  a constructor's `this`); ClientTests `[freed-worn-list]`; GameTests "A held copy wearing its outfit beside a twin is shown again: no
+  worn list is freed twice" (the fake's `EnableActor` learned the reset and counts the second free); the harness's
+  `heap` readout (`double_frees`, with heap history on) and the verb `expect_no_double_free`.
+- Dropped: the copy teardown between frames. No step 0 run showed a copy freed mid-frame.
+- Found by its runs and fixed with it: a guest deadlock between a copy's clip request, made inside its graph's
+  update, and the animation file job's callbacks (`animation-file-loads.md`, "A request under a graph's lock";
+  `Games/Animation/DeferredClips.h`). Not the same bug: its only tie is our equip of a copy, whose clip load was the
+  callback.
 
 ## Piece D: a copy starts whole
 
@@ -296,7 +269,8 @@ standalone     headtracking, creature wobble, revive's body, the scratch save, q
 - **A (4):** the two tools' entries, "The AI/quest lock pair", the lock order left in "After the host dies".
 - **B (1, and the scenarios it failed):** "After a kill move the guest's own body floats", closed by PR #94 (any
   death's ragdoll left in the world, not a kill move's).
-- **C (up to 8):** the crash entries above. Counted only once heap history names the free.
+- **C (2):** "A guest crash through a pointer that holds a vtable" and "A guest crash in the clip-load hook with
+  no World"; the wipe's load and the collector's job carry a note (both follow a disconnect).
 - **D (9):** the entries above; "A character's base bytes after joining" is beside it (a check reading the base
   where the engine wrote the reference).
 - **E (up to 6), F (5):** by the read and the decision.

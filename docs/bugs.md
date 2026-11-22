@@ -139,8 +139,6 @@ every other section needs the duo.
 
 **Found by the full run of 2026-11-22**
 
-- [A guest crash through a pointer that holds a vtable](#a-guest-crash-through-a-pointer-that-holds-a-vtable): medium
-- [A guest crash in the clip-load hook with no World](#a-guest-crash-in-the-clip-load-hook-with-no-world): small
 - [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws): small
 - [The party's sword unnamed at a merchant](#the-partys-sword-unnamed-at-a-merchant): small
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
@@ -734,8 +732,10 @@ Since 2026-11-22 two arrests pass (`guest-guard-arrest-jail` and `guest-guard-ar
   - `guest-crime-flags`, which passed on 2026-11-05, now 2 of 2: "payment ends the guest's native alarm/combat" timed
     out after 10 s.
   - `guest-ivarstead-fine-mouse`, `-jail-mouse`, `-fine-mouse-sweep`: 2 of 2 each, the guest's game crashing in four of
-    the six ([A guest crash through a pointer that holds a vtable](#a-guest-crash-through-a-pointer-that-holds-a-vtable)),
-    the others "the guard naturally arrests the party" timed out.
+    the six (a worn list freed twice, fixed 2026-11-22: inventory-changes.md), the others "the guard naturally arrests
+    the party" timed out. 2026-11-22 after the fix and the clip deadlock's (animation-file-loads.md, "A request under a
+    graph's lock"): no guest crash or hang in 6 runs (`-jail-mouse` 3, `-fine-mouse-sweep` 3); what still fails them is that
+    timeout (1 run) and the end comparison's clutter (a ladle, the sharpening wheel: 2 runs).
   - Scenes: `guest-theft-warned` (one run) took nothing back ("guest_player carries 0 of 64B36 and orgnar holds 0"),
     `guest-theft-at-bar-bounty` passed its steps and failed its end comparison on a coin and a wine bottle,
     `guest-theft-aggro` passed.
@@ -862,6 +862,10 @@ Size: small. Needs: IDA, the dump; duo to prove it.
     `BSLightingShaderMaterial`'s vtable (a freed form pointer, the memory reused); commented at `0x140639011`.
   - Start: which list `sub_140638B20` walks and which form left it freed (the log's last line before the load:
     `Temporary Remote Deleted FF000DC3`, a copy deleted as the guest disconnects).
+
+- 2026-11-22 (`agent/copy-teardown`): likely a victim of "a worn list freed twice" (fixed, inventory-changes.md): it
+  followed a disconnect, which shows the guest's held copies again, and a doubly owned block explains a freed form
+  pointer whose memory holds another class. Rerun a wipe with heap history (`expect_no_double_free`) before closing.
 
 ### A guest crash at the main menu
 
@@ -1241,6 +1245,9 @@ Agent task: reproduce with the heap history on (`coop_test.py repro`), running t
 Size: medium. Needs: the duo, IDA.
 - 2026-11-22, dev `aa723513`: `guest-rides-across-border` passed 1 of 1 (not after a failed `host-rides-horse`).
 
+- 2026-11-22 (`agent/copy-teardown`): a null deleting destructor fits a block with two owners ("a worn list freed
+  twice", fixed). Not shown: the five scenarios with heap history on would say.
+
 ### A respawned player's draw that does nothing
 
 `death-spectate-host` (`[host] hands ready`) and `client-melee-kill-credit` right after `friendly-fire-kill`
@@ -1350,51 +1357,6 @@ From the run on dev `aa723513` (one-simulator.md pieces 1-10 merged; the header 
 run and again in a shuffled rerun of every failure, unless it says otherwise. Evidence:
 `build/coop-test/results/<time>/at-failure.json` and the client prefix's `SKSE/crash-*.log` in the `bugs-audit-suite`
 worktree. Engine paths are still to be read (step 0, CLAUDE.md) unless an entry says read.
-
-### A guest crash through a pointer that holds a vtable
-
-The guest's game crashed six times in about three hours of scenarios, every time writing through a register whose
-value is the address of a class's vtable in `.rdata` (measured in the crash logs; the addresses identified in IDA as
-vtables, each crash site commented in the database). Never the host's game.
-
-Agent task: catch one with the heap history on (`coop_test.py repro --heap-history`) and name the object freed while a
-movement or package pointer still held it.
-
-Size: medium. Needs: IDA, the duo (`guest-ivarstead-fine-mouse-sweep` crashed 2 of 2, `guest-ivarstead-jail-mouse`
-1 of 2), then GameTests.
-
-- The six, measured (crash logs, 2026-11-22 03:25 to 05:08). The vtables, by Address Library ID:
-  `BGSAIWorldLocationRefRadius` 200713, `BGSPackageDataLocation` 200914, `MovementMessagePathFailed` 246823,
-  `BaseExtraList` 422045. The caller chains are the crash logger's stacks, not read in IDA.
-  - At 92960 (`[rcx+8]` written): rcx = 200713 (`guest-ivarstead-jail-mouse`, 03:25) and rcx = 246823
-    (`host-ingredient-knowledge-control`, 05:06). Stack: `Actor::SetMovementPath` (37801) -> `ActorMover::SetGoal`
-    (41607) -> `MovementPathManagerArbiter::EndPath` (90880), under an AI package's procedure tree (28920-28930),
-    `Actor::UpdateAI` (37347) and our AI hook.
-  - rcx = 200914: `guest-ivarstead-fine-mouse-sweep` (03:26, at `0x1401DB590`; the log was cut short) and
-    `guest-ivarstead-fine-mouse` (05:01, at 91958, `[rcx+8]` written; stack: the path builder 31483).
-  - `guest-ivarstead-fine-mouse-sweep` again (05:08): a refcount add at 41783 on `[rcx+8]`, rcx = 246823. Stack:
-    `Actor::Revert` (37653) -> `MovementControllerNPC` (41692).
-  - `host-quickloads-party` (04:44): `ExtraDataList::ctor` (11583) with this = 422045. Stack:
-    `InventoryChanges::InitLeveledItems` (16129) under our `InitInventoryIfRequired` hook (16038) at a reference's
-    3D load.
-- Inferred, nothing measured about lifetimes: a register holding a vtable's address is what reading a pointer field
-  gives when its block was freed and reused by an object of a vtable'd class. Five of six are movement and
-  package-location objects (refcounted), so the first suspect is an actor's path or package target released on the
-  guest while its mover still holds it.
-
-### A guest crash in the clip-load hook with no World
-
-`hands-survive-reload-host-player` (2026-11-22 05:34, the shuffled rerun; the full run failed it on "[client] host's
-character's respawned copy has the hands raised"): the guest crashed in our code, a read of `0x2A8` (a null base).
-Symbolized (measured): `GraphStreams::FindOwned` (`GraphStream.cpp:268`, its mutex) from `GraphStreams::Recording` <-
-`LogOwnerLoad` <- `HookLoadEventClips` (`GraphStreamHooks.cpp`, our hook on `coop_LoadEventClips` 43621), entered
-from 43621's caller 39291+0x126 (from 37325, on an AI job). Inferred, not observed: `World::Get()` gave a null `World`
-(an empty `entt::locator`) while an AI job loaded clips; nothing in the capture shows the locator's state.
-
-Agent task: find when the locator holds no `World` while the engine's jobs run (a quit, a load, a swap), and make the
-hook safe then.
-
-Size: small. Needs: the code, then the duo (`hands-survive-reload-host-player --repeat 4`).
 
 ### A copy at Sheathed while its owner draws
 

@@ -68,6 +68,8 @@ void HookFormFree(GameHeap* apThis, void* apPtr, bool aAligned)
 {
     if (apPtr && HeapHistory::Start())
     {
+        if (HeapHistory::DoubleFree(apPtr))
+            return;
         HeapHistory::OnFree(apPtr);
         if (HeapHistory::GuardFree(apPtr))
             return;
@@ -88,7 +90,11 @@ void* HookFormReallocate(GameHeap* apThis, void* apOld, size_t aSize, uint32_t a
 {
     const size_t cOldSize = apOld ? HeapHistory::GuardedSize(apOld) : 0;
     if (!cOldSize)
-        return RealFormReallocate(apThis, apOld, aSize, aAlignment, aAligned);
+    {
+        void* pMoved = RealFormReallocate(apThis, apOld, aSize, aAlignment, aAligned);
+        HeapHistory::Reallocated(apOld, pMoved);
+        return pMoved;
+    }
     if (!aSize)
         return nullptr; // as the engine's: a zero size allocates nothing and keeps the old block
     void* pNew = HookFormAllocate(apThis, aSize, aAlignment, aAligned);

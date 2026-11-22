@@ -681,3 +681,31 @@ SCENARIO("The host disables its placed NPC: the guest's copy refuses enables and
         THEN("she stays disabled, as the host's save has her") CHECK(guest.IsActorDisabled(kOlava));
     }
 }
+
+// guest-ivarstead-fine-mouse-sweep (Skyrim 2026-11-22): a held copy's enable resets its inventory with no process;
+// its outfit item, worn by our forced equip beside an equal unworn one, had its list freed twice (16059, 19694).
+constexpr uint32_t kOutfitArmor = 0x00013952; // Steel Armor
+
+SCENARIO("A held copy wearing its outfit beside a twin is shown again: no worn list is freed twice", "[copies]")
+{
+    Party party(1, OutdoorsWithOlava);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Host(), [&] {
+        host.GetsItem(kOlava, kOutfitArmor, 1);
+        host.OutfitPutsOn(kOlava, kOutfitArmor);
+    });
+    party.As(party.Guest(), [&] { guest.Actors.at(kOlava).Outfit.insert(kOutfitArmor); });
+    party.Until([&] {
+        return guest.IsActorCopy(kOlava) && guest.CountOf(kOlava, kOutfitArmor) == 2 && guest.Actors.at(kOlava).ForcedWorn.contains(kOutfitArmor);
+    }, "the guest's copy wears one of her two outfit armors, by our equip");
+
+    party.As(party.Host(), [&] { host.Actors.at(kOlava).Loaded = false; });
+    party.Until([&] { return guest.IsActorDisabled(kOlava); }, "the guest's copy with no owner is hidden");
+    WHEN("the session ends and the guest's reference is shown again")
+    {
+        party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(DisconnectedEvent{}); });
+        REQUIRE_FALSE(guest.IsActorDisabled(kOlava));
+        THEN("the engine freed no worn list twice") CHECK(guest.WornListDoubleFrees == 0);
+    }
+}

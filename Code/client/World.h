@@ -90,6 +90,8 @@ struct World : entt::registry
 
     static void Create() noexcept;
     [[nodiscard]] static World& Get() noexcept;
+    // False while a cog swap has taken the World down and engine jobs still reach our hooks.
+    [[nodiscard]] static bool Exists() noexcept;
 
 private:
     entt::dispatcher m_dispatcher;

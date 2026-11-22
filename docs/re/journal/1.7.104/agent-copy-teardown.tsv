@@ -1,0 +1,87 @@
+time	op	id	rva	item
+2026-11-22T16:35:18Z	read	56154	0xa45360	{"name": "papyrus::ObjectReference::Delete"}
+2026-11-22T16:35:18Z	read	12358	0x17fcd0	{"name": "sub_14017FCD0"}
+2026-11-22T16:35:19Z	read	36943	0x668a50	{"name": "sub_140668A50"}
+2026-11-22T16:35:28Z	read	39033	0x6e49e0	{"name": "TaskQueueInterface::ShouldUseTaskQueue"}
+2026-11-22T16:35:29Z	read	37564	0x690e50	{"name": "Actor::SetDelete"}
+2026-11-22T16:35:30Z	read	37178	0x6715d0	{"name": "Actor::Set3D"}
+2026-11-22T16:35:30Z	read	36459	0x64dab0	{"name": "GarbageCollector::Add"}
+2026-11-22T16:35:57Z	read	19729	0x2ead30	{"name": "TESObjectREFR::Set3D"}
+2026-11-22T16:36:04Z	name	12358	0x17fcd0	{"addr": "0x14017FCD0", "name": "TESObjectREFR__Set3DLocked"}
+2026-11-22T16:36:04Z	name	36943	0x668a50	{"addr": "0x140668A50", "name": "TaskQueueInterface__QueueSet3DNull"}
+2026-11-22T16:36:04Z	name	36479	0x64f6f0	{"addr": "0x14064F6F0", "name": "coop_GarbageCollector_DeleteNextForm"}
+2026-11-22T16:36:04Z	local	56154	0xa45360	{"func_addr": "0x140a45360", "old": "a3", "new": "ref"}
+2026-11-22T16:36:04Z	local	56154	0xa45360	{"func_addr": "0x140a45360", "old": "a1", "new": "vm"}
+2026-11-22T16:36:04Z	local	56154	0xa45360	{"func_addr": "0x140a45360", "old": "v4", "new": "stackId"}
+2026-11-22T16:36:04Z	local	56154	0xa45360	{"func_addr": "0x140a45360", "old": "v8", "new": "deleteFunctor"}
+2026-11-22T16:36:04Z	read	41344	0x781460	{"name": "sub_140781460"}
+2026-11-22T16:36:04Z	read	36479	0x64f6f0	{"name": "coop_GarbageCollector_DeleteNextForm"}
+2026-11-22T16:36:13Z	comment	56154	0xa45360	{"addr": "0x140a45360", "comment": "ObjectReference.Delete (56154). Frees no form itself. Order: already deleted (flags +0x10 bit 0x20) -> return; SetDelete(true) (vfunc 0x23; Actor 37564 also adds it to ProcessLists' temp change list); Set3D(null) (vfunc 0x6C) inline under the reference's lock (12358) or as task kind 24 when ShouldUseTaskQueue 39033; then for a temporary form id: in-game flags 0x40 off / 0x1 on (14664), and unless persistent a DeleteFunctor queued as a post-render call. The free comes later: DeleteFunctor::Run 56116 -> GarbageCollector::Add 36459 -> Job_Garbage (36479)."}
+2026-11-22T16:36:13Z	comment	12358	0x17fcd0	{"addr": "0x14017FCD0", "comment": "12358: takes the reference's recursive lock (+0x90 owner thread, +0x94 count), calls vfunc 0x6C Set3D(a2, a3), releases. ObjectReference.Delete (56154) calls it (null, 0) when the task queue is not used: the 3D goes inline, in the caller's job."}
+2026-11-22T16:36:13Z	comment	36943	0x668a50	{"addr": "0x140668A50", "comment": "36943: queues task kind 24 for a reference (refcount +0x28 taken): Set3D(null) on the main thread's task queue. ObjectReference.Delete (56154) uses it when ShouldUseTaskQueue (39033) says so."}
+2026-11-22T16:36:13Z	comment	41344	0x781460	{"addr": "0x140781460", "comment": "Called by GarbageCollector::Add (36459) for an actor: under ProcessLists' lock 0x143245558 removes the actor's handle from the array at ProcessLists+0x158 (count +0x168, the temp change list), clears the cached actor qword_14324EA20 and the actor's flag 0x200 at +0xE8."}
+2026-11-22T16:36:32Z	read	92960	0x1236fc0	{"name": "sub_141236FC0"}
+2026-11-22T16:36:33Z	read	90880	0x11d50c0	{"name": "MovementPathManagerArbiter::EndPath"}
+2026-11-22T16:36:33Z	read	37801	0x6a56b0	{"name": "Character::sub_37801"}
+2026-11-22T16:36:34Z	read	41607	0x78fca0	{"name": "ActorMover::SetGoal"}
+2026-11-22T16:37:09Z	comment	92960	0x1236fc0	{"addr": "0x141236fc0", "comment": "92960: MovementMessagePathFailed's constructor (32 bytes: vtable, refcount +8, actor handle object +0x10, path +0x18). Its first instruction writes [this+8]; this comes straight from MemoryManager::Allocate(32) in EndPath 90880. Guest crashes 2026-11-22 (guest-ivarstead-jail-mouse, host-ingredient-knowledge-control): this was a vtable's address in .rdata (200713, 246823), so the ALLOCATOR returned it: a free block's next pointer (its first qword) had been overwritten with a vtable, i.e. something wrote an object's first qword into a block already freed (a second destructor run, or a second owner of the block). Read in IDA 2026-11-22; the writer is not yet named."}
+2026-11-22T16:37:09Z	comment		0x11d528c	{"addr": "0x1411d528c", "comment": "v15 = MemoryManager::Allocate(32): the this of 92960. A vtable address here means the small-block free list was corrupted before this call."}
+2026-11-22T16:37:14Z	read	91958	0x1217470	{"name": "sub_141217470"}
+2026-11-22T16:37:15Z	read	41783	0x79a210	{"name": "sub_14079A210"}
+2026-11-22T16:44:52Z	read	12336	0x17ee40	{"name": "sub_14017EE40"}
+2026-11-22T16:44:59Z	name	12336	0x17ee40	{"addr": "0x14017EE40", "name": "ExtraDataList__CountExtras"}
+2026-11-22T16:44:59Z	name	91958	0x1217470	{"addr": "0x141217470", "name": "MovementMessageActivateDoor__ctor"}
+2026-11-22T16:44:59Z	name	92960	0x1236fc0	{"addr": "0x141236fc0", "name": "MovementMessagePathFailed__ctor"}
+2026-11-22T16:44:59Z	name	41783	0x79a210	{"addr": "0x14079A210", "name": "MovementMessageArray__ReleaseAll"}
+2026-11-22T16:45:04Z	comment	12336	0x17ee40	{"addr": "0x14017EE40", "comment": "12336: counts an ExtraDataList's extras (list +8, next +8) under its lock at +0x18 (BaseExtraList, 0x20 bytes: vtable, data, presence, lock). Guest hang 2026-11-22 (guest-ivarstead-fine-mouse-sweep with the heap quarantine): called from 16059 for a stack of actor 19E08's inventory whose list was freed memory (lock words 0xDBDBDBDB): a freed ExtraDataList still in an InventoryEntryData's extra lists (measured)."}
+2026-11-22T16:45:04Z	comment	91958	0x1217470	{"addr": "0x141217470", "comment": "91958: MovementMessageActivateDoor's constructor (32 bytes). Guest crash 2026-11-22 (guest-ivarstead-fine-mouse): this = BGSPackageDataLocation's vtable (200914). this is the allocator's return (as in 92960): the 32-byte free list was corrupted, not this object."}
+2026-11-22T16:45:04Z	comment	41783	0x79a210	{"addr": "0x14079A210", "comment": "41783: releases every refcounted message (refcount +8) of a movement message array and frees it. Guest crash 2026-11-22 (guest-ivarstead-fine-mouse-sweep; stack Actor::Revert 37653 -> MovementControllerNPC 41692): an element was MovementMessagePathFailed's vtable (246823): the array's buffer shares its block with another object (the same 32-byte free list corruption as 92960; inferred)."}
+2026-11-22T16:45:09Z	read	16059	0x22da70	{"name": "InventoryChanges::RemoveItem"}
+2026-11-22T16:48:20Z	read	38901	0x6dcb00	{"name": "ActorEquipManager::UnequipObject"}
+2026-11-22T16:48:24Z	read	38934	0x6df300	{"name": "coop_RealUnEquip"}
+2026-11-22T16:48:24Z	read	38920	0x6de040	{"name": "sub_1406DE040"}
+2026-11-22T16:48:50Z	read	19694	0x2e8300	{"name": "TESObjectREFR::sub_19694"}
+2026-11-22T16:49:45Z	name	19694	0x2e8300	{"addr": "0x1402e8300", "name": "TESObjectREFR__UnequipForRemoveNoProcess"}
+2026-11-22T16:49:45Z	name	38920	0x6de040	{"addr": "0x1406de040", "name": "ActorEquipManager__UnequipObjectNow"}
+2026-11-22T16:49:45Z	name	38005	0x6b3a20	{"addr": "0x1406b3a20", "name": "Actor__UnequipWornList"}
+2026-11-22T16:49:45Z	name	11584	0x157470	{"addr": "0x140157470", "name": "ExtraDataList__dtor"}
+2026-11-22T16:49:45Z	local	16059	0x22da70	{"func_addr": "0x14022da70", "old": "v51", "new": "stackList"}
+2026-11-22T16:49:45Z	local	16059	0x22da70	{"func_addr": "0x14022da70", "old": "v384", "new": "listDiesWithWorn"}
+2026-11-22T16:49:45Z	local	16059	0x22da70	{"func_addr": "0x14022da70", "old": "v254", "new": "listSurvivedUnequip"}
+2026-11-22T16:49:45Z	local	16059	0x22da70	{"func_addr": "0x14022da70", "old": "a3", "new": "owner"}
+2026-11-22T16:49:45Z	local	16059	0x22da70	{"func_addr": "0x14022da70", "old": "a4", "new": "item"}
+2026-11-22T16:49:57Z	comment	19694	0x2e8300	{"addr": "0x1402e8300", "comment": "19694: RemoveItem's (16059) unequip for an owner with no AIProcess (a disabled actor) or no actor: for an NPC/creature base calls vfunc 0xA1 UnequipItem (Actor 37975) and ALWAYS returns 1. 16059 reads the 1 as 'the worn list survived'; 37975 can free it (16067). Read 2026-11-22."}
+2026-11-22T16:49:57Z	comment		0x23028e	{"addr": "0x14023028e", "comment": "Owner has a process: ActorEquipManager::UnequipObject 38901 returns EquipData+0x24 = 'the worn list is gone' (16067 returned 0), so listSurvivedUnequip is exact here."}
+2026-11-22T16:49:57Z	comment		0x2302af	{"addr": "0x1402302af", "comment": "Owner has NO process (disabled): 19694 always returns 1, so listSurvivedUnequip is true even when 16067 freed the list. With 2+ extras on it (listDiesWithWorn false) stackList stays a freed pointer and goes into the nested RemoveItem at 0x1402304ce."}
+2026-11-22T16:49:57Z	comment		0x2304ce	{"addr": "0x1402304ce", "comment": "Nested RemoveItem with stackList. After the no-process unequip it can be freed memory: the callee's entry (0x14022dca8) counts its extras and, at 0, runs ExtraDataList's destructor and frees the 32 bytes a second time. Measured 2026-11-22 on the guest (guest-ivarstead-fine-mouse-sweep, heap quarantine): freed by 16067+0x56a, waited on here 0 ms later, same thread, owner 19E08 (a held copy, disabled) under Enable 19800 -> ResetInventory 37322."}
+2026-11-22T16:49:57Z	comment		0x22dca8	{"addr": "0x14022dca8", "comment": "An extraList with no extras is unlinked from the entry and freed here (dtor + 32 bytes). Given a list 16067 already freed, this is the double free that corrupts the 32-byte free list (see 0x1402304ce)."}
+2026-11-22T16:49:57Z	comment		0x232895	{"addr": "0x140232895", "comment": "LABEL_110: the worn list is destroyed and freed (32 bytes), return 0 = 'list gone'. Reached when un-worn it has no extras left, or when it merged into an equal list of the same entry."}
+2026-11-22T16:49:57Z	comment	38920	0x6de040	{"addr": "0x1406de040", "comment": "38920: the unequip itself under 38934. EquipData+0x24 = Character 38002's result = 'the worn list is gone' (38005: 16067 returned 0); ActorEquipManager::UnequipObject 38901 returns that byte."}
+2026-11-22T16:49:57Z	comment	38005	0x6b3a20	{"addr": "0x1406b3a20", "comment": "38005: sends the unequip script event, then InventoryChanges::UnequipWornList 16067; returns true when 16067 returned 0 (the worn list was freed)."}
+2026-11-22T16:57:23Z	read	11699	0x1647c0	{"name": "sub_1401647C0"}
+2026-11-22T16:57:23Z	read	11594	0x15ad80	{"name": "sub_14015AD80"}
+2026-11-22T16:59:02Z	name	11699	0x1647c0	{"addr": "0x1401647C0", "name": "ExtraDataList__HasCannotWear"}
+2026-11-22T16:59:02Z	name	11594	0x15ad80	{"addr": "0x14015AD80", "name": "ExtraDataList__DiffersFrom"}
+2026-11-22T16:59:05Z	comment	11699	0x1647c0	{"addr": "0x1401647C0", "comment": "True when the list's presence bits (+0x10) have type 61 (ExtraCannotWear), under its lock. 16067 leaves such a list worn on a living actor."}
+2026-11-22T16:59:05Z	comment	11594	0x15ad80	{"addr": "0x14015AD80", "comment": "(a, b, strict): true when some extra of b has no equal of its type on a (types 36 and 73 skipped; type 33 on b differs at once unless strict). 16067 merges the un-worn list into another list of the entry when neither differs from the other."}
+2026-11-22T17:05:54Z	read	37975	0x6afd40	{"name": "Actor::UnequipItem"}
+2026-11-22T17:06:03Z	read	11615	0x1604f0	{"name": "sub_1401604F0"}
+2026-11-22T17:06:05Z	name	11615	0x1604f0	{"addr": "0x1401604F0", "name": "ExtraDataList__SetCannotWear"}
+2026-11-22T17:06:09Z	comment	11615	0x1604f0	{"addr": "0x1401604F0", "comment": "(list, on): adds ExtraCannotWear (type 61, 16 bytes) or removes it, under the list's lock."}
+2026-11-22T17:06:09Z	comment		0x6de0ca	{"addr": "0x1406de0ca", "comment": "The unequip strips ExtraCannotWear from the worn list first. So a list {142 leveled base, 22 worn, 61 cannot wear} (3 extras: RemoveItem 16059 predicts it survives) is left {142} by 16067 and merges into an equal {142} list of the entry: freed. Measured 2026-11-22: guest copy 19E08, item 1BE1A, lists [142 22 61] and [142]."}
+2026-11-22T17:23:49Z	read	19800	0x2f2840	{"name": "TESObjectREFR::Enable"}
+2026-11-22T17:35:22Z	read	19802	0x2f3330	{"name": "TESObjectREFR::ResetInventory"}
+2026-11-22T17:35:34Z	comment		0x2f293d	{"addr": "0x1402f293d", "comment": "An actor being enabled (boolBits bit 26 clear) resets its inventory first: vfunc 0x8A ResetInventory(true) (Actor 37322 -> 19802 -> InitInventoryIfRequired 16038 -> RemoveOutfitItems 19690 -> Actor::RemoveItem 37797). Its AIProcess is made only after (0x1402f294b), so every worn outfit item is removed through RemoveItem's no-process unequip 19694."}
+2026-11-22T17:35:34Z	comment	19802	0x2f3330	{"addr": "0x1402f3330", "comment": "19802 ResetInventory(ref, leveledOnly): drops the leveled entries (or clears the changes), Actor 37654, then InitInventoryIfRequired 16038 (which removes outfit items, 19690), then deletes the references the dropped-item list held. Called by Actor::ResetInventory 37322 from Enable 19800."}
+2026-11-22T17:42:55Z	comment		0x22f49b	{"addr": "0x14022f49b", "comment": "19694's other call site (a worn list among the entry's lists, removing by count). Here its 1 means 'unequipped: go on and remove'; a 0 would skip the removal. extraList was nulled just above by the same 1-or-2-extras guess, so a 3-extra list the unequip frees is handed to the nested RemoveItem here too. So 19694's answer cannot be made 'the list is gone' for both sites: our hook remembers the freed list and HookRemoveFromInventory nulls it at the nested call's entry (FreedWornList)."}
+2026-11-22T18:30:15Z	read	63997	0xbe9800	{"name": "AnimationFileManagerSingleton__RunLoadedCallbacks"}
+2026-11-22T18:30:15Z	read		0xbe7531	{"name": "AnimationFileManagerSingleton::sub_63968"}
+2026-11-22T18:30:42Z	read	32899	0x553fc0	{"name": "IAnimationGraphManagerHolder::UpdateAnimationGraphManager"}
+2026-11-22T18:30:43Z	read	32932	0x5554f0	{"name": "sub_1405554F0"}
+2026-11-22T18:30:54Z	name	32932	0x5554f0	{"addr": "0x1405554F0", "name": "coop_IAnimationGraphManagerHolder_SetVariableAllGraphs"}
+2026-11-22T18:30:58Z	comment		0xbe9870	{"addr": "0x140be9870", "comment": "Lock order here: every finished entry's caller lock (+0x58, an actor process's animationLock), then the manager's lock (+0xC), and all callbacks run holding both. A callback may take its actor's graph manager lock (Actor::OnItemEquipped 37373 -> 37974 -> SetGraphVariableInt 32886 -> 32932, Mutex::Lock1 on manager+0xA0). So nothing may ask for clips (43621: animationLock, then 63968's manager lock) while holding a graph manager lock: guest deadlock 2026-11-22 (guest-ivarstead-jail-mouse), our replay's ActionClips::Request under BSAnimationGraphManager::Update 63358."}
+2026-11-22T18:30:58Z	comment		0x555578	{"addr": "0x140555578", "comment": "32932 takes the graph manager's lock (+0xA0, the one BSAnimationGraphManager::Update 63358 holds through a graph's update) to set a variable on every graph."}
+2026-11-22T18:30:58Z	comment		0xbe752c	{"addr": "0x140be752c", "comment": "63968 takes the animation file manager's lock (+0xC) to push the new load; 63997 holds that lock while it runs callbacks."}
+2026-11-22T19:14:18Z	read	109588	0x15a743c	{"name": "sub_1415A743C"}
+2026-11-22T19:14:22Z	name	109588	0x15a743c	{"addr": "0x1415A743C", "name": "j_SizedDelete"}
+2026-11-22T19:14:22Z	name	36098	0x10ba70	{"addr": "0x14010BA70", "name": "SizedDelete"}

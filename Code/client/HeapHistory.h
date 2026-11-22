@@ -27,6 +27,9 @@ struct _CONTEXT;
  * (block sizes, from a history report) gives blocks of those sizes pages of their own, made
  * inaccessible on free and never reused: the first access after the free faults, at the reader.
  * `coop_test.py repro --heap-history` turns the ring on; scripts/re/crash_report.py names the frames.
+ *
+ * With the ring or the quarantine on, a block freed twice with no allocation between is logged with both frees
+ * (DOUBLE FREE), counted (the harness's `heap`) and not passed on to the engine.
  */
 namespace HeapHistory
 {
@@ -34,6 +37,14 @@ namespace HeapHistory
 bool Start() noexcept;
 void OnAllocate(const void* apBlock, size_t aSize) noexcept;
 void OnFree(const void* apBlock) noexcept;
+// With the history or the quarantine on: true for a block freed already and not allocated since (logged with its
+// story and counted); the caller must not free it again.
+bool DoubleFree(const void* apBlock) noexcept;
+// The engine's reallocation moved a block: the new one is live, the old one freed.
+void Reallocated(const void* apOld, const void* apNew) noexcept;
+uint64_t DoubleFrees() noexcept;
+// Whether double frees are being counted.
+bool Recording() noexcept;
 // With the quarantine on: takes the block (true; the caller must not free it) unless its size is
 // unknown (allocated before our hooks).
 bool Quarantine(void* apBlock, bool aAligned) noexcept;
@@ -48,4 +59,6 @@ bool GuardFree(void* apBlock) noexcept;
 // Into the log: the story of every block the crash's registers and stack point into, and whether
 // the faulting access (aFaultAddress) hit a freed guarded block.
 void Dump(const _CONTEXT& acContext, uintptr_t aFaultAddress) noexcept;
+// Into the log: the story of the block holding one address (a hang's waited lock). Nothing when off.
+void Explain(const char* acpWhere, uintptr_t aAddress) noexcept;
 } // namespace HeapHistory

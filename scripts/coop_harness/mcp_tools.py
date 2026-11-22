@@ -94,13 +94,15 @@ def forget_old_crashes():
 
 
 @tool
-def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hooks: str = "") -> dict:
+def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hooks: str = "", heap_history: int = 0) -> dict:
     """Holds the shared duo (coop_harness/duo_lock.py) and boots both games in the background; then call duo_wait.
     Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again within 5
     minutes or the place lapses (duo_stop gives it up). This server holds the duo until duo_stop or until it exits,
     or for 15 minutes once someone waits: the first in line then stops the games and takes it (call duo_start to queue
     again). Hold it only while driving the games, never while reading code or IDA. disable_hooks: both games boot with
-    SKYRIMCOOP_DISABLE_HOOKS, the hook files left out (HookSwitch.h): what one hook changes in a session."""
+    SKYRIMCOOP_DISABLE_HOOKS, the hook files left out (HookSwitch.h): what one hook changes in a session. heap_history:
+    both games record the engine's last N million allocations and frees and count double frees (HeapHistory.h; the
+    verb expect_no_double_free)."""
     held = (lock := session.duo_lock(OWNER)) is not None and lock.role in ("holder", "joined")
     session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True, capped=True)
     if not held:  # a new hold: crash logs from before it are other runs'; a repeated call keeps this run's
@@ -118,8 +120,10 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hoo
     env = dict(os.environ)
     if disable_hooks:
         env["SKYRIMCOOP_DISABLE_HOOKS"] = disable_hooks
+    if heap_history:
+        env["SKYRIMCOOP_HEAP_HISTORY"] = str(heap_history)
     duo["process"] = subprocess.Popen(command, cwd=ROOT, env=env, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
-    return {"ok": True, "booting": True, "log": str(duo["log"]), "disabled_hooks": disable_hooks}
+    return {"ok": True, "booting": True, "log": str(duo["log"]), "disabled_hooks": disable_hooks, "heap_history": heap_history}
 
 
 def gated_hook_files() -> str:

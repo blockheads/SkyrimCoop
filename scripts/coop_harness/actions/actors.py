@@ -171,6 +171,41 @@ class ActorsActions:
         return megabytes
 
 
+    def count_double_frees(ctx, millions=2):
+        """Both games count double frees from here on (HeapHistory.h): if they did not boot with the heap history, the
+        duo is booted again with it (SKYRIMCOOP_HEAP_HISTORY), that boot only. True when it had to."""
+        if all(ctx.player_command(instance, {"cmd": "heap"})["recording"] for instance in ("", "client")):
+            return False
+        os.environ["SKYRIMCOOP_HEAP_HISTORY"] = str(millions)
+        try:
+            ctx.restart_duo()
+        finally:
+            os.environ.pop("SKYRIMCOOP_HEAP_HISTORY", None)
+        return True
+
+
+    def expect_stack_extra(ctx, instance, holder, item, extra, timeout=15):
+        """Some stack of `item` on `holder` in that game holds extra data of type `extra` (harness stack_extras; 22
+        worn, 61 cannot wear, 142 leveled item base), within `timeout`. Its stacks' types."""
+        def held():
+            reply = ctx.game(instance).rpc({"cmd": "stack_extras", "object": holder, "item": item}, timeout=10) or {}
+            stacks = [stack["types"] for stack in reply.get("stacks", [])]
+            return any(extra in types for types in stacks) and stacks
+        return ctx.wait_for(f"[{instance or 'host'}] {holder:X}'s {item:X} has a stack with extra {extra}", held, timeout)
+
+
+    def expect_no_double_free(ctx, instance):
+        """That game freed no engine block twice since boot (harness heap; HeapHistory::DoubleFree). The games must
+        have booted counting them: count_double_frees first (or duo_start heap_history=2)."""
+        heap = ctx.player_command(instance, {"cmd": "heap"})
+        if not heap["recording"]:
+            raise ctx.failure(f"[{instance or 'host'}] the heap history is off: call count_double_frees first")
+        if heap["double_frees"]:
+            raise ctx.failure(f"[{instance or 'host'}] {heap['double_frees']} engine block(s) freed twice "
+                              "(the plugin log's DOUBLE FREE lines name both frees)")
+        return True
+
+
     def queued_clip_loads(ctx, instance):
         """That game's queued clip loads: stage (pending, loading, finished), kind (the clip set: 3 action, 4 instant,
         47 a movement idle's), live, and the actor whose process lock it holds (owner) and whether that one is gone."""
