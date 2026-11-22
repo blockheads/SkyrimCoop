@@ -27,7 +27,8 @@ the cure: QF_VC01 stage 200 (Falion, after the dawn ritual's scene), C03RampageQ
     PlayerVampireQuest.VampireCure(Game.GetPlayer())
 
 PlayerVampireQuest (start game enabled, no aliases, no objectives)
-  VampireChange(Target): controls off, the change's art (a disabled XMarker),
+  VampireChange(Target): controls off, the change's art (a disabled XMarker: the host's game places and
+    disables it, one-simulator.md piece 7),
     Target.SetRace(<its race>Vampire), CureRace, abilities, the hunger's clock
     (RegisterForUpdateGameTime(12)), PlayerIsVampire = 1, VC01 reopened if cured before
   OnUpdateGameTime: the hunger's stages (VampireProgression: AddSpell, RemoveSpell)
@@ -44,9 +45,6 @@ on every game and runs the whole of `VampireChange` on the guest's game, for the
 
 ## Not covered
 
-- **The change's hidden marker** (`PlaceAtMe(XMarker)`, then `Disable`) is made on the guest's game only: a reference
-  a guest's own script creates is that game's (`PlaceAtMe` is not a world change to the router), and the world check
-  sees it on the guest alone (`bugs.md`).
 - Falion's soul gem line and the innkeepers' rumor are judged for the picker's character (shared-dialogue.md, "The
   rule"), which carries its items, race, factions and added spells (the vampire's abilities, for `HasSpell`). The
   cure itself is the party's.

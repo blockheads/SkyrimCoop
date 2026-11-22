@@ -21,6 +21,9 @@ constexpr uint32_t kPlayerFaction = 0x00000DB1;
 constexpr uint32_t kHorse = 0x00068D74;       // the Whiterun stable's horse, placed in kSmoke
 constexpr uint32_t kHorseBase = 0x00068D6D;
 constexpr uint32_t kFarHorse = 0x00068D75;    // another stable's, placed in kSinkhole
+constexpr uint32_t kHouseDoor = 0x0001A6F5;   // a load door in kSmoke with no lock of its own: kHouseInside's
+constexpr uint32_t kHouseInside = 0x00016607; // its other side, in an interior nobody loads (persistent)
+constexpr uint32_t kHouseCell = 0x000165B0;
 
 // Each game's plugins: the same references; everyone has kSmoke loaded.
 void Plugins(FakeEngine& aEngine)
@@ -30,6 +33,8 @@ void Plugins(FakeEngine& aEngine)
     aEngine.References[kChest] = {.Cell = kSmoke, .Items = {{kGold, 50}}};
     aEngine.References[kSinkholeChest] = {.Cell = kSinkhole, .Items = {{kGold, 10}}};
     aEngine.References[kInnDoor] = {.Cell = kSmoke, .Door = true};
+    aEngine.References[kHouseDoor] = {.Cell = kSmoke, .Door = true, .LinkedDoor = kHouseInside};
+    aEngine.References[kHouseInside] = {.Cell = kHouseCell, .Locked = true, .LockLevel = 50, .Door = true, .Persistent = true};
     aEngine.CellOwners[kBreezehome] = 0;
     aEngine.PlaceNpc(kHorse, kHorseBase, kSmoke, {300.f, 0.f, 0.f});
     aEngine.PlaceNpc(kFarHorse, kHorseBase, kSinkhole, {});
@@ -171,6 +176,47 @@ SCENARIO("A guest away while the host changes things gets them when it joins aga
                     "the host's changes reach the rejoined guest");
         CheckInSync(party);
     }
+}
+
+SCENARIO("A load door the host's NPC unlocked while a guest was away is unlocked when it joins again", "[world]")
+{
+    // late-join-gets-load-door-lock: the lock and its change are the inside door's (19512, 20223), in a cell the
+    // guest has not loaded; the rows of the door the guest stands by must carry it.
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+
+    party.Leave(party.Guest());
+    party.As(party.Host(), [&] { host.SetLock(kHouseDoor, false, 50); }); // its owner's unlock (39105)
+    party.Frame();
+    REQUIRE(guest.ObjectIsLocked(kHouseDoor));
+
+    WHEN("it joins again, its loaded cells ask for the host's state")
+    {
+        party.Join(party.Guest());
+        party.Until([&] { return !guest.ObjectIsLocked(kHouseDoor); }, "the house's door unlocks on the rejoined guest");
+
+        THEN("the owner's lock while it is joined reaches it too")
+        {
+            party.As(party.Host(), [&] { host.SetLock(kHouseDoor, true, 50); });
+            party.Until([&] { return guest.ObjectIsLocked(kHouseDoor); }, "the house's door locks on the guest");
+        }
+    }
+}
+
+SCENARIO("A load door a guest unlocked while away is the host's again when it joins", "[world]")
+{
+    // The review of PR #87: the guest's change is on the inside door, in a cell it has not loaded; its request for the
+    // outside door's cell must name the door so the host's lock comes back.
+    Party party(1, Plugins);
+    FakeEngine& guest = Party::Engine(party.Guest());
+
+    party.Leave(party.Guest());
+    guest.SetLock(kHouseDoor, false, 50); // its own world, while away
+    REQUIRE_FALSE(guest.ObjectIsLocked(kHouseDoor));
+
+    party.Join(party.Guest());
+    party.Until([&] { return guest.ObjectIsLocked(kHouseDoor); }, "the rejoined guest's door is locked as the host's");
 }
 
 SCENARIO("Two guests: one's proposal reaches the other through the host", "[world]")

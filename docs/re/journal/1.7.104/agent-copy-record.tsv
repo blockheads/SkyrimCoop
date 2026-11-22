@@ -1,0 +1,13 @@
+time	op	id	rva	item
+2026-11-19T00:45:58Z	read	39783	0x71fa50	{"name": "HighProcessData::SetHeadtrackTarget"}
+2026-11-19T00:45:59Z	read	39484	0x6ff050	{"name": "AIProcess::GetHeadtrackTarget"}
+2026-11-19T00:46:04Z	local	39783	0x71fa50	{"func_addr": "0x14071fa50", "old": "a1", "new": "pHigh"}
+2026-11-19T00:46:04Z	local	39783	0x71fa50	{"func_addr": "0x14071fa50", "old": "a2", "new": "aSlot"}
+2026-11-19T00:46:04Z	local	39783	0x71fa50	{"func_addr": "0x14071fa50", "old": "a3", "new": "pTarget"}
+2026-11-19T00:46:04Z	local	39783	0x71fa50	{"func_addr": "0x14071fa50", "old": "v8", "new": "handle"}
+2026-11-19T00:46:04Z	local	39484	0x6ff050	{"func_addr": "0x1406ff050", "old": "a1", "new": "pProcess"}
+2026-11-19T00:46:04Z	local	39484	0x6ff050	{"func_addr": "0x1406ff050", "old": "a2", "new": "pOutHandle"}
+2026-11-19T00:46:04Z	local	39484	0x6ff050	{"func_addr": "0x1406ff050", "old": "v2", "new": "pHigh"}
+2026-11-19T00:46:04Z	local	39484	0x6ff050	{"func_addr": "0x1406ff050", "old": "v4", "new": "slot"}
+2026-11-19T00:46:09Z	comment	39783	0x71fa50	{"addr": "0x14071fa50", "comment": "[re]\nAddressLib ID 39783\nmeh321: HighProcessData::sub_39783\nCommonLibSSE: HighProcessData::SetHeadtrackTarget (CommonLibSSE-NG/include/RE/H/HighProcessData.h:182)\nSkyrimCoop: call as s_setHeadTrackTarget (Code/client/Games/Skyrim/AI/AIProcess.cpp:31)\nWrites slot aSlot: headTrackTarget[aSlot] (+0x140) = the target's handle (invalid for null or a ref whose handle refcount bits +0x28 & 0x3FF are 0), headTracked[aSlot] (+0x158) = target != null; a target refreshes the cached look position. No other state: a slot written later (a copy's target arriving, CopyRecords R5) is read as is at the next ProcessTracking."}
+2026-11-19T00:46:09Z	comment	39484	0x6ff050	{"addr": "0x1406ff050", "comment": "[re]\nAddressLib ID 39484\nCommonLibSSE: AIProcess::GetHeadtrackTarget (CommonLibSSE-NG/src/RE/A/AIProcess.cpp:100)\nSkyrimCoop: call as s_getHeadTrackTarget (Code/client/Games/Skyrim/AI/AIProcess.cpp:16)\nThe highest slot (5 down to 0) whose headTracked byte (+0x158) is set; invalid handle with none or no high process. An empty slot (target not here) is skipped, the next lower one used."}

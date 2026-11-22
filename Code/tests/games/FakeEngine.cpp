@@ -1,6 +1,7 @@
 #include <Diagnostics/HeadTrackRead.h>
 #include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
+#include <Events/InterruptCastEvent.h>
 #include <Events/ActorHeadUpdateEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
@@ -27,6 +28,7 @@
 #include <Services/ContainerOpens.h>
 #include <Services/DeathDrops.h>
 #include <Events/AddTargetEvent.h>
+#include <Events/SummonEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
 #include <Events/EquipmentChangeEvent.h>
@@ -51,6 +53,7 @@
 #include <Events/RoutedCallEvent.h>
 #include <Events/PlayerProgressEvent.h>
 #include <Games/EngineNames.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <Games/Animation/ReplayState.h>
 #include <Events/RemoveWaypointEvent.h>
 #include <Events/SetWaypointEvent.h>
@@ -497,6 +500,9 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 
 void FakeEngine::Frame()
 {
+    ++m_frameCount;
+    for (const auto [cRider, cMount] : std::map(std::exchange(MountRetryOf, {})))
+        ActivateMount(cRider, cMount);
     for (auto it = DismountIn.begin(); it != DismountIn.end();)
         if (--it->second == 0)
         {
@@ -509,7 +515,22 @@ void FakeEngine::Frame()
     // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
     for (auto& [cId, actor] : Actors)
         if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))
+        {
             Strikes(cId, actor.PairVictim, 1000.f);
+            actor.KillMoveEndIn = PairEndFrames ? PairEndFrames : 4 * PairBlowFrames; // its clip's KillMoveEnd, well after its blow
+        }
+    for (auto& [cId, actor] : Actors)
+        if (actor.KillMoveEndIn && --actor.KillMoveEndIn == 0)
+        {
+            actor.InKillMove = actor.InPairClip = actor.InPair = false;
+            actor.Killer = 0;
+        }
+    std::vector<uint32_t> killed;
+    for (auto& [cId, actor] : Actors)
+        if (actor.KillActorIn && --actor.KillActorIn == 0 && actor.InKillMove && !actor.Dead)
+            killed.push_back(cId);
+    for (const uint32_t cId : killed)
+        ClipKillActor(cId);
     // Without the graph's rules, clips loop on each game's own clock; with them, in the graph's step (StepGraph).
     if (Loop && !Graph)
         for (auto& [cId, actor] : Actors)
@@ -578,7 +599,8 @@ void FakeEngine::Frame()
             }
             else
             {
-                if (actor.AnimationStepMs > 0.0)
+                // A graph that does not update (kShouldAnimGraphUpdate clear) records nothing for its copies either.
+                if (actor.AnimationStepMs > 0.0 && actor.GraphUpdating)
                     UpdateGraph(cId, actor);
                 // Its exit clip's own event (42835): standing, off its mount.
                 if (actor.ExitIn && !--actor.ExitIn)
@@ -668,43 +690,19 @@ void FakeEngine::Frame()
     }
     for (auto& [cId, actor] : Actors)
     {
+        // This game's own corpse another game's player moves: its frames drive it too (CopyRagdollPhysics' Played).
         if (!actor.Copy)
+        {
+            if (actor.Dead && (m_pendingRagdolls.Has(cId) || m_copyRests.contains(cId)))
+                DriveCopyRagdoll(cId, m_pendingRagdolls.Take(cId));
             continue;
+        }
         if (actor.KnockIn && !--actor.KnockIn)
             actor.KnockedDown = true;
-        for (const auto& cDrive : m_pendingRagdolls.Take(cId))
-        {
-            // After its own physics (CopyRagdollPhysics steers after 58291): lying or getting up, never standing.
-            if (!actor.Dead && !KnockReplay::BodiesSimulated(KnockStateOf(cId)))
-                continue;
-            const auto it = Bodies.find(cDrive.Frame.Key);
-            if (it == Bodies.end())
-                continue;
-            auto& body = it->second;
-            // At its owner's rest it is left alone (CopyRagdollPhysics): steered on, Havok never lets it sleep.
-            if (cDrive.Rest)
-            {
-                if (body.RestAt != cDrive.Frame.Position)
-                {
-                    body.RestAt = cDrive.Frame.Position;
-                    body.RestSteps = 0;
-                }
-                // Steered a while, put exactly there, then left alone (CopyRagdollPhysics).
-                const auto cStep = BodyPrediction::StepToRest(body.RestSteps);
-                if (body.RestSteps <= BodyPrediction::kRestSettleSteps)
-                    ++body.RestSteps;
-                if (cStep == BodyPrediction::RestStep::kLeave)
-                    continue;
-            }
-            else
-                body.RestAt.reset();
-            body.Held = true;
-            body.Awake = false;
-            body.RagdollOf = cId;
-            body.Flight.Body.Position = cDrive.Frame.Position;
-            body.Flight.Body.Rotation = cDrive.Frame.Rotation;
-            ++body.Drives;
-        }
+        // After its own physics (CopyRagdollPhysics steers after 58291): lying or getting up, never standing.
+        const auto cDrives = m_pendingRagdolls.Take(cId);
+        if (actor.Dead || KnockReplay::BodiesSimulated(KnockStateOf(cId)))
+            DriveCopyRagdoll(cId, cDrives);
         // Drawn: moved since its graph update while its ragdoll poses it, its old pose shows at the new place.
         const float cTurn = std::abs(std::remainder(actor.Rotation[2] - actor.GraphPlace[3], 6.28318531f));
         const float cSnap = glm::distance(glm::vec3(actor.Position[0], actor.Position[1], actor.Position[2]),
@@ -751,21 +749,24 @@ void FakeEngine::Frame()
     RunQueued();
 }
 
-void FakeEngine::Queue(LocalCall aCall, uint32_t aCause)
+void FakeEngine::Queue(LocalCall aCall, uint32_t aCause, std::function<void(LocalValue)> aOnReturn)
 {
-    m_queued.emplace_back(std::move(aCall), aCause);
+    m_queued.push_back({std::move(aCall), aCause, std::move(aOnReturn)});
 }
 
 void FakeEngine::RunQueued()
 {
     auto queued = std::exchange(m_queued, {});
-    for (const auto& [cCall, cCause] : queued)
+    for (const auto& [cCall, cCause, cOnReturn] : queued)
     {
         const auto* cpSelf = std::get_if<LocalForm>(&cCall.Self);
+        LastReturn = std::monostate{};
         if (cpSelf && QuestFunctions.contains({cpSelf->FormId, cCall.Function}))
             CallsQuest(cCall, cCause, false, false);
         else
             RunScript(cCall, cCause);
+        if (cOnReturn)
+            cOnReturn(LastReturn);
     }
 }
 
@@ -927,6 +928,8 @@ uint32_t FakeEngine::LoadNpc(uint32_t aBase, uint32_t aCell, const glm::vec3& ac
     const uint32_t cId = NewTemporary();
     Actors[cId] = Actor{.Base = aBase, .Cell = aCell, .Position = {acPosition.x, acPosition.y, acPosition.z},
                         .Essential = EssentialBases.contains(aBase), .Made = m_made};
+    if (MountBases.contains(aBase) && GraphTransitions.contains({"Standing", "pa_HorseExit"}))
+        Actors[cId].GraphState = "Standing"; // MountGraph's
     return cId;
 }
 
@@ -986,6 +989,11 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
 {
     if (aActor.Copy || aActor.Dead || aActor.Values.ActorValuesList[kHealth] > 0.f)
         return;
+    if (aActor.KillHeld)
+    {
+        aActor.KillCounted = true; // KillImpl under a deferred kill (37896)
+        return;
+    }
     (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
     if (aActor.Dead)
     {
@@ -1061,7 +1069,9 @@ bool FakeEngine::ActorHas3D(uint32_t aFormId) const noexcept
 uint32_t FakeEngine::GetEquippedWeaponFormId(uint32_t aActorFormId, uint32_t aSlot) const noexcept
 {
     const auto it = Actors.find(aActorFormId);
-    return it != Actors.end() && aSlot < 2 ? it->second.HeldSpells[aSlot] : 0;
+    if (it == Actors.end() || aSlot >= 2)
+        return 0;
+    return it->second.HeldWeapons[aSlot] ? it->second.HeldWeapons[aSlot] : it->second.HeldSpells[aSlot];
 }
 
 void FakeEngine::EquipSpells(uint32_t aFormId, const MagicEquipment& acMagic)
@@ -1073,6 +1083,36 @@ void FakeEngine::EquipSpells(uint32_t aFormId, const MagicEquipment& acMagic)
         actor.HeldSpells[0] = ::ItemForm(acMagic.LeftHandSpell);
         actor.HeldSpells[1] = ::ItemForm(acMagic.RightHandSpell);
     }
+}
+
+void FakeEngine::EquipsSpell(uint32_t aActor, const GameId& acSpell, uint32_t aHand)
+{
+    auto& actor = Actors.at(aActor);
+    if (!actor.Copy)
+        World::Get().GetRunner().Trigger(EquipmentChangeEvent{.ActorId = aActor, .ItemId = ::ItemForm(acSpell), .IsSpell = true});
+    MagicEquipment magic = actor.Items.CurrentMagicEquipment;
+    (aHand == 0 ? magic.LeftHandSpell : magic.RightHandSpell) = acSpell;
+    EquipSpells(aActor, magic);
+}
+
+void FakeEngine::EquipsShout(uint32_t aActor, const GameId& acShout)
+{
+    auto& actor = Actors.at(aActor);
+    if (!actor.Copy)
+        World::Get().GetRunner().Trigger(EquipmentChangeEvent{.ActorId = aActor, .ItemId = ::ItemForm(acShout), .Unequip = !acShout, .IsShout = true});
+    actor.Items.CurrentMagicEquipment.Shout = acShout;
+}
+
+void FakeEngine::ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept
+{
+    if (auto it = Actors.find(aActorFormId); it != Actors.end())
+        it->second.Items.CurrentMagicEquipment.Shout = ToSession(aShoutFormId).value_or(GameId{});
+}
+
+void FakeEngine::ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept
+{
+    if (auto it = Actors.find(aActorFormId); it != Actors.end() && ::ItemForm(it->second.Items.CurrentMagicEquipment.Shout) == aShoutFormId)
+        it->second.Items.CurrentMagicEquipment.Shout = {};
 }
 
 void FakeEngine::RevertSelectedSpells(uint32_t aFormId)
@@ -1135,6 +1175,30 @@ void FakeEngine::StartDismount(uint32_t aRider, uint32_t aFrames) noexcept
     if (!Mounts.contains(aRider))
         return;
     DismountIn[aRider] = aFrames;
+    // The exit pair's start (32803): the mount's half, on its game.
+    if (!Actors.at(aRider).Copy && Actors.contains(Mounts.at(aRider)) && !Actors.at(Mounts.at(aRider)).Copy)
+        SendGraphEvent(Mounts.at(aRider), "pa_HorseExit");
+}
+
+void FakeEngine::MountGraph(FakeEngine& aEngine)
+{
+    aEngine.GraphTransitions[{"Standing", "pa_HorseExit"}] = kDismountSynced;
+    aEngine.GraphTransitions[{kDismountSynced, "PairEnd"}] = "Standing";
+    if (!aEngine.Graph)
+        aEngine.Graph = FakeGraphRules{};
+}
+
+void FakeEngine::SendGraphEvent(uint32_t aFormId, const std::string& acEvent)
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || it->second.GraphState.empty())
+        return;
+    auto& streams = World::Get().GetGraphStreams();
+    if (it->second.Copy && streams.OnStream(aFormId))
+        return;
+    if (Graph && !it->second.Copy && streams.Recording(aFormId) && GraphEventId(acEvent) != UINT16_MAX)
+        streams.OnEvent(aFormId, streams.Tick(), GraphEventId(acEvent), GraphWords(it->second), {it->second.GraphRandom, 0});
+    TakeGraphEvent(it->second, acEvent);
 }
 
 void FakeEngine::StopRiding(uint32_t aRider, uint32_t aMode, uint32_t aFrames) noexcept
@@ -1160,19 +1224,28 @@ void FakeEngine::ActorSeatOnMount(uint32_t aRider, uint32_t aMount) noexcept
         return;
     ActorPutOnMount(aRider, aMount);
     Actors.at(aRider).State1 = (Actors.at(aRider).State1 & ~(0xFu << kSitShift)) | uint32_t(::ReplayState::kSitSeated) << kSitShift;
+    SeatedRiders.insert(aRider);
 }
 
-bool FakeEngine::PlayerBoardMount(uint32_t aMount) noexcept
+bool FakeEngine::PlayerSitOnMountQuick(uint32_t aMount) noexcept
 {
     if (!Actors.contains(aMount))
         return false;
-    MountSlots.erase(aMount); // emptied before 37905's CanRide (38706), which refuses midair too
-    if (Actors.at(kPlayer).InAir)
-        return false;
     Mounts[kPlayer] = aMount;
-    MountSlots[aMount] = kPlayer;
-    // Its get-on's end (PairedStopHandler 42868): seated. The fake plays no clip.
-    Actors.at(kPlayer).State1 = (Actors.at(kPlayer).State1 & ~(0xFu << kSitShift)) | 3u << kSitShift;
+    MountSlots.try_emplace(aMount, kPlayer); // 12074 adds only to an empty slot: the driver keeps it
+    if (RefuseQuickSeat)
+    {
+        EndRide(kPlayer); // 40356 ends a rider not seated: its Detach (41539) empties the slot
+        return false;
+    }
+    // IDLE EnterHorseInstant (condition 631): HorseEnterInstant, which seats it (ApplyActionWrites). No paired clip.
+    ActionEvent instant;
+    instant.ActionId = 0x13009; // ActionActivate (default object 55)
+    instant.EventName = "HorseEnterInstant";
+    instant.TargetId = aMount;
+    if (!PerformAnimation(kPlayer, instant))
+        return false;
+    SeatedRiders.insert(kPlayer); // 41530's OnSeated (40353)
     return true;
 }
 
@@ -1207,6 +1280,13 @@ bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
         return true;
     }
     World::Get().GetRunner().Trigger(MountEvent{aActivator, aMount});
+    if (Synced(aMount))
+    {
+        SendGraphEvent(aMount, "PairEnd"); // the refused pair's own instance ends it
+        ++RefusedGetOns;
+        MountRetryOf[aActivator] = aMount;
+        return true;
+    }
     Mounts[aActivator] = aMount;
     MountSlots[aMount] = aActivator;
     if (aActivator == kPlayer)
@@ -1222,11 +1302,13 @@ void FakeEngine::EndRide(uint32_t aRider) noexcept
         return;
     const uint32_t cMountId = cMount->second;
     Mounts.erase(cMount);
+    SeatedRiders.erase(aRider);
     MountSlots.erase(cMountId); // 40355 with null: whichever rider it named
     if (const auto cReins = Reins.find(cMountId); cReins != Reins.end() && cReins->second == aRider)
         Reins.erase(cReins);
-    if (const auto it = Actors.find(aRider); it != Actors.end() && it->second.Copy && Actors.contains(cMountId) && !Actors.at(cMountId).Copy)
-        SyncedMounts.insert(cMountId);
+    // An owner's exit pair: its instance ends before the Detach, in its frame (32797).
+    if (const auto it = Actors.find(aRider); it != Actors.end() && !it->second.Copy && Synced(cMountId) && !Actors.at(cMountId).Copy)
+        SendGraphEvent(cMountId, "PairEnd");
     // HookDetachInteraction: any rider's ride ended.
     if (const auto it = Actors.find(aRider); it != Actors.end())
         World::Get().GetRunner().Trigger(DismountEvent{aRider, cMountId, it->second.Copy});
@@ -1249,8 +1331,12 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
     if (const auto it = Actors.find(aFormId); it != Actors.end())
     {
         const bool cReleased = it->second.Copy && !aCopy;
+        if (cReleased && it->second.NoiseHeld) // ActorStateRules::HoldsOwnersNoise
+            it->second.Noise = 0, it->second.NoiseHeld = false;
         if (aCopy && !it->second.Copy)
             it->second.GraphReady = NewCopiesGraphReady;
+        if (aCopy)
+            it->second.KillHeld = true; // UpdateCopyAI's StartDeferredKill, each frame
         it->second.Copy = aCopy;
         if (!aCopy)
         {
@@ -1430,6 +1516,9 @@ bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
 
 void FakeEngine::ApplyActionWrites(uint32_t aFormId, const std::string& acEvent)
 {
+    // 39004: HorseEnterInstant seats its actor at once (sit state 3).
+    if (acEvent == "HorseEnterInstant")
+        Actors.at(aFormId).State1 = (Actors.at(aFormId).State1 & ~(0xFu << kSitShift)) | uint32_t(::ReplayState::kSitSeated) << kSitShift;
     const auto it = ActionWrites.find(acEvent);
     if (it == ActionWrites.end())
         return;
@@ -1449,12 +1538,69 @@ void FakeEngine::StopPairClip(uint32_t aFormId)
     actor.InPairClip = false;
     actor.InPair = false;
     actor.PairBlowIn = 0;
+    actor.KillActorIn = 0;
+    actor.KillMoveEndIn = 0;
 }
 
 void FakeEngine::ClipKillActor(uint32_t aFormId)
 {
-    if (auto& actor = Actors.at(aFormId); actor.Copy)
+    auto& actor = Actors.at(aFormId);
+    if (actor.Copy || actor.KillHeld)
+    {
         actor.PoseHeldUntil = World::Get().GetFrameTick() + ::ReplayState::cPoseHoldMs;
+        actor.KillCounted = true;
+        return;
+    }
+    actor.KilledBy = actor.Killer;
+    KillActor(aFormId);
+}
+
+void FakeEngine::ActorHoldKill(uint32_t aFormId, bool aHold) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return;
+    it->second.KillHeld = aHold;
+    // Released: the counted kill dropped first, so 40036 queues none (Actor::HoldKill).
+    if (!aHold)
+        it->second.KillCounted = false;
+}
+
+void FakeEngine::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || it->second.Dead)
+        return;
+    it->second.KillHeld = it->second.KillCounted = false;
+    it->second.PoseHeldUntil = 0;
+    it->second.KilledBy = aKillerFormId;
+    it->second.Values.ActorValuesList[kHealth] = 0.f;
+    CheckHealth(aFormId, it->second);
+}
+
+void FakeEngine::ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept
+{
+    if (!Actors.contains(aOwnFormId) || !Actors.contains(aCopyFormId))
+        return;
+    for (const uint32_t cHalf : {aCopyFormId, aOwnFormId})
+    {
+        StopPairClip(cHalf);
+        EndKillMove(cHalf);
+    }
+    Actors.at(aCopyFormId).ClashPartner = aOwnFormId;
+    Actors.at(aCopyFormId).PairStops = ::ReplayState::cClashStopUpdates;
+    Actors.at(aOwnFormId).ClashUntil = World::Get().GetTick() + ::ReplayState::cClashGuardMs;
+}
+
+bool FakeEngine::ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept
+{
+    ActionEvent swing;
+    swing.ActionId = aActionId;
+    swing.EventName = kPlainSwing;
+    if (!Actors.contains(aFormId) || !PerformAnimation(aFormId, swing))
+        return false;
+    ++PlainSwings;
+    return true;
 }
 
 bool FakeEngine::PoseHeld(uint32_t aFormId) const noexcept
@@ -1491,24 +1637,47 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             return false;
         // 32803 makes an instance and plays the target's half through its graph (63591); a replay names no target
         // event for a copy partner (PlayReplayedAction): no instance, its half is its owner's action.
-        const bool cInstance = !(Replaying && cPartner->second.Copy);
+        const bool cInstance = !Replaying || actor.Replay.PairHere;
         // A copy on its owner's stream takes the half only held off the stream (Games/Skyrim's 63591 hook); refused,
         // the pair fails.
         if (auto& streams = World::Get().GetGraphStreams();
             cInstance && cPartner->second.Copy && streams.OnStream(acAction.TargetId) && !streams.HoldWhile(acAction.TargetId, true))
             return false;
-        // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
-        const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
+        // 32803 plays the partner's half through Func5 (41557) -> 38949: our hook refuses a copy's own action but for
+        // the local player's partner's half or a half of a pair replayed here; refused, the pair fails.
+        if (cInstance && cPartner->second.Copy &&
+            !::ReplayState::CopyTakesAction(false, !Replaying && aFormId == kPlayer, Replaying))
+            return false;
+        // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once. Paired:
+        // in an instance (32808), or each playing its half from its own game's pair; not the kill move flag alone (an
+        // actor-state record sets that, 38613).
+        const bool cOtherHalf = cPartner->second.PairHalf.EventName == acAction.TargetEventName &&
+                                cPartner->second.PairHalf.TargetEventName == acAction.EventName;
+        const bool cCollapsed = !cOtherHalf && (actor.InPair || actor.InPairClip) && (cPartner->second.InPair || cPartner->second.InPairClip);
         CollapsedPairs += cCollapsed;
         // Only a "pa_Kill" action puts both in a kill move (39004); a mount's pair leaves that alone.
         if (cCollapsed || ::ReplayState::EntersKillMove(acAction.EventName))
+        {
             actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
-        actor.LatestPairAction = acAction;
+            cPartner->second.Killer = cCollapsed ? 0 : aFormId; // 38613 on the victim, the attacker its killer
+        }
+        actor.PairHalf = acAction;
+        if (!cCollapsed && !cOtherHalf)
+        {
+            cPartner->second.PairHalf.EventName = acAction.TargetEventName;
+            cPartner->second.PairHalf.TargetEventName = acAction.EventName;
+        }
+        // The victim state's AddRagdollToWorld (AddRagdollHandler 42873): its ragdoll in the world, biped layer.
+        if (cPartner->second.InKillMove)
+            cPartner->second.BodiesLayer = kBipedLayer;
         if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
         {
             actor.PairBlowIn = PairBlowFrames;
             actor.PairVictim = acAction.TargetId;
         }
+        // The victim's half plays here (an instance): its own clip's KillActor, at the blow's time.
+        if (PairBlows && cInstance && !cCollapsed && !cOtherHalf && acAction.EventName.starts_with("pa_"))
+            cPartner->second.KillActorIn = PairBlowFrames;
         actor.InPairClip = cPartner->second.InPairClip = !cCollapsed;
         if (cInstance || cCollapsed)
         {
@@ -1545,8 +1714,8 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
     const auto cWeaponBefore = actor.Weapon;
     if (actor.Copy)
     {
-        actor.Weapon = WeaponState((ReplayState::Flags2(acAction.State2, uint32_t(actor.Weapon) << 5) >> 5) & 7);
-        actor.State1 = ReplayState::Flags1(acAction.State1, actor.State1);
+        actor.Weapon = WeaponState((ActorStateRules::FromSnapshot2(acAction.State2, uint32_t(actor.Weapon) << 5) >> 5) & 7);
+        actor.State1 = ActorStateRules::FromSnapshot1(acAction.State1, actor.State1);
     }
     if (const auto cState = ActionStates.find(acAction.EventName); cState != ActionStates.end())
         actor.State1 = cState->second.second ? actor.State1 | cState->second.first : actor.State1 & ~cState->second.first;
@@ -1643,7 +1812,7 @@ std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aForm
 
 bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery)
 {
-    aAction.State2 = (aAction.State2 & ~ReplayState::kWeaponMask) | (uint32_t(Actors.at(aFormId).Weapon) << 5);
+    aAction.State2 = (aAction.State2 & ~ActorStateRules::kWeaponMask) | Actors.at(aFormId).State2 | (uint32_t(Actors.at(aFormId).Weapon) << 5);
     aAction.State1 |= Actors.at(aFormId).State1;
     uint32_t flags = aQuery ? 1 : 0;
     aAction.Type = 2 | (flags ? 4 : 0);
@@ -1859,8 +2028,8 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
     {
         uint32_t flags[2];
         std::memcpy(flags, acState.data(), sizeof(flags));
-        actor.State1 = flags[0];
-        const uint32_t cFlags2 = actor.Copy ? ReplayState::Flags2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
+        actor.State1 = actor.Copy ? ActorStateRules::Take(flags[0], actor.State1, ~ActorStateRules::kPartBits1) : flags[0];
+        const uint32_t cFlags2 = actor.Copy ? ActorStateRules::FromSnapshot2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
         actor.Weapon = WeaponState((cFlags2 >> 5) & 7);
         // One graph, one active machine: its state is the fake's GraphState.
         const auto cState = FakeGraphState(acState);
@@ -1890,8 +2059,8 @@ bool FakeEngine::LoadGraphStateFlags(uint32_t aFormId, const std::string& acStat
         return false;
     uint32_t flags[2];
     std::memcpy(flags, acState.data(), sizeof(flags));
-    it->second.State1 = ReplayState::Flags1(flags[0], it->second.State1);
-    it->second.Weapon = WeaponState((ReplayState::Flags2(flags[1], uint32_t(it->second.Weapon) << 5) >> 5) & 7);
+    it->second.State1 = ActorStateRules::FromSnapshot1(flags[0], it->second.State1);
+    it->second.Weapon = WeaponState((ActorStateRules::FromSnapshot2(flags[1], uint32_t(it->second.Weapon) << 5) >> 5) & 7);
     return true;
 }
 
@@ -1955,6 +2124,10 @@ bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, f
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
+        return false;
+    // A forwarded hit on an actor a kill move holds (SkyrimBridge::DamageActorHealth: in its kill move, 38619): its
+    // clip's KillActor kills it. A hit seen here goes through the engine's own damage (TakesDamage).
+    if (!m_applyingOwnHit && it->second.InKillMove && it->second.Killer)
         return false;
     const bool cWasDead = it->second.Dead;
     it->second.Values.ActorValuesList[kHealth] -= aDamage;
@@ -2423,7 +2596,22 @@ bool FakeEngine::IsActorNpcTemporary(uint32_t aFormId) const noexcept
 Inventory FakeEngine::GetActorInventory(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
-    return it != Actors.end() ? it->second.Items : Inventory{};
+    if (it == Actors.end())
+        return {};
+    // TESObjectREFR::GetInventory: the base container's entries as they are, with the actor's own change of them.
+    Inventory inventory = it->second.Items;
+    if (const auto cBase = BaseContainers.find(it->second.Base); cBase != BaseContainers.end())
+        for (const auto& [cItem, cCount] : cBase->second)
+        {
+            const auto cOwn = std::ranges::find_if(inventory.Entries, [&](const Inventory::Entry& acEntry) {
+                return ::ItemForm(acEntry.BaseId) == cItem && !acEntry.ContainsExtraData();
+            });
+            if (cOwn != inventory.Entries.end())
+                cOwn->Count += cCount;
+            else
+                inventory.Entries.push_back({.BaseId = GameId(0, cItem), .Count = cCount});
+        }
+    return inventory;
 }
 
 void FakeEngine::SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept
@@ -2646,7 +2834,7 @@ void FakeEngine::PlayerNames(const std::string& acName)
 void FakeEngine::AliasNames(uint32_t aFormId, const std::string& acName)
 {
     Actors.at(aFormId).DisplayName = acName;
-    World::Get().GetRunner().Trigger(ActorRenamedEvent{aFormId});
+    World::Get().GetRunner().Trigger(ActorRenamedEvent{aFormId, GetActorDisplayName(aFormId)});
 }
 
 std::string FakeEngine::PlayerId() noexcept
@@ -2666,10 +2854,14 @@ IJoinBridge::SaveFiles FakeEngine::MakeSave()
     player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
     player.Serialize(writer);
     Serialization::WriteVarInt(writer, References.size());
+    // Created ones keep their ids in a save (measured, summons.md): their base, cell and state with them.
     for (const auto& [id, r] : References)
     {
         Serialization::WriteVarInt(writer, id);
         Serialization::WriteBool(writer, r.Locked);
+        Serialization::WriteVarInt(writer, r.Base);
+        Serialization::WriteVarInt(writer, r.Cell);
+        Serialization::WriteBool(writer, r.Disabled);
     }
     // The words' flags (the world's), the player's own factions (its base's, kept with the save).
     for (const auto* pWords : {&WordsKnown, &WordsUnlocked})
@@ -2720,7 +2912,11 @@ void FakeEngine::RunMainLoop() noexcept
     for (size_t i = 0; i < count; ++i)
     {
         const uint32_t id = Serialization::ReadVarInt(reader);
-        References[id].Locked = Serialization::ReadBool(reader);
+        auto& reference = References[id];
+        reference.Locked = Serialization::ReadBool(reader);
+        reference.Base = static_cast<uint32_t>(Serialization::ReadVarInt(reader));
+        reference.Cell = static_cast<uint32_t>(Serialization::ReadVarInt(reader));
+        reference.Disabled = Serialization::ReadBool(reader);
     }
     for (auto* pWords : {&WordsKnown, &WordsUnlocked})
     {
@@ -2866,6 +3062,17 @@ void FakeEngine::CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource,
     if (!cActor->second.Copy)
         World::Get().GetRunner().Trigger(SpellCastEvent(aCaster, aSpell, aTarget, aSource, false, cActor->second.Loaded));
     Casts.push_back({aCaster, aSpell, aSource, aTarget});
+    if (Spell(aSpell).Concentration)
+        Channels[{aCaster, aSource}] = aSpell;
+}
+
+void FakeEngine::StopsCasting(uint32_t aCaster, uint32_t aSource)
+{
+    const auto cActor = Actors.find(aCaster);
+    if (cActor == Actors.end() || !Channels.erase({aCaster, aSource}))
+        return;
+    if (!cActor->second.Copy)
+        World::Get().GetRunner().Trigger(InterruptCastEvent(aCaster, aSource));
 }
 
 void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
@@ -2874,6 +3081,15 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
     if (cTarget == Actors.end())
         return;
     const bool cOurCast = Actors.contains(aCaster) && !Actors.at(aCaster).Copy;
+    // A summon on its caster: applied here (a guest's CreateSummon makes nothing); a guest's player's goes to the host's
+    // game too (MagicTarget's hook, summons.md).
+    if (Spell(aSpell).Summons && aTarget == aCaster && cOurCast)
+    {
+        if (HoldSession && aTarget == kPlayer)
+            World::Get().GetRunner().Trigger(SummonEvent{aSpell, aEffect, aMagnitude});
+        AddMagicTargetEffect(aTarget, aCaster, aSpell, aEffect, aMagnitude, false, false, false);
+        return;
+    }
     if (cTarget->second.Copy)
     {
         if (!cOurCast)
@@ -2888,6 +3104,25 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
         return;
     }
     Effects.push_back({aTarget, aCaster, aSpell, aEffect});
+}
+
+uint32_t FakeEngine::MakesSummon(uint32_t aCaster, uint32_t aBase)
+{
+    const auto cCaster = Actors.find(aCaster);
+    if (cCaster == Actors.end())
+        return 0;
+    for (const auto& [cId, cActor] : Actors)
+        if (cActor.Commander == aCaster && !cActor.Copy)
+        {
+            DeleteActor(cId);
+            break;
+        }
+    const auto& cPosition = cCaster->second.Position;
+    const uint32_t cId = LoadNpc(aBase, cCaster->second.Cell, {cPosition[0] + 100.f, cPosition[1], cPosition[2]});
+    Actors.at(cId).Commander = aCaster;
+    if (Attached.contains(Actors.at(cId).Cell))
+        Load3D(cId);
+    return cId;
 }
 
 void FakeEngine::Fights(uint32_t aActor, uint32_t aTarget)
@@ -2942,10 +3177,10 @@ void FakeEngine::ForcesDetected(uint32_t aWitness)
     known.UpdatedAt = DetectionFrame;
 }
 
-const DetectionRules::Pass* FakeEngine::FreshState(uint32_t aWitness)
+const DetectionRules::Pass* FakeEngine::FreshState(uint32_t aWitness, uint32_t aTarget)
 {
     // Priority 3: refreshed after 1 s, answered unseen after 2 s (table 0x1420B8AB8), at 60 frames a second.
-    auto& known = KnowledgeOfPlayer[aWitness];
+    auto& known = DetectionOf[aTarget][aWitness];
     if (!known.State || known.Queued)
     {
         known.Queued = true;
@@ -2959,12 +3194,48 @@ const DetectionRules::Pass* FakeEngine::FreshState(uint32_t aWitness)
 
 int32_t FakeEngine::StealthEye()
 {
+    uint32_t seeing = 0;
+    return HighestDetection(kPlayer, seeing);
+}
+
+int32_t FakeEngine::HighestDetection(uint32_t aTarget, uint32_t& aSeeing)
+{
+    aSeeing = 0;
+    if (aTarget == kPlayer && HeldEye)
+    {
+        aSeeing = HeldEye->Seeing;
+        return HeldEye->Level;
+    }
+    // The player's: its flagged witnesses skipped (41408); another actor's: as StealthEye::Read, every exclusion.
+    const auto cCounts = [&](const Actor& acWitness) {
+        if (aTarget == kPlayer)
+            return !acWitness.NotOnStealthMeter;
+        return DetectionRules::CountsOnEye(acWitness.NotOnStealthMeter, acWitness.Teammate, acWitness.Commander == aTarget, acWitness.Copy);
+    };
     int32_t highest = DetectionRules::kUnseen;
     for (const auto& [cId, cActor] : Actors)
-        if (cId != kPlayer && cActor.Loaded && !cActor.Dead && !cActor.NotOnStealthMeter)
-            if (const auto* cpState = FreshState(cId))
+        if (cId != aTarget && cActor.Loaded && !cActor.Dead && cCounts(cActor))
+            if (const auto* cpState = FreshState(cId, aTarget))
+            {
                 highest = std::max(highest, cpState->Level);
+                aSeeing += cpState->Seen;
+            }
     return highest;
+}
+
+float FakeEngine::LowestStealthPoints(uint32_t aTarget) const
+{
+    if (aTarget == kPlayer && HeldEye)
+        return HeldEye->Stealth;
+    const auto it = StealthPoints.find(aTarget);
+    return it != StealthPoints.end() ? it->second : 100.f;
+}
+
+int32_t FakeEngine::EyeShows()
+{
+    uint32_t seeing = 0;
+    const int32_t cLevel = HighestDetection(kPlayer, seeing);
+    return DetectionRules::EyeShows(PlayerInCombat, cLevel, LowestStealthPoints(kPlayer));
 }
 
 void FakeEngine::ProcessTracking()
@@ -2988,16 +3259,19 @@ void FakeEngine::ProcessTracking()
 
 void FakeEngine::DetectionPass()
 {
-    for (auto& [cWitness, known] : KnowledgeOfPlayer)
-    {
-        if (!known.Queued)
-            continue;
-        const auto cSees = Sees.find(cWitness);
-        DetectionRules::Pass computed{};
-        if (cSees != Sees.end())
-            computed = {.Level = cSees->second, .LineOfSight = true, .Seen = true};
-        known = {DetectionRules::Installed(PartyOf(cWitness) == HitRules::Party::OtherPlayer, true, computed), DetectionFrame, false};
-    }
+    for (auto& [cTarget, known] : DetectionOf)
+        for (auto& [cWitness, state] : known)
+        {
+            if (!state.Queued)
+                continue;
+            const auto& cSees = SeesOf[cTarget];
+            const auto cComputed = cSees.find(cWitness);
+            DetectionRules::Pass computed{};
+            if (cComputed != cSees.end())
+                computed = {.Level = cComputed->second, .LineOfSight = true, .Seen = true};
+            const bool cCopy = Actors.contains(cWitness) && Actors.at(cWitness).Copy;
+            state = {DetectionRules::Installed(cCopy, cTarget == kPlayer, computed), DetectionFrame, false};
+        }
 }
 
 HitRules::Party FakeEngine::PartyOf(uint32_t aFormId) const noexcept
@@ -3019,7 +3293,9 @@ void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, 
     {
     case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage));
+        m_applyingOwnHit = true;
         DamageActorHealth(aHittee, aHitter, aDamage);
+        m_applyingOwnHit = false;
         break;
     case HitRules::Route::AskOwner: World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage, aHitter)); break;
     case HitRules::Route::Mirror:
@@ -3079,6 +3355,7 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
         World::Get().GetRunner().Trigger(MenuEvent{"ContainerMenu", true});
     }
     ToggleDoor(aObject);
+    Harvest(aObject);
 }
 
 // The alias clear hooks report their quest after the engine removes the fill, without a stage/flag event.

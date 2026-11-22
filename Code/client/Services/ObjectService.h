@@ -10,7 +10,6 @@ class IActorBridge;
 struct World;
 struct ActivateEvent;
 struct TransportService;
-struct NotifyActivate;
 struct LidUnposedEvent;
 struct UpdateEvent;
 
@@ -26,7 +25,6 @@ struct ObjectService
 
 private:
     void OnActivate(const ActivateEvent&) noexcept;
-    void OnActivateNotify(const NotifyActivate&) noexcept;
     // A lid whose open state changed with no 3D: posed at its open state once it is enabled and loaded again
     // (docs/re/systems/guest-world-events.md, "A lid after a disable").
     void OnLidUnposed(const LidUnposedEvent&) noexcept;

@@ -1,0 +1,46 @@
+time	op	id	rva	item
+2026-11-20T05:55:10Z	read	42838	0x7cd430	{"name": "KillActorHandler::Handle"}
+2026-11-20T05:55:28Z	read	40036	0x728620	{"name": "ActorProcess::EndDeferredKill"}
+2026-11-20T05:55:33Z	read	37896	0x6a9e50	{"name": "Actor::KillImpl"}
+2026-11-20T06:00:50Z	read	32803	0x54fac0	{"name": "BGSSynchronizedAnimationManager::StartPair"}
+2026-11-20T06:00:55Z	read	38949	0x6dfbc0	{"name": "coop_RealPerformAction"}
+2026-11-20T06:01:03Z	comment		0x6dfcbd	{"addr": "0x1406dfcbd", "comment": "Started = StartPair (32803) && the graph event sent: a true return with a target event is a pair begun (or both already in one instance: 32803 returns 1 starting nothing). SkyrimCoop piece-4b: the claim is made here, in HookPerformAction, after the real call."}
+2026-11-20T06:01:04Z	read		0x6dffcd	{"name": "coop_PerformComplexAction"}
+2026-11-20T06:01:46Z	read	37462	0x686420	{"name": "sub_140686420"}
+2026-11-20T06:01:58Z	comment	38618	0x6cc950	{"addr": "0x1406cc950", "comment": "Actor::EndDeferredKill(actor, aScripted) -> ActorProcess::EndDeferredKill 40036. Every engine caller passes aScripted 0 (Set3D, MoveToLow, MoveToMiddleLow, Revert, 37947, 37972, KillActorHandler 42838, FlightLandEndHandler, 42907, 140686420); only papyrus EndDeferredKill passes 1. So a copy's scripted hold (UpdateCopyAI) is never ended by the engine: it lives until its MiddleHigh process data goes. SkyrimCoop piece-4b (read 2026-11-20)."}
+2026-11-20T06:01:58Z	comment	37462	0x686420	{"addr": "0x140686420", "comment": "Sets or clears Actor+0x204 (flags2) bit 0x8 with a2, and starts (a2) or ends a NON-scripted deferred kill (StartDeferredKill/EndDeferredKill with 0). Never touches a scripted hold. SkyrimCoop piece-4b"}
+2026-11-20T06:06:08Z	read	39002	0x6e1ca0	{"name": "coop_ActionSelectionChecks"}
+2026-11-20T06:06:12Z	read	37147	0x66f700	{"name": "SetActionDataNameSource"}
+2026-11-20T06:06:13Z	read	32802	0x54f980	{"name": "SetActionDataNameTarget"}
+2026-11-20T06:06:23Z	read	24602	0x3b9040	{"name": "sub_1403B9040"}
+2026-11-20T06:06:30Z	read		0x69fa70	{"name": "PlayerCharacter::sub_37707"}
+2026-11-20T06:06:53Z	read		0x6a4d81	{"name": "Actor::sub_37784"}
+2026-11-20T06:06:59Z	read	24618	0x3ba100	{"name": "sub_1403BA100"}
+2026-11-20T06:07:08Z	read	42421	0x7b28d0	{"name": "AttackBlockHandler::ProcessButton"}
+2026-11-20T06:07:19Z	read	42435	0x7b3c80	{"name": "AttackBlockHandler::sub_42435"}
+2026-11-20T06:07:29Z	read	42350	0x7ae440	{"name": "PlayerControls::sub_42350"}
+2026-11-20T06:07:40Z	read	14992	0x1f39d0	{"name": "sub_1401F39D0"}
+2026-11-20T06:07:40Z	read	39297	0x6f30f0	{"name": "sub_1406F30F0"}
+2026-11-20T06:07:40Z	read	12340	0x17eed0	{"name": "sub_14017EED0"}
+2026-11-20T06:07:53Z	name	24602	0x3b9040	{"addr": "0x1403b9040", "name": "coop_PickIdleForAction"}
+2026-11-20T06:07:53Z	name	24618	0x3ba100	{"addr": "0x1403ba100", "name": "coop_NextSequenceIdle"}
+2026-11-20T06:07:53Z	name	14992	0x1f39d0	{"addr": "0x1401f39d0", "name": "BGSActionData_SetTarget"}
+2026-11-20T06:07:53Z	name	42350	0x7ae440	{"addr": "0x1407ae440", "name": "PlayerControls_PerformPlayerAction"}
+2026-11-20T06:07:59Z	comment	24602	0x3b9040	{"addr": "0x1403b9040", "comment": "Picks the idle for an action with no event yet (from SetActionDataNameSource 37147): the action's idle tree root (default 64 if none), TESIdleForm::sub_24570 walks it with the actor and target (conditions: ShouldAttackKill etc.), sets the event name (+0x28) and idle (+0x48). A sequence idle (flag 2) goes through coop_NextSequenceIdle. One pick, no retry. SkyrimCoop piece-4b"}
+2026-11-20T06:07:59Z	comment	24618	0x3ba100	{"addr": "0x1403ba100", "comment": "A sequence idle's next child (+0x40 idle, +0x50 index); clears both after the last. Not a fallback for a refused pair. SkyrimCoop piece-4b"}
+2026-11-20T06:07:59Z	comment	14992	0x1f39d0	{"addr": "0x1401f39d0", "comment": "BGSActionData target (+0x10) set, ref counted. PlayerControls 42350 clears it (null) for its second try. SkyrimCoop piece-4b"}
+2026-11-20T06:07:59Z	comment	42350	0x7ae440	{"addr": "0x1407ae440", "comment": "42350: the player's action from controls (AttackBlockHandler 42435: 45, ...). For attack actions picks a swing target in reach (Actor_PickSwingTarget). First try: Func5 41557 with that target (the idle tree may pick a pa_KillMove; StartPair 32803 may refuse it). Refused with a target: SECOND TRY in the same call: event and target event set empty, target cleared (BGSActionData_SetTarget null), flags &~3, Func5 again -> the tree picks with no target: a normal swing. This is vanilla's fallback for a refused pair. SkyrimCoop piece-4b (read 2026-11-20)"}
+2026-11-20T06:07:59Z	comment	39297	0x6f30f0	{"addr": "0x1406f30f0", "comment": "Actor's process (+8 middle-high) has +0x1FA != 0xFFFF. 42350's first-try gate. Not read further. SkyrimCoop piece-4b"}
+2026-11-20T06:14:26Z	read	37316	0x6779c0	{"name": "Actor::QueueKill"}
+2026-11-20T06:14:46Z	comment		0x6a9ecb	{"addr": "0x1406a9ecb", "comment": "After the deferred-kill test: vfunc 0x99 IsDead(false) -> already dead: return, nothing done. So the kill ActorProcess::EndDeferredKill 40036 queues (credited to g_thePlayer) is a no-op once KillImpl ran with the real killer in the same frame (the task runs later). SkyrimCoop piece-4b (read 2026-11-20)"}
+2026-11-20T06:14:46Z	comment	37316	0x6779c0	{"addr": "0x1406779c0", "comment": "Actor::QueueKill 37316 (meh321: Actor::Kill_impl2). Records the killer's handle (Actor+0x108) and queues the kill (task 10: KillImpl), unless one is queued already (MiddleHigh killQueued 0x331, 40011). KillActorHandler 42838 calls it with the pair partner. SkyrimCoop piece-4b: re-read 2026-11-20"}
+2026-11-20T06:43:53Z	read	38616	0x6cc910	{"name": "Character::StartDeferredKill"}
+2026-11-20T06:43:57Z	read	40033	0x7285a0	{"name": "ActorProcess::StartDeferredKill"}
+2026-11-20T06:43:58Z	read	38613	0x6cc740	{"name": "Character::EnterKillMove"}
+2026-11-20T06:44:02Z	comment	40033	0x7285a0	{"addr": "0x1407285a0", "comment": "ActorProcess::StartDeferredKill 40033: one hold per actor. State (MiddleHigh +0x2F8) to 1 if 0; the scripted flag (+0x332) is OR'd with a2, so a non-scripted start (EnterKillMove 38613) never clears a scripted hold; +0x2D4 a timer from a setting. So an NPC lent for a claimed pair (scripted hold kept from its time as a copy) keeps it through its kill move: KillActorHandler's EndDeferredKill(0) does not match. SkyrimCoop piece-4b (read 2026-11-20)"}
+2026-11-20T08:24:32Z	name	37462	0x686420	{"addr": "0x140686420", "name": "Actor::SetGettingOnOffMount"}
+2026-11-20T08:24:34Z	comment	37462	0x686420	{"addr": "0x140686420", "comment": "Actor::SetGettingOnOffMount 37462 (community name): flags2 (+0x204) 0x8 GETTING_ON_OFF_MOUNT set or cleared with a2; getting on or off a mount starts (a2) or ends a NON-scripted deferred kill (StartDeferredKill/EndDeferredKill with 0), so a rider cannot die mid get-on. Never touches a scripted hold. Callers: FinishDismount, TryStartMountInteraction, SetSitSleepState, MountInteraction, MountDismountEndHandler. SkyrimCoop piece-4b"}
+2026-11-20T15:00:44Z	read	38614	0x6cc840	{"name": "Character::EndKillMove"}
+2026-11-20T15:00:45Z	read	38618	0x6cc950	{"name": "Actor::EndDeferredKill"}
+2026-11-20T15:00:53Z	comment	38618	0x6cc950	{"addr": "0x1406cc950", "comment": "Actor::EndDeferredKill(actor, aScripted) -> ActorProcess::EndDeferredKill 40036. Every engine caller passes aScripted 0 (Set3D, MoveToLow, MoveToMiddleLow, Revert, 37947, 37972, KillActorHandler 42838, FlightLandEndHandler, 42907, Actor::SetGettingOnOffMount 37462); only papyrus EndDeferredKill passes 1 (read). So no engine path ends a copy's scripted hold (UpdateCopyAI). That it then lasts until its MiddleHigh process data goes is inferred, not read. SkyrimCoop piece-4b (read 2026-11-20)."}
+2026-11-20T15:00:53Z	comment	38614	0x6cc840	{"addr": "0x1406cc840", "comment": "What KillMoveEndHandler 42871 does on the victim: QueueKill 37316 by the recorded killer handle (+0x108) if set, clears process state (40036 with aScripted 0), clears flags2 0x4000 (IsInKillMove 38615). Under a scripted deferred kill (a lent NPC's, piece 4b) that queued kill only counts (KillImpl 37896 -> DeferKill 38617), with no KillActor event (42838): a pair can kill at its end alone. SkyrimCoop piece-4b (read 2026-11-20, PR #85 review)."}

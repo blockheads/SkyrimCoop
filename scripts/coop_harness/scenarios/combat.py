@@ -524,7 +524,9 @@ def scenario_client_kill_move(ctx):
                 # kill move, together). The copy's action is recorded the frame after it plays.
                 pair = {who: trace.wait_state("", who, "kill_move", True, 3) for who in ("player", "wolf")}
                 halves = {"player": trace.wait("", "player", killer["event"], 3, kind="action", after=started["time"])}
-                if halves["player"]["idle"] != killer["idle"] or abs(pair["player"]["f"] - pair["wolf"]["f"]) > 1:
+                # Both are copies on the host (the wolf is the client's for the pair, kill-moves.md "Claimed pairs"): the
+                # wolf enters from its new owner's record, the player's copy at its action, a few frames apart.
+                if halves["player"]["idle"] != killer["idle"] or abs(pair["player"]["f"] - pair["wolf"]["f"]) > 4:
                     raise ctx.failure(f"the host's halves are not one pair: {halves['player']}, {pair}")
                 lag = halves["player"]["time"] - killer["time"]
                 trace.mark("the kill move starts", halves["player"]["time"], started["time"])

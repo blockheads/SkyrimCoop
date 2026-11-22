@@ -1,0 +1,34 @@
+time	op	id	rva	item
+2026-11-19T02:06:46Z	read	41532	0x78cf30	{"name": "coop_attach"}
+2026-11-19T02:06:46Z	read	40345	0x73ca00	{"name": "coop_construct_0"}
+2026-11-19T02:06:50Z	read	41540	0x78d720	{"name": "sub_14078D720"}
+2026-11-19T02:06:50Z	read	41518	0x78c580	{"name": "sub_14078C580"}
+2026-11-19T02:07:04Z	read	40355	0x73d270	{"name": "MountInteraction::Func6_40355"}
+2026-11-19T02:07:39Z	read	41539	0x78d610	{"name": "sub_14078D610"}
+2026-11-19T02:07:39Z	read	38696	0x6d25c0	{"name": "sub_1406D25C0"}
+2026-11-19T02:07:51Z	name	41540	0x78d720	{"addr": "0x14078D720", "name": "RefrInteraction::AttachToRider"}
+2026-11-19T02:07:51Z	name	41518	0x78c580	{"addr": "0x14078C580", "name": "RefrInteraction::RefrInteraction"}
+2026-11-19T02:07:51Z	name	41539	0x78d610	{"addr": "0x14078D610", "name": "RefrInteraction::Detach"}
+2026-11-19T02:07:51Z	name	38696	0x6d25c0	{"addr": "0x1406d25c0", "name": "Actor::FinishDismount"}
+2026-11-19T02:07:51Z	name	41532	0x78cf30	{"addr": "0x14078cf30", "name": "RefrInteraction::Attach"}
+2026-11-19T02:07:51Z	name	40345	0x73ca00	{"addr": "0x14073ca00", "name": "MountInteraction::MountInteraction"}
+2026-11-19T02:07:55Z	comment	41540	0x78d720	{"addr": "0x14078D720", "comment": "41540 Attach (rider side): the rider (+0x14 actorHandle) gets this interaction in its ExtraInteraction (0xA9); a different one it held is Detached (41539) first. Then vfunc 0x30 (40355) puts it on the mount, which keeps an older one it holds (12074 adds only to an empty slot)."}
+2026-11-19T02:07:55Z	comment	41518	0x78c580	{"addr": "0x14078C580", "comment": "41518 RefrInteraction ctor(this, rider, target): +0x14 actorHandle = rider, +0x10 targetHandle = target (the mount), +0x18 flag."}
+2026-11-19T02:07:55Z	comment	41539	0x78d610	{"addr": "0x14078D610", "comment": "41539 Detach: vfunc 0x48, then the rider's ExtraInteraction emptied, vfunc 0x30(null) empties the mount's slot (whichever rider it names), both handles invalidated."}
+2026-11-19T02:07:55Z	comment	38696	0x6d25c0	{"addr": "0x1406d25c0", "comment": "38696 FinishDismount: rider placed beside the mount (the mount's bone), then if it holds a MountInteraction: kGettingOnOffMount cleared on both (40363 GetMount), EndMountInteraction (41535) -> Detach; movement speed, flag 0x100 at +0xCC cleared."}
+2026-11-19T02:09:22Z	read	40352	0x73cd00	{"name": "MountInteraction::Func15_40352"}
+2026-11-19T02:09:40Z	comment	38696	0x6d25c0	{"addr": "0x1406d25c0", "comment": "AddressLib ID 38696. (rider) The end of getting off: rider placed at its root bone's XY (flying mounts: a ray for the ground), clears kGettingOnOffMount on rider and mount, EndMountInteraction (41535: Detach), movement speed updated. Called by StopMountCameraHandler::Handle (the HorseExit clip's event) and MountInteraction 40352. Leaves the sit state alone: 40352 sets 0 (39912) before calling it; a caller that does not leaves a rider at 4 (wants to stand)."}
+2026-11-19T02:09:40Z	read	42835	0x7cd1f0	{"name": "ChairFurnitureExitHandler::Handle"}
+2026-11-19T02:23:04Z	read	39669	0x716fb0	{"name": "sub_140716FB0"}
+2026-11-19T02:23:05Z	read		0x706092	{"name": "AIProcess::UpdateHighProcessAI"}
+2026-11-19T02:23:25Z	read		0x6d3ba0	{"name": "sub_1406D3AD0"}
+2026-11-19T02:23:44Z	read	38704	0x6d34a0	{"name": "Actor::sub_38704"}
+2026-11-19T02:23:52Z	read	41530	0x78ca60	{"name": "sub_14078CA60"}
+2026-11-19T02:23:59Z	name	41530	0x78ca60	{"addr": "0x14078CA60", "name": "RefrInteraction::StartWithActivate"}
+2026-11-19T02:23:59Z	name	38704	0x6d34a0	{"addr": "0x1406D34A0", "name": "Actor::TryStartMountInteraction"}
+2026-11-19T02:23:59Z	name	39669	0x716fb0	{"addr": "0x140716FB0", "name": "AIProcess::MountProcedureStep"}
+2026-11-19T02:24:04Z	comment	41530	0x78ca60	{"addr": "0x14078CA60", "comment": "41530 (rider, &interaction, resume): the rider's sit state from the interaction (vfuncs 0x68/0x28, SetSitSleepState 39912), then ActionActivate (default object 55) rider->target through vfunc 0x70; result 2 = refused by the graphs (nothing attached, the sit state left set), else AttachToRider (41540). Returns not refused."}
+2026-11-19T02:24:04Z	comment	38704	0x6d34a0	{"addr": "0x1406D34A0", "comment": "38704 TryStartMountInteraction(rider, mount, resume): a ridden mount (IsMountBeingRidden 38303) refuses; else a new MountInteraction started by 41530. Refused or ridden: kGettingOnOffMount cleared on both (40363-like 0x140686420)."}
+2026-11-19T02:24:04Z	comment	39669	0x716fb0	{"addr": "0x140716FB0", "comment": "39669 the mount package's procedure step (run-once type 41, high process): TryStartMountInteraction (38704); started -> procedure running, refused -> InitiateMountPackage (37905) again, the next update retries. So a mount whose graph refuses pa_HorseEnter (e.g. still in a pa_HorseExit pair) gets 37905 once per try."}
+2026-11-19T02:24:04Z	comment		0x70608c	{"addr": "0x14070608C", "comment": "UpdateHighProcessAI's mount case: the same as 39669, 38704 then 37905 again when refused."}
+2026-11-19T02:24:08Z	comment	38709	0x6d3ad0	{"addr": "0x1406D3AD0", "comment": "Not on the follow path: run-once package (types 41/42) target resolve for a mount/ride check. Not on the mount path read 2026-11-18 (reached by a wrong address while reading 38704)."}

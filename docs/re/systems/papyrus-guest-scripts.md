@@ -70,7 +70,10 @@ the timers they set.
   sends them to that guest's game (`RoutedCallEvent` → `RoutedCallRequest` → `NotifyRoutedCall`, to the owner, only from
   the host's game, `HostPlayerNatives`), which queues the same call on its VM (`IVirtualMachine::DispatchStaticCall`,
   slot 0x26, read in IDA: class and function looked up, the arguments filled at once by `IFunctionArguments`' slot 1,
-  then the stack queued through 104848), so its own player, perks and mods take it. An argument the session cannot
+  then the stack queued through 104848), so its own player, perks and mods take it. It queues it as its own player's
+  (`GuestScripts::ScopedCause(0x14)`): a stack with no cause made a screen or controls call the story's there, so
+  the guest sent it back to every game (measured 2026-11-20: the host showed the relief's box as a mirrored copy,
+  cause `FFFE0002`; GameTests "A guest's action's message box shows on its game only"). An argument the session cannot
   carry (an array, a temporary reference that is not an actor: "Values carried" below) leaves the native on the
   host, with a warning.
 - **A native returning a value** (`QueryStat`, `CalculateFavorCost`, `GetPlayersLastRiddenHorse`) waits for the

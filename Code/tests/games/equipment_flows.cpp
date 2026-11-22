@@ -227,14 +227,15 @@ SCENARIO("A quest's outfit rebuild cannot leave a player's copy partly undressed
     party.Until([&] { return Wears(host, cCopy, kIronArmor) && Wears(host, cCopy, kIronHelmet) && Wears(host, cCopy, kIronSword); },
                 "the copy wears the owner's outfit and holds its weapon");
     const GameId cSpell{0, 0x12FCC};
-    guest.Actors.at(FakeEngine::kPlayer).Items.CurrentMagicEquipment.LeftHandSpell = cSpell;
+    party.As(party.Guest(), [&] { guest.EquipsSpell(FakeEngine::kPlayer, cSpell, 0); });
+    party.Until([&] { return host.GetActorEquipment(cCopy).CurrentMagicEquipment.LeftHandSpell == cSpell; }, "the copy readies the owner's spell");
     const auto cInventory = host.GetActorInventory(cCopy);
+    // 418622 strips the copy past our hooks; nothing its owner sends follows.
     party.As(party.Host(), [&] { host.RebuildCopyEquipment(cCopy, kIronArmor); });
     REQUIRE(Wears(host, cCopy, kIronArmor));
     REQUIRE_FALSE(Wears(host, cCopy, kIronHelmet));
     REQUIRE_FALSE(Wears(host, cCopy, kIronSword));
-    const auto cNext = std::chrono::steady_clock::now() + std::chrono::milliseconds(3200);
-    party.Until([&] { return std::chrono::steady_clock::now() >= cNext; }, "another unchanged owner equipment snapshot arrives", {}, nullptr, std::chrono::seconds(4));
+    party.Until([&] { return Wears(host, cCopy, kIronHelmet) && Wears(host, cCopy, kIronSword); }, "the copy wears its owner's set again");
     CHECK(Wears(host, cCopy, kIronArmor));
     CHECK(Wears(host, cCopy, kIronHelmet));
     CHECK(Wears(host, cCopy, kIronSword));
@@ -299,7 +300,7 @@ SCENARIO("A player's copy holds its owner's spell after party travel", "[equipme
     Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
-    host.Actors.at(FakeEngine::kPlayer).Items.CurrentMagicEquipment.LeftHandSpell = cHealing;
+    party.As(party.Host(), [&] { host.EquipsSpell(FakeEngine::kPlayer, cHealing, 0); });
     party.Until([&] { return PlayerCopy(guest) != 0; }, "the guest's game has the host's player");
     const auto cHands = [&] { return guest.GetActorEquipment(PlayerCopy(guest)).CurrentMagicEquipment.LeftHandSpell; };
     party.Until([&] { return cHands() == cHealing; }, "the copy holds the host's spell");
@@ -317,22 +318,16 @@ SCENARIO("A player's copy whose 3D comes back holds its owner's spell, not only 
     Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
-    auto& owner = host.Actors.at(FakeEngine::kPlayer);
-    owner.Items.CurrentMagicEquipment.LeftHandSpell = cHealing;
-    owner.HeldSpells[0] = cHealing.BaseId;
+    party.As(party.Host(), [&] { host.EquipsSpell(FakeEngine::kPlayer, cHealing, 0); });
     party.Until([&] { return PlayerCopy(guest) != 0; }, "the guest's game has the host's player");
     const uint32_t cCopy = PlayerCopy(guest);
     const auto cHeld = [&] { return guest.GetEquippedWeaponFormId(cCopy, 0); };
     party.Until([&] { return cHeld() == cHealing.BaseId; }, "the copy holds the host's spell");
 
-    // The trip unloads the copy's 3D; the reconcile selects the spell again before the new place has loaded it.
+    // The trip unloads the copy's 3D (Actor::Set3D 37178 reverts its hand spells); the new place loads it again.
     party.As(party.Guest(), [&] { guest.Unload3D(cCopy); });
-    const auto cSelected = [&] { return guest.GetActorEquipment(cCopy).CurrentMagicEquipment.LeftHandSpell; };
-    party.Until([&] { return cSelected() == cHealing; }, "the copy has the spell selected again, with no 3D", {}, nullptr,
-                std::chrono::seconds(5));
     CHECK(cHeld() == 0);
-
-    guest.Actors.at(cCopy).Loaded = true;
+    party.As(party.Guest(), [&] { guest.Load3D(cCopy); });
     party.Until([&] { return cHeld() == cHealing.BaseId; }, "the copy's hand holds the spell once its 3D is back", {}, nullptr,
                 std::chrono::seconds(5));
 }

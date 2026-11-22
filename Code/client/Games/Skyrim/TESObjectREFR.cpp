@@ -1,6 +1,7 @@
 #include <Games/Memory.h>
 #include <Games/Animation/GraphReference.h>
 #include <Games/Animation/VariableSync.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <Games/Animation/ReplayState.h>
 #include <Havok/AnimationGraphState.h>
 #include <atomic>
@@ -23,6 +24,7 @@
 #include <Events/InventoryChangeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/LockChangeEvent.h>
+#include <Games/ContainerCount.h>
 #include <Events/ReferenceJumpEvent.h>
 
 #include <ExtraData/ExtraContainerChanges.h>
@@ -233,13 +235,15 @@ bool TESObjectREFR::LoadAnimationGraphState(const std::string& acState) const no
     if (!pActor || acState.size() < sizeof(flags))
         return false;
     std::memcpy(flags, acState.data(), sizeof(flags));
+    const uint32_t cPreviousFlags1 = pActor->actorState.flags1;
     const uint32_t cPreviousFlags2 = pActor->actorState.flags2;
     const bool cLoaded = LoadGraphs(acState.substr(sizeof(flags)));
     if (cLoaded)
     {
-        pActor->actorState.flags1 = flags[0];
+        // A copy's part bits are its record's (ActorStateService), which can be newer than this state.
+        pActor->actorState.flags1 = pActor->GetExtension()->IsCopy() ? ActorStateRules::Take(flags[0], cPreviousFlags1, ~ActorStateRules::kPartBits1) : flags[0];
         // Weapon choice has its live owner messages; a graph snapshot's transition is historical.
-        pActor->actorState.flags2 = pActor->GetExtension()->IsCopy() ? ReplayState::Flags2(flags[1], cPreviousFlags2) : flags[1];
+        pActor->actorState.flags2 = pActor->GetExtension()->IsCopy() ? ActorStateRules::FromSnapshot2(flags[1], cPreviousFlags2) : flags[1];
     }
     return cLoaded;
 }
@@ -251,8 +255,8 @@ bool TESObjectREFR::LoadGraphStateFlags(const std::string& acState) const noexce
     if (!pActor || acState.size() < sizeof(flags))
         return false;
     std::memcpy(flags, acState.data(), sizeof(flags));
-    pActor->actorState.flags1 = ReplayState::Flags1(flags[0], pActor->actorState.flags1);
-    pActor->actorState.flags2 = ReplayState::Flags2(flags[1], pActor->actorState.flags2);
+    pActor->actorState.flags1 = ActorStateRules::FromSnapshot1(flags[0], pActor->actorState.flags1);
+    pActor->actorState.flags2 = ActorStateRules::FromSnapshot2(flags[1], pActor->actorState.flags2);
     return true;
 }
 
@@ -442,6 +446,20 @@ TESForm* TESObjectREFR::GetOwner() const noexcept
     return pOwnership ? pOwnership->owner : nullptr;
 }
 
+TESForm* TESObjectREFR::GetItemsOwner() const noexcept
+{
+    if (formType == FormType::Character)
+    {
+        using TGetLeveledNpc = TESForm*(const ExtraDataList*);
+        POINTER_SKYRIMSE(TGetLeveledNpc, s_getLeveledNpc, 11810);
+        TESForm* pLeveled = s_getLeveledNpc(&extraData);
+        return pLeveled ? pLeveled : baseForm;
+    }
+    using TGetOwner = TESForm*(const TESObjectREFR*);
+    POINTER_SKYRIMSE(TGetOwner, s_getOwner, 20194);
+    return s_getOwner(this);
+}
+
 void TESObjectREFR::RecordMove(bool aMoved) noexcept
 {
     if (aMoved && formType != FormType::Character)
@@ -540,19 +558,26 @@ ExtraContainerChanges::Data* TESObjectREFR::FindContainerChanges() const noexcep
     return s_getInventoryChanges(this);
 }
 
+// ContainerCount's rule (Games/ContainerCount.h), read from the changes: not 16108 (16214's entry at 0 reads as one).
 std::optional<int32_t> TESObjectREFR::GetContainerCount(TESBoundObject* apItem) const noexcept
 {
-    using TGetItemCount = int32_t(ExtraContainerChanges::Data*, TESBoundObject*);
-    POINTER_SKYRIMSE(TGetItemCount, s_getItemCount, 16108); // InventoryChanges::GetItemCount
-
     const TESContainer* pContainer = GetContainer();
     if (!apItem || !pContainer)
         return std::nullopt;
-    // No changes yet (nothing touched it): its base container's, leveled entries not rolled (14529 returns an int).
-    auto* pChanges = FindContainerChanges();
-    if (!pChanges)
-        return std::abs(static_cast<int32_t>(pContainer->GetItemCount(apItem)));
-    return std::abs(s_getItemCount(pChanges, apItem));
+    const int32_t cBase = std::abs(static_cast<int32_t>(pContainer->GetItemCount(apItem))); // 14529 returns an int
+    std::optional<int32_t> entry;
+    bool rolled = false;
+    if (const auto* pChanges = FindContainerChanges(); pChanges && pChanges->entries)
+        for (const auto* pEntry : *pChanges->entries)
+            if (pEntry && pEntry->form == apItem)
+            {
+                entry = pEntry->count;
+                if (pEntry->dataList)
+                    for (const auto* pList : *pEntry->dataList)
+                        rolled = rolled || (pList && pList->Contains(ExtraDataType::LeveledItem));
+                break;
+            }
+    return ContainerCount(cBase, entry, rolled);
 }
 
 bool TESObjectREFR::SetContainerCount(TESBoundObject* apItem, int32_t aCount) noexcept
@@ -701,6 +726,10 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
         arEntry.ExtraName = std::string(cName.substr(0, pText->usCustomNameLength ? pText->usCustomNameLength : cName.size()));
     }
 
+    if (const auto* pOwnership = static_cast<const ExtraOwnership*>(apExtraDataList->GetByType(ExtraDataType::Ownership));
+        pOwnership && pOwnership->owner)
+        arEntry.ExtraOwner = ToSession(pOwnership->owner->formID).value_or(GameId{}); // a created owner: none
+
     arEntry.ExtraWorn = apExtraDataList->Contains(ExtraDataType::Worn);
     arEntry.ExtraWornLeft = apExtraDataList->Contains(ExtraDataType::WornLeft);
 
@@ -791,6 +820,10 @@ void TESObjectREFR::SetItemExtraData(ExtraDataList& aList, const Inventory::Entr
 
     if (!acEntry.ExtraName.empty())
         aList.SetCustomName(acEntry.ExtraName.c_str());
+
+    if (acEntry.ExtraOwner != GameId{})
+        if (TESForm* pOwner = TESForm::GetById(ToGame(acEntry.ExtraOwner)))
+            aList.SetOwner(pOwner);
 }
 
 Inventory TESObjectREFR::GetInventory() const noexcept

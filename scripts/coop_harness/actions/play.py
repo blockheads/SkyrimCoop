@@ -106,13 +106,24 @@ class PlayActions:
 
     def turn_to(ctx, instance, *, yaw=None, pitch=None, face=None, rate=60, keep=(), watch=(), seconds=10, name=None):
         """The player turns by mouse to a heading and pitch, or toward a reference, at most `rate` degrees a second,
-        until it aims there within half a degree."""
+        until it aims there within half a degree. `face`: a form id, a handle name or a point."""
+        if isinstance(face, str):
+            face = ctx.resolve(face, instance)
         turn = {"rate": rate}
         for key, value in (("yaw", yaw), ("pitch", pitch), ("face", face)):
             if value is not None:
                 turn[key] = value
         return ctx.act(instance, {"name": name or "turns", "ready": ["takes_input"], "turn": turn, "until": ["aimed"],
                                   "keep": list(keep), "watch": list(watch), "seconds": seconds})
+
+    def kill(ctx, target):
+        """The host's game kills `target` (a handle or form id) at once, as the console's kill, and waits until the
+        other game's copy is dead too: its ragdoll falls where it stood."""
+        npc = ctx.resolve(target, "")
+        ctx.console_on("", f"{npc:08X}.kill")
+        ctx.wait_for(f"[host] {npc:X} dies", lambda: ctx.host_npc_state(npc).get("dead"), 5)
+        copy = ctx.resolve(target, "client")
+        ctx.wait_on("client", f"its copy {copy:08X} dies", lambda actors: actors.get(str(copy), {}).get("dead"))
 
     def grab(ctx, instance, target):
         """The player, standing and looking at it, holds Activate until it holds `target` (a grab), then lets go of
@@ -123,7 +134,8 @@ class PlayActions:
 
     def carry(ctx, instance, held, buttons, seconds, *, keep=(), watch=()):
         """The player walks with `held` for that long (`buttons`: forward, back, strafes), failing on the frame it is
-        no longer held."""
+        no longer held. `held`: a form id or a handle name."""
+        held = ctx.resolve(held, instance)
         return ctx.act(instance, {"name": f"carries {held:X} ({' '.join(buttons)} {seconds:g} s)", "ready": ["takes_input"],
                                   "buttons": list(buttons), "until": [{"for": seconds}], "seconds": seconds + 2,
                                   "keep": [{"holding": held}, *keep], "watch": list(watch)})

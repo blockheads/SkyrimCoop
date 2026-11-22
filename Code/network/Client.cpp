@@ -156,6 +156,9 @@ namespace Net
             }
         };
 
+        if (IsBusy())
+            return false;
+
         const auto pos = acEndpoint.find_last_of(':');
         auto* pHandle = static_cast<uv_getaddrinfo_t*>(malloc(sizeof(uv_getaddrinfo_t)));
 
@@ -175,6 +178,9 @@ namespace Net
 
     bool Client::ConnectByIp(const std::string& acEndpoint) noexcept
     {
+        if (IsBusy())
+            return false;
+
         ENetAddress address;
 
         const auto pos = acEndpoint.find_last_of(':');
@@ -228,6 +234,15 @@ namespace Net
         }
 
         spdlog::info("[SkyrimCoopNetworking] CLIENT: Connecting to {}:{}", ip, port);
+        return true;
+    }
+
+    // The host has one peer (enet_host_connect finds no free one while it is in use): a second connect would lose it.
+    bool Client::IsBusy() const noexcept
+    {
+        if (m_pPeer == nullptr && m_pHandle == nullptr)
+            return false;
+        spdlog::warn("[SkyrimCoopNetworking] CLIENT: not connecting: {}", m_pPeer ? "already connected" : "already resolving");
         return true;
     }
 

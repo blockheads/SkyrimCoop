@@ -329,7 +329,7 @@ void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
     m_conversation = acMessage.Conversation;
     m_resuming = false;
     m_npcSessionId = acMessage.NpcId;
-    m_step = 1;
+    m_step = acMessage.Step;
     m_joined = false;
     m_opening = false;
     m_listStep = 0;

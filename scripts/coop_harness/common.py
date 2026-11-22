@@ -5,6 +5,8 @@ import re
 import sys
 import time
 from skyrim_runtime import runtime_version, library_name, skse_dll
+import local_paths
+from local_paths import setting
 
 CLI_HELP = """Co-op game tests and diagnostics.
 
@@ -19,23 +21,19 @@ VERSIONLIB_NAME = library_name(SKYRIM_VERSION)
 SKSE_DLL_NAME = skse_dll(SKYRIM_VERSION)
 # Windows runs the games natively (windows.py): no Proton, display, second OS user or network namespace.
 WINDOWS = sys.platform == "win32"
-STEAM_LIBRARY = Path("/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d1/SteamLibrary/steamapps/common")
-# Read-only game assets; a matching executable and SKSE are staged into the duo's own folder.
-STEAM_GAME = Path(os.environ.get("SKYRIM_STEAM_GAME_DIR", r"D:\Modlists\ElderTeej\Stock Game" if WINDOWS else
-                                 "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition"))
-# SKSE's loader and DLL, and the Address Library, when the game folder has neither (Windows: a modlist's copies).
+# This machine's Steam paths: environment, ~/.config/skyrimcoop/paths.env, else Steam's default (local_paths.py).
+STEAM_LIBRARY, STEAM_GAME = local_paths.STEAM_LIBRARY, local_paths.STEAM_GAME
+# SKSE's loader and DLL, and the Address Library, when the game folder has neither.
 RUNTIME_VENDOR = ROOT / "build/runtime-vendor" / SKYRIM_VERSION.removesuffix(".0")
-SKSE_DIR = Path(os.environ.get("SKYRIM_SKSE_DIR", r"D:\Modlists\ElderTeej\mods\Skyrim Script Extender (SKSE64)\Root"
-                               if WINDOWS else RUNTIME_VENDOR if (RUNTIME_VENDOR / SKSE_DLL_NAME).exists() else STEAM_GAME))
-ADDRESS_LIBRARY = Path(os.environ.get("SKYRIM_ADDRESS_LIBRARY_DIR", r"D:\Modlists\ElderTeej\mods\Address Library for SKSE Plugins\SKSE\Plugins"
-                                      if WINDOWS else SKSE_DIR / "Data/SKSE/Plugins"))
-PROTON = Path(os.environ.get("SKYRIM_PROTON_DIR", STEAM_LIBRARY / "Proton 10.0"))
-RUNTIME = Path(os.environ.get("SKYRIM_RUNTIME_DIR", STEAM_LIBRARY / "SteamLinuxRuntime_sniper"))
+SKSE_DIR = Path(setting("SKYRIM_SKSE_DIR", RUNTIME_VENDOR if (RUNTIME_VENDOR / SKSE_DLL_NAME).exists() else STEAM_GAME))
+ADDRESS_LIBRARY = Path(setting("SKYRIM_ADDRESS_LIBRARY_DIR", SKSE_DIR / "Data/SKSE/Plugins"))
+PROTON = Path(setting("SKYRIM_PROTON_DIR", STEAM_LIBRARY / "Proton 10.0"))
+RUNTIME = Path(setting("SKYRIM_RUNTIME_DIR", STEAM_LIBRARY / "SteamLinuxRuntime_sniper"))
 STEAM = Path(os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH", Path.home() / ".steam/steam"))
-CLIENT_USER = os.environ.get("COOP_CLIENT_USER", "")
-# The OS user both duo games run as, with its own Steam (gandalfmight) in netns coop2, so the duo never uses the
-# player's Steam; empty: this user's. With COOP_CLIENT_USER (invite tests) the host stays on this user's Steam.
-DUO_USER = os.environ.get("COOP_DUO_USER", "" if WINDOWS else "coop2")
+CLIENT_USER = setting("COOP_CLIENT_USER", "")
+# The OS user both duo games run as, with its own Steam, so the duo never uses the player's Steam; empty (the
+# default): this user's. With COOP_CLIENT_USER (invite tests) the host stays on this user's Steam.
+DUO_USER = setting("COOP_DUO_USER", "")
 TEST_HOME = (ROOT / "build/coop-test").resolve()
 # The duo's game folder: STEAM_GAME's files linked, its own SKSE plugins (runtime.ensure_duo_game).
 GAME = Path(os.environ.get("SKYRIM_GAME_DIR", TEST_HOME / "game"))
@@ -257,6 +255,12 @@ WORLD_FIELDS = ("base", "cell", "flags", "position", "rotation", "scale", "has_3
 WORLD_TOLERANCES = {"position": 1.0, "position_3d": 1.0, "rotation": 0.01, "scale": 0.001}
 POSE_TOLERANCE, ROTATE_TOLERANCE, BODY_TOLERANCE, BODY_TURN_TOLERANCE = 1.0, 0.01, 2.0, 0.02
 CREATED_ID = 0xFF000000
+# Scenery: each game's own, never compared (one-simulator.md, piece 10). A reference with a script of these classes
+# or one extending them (world_state's "scripts"), or one on a TranslateTo path ("on_path": moved on its game's clock).
+SCENERY_SCRIPTS = ("Critter", "FXfakeCritterScript")
+# The landing markers Critter.psc places for itself (LandingMarkerForm in Skyrim.esm: DoNotPlaceSmallCritterLanding-
+# MarkerHelper, CritterLandingMarker_Small), moved about with it.
+CRITTER_MARKERS = (0xC2D47, 0x22201)
 FORM_DISABLED = 0x800
 FORM_DELETED = 0x20
 FORM_PERSISTENT = 0x400

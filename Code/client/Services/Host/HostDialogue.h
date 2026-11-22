@@ -68,12 +68,15 @@ struct HostDialogue
     void OnSkip(const DialogueSkipRequest& acRequest, ConnectionId_t aSender) noexcept;
     // After the player is off the list: it leaves the conversation.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
+    // A joiner: the conversation under way, at its step; it joins by talking to the NPC.
+    void SendCurrent(ConnectionId_t aJoiner) const noexcept;
 
 private:
     struct Conversation
     {
         uint32_t Id{};
         uint32_t NpcId{};
+        GameId Greeting{};
         uint32_t Step = 1;
         // The games in it, in the order they joined: whose menu is open on it, and the peer who asked for it.
         std::vector<ConnectionId_t> Players;

@@ -65,6 +65,37 @@ struct CombatRead
 };
 std::optional<CombatRead> ReadCombat(uint32_t aActorId);
 
+// One detector's line of sight to a target (stealth.md, "Line of sight"): the engine's verdicts (37768, 37774) and
+// probes, not its own rays: 37770 to each of torso, head and feet (37771), its collector taking the detector's layer.
+struct SightRay
+{
+    uint32_t Location{};              // ACTOR_LOS_LOCATION: 3 torso, 2 head, 4 feet
+    std::array<float, 3> To{};
+    std::array<float, 3> HitAt{};
+    bool Hit{};                       // 37770 hit some 3D on the way
+    uint32_t HitReference{};          // that 3D's reference (19750), 0 for none
+    std::string HitNode;
+    uint32_t CastLayer{};             // the same line cast on layer 41 past the detector: the collision's layer
+    uint32_t CastReference{};
+    bool Sees{};                      // what 37768 counts: nothing hit, or the target's own 3D
+};
+struct SightRead
+{
+    uint32_t CombatTarget{};          // the detector's +0x104: with the player, it gets three rays
+    float Angle{};                    // 37773, degrees from the detector's facing
+    float HalfCone{};                 // half of fDetectionViewCone
+    float Distance{};
+    uint32_t Los{};                   // CalculateLOS (37768): the first location seen, 0 none
+    int32_t Level{};                  // CalculateDetection (37774)
+    bool InView{};
+    bool LineOfSight{};
+    float Sound{}, Sight{}, Sneak{};  // its three terms (0x14041CD90)
+    int32_t TargetNoise{};            // the target's action noise (Actor +0x11C), the sound term's input
+    float TargetNoiseTimer{};
+    std::vector<SightRay> Rays;
+};
+std::optional<SightRead> ReadSight(uint32_t aDetectorId, uint32_t aTargetId);
+
 // The engine reads the player build uses too (bug reports).
 using namespace Diagnostics::EngineReads;
 
@@ -251,6 +282,19 @@ bool PlayerImproves(uint32_t aItemFormId, float aHealth, uint32_t aEnchantment, 
 // Each of the holder's stacks of the item with an extra data list: its count and the types its list holds
 // (BSExtraData::GetType), past the fields Inventory::Entry reads. None: no such holder or item.
 std::optional<std::vector<std::pair<int32_t, std::vector<uint32_t>>>> GetStackExtraTypes(uint32_t aHolder, uint32_t aItem) noexcept;
+// One item on a holder, every way it is counted: its base container's entries naming it or a leveled list (form,
+// count), its changes entry (delta and each list's count and extra types), GetContainerCount (ContainerCount) and what
+// TESObjectREFR::GetInventory lists for it. None: no such holder or item.
+struct InventoryEntryRead
+{
+    std::vector<std::pair<uint32_t, int32_t>> Base;
+    bool HasEntry{};
+    int32_t Delta{};
+    std::vector<std::pair<int32_t, std::vector<uint32_t>>> Lists;
+    int32_t Count{};
+    int32_t Listed{};
+};
+std::optional<InventoryEntryRead> GetInventoryEntry(uint32_t aHolder, uint32_t aItem) noexcept;
 // Whether the reference is enabled (its disabled flag, TESForm 0x800); none: no such reference.
 std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept;
 
@@ -322,6 +366,10 @@ using RayHit = GameRaycast::RayHit;
 std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer = 30, uint32_t aThrough = 0) noexcept;
 // Unequips everything in this game only, nothing sent (a copy that drifted).
 void UnequipAllUnsynced(uint32_t aFormId) noexcept;
+// The engine's own reset of what the actor wears to its base's outfit (TESNPC::ResetWornToOutfit 418622, as a 3D load
+// runs it: inventory-changes.md), through our hook: what it wears right after, before any service answers. None: no
+// such actor or NPC base.
+std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
 // (the bridge's Activate and lock replays call past the hooks): the player activates the object
 // (pressing E on it), and the object's lock changes.
@@ -439,6 +487,8 @@ bool PutOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept;
 bool BoardRiddenMount(uint32_t aRiderId, uint32_t aMountId) noexcept;
 // Probe: PutOnMount, then seated (sit state 3) as the get-on clip's end leaves a rider, with no clip.
 bool SeatOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept;
+// Probe: the engine's quick get-on (Actor::SitOnMountQuick), a ridden mount too.
+bool SitOnMountQuick(uint32_t aRiderId, uint32_t aMountId) noexcept;
 // Probe: the horse's slot set to this rider's own interaction (12074), as a new driver would need.
 bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept;
 // Probe: a graph event to the actor's graphs (TESObjectREFR::SendAnimationEvent); true when one took it.
@@ -465,6 +515,24 @@ std::vector<CellObject> GetCellObjects() noexcept;
 
 // A reference in a loaded cell as this game holds and shows it: everything world-state sync could carry
 // (scripts/coop_test.py's world diff compares the two games').
+// A door's lock as each side holds it (the readout for "Doors the host's NPCs unlock"): its own ExtraLock, else its
+// linked door's (GetLock 20223); AddLockChange 19512 records on the holder.
+struct DoorLockState
+{
+    bool Exists{};
+    bool OwnLock{};
+    bool Locked{};
+    uint8_t Level{};
+    uint32_t Changes{};
+    uint32_t Linked{};      // the load door's other side, 0 for none
+    bool LinkedExists{};
+    bool LinkedOwnLock{};
+    bool LinkedLocked{};
+    uint8_t LinkedLevel{};
+    uint32_t LinkedChanges{};
+};
+DoorLockState GetDoorLock(uint32_t aRefId) noexcept;
+
 struct ReferenceState
 {
     uint32_t Id;
@@ -493,6 +561,8 @@ struct ReferenceState
     std::optional<std::vector<std::pair<uint32_t, int32_t>>> Items; // not actors' (GetContainerItems)
     uint32_t Leveled{};
     bool Stored{};       // its changes in a stored buffer (TESForm::HasStoredChanges)                                              // its base container's leveled entries
+    bool OnPath{};       // moved by a TranslateTo path on this game's clock (ExtraRefrPath, 18898)
+    std::vector<std::string> Scripts; // of the classes asked for, those a script bound to it is or extends (104792)
 
     // With details: the side effects a change has on what the player sees and touches.
     struct Node
@@ -510,8 +580,8 @@ struct ReferenceState
     std::vector<uint32_t> Effects;                    // effect shaders and art objects playing on it
 };
 // Every reference in the loaded cells: the interior, or the attached exterior grid (TES). With aDetails, each
-// one's pose, physics, graph and effects too (larger).
-std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept;
+// one's pose, physics, graph and effects too (larger); acClasses: the script classes to look for on each.
+std::vector<ReferenceState> GetLoadedReferences(bool aDetails, const std::vector<std::string>& acClasses = {}) noexcept;
 
 // Every reference effect playing on the reference or aimed at it (a VisualEffect's facing target): what shows, and
 // whether its art's model loaded, hangs in the scene and is hidden.
@@ -734,6 +804,16 @@ std::optional<std::array<float, 2>> PlayerAngles() noexcept;
 std::optional<GameSwingCast::Cast> PlayerSwingCast(GameSwingCast::Reach aReach) noexcept;
 // Turns the player so its eye (GetEyeVector's origin, where a swing starts) looks at that point, in first person.
 bool AimPlayerEyeAt(const float acPoint[3]) noexcept;
+
+// The MGEF ids of a spell's effects, in order.
+std::vector<uint32_t> SpellEffects(uint32_t aSpellId) noexcept;
+// Who commands an actor (a summon's caster) and whom it commands (MiddleProcess 0x218, 0x100).
+struct Commanding
+{
+    uint32_t Commander{};
+    std::vector<uint32_t> Commanded;
+};
+Commanding ReadCommanding(uint32_t aFormId) noexcept;
 
 // Its ragdoll has its body (dead, knocked down, a kill move's victim): Actor::IsInRagdollState 37491.
 bool IsInRagdollState(uint32_t aFormId) noexcept;

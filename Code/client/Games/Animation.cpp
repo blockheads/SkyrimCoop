@@ -53,9 +53,11 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
     const auto pExtension = pActor->GetExtension();
     // A copy's half of the local player's paired action: taken as the player's game plays it, never sent
     // (its owner's game plays it from the player's action).
-    const bool cPlayersPartner = s_playerAction && pExtension->IsCopy() && apAction->target == PlayerCharacter::Get();
+    // Or its half of a pair this game replays: inside ForceAction (38953, not hooked) only 32803's Func5 comes here.
+    const bool cReplayedHalf = s_replayedAction && pExtension->IsCopy();
+    const bool cPlayersPartner = (s_playerAction && pExtension->IsCopy() && apAction->target == PlayerCharacter::Get()) || cReplayedHalf;
 
-    if (!pExtension->IsCopy() || g_forceAnimation || cPlayersPartner)
+    if (!pExtension->IsCopy() || ReplayState::CopyTakesAction(g_forceAnimation, cPlayersPartner, cReplayedHalf))
     {
         ActionEvent action;
         action.State1 = pActor->actorState.flags1;
@@ -117,7 +119,6 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
             pExtension->LatestWeapEquipAnimation.Write(action);
         if (!action.TargetEventName.empty())
         {
-            pExtension->LatestPairAction.Write(action);
             auto* pPartner = apAction->target && apAction->target->formType == Actor::Type ? static_cast<Actor*>(*apAction->target) : nullptr;
             pExtension->PairedWithCopy = pPartner && pPartner->GetExtension()->IsCopy();
         }
@@ -144,9 +145,10 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
     if (apThis->formType == Actor::Type && apThis != PlayerCharacter::Get())
     {
         Actor* pActor = static_cast<Actor*>(apThis);
-        if (auto* pExtension = pActor->GetExtension(); pExtension->IsCopy())
+        if (auto* pExtension = pActor->GetExtension(); pExtension->IsCopy() || pExtension->KillHeld.load(std::memory_order_relaxed))
         {
-            AnimationSystem::RunReplayStep(pActor);
+            if (pExtension->IsCopy())
+                AnimationSystem::RunReplayStep(pActor);
             if (ReplayState::PoseHeld(World::Get().GetFrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
             {
                 HoldCopyRagdollStill(*pActor);
@@ -188,7 +190,8 @@ void HookContactPoint(BSRagdollContactListener* apThis, const hkpContactPointEve
 // KillActorHandler::Handle 42838, on a graph's KillActor event: a copy holds its pose until its owner's death action.
 bool HookKillActorEvent(void* apThis, Actor* apActor)
 {
-    if (auto* pExtension = apActor->GetExtension(); pExtension->IsCopy())
+    // A claimed victim's kill is the host's too (DeathOnGiveBack): it holds its pose as a copy does.
+    if (auto* pExtension = apActor->GetExtension(); pExtension->IsCopy() || pExtension->KillHeld.load(std::memory_order_relaxed))
         pExtension->PoseHeldUntil.store(World::Get().GetFrameTick() + ReplayState::cPoseHoldMs, std::memory_order_relaxed);
     return RealKillActorEvent(apThis, apActor);
 }

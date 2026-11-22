@@ -14,6 +14,7 @@
 #include <Games/Skyrim/CopyPackage.h>
 #include "../FakeNativeVm.h"
 #include <Games/Animation/ReplayStep.h>
+#include <Games/Animation/ReplayState.h>
 #include <Games/Animation/HeldClipLoads.h>
 #include "../FakeFlight.h"
 
@@ -22,6 +23,7 @@
 #include <Bridges/IBodyReads.h>
 #include <Games/KnockReplay.h>
 #include <Physics/RagdollPending.h>
+#include <Physics/RagdollRest.h>
 
 #include <Games/QuestChanges.h>
 #include <Games/HitVisualsRules.h>
@@ -220,13 +222,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     PartyRules::LatentCopies Copies;
     // What the last question a script asked here answered (ObjectReference.GetDistance).
     std::optional<LocalValue> LastAnswer;
+    // What the last native run here returned (PlaceAtMe's reference); and a call sent to the host's game waiting on its
+    // answer (PlayerNatives' Wait): its stack, then what the stack got (PlayerNatives::Answer).
+    LocalValue LastReturn;
+    uint32_t LastWaiting = 0;
+    std::set<uint32_t> Waiting; // stacks waiting on another game (PlayerNatives' s_waiting)
+    std::map<uint32_t, LocalValue> ScriptReturns;
     [[nodiscard]] LocalValue Answer(const LocalCall& acCall, bool aAsksParty) const;
     // This game's player answers the box in aStack: its stack returns (ReturnFromLatent's hook: an original's result
     // goes to its copies, CallEndedEvent).
     void AnswerBox(uint32_t aStack, int32_t aButton);
     // A call the VM runs on its next frame, its stack tagged aCause (GlobalCall::QueueCall): a quest's function
     // (QuestFunctions) or a native.
-    void Queue(LocalCall aCall, uint32_t aCause);
+    void Queue(LocalCall aCall, uint32_t aCause, std::function<void(LocalValue)> aOnReturn = {});
     void RunQueued();
     // A script's call into a quest's function, its self (QuestFunctions, by the quest and the function's name), as
     // GuestScripts' call hook takes it (docs/design/system-quests.md): one from this game's player's own script
@@ -267,9 +275,21 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         glm::vec3 Position{}; // where it stands (a marker MoveTo goes to)
         uint32_t RecordFlags{};
         uint32_t Base = 0; // a created one's (a script's PlaceAtMe)
+        bool Disabled = false; // a script's Disable (kEnabled's row)
+        uint32_t Owner = 0; // its ExtraOwnership (an NPC or a faction); none: its cell's (CellOwners)
+        bool Plant = false;     // a flora or tree reference: an activation picks it (TESProduceForm::Harvest 14864)
+        bool Harvested = false; // its form flag 0x2000
+        std::set<uint32_t> Rolled; // items a leveled roll put in (their changes entry a roll's: ExtraLeveledItem lists)
+        uint32_t LinkedDoor = 0; // a load door with no lock of its own: it uses this door's (GetLock 20223)
+        bool Persistent = false; // in memory with its cell unloaded (a load door's other side)
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
+    // The reference holding its lock: a load door's linked door when it has none (AddLockChange 19512 records there).
+    [[nodiscard]] uint32_t LockHolderOf(uint32_t aReference) const;
+    // A container's count of an item as TESObjectREFR::GetContainerCount reads it (ContainerCount): Items holds its
+    // changes entry's count, kept at 0 for a roll's item taken (16059 frees it only on an actor).
+    [[nodiscard]] int32_t ContainerCountOf(uint32_t aContainer, uint32_t aItem) const;
     // The container bases: a created one is a container reference, not a loose item.
     std::set<uint32_t> ContainerBases;
     // A container reference made here (ModManager::CreateReference): it holds nothing, the engine rolls no leveled
@@ -277,6 +297,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t PlaceContainer(uint32_t aCell, uint32_t aBase);
     // The host's script places a container (PlaceAtMe of a leveled chest) that rolled aRolled: made and recorded.
     uint32_t ScriptPlacesContainer(uint32_t aCell, uint32_t aBase, const std::map<uint32_t, int32_t>& acRolled);
+    // A script's PlaceAtMe (56203: CreateReferenceAtLocation 13723) of aBase at aAt (an actor or a reference): made and
+    // recorded as the host's creations are (kCreate).
+    uint32_t ScriptPlaces(uint32_t aAt, uint32_t aBase);
     // A created container's contents (HostGame::ReadContents); none for no such container.
     std::optional<ObjectChange> ContentsOf(uint32_t aContainer) const;
     // A container holds exactly the kContents change's items (ApplyContainerContents).
@@ -451,8 +474,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         size_t MoveRows = 0;  // world state move rows written into its 3D (GuestEngine::PlaceAtHostRest)
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
-        std::optional<glm::vec3> RestAt; // a copy's ragdoll body: the rest it is being taken to, and for how many steps
-        uint16_t RestSteps = 0;
+        std::optional<glm::vec3> RestAt; // a copy's ragdoll body: its owner's rest it is being taken to
+        glm::quat RestTurn{1.f, 0.f, 0.f, 0.f};
+        // A copy's ragdoll body awake that nothing steered: its joints settle it off where it was put, until Havok
+        // sleeps it (duo, death-spectate-host's RagdollTrace, 2026-11-12: a few degrees off, about half a second).
+        uint16_t SettleFrames = 0;
         bool Caught = false;    // this game's world holds it (a head under a table's edge): its get-up cannot move it
         bool OutOfWorld = false; // its actor stood up: not in the physics world, not read, until its next knock
         uint64_t StillFor = 0;  // woken without a push: awake, unmoved, this long (Wake)
@@ -504,6 +530,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // its own physics moves too (OwnMoves). Swing() makes one.
     std::vector<BodyPush> PlayerHits;
     std::optional<BodyKey> Grabbed;
+    std::set<uint32_t> WatchedCorpses; // copies' corpses this game's player grabbed: read as its own until they rest
     // A guest's own physics moved these (GuestEngine::TakeOwnBodies): its own blast, not the host's.
     std::vector<BodyPose> OwnMoves;
     // IBodyBridge: the bodies other games own, played here as Skyrim's would be (BodyBridge).
@@ -516,6 +543,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<BodyKey, BodyClass> Classes;
     void SetMoving(const BodyKey& acKey, bool aMoving) noexcept override
     {
+        // A copy's corpse this game's player took: moving, then played again (BodyBridge::SetMoving).
+        if (acKey.Actor)
+        {
+            if (const auto it = Classes.find(acKey); it != Classes.end())
+                it->second = aMoving ? BodyClass::kMoving : BodyClass::kPlayed;
+            return;
+        }
         if (const auto it = Classes.find(acKey); it != Classes.end() && it->second == BodyClass::kPlayed)
             return;
         // As BodyBridge::SetMoving: its owner's rest being put here wakes it, which is not this game moving it.
@@ -527,7 +561,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         }
         if (aMoving) Classes[acKey] = BodyClass::kMoving; else Classes.erase(acKey);
     }
-    void Forget(const BodyKey& acKey) noexcept override { Classes.erase(acKey); }
+    void Forget(const BodyKey& acKey) noexcept override
+    {
+        if (!acKey.Actor) // a ragdoll keeps its group (BodyBridge::Forget)
+            Classes.erase(acKey);
+    }
     void ForgetAll() noexcept override { Classes.clear(); }
     // Body acKey runs into acInto in this game: knocked at that velocity, unless acKey is played and nobody moves
     // acInto (its owner's game never hit that one).
@@ -594,6 +632,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     struct Actor
     {
         uint32_t Base = 0;
+        // A leveled actor's original form (ExtraLeveledCreature's, 11810): the leveled character it was placed from,
+        // a permanent form; Base is then each game's own temporary NPC.
+        uint32_t LeveledBase = 0;
         std::string DisplayName;
         uint32_t Cell = 0;
         uint32_t WorldSpace = 0;
@@ -602,12 +643,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Dead = false;
         uint64_t GraphHash = 0;
         bool GraphUpdating = true; // KillImpl clears kShouldAnimGraphUpdate; resurrection leaves it stopped.
+        bool KillHeld = false;    // a scripted deferred kill (38616): every copy's (UpdateCopyAI), and it outlives the
+                                  // copy (no engine path ends one, 38618's callers); held, a kill is only counted (37896)
+        bool KillCounted = false; // a kill held back (MiddleHigh +0x2F8 above 1); our release drops it (Actor::HoldKill)
+        uint32_t Commander = 0; // a summon's caster (MiddleProcess 0x218); this game's player's: Actor::IsPlayerSummon
+        bool Teammate = false;  // a follower of the player (flags1 kPlayerTeammate): off a player's eye (41408)
+        bool ProcessMe = true; // kProcessMe: EnableAI(false) (37504, the harness's freeze) clears it, and the graph job skips it (41466)
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
         bool InAir = false; // its controller jumping or falling, else on the ground
         bool InKillMove = false; // either half of a pair (Actor::IsInKillMove 38615)
-        ActionEvent LatestPairAction; // its half of the pair it last took
         uint32_t PairBlowIn = 0;  // frames until its own pair's blow lands (HitFrame), 0 none
         uint32_t PairVictim = 0;
+        uint32_t KillMoveEndIn = 0; // frames until its own clip's KillMoveEnd (KillMoveEndHandler 42871), 0 none
+        uint32_t KillActorIn = 0; // frames until its victim half's clip sends KillActor (42838), 0 none
         uint32_t ClashPartner = 0;
         uint64_t ClashUntil = 0;
         uint8_t PairStops = 0;
@@ -615,6 +663,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint64_t PoseHeldUntil = 0;
         bool InPairClip = false;    // bIsSynced: on through a pair's clip
         uint32_t State1 = 0;        // ActorState's flags1 (sneaking 1 << 9): an owner's goes with its actions
+        uint32_t State2 = 0;        // flags2 but the weapon state (Weapon): wantBlocking 0x100, recoil 0xC00
+        uint32_t Killer = 0;        // a kill move's victim: its killer (killerHandle, 38613)
+        int32_t Noise = 0;          // actionValue: its own engine sets it (a player's bump, a swing: 37711), detection's
+                                    // sound term hears it (37774)
+        bool NoiseHeld = false;     // a copy's, its owner's: no countdown ends it (ActorStateRules::CopyNoiseTimer)
+        bool RefusesDraw = false;   // its draw or sheathe action refused (37279: weapon state 1 or 4), its graph not ready
         uint32_t ExitIn = 0;        // frames until its exit clip's own event (42835) ends its getting off, 0 none
         bool InPair = false;        // in a pair's instance on this game (32808): a replay with a copy partner makes none
         double MarkWaitMs = 0.0;    // in an instance: until every actor is at its mark, its synchronized clip waits
@@ -674,6 +728,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::map<uint32_t, float> Bases = FullValues().ActorMaxValuesList;
         std::map<uint32_t, float> TemporaryValues;
         Inventory Items; // its CurrentMagicEquipment: the hands' selected spells (Actor::selectedSpells +0x1C8)
+        // The weapon or torch each hand holds (AIProcess::equippedObjects, left and right): put there by an equip with
+        // 3D, emptied by TESNPC::ResetWornToOutfit 418622 (39811-39813) whose worn flags stay (measured, Aela's torch).
+        uint32_t HeldWeapons[2]{};
         // The spells its hands hold (AIProcess::equippedObjects, left and right): an equip without 3D only selects.
         uint32_t HeldSpells[2]{};
         bool EquipmentNeedsReset = false;
@@ -687,11 +744,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                 Retries = acOther.Retries;
                 Action = acOther.Action;
                 Variables = acOther.Variables;
+                PairHere = acOther.PairHere;
                 ClipsLoaded = acOther.ClipsLoaded;
                 return *this;
             }
         } Replay;
         ActionEvent LatestAnimation;
+        ActionEvent PairHalf; // its half of the pair it last took (32803 knows its instance's halves)
         std::string GraphState;
         std::set<std::string> LoadedClips; // the event whose clip files its process holds: one action set (KeepSet 40055)
         std::vector<std::pair<uint32_t, bool>> AnimObjects; // its props (AnimationObjects 400328): ANIO, drawn
@@ -756,9 +815,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A behaviour's transitions; a clip's own annotation can advance only this game's graph.
     std::map<std::pair<std::string, std::string>, std::string> GraphTransitions;
     std::map<uint32_t, uint32_t> RefusedAnimations;
+    static constexpr uint8_t kBipedLayer = 8; // a ragdoll's bodies' collision layer in the world (L_BIPED)
     bool PairBlows = false; // an owner's pair lands its blow on its victim's copy after PairBlowFrames: uninterruptible (pa_KillMoveI)
     uint32_t PairStopsDropped = 0; // a clip's entry transition drops this many pairedStops (flags 0xd04)
     uint32_t PairBlowFrames = 2000; // after the other game replays the pair (~700 frames here), as HitFrame at ~1.2 s is
+    uint32_t PairEndFrames = 0; // after its blow, until the attacker's clip sends KillMoveEnd (0: four times the blow's)
     double PairMarkMs = 0.0; // how long a pair's actors take to reach their marks in its instance (150 ms on the host)
     bool PairMarkBlocked = false; // the mark sweep (TryMoveTo 78260) fails here: this game's positions, its own walls
     uint32_t BrokenPairs = 0; // a plain action took a copy out of its pair's clip, the pair ended before its blow
@@ -772,7 +833,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // PerformAction, KnockReplay); nothing else ends a living copy's knock.
     static constexpr uint32_t kActionGetUp = 0x13FF0;
     static constexpr uint32_t kActionRagdoll = 0x13FEF; // what a knock plays (39895)
-    void ClipKillActor(uint32_t aFormId); // KillActorHandler 42838: a copy holds its pose
+    // KillActorHandler 42838, a victim's clip's KillActor: dies credited to its pair partner, unless its kill is held
+    // (a copy, an NPC taken for a claimed kill move): then counted, its pose held.
+    void ClipKillActor(uint32_t aFormId);
+    bool m_applyingOwnHit = false; // TakesDamage's Apply: the engine's own hit, not the bridge's forwarded one
+    uint32_t PlainSwings = 0; // ActorPerformPlainly taken: the engine's second try after a refused pair (42350)
+    static constexpr const char* kPlainSwing = "attackStart";
     [[nodiscard]] bool PoseHeld(uint32_t aFormId) const noexcept; // HookUpdateAnimationGraphs: its graph takes no update
     void RagdollContact(uint32_t aFormId); // a kill move's victim touches something: 63092 kills it, unless held back
     void StopPairClip(uint32_t aFormId); // pairedStop: the clip leaves, unless its transition drops it
@@ -923,23 +989,38 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         return it != Mounts.end() ? it->second : 0;
     }
     void ActorHoldMount(uint32_t aRider, uint32_t aMount) noexcept override { MountSlots.try_emplace(aMount, aRider); }
-    void ActorEndMountPair(uint32_t aMount) noexcept override { SyncedMounts.erase(aMount); }
+    void ActorEndMountPair(uint32_t aMount) noexcept override { SendGraphEvent(aMount, "PairEnd"); }
     uint8_t GetActorSitState(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) ? SitState(aFormId) : 0; }
     void ActorFinishDismount(uint32_t aRider) noexcept override { EndRide(aRider); } // its sit state its clip's
-    // Mounts left in a rider's exit pair (MountBehavior DismountSynced): a copy rider's exit ending on a mount this
-    // game owns, the horse having changed hands mid-pair. Only PairEnd ends it; it steers nothing until then (the
-    // duo, 2026-11-17, player-mount.md).
-    std::set<uint32_t> SyncedMounts;
+    // A mount's half of its rider's exit (MountBehavior: pa_HorseExit -> DismountSynced, left only on PairEnd, which only
+    // the pair's instance sends: 32797, in the frame of the owner rider's Detach, just before it; duo 2026-11-19). A copy
+    // takes both from its owner's stream; a mount this game took before its copy ran that PairEnd stays synced and
+    // steers nothing (mounts.md). MountGraph puts the rules on an engine.
+    static constexpr const char* kDismountSynced = "DismountSynced";
+    static void MountGraph(FakeEngine& aEngine);
+    [[nodiscard]] bool Synced(uint32_t aMount) const { return Actors.contains(aMount) && Actors.at(aMount).GraphState == kDismountSynced; }
+    // An event the engine sends a graph (63591): recorded for an owner's copies, dropped on a copy on its stream.
+    void SendGraphEvent(uint32_t aFormId, const std::string& acEvent);
+    // A get-on of a mount left in a pair: pa_HorseEnter refused (its refusal's PairEnd ends the pair), the mount
+    // procedure (39669) calls InitiateMountPackage (37905) again, and the next try starts the ride.
+    std::map<uint32_t, uint32_t> MountRetryOf; // rider -> mount
+    uint32_t RefusedGetOns{};
     // A mount's one ExtraInteraction (12074): its first rider's; any rider's Detach (41539) empties it, and a ridden
     // one is what ActivateMount (37864) and CanRide (38706) refuse (player-mount.md).
     std::map<uint32_t, uint32_t> MountSlots;
+    // Riders SeatRider (40358) ran for: 41533, a quick get-on. Its REFRSyncController (20318) carries their reference;
+    // a linked copy at sit state 3 without it stayed where it got on (the duo, 2026-11-20).
+    std::set<uint32_t> SeatedRiders;
+    // A test's lever: the quick get-on's ActionActivate refused (41530's result 2; what refuses it is not read). Linked
+    // already, its rider's link ends at the interaction's next update (40356: a rider not seated).
+    bool RefuseQuickSeat = false;
     // Mounts the player steers: its own get-on's, or a passenger's handed the reins (PlayerTakeReins). Skyrim, probe
     // 4c: the driver's ride ending leaves the horse on the driver's package, the passenger steering nothing.
     std::map<uint32_t, uint32_t> Reins;
     [[nodiscard]] bool PlayerSteers(uint32_t aMount) const
     {
         return GetActorMount(kPlayer) == aMount && Reins.contains(aMount) && Reins.at(aMount) == kPlayer &&
-               MountSlots.contains(aMount) && MountSlots.at(aMount) == kPlayer && !SyncedMounts.contains(aMount);
+               MountSlots.contains(aMount) && MountSlots.at(aMount) == kPlayer && !Synced(aMount);
     }
     // NPC bases that are mounts (flags2 kIsAMount): a horse.
     std::set<uint32_t> MountBases{0x109E3D};
@@ -982,11 +1063,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Healing = false;
         bool Buff = false;
         bool Damage = false; // its effect damages health
+        bool Invisibility = false; // fire and forget, on its caster
+        uint32_t Summons = 0; // its effect makes this NPC base, commanded by the caster (SummonCreatureEffect)
     };
+    static constexpr uint32_t kConjureFamiliar = 0x000640B6;
+    static constexpr uint32_t kFamiliarEffect = 0x000640B4;
+    static constexpr uint32_t kFamiliar = 0x000CAE0B; // stands for the familiar's base
     std::map<uint32_t, SpellForm> SpellForms{{0x00012FCD, {.Concentration = true}},                  // Flames
                                              {0x00012FCC, {.Concentration = true, .Healing = true}}, // Healing
                                              {0x0005AD5C, {.Buff = true}},                           // Oakflesh
-                                             {0x0001C789, {.Damage = true}}};                        // Firebolt
+                                             {0x00027EB6, {.Invisibility = true}},                   // Invisibility
+                                             {0x0001C789, {.Damage = true}},                         // Firebolt
+                                             {kConjureFamiliar, {.Summons = kFamiliar}}};
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
     struct Cast
     {
@@ -996,6 +1084,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Target = 0;
     };
     std::vector<Cast> Casts;
+    // A concentration spell held, by caster and hand: state 6 until MagicCaster::InterruptCast (34408).
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> Channels;
+    // The actor lets go of its channel: the graph's InterruptCast event (InterruptCastHandler -> 34408 -> 34140), which
+    // our hook raises only for this game's actor (HookInterruptCast).
+    void StopsCasting(uint32_t aCaster, uint32_t aSource);
+    void InterruptCast(uint32_t aFormId, uint32_t aCastingSource) noexcept override { Channels.erase({aFormId, aCastingSource}); }
     struct Effect
     {
         uint32_t Target = 0;
@@ -1010,20 +1104,28 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // This game's spell lands on an actor (HookAddTarget): on another game's actor, our cast is a request for its
     // owner and is not applied here; on our own, applied.
     void SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
+    // A summon effect's actor (SummonCreatureEffect::CreateSummon 34993): one of aBase at its caster, commanded by it;
+    // the caster's earlier summon dismissed (AIProcess::AddCommandedActor's limit, 1 without Twin Souls).
+    uint32_t MakesSummon(uint32_t aCaster, uint32_t aBase);
     bool IsConcentrationSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Concentration; }
     bool IsHealingSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Healing; }
+    bool IsInvisibilitySpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Invisibility; }
     bool IsBuffSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Buff; }
     bool IsMagicItem(uint32_t aFormId) const noexcept override { return SpellForms.contains(aFormId); }
     void CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource,
                    uint32_t aDesiredTargetFormId) noexcept override
     {
         Casts.push_back({aActorFormId, aSpellFormId, aCastingSource, aDesiredTargetFormId});
+        if (Spell(aSpellFormId).Concentration)
+            Channels[{aActorFormId, aCastingSource}] = aSpellFormId;
     }
     void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId, uint32_t aSpellFormId,
                               uint32_t aEffectFormId, float aMagnitude, bool aIsDualCasting, bool aApplyHealPerkBonus,
                               bool aApplyStaminaPerkBonus) noexcept override
     {
         Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
+        if (Spell(aSpellFormId).Summons && !HoldSession) // a guest's CreateSummon (34993) makes nothing
+            MakesSummon(aCasterFormId, Spell(aSpellFormId).Summons);
         // A damaging effect's value goes through the damage hook while applied (HookApplyActorEffect).
         if (Spell(aSpellFormId).Damage)
             TakesDamage(aTargetFormId, aCasterFormId, aMagnitude, true);
@@ -1066,7 +1168,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool GraphsStepPhysics(uint32_t aFormId) const noexcept override { return !Actors.contains(aFormId) || Actors.at(aFormId).GraphsStepPhysics; }
     void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override
     {
-        if (!Actors.contains(aFormId) || !Actors.at(aFormId).Copy || Actors.at(aFormId).KnockedDown)
+        if (!Actors.contains(aFormId) || !Actors.at(aFormId).Copy ||
+            !::ReplayState::TakesOwnerBodies(Actors.at(aFormId).KnockedDown, Actors.at(aFormId).InKillMove))
             return;
         Actors.at(aFormId).BodiesLayer = aBodiesLayer;
         Actors.at(aFormId).GraphsStepPhysics = aGraphsStep;
@@ -1105,10 +1208,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetsFaction(uint32_t aActor, uint32_t aFaction, int32_t aRank, uint32_t aCause = 0, bool aStory = false,
                      uint32_t aQuest = 0); // Actor.SetFactionRank; -1: RemoveFromFaction
     void AddsSpell(uint32_t aActor, uint32_t aSpell, bool aAdded, uint32_t aCause = 0, bool aStory = false, uint32_t aQuest = 0);
+    // The actor readies a spell in a hand (0 left, 1 right), as EquipSpellHook (38928) then the engine: selected, held
+    // with 3D; a local actor's change raised (EquipmentChangeEvent).
+    void EquipsSpell(uint32_t aActor, const GameId& acSpell, uint32_t aHand);
+    // The actor's player selects a shout or power (none: clears it), as the favorites menu does (EquipShout).
+    void EquipsShout(uint32_t aActor, const GameId& acShout);
     // The native's own write on aActor, as the engine makes it.
     void TakeProgress(const LocalCall& acCall, uint32_t aActor);
     // Objects: an actor activates one by itself (opens a door, pulls a lever), as our hook on TESObjectREFR::Activate
-    // raises it; another game's activation replayed here (ActivateObjectFromActor), recorded.
+    // raises it; a guest's activation run on the host's game (HostGame::Activate), recorded.
     void Activates(uint32_t aActor, uint32_t aObject);
     std::vector<std::pair<uint32_t, uint32_t>> Activations; // object, activator
     uint32_t LootMenuOf{}; // the dead actor whose loot menu the player opened (TESNPC::Activate -> OpenMenu 51140)
@@ -1135,22 +1243,27 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     bool ObjectHasLock(uint32_t aObjectFormId) const noexcept override
     {
-        const auto it = References.find(aObjectFormId);
+        const auto it = References.find(LockHolderOf(aObjectFormId));
         return it != References.end() && (it->second.Locked || it->second.LockLevel);
     }
     bool ObjectIsLocked(uint32_t aObjectFormId) const noexcept override
     {
-        const auto it = References.find(aObjectFormId);
+        const auto it = References.find(LockHolderOf(aObjectFormId));
         return it != References.end() && it->second.Locked;
     }
-    void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t) noexcept override
+    void RunsActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId) noexcept
     {
         Activations.emplace_back(aObjectFormId, aActivatorFormId);
         if (!ActivateMount(aActivatorFormId, aObjectFormId))
+        {
             ToggleDoor(aObjectFormId);
+            Harvest(aObjectFormId);
+        }
     }
     // An activated door swings: the host's records it, a guest's opens here only (the host's state follows).
     void ToggleDoor(uint32_t aObject);
+    // An activated plant is picked (for any actor, 14864): the host's records it (CHANGE_OBJECT_EMPTY), a guest's here only.
+    void Harvest(uint32_t aObject);
     // Combat. A melee hit, as our hook on Actor::DamageActor (Actor.cpp) takes it: raised as a hit, and a hit of this
     // game's player on another's actor raised as a health change and not applied here (its owner applies it).
     void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);
@@ -1234,16 +1347,24 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Asking the running package's procedure: GetCurrentAIProcedure (21521) and a former copy's CheckForNewPackage (39213)
     // read a table at this index with no check, and -1 reads what lies before it: Skyrim crashes.
     bool ReadsProcedure(uint32_t aActor) const { return Actors.at(aActor).ProcedureType >= 0; }
-    // Detection of the player (stealth.md): a request queued once (42712), a pass installs and clears it (42704,
-    // DetectionRules); while queued, 42702 answers the state at any age.
+    // Detection (stealth.md): a request queued once (42712), a pass installs and clears it (42704, DetectionRules);
+    // while queued, 42702 answers the state at any age. Kept by target: the HUD asks of the player each frame, the
+    // host of each guest's copy (HostEye).
     struct WitnessKnowledge
     {
         std::optional<DetectionRules::Pass> State;
         uint32_t UpdatedAt = 0; // DetectionFrame of its pass
         bool Queued = false;
     };
-    std::map<uint32_t, WitnessKnowledge> KnowledgeOfPlayer; // by witness
-    std::map<uint32_t, int32_t> Sees;                      // what a witness's pass computes of the player (CalculateDetection)
+    std::map<uint32_t, std::map<uint32_t, WitnessKnowledge>> DetectionOf; // by target, then witness
+    std::map<uint32_t, WitnessKnowledge>& KnowledgeOfPlayer = DetectionOf[kPlayer];
+    std::map<uint32_t, std::map<uint32_t, int32_t>> SeesOf; // what a witness's pass computes of a target (37774), by target
+    std::map<uint32_t, int32_t>& Sees = SeesOf[kPlayer];
+    // An actor's lowest stealth points over this game's fights (46877; its combat groups' targets): none, 100.
+    std::map<uint32_t, float> StealthPoints;
+    bool PlayerInCombat = false; // the player's IsInCombat (vfunc 0xE3): the eye shows its fights' stealth
+    // A guest's held reading of its player from the host (GuestEngine::HoldEye): the eye's reads answer it.
+    std::optional<DetectionRules::EyeReading> HeldEye;
     uint32_t DetectionFrame = 0;
     // The witness judged the player in a pass already installed (a copy before its flags, as after a cog swap).
     void JudgedPlayer(uint32_t aWitness, int32_t aLevel);
@@ -1257,7 +1378,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     // The HUD's eye: the highest fresh detection of the player among loaded actors (40593 through 41408).
     int32_t StealthEye();
-    [[nodiscard]] const DetectionRules::Pass* FreshState(uint32_t aWitness);
+    // 41408 of any target (the player's skips its flagged witnesses), with StealthEye's hook on a guest's player.
+    int32_t HighestDetection(uint32_t aTarget, uint32_t& aSeeing);
+    // 46877, with the same hook.
+    [[nodiscard]] float LowestStealthPoints(uint32_t aTarget) const;
+    // What the HUD's eye shows (40593, DetectionRules::EyeShows).
+    int32_t EyeShows();
+    [[nodiscard]] const DetectionRules::Pass* FreshState(uint32_t aWitness, uint32_t aTarget = kPlayer);
     void DetectionPass(); // DoDetectionJob 42742: each queued request answered
     // Actor::ProcessTracking (38009), each frame: an actor whose look is this game's player asks its own detection of
     // that player (37758) and, with a state of level 0 or less, drops its default slot (slot 0).
@@ -1279,9 +1406,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     std::vector<ActiveEffectInfo> GetActorActiveEffects(uint32_t aFormId) const noexcept override;
     bool EffectHasHitVisuals(uint32_t) const noexcept override { return true; }
+    // Nothing plays on an actor with no 3D (SkyrimBridge: no NiNode, ApplyHitVisuals has nothing to attach to).
     bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
     {
-        return Actors.contains(aFormId) && Actors.at(aFormId).ShownVisuals.insert(aEffectFormId).second;
+        return Actors.contains(aFormId) && ActorHas3D(aFormId) && Actors.at(aFormId).ShownVisuals.insert(aEffectFormId).second;
     }
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
     {
@@ -1514,10 +1642,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
     bool IsPlayerMounted() const noexcept override { return Mounts.contains(kPlayer); }
     void PlayerStopRiding() noexcept override { StopRiding(kPlayer); }
-    bool PlayerBoardMount(uint32_t aMount) noexcept override;
+    bool PlayerSitOnMountQuick(uint32_t aMount) noexcept override;
     void PlayerTakeReins(uint32_t aMount) noexcept override
     {
-        SyncedMounts.erase(aMount);
+        ActorEndMountPair(aMount); // SkyrimBridge::PlayerTakeReins sends PairEnd too
         MountSlots[aMount] = kPlayer;
         Reins[aMount] = kPlayer;
     }
@@ -1555,8 +1683,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static constexpr uint8_t kWeapon = 41;
     static constexpr uint8_t kLight = 31;
     static constexpr uint8_t kArmor = 26;
+    static constexpr uint8_t kLeveledItem = 53;
     static constexpr uint32_t kRightHand = 0x13F42; // DefaultObjectManager's equip slots
     static constexpr uint32_t kLeftHand = 0x13F43;
+    // Each NPC base's container entries (TESContainer): only its leveled lists (form type kLeveledItem) are modelled.
+    // As Skyrim showed them (inventory_entry, 2026-11-19): counted with the actor's own change of them (16108),
+    // listed by TESObjectREFR::GetInventory as they are, and left by RemoveAllItems (SetActorInventory).
+    std::map<uint32_t, std::map<uint32_t, int32_t>> BaseContainers;
     std::map<uint32_t, ItemForm> ItemForms{{0x00012EB7, {kWeapon}},          // Iron Sword
                                            {0x00013989, {kWeapon}},          // Steel Sword
                                            {0x0001397E, {kWeapon}},          // Iron Dagger
@@ -1572,6 +1705,45 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The actor draws or sheathes by itself; ActorState's weapon state, the animation not modelled.
     void Draws(uint32_t aActor, bool aDraw) { Actors.at(aActor).Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed; }
     WeaponState GetWeaponState(uint32_t aFormId) const noexcept override;
+    ActorStateFields GetActorStateFields(uint32_t aFormId) const noexcept override;
+    // Actor::GetFactions / SetFactions over Factions (Skyrim.esm factions: mod 0).
+    ::Factions GetActorFactions(uint32_t aFormId) const noexcept override;
+    void SetActorFactions(uint32_t aFormId, const ::Factions& acFactions) noexcept override;
+    void SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept override;
+    void SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept override;
+    // Actor::SetActionValue (37711) as its engine calls it (a swing, a cast, the player's bump), with HookSetActionValue.
+    void SetActionValue(uint32_t aFormId, int32_t aNoise) noexcept;
+    void CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
+    void CopyLeaveKillMove(uint32_t aFormId) noexcept override;
+    void ActorHoldKill(uint32_t aFormId, bool aHold) noexcept override;
+    void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
+    void ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept override;
+    bool ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept override;
+    [[nodiscard]] bool ActorCanPair(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && !it->second.Dead && it->second.ProcessMe && it->second.Commander != kPlayer;
+    }
+    [[nodiscard]] bool ActorKillCounted(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && it->second.KillCounted;
+    }
+    void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end())
+            it->second.Commander = aCommanderFormId;
+    }
+    uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() ? it->second.Commander : 0;
+    }
+    [[nodiscard]] bool IsPlayerSummon(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && it->second.Commander == kPlayer;
+    }
     // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played; refused on
     // a copy on its owner's stream (weapon state 1 or 4).
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;
@@ -1599,6 +1771,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] std::map<std::pair<uint32_t, uint32_t>, int32_t> Carried(uint32_t aActor) const;
     // TESObjectREFR::AddOrRemoveItem: another game's change (InventoryService, under ScopedInventoryOverride).
     void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override;
+    void SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept override;
     // What the actor wears: each worn item (its server id) and whether in the left hand.
     [[nodiscard]] std::set<std::tuple<uint32_t, uint32_t, bool>> Worn(uint32_t aActor) const;
     uint8_t GetFormType(uint32_t aFormId) const noexcept override;
@@ -1608,6 +1781,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // EquipManager's, ours: under ScopedEquipOverride, as EquipManager::Equip and UnEquip set it.
     void ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept override;
     void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
+    void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
 
     [[nodiscard]] bool Has(uint32_t aFlags) const noexcept
@@ -1625,6 +1800,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool m_mirroredMove = false; // the player's move is another game's party call's: party travel leads no one with it
     // A new temporary form id: the lowest a deleted reference gave back, as the engine reuses them, else the next.
     uint32_t NewTemporary() noexcept;
+
+  public:
+    // The next temporary form id this game makes (two games' ids meeting: each numbers its own).
+    void NextTemporaryIs(uint32_t aFormId) noexcept { m_nextTemporary = aFormId; }
+
+  private:
     // At 0 health: dead, or down if essential; a copy is in deferred kill.
     void CheckHealth(uint32_t aFormId, Actor& aActor) noexcept;
     // The engine's equip and unequip behind EquipHook and UnEquipHook (EquipManager.cpp).
@@ -1644,8 +1825,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The host's record of a loose item it made or took (kCreate, the deletion).
     void RecordCreated(uint32_t aObject);
 
-    std::deque<std::pair<LocalCall, uint32_t>> m_queued;
+    struct QueuedCall
+    {
+        LocalCall Call;
+        uint32_t Cause;
+        std::function<void(LocalValue)> OnReturn;
+    };
+    std::deque<QueuedCall> m_queued;
     RagdollPending m_pendingRagdolls;
+    // A copy's ragdoll's frames from its owner, after its graph's driveToPose (as CopyRagdollPhysics).
+    void DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPending::Drive>& acDrives) noexcept;
+    [[nodiscard]] BodyKey RagdollKey(const BodyKey& acKey, uint32_t aActor) const noexcept;
+    std::map<uint32_t, RagdollRest> m_copyRests;
+    uint64_t m_frameCount = 0; // frames run: the fake's 60 a second
     bool m_inSystemQuest = false; // a system quest's function runs (CallsQuest): its natives are its instance's
     std::chrono::steady_clock::time_point m_lastFrame;
     // An actor's cell changed from aFrom: this game's player in another location raises CLOC.

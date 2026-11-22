@@ -7,7 +7,7 @@
 // host's authority, Code/client/Services/Host/HostAuthority.cpp). Both messages inherit the payload, so its
 // fields and their bytes are written once.
 
-#include <Structs/ActorAiState.h>
+#include <Structs/RecordPart.h>
 #include <Structs/ActorWhereabouts.h>
 #include <Structs/BodyFrame.h>
 #include <Structs/GameId.h>
@@ -36,30 +36,6 @@ struct ActorPerks
     bool operator==(const ActorPerks&) const noexcept = default;
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-};
-
-// The owner's full worn equipment for one actor, re-sent periodically so a copy that drifted
-// (missed or undone change) converges back to the owner's state.
-struct EquipmentSnapshot
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const EquipmentSnapshot&) const noexcept = default;
-
-    uint32_t SessionId{};
-    Inventory Equipment{};
-};
-
-struct DrawWeapon
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const DrawWeapon&) const noexcept = default;
-
-    uint32_t Id{};
-    bool IsWeaponDrawn{};
 };
 
 struct ActorValueChanges
@@ -109,20 +85,6 @@ struct HealthChange
     float DeltaHealth{};
     bool HasAttacker{};
     uint32_t AttackerId{};
-};
-
-struct SpellCast
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const SpellCast&) const noexcept = default;
-
-    uint32_t CasterId{};
-    GameId SpellFormId{};
-    int32_t CastingSource{};
-    bool IsDualCasting{};
-    uint32_t DesiredTarget{};
 };
 
 struct InterruptCast
@@ -232,25 +194,82 @@ struct Mount
     uint32_t MountId{};
 };
 
-// An actor's AI state, when its owner's changed.
-// Ownership returns with the last owner's current placement, including a native travel's implicit dismount.
-struct Dismount : Mount
+// An action's claim on the actors it involves (HostClaims; one-simulator.md, "Action claims"): the host grants all or
+// none. A taken member is the claimer's game's until given back; a locked one keeps its owner, busy meanwhile.
+struct ClaimMember
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-    bool operator==(const Dismount&) const noexcept = default;
-    ActorWhereabouts Whereabouts;
+    bool operator==(const ClaimMember&) const noexcept = default;
+    uint32_t ActorId{};
+    bool Take{};
+    bool DeathOnGiveBack{}; // taken: its death waits for its give-back (the copy's deferred kill kept)
 };
 
-struct AiState
+struct Claim
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+    bool operator==(const Claim&) const noexcept = default;
+
+    enum Kind : uint8_t
+    {
+        kRide,     // a rider's get-on: its horse taken
+        kKillMove, // a kill move: its attacker locked, its victim taken (an NPC) or locked (a player)
+    };
+    enum Refusal : uint8_t
+    {
+        kNone,
+        kHeld,       // a member is in another claim (crossed kill moves, two riders): a kill move drops its blow
+        kCannotTake, // its kind's rule (a victim dead or frozen) or a summon: a kill move swings plainly (42350)
+    };
+
+    uint32_t ClaimId{}; // the host's, granted
+    uint8_t Kind{};
+    uint8_t Reason{}; // a refusal's
+    uint32_t ForId{}; // the acting actor (a rider, a kill move's attacker), its owner's game the holder
+    uint64_t Tick{};  // the action's
+    std::vector<ClaimMember> Members;
+};
+
+// A claimed actor back to the host, with its holder's current placement (a native travel's implicit dismount too).
+struct ActorGiveBack
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+    bool operator==(const ActorGiveBack&) const noexcept = default;
+    uint32_t ActorId{};
+    uint32_t ClaimId{}; // the claim it ends
+    uint32_t ForId{};   // the host's: whom the claim was for, the killer of a killed one
+    ActorWhereabouts Whereabouts;
+    // The holder's last graph update sent (an exit pair's PairEnd due with it, 32797): the host's game takes the actor
+    // once its copy has run that far (ReplayState::TakesOverMount); 0 at once.
+    uint64_t Tick{};
+    bool Killed{}; // a kill counted under its hold (DeathOnGiveBack): the host's game kills it
+    bool Taken{};  // the host's: a taken member (the host's game takes it back), not a locked one
+    bool Ended{};  // the host's: its claim's last member back
+};
+
+// One part of an actor's record, from its owner (docs/design/one-simulator.md, piece 1).
+struct Record
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
-    bool operator==(const AiState&) const noexcept = default;
+    bool operator==(const Record&) const noexcept = default;
 
-    uint32_t SessionId{};
-    ActorAiState State{};
+    uint32_t Id{}; // the actor's session id
+    RecordPart Part{};
+};
+
+// A game whose copy looks wrong asks the actor's owner for a part again (R3).
+struct RecordAsk
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const RecordAsk&) const noexcept = default;
+
+    uint32_t Id{};
+    RecordKind Kind{};
 };
 
 struct Dialogue
@@ -316,6 +335,7 @@ struct RoutedCall
     uint32_t ReplyId{};   // kOwner, a native returning a value: the host's script waits for PlayerNativeResult; kOthers,
                           // a latent call: its key, the sender's stack (CallEnded); 0: none
     ScriptCall Call{};    // its self: an image-space modifier, a music type, an actor; None for a global native
+    CallControls Controls{}; // kOthers: a cutscene taking or giving back the controls (the host keeps it for a joiner)
 };
 
 // A latent party call returned on the game that made it (a story's Message.Show answered): its copies on the other
@@ -332,7 +352,8 @@ struct CallEnded
     ScriptValue Result{};
 };
 
-// What a native on the player returned on the guest's game, for the host's script waiting on it (PlayerNative::ReplyId).
+// What a native on the player returned on the guest's game, for the host's script waiting on it (PlayerNative::ReplyId);
+// or what the host's game returned for a guest's script waiting on it (a created reference, one-simulator.md piece 7).
 struct PlayerNativeResult
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
@@ -342,6 +363,7 @@ struct PlayerNativeResult
 
     uint32_t ReplyId{};
     ScriptValue Result{}; // None also when it did not run there (the guest left, an argument not there)
+    uint32_t SessionId{}; // from the host's game: the asking guest's character; 0: for the host's game
 };
 
 // Physics bodies moving on the host's game (docs/design/physics-sync.md): the frames a guest would guess wrong

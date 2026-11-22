@@ -6,7 +6,7 @@ delete the entry and say where the evidence went. Unfinished work and unexplaine
 `docs/progress.md` ("Loose ends"); ideas in `docs/ideas.md`. The fixes and regression evidence for feature 14's
 visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixes and regression evidence are in
 [native-bugs.md](design/native-bugs.md). Fixes that landed after a playtest (S2's green flash, the
-2026-11-01 dialogue fixes) keep their evidence in `playtests/` and a dated entry in `docs/progress.md`.
+2026-11-01 dialogue fixes) keep a dated entry in `docs/progress.md`.
 
 Each `###` section is one task for one agent: a paste-ready "Agent task", its size (small: a day or less; medium: a few
 days), what it needs, and what it waits for. Delete a section when its last entry goes, and its index line with it.
@@ -27,7 +27,7 @@ Where the evidence comes from:
   so their engine paths are still to be proved in step 0 (CLAUDE.md).
 - **Physics and ragdolls:** the audit removed unsuccessful pose reconstruction; existing native checks and failed traces
   remain. Retained changes and their evidence are in [native-bugs.md](design/native-bugs.md). Party travel's fixes are
-  there too. The entries dated 2026-11-01 come from the S1 work (`playtests/2026-10-31-fabien.md`;
+  there too. The entries dated 2026-11-01 come from the S1 work (the 2026-10-31 playtest;
   `docs/design/physics-sync.md`, "Steered holds" and "Matches a game without co-op").
 
 How the entries relate (shared causes, wrong checks, what to fix first): [bugs-map.md](bugs-map.md).
@@ -49,16 +49,13 @@ every other section needs the duo.
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
-- [Crossed kill moves: a short winner's blow lands first](#crossed-kill-moves-a-short-winners-blow-lands-first): small
 - [After a kill move the guest's own body floats](#after-a-kill-move-the-guests-own-body-floats): small
-- [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
+- [A refused rider left crouched](#a-refused-rider-left-crouched): small
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
-- [A frozen NPC a guest's kill move missed](#a-frozen-npc-a-guests-kill-move-missed): small
 
 **Ragdolls and death poses**
 
 - [Revive leaves the body wrong](#revive-leaves-the-body-wrong): medium
-- [Copy ragdolls at rest](#copy-ragdolls-at-rest): medium
 
 **Physics**
 
@@ -70,7 +67,6 @@ every other section needs the duo.
 
 **Party scripts**
 
-- [References a guest's script creates](#references-a-guests-script-creates): medium, no duo
 - [The werewolf's turn back](#the-werewolfs-turn-back): medium, no duo
 - [Leaving a crafting station](#leaving-a-crafting-station): small
 
@@ -93,26 +89,19 @@ every other section needs the duo.
 **Crime and aggro**
 
 - [The older crime scenarios](#the-older-crime-scenarios): medium
-- [The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate): medium, a scenario first
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium, caused by the next one
-- [A still guest unseen up close](#a-still-guest-unseen-up-close): small, minor
-- [An NPC copy's swing picks the nearest](#an-npc-copys-swing-picks-the-nearest): small
-- [A guest's summon](#a-guests-summon): medium
-- [A mod's rename at run time](#a-mods-rename-at-run-time): small
+- [After the host dies](#after-the-host-dies): small, the lock order inversion left
 
 **Found by the playthrough flow**
 
-- [A looted corpse keeps items on the guest](#a-looted-corpse-keeps-items-on-the-guest): small
 - [The host's copy after a door](#the-hosts-copy-after-a-door): small
 - [Players stacked after a door](#players-stacked-after-a-door): small
 
 **From the 2026-11-08 playtest**
 
 - [A guest's crash loading a wipe's save](#a-guests-crash-loading-a-wipes-save): small
-- [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small, a repro first
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
 
 **Found by the full runs of 2026-11-11 and 2026-11-12**
@@ -120,7 +109,7 @@ every other section needs the duo.
 - [The guest player's copy wears nothing](#the-guest-players-copy-wears-nothing): small
 - [A starting kit with an extra item](#a-starting-kit-with-an-extra-item): small
 - [A spawn's inventory over a newer equip](#a-spawns-inventory-over-a-newer-equip): small
-- [The host shows a guest's relief box](#the-host-shows-a-guests-relief-box): small
+- [A party item removed without its tag](#a-party-item-removed-without-its-tag): small
 - [A party wipe's fight that misfires](#a-party-wipes-fight-that-misfires): medium
 - [An action sent before its copy exists](#an-action-sent-before-its-copy-exists): small
 - [The green flash scenarios' grab](#the-green-flash-scenarios-grab): small
@@ -131,7 +120,6 @@ every other section needs the duo.
 - [Riverwood's scenery drifts apart](#riverwoods-scenery-drifts-apart): small
 - [Whiterun plains' critters differ](#whiterun-plains-critters-differ): small
 - [A guest crashed loading a copy's idle clips](#a-guest-crashed-loading-a-copys-idle-clips): small
-- [The host's roll for a guest's loot](#the-hosts-roll-for-a-guests-loot): small
 - [Cover plates after the host leaves](#cover-plates-after-the-host-leaves): small
 - [A follower's party ahead of its copies](#a-followers-party-ahead-of-its-copies): small
 - [Failures only deep in a long run](#failures-only-deep-in-a-long-run): medium
@@ -139,9 +127,9 @@ every other section needs the duo.
 
 **Seen in the final review's duo runs (2026-11-12)**
 
+- [A guest's console kill that never downs it](#a-guests-console-kill-that-never-downs-it): small, not read
 - [A kill move that never pairs](#a-kill-move-that-never-pairs): small
 - [A guest crash in the garbage collector's job](#a-guest-crash-in-the-garbage-collectors-job): medium
-- [A dead player's copy a little off its owner's body](#a-dead-players-copy-a-little-off-its-owners-body): small
 - [A respawned player's draw that does nothing](#a-respawned-players-draw-that-does-nothing): small
 - [The attacker's copy not in its kill move](#the-attackers-copy-not-in-its-kill-move): small
 - [A knocked-down copy placed 62 units off](#a-knocked-down-copy-placed-62-units-off): small
@@ -181,26 +169,26 @@ Size: small. Needs: IDA, the duo (`party-buys-house-host`, `--repeat`), then Gam
 ### After a guest rejoins
 
 The harness's `rejoin_client` joins again from a running game, keeping that game's world; a player leaves to the main menu and joins
-with the host's save (`joins_with_world`). Two differences follow that path, at Lucan's in Riverwood, 2026-11-07. Whether either
-reaches a player: unread.
+with the host's save (`joins_with_world`). Differences follow both paths at Lucan's in Riverwood (2026-11-07). The scenario
+`guest-rejoins-while-joined` (2026-11-18) takes both paths there: every step passes, then its end comparison fails on the
+references below (5: a fork, a wine bottle, a salmon, the two hanging plants).
 
-Agent task: read whether a player can reach this path, then make a scenario for what can.
+Agent task: read why each reference differs after a rejoin, starting from that scenario.
 
 Size: small. Needs: the duo (Riverwood), then GameTests.
 
 - **References differ** (4 of 4): 13 to 15 references, containers by the change flag `0x8000000` on the host only (CommonLib
   `kLeveledInventory`, not read here) and loose objects' poses. It does not depend on time away: 1 s did it.
-- **A copy that looks at nobody** (1 of 4): Lucan's owner read `['session 1']`, his copy `[]`, through the check's window. Read, not
-  measured: `AiStateService::ToFields` resolves a target's session id once, as the state arrives (`OnCharacterSpawn`,
-  `OnNotifyAiState`), and nothing applies it again when the target's copy appears; the owner sends again only when its slots
-  change (`AiStateEvents`, `seen`). So the order the spawns arrive in would decide it.
 - **A copy that stays off its owner** (2 of 2, Whiterun, 2026-11-09, `guest_shows_only_hosts_npcs` after its rejoin): a
   Skeleton (`109620`, high process, the same package in both) stood 81 units from its owner and turned 123 degrees from
   it through two reads 5 s apart, neither moving; 130 units and 130 degrees in the next run. Its spawn action is
-  `RagdollInstant`: a body lying in its ragdoll. Also there: a copy looking at nobody, the bullet above. Only after a
+  `RagdollInstant`: a body lying in its ragdoll. Only after a
   rejoin with a guest holding its own NPCs (copy-contract.md, "A guest's own NPCs"), where each NPC is hidden and gets
   its 3D again only after the host's spawn; the same scenario without the rejoin agreed on it. Not read: where a
   ragdolled copy's body settles when its 3D loads after its spawn placed it.
+  - 2026-11-21 (piece 10): a ragdoll's rest is its actor's record part now, so a copy made after it lies there
+    (GameTests "A guest joining beside a host corpse sees it lie as the host's"). One duo run of the scenario after it:
+    no difference on the Skeleton (it failed on townsfolk's animation picks instead). Delete after a second clean run.
 - **Also after a join with the host's save** (2 of 3): one hanging plant in the shop (`FLOR 38B0C`, `38BE6` or `38BE7`), its `b_Lower` bone
   turned differently. `released-copy-takes-up-its-ai` ends in the blank cell, so it does not fail on this.
 - **A guest joining again does not wear what it wore** (`guest-swaps-armor-after-join`, 2026-11-10): `[client] the guest
@@ -335,6 +323,11 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   (bugs-map.md, "A copy's hands"). A move did strip a copy's armour until the 3 s reconcile.
 - The snapshot compares worn items and hand spells, not hand weapons; a copy refuses the engine's equips.
 - Lead: copy `13485`'s engine tried to equip about once a second for over 2 minutes in the 2026-11-04 playtest.
+- **A mechanism, measured** (2026-11-19, one-simulator.md piece 3): the engine's outfit reset (TESNPC 418622, run on a
+  3D load by 24725) empties a copy's hands and leaves the weapon's worn flag, so a repair comparing worn flags saw
+  nothing (harness `reset_worn` on Aela's copy: hands [0, 0], her owner's torch and bow). The repair now checks each
+  hand holds its worn weapon or torch (GameTests "A copy whose hands the engine's outfit reset emptied holds its
+  owner's weapon again"). Not closed: no scenario of play that fails on dev shows a copy without its weapon.
 
 ### End comparisons in towns
 
@@ -390,25 +383,6 @@ Size: small. Needs: duo, IDA (the copy's step, `StepCopy` under 37356).
   load on the machine had 100-200 such frames of 600 and failed most often. The trace stamps each frame (`t`, in the
   plugin): judging only frames whose neighbours ran evenly drops those and leaves the shape above.
 
-### Crossed kill moves: a short winner's blow lands first
-
-`kill-moves-cross` fails its end comparison when the first swing is `pa_KillMoveShortD` and the loser's clip does not
-leave at once (2026-11-09, 1 run in 2 with the graph input stream's phase 3, whose off-stream action timing is dev's;
-dev passed its one such draw in 6 runs).
-
-Agent task: make the winner's pair start on the loser's game before the winner's hit can kill there.
-
-Size: small. Needs: duo, then GameTests (`friendly_fire_flows.cpp`, the crossing flows).
-
-- **Measured** (trace `20261109-231028-kill-moves-cross`): host swings at 117 ms, guest at 153 (`pa_KillMoveI`). The
-  guest yields at 219, but its own clip goes on (`KillMoveStart` 235, `KillMoveEnd` 374: `pa_KillMoveI` sits behind an
-  uninterruptible transition, kill-moves.md). The host's `HitFrame` comes at 501 and its forwarded hit kills the
-  guest's player at 545, a plain death. The host's pair is tried on the guest at 605 and refused; the copy's last
-  action stays `moveStart`.
-- The stops are resent for 30 of the copy's updates while the player's `IsInKillMove` or `bIsSynced` holds
-  (`AnimationSystem::Update`, `ReplayState::ResendPairStop`): 500 ms, longer than the short move's 384 ms to its hit.
-  Not read: which of the two still held after `KillMoveEnd`.
-
 ### After a kill move the guest's own body floats
 
 After `kill-moves-cross` or `spectator-watches-kill-move`, the guest's own third-person skeleton stands about 2,100
@@ -434,22 +408,21 @@ Size: small. Needs: IDA, the duo, then GameTests.
   failed ride passed (2 of 2), so the lifted skeleton does not unsettle the next ragdoll (that entry, "A ragdoll that
   never settles after a failed ride", closed: 8 of 8 that day).
 
-### Doors the host's NPCs unlock
+### A refused rider left crouched
 
-Whiterun's doors open on the host, locked on the guest.
+`two-players-race-for-horse`, when the host wins the race: the guest's ride is refused and its player taken off
+(`OnNotifyMountRefused`, `PlayerStopRiding` -> `StopRidingQuick`), but sometimes it is left with its pelvis at its feet
+and sit state 0 on its own game while the host's copy of it stays at sit state 2 (getting on). A player would see the
+loser of a race for a horse stuck crouched, or getting on, on the other game.
 
-Agent task: Find what unlocks these doors on the host, and make that change reach the guests.
+Agent task: read what `StopRidingQuick` does to a player still in its get-on clip (the mount interaction, 37905's
+package, the graph's state), and whether the refusal's arrival time within that clip decides it.
 
-Size: medium. Needs: duo, IDA.
+Size: small. Needs: IDA, the duo.
 
-- **Three doors unlocked on the host stay locked on the guest** (2026-11-09, `guest_shows_only_hosts_npcs` after its
-  steps, at noon). Doors of base `252C7` in Whiterun's exterior cell `1A278` (`1A6F5`, `252CD`, `24E25`); both games'
-  have change flag `0x10000000`. First seen once a guest stopped running its own NPCs (copy-contract.md, "A guest's
-  own NPCs"): the guest's NPC packages likely locked and unlocked them there before, hiding it.
-  - Not read yet: whether package door locks do it (the lock-doors package flags), and whether the host sends a lock
-    change its own NPC made (a guest proposes only its player's, `GuestWorldState::OnLockChange`; `HookLockChange`
-    19512 raises `LockChangeEvent` for every lock change).
-  - Test: that scenario's end comparison, or `world_state` on the three doors in both games.
+- **Measured** (2026-11-20, `agent/piece-4b`, action claims): 3 of 7 runs (`fe9a7048` and the next build); 0 of 3 later
+  runs where the host also won and "Ride on 1C refused ... our player gets off" logged; 0 of 2 runs before the claim
+  refactor (those failed on Riverwood's drift). Not read yet whether the refactor changed the refusal's timing.
 
 ### The Greybeards scene never casts the host's player
 
@@ -468,51 +441,26 @@ Size: small. Needs: the duo with the late save.
 
 ### Revive leaves the body wrong
 
-`PlayerCharacter::Revive` resets neither the knock state nor the graph.
+A revived player's body, now and then, stays in its ragdoll.
 
-Agent task: Read what Revive leaves behind and reset it, so a revived player neither stays ragdolled nor kneels.
+Agent task: find what puts a revived player's ragdoll back in the world, sunk into the floor, from a failing run's
+ragdoll trace.
 
-Size: medium. Needs: IDA, duo, then a GameTests revive flow (the fake must keep knock and graph state).
+Size: medium. Needs: duo (`revived-guest-gets-up --until-fail`, `party-travel-dead-guest`), then a GameTests revive
+flow.
 
 - **A respawned guest can stay ragdolled, sunk into the floor** (2026-10-29, v1 triage). `death-spectate-guest` once
   timed out on "the respawned player can walk again": the guest's player had its 18 ragdoll bodies awake and stood
-  49 units into the floor after its revive. 0 of 14 runs since.
-  - Found 2026-10-29.
-  - Start: what Revive (`PlayerCharacter::Revive`) leaves of the knock state and ragdoll when the respawn moves a dead
-    body; the open revive item in [death.md](design/death.md) (a revived player knocked down stays getting up).
-  - Test: `death-spectate-guest --until-fail`, then a GameTests revive flow once the fake keeps knock state.
-  Seen again 2026-11-06: `party-travel-dead-guest`, 1 of 7, the guest's own body and its copy 36 units under the floor.
-- **A revived guest's own body kneels in its next conversation** (2026-10-29, cause narrowed 2026-10-30). Once
-  thought to follow a follower trade: it follows a death. `follower-anchor-dies` then `follower-anchor-saved`
-  reproduces it: right after the revive the guest stands; at the next scenario's first conversation its own body
-  kneels (pelvis ~29, head ~55, like the bleedout pose), then stands again later. Once its death ragdoll was left
-  awake too (18 bodies). Only the guest sees it (third person); the host sees its copy standing. A later
-  conversation with no death first does not show it.
-  - Found 2026-10-30: cosmetic, the guest's own view only, after a death.
-  - Start: the behavior graph's state after `PlayerCharacter::Revive` (it resets neither the graph nor its state
-    machine; the open revive item in [death.md](design/death.md)), and what the conversation sends the graph.
-  - Test: `scenario follower-anchor-dies follower-anchor-saved` (its mid-conversation body check), then a GameTests
-    revive flow once the fake keeps graph state.
-- **Player body/ragdoll.** Kneeling, sunken/lifted skeletons, unsettled death ragdolls and mounted zero-height
-  readings. Several occur on the owner too. Revived-player kneeling is the same bug.
-
-### Copy ragdolls at rest
-
-A dead copy's bodies against its owner's.
-
-Agent task: find why the killed guest's copy flickers where its owner does not in `kill-move-kills-guest`, from the
-copy's `RagdollTrace` samples.
-
-Size: medium. Needs: duo (`RagdollTrace`), then a fast test.
-
-- **A killed guest's copy flickers and turns bodies back** (`kill-move-kills-guest`, the full run of 2026-11-16: "6
-  flickers, its owner 0", body 9 turned back 4 times within a second, a bone up to 16 units off its body; samples
-  `20261116-173724-kill-move-kills-guest`). The same shape was a third of the runs on 2026-11-12 and 3 of 23 with
-  deaths on the stream ([A kill move that never pairs](#a-kill-move-that-never-pairs)).
-  - Fixed 2026-11-11 and still holding: the copy now comes to rest (steered to its owner's rest for 30 physics steps,
-    then placed and left, `BodyPrediction::StepToRest`); `ragdoll-lies-as-host` passed 4 of 4 on 2026-11-16, so its
-    lying copy's bones agree now too.
-  - Start: the flickers' frames in the samples against the copy's steering (`CopyRagdollPhysics`) before its rest.
+  49 units into the floor after its revive. Seen again 2026-11-06: `party-travel-dead-guest`, 1 of 7, the guest's
+  own body and its copy 36 units under the floor. Not seen in 2026-11-18's runs: `party-travel-dead-guest` 2 of 2,
+  `revived-guest-gets-up` (it checks the revived ragdoll is out of the world) and `kill-move-kills-guest`'s respawn
+  check passed every run.
+  - Read in IDA 2026-11-18 (`docs/re/systems/physics.md`, "Resurrect and the knock state"): `Actor::Resurrect`
+    (37321) zeroes the knock state; it plays `kActionResetAnimationGraph` while the actor is still dead;
+    `Actor::DoReset3D` (40255) rebuilds the worn models, not the graph. `PlayerCharacter::Revive` takes the ragdoll
+    out once (`RemoveRagdollFromWorld`); what puts it back is not known.
+  - Start: a failing run's `RagdollTrace` of the guest after its revive: when its bodies go back in the world, and
+    which graph event (`AddRagdollToWorld`, 42873) or death action came just before.
 
 ## Physics
 
@@ -586,26 +534,6 @@ Size: small. Needs: duo (screenshots).
   - Test: the scenario's pick, both screens.
 
 ## Party scripts
-
-### References a guest's script creates
-
-Stands alone; needs a decision first.
-
-Agent task: Decide whose a reference a guest's own script creates is, then make the world check and
-`vampirism-is-each-players` agree.
-
-Size: medium. Needs: code and GameTests; ask the user the decision.
-
-- **A reference a guest's own script creates is that game's alone** (2026-10-28, party-scripts-2). `PlaceAtMe` is not
-  a world change to the router, so a guest's own script (its system quest's `VampireChange`: the change's hidden
-  `XMarker`, placed and disabled) makes a reference only its game has; the world check sees it on the guest alone
-  (`vampirism-is-each-players` fails on it). Sending it to the host would hand the guest's script None for the
-  reference it goes on to use.
-  - Start: whether a reference a guest's own script makes is its game's own (the world check and world sync leave it),
-    or the host's made for it and sent back.
-  - Test: a `vampirism_flows.cpp` case where `VampireChange` places a marker on the guest.
-  - Still the only failure of `vampirism-is-each-players` (2026-11-11, every run on both builds): "created STAT 3B at
-    (-165, 2038, 6976): present client only".
 
 ### The werewolf's turn back
 
@@ -815,6 +743,10 @@ Size: small. Needs: duo.
 
 The guard arrests have no passing run on 1.7.104, so nothing shows the arrest working.
 
+- `guest-theft-warned` (2026-11-19, dev `9c55b453` and `agent/piece-3-items` alike): "the party has spent 0 theft
+  warnings, expected 1", 3 runs; a fourth left the host stuck at `coc RiverwoodSleepingGiantInn`, which only a new
+  boot cleared. It passed when written (2026-11-13).
+
 Agent task: Find why these stop at their theft, then check the arrest with a guest's crime.
 
 Size: medium. Needs: duo.
@@ -836,6 +768,10 @@ Size: medium. Needs: duo.
       `guest-theft-host-witnesses` and `guest-murder-party-alarm` 2 of 4 on the branch, passed once on dev.
     - "the fine confiscates stolen rolls and keeps the unowned one": `guest-container-theft-and-fine`, alone on both
       (in the full run it stopped on the unseen control first).
+      Found 2026-11-19 (`agent/piece-3-items`): the guest's taken rolls were not stolen on the guest's own game (16059
+      stamps a theft's owner only on the item it gives a target, the host's copy of the guest; inventory-changes.md).
+      Fixed there (`guest-container-theft-is-stolen` fails 3 of 3 on dev, passes 5 of 5); this scenario then passed
+      the confiscation once and stopped on the unseen control twice, as on dev.
     - "the guard naturally arrests the party" (20 s): `guest-ivarstead-fine-mouse` every run on both;
       `guest-ivarstead-jail-mouse` in the full run only. Two of them left a player behind: the host's player 27-32
       units into the floor, the guest's copy 200 units from its owner.
@@ -847,144 +783,25 @@ Size: medium. Needs: duo.
     - `guest-ivarstead-jail-mouse` 1 of 4: "the guard sees the guest at 9E572" timed out.
     - Pass now: `guest-lockpick-party-alarm` and `guest-ivarstead-fine-mouse`, 4 of 4 each (every run on 2026-11-11).
 
-### The guest's eye is its own estimate
-
-On the guest, the stealth eye shows what its NPC copies judge themselves, not what the host's NPCs see.
-
-Agent task: Show with a scenario that the guest's eye and the host's NPCs disagree in a way a player feels; only then
-make the guest's eye show the host's detection.
-
-Size: medium. Needs: duo, then a decision.
-
-- **NPC copies judge the guest's player in the guest's game** (2026-11-08, found with the sneak eye fix,
-  `docs/re/systems/stealth.md`). The eye (40593 through 41408) counts every high-process actor's state of the player,
-  and a copy's detection pass still runs: Lydia's copy read -21, fresh, while the guest sneaked in QASmoke. On 2026-11-01
-  the host's eye read Lydia's real 30 and the guest's its copy's 20 (`playtests/2026-10-31-fabien.md`, S6): an estimate,
-  not stuck.
-  - The host's side is no better yet: nothing keeps the host's NPCs' state of a guest's copy fresh (`crime.md`, Hulda 4.7 s
-    old), and [A still guest unseen up close](#a-still-guest-unseen-up-close) reads no line of sight to it.
-  - Shape if it matters: the host asks its NPCs about each guest's copy and sends the highest level (a message, at a rate:
-    detection has no event); the guest's eye shows it, and NPC copies become unseen witnesses (`DetectionRules`).
-  - Test: a scenario where the guest's eye says hidden while a host NPC spots the guest (combat, a crime reported), or
-    the reverse. With none, this entry goes.
-
 ## Combat
 
 ### After the host dies
 
-The NPCs' target.
+What is left of it. The half-stop (NPCs searching for a still guest once the host died) was the guest's copy making none
+of its owner's noise, fixed 2026-11-21 (`docs/re/systems/stealth.md`, "A player's noise"; scenario
+`guest-bump-heard-on-host`, GameTests "A guest's bump is heard on the host").
 
-Size: medium. Needs: duo, IDA, then GameTests.
-
-- **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
-  only up close, and stop when the guest walks away (`docs/re/systems/combat-targets.md`, "The half-stop").
-  - Fixed on the way: an attack gave the guest's copy a combat tree of its own, all through the playtest's wait
-    (`HookStartCombat`; scenario `host-dies-guest-still-fought`, flow "After the host dies...").
-  - Measured, not a copy's: the NPC's target moves to the copy; the copy's light and detection read as the real player's;
-    the stall happens with the real player as target too. In the inn the engine's detection loses a still or retreating
-    target (-5 to -10) and the fight goes to search. Inferred, not measured: with the host dead nothing keeps it going.
-  - 2026-11-06 (`combat-targets.md`, "Measured 2026-11-06"): vanilla pushes the player back a few units a hit and
-    the NPC stands while the gap is inside its approach radius (174); the host's player gets the same. In three clean
-    host deaths Orgnar kept fighting the copy and his hits landed. Not reproduced as reported yet.
-  - Co-op differences found: an NPC copy's swing hits whoever is nearest in front (copies have no combat target), so
-    with another actor closer the guest is not hit; a guest unseen at the host's death is searched for, the NPC walking
-    off. Next: the playtest's own setup (the guest moving, fighting back) with `console_watch` and `kill_move_check`.
-  - Reproduced once (2026-11-06, the guest still, as the playtester saw): after the host's death Orgnar sat 196 from the
-    copy for 20 s on `Advance` without moving or swinging; the host's player at the same gap was closed on at once
-    (`combat-targets.md`, "A/B at 196 units"). Not seen again in 5 more rounds.
-  - **The cause is the copy unseen at the switch** (2026-11-06, `host_death_watch`, 5 rounds each way, the inn,
-    the survivor standing still): the host dies, the target moves to the guest's copy and the fight goes to search every
-    time (2.5-7 s, at 44-67 units), twice walking 440-490 units off before coming back. The guest dies instead: the host's
-    player is fought on, no search in 5 of 5. So this is [A still guest unseen up close](#a-still-guest-unseen-up-close).
+Size: small. Needs: duo.
 
 - **Lock order inversion with the host's player dead** (2026-11-05, `host-dies-guest-still-fought`, 2 of 6 runs, with and
   without the fix): `ExtraAliasInstanceArray` 12720 (0x140187955) then the player's reference lock in `Actor::IsGhost`
   (0x1406756F4), against 0x140172A5B then 12719 (0x140187881); our code on the stack, which frame not read.
-
-### A still guest unseen up close
-
-Agent task: Find why an NPC fighting the host reads no line of sight to the guest's copy 74 units away (the cause of the
-half-stop after the host dies). Do step 0 in IDA
-first (the detection's line-of-sight request for a candidate), then compare with the host's player in the same place.
-
-Size: small. Needs: duo, IDA, then GameTests.
-
-- **An NPC loses a still guest standing next to it** (2026-11-06, `host-dies-guest-still-fought` setup by hand, one run):
-  Orgnar fought the host with the guest 80 units off to his side; the host died, his target moved to the guest's copy and
-  the fight went to search (state 2) for 13 s at 74 units. `combat_watch`: the copy's candidate read `line_of_sight`
-  false, detection -6 to 15, until the copy was found again. A still guest makes no noise, so sight is all there is.
-  - Compared (5 rounds each, `host_death_watch`): with the guest's copy left, search every time, twice walking 440-490
-    units off; with the host's player left (`dies="guest"`), never. The copy is what isn't seen: this is the cause of
-    [After the host dies](#after-the-host-dies). While the host lives, the copy's candidate read line of sight false and
-    detection about -6, the host's 42 with line of sight.
-  - Not the copy's combat refusal: with `CopyCombat::MayStart` switched off (dev's behaviour, a local build), search
-    5 of 5 as well, 5-15 s, once 470 units off. Likely the engine's detection with a second player: a hook there.
-  - Test: `host_death_watch` both ways is the scenario's base; a GameTests flow once the engine fact is known.
-
-### An NPC copy's swing picks the nearest
-
-Agent task: Make an NPC copy's swing on the guest's game hit the actor the host's NPC is fighting, not whoever is nearest
-in front. Do step 0 in IDA first (`Actor_GetTarget` 38608, `Actor::sub_47272`), then a GameTests case.
-
-Size: small. Needs: IDA, GameTests, then duo.
-
-- **A copy's swing hits the nearest actor in front** (2026-11-06, read in IDA, seen once): a hit on the guest is judged on
-  the guest's game by the NPC's copy; with no combat target (copies run no AI) the victim pick (47272) takes the nearest
-  actor in the cone within reach. With the host alive and closer, the copy's swing picked the host's copy, not the guest
-  (`combat-targets.md`, "Measured 2026-11-06"). Start: give the pick the owner's target (ExtraForcedTarget 0x9D is read
-  first) or answer it in a hook.
-
-### A guest's summon
-
-A guest's Conjure Familiar makes no familiar on either game; the host's reaches the guest.
-
-Agent task: Read what happens to the summon on the guest's game, then make a guest's actor reach the host the way a
-drop does, one path with script-placed references (bugs-map.md, "Created forms").
-
-Size: medium. Needs: IDA, duo, then GameTests.
-
-- **A guest's familiar never appears** (2026-11-06, Riverwood, 640B6 aimed at the other player). Host's cast: announced
-  (`FF00090D`), the guest spawned its copy. Guest's two casts (`abSuccess: true`): nothing announced on the host, and 8 s
-  after the first the guest's only familiar was the host's copy.
-- Suspect, read not observed: `CharacterService::RunActorDiscovery` deletes a temporary actor on a guest that is no copy
-  and has no session id (a rule for saved NPCs). `DeleteActor` logs nothing.
-- Test: a scenario where a guest casts it and both games show one familiar.
-
-### A mod's rename at run time
-
-Agent task: Make a script's `SetDisplayName` on an NPC, and `SetName` on a player's base, reach the other games. Do step 0 in IDA first, then add one
-GameTests case for the rename.
-
-Size: small. Needs: IDA, GameTests. Waits for: nothing.
-
-- **A mod's rename doesn't reach an NPC's existing copy** (2026-11-05, read in IDA, not played): a script's `SetDisplayName`
-  (SKSE) writes the reference's ExtraTextDisplayData directly, past the alias hooks, so only the next spawn or refresh
-  carries it (`docs/re/systems/names.md`). Start: a hook on where SKSE's native lands, or relaying that native.
-- **A mod's rename of a player's character isn't sent** (2026-11-05, read, not played): `PlayerService` sends a player's
-  name when the race menu closes or a save loads; a script's `SetName` on the player's base raises neither, so the party's
-  lists and copies keep the old name until one of them. Start: the same native, on the player's base.
 
 ## Found by the playthrough flow
 
 From `riverwood-day-one` (`docs/design/playthrough-flows.md`), runs of 2026-11-05: each was seen at every run that
 reached it. Its summaries are in `build/coop-test/flows/<time>-riverwood-day-one/summary.md`; `--from` a step's
 checkpoint replays it in under a minute.
-
-### A looted corpse keeps items on the guest
-
-Stands alone: one container's items.
-
-Agent task: Make a loot taken from an NPC's corpse leave the corpse's copy on the other game as empty as the corpse.
-
-Size: small. Needs: duo, then GameTests.
-
-- **A looted corpse's copy still holds items** (5 of 5 runs, either player looting). After `take` from a bandit's
-  corpse the host's corpse is empty, and the guest's copy still holds 2 each of 37C1B, 4F78D and 10E0DD (once 4DEE0
-  too). Neither the looter nor its copy got them. A player who opens that corpse on the guest sees loot that isn't
-  there. Start: what a take-all from a dead NPC sends (the container change rows), and what the guest applies to a
-  dead copy.
-  - Test: the flow's `lookout` and `loot` steps (`sees: same_items("enemy_1")`); then a scenario of one bandit killed
-    and looted.
 
 ### The host's copy after a door
 
@@ -1045,30 +862,6 @@ Size: small. Needs: IDA, the dump; duo to prove it.
   - Start: which list `sub_140638B20` walks and which form left it freed (the log's last line before the load:
     `Temporary Remote Deleted FF000DC3`, a copy deleted as the guest disconnects).
 
-### The sneak eye with the other player looking
-
-S6 of 2026-10-31 again. Hardened (PR #40), not reproduced.
-
-Agent task: Catch the eye open with the other player looking, name its source with the readout, and fix that source.
-
-Size: small. Needs: duo, the user's report.
-
-- **The other player looking counts as being seen** (2026-11-08, the user: "friends when looking at you detect you";
-  "just standing next to another player if we're sneaking and they are looking at us"). Not reproduced on the duo
-  (2026-11-08/09, dev's hook): standing or sneaking face to face, both games, the eye stayed closed on screen; the
-  copy's knowledge held no state; talking to or pickpocketing a player's copy is refused. The playtest's 21:26 `/bug`
-  reports caught no sneaking moment (Riverwood Trader, Lucan and Camilla by).
-  - Hardened (`docs/re/systems/stealth.md`): a player's copy now carries `kDoNotShowOnStealthMeter` (41408 skips it),
-    and `HookUpdateDetectionState` installs an unseen pass instead of skipping (a skip left the request queued; 42702
-    then answered an older level at any age, and 37765's forced 100 through 42705 the same).
-  - Suspects left: a real NPC near (the Sleeping Giant: Orgnar read -5 and "seen" on a sneaking host), NPC copies on the
-    guest ([The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate)), combat (40593 shows 100 minus
-    the search level).
-  - Start: the user's conditions (whose eye, where, who was near), or a `/bug` taken while the eye shows detected; the
-    harness's `crime stealth_meter` lists each actor holding a level of the player (`sources`).
-  - Test: scenario `other-player-looking-leaves-eye-hidden` is the base; it must fail before a fix on what the readout
-    names.
-
 ### A guest crash at the main menu
 
 Seen once.
@@ -1099,6 +892,11 @@ graph input stream. Unread: whether the copy was spawned again during the scenar
 
 Agent task: read what gives a re-spawned player copy its owner's worn set, then make a GameTests flow for it.
 
+- 2026-11-19 (one-simulator.md piece 3): a copy now wears its owner's items part again on each 3D load, after the
+  engine's outfit reset (418622) and after a move to its owner's cell; the 3 s snapshot is gone. A player copy's round
+  trip to another cell kept its worn set on dev too, so this entry's trigger is still unread: run
+  `dialogue-picked-text-visual --repeat 4` on the new build before closing.
+
 Size: small. Needs: the duo (`dialogue-picked-text-visual --repeat 4`), then GameTests.
 
 ### A starting kit with an extra item
@@ -1109,6 +907,42 @@ two expected items. First seen in this run. Unread: what `F11B6` is and which si
 Agent task: read where `F11B6` came from, in the guest's log and the host's.
 
 Size: small. Needs: the duo.
+
+### A guest's store of an item held in a list
+
+Stands alone: one container scenario.
+
+Agent task: Make the guest's own removal of a stored item take it from the list that holds it.
+
+Size: small. Needs: the duo (the fake holds no plain lists on an actor).
+
+- From the review of PR #83 (read, not run): a guest storing an item its game holds only in a list that reads as
+  plain (worn, or a roll's `ExtraLeveledItem`) gets a plain negative grant (`ContainerTransfers::Stack` clears the
+  worn flags). `TESObjectREFR::AddOrRemoveItem` passes no list for it, and 16059 takes only the loose count, so the
+  guest keeps the item the chest was given. The host's side moves the copy's real list (`HostEngine::TransferContainer`).
+  Dev does the same on the guest.
+  - Start: in `AddOrRemoveItem`'s plain removal, take the rest through the lists that read as plain, each by its
+    `ExtraCount`, as `SetCarriedStacks` does.
+
+### A party item removed without its tag
+
+Stands alone: one party stack on a player's copy.
+
+Agent task: Make a party item a guest's game removes without naming its stack (console `player.removeitem`, a script's
+`RemoveItem` of the base) leave every player as the party's store says.
+
+Size: small. Needs: GameTests, then the duo.
+
+- **The host's copy keeps the key** (2026-11-19, `party-item-moves-guest` then `guest-pickpockets-lucan` in one boot):
+  the first scenario's cleanup removes "[P] Key to Breezehome" (`93B08`) from the guest's player by console; the
+  removal's event names no stack, so it is no party change (HostPartyItems), and since one-simulator.md piece 3 nothing
+  else carries it (a player's items part leaves party stacks out). The host's copy holds 1, the guest 0; the next
+  scenario's end comparison fails on it. Before piece 3 the relay took it off the copy, the party's store still at 1.
+  - Start: `SendRemoval` (TESObjectREFR.cpp) reads no list for a plain removal; what the party's store should do then.
+- **Both copies keep it** (2026-11-19, review of PR #83): a player's copy now applies only its owner's private items and
+  keeps its party stacks as the party's store sets them, so after that cleanup the store's 1 stays on the host's and the
+  guest's copies (players 0), and `party-item-moves-host` run next stops at "a player carries [P] Key to Breezehome to
+  begin with". Alone on a fresh boot it passes.
 
 ### A spawn's inventory over a newer equip
 
@@ -1125,22 +959,14 @@ Size: small. Needs: GameTests, then the duo.
   it: the copy stands with an empty hand until the next change.
   - Start: `CharacterService`'s `WaitingFor3D` inventory against `InventoryService`'s equipment changes for the same
     copy: the older one must not win.
+  - 2026-11-19 (one-simulator.md piece 3): read in our code, the spawn's inventory applied at 3D over a newer equip; it is
+    gone (the items part, newest version, applied at 3D). GameTests "An equip sent after the spawn was read survives it"
+    fails on dev and passes. Not closed: no MCP-recorded scenario yet (the race needs the copy's 3D after the equip;
+    in QASmoke the copy has 3D before `stage` returns).
   - Test: a GameTests flow, an NPC that equips one frame after it is announced, the copy's 3D ready later.
   - Also `host-loads-party` (branch 1 of 4, dev 1 of 4) and `host-menu-loads-party` (branch 2 of 4, dev 0 of 4),
     2026-11-12: Aela's copy lacks `1D4EC` and its right hand is empty, the same shape.
   - 2026-11-16, dev's full run: `host-quickloads-party` and `save-load-gate`, Aela's copy lacking `1D4EC` both times.
-
-### The host shows a guest's relief box
-
-`relief-takes-client-relics` (branch 3 of 4, dev's plugin 2 of 4, 2026-11-12; on dev 2026-11-16 2 of 3 reruns, after
-passing in the full run): the guest puts the axe in Volunruud's
-relief and the box saying the sword is missing shows on the host's game too (`[host] shows the client's box`). Once on
-dev it failed before that, with no menu cursor on the host. Unread: which stack's `Message.Show` reached the host's
-screen (party-calls.md: a guest's action's message is its own).
-
-Agent task: read where the door script's `Message.Show` runs for a guest's activation, then a GameTests flow.
-
-Size: small. Needs: the duo (`relief-takes-client-relics --repeat 4`), then GameTests.
 
 ### An action sent before its copy exists
 
@@ -1267,6 +1093,10 @@ Size: small. Needs: IDA, then the duo.
 
 ### Whiterun plains' critters differ
 
+2026-11-21 (piece 10): critters, their landing markers and references on a TranslateTo path are each game's own and no
+longer compared (`comparisons.scenery`). Left to see on the duo: the horse and elk copies apart at the end (the run of
+2026-11-21 failed earlier, on the guest's 71-unit jump getting on: "A passenger jumps 57 units as it takes the reins").
+
 Stands alone: `party-shares-a-horse` (Whiterun plains, `cow Tamriel 0 -4`).
 
 Agent task: Find why the critters the plains spawn differ between the games, and make the scenario's end check pass.
@@ -1278,8 +1108,16 @@ Size: small. Needs: the duo.
   the guest's) and `STAT C2D47` present on the guest only. The third run passed clean.
   - Start: read which game spawns these (a critter spawner's script, created references) and whether HostWorldState
     sends them; `Riverwood's scenery drifts apart` below may share the answer.
+- 2026-11-20 (`agent/piece-4b`, the claims refactor): 2 of 3 runs the same critters; the other run failed instead on the
+  horse itself, the host (its owner again) and the guest's copy 53 units apart at the end. Not seen again in the next
+  two runs; whether a give-back's placement or the copy's playback delay, not read yet.
+- 2026-11-20 (`agent/piece-5`, passengers seated at once): every step passed, the end comparison failed on two host
+  elks, the guest's copies about 159 units off their owners (wild NPCs nobody touched; not read).
 
 ### Riverwood's scenery drifts apart
+
+2026-11-21 (piece 10): the fish (FishController, `FXfakeCritterScript`) are no longer compared; `copy_holds_furniture_prop`
+passed its end comparison after it. Left: the mill's log (FURN 71C47), state the user keeps compared, and loose items.
 
 Stands alone: every long scenario in Riverwood.
 
@@ -1288,6 +1126,8 @@ make the horse recordings' end check pass there.
 
 Size: small. Needs: the duo.
 
+- 2026-11-18 (`agent/horse-riding-copy`): `horse-passes-between-riders` passed whole once (its steps every run since its
+  third ride's fix); `two-players-race-for-horse` failed on the mill's log (FURN 71C47) the same day.
 - The recorded horse scenarios (`horse-passes-between-riders`, `two-players-race-for-horse`,
   `rejoined-guest-sees-rider`; 2026-11-17) pass every step, then fail the end comparison on one or two of: a
   FishController's position (ACTI 10C3BA/10B035, the river's fish), the mill's log (FURN 71C47), cabbages or ingots
@@ -1295,21 +1135,6 @@ Size: small. Needs: the duo.
   touched by the scenario; the short `mount_roundtrip` scenarios in the same cell pass.
   - Start: `scene` now baselines the world differences already there; these appear during the run. Read which of
     them the host sends (HostWorldState) and which each game simulates alone.
-
-### The host's roll for a guest's loot
-
-Stands alone: one loot scenario.
-
-Agent task: Find why the guest's container never shows the host's leveled roll in `guest-loots-hosts-roll`.
-
-Size: small. Needs: the duo, then GameTests.
-
-- **The guest does not get the host's roll** (2026-11-11, every run on both builds): "[client] the guest gets the
-  host's roll {...}" times out after 10 s, the host's roll different each run (so the host does roll). What the guest
-  holds instead is not in the message: its own roll, or nothing.
-  - Start: the guest's container contents at the timeout against the host's; then where a container's leveled items
-    are resolved on a guest (`loot` in `docs/design/`).
-  - Test: a GameTests flow, a leveled container opened by the guest first.
 
 ### Cover plates after the host leaves
 
@@ -1388,11 +1213,29 @@ Size: small. Needs: the duo (`form-state-round-trips` after a full run's earlier
   `1400c9c1...0500`: the copy's list is one entry shorter. So something an earlier scenario does puts the guest's
   player in a faction that never reaches its copy's base. progress.md's loose end on a copy's spawn writing its NPC
   base's factions (`SkyrimBridge.cpp`) is the place to start.
+- **Now on every fresh join** (2026-11-18, dev `f7a72494` and piece 2 alike, the same bytes): the guest announces with
+  five factions and its own join-time script adds a sixth about a second later. The faction reaches the host's copy
+  (piece 2: the factions part, applied with six), but `Actor::SetFactions` goes through 37677, which on a non-unique
+  base (a copy's created base) writes the reference's `ExtraFactionChanges`, never the base's list (read in IDA). So
+  the copy's base keeps the snapshot's five. Passes after a reload (the announcement then carries six). Start: decide
+  whether the check should read the copy's factions (base and reference) or the copy's base list should be written.
 
 ## Seen in the final review's duo runs (2026-11-12)
 
 Each line is a run of the branch's current code unless it says committed build. All are intermittent; none is read yet
 (step 0, CLAUDE.md). Rates are from runs of 3 to 6, so they say "sometimes" and no more.
+
+### A guest's console kill that never downs it
+
+Agent task: find why the guest's `player.kill` sometimes leaves its player up in `names-in-every-case`, after the
+host's load. Do step 0 in IDA first.
+
+Size: small. Needs: the duo. Waits for: nothing.
+
+- **`names-in-every-case`: "Timed out after 15s: [client] the player is down"** (2026-11-18: 2 of 8 mixed runs on
+  the piece 2 branch; then 10 back-to-back on dev `f7a72494` and 10 on piece 2: 0 of each). The step follows the host's load of a save
+  and the party's rejoin; it passed alone and after the kill move scenarios alike. No crash log; the failure's
+  readout showed the guest standing in the baseline cell. Not read.
 
 ### A kill move that never pairs
 
@@ -1400,8 +1243,8 @@ Each line is a run of the branch's current code unless it says committed build. 
 runs on builds with the review's edits (once with the player left 100 units off its baseline, so the duo booted again),
 then none in 40 on `1a4a44a4` and none in 40 on `0492014e` (2026-11-12). Chance, or the wrong check those builds carried.
 The same 80 runs passed 27 of 40 and 24 of 40: the scenario failed a third of the time on both, always in the dead copy's
-ragdoll (flicker, `NEVER came to rest`). With deaths on the stream (2026-11-12): 20 of 23, three flickers of 2 to 5. The same scenario's other intermittents (flicker, `NEVER came to rest`) are under
-[Copy ragdolls at rest](#copy-ragdolls-at-rest).
+ragdoll (flicker, `NEVER came to rest`). With deaths on the stream (2026-11-12): 20 of 23, three flickers of 2 to 5. The dead copy's `NEVER came to rest` is fixed (2026-11-21, one-simulator.md piece 10:
+its rest is glided to, put once and slept; 6 of 6 runs asleep on the duo).
 
 Agent task: run `kill-move-kills-guest --repeat 20` on `1a4a44a4` and on the current code, then read why the pair did not
 start (`HookTryMoveTo`, the instance, `PairOnStream`).
@@ -1417,24 +1260,6 @@ Size: small. Needs: the duo, IDA.
 Agent task: reproduce with the heap history on (`coop_test.py repro`), running the five scenarios the crash note names.
 
 Size: medium. Needs: the duo, IDA.
-
-### A dead player's copy a little off its owner's body
-
-`death-spectate-host`, 4 of 46 runs with deaths on the stream (2026-11-12), none in 8 on the build before it, then none in
-25 more: `[client] the copy does not lie as the host's body`, once 13 to 16 units and about 30 degrees off, the other
-times within a unit but turned 3 to 14 degrees, over the check's 0.05 radians.
-
-Measured (`RagdollTrace` on the dead player's copy, now part of the scenario): the copy's bodies reach the owner's rest
-within 0.2 to 0.8 units and fall asleep at about the moment the owner's do, then wake again: sleep for a frame, awake
-about half a second, sleep, in 11 of 13 traces, the owner's staying asleep. One wake lines up with the owner's rest
-arriving (steering wakes a body each step, `StepToRest`), the next with its place step 30 steps later. Woken, they settle
-again a few degrees off. Tried: leaving a copy whose every body is already asleep near its rest; the condition never
-held in 13 runs (the reason not found: its angle, or what `BodyRead::Active` means), so it was taken out.
-
-Agent task: log, at the owner's rest's arrival, each of the copy's bodies' awake flag, distance and angle from the rest,
-and read why "asleep and there" never holds; then leave such a copy alone.
-
-Size: small. Needs: the duo.
 
 ### A respawned player's draw that does nothing
 
@@ -1482,23 +1307,6 @@ Agent task: log why `ShouldAsk` fires again for one looping actor (`Asked` reset
 load, `SeeGraph`), in the scenario that shows it.
 
 Size: medium. Needs: the duo, GameTests.
-
-## Found with the dev commands (2026-11-16)
-
-### A frozen NPC a guest's kill move missed
-
-The duo, QASmoke, by hand: two wolves staged frozen (`stage`), the guest in daedric gear hits one (`fight`). The guest's
-idle tree picks `pa_KillMove1HMWolfB` on the fatal swing, its engine refuses the pair ("refused by the engine, not
-sent"), and from then on the host refuses every forwarded hit on that wolf ("Forwarded hit on FF00087F by FF000838 not
-applied (gone, or held by a kill move)") for over 50 s; the host's copy of the guest logs "paired action 13005
-'pa_KillMove1HMWolfB' not played, FF00087F was in a kill move". The same at vanilla odds (`/killmove default`) with a
-third wolf. `kill_move_check` on the host: `in_kill_move` false. Unread: what holds the host's wolf (its kill move flag
-or a recorded killer, 38613/38614), and whether an unfrozen NPC does it too.
-
-Agent task: read what `IsHeldByKillMove` answers for the host's wolf after the guest's refused pair, then a GameTests
-flow for it.
-
-Size: small. Needs: the duo (two frozen wolves, the guest's fatal swing), then GameTests.
 
 ## Found by the full run of 2026-11-16
 
@@ -1577,6 +1385,10 @@ host's `tp_client.2.log`, 18:25:09) are `HookCheckForNewPackage` (+0x5d), `HookU
 `AliasOnReference<RealClearRefAlias>` (+0x91), all pass-through hooks `LockOrder::IgnoreFrames` lists. But
 `HookUpdateAI` is listed with 0x50 bytes (`Actor.cpp`), and its call returns at +0x59: the hook has grown past its size,
 so its frame counts as ours.
+
+- 2026-11-20 (piece 6): the same in Whiterun from `GuestScripts::HookNativeCalled`, which runs every native and was
+  not listed (an extra-data list's lock against the VM's, `late-join-gets-load-door-lock` every run). Listed now with
+  its PDB size (0x984, given 0xA00); a measured size would have caught both.
 
 Agent task: give `HookUpdateAI` a size that covers it, and make the checker fail loudly when a listed hook's code is
 longer than its size (or measure the size instead of writing it).

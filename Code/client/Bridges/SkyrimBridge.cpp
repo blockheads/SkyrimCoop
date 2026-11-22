@@ -7,8 +7,11 @@
 /// test targets.
 
 #include <Bridges/SkyrimBridge.h>
+#include <Bridges/ContainerItems.h>
+#include <ItemIds.h>
 #include <AI/FollowerTargets.h>
 #include <Breadcrumbs.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <Games/HiddenCopies.h>
 #include <Games/ReferenceStates.h>
 #include <Games/GuestNpcs.h>
@@ -64,7 +67,6 @@
 #include <Effects/ActiveEffect.h>
 #include <Magic/EffectItem.h>
 #include <Systems/FaceGenSystem.h>
-#include <Systems/CacheSystem.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
 #include <Games/Animation/ReplayState.h>
@@ -166,6 +168,8 @@ void SkyrimBridge::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
         {
             if (cReleased)
                 pActor->EndReleasedCopyPackage();
+            if (cReleased && ActorStateRules::HoldsOwnersNoise(pActor->fTimerOnAction))
+                pActor->iActionValue = 0, pActor->fTimerOnAction = 0.f;
             pActor->ApplyHeld3D(); // a copy or claimed: its refused 3D loads
         }
     }
@@ -368,9 +372,9 @@ bool SkyrimBridge::GraphsStepPhysics(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept
 {
-    // Not while it lies in its ragdoll: those bodies are its ragdoll's (BodyService).
+    // Not while those bodies are its own ragdoll's: lying in it (BodyService) or in its kill move.
     Actor* pActor = GetActor(aFormId);
-    if (!pActor || !pActor->GetExtension()->IsCopy() || pActor->LiesInRagdoll())
+    if (!pActor || !pActor->GetExtension()->IsCopy() || !ReplayState::TakesOwnerBodies(pActor->LiesInRagdoll(), pActor->IsInKillMove()))
         return;
     if (!aGraphsStep)
         SetGraphsStepPhysics(*pActor, false);
@@ -1057,38 +1061,6 @@ uint32_t SkyrimBridge::GetObjectParentCellId(uint32_t aObjectFormId) const noexc
     return 0;
 }
 
-void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId,
-                                             uint8_t aPreActivationState) noexcept
-{
-    Breadcrumbs::Record("ActivateObjectFromActor", aObjectFormId, aActivatorFormId);
-    TESObjectREFR* pObject = GetRefr(aObjectFormId);
-    Actor* pActor = GetActor(aActivatorFormId);
-    if (!pObject || !pActor)
-    {
-        spdlog::error("SkyrimBridge::ActivateObjectFromActor — object {:X} or actor {:X} not found",
-                      aObjectFormId, aActivatorFormId);
-        return;
-    }
-
-    if (pObject->baseForm && static_cast<uint8_t>(pObject->baseForm->formType) == static_cast<uint8_t>(FormType::Door))
-    {
-        // A load door would take the copy through it, out of this game's cell. The player's own
-        // game moves it, and everyone follows (cell arrivals).
-        if (IsLoadDoor(aObjectFormId))
-        {
-            spdlog::info("Load door {:X} not replayed: its player's own game takes it through", aObjectFormId);
-            return;
-        }
-
-        auto remotePreActivationState = static_cast<TESObjectREFR::OpenState>(aPreActivationState);
-        TESObjectREFR::OpenState localState = pObject->GetOpenState();
-        if (remotePreActivationState != localState)
-            return;
-    }
-
-    pObject->Activate(pActor, 0, nullptr, 1, 0);
-}
-
 uint8_t SkyrimBridge::GetObjectOpenState(uint32_t aObjectFormId) const noexcept
 {
     if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
@@ -1223,6 +1195,15 @@ void SkyrimBridge::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory
     Breadcrumbs::Record("ObjectAddOrRemoveItem", aObjectFormId);
     if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
         pObj->AddOrRemoveItem(aItem);
+}
+
+void SkyrimBridge::SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept
+{
+    Breadcrumbs::Record("SetCopyItemCount", aActorFormId);
+    Actor* pActor = GetActor(aActorFormId);
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(acItem)));
+    if (pActor && pItem)
+        SetCarriedStacks(*pActor, *pItem, aCount, acStacks);
 }
 
 Inventory SkyrimBridge::GetActorWornArmor(uint32_t aActorFormId) const noexcept
@@ -1420,15 +1401,12 @@ void SkyrimBridge::PlayerStopRiding() noexcept
         pPlayer->StopRidingQuick();
 }
 
-bool SkyrimBridge::PlayerBoardMount(uint32_t aMountFormId) noexcept
+bool SkyrimBridge::PlayerSitOnMountQuick(uint32_t aMountFormId) noexcept
 {
-    Breadcrumbs::Record("PlayerBoardMount", aMountFormId);
+    Breadcrumbs::Record("PlayerSitOnMountQuick", aMountFormId);
     auto* pPlayer = PlayerCharacter::Get();
     Actor* pMount = GetActor(aMountFormId);
-    if (!pPlayer || !pMount)
-        return false;
-    pMount->HoldRider(nullptr, true);
-    return pPlayer->InitiateMountPackage(pMount) || pPlayer->extraData.Contains(ExtraDataType::Interaction);
+    return pPlayer && pMount && pPlayer->SitOnMountQuick(pMount);
 }
 
 void SkyrimBridge::PlayerTakeReins(uint32_t aMountFormId) noexcept
@@ -1788,6 +1766,103 @@ WeaponState SkyrimBridge::GetWeaponState(uint32_t aFormId) const noexcept
     if (!pActor)
         return WeaponState::Sheathed;
     return static_cast<WeaponState>(pActor->actorState.GetWeaponState());
+}
+
+ActorStateFields SkyrimBridge::GetActorStateFields(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return {};
+    ActorStateFields fields;
+    fields.Flags1 = pActor->actorState.flags1;
+    fields.Flags2 = pActor->actorState.flags2;
+    fields.InKillMove = pActor->IsInKillMove();
+    if (fields.InKillMove)
+        if (const TESObjectREFR* pKiller = TESObjectREFR::GetByHandle(pActor->killerHandle))
+            fields.KillerFormId = pKiller->formID;
+    fields.InPair = fields.InKillMove && (pActor->InPair() || pActor->InPairClip());
+    fields.Dead = pActor->IsDead();
+    fields.Noise = pActor->iActionValue;
+    return fields;
+}
+
+void SkyrimBridge::CopyLeaveKillMove(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    Breadcrumbs::Record("CopyLeaveKillMove", aFormId);
+    pActor->killerHandle = *TESObjectREFR::GetNullHandle();
+    pActor->EndKillMove();
+}
+
+void SkyrimBridge::ActorHoldKill(uint32_t aFormId, bool aHold) noexcept
+{
+    Breadcrumbs::Record("ActorHoldKill", aFormId, static_cast<uint32_t>(aHold));
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->HoldKill(aHold);
+}
+
+bool SkyrimBridge::ActorKillCounted(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->KillCounted();
+}
+
+void SkyrimBridge::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
+{
+    Breadcrumbs::Record("KillActorBy", aFormId, aKillerFormId);
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->KillBy(aKillerFormId ? GetActor(aKillerFormId) : nullptr);
+}
+
+void SkyrimBridge::ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexcept
+{
+    Breadcrumbs::Record("ActorYieldPair", aOwnFormId, aCopyFormId);
+    Actor* pOwn = GetActor(aOwnFormId);
+    Actor* pCopy = GetActor(aCopyFormId);
+    if (pOwn && pCopy)
+        AnimationSystem::YieldPair(World::Get(), pCopy, pOwn);
+}
+
+bool SkyrimBridge::ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept
+{
+    Breadcrumbs::Record("ActorPerformPlainly", aFormId, aActionId);
+    Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->PerformPlainly(Cast<BGSAction>(TESForm::GetById(aActionId)));
+}
+
+bool SkyrimBridge::ActorCanPair(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && !pActor->IsDead() && (pActor->flags1 & Actor::kProcessMe) != 0 && !pActor->IsPlayerSummon();
+}
+
+void SkyrimBridge::SetCopyActorStateFlags(uint32_t aFormId, uint32_t aFlags1, uint32_t aFlags2) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    pActor->actorState.flags1 = aFlags1;
+    pActor->actorState.flags2 = aFlags2;
+}
+
+void SkyrimBridge::SetCopyNoise(uint32_t aFormId, int32_t aNoise) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    pActor->iActionValue = aNoise;
+    pActor->fTimerOnAction = ActorStateRules::CopyNoiseTimer(aNoise);
+}
+
+void SkyrimBridge::CopyEnterKillMove(uint32_t aFormId, uint32_t aKillerFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    Breadcrumbs::Record("CopyEnterKillMove", aFormId, aKillerFormId);
+    pActor->EnterKillMove(aKillerFormId ? GetActor(aKillerFormId) : nullptr);
 }
 
 bool SkyrimBridge::IsActorTemporary(uint32_t aFormId) const noexcept
@@ -2304,14 +2379,6 @@ void SkyrimBridge::SetupActorFaceGen(uint32_t aFormId) noexcept
     Breadcrumbs::Record("SetupActorFaceGen", aFormId);
     // FaceGen setup is entity-based; this is a no-op at bridge level
     // Actual setup happens in CharacterService::OnCharacterSpawn via FaceGenSystem::Setup
-}
-
-void SkyrimBridge::SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept
-{
-    Breadcrumbs::Record("SetupActorCache", aFormId, aEntityHint);
-    // aEntityHint is the entity (CharacterService::ProcessNewEntity), as before the bridge refactor.
-    if (Actor* pActor = GetActor(aFormId))
-        CacheSystem::Setup(World::Get(), static_cast<entt::entity>(aEntityHint), pActor);
 }
 
 void SkyrimBridge::ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept

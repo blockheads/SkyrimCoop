@@ -6,6 +6,8 @@
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <NoCopyMove.h>
+#include <Structs/CastPart.h>
+#include <unordered_map>
 
 class IActorBridge;
 class IFormBridge;
@@ -43,18 +45,10 @@ struct MagicService
      * @brief Checks to apply queued effects on each frame.
      */
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
-    /**
-     * @brief Sends local spell cast to the server.
-     */
-    void OnSpellCastEvent(const SpellCastEvent& acSpellCastEvent) const noexcept;
-    /**
-     * @brief Casts a spell based on a server message.
-     */
-    void OnNotifySpellCast(const NotifySpellCast& acMessage) const noexcept;
-    /**
-     * @brief Sends local interruption of spell cast to the server.
-     */
-    void OnInterruptCastEvent(const InterruptCastEvent& acEvent) const noexcept;
+    // This game's actor holds a cast (concentration, ward, invisibility): its cast part (kCast) carries it.
+    void OnSpellCastEvent(const SpellCastEvent& acSpellCastEvent) noexcept;
+    // A held cast's end clears its slot in the part; any other cast's interruption goes as InterruptCastRequest.
+    void OnInterruptCastEvent(const InterruptCastEvent& acEvent) noexcept;
     /**
      * @brief Interrupts a spell cast based on a server message.
      */
@@ -84,6 +78,11 @@ struct MagicService
      * and if so, sends out a message to add the magic effect to the target.
      */
     void ApplyQueuedEffects() noexcept;
+    // A copy's cast part: a slot newly held is cast on it, one cleared interrupted (piece 9).
+    std::vector<uint32_t> ApplyCast(uint32_t aId, const std::string& acBytes) noexcept;
+    void CastOn(uint32_t aFormId, uint32_t aSource, const HeldCast& acCast) const noexcept;
+    void OnCopyRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
+    void OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
 
 
     World& m_world;
@@ -93,6 +92,13 @@ struct MagicService
     IFormBridge& m_formBridge;
 
     std::vector<entt::scoped_connection> m_connections;
+    std::unordered_map<uint32_t, CastPart> m_held; // this game's casters' held casts, by form id
+    struct Applied
+    {
+        uint32_t FormId{};
+        CastPart Part;
+    };
+    std::unordered_map<uint32_t, Applied> m_applied; // what each copy was given, by session id
 
     /*
      * @brief Queued magic effects.

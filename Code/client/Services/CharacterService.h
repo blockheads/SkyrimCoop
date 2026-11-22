@@ -25,8 +25,6 @@ struct NotifyCharacterSpawn;
 struct NotifyPlayerLevel;
 struct NotifyReferencesMove;
 struct NotifyInventoryChanges;
-struct NotifyFactionsChanges;
-struct FactionsChangeEvent;
 struct ReferenceJumpEvent;
 struct ReferenceLoadedEvent;
 struct NpcHeldEvent;
@@ -82,14 +80,14 @@ struct CharacterService
     void OnGraphSync(const NotifyGraphSync& acMessage) const noexcept;
     void OnGraphSyncPoint(const NotifyGraphSyncPoint& acMessage) const noexcept;
     void SendGraphStream() const noexcept;
-    void OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept;
     // An owned actor's factions changed: they reach its copies if they differ from the last sent.
-    void OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept;
     // An actor of ours put somewhere at once: its next snapshot says so (Movement::Teleported).
     void OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept;
     // A spawn waiting for its reference to finish loading: kStillLoading clears before its 3D loads.
     void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
     void OnNpcHeld(const NpcHeldEvent& acEvent) noexcept;
+    // The actor of that session id is on this game now: its record's parts apply (CopyRecords).
+    void SessionIdHere(uint32_t aSessionId) const noexcept;
     // A spawn waiting on that actor to finish loading goes on.
     void SpawnPending(uint32_t aFormId) noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept;
@@ -97,13 +95,13 @@ struct CharacterService
     // The player's owned horse accompanies a tether move.
     void CarryMountTo(uint32_t aCellId, const glm::vec3& acPosition) noexcept;
     void OnNotifyMount(const NotifyMount& acMessage) noexcept;
-    // The one way a name reaches an actor here: its spawn, or the host's notification (docs/re/systems/names.md).
-    void ApplyOwnerName(uint32_t aFormId, const std::string& acName) const noexcept;
-    void OnNotifyActorName(const NotifyActorName& acMessage) noexcept;
-    void OnNotifyPlayerName(const NotifyPlayerName& acMessage) const noexcept;
+    // A copy's name is its record's (ActorStateService); this is the host's rename of an actor this game owns.
+    void OnNotifyActorName(const NotifyActorName& acMessage) const noexcept;
     // Our player got off the mount the host gave this game: the host takes it back.
     void OnDismountEvent(const DismountEvent& acEvent) noexcept;
     void OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept;
+    // Another player got on first (a ride's claim refused): ours gets off, as a refused boarding.
+    void OnRideRefused(const NotifyClaimRefused& acMessage) noexcept;
     // Our player activated a horse a party player drives: on as a passenger, the host told.
     void OnBoardEvent(const BoardEvent& acEvent) noexcept;
     // Another player rides along: its copy seated at once (its replayed get-on never ends).
@@ -145,11 +143,20 @@ struct CharacterService
     // A spawn of our copy of an NPC another game owns, read from the engine as it is now.
     std::optional<NotifyCharacterSpawn> BuildCopySpawn(uint32_t aSessionId) const noexcept;
 
-private:
-    // The host gave this game a copy's actor (a mount its player got on): ours to simulate from here on.
-    bool TakeOwnership(const uint32_t acFormId, const uint32_t acSessionId, const entt::entity acEntity) const noexcept;
-    // Another game simulates this game's actor from here on (the mount, given to its rider's game or back): a copy.
+    // The host gave this game a copy's actor (a claim: ClaimService): ours to simulate from here on. aHoldKill: the
+    // copy's deferred kill stays (its death waits for the give-back); else it ends.
+    bool TakeOwnership(const uint32_t acFormId, const uint32_t acSessionId, const entt::entity acEntity, bool aHoldKill = false) const noexcept;
+    // Another game simulates this game's actor from here on (claimed for it, or given back): a copy.
     void GiveUpOwnership(entt::entity aEntity, uint32_t aSessionId, uint32_t aFormId) const noexcept;
+    // Where our actor is now, for its copies to follow when we stop simulating it.
+    [[nodiscard]] ActorWhereabouts ReadWhereabouts(uint32_t aFormId) const noexcept;
+    // One of this game's references whose owner's actor went: moved or disabled as it was, still a copy. With no owner
+    // left (aOwnerGone), CopyHeldEvent first: a guest hides it (GuestCopies).
+    void FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts, bool aOwnerGone) const noexcept;
+    // Our actor taken back from a claim: exactly where its last holder left it, its heading too.
+    void PlaceAt(uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept;
+
+private:
     void MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;
 
     // One of this game's actors under the id the host gave it: this game's from here on.
@@ -157,11 +164,6 @@ private:
     // The actor left this game's simulation: a copy goes or is held, our own one's copies are removed.
     void ReleaseCharacter(entt::entity aEntity, uint32_t aFormId) const noexcept;
     void DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept;
-    // Where our actor is now, for its copies to follow when we stop simulating it.
-    [[nodiscard]] ActorWhereabouts ReadWhereabouts(uint32_t aFormId) const noexcept;
-    // One of this game's references whose owner's actor went: moved or disabled as it was, still a copy. With no owner
-    // left (aOwnerGone), CopyHeldEvent first: a guest hides it (GuestCopies).
-    void FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts, bool aOwnerGone) const noexcept;
 
     ActorData BuildActorData(uint32_t aFormId) const noexcept;
     // An actor as it is now: where, its values, inventory and hands, and the action it last took.
@@ -213,9 +215,14 @@ private:
     std::unordered_set<uint32_t> m_partyMounts; // session ids: ridden by a player, kept through cell loads
     std::unordered_map<uint32_t, uint32_t> m_pendingRides; // mount -> rider session ids, heard before both copies were made
     void LinkPendingRides(uint32_t aSessionId) noexcept;
-    uint32_t m_boardedMount{}; // session id: our player rides along on it
+    std::unordered_map<uint32_t, uint32_t> m_pendingCommanders; // a summon -> its commander, before the commander's copy
+    void LinkPendingCommanders(uint32_t aSessionId) noexcept;
+    uint32_t m_boardedMount{};  // session id: our player rides along on it
+    uint32_t m_boardingMount{}; // session id: asked the host for a seat on it
     std::unordered_map<uint32_t, uint32_t> m_drivers; // mount -> its driver, session ids
-    std::unordered_map<uint32_t, uint32_t> m_pendingBoards; // passenger -> mount, heard before both copies were made
+    std::unordered_set<uint32_t> m_dueRides; // session ids: a Ride part waiting for its copy's stream
+    void LeaveBoard() noexcept;
+    std::vector<uint32_t> ApplyRide(uint32_t aId, const std::string& acBytes) noexcept;
     // Any rider's Detach empties its mount's one slot: the driver still on holds it again.
     void KeepDriverOn(const DismountEvent& acEvent) noexcept;
     [[nodiscard]] uint32_t FormOfSession(uint32_t aSessionId) const noexcept;

@@ -1,4 +1,9 @@
+#include <Games/Skyrim/StealthEye.h>
 #include <Bridges/GuestEngine.h>
+#include <mutex>
+#include <unordered_set>
+#include <CreatedIds.h>
+#include <World.h>
 #include <Games/GuestNpcs.h>
 #include <Games/QuestStarts.h>
 
@@ -35,6 +40,8 @@
 #include <Misc/StoryEvents.h>
 #include <Papyrus/SystemQuests.h>
 #include <Papyrus/GlobalCall.h>
+#include <Papyrus/GuestScripts.h>
+#include <Papyrus/PartyRules.h>
 #include <Papyrus/WorldEvents.h>
 #include <Utils.h>
 #include <Games/TES.h>
@@ -162,6 +169,25 @@ void PlayAnimation(TESObjectREFR& aObject, const ObjectChange& acChange) noexcep
 
 } // namespace
 
+namespace
+{
+// The references this game's engine created since it joined (13723, the engine's threads): never a save's.
+std::mutex s_madeHereLock;
+std::unordered_set<uint32_t> s_madeHere;
+
+void OnMadeHere(uint32_t aFormId) noexcept
+{
+    std::scoped_lock _{s_madeHereLock};
+    s_madeHere.insert(aFormId);
+}
+
+bool MadeHere(uint32_t aFormId) noexcept
+{
+    std::scoped_lock _{s_madeHereLock};
+    return s_madeHere.contains(aFormId);
+}
+} // namespace
+
 GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
     : m_bodyBridge(aBodies)
     , m_moving(m_reads, false)
@@ -179,6 +205,11 @@ GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
     FactionEvents::Start();
     ReferenceEvents::Start();
     ActorValueEvents::Start();
+    {
+        std::scoped_lock _{s_madeHereLock};
+        s_madeHere.clear();
+    }
+    ModManager::WatchCreated(&OnMadeHere);
 }
 
 GuestEngine::~GuestEngine() noexcept
@@ -186,6 +217,8 @@ GuestEngine::~GuestEngine() noexcept
     m_bodyBridge.SetReferences({});
     PlayerCharacter::SetPickUpGate({});
     // The host's created objects go with the session: a next one makes them again.
+    World::Get().ctx().at<CreatedIds>().Clear();
+    ModManager::WatchCreated(nullptr);
     for (const auto& [cHostId, cHandle] : m_created)
         if (TESObjectREFR* pMade = TESObjectREFR::GetByHandle(cHandle); pMade && !pMade->IsDeleted())
         {
@@ -240,9 +273,21 @@ void GuestEngine::ReleaseWeather() noexcept
         pSky->ReleaseWeatherOverride();
 }
 
+void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
+{
+    StealthEye::Hold(acReading);
+}
+
+void GuestEngine::ReleaseEye() noexcept
+{
+    StealthEye::Hold(std::nullopt);
+}
+
 bool GuestEngine::RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn) noexcept
 {
     const auto cCall = Utils::ToLocalCall(acCall.Call);
+    // Untagged, a screen call is the story's and goes back out (HookCallQueued tags it).
+    const GuestScripts::ScopedCause cOwnPlayer(PartyRules::kRoutedCallCause);
     return cCall && GlobalCall::QueueCall(*cCall, std::move(aOnReturn));
 }
 
@@ -424,6 +469,18 @@ bool GuestEngine::Create(const ObjectChange& acChange) noexcept
 {
     if (const TESObjectREFR* pMade = FindReference(acChange.Object); pMade && !pMade->IsDeleted())
         return true;
+    // Loaded with the host's save as this game joined: a save keeps a created reference's id (measured, summons.md).
+    // Not one this game made since, or already another's copy (a later creation of the host's reusing the id).
+    auto* pSaved = Cast<TESObjectREFR>(TESForm::GetById(0xFF000000 | acChange.Object.BaseId));
+    auto& createdIds = World::Get().ctx().at<CreatedIds>();
+    if (pSaved && pSaved->formType != FormType::Character && !pSaved->IsDeleted() && pSaved->baseForm &&
+        pSaved->baseForm->formID == ToGame(acChange.Item) && !MadeHere(pSaved->formID) && !createdIds.ToSession(pSaved->formID) &&
+        !std::ranges::any_of(m_ownDrops, [pSaved](const auto& acDrop) { return TESObjectREFR::GetByHandle(acDrop.second) == pSaved; }))
+    {
+        m_created[acChange.Object.BaseId] = pSaved->GetHandle().handle.iBits;
+        World::Get().ctx().at<CreatedIds>().Link(pSaved->formID, acChange.Object);
+        return true;
+    }
     ObjectChange::Placement placement;
     if (!ObjectChange::UnpackPlacement(acChange.Data, placement))
         return false;
@@ -432,6 +489,7 @@ bool GuestEngine::Create(const ObjectChange& acChange) noexcept
     if (!pMade)
         return false;
     m_created[acChange.Object.BaseId] = pMade->GetHandle().handle.iBits;
+    World::Get().ctx().at<CreatedIds>().Link(pMade->formID, acChange.Object);
     return true;
 }
 
@@ -463,6 +521,7 @@ bool GuestEngine::AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept
     if (acObject == GameId{})
         return true;
     m_created[acObject.BaseId] = cHandle;
+    World::Get().ctx().at<CreatedIds>().Link(pOwn->formID, acObject);
     m_adopted.push_back({.Object = acObject});
     return true;
 }
@@ -500,6 +559,8 @@ void GuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
     if (const auto it = m_created.find(acGrant.Object.BaseId); acGrant.Object.ModId == ObjectChange::kCreatedModId && it != m_created.end())
     {
         handle = it->second;
+        if (const TESObjectREFR* pTwin = TESObjectREFR::GetByHandle(handle))
+            World::Get().ctx().at<CreatedIds>().Unlink(pTwin->formID);
         m_created.erase(it);
         m_taken.insert(acGrant.Object.BaseId);
     }
@@ -597,7 +658,7 @@ std::optional<CellStateRequest> GuestEngine::ReadCellChanges(uint32_t aCellFormI
     for (const TESObjectREFR* pRef : pCell->GetReferences())
     {
         ChangedReference changed;
-        changed.Flags = ReferenceStates::ChangedRows(*pRef);
+        changed.Flags = ReferenceStates::ChangedRows(*pRef) | ReferenceStates::LinkedLockRows(*pRef);
         if (const auto cId = changed.Flags ? ToSession(pRef->formID) : std::nullopt)
         {
             changed.Id = *cId;

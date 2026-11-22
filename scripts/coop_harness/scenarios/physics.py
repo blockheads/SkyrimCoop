@@ -310,7 +310,7 @@ def bucket_on_npc_head(ctx, carrier, base=BUCKET, upside_down=False, stays=False
             f"[{g or 'host'}] first seen {text}" for g, text in off.items()) + f" ({report})")
 
 def scenario_guest_bucket_on_npc_head(ctx):
-    """S1 (playtests/2026-10-31-fabien.md): the client's player puts a bucket on a host NPC's head."""
+    """S1 (the 2026-10-31 playtest): the client's player puts a bucket on a host NPC's head."""
     bucket_on_npc_head(ctx, "client")
 
 def scenario_host_bucket_on_npc_head(ctx):
@@ -790,6 +790,37 @@ def scenario_late_join_gets_cell_state(ctx):
         if left := ctx.guest_matches(ref, 5):
             raise ctx.failure(f"[client] {ref:X} not put back as the host's: {left}")
 
+WHITERUN_HOUSE_DOOR = 0x1A6F5  # a load door on Whiterun's side; its lock is its inside door's (16607)
+
+
+def scenario_late_join_gets_load_door_lock(ctx):
+    """A load door's lock lives on the door it leads to (GetLock 20223, AddLockChange 19512 records it there; the
+    owner's unlock 39105 at a package start: bugs.md "Doors the host's NPCs unlock"). The host unlocks a Whiterun
+    house's door while the client is away (both in QASmoke: no copies to respawn); the client rejoins, the party goes
+    to Whiterun, and the client's door is the host's."""
+    # hand-written: the bug is read (docs/re/systems/activation.md, Locks); its desync is already there at the boot
+    door = WHITERUN_HOUSE_DOOR
+    def host_lock():
+        return ctx.player_command("", {"cmd": "door_lock", "object": door})
+    ctx.console_on("", f"{door:X}.lock 50")
+    ctx.wait_for(f"[client] {door:X} locked as the host's",
+                 lambda: ctx.player_command("client", {"cmd": "door_lock", "object": door}).get("linked_locked"), 10)
+    ctx.disconnect_client()
+    try:
+        ctx.console_on("", f"{door:X}.unlock")
+        ctx.wait_for(f"[host] {door:X} unlocked", lambda: host_lock().get("linked_locked") is False, 5)
+        ctx.rejoin_client()
+    finally:
+        if ctx.game_state("client").get("online") is False:
+            ctx.rejoin_client()
+    try:
+        ctx.scene(at="coc WhiterunOrigin", pin=False)
+        if left := ctx.guest_matches(door, 10):
+            raise ctx.failure(f"[client] loaded Whiterun with its own lock on {door:X}, not the host's: {left}")
+    finally:
+        ctx.both_go(HOME_CELL) # the town's own copy drift is not this scenario's
+
+
 def scenario_guest_opens_hosts_roll(ctx, *, take=False, _game=None):
     """A container's leveled entries are the host's roll (world sync step 2b): in the inn, the client opens the
     container with the most leveled entries that a player can reach (the merchant's stock chest under the floor is
@@ -825,7 +856,7 @@ def scenario_guest_opens_hosts_roll(ctx, *, take=False, _game=None):
             ctx.tap_key("client", TAB_KEY)
             ctx.wait_for("[client] the menu closed", lambda: ctx.takes_input("client"), 5, _game=_game)
             return
-        # Taking it all (playtests/2026-10-31-fabien.md S5): the guest gets the host's roll, the host's chest empties.
+        # Taking it all (the 2026-10-31 playtest S5): the guest gets the host's roll, the host's chest empties.
         carried = {item: ctx.item_count("client", 0x14, item) or 0 for item in host}
         ctx.tap_key("client", TAKE_ALL_KEY)
         ctx.wait_for("[client] the menu closed", lambda: ctx.takes_input("client"), 5, _game=_game)
@@ -877,7 +908,7 @@ def scenario_placed_leveled_items_are_hosts(ctx):
 
 
 def scenario_clutter_rests_at_any_frame_rate(ctx, *, window=20, _game=None):
-    """S4 (playtests/2026-10-31-fabien.md): Havok's step set 2.4 times the frame (fMaxTime 0.04 at 60 fps, as the
+    """S4 (the 2026-10-31 playtest): Havok's step set 2.4 times the frame (fMaxTime 0.04 at 60 fps, as the
     default 1/60 is at 144 fps) wakes the inn's clutter, which then creeps. Each game steps physics with its frames:
     the step reads back as the frame's whatever the INI says."""
     _game = ctx.game(_game)

@@ -1,6 +1,5 @@
 #include <Structs/MagicEquipment.h>
 #include <Wire/Serialization.h>
-#include <Messages/RequestEquipmentChanges.h>
 
 using Wire::Serialization;
 

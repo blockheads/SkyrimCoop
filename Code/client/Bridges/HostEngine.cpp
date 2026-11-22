@@ -1,5 +1,6 @@
 #include <Bridges/PlacedByGame.h>
 #include <Bridges/HostEngine.h>
+#include <Games/Skyrim/StealthEye.h>
 #include <Papyrus/SystemQuests.h>
 #include <MainLoopTasks.h>
 #include <AI/FollowerTargets.h>
@@ -37,6 +38,11 @@
 #include <SaveLoad.h>
 #include <Sky/Sky.h>
 #include <Actor.h>
+#include <Forms/MagicItem.h>
+#include <Magic/EffectItem.h>
+#include <Magic/MagicTarget.h>
+#include <Messages/SummonRequest.h>
+#include <Games/ActorExtension.h>
 #include <ExtraData/ExtraDataList.h>
 #include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
@@ -296,6 +302,14 @@ std::optional<GameId> HostEngine::ReadWeather() const noexcept
     return ToSession(pWeather->formID);
 }
 
+std::optional<DetectionRules::EyeReading> HostEngine::ReadEye(uint32_t aSessionId) const noexcept
+{
+    auto* pCopy = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(aSessionId)));
+    if (!pCopy || !pCopy->currentProcess || !pCopy->GetNiNode() || !pCopy->GetExtension()->IsCopy())
+        return std::nullopt;
+    return StealthEye::Read(*pCopy);
+}
+
 std::vector<HostGlobal> HostEngine::ReadGlobals() const noexcept
 {
     std::vector<HostGlobal> globals;
@@ -411,6 +425,54 @@ std::optional<ObjectChange> HostEngine::ReadContents(const GameId& acObject) con
         return std::nullopt;
     pObject->InitInventoryIfRequired();
     return ReadContainerContents(*pObject);
+}
+
+void HostEngine::Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) noexcept
+{
+    const uint32_t cObjectId = aNpcId ? Utils::GetFormIdBySessionId(aNpcId) : ToGame(acObject);
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cObjectId));
+    auto* pActor = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(aActivatorId)));
+    auto* pNpc = aNpcId ? Cast<Actor>(pObject) : nullptr;
+    if (!pObject || !pActor || (aNpcId && (!pNpc || pNpc->GetExtension()->IsCopy())))
+    {
+        spdlog::warn("HostEngine: a guest's activation of {:X} by {:X} not run: not here", cObjectId, aActivatorId);
+        return;
+    }
+    // A load door takes a copy through it (TESObjectDOOR::Activate 17922 moves an NPC): its player's game does.
+    if (pObject->baseForm && pObject->baseForm->formType == FormType::Door && pObject->extraData.Contains(ExtraDataType::Teleport))
+    {
+        spdlog::info("Load door {:X} not replayed: its player's own game takes it through", cObjectId);
+        return;
+    }
+    Breadcrumbs::Record("HostEngine::Activate", cObjectId, pActor->formID);
+    pObject->Activate(pActor, 0, nullptr, 1, 0);
+}
+
+void HostEngine::Summon(uint32_t aCasterId, const SummonRequest& acSummon) noexcept
+{
+    const GameId& acSpell = acSummon.SpellId;
+    auto* pCopy = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(aCasterId)));
+    auto* pSpell = Cast<MagicItem>(TESForm::GetById(ToGame(acSpell)));
+    EffectItem* pEffect = pSpell ? pSpell->GetEffect(ToGame(acSummon.EffectId)) : nullptr;
+    if (!pCopy || !pCopy->GetExtension()->IsOtherPlayer() || !pEffect || !pEffect->IsSummonEffect())
+    {
+        spdlog::warn("HostEngine: a guest's summon {:X} on {:X} not made: no such copy or summon effect", acSpell.LogFormat(), aCasterId);
+        return;
+    }
+    // As an owner applies a request (MagicTarget::AddTarget, past our hook): Update 34992 makes it, commanded by the copy.
+    MagicTarget::AddTargetData data{};
+    data.pCaster = pCopy;
+    data.pSpell = pSpell;
+    data.pEffectItem = pEffect;
+    data.fMagnitude = acSummon.Magnitude;
+    data.fUnkFloat1 = 1.0f;
+    data.eCastingSource = MagicSystem::CastingSource::CASTING_SOURCE_COUNT;
+    data.ExplosionLocation.x = acSummon.Location[0];
+    data.ExplosionLocation.y = acSummon.Location[1];
+    data.ExplosionLocation.z = acSummon.Location[2];
+    data.bDualCast = acSummon.DualCast;
+    spdlog::info("HostEngine: guest {:X}'s summon {:X} made by its copy {:X}", aCasterId, pSpell->formID, pCopy->formID);
+    pCopy->magicTarget.AddTarget(data, false, false);
 }
 
 void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept
@@ -609,7 +671,8 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
     {
         const auto cGuest = guestRows.find(pRef->formID);
         const bool cGuestChanged = cGuest != guestRows.end() && pRef->formType == FormType::Reference;
-        const uint32_t cRows = ReferenceStates::ChangedRows(*pRef) | (cGuestChanged ? cGuest->second & ReferenceStates::RowFlags() : 0);
+        const uint32_t cRows = ReferenceStates::ChangedRows(*pRef) | ReferenceStates::LinkedLockRows(*pRef) |
+                               (cGuestChanged ? cGuest->second & ReferenceStates::RowFlags() : 0);
         const auto cId = cRows ? ToSessionOrCreated(pRef->formID) : std::nullopt;
         if (!cId)
             continue;

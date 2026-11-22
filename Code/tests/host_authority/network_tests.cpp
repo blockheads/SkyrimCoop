@@ -68,3 +68,35 @@ TEST_CASE("Network: the host's listener and a guest's connection never block the
     REQUIRE(unanswered.ConnectByIp(std::format("127.0.0.1:{}", cPort)));
     CHECK(Timed([&] { unanswered.Close(); }) < 50ms);
 }
+
+// A join while joined (2026-11-18): the guest's one-peer ENet host had no free peer, the second connect lost the live
+// one, the host kept it and every later join was unreachable. The second connect is refused; the first stays.
+TEST_CASE("Network: a guest's second connect keeps its first connection", "[HostAuthority][Network]")
+{
+    HostNetwork network;
+    REQUIRE(network.Listen(21650));
+    const std::string cEndpoint = std::format("127.0.0.1:{}", network.GetPort());
+    const auto cPump = [&](Guest& aGuest, const std::function<bool()>& acDone) {
+        const auto cDeadline = std::chrono::steady_clock::now() + 2s;
+        while (!acDone() && std::chrono::steady_clock::now() < cDeadline)
+        {
+            network.Update();
+            aGuest.Update();
+        }
+        return acDone();
+    };
+    Guest guest;
+    REQUIRE(guest.Connect(cEndpoint));
+    REQUIRE(cPump(guest, [&] { return guest.IsConnected() && network.GetClientCount() == 1; }));
+
+    CHECK_FALSE(guest.Connect(cEndpoint));
+    CHECK_FALSE(guest.ConnectByIp(cEndpoint));
+    cPump(guest, [] { return false; }); // the resolve a refused connect would have started
+    CHECK(guest.IsConnected());
+
+    // Its leave still reaches the host, and it can join again.
+    guest.Close();
+    CHECK(cPump(guest, [&] { return network.GetClientCount() == 0; }));
+    REQUIRE(guest.Connect(cEndpoint));
+    CHECK(cPump(guest, [&] { return guest.IsConnected() && network.GetClientCount() == 1; }));
+}

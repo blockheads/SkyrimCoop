@@ -25,25 +25,31 @@
 #include <Services/Host/HostPartyItems.h>
 #include <Services/Host/HostPurse.h>
 #include <Services/Host/HostWeather.h>
+#include <Services/Host/HostEye.h>
 #include <Services/Host/HostWorldState.h>
 
 #include <array>
+#include <optional>
+#include <vector>
 #include <functional>
 #include <string_view>
 
 #include <ChatMessageTypes.h>
 #include <NoCopyMove.h>
 #include <Messages/RelayedMessages.h>
+#include <Messages/NotifySetWaypoint.h>
 
 struct LockChangeRequest;
+struct RequestSetWaypoint;
+struct RequestRemoveWaypoint;
 struct ContainerChangeRequest;
 struct RequestInventoryChanges;
-struct RequestFactionsChanges;
 struct SendChatMessageRequest;
 struct PlayerLevelRequest;
 
 struct HostNetwork;
 struct ActivateRequest;
+struct SummonRequest;
 
 /**
  * @brief The host's side of the session: handles what players send (docs/design/host-authority-migration.md).
@@ -59,8 +65,8 @@ struct ActivateRequest;
  * (how fast everyone's clock runs), HostDialogue (the party's conversation), HostWorldState (a guest's cell
  * loading), HostItems (a guest's drops and pickups), HostPlayerNatives (the script calls one game sends to others),
  * HostStory (a guest's story events),
- * HostPhysics (the host's bodies) and HostHands (a guest's player's pushes and holds of them); HostWeather has no
- * rules, and HostPurse (the party's gold) takes a player's gold out of the item relay.
+ * HostPhysics (the host's bodies) and HostHands (a guest's player's pushes and holds of them); HostWeather and HostEye (a guest's
+ * stealth eye) have no rules, and HostPurse (the party's gold) takes a player's gold out of the item relay.
  */
 struct HostAuthority
 {
@@ -85,7 +91,8 @@ struct HostAuthority
     [[nodiscard]] bool HasGuests() const noexcept { return m_players.Count() > 1; }
     [[nodiscard]] bool CheckpointDelivered() const noexcept { return m_transfer.Empty() && m_players.Count() <= 1; }
     void FailReload(const std::string& acError) noexcept { m_death.FailReload(acError); }
-    // This game's engine renamed an actor (HostService): every guest's actor follows.
+    // This game's engine renamed an actor another game owns (HostService): its owner names its actor, and its name part
+    // carries that on.
     void NameActor(uint32_t aSessionId, const std::string& acName) const noexcept;
 
     // For the parts: TRequest is handled by aOwner's member function.
@@ -109,11 +116,25 @@ struct HostAuthority
         });
     }
 
-    // A player's own character is in the world: everything it must know about the session.
+    // A player's own character is in the world: everything it must know about the session, from every store.
     void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept;
-    // A player's character is in the host's world, and the AI state a character arrived with: they count for death.
+    // What a joiner gets, in order (one-simulator.md piece 9): every store holding session state is on it.
+    struct JoinerStore
+    {
+        std::string_view Name;
+        std::function<void(ConnectionId_t aPlayer, uint32_t aCharacterSessionId)> Send;
+    };
+    [[nodiscard]] const std::vector<JoinerStore>& JoinerStores() const noexcept { return m_joinerStores; }
+    // A player's character is in the host's world, and the record a character arrived with (its AI state counts for
+    // death).
     void PlayerBodyEntered(ConnectionId_t aPlayer, uint32_t aId) noexcept { m_death.Entered(aPlayer, aId); }
-    void ActorAnnounced(uint32_t aId, const ActorAiState& aState) noexcept { m_death.InitialAi(aId, aState); }
+    void ActorAnnounced(uint32_t aId, const RecordParts& acRecord) noexcept;
+    // A character left the session: its record goes.
+    void ActorRemoved(uint32_t aId) noexcept { m_records.Forget(aId); }
+    // The host's game took back a claimed actor given back (HostClaims::Returning ends).
+    void ActorTaken(uint32_t aId) noexcept { m_characters.Claims().Taken(aId); }
+    // A character's record as its owner last declared it, for a spawn of it.
+    [[nodiscard]] RecordParts RecordOf(uint32_t aId) const noexcept { return m_records.PartsOf(aId); }
     // The host removes a player from the session.
     void Kick(uint32_t aPlayerId) noexcept;
     // The host's game set its difficulty (DifficultyChangeEvent).
@@ -142,8 +163,8 @@ private:
     void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept;
     void OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // Each actor's factions from its owner (one message carries many actors).
-    void OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept;
+    // A guest's player cast a summon on itself: the host's game puts it on that player's copy (the host creates).
+    void OnSummon(const SummonRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // An owner game's graph ops (docs/design/graph-input-stream.md): each actor's run goes to the others if the sender
     // owns that actor.
     void OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept;
@@ -157,7 +178,11 @@ private:
     void OnBugReport(const BugReportRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
     void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
-    void OnPlayerName(const PlayerNameRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // The party's map marker (every game shows the last one set), kept for a joiner.
+    void OnSetWaypoint(const RequestSetWaypoint& acRequest, ConnectionId_t aSender) noexcept;
+    void OnRemoveWaypoint(const RequestRemoveWaypoint& acRequest, ConnectionId_t aSender) noexcept;
+    // A player's character's name part changed: the party's lists take it (printable text only).
+    void NamePlayer(ConnectionId_t aPlayer, const std::string& acName) noexcept;
 
     void Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
 
@@ -176,6 +201,7 @@ private:
     HostPurse m_purse;
     HostPartyItems m_partyItems;
     HostWeather m_weather;
+    HostEye m_eye;
     HostWorldState m_worldState;
     HostItems m_items;
     HostHands m_hands;
@@ -188,6 +214,8 @@ private:
     HostDeath m_death;
     HostFollowers m_followers;
     HostDevTools m_devTools;
+    std::vector<JoinerStore> m_joinerStores;
+    std::optional<NotifySetWaypoint> m_waypoint;
     bool m_reloading{};
 };
 

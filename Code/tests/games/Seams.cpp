@@ -1,5 +1,6 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
+#include <CreatedIds.h>
 #include <Games/Animation/ReplayState.h>
 #include <Games/KnockReplay.h>
 #include <SessionIds.h>
@@ -27,6 +28,12 @@
 #include <Systems/InterpolationSystem.h>
 #include <Services/ActorValueService.h>
 #include <Services/AiStateService.h>
+#include <Services/ActorStateService.h>
+#include <Services/ClaimService.h>
+#include <Services/KillMoveService.h>
+#include <Games/Animation/ActorStateRules.h>
+#include <Services/CopyRecords.h>
+#include <Services/CopyRecordsService.h>
 #include <Services/PerkService.h>
 #include <Services/EffectVisualsService.h>
 #include <Services/CharacterService.h>
@@ -98,6 +105,8 @@ World::World()
     // In the real World's order: TravelService before CharacterService.
     ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                  ctx().at<IPlayerBridge&>());
+    ctx().emplace<CreatedIds>();
+    ctx().emplace<CopyRecords>(); // before CharacterService: its Ride part
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                     ctx().at<IPlayerBridge&>());
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
@@ -109,11 +118,16 @@ World::World()
     ctx().emplace<CrimeService>(*this, m_dispatcher, m_transport, *m_pCrimeBridge);
     ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<PerkService>(m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<CopyRecordsService>(*this, m_dispatcher, m_transport, ctx().at<CopyRecords>());
+    ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
+    ctx().emplace<ActorStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
+    ctx().emplace<ClaimService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<KillMoveService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
+                                   ctx().at<CopyRecords>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
     ctx().emplace<FakeBugReports&>(static_cast<FakeBugReports&>(*m_pBugReportBridge));
@@ -181,10 +195,14 @@ World::~World()
     ctx().erase<SystemQuestService>();
     ctx().erase<CutsceneService>();
     ctx().erase<PerkService>();
+    ctx().erase<InventoryService>();
+    ctx().erase<KillMoveService>();
+    ctx().erase<ClaimService>();
+    ctx().erase<ActorStateService>();
     ctx().erase<AiStateService>();
+    ctx().erase<CopyRecordsService>();
     ctx().erase<EffectVisualsService>();
     ctx().erase<MagicService>();
-    ctx().erase<InventoryService>();
     ctx().erase<ActorValueService>();
     ctx().erase<SessionService>();
     ctx().erase<BodyService>();
@@ -193,6 +211,7 @@ World::~World()
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
     ctx().erase<CharacterService>();
+    ctx().erase<CopyRecords>();
     ctx().erase<TravelService>();
 }
 
@@ -260,34 +279,48 @@ void World::Update() noexcept
             while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             {
                 const ActionEvent cAction = animation.TimePoints.front();
-                if (::ReplayState::SkipsMountEntry(cAction.EventName, engine.SitState(form.Id))) // as AnimationSystem
-                {
-                    animation.TimePoints.pop_front();
-                    animation.LastRanAction = cAction;
-                    engine.SetActorLatestAnimation(form.Id, cAction);
-                    continue;
-                }
                 // Its death on its stream: the kill beside the graph, its death's clip its stream's (AnimationSystem).
                 if (DeathActions::IsDying(cAction.State1) && !actor.Dead)
                     engine.KillBesideGraph(form.Id, cAction);
                 // Its owner's pair: its half by this action, unless its partner here is a copy too (AnimationSystem).
                 const uint32_t cPartnerId = cAction.TargetActor ? Utils::GetFormIdBySessionId(cAction.TargetActor - 1) : cAction.TargetId;
                 const auto cPartner = engine.Actors.find(cPartnerId);
-                if (!cAction.TargetEventName.empty() && !::ReplayState::PairOnStream(cPartner != engine.Actors.end() && cPartner->second.Copy))
+                const bool cKillMove = !cAction.TargetEventName.empty() && ::ReplayState::EntersKillMove(cAction.EventName);
+                const bool cHasPartner = cPartner != engine.Actors.end();
+                const auto cClaim = cKillMove ? GetActionClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), cAction.Tick)
+                                              : ::ReplayState::ClaimAnswer::kNotNeeded;
+                // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
+                const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
+                    cClaim, cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player));
+                if (cClaimOutcome == ::ReplayState::PairOutcome::kWait)
+                    break;
+                if (cClaimOutcome == ::ReplayState::PairOutcome::kSkip)
+                {
+                    animation.TimePoints.pop_front();
+                    animation.LastRanAction = cAction;
+                    engine.SetActorLatestAnimation(form.Id, cAction);
+                    continue;
+                }
+                const bool cPartnerCopy = cHasPartner && cPartner->second.Copy;
+                const bool cTaken = cHasPartner && ::ReplayState::TakenVictim(cKillMove, cClaim, cPartnerCopy, cPartner->second.Player);
+                if (!cAction.TargetEventName.empty() && !::ReplayState::PairOnStream(cPartnerCopy, cTaken))
                 {
                     streams.HoldUntilPoint(form.Id, cAction.Tick);
                     break;
                 }
                 // What playing the action does beside the graph (39004), as AnimationSystem.
-                if (!cAction.TargetEventName.empty() && ::ReplayState::EntersKillMove(cAction.EventName))
+                if (cKillMove)
+                {
                     actor.InKillMove = cPartner->second.InKillMove = true;
+                    cPartner->second.Killer = form.Id;
+                }
                 animation.TimePoints.pop_front();
                 // Its owner's get-up stands its own body up; its graph's get-up is the stream's (AnimationSystem).
                 if (KnockReplay::StandsUp(actor.KnockedDown ? 1 : 0, cAction.ActionId == FakeEngine::kActionGetUp))
                     engine.StandUp(form.Id);
                 if (!actor.Dead && KnockReplay::GoesDown(engine.KnockStateOf(form.Id), cAction.ActionId == FakeEngine::kActionRagdoll))
                     ctx().at<BodyService>().KnockDown(form.Id);
-                actor.State1 = ::ReplayState::Flags1(cAction.StateAfter1, actor.State1); // as AnimationSystem
+                actor.State1 = ActorStateRules::FromSnapshot1(cAction.StateAfter1, actor.State1); // as AnimationSystem
                 animation.LastRanAction = cAction;
                 engine.SetActorLatestAnimation(form.Id, cAction);
             }
@@ -311,7 +344,7 @@ void World::Update() noexcept
         const uint8_t cPhase = step.Phase.load();
         if (cPhase == Step::kTaken || cPhase == Step::kRefused)
         {
-            if (cPhase == Step::kTaken)
+                if (cPhase == Step::kTaken)
             {
                 animation.LastRanAction = step.Action;
                 engine.SetActorLatestAnimation(form.Id, step.Action);
@@ -363,34 +396,38 @@ void World::Update() noexcept
             animation.TimePoints.pop_front();
             continue;
         }
-        if (::ReplayState::SkipsMountEntry(action.EventName, engine.SitState(form.Id))) // as AnimationSystem
-        {
-            animation.LastRanAction = action;
-            engine.SetActorLatestAnimation(form.Id, action);
-            animation.TimePoints.pop_front();
-            continue;
-        }
         ActionEvent replayed = action;
         if (replayed.TargetActor)
             replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
         const auto cPartner = engine.Actors.find(replayed.TargetId);
-        const bool cLocalPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end() && !cPartner->second.Copy;
-        if (cLocalPartner)
+        const bool cKillMove = ::ReplayState::EntersKillMove(replayed.EventName);
+        // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
+        const bool cHasPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end();
+        const auto cClaim = cKillMove ? GetActionClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), replayed.Tick)
+                                      : ::ReplayState::ClaimAnswer::kNotNeeded;
+        const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
+            cClaim, cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player));
+        if (cClaimOutcome == ::ReplayState::PairOutcome::kWait)
+            continue;
+        if (cClaimOutcome == ::ReplayState::PairOutcome::kSkip)
         {
-            const auto& cPair = cPartner->second.LatestPairAction;
-            const auto cOutcome = ::ReplayState::SettlePairedReplay(
-                {replayed.EventName.c_str(), form.Id, cPartner->second.InKillMove, cPair.TargetEventName.c_str(), cPair.TargetId,
-                 replayed.Tick, cPair.Tick, Utils::GetSessionIdByFormId(form.Id).value_or(0), Utils::GetSessionIdByFormId(replayed.TargetId).value_or(0)});
+            animation.LastRanAction = replayed;
+            engine.SetActorLatestAnimation(form.Id, replayed);
+            animation.TimePoints.pop_front();
+            continue;
+        }
+        const bool cTaken = cPartner != engine.Actors.end() && ::ReplayState::TakenVictim(cKillMove, cClaim, cPartner->second.Copy, cPartner->second.Player);
+        const bool cLocalPartner = cHasPartner &&
+                                   ::ReplayState::PairsHere(cPartner->second.Copy, engine.IsActorMount(replayed.TargetId), cPartner->second.Player, cKillMove, cTaken);
+        step.PairHere = cLocalPartner;
+        if (cLocalPartner && !cTaken)
+        {
+            const auto cOutcome = ::ReplayState::SettlePairedReplay(cPartner->second.InKillMove, cClaim);
+            if (cOutcome == ::ReplayState::PairOutcome::kWait)
+                continue;
             if (cOutcome == ::ReplayState::PairOutcome::kYield)
             {
-                for (const uint32_t cHalf : {form.Id, replayed.TargetId})
-                {
-                    engine.StopPairClip(cHalf);
-                    engine.EndKillMove(cHalf);
-                }
-                actor.ClashPartner = replayed.TargetId;
-                actor.PairStops = ::ReplayState::cClashStopUpdates;
-                cPartner->second.ClashUntil = GetTick() + ::ReplayState::cClashGuardMs;
+                engine.ActorYieldPair(replayed.TargetId, form.Id);
                 continue;
             }
             if (cOutcome == ::ReplayState::PairOutcome::kSkip)

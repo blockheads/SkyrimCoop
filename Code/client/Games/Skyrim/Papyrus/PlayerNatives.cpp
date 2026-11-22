@@ -25,7 +25,7 @@ namespace PlayerNatives
 {
 namespace
 {
-// The stacks waiting on a guest's game (stack id -> what the native returns). Its lock is a leaf.
+// The stacks waiting on another game (stack id -> what the native returns). Its lock is a leaf.
 std::mutex s_waitingLock;
 std::map<uint32_t, BSScript::Variable::Type> s_waiting;
 std::atomic<bool> s_anyWaited{false}; // until then a stack ending skips the lock
@@ -55,6 +55,21 @@ Hooks::Initializer s_hooks([]() {
     HOOK_ID(25003, &RealQuestStarted, HookQuestStarted);
 });
 
+// The call goes out with the stack waiting, as on a latent native (NativeFunctionBase::Call 104651: 104851, then
+// kInProgress), until Answer.
+BSScript::CallResult Wait(BSScript::IFunction* apFunction, BSScript::Stack& aStack, BSScript::IVirtualMachine* apVm, RoutedCallEvent aEvent) noexcept
+{
+    {
+        std::scoped_lock _{s_waitingLock};
+        s_waiting[aStack.stackId] = apFunction->GetReturnType().type;
+        s_anyWaited = true;
+    }
+    reinterpret_cast<BSScript::VirtualMachine*>(apVm)->WaitOnLatent(aStack.stackId);
+    aEvent.ReplyId = aStack.stackId;
+    World::Get().GetRunner().Trigger(std::move(aEvent));
+    return BSScript::CallResult::kInProgress;
+}
+
 
 } // namespace
 
@@ -74,8 +89,14 @@ bool IsOwnQuest(uint32_t aFormId) noexcept
     return s_ownQuests.Contains(aFormId);
 }
 
-BSScript::CallResult SendToHost(BSScript::IFunction* apFunction, BSScript::Stack& aStack, LocalCall aCall) noexcept
+BSScript::CallResult SendToHost(BSScript::IFunction* apFunction, BSScript::Stack& aStack, BSScript::IVirtualMachine* apVm,
+                                LocalCall aCall, bool aReply) noexcept
 {
+    if (aReply)
+    {
+        spdlog::info("PlayerNatives: {}.{} from this guest's script goes to the host, the script waits for its answer", aCall.Class, aCall.Function);
+        return Wait(apFunction, aStack, apVm, RoutedCallEvent{.To = CallTo::kHost, .Call = std::move(aCall)});
+    }
     aStack.returnValue.Clear();
     if (apFunction->GetReturnType().type == BSScript::Variable::kBoolean)
         aStack.returnValue.Set(true);
@@ -94,16 +115,7 @@ BSScript::CallResult SendToGuest(BSScript::IFunction* apFunction, BSScript::Stac
         World::Get().GetRunner().Trigger(std::move(event));
         return BSScript::CallResult::kCompleted;
     }
-    // It waits as on a latent native (NativeFunctionBase::Call 104651: 104851, then kInProgress) until Answer.
-    {
-        std::scoped_lock _{s_waitingLock};
-        s_waiting[aStack.stackId] = apFunction->GetReturnType().type;
-        s_anyWaited = true;
-    }
-    reinterpret_cast<BSScript::VirtualMachine*>(apVm)->WaitOnLatent(aStack.stackId);
-    event.ReplyId = aStack.stackId;
-    World::Get().GetRunner().Trigger(std::move(event));
-    return BSScript::CallResult::kInProgress;
+    return Wait(apFunction, aStack, apVm, std::move(event));
 }
 
 void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept
@@ -131,6 +143,18 @@ void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept
     default: break;
     }
     pVm->ReturnFromLatent(aReplyId, result);
+}
+
+void AnswerAll() noexcept
+{
+    std::vector<uint32_t> waiting;
+    {
+        std::scoped_lock _{s_waitingLock};
+        for (const auto& [cStack, cType] : s_waiting)
+            waiting.push_back(cStack);
+    }
+    for (const uint32_t cStack : waiting)
+        Answer(cStack, std::monostate{});
 }
 
 void StackEnded(uint32_t aStackId) noexcept

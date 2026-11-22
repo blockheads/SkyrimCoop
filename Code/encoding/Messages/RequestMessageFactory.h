@@ -11,14 +11,12 @@
 #include <Messages/Relayed.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/RequestInventoryChanges.h>
-#include <Messages/RequestFactionsChanges.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/LockChangeRequest.h>
 #include <Messages/StoryEventRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/RequestRespawn.h>
-#include <Messages/RequestEquipmentChanges.h>
 #include <Messages/SendChatMessageRequest.h>
 #include <Messages/SetTimeCommandRequest.h>
 #include <Messages/PlayerLevelRequest.h>
@@ -33,6 +31,7 @@
 #include <Messages/DroppedItems.h>
 #include <Messages/DeathMessages.h>
 #include <Messages/TravelMessages.h>
+#include <Messages/SummonRequest.h>
 
 struct RequestMessageFactory
 {

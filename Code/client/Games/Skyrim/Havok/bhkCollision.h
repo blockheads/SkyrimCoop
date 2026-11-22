@@ -160,8 +160,10 @@ bool PlaceBody(bhkWorldObject& aBody, const glm::vec3& acPosition, const glm::qu
 // body is steered so each update, which its ragdoll driver keeps (Find in BodyBridge).
 bool SteerBody(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept;
 // Puts a dynamic body to sleep with its whole island (60850, 61523) when the rest of it is still and none is one
-// acKeepsAwake names; whether it sleeps now (docs/re/systems/physics.md, "A pile sleeps together").
-bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake) noexcept;
+// acKeepsAwake names; whether it sleeps now (docs/re/systems/physics.md, "A pile sleeps together"). acOwnMotion: bodies
+// whose motion does not count (a copy's ragdoll's own, pushed by their joints as they settle).
+bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake,
+               const std::function<bool(const bhkWorldObject*)>& acOwnMotion = {}) noexcept;
 // Keyframed and moving so: Havok carries it over the next step (swept, pushing what it meets at that speed), where
 // placing it each frame (60898) starts its contacts over every frame.
 bool SteerKeyframed(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept;

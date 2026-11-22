@@ -25,9 +25,14 @@
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/WorldState.h>
 #include <Messages/DroppedItems.h>
+#include <Structs/ActorAiState.h>
+#include <Structs/ActorStatePart.h>
+#include <Structs/RecordPart.h>
+#include <Structs/RidePart.h>
+#include <Structs/CastPart.h>
+#include <Structs/RagdollPart.h>
 #include <Structs/Vector2_NetQuantize.h>
 #include <Messages/ActivateRequest.h>
-#include <Messages/NotifyActivate.h>
 #include <Structs/SystemQuestState.h>
 #include <Structs/GraphOps.h>
 
@@ -71,7 +76,6 @@ TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]
     request.CellId = GameId(0, 0x32AE7);
     request.NpcId = 1234;
     request.ActivatorId = 42;
-    request.PreActivationOpenState = 0;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     request.Serialize(writer);
@@ -79,17 +83,6 @@ TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]
     auto decoded = RequestMessageFactory{}.Extract(reader);
     REQUIRE(decoded);
     CHECK(static_cast<const ActivateRequest&>(*decoded) == request);
-    NotifyActivate notice;
-    notice.NpcId = request.NpcId;
-    notice.ActivatorId = request.ActivatorId;
-    notice.PreActivationOpenState = 0;
-    Buffer result;
-    Buffer::Writer resultWriter(&result);
-    notice.Serialize(resultWriter);
-    Buffer::Reader resultReader(&result);
-    auto received = NotifyMessageFactory{}.Extract(resultReader);
-    REQUIRE(received);
-    CHECK(static_cast<const NotifyActivate&>(*received) == notice);
 }
 
 TEST_CASE("A caught pickpocket names only its victim", "[encoding.crime]")
@@ -824,6 +817,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendOpen.NpcId = 0x21;
         sendOpen.Everyone = true;
         sendOpen.Greeting = GameId(2, 0x803);
+        sendOpen.Step = 3; // a joiner's open, mid-conversation
 
         Buffer::Writer writer(&buff);
         sendRequest.Serialize(writer);
@@ -844,6 +838,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK((recvList.Step == 8 && !recvList.Choices && recvList.Options == sendList.Options));
         CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone));
         CHECK(recvOpen.Greeting == sendOpen.Greeting);
+        CHECK(recvOpen.Step == 3);
         DialogueOpenedRequest sendOpened, recvOpened;
         sendOpened.NpcId = 0x21;
         sendOpened.Everyone = true;
@@ -915,6 +910,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         NotifyRoutedCall sendNotify, recvNotify;
         static_cast<Payloads::RoutedCall&>(sendNotify) = toOthers;
         sendNotify.Source = 3;
+        sendNotify.Call.Class = "Game";
+        sendNotify.Call.Function = "DisablePlayerControls";
+        sendNotify.Controls = CallControls::kTakes; // a cutscene's, kept for a joiner
 
         Buffer::Writer writer(&buff);
         for (const RoutedCallRequest* cpRequest : {&toOwner, &toHost, &toOthers})
@@ -970,7 +968,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendRequest.Result = int32_t(7);
         NotifyPlayerNativeResult sendNotify, recvNotify;
         sendNotify.ReplyId = 0x4D3;
-        sendNotify.Result = ScriptForm{.SessionId = 0x22};
+        // The host's game's answer to a guest's PlaceAtMe: a created reference, for that guest's character.
+        sendNotify.Result = ScriptForm{.Form = GameId(0xFFFFFFFF, 0x812)};
+        sendNotify.SessionId = 0x22;
 
         Buffer::Writer writer(&buff);
         sendRequest.Serialize(writer);
@@ -1037,7 +1037,6 @@ TEST_CASE("Packets", "[encoding.packets]")
                 sendMessage.GraphState = "graph";
                 sendMessage.Data.InitialActorValues.ActorMaxValuesList[24] = 5000.f;
                 sendMessage.Data.InitialActorValues.ActorTemporaryValuesList[24] = 30.f;
-                sendMessage.Data.IsWeaponDrawn = true;
             }
             Buffer::Writer writer(&buff);
             sendMessage.Serialize(writer);
@@ -1224,6 +1223,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         ObjectChange lock{ObjectChange::Kind::kLock, GameId(0, 0x1A2B)};
         lock.Value = 0x132; // locked, level 50
         sendMessage.Changes.push_back(lock);
+        ObjectChange harvested{ObjectChange::Kind::kHarvested, GameId(0, 0x10B14E)};
+        harvested.Value = 1;
+        sendMessage.Changes.push_back(harvested);
         ObjectChange items{ObjectChange::Kind::kItems, GameId(0, 0xA05B5)};
         items.Item = GameId(0, 0x64B3D);
         items.Value = 300;
@@ -1726,6 +1728,7 @@ TEST_CASE("Dropped items keep their extra data on the wire", "[encoding.items]")
     item.ExtraEnchantId = GameId(0, 0x4605A);
     item.ExtraEnchantCharge = 500;
     item.ExtraName = "Old Friend";
+    item.ExtraOwner = GameId(0, 0x1347B); // stolen from its owner
 
     DropItemRequest drop;
     drop.Tag = 0xFF000A31;
@@ -1979,23 +1982,39 @@ TEST_CASE("Party travel preserves queued destinations and native travel hours", 
     CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
 }
 
-TEST_CASE("Dismount carries the horse's placement to its next owner", "[encoding.travel]")
+TEST_CASE("A give-back carries the actor's placement, its holder's last tick, its kill and its claim's end", "[encoding.travel]")
 {
-    DismountRequest dismount;
-    dismount.RiderId = 8;
-    dismount.MountId = 9;
-    dismount.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
-    dismount.Whereabouts.CellId = GameId(0, 0x9C5E1);
-    dismount.Whereabouts.WorldSpaceId = GameId(0, 0x3C);
-    dismount.Whereabouts.Position = {100.f, 200.f, -30.f};
-    dismount.Whereabouts.Heading = 0.5f;
+    ActorGiveBackRequest giveBack;
+    giveBack.ActorId = 9;
+    giveBack.ClaimId = 3;
+    giveBack.ForId = 8;
+    giveBack.Tick = 123456789;
+    giveBack.Killed = true;
+    giveBack.Taken = true;
+    giveBack.Ended = true;
+    giveBack.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
+    giveBack.Whereabouts.CellId = GameId(0, 0x9C5E1);
+    giveBack.Whereabouts.WorldSpaceId = GameId(0, 0x3C);
+    giveBack.Whereabouts.Position = {100.f, 200.f, -30.f};
+    giveBack.Whereabouts.Heading = 0.5f;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
-    dismount.Serialize(writer);
+    giveBack.Serialize(writer);
     Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
     auto message = RequestMessageFactory{}.Extract(reader);
     REQUIRE(message);
-    CHECK(*CastUnique<DismountRequest>(std::move(message)) == dismount);
+    CHECK(*CastUnique<ActorGiveBackRequest>(std::move(message)) == giveBack);
+
+    NotifyActorGiveBack notify;
+    static_cast<Payloads::ActorGiveBack&>(notify) = giveBack;
+    Buffer notifyBuffer;
+    Buffer::Writer notifyWriter(&notifyBuffer);
+    notify.Serialize(notifyWriter);
+    Buffer::Reader notifyReader(std::span(notifyBuffer.GetData(), notifyWriter.Size()));
+    auto notified = NotifyMessageFactory{}.Extract(notifyReader);
+    REQUIRE(notified);
+    CHECK(*CastUnique<NotifyActorGiveBack>(std::move(notified)) == notify);
+
 }
 
 TEST_CASE("Follower trade grants and releases retain the NPC session id", "[encoding.followers]")
@@ -2063,6 +2082,23 @@ TEST_CASE("Melee stagger messages retain the hitter, victim and native magnitude
     const auto decoded = RequestMessageFactory{}.Extract(reader);
     REQUIRE(decoded);
     CHECK(static_cast<const MeleeStaggerRequest&>(*decoded) == request);
+}
+
+TEST_CASE("A guest's summon reaches the host with its spell, effect and magnitude", "[encoding.summon]")
+{
+    SummonRequest request;
+    request.SpellId = GameId(0, 0x640B6);
+    request.EffectId = GameId(0, 0x640B4);
+    request.Magnitude = 60.f;
+    request.Location = {-165.f, 2034.f, 6976.f};
+    request.DualCast = true;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    const auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    CHECK(static_cast<const SummonRequest&>(*decoded) == request);
 }
 
 TEST_CASE("A guest's story event reaches the host with its members", "[encoding.story]")
@@ -2221,26 +2257,55 @@ TEST_CASE("A press through a line names its conversation and step", "[encoding.d
     CHECK(static_cast<const NotifyDialogueSkip&>(*decodedTold) == told);
 }
 
-TEST_CASE("An actor's AI state carries what it looks at for each reason", "[encoding.ai_state]")
+TEST_CASE("An actor's AI state carries what it looks at for each reason, as a part of its record", "[encoding.ai_state][encoding.record]")
 {
-    AiStateRequest sent;
-    sent.SessionId = 7;
-    sent.State.Combat = 1;
-    sent.State.CombatTarget.SessionId = 2;
-    sent.State.HeadTrack[4].SessionId = 1;                  // dialogue: a player's character
-    sent.State.HeadTrack[5].RefId = GameId(0, 0x31D2E);     // procedure: a marker from the game's data
+    ActorAiState state;
+    state.Combat = 1;
+    state.CombatTarget.SessionId = 2;
+    state.HeadTrack[4].SessionId = 1;                  // dialogue: a player's character
+    state.HeadTrack[5].RefId = GameId(0, 0x31D2E);     // procedure: a marker from the game's data
+    RecordRequest sent;
+    sent.Id = 7;
+    sent.Part = {RecordKind::kAiState, 3, ToPartBytes(state)};
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     sent.Serialize(writer);
     Buffer::Reader reader(&buffer);
     auto decoded = RequestMessageFactory{}.Extract(reader);
     REQUIRE(decoded);
-    REQUIRE(decoded->GetOpcode() == kAiStateRequest);
-    const auto& cState = static_cast<const AiStateRequest&>(*decoded).State;
-    CHECK(cState == sent.State);
-    CHECK(cState.HeadTrack[4].SessionId == 1);
-    CHECK(cState.HeadTrack[5].RefId == GameId(0, 0x31D2E));
-    CHECK(cState.HeadTrack[0] == AiTarget{});
+    REQUIRE(decoded->GetOpcode() == kRecordRequest);
+    const auto& cRecord = static_cast<const RecordRequest&>(*decoded);
+    CHECK(cRecord == sent);
+    ActorAiState read;
+    REQUIRE(FromPartBytes(cRecord.Part.Bytes, read));
+    CHECK(read == state);
+    CHECK(read.HeadTrack[4].SessionId == 1);
+    CHECK(read.HeadTrack[5].RefId == GameId(0, 0x31D2E));
+    CHECK(read.HeadTrack[0] == AiTarget{});
+    CHECK_FALSE(FromPartBytes(std::string{}, read));
+}
+
+TEST_CASE("A spawn carries its actor's record and an ask names one part", "[encoding.record]")
+{
+    NotifyCharacterSpawn spawn;
+    spawn.SessionId = 9;
+    spawn.Record.Parts.push_back({RecordKind::kAiState, 4, std::string("\x01\x00\x02", 3)});
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    spawn.Serialize(writer);
+    RecordAskRequest ask;
+    ask.Id = 9;
+    ask.Kind = RecordKind::kAiState;
+    ask.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decodedSpawn = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decodedSpawn);
+    REQUIRE(decodedSpawn->GetOpcode() == kNotifyCharacterSpawn);
+    CHECK(static_cast<const NotifyCharacterSpawn&>(*decodedSpawn).Record == spawn.Record);
+    auto decodedAsk = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decodedAsk);
+    REQUIRE(decodedAsk->GetOpcode() == kRecordAskRequest);
+    CHECK(static_cast<const RecordAskRequest&>(*decodedAsk) == ask);
 }
 
 TEST_CASE("A guest sends movement unreliably and movement with actions or a teleport reliably", "[encoding.delivery]")
@@ -2391,6 +2456,44 @@ TEST_CASE("A refused ride names the horse and the rider", "[encoding.travel]")
     CHECK(*CastUnique<NotifyMountRefused>(std::move(message)) == refused);
 }
 
+TEST_CASE("An action claim names its kind, actor, tick and members; its grant its id, its refusal the reason", "[encoding.claim]")
+{
+    ClaimRequest request;
+    request.Kind = Payloads::Claim::kKillMove;
+    request.ForId = 8;
+    request.Tick = 123456789;
+    request.Members = {{8, false, false}, {9, true, true}};
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto message = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(message);
+    CHECK(*CastUnique<ClaimRequest>(std::move(message)) == request);
+
+    NotifyClaim claim;
+    static_cast<Payloads::Claim&>(claim) = request;
+    claim.ClaimId = 3;
+    Buffer buffer2;
+    Buffer::Writer writer2(&buffer2);
+    claim.Serialize(writer2);
+    Buffer::Reader reader2(std::span(buffer2.GetData(), writer2.Size()));
+    auto notify = NotifyMessageFactory{}.Extract(reader2);
+    REQUIRE(notify);
+    CHECK(*CastUnique<NotifyClaim>(std::move(notify)) == claim);
+
+    NotifyClaimRefused refused;
+    static_cast<Payloads::Claim&>(refused) = request;
+    refused.Reason = Payloads::Claim::kCannotTake;
+    Buffer buffer3;
+    Buffer::Writer writer3(&buffer3);
+    refused.Serialize(writer3);
+    Buffer::Reader reader3(std::span(buffer3.GetData(), writer3.Size()));
+    auto refusal = NotifyMessageFactory{}.Extract(reader3);
+    REQUIRE(refusal);
+    CHECK(*CastUnique<NotifyClaimRefused>(std::move(refusal)) == refused);
+}
+
 TEST_CASE("A passenger's boarding and getting off name the horse and the rider", "[encoding.travel]")
 {
     const auto cRoundTrip = [](auto aMessage, auto aFactory) {
@@ -2409,4 +2512,91 @@ TEST_CASE("A passenger's boarding and getting off name the horse and the rider",
     cRoundTrip(UnboardRequest{}, RequestMessageFactory{});
     cRoundTrip(NotifyBoard{}, NotifyMessageFactory{});
     cRoundTrip(NotifyUnboard{}, NotifyMessageFactory{});
+}
+
+TEST_CASE("The host's eye of a guest round-trips, unseen and seen", "[encoding][stealth]")
+{
+    for (const auto& [cLevel, cSeeing, cStealth] : {std::tuple{NotifyStealthEye::kUnseen, 0u, 100.f}, std::tuple{146, 2u, 0.f}, std::tuple{-7, 1u, 79.5f}})
+    {
+        NotifyStealthEye eye;
+        eye.Level = cLevel;
+        eye.Seeing = cSeeing;
+        eye.Stealth = cStealth;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        eye.Serialize(writer);
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto message = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(message);
+        CHECK(*CastUnique<NotifyStealthEye>(std::move(message)) == eye);
+    }
+}
+
+TEST_CASE("A passenger's ride part names its horse", "[encoding][record-parts]")
+{
+    RidePart read{7, 7};
+    REQUIRE(FromPartBytes(ToPartBytes(RidePart{900000000123, 0x1234}), read));
+    CHECK(read == RidePart{900000000123, 0x1234});
+    REQUIRE(FromPartBytes(ToPartBytes(RidePart{}), read));
+    CHECK(read == RidePart{});
+}
+
+TEST_CASE("A cast part carries each source's held cast, and a cleared one", "[encoding][record-parts]")
+{
+    CastPart sent;
+    sent.Sources[1] = HeldCast{GameId(0, 0x12FCD), true, 0x2A}; // Flames in the right hand, dual, at an actor
+    sent.Sources[2] = HeldCast{GameId(1, 0x803)};
+    CastPart read;
+    read.Sources[0] = HeldCast{GameId(0, 1)}; // a slot not held any more reads cleared
+    REQUIRE(FromPartBytes(ToPartBytes(sent), read));
+    CHECK(read == sent);
+    REQUIRE(FromPartBytes(ToPartBytes(CastPart{}), read));
+    CHECK(read == CastPart{});
+}
+
+TEST_CASE("A ragdoll part carries every body's rest and its time", "[encoding][record-parts]")
+{
+    RagdollPart sent;
+    sent.Tick = 900000000456;
+    sent.Rests = {{.Key = {.Actor = 0x2A, .Index = 0}, .Position = {1.5f, -2.f, 300.f}, .Rotation = {0.f, 0.f, 0.f, 1.f}},
+                  {.Key = {.Actor = 0x2A, .Index = 17}, .Position = {4.f, 5.f, 6.f}, .Knocked = true}};
+    RagdollPart read;
+    REQUIRE(FromPartBytes(ToPartBytes(sent), read));
+    CHECK(read.Tick == sent.Tick);
+    REQUIRE(read.Rests.size() == 2);
+    CHECK(read.Rests[1].Key.Index == 17);
+    CHECK(read.Rests[1].Knocked);
+    CHECK(glm::distance(read.Rests[0].Position, sent.Rests[0].Position) < 0.1f);
+}
+
+TEST_CASE("An actor state part round-trips with its noise", "[encoding][record-parts]")
+{
+    ActorStatePart part;
+    part.Tick = 900000000123;
+    part.Flags1 = 1u << 9;
+    part.Flags2 = 0x100;
+    part.InKillMove = true;
+    part.Killer = 3;
+    part.HandsUp = true;
+    part.Noise = 100;
+    ActorStatePart read;
+    REQUIRE(FromPartBytes(ToPartBytes(part), read));
+    CHECK(read == part);
+    CHECK_FALSE(read.SameState(ActorStatePart{part.Tick, part.Flags1, part.Flags2, true, 3, true, 0})); // noise alone is news
+}
+
+TEST_CASE("A record part longer than 64 KB round-trips whole", "[encoding][record-parts]")
+{
+    // A full items part of a large inventory (review of PR #83): WriteString's 16-bit length would cut it.
+    RecordPart part{RecordKind::kItems, 7, std::string(70000, '\x5A')};
+    part.Bytes[69999] = '\x01';
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    part.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    RecordPart read;
+    read.Deserialize(reader);
+    CHECK(read.Kind == RecordKind::kItems);
+    CHECK(read.Version == 7);
+    CHECK(read.Bytes == part.Bytes);
 }

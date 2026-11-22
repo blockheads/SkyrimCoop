@@ -3,6 +3,10 @@
 #include <Events/Listen.h>
 #include <NoCopyMove.h>
 #include <MainLoopTasks.h>
+#include <Messages/RelayedMessages.h>
+#include <Structs/ScriptValue.h>
+
+#include <chrono>
 
 struct NotifyGlobals;
 struct NotifyQuests;
@@ -11,6 +15,8 @@ struct LockChangeEvent;
 struct ContainerChangeEvent;
 struct ItemDroppedEvent;
 struct ItemPickUpEvent;
+struct SummonEvent;
+
 struct OwnStoryEvent;
 struct NotifyItemDropped;
 struct NotifyPickUp;
@@ -55,11 +61,25 @@ private:
     // This game's player reached for the party's loose item: the host's game grants it to the first to ask.
     void OnItemPickUp(const ItemPickUpEvent& acEvent) noexcept;
     void OnPickUpNotify(const NotifyPickUp& acMessage) noexcept;
+    // This game's player cast a summon: the host's game makes it on this player's copy (summons.md).
+    void OnSummon(const SummonEvent& acEvent) noexcept;
+    // The host's game answered this game's script waiting on it (a created reference): it goes on with the host's
+    // reference here once that is here (R5), or None after kCreatedWait.
+    void OnCallResult(const NotifyPlayerNativeResult& acMessage) noexcept;
+    // Each waiting answer whose reference is here now; true: answered.
+    bool AnswerCall(uint32_t aReplyId, const ScriptValue& acResult) noexcept;
 
     World& m_world;
     GuestEngine& m_engine;
     // The attached cells already asked for.
     std::vector<uint32_t> m_cells;
+    struct WaitingAnswer
+    {
+        uint32_t ReplyId;
+        ScriptValue Result;
+        std::chrono::steady_clock::time_point Since;
+    };
+    std::vector<WaitingAnswer> m_answers; // the host's answers naming a reference not here yet
 
     MainLoopTasks::Scope m_mainTasks;
     std::vector<entt::scoped_connection> m_connections;

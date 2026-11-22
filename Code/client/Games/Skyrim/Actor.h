@@ -56,7 +56,7 @@ struct Actor : TESObjectREFR
     virtual void SetPosition(const NiPoint3& acPoint, bool aSyncHavok = true);
     virtual void sub_AA();
     virtual void Resurrect(bool aResetInventory);
-    virtual void sub_AC();
+    virtual bool PutActorOnMountQuick(); // AC (CommonLibSSE-NG; 38699): a linked rider seated at once (38704 resume)
     virtual void sub_AD();
     virtual void sub_AE();
     virtual void sub_AF();
@@ -296,9 +296,11 @@ struct Actor : TESObjectREFR
     void EndRideNow() noexcept;
     // Off its mount as a get-off clip ends (Actor::FinishDismount 38696: beside the mount, Detach), its sit state left.
     void FinishDismount() noexcept;
-    // Onto a mount another rider holds: linked, then seated as a get-on's clip ends (sit state 3, then
+    // Onto a mount another rider holds: linked (unless already), then seated as a get-on's clip ends (sit state 3, then
     // Actor::OnInteractionSeated 41533, as PairedStopHandler 42868).
     void SeatOnMount(Actor* apMount) noexcept;
+    // Linked and seated at once by the engine's quick get-on (HorseEnterInstant, no paired clip), a ridden mount too.
+    bool SitOnMountQuick(Actor* apMount) noexcept;
     // Its own ExtraInteraction's link (a rider's to its mount), else null.
     [[nodiscard]] RefrInteraction* GetOwnInteraction() const noexcept;
     // On a mount: its one slot (ExtraDataList::SetInteractionData 12074, which adds only to an empty one) set to
@@ -316,6 +318,16 @@ struct Actor : TESObjectREFR
     // The engine keeps the actor alive whatever its health until EndDeferredKill (papyrus StartDeferredKill).
     void StartDeferredKill() noexcept;
     void EndDeferredKill() noexcept;
+    // Taken by this game for a claimed kill move: the copy's scripted deferred kill kept (its clip's KillActor only counts,
+    // 37896), its pose held from there; or released: the hold ended, its counted kills dropped (40036 would queue one).
+    void HoldKill(bool aHold) noexcept;
+    // A kill counted under the deferred kill (DeferKill 38617: KillActor 42838 or KillMoveEnd 38614's QueueKill).
+    [[nodiscard]] bool KillCounted() const noexcept;
+    // Dies now, credited to apKiller: the hold ended, then KillImpl.
+    void KillBy(Actor* apKiller) noexcept;
+    // The action again with no target and no events, as PlayerControls' second try (42350) after a refused pair:
+    // the idle tree picks a plain swing.
+    bool PerformPlainly(BGSAction* apAction) noexcept;
     // A kill move's victim: the kill move kills it (KillActorHandler 42838, crediting its partner).
     [[nodiscard]] bool IsHeldByKillMove() const noexcept;
     [[nodiscard]] bool IsInKillMove() const noexcept;
@@ -414,6 +426,8 @@ public:
     uint32_t flags1; // CommonLib boolBits
     // flags1: the engine updates the actor this frame (CommonLib BOOL_BITS::kProcessMe).
     static constexpr uint32_t kProcessMe = 1u << 1;
+    // flags1: a follower of the player (CommonLib BOOL_BITS::kPlayerTeammate): off its eye (41408).
+    static constexpr uint32_t kPlayerTeammate = 1u << 26;
     float headTrackingUpdateDelay;
     uint32_t unk84;
     AIProcess* currentProcess;
@@ -423,10 +437,10 @@ public:
     uint32_t unk98;
     float fVoiceTimer; // seconds left of the voice line (CommonLib voiceTimer)
     float fUnderWaterTimer; // seconds the head has been under water (CommonLib underWaterTimer)
-    uint32_t unkA4;
     int32_t iThiefCrimeStamp;
-    int32_t iActionValue;
-    float fTimerOnAction;
+    int32_t iActionValue;  // the noise its actions make, a detection's sound term (SetActionValue 37711, read by 37774)
+    float fTimerOnAction;  // seconds the noise lasts (fActorAlertSoundTimer); 0 clears it (0x14075FA50)
+    uint32_t unk124;
     uint32_t unkB4[5];
     void* pad138[2];
     struct IMovementDrivenControl* movementDrivenControl; // MovementControllerNPC
@@ -489,6 +503,7 @@ public:
 static_assert(offsetof(Actor, currentProcess) == 0xF8);
 static_assert(offsetof(Actor, tdEvent) == 0xD0); // BSTEventSink<BSTransformDeltaEvent> (CommonLib-NG)
 static_assert(offsetof(Actor, combatHandle) == 0x104); // currentCombatTarget, what GetCombatTarget reads (54680, 22318)
+static_assert(offsetof(Actor, killerHandle) == 0x108); // a kill move's killer, written by EnterKillMove (38613)
 static_assert(offsetof(Actor, flags1) == 0xE8);
 static_assert(offsetof(Actor, actorValueOwner) == 0xB8);
 static_assert(offsetof(Actor, actorState) == 0xC0);
@@ -499,6 +514,8 @@ static_assert(offsetof(Actor, cullingState) == 0x27C);
 static_assert(offsetof(Actor, iLastSeenTime) == 0x264);
 static_assert(offsetof(Actor, fVoiceTimer) == 0x110);
 static_assert(offsetof(Actor, fUnderWaterTimer) == 0x114);
+static_assert(offsetof(Actor, iActionValue) == 0x11C); // CommonLib actionValue
+static_assert(offsetof(Actor, fTimerOnAction) == 0x120);
 static_assert(offsetof(Actor, unk84) == 0xF0);
 static_assert(offsetof(Actor, unk17C) == 0x184);
 static_assert(offsetof(Actor, movementDrivenControl) == 0x150); // MovementControllerNPC (CommonLib movementController)

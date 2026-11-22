@@ -1,6 +1,7 @@
 #include <Papyrus/GuestScripts.h>
 #include <Papyrus/StoryGifts.h>
 #include <Games/Overrides.h>
+#include <BSCore/LockOrder.h>
 #include <Papyrus/NativeReach.h>
 #include <Papyrus/PartyNativesScope.h>
 #include <Papyrus/PlayerNatives.h>
@@ -141,6 +142,8 @@ Hooks::Initializer s_hooks([]() {
     HOOK_ID(104943, &RealCallQueued, HookCallQueued);
     HOOK_ID(104848, &RealStackCreated, HookStackCreated);
     HOOK_ID(104651, &RealNativeCalled, HookNativeCalled);
+    // Runs every native: the locks a native takes are the engine's orders (0x984 bytes in the PDB, 2026-11-20).
+    LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookNativeCalled), 0xA00);
     HOOK_ID(105466, &RealScriptCalled, HookScriptCalled);
     HOOK_ID(104480, &RealStackEnded, HookStackEnded);
     HOOK_ID(53954, &RealFunctorQueued, HookFunctorQueued);

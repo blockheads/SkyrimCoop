@@ -27,6 +27,15 @@ struct AnimationSets
 static_assert(offsetof(AnimationSets, actionLoad) == 0x60);
 static_assert(offsetof(AnimationSets, instantLoad) == 0x80);
 
+// A commander's summon or raised corpse with the effect keeping it (AIProcess::AddCommandedActor).
+struct CommandedActor
+{
+    uint32_t handle; // the actor's
+    uint32_t pad04;
+    ActiveEffect* pEffect; // 08
+};
+static_assert(sizeof(CommandedActor) == 0x10);
+
 struct MiddleProcess
 {
     // void SaveActiveEffects()
@@ -35,7 +44,9 @@ struct MiddleProcess
     // 0xB0 - pitch
     uint8_t pad0[0xB8];
     float direction; // B8
-    uint8_t padBC[0x1A0 - 0xBC];
+    uint8_t padBC[0x100 - 0xBC];
+    GameArray<CommandedActor> commandedActors; // 100, its limit kept by AddCommandedActor
+    uint8_t pad118[0x1A0 - 0x118];
     GameList<ActiveEffect>* ActiveEffects;
     uint8_t pad1A8[0x1B8 - 0x1A8];
     AnimationSets* animationSets; // 1B8
@@ -54,12 +65,17 @@ struct MiddleProcess
     uint8_t pad258[0x260 - 0x258];
     InventoryEntry* rightEquippedObject;
     InventoryEntry* ammoEquippedObject; // could be more than just ammo
+    uint8_t pad270[0x2F8 - 0x270];
+    uint32_t deferredKill; // 2F8: 0 none, 1 held, above 1 kills counted (DeferKill 38617, ended by 40036)
+    uint8_t pad2FC[0x332 - 0x2FC];
+    bool inDeferredKill; // 332, the scripted flag (CommonLib inDeferredKill)
     // 0xB8 - direction
     //
     // 0x326 - bool lookat
 };
 
 static_assert(offsetof(MiddleProcess, direction) == 0xB8);
+static_assert(offsetof(MiddleProcess, commandedActors) == 0x100);
 static_assert(offsetof(MiddleProcess, animationSets) == 0x1B8);
 static_assert(offsetof(MiddleProcess, animationLock) == 0x1E8);
 static_assert(offsetof(MiddleProcess, occupiedFurniture) == 0x208);
@@ -67,3 +83,5 @@ static_assert(offsetof(MiddleProcess, leftEquippedObject) == 0x220);
 static_assert(offsetof(MiddleProcess, instantClipsLoaded) == 0x230);
 static_assert(offsetof(MiddleProcess, charController) == 0x250);
 static_assert(offsetof(MiddleProcess, rightEquippedObject) == 0x260);
+static_assert(offsetof(MiddleProcess, deferredKill) == 0x2F8);
+static_assert(offsetof(MiddleProcess, inDeferredKill) == 0x332);

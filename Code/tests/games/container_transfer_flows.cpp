@@ -50,6 +50,78 @@ SCENARIO("A guest takes part of a stack and stores it again", "[container-transf
     party.Agree("the inventories agree after storing");
 }
 
+SCENARIO("A guest takes a fresh roll's item: it gets it and the chest is empty on every game", "[container-transfer]")
+{
+    // guest-loots-hosts-roll: a chest keeps a taken roll item's entry at 0 (16059), which 16214 read as one: the host
+    // measured nothing taken and its row put the item back (inventory-changes.md, "A roll's taken item").
+    Party party(1, [](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        aEngine.References.at(kChest).Rolled = {kSword};
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.As(party.Guest(), [&] { Transfer(party.Guest(), 1); });
+    party.Until([&] { return guest.CountOf(FakeEngine::kPlayer, kSword) == 1; }, "the guest gets the sword");
+    party.Until([&] { return guest.ContainerCountOf(kChest, kSword) == 0; }, "the guest's chest is empty as the host's");
+    CHECK(host.ContainerCountOf(kChest, kSword) == 0);
+}
+
+SCENARIO("A guest's theft from an owned chest is the owner's on the guest's game", "[container-transfer]")
+{
+    // Skyrim: 16059 marks a theft's item as the owner's only on the target it moves it to, which on the host was its
+    // copy of the guest (inventory-changes.md, "What 16059's target does"). The grant carries the owner instead.
+    constexpr uint32_t kOwner = 0x1347B;
+    Party party(1, [](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        aEngine.References.at(kChest).Owner = kOwner;
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    Inventory::Entry sword;
+    sword.BaseId = GameId(0, kSword);
+    sword.Count = 1;
+    party.As(party.Guest(), [&] { REQUIRE(ContainerTransfers::Propose(party.Guest(), kChest, FakeEngine::kPlayer, sword, true)); });
+    party.Until([&] { return guest.CountOf(FakeEngine::kPlayer, kSword) == 1; }, "the guest takes the sword");
+    const auto cStacks = guest.EntriesOf(FakeEngine::kPlayer, kSword);
+    REQUIRE(cStacks.size() == 1);
+    CHECK(cStacks.front().ExtraOwner == GameId(0, kOwner));
+    CHECK(host.References.at(kChest).Items[kSword] == 0);
+    uint32_t copy{};
+    for (const auto& [cId, cActor] : host.Actors)
+        if (cActor.Player && cActor.Copy)
+            copy = cId;
+    REQUIRE(copy);
+    party.Until([&] {
+        const auto cCopyStacks = host.EntriesOf(copy, kSword);
+        return cCopyStacks.size() == 1 && cCopyStacks.front().ExtraOwner == GameId(0, kOwner) && host.CountOf(copy, kSword) == 1;
+    }, "the host's copy of the guest holds the one stolen sword its part says");
+}
+
+SCENARIO("Two stores of a guest's last sword before its items part arrives put one sword in the chest", "[container-transfer]")
+{
+    // A put is spent from the host's copy of the guest at once: the second finds nothing left (review of PR #83).
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.As(party.Host(), [&] { host.PlayerSetsItems(kChest, kSword, 0); });
+    party.As(party.Guest(), [&] { guest.GetsItem(FakeEngine::kPlayer, kSword, 1); });
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
+    const uint32_t copy = PlayerCopy(host);
+    party.Until([&] { return host.CountOf(copy, kSword) == 1 && guest.References.at(kChest).Items[kSword] == 0; },
+                "the host's copy of the guest carries its one sword");
+    Inventory::Entry sword;
+    sword.BaseId = GameId(0, kSword);
+    sword.Count = 1;
+    party.As(party.Guest(), [&] {
+        REQUIRE(ContainerTransfers::Propose(party.Guest(), FakeEngine::kPlayer, kChest, sword));
+        REQUIRE(ContainerTransfers::Propose(party.Guest(), FakeEngine::kPlayer, kChest, sword));
+    });
+    party.Until([&] { return guest.CountOf(FakeEngine::kPlayer, kSword) == 0 && host.References.at(kChest).Items[kSword] == 1; },
+                "one sword leaves the guest for the chest");
+    party.Agree("the chest and the guest agree after both stores");
+    CHECK(host.References.at(kChest).Items[kSword] == 1);
+}
+
 SCENARIO("A guest taking container gold changes the party purse once", "[container-transfer]")
 {
     Party party(1, Plugins);

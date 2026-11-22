@@ -141,6 +141,7 @@ struct ObjectChange
                     // an item's count and extra data in Stacks (one)
         kRecord,    // Value: the row flags the host's change record holds; a guest's record is made the same
         kGraph,     // Data: its behaviour graphs' state as a save keeps it (a lever's, a claw ring's), at a cell load
+        kHarvested, // Value: 1 a plant or tree picked (its form flag 0x2000)
     };
 
     // The mod id of a reference the host's game created (its 0xFF id's low bits as the base id): each game makes its

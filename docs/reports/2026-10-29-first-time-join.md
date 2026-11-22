@@ -53,7 +53,7 @@ retained in `native-creator-host-loss.log` and its corrected native rerun is rec
 
 Testing used isolated prefixes whose CHAT.md/DUO.md link to the shared main checkout. Own games were stopped,
 zero Skyrim processes verified, the temporary secondary-account Steam launch option restored, isolated client
-prefix ownership restored to bighass, and test-deployed new room/launcher files removed from the shared install.
+prefix ownership restored to the main user, and test-deployed new room/launcher files removed from the shared install.
 The duo was released and the next waiting agent notified. `scripts/net_check.sh` was not run.
 
 Installation requires enabling the bundled room in both games and routing Steam's launcher through the bundled

@@ -2993,5 +2993,32 @@ class RidersBadClips(unittest.TestCase):
         self.assertEqual(bad_clip_spans("client", self.samples(0.05)), [])
 
 
+class LocalPaths(unittest.TestCase):
+    """scripts/local_paths.py: the environment, then ~/.config/skyrimcoop/paths.env, then Steam's default."""
+    SCRIPT = Path(__file__).resolve().parent / "local_paths.py"
+
+    def value(self, home, name, **env):
+        environment = {key: value for key, value in os.environ.items()
+                       if key not in ("SKYRIM_STEAM_LIBRARY", "SKYRIM_STEAM_GAME_DIR", "IDA_DIR", "COOP_DUO_USER")}
+        result = subprocess.run([sys.executable, str(self.SCRIPT), name], env={**environment, "HOME": home, **env},
+                                capture_output=True, text=True)
+        return result.stdout.strip() if result.returncode == 0 else None
+
+    def test_precedence(self):
+        with tempfile.TemporaryDirectory() as home:
+            self.assertEqual(self.value(home, "SKYRIM_STEAM_GAME_DIR"),
+                             f"{home}/.local/share/Steam/steamapps/common/Skyrim Special Edition")
+            self.assertIsNone(self.value(home, "IDA_DIR"))
+            config = Path(home) / ".config/skyrimcoop/paths.env"
+            config.parent.mkdir(parents=True)
+            config.write_text("# a comment\nSKYRIM_STEAM_LIBRARY=/lib\nIDA_DIR=\"/ida\"\nCOOP_DUO_USER=coop2\n")
+            self.assertEqual(self.value(home, "SKYRIM_STEAM_GAME_DIR"), "/lib/Skyrim Special Edition")
+            self.assertEqual(self.value(home, "IDA_DIR"), "/ida")
+            self.assertEqual(self.value(home, "IDA_DIR", IDA_DIR="/env"), "/env")
+            self.assertEqual(self.value(home, "COOP_DUO_USER"), "coop2")
+            # Set but empty still wins over the file (package_check.py clears the duo's user).
+            self.assertEqual(self.value(home, "COOP_DUO_USER", COOP_DUO_USER=""), "")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,8 @@
 
 #include <Events/AddTargetEvent.h>
 #include <Events/HitEvent.h>
+#include <Events/SummonEvent.h>
+#include <Games/GuestNpcs.h>
 
 #include <Games/Overrides.h>
 #include <PlayerCharacter.h>
@@ -129,9 +131,21 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
     if (ScopedSpellCastOverride::IsOverriden())
         return RealAddTarget(apThis, arData);
 
+    Actor* pCasterActor = Cast<Actor>(arData.pCaster);
+    // A guest's player's summon its engine took (34526 can refuse it): the host's engine makes it on this player's copy
+    // (summons.md); the effect runs here too, CreateSummon making nothing (SummonCreatureEffect.cpp).
+    if (GuestNpcs::Session() && arData.pEffectItem->IsSummonEffect() && pTargetActor == PlayerCharacter::Get() && pCasterActor == pTargetActor)
+    {
+        const SummonEvent cEvent{arData.pSpell->formID, arData.pEffectItem->pEffectSetting->formID, arData.fMagnitude,
+                                 {arData.ExplosionLocation.x, arData.ExplosionLocation.y, arData.ExplosionLocation.z}, arData.bDualCast};
+        const bool cTaken = RealAddTarget(apThis, arData);
+        if (cTaken)
+            World::Get().GetRunner().Trigger(cEvent);
+        return cTaken;
+    }
+
     AddTargetEvent addTargetEvent{};
     addTargetEvent.TargetID = pTargetActor->formID;
-    Actor* pCasterActor = Cast<Actor>(arData.pCaster);
     addTargetEvent.CasterID = pCasterActor ? pCasterActor->formID : 0;
     addTargetEvent.SpellID = arData.pSpell->formID;
     addTargetEvent.EffectID = arData.pEffectItem->pEffectSetting->formID;

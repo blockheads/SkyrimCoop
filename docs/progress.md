@@ -30,7 +30,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
    - A refused second holder: two players grabbing within one round trip both hold it locally; the host should refuse
      the second, which drops it.
    - Fiedler's authority chain: bodies a held or thrown body knocks stay the host's.
-3. **From Fabien's playtest** (`playtests/2026-10-31-fabien.md`):
+3. **From the 2026-10-31 playtest:**
    - **C2 freezes in our code:** Windows only. Needs a package with the PDB kept, and one trigger replayed on
      Windows (reconnect failure, then the main menu; a guest loading the host's save; party travel).
    - **C3 crash on quit:** fixed on Linux, verify on Windows.
@@ -48,6 +48,204 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
    below, `docs/design/red-flags.md`). Left: its cleanup and explainer docs.
 
 ## News
+
+2026-11-21: **ragdolls follow the pile rule, scenery is nobody's: piece 10 of one-simulator.md, built**
+(`agent/piece-10`; plan `docs/design/piece-10-plan.md`; `docs/re/systems/physics.md`, "A lying ragdoll's layer and
+group", "A translating reference"). The world check leaves out critters, fish, their landing markers, references on a
+TranslateTo path and plants' sway (`world_state`'s `scripts` and `on_path`). A copy's ragdoll at its owner's rest is
+glided there, put there once, put to sleep and left (`RagdollRest`), so it no longer wakes after its first sleep; a lying
+copy's ragdoll is in the played collision group; an actor's ragdoll rest is its `kRagdoll` record part, so a copy made
+after it (a join, a cell load) lies there too. A guest's grab of a host corpse is the mover's until it rests (it lay
+151 units apart before); a hit on a corpse was checked on the duo and needs nothing.
+
+2026-11-21: **held-now state for a joiner, piece 9 of one-simulator.md, built** (`agent/piece-9`;
+`docs/re/systems/actor-ai-and-copies.md`, "A held cast's end"). A game joining mid-cutscene, mid-conversation, after a
+map marker or while another player channelled a spell got none of it. `HostAuthority::PlayerEntered` now sends from one
+list of stores (`JoinerStores`, checked by HostAuthorityTests "Every store answers a joiner"): each game's cutscene still
+holding the controls (`HostPlayerNatives` keeps its last `DisablePlayerControls`, marked by its sender with
+`RoutedCall::Controls`), the party's map marker, and the conversation under way at its step (`NotifyDialogueOpen::Step`;
+the joiner joins by talking). A held cast (concentration, ward, invisibility) is the caster's `kCast` record part, so a
+copy made mid-cast starts it; `SpellCastRequest`/`NotifySpellCast` are gone. Cutscene tints and fades are not kept (the
+user: controls only).
+
+2026-11-21: **the eye is the host's, piece 8 of one-simulator.md, built** (`agent/piece-8`; `docs/re/systems/stealth.md`,
+"The eye is the host's"). A guest's stealth eye was its own game's estimate: its NPC copies judged it, and in a fight it
+showed hidden (no combat group of its own; scenario `guest-eye-is-hosts`). Now the host reads its NPCs' detection of each
+guest's copy every frame (41408, 46877: what its HUD asks of its own player, which also keeps that state fresh; it was
+always stale) and sends that guest a `NotifyStealthEye` when it changes; the guest's reads of its player answer it
+(`StealthEye` hooks), and every copy is an unseen witness of this game's player. Bugs closed: "The guest's eye is its own
+estimate", "The sneak eye with the other player looking".
+
+2026-11-21: **piece 8's blocker read and fixed: a guest's copy makes its owner's noise** (`agent/piece-8`;
+`docs/re/systems/stealth.md`, "Line of sight", "A player's noise"). NPCs searched for a still guest once the host died
+("A still guest unseen up close"): no line-of-sight ray was blocked (harness `sight`, MCP `sight_watch`); the copy was
+out of the NPC's cone and silent. A player who bumps a character makes iSoundLevelLoud for 5 s (37711, only in the real
+player's update), so the host heard its own player and never a guest. `ActorStatePart::Noise` now carries the owner's
+noise to its copies (held until the owner's ends; `HookSetActionValue` keeps a copy's own engine out): no search in 5
+rounds (5 of 5 before). Scenario `guest-bump-heard-on-host`. On the way: `Actor.h` named +0x11C/+0x120 one field off;
+`host_death_watch` toggled god mode (now `god_mode`).
+
+2026-11-21: **the host creates, piece 7 of one-simulator.md, built** (`agent/piece-7`; `docs/re/systems/summons.md`).
+A guest's Conjure Familiar showed on neither game: its own engine made one and held it without 3D, and the host dropped
+the copy's cast. Now the guest's summon effect runs on its game (portal, timer) with `CreateSummon` (34993) refused,
+and the host's game puts it on the guest's copy, so the host's engine makes the one familiar, commanded by the copy;
+the spawn carries its commander. A guest's script's `PlaceAtMe` goes to the host's game and waits for the host's
+reference (the `kCreate` sink, 13723); script values carry created references by their created id (`CreatedIds`),
+and `Enable`/`Disable` on them are the host's (`vampirism-is-each-players`' marker). Found on the duo: a copy spawned while
+its owner shows an effect never played it (no loaded event for its 3D; `Copy3DEvent`), and a guest joining with the
+host's world had the host's created references twice (its save's and the create row's). Bugs closed: "A guest's
+summon", "References a guest's script creates". Scenario `guest-summons-familiar`.
+
+2026-11-20: **piece 6 of one-simulator.md revised: activations stay as they are** (`agent/piece-6`). The RE
+(`docs/re/systems/activation.md`, open question 4) found the engine already splits each form's `Activate` by
+"this game's player" (screen) and anyone else (world). The host already reruns a guest's activation with its copy,
+and its rows put the guest right. A gate sending the world part to the host would fix no bug seen, so it is not built.
+Its four bugs are fixed one by one. First, **"Doors the host's NPCs unlock" fixed**: a load door's lock lives on the
+door it leads to (`GetLock` 20223, `AddLockChange` 19512 records there), and a change made before a guest joined never
+reached it, because the guest asks for its loaded cells and the inside door's cell is not one of them. The host's
+cell state now sends the lock with the outside door (`ReferenceStates::LinkedLockRows`). Tests: GameTests "A load
+door the host's NPC unlocked while a guest was away is unlocked when it joins again", scenario
+`late-join-gets-load-door-lock` (control: fails without the row); harness `door_lock`. Found on the way, not fixed:
+harvested flora was not synced (fixed in the review, below). Second, **"The host shows a guest's relief box"
+fixed**: a call the host's script routes to a guest's game (`NotifyRoutedCall`) was queued there with no cause, so a
+screen or controls call read as the story's and went back to every game; the host showed the mirrored box. The guest
+now queues it as its own player's (`GuestEngine::RunPlayerNative`, cause 0x14). Tests: GameTests "A guest's action's
+message box shows on its game only" (the fake's guest seam had queued it as the player's all along: now it follows
+production), ClientTests; `relief-takes-client-relics` 4 of 4 (0 of 4 before), the guest-moment and story-box
+scenarios pass.
+Third, **"The host's roll for a guest's loot" fixed**: the roll already agreed (the cell state sends contents); a
+guest's Take All of a fresh roll moved nothing because a chest keeps a taken roll item's entry at 0 (16059) and
+16108/16214 reads that as one. `GetContainerCount` now counts as CommonLibSSE-NG does (`Games/ContainerCount.h`,
+ClientTests); `guest-loots-hosts-roll` 3 of 3 (1 of 3 before), the container scenarios pass
+(inventory-changes.md, "A roll's taken item").
+Review of PR #87: a picked plant goes out as the host's row (`kHarvested`: `SetHarvestedFlag` 14647 and
+`UpdateHarvestModel` 14865); a guest's own linked-lock change is named in its cell request; the own-lock check reads
+the lock pointer; a guest's activation reaches the host's game as `HostGame::Activate` (`NotifyActivate`, the
+guests' replay and `IFormBridge::ActivateObjectFromActor` deleted); fakes model a roll's 0 entry and take the routed
+call's cause from `PartyRules::kRoutedCallCause`.
+Cleanups: a guest's object activation runs on the host's game only (`HostAuthority::OnActivate`, no `FromAnyone`);
+the host's own activations reach the guests only as rows; the door's open-state compare and the field carrying it
+are gone (`ActivateRequest`, `NotifyActivate`, `ActivateObjectFromActor`). GameTests "A lever a guest pulls moves once,
+on the host, and no other guest replays it", HostAuthorityTests; 21 object scenarios pass. The lock checker no longer
+counts `HookNativeCalled`'s frame as ours (bugs.md, "A pass-through hook counted as ours").
+
+2026-11-20: **passengers sit at once, piece 5 of one-simulator.md, built** (`agent/piece-5`). A player boarding a
+horse another player drives asks the host first (`BoardRequest`); the host's yes (`NotifyBoard`, to it alone) seats it
+with the engine's own quick get-on: `PutOnMount`, then `Actor::PutActorOnMountQuick`
+(38699, vfunc 0xAC: 38704 resume, IDLE `EnterHorseInstant` under `IsEnteringInteractionQuick`, 39004 sit state 3,
+`SeatRider`), with no paired clip and nothing for the horse (read in IDA; player-mount.md, "Sitting at once"). Its
+copies are seated by its record's Ride part (`RecordKind::kRide`), once the horse is here and its stream reaches that
+frame; a joiner gets it on the spawn. Gone: the slot emptying and engine get-on, `SeatsAtHoldEnd`, `SkipsMountEntry`,
+the pending boards. `party-shares-a-horse` allows the one pop to the saddle and fails on any `HorseEnter` while a
+passenger boards. Tests: GameTests `[passengers]` (quick seat, a refused board, a joiner), HostAuthorityTests
+`[passengers]`, the Ride part's round trip.
+
+2026-11-20: **kill moves as claimed pairs, piece 4b of one-simulator.md, built** (`agent/piece-4b`; PRs #73 and #75
+folded in). A kill move a game's own actor starts on another game's actor is claimed through the host
+(an action claim, `HostClaims`): the first claim on either actor holds. A host NPC is then the claimer's game's for the pair, keeping
+the copy's deferred kill so its clip's `KillActor` only counts, and goes back with "killed"; the host's game kills it,
+credited to the claim's actor. A refused claim yields: crossed, its blow dropped; an NPC that cannot pair (frozen,
+dead), the engine's own plain second swing (42350, read). Every other game pairs its two copies itself. A claimed
+pair's forwarded blow waits on the victim's game for the pair (closes "a short winner's blow lands first"). Also: a
+copy taken back keeps no deferred kill (no engine path ends a scripted one: read, all 38618 callers). On the duo
+`client-kill-move`, `host-kill-move`, `kill-moves-cross` and `frozen-wolf-kill-move` pass (kill-moves.md, "Claimed
+pairs"). Left for a player victim: the old rules (`PairMarkClear`, `ContactKills`, `HeldByPair`, the yield). Review
+round (PR #85): "killed" is the engine's counted kill (`KillMoveEnd` 38614 kills too, read), a released hold drops
+it, a refusal is skipped on watching games, a player joining mid-lend gets the NPC, summons are refused. Then the lend and a ride became one claim:
+`HostClaims` / `ClaimService` hold any host actor for another game and take it back (`ActorGiveBackRequest`);
+then a ride and a kill move became one action claim (`ClaimRequest`: its actors taken or
+locked, all or none, one claim per actor); `HostPairs`, `PairService` and the pair messages are gone.
+
+2026-11-19: **a mount handed back between pairs, piece 4a of one-simulator.md, built** (`agent/piece-4`): the horse
+stuck in its rider's exit pair after a hand-back (PR #80 sent it `PairEnd` by hand) came from the rider's last graph ops,
+its horse's `PairEnd` among them, being dropped unsent when it gave the horse up. Now the rider's game hands the horse
+back once its next graph update is recorded, its ops sent first, and the host's game waits until its copy has run them
+(`docs/re/systems/mounts.md`, "A horse handed back between pairs"). On the duo the host's next get-on is accepted at once
+(five tries before). A passenger who drives on still takes the horse at once and ends the old driver's pair by hand: taken
+after the replayed exit, it would not steer (not read yet). Kill moves (4b) next.
+
+2026-11-19: **items as their owner's part, piece 3 of one-simulator.md, built** (`agent/piece-3-items`): an actor's items
+and worn set are one record part (`kItems`, `ItemsPart`), declared by its owner when an item or equip hook, a 3D load or
+the engine's outfit reset (TESNPC 418622, hooked) touches it, and carrying only the stacks that changed (merged onto the
+version before; a gap asks the owner). A copy applies it once its 3D is in and again on each 3D load, outfit reset and
+move to its owner's cell: counts by stack (`SetCopyItemCount`), then only the worn pieces that differ, each hand holding
+its weapon, torch or spell (the full reset when one is refused). Nobody relays item changes any more: a host script's
+change of a guest's character goes to that guest, a guest's loot is the host's transfer with the NPC's part after it.
+Gone: the equipment messages and their 3 s snapshot, the spawn's inventory (`WaitingFor3D`, `InventoryContent`). Read in
+IDA: 16059's removals, 24725/24384/418622/16100 on a 3D load, the queued-equip drain (inventory-changes.md, "1.7.104").
+Closes "A looted corpse keeps items on the guest": the spawn put the bandit's base leveled lists on its copy as items
+(measured, `inventory_entry`); `looted_corpse_empty_on_both` (MCP) fails 3 of 3 on dev, passes 4 of 4. Tests: GameTests
+`[items-part]` (5), ClientTests `[items-part]`, `[equipment-repair]`, HostAuthorityTests (4). Open with leads: "A copy
+without its weapon" (418622 empties a copy's hands, measured), "A spawn's inventory over a newer equip" (no MCP
+scenario), "The guest player's copy wears nothing" (trigger unread), new "A party item removed without its tag". A guest's
+loot no longer passes through the host's copy of the looter, and a stack carries its owner (`Inventory::Entry::ExtraOwner`):
+16059's target only moved the item and stamped a theft's owner on it, so a guest's container theft was never stolen on its
+own game (read in IDA; `guest-container-theft-is-stolen`, MCP with a new `expect stolen`, fails 3 of 3 on dev, passes 5
+of 5; GameTests "A guest's theft from an owned chest is the owner's on the guest's game"). Also read: why the outfit
+reset keeps a copy's items (our forced equips lock them, `ExtraCannotWear`; inventory-changes.md). Review of PR #83:
+a put still moves from the host's copy of the player (spent at once against a second put), a player's copy keeps its
+party stacks and wears the ones its owner does (the part carries them, the party's store counts them), a copy applies
+its owner's shout, a record part can pass 64 KB, a version 3 character co-save still loads (version 4: owners).
+
+2026-11-18: **actor state as record parts, piece 2 of one-simulator.md, built** (`agent/piece-2-actor-state`): a copy
+gets what its owner set beside the graph from three new parts. `kActorState` (sneak, block, bleedout and the other
+non-death life states, a kill move for a copy made mid-move, drawn hands) is read by the owner after each frame and
+applied on a copy when its stream reaches that frame (`ActorStateService`, masks in `ActorStateRules.h`). `kFactions` and
+`kName` replace `Request/NotifyFactionsChanges`, the spawn's factions and name, and the host's name relay; a script's
+`SetDisplayName` or `SetName` now reaches the copies and the party's lists (no event: the owner's frame read; the
+lists follow the player character's name part, `PlayerNameRequest` gone). An action on a copy's stream
+gives its owner's flags but the part's bits, as before for every bit not read yet. Gone: `DrawWeaponRequest`/
+`NotifyDrawWeapon` and the 0.25 s hands poll, `CacheComponent`. The design's `ExtraForcedTarget` for a copy's swing was
+dropped: it skips reach (38608); the copy's `+0x104` already limits its swing to its owner's target (read in IDA, measured on the duo; closes "An NPC copy's swing picks the nearest")
+([actor-state.md](re/systems/actor-state.md)). Tests: GameTests `[actor-state]` (9), two name flows, ClientTests `[actor-state]` (5), HostAuthorityTests;
+scenario `script-renames-reach-party` (fails on dev); closes "A mod's rename at run time".
+
+2026-11-18: the duo's ~400 ms stalls about once a second at a repro scene's start were the test harness's own
+(`agent/duo-stall-profile`, [harness-cost.md](re/systems/harness-cost.md)). The command server built and wrote every
+reply's JSON on the game's main thread, and the scene's world baseline asks for the whole town's `world_state` back
+to back (in Riverwood up to 451 ms a call). `world_state` now copies the references out on the main thread and
+builds its JSON on a worker (`Command::Gather`; replies still go out in order, `ReplyQueue`, ClientTests), and so does
+the status file; other replies stay in their frame (a `console_result` held a frame got lost behind a load): `world_state`
+went to 21 ms on the main thread, and the scene's settle window has no stall left. `profile` lists each command's
+main-thread time (`harness <cmd> us`) and builds Tracy's Linux tools from any worktree. Players' builds are unchanged
+(test builds only). `horse-passes-between-riders` still fails its last ride (the guest does not see the horse ridden),
+before and after: that is the horse bug, not this.
+
+2026-11-18: **a guest's rejoin works again** (`agent/rejoin-guest`): a join while joined made the guest's one-peer ENet
+host store a null peer over its live one, so the host kept the old connection (and the guest's character) and every
+later join was unreachable. `Net::Client::Connect`/`ConnectByIp` now refuse while a peer or a resolve is held, the
+harness's join while joined fails at once, `rejoin_client` leaves first, and the MCP has a verb
+`guest_leaves_to_main_menu` (join-flow.md, Leaving and kick). With rejoins working, "A copy that looks at nobody" is
+closed: Lucan's copy looks at the host's player like its owner after both rejoin paths. Tests: HostAuthorityTests "a
+guest's second connect keeps its first connection", GameTests `[rejoin]`; scenario `guest-rejoins-while-joined` (its steps pass; its end
+comparison fails on bugs.md's open "References differ").
+
+2026-11-18: **the copy record, piece 1 of one-simulator.md, built** (`agent/copy-record`): every game keeps each actor's
+last declared state in versioned parts by session id (`Services/CopyRecords`), the host keeps them and puts them on every
+spawn (`HostRecords`), a part waits for its copy and for an actor it names, and a game can ask for one again. One part
+moved onto it, AI state: `AiStateRequest`/`NotifyAiState` and the spawn's `AiState` are gone; a look or combat target
+named before its copy exists is applied when it appears ("A copy that looks at nobody": closed by the rejoin entry above, whose duo scenario
+shows the player path). The other caches move in later PRs.
+Tests: GameTests `[copy-records]` (3), ClientTests `[copy-records]` (6), HostAuthorityTests `[records]` (4).
+
+2026-11-18: a horse ridden by the host, then a guest, then the host again shows the host riding on the guest's game
+(`agent/horse-riding-copy`, `docs/re/systems/mounts.md`, "A horse taken back mid-pair"). The host took the horse back
+while it still replayed the guest's exit pair, whose `PairEnd` then never came. The host's get-on was refused and
+retried (39669 calls `InitiateMountPackage` 37905 once per try), and the retries left the guest's copy of the host off
+the horse. Now the host's game ends that pair when it takes a horse back (`OnNotifyDismount`). GameTests: the fake
+loses a copy mount's stream `PairEnd` once the game takes the mount, and refuses a get-on of a horse in a pair once
+(`PairEndIn`, `MountRetryOf`); "A horse passes from rider to rider" checks both. `horse-passes-between-riders` passes.
+
+2026-11-18: one sync rule for every system, designed ([one-simulator.md](design/one-simulator.md),
+`agent/one-sync-model`). An audit's map checked in the code: each open desync is a copy missing what its owner did
+beside the graph stream (39004's list, read in IDA) or two games deciding one thing. Ten pieces in build order: a
+versioned copy record, actor state and items as parts of it, pairs claimed through the host, the host running an
+activation's world part and creating what guests create, scenery left out of the world check. 40 of bugs.md's 81
+entries are placed under a piece as its acceptance list; eight engine questions are open.
+
+2026-11-18: release cleanup. Full GPLv3 `LICENSE` (the upstream notice in `NOTICE`); a short README (development is
+Linux only); machine paths from the environment or `~/.config/skyrimcoop/paths.env` (`scripts/local_paths.py`), and the
+duo runs as this user unless `COOP_DUO_USER` is set; `playtests/`, raw report evidence and the imgui examples removed.
 
 2026-11-18: a chest's lid agrees after the host disables it under an open menu (`bugs.md`, "A chest lid's pose",
 gone). The disable drops the chest's 3D (19801); our live menu's auto-close, or the host's close row on a guest, then
@@ -674,13 +872,13 @@ for `ArrivalStack` and the collision groups.
 proximity choose between party players, with a target hold and switching margin. Copied combat targets now persist
 through native updates. Steam 1.7.104 acceptance passes all six targeted scenarios, including both attack orders,
 300-frame stability, guest combat state and casting; the combined fast gate passes 202 client / 199 host / 33 encoding /
-290 game cases. [Design](design/party-aggro.md), [acceptance](../playtests/2026-11-02-party-aggro.md).
+290 game cases. [Design](design/party-aggro.md).
 
-2026-11-02: party markers (Fabien R2) are reviewed and merged into dev: cyan compass
+2026-11-02: party markers (playtest R2) are reviewed and merged into dev: cyan compass
 icons and named pins on the world/local maps, following displayed player copies and clearing on departure.
 The combined fast gate passes (193 client / 198 host / 32 encoding / 282 game cases); all five targeted native
 cases pass on both Steam 1.7.104 and the retained 1.6.1170 build.
-[Design](design/party-markers.md), [acceptance and screenshots](../playtests/2026-11-02-party-markers.md).
+[Design](design/party-markers.md).
 
 2026-11-02: `guest-throw-lands-on-host` failed 2 of 3 at its grab, fixed in the scenario. It teleported the client
 beside the ladle and pressed at once, while its copy was still reaching the host. The host's ladle could stir then,
@@ -733,15 +931,13 @@ frames. The native tankard detector failed before the fix (18/340 sampled frames
 across three observer checks); throw and push controls pass. Three GameTests guard scene-write timing; four unit cases
 cover deferred repair/rest bookkeeping and cancellation. The guest watching the host gives the native before/after
 proof; the host-watching-guest controls were negative before the fix too.
-[Evidence and scope](../playtests/2026-11-01-s2-green-flash.md).
 
 2026-11-01: dialogue follow-up (merged `edca669f`, with the S3 arrest scenarios): refused choices restore their list,
 competing clicks display the host's accepted text, and barter resume re-arms input (the three `bugs.md` Dialogue
 entries, deleted). Native failures, failing GameTests and unit tests preceded each fix. Six coverage improvements
 include stricter fake input, pick-completion postconditions, duplicate/competing choices, stale notifications after
 reopen, same-topic mouse INFO selection, and barter/training returns. Full check passes; native fixes and exit
-controls pass. A separate queued Lydia greeting still blocks `dialogue-pick-reaches-host` before any pick (bugs.md);
-[results and limits](../playtests/2026-11-01-dialogue-fixes.md), [reproduction](../playtests/2026-11-01-dialogue-reproduction.md).
+controls pass. A separate queued Lydia greeting still blocks `dialogue-pick-reaches-host` before any pick (bugs.md).
 
 2026-11-01: a guest can take a chest's fresh roll (S5): the host's game found none of a freshly rolled
 leveled item to give (its read counted the changes' 0, not the engine's count through the base's leveled list) and
@@ -1965,6 +2161,8 @@ removed (git history keeps them).
 
 - **A dragged object blinked once in play (2026-11-01).** Not reproduced with `body_trace`; nothing traces a hold; a
   scenario that drags an object while both games trace it would catch a recurrence.
+- **Replace the health faces before a Nexus release (2026-11-18).** `Code/client/Ui/assets/moods/*.png` are
+  RollerCoaster Tycoon art, not ours and not GPL; swap in our own or CC0 faces.
 
 ### Mounts (2026-10-23)
 
@@ -2084,7 +2282,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
     off-screen, so it cannot show a display stall), during a stall.
   - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
-- **Done 2026-11-01 (C1, `playtests/2026-10-31-fabien.md`): players can't loot each other.** Taking a dead guest's
+- **Done 2026-11-01 (C1, the 2026-10-31 playtest): players can't loot each other.** Taking a dead guest's
   clothes crashed the host in `ContainerMenu`. Now `ContainerMenu::OpenMenu` (51140) refuses another player's copy
   (`party-items.md`). GameTests "Players can't loot each other" passes. The duo scenario `host-cannot-loot-guest`
   recreated it unfixed (the loot menu opened) and passes fixed. The duo's guest is unnamed and `ActivateRef` (19796)

@@ -1,4 +1,8 @@
+#include <Forms/BGSAction.h>
+#include <Games/Animation/ActorMediator.h>
+#include <Games/Animation/TESActionData.h>
 #include <Games/Animation/ReplayState.h>
+#include <Games/Animation/ActorStateRules.h>
 #include <CrashHandler.h>
 #include <HookSwitch.h>
 #include <BSCore/LockOrder.h>
@@ -27,6 +31,7 @@
 #include <Events/ActorDeathChangeEvent.h>
 #include <Games/Skyrim/Papyrus/GuestScripts.h>
 #include <Events/InventoryChangeEvent.h>
+#include <Events/WornResetEvent.h>
 #include <Events/LooseItemEvents.h>
 #include <Events/MountEvent.h>
 #include <Events/DismountEvent.h>
@@ -952,10 +957,17 @@ void Actor::SeatOnMount(Actor* apMount) noexcept
 {
     using TSeated = void(Actor*);
     POINTER_SKYRIMSE(TSeated, s_onSeated, 41533);
-    if (!PutOnMount(apMount))
+    const RefrInteraction* pLink = GetOwnInteraction();
+    const bool cLinked = pLink && TESObjectREFR::GetByHandle(pLink->actorHandle) == this && TESObjectREFR::GetByHandle(pLink->targetHandle) == apMount;
+    if (!cLinked && !PutOnMount(apMount))
         return;
     actorState.SetSitSleepStateFlags(3);
     s_onSeated(this);
+}
+
+bool Actor::SitOnMountQuick(Actor* apMount) noexcept
+{
+    return PutOnMount(apMount) && PutActorOnMountQuick();
 }
 
 RefrInteraction* Actor::GetOwnInteraction() const noexcept
@@ -1215,6 +1227,49 @@ void Actor::Kill() noexcept
     */
 }
 
+void Actor::HoldKill(bool aHold) noexcept
+{
+    GetExtension()->KillHeld.store(aHold, std::memory_order_relaxed);
+    if (aHold)
+    {
+        StartDeferredKill();
+        return;
+    }
+    // A death is its owner's word: a kill counted meanwhile is not queued for the player (40036).
+    if (auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr; pMiddle && pMiddle->deferredKill > 1)
+        pMiddle->deferredKill = 1;
+    EndDeferredKill();
+}
+
+bool Actor::KillCounted() const noexcept
+{
+    const auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr;
+    return pMiddle && pMiddle->deferredKill > 1;
+}
+
+void Actor::KillBy(Actor* apKiller) noexcept
+{
+    if (GetExtension()->IsLocalPlayer())
+        return;
+    GetExtension()->PoseHeldUntil.store(0, std::memory_order_relaxed);
+    HoldKill(false);
+    KillImpl(apKiller, 100.f, true, false);
+}
+
+bool Actor::PerformPlainly(BGSAction* apAction) noexcept
+{
+    if (!apAction)
+        return false;
+    // Through 38949's own entry, as 42350's Func5 (41557) goes: our hook records and sends it, and its swing ends the
+    // yield's blow guard (ReplayState::StartsAttack).
+    using TPerformAction = uint8_t(ActorMediator*, TESActionData*);
+    POINTER_SKYRIMSE(TPerformAction, s_performAction, 38949);
+    TESActionData actionData(2, this, apAction, nullptr);
+    const bool cTaken = s_performAction.Get()(ActorMediator::Get(), &actionData) != 0;
+    spdlog::debug("{:X} performs {:X} with no target: '{}' {}", formID, apAction->formID, actionData.eventName.AsAscii(), cTaken ? "taken" : "refused");
+    return cTaken;
+}
+
 bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
 {
     ActorExtension* pExtension = GetExtension();
@@ -1388,7 +1443,10 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
         World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
 
     if (apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil))
+    {
+        spdlog::debug("{:X}'s blow on {:X} dropped: its pair yielded", apHitter->formID, apThis->formID);
         return false;
+    }
 
     float realDamage = GameplayFormulas::CalculateRealDamage(apThis, aDamage, aKillMove);
 
@@ -1561,7 +1619,7 @@ void Actor::DropObject(TESBoundObject* apObject, ExtraDataList* apExtraData, int
     RealDropObject(this, &result, apObject, apExtraData, aCount, apLocation, apRotation);
 }
 
-// ActorKnowledge::SetDetectionState (42704), the detection job's pass: another player's copy sees our player unseen.
+// ActorKnowledge::SetDetectionState (42704), the detection job's pass: a copy sees our player unseen (its eye is the host's).
 using TUpdateDetectionState = void(ActorKnowledge*, CrimeEngine::DetectionState*);
 static TUpdateDetectionState* RealUpdateDetectionState = nullptr;
 
@@ -1571,7 +1629,7 @@ void HookUpdateDetectionState(ActorKnowledge* apThis, CrimeEngine::DetectionStat
     auto* pTarget = Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hTarget));
     if (apState && pWitness && pTarget)
     {
-        const auto cPass = DetectionRules::Installed(pWitness->GetExtension()->IsOtherPlayer(), pTarget->GetExtension()->IsLocalPlayer(),
+        const auto cPass = DetectionRules::Installed(pWitness->GetExtension()->IsCopy(), pTarget->GetExtension()->IsLocalPlayer(),
                                                      {apState->Level, apState->LineOfSight, apState->Seen, apState->Unk16});
         apState->Level = cPass.Level;
         apState->LineOfSight = cPass.LineOfSight;
@@ -1579,6 +1637,18 @@ void HookUpdateDetectionState(ActorKnowledge* apThis, CrimeEngine::DetectionStat
         apState->Unk16 = cPass.Unk16;
     }
     RealUpdateDetectionState(apThis, apState);
+}
+
+// Actor::SetActionValue (37711): the noise an actor's action makes (a swing, a cast, the player's bump). A copy's is its
+// owner's, from its record (ActorStateService), not its own engine's.
+using TSetActionValue = void(Actor*, int32_t);
+static TSetActionValue* RealSetActionValue = nullptr;
+
+void HookSetActionValue(Actor* apThis, int32_t aNoise)
+{
+    if (!ActorStateRules::MakesOwnNoise(apThis->GetExtension()->IsCopy()))
+        return;
+    RealSetActionValue(apThis, aNoise);
 }
 
 struct DialogueItem;
@@ -1819,6 +1889,19 @@ void HookUpdateAI(Actor* apThis, float aDelta)
     RealUpdateAI(apThis, aDelta);
 }
 
+// TESNPC::ResetWornToOutfit (418622): worn items off (16100), the hands emptied, the base's outfit on; past our equip hooks.
+// Callers: ResetInventory, InitLoadGame, SetLevel, TESNPC::InitWornOn3D 24725 (inventory-changes.md).
+// Four byte arguments (24725's call: r8b, r9b, two stack bytes); the fourth picks the best weapons carried.
+using TResetWornToOutfit = void(void* apNpc, Actor* apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag);
+static TResetWornToOutfit* RealResetWornToOutfit = nullptr;
+
+void HookResetWornToOutfit(void* apNpc, Actor* apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag)
+{
+    RealResetWornToOutfit(apNpc, apActor, aUnused3, aEquipBestWeapons, aUnused5, aKeepTlsFlag);
+    if (apActor)
+        World::Get().GetRunner().Trigger(WornResetEvent{apActor->formID});
+}
+
 using TAddDeathItems = void(Actor*);
 static TAddDeathItems* RealAddDeathItems = nullptr;
 
@@ -1997,6 +2080,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37521, &RealPickUpObject, HookPickUpObject);
         HOOK_ID(40454, &RealDropObject, HookDropObject);
         HOOK_ID(42704, &RealUpdateDetectionState, HookUpdateDetectionState);
+        HOOK_ID(37711, &RealSetActionValue, HookSetActionValue);
         HOOK_ID(39643, &RealProcessResponse, HookProcessResponse);
         HOOK_ID(37905, &RealInitiateMountPackage, HookInitiateMountPackage);
         HOOK_ID(41539, &RealDetachInteraction, HookDetachInteraction);
@@ -2006,6 +2090,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
         HOOK_ID(37541, &RealUpdateInDialogue, HookUpdateInDialogue);
         HOOK_ID(37198, &RealAddDeathItems, HookAddDeathItems);
+        HOOK_ID(418622, &RealResetWornToOutfit, HookResetWornToOutfit);
         HOOK_ID(37320, &RealDropHeldItemsOnDeath, HookDropHeldItemsOnDeath);
         HOOK_ID(37577, &RealIsFleeing, HookIsFleeing);
     });

@@ -367,6 +367,34 @@ SCENARIO("Where a native's call runs", "[party][route]")
         }
         THEN("on the host it is made here") CHECK(RouteOf({.Reach = {Call::kWorld}, .Hosting = true}) == Routing{});
     }
+    GIVEN("a guest's own script creating a reference (PlaceAtMe)")
+    {
+        const CallFacts cFacts{.Reach = {Call::kCreate}, .Cause = kThisPlayer, .Guest = true};
+        THEN("the host's game makes it and the script waits for the host's reference")
+            CHECK(RouteOf(cFacts) == Routing{.To = Destination::kHost, .Original = false, .Reply = true});
+        THEN("a system quest's instance creates on the host too")
+        {
+            CallFacts system = cFacts;
+            system.InSystemQuest = true;
+            CHECK(RouteOf(system) == Routing{.To = Destination::kHost, .Original = false, .Reply = true});
+        }
+        THEN("a script with no player's action behind it too")
+        {
+            CallFacts none = cFacts;
+            none.Cause = 0;
+            CHECK(RouteOf(none).To == Destination::kHost);
+        }
+        THEN("on the host it is made here") CHECK(RouteOf({.Reach = {Call::kCreate}, .Hosting = true}) == Routing{});
+        THEN("another game's mirrored call is made here") CHECK(RouteOf({.Reach = {Call::kCreate}, .Cause = PartyRules::kMirrored | 2, .Guest = true}) == Routing{});
+    }
+    GIVEN("a guest's own script's Disable or Enable (the world's only on the host's created references)")
+    {
+        const Reach cOnCreated{.Kind = Call::kWorld, .OnCreated = true};
+        THEN("on a reference the host's game created: the host's to make")
+            CHECK(RouteOf({.Reach = cOnCreated, .Cause = kThisPlayer, .Guest = true, .CreatedObject = true}) ==
+                  Routing{.To = Destination::kHost, .Original = false});
+        THEN("on any other reference: here, as before") CHECK(RouteOf({.Reach = cOnCreated, .Cause = kThisPlayer, .Guest = true}) == Routing{});
+    }
     GIVEN("a native on the player in a script a guest's action ran on the host")
     {
         const CallFacts cFacts{.PlayerNative = true, .Cause = kGuest, .GuestCause = true, .Hosting = true};
@@ -402,6 +430,8 @@ SCENARIO("Where a native's call runs", "[party][route]")
             CHECK(RouteOf({.Reach = {Call::kControls}, .Cause = kGuest, .Story = true}).To == Destination::kEveryGame);
         }
         THEN("a player's own moment stays here") CHECK(RouteOf({.Reach = {Call::kScreen}, .Cause = kThisPlayer}) == Routing{});
+        THEN("the host's call for a guest's player, run on that guest's game as its player's, stays there")
+        CHECK(RouteOf({.Reach = {Call::kScreen}, .Cause = kRoutedCallCause, .Guest = true}) == Routing{});
         THEN("a show is every game's whoever's action ran it, its player not marked")
         CHECK(RouteOf({.Reach = {Call::kShow}, .Cause = kThisPlayer}) == Routing{.To = Destination::kEveryGame, .MarkFor = kThisPlayer});
     }

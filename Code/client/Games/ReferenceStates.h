@@ -19,6 +19,9 @@ uint32_t RowFlags() noexcept;
 uint32_t RecordedRows(const TESObjectREFR& acObject) noexcept;
 // The same, none for a reference the game created (an id of its own): what a cell's state names.
 uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept;
+// The lock row of a load door with no lock of its own whose linked door's record holds a lock change: the lock is
+// that door's and AddLockChange (19512) records it there, in a cell a guest may not have loaded.
+uint32_t LinkedLockRows(const TESObjectREFR& acObject) noexcept;
 // Makes its change record hold exactly these rows (RecordedRows): the others dropped, a physics move with the move
 // row, the missing ones marked.
 void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept;

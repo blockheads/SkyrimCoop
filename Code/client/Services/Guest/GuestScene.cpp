@@ -3,7 +3,7 @@
 #include <Bridges/GuestEngine.h>
 #include <Components/PlayerComponent.h>
 #include <Components/RemoteComponent.h>
-#include <Messages/Relayed.h>
+#include <Events/CopyAiStateEvent.h>
 #include <Services/SessionService.h>
 #include <World.h>
 
@@ -12,7 +12,7 @@
 GuestScene::GuestScene(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
     : m_world(aWorld), m_engine(aEngine)
 {
-    Listen<NotifyAiState, &GuestScene::OnAiState>(m_connections, aDispatcher, this);
+    Listen<CopyAiStateEvent, &GuestScene::OnAiState>(m_connections, aDispatcher, this);
 }
 
 GuestScene::~GuestScene() noexcept
@@ -21,7 +21,7 @@ GuestScene::~GuestScene() noexcept
         m_engine.EndScenePackage();
 }
 
-void GuestScene::OnAiState(const NotifyAiState& acMessage) noexcept
+void GuestScene::OnAiState(const CopyAiStateEvent& acMessage) noexcept
 {
     // Only the host's player drives the party's scenes; another guest's ordinary AI state must not end one.
     const auto actors = m_world.view<RemoteComponent, PlayerComponent>();

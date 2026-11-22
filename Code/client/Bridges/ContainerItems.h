@@ -24,5 +24,8 @@ struct TESBoundObject;
 // Makes the container hold aCount of the item, acStacks of them with their extra data (the rest plain), raising
 // nothing; false for no container.
 bool SetContainerStacks(TESObjectREFR& aObject, TESBoundObject& aItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept;
+// An actor carries aCount of the item, acStacks of them with their extra data (worn flags and charge aside): only the
+// stacks that differ removed (by their own lists) or added, then the plain count; raising nothing.
+bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept;
 // A kItems change applied: SetContainerStacks with its count and stacks.
 bool ApplyContainerItems(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept;

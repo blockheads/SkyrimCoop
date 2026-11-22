@@ -28,6 +28,8 @@ its picker (its items, gold, Speech experience and training the picker's), refus
   NPC (the copy, on a peer) and press E: the menu opens on the conversation as it stands. The host joins its
   own background conversation the same way. Nobody is moved for a conversation, and first and third person
   stay each player's own.
+- **A game joining the session mid-conversation** (2026-11-21, one-simulator.md piece 9) is told of it at its step
+  (`HostDialogue::SendCurrent`, `NotifyDialogueOpen::Step`); its menu stays closed until its player talks to the NPC.
 - **Every menu shows the party's list** (decided 2026-10-29; each line its own option since 2026-10-30, the user): the
   host's engine builds the step's list once with the real quests and NPC, and judges every topic for each player's
   character there (its items, Speech, race, factions, perks; the host's for its own). Every menu in the conversation

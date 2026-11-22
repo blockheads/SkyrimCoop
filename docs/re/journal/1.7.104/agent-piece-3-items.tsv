@@ -1,0 +1,75 @@
+time	op	id	rva	item
+2026-11-19T15:31:41Z	read	16059	0x22da70	{"name": "InventoryChanges::RemoveItem"}
+2026-11-19T15:32:56Z	type	16059	0x22da70	{"addr": "0x14022da70", "kind": "function", "signature": "unsigned int *__fastcall InventoryChanges__RemoveItem(void *apChanges, unsigned int *apResultHandle, void *apRef, void *apItem, int aCount, int aReason, void *apExtraList, void *apMoveToRef, void *apDropLoc, void *apDropRef)"}
+2026-11-19T15:33:03Z	name	16059	0x22da70	{"addr": "0x14022da70", "name": "InventoryChanges::RemoveItem"}
+2026-11-19T15:34:10Z	read	16037	0x22af40	{"name": "sub_14022AF40"}
+2026-11-19T15:34:15Z	name	16037	0x22af40	{"addr": "0x14022AF40", "name": "InventoryEntryData::CountStackableListsPruned"}
+2026-11-19T15:34:18Z	comment	16037	0x22af40	{"addr": "0x14022AF40", "comment": "Sum of the entry's stackable extra lists' counts; an empty list met on the way is unlinked and freed (coop piece-3 read)."}
+2026-11-19T15:34:18Z	comment	16059	0x22da70	{"addr": "0x14022da70", "comment": "Remove aCount of apItem. Given apExtraList: takes from that list (count per list). Given none (LABEL_286): takes only the loose count = base container count + entry delta - every list's count (non-stackable lists summed here, stackable via 0x14022AF40); items held in lists (a rolled ExtraLeveledItem stack) are never taken. So a copy's plain removal of a rolled item removes nothing (coop piece-3, inventory-changes.md)."}
+2026-11-19T15:34:18Z	comment		0x22ec41	{"addr": "0x14022ec41", "comment": "loose = (base+delta) - sum(non-stackable lists) - sum(stackable lists); a no-list removal takes at most this"}
+2026-11-19T15:34:22Z	read	16038	0x22b060	{"name": "TESObjectREFR::InitInventoryIfRequired"}
+2026-11-19T15:34:44Z	read	37198	0x672b90	{"name": "Actor::AddDeathItems"}
+2026-11-19T15:35:16Z	read	418622	0x3c4440	{"name": "sub_1403C4440"}
+2026-11-19T15:35:38Z	read	16100	0x237be0	{"name": "sub_140237BE0"}
+2026-11-19T15:35:54Z	name	16100	0x237be0	{"addr": "0x140237be0", "name": "InventoryChanges::UnequipAllWorn"}
+2026-11-19T15:35:54Z	name	418622	0x3c4440	{"addr": "0x1403c4440", "name": "TESNPC::ResetWornToOutfit"}
+2026-11-19T15:35:58Z	comment	16100	0x237be0	{"addr": "0x140237be0", "comment": "ID 16100. Every entry with a worn/worn-left list: unequipped in the changes themselves (16067, both hands), inventory update message; not through ActorEquipManager::UnequipObject, so our unequip hook never sees it. Then the actor's hands item vfunc 0xB2 (coop piece-3 read)."}
+2026-11-19T15:35:58Z	comment	418622	0x3c4440	{"addr": "0x1403c4440", "comment": "ID 418622 (npc, actor, ..., a6). Takes off every worn item (16100), then only the base's default outfit (TESNPC+0x218): InitOutfitItems if missing, AddWornOutfit, EquipObject. An actor whose worn set is not its base's outfit (a player's copy, a copy wearing its owner's) ends with the outfit or nothing. Callers: ResetInventory, InitLoadGame, SetLevel, TESNPC 24725 (from Update3DModel 39395, copy-equipment-after-rebuild.md). coop piece-3."}
+2026-11-19T16:25:29Z	read	24725	0x3c2ae0	{"name": "TESNPC::sub_24725"}
+2026-11-19T16:25:40Z	read	24384	0x3b03c0	{"name": "TESNPC::sub_24384"}
+2026-11-19T16:25:58Z	name	24384	0x3b03c0	{"addr": "0x1403b03c0", "name": "TESNPC::ShouldResetWornOn3D"}
+2026-11-19T16:25:58Z	name	24725	0x3c2ae0	{"addr": "0x1403c2ae0", "name": "TESNPC::InitWornOn3D"}
+2026-11-19T16:26:01Z	comment	24384	0x3b03c0	{"addr": "0x1403b03c0", "comment": "ID 24384 (npc, actor). Loading a save (BGSSaveLoadGame+0x340 bit 2): false only when the actor (flag 0x200000) has change kLeveledInventory|kInventory (0x8000020). Otherwise: a living actor (vfunc 0x99 IsDead false) -> true; a dead one -> true only without change kItemExtraData (0x400). coop piece-3."}
+2026-11-19T16:26:01Z	comment	24725	0x3c2ae0	{"addr": "0x1403c2ae0", "comment": "ID 24725 (npc, actor, biped**, force), from Update3DModel 39395. Actor with no 3D yet (its 3D load) or force: if ShouldResetWornOn3D (24384), or byte npc+0x242 / form id 7 and the ShouldRunDefaultWornVisitor finds no worn item: TESNPC::ResetWornToOutfit (418622): every worn item off (16100), the base's outfit on. So every 3D load of a living actor outside a save load strips its worn set to its base's outfit; then InitWornVisitor fills the biped from what is worn. coop piece-3."}
+2026-11-19T16:26:19Z	read	38894	0x6dc310	{"name": "ActorEquipManager::EquipObject"}
+2026-11-19T16:26:29Z	read	38929	0x6de920	{"name": "coop_RealEquip"}
+2026-11-19T16:26:37Z	read		0x691e00	{"name": "sub_140691D60"}
+2026-11-19T16:26:40Z	read	37684	0x69dce0	{"name": "Character::sub_37684"}
+2026-11-19T16:26:48Z	read	38919	0x6ddf80	{"name": "sub_1406DDF80"}
+2026-11-19T16:27:06Z	read	39821	0x720f80	{"name": "sub_140720F80"}
+2026-11-19T16:27:31Z	read	38893	0x6dc220	{"name": "sub_1406DC220"}
+2026-11-19T16:27:45Z	name	37684	0x69dce0	{"addr": "0x14069dce0", "name": "Character::QueueOrEquipNow"}
+2026-11-19T16:27:45Z	name	38001	0x6b2570	{"addr": "0x1406b2570", "name": "Character::EquipNow"}
+2026-11-19T16:27:45Z	name	39821	0x720f80	{"addr": "0x140720f80", "name": "AIProcess::QueueEquipItem"}
+2026-11-19T16:27:45Z	name	38893	0x6dc220	{"addr": "0x1406dc220", "name": "ActorEquipManager::EquipEntryQueued"}
+2026-11-19T16:27:45Z	name	38919	0x6ddf80	{"addr": "0x1406ddf80", "name": "ActorEquipManager::EquipApplyTail"}
+2026-11-19T16:27:50Z	comment	37684	0x69dce0	{"addr": "0x14069dce0", "comment": "ID 37684. 38929's path for EquipData+0x20 (bQueueEquip) set. Armor/weapon/ammo/light/spell types (0x17,0x1A,0x1F,0x29,0x2A,0x32): queued on the process (AIProcess::QueueEquipItem, middle process itemstoEquipUnequip +0x188) unless no process, process level > 1, a menu open or a save loading; then and for 0x1B/0x1E/0x2E: EquipNow (38001). coop piece-3."}
+2026-11-19T16:27:50Z	comment	38001	0x6b2570	{"addr": "0x1406b2570", "comment": "ID 38001. The equip applied at once (38929 when not queued, 37684 when it cannot queue, 38919, 0x140233FD0). Which call drains the queued list (+0x188) into this was not traced. coop piece-3."}
+2026-11-19T16:27:50Z	comment	39821	0x720f80	{"addr": "0x140720f80", "comment": "(process, actor, bEquip, item, EquipData*): appends to middle process itemstoEquipUnequip (+0x188), skipping an identical entry. coop piece-3."}
+2026-11-19T16:27:50Z	comment	38893	0x6dc220	{"addr": "0x1406dc220", "comment": "Equip from an InventoryEntryData: first non-worn list, EquipData{list, count, slot, 0, 0x10001: bQueueEquip=1} -> 38929. Callers: PickUpObject, DropObject, StartCombat, AI package code: engine equips that our EquipHook skips as queued. coop piece-3."}
+2026-11-19T16:27:50Z	comment	38919	0x6ddf80	{"addr": "0x1406ddf80", "comment": "ID 38919: 38929's tail (queue or EquipNow, then the inventory update message). No code callers found. coop piece-3."}
+2026-11-19T16:27:50Z	comment		0x691e00	{"addr": "0x140691e00", "comment": "Not on the inventory path: opened by a mistyped address while looking for 37684 (coop piece-3)."}
+2026-11-19T16:28:02Z	read	39539	0x700290	{"name": "sub_140700290"}
+2026-11-19T16:28:21Z	read	39814	0x720d90	{"name": "sub_140720D90"}
+2026-11-19T16:28:28Z	name	39814	0x720d90	{"addr": "0x140720d90", "name": "AIProcess::ApplyQueuedEquips"}
+2026-11-19T16:28:28Z	name		0x720f10	{"addr": "0x140720f10", "name": "AIProcess::HasQueuedEquip"}
+2026-11-19T16:28:28Z	name	39820	0x720f60	{"addr": "0x140720f60", "name": "AIProcess::HasAnyQueuedEquip"}
+2026-11-19T16:28:29Z	comment	39814	0x720d90	{"addr": "0x140720d90", "comment": "(process, actor), from Job_Non_render_safe_AI. Drains middle process itemstoEquipUnequip (+0x188): each entry whose model file is loaded (+0x38 QueuedFile) goes to the public ActorEquipManager::EquipObject / UnequipObject with abQueueEquip = 0, so a queued equip passes 38929 (our EquipHook) a second time, not queued. coop piece-3."}
+2026-11-19T16:28:33Z	read	16108	0x2395c0	{"name": "InventoryChanges::GetItemCount"}
+2026-11-19T19:54:34Z	read	37797	0x6a5370	{"name": "Actor::RemoveItem"}
+2026-11-19T19:54:35Z	read	19689	0x2e7cc0	{"name": "TESObjectREFR::RemoveItem"}
+2026-11-19T19:56:33Z	read	16088	0x235ab0	{"name": "sub_140235AB0"}
+2026-11-19T19:58:15Z	read	11699	0x1647c0	{"name": "sub_1401647C0"}
+2026-11-19T20:00:01Z	name	11699	0x1647c0	{"addr": "0x1401647C0", "name": "ExtraDataList::HasCannotWear"}
+2026-11-19T20:00:01Z	name	11615	0x1604f0	{"addr": "0x1401604F0", "name": "ExtraDataList::SetCannotWear"}
+2026-11-19T20:00:01Z	name	16067	0x232330	{"addr": "0x140232330", "name": "InventoryChanges::UnequipWornList"}
+2026-11-19T20:00:01Z	name	16089	0x236360	{"addr": "0x140236360", "name": "InventoryChanges::BestArmorForSlot"}
+2026-11-19T20:00:01Z	name	16088	0x235ab0	{"addr": "0x140235AB0", "name": "InventoryChanges::BestWeaponOfType"}
+2026-11-19T20:00:01Z	name	16066	0x231280	{"addr": "0x140231280", "name": "InventoryChanges::AddWornItem"}
+2026-11-19T20:00:01Z	name	39539	0x700290	{"addr": "0x140700290", "name": "sub_140700290"}
+2026-11-19T20:00:09Z	comment	11699	0x1647c0	{"addr": "0x1401647C0", "comment": "ID 11699. The list has ExtraCannotWear (0x3D, presence bit): the item is locked worn. coop piece-3."}
+2026-11-19T20:00:09Z	comment	11615	0x1604f0	{"addr": "0x1401604F0", "comment": "Adds/removes ExtraCannotWear on a list. Callers: InventoryChanges::AddWornItem (its a7 = EquipData+0x21 forceEquip via Actor::AddWornItem 38004 from EquipNow 38001), console/papyrus EquipItem (abPreventRemoval), UnequipItem. coop piece-3."}
+2026-11-19T20:00:09Z	comment	16067	0x232330	{"addr": "0x140232330", "comment": "ID 16067 (changes, &removed, item, count, actor, list, left). First worn list of the item; if it has ExtraCannotWear and the actor is alive (IsDead vfunc 0x99 false) returns at once: the item stays worn. Else clears the hand by type and SetWorn(0). coop piece-3."}
+2026-11-19T20:00:09Z	comment	16089	0x236360	{"addr": "0x140236360", "comment": "(changes, ref, biped slot, preferWorn): highest armor rating ARMO for the slot from the base container and the changes; with preferWorn a locked (CannotWear) worn item wins. 418622 calls it for 32 slots when Actor+0xE8 (boolBits) has kPlayerTeammate. coop piece-3."}
+2026-11-19T20:00:09Z	comment	16088	0x235ab0	{"addr": "0x140235AB0", "comment": "ID 16088. Best weapon of a type (a5 = 1..9) from the changes; 418622's a4 pass equips the best ones for a living actor (bows/crossbows with ammo). coop piece-3."}
+2026-11-19T20:00:09Z	comment	16066	0x231280	{"addr": "0x140231280", "comment": "Marks the item's list worn (left/right); its a7 (forceEquip) sets ExtraCannotWear on the list (SetCannotWear). coop piece-3."}
+2026-11-19T20:00:09Z	comment	39539	0x700290	{"addr": "0x140700290", "comment": "Not on the inventory path: opened while following the equip queue; not needed (coop piece-3)."}
+2026-11-19T20:00:09Z	comment		0x22e3b5	{"addr": "0x14022e3b5", "comment": "No-list path with apMoveToRef: kSteal (1), not gold: the list gets ExtraOwnership = source owner (an actor's leveled NPC/base, else the ref's owner) before AddObjectToContainer (vfunc 0x5A) on the target: the stolen mark. No crime is reported here. Without a target the count only drops."}
+2026-11-19T20:00:20Z	comment		0x22e3b5	{"addr": "0x14022e3b5", "comment": ""}
+2026-11-19T20:00:20Z	comment		0x23087c	{"addr": "0x14023087c", "comment": "With apMoveToRef, kSteal (1), not gold: the list gets ExtraOwnership = source owner (an actor's leveled NPC/base, else the ref's owner) before AddObjectToContainer (vfunc 0x5A) on the target: the stolen mark. No crime is reported in 16059; without a target the count only drops. coop piece-3."}
+2026-11-19T20:00:20Z	comment		0x22fd94	{"addr": "0x14022fd94", "comment": "Per moved list, only with apMoveToRef: kSteal stamps the source owner (stolen), kStoreInTeammate (5) from the player stamps the player, kSelling (2) fires the unique-id event; then AddObjectToContainer on the target. coop piece-3."}
+2026-11-19T20:05:05Z	read	20194	0x300440	{"name": "TESObjectREFR::GetOwner"}
+2026-11-19T20:28:29Z	read		0x6a9f20	{"name": "Actor::KillImpl"}
+2026-11-19T20:53:32Z	read	11810	0x169670	{"name": "ExtraDataList::GetLeveledNPC"}
+2026-11-19T20:53:52Z	comment	11810	0x169670	{"addr": "0x140169670", "comment": "ID 11810. ExtraLeveledCreature (0x2D) +0x10: the ORIGINAL base the actor was placed from (a leveled character such as LvlBanditBoss 3DF17, a permanent form), not the temporary resolved NPC. 16059 stamps this as a theft's owner. coop piece-3."}
+2026-11-19T21:18:32Z	type	418622	0x3c4440	{"addr": "0x1403c4440", "kind": "function", "signature": "void __fastcall TESNPC__ResetWornToOutfit(void *apNpc, void *apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag)"}

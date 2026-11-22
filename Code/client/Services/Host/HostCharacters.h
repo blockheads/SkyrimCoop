@@ -5,6 +5,7 @@
 #include <Messages/NotifyPartyTravel.h>
 #include <Structs/ActorWhereabouts.h>
 #include <Messages/RelayedMessages.h>
+#include <Services/Host/HostClaims.h>
 
 #include <optional>
 #include <NoCopyMove.h>
@@ -51,15 +52,19 @@ struct HostCharacters
     [[nodiscard]] uint32_t ReservePlayerCharacter(ConnectionId_t aPlayer) noexcept;
     // The player's own character (its session id), or none.
     [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
-    // A spawn made from now on carries the player's new name.
-    void SetPlayerName(ConnectionId_t aPlayer, const std::string& acName) noexcept;
     // One of the players' characters.
     [[nodiscard]] bool IsPlayerCharacter(uint32_t aSessionId) const noexcept;
+    // A rider's Ride part (RidePart) names a horse the host gave it a seat on (OnBoard), or none.
+    [[nodiscard]] bool RideGranted(uint32_t aRider, const RecordPart& acPart) const noexcept;
     // Where a player's character stands now: its cell (outdoors its worldspace too), position and heading, from its
     // game's announcement, arrivals and movement (the host's own from its engine). None for any other character.
     [[nodiscard]] std::optional<NotifyPartyTravel> CharacterPlace(uint32_t aSessionId) const noexcept;
     // Every character but aPlayer's own (aOwnSessionId), as it is now.
     void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) noexcept;
+    // Action claims (a ride, a kill move), which change their taken members' owner (SetOwner).
+    [[nodiscard]] HostClaims& Claims() noexcept { return m_claims; }
+    // HostClaims only: aTo's game owns the actor from now. False if it did already, or no such character.
+    bool SetOwner(uint32_t aSessionId, ConnectionId_t aTo) noexcept;
     // Its characters leave with it.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
@@ -72,12 +77,10 @@ private:
     // The owner's looks update its existing copies; a revival remakes them. Anyone else lost its copy and asks
     // for a fresh spawn.
     void OnRespawn(const RequestRespawn& acRequest, ConnectionId_t aSender) noexcept;
-    // A player's character got on a mount: the rider's game simulates it from here on (its movement is the rider's
-    // input), so it becomes that game's; every game hears of it, the rider's to take it.
-    void OnMount(const MountRequest& acRequest, ConnectionId_t aSender) noexcept;
-    // Its rider got off: the mount is the host's again (its game simulates it), and every game hears of it.
+    // Its rider got off: its first passenger drives on, else the ride ends (the rider's game gives the mount back).
     void OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept;
-    void GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
+    // The ride ends, every game told; aRelease: the mount is the host's again at once (its rider gone).
+    void EndRide(uint32_t aMountId, uint32_t aRiderId, bool aRelease) noexcept;
     // A player got on a horse another player drives: a passenger, its copy seated on every other game.
     void OnBoard(const BoardRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnUnboard(const UnboardRequest& acRequest, ConnectionId_t aSender) noexcept;
@@ -119,6 +122,8 @@ private:
     // A spawn of the character as it is now: the host's actor from its engine, a player's from its
     // record and the host's copy.
     [[nodiscard]] std::optional<NotifyCharacterSpawn> BuildSpawn(uint32_t aSessionId) const noexcept;
+    // The same without its record.
+    [[nodiscard]] std::optional<NotifyCharacterSpawn> ReadSpawn(uint32_t aSessionId) const noexcept;
     // Its copies follow aWhereabouts (where the owner's actor went).
     void RemoveCharacter(uint32_t aSessionId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
 
@@ -127,7 +132,7 @@ private:
         ConnectionId_t Owner{};
         // A player's: what is needed to spawn it again, kept current with its movement.
         std::optional<NotifyCharacterSpawn> PlayerRecord;
-        // A mount's: who rides it, from OnMount until GiveBack (one rider at a time).
+        // A mount's: who rides it, from its ride's claim until the ride ends (one rider at a time).
         uint32_t Rider{};
         // Its passengers, in boarding order: the first drives next.
         std::vector<uint32_t> Passengers;
@@ -140,6 +145,7 @@ private:
     std::unordered_map<uint32_t, Character> m_characters;
     // Never reused in a session: a late message for a removed character finds nothing.
     uint32_t m_lastSessionId = 0;
+    HostClaims m_claims;
     // Each player's character's id, from its join.
     std::unordered_map<ConnectionId_t, uint32_t> m_playerCharacters;
 

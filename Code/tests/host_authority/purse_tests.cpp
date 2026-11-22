@@ -94,7 +94,7 @@ TEST_CASE("A guest cannot change another player's gold, and an NPC's gold is an 
     const uint32_t cNpc = session.Character(kHost);
     session.Receive(kHost, Gold(cNpc, 10));
     CHECK(session.PartyGold == 0);
-    CHECK(session.SentTo<NotifyInventoryChanges>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyInventoryChanges>(kPeer).empty()); // its items part carries it (one-simulator.md piece 3)
 }
 
 TEST_CASE("A guest entering carries the party's gold", "[HostAuthority][Purse]")

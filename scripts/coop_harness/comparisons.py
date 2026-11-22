@@ -17,6 +17,7 @@ from .common import (
     CHANGES_MOVED,
     CHANGES_OWN,
     CREATED_ID,
+    CRITTER_MARKERS,
     DYNAMIC_MOTIONS,
     FLOAT_TOLERANCE,
     FORM_DELETED,
@@ -28,6 +29,7 @@ from .common import (
     POSITION_TOLERANCE,
     RAISED_PELVIS,
     ROTATE_TOLERANCE,
+    SCENERY_SCRIPTS,
     VALUE_TOLERANCE,
     WORLD_FIELDS,
     WORLD_TOLERANCES,
@@ -83,19 +85,31 @@ def pose_difference(a, b, a_again=(), b_again=()):
     return "; ".join(moved[:6]) + (f" (+{len(moved) - 6} more)" if len(moved) > 6 else "")
 
 
+def scenery(ref):
+    """Why a reference is each game's own and not compared, or None: a critter or a fish (its script), or moved on a
+    path on its game's clock (docs/re/systems/physics.md, "A translating reference")."""
+    if set(ref.get("scripts") or ()) & set(SCENERY_SCRIPTS):
+        return "critter"
+    if ref.get("on_path"):
+        return "on a path"
+    if ref["id"] >= CREATED_ID and ref["base"] in CRITTER_MARKERS:
+        return "a critter's marker"
+    return None
+
+
 def simulated(ref):
     """A physics object both games simulate: its first body dynamic (not keyframed by an animation, not fixed)."""
     return (first_body(ref) or {}).get("motion") in DYNAMIC_MOTIONS
 
 
-def collision_difference(a, b):
+def collision_difference(a, b, turns=True):
     """Two lists of physics bodies ({node, in_world, position, rotation}) that differ, in order; a simulated body's
-    turn too (an animated one turns on each game's clock)."""
+    turn too (an animated one turns on each game's clock), unless turns is False (a plant's sway)."""
     a, b = a or [], b or []
     if len(a) != len(b):
         return f"{len(a)} bodies vs {len(b)}"
     def turned(x, y):
-        return x["motion"] in DYNAMIC_MOTIONS and y["motion"] in DYNAMIC_MOTIONS and not same_turn(x["rotation"], y["rotation"], BODY_TURN_TOLERANCE)
+        return turns and x["motion"] in DYNAMIC_MOTIONS and y["motion"] in DYNAMIC_MOTIONS and not same_turn(x["rotation"], y["rotation"], BODY_TURN_TOLERANCE)
     different = [f"{x['node']}: {'in' if x['in_world'] else 'out of'} world at {show_value('position', x['position'])} vs "
                  f"{'in' if y['in_world'] else 'out of'} at {show_value('position', y['position'])}" + (", turned differently" if turned(x, y) else "")
                  for x, y in zip(a, b) if x["in_world"] != y["in_world"] or not near(x["position"], y["position"], BODY_TOLERANCE) or turned(x, y)]
@@ -108,7 +122,12 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
     differences = {}
     for field in WORLD_FIELDS:
         a, b = host.get(field), guest.get(field)
+        plant = FORM_TYPE_NAMES.get(host.get("type")) == "FLOR"
         if field == "pose":
+            # A plant's pose is its own sway (a hanging pheasant's chain swings on each game's physics); harvested is its
+            # flag and where it hangs its bodies' places, compared as any.
+            if plant:
+                continue
             # Untouched in both and without a graph: only its model's own loops, on each game's clock (frozen
             # off-camera at different phases).
             if not any(r.get(k) for r in (host, guest) for k in ("changes", "graph")):
@@ -118,7 +137,7 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
                 differences[field] = text
             continue
         if field == "collision":
-            if text := collision_difference(a, b):
+            if text := collision_difference(a, b, turns=not plant):
                 differences[field] = text
             continue
         # A physics object's turn is its bodies' (collision, as quaternions): its angles flip near a pitch of 90°.
@@ -186,6 +205,11 @@ def world_differences(host, guest, host_again=(), guest_again=()):
     """Where the guest's world differs from the host's: {reference: {field: 'host vs guest'}}. A reference one game
     lacks differs in "present"; created references pair up by base and position (their ids differ per game).
     host_again, guest_again: each game sampled again, so what animates on its own is skipped."""
+    # Scenery is left out: a placed one if either game reads it so, a created one by its own fields (created ids are
+    # each game's own).
+    left_out = {i for world in (host, guest) for i, r in world.items() if i < CREATED_ID and scenery(r)}
+    host = {i: r for i, r in host.items() if i not in left_out and not (i >= CREATED_ID and scenery(r))}
+    guest = {i: r for i, r in guest.items() if i not in left_out and not (i >= CREATED_ID and scenery(r))}
     differences = {}
     for ref_id, ref in host.items():
         if ref_id < CREATED_ID:

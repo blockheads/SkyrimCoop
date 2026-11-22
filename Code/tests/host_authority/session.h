@@ -13,10 +13,10 @@
 
 #include <Messages/Relayed.h>
 #include <Messages/ActivateRequest.h>
+#include <Messages/SummonRequest.h>
 #include <Messages/LockChangeRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
-#include <Messages/NotifyActivate.h>
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/WorldState.h>
 #include <Messages/NotifyTimeSettings.h>
@@ -29,12 +29,8 @@
 #include <Messages/NotifyRespawn.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
-#include <Messages/NotifyFactionsChanges.h>
-#include <Messages/RequestFactionsChanges.h>
-#include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RelayedMessages.h>
-#include <Messages/RequestEquipmentChanges.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/NotifyRemoveWaypoint.h>
@@ -46,6 +42,7 @@
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AuthenticationResponse.h>
 #include <Messages/NotifyPlayerJoined.h>
+#include <Messages/NotifyStealthEye.h>
 #include <Messages/NotifyPlayerLevel.h>
 #include <Messages/NotifySettingsChange.h>
 #include <Messages/PlayerLevelRequest.h>
@@ -75,6 +72,27 @@ inline Mods HostPlugins()
 }
 
 // What a game on the host's build, game and plugins sends to join.
+// A rider's get-on: a claim on its horse (HostCharacters' ride rule).
+inline ClaimRequest RideClaim(uint32_t aRider, uint32_t aMount)
+{
+    ClaimRequest claim;
+    claim.Kind = Payloads::Claim::kRide;
+    claim.ForId = aRider;
+    claim.Members = {{aMount, true, false}};
+    return claim;
+}
+
+// A kill move: its attacker locked, its victim taken (an NPC, its death kept) or locked (a player).
+inline ClaimRequest KillMoveClaim(uint32_t aAttacker, uint32_t aVictim, bool aVictimIsPlayer = false, uint64_t aTick = 0)
+{
+    ClaimRequest claim;
+    claim.Kind = Payloads::Claim::kKillMove;
+    claim.ForId = aAttacker;
+    claim.Tick = aTick;
+    claim.Members = {{aAttacker, false, false}, {aVictim, !aVictimIsPlayer, !aVictimIsPlayer}};
+    return claim;
+}
+
 inline AuthenticationRequest JoinRequest(const char* acpName, uint16_t aLevel = 5)
 {
     AuthenticationRequest join;
@@ -127,6 +145,8 @@ struct Session
     // A session id for one of the host's actors, as the host's game takes it.
     uint32_t NewCharacterId() { return m_authority.NewCharacterId(); }
     HostAuthority& Authority() { return m_authority; }
+    // The host's game took back an actor given back (its copy ran the holder's ops: HostService).
+    void Taken(uint32_t aActorId) { m_authority.ActorTaken(aActorId); }
 
     // A character aOwner announces, as its game does: the host one of its NPCs, a peer its player. Returns its
     // session id once another game got its spawn; what the announcement sent is cleared.
@@ -195,7 +215,10 @@ struct Session
     std::unordered_map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
+    std::map<uint32_t, DetectionRules::EyeReading> Eyes;      // the host's NPCs' reading of a character's copy, by id
     std::vector<std::string> ConsoleLines;                   // the dev commands' lines the host's console ran
+    std::set<uint32_t> CannotPair;                           // the host's NPCs dead or with their graph stopped
+    std::set<uint32_t> Dead;                                 // the host's actors dead (HostGame::IsDead)
     std::map<uint32_t, std::string> ConsoleNames;            // a character as the host's console names it
     uint32_t HostilesKilled = 0;                             // /killall's kills in the host's game
     uint32_t GlobalReads = 0;
@@ -204,6 +227,8 @@ struct Session
     uint32_t QuestReads = 0;
     std::vector<QuestState> QuestChanges;
     std::vector<QuestState> Quests;                               // the host's quests
+    std::vector<std::tuple<GameId, uint32_t, uint32_t>> Activations; // guests' activations the host's game ran
+    std::vector<std::pair<uint32_t, GameId>> Summons; // guests' summons the host's game made: caster, spell
     std::vector<std::tuple<GameId, bool, uint8_t>> LocksSet; // guests' lock changes the host's game took
     std::vector<StoryEvent> StoriesRaised;                    // guests' story events the host's story manager queued
     std::vector<ObjectChange> ItemsSet;                      // guests' container changes the host's game took
@@ -301,10 +326,16 @@ private:
             if (CrimeJudge) CrimeJudge(aActor, aCrime);
             return CrimeCaught;
         };
+        game.CanPair = [this](uint32_t aSessionId) { return !CannotPair.contains(aSessionId); };
+        game.IsDead = [this](uint32_t aSessionId) { return Dead.contains(aSessionId); };
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.AdvanceTime = [this](float aHours) { HostClock.Time += aHours; };
         game.ReadWeather = [this] { return Weather; };
+        game.ReadEye = [this](uint32_t aSessionId) -> std::optional<DetectionRules::EyeReading> {
+            const auto it = Eyes.find(aSessionId);
+            return it == Eyes.end() ? std::nullopt : std::optional(it->second);
+        };
         game.RunConsole = [this](const std::string& acLine) { ConsoleLines.push_back(acLine); };
         game.ConsoleNameOf = [this](uint32_t aSessionId) -> std::optional<std::string> {
             const auto it = ConsoleNames.find(aSessionId);
@@ -328,6 +359,8 @@ private:
             const auto it = acObject.ModId == ObjectChange::kCreatedModId ? CreatedContents.find(acObject.BaseId) : CreatedContents.end();
             return it != CreatedContents.end() ? std::optional(it->second) : std::nullopt;
         };
+        game.Summon = [this](uint32_t aCasterId, const SummonRequest& acSummon) { Summons.emplace_back(aCasterId, acSummon.SpellId); };
+        game.Activate = [this](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) { Activations.emplace_back(acObject, aNpcId, aActivatorId); };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
         game.SetItems = [this](const ObjectChange& acItems) { ItemsSet.push_back(acItems); };
         game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { StoriesRaised.push_back(acEvent); };

@@ -1,0 +1,34 @@
+time	op	id	rva	item
+2026-11-20T20:20:56Z	read	6070	0xa29d0	{"name": "sub_1400A29D0"}
+2026-11-20T20:21:02Z	read		0x6e2400	{"name": "coop_ApplyActionGraphEffects"}
+2026-11-20T20:23:02Z	read	40353	0x73cf80	{"name": "MountInteraction::Func8_40353"}
+2026-11-20T20:23:10Z	read		0x73cbe0	{"name": "MountInteraction::Func14_40351"}
+2026-11-20T20:23:10Z	read	41538	0x78d580	{"name": "sub_14078D580"}
+2026-11-20T20:23:29Z	read	41540	0x78d720	{"name": "RefrInteraction::AttachToRider"}
+2026-11-20T20:23:33Z	read		0x78cbc0	{"name": "RefrInteraction::StartWithActivate"}
+2026-11-20T20:23:43Z	read		0x6d3470	{"name": "Actor::GetMountedBy"}
+2026-11-20T20:23:43Z	read	39925	0x725b00	{"name": "sub_140725B00"}
+2026-11-20T20:23:53Z	read	38704	0x6d34a0	{"name": "Actor::TryStartMountInteraction"}
+2026-11-20T20:24:02Z	read		0x6d30db	{"name": "Actor::PutActorOnMountQuick"}
+2026-11-20T20:24:12Z	read	38699	0x6d3050	{"name": "Actor::PutActorOnMountQuick"}
+2026-11-20T20:25:21Z	read		0x2bd0f0	{"name": "TESObjectCELL::sub_18976"}
+2026-11-20T20:25:32Z	read	21723	0x33dbf0	{"name": "GameFunc::native::IsEnteringInteractionQuick"}
+2026-11-20T20:25:40Z	read	37327	0x679300	{"name": "Character::sub_37327"}
+2026-11-20T20:25:43Z	read	39924	0x725ae0	{"name": "sub_140725AE0"}
+2026-11-20T20:25:56Z	name	41538	0x78d580	{"addr": "0x14078d580", "name": "RefrInteraction::TargetHas3D"}
+2026-11-20T20:25:56Z	name	39925	0x725b00	{"addr": "0x140725b00", "name": "AIProcess::SetEnteringInteractionQuick"}
+2026-11-20T20:25:56Z	name	39924	0x725ae0	{"addr": "0x140725ae0", "name": "AIProcess::IsEnteringInteractionQuick"}
+2026-11-20T20:25:56Z	name	40351	0x73cb60	{"addr": "0x14073cb60", "name": "MountInteraction::RunActivate"}
+2026-11-20T20:25:56Z	name	40353	0x73cf80	{"addr": "0x14073cf80", "name": "MountInteraction::OnSeated"}
+2026-11-20T20:25:56Z	name	37327	0x679300	{"addr": "0x140679300", "name": "Character::IsEnteringInteractionQuick"}
+2026-11-20T20:25:56Z	name	6070	0xa29d0	{"addr": "0x1400a29d0", "name": "StaticInit_strHorseEnterInstant"}
+2026-11-20T20:26:07Z	comment	38699	0x6d3050	{"addr": "0x1406d3050", "comment": "Actor vfunc 0xAC PutActorOnMountQuick: a rider already linked (IsOnMount, its own MountInteraction) is seated at once: TryStartMountInteraction 38704 with resume=1 (no IsMountBeingRidden check, the existing interaction reused). The engine's instant get-on: no package, no paired clip. SkyrimCoop piece-5"}
+2026-11-20T20:26:07Z	comment	40351	0x73cb60	{"addr": "0x14073cb60", "comment": "MountInteraction vfunc 0x70 (40351), from StartWithActivate 41530: runs the ActionActivate rider->mount (a2 vfunc 0x28); taken -> OnRiderMounted 40359 (the player: 40725 OnMountStarted), returns 0 if the mount has 3D else queued in ProcessLists (1); resume: kGettingOnOffMount cleared on both (37462). Refused -> the interaction stopped (2). SkyrimCoop piece-5"}
+2026-11-20T20:26:07Z	comment	40353	0x73cf80	{"addr": "0x14073cf80", "comment": "MountInteraction vfunc 0x40 (40353) OnSeated: mount has 3D -> SeatRider 40358, else queued in ProcessLists. Called by Actor::OnInteractionSeated 41533 (PairedStopHandler 42868) and by StartWithActivate 41530 on a resumed (quick) start. SkyrimCoop piece-5"}
+2026-11-20T20:26:07Z	comment	41538	0x78d580	{"addr": "0x14078d580", "comment": "(interaction) Its target (+0x10, the mount) has 3D (vfunc 0x380). Gates SeatRider in 40351/40353. SkyrimCoop piece-5"}
+2026-11-20T20:26:07Z	comment	39925	0x725b00	{"addr": "0x140725b00", "comment": "AIProcess: middleHigh+0x320 entering-interaction-quick := a2. Set around StartWithActivate 41530's ActionActivate when resumed (quick), read by the condition IsEnteringInteractionQuick (631, 21723). SkyrimCoop piece-5"}
+2026-11-20T20:26:07Z	comment	39924	0x725ae0	{"addr": "0x140725ae0", "comment": "AIProcess: middleHigh+0x320 entering-interaction-quick (set by 0x140725B00). SkyrimCoop piece-5"}
+2026-11-20T20:26:07Z	comment	37327	0x679300	{"addr": "0x140679300", "comment": "37327: has a process and its entering-interaction-quick byte (middleHigh+0x320) is set. SkyrimCoop piece-5"}
+2026-11-20T20:26:07Z	comment	21723	0x33dbf0	{"addr": "0x14033dbf0", "comment": "Condition 631 IsEnteringInteractionQuick: 1.0 when the actor's process is entering an interaction quick (37327) and its sit state is 1-3 or 5-7. The only condition of IDLE EnterHorseInstant (0x5701D, event HorseEnterInstant -> 39004 sit state 3; 0_Master wildcard -> HorseRider_State). SkyrimCoop piece-5"}
+2026-11-20T20:26:07Z	comment	6070	0xa29d0	{"addr": "0x1400a29d0", "comment": "Static init of the fixed string HorseEnterInstant (qword_143243F00); its only reader is 39004 (sit state 3). Not on any other path. SkyrimCoop piece-5"}
+2026-11-20T20:26:12Z	comment	41530	0x78ca60	{"addr": "0x14078ca60", "comment": "41530 (rider, &interaction, resume): the rider's sit state from the interaction (vfuncs 0x68/0x28, SetSitSleepState 39912), then ActionActivate (default object 55) rider->target through vfunc 0x70; result 2 = refused by the graphs (nothing attached, the sit state left set), else AttachToRider (41540). Returns not refused. Resume (quick): process entering-quick byte set around the action, so the idle tree picks EnterHorseInstant (condition 631), and a result 0 seats at once (vfunc 0x40 OnSeated 40353 -> SeatRider). SkyrimCoop piece-5"}

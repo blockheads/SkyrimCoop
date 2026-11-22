@@ -144,7 +144,10 @@ python3 scripts/coop_test.py stop
 
 `duo` deploys the current harness DLL and loader and records each player's home. Use `duo --save NAME --level N`
 for a saved story. `reload` swaps a rebuilt DLL into a running duo and reconnects it; it needs the resident loader.
-Games use their own Proton prefixes under `build/coop-test`, never ordinary player saves. `SKYRIM_GAME_DIR`,
+Games use their own Proton prefixes under `build/coop-test`, never ordinary player saves. This machine's paths
+(`SKYRIM_STEAM_LIBRARY`, `SKYRIM_STEAM_GAME_DIR`, `IDA_DIR`, `COOP_DUO_USER`) come from the environment or
+`~/.config/skyrimcoop/paths.env` (`KEY=value` lines), else Steam's default folder (`scripts/local_paths.py`).
+`COOP_DUO_USER` runs both games as another OS user with its own Steam (unset: yours). `SKYRIM_GAME_DIR`,
 `SKYRIM_PROTON_DIR`, `SKYRIM_RUNTIME_DIR` and `COOP_DLL` override installation paths. `--visible` shows the games on
 the desktop. `watch --instance both`, `screenshot`, `look`, `status`, `desync` and `world-diff` inspect a live duo.
 
@@ -226,6 +229,9 @@ the namespace when needed. Restore prefix ownership and test launch options afte
 named or when a second-account configuration is present; they are not part of an ordinary smoke test.
 
 ### On Windows
+
+Development on Windows is not supported yet: `scripts/check.sh` and the native tests are Linux only. The notes
+below are what worked once.
 
 Since 2026-11-01 the duo also runs on Windows, natively (`scripts/coop_harness/windows.py`). Setup:
 - Python 3.12 with `psutil`.
@@ -343,9 +349,12 @@ python3 scripts/coop_test.py profile --route whiterun --seconds 60 --budget p95=
 - The debug overlay has a Performance window.
 
 **Open:** `profile` on the Linux duo (Proton, netns `coop2`): the capture runs in the namespace through
-`as_instance_user`, and the Tracy tools are built from source there. Not yet run.
+`as_instance_user`, and the Tracy tools are built from source there (any worktree, no D-Bus, since 2026-11-18). The
+capture still records nothing there ("no Tracy capture ()", 2026-11-18); the plugin's readouts and `--stacks` work.
 
 The first finding is in [breadcrumbs-cost](../re/systems/breadcrumbs-cost.md).
+The harness's own cost: [harness-cost](../re/systems/harness-cost.md) (each command's main-thread time is in the
+Counters table as `harness <cmd> us`; a command with a large reply builds it off the main thread, `Command::Gather`).
 
 
 ## Python ownership

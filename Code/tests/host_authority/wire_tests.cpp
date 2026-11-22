@@ -33,18 +33,6 @@ template <class TNotify, class TRequest> TNotify FromRequestBytes(const TRequest
     return notify;
 }
 
-Inventory SomeEquipment()
-{
-    Inventory inventory;
-    Inventory::Entry entry;
-    entry.BaseId = GameId(3, 0x12EB7);
-    entry.Count = 2;
-    entry.ExtraHealth = 1.5f;
-    entry.ExtraWorn = true;
-    inventory.Entries.push_back(entry);
-    return inventory;
-}
-
 // Every relayed request with distinct, non-default values in each field.
 std::map<std::string, std::pair<std::string, std::string>> Encode()
 {
@@ -53,12 +41,6 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         out[acpName] = {Hex(acRequest), Hex(FromRequestBytes<TNotify>(acRequest))};
     };
 
-    {
-        RequestEquipmentSnapshot m;
-        m.SessionId = 0x123456;
-        m.Equipment = SomeEquipment();
-        add("EquipmentSnapshot", m, (NotifyEquipmentSnapshot*)nullptr);
-    }
     {
         RequestActiveEffects m;
         m.SessionId = 0x2345;
@@ -70,12 +52,6 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         m.SessionId = 0x2345;
         m.EffectId = GameId(1, 0x12F03);
         add("EffectFlash", m, (NotifyEffectFlash*)nullptr);
-    }
-    {
-        DrawWeaponRequest m;
-        m.Id = 0x2345;
-        m.IsWeaponDrawn = true;
-        add("DrawWeapon", m, (NotifyDrawWeapon*)nullptr);
     }
     {
         RequestActorValueChanges m;
@@ -104,15 +80,6 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         m.HasAttacker = true;
         m.AttackerId = 0x789A;
         add("HealthChange", m, (NotifyHealthChangeBroadcast*)nullptr);
-    }
-    {
-        SpellCastRequest m;
-        m.CasterId = 0x89AB;
-        m.SpellFormId = GameId(1, 0x12FCD);
-        m.CastingSource = 2;
-        m.IsDualCasting = true;
-        m.DesiredTarget = 0x9ABC;
-        add("SpellCast", m, (NotifySpellCast*)nullptr);
     }
     {
         InterruptCastRequest m;
@@ -166,7 +133,7 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         add("RemoveSpell", m, (NotifyRemoveSpell*)nullptr);
     }
     {
-        MountRequest m;
+        BoardRequest m; // the Mount payload (MountRequest went: a ride is a ClaimRequest)
         m.RiderId = 0xF012;
         m.MountId = 0x0123;
         add("Mount", m, (NotifyMount*)nullptr);
@@ -176,15 +143,6 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         m.RiderId = 0xF012;
         m.MountId = 0x0123;
         add("Dismount", m, (NotifyDismount*)nullptr);
-    }
-    {
-        AiStateRequest m;
-        m.SessionId = 0x1234;
-        m.State.Package = GameId(0, 0x5432);
-        m.State.Combat = 1;
-        m.State.CombatTarget.SessionId = 0x21;
-        m.State.CombatTarget.RefId = GameId(1, 0x803);
-        add("AiState", m, (NotifyAiState*)nullptr);
     }
     {
         DialogueRequest m;
@@ -209,23 +167,19 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
     // {request, notification} payloads, recorded from the messages before they shared payload
     // structs. The opcode byte is left out: opcodes number the messages in Opcodes.h's order.
     const std::map<std::string, std::pair<std::string, std::string>> cRecorded{
-        {"AiState", {"b424b2a801000000012183100100", "b424b2a801000000012183100100"}}, // replaced NewPackage (2026-10-22); headtrack slots (2026-10-31)
         {"ActiveEffects", {"c5460283de040192e40602", "c5460283de040192e40602"}},
         {"EffectFlash", {"c54683de0401", "c54683de0401"}}, // new 2026-10-22
         {"ActorMaxValues", {"e78a01011a00007a43", "e78a01011a00007a43"}},
         {"ActorValues", {"d668021800004d4219000060c001190000f041", "d668021800004d4219000060c001190000f041"}}, // temporary pool modifiers (2026-10-30)
         {"AddTarget", {"ef9b03f0bd03cddf0401cedf04010000cc4103", "ef9b03f0bd03cddf0401cedf04010000cc4103"}},
         {"DeathState", {"f8ac0101", "f8ac0101"}},
-        {"Dismount", {"92e003a30200", "92e003a30200"}}, // placement added 2026-10-27
+        {"Dismount", {"92e003a302", "92e003a302"}}, // placement and tick moved to ActorGiveBack 2026-11-20
         {"Dialogue", {"c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a", "c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a"}},
-        {"DrawWeapon", {"c54601", "c54601"}},
-        {"EquipmentSnapshot", {"d6e84801b7dd04030200000000000000000000c03f00000000040000", "d6e84801b7dd04030200000000000000000000c03f00000000040000"}}, // an item's custom name (2026-10-26)
         {"HealthChange", {"89cf0100004cc135e30300", "89cf0100004cc135e30300"}},
         {"InterruptCast", {"cdd70203", "cdd70203"}},
         {"Mount", {"92e003a302", "92e003a302"}},
         {"ProjectileLaunch", {"def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55", "def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55"}},
         {"RemoveSpell", {"81de03cddf0402", "81de03cddf0402"}},
-        {"SpellCast", {"ab9302cddf040102796b0500", "ab9302cddf040102796b0500"}},
         {"Subtitle", {"d6680f4c6574206d652067756573732e2e2ee78a0101", "d6680f4c6574206d652067756573732e2e2ee78a0101"}},
     };
 

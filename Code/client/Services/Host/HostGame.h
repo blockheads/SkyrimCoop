@@ -13,6 +13,7 @@
 #include <Structs/TimeModel.h>
 
 #include <Followers/State.h>
+#include <Games/Skyrim/DetectionRules.h>
 #include <Services/SaveTransfer.h>
 #include <functional>
 #include <memory>
@@ -20,6 +21,7 @@
 #include <string>
 
 struct ContainerTransferRequest;
+struct SummonRequest;
 
 // The host's physics bodies since the last read (docs/design/physics-sync.md): those awake, read now, and those that
 // fell asleep, where they rest.
@@ -62,6 +64,12 @@ struct HostGame
     std::function<bool(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn)> ReadCopy;
     // A spawn of the host's copy of an NPC another game owns now (a horse a guest rides), as its engine shows it.
     std::function<std::optional<NotifyCharacterSpawn>(uint32_t aSessionId)> CopySpawn;
+    // One of the host's NPCs can take a pair's half: alive, its graph running (kProcessMe; kill-moves.md).
+    std::function<bool(uint32_t aSessionId)> CanPair;
+    // One of the host's actors is dead now (a corpse a guest's player may move: HostHands::HostsBody).
+    std::function<bool(uint32_t aSessionId)> IsDead;
+    // One of the host's NPCs its game could take back once claimed: no player's summon (TakeOwnership refuses one).
+    std::function<bool(uint32_t aSessionId)> Claimable;
     // The host's clock (the session's) and setting its hour.
     std::function<TimeModel()> ReadTime;
     std::function<void(float aHours)> SetHour;
@@ -71,6 +79,9 @@ struct HostGame
     std::function<void(const std::string& acLine)> RunConsole;
     std::function<std::optional<std::string>(uint32_t aSessionId)> ConsoleNameOf;
     std::function<uint32_t()> KillHostiles;
+    // What the host's NPCs see of that character's copy now (41408, 46877; stealth.md "The eye is the host's"),
+    // asking as the HUD asks of the host's own player; none when its copy is not loaded.
+    std::function<std::optional<DetectionRules::EyeReading>(uint32_t aSessionId)> ReadEye;
     // The host's weather, when it shows one to share (none: no sky, or the map's).
     std::function<std::optional<GameId>()> ReadWeather;
     // The host's global variables but the constants.
@@ -104,6 +115,12 @@ struct HostGame
     std::function<void(const std::vector<BodyKey>& acKeys)> FollowBodies;
     // The host's bodies where they are now; none for one not here.
     std::function<std::vector<BodyPose>(const std::vector<BodyKey>& acKeys)> ReadBodies;
+    // A guest's activation of an object (aObject) or an NPC (aNpcId), run by its player's copy (aActivatorId); what
+    // changed goes out as the host's rows.
+    std::function<void(const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId)> Activate;
+    // A guest's player's summon (its request: spell, effect, magnitude, point, dual cast) put on that player's copy,
+    // aCasterId, cast by it: the host's engine makes the summon, commanded by the copy (summons.md).
+    std::function<void(uint32_t aCasterId, const SummonRequest& acSummon)> Summon;
     // A guest's lock change, accepted into the host's world (it then goes out as the host's change).
     std::function<void(const GameId& acObject, bool aLocked, uint8_t aLockLevel)> SetLock;
     // A guest's container change, accepted (a kItems change): the host's container holds that many, its stacks with

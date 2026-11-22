@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/Skyrim/DetectionRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Bridges/BodyReads.h>
 #include <Bridges/PhysicsBodies.h>
@@ -38,6 +39,8 @@ public:
 
     // The weather the game shows; none for no sky, or the world map's own.
     [[nodiscard]] std::optional<GameId> ReadWeather() const noexcept;
+    // What this game's NPCs see of that character's copy (StealthEye::Read); none when its copy is not loaded.
+    [[nodiscard]] std::optional<DetectionRules::EyeReading> ReadEye(uint32_t aSessionId) const noexcept;
     // Every global but the constants; the calendar's are marked.
     [[nodiscard]] std::vector<HostGlobal> ReadGlobals() const noexcept;
     // Only globals written since the last call; constants excluded, calendar marked.
@@ -54,6 +57,10 @@ public:
     void RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept;
     void RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent) noexcept;
     void RecordItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept;
+    // A guest's activation, run by its player's copy (TESObjectREFR::ActivateRef 19796, our hook passing it by).
+    void Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) noexcept;
+    // A guest's summon on its copy, cast by the copy (HostGame::Summon): the engine's SummonCreatureEffect makes it.
+    void Summon(uint32_t aCasterId, const SummonRequest& acSummon) noexcept;
     // A guest's lock change, accepted: the host's object takes it, and the others get it as the host's change.
     void SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept;
     // A guest's container change (kItems), accepted: the host's container holds that many, its stacks with extra data

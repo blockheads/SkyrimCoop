@@ -1,0 +1,52 @@
+time	op	id	rva	item
+2026-11-21T17:08:49Z	read	37774	0x6a33b0	{"name": "Actor::CalculateDetection"}
+2026-11-21T17:11:35Z	name	37768	0x6a2830	{"addr": "0x1406a2830", "name": "Actor::CalculateLOS"}
+2026-11-21T17:11:35Z	name	37771	0x6a30c0	{"addr": "0x1406a30c0", "name": "Actor::CalculateLOSLocation"}
+2026-11-21T17:11:35Z	name	37773	0x6a32c0	{"addr": "0x1406a32c0", "name": "Actor::GetAngleToPoint"}
+2026-11-21T17:11:35Z	name		0x6a2740	{"addr": "0x1406a2740", "name": "Actor::HasLOSToRef"}
+2026-11-21T17:11:35Z	name	25986	0x404230	{"addr": "0x140404230", "name": "SpecificItemCollector__ctor"}
+2026-11-21T17:11:35Z	name	39975	0x727440	{"addr": "0x140727440", "name": "ActorProcess__GetHeadNode"}
+2026-11-21T17:11:35Z	name	39976	0x727460	{"addr": "0x140727460", "name": "ActorProcess__GetTorsoNode"}
+2026-11-21T17:11:35Z	name	18997	0x2beb40	{"addr": "0x1402beb40", "name": "TESObjectCELL__Pick"}
+2026-11-21T17:11:35Z	data			{"old": "dword_14209EE28", "new": "fDetectionViewCone_value"}
+2026-11-21T17:11:35Z	data			{"old": "dword_14209F0F8", "new": "fDetectionCombatNonTargetDistanceMult_value"}
+2026-11-21T17:11:35Z	data			{"old": "dword_14209F0B0", "new": "fDetectionLOSDistanceAngle_value"}
+2026-11-21T17:11:38Z	name	37770	0x6a2e20	{"addr": "0x1406a2e20", "name": "Actor::CalculateLOSToPoint"}
+2026-11-21T17:11:45Z	comment	37768	0x6a2830	{"addr": "0x1406a2830", "comment": "Actor::CalculateLOS 37768 (CommonLib): detector a1, target a2, view cone a3 (<0: fDetectionViewCone 190). Outside half the cone: kNone. Ray(s) from the detector's head node (37771 kEye) on layer kLOS 41 with the detector's capsule group; SpecificItemCollector adds the target's capsule layer to layer 41's mask (0x22757). Target is the player, the detector's combat target (+0x104) or the detector is the player: 3 rays (torso, head, feet), else ONE ray to the head. A ray counts when it hits the target's 3D (19750) or nothing; returns the first ACTOR_LOS_LOCATION seen, kNone if every ray hit something else."}
+2026-11-21T17:11:45Z	comment		0x6a2ad2	{"addr": "0x1406a2ad2", "comment": "3 rays (torso, head, feet) only for the player, the detector's combat target (+0x104), or a player detector; any other actor gets one ray to its head (0x1406a2ad4)."}
+2026-11-21T17:11:45Z	comment		0x6a2cd1	{"addr": "0x1406a2cd1", "comment": "seen: the pick hit the target's 3D or nothing; else try the next point"}
+2026-11-21T17:11:45Z	comment	37771	0x6a30c0	{"addr": "0x1406a30c0", "comment": "Actor::CalculateLOSLocation 37771 (CommonLib): kEye/kHead: middle-high headNode (+0x158) world translate, else position + height*0.85; kTorso: torsoNode (+0x160), else height*0.5; kFeet: height*0.15. Sneaking scales height by 0.57."}
+2026-11-21T17:11:45Z	comment		0x6a3526	{"addr": "0x1406a3526", "comment": "a detector in combat: a non-player target that is not its combat target (+0x104) gets range * fDetectionCombatNonTargetDistanceMult (0.75)"}
+2026-11-21T17:11:45Z	comment		0x6a3655	{"addr": "0x1406a3655", "comment": "LOS (37768) only inside the range; v89 = hasLOS written to the detection state (+0x14)"}
+2026-11-21T17:11:45Z	comment		0x6a2740	{"addr": "0x1406a2740", "comment": "37767: LOS to any reference: an actor through 37768, else a ray to its bound's middle (37770); seen if nothing hit or the hit is that reference."}
+2026-11-21T17:12:53Z	read	26364	0x41cd30	{"name": "Character::sub_26364"}
+2026-11-21T17:22:00Z	read	40593	0x756950	{"name": "PlayerCharacter__UpdateStealthMeter"}
+2026-11-21T17:22:07Z	read	46877	0x852450	{"name": "NiTPrimitiveArray_CombatGroup__::sub_46877"}
+2026-11-21T17:22:13Z	name	46877	0x852450	{"addr": "0x140852450", "name": "CombatManager__GetLowestStealthPointsOf"}
+2026-11-21T17:22:13Z	name	44730	0x81a870	{"addr": "0x14081A870", "name": "CombatGroup__GetStealthPointsOf"}
+2026-11-21T17:22:13Z	name	26365	0x41cd90	{"addr": "0x14041cd90", "name": "Actor__ComputeDetectionLevel"}
+2026-11-21T17:22:15Z	comment	46877	0x852450	{"addr": "0x140852450", "comment": "46877: lowest stealth points of an actor over every combat group (fDefault when none); any actor, not only the player. The eye in combat is 100 minus this (40593)."}
+2026-11-21T17:22:15Z	comment	26365	0x41cd90	{"addr": "0x14041cd90", "comment": "Detection formula behind 37774: sound term (target's noise +0x11C, movement, running, equipped weight) + sight term (needs LOS and in view cone, light, distance falloff) - sneak. Player-only rescale of skills (a1/a2 == player). A target hit in the fight makes noise: the host read 160-200 vs a still copy ~20 in the same light (duo 2026-11-21)."}
+2026-11-21T17:22:15Z	comment		0x7569c6	{"addr": "0x1407569c6", "comment": "outside combat the eye is binary: any level > 0 shows 100"}
+2026-11-21T17:25:00Z	read	37770	0x6a2e20	{"name": "Actor::CalculateLOSToPoint"}
+2026-11-21T17:33:32Z	read	37711	0x69fe50	{"name": "Actor::sub_37711"}
+2026-11-21T17:33:37Z	read		0x7455a0	{"name": "PlayerCharacter::Update"}
+2026-11-21T17:33:39Z	name	37711	0x69fe50	{"addr": "0x14069fe50", "name": "Actor__SetActionValue"}
+2026-11-21T17:34:06Z	read	78291	0x1066240	{"name": "bhkCharacterController::sub_78291"}
+2026-11-21T17:36:45Z	read		0x67a020	{"name": "Character::UpdateAI"}
+2026-11-21T17:36:50Z	name	40747	0x75fa50	{"addr": "0x14075fa50", "name": "PlayerCharacter__UpdateTimers"}
+2026-11-21T17:36:50Z	name	78291	0x1066240	{"addr": "0x141066240", "name": "bhkCharacterController__GetBumpedCharacterBody"}
+2026-11-21T17:36:50Z	name	34448	0x5cdf50	{"addr": "0x1405cdf50", "name": "ActorMagicCaster__MakeCastNoise"}
+2026-11-21T17:36:55Z	comment	37711	0x69fe50	{"addr": "0x14069fe50", "comment": "Actor::SetActionValue 37711 (activeragdoll's Actor_SetActionValue): actionValue (+0x11C) = noise, timerOnAction (+0x120) = fActorAlertSoundTimer (5 s). 37774 reads it as the target's sound term. Callers: a weapon's hit frame (38603), TESObjectWEAP::Fire, a cast (0x1405CDF50), the player's bump (PlayerCharacter::Update)."}
+2026-11-21T17:36:55Z	comment		0x7455ea	{"addr": "0x1407455ea", "comment": "the player bumped a character (its controller's bumpedCharCollisionObject, not a teammate): noise iSoundLevelLoud (100) for 5 s. Only the real player: a guest's bump happens on its own game, so the host's copy of it makes none (duo 2026-11-21: copy 0, host 100)."}
+2026-11-21T17:36:55Z	comment		0x75fad7	{"addr": "0x14075fad7", "comment": "the player's noise timer counts down; at 0 actionValue clears"}
+2026-11-21T17:36:55Z	comment		0x67a046	{"addr": "0x14067a046", "comment": "a non-player's noise timer (+0x120) counts down; at 0 actionValue (+0x11C) clears"}
+2026-11-21T17:36:55Z	comment	78291	0x1066240	{"addr": "0x141066240", "comment": "78291: the character body this controller bumped (CommonLib bumpedCharCollisionObject +0x2C8), null if gone"}
+2026-11-21T18:08:14Z	comment		0x77ff92	{"addr": "0x14077ff92", "comment": "the player's highest detection level (41408), added to a modifier: the stolen item's owner who saw it"}
+2026-11-21T18:08:14Z	comment		0x95047d	{"addr": "0x14095047d", "comment": "lockpicking: someone detects the player (41408 > 0) -> the perk and a crime roll"}
+2026-11-21T18:08:14Z	comment		0x6f1f97	{"addr": "0x1406f1f97", "comment": "someone detects the player (41408 > 0) -> an assault alarm"}
+2026-11-21T18:10:10Z	read	41408	0x786350	{"name": "ProcessLists::RequestHighestDetectionLevelAgainstActor"}
+2026-11-21T18:10:14Z	read	37758	0x6a2300	{"name": "Character::sub_37758"}
+2026-11-21T18:10:17Z	read	42702	0x7c3eb0	{"name": "ActorKnowledge__GetFreshDetectionState"}
+2026-11-21T18:35:39Z	comment		0x7569bc	{"addr": "0x1407569bc", "comment": "the level as a full int32 (41408 returns mov eax, esi): a hook must return int32, not CommonLib's int16"}
+2026-11-21T18:35:39Z	comment		0x7863fe	{"addr": "0x1407863fe", "comment": "the witness exclusions (kDoNotShowOnStealthMeter, teammate, commanded by the player) apply only when the target is the player: a copy's reading must filter them itself (StealthEye::Read)"}

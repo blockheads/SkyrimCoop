@@ -52,5 +52,4 @@ An additional GameTests flow renders each game's received names through the real
 the fix. The native map scenarios check the actual text and its ancestor's opacity, and wait for local-map readiness.
 
 Native flows cover compass, outdoor/interior world and local maps, movement with the map open, and departure/rejoin
-on both games. [Acceptance results and screenshots](../../playtests/2026-11-02-party-markers.md) record the runtime
-checks alongside the existing shared-waypoint regression.
+on both games, alongside the existing shared-waypoint regression.

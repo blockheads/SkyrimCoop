@@ -323,6 +323,31 @@ SCENARIO("Two players' kill moves cross: the first swing wins, on both games", "
     CHECK_FALSE(loser.IsPlayerAlive());
 }
 
+SCENARIO("Crossed kill moves: the winner's short clip lands its blow before its pair plays on the loser's game, and the loser lives to play it",
+         "[combat][friendly-fire][kill-move][pair-claim]")
+{
+    // Skyrim (duo, kill-moves-cross, 2026-11-20): the host's claim held, the guest's yielded; the host's ShortD clip's
+    // HitFrame (0.34 s) reached the guest before its game played the host's pair (its own clip still leaving), and the
+    // guest's player died a plain death. A kill move's blow is never applied on its victim (DamageActorHealth refuses
+    // it once the kill move holds it): the victim's clip's KillActor kills it.
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+    host.PairBlows = true;
+    host.PairBlowFrames = 30;                // a short winner: its blow before its pair can play on the loser's game
+    host.PairEndFrames = 3000;               // its clip runs on long after (ShortD: blow 0.34 s, its clip over 1.5 s)
+    guest.PairStopsDropped = 25;             // the loser's own clip leaves slowly
+    StartKillMove(party, party.Host(), party.Guest(), "KillMoveShortD");
+    StartKillMove(party, party.Guest(), party.Host(), "KillMoveI");
+    int frames = 0;
+    party.Until([&] { return ++frames > 120; }, "the winner's blow comes and goes");
+    CHECK(guest.IsPlayerAlive());
+    party.Until([&] { return guest.Actors.at(FakeEngine::kPlayer).InKillMove; }, "the loser's game plays the winner's pair");
+    CHECK(guest.IsPlayerAlive());
+}
+
 SCENARIO("A kill move starts on its victim's game at playback, not behind a plain action its copy's graph clock holds back",
          "[combat][friendly-fire][kill-move]")
 {
@@ -381,7 +406,9 @@ SCENARIO("A yielded clip that drops pairedStop never lands its blow", "[combat][
     CrossKillMoves(party, true, 5, cDropped);
     if (cDropped < ReplayState::cClashStopUpdates)
         CHECK(guest.Actors.at(FakeEngine::kPlayer).InKillMove); // its clip left, so the winner's pair could play
-    party.Until([&] { return !host.IsPlayerAlive() || !guest.IsPlayerAlive(); }, "a blow lands");
+    // A clip that outlasts the resends: the winner's held blow lands as its claim ends, at its clip's KillMoveEnd
+    // (4 x PairBlowFrames after its blow), more frames than 2 s holds under load.
+    party.Until([&] { return !host.IsPlayerAlive() || !guest.IsPlayerAlive(); }, "a blow lands", {}, nullptr, std::chrono::seconds(20));
     CHECK(host.IsPlayerAlive());
     CHECK_FALSE(guest.IsPlayerAlive());
 }

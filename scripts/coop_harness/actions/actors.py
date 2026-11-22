@@ -78,8 +78,9 @@ class ActorsActions:
 
 
     def freeze(ctx, instance, actor, frozen=True):
-        """Freezes (or thaws) the actor in that game: no AI, not pushed, players pass through it; it still takes hits."""
-        ctx.player_command(instance, {"cmd": "freeze", "actor": actor, "frozen": frozen})
+        """Freezes (or thaws) the actor in that game (a handle, or a form id): no AI, not pushed, players pass through it;
+        it still takes hits."""
+        ctx.player_command(instance, {"cmd": "freeze", "actor": ctx.resolve(actor, instance), "frozen": frozen})
 
 
     def stage_host_npc(ctx, npc, goal=None):

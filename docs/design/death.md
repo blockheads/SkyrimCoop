@@ -63,7 +63,7 @@ messages         DeathMessages.h: PlayerDeathRequest, NotifyPartyDeath, NotifyPl
 
 - The owner decides when its player goes down; the host checks the sender owns that character. Each fall carries a
   generation, so a late or repeated message for an older fall changes nothing.
-- Combat comes from the owners' AI state (`AiStateRequest`, watched by HostDeath): a standing player fighting, or a
+- Combat comes from the owners' AI state (the record's AI state part, `RecordRequest`, watched by HostDeath): a standing player fighting, or a
   host NPC fighting a standing player now or since its fight started (it switches targets). A downed player's stale
   combat flag holds nothing. A player who just joined holds the timer until its state is known.
 - Respawn is the host's: `NotifyPlayerRespawn` names the anchor and where it stands (`HostCharacters::CharacterPlace`),
@@ -118,10 +118,10 @@ LatestAnimation cleared                                     a copy made now star
   under the manager's lock (`Havok/Ragdoll.cpp`). `kill-move-kills-guest` checks the respawned body (fails without it:
   pelvis 95, 18 bodies awake; passes with it).
 
-Open (2026-10-26, on dev as well): a revived player knocked down later stays in knock state 6 (getting up) and its
-copies never go down: `guest-knockdown-lies-on-host` passes before the guest's death and revive, fails after it
-(`scenario guest-knockdown-lies-on-host spectator-watches-kill-move guest-knockdown-lies-on-host`), with or without
-the ragdoll removal above.
+A revived player knocked down later gets up again, and its copy lies with it (`revived-guest-gets-up`: after a plain
+death and after a kill move, 2026-11-18; it stayed getting up, knock state 6, on 2026-10-26, before copies went down
+and got up on their owner's stream). The knock state ends only by the graph's `GetUpEnd` (`docs/re/systems/physics.md`,
+Getting up); `Actor::Resurrect` itself zeroes it.
 
 Untested: a spell in hand at death (Revive's `EquipSpell` branch), dying as a werewolf or while mounted.
 

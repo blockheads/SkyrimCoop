@@ -1,55 +1,8 @@
 // HostAuthority's relays: who receives each request's notification.
 #include "session.h"
-
-TEST_CASE("Hands: the owner's change reaches everyone else", "[HostAuthority][Inventory]")
-{
-    Session session;
-    const uint32_t cActor = session.Character(kPeer);
-
-    DrawWeaponRequest request;
-    request.Id = cActor;
-    request.IsWeaponDrawn = true;
-    session.Receive(kPeer, request);
-
-    for (const auto cTo : {kHost, kOtherPeer})
-    {
-        const auto cNotifies = session.SentTo<NotifyDrawWeapon>(cTo);
-        REQUIRE(cNotifies.size() == 1);
-        CHECK(cNotifies[0]->Id == cActor);
-        CHECK(cNotifies[0]->IsWeaponDrawn);
-    }
-    CHECK(session.SentTo<NotifyDrawWeapon>(kPeer).empty());
-}
-
-TEST_CASE("Hands: only the owner decides", "[HostAuthority][Inventory]")
-{
-    Session session;
-    const uint32_t cHostNpc = session.Character(kHost);
-
-    DrawWeaponRequest request;
-    request.Id = cHostNpc;
-    request.IsWeaponDrawn = true;
-    session.Receive(kPeer, request);
-
-    CHECK(session.SentTo<NotifyDrawWeapon>(kHost).empty());
-    CHECK(session.SentTo<NotifyDrawWeapon>(kOtherPeer).empty());
-}
-
-TEST_CASE("Equipment snapshot: relayed from the owner only", "[HostAuthority][Inventory]")
-{
-    Session session;
-    const uint32_t cHostNpc = session.Character(kHost);
-
-    RequestEquipmentSnapshot snapshot;
-    snapshot.SessionId = cHostNpc;
-    session.Receive(kPeer, snapshot);
-    CHECK(session.SentTo<NotifyEquipmentSnapshot>(kOtherPeer).empty());
-
-    session.Receive(kHost, snapshot);
-    REQUIRE(session.SentTo<NotifyEquipmentSnapshot>(kPeer).size() == 1);
-    CHECK(session.SentTo<NotifyEquipmentSnapshot>(kPeer)[0]->SessionId == cHostNpc);
-    CHECK(session.SentTo<NotifyEquipmentSnapshot>(kHost).empty());
-}
+#include <Structs/ItemsPart.h>
+#include <Messages/NotifyInventoryChanges.h>
+#include <Messages/RequestInventoryChanges.h>
 
 TEST_CASE("Active effects: relayed from the owner only, to everyone else", "[HostAuthority][Magic]")
 {
@@ -172,48 +125,61 @@ TEST_CASE("World calls: a guest's script's quest stage goes to the host's game, 
     CHECK(session.SentTo<NotifyRoutedCall>(kPeer).empty());
 }
 
-TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[HostAuthority][Inventory]")
+TEST_CASE("An item change from a game that does not own the actor is dropped", "[HostAuthority][Inventory][items-part]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
+    ItemsPart sword;
+    sword.Full = true;
+    sword.Items.Entries.push_back({.BaseId = GameId(0, 0x12EB7), .Count = 1});
 
+    // A guest's engine changed the host NPC's copy (an event, or a part of it): nothing reaches anyone.
     RequestInventoryChanges change;
     change.SessionId = cHostNpc;
-    change.Item.BaseId = GameId(0, 0x12EB7);
-    change.Item.Count = 1;
-    change.Drop = true;
-    change.UpdateClients = true;
+    change.Item = sword.Items.Entries[0];
     session.Receive(kPeer, change);
-
-    const auto cToHost = session.SentTo<NotifyInventoryChanges>(kHost);
-    REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->SessionId == cHostNpc);
-    CHECK(cToHost[0]->Item.Count == 1);
-    CHECK_FALSE(cToHost[0]->Drop); // dropped items are not synced
-    CHECK(session.SentTo<NotifyInventoryChanges>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<NotifyInventoryChanges>(kPeer).empty());
-
-    change.UpdateClients = false;
-    session.Outbox.clear();
-    session.Receive(kPeer, change);
+    RecordRequest stolen;
+    stolen.Id = cHostNpc;
+    stolen.Part = {RecordKind::kItems, 1, ToPartBytes(sword)};
+    session.Receive(kPeer, stolen);
     CHECK(session.Outbox.empty());
+
+    // Its owner's part goes to every other game.
+    session.Receive(kHost, stolen);
+    CHECK(session.SentTo<NotifyRecord>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyRecord>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyRecord>(kHost).empty());
 }
 
-TEST_CASE("Equipment: a change reaches everyone else", "[HostAuthority][Inventory]")
+TEST_CASE("A host script's item change on a guest's character goes to that guest alone", "[HostAuthority][Inventory][items-part]")
 {
     Session session;
-    const uint32_t cActor = session.Character(kPeer);
+    const uint32_t cGuestCharacter = session.Character(kPeer);
+    RequestInventoryChanges taken; // a quest's hand-in takes the guest's claw on the host's copy
+    taken.SessionId = cGuestCharacter;
+    taken.Item = {.BaseId = GameId(0, 0x999E3), .Count = -1};
+    session.Receive(kHost, taken);
+    const auto cToOwner = session.SentTo<NotifyInventoryChanges>(kPeer);
+    REQUIRE(cToOwner.size() == 1);
+    CHECK(cToOwner[0]->Item.Count == -1);
+    CHECK(session.SentTo<NotifyInventoryChanges>(kOtherPeer).empty()); // the owner's part carries it on
+}
 
-    RequestEquipmentChanges change;
-    change.SessionId = cActor;
-    change.ItemId = GameId(0, 0x12EB7);
-    change.Count = 1;
-    session.Receive(kPeer, change);
-
-    REQUIRE(session.SentTo<NotifyEquipmentChanges>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifyEquipmentChanges>(kHost)[0]->ItemId == GameId(0, 0x12EB7));
-    CHECK(session.SentTo<NotifyEquipmentChanges>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<NotifyEquipmentChanges>(kPeer).empty());
+TEST_CASE("An items change the host cannot merge asks its owner for the whole part", "[HostAuthority][Inventory][items-part]")
+{
+    Session session;
+    const uint32_t cCharacter = session.Character(kPeer);
+    ItemsPart change; // only the stacks that changed, on top of a version the host never had
+    change.Items.Entries.push_back({.BaseId = GameId(0, 0xF), .Count = 3});
+    RecordRequest late;
+    late.Id = cCharacter;
+    late.Part = {RecordKind::kItems, 7, ToPartBytes(change)};
+    session.Receive(kPeer, late);
+    CHECK(session.SentTo<NotifyRecord>(kOtherPeer).empty());
+    const auto cAsked = session.SentTo<NotifyRecordAsk>(kPeer);
+    REQUIRE(cAsked.size() == 1);
+    CHECK(cAsked[0]->Id == cCharacter);
+    CHECK(cAsked[0]->Kind == RecordKind::kItems);
 }
 
 TEST_CASE("Values: the owner's reach everyone else, nobody else's do", "[HostAuthority][Values]")
@@ -310,20 +276,11 @@ TEST_CASE("Friendly fire: a player's hit or spell on another player goes to that
     CHECK(session.SentTo<NotifyHealthChangeBroadcast>(kPeer).empty());
 }
 
-TEST_CASE("Casts and shots: replayed everywhere else, from the caster's owner only", "[HostAuthority][Magic]")
+TEST_CASE("Shots: replayed everywhere else, from the shooter's owner only", "[HostAuthority][Magic]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
     const uint32_t cHostNpc = session.Character(kHost);
-
-    SpellCastRequest cast;
-    cast.CasterId = cPeerPlayer;
-    cast.SpellFormId = GameId(0, 0x12FCD); // firebolt
-    session.Receive(kPeer, cast);
-    REQUIRE(session.SentTo<NotifySpellCast>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifySpellCast>(kHost)[0]->SpellFormId == GameId(0, 0x12FCD));
-    CHECK(session.SentTo<NotifySpellCast>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<NotifySpellCast>(kPeer).empty());
 
     ProjectileLaunchRequest shot;
     shot.ShooterID = cPeerPlayer;
@@ -333,8 +290,6 @@ TEST_CASE("Casts and shots: replayed everywhere else, from the caster's owner on
     CHECK(session.SentTo<NotifyProjectileLaunch>(kHost)[0]->OriginX == 10.f);
 
     session.Outbox.clear();
-    cast.CasterId = cHostNpc;
-    session.Receive(kPeer, cast);
     shot.ShooterID = cHostNpc;
     session.Receive(kPeer, shot);
     CHECK(session.Outbox.empty());
@@ -379,27 +334,27 @@ TEST_CASE("Spell removal: reaches everyone else", "[HostAuthority][Magic]")
     CHECK(session.SentTo<NotifyRemoveSpell>(kPeer).empty());
 }
 
-TEST_CASE("Factions: each actor's from its owner only", "[HostAuthority][Characters]")
+TEST_CASE("Factions and actor state: each actor's parts from its owner only", "[HostAuthority][Characters][records]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
     const uint32_t cPeerPlayer = session.Character(kPeer);
 
-    RequestFactionsChanges changes;
-    changes.Changes[cPeerPlayer] = {};
-    changes.Changes[cHostNpc] = {}; // not the peer's to say
-    session.Receive(kPeer, changes);
+    for (const RecordKind cKind : {RecordKind::kFactions, RecordKind::kActorState})
+    {
+        session.Outbox.clear();
+        RecordRequest part;
+        part.Id = cHostNpc; // not the peer's to say
+        part.Part = {cKind, 1, std::string("\x01", 1)};
+        session.Receive(kPeer, part);
+        CHECK(session.Outbox.empty());
 
-    const auto cToHost = session.SentTo<NotifyFactionsChanges>(kHost);
-    REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->Changes.size() == 1);
-    CHECK(cToHost[0]->Changes.count(cPeerPlayer) == 1);
-    CHECK(session.SentTo<NotifyFactionsChanges>(kPeer).empty());
-
-    session.Outbox.clear();
-    changes.Changes.erase(cPeerPlayer);
-    session.Receive(kPeer, changes);
-    CHECK(session.Outbox.empty());
+        part.Id = cPeerPlayer;
+        session.Receive(kPeer, part);
+        REQUIRE(session.SentTo<NotifyRecord>(kHost).size() == 1);
+        CHECK(session.SentTo<NotifyRecord>(kHost)[0]->Part.Kind == cKind);
+        CHECK(session.SentTo<NotifyRecord>(kPeer).empty());
+    }
 }
 
 TEST_CASE("Subtitles, experience: reach everyone else", "[HostAuthority][Characters]")
@@ -499,7 +454,58 @@ TEST_CASE("Scripts: a guest leaving before it answers leaves the host's script w
     CHECK((cLater[1]->ReplyId == 79 && std::holds_alternative<std::monostate>(cLater[1]->Result)));
 }
 
-TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and container change are the host's to take", "[HostAuthority][Objects]")
+TEST_CASE("Scripts: a guest's script creating a reference gets the host's game's answer, only that guest", "[HostAuthority][Scripts]")
+{
+    Session session;
+    const uint32_t cPlayer = session.Character(kPeer);
+    session.Character(kOtherPeer);
+    RoutedCallRequest request;
+    request.To = CallTo::kHost;
+    request.Call.Class = "ObjectReference";
+    request.Call.Function = "PlaceAtMe";
+    request.ReplyId = 41;
+    session.Receive(kPeer, request);
+    const auto cCalls = session.SentTo<NotifyRoutedCall>(kHost);
+    REQUIRE(cCalls.size() == 1);
+    CHECK((cCalls[0]->ReplyId == 41 && cCalls[0]->SessionId == cPlayer));
+
+    PlayerNativeResultRequest result;
+    result.ReplyId = 41;
+    result.SessionId = cPlayer;
+    result.Result = ScriptForm{.Form = GameId(0xFFFFFFFF, 0x812)};
+    // Only the host's game answers it, once, and only the asking guest hears it.
+    session.Receive(kOtherPeer, result);
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kPeer).empty());
+    session.Receive(kHost, result);
+    session.Receive(kHost, result);
+    const auto cAnswers = session.SentTo<NotifyPlayerNativeResult>(kPeer);
+    REQUIRE(cAnswers.size() == 1);
+    CHECK((cAnswers[0]->ReplyId == 41 && cAnswers[0]->Result == result.Result));
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kHost).empty());
+}
+
+TEST_CASE("Summons: a guest's summon is made by the host's game, cast by that guest's character", "[HostAuthority][Summons]")
+{
+    Session session;
+    const uint32_t cPlayer = session.Character(kPeer);
+    SummonRequest summon;
+    summon.SpellId = GameId(0, 0x640B6);
+    summon.EffectId = GameId(0, 0x640B4);
+    summon.Magnitude = 60.f;
+    session.Outbox.clear();
+    session.Receive(kPeer, summon);
+    REQUIRE(session.Summons.size() == 1);
+    CHECK(session.Summons[0] == std::pair{cPlayer, GameId(0, 0x640B6)});
+    // Nothing is relayed: the familiar reaches the others as the host's actor.
+    CHECK(session.Outbox.empty());
+
+    // The host's own player makes its own: a request from it is nothing.
+    session.Receive(kHost, summon);
+    CHECK(session.Summons.size() == 1);
+}
+
+TEST_CASE("Objects: a guest's activation runs on the host's game only; a guest's lock and container change are the host's to take", "[HostAuthority][Objects]")
 {
     Session session;
     const uint32_t cPlayer = session.Character(kPeer);
@@ -508,17 +514,22 @@ TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and cont
     activate.Id = GameId(0, 0x1A2B);
     activate.CellId = GameId(0, 0x9732);
     activate.ActivatorId = cPlayer;
-    activate.PreActivationOpenState = 2;
+    session.Outbox.clear();
     session.Receive(kPeer, activate);
-    for (const auto cTo : {kHost, kOtherPeer})
-    {
-        const auto cActivations = session.SentTo<NotifyActivate>(cTo);
-        REQUIRE(cActivations.size() == 1);
-        CHECK(cActivations[0]->Id == GameId(0, 0x1A2B));
-        CHECK(cActivations[0]->ActivatorId == cPlayer);
-        CHECK(cActivations[0]->PreActivationOpenState == 2);
-    }
-    CHECK(session.SentTo<NotifyActivate>(kPeer).empty());
+    REQUIRE(session.Activations.size() == 1);
+    CHECK(session.Activations[0] == std::tuple{GameId(0, 0x1A2B), 0u, cPlayer});
+    // The other games get what changed as the host's rows, never the activation.
+    CHECK(session.Outbox.empty());
+
+    // The host's own activation, and one naming another game's character, go nowhere.
+    session.Outbox.clear();
+    ActivateRequest hosts = activate;
+    hosts.ActivatorId = session.Character(kHost);
+    session.Receive(kHost, hosts);
+    ActivateRequest other = activate;
+    other.ActivatorId = session.Character(kOtherPeer);
+    session.Receive(kPeer, other);
+    CHECK(session.Activations.size() == 1);
 
     // A guest picked a lock: the host's game takes it (and sends it as its own change); nothing is relayed.
     LockChangeRequest lock;
@@ -555,27 +566,100 @@ TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and cont
     CHECK(session.ItemsSet.size() == 1);
 }
 
-TEST_CASE("AI state: the owner's reaches everyone else; nobody else's counts", "[HostAuthority][AiState]")
+TEST_CASE("A record's part: its owner's reaches everyone else; nobody else's counts", "[HostAuthority][records]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
 
-    AiStateRequest state;
-    state.SessionId = cHostNpc;
-    state.State.Package = GameId(0, 0x1A6A5);
-    state.State.CombatTarget.SessionId = 7;
-    session.Receive(kPeer, state); // not its
+    ActorAiState ai;
+    ai.Package = GameId(0, 0x1A6A5);
+    ai.CombatTarget.SessionId = 7;
+    RecordRequest part;
+    part.Id = cHostNpc;
+    part.Part = {RecordKind::kAiState, 2, ToPartBytes(ai)};
+    session.Receive(kPeer, part); // not its
     CHECK(session.Outbox.empty());
 
-    session.Receive(kHost, state);
+    session.Receive(kHost, part);
     for (const auto cTo : {kPeer, kOtherPeer})
     {
-        const auto cNotifies = session.SentTo<NotifyAiState>(cTo);
+        const auto cNotifies = session.SentTo<NotifyRecord>(cTo);
         REQUIRE(cNotifies.size() == 1);
-        CHECK(cNotifies[0]->SessionId == cHostNpc);
-        CHECK(cNotifies[0]->State == state.State);
+        CHECK(cNotifies[0]->Id == cHostNpc);
+        CHECK(cNotifies[0]->Part == part.Part);
     }
-    CHECK(session.SentTo<NotifyAiState>(kHost).empty());
+    CHECK(session.SentTo<NotifyRecord>(kHost).empty());
+
+    // An older version than the one held is dropped (order free: the last state wins).
+    session.Outbox.clear();
+    part.Part.Version = 1;
+    session.Receive(kHost, part);
+    CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("A joiner gets every part: each spawn carries its actor's record as last declared", "[HostAuthority][records]")
+{
+    Session session;
+    AnnounceCharacterRequest announce;
+    announce.SessionId = session.NewCharacterId();
+    announce.ReferenceId = GameId(1, 0x2000);
+    ActorAiState ai;
+    ai.Package = GameId(0, 0x1A6A5);
+    announce.Record.Parts.push_back({RecordKind::kAiState, 1, ToPartBytes(ai)});
+    session.Receive(kHost, announce);
+    const auto cFirst = session.SentTo<NotifyCharacterSpawn>(kPeer);
+    REQUIRE(cFirst.size() == 1);
+    CHECK(cFirst[0]->Record == announce.Record);
+
+    // The owner declares it again; the host's game still reads the actor as it announced it.
+    ai.Combat = 1;
+    RecordRequest part;
+    part.Id = announce.SessionId;
+    part.Part = {RecordKind::kAiState, 2, ToPartBytes(ai)};
+    session.Receive(kHost, part);
+    session.Spawns.push_back(NotifyCharacterSpawn::FromAnnouncement(announce, announce.SessionId, 0));
+    session.Outbox.clear();
+
+    const ConnectionId_t cJoiner = 4;
+    session.Join(cJoiner, JoinRequest("Farkas"));
+    AnnounceCharacterRequest player;
+    player.SessionId = session.CharacterId(cJoiner);
+    player.ReferenceId = GameId(0, 0x14);
+    session.Receive(cJoiner, player);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(cJoiner);
+    const auto cNpc = std::ranges::find_if(cSpawns, [&](const auto* apSpawn) { return apSpawn->SessionId == announce.SessionId; });
+    REQUIRE(cNpc != cSpawns.end());
+    REQUIRE((*cNpc)->Record.Parts.size() == 1);
+    CHECK((*cNpc)->Record.Parts[0] == part.Part);
+
+    // Gone, its record goes with it.
+    RequestRemoveCharacter remove;
+    remove.SessionId = announce.SessionId;
+    session.Receive(kHost, remove);
+    session.Outbox.clear();
+    part.Part.Version = 3;
+    session.Receive(kHost, part);
+    CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("An asked part: the actor's owner alone is told", "[HostAuthority][records]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+    RecordAskRequest ask;
+    ask.Id = cHostNpc;
+    ask.Kind = RecordKind::kAiState;
+    session.Receive(kHost, ask); // its own
+    CHECK(session.Outbox.empty());
+    session.Receive(kPeer, ask);
+    REQUIRE(session.SentTo<NotifyRecordAsk>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyRecordAsk>(kHost)[0]->Kind == RecordKind::kAiState);
+    CHECK(session.SentTo<NotifyRecordAsk>(kPeer).empty());
+    CHECK(session.SentTo<NotifyRecordAsk>(kOtherPeer).empty());
+    ask.Id = 0xFFFF; // nobody's
+    session.Outbox.clear();
+    session.Receive(kPeer, ask);
+    CHECK(session.Outbox.empty());
 }
 
 

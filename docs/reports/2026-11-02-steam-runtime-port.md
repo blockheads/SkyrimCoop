@@ -1,7 +1,7 @@
 # Steam Skyrim 1.7.104 port assessment
 
-Historical assessment. The implementation and native acceptance are now recorded in
-[the port acceptance report](../../playtests/2026-11-02-steam-runtime-port.md).
+Historical assessment. The implementation and native acceptance are recorded in
+`docs/re/systems/runtime-versions.md`.
 
 Assessed 2026-11-02 against `dev` commit `eb913f95`, in worktree `.worktrees/steam-runtime-audit`, branch
 `audit/latest-steam-runtime`. This is an offline assessment, not a completed port or a gameplay acceptance run.
@@ -31,7 +31,7 @@ The local Steam manifest records that same build, but the active `SkyrimSE.exe` 
 `SkyrimSE_1.7.104.exe` really is **1.7.104.0**, checked using its PE version resource; its SHA-256 is
 `846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f`.
 Thus the manifest alone cannot select the correct runtime. Both files are under
-`/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition/`.
+the Steam install's `Skyrim Special Edition/` folder.
 
 I copied and unpacked the saved executable privately under this worktree's `build/runtime-audit/`, using the existing
 Steamless tool through Mono. Neither game installation was changed. The live shared IDA instance `gy8k` remains on
@@ -199,7 +199,7 @@ scenarios together for acceptance.
 
 ## Evidence and scope
 
-[Machine-readable evidence](2026-11-02-steam-runtime-port-evidence.json) records hashes, counts, missing IDs, RTTI
+Machine-readable evidence (deleted 2026-11-18, in git history) recorded hashes, counts, missing IDs, RTTI
 measurements and patch bytes. The reproducible offline audit script and full literal-ID inventory remain privately in
 this worktree under `build/runtime-audit/audit.py` and `build/runtime-audit/inventory.json`; downloaded references and
 Bethesda binaries are not committed.

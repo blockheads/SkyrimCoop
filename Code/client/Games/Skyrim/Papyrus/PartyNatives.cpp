@@ -1,3 +1,5 @@
+#include <CreatedIds.h>
+#include <FormIds.h>
 #include <Events/PlayerDeathEvent.h>
 #include <Events/CallEndedEvent.h>
 #include <Events/PlayerProgressEvent.h>
@@ -95,6 +97,7 @@ void HookToggleControls(BSInputEnableManager* apThis, uint32_t aFlags, bool aEna
     if (!pCall)
         return RealToggleControls(apThis, aFlags, aEnable, aStoreState);
     pCall->Asked |= aFlags;
+    pCall->Enable = aEnable;
     const uint32_t flags = Hold(pCall->Holder, aFlags, aEnable);
     if (flags != aFlags)
         spdlog::debug("PartyNatives: controls {:X} stay taken, another cutscene holds them", aFlags & ~flags);
@@ -276,6 +279,7 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
                    : GuestScripts::IsGuestCharacter(cSelf) ? Target::kGuestCharacter
                                                            : Target::kNone;
     facts.OwnQuest = !cStatic && PlayerNatives::IsOwnQuest(cObject);
+    facts.CreatedObject = !cStatic && IsCreatedForm(cObject) && World::Get().ctx().at<CreatedIds>().ToSession(cObject).has_value();
     const BSScript::StackFrame* cpCaller = acStack.pTop->pPrevious;
     auto* pScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
     const uint64_t cScript = pScript ? pScript->GetHandle() : 0;
@@ -310,6 +314,9 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript
     m_progressed = cFacts.Reach.Kind == NativeReach::Call::kProgress || cFacts.InSystemQuest;
     m_body = cFacts.Reach.Kind == NativeReach::Call::kBody;
     const PartyRules::Routing cRouting = PartyRules::RouteOf(cFacts);
+    if (cFacts.Reach.Kind == NativeReach::Call::kScreen)
+        spdlog::debug("PartyNatives: {}.{} on the screen, cause {:X} (story {}): destination {}", apFunction->GetObjectTypeName().AsAscii(),
+                      apFunction->GetName().AsAscii(), aCause, aStory, static_cast<int>(cRouting.To));
     if (cRouting.Ask)
     {
         const bool cYesNo = apFunction->GetReturnType().type == BSScript::Variable::kBoolean;
@@ -336,7 +343,7 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript
     switch (cRouting.To)
     {
     case Destination::kHere: return;
-    case Destination::kHost: m_result = PlayerNatives::SendToHost(apFunction, *apStack, std::move(*call)); return;
+    case Destination::kHost: m_result = PlayerNatives::SendToHost(apFunction, *apStack, apVm, std::move(*call), cRouting.Reply); return;
     case Destination::kCauseGame: m_result = PlayerNatives::SendToGuest(apFunction, *apStack, apVm, aCause, std::move(*call)); return;
     case Destination::kEveryGame: break;
     }
@@ -389,6 +396,8 @@ Scope::~Scope() noexcept
             spdlog::debug("PartyNatives: {}.{} leaves movement ({:X}): this game's only", m_event->Call.Class, m_event->Call.Function, m_controls->Asked);
             return;
         }
+        if (m_event)
+            m_event->Controls = m_controls->Enable ? CallControls::kGivesBack : CallControls::kTakes;
     }
     if (m_onThisPlayer && !Run(*m_onThisPlayer, 0))
         spdlog::warn("PartyNatives: {}.{} could not be queued on this game's player", m_onThisPlayer->Class, m_onThisPlayer->Function);

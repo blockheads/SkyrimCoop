@@ -94,11 +94,7 @@ def host_quits(ctx):
     ctx.joins_with_world("joins after the host ended the session")
 
 def guest_leaves(ctx):
-    ctx.player_command("client", {"cmd": "leave_session"})
-    ctx.wait_for("leaving returns the guest to the main menu", lambda: ctx.game_state("client").get("main_menu"), 30)
-    ctx.wait_for("the host removes the leaving guest", lambda: not ctx.session_players(""), 15)
-    if not ctx.game_state("").get("hosting"):
-        raise ctx.failure("The guest's leave stopped the host")
+    ctx.guest_leaves_to_main_menu()
     ctx.joins_with_world("joins after leaving")
 
 def guest_takes_extra_stack(ctx):
@@ -155,7 +151,7 @@ def guest_loots_corpse(ctx):
 
 def host_cannot_loot_guest(ctx):
     """Players can't loot each other: the guest dies, the host activates its body and no loot menu opens (it once
-    crashed the host taking the body's clothes, playtests/2026-10-31-fabien.md C1). The guest keeps its items.
+    crashed the host taking the body's clothes, the 2026-10-31 playtest C1). The guest keeps its items.
     The duo's guest is unnamed and Skyrim activates nothing nameless (ActivateRef 19796), so it names its character in
     the race menu first, as a new player does. The client's game then starts again as the duo's."""
     _game = ctx.game('client')
