@@ -1,0 +1,37 @@
+time	op	id	rva	item
+2026-11-22T14:40:49Z	read	12721	0x1879d0	{"name": "ExtraAliasInstanceArray::sub_12721"}
+2026-11-22T14:40:49Z	read	11737	0x165460	{"name": "sub_140165460"}
+2026-11-22T14:40:54Z	name	11737	0x165460	{"addr": "0x140165460", "name": "ExtraDataList::HasRunOncePack"}
+2026-11-22T14:40:54Z	local	11737	0x165460	{"func_addr": "0x140165460", "old": "a1", "new": "extraList"}
+2026-11-22T14:40:54Z	local	11737	0x165460	{"func_addr": "0x140165460", "old": "a2", "new": "package"}
+2026-11-22T14:40:54Z	local	11737	0x165460	{"func_addr": "0x140165460", "old": "v4", "new": "listLock"}
+2026-11-22T14:40:54Z	local	12721	0x1879d0	{"func_addr": "0x1401879d0", "old": "a1", "new": "aliasArray"}
+2026-11-22T14:40:54Z	local	12721	0x1879d0	{"func_addr": "0x1401879d0", "old": "a2", "new": "actor"}
+2026-11-22T14:40:54Z	local	12721	0x1879d0	{"func_addr": "0x1401879d0", "old": "v5", "new": "arrayLock"}
+2026-11-22T14:40:54Z	local	12721	0x1879d0	{"func_addr": "0x1401879d0", "old": "v4", "new": "foundPackage"}
+2026-11-22T14:40:56Z	comment	11737	0x165460	{"addr": "0x140165460", "comment": "ID 11737: true when the reference's ExtraRunOncePacks (type 0x1B) holds this package; takes the extra-data list lock (+0x18) for read. Reached under 12721's alias array read lock through TESPackage 29619 (once-per-day packages): one side of the alias/list engine inversion (docs/re/systems/lock-order.md)."}
+2026-11-22T15:35:56Z	read	12000	0x170b50	{"name": "sub_140170B50"}
+2026-11-22T15:35:56Z	read	11837	0x16a640	{"name": "sub_14016A640"}
+2026-11-22T15:35:57Z	read	77803	0x1047f70	{"name": "bhkWorldObject::sub_77803"}
+2026-11-22T15:36:06Z	read	11608	0x15fcb0	{"name": "sub_14015FCB0"}
+2026-11-22T15:36:09Z	read	12429	0x1811f0	{"name": "sub_1401811F0"}
+2026-11-22T15:36:16Z	name	12000	0x170b50	{"addr": "0x140170b50", "name": "ExtraDataList::SetActionRef"}
+2026-11-22T15:36:16Z	name	11837	0x16a640	{"addr": "0x14016a640", "name": "ExtraDataList::SetMultiBoundRef"}
+2026-11-22T15:36:16Z	name	11608	0x15fcb0	{"addr": "0x14015fcb0", "name": "ExtraDataList::GetOrCreateExtraAction"}
+2026-11-22T15:36:16Z	name	12429	0x1811f0	{"addr": "0x1401811f0", "name": "ExtraAction::ExtraAction"}
+2026-11-22T15:36:16Z	name	77803	0x1047f70	{"addr": "0x141047f70", "name": "bhkWorldObject::SetProperty"}
+2026-11-22T15:36:16Z	local	12000	0x170b50	{"func_addr": "0x140170b50", "old": "a1", "new": "extraList"}
+2026-11-22T15:36:16Z	local	12000	0x170b50	{"func_addr": "0x140170b50", "old": "a2", "new": "actionRef"}
+2026-11-22T15:36:16Z	local	12000	0x170b50	{"func_addr": "0x140170b50", "old": "v6", "new": "listLock"}
+2026-11-22T15:36:16Z	local	11837	0x16a640	{"func_addr": "0x14016a640", "old": "a1", "new": "extraList"}
+2026-11-22T15:36:16Z	local	11837	0x16a640	{"func_addr": "0x14016a640", "old": "a2", "new": "multiBound"}
+2026-11-22T15:36:16Z	local	11837	0x16a640	{"func_addr": "0x14016a640", "old": "v6", "new": "listLock"}
+2026-11-22T15:36:16Z	local	77803	0x1047f70	{"func_addr": "0x141047f70", "old": "a1", "new": "worldObject"}
+2026-11-22T15:36:16Z	local	77803	0x1047f70	{"func_addr": "0x141047f70", "old": "a3", "new": "propertyKey"}
+2026-11-22T15:36:20Z	comment	12000	0x170b50	{"addr": "0x140170b50", "comment": "ID 12000: sets ExtraAction's (type 0x0D) ref +0x18 under the extra-data list lock (+0x18, write); a null ref with action 1 removes the extra. Reached from bhkWorld 77851 (Havok world write lock held) via 26053 > 26036 during a cell load: the Havok-then-list side of the engine's inversion with 12355 > 77803 (lock-order.md)."}
+2026-11-22T15:36:20Z	comment	11837	0x16a640	{"addr": "0x14016a640", "comment": "ID 11837: sets or removes ExtraMultiBoundRef (type 0x60) under the extra-data list lock (write). Reached inside bhkWorld 77851 (world write lock) via the Havok phantom callbacks 61410 > 25849 > 25857 at a cell attach: Havok then list, the reverse of 11979's list then bhkRigidBody::SetMotionType (lock-order.md)."}
+2026-11-22T15:36:20Z	comment	11608	0x15fcb0	{"addr": "0x14015fcb0", "comment": "ID 11608: the reference's ExtraAction (type 0x0D), created under the list lock (write) when missing. Called by 12000."}
+2026-11-22T15:36:20Z	comment	77803	0x1047f70	{"addr": "0x141047f70", "comment": "ID 77803: sets a hkpWorldObject property (key a3, default 1) inside the Havok world's write lock (bhkWorld +0x430, EnterWrite). Reached under the extra-data list lock from ExtraDataList::RemoveExtraData 12355 > 11576 > 19932 at a cell load: list then Havok, the reverse of 77851 > 12000 (lock-order.md)."}
+2026-11-22T15:59:22Z	read	13676	0x1b5930	{"name": "TESObjectCELL::sub_13676"}
+2026-11-22T15:59:26Z	name	12721	0x1879d0	{"addr": "0x1401879d0", "name": "ExtraAliasInstanceArray::FindAliasPackageThatCanRun"}
+2026-11-22T15:59:32Z	comment		0x1b5bf5	{"addr": "0x1401b5bf5", "comment": "The cell's Havok world (vfunc 0x140, +0x430) write lock, held through 77921 > 77851's phantom callbacks into ExtraDataList::SetMultiBoundRef 11837 (list write): the Havok-then-list side reported at +0x1b5bfa > +0x16a695 (lock-order.md, 2026-11-22)."}

@@ -328,3 +328,6 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 - **Optimistic loot for a guest** (2026-11-19, one-simulator.md piece 3): a guest's take could land on its own player at
   once and be taken back if the host refuses it (another player got it first); the corpse's copy needs nothing, the
   host's items part for it puts it right. Not needed while nobody notices the round trip in the container menu.
+- **Unwind data for SKSE's stubs** (2026-11-22, `docs/re/systems/stack-walk.md`): our stack walks end at SKSE's camera
+  stub, so a stack under a camera change does not say who changed the camera. `RtlAddFunctionTable` with the stub's
+  two pushes and 0x28 bytes would let every walker (ours, CrashLogger's) go on. When a stack cut there hides a cause.
