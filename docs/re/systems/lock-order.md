@@ -90,14 +90,18 @@ lay past its written 0x50-byte size; measured since 2026-11-22 (above).
 `host-dies-guest-still-fought` and `host-guard-arrest-jail`:
 
 - The alias/list pair above now reads engine-only on the host (`party-buys-house-guest` passed).
-- The Havok world against a reference's extra-data list, at fast travel's cell load, in all four (read in IDA 1.7.104,
-  each named that day): `bhkWorld::Step` 77851 holds the world's write lock (+0x430) while its phantom callbacks write or
-  read extras under the list lock (+0x18): 61410 > 25849 > `ExtraDataList::SetMultiBoundRef` 11837, 61410 > 25850 > 11968 >
-  12329, 26053 > 26036 > `ExtraDataList::SetActionRef` 12000 (`ExtraAction`, type 0x0D). The other way, the list first:
-  `ExtraDataList::RemoveExtraData` 12355 > 11576 > 19932 > `bhkWorldObject::SetProperty` 77803 on the main thread, or
-  `Job_IO`'s reference 3D (13023 > 13355 > 19742 > 11979 > 19535 > 77883 > 19538) > `bhkRigidBody::SetMotionType` 78077.
-  Only pass-through hooks on the stacks; added to `lock_order_known-1.7.104.txt`. The `Job_IO` side runs beside the frame,
-  so nothing keeps it apart: none was live.
+- The Havok world against a reference's extra-data list, at fast travel's cell load, in all four. Read in IDA 1.7.104
+  and named that day: 12000 `ExtraDataList::SetActionRef` (`ExtraAction`, type 0x0D), 11837
+  `ExtraDataList::SetMultiBoundRef` (type 0x60), 77803 `bhkWorldObject::SetProperty`, each under the lock the report
+  names, and where 13676 takes the cell's world lock (+0x1b5bfa). The frames between are the duo's symbolized stacks.
+  - World first: `bhkWorld::Step` 77851 holds the world's write lock (taken at +0x104ad57) while its callbacks reach the
+    list lock: 26053 > 26036 > 12000, or 61410 > 25850 > 11968 > 12329. In the third pattern the world lock is
+    `TESObjectCELL` 13676's (+0x1b5bfa, cell vfunc 0x140, +0x430), held through 77921 > 77851 > 61410 > 25849 > 11837.
+  - List first: `ExtraDataList::RemoveExtraData` 12355 > 11576 > 19932 > 77803 on the main thread, or `Job_IO`'s
+    reference 3D (13023 > 13355 > 19742 > 11979 > 19535 > 77883 > 19538) > `bhkRigidBody::SetMotionType` 78077.
+  - Only pass-through hooks on the stacks, so they warn and fail nothing. Not added to the reviewed list: that would
+    also hide a later `[ours]` report at the same sites. The `Job_IO` side runs beside the frame, so nothing keeps it
+    apart: none was live.
 - On the guest (`party-buys-house-host`), two reviewed load pairs read `[ours]`, rightly: `GuestEngine::ApplyFills` >
   `QuestEvents::HookForceRef`, and `CharacterService::OnCharacterSpawn` > `HookMoveTo` > 56626 > `HookForceState`, each
   against fast travel's alias fills (25083 > 24011). The new `ours from` line named those two frames.

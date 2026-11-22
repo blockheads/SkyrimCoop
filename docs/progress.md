@@ -54,7 +54,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 unwind entry; the written sizes had drifted both ways (`HookUpdateAI` 0x5F against 0x50, four covering the next
 function). A hook without an entry fails every lock audit (`lock_order.unmeasured_hooks`), and an `[ours]` report names
 the frame that tagged it. On the duo the alias/list pair now reads engine-only (`party-buys-house-guest` passed); the
-Havok/list pairs left were read in IDA and reviewed. Closed: "A pass-through hook counted as ours", "The AI/quest lock
+Havok/list pairs left were read in IDA (engine-only: they warn, not added to the reviewed list). Closed: "A pass-through hook counted as ours", "The AI/quest lock
 pair". ClientTests `[locks]`, a harness unit. `party-buys-house-host` failed on its staging (`place`: no clear spot),
 not a lock.
 

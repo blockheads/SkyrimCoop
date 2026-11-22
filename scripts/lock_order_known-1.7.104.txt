@@ -170,16 +170,3 @@ SkyrimSE.exe+0x15addd > SkyrimSE.exe+0x15ade9 vs SkyrimSE.exe+0x15a35e > SkyrimS
 # (statue-fires-at-client, keyhole-asks-client, copy-made-later-shows-effects on the guest). Vanilla.
 SkyrimSE.exe+0x15eb3d > SkyrimSE.exe+0x167f97 vs SkyrimSE.exe+0x725564 > SkyrimSE.exe+0x167487
 SkyrimSE.exe+0x725564 > SkyrimSE.exe+0x167487 vs SkyrimSE.exe+0x15d694 > SkyrimSE.exe+0x167d55
-# Havok world against a reference's extra-data list at a cell load (2026-11-22, agent/hook-sizes; lock-order.md, "Reports
-# read"). bhkWorld::Step 77851 holds the world's write lock and its phantom callbacks set or read extras under the
-# list lock (61410 > 25849/25850 > SetMultiBoundRef 11837, 11968 > 12329; 26053 > 26036 > SetActionRef 12000); the
-# other way, a load's RemoveExtraData 12355 > 77803 (bhkWorldObject::SetProperty) or Job_IO's 11979 > 19535 > 78077
-# (bhkRigidBody::SetMotionType) holds the list and takes the world. Only pass-through hooks on either stack
-# (HookProcessQueuedTravel, HookMainLoop); party-buys-house-*, host-dies-guest-still-fought, host-guard-arrest-jail.
-SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2 vs SkyrimSE.exe+0x104ad57 > SkyrimSE.exe+0x170bad
-SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2 vs SkyrimSE.exe+0x104ad57 > SkyrimSE.exe+0x17e87d
-SkyrimSE.exe+0x17014d > SkyrimSE.exe+0x10587a6 vs SkyrimSE.exe+0x1b5bfa > SkyrimSE.exe+0x16a695
-# An AI job's alias packages (FindAliasPackageThatCanRun 12721 > TESPackage::CanRunFor 29619 > HasRunOncePack 11737)
-# against ClearRefAlias > ExtraDataList::RemoveAliasInstance 12047 > 12719: both stacks read in IDA 2026-11-16, engine-only
-# since hook sizes are measured (2026-11-22, party-buys-house-guest; lock-order.md).
-SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x165490 vs SkyrimSE.exe+0x172a5b > SkyrimSE.exe+0x187881
