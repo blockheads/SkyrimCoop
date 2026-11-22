@@ -324,9 +324,9 @@ std::optional<bool> GodAfter(const Command& acCommand, bool aNow) noexcept
     return std::nullopt;
 }
 
-bool ShouldAttackKill(bool aFatal, std::optional<uint8_t> aOdds, uint32_t aRoll) noexcept
+bool ShouldAttackKill(bool aFatal, bool aKillable, std::optional<uint8_t> aOdds, uint32_t aRoll) noexcept
 {
-    return aOdds ? aFatal && aRoll < *aOdds : aFatal;
+    return aOdds ? aKillable && aRoll < *aOdds : aFatal;
 }
 
 bool IsLastHostileActor(bool aLast, std::optional<uint8_t> aOdds) noexcept

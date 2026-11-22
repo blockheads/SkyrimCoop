@@ -1,5 +1,7 @@
 #include <Misc/KillMoveOdds.h>
 
+#include <Actor.h>
+
 #include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -34,7 +36,28 @@ uint32_t Roll(const void* apAttacker, const void* apTarget) noexcept
                         [] { return std::uniform_int_distribution<uint32_t>(0, 99)(s_random); });
 }
 
-// Condition functions: (subject, param1, param2, result). ShouldAttackKill 21744: param1 the target, 1.0 when
+// Actor::WouldAttackKill 38559 before its hit probe: a living victim the attacker may kill (CanBeKilledBy 37229),
+// and an attacker in combat when its process asks for it (39996, EngagingInCombat 38563).
+bool Killable(void* apSubject, void* apTarget) noexcept
+{
+    auto* pAttacker = Cast<Actor>(static_cast<TESForm*>(apSubject));
+    auto* pVictim = Cast<Actor>(static_cast<TESForm*>(apTarget));
+    if (!pAttacker || !pVictim || pVictim->IsDead())
+        return false;
+    using TCanBeKilledBy = bool(Actor*, Actor*);
+    using TProcessGate = bool(AIProcess*);
+    using TEngagingInCombat = bool(Actor*);
+    POINTER_SKYRIMSE(TCanBeKilledBy, s_canBeKilledBy, 37229);
+    POINTER_SKYRIMSE(TProcessGate, s_combatGate, 39996);
+    POINTER_SKYRIMSE(TEngagingInCombat, s_engagingInCombat, 38563);
+    if (!s_canBeKilledBy.Get()(pVictim, pAttacker))
+        return false;
+    AIProcess* pProcess = pAttacker->currentProcess;
+    return !(pProcess && s_combatGate.Get()(pProcess) && !s_engagingInCombat.Get()(pAttacker));
+}
+
+// Condition functions: (subject, param1, param2, result); an empty reference param1 is the check's target
+// (TESConditionItem::IsTrue 29924). ShouldAttackKill 21744: param1 the target, 1.0 when
 // Actor::WouldAttackKill (38559); IsLastHostileActor 21743: 1.0 when no other hostile is near (ProcessLists).
 using TCondition = bool(void* apSubject, void* apParam1, void* apParam2, double* apResult);
 TCondition* RealShouldAttackKill = nullptr;
@@ -44,7 +67,10 @@ bool HookShouldAttackKill(void* apSubject, void* apParam1, void* apParam2, doubl
 {
     const bool cOk = RealShouldAttackKill(apSubject, apParam1, apParam2, apResult);
     if (const auto cOdds = Odds())
-        *apResult = DevCommands::ShouldAttackKill(*apResult != 0.0, cOdds, Roll(apSubject, apParam1)) ? 1.0 : 0.0;
+        *apResult = DevCommands::ShouldAttackKill(*apResult != 0.0, Killable(apSubject, apParam1), cOdds,
+                                                  Roll(apSubject, apParam1))
+                        ? 1.0
+                        : 0.0;
     return cOk;
 }
 

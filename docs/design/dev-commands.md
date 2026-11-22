@@ -47,11 +47,16 @@ takes an id as a reference only when it starts with a letter (`console.md`).
 
 ## Kill move odds
 
-Vanilla kill moves have no chance: the kill move root idles need `ShouldAttackKill` (the swing is fatal) and
-`IsLastHostileActor` (the target is the last enemy near). With odds set, `KillMoveOdds` (hooks on both condition
-functions) answers fatal and a roll under the odds (one roll per attacker and target a second, as the idle tree asks
-many times a swing; `KillMoveRolls`), and the last enemy always. The attacker's game decides its kill moves, so every game holds the
-odds.
+Vanilla kill moves have no chance: the kill move root idles need `ShouldAttackKill` (the swing is fatal) and, for
+the player, `IsLastHostileActor` (the target is the last enemy near). So the game's own rule already plays one on most
+killing blows on a lone enemy. With odds set, `KillMoveOdds` (hooks on both condition functions) answers any swing at a
+victim the attacker may kill (alive, not essential, the engine's own checks before its hit probe) with a roll under the
+odds, fatal or not, and the last enemy always: `/killmove 100` makes every swing a kill move, `/killmove 0` none. One
+roll per attacker and target a second, as the idle tree asks many times a swing (`KillMoveRolls`). The attacker's game
+decides its kill moves, so every game holds the odds.
+
+Until 2026-11-22 the odds kept the fatal test (fatal and a roll): at 100 a kill move still came only on the killing
+blow, so against one enemy at a time the rate was the game's own (`docs/re/systems/dev-commands.md`).
 
 ## Each game's own
 
@@ -65,4 +70,5 @@ every value back, so the console, the harness or a cog swap never leaves it wron
 ClientTests `[dev-commands]` (parse, lines, odds, console names); HostAuthorityTests `[DevTools]`; GameTests
 `[dev-commands]` (a guest's `/heal` heals both players; a guest's `/spawn` gives the guest copies, `/killall` kills
 them; `/killmove` and `/reset` reach both games). Skyrim 2026-11-16 (duo, by hand): spawn at the guest's copy, speed,
-gravity, jump, gear, shout recovery and kill move picks read back in both games.
+gravity, jump, gear, shout recovery and kill move picks read back in both games. Scenario `killmove-odds-every-swing`:
+at 100 one swing at a 1000-health wolf is a kill move, the guest's and the host's.

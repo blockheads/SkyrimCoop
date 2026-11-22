@@ -396,6 +396,12 @@ reload (`HostGame::PartyWipe`, `PreviousSave`, `PreviousGameplaySave`) and the s
 joins go on). GameTests "A party wipe loads nothing until the host loads the save it chooses"; scenario
 `death-wipe-host-loads` (replaces `death-wipe-checkpoint` and `death-wipe-twice-keeps-character`).
 
+2026-11-22: `/killmove 100` makes every swing a kill move. The odds kept the engine's fatal test, so at 100 a kill
+move still came only on the killing blow, which the game's own rule mostly gives already: the rate looked unchanged.
+Now with odds set `ShouldAttackKill` answers `Actor::WouldAttackKill`'s (38559) checks before its hit probe (a living
+victim the attacker may kill, 37229) and the roll ([dev-commands.md](re/systems/dev-commands.md)). ClientTests
+`[dev-commands]`; scenario `killmove-odds-every-swing` (one swing at a 1000-health wolf, guest and host).
+
 2026-11-16: dev chat commands for playtests (`/dev` lists them): `/heal`, `/god`, `/speed`, `/gravity`, `/shouts`,
 `/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather` in the host's
 game at the typer's character. Anyone types them; the host runs world commands and sends the line to every game, which

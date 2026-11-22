@@ -16,9 +16,29 @@ What the dev chat commands rely on (`docs/design/dev-commands.md`). 1.7.104, rea
 - `GameFunc::native::IsLastHostileActor` (21743): 1.0 when `ProcessLists::AreHostileActorsNear` finds none, or exactly
   one and it is the subject.
 
-`KillMoveOdds` hooks both condition functions and rewrites the result only while odds are set. The roll is kept per
-attacker and target for a second (`DevCommands::KillMoveRolls`): the idle tree asks the conditions many times a swing. Measured 2026-11-16: at
-100 the guest's idle tree picked `pa_KillMove1HMWolfB`/`A`; at 0 it picked none.
+- `Actor::WouldAttackKill` (38559) in full (read 2026-11-22): false when the target is dead (vfunc 0x99) or
+  `Actor::CanBeKilledBy(target, attacker)` (37229, named here: reanimated, or not essential `+0x204` 0x40000, not
+  vfunc 94, not protected 0x80000 unless the attacker is the player); then the probe hit's fatal flag, false again when
+  the attacker's process byte (39996: middle-high `+0x324`, meaning not read) is set and it is not `EngagingInCombat`
+  (38563). No random number anywhere on the path.
+- The target reaches the condition (read, `TESConditionItem::IsTrue` 29924): the idles give both conditions param 0;
+  an empty param1 of a reference type (`coop_ConditionParamIsReference` 0x1404A8DC0: param types 4, 6, 24, 26) becomes
+  the check's `targetRef`, and the function is called as (subject, param1, param2, &result).
+- `fKillCamBaseOdds` and its level bias (26452, `coop_KillCamOddsRoll`) roll a kill cam from the two levels, but
+  nothing calls it (no rel32 call or jump, no stored pointer): not part of the pick.
+
+`KillMoveOdds` hooks both condition functions and rewrites the result only while odds are set: `ShouldAttackKill`
+answers the 38559 checks before its probe (dead, 37229, the combat gate) and a roll under the odds, fatal or not;
+`IsLastHostileActor` answers yes. The roll is kept per attacker and target for a second (`DevCommands::KillMoveRolls`):
+the idle tree asks the conditions many times a swing.
+
+**Why `/killmove 100` did nothing (2026-11-22).** It kept the fatal test (fatal and a roll), so a kill move still came
+only on a killing blow, and the game's own rule already plays one on most killing blows on a lone enemy (for the player
+the last-enemy test is the only other gate). Measured on the duo at 100: three swings at a 1000-health wolf were three
+plain `attackStart`s; a 100-health wolf's kill move came on its second, fatal swing. With the fix one swing at the
+1000-health wolf is `pa_KillMove1HMWolfA` and it dies, on the guest and on the host (scenario
+`killmove-odds-every-swing`). The 2026-11-16 check ("at 100 the guest's idle tree picked `pa_KillMove1HMWolfB`") used
+fatal swings, so it could not tell.
 
 ## Gravity and jump (read)
 
