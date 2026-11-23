@@ -161,6 +161,8 @@ void EndConsolePauses() noexcept;
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept;
 // The flags of one open menu, for live-menu regressions.
 std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept;
+// The open lockpicking menu's lock and pick 3D are built (51950), nullopt with no menu.
+std::optional<bool> IsLockpickBuilt() noexcept;
 std::optional<bool> IsFirstPersonModelHidden() noexcept;
 std::optional<bool> IsLocalMapShown() noexcept;
 std::optional<bool> IsLocalMapReady() noexcept;

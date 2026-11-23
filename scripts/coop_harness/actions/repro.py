@@ -1467,6 +1467,8 @@ def _line(tool, args):
             return f"ctx.use({game}, {args['target']!r})"
         case "take":
             return f"ctx.take({game}, {args['target']!r})"
+        case "pick_lock":
+            return f"ctx.pick_lock({game}, {args['target']!r})"
         case "pickpocket":
             return f"ctx.pickpocket({game}, {args['target']!r}, {args['item']!r}, {args.get('caught', False)!r})"
         case "fight":
@@ -1555,9 +1557,14 @@ def _called(name, args):
     return _line("verb", {"name": name, "args": args})
 
 
+CHECKING_VERBS = ("pick_lock",)
+
+
 def _is_expect(entry):
-    """A check, kept even when it failed (a failing expect is the bug): the tool, or an expect* verb through `verb`."""
-    return entry["tool"] == "expect" or (entry["tool"] == "verb" and entry["args"].get("name", "").startswith("expect"))
+    """A check, kept even when it failed (a failing expect is the bug): the tool, a verb that checks what it did
+    (pick_lock), or an expect* verb through `verb`."""
+    name = entry["args"].get("name", "") if entry["tool"] == "verb" else entry["tool"]
+    return name.startswith("expect") or name in CHECKING_VERBS
 
 
 def _replayed(entry):
