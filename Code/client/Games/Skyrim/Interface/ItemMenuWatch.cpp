@@ -3,6 +3,7 @@
 #include <Games/ItemMenuRebuild.h>
 #include <Games/TES.h>
 #include <Interface/Menus/ItemMenus.h>
+#include <Interface/UI.h>
 #include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
 
@@ -13,10 +14,13 @@ namespace ItemMenuWatch
 {
 namespace
 {
+constexpr std::array<const char*, ItemMenuChanges::kMenus> cNames{"ContainerMenu", "BarterMenu", "InventoryMenu"};
 std::array<std::atomic<IMenu*>, ItemMenuChanges::kMenus> s_open{};
+// The holder each open menu lists beside the player, read on the UI's thread for the other threads' Note.
+std::array<std::atomic<uint32_t>, ItemMenuChanges::kMenus> s_holder{};
+std::atomic<uint32_t> s_player{};
 ItemMenuChanges s_changes;
 
-// The holder a menu lists beside the player, from the engine's globals (no menu memory: any thread).
 uint32_t ListedHolder(Kind aKind) noexcept
 {
     switch (aKind)
@@ -53,6 +57,7 @@ std::pair<ItemList*, uint32_t*> ListOf(Kind aKind, IMenu* apMenu) noexcept
 
 void Shown(Kind aKind, IMenu* apMenu) noexcept
 {
+    s_holder[static_cast<size_t>(aKind)].store(ListedHolder(aKind), std::memory_order_release);
     s_open[static_cast<size_t>(aKind)].store(apMenu, std::memory_order_release);
 }
 
@@ -61,30 +66,39 @@ void Hidden(Kind aKind) noexcept
     s_open[static_cast<size_t>(aKind)].store(nullptr, std::memory_order_release);
 }
 
-void RebuildFirst(const TESObjectREFR* apHolder) noexcept
+void Note(const TESObjectREFR* apHolder) noexcept
 {
     if (!apHolder)
         return;
-    const auto* pPlayer = PlayerCharacter::Get();
-    const uint32_t cPlayer = pPlayer ? pPlayer->formID : 0;
     for (size_t i = 0; i < s_open.size(); ++i)
         if (s_open[i].load(std::memory_order_acquire))
         {
-            const ItemMenuView cView{.Open = true, .Lists = {ListedHolder(static_cast<Kind>(i)), cPlayer}};
+            const ItemMenuView cView{.Open = true, .Lists = {s_holder[i].load(std::memory_order_acquire), s_player.load(std::memory_order_acquire)}};
             if (MustRebuildFirst(cView, apHolder->formID))
                 s_changes.Note(i);
         }
 }
 
-void OnUiJob() noexcept
+void BeforeUiMessages() noexcept
 {
     auto* pPlayer = PlayerCharacter::Get();
+    s_player.store(pPlayer ? pPlayer->formID : 0, std::memory_order_release);
+    UI* pUI = UI::Get();
     for (size_t i = 0; i < s_open.size(); ++i)
     {
+        const auto cKind = static_cast<Kind>(i);
         IMenu* pMenu = s_open[i].load(std::memory_order_acquire);
+        // Still the UI's menu of that name: one gone without a hide message is dropped, never read.
+        if (pMenu && (!pUI || pUI->FindMenuByName(cNames[i]) != pMenu))
+        {
+            Hidden(cKind);
+            pMenu = nullptr;
+        }
+        if (pMenu)
+            s_holder[i].store(ListedHolder(cKind), std::memory_order_release);
         if (!s_changes.Take(i, pMenu != nullptr) || !pPlayer)
             continue;
-        const auto [pList, pChanged] = ListOf(static_cast<Kind>(i), pMenu);
+        const auto [pList, pChanged] = ListOf(cKind, pMenu);
         if (!pList)
             continue;
         // No items named: the rebuild reads the whole list, not only those (51144 -> 51146, 50958 -> 50960).

@@ -34,10 +34,10 @@ TEST_CASE("An open item menu is rebuilt after a stack it lists changes", "[inven
     }
 }
 
-TEST_CASE("A noted change rebuilds its menu once at the UI job, and none for a closed menu", "[inventory][item-menu]")
+TEST_CASE("A noted change rebuilds its menu once at the UI's message pass, and none for a closed menu", "[inventory][item-menu]")
 {
     ItemMenuChanges changes;
-    CHECK_FALSE(changes.Take(0, true)); // nothing noted: the UI job leaves the menu as it is
+    CHECK_FALSE(changes.Take(0, true)); // nothing noted: the UI's pass leaves the menu as it is
 
     changes.Note(0);
     changes.Note(0); // two removals in one update: one rebuild reads both
@@ -45,7 +45,13 @@ TEST_CASE("A noted change rebuilds its menu once at the UI job, and none for a c
     CHECK(changes.Take(0, true));
     CHECK_FALSE(changes.Take(0, true));
 
+    // The UI pass falls between a change's two notes (before and after it): the second rebuilds again.
+    changes.Note(1);
+    CHECK(changes.Take(1, true));
+    changes.Note(1);
+    CHECK(changes.Take(1, true));
+
     changes.Note(2);
-    CHECK_FALSE(changes.Take(2, false)); // closed before the UI job: nothing to rebuild
+    CHECK_FALSE(changes.Take(2, false)); // closed before the UI's pass: nothing to rebuild
     CHECK_FALSE(changes.Take(2, true)); // and not later, on its next opening
 }

@@ -212,9 +212,10 @@ void* UnEquipHook(EquipManager* apThis, Actor* apActor, TESForm* apItem, EquipDa
     }
 
     spdlog::debug("UnEquipHook, actor: {:X}", apActor->formID);
-    ItemMenuWatch::RebuildFirst(apActor); // its unequip can merge and free a worn list (16067)
-
-    return RealUnEquip(apThis, apActor, apItem, apData);
+    ItemMenuWatch::Note(apActor); // its unequip can merge and free a worn list (16067)
+    void* pResult = RealUnEquip(apThis, apActor, apItem, apData);
+    ItemMenuWatch::Note(apActor);
+    return pResult;
 }
 
 void* EquipSpellHook(EquipManager* apThis, Actor* apActor, TESForm* apSpell, MagicEquipData* apData)

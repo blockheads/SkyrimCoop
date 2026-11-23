@@ -1328,8 +1328,10 @@ BSPointerHandle<TESObjectREFR>* HookRemoveFromInventory(ExtraContainerChanges::D
     }
     if (pOwner && apItem && aCount > 0 && !ScopedInventoryOverride::IsOverriden() && !ScopedItemRemovalOverride::IsOverriden())
         SendRemoval(pOwner, apItem, aCount, apExtraList);
-    ItemMenuWatch::RebuildFirst(pOwner); // it may free a list an open item menu lists
-    return RealRemoveFromInventory(apThis, apResult, apRef, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apDropRef);
+    ItemMenuWatch::Note(pOwner); // it may free a list an open item menu lists
+    auto* pResult = RealRemoveFromInventory(apThis, apResult, apRef, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apDropRef);
+    ItemMenuWatch::Note(pOwner);
+    return pResult;
 }
 
 void HookRotateX(TESObjectREFR* apThis, float aAngle)

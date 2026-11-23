@@ -1311,7 +1311,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t BarterStock{};   // what an open BarterMenu sells: TESDataHandler +0xDB8's owner (50960)
     // Item menus list stacks by their own lists; only a loot or chest menu's target is left stale by RemoveItem 19689
     // (measured; docs/re/systems/item-menus.md, "Who sends which").
-    ItemMenuChanges ItemMenuNoted; // our hooks note, the UI job (Frame) takes
+    ItemMenuChanges ItemMenuNoted; // our hooks note, the UI's message pass (Frame) takes
     int ItemMenuFreedLists{};      // the target's listed lists freed since the menu last listed
     int ItemMenuFreedReads{};      // a take or hover read a freed list (the 2026-11-22 guest crashes, GetExtraData 12329)
     [[nodiscard]] size_t ItemMenuKind() const noexcept { return LootMenuOf || ChestMenuOf ? 0 : BarterMerchant ? 1 : 2; }
@@ -1329,8 +1329,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         if (ItemMenuOf().Open && ItemMenuFreedLists)
             ++ItemMenuFreedReads;
     }
-    // A change to aHolder's stacks: our hooks note it (ItemMenuWatch::RebuildFirst), then the engine's change, a stack
-    // with extra data gone freeing its list (16059).
+    // A change to aHolder's stacks: our hooks note it before and after (ItemMenuWatch::Note) the engine's change, a
+    // stack with extra data gone freeing its list (16059).
     template <class Change> void ChangesStacks(uint32_t aHolder, Change&& aChange)
     {
         if (MustRebuildFirst(ItemMenuOf(), aHolder))
@@ -1343,6 +1343,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         aChange();
         if ((LootMenuOf || ChestMenuOf) && aHolder == ItemMenuOf().Lists[0])
             ItemMenuFreedLists += static_cast<int>(std::max<std::ptrdiff_t>(0, cBefore - cLists()));
+        if (MustRebuildFirst(ItemMenuOf(), aHolder))
+            ItemMenuNoted.Note(ItemMenuKind());
     }
     // The chest's menu closes (the player, or our auto-close on a disabled chest): the lid's Close plays (ContainerMenu
     // 51125 -> OpenOrClose 14284); with no 3D only its flag closes.

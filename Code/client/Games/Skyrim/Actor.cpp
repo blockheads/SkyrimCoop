@@ -1851,8 +1851,9 @@ void HookResetInventory(Actor* apThis, bool aLeveledOnly)
 {
     if (apThis->GetExtension()->IsCopy())
         return;
-    ItemMenuWatch::RebuildFirst(apThis); // frees the lists an open item menu lists
+    ItemMenuWatch::Note(apThis); // frees the lists an open item menu lists
     RealResetInventory(apThis, aLeveledOnly);
+    ItemMenuWatch::Note(apThis);
 }
 
 // Actor::ApplyMovement (37356): a copy runs none of its decisions, only its engine's step onto its owner's place
@@ -1956,8 +1957,9 @@ static TResetWornToOutfit* RealResetWornToOutfit = nullptr;
 
 void HookResetWornToOutfit(void* apNpc, Actor* apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag)
 {
-    ItemMenuWatch::RebuildFirst(apActor); // its unequips merge worn lists (16067)
+    ItemMenuWatch::Note(apActor); // its unequips merge worn lists (16067)
     RealResetWornToOutfit(apNpc, apActor, aUnused3, aEquipBestWeapons, aUnused5, aKeepTlsFlag);
+    ItemMenuWatch::Note(apActor);
     if (apActor)
         World::Get().GetRunner().Trigger(WornResetEvent{apActor->formID});
 }

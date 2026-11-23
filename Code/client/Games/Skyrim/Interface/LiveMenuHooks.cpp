@@ -191,14 +191,15 @@ UI_MESSAGE_RESULTS MapProcess(MapMenu* apMenu, UIMessage& aMessage)
     return RealMapProcess(apMenu, aMessage);
 }
 
-// Job_UI (39042): its messages (82082) and movies (82083) run the menus' callbacks; noted item menus rebuild first.
-using TJobUi = int();
-TJobUi* RealJobUi{};
+// UI::ProcessMessages (82082): every caller runs it before the movies' advance (82083); the menus' callbacks run in
+// both. Noted item menus rebuild first.
+using TUiMessages = uint64_t(UI*);
+TUiMessages* RealUiMessages{};
 
-int JobUi()
+uint64_t UiMessages(UI* apUI)
 {
-    ItemMenuWatch::OnUiJob();
-    return RealJobUi();
+    ItemMenuWatch::BeforeUiMessages();
+    return RealUiMessages(apUI);
 }
 
 using TMenuMode = bool(uint32_t);
@@ -227,7 +228,7 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(51126, &s_container.Real, ContainerProcess);
     HOOK_ID(50945, &s_barter.Real, BarterProcess);
     HOOK_ID(51848, &RealInventoryProcess, InventoryProcess);
-    HOOK_ID(39042, &RealJobUi, JobUi);
+    HOOK_ID(82082, &RealUiMessages, UiMessages);
 
     VersionDbPtr<uint8_t> bookProcess(51049);
     constexpr size_t cBookModeCall = COOP_SKYRIM_1_6_1170 ? 0x6F : 0x71;
