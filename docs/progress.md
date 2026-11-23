@@ -49,6 +49,20 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **a guest's open loot menu read a stack our reconcile had freed** (`agent/fabien-crashes`;
+[item-menus.md](re/systems/item-menus.md)). Two of the guest's three crashes in the 2026-11-22 playtest (Windows,
+`GetExtraData` 12329 under ContainerMenu's hover 51130 and take 51132): a ContainerMenu's entries hold the listed
+stacks' own lists (16106, read), and the copy's item reconcile after the guest's take freed the worn stack's list with
+the menu open. On Linux the menu kept listing the taken item on the corpse. The engine's `RemoveItem` (19689) queues
+only the item's update, which ContainerMenu keeps for its target until a full one (read); the player's own stacks and
+the console's and Papyrus's removals re-list at once (measured). Now each item menu (ContainerMenu, BarterMenu, InventoryMenu,
+all aliasing, read) is tracked from its `ProcessMessage` hook (`ItemMenuWatch`), and before a stack it lists changes
+(`ContainerItems`, the `RemoveItem` hook 16059 for every other path, outfit reset 418622, `ResetInventory` 37322) it
+gets what the engine's take sends: the item's update, then `ItemList::Update_Impl` (51031, the player as owner: every
+item menu rebuilds for the player, 403520). Scenario `guest-loot-menu-follows-corpse` (MCP verbs `loot`, `open_inventory`, `expect_menu_lists`), GameTests
+`[item-menu]`, ClientTests `[item-menu]`. The third
+crash (an NPC's face template walk on the background loader, 15678) is open in [bugs.md](bugs.md).
+
 2026-11-22: **a disintegrated player's body is gone on every game until it respawns** (`agent/disintegrate-body`;
 [death-disintegrate.md](re/systems/death-disintegrate.md), "What we do"). After the freeze fix the victim's own body
 showed again once the ash shader ended (lying, then getting up) while the shooter's copy stayed dissolved. The refused

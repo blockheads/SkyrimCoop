@@ -751,6 +751,67 @@ class PlayerVerbs:
         return {"how": "input", "took": sum(held.values()) - sum(ctx.container_items(instance, ref).values())}
 
     @goal
+    def loot(ctx, instance, target, item):
+        """The player opens `target` (a container or a corpse; Activate, real input), unless its menu is open already,
+        and takes `item` (its name in the list; E). The menu stays open; done when the take leaves `target` here."""
+        from ..common import ACTIVATE_KEY, ITEM_LISTS
+        ref = ctx.resolve(target, instance)
+        who = f"[{instance or 'host'}]"
+        held = ctx.container_items(instance, ref)
+        if "ContainerMenu" not in ctx.menus(instance):
+            ctx.can_play(instance)
+            ctx.reach(instance, target)
+            ctx.activate_ref(instance, ref, target)
+        ctx.wait_for(f"{who} {target}'s menu shows its list",
+                     lambda: ctx.menu_var(instance, "ContainerMenu", ITEM_LISTS + ".currentState") == 2, 5)
+        ctx.select_entry(instance, "ContainerMenu", ITEM_LISTS + ".ItemsList", item)
+        ctx.tap_key(instance, ACTIVATE_KEY)
+        if ctx.menu_var(instance, "ContainerMenu", "_root.Menu_mc.ItemCard_mc.QuantityMenu_mc._visible"):
+            ctx.tap_key(instance, 0x1C)  # the quantity slider: all of them
+        ctx.wait_for(f"{who} the take of {item} leaves {target}",
+                     lambda: sum(ctx.container_items(instance, ref).values()) < sum(held.values()), 10)
+        return {"how": "input", "took": sum(held.values()) - sum(ctx.container_items(instance, ref).values()),
+                "listed": ctx.menu_entries(instance)}
+
+    def menu_entries(ctx, instance, menu="ContainerMenu"):
+        """An open item menu's list (ContainerMenu, BarterMenu, InventoryMenu) as it shows now, its entries' text;
+        none when closed."""
+        from ..common import ITEM_LISTS
+        listing = ITEM_LISTS + ".ItemsList"
+        value = lambda suffix: ctx.menu_var(instance, menu, listing + suffix)
+        if menu not in ctx.menus(instance) or not isinstance(count := value(".entryList.length"), (float, int)):
+            return []
+        return [value(f".entryList.{i}.text") for i in range(int(count))]
+
+    def expect_menu_lists(ctx, instance, item, count, seconds=3.0, menu="ContainerMenu"):
+        """The open item menu lists `item` (its entry text) `count` times within `seconds`: what its holders hold, no
+        entry left over after a take or a change made elsewhere."""
+        who = f"[{instance or 'host'}]"
+        shown = lambda: sum(1 for text in ctx.menu_entries(instance, menu) if text == item)
+        try:
+            ctx.wait_for(f"{who} {menu} lists {item} {count} times", lambda: shown() == count, seconds)
+        except TestFailure:
+            raise ctx.failure(f"{who} the open {menu} lists {item} {shown()} times, not {count}: {ctx.menu_entries(instance, menu)}")
+        return {"listed": count}
+
+    def open_inventory(ctx, instance, category="$Apparel"):
+        """The player opens its inventory (Tab, the character menu's Items, real input) at `category`'s list, and
+        leaves it open."""
+        from ..common import ACTIVATE_KEY, ITEM_LISTS, MENU_RIGHT_KEY, TAB_KEY
+        who = f"[{instance or 'host'}]"
+        ctx.can_play(instance)
+        ctx.tap_key(instance, TAB_KEY)
+        ctx.wait_for(f"{who} the character menu opens", lambda: "TweenMenu" in ctx.menus(instance), 5)
+        ctx.tap_key(instance, MENU_RIGHT_KEY)
+        ctx.tap_key(instance, ACTIVATE_KEY)
+        ctx.wait_for(f"{who} the inventory opens", lambda: "InventoryMenu" in ctx.menus(instance), 5)
+        ctx.select_entry(instance, "InventoryMenu", ITEM_LISTS + ".CategoriesList", category)
+        ctx.tap_key(instance, MENU_RIGHT_KEY)
+        ctx.wait_for(f"{who} the {category} list opens",
+                     lambda: ctx.menu_var(instance, "InventoryMenu", ITEM_LISTS + ".currentState") == 2, 5)
+        return {"listed": ctx.menu_entries(instance, "InventoryMenu")}
+
+    @goal
     def fight(ctx, instance, target, hits=30, until_dead=True):
         """The player draws what it holds and hits `target` until it dies, chasing it when it moves off; until_dead
         False: `hits` swings, the target alive or not."""

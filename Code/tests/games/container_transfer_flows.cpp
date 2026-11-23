@@ -204,6 +204,42 @@ SCENARIO("A guest loots a host NPC's inventory once", "[container-transfer]")
     party.Agree("the NPC and player inventories agree");
 }
 
+// guest-loot-menu-follows-corpse, the 2026-11-22 playtest's guest crashes: the take's reconcile freed the corpse's
+// worn stack while the open menu still listed it (docs/re/systems/item-menus.md).
+SCENARIO("A guest's open loot menu never reads a stack the copy's reconcile freed", "[container-transfer][item-menu]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x1A67C, kCell, {30.f, 40.f, 0.f});
+        host.GetsItem(npc, kSword, 1);
+        host.Equips(npc, kSword);
+    });
+    const auto cCopy = [&] { return guest.CopiesOf(0x1A67C).empty() ? 0u : guest.CopiesOf(0x1A67C)[0]; };
+    const auto cWorn = [&] {
+        const auto cEntries = guest.EntriesOf(cCopy(), kSword);
+        return std::ranges::any_of(cEntries, [](const auto& acEntry) { return acEntry.ExtraWorn; });
+    };
+    party.Until([&] { return cCopy() && cWorn(); }, "the guest's copy wears the NPC's sword (a list of its own)");
+    party.As(party.Host(), [&] { host.Hit(npc, 1000.f); });
+    party.Until([&] { return guest.IsActorDead(cCopy()); }, "the copy dies");
+    party.As(party.Guest(), [&] {
+        guest.Activates(FakeEngine::kPlayer, cCopy());
+        REQUIRE(guest.LootMenuOf == cCopy());
+        // The menu's take: proposed to the host (ContainerTransfers), the copy changed when the host answers.
+        Inventory::Entry item;
+        item.BaseId = GameId(0, kSword);
+        item.Count = 1;
+        REQUIRE(ContainerTransfers::Propose(party.Guest(), cCopy(), FakeEngine::kPlayer, item));
+    });
+    party.Until([&] { return guest.CountOf(cCopy(), kSword) == 0 && guest.CountOf(FakeEngine::kPlayer, kSword) == 1; },
+                "the host moves the sword: the copy's reconcile takes it off the corpse");
+    party.As(party.Guest(), [&] { guest.HoversInItemMenu(); });
+    CHECK(guest.ItemMenuFreedReads == 0);
+}
+
 SCENARIO("A guest taking a party item from a chest gives it to every player", "[container-transfer][party-items]")
 {
     Party party(1, Plugins);

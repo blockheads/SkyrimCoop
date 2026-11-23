@@ -334,7 +334,7 @@ void FakeEngine::LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
         item.Count = -aCount;
         World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item));
     }
-    AddItems(aActor, aItem, -aCount);
+    AddItems(aActor, aItem, -aCount); // the engine's own (a script's, the console's): a full menu update, measured
 }
 
 void FakeEngine::Drops(uint32_t aActor, uint32_t aItem, int32_t aCount)
@@ -595,6 +595,13 @@ std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aA
 // in Skyrim, 2026-10-30): the bridge's TESObjectREFR::AddOrRemoveItem finds it.
 void FakeEngine::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
 {
+    if (aItem.Count < 0)
+        return ChangesStacks(aObjectFormId, [&] { AddOrRemoveStack(aObjectFormId, aItem); });
+    AddOrRemoveStack(aObjectFormId, aItem);
+}
+
+void FakeEngine::AddOrRemoveStack(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
+{
     const uint32_t cItem = ::ItemForm(aItem.BaseId);
     if (aItem.Count < 0 && aItem.ContainsExtraData())
     {
@@ -738,6 +745,12 @@ void FakeEngine::SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, i
     const auto cActor = Actors.find(aActorFormId);
     if (cActor == Actors.end())
         return;
+    ChangesStacks(aActorFormId, [&] { SetCarriedStacks(aActorFormId, acItem, aCount, acStacks); });
+}
+
+void FakeEngine::SetCarriedStacks(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept
+{
+    const auto cActor = Actors.find(aActorFormId);
     auto& entries = cActor->second.Items.Entries;
     std::vector<Inventory::Entry> missing;
     for (Inventory::Entry stack : acStacks)

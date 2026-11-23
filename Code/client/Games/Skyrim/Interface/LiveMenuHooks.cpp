@@ -3,6 +3,7 @@
 #include <Hooks/FunctionHook.h>
 #include <Actor.h>
 #include <Interface/IMenu.h>
+#include <Interface/ItemMenuWatch.h>
 #include <Interface/MenuAutoClose.h>
 #include <Events/LidUnposedEvent.h>
 #include <Interface/Menus/MapMenu.h>
@@ -32,6 +33,7 @@ using TMenuProcess = UI_MESSAGE_RESULTS(IMenu*, UIMessage&);
 struct AutoClosed
 {
     const char* Name;
+    ItemMenuWatch::Kind Kind;
     uint32_t (*TargetHandle)();
     TMenuProcess* Real{};
     MenuAutoClose::Watch Watch{};
@@ -60,12 +62,16 @@ UI_MESSAGE_RESULTS Watched(AutoClosed& aMenu, IMenu* apMenu, UIMessage& aMessage
 {
     if (aMessage.eType == UIMessage::kShow)
     {
+        ItemMenuWatch::Shown(aMenu.Kind, apMenu);
         aMenu.Watching = InSession();
         if (aMenu.Watching)
             aMenu.Watch = MenuAutoClose::Open(TargetOf(aMenu.TargetHandle()));
     }
     else if (aMessage.eType == UIMessage::kHide || aMessage.eType == UIMessage::kForceHide)
+    {
+        ItemMenuWatch::Hidden(aMenu.Kind);
         aMenu.Watching = false;
+    }
     return aMenu.Real(apMenu, aMessage);
 }
 
@@ -98,8 +104,8 @@ uint32_t BarterTarget()
     return *s_handle.Get();
 }
 
-AutoClosed s_container{"ContainerMenu", &ContainerTarget};
-AutoClosed s_barter{"BarterMenu", &BarterTarget};
+AutoClosed s_container{"ContainerMenu", ItemMenuWatch::Kind::Container, &ContainerTarget};
+AutoClosed s_barter{"BarterMenu", ItemMenuWatch::Kind::Barter, &BarterTarget};
 
 UI_MESSAGE_RESULTS ContainerProcess(IMenu* apMenu, UIMessage& aMessage)
 {
@@ -109,6 +115,18 @@ UI_MESSAGE_RESULTS ContainerProcess(IMenu* apMenu, UIMessage& aMessage)
 UI_MESSAGE_RESULTS BarterProcess(IMenu* apMenu, UIMessage& aMessage)
 {
     return Watched(s_barter, apMenu, aMessage);
+}
+
+// InventoryMenu lists the player's stacks too (ItemMenuWatch); no target to auto-close on.
+TMenuProcess* RealInventoryProcess{};
+
+UI_MESSAGE_RESULTS InventoryProcess(IMenu* apMenu, UIMessage& aMessage)
+{
+    if (aMessage.eType == UIMessage::kShow)
+        ItemMenuWatch::Shown(ItemMenuWatch::Kind::Inventory, apMenu);
+    else if (aMessage.eType == UIMessage::kHide || aMessage.eType == UIMessage::kForceHide)
+        ItemMenuWatch::Hidden(ItemMenuWatch::Kind::Inventory);
+    return RealInventoryProcess(apMenu, aMessage);
 }
 
 // Main::UpdatePlayer (36581+0x7A) only tests this result for zero; the map still needs the player update.
@@ -195,9 +213,10 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(53112, &RealLocalMap, LocalMap);
     HOOK_ID(53102, &RealMapProcess, MapProcess);
 
-    // ProcessMessage, vtable slot 4 (ContainerMenu 215061, BarterMenu 214926).
+    // ProcessMessage, vtable slot 4 (ContainerMenu 215061, BarterMenu 214926; InventoryMenu 51848).
     HOOK_ID(51126, &s_container.Real, ContainerProcess);
     HOOK_ID(50945, &s_barter.Real, BarterProcess);
+    HOOK_ID(51848, &RealInventoryProcess, InventoryProcess);
 
     VersionDbPtr<uint8_t> bookProcess(51049);
     constexpr size_t cBookModeCall = COOP_SKYRIM_1_6_1170 ? 0x6F : 0x71;

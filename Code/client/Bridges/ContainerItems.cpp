@@ -7,6 +7,7 @@
 #include <ExtraData/ExtraContainerChanges.h>
 #include <ExtraData/ExtraCount.h>
 #include <Games/Overrides.h>
+#include <Interface/ItemMenuWatch.h>
 #include <TESObjectREFR.h>
 
 #include <algorithm>
@@ -76,7 +77,10 @@ bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange
             wanted.emplace_back(pItem, cItem.Count);
     for (const auto& [pItem, cCount] : aObject.GetContainerItems())
         if (std::ranges::none_of(wanted, [pItem](const auto& acWanted) { return acWanted.first == pItem; }))
+        {
+            ItemMenuWatch::RebuildFirst(&aObject, pItem);
             aObject.SetContainerCount(pItem, 0);
+        }
     for (const auto& [pItem, cCount] : wanted)
     {
         std::vector<Inventory::Entry> stacks;
@@ -153,6 +157,7 @@ bool SetContainerStacks(TESObjectREFR& aObject, TESBoundObject& aItem, int32_t a
 {
     if (!aObject.GetContainer())
         return false;
+    ItemMenuWatch::RebuildFirst(&aObject, &aItem);
     if (!SameStacks(ReadContainerStacks(aObject, aItem), acStacks))
     {
         ScopedInventoryOverride _;
@@ -198,6 +203,7 @@ bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCou
 {
     if (!aActor.GetContainer())
         return false;
+    ItemMenuWatch::RebuildFirst(&aActor, &aItem);
     ScopedInventoryOverride _;
     std::vector<Inventory::Entry> missing;
     for (Inventory::Entry stack : acStacks)
