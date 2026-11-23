@@ -49,6 +49,23 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **a guest's open loot menu read a stack our reconcile had freed** (`agent/fabien-crashes`;
+[item-menus.md](re/systems/item-menus.md)). Two of the guest's three crashes in the 2026-11-22 playtest (Windows,
+`GetExtraData` 12329 under ContainerMenu's hover 51130 and take 51132): a ContainerMenu's entries hold the listed
+stacks' own lists (16106, read), and the copy's item reconcile after the guest's take freed the worn stack's list with
+the menu open. On Linux the menu kept listing the taken item on the corpse. The engine's `RemoveItem` (19689) queues
+only the item's update, which ContainerMenu keeps for its target until a full one (read); the player's own stacks and
+the console's and Papyrus's removals re-list at once (measured). Barter merges the merchant's and the vendor chests' own lists into its stock (0x14023D080, read) and went stale the
+same way (measured). Now each item menu (ContainerMenu, BarterMenu, InventoryMenu) is tracked from its `ProcessMessage`
+hook (`ItemMenuWatch`); a change to a holder one lists (`ContainerItems`, the hooks on `RemoveItem` 16059, unequip
+38934, outfit reset 418622, `ResetInventory` 37322) is noted before and after, and the UI's calls (82082, 82083) mark
+each noted menu to rebuild its whole list (`ItemList::Update_Impl` 51031) before a callback reads it. `ItemMenuGate`
+keeps a listed change and those UI calls apart across threads (bounded waits, no engine lock). Scenarios
+`guest-loot-menu-follows-corpse`, `guest-barter-follows-merchant-stock` (MCP verbs `loot`, `barter_open`,
+`open_inventory`, `expect_menu_lists`; `give_item` takes a holder), GameTests and ClientTests `[item-menu]`,
+ClientTests `[item-menu-gate]`. The third
+crash (an NPC's face template walk on the background loader, 15678) is open in [bugs.md](bugs.md).
+
 2026-11-23: **a lever furniture one player pulls moves on every game** (`agent/levers-synced`; playtest 2026-11-22 item
 11; `docs/re/systems/activation.md`, "Lever furniture"). Bleak Falls Temple's pillar lever is a furniture with
 `KeywordActivatorFurnitureNoPlayer`: `TESFurniture::Activate` 17420 sends its pull (ActionActivate from its own idles,

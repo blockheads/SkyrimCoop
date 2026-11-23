@@ -1,0 +1,63 @@
+time	op	id	rva	item
+2026-11-23T04:28:12Z	read		0x17e8a8	{"name": "ExtraDataList::GetExtraData"}
+2026-11-23T04:28:36Z	read	11756	0x1660c0	{"name": "sub_1401660C0"}
+2026-11-23T04:28:37Z	read	51132	0x9116b0	{"name": "sub_1409116B0"}
+2026-11-23T04:28:38Z	read	51130	0x911310	{"name": "sub_140911310"}
+2026-11-23T04:28:38Z	read	51141	0x9120d0	{"name": "ContainerMenu__TransferItem"}
+2026-11-23T04:28:43Z	name	11756	0x1660c0	{"addr": "0x1401660C0", "name": "ExtraDataList__GetReferenceHandleRef"}
+2026-11-23T04:28:43Z	name	51132	0x9116b0	{"addr": "0x1409116B0", "name": "ContainerMenu__ItemTransferCallback"}
+2026-11-23T04:28:43Z	name	51130	0x911310	{"addr": "0x140911310", "name": "ContainerMenu__ItemSelectCallback"}
+2026-11-23T04:28:43Z	name	51017	0x905290	{"addr": "0x140905290", "name": "ItemList__GetSelectedItem"}
+2026-11-23T04:28:44Z	read	51017	0x905290	{"name": "ItemList__GetSelectedItem"}
+2026-11-23T04:29:01Z	read	52849	0x98dea0	{"name": "SendInventoryUpdateMessage"}
+2026-11-23T04:29:07Z	read	51031	0x905930	{"name": "ItemList::Update_Impl"}
+2026-11-23T04:29:07Z	read	15678	0x218e50	{"name": "sub_140218E50"}
+2026-11-23T04:32:10Z	comment	11756	0x1660c0	{"addr": "0x1401660C0", "comment": "ID 11756. (ExtraDataList*) -> the TESObjectREFR its ExtraReferenceHandle (type 0x38) names, or null. Called by ContainerMenu__TransferItem (51141 +0xAE) on an extra list of the selected ItemList entry. Crash 2026-11-23 (Fabien, guest): the list was freed by our SetCarriedStacks RemoveItem on the open corpse copy; presence pointer +0x10 garbage -> AV in GetExtraData 12329 +0x68."}
+2026-11-23T04:32:10Z	comment	51132	0x9116b0	{"addr": "0x1409116B0", "comment": "ID 51132. ContainerMenu's GFx 'ItemTransfer' callback (FxDelegate): ItemList__GetSelectedItem(menu+0x48 itemList) -> Item+8 InventoryEntryData*, count from the args, then ContainerMenu__TransferItem (51141); on success ItemList::Update_Impl(itemList, player) (queues the inventory update message)."}
+2026-11-23T04:32:10Z	comment	51130	0x911310	{"addr": "0x140911310", "comment": "ID 51130. ContainerMenu's GFx item-select (hover) callback: ItemList__GetSelectedItem -> InventoryEntryData*, ItemCard::SetItem (51897) reads its extra lists (name via EquipData::GenerateName 16018 -> 11654 -> GetExtraData 12329), then favorite and pickpocketChance. Crash 2026-11-23 03:25 (Fabien): stale entry after our RemoveItem on the open corpse copy."}
+2026-11-23T04:32:10Z	comment	51017	0x905290	{"addr": "0x140905290", "comment": "ItemList (a1): +0x38 array of Item*, +0x48 count, +0x50 'update pending' byte (set by ItemList::Update_Impl 51031; while set this returns null). Reads the GFx list's selectedIndex and returns items[index]; Item+8 is the menu's own InventoryEntryData whose extra lists POINT INTO the container's (not copies): an outside RemoveItem leaves them dangling until the queued kInventoryUpdate (52849, message type 8) rebuilds the list."}
+2026-11-23T04:32:10Z	comment	15678	0x218e50	{"addr": "0x140218E50", "comment": "ID 15678. BipedAnim (a1) attach pass for its actor (handle a1+0x2770): per biped slot loads/attaches the part's model. At 0x1402195D8 walks actor->baseForm (TESNPC) ->faceNPC (+0x1F0) to the root and reads its weight (+0x1FC). Called by TESNPC 24740 (after UpdateHeadState 24724) on the background Load3D thread (QueuedCharacter 13108 -> 13019 -> Actor::Load3D 37177 -> 19727 -> 20103 -> 19743). Crash 2026-11-23 03:40 (Fabien, guest): copy DC8E2, temporary leveled base FF0010BD; a faceNPC link read 0x3F1416AA0000086D (not a pointer) -> AV at 0x1402195F3. Heap not in the dump: which link was bad is unread."}
+2026-11-23T04:48:37Z	read	51144	0x912a80	{"name": "ContainerMenu::sub_51144"}
+2026-11-23T04:48:48Z	read	51156	0x913eb0	{"name": "sub_140913EB0"}
+2026-11-23T04:49:17Z	comment		0x23929d	{"addr": "0x14023929d", "comment": "The new menu InventoryEntryData's extraLists gets the container's own ExtraDataList* (v70), not a copy: an item menu's entries alias the container's lists, so a RemoveItem that frees a list leaves the menu dangling until 51144 rebuilds it."}
+2026-11-23T04:49:17Z	comment	51144	0x912a80	{"addr": "0x140912a80", "comment": "ID 51144. ContainerMenu list rebuild: clears the ItemList (51019-ish 0x140904F70), refills from the player's and the target's InventoryChanges (0x140913EB0 -> GetInventoryItemAt per item), sorts, pushes to GFx. Run from ProcessMessage 51126 case 8 (kInventoryUpdate) when the message's handle is the menu's target and its form is null; that message is what SendInventoryUpdateMessage 52849 queues."}
+2026-11-23T04:49:17Z	comment	51156	0x913eb0	{"addr": "0x140913EB0", "comment": "ItemList fill from one InventoryChanges: GetInventoryItemAt(changes, i) builds a fresh InventoryEntryData per item whose extra lists point at the container's lists (see 0x14023929d), then makes an ItemList::Item for it."}
+2026-11-23T04:51:23Z	read	51126	0x90ff70	{"name": "ContainerMenu::sub_51126"}
+2026-11-23T04:51:39Z	read	51014	0x904f70	{"name": "sub_140904F70"}
+2026-11-23T05:09:10Z	name	51144	0x912a80	{"addr": "0x140912a80", "name": "ContainerMenu__RebuildItemList"}
+2026-11-23T05:09:10Z	name	51156	0x913eb0	{"addr": "0x140913EB0", "name": "ItemList__FillFromInventoryChanges"}
+2026-11-23T05:09:10Z	name	51014	0x904f70	{"addr": "0x140904F70", "name": "ItemList__Clear"}
+2026-11-23T05:26:42Z	name	50945	0x900580	{"addr": "0x140900580", "name": "BarterMenu::ProcessMessage"}
+2026-11-23T05:26:42Z	name	51126	0x90ff70	{"addr": "0x14090ff70", "name": "ContainerMenu::ProcessMessage"}
+2026-11-23T05:26:42Z	name	50958	0x902270	{"addr": "0x140902270", "name": "BarterMenu__RebuildItemList"}
+2026-11-23T05:26:42Z	data			{"old": "gBarterMenu_TargetRefHandle", "new": "gPlayerRefHandle"}
+2026-11-23T05:26:49Z	read	16107	0x2394c0	{"name": "sub_1402394C0"}
+2026-11-23T05:27:04Z	read	50962	0x902cf0	{"name": "sub_140902CF0"}
+2026-11-23T05:28:08Z	read	50955	0x901cc0	{"name": "BarterMenu::OpenMenu"}
+2026-11-23T05:28:42Z	comment	50945	0x900580	{"addr": "0x140900580", "comment": "ID 50945 BarterMenu::ProcessMessage. ItemList at +0x30. Case 8 (kInventoryUpdate): handle == gPlayerRefHandle (403520) or BarterMenu::handle (405823), no form -> BarterMenu__RebuildItemList 50958 + 50957."}
+2026-11-23T05:28:42Z	comment	50960	0x902810	{"addr": "0x140902810", "comment": "ID 50960 barter list fill: the player's InventoryChanges (via 0x1402394C0, GetInventoryItemAt 16106 per item) and TESDataHandler +0xDB8 merchantInventory (0x140902CF0, GetInventoryItemAt again): every entry aliases its holder's lists, as ContainerMenu's."}
+2026-11-23T05:28:42Z	comment	51848	0x942b80	{"addr": "0x140942b80", "comment": "ID 51848 InventoryMenu::ProcessMessage. ItemList at +0x48. Case 8 only for gPlayerRefHandle (403520): RefreshItemList 51866 (ItemList__Clear, then GetInventoryItemAt 16106 over the player's changes: entries alias the player's lists)."}
+2026-11-23T05:28:42Z	comment	403520	0x3230774	{"addr": "0x143230774", "comment": "ID 403520: this game's player's ref handle. Both item menus' kInventoryUpdate (ContainerMenu 51126, BarterMenu 50945, InventoryMenu 51848) rebuild for it: ItemList::Update_Impl(list, player) in 51132 relies on this."}
+2026-11-23T05:50:26Z	read		0x2e7ca0	{"name": "TESObjectREFR::AddToInventoryChanges"}
+2026-11-23T05:50:30Z	read		0x2e7e7c	{"name": "TESObjectREFR::RemoveItem"}
+2026-11-23T05:51:09Z	read	51146	0x913150	{"name": "ContainerMenu::sub_51146"}
+2026-11-23T05:51:49Z	read	50976	0x903920	{"name": "sub_140903920"}
+2026-11-23T05:52:16Z	name	50976	0x903920	{"addr": "0x140903920", "name": "ItemList__RemoveForm"}
+2026-11-23T05:52:16Z	name	16107	0x2394c0	{"addr": "0x1402394C0", "name": "InventoryChanges__CollectEntriesOfForm"}
+2026-11-23T05:52:16Z	name	50962	0x902cf0	{"addr": "0x140902CF0", "name": "BarterMenu__FillFromInventoryChanges"}
+2026-11-23T05:52:16Z	name	51146	0x913150	{"addr": "0x140913150", "name": "ContainerMenu__UpdateChangedForms"}
+2026-11-23T05:56:59Z	read		0x34d2e0	{"name": "GameFunc::handler::AddItem"}
+2026-11-23T14:57:14Z	read	50958	0x902270	{"name": "BarterMenu__RebuildItemList"}
+2026-11-23T14:57:51Z	read	39042	0x6e4e80	{"name": "Job_UI"}
+2026-11-23T14:57:53Z	name	50960	0x902810	{"addr": "0x140902810", "name": "BarterMenu__UpdateChangedForms"}
+2026-11-23T14:57:53Z	name	50959	0x9026a0	{"addr": "0x1409026a0", "name": "BarterMenu__FillItemList"}
+2026-11-23T15:35:54Z	read	13770	0x1c22f0	{"name": "sub_1401C22F0"}
+2026-11-23T16:07:26Z	read	82082	0x1169d20	{"name": "ProcessEventQueue_HookTarget_Enter"}
+2026-11-23T16:08:13Z	name	13770	0x1c22f0	{"addr": "0x1401C22F0", "name": "TESDataHandler__BuildMerchantInventory"}
+2026-11-23T16:08:13Z	name	16135	0x23d080	{"addr": "0x14023D080", "name": "InventoryChanges__MergeInto"}
+2026-11-23T16:08:13Z	name	13773	0x1c2be0	{"addr": "0x1401C2BE0", "name": "MerchantInventory__AddOwnedAreaRef"}
+2026-11-23T16:08:17Z	comment	13770	0x1c22f0	{"addr": "0x1401C22F0", "comment": "Barter's stock (TESDataHandler +0xDB8 merchantInventory): created once (InventoryChanges::Ctor with no owner), refilled from the merchant actor's changes, the vendor faction's merchant chest (faction +0xD0) and, with a buy/sell area, owned refs in it (MerchantInventory__AddOwnedAreaRef). Called by BarterMenu__FillItemList 50959."}
+2026-11-23T16:08:17Z	comment	16135	0x23d080	{"addr": "0x14023D080", "comment": "Merges a source InventoryChanges into a destination (barter's stock): plain counts get fresh ExtraDataLists, but lists with their own extra data are inserted as the SOURCE's pointers (0x14023de28, 0x14023db40): the stock aliases the merchant's and chests' lists. Measured 2026-11-23: a merchant copy's reconcile left barter listing a freed named sword."}
+2026-11-23T16:08:17Z	comment	13773	0x1c2be0	{"addr": "0x1401C2BE0", "comment": "Per ref in the vendor's buy/sell area owned by the vendor faction: a loose item gets a fresh copied entry; a container (type 0x1C) is merged with InventoryChanges__MergeInto (aliased lists)."}
+2026-11-23T16:46:01Z	read	51386	0x923970	{"name": "CraftingSubMenus__SmithingMenu::sub_51386"}
+2026-11-23T16:46:01Z	read	51322	0x91e420	{"name": "CraftingSubMenus::SmithingMenu::sub_51322"}

@@ -546,6 +546,9 @@ void FakeEngine::SetRegionWeather(uint32_t aRegion) noexcept
 void FakeEngine::Frame()
 {
     ++m_frameCount;
+    // The UI's calls (82082, 82083): a noted open item menu rebuilds its whole list (ItemMenuWatch::UiCall).
+    if (ItemMenuNoted.Take(ItemMenuKind(), ItemMenuOf().Open))
+        ItemMenuFreedLists = 0;
     // The task queue's kills (36993): counted under a hold (37896 -> 38617).
     for (auto& [cId, actor] : Actors)
         if (std::exchange(actor.KillQueued, false) && (actor.Copy || actor.KillHeld))
