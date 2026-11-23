@@ -337,6 +337,15 @@ void FakeEngine::LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
     AddItems(aActor, aItem, -aCount); // the engine's own (a script's, the console's): a full menu update, measured
 }
 
+void FakeEngine::LosesItem(uint32_t aActor, const Inventory::Entry& acItem)
+{
+    Inventory::Entry item = acItem;
+    item.Count = -acItem.Count;
+    if (!ScopedInventoryOverride::IsOverriden())
+        World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item));
+    AddOrRemoveStack(aActor, item); // the engine's own: a full menu update, measured
+}
+
 void FakeEngine::Drops(uint32_t aActor, uint32_t aItem, int32_t aCount)
 {
     // The inventory's Drop takes the stack the player picked: one with extra data (a name, tempering) as it is.

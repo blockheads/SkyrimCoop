@@ -2,7 +2,6 @@
 
 #include <Forms/TESBoundObject.h>
 #include <Games/Primitives.h>
-#include <ExtraData/ExtraContainerChanges.h>
 
 struct NEW_REFR_DATA;
 struct TESObjectCELL;
@@ -169,8 +168,6 @@ struct ModManager
     GameArray<TESQuest*> quests;
     uint8_t pad760[0xD60 - 0x760];
     GameList<Mod> mods;
-    uint8_t padD70[0xDB8 - 0xD60 - sizeof(GameList<Mod>)];
-    ExtraContainerChanges::Data* merchantInventory; // what an open BarterMenu sells (50960)
 };
 
 static_assert(offsetof(ModManager, globals) == 0xE8);
@@ -178,7 +175,6 @@ static_assert(offsetof(ModManager, enchantments) == 0x208);
 static_assert(offsetof(ModManager, ingredients) == 0x2E0);
 static_assert(offsetof(ModManager, quests) == 0x748);
 static_assert(offsetof(ModManager, mods) == 0xD60);
-static_assert(offsetof(ModManager, merchantInventory) == 0xDB8);
 
 struct Setting
 {

@@ -800,6 +800,32 @@ class PlayerVerbs:
                               f"unreadable): {ctx.menu_entries(instance, menu)}")
         return {"listed": count}
 
+    def barter_open(ctx, instance, merchant, category=("", "WEAPONS")):
+        """The player barters with `merchant` (Actor.ShowBarterMenu, as its dialogue line does) and moves to the items of
+        `category`: (whose, which), whose the merchant's name or the player's, as the list heads them. Left open."""
+        from ..common import ITEM_LISTS, DOWN_KEY, UP_KEY, MENU_RIGHT_KEY
+        who = f"[{instance or 'host'}]"
+        ref = ctx.resolve(merchant, instance)
+        ctx.place_before(instance, ref, 110)
+        ctx.player_script_call(instance, "Actor", "ShowBarterMenu", on=ref)
+        value = lambda path: ctx.menu_var(instance, "BarterMenu", path)
+        ctx.wait_for(f"{who} barter's categories take input", lambda: value(ITEM_LISTS + ".currentState") == 1, 10)
+        categories = ITEM_LISTS + ".CategoriesList"
+        count = int(value(categories + ".entryList.length") or 0)
+        names = [value(f"{categories}.entryList.{i}.text") for i in range(count)]
+        whose = category[0] or ctx.player_command(instance, {"cmd": "form", "form": ref}).get("name", "")
+        if whose not in names or category[1] not in names[names.index(whose):]:
+            raise ctx.failure(f"{who} barter has no {category}: {names}")
+        index = names.index(whose) + names[names.index(whose):].index(category[1])
+        for _ in range(count + 1):
+            if (selected := value(categories + ".selectedIndex")) == index:
+                break
+            ctx.tap_key(instance, DOWN_KEY if selected < index else UP_KEY)
+            ctx.wait_for(f"{who} the category highlight moves", lambda: value(categories + ".selectedIndex") != selected, 5)
+        ctx.tap_key(instance, MENU_RIGHT_KEY)
+        ctx.wait_for(f"{who} barter's items take input", lambda: value(ITEM_LISTS + ".currentState") == 2, 10)
+        return {"listed": ctx.menu_entries(instance, "BarterMenu")}
+
     def open_inventory(ctx, instance, category="$Apparel"):
         """The player opens its inventory (Tab, the character menu's Items, real input) at `category`'s list, and
         leaves it open."""

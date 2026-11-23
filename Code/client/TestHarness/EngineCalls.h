@@ -266,8 +266,9 @@ std::optional<std::vector<std::pair<uint32_t, int32_t>>> GetContainerItems(uint3
 // The reference's items with extra data (an enchantment, tempering, a name...): a loose item's own (count and
 // extra data, extra data or not), else each stack with extra data its container holds; none: no such reference.
 std::optional<std::vector<Inventory::Entry>> GetItemStacks(uint32_t aObjectFormId) noexcept;
-// The player gets the item with its extra data, as an enchanting table's or a forge's item (our hooks see it).
-bool GiveItem(const Inventory::Entry& acItem) noexcept;
+// The player (or the holder, an actor or container) gets the item with its extra data, as an enchanting table's or a
+// forge's item (our hooks see it).
+bool GiveItem(const Inventory::Entry& acItem, uint32_t aHolderFormId = 0) noexcept;
 // The player drops that many of the item as the inventory's Drop does (PlayerCharacter::DropObject 40454): its first
 // stack with extra data, or with aPlain one without; the loose item made, none when it made none.
 std::optional<uint32_t> PlayerDrops(uint32_t aItemFormId, int32_t aCount, bool aPlain) noexcept;

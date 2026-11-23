@@ -14,12 +14,16 @@ TEST_CASE("An open item menu is rebuilt after a stack it lists changes", "[inven
         CHECK_FALSE(MustRebuildFirst(cLoot, cOther)); // an NPC elsewhere loses an arrow: the menu stays as it is
         CHECK_FALSE(MustRebuildFirst(cLoot, 0));
     }
-    SECTION("barter lists the merchant inventory's owner and the player's, not the merchant's own")
+    SECTION("barter lists the merchant's, the player's and any container's (the vendor chest, the vendor's owned ones)")
     {
-        const ItemMenuView cBarter{.Open = true, .Lists = {cVendorChest, cPlayer}};
-        CHECK(MustRebuildFirst(cBarter, cVendorChest));
+        constexpr uint32_t cMerchant = 0x13BA1;
+        const ItemMenuView cBarter{.Open = true, .Lists = {cMerchant, cPlayer}, .AnyContainer = true};
+        CHECK(MustRebuildFirst(cBarter, cMerchant));
         CHECK(MustRebuildFirst(cBarter, cPlayer));
-        CHECK_FALSE(MustRebuildFirst(cBarter, cOther));
+        CHECK(MustRebuildFirst(cBarter, cVendorChest, true));
+        CHECK_FALSE(MustRebuildFirst(cBarter, cOther)); // another actor, a guard losing an arrow
+        // A loot menu lists no other container.
+        CHECK_FALSE(MustRebuildFirst(ItemMenuView{.Open = true, .Lists = {cCorpse, cPlayer}}, cVendorChest, true));
     }
     SECTION("the inventory menu lists the player's only")
     {

@@ -71,16 +71,14 @@ bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange
 {
     if (aObject.formType != FormType::Reference || !aObject.GetContainer())
         return false;
+    const ItemMenuWatch::Change cChange(&aObject);
     std::vector<std::pair<TESBoundObject*, int32_t>> wanted;
     for (const auto& cItem : ObjectChange::UnpackContents(acChange.Data))
         if (auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(cItem.Item))))
             wanted.emplace_back(pItem, cItem.Count);
     for (const auto& [pItem, cCount] : aObject.GetContainerItems())
         if (std::ranges::none_of(wanted, [pItem](const auto& acWanted) { return acWanted.first == pItem; }))
-        {
-            ItemMenuWatch::Note(&aObject);
             aObject.SetContainerCount(pItem, 0);
-        }
     for (const auto& [pItem, cCount] : wanted)
     {
         std::vector<Inventory::Entry> stacks;
@@ -89,7 +87,6 @@ bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange
                 stacks.push_back(cStack);
         SetContainerStacks(aObject, *pItem, cCount, stacks);
     }
-    ItemMenuWatch::Note(&aObject);
     ShowInItemMenus(aObject);
     return true;
 }
@@ -158,7 +155,7 @@ bool SetContainerStacks(TESObjectREFR& aObject, TESBoundObject& aItem, int32_t a
 {
     if (!aObject.GetContainer())
         return false;
-    ItemMenuWatch::Note(&aObject);
+    const ItemMenuWatch::Change cChange(&aObject);
     if (!SameStacks(ReadContainerStacks(aObject, aItem), acStacks))
     {
         ScopedInventoryOverride _;
@@ -188,7 +185,6 @@ bool SetContainerStacks(TESObjectREFR& aObject, TESBoundObject& aItem, int32_t a
                 aObject.AddObjectToContainer(&aItem, TESObjectREFR::GetExtraDataFromItem(cStack, true), cStack.Count, nullptr);
     }
     aObject.SetContainerCount(&aItem, aCount);
-    ItemMenuWatch::Note(&aObject);
     return true;
 }
 
@@ -205,7 +201,7 @@ bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCou
 {
     if (!aActor.GetContainer())
         return false;
-    ItemMenuWatch::Note(&aActor);
+    const ItemMenuWatch::Change cChange(&aActor);
     ScopedInventoryOverride _;
     std::vector<Inventory::Entry> missing;
     for (Inventory::Entry stack : acStacks)
@@ -255,6 +251,5 @@ bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCou
             break;
         held = cNow;
     }
-    ItemMenuWatch::Note(&aActor);
     return true;
 }

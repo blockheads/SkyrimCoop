@@ -689,7 +689,8 @@ nlohmann::json ItemStacks(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "give_item", "item": id, "count": 1, "health": 1.4, "enchantment": id, "enchant_charge": 1000, "charge": 800,
-// "name": "Old Friend"}: the player gets it with that extra data (as an enchanting table's or a forge's).
+// "name": "Old Friend", "holder": id}: the player (or the holder) gets it with that extra data (as an enchanting table's or
+// a forge's).
 nlohmann::json GiveItem(Harness&, const nlohmann::json& acRequest)
 {
     Inventory::Entry item;
@@ -700,8 +701,8 @@ nlohmann::json GiveItem(Harness&, const nlohmann::json& acRequest)
     item.ExtraEnchantCharge = static_cast<uint16_t>(acRequest.value("enchant_charge", 0u));
     item.ExtraCharge = acRequest.value("charge", 0.f);
     item.ExtraName = acRequest.value("name", std::string());
-    if (!EngineCalls::GiveItem(item))
-        return Error("no such item");
+    if (!EngineCalls::GiveItem(item, acRequest.value("holder", 0u)))
+        return Error("no such item, or the holder holds nothing");
     return Ok();
 }
 

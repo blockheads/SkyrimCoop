@@ -518,7 +518,7 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 void FakeEngine::Frame()
 {
     ++m_frameCount;
-    // The UI's message pass (82082): a noted open item menu rebuilds its whole list (ItemMenuWatch::BeforeUiMessages).
+    // The UI's calls (82082, 82083): a noted open item menu rebuilds its whole list (ItemMenuWatch::UiCall).
     if (ItemMenuNoted.Take(ItemMenuKind(), ItemMenuOf().Open))
         ItemMenuFreedLists = 0;
     // The task queue's kills (36993): counted under a hold (37896 -> 38617).

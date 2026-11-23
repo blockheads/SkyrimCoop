@@ -51,3 +51,11 @@ time	op	id	rva	item
 2026-11-23T14:57:51Z	read	39042	0x6e4e80	{"name": "Job_UI"}
 2026-11-23T14:57:53Z	name	50960	0x902810	{"addr": "0x140902810", "name": "BarterMenu__UpdateChangedForms"}
 2026-11-23T14:57:53Z	name	50959	0x9026a0	{"addr": "0x1409026a0", "name": "BarterMenu__FillItemList"}
+2026-11-23T15:35:54Z	read	13770	0x1c22f0	{"name": "sub_1401C22F0"}
+2026-11-23T16:07:26Z	read	82082	0x1169d20	{"name": "ProcessEventQueue_HookTarget_Enter"}
+2026-11-23T16:08:13Z	name	13770	0x1c22f0	{"addr": "0x1401C22F0", "name": "TESDataHandler__BuildMerchantInventory"}
+2026-11-23T16:08:13Z	name	16135	0x23d080	{"addr": "0x14023D080", "name": "InventoryChanges__MergeInto"}
+2026-11-23T16:08:13Z	name	13773	0x1c2be0	{"addr": "0x1401C2BE0", "name": "MerchantInventory__AddOwnedAreaRef"}
+2026-11-23T16:08:17Z	comment	13770	0x1c22f0	{"addr": "0x1401C22F0", "comment": "Barter's stock (TESDataHandler +0xDB8 merchantInventory): created once (InventoryChanges::Ctor with no owner), refilled from the merchant actor's changes, the vendor faction's merchant chest (faction +0xD0) and, with a buy/sell area, owned refs in it (MerchantInventory__AddOwnedAreaRef). Called by BarterMenu__FillItemList 50959."}
+2026-11-23T16:08:17Z	comment	16135	0x23d080	{"addr": "0x14023D080", "comment": "Merges a source InventoryChanges into a destination (barter's stock): plain counts get fresh ExtraDataLists, but lists with their own extra data are inserted as the SOURCE's pointers (0x14023de28, 0x14023db40): the stock aliases the merchant's and chests' lists. Measured 2026-11-23: a merchant copy's reconcile left barter listing a freed named sword."}
+2026-11-23T16:08:17Z	comment	13773	0x1c2be0	{"addr": "0x1401C2BE0", "comment": "Per ref in the vendor's buy/sell area owned by the vendor faction: a loose item gets a fresh copied entry; a container (type 0x1C) is merged with InventoryChanges__MergeInto (aliased lists)."}

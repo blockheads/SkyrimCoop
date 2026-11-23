@@ -1308,9 +1308,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t LootMenuOf{}; // the dead actor whose loot menu the player opened (TESNPC::Activate -> OpenMenu 51140)
     uint32_t ChestMenuOf{}; // the chest whose menu the player opened (TESObjectCONT::Activate 17887)
     bool InventoryMenuOpen{}; // the player's InventoryMenu (InventoryMenu::ProcessMessage 51848's kShow)
-    uint32_t BarterStock{};   // what an open BarterMenu sells: TESDataHandler +0xDB8's owner (50960)
-    // Item menus list stacks by their own lists; only a loot or chest menu's target is left stale by RemoveItem 19689
-    // (measured; docs/re/systems/item-menus.md, "Who sends which").
+    // Item menus list stacks by their own lists; a loot or chest menu's target and barter's merchant are left stale by
+    // RemoveItem 19689 (measured; docs/re/systems/item-menus.md, "Who sends which").
     ItemMenuChanges ItemMenuNoted; // our hooks note, the UI's message pass (Frame) takes
     int ItemMenuFreedLists{};      // the target's listed lists freed since the menu last listed
     int ItemMenuFreedReads{};      // a take or hover read a freed list (the 2026-11-22 guest crashes, GetExtraData 12329)
@@ -1320,7 +1319,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         if (LootMenuOf || ChestMenuOf)
             return {.Open = true, .Lists = {LootMenuOf ? LootMenuOf : ChestMenuOf, kPlayer}};
         if (BarterMerchant)
-            return {.Open = true, .Lists = {BarterStock, kPlayer}};
+            return {.Open = true, .Lists = {BarterMerchant, kPlayer}, .AnyContainer = true};
         return {.Open = InventoryMenuOpen, .Lists = {0, kPlayer}};
     }
     // The player hovers or takes the menu's highlighted entry (GetSelectedItem's lists: ContainerMenu 51130 / 51132).
@@ -1333,7 +1332,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // stack with extra data gone freeing its list (16059).
     template <class Change> void ChangesStacks(uint32_t aHolder, Change&& aChange)
     {
-        if (MustRebuildFirst(ItemMenuOf(), aHolder))
+        const bool cContainer = !Actors.contains(aHolder);
+        if (MustRebuildFirst(ItemMenuOf(), aHolder, cContainer))
             ItemMenuNoted.Note(ItemMenuKind());
         const auto cLists = [&] {
             const auto cActor = Actors.find(aHolder);
@@ -1341,9 +1341,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         };
         const auto cBefore = cLists();
         aChange();
-        if ((LootMenuOf || ChestMenuOf) && aHolder == ItemMenuOf().Lists[0])
+        // The engine's fact, apart from our rule: the menu's target or merchant was aliased.
+        const uint32_t cAliased = LootMenuOf ? LootMenuOf : ChestMenuOf ? ChestMenuOf : BarterMerchant;
+        if (cAliased && aHolder == cAliased)
             ItemMenuFreedLists += static_cast<int>(std::max<std::ptrdiff_t>(0, cBefore - cLists()));
-        if (MustRebuildFirst(ItemMenuOf(), aHolder))
+        if (MustRebuildFirst(ItemMenuOf(), aHolder, cContainer))
             ItemMenuNoted.Note(ItemMenuKind());
     }
     // The chest's menu closes (the player, or our auto-close on a disabled chest): the lid's Close plays (ContainerMenu
@@ -1909,6 +1911,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // One with extra data (an enchantment, tempering...), its own stack.
     void GetsItem(uint32_t aActor, const Inventory::Entry& acItem);
     void LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // That stack (its extra data, acItem.Count of it) leaves by itself: a script's RemoveItem of a named stack.
+    void LosesItem(uint32_t aActor, const Inventory::Entry& acItem);
     // A smithing or enchanting table improves one of the stack in place (InventoryChanges 16145 temper, 16146
     // EnchantObject): split off a counted stack and changed, no add or remove for our item hooks to see.
     void Improves(uint32_t aActor, const Inventory::Entry& acStack, const std::function<void(Inventory::Entry&)>& acChange);

@@ -1414,12 +1414,12 @@ std::optional<std::vector<Inventory::Entry>> GetItemStacks(uint32_t aObjectFormI
     return stacks;
 }
 
-bool GiveItem(const Inventory::Entry& acItem) noexcept
+bool GiveItem(const Inventory::Entry& acItem, uint32_t aHolderFormId) noexcept
 {
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (!pPlayer || !Cast<TESBoundObject>(TESForm::GetById(ToGame(acItem.BaseId))))
+    auto* pHolder = aHolderFormId ? Cast<TESObjectREFR>(TESForm::GetById(aHolderFormId)) : PlayerCharacter::Get();
+    if (!pHolder || !pHolder->GetContainer() || !Cast<TESBoundObject>(TESForm::GetById(ToGame(acItem.BaseId))))
         return false;
-    pPlayer->AddOrRemoveItem(acItem);
+    pHolder->AddOrRemoveItem(acItem);
     return true;
 }
 

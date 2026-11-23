@@ -20,12 +20,34 @@ enum class Kind : uint8_t
 void Shown(Kind aKind, IMenu* apMenu) noexcept;
 void Hidden(Kind aKind) noexcept;
 
-// apHolder's stacks change, ours or the engine's (RemoveItem 16059, unequip 38934, outfit reset 418622,
-// ResetInventory 37322): an open item menu listing it is noted. Called before and after the change (a UI pass between
-// takes the first). Any thread; reads no engine memory but apHolder's id.
-void Note(const TESObjectREFR* apHolder) noexcept;
+// Around a change to apHolder's stacks, ours or the engine's (RemoveItem 16059, unequip 38934, outfit reset 418622,
+// ResetInventory 37322), on any thread: when an open item menu lists it, the change waits for the UI's call in
+// progress (ItemMenuGate) and the menu is noted before and after it. Reads no engine memory but apHolder's id and type.
+class Change
+{
+public:
+    explicit Change(const TESObjectREFR* apHolder) noexcept;
+    ~Change();
+    Change(const Change&) = delete;
+    Change& operator=(const Change&) = delete;
 
-// The start of UI::ProcessMessages (82082), which every caller runs before the movies' advance (82083): each noted
-// open menu rebuilds its whole list (ItemList::Update_Impl 51031) before a callback can read it.
-void BeforeUiMessages() noexcept;
+private:
+    const TESObjectREFR* m_pHolder;
+    bool m_counted{}; // listed: this thread's depth counts it
+    bool m_gated{};   // the outermost listed change: holds the gate
+};
+
+// Around UI::ProcessMessages (82082) and the movies' advance (82083), where the menus' callbacks read their lists: waits
+// for listed changes in flight, then each noted open menu is marked to rebuild its whole list (Update_Impl 51031).
+class UiCall
+{
+public:
+    UiCall() noexcept;
+    ~UiCall();
+    UiCall(const UiCall&) = delete;
+    UiCall& operator=(const UiCall&) = delete;
+
+private:
+    bool m_gated{}; // the outermost UI call on this thread: holds the gate
+};
 } // namespace ItemMenuWatch

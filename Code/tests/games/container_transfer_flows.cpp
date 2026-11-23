@@ -240,6 +240,28 @@ SCENARIO("A guest's open loot menu never reads a stack the copy's reconcile free
     CHECK(guest.ItemMenuFreedReads == 0);
 }
 
+// guest-barter-follows-merchant-stock: barter merges the merchant's own lists into its stock (0x14023D080), and the copy's
+// reconcile frees one as the loot menu's did (docs/re/systems/item-menus.md).
+SCENARIO("A guest's open barter never reads a stack the merchant copy's reconcile freed", "[container-transfer][item-menu]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t npc = 0;
+    const Inventory::Entry cBlade{.BaseId = GameId(0, kSword), .Count = 1, .ExtraName = "Merchant's Blade"};
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x1A67C, kCell, {30.f, 40.f, 0.f});
+        host.GetsItem(npc, cBlade);
+    });
+    const auto cCopy = [&] { return guest.CopiesOf(0x1A67C).empty() ? 0u : guest.CopiesOf(0x1A67C)[0]; };
+    party.Until([&] { return cCopy() && guest.CountOf(cCopy(), kSword) == 1; }, "the merchant's copy carries the named sword");
+    party.As(party.Guest(), [&] { guest.BarterMerchant = cCopy(); });
+    party.As(party.Host(), [&] { host.LosesItem(npc, cBlade); });
+    party.Until([&] { return guest.CountOf(cCopy(), kSword) == 0; }, "the copy's reconcile takes the sword");
+    party.As(party.Guest(), [&] { guest.HoversInItemMenu(); });
+    CHECK(guest.ItemMenuFreedReads == 0);
+}
+
 SCENARIO("A guest taking a party item from a chest gives it to every player", "[container-transfer][party-items]")
 {
     Party party(1, Plugins);
