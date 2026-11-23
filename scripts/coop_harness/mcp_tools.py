@@ -388,7 +388,8 @@ def smoothness(mover: str = "host") -> dict:
     """How smoothly the other game's copy follows the mover's player (coop_harness/smoothness.py): a course by real
     input (walk, run, strafe, a running curve), then per segment each one's speed roughness per engine frame (median
     and p95 of a frame's speed off its neighbours', share over 20 %), turn-backs, the copy's delay and distance off
-    its owner's path, and the movement and body messages' bytes/s on both games."""
+    its owner's path, and the movement and body messages' bytes/s on both games. Each one's pose too: the graph
+    updates its frames ran and its feet's roughness against its root (the mover in third person, the watcher facing it)."""
     from . import smoothness as measures
     return {"ok": True, **measures.run_course(session, _game(mover), AnimTrace)}
 

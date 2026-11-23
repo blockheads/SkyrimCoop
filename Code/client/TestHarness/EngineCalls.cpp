@@ -2506,6 +2506,12 @@ void ForcePlayerFirstPerson() noexcept
         s_forceFirstPerson(pCamera);
 }
 
+void ForcePlayerThirdPerson() noexcept
+{
+    if (PlayerCamera* pCamera = PlayerCamera::Get())
+        pCamera->ForceThirdPerson();
+}
+
 std::optional<std::array<float, 3>> ReferencePlace(uint32_t aFormId) noexcept
 {
     auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aFormId));

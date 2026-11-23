@@ -298,6 +298,23 @@ def scenario_copy_strafes_with_owner(ctx, strafer=""):
                           f"over a third, e.g. (owner, copy) {[(o, c) for _, o, c in stutters[:5]]}")
 
 
+def scenario_copy_poses_every_frame(ctx, mover=""):
+    """The mover's player walks, runs, strafes and runs a curve by real input, in third person, while the other player
+    faces its copy: the pose the copy shows moves on with each of its frames, never holding for a frame and then
+    jumping two (actor-movement.md, "A copy's pose between its owner's updates")."""
+    from .. import smoothness
+    result = smoothness.run_course(ctx, mover, AnimTrace)
+    pose = result["measures"]["pose"]
+    log(f"poses: {json.dumps(pose)}; trace {result['trace']}")
+    feet = pose["copy"]["feet"]
+    if not feet or feet["frames"] < 200:
+        raise ctx.failure("the copy was drawn and moving in too few frames: the watcher did not see it")
+    # Owners 0.4 to 2.2 %; copies 10 to 19 % before their poses were blended, 1.3 % after.
+    if feet["over50"] > 0.05:
+        raise ctx.failure(f"the copy's feet move unevenly in {feet['over50']:.1%} of its frames (its owner's "
+                          f"{pose['owner']['feet']['over50']:.1%}): its pose holds, then jumps")
+
+
 def height_path(entries, game, who):
     """[(time, z)]: that actor's height per frame."""
     return [(e["time"], e["pos"][2]) for e in entries if e["kind"] == "pos" and e["game"] == game and e["who"] == who]

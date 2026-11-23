@@ -322,6 +322,36 @@ catch-up, +0x58 follow; its save and load, 42185/42186). The planner's per-frame
 has arrived, is not read yet: `play`'s follow faces the copy itself with the harness's `face` when it stands. Measured
 on the duo: beyond the catch-up radius it runs (300-450 units/s), inside it walks (repro-mcp.md, Speeds).
 
+## A copy's pose between its owner's updates (2026-11-23)
+
+Read in IDA on 1.7.104 (63568, 63582, 63587, 63589, 63581 `coop_BShkbAnimationGraph_PoseFromBuffers`, 63575
+`coop_BShkbAnimationGraph_ChooseLod`; names and comments in the database):
+
+```
+BShkbAnimationGraph: two generated poses, +0x220 newer, +0x228 older, swapped at each behaviour update (63587)
+                     their times to go +0x1E8/+0x1EC, less each frame's dt
+63587 near (or interpolation off, +0x2B clear): steps every frame by dt; +0x1E8 = 0, +0x1EC = -FLT_MAX
+63587 far, interpolation allowed: steps a whole interval ahead at once (longer with camera distance)
+63589 the frame's pose: generated this frame (+0x246) -> 63568; else 63581
+63581 one time ahead (>= 0), one past (< 0): weight +0x230 = 1 - t_a / (t_a - t_b), the two poses blended (63582)
+      otherwise: the newest pose as it is
+```
+
+So a vanilla NPC near the camera poses every frame by its own frame's dt, and a far one steps ahead and blends
+between frames. A copy on its owner's stream (`GraphStreamHooks.cpp`) runs its owner's updates whose tick has come,
+with interpolation off: a frame with none due shows the last pose unchanged, and the next frame runs two. Measured on
+the duo (`smoothness`, the mover in third person, the watcher facing the copy, the trace's `graph_update`): owners ran
+one update every frame; the guest's copy of the host ran 0 or 2 in 5-12 % of its frames, the host's copy of the guest
+in 19-23 %. Its playback clock stepped by its own frame (within 3 ms) on those frames too: both games' frames vary
+(16.5-24 ms here) independently. That the jitter apart is the cause is inferred; GameTests reproduce it from that alone.
+
+Since 2026-11-23 a streamed copy keeps each replayed generate pass's pose (the newer output's track 2) and, after its
+replay, writes the pose blended from the two around playback less 1.5 owner frames into that output. 63589 then runs 63581,
+which poses the skeleton from it with foot IK; with its bodies in the physics world (63564) the ragdoll passes pose it
+(`UpdateRagdollPrePhysics` / `PostPhysics`), reading the same output. The older output cannot be used as the engine does:
+the every-frame path of 63587 empties its pose track after each update, and 63568 refills only the newer
+(`docs/design/graph-input-stream.md`, "A pose every frame").
+
 ## Others
 
 - Precision hooks the `ApplyMovement` call in `UpdateMovement` (+0xFB) to scale `dt` for hitstop; po3-Tweaks

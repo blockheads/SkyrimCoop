@@ -340,6 +340,8 @@ struct InputState
 };
 std::optional<InputState> GetInputState() noexcept;
 void ForcePlayerFirstPerson() noexcept;
+// The player's camera to third person (PlayerCamera::ForceThirdPerson 50796).
+void ForcePlayerThirdPerson() noexcept;
 // Turns the player toward an actor, yaw and pitch, in first person (aimed spells fly where the camera
 // looks).
 bool FacePlayerToward(uint32_t aTargetFormId) noexcept;

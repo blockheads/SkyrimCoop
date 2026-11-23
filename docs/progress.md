@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **other players' animations move on every frame** (`agent/smooth-animations`): a copy's graph runs its
+owner's updates due by its playback, so with both games' frames jittering apart it ran none in some frames (its pose
+held while its body moved on, read in IDA: 63581) and two in the next, 5-23 % of frames on the duo: "snappy, not
+interpolated". Now each generate pass's pose is kept and the pose shown is blended between the two kept around a
+time 1.5 owner frames behind playback (`PoseTimeline`, graph-input-stream.md, "A pose every frame"), as the engine does
+for a far graph. On the duo a copy's feet move as evenly as its owner's: over 50 % off their neighbours' speed in 1.1-1.3 %
+of frames (owners 0.4-2.2 %, copies 10-19 % before). Measured with `smoothness`, which now has the watcher face the
+copy and the mover in third person. Scenarios `copy-poses-every-frame-host` / `-guest`; GameTests "A walking player's copy
+shows a pose that moves on every frame..." (jittered frames, and 60 against 50 fps); ClientTests `[pose-blend]`.
+
 2026-11-23: **a save over Steam travels 5x faster** (`agent/save-load-explained`): Steam paced every P2P connection at
 its fixed default of 256 KB/s, so a save went at 120-240 KB/s in both playtests (a save sent ahead took 8-10 s and a
 load soon after it sent it again). `SteamBridge` sets the send rate to 4 MB/s (min = max: Steam does not adapt

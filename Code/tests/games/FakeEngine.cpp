@@ -386,6 +386,8 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
 void FakeEngine::GenerateGraph(Actor& aActor) const
 {
     auto& graph = aActor.Graph;
+    graph.Pose.assign(1, PoseBone{});
+    graph.Pose[0].Translation[0] = static_cast<float>(graph.Timeline);
     if (const auto* pBlend = Graph->BlendOf(aActor.GraphState); pBlend && pBlend->Generated && graph.BlendState == aActor.GraphState)
     {
         const auto& cIntegers = aActor.GraphVariables.Integers;
@@ -473,6 +475,8 @@ struct FakeGraphTarget final : IGraphTarget
     void Picks(std::span<const GraphPick> aPicks) override { Actor.Graph.OwnersPicks.assign(aPicks.begin(), aPicks.end()); }
     void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
     void Generate() override { Engine.GenerateGraph(Actor); }
+    std::span<const PoseBone> GeneratedPose() override { return Actor.Graph.Pose; }
+    void ShowPose(std::span<const PoseBone> aPose) override { Actor.Graph.Pose.assign(aPose.begin(), aPose.end()); }
     void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) override { FakeEngine::HoldAnimObjects(Actor, aObjects); }
     std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) override
     {
