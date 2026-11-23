@@ -1459,6 +1459,8 @@ def _line(tool, args):
             return f"ctx.use({game}, {args['target']!r})"
         case "take":
             return f"ctx.take({game}, {args['target']!r})"
+        case "pick_lock":
+            return f"ctx.pick_lock({game}, {args['target']!r})"
         case "pickpocket":
             return f"ctx.pickpocket({game}, {args['target']!r}, {args['item']!r}, {args.get('caught', False)!r})"
         case "fight":
@@ -1548,8 +1550,9 @@ def _called(name, args):
 
 
 def _is_expect(entry):
-    """A check, kept even when it failed (a failing expect is the bug): the tool, or an expect* verb through `verb`."""
-    return entry["tool"] == "expect" or (entry["tool"] == "verb" and entry["args"].get("name", "").startswith("expect"))
+    """A check, kept even when it failed (a failing expect is the bug): the tool, a verb that checks what it did
+    (pick_lock), or an expect* verb through `verb`."""
+    return entry["tool"] in ("expect", "pick_lock") or (entry["tool"] == "verb" and entry["args"].get("name", "").startswith("expect"))
 
 
 def _replayed(entry):

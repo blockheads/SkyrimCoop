@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **the lockpicking menu draws its lock again** (`agent/lockpicking-ui`;
+[lockpicking.md](re/systems/lockpicking.md)). Since personal menus stopped pausing (2026-10-27) the menu opened with
+nothing drawn on the host and guests: `LockpickingMenu::ProcessMessage` (51950) builds the lock only on the main thread,
+and an unpaused game's UI runs in `Job_UI` (39042). One kUpdate between frames on the main thread builds it. Scenarios
+`host-`/`guest-lockpick-menu-builds-lock` (MCP verb `pick_lock`: the lock built, the pick, both games read it open);
+ClientTests `NeedsMainThreadBuild`.
+
 2026-11-22: **a disintegrated player's body is gone on every game until it respawns** (`agent/disintegrate-body`;
 [death-disintegrate.md](re/systems/death-disintegrate.md), "What we do"). After the freeze fix the victim's own body
 showed again once the ash shader ended (lying, then getting up) while the shooter's copy stayed dissolved. The refused

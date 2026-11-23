@@ -23,6 +23,12 @@ inline bool RunsInSession(std::string_view aName) noexcept
     return false;
 }
 
+// A live lockpicking menu gets its kUpdate from Job_UI (39042), off the main thread, where 51950 never builds its 3D.
+inline bool NeedsMainThreadBuild(std::string_view aName, uint32_t aFlags, bool aBuilt) noexcept
+{
+    return !aBuilt && !(aFlags & 0x1) && SameName(aName, "Lockpicking Menu");
+}
+
 inline uint32_t Flags(std::string_view aName, uint32_t aFlags, bool aInSession) noexcept
 {
     return aInSession && RunsInSession(aName) ? aFlags & ~kPauseFlags : aFlags;

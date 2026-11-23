@@ -717,6 +717,36 @@ class PlayerVerbs:
         return {"how": "input", "took": sum(held.values()) - sum(ctx.container_items(instance, ref).values())}
 
     @goal
+    def pick_lock(ctx, instance, target):
+        """The player stands at locked `target` with a lockpick and activates it (real input): the lockpicking menu opens
+        with its lock built (51950, `lock_not_built` if never), the pick succeeds (LockpickingMenu::Unlock 51968, not by
+        input), and both games read the lock open."""
+        ctx.can_play(instance)
+        ref = ctx.resolve(target, instance)
+        if not ctx.door_lock(instance, ref)[0]:
+            raise verb_failure(ctx, "refused", f"{target} is not locked")
+        if not ctx.item_count(instance, 0x14, 0xA):
+            ctx.console_on(instance, "player.additem a 1")
+        for game in ("", "client"):  # an open door is aimed through: shut it, as a locked one stands
+            if ctx.door_state(game, ctx.resolve(target, game)):
+                ctx.object_command(game, {"cmd": "door_open", "object": ctx.resolve(target, game), "open": False})
+        ctx.place_before(instance, ref, 100)
+        ctx.activate_ref(instance, ref, target)
+        who = f"[{instance or 'host'}]"
+        ctx.wait_for(f"{who} the lockpicking menu opens", lambda: "Lockpicking Menu" in ctx.menus(instance), 5)
+        ended = time.monotonic() + 5
+        while not ctx.player_command(instance, {"cmd": "menu_flags", "name": "Lockpicking Menu"})["lockpick_built"]:
+            if time.monotonic() > ended:
+                raise verb_failure(ctx, "lock_not_built", f"{who} the lockpicking menu is open with no lock or pick: its 3D never built (51950)")
+            time.sleep(0.1)
+        ctx.player_command(instance, {"cmd": "crime", "action": "lock_unlock"})
+        ctx.wait_for(f"{who} the lockpicking menu closes on the pick", lambda: "Lockpicking Menu" not in ctx.menus(instance), 5)
+        other = "" if instance else "client"
+        ctx.wait_for(f"{who} {target}'s lock is open in both games",
+                     lambda: not ctx.door_lock(instance, ref)[0] and not ctx.door_lock(other, ctx.resolve(target, other))[0], 10)
+        return {"how": "input", "built": True}
+
+    @goal
     def pickpocket(ctx, instance, target, item, caught=False):
         """The player sneaks up to `target`, opens its pockets (Activate, real input) and takes `item` (its name in the
         list). The chance is pinned for the try (fPickPocketMin/MaxChance, AIFormulas 26379): caught, or not."""
