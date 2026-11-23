@@ -723,7 +723,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Hidden = false;      // a held copy hidden: its enables refused (HookEnable, HookSetDisabled)
         std::set<uint32_t> Outfit;     // its outfit's items: an enable's inventory reset removes them (19690)
         std::set<uint32_t> ForcedWorn; // worn items whose list holds ExtraCannotWear (an equip with forceEquip: ours)
-        std::set<std::pair<uint32_t, uint32_t>> ForcedHands; // (item, hand 0 left 1 right) of those forced lists' marks
         uint32_t EnableParent = 0; // its enable parent (XESP): takes the parent's state as the parent loads
         bool NoProcess = false;   // its process freed, its handle still valid (marked deleted, MarkForDelete)
         bool Essential = false;  // goes down at 0 health instead of dying
@@ -772,7 +771,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         Inventory Items; // its CurrentMagicEquipment: the hands' selected spells (Actor::selectedSpells +0x1C8)
         // The weapon or torch each hand holds (AIProcess::equippedObjects, left and right): put there by an equip with
         // 3D (a two-hander in both, a torch the left), emptied by TESNPC::ResetWornToOutfit 418622 whose worn flags
-        // stay (measured, Aela's torch); a 3D load holds forced worn items by their mark (InitWornHands).
+        // stay (measured, Aela's torch).
         uint32_t HeldWeapons[2]{};
         // The spells its hands hold (AIProcess::equippedObjects, left and right): an equip without 3D only selects.
         uint32_t HeldSpells[2]{};
@@ -1907,11 +1906,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
-    // Actor::HoldInHand: one more carried item marked worn in that hand, forced (16066), and held there (24736).
-    bool ActorHoldInHand(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aHand) noexcept override;
-    // A loaded actor's 3D load as 24725 runs it on a copy: the hands emptied, then each forced worn item held in the
-    // hand its mark names (24736: a two-hander worn right in the right only). hand-slots.md.
-    void InitWornHands(uint32_t aFormId);
+    // Its two-hander left in the right hand only, as the guest's load of the host's save left Faendal before he became
+    // a copy (measured, rejoined-guest-sees-rider 2026-11-23; the writer is not read). hand-slots.md.
+    void LeavesTwoHanderInRightOnly(uint32_t aFormId) { Actors.at(aFormId).HeldWeapons[0] = 0; }
 
     [[nodiscard]] bool Has(uint32_t aFlags) const noexcept
     {

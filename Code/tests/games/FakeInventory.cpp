@@ -113,7 +113,6 @@ void FakeEngine::ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment
     {
         actor->second.EquipmentNeedsReset = false;
         actor->second.HeldWeapons[0] = actor->second.HeldWeapons[1] = 0;
-        actor->second.ForcedHands.clear();
         for (auto& item : actor->second.Items.Entries)
             item.ExtraWorn = item.ExtraWornLeft = false;
         EquipSpells(aActorFormId, acMagic);
@@ -125,46 +124,9 @@ void FakeEngine::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uin
     ScopedEquipOverride _;
     Equip(aActorFormId, aItemFormId, aEquipSlotFormId);
     // Ours forces the equip (abForceEquip): 16066 marks the worn list cannot wear.
-    if (const auto actor = Actors.find(aActorFormId); actor != Actors.end())
-        for (const auto& cEntry : actor->second.Items.Entries)
-            if (::ItemForm(cEntry.BaseId) == aItemFormId && cEntry.IsWorn())
-            {
-                actor->second.ForcedWorn.insert(aItemFormId);
-                const auto cForm = ItemForms.find(aItemFormId);
-                const bool cLeft = cForm != ItemForms.end() && (cForm->second.Type == kLight || (aEquipSlotFormId == kLeftHand && !cForm->second.TwoHanded));
-                actor->second.ForcedHands.insert({aItemFormId, cLeft ? 0u : 1u});
-            }
-}
-
-bool FakeEngine::ActorHoldInHand(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aHand) noexcept
-{
-    const auto cActor = Actors.find(aActorFormId);
-    if (cActor == Actors.end() || CountOf(aActorFormId, aItemFormId) <= 0 || aHand > 1)
-        return false;
-    auto& entry = EntryOf(cActor->second, aItemFormId);
-    (aHand == 0 ? entry.ExtraWornLeft : entry.ExtraWorn) = true;
-    cActor->second.ForcedWorn.insert(aItemFormId);
-    cActor->second.ForcedHands.insert({aItemFormId, aHand});
-    if (ActorHas3D(aActorFormId))
-        cActor->second.HeldWeapons[aHand] = aItemFormId;
-    // No equip hook runs (16066, 24736): nothing raised, an owner's items go out at its next change.
-    return cActor->second.HeldWeapons[aHand] == aItemFormId;
-}
-
-void FakeEngine::InitWornHands(uint32_t aFormId)
-{
-    auto& actor = Actors.at(aFormId);
-    if (actor.ForcedHands.empty())
-        return;
-    // Only a forced list's mark is held again, by its own hand (measured: a plain left torch beside a forced right one
-    // ends [0, torch]).
-    actor.HeldWeapons[0] = actor.HeldWeapons[1] = 0;
-    for (const auto& [cItem, cHand] : actor.ForcedHands)
-    {
-        const auto cForm = ItemForms.find(cItem);
-        if (cForm != ItemForms.end() && (cForm->second.Type == kWeapon || cForm->second.Type == kLight))
-            actor.HeldWeapons[cHand] = cItem;
-    }
+    if (const auto actor = Actors.find(aActorFormId); actor != Actors.end() &&
+        std::ranges::any_of(actor->second.Items.Entries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == aItemFormId && acEntry.IsWorn(); }))
+        actor->second.ForcedWorn.insert(aItemFormId);
 }
 
 void FakeEngine::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t) noexcept
@@ -244,10 +206,6 @@ void FakeEngine::Unequip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
         if (held == aItem)
             held = 0;
     cActor->second.ForcedWorn.erase(aItem);
-    if (aSlot != kLeftHand)
-        cActor->second.ForcedHands.erase({aItem, 1u});
-    if (aSlot != kRightHand)
-        cActor->second.ForcedHands.erase({aItem, 0u});
     const GameId cId = ServerId(aItem);
     for (auto& entry : cActor->second.Items.Entries)
         if (entry.BaseId == cId)

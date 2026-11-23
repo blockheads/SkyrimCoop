@@ -1296,17 +1296,6 @@ void SkyrimBridge::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId,
         EquipManager::Get()->Equip(pActor, pItem, nullptr, aCount, pSlot, false, true, false, false);
 }
 
-bool SkyrimBridge::ActorHoldInHand(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aHand) noexcept
-{
-    Breadcrumbs::Record("ActorHoldInHand", aActorFormId, aItemFormId);
-    Actor* pActor = GetActor(aActorFormId);
-    TESForm* pItem = TESForm::GetById(aItemFormId);
-    if (!pActor || !pItem)
-        return false;
-    ScopedEquipOverride _;
-    return pActor->HoldInHand(pItem, aHand == 0);
-}
-
 void SkyrimBridge::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId,
                                       uint32_t aEquipSlotFormId, int32_t aCount) noexcept
 {

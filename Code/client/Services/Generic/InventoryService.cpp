@@ -220,8 +220,8 @@ bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) no
     const auto holds = [&](const GameId& acSpell, uint32_t aSlot) {
         return !cLoaded || EquipmentRepair::HandHolds(ToGame(acSpell), m_actorBridge.GetEquippedWeaponFormId(cActorFormId, aSlot));
     };
-    // A worn weapon or torch in each hand it is held in: 418622 empties the hands and leaves worn flags, a 3D load
-    // holds a forced two-hander in the right only (24736). docs/re/systems/hand-slots.md.
+    // A worn weapon or torch in each hand it is held in (a two-hander both): 418622 empties the hands and leaves worn
+    // flags. docs/re/systems/hand-slots.md.
     const auto cHandsHoldWorn = [&] {
         if (!cLoaded)
             return true;
@@ -240,6 +240,9 @@ bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) no
                holds(cWantedMagic.LeftHandSpell, 0) && holds(cWantedMagic.RightHandSpell, 1) && cHandsHoldWorn();
     };
     const bool cSameHands = cHandsAgree(cEquipment);
+    if (cLoaded && !cHandsHoldWorn())
+        spdlog::info("Equipment reconcile {:X}: hands [{:X}, {:X}] hold less than its worn set", cActorFormId,
+                     m_actorBridge.GetEquippedWeaponFormId(cActorFormId, 0), m_actorBridge.GetEquippedWeaponFormId(cActorFormId, 1));
 
     EquipmentRepair::Apply(cWanted, [&] { return worn(m_formBridge.GetActorEquipment(cActorFormId)); }, cSameHands,
         [&] {
@@ -255,11 +258,8 @@ bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) no
                     CarryForEquip(cActorFormId, cEntry.BaseId);
                     break;
                 }
-            const uint8_t cType = m_formBridge.GetFormType(aItemId);
-            if (EquipmentRepair::HeldByLoadOnly(cType, aLeft))
-                m_formBridge.ActorHoldInHand(cActorFormId, aItemId, 1);
-            else
-                m_formBridge.ActorEquipItem(cActorFormId, aItemId, EquipmentRepair::EquipSlot(cType, aLeft, m_formBridge.IsTwoHandedWeapon(aItemId)), 1);
+            m_formBridge.ActorEquipItem(cActorFormId, aItemId,
+                                        EquipmentRepair::EquipSlot(m_formBridge.GetFormType(aItemId), aLeft, m_formBridge.IsTwoHandedWeapon(aItemId)), 1);
         },
         [&](uint32_t aItemId, bool aLeft) {
             if (m_formBridge.FormExists(aItemId))

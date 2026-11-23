@@ -114,16 +114,13 @@ TEST_CASE("Non-weapons retain their native equip slot during repair", "[equipmen
     CHECK(EquipmentRepair::EquipSlot(41, false, true) == 0x13F45); // a bow: BothHands, never 38911's RightHand
 }
 
-TEST_CASE("A worn weapon or torch is held in the hand its mark names, a two-hander in both", "[equipment-repair][hand-weapon]")
+TEST_CASE("A worn weapon is held in its hand, a two-hander in both, a torch in the left", "[equipment-repair][hand-weapon]")
 {
     using namespace EquipmentRepair;
     CHECK(HandsOf(41, false) == kRightHandBit);
     CHECK(HandsOf(41, true) == kLeftHandBit);
-    CHECK(HandsOf(41, false, true) == (kLeftHandBit | kRightHandBit)); // 24736 alone leaves a bow [0, bow]
+    CHECK(HandsOf(41, false, true) == (kLeftHandBit | kRightHandBit)); // BothHands
     CHECK(HandsOf(31, true) == kLeftHandBit);
-    CHECK(HandsOf(31, false) == kRightHandBit); // a torch worn right is held right (24736)
-    CHECK(HandsOf(26, false) == 0);             // armor: no hand
-    CHECK(HeldByLoadOnly(31, false));
-    CHECK_FALSE(HeldByLoadOnly(31, true));
-    CHECK_FALSE(HeldByLoadOnly(41, false));
+    CHECK(HandsOf(31, false) == kLeftHandBit); // no equip holds a torch right (17619)
+    CHECK(HandsOf(26, false) == 0);            // armor: no hand
 }

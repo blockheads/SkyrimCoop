@@ -127,7 +127,8 @@ Read in IDA 1.7.104 unless marked.
   passed) or when the item's own slot has parents and lacks UseAllParents; else the item's own (a bow's BothHands).
   `ActorProcess::AddEquippedObject` 39192 fills each hand the slot covers. Measured (`rejoined-guest-sees-rider`,
   2026-11-22) for one bow: our repair's RightHand equip of Faendal's Hunting Bow (13985) on his copy left
-  `[13985, 13985]`, so the repair is not what leaves the scenarios' `[0, bow]`. The writer, found 2026-11-23: a copy's
-  3D load holds a forced bow marked Worn in the right hand only (24736; hand-slots.md).
+  `[13985, 13985]`, so the repair is not what leaves the scenarios' `[0, bow]`. Measured 2026-11-23: the guest's load of the
+  host's save leaves Faendal at `[0, bow]` before he becomes a copy; the writer inside the load is not read
+  (hand-slots.md).
 - **A copy's last action** (`ActorExtension::LatestAnimation`) is read by the harness's comparison and the owner's
   resurrect stamp (`HookResurrect`), nothing else in our code: on its stream the graph is its owner's.

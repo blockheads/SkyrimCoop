@@ -23,21 +23,13 @@ constexpr uint32_t EquipSlot(uint8_t aType, bool aLeft, bool aTwoHanded = false)
     return aTwoHanded ? kBothHands : aLeft ? kLeftHand : kRightHand;
 }
 
-// The hands a worn item is held in (kLeftHandBit, kRightHandBit), as a forced worn list's 3D load holds it (24736):
-// a weapon or torch worn left the left, worn right the right; a two-handed weapon both. 0 for anything else.
+// The hands a worn item is held in (kLeftHandBit, kRightHandBit): a one-handed weapon its own, a two-hander both
+// (BothHands), a torch the left (an equip's only hand for it, 17619). 0 for anything else.
 constexpr uint8_t HandsOf(uint8_t aType, bool aLeft, bool aTwoHanded = false) noexcept
 {
-    if (aType == kWeaponType && aTwoHanded)
-        return kLeftHandBit | kRightHandBit;
-    if (aType == kWeaponType || aType == kLightType)
-        return aLeft ? kLeftHandBit : kRightHandBit;
-    return 0;
-}
-
-// A torch worn right: no equip holds it there (a light's slot is LeftHand, 17619), only a 3D load's (24736).
-constexpr bool HeldByLoadOnly(uint8_t aType, bool aLeft) noexcept
-{
-    return aType == kLightType && !aLeft;
+    if (aType == kWeaponType)
+        return aTwoHanded ? kLeftHandBit | kRightHandBit : aLeft ? kLeftHandBit : kRightHandBit;
+    return aType == kLightType ? kLeftHandBit : 0;
 }
 
 // A hand the owner holds a spell in holds something on a loaded copy: EquipSpell (38928) without a process only

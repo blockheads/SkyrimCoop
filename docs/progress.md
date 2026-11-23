@@ -49,14 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-23: **a copy holds what its owner holds in both hands: a bow in both, a torch in each** (`agent/hand-slot-copies`;
-[hand-slots.md](re/systems/hand-slots.md)). The shared cause of the hand-slot cases under "A copy without its weapon" (the report's missing 3D stays open): an equip holds a torch in
-the left hand only (17619) and a two-hander in both, but a copy's 3D load holds its forced lists by their marks
-(24736): a bow at `[0, bow]`, a torch marked right in the right. The repair checked one hand per item and could not
-put a torch right. Now it checks every hand an item is held in, equips two-handers with their own slot, and holds a
-right-hand torch as a 3D load does (`Actor::HoldInHand`). Scenario `npc-torch-each-hand` (harness `hold_in_hand`,
-snapshot `worn_left`); GameTests "A guard's copy holds a torch in each hand as its owner does" (and as a late joiner
-sees it), "A copy whose 3D load leaves its bow in one hand holds it in both again".
+2026-11-23: **a copy holds its bow in both hands, as its owner does** (`agent/hand-slot-copies`;
+[hand-slots.md](re/systems/hand-slots.md)). Measured: the guest's load of the host's save leaves Faendal at `[0, bow]`
+(the writer inside the load not read), and the copy repair checked one hand per item. It now checks both hands of a
+two-hander and equips it with BothHands (38911 would make no slot RightHand). `rejoined-guest-sees-rider` passes;
+GameTests "A copy left holding its bow in one hand holds it in both again". Also measured: an equip marks a torch
+worn left (17619), and the playtest's guards with a torch in each hand were not reproduced (real guards at night agree
+on both games). Harness `reset_3d`, snapshot `worn_left`, the repair's log line for hands it finds short.
 
 2026-11-22: **the lockpicking menu draws its lock again** (`agent/lockpicking-ui`;
 [lockpicking.md](re/systems/lockpicking.md)). Since personal menus stopped pausing (2026-10-27) the menu opened with

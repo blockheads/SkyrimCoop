@@ -410,7 +410,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
                           int32_t aCount) noexcept override
     {
     }
-    bool ActorHoldInHand(uint32_t, uint32_t, uint32_t) noexcept override { return false; }
 
     uint32_t GetCurrentWeatherId() const noexcept override
     {

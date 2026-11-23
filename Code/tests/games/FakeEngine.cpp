@@ -682,7 +682,6 @@ void FakeEngine::Frame()
             if (std::exchange(actor.ModelReady, false))
             {
                 actor.Loaded = true;
-                InitWornHands(cId);
                 World::Get().GetRunner().Trigger(ReferenceLoadedEvent{cId});
             }
             if (!actor.Refused3D && !(ActorHas3D(cId) && HeldOnGuest(cId)))
@@ -1000,10 +999,7 @@ void FakeEngine::Load3D(uint32_t aFormId)
     actor.ModelReady = !actor.Refused3D && LoadsHeld;
     actor.Loaded = !actor.Refused3D && !LoadsHeld;
     if (actor.Loaded)
-    {
-        InitWornHands(aFormId);
         World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
-    }
 }
 
 void FakeEngine::ApplyHeld3D(uint32_t aFormId)
@@ -2461,8 +2457,6 @@ void FakeEngine::EnableActor(uint32_t aFormId) noexcept
         if (cExpectedToSurvive && cTwin && !freed.IsFreed(&cList))
             ++WornListDoubleFrees;
         it->second.ForcedWorn.erase(cItem);
-        it->second.ForcedHands.erase({cItem, 0u});
-        it->second.ForcedHands.erase({cItem, 1u});
     }
 }
 

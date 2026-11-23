@@ -1260,20 +1260,13 @@ std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcep
     return worn;
 }
 
-std::optional<std::array<uint32_t, 2>> HoldInHand(uint32_t aFormId, uint32_t aItem, uint32_t aHand) noexcept
+bool Reset3D(uint32_t aFormId) noexcept
 {
     Actor* pActor = GetActor(aFormId);
-    TESForm* pItem = TESForm::GetById(aItem);
-    if (!pActor || !pItem || !pActor->currentProcess || aHand > 1)
-        return std::nullopt;
-    ScopedEquipOverride _;
-    if (!pActor->HoldInHand(pItem, aHand == 0))
-        return std::nullopt;
-    std::array<uint32_t, 2> hands{};
-    for (uint32_t hand = 0; hand < 2; ++hand)
-        if (const TESForm* pHeld = pActor->currentProcess->equippedObject[hand])
-            hands[hand] = pHeld->formID;
-    return hands;
+    if (!pActor)
+        return false;
+    pActor->DoReset3D(false);
+    return true;
 }
 
 void UnequipAllUnsynced(uint32_t aFormId) noexcept
