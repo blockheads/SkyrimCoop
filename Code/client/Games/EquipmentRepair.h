@@ -23,12 +23,15 @@ constexpr uint32_t EquipSlot(uint8_t aType, bool aLeft, bool aTwoHanded = false)
     return aTwoHanded ? kBothHands : aLeft ? kLeftHand : kRightHand;
 }
 
-// The hands a worn item is held in (kLeftHandBit, kRightHandBit): a one-handed weapon its own, a two-hander both
-// (BothHands), a torch the left (an equip's only hand for it, 17619). 0 for anything else.
-constexpr uint8_t HandsOf(uint8_t aType, bool aLeft, bool aTwoHanded = false) noexcept
+// The hands a worn item is held in (kLeftHandBit, kRightHandBit): a one-handed weapon its own, a torch the left (an
+// equip's only hand for it, 17619), a two-hander both unless the left holds something else worn (Aela's [torch, bow],
+// measured). 0 for anything else.
+constexpr uint8_t HandsOf(uint8_t aType, bool aLeft, bool aTwoHanded = false, bool aLeftTaken = false) noexcept
 {
+    if (aType == kWeaponType && aTwoHanded)
+        return aLeftTaken ? kRightHandBit : kLeftHandBit | kRightHandBit;
     if (aType == kWeaponType)
-        return aTwoHanded ? kLeftHandBit | kRightHandBit : aLeft ? kLeftHandBit : kRightHandBit;
+        return aLeft ? kLeftHandBit : kRightHandBit;
     return aType == kLightType ? kLeftHandBit : 0;
 }
 

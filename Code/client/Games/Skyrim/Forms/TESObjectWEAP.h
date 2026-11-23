@@ -4,11 +4,8 @@
 
 struct TESObjectWEAP : TESBoundObject
 {
-    // WEAPON_DATA::animationType (CommonLibSSE-NG weaponData +0x168, +0x35): 5-7 and 9 are held in both hands
-    // (two-handed sword and axe, bow, crossbow), as ActorProcess 39811 tests it.
-    [[nodiscard]] bool IsTwoHanded() const noexcept { return (animationType >= 5 && animationType <= 7) || animationType == 9; }
-
-    uint8_t unk30[0x19D - sizeof(TESBoundObject)];
-    uint8_t animationType;
+    uint8_t unk30[0xE8 - sizeof(TESBoundObject)];
+    // BGSEquipType (+0xE0, TESBoundObject::GetEquipType 14218)'s slot (+0x08, 14216): BothHands for a bow.
+    TESForm* equipSlot;
 };
-static_assert(offsetof(TESObjectWEAP, animationType) == 0x19D);
+static_assert(offsetof(TESObjectWEAP, equipSlot) == 0xE8);

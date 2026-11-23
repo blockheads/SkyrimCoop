@@ -81,7 +81,7 @@ nlohmann::json ResetWorn(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"worn_after", *cWorn}};
 }
 
-// {"cmd": "reset_3d", "actor": id}: its 3D built again in this game only (EngineCalls::Reset3D): a copy's 3D load.
+// {"cmd": "reset_3d", "actor": id}: DoReset3D(false) in this game only (EngineCalls::Reset3D).
 nlohmann::json Reset3DCommand(Harness&, const nlohmann::json& acRequest)
 {
     return EngineCalls::Reset3D(acRequest.value("actor", 0u)) ? Ok() : Error("no such actor");

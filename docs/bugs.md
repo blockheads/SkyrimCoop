@@ -345,9 +345,9 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   BothHands slot unless the race's flags bit 30 keeps the passed hand; measured on `rejoined-guest-sees-rider`, the
   repair's RightHand equip of Faendal's bow on his copy left `[13985, 13985]`. The `[0, bow]` writer is still unread
   (39811 sets one hand per call: outfit reset, MoveToHigh, disarm; `docs/re/systems/actor-state.md`).
-- **The bow's slot fixed** (2026-11-23, PR #108, re/systems/hand-slots.md): measured, the guest's load of the host's
-  save leaves Faendal at `[0, bow]` (the writer inside the load not read), and the repair checked one hand per item.
-  It now checks both hands of a two-hander and equips it with BothHands; `rejoined-guest-sees-rider` passes (GameTests
+- **The bow's slot fixed** (2026-11-23, PR #108, re/systems/hand-slots.md): measured, Faendal's copy is at `[0, bow]` at
+  its first repair after a rejoin (the writer not read), and the repair checked one hand per item. It now checks both
+  hands of a two-hander (the right only beside a worn torch) and equips it with BothHands; `rejoined-guest-sees-rider` passes (GameTests
   "A copy left holding its bow in one hand holds it in both again").
 - **The guards' torches (2026-11-22 playtest) not reproduced** (2026-11-23): two Winterhold guards at night held
   `[torch, 0]` and `[torch, sword]` on both games for 30 s. No equip puts a torch in the right hand (17619), so a host

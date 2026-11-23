@@ -776,6 +776,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // The spells its hands hold (AIProcess::equippedObjects, left and right): an equip without 3D only selects.
         uint32_t HeldSpells[2]{};
         bool EquipmentNeedsReset = false;
+        int EquipmentResets = 0; // ActorResetEquipment calls: the copy repair's strip and re-equip
         struct ReplayState : AnimationReplayStep
         {
             ReplayState() = default;
@@ -1906,8 +1907,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
-    // Its two-hander left in the right hand only, as the guest's load of the host's save left Faendal before he became
-    // a copy (measured, rejoined-guest-sees-rider 2026-11-23; the writer is not read). hand-slots.md.
+    // Its two-hander left in the right hand only, as Faendal's copy was at its first repair after a rejoin (measured,
+    // rejoined-guest-sees-rider 2026-11-23; the writer is not read). hand-slots.md.
     void LeavesTwoHanderInRightOnly(uint32_t aFormId) { Actors.at(aFormId).HeldWeapons[0] = 0; }
 
     [[nodiscard]] bool Has(uint32_t aFlags) const noexcept

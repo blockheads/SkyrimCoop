@@ -120,6 +120,7 @@ TEST_CASE("A worn weapon is held in its hand, a two-hander in both, a torch in t
     CHECK(HandsOf(41, false) == kRightHandBit);
     CHECK(HandsOf(41, true) == kLeftHandBit);
     CHECK(HandsOf(41, false, true) == (kLeftHandBit | kRightHandBit)); // BothHands
+    CHECK(HandsOf(41, false, true, true) == kRightHandBit);            // Aela's bow beside her torch
     CHECK(HandsOf(31, true) == kLeftHandBit);
     CHECK(HandsOf(31, false) == kLeftHandBit); // no equip holds a torch right (17619)
     CHECK(HandsOf(26, false) == 0);            // armor: no hand

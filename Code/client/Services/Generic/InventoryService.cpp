@@ -201,14 +201,9 @@ bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) no
     const auto worn = [&](const Inventory& acInventory) {
         std::set<std::pair<uint32_t, bool>> items;
         for (const auto& entry : acInventory.Entries)
-            if (const uint32_t cId = entry.IsWorn() ? ToGame(entry.BaseId) : 0)
-            {
-                // One stack held in both hands (two of a torch or dagger) has both marks.
-                if (entry.ExtraWorn)
-                    items.insert({cId, false});
-                if (entry.ExtraWornLeft)
-                    items.insert({cId, true});
-            }
+            if (entry.IsWorn())
+                if (const uint32_t cId = ToGame(entry.BaseId))
+                    items.insert({cId, entry.ExtraWornLeft});
         return items;
     };
     const auto cWanted = worn(acWanted);
@@ -225,9 +220,15 @@ bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) no
     const auto cHandsHoldWorn = [&] {
         if (!cLoaded)
             return true;
+        // The left hand held by something else worn: a torch, a left weapon or a left-hand spell.
+        bool leftTaken = static_cast<bool>(cWantedMagic.LeftHandSpell);
+        for (const auto& [cId, cLeft] : cWanted)
+            if (!m_formBridge.IsTwoHandedWeapon(cId) &&
+                EquipmentRepair::HandsOf(m_formBridge.GetFormType(cId), cLeft) == EquipmentRepair::kLeftHandBit)
+                leftTaken = true;
         for (const auto& [cId, cLeft] : cWanted)
         {
-            const uint8_t cHands = EquipmentRepair::HandsOf(m_formBridge.GetFormType(cId), cLeft, m_formBridge.IsTwoHandedWeapon(cId));
+            const uint8_t cHands = EquipmentRepair::HandsOf(m_formBridge.GetFormType(cId), cLeft, m_formBridge.IsTwoHandedWeapon(cId), leftTaken);
             for (uint32_t hand = 0; hand < 2; ++hand)
                 if ((cHands & (1u << hand)) && m_actorBridge.GetEquippedWeaponFormId(cActorFormId, hand) != cId)
                     return false;

@@ -25,7 +25,7 @@ public:
     // --- Generic form queries ---
     virtual bool FormExists(uint32_t aFormId) const noexcept = 0;
     virtual uint8_t GetFormType(uint32_t aFormId) const noexcept = 0;
-    // A weapon held in both hands (two-handed sword or axe, bow, crossbow: its BothHands slot).
+    // A weapon whose equip slot covers both hands (BothHands: a bow, a greatsword).
     virtual bool IsTwoHandedWeapon(uint32_t aFormId) const noexcept = 0;
     virtual std::string GetFormName(uint32_t aFormId) const noexcept = 0;
 

@@ -810,8 +810,13 @@ uint8_t SkyrimBridge::GetFormType(uint32_t aFormId) const noexcept
 
 bool SkyrimBridge::IsTwoHandedWeapon(uint32_t aFormId) const noexcept
 {
+    // Its equip slot covers both hands (BGSEquipSlot::Covers 23605), as AddEquippedObject (39192) fills them.
+    using TCovers = bool(const TESForm*, const TESForm*);
+    POINTER_SKYRIMSE(TCovers, s_covers, 23605);
     const auto* pWeapon = Cast<TESObjectWEAP>(TESForm::GetById(aFormId));
-    return pWeapon && pWeapon->IsTwoHanded();
+    const auto& cObjects = DefaultObjectManager::Get();
+    return pWeapon && pWeapon->equipSlot && s_covers(pWeapon->equipSlot, cObjects.leftEquipSlot) &&
+           s_covers(pWeapon->equipSlot, cObjects.rightEquipSlot);
 }
 
 std::string SkyrimBridge::GetFormName(uint32_t aFormId) const noexcept

@@ -23,8 +23,12 @@ separate, and either can change without the other. Each claim says whether it wa
   `equipitem 1d4ec`): `worn_left` [1D4EC], hands [torch, 0]. This corrects copy-equipment-after-rebuild.md, which said
   ExtraWorn.
 - A two-hander's own slot is BothHands, covering both hands. Passing no slot is RightHand (38911), which 38926 keeps
-  for a race with flags bit 30. So the copy repair passes BothHands (0x13F45): it is neither hand slot, so 38929 keeps
-  it. Read, not measured.
+  for a race with flags bit 30 (read). Measured against that: a console `equipitem` of a bow (no slot) filled both
+  hands on the guest's player and on a Winterhold guard (2026-11-23). The copy repair passes BothHands (0x13F45)
+  anyway: 38926 accepts only LeftHand or RightHand, so 38929 keeps it (read, not measured).
+- What counts as two-handed is the weapon's equip slot covering both hands (`TESObjectWEAP::equipSlot` +0xE8, from
+  14218 and 14216; `BGSEquipSlot::Covers` 23605), the same thing 39192 fills hands by. Its animation type is not
+  used: `DummyWarhammer` (0x20154) has animation type 1 and slot BothHands (Skyrim.esm, as read in review).
 
 ## A 3D load: `TESNPC::InitWornOn3D` 24725 -> 24736 (read)
 
@@ -33,21 +37,23 @@ weapon's own (a bow would be `[0, bow]`). A light worn left goes to the biped sh
 worn right goes to biped slot 32 and the right hand. It sets the process's hands only for lists with ExtraCannotWear
 (forced). It never clears a hand.
 
-Measured 2026-11-23, against the idea that this is what leaves copies at `[0, bow]`: a bow copy's 3D rebuilt on the
-guest (harness `reset_3d`, `DoReset3D`) kept `[bow, bow]`, and so did a guest-side disable/enable earlier.
+Sampled 2026-11-23: a bow copy read `[bow, bow]` after the harness's `reset_3d` (`DoReset3D(false)` 40255, whose
+false branch can queue the model update) and after a guest-side disable/enable. Neither shows that 24725 ran, so this
+does not rule out a 3D load as the writer.
 
 ## Where `[0, bow]` comes from (measured)
 
-`rejoined-guest-sees-rider`, 2026-11-23, with the repair's log line ("hands [..] hold less than its worn set"): at the
-rejoin the guest loads the host's save, and Faendal (1348C) is at `[0, 13985]` on the guest when his copy's items are
-first applied, against his owner's `[13985, 13985]`. The writer is inside the guest's load of the save and is not
-read. Candidates: the process's load (0x1406F9370 calls 39192) or the outfit reset's best-weapon equip with no slot
-(418622 -> 38894 -> 38911's RightHand, kept by 38926).
+`rejoined-guest-sees-rider`, 2026-11-23, with the repair's log line ("hands [..] hold less than its worn set"): after
+the guest rejoins, Faendal's copy (1348C) is at `[0, 13985]` at its first repair, 40 ms after its spawn
+(`NotifyCharacterSpawn`), against his owner's `[13985, 13985]`. That is the state at the first repair; it does not
+say which step between the rejoin and the repair wrote it. Not read. Candidates: 39430 (calls 39192), 24725's
+visitor, or an equip with no slot (38911's RightHand, kept by 38926).
 
 The old repair checked one hand per item, so it passed `[0, bow]`. It now checks every hand an item is held in
-(`EquipmentRepair::HandsOf`: both for a two-hander, `TESObjectWEAP::IsTwoHanded`, animation type 5-7 or 9 as 39811
-tests it). In the same run the copy was put back to `[bow, bow]`, and the scenario passed (2 of 2 failed on dev
-`aa723513`).
+(`EquipmentRepair::HandsOf`). A two-hander takes both hands unless something else worn holds the left: Aela's owner
+held `[torch, bow]` (inventory-changes.md, measured), so the bow then takes the right only. The worn marks don't say
+more than that; an owner whose two-hander really holds only the right would need its hands sent. In the same run the
+copy was repaired (logged reset and re-equip), and the scenario passed (2 of 2 failed on dev `aa723513`).
 
 ## Torches on guards (measured)
 

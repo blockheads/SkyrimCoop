@@ -128,8 +128,8 @@ the clip-load and graph hooks   a WorldGate::Reader, else the engine's own: the 
 **2026-11-22, step 0 rewrote it** (PR #95, `docs/re/systems/actor-state.md`, "What a copy's start leaves out"): no
 `StartPart`. Built: a copy on its stream not settled as its owner's is put right (the stuck draw, measured). Not
 built: sit state comes with the spawn's graph state already, the last action's window was not found, and no drift
-needed the R3 ask. The bow's `[0, bow]`, measured later (2026-11-23): the guest's load of the host's save leaves it;
-the writer is not read, and the repair now checks both hands (hand-slots.md).
+needed the R3 ask. The bow's `[0, bow]`, measured later (2026-11-23): a copy is there at its first repair after a
+rejoin; the writer is not read, and the repair now checks both hands (hand-slots.md).
 
 Entries: "A late joiner sees the host's copy stuck drawing", "A copy at Sheathed while its owner draws", "An action
 sent before its copy exists", "A seated owner's copy keeps an old action", townsfolk sitting on the host and standing
@@ -145,7 +145,7 @@ hands, settled (3 or 0)          ActorStatePart::HandsUp             has it
 weapon state 1, 2, 4 (mid-draw)  nothing (42824, 42825 write 3, 0)   never: stays where it spawned
 sit state, its furniture         the stream's events (42868, 42881)  never
 the last action                  a rider on movement updates         one behind, or an old visit's
-which hand slot holds a form     the items part's equip, a save load both hands checked (hand-slots.md)
+which hand slot holds a form     the items part's equip, unread       both hands checked (hand-slots.md)
 ```
 
 And the record's ask (`CopyRecordsService::Ask`, R3) is built and tested but nothing calls it: a copy that is

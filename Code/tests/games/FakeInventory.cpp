@@ -112,6 +112,7 @@ void FakeEngine::ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment
     if (auto actor = Actors.find(aActorFormId); actor != Actors.end())
     {
         actor->second.EquipmentNeedsReset = false;
+        ++actor->second.EquipmentResets;
         actor->second.HeldWeapons[0] = actor->second.HeldWeapons[1] = 0;
         for (auto& item : actor->second.Items.Entries)
             item.ExtraWorn = item.ExtraWornLeft = false;
