@@ -125,8 +125,42 @@ void FakeEngine::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uin
     Equip(aActorFormId, aItemFormId, aEquipSlotFormId);
     // Ours forces the equip (abForceEquip): 16066 marks the worn list cannot wear.
     if (const auto actor = Actors.find(aActorFormId); actor != Actors.end() &&
-        std::ranges::any_of(actor->second.Items.Entries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == aItemFormId && acEntry.ExtraWorn; }))
+        std::ranges::any_of(actor->second.Items.Entries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == aItemFormId && acEntry.IsWorn(); }))
         actor->second.ForcedWorn.insert(aItemFormId);
+}
+
+bool FakeEngine::ActorHoldInHand(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aHand) noexcept
+{
+    const auto cActor = Actors.find(aActorFormId);
+    if (cActor == Actors.end() || CountOf(aActorFormId, aItemFormId) <= 0 || aHand > 1)
+        return false;
+    auto& entry = EntryOf(cActor->second, aItemFormId);
+    (aHand == 0 ? entry.ExtraWornLeft : entry.ExtraWorn) = true;
+    cActor->second.ForcedWorn.insert(aItemFormId);
+    if (ActorHas3D(aActorFormId))
+        cActor->second.HeldWeapons[aHand] = aItemFormId;
+    if (!cActor->second.Copy)
+        World::Get().GetRunner().Trigger(EquipmentChangeEvent{.ActorId = aActorFormId, .ItemId = aItemFormId, .Count = 1});
+    return cActor->second.HeldWeapons[aHand] == aItemFormId;
+}
+
+void FakeEngine::InitWornHands(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    if (actor.ForcedWorn.empty())
+        return;
+    actor.HeldWeapons[0] = actor.HeldWeapons[1] = 0;
+    for (const auto& cEntry : actor.Items.Entries)
+    {
+        const uint32_t cItem = ::ItemForm(cEntry.BaseId);
+        const auto cForm = ItemForms.find(cItem);
+        if (!actor.ForcedWorn.contains(cItem) || cForm == ItemForms.end() || (cForm->second.Type != kWeapon && cForm->second.Type != kLight))
+            continue;
+        if (cEntry.ExtraWornLeft)
+            actor.HeldWeapons[0] = cItem;
+        if (cEntry.ExtraWorn)
+            actor.HeldWeapons[1] = cItem;
+    }
 }
 
 void FakeEngine::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t) noexcept
@@ -158,7 +192,8 @@ void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
 
     ScopedUnequipOverride _;
     const bool cWeapon = cForm->second.Type == kWeapon;
-    const bool cLeft = cWeapon && aSlot == kLeftHand;
+    // A torch's slot is always LeftHand (17619), so 38001 marks it worn left; a two-hander's BothHands, worn right.
+    const bool cLeft = (cWeapon && aSlot == kLeftHand && !cForm->second.TwoHanded) || cForm->second.Type == kLight;
     std::vector<std::pair<uint32_t, uint32_t>> replaced; // item, slot
     for (const auto& cEntry : cActor->second.Items.Entries)
     {
@@ -181,7 +216,11 @@ void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
     auto& entry = EntryOf(cActor->second, aItem);
     (cLeft ? entry.ExtraWornLeft : entry.ExtraWorn) = true;
     if ((cWeapon || cForm->second.Type == kLight) && ActorHas3D(aActor))
-        cActor->second.HeldWeapons[cLeft || !cWeapon ? 0 : 1] = aItem;
+    {
+        if (cWeapon && cForm->second.TwoHanded)
+            cActor->second.HeldWeapons[0] = aItem; // AddEquippedObject (39192): BothHands covers both hands
+        cActor->second.HeldWeapons[cLeft ? 0 : 1] = aItem;
+    }
 }
 
 // UnEquipHook, then the engine: off that hand (both for no hand's slot).

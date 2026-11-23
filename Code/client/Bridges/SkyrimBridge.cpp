@@ -808,6 +808,12 @@ uint8_t SkyrimBridge::GetFormType(uint32_t aFormId) const noexcept
     return 0;
 }
 
+bool SkyrimBridge::IsTwoHandedWeapon(uint32_t aFormId) const noexcept
+{
+    const auto* pWeapon = Cast<TESObjectWEAP>(TESForm::GetById(aFormId));
+    return pWeapon && pWeapon->IsTwoHanded();
+}
+
 std::string SkyrimBridge::GetFormName(uint32_t aFormId) const noexcept
 {
     if (TESForm* pForm = TESForm::GetById(aFormId))
@@ -1288,6 +1294,17 @@ void SkyrimBridge::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId,
     TESForm* pSlot = aEquipSlotFormId ? TESForm::GetById(aEquipSlotFormId) : nullptr;
     if (pActor && pItem)
         EquipManager::Get()->Equip(pActor, pItem, nullptr, aCount, pSlot, false, true, false, false);
+}
+
+bool SkyrimBridge::ActorHoldInHand(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aHand) noexcept
+{
+    Breadcrumbs::Record("ActorHoldInHand", aActorFormId, aItemFormId);
+    Actor* pActor = GetActor(aActorFormId);
+    TESForm* pItem = TESForm::GetById(aItemFormId);
+    if (!pActor || !pItem)
+        return false;
+    ScopedEquipOverride _;
+    return pActor->HoldInHand(pItem, aHand == 0);
 }
 
 void SkyrimBridge::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId,

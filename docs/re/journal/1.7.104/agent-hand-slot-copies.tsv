@@ -1,0 +1,45 @@
+time	op	id	rva	item
+2026-11-23T05:55:57Z	read	39192	0x6eb1a0	{"name": "ActorProcess::AddEquippedObject"}
+2026-11-23T05:55:58Z	read	38929	0x6de920	{"name": "coop_RealEquip"}
+2026-11-23T05:56:05Z	read	38926	0x6de4c0	{"name": "ActorEquipManager::TakesPassedHandSlot"}
+2026-11-23T05:56:18Z	read	38894	0x6dc310	{"name": "ActorEquipManager::EquipObject"}
+2026-11-23T05:56:26Z	read	39811	0x720740	{"name": "ActorProcess::SetHandEntry"}
+2026-11-23T05:56:38Z	read		0x3c416c	{"name": "TESObjectARMO::InitWornArmor"}
+2026-11-23T05:56:51Z	read	11696	0x164630	{"name": "ExtraDataList::IsWorn"}
+2026-11-23T05:56:52Z	read	11699	0x1647c0	{"name": "ExtraDataList__HasCannotWear"}
+2026-11-23T05:56:53Z	read	15690	0x21b020	{"name": "BipedAnim::sub_15690"}
+2026-11-23T05:57:01Z	read	39430	0x6f9370	{"name": "sub_1406F9370"}
+2026-11-23T05:57:19Z	read	38001	0x6b2570	{"name": "Character::sub_38001"}
+2026-11-23T05:57:45Z	read	23605	0x38f910	{"name": "sub_14038F910"}
+2026-11-23T05:58:02Z	read	17602	0x273fb0	{"name": "TESObjectLIGH::InitItemImpl"}
+2026-11-23T05:58:02Z	read	17600	0x273a80	{"name": "TESObjectLIGH::InitializeData"}
+2026-11-23T05:58:09Z	read	14218	0x1d7310	{"name": "TESBoundObject::GetEquipType"}
+2026-11-23T05:58:26Z	read	17619	0x275290	{"name": "BGSEquipType::GetEquipSlot"}
+2026-11-23T05:58:35Z	read	23607	0x38fa30	{"name": "GetLeftHandSlot"}
+2026-11-23T05:58:39Z	read	23608	0x38fa40	{"name": "GetRightHandSlot"}
+2026-11-23T05:58:40Z	read	23609	0x38fa50	{"name": "GetEitherHandSlot"}
+2026-11-23T05:58:43Z	read	23365	0x388020	{"name": "BGSEquipType::GetEquipSlot_0"}
+2026-11-23T05:59:57Z	name	17619	0x275290	{"addr": "0x140275290", "name": "TESObjectLIGH::GetEquipSlot"}
+2026-11-23T05:59:57Z	name	23605	0x38f910	{"addr": "0x14038F910", "name": "BGSEquipSlot::Covers"}
+2026-11-23T05:59:57Z	name	24725	0x3c2ae0	{"addr": "0x1403c2ae0", "name": "TESNPC::InitWornOn3D"}
+2026-11-23T05:59:57Z	name	418622	0x3c4440	{"addr": "0x1403c4440", "name": "TESNPC::ResetWornToOutfit"}
+2026-11-23T05:59:57Z	name	38001	0x6b2570	{"addr": "0x1406b2570", "name": "Character::MarkEquippedWorn"}
+2026-11-23T06:00:05Z	comment	24736	0x3c4080	{"addr": "0x1403c4080", "comment": "24736, InitWornVisitor's per-entry body (CommonLibSSE names it InitWornArmor; it handles every worn type). Per extra list: a weapon (0x29) WornLeft -> AddEquippedObject(LeftHand), Worn -> AddEquippedObject(RightHand): the hand slot, never the weapon's own, so a bow (BothHands) gets [0, bow]. A light (0x1F) WornLeft -> left (biped shield slot, 15690 left=1), Worn -> right (biped slot 32, the weapon's): a Worn torch is held in the right hand. Process hands only when the list has type 61 (HasCannotWear naming unsure)."}
+2026-11-23T06:00:05Z	comment	17619	0x275290	{"addr": "0x140275290", "comment": "17619, TESObjectLIGH's BGSEquipType::GetEquipSlot: always default object 19 (LeftHand). So 38929 equips a torch into the left hand only (LeftHand has no parents to let a passed slot win), and 38001 marks it WornLeft."}
+2026-11-23T06:00:05Z	comment	23605	0x38f910	{"addr": "0x14038F910", "comment": "True when slot a1 is a2 or one of a1's parents (+0x20 array, +0x30 count) covers a2. BothHands and EitherHand cover LeftHand and RightHand."}
+2026-11-23T06:00:05Z	comment	11696	0x164630	{"addr": "0x140164630", "comment": "11696 ExtraDataList::IsWorn(list, either, left): either -> Worn (22) or WornLeft (23); else left ? WornLeft : Worn."}
+2026-11-23T06:00:05Z	comment	38001	0x6b2570	{"addr": "0x1406b2570", "comment": "38001: marks the equipped stack worn (Actor::AddWornItem). left = (EquipData slot == LeftHand). A light: ITMTorchHeldEquip, worn left when the slot is LeftHand (always, 17619), or when no slot was stored. A weapon: count clamped to 1 unless a one-hander."}
+2026-11-23T06:00:05Z	comment	24725	0x3c2ae0	{"addr": "0x1403c2ae0", "comment": "24725 TESNPC::InitWornOn3D: a living actor without 3D (or forced) gets ResetWornToOutfit 418622; then InitWornVisitor runs 24736 for each worn entry, rebuilding the process hands from the worn flags (a Worn bow -> [0, bow], a Worn torch -> right hand)."}
+2026-11-23T06:00:05Z	comment	38894	0x6dc310	{"addr": "0x1406dc310", "comment": "38894 ActorEquipManager::EquipObject: does nothing when the passed extra list is already worn (IsWorn either); else fills EquipData (list, count, slot or 38911's default, flags) and calls 38929."}
+2026-11-23T06:00:16Z	comment	38894	0x6dc310	{"addr": "0x1406dc310", "comment": "[re]\nAddressLib ID 38894\nCommonLibSSE: ActorEquipManager::EquipObject (CommonLibSSE-NG/src/RE/A/ActorEquipManager.cpp:14)\nSKSE: EquipManager::EquipItem (skse64-2.3.1/skse64/GameData.h:413)\nSkyrimCoop: call as s_equipFunc (Code/client/Games/Skyrim/EquipManager.cpp:76)\nSkyrimCoop: data as s_equipObject (Code/client/Games/Skyrim/Papyrus/NativeReach.cpp:103)\nDoes nothing when the passed extra list is already worn (IsWorn either); else fills EquipData (list, count, slot or 38911's default, flags) and calls 38929."}
+2026-11-23T06:00:16Z	comment	38001	0x6b2570	{"addr": "0x1406b2570", "comment": "[re]\nAddressLib ID 38001\nMarks the equipped stack worn (Actor::AddWornItem). left = (EquipData slot == LeftHand). A light: ITMTorchHeldEquip, worn left when the slot is LeftHand (always, 17619) or when no slot was stored. A weapon: count clamped to 1 unless a one-hander."}
+2026-11-23T06:00:16Z	comment	24725	0x3c2ae0	{"addr": "0x1403c2ae0", "comment": "[re]\nAddressLib ID 24725\nTESNPC::InitWornOn3D: a living actor without 3D (or forced) gets ResetWornToOutfit 418622; then InitWornVisitor runs 24736 for each worn entry, rebuilding the process hands from the worn flags (a Worn bow -> [0, bow], a Worn torch -> the right hand)."}
+2026-11-23T06:00:16Z	comment	11696	0x164630	{"addr": "0x140164630", "comment": "[re]\nAddressLib ID 11696\nExtraDataList::IsWorn(list, either, left): either -> Worn (22) or WornLeft (23); else left ? WornLeft : Worn."}
+2026-11-23T06:00:16Z	comment	24736	0x3c4080	{"addr": "0x1403c4080", "comment": "[re]\nAddressLib ID 24736\nmeh321: TESNPC::sub_24736\nCommonLibSSE: TESObjectARMO::InitWornArmor (CommonLibSSE-NG/src/RE/T/TESObjectARMO.cpp:39)\nInitWornVisitor's per-entry body (every worn type). Per extra list: a weapon (0x29) WornLeft -> AddEquippedObject(LeftHand), Worn -> AddEquippedObject(RightHand): the hand slot, never the weapon's own, so a bow (BothHands) gets [0, bow]. A light (0x1F) WornLeft -> left (biped shield slot, 15690 left=1), Worn -> right (biped slot 32, the weapon's): a Worn torch is held in the right hand. Process hands only when the list has type 61."}
+2026-11-23T06:00:20Z	comment	17619	0x275290	{"addr": "0x140275290", "comment": "[re]\nAddressLib ID 17619\nTESObjectLIGH's BGSEquipType::GetEquipSlot: always default object 19 (LeftHand). So 38929 equips a torch into the left hand only (LeftHand has no parents to let a passed slot win) and 38001 marks it WornLeft."}
+2026-11-23T06:08:02Z	read	19692	0x2e8070	{"name": "Actor::AddWornOutfit"}
+2026-11-23T06:10:13Z	read	38004	0x6b3650	{"name": "Actor::AddWornItem"}
+2026-11-23T06:11:35Z	read	39907	0x724600	{"name": "ActorProcessManager::SetEquipFlag"}
+2026-11-23T06:11:51Z	read	39395	0x6f6720	{"name": "AIProcess::Update3DModel_Impl"}
+2026-11-23T06:29:48Z	comment	39907	0x724600	{"addr": "0x140724600", "comment": "[re]\nAddressLib ID 39907\nmeh321: ActorProcess::Update3DModel\nSKSE: ActorProcessManager::SetEquipFlag (skse64-2.3.1/skse64/GameFormComponents.h:1299)\nORs the flags into middle-high +0x311, read by 39395: bit 1 attaches the biped's worn objects (Actor 19743). Actor::HoldInHand sets 1 after 24736."}
+2026-11-23T06:29:48Z	comment	37525	0x68ba50	{"addr": "0x14068ba50", "comment": "[re]\nAddressLib ID 37525\nActor::AddObjectToContainer. Calls TESNPC::InitWornOn3D 24725 (body not read). Measured 2026-11-23: an additem on an NPC holding a plain-equipped left torch and a forced right one left its hands [0, torch]: the worn init re-held only the forced list."}

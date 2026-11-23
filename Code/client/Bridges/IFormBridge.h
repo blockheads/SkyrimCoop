@@ -25,6 +25,8 @@ public:
     // --- Generic form queries ---
     virtual bool FormExists(uint32_t aFormId) const noexcept = 0;
     virtual uint8_t GetFormType(uint32_t aFormId) const noexcept = 0;
+    // A weapon held in both hands (two-handed sword or axe, bow, crossbow: its BothHands slot).
+    virtual bool IsTwoHandedWeapon(uint32_t aFormId) const noexcept = 0;
     virtual std::string GetFormName(uint32_t aFormId) const noexcept = 0;
 
     // --- TESGlobal ---
@@ -159,4 +161,7 @@ public:
     /// Full unequip via EquipManager (item, no extra data, count, equip slot).
     virtual void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId,
                                     int32_t aCount) noexcept = 0;
+    // One carried item held in that hand (0 left, 1 right) as a 3D load holds a forced worn list: the only way to a
+    // torch in the right hand (Actor::HoldInHand). True when the hand holds it.
+    virtual bool ActorHoldInHand(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aHand) noexcept = 0;
 };

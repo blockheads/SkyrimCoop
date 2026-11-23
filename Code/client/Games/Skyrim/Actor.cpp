@@ -922,6 +922,46 @@ void Actor::UnEquipAll() noexcept
     }
 }
 
+bool Actor::HoldInHand(TESForm* apItem, bool aLeft) noexcept
+{
+    auto* pNpc = Cast<TESNPC>(baseForm);
+    auto* pChanges = GetContainerChanges();
+    if (!apItem || !pNpc || !pChanges || !pChanges->entries || !currentProcess)
+        return false;
+    const ExtraDataType cHand = aLeft ? ExtraDataType::WornLeft : ExtraDataType::Worn;
+    // InventoryChanges' worn marking (16066): one unworn item's list marked worn in that hand, forced (ExtraCannotWear).
+    using TMarkWorn = void(ExtraContainerChanges::Data*, TESForm*, int32_t, Actor*, ExtraDataList*, bool, bool, bool);
+    POINTER_SKYRIMSE(TMarkWorn, s_markWorn, 16066);
+    s_markWorn(pChanges, apItem, 1, this, nullptr, aLeft, true, false);
+    ExtraContainerChanges::Entry* pEntry = nullptr;
+    ExtraDataList* pList = nullptr;
+    for (auto* pCandidate : *pChanges->entries)
+        if (pCandidate && pCandidate->form == apItem && pCandidate->dataList)
+            for (ExtraDataList* pData : *pCandidate->dataList)
+                if (pData && pData->Contains(cHand) && pData->Contains(ExtraDataType::CannotWear))
+                {
+                    pEntry = pCandidate;
+                    pList = pData;
+                }
+    if (!pList)
+        return false;
+    // InitWornVisitor's per-item body (24736) on that list alone: the biped object and the process's hand.
+    GameList<ExtraDataList> one{};
+    one.entry.data = pList;
+    ExtraContainerChanges::Entry only{pEntry->form, &one, 1, {}};
+    using TInitWorn = bool(TESNPC*, Actor*, void*, ExtraContainerChanges::Entry*);
+    POINTER_SKYRIMSE(TInitWorn, s_initWorn, 24736);
+    s_initWorn(pNpc, this, sub_7E(false), &only);
+    // SetEquipFlag(1) then Update3DModel: the biped's objects attached (39395's bit 1, Actor 19743).
+    using TSetEquipFlag = void(AIProcess*, uint8_t);
+    POINTER_SKYRIMSE(TSetEquipFlag, s_setEquipFlag, 39907);
+    using TUpdate3DModel = void(AIProcess*, Actor*);
+    POINTER_SKYRIMSE(TUpdate3DModel, s_update3DModel, 39395);
+    s_setEquipFlag(currentProcess, 1);
+    s_update3DModel(currentProcess, this);
+    return currentProcess->equippedObject[aLeft ? 0 : 1] == apItem;
+}
+
 void Actor::RemoveFromAllFactions() noexcept
 {
     PAPYRUS_FUNCTION(void, Actor, RemoveFromAllFactions);

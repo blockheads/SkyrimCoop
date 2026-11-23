@@ -107,6 +107,75 @@ SCENARIO("A copy whose hands the engine's outfit reset emptied holds its owner's
     party.Until([&] { return host.GetEquippedWeaponFormId(cCopy, 1) == kIronSword; }, "the copy holds the sword again");
 }
 
+namespace
+{
+constexpr uint32_t kTorch = 0x1D4EC, kHuntingBow = 0x13985;
+
+// The guard carrying two torches in both games, as the plugins place it; on the guest its 3D is not loaded yet.
+void TorchGuardWorld(FakeEngine& aEngine)
+{
+    GuardWorld(aEngine);
+    aEngine.Actors.at(kGuard).Items.Entries.push_back({.BaseId = GameId(0, kTorch), .Count = 2});
+}
+
+std::array<uint32_t, 2> Hands(const FakeEngine& acEngine, uint32_t aActor)
+{
+    return {acEngine.GetEquippedWeaponFormId(aActor, 0), acEngine.GetEquippedWeaponFormId(aActor, 1)};
+}
+} // namespace
+
+SCENARIO("A guard's copy holds a torch in each hand as its owner does", "[items][items-part][hand-weapon][torch]")
+{
+    // 2026-11-22 playtest: Winterhold guards with a torch in each hand on the host, one on the guest. An equip holds a
+    // torch left only (17619); its 3D load holds a torch worn right in the right (24736). hand-slots.md.
+    const bool cLateJoin = GENERATE(false, true);
+    Party party(1, TorchGuardWorld, !cLateJoin);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    const auto cHoldTorches = [&] {
+        party.As(party.Host(), [&] {
+            host.Equips(kGuard, kTorch, 0);
+            host.ActorHoldInHand(kGuard, kTorch, 1);
+        });
+        REQUIRE(Hands(host, kGuard) == std::array<uint32_t, 2>{kTorch, kTorch});
+    };
+    if (cLateJoin)
+    {
+        cHoldTorches();
+        party.Join(party.Guest());
+    }
+    party.Until([&] { return guest.IsActorCopy(kGuard); }, "the guest's guard is the host's copy");
+    party.As(party.Guest(), [&] { guest.Load3D(kGuard); });
+    if (!cLateJoin)
+        cHoldTorches();
+    party.Until([&] { return Hands(guest, kGuard) == std::array<uint32_t, 2>{kTorch, kTorch}; },
+                "the guard's copy holds a torch in each hand");
+    party.Agree("the copy wears what its owner wears");
+}
+
+SCENARIO("A copy whose 3D load leaves its bow in one hand holds it in both again", "[items][items-part][hand-weapon][bow]")
+{
+    // rejoined-guest-sees-rider: Faendal's copy at [0, bow] against its owner's [bow, bow]. A copy's equips are forced
+    // (ExtraCannotWear), and its 3D load holds a forced bow worn right in the right only (24736). hand-slots.md.
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
+    party.As(party.Guest(), [&] {
+        guest.GetsItem(FakeEngine::kPlayer, kHuntingBow, 1);
+        guest.Equips(FakeEngine::kPlayer, kHuntingBow, FakeEngine::kRightHand);
+    });
+    REQUIRE(Hands(guest, FakeEngine::kPlayer) == std::array<uint32_t, 2>{kHuntingBow, kHuntingBow});
+    const uint32_t cCopy = PlayerCopy(host);
+    party.Until([&] { return Hands(host, cCopy) == std::array<uint32_t, 2>{kHuntingBow, kHuntingBow}; }, "the copy holds the bow in both hands");
+    party.As(party.Host(), [&] {
+        host.Unload3D(cCopy);
+        host.Load3D(cCopy);
+    });
+    party.Until([&] { return Hands(host, cCopy) == std::array<uint32_t, 2>{kHuntingBow, kHuntingBow}; },
+                "the copy holds its bow in both hands after its 3D load");
+}
+
 SCENARIO("A host script taking an item from a guest's character takes it on the guest's game", "[items][items-part]")
 {
     // Lucan's hand-in (quest-gold-turn-in-guest): the host's engine changes its copy of the guest's player; the guest's

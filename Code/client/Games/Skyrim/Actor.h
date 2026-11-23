@@ -283,6 +283,9 @@ struct Actor : TESObjectREFR
 
     // Actions
     void UnEquipAll() noexcept;
+    // One carried item held in that hand as a 3D load holds a forced worn list (16066, then 24736, then 39907 and 39395):
+    // a torch in the right hand, which no equip gives (17619: a light's slot is LeftHand). hand-slots.md.
+    bool HoldInHand(TESForm* apItem, bool aLeft) noexcept;
     void RemoveFromAllFactions() noexcept;
     void QueueUpdate() noexcept;
     bool InitiateMountPackage(Actor* apMount) noexcept;

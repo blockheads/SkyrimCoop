@@ -182,6 +182,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    bool IsTwoHandedWeapon(uint32_t) const noexcept override { return false; }
     std::string GetFormName(uint32_t aFormId) const noexcept override
     {
         const auto it = FormNames.find(aFormId);
@@ -409,6 +410,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
                           int32_t aCount) noexcept override
     {
     }
+    bool ActorHoldInHand(uint32_t, uint32_t, uint32_t) noexcept override { return false; }
 
     uint32_t GetCurrentWeatherId() const noexcept override
     {

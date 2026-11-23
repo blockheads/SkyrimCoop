@@ -81,6 +81,16 @@ nlohmann::json ResetWorn(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"worn_after", *cWorn}};
 }
 
+// {"cmd": "hold_in_hand", "actor": id, "item": id, "hand": 1}: one carried item held in that hand as a 3D load holds
+// it (EngineCalls::HoldInHand), in this game only: a torch in the right hand. hands: [left, right] after.
+nlohmann::json HoldInHandCommand(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cHands = EngineCalls::HoldInHand(acRequest.value("actor", 0u), acRequest.value("item", 0u), acRequest.value("hand", 1u));
+    if (!cHands)
+        return Error("no such actor or item");
+    return {{"ok", true}, {"hands", *cHands}};
+}
+
 // {"cmd": "freeze", "actor": id, "frozen": true}: freezes the actor in this game (EngineCalls::FreezeActor): a
 // scenario's target stands still, does not fight back and lets players pass through; false thaws it.
 nlohmann::json Freeze(Harness&, const nlohmann::json& acRequest)
@@ -265,7 +275,7 @@ nlohmann::json Wake(Harness&, const nlohmann::json& acRequest)
 
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
-    {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing}, {"ragdoll_adds", false, &RagdollAdds}, {"ragdoll_out", false, &RagdollOut},
+    {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn}, {"hold_in_hand", true, &HoldInHandCommand},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing}, {"ragdoll_adds", false, &RagdollAdds}, {"ragdoll_out", false, &RagdollOut},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"put_on_mount", true, &PutOnMount}, {"board_ridden", true, &BoardRidden}, {"seat_on_mount", true, &SeatOnMountCommand}, {"sit_on_mount_quick", true, &SitOnMountQuickCommand}, {"take_reins", true, &TakeReinsCommand}, {"graph_event", true, &GraphEventCommand}, {"activate_text", true, &ActivateTextCommand}, {"clear_map_marker", true, &ClearMapMarker},
     {"wake", true, &Wake},
     {"body_velocity", true, &BodyVelocity},

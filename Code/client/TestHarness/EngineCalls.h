@@ -372,6 +372,9 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // runs it: inventory-changes.md), through our hook: what it wears right after, before any service answers. None: no
 // such actor or NPC base.
 std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcept;
+// One carried item held in that hand (0 left, 1 right) as a 3D load holds a forced worn list (Actor::HoldInHand): a
+// torch in the right hand, the state the 2026-11-22 playtest's guards were in. Its hands after: [left, right].
+std::optional<std::array<uint32_t, 2>> HoldInHand(uint32_t aFormId, uint32_t aItem, uint32_t aHand) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
 // (the bridge's Activate and lock replays call past the hooks): the player activates the object
 // (pressing E on it), and the object's lock changes.
