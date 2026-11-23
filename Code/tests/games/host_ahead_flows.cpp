@@ -96,10 +96,10 @@ struct Told
             Sample();
         }
     }
-    // Frames until aDone, at most 40 s of them.
+    // Frames until aDone, at most 70 s of them.
     void Until(const std::function<bool()>& aDone, const std::string& acStep)
     {
-        for (int i = 0; i < 40 * 60 && !aDone(); ++i)
+        for (int i = 0; i < 70 * 60 && !aDone(); ++i)
             Frames(1);
         if (!aDone())
             FAIL("never happened: " << acStep << " (told: " << Lines.size() << " lines, showing '" << Last << "')");
@@ -192,6 +192,23 @@ SCENARIO("A guest out of the host's grid sees a countdown, then is brought to th
         told.Sample();
         THEN("no line is left on its screen") CHECK_FALSE(told.Showing());
     }
+}
+
+// PR 109 review: its game holds the trip as its tether's target, so the host's repeats must still move it.
+SCENARIO("A leashed guest whose first move never happened is moved by the host's repeat", "[leash]")
+{
+    Party party(1, OutdoorsWithAWolfAhead);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) && PlayerCopy(guest); }, "both players are in");
+    Told told{party, party.Guest()};
+
+    party.As(party.Guest(), [&] { guest.PlayerWalks({-4 * 4096.f, 100.f, 0.f}); });
+    guest.DropPlayerMoves = 1;
+    told.Until([&] { return guest.DropPlayerMoves == 0; }, "the countdown ends and the guest's move is lost");
+    CHECK(glm::distance(At(guest), At(host)) > 3 * 4096.f);
+    told.Until([&] { return glm::distance(At(guest), At(host)) < 200.f; }, "a repeat of the trip brings the guest to the host");
+    party.Agree("the games agree on the players");
 }
 
 SCENARIO("With two guests, only the one out of the host's grid is counted down and brought back", "[leash]")

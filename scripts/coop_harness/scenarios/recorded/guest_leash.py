@@ -18,4 +18,5 @@ def run(ctx):
         ctx.expect('guest_player', 'at', within=300.0, game='guest', value=[17226, -47202, -128], seconds=25.0)
         ctx.player_command('client', {'cmd': 'hud_messages'})
     finally:
+        ctx.god_mode(instance='client', on=False)  # by hand: the next scenario starts mortal
         ctx.unstage()

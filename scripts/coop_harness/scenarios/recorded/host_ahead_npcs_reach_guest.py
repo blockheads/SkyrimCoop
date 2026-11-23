@@ -24,4 +24,6 @@ def run(ctx):
         ctx.find('Wolf', None)
         ctx.expect('wolf', 'agree', within=5.0, seconds=5.0)
     finally:
+        ctx.god_mode(instance='', on=False)  # by hand: the next scenario starts mortal
+        ctx.god_mode(instance='client', on=False)  # by hand: the next scenario starts mortal
         ctx.unstage()

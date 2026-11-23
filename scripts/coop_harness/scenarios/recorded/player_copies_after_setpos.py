@@ -23,4 +23,6 @@ def run(ctx):
         ctx.expect('guest_player', 'agree', within=5.0, seconds=10.0)
         ctx.expect('host_player', 'agree', within=5.0, seconds=10.0)
     finally:
+        ctx.god_mode(instance='', on=False)  # by hand: the next scenario starts mortal
+        ctx.god_mode(instance='client', on=False)  # by hand: the next scenario starts mortal
         ctx.unstage()

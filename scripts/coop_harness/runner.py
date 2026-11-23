@@ -27,6 +27,11 @@ from .utilities import log
 from dataclasses import dataclass
 
 
+def passed(result):
+    """A run's verdict without its notes: "PASS [broke the baseline: duo booted again]" passed."""
+    return result.split(" [", 1)[0] == "PASS"
+
+
 @dataclass
 class FlowResult:
     name: str
@@ -364,9 +369,9 @@ class Runner:
             print()
             for name in names:
                 mine = [result for run, _, result in runs if run == name]
-                print(f"{name:28s} {sum(r == 'PASS' for r in mine)}/{len(mine)} passed")
+                print(f"{name:28s} {sum(passed(r) for r in mine)}/{len(mine)} passed")
         if restarts:
             print(f"{'baseline broken by':28s} {', '.join(restarts)} (the duo was booted again after each)")
         print(f"{'total':28s} {time.monotonic() - suite_start:5.1f}s")
-        if any(r != "PASS" for _, _, r in runs):
+        if not all(passed(r) for _, _, r in runs):
             raise SystemExit(1)

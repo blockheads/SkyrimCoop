@@ -1506,10 +1506,7 @@ struct QueuedReference
 };
 static_assert(offsetof(QueuedReference, refHandle) == 0x2C0);
 
-// A 3D job ends on the main thread in QueuedReference::End (13023, vtable slot 20, nearly every job) or Finish (13022,
-// slot 12), its handle leaving the queue last. A held NPC's job ending, refused or begun before holding started
-// (GuestNpcs, actor-ai-and-copies.md).
-// Out of line: the hooks' own frames are pass-through for the lock checker, this is ours.
+// A held NPC's 3D job ended: QueuedReference::End (13023) or Finish (13022). Out of line: the hooks pass through.
 __declspec(noinline) static void EndHeldLoad(uint32_t aHandle)
 {
     if (GuestNpcs::Session())

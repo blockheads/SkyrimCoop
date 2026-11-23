@@ -416,3 +416,61 @@ TEST_CASE("Leash: stepping over the grid's edge and back within the grace says n
     clock.Pass(200);
     CHECK(session.SentTo<NotifyPartyTravel>(kPeer).size() == 1);
 }
+
+// PR 109 review: the party's last trip (a door out to A) is not where a leashed guest is sent (the host, at B).
+TEST_CASE("Leash: a guest brought to the host is not sent on to the party's older trip", "[HostAuthority][Leash]")
+{
+    Session session;
+    Clock clock = Outdoors(session);
+    // The party's last trip: the host arrived at A by itself.
+    session.Receive(kHost, Arrival({100.f, 100.f, 0.f}, EnterCellRequest::Travel::kOwn));
+    session.Receive(kPeer, Arrival({101.f, 100.f, 0.f}, EnterCellRequest::Travel::kTether));
+    // The host walks four cells to B; the guest stays at A.
+    const glm::vec3 cB{4 * kCell + 100.f, 100.f, 0.f};
+    Walk(session, kHost, cB);
+    session.Outbox.clear();
+    Grace(clock);
+    clock.Pass(10000);
+    auto travels = session.SentTo<NotifyPartyTravel>(kPeer);
+    REQUIRE(travels.size() == 1);
+    CHECK(travels[0]->Position == cB);
+
+    session.Outbox.clear();
+    session.Receive(kPeer, Arrival(cB + glm::vec3{1.f, 0.f, 0.f}, EnterCellRequest::Travel::kTether));
+    clock.Pass(20000);
+    CHECK(session.SentTo<NotifyPartyTravel>(kPeer).empty());
+    CHECK(session.SentTo<NotifyLeash>(kPeer).empty());
+}
+
+// PR 109 review: a trip still out is not sent again once the leash no longer applies.
+TEST_CASE("Leash: a trip that has not landed is dropped when a fall or a door takes over", "[HostAuthority][Leash]")
+{
+    Session session;
+    Clock clock = Outdoors(session);
+    Walk(session, kPeer, {5 * kCell, 100.f, 0.f});
+    Grace(clock);
+    clock.Pass(10000);
+    REQUIRE(session.SentTo<NotifyPartyTravel>(kPeer).size() == 1);
+    session.Outbox.clear();
+
+    SECTION("the guest falls before it arrives")
+    {
+        Falls(session, kPeer, true);
+        clock.Pass(40000);
+        CHECK(session.SentTo<NotifyPartyTravel>(kPeer).empty());
+    }
+    SECTION("the host falls")
+    {
+        Falls(session, kHost, true);
+        clock.Pass(40000);
+        CHECK(session.SentTo<NotifyPartyTravel>(kPeer).empty());
+    }
+    SECTION("the host goes indoors: the tether's trip is the only one")
+    {
+        session.Receive(kHost, Arrival({0.f, 0.f, 0.f}, EnterCellRequest::Travel::kOwn, 0x133C9, 0));
+        clock.Pass(40000);
+        const auto cTravels = session.SentTo<NotifyPartyTravel>(kPeer);
+        REQUIRE(cTravels.size() == 1);
+        CHECK(cTravels[0]->CellId == GameId(0, 0x133C9));
+    }
+}

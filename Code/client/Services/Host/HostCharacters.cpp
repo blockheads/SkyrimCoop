@@ -399,7 +399,8 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
     }
     // A follower that arrived where the party is not (two players led at once, and it followed the one that led
     // first): sent on to where the party went last. Not seen or reproduced yet; a guard for that race.
-    else if (acRequest.How == EnterCellRequest::Travel::kTether && m_partyTravel)
+    // One brought to the host's player (a join away from it, the leash) went there, not to the party's last trip.
+    else if (acRequest.How == EnterCellRequest::Travel::kTether && m_partyTravel && !m_broughtToParty.contains(aSender))
     {
         if (!At(*m_partyTravel, acRequest))
         {

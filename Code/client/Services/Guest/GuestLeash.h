@@ -13,7 +13,7 @@ struct UpdateEvent;
 class IPlayerBridge;
 
 // The countdown for this game's screen: seconds left, 0 when none runs (World's context; UiService shows its banner,
-// the number changing in place: the HUD's own notifications queue, each for seconds).
+// the number changing in place: ten HUD notifications ran behind on the duo, party-travel.md).
 struct LeashCountdown
 {
     int Seconds = 0;

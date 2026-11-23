@@ -2582,6 +2582,11 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return;
+    if (aFormId == kPlayer && DropPlayerMoves)
+    {
+        --DropPlayerMoves;
+        return;
+    }
     // MoveTo tears down the native mount interaction, including when the moved reference is the horse.
     std::vector<uint32_t> riders;
     for (const auto& [cRider, cMount] : Mounts)

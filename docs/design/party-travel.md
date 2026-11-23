@@ -86,11 +86,13 @@ host (HostLeash::Update, each frame, on frame time)
     back in       -> NotifyLeash{kBack}
     no longer applies (a door, a trip announced, a fall) -> NotifyLeash{kOff}
     sent to the host: nothing counts until it arrives; not arrived in 15 s, or arrived out of the grid (the host
-      walked on) -> sent again
+      walked on) -> sent again (a guest moves again on the second repeat: TravelService holds the first as its
+      tether's target); dropped if a fall, a door or a trip takes over meanwhile
 guest (GuestLeash)
   kOut  -> a warning banner (death.rml #leash, model `leash_seconds` from LeashCountdown): "NEREVAR, DO NOT ATTEMPT
-           TO EXIT THE SIMULATION / YOU ARE FORCED TO COMPLY 10", the number counting down in place (the HUD's own
-           notifications queue for seconds each: ten would run behind)
+           TO EXIT THE SIMULATION / YOU ARE FORCED TO COMPLY 10", the number counting down in place (seen on the
+           duo, 2026-11-23: ten HUD notifications, `ShowHUDMessage` 52933, showed 10 to 5 and stuck; its queue
+           was not read)
   kBack -> HUD "Back with the host";  kOff -> the countdown stops, nothing said
 ```
 
@@ -102,7 +104,8 @@ guest (GuestLeash)
 - Not a teleport on every cell change: the host's grid moves every 4096 units, and a guest walking ahead would be
   pulled back mid-fight. The leash is the fallback; a guest inside the grid sees the host's NPCs as its own grid
   reaches them (actor-ai-and-copies.md, "A 3D job ends in `QueuedReference::End`").
-- Tests: `HostAuthorityTests [Leash]` (12 cases: the grace and stepping over the edge and back, the edge cell on every side and across the origin, back in time, ran
+- Tests: `HostAuthorityTests [Leash]` (14 cases: an older party trip not followed after the leash's, a trip dropped when a
+  fall or a door takes over, the grace and stepping over the edge and back, the edge cell on every side and across the origin, back in time, ran
   out and where to, a full countdown after a return, a trip that never lands or lands out of the grid, the host
   walking away and back, two guests, indoors and other worldspaces, a door or a trip mid-countdown, a downed guest or
   host, a guest leaving), `GameTests [leash]` (the HUD's ten lines once each, a second countdown, back in time, the

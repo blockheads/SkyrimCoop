@@ -35,7 +35,10 @@ void HostLeash::Update(double aDelta) noexcept
         // Sent to the host: until it arrives nothing counts; a trip that never lands is sent again.
         if (m_characters.OnWayToHost(cPlayer))
         {
-            if (it != m_out.end() && it->second.Sent && (it->second.Left -= aDelta) <= 0.0)
+            // Another system took over meanwhile (a fall, the host indoors or on a trip): the leash's trip is dropped.
+            if (it != m_out.end() && (!cHostAt || m_death.Down(cPlayer) || m_death.Down(cHost)))
+                m_out.erase(it);
+            else if (it != m_out.end() && it->second.Sent && (it->second.Left -= aDelta) <= 0.0)
             {
                 spdlog::warn("HostLeash: {:x} has not arrived at the host in {} s: sent again", cPlayer, kRetrySeconds);
                 it->second.Left = kRetrySeconds;

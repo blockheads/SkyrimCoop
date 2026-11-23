@@ -201,10 +201,16 @@ void TravelService::FollowBetweenFrames(const GameId& aWorld, const GameId& aCel
         return;
     }
     // On its way there already (the host sends a follower on when it stops elsewhere first).
+    // Sent there a third time, the move never arrived (the host's leash sends again): moved again.
+    bool again = false;
     if (!aForce && !m_tetherTargets.empty() &&
         SamePlace(m_tetherTargets.back().WorldSpaceId, m_tetherTargets.back().CellId, m_tetherTargets.back().Position,
                   aWorld, aCell, aPosition))
-        return;
+    {
+        if (!std::exchange(m_tetherTargets.back().AskedAgain, true))
+            return;
+        again = true;
+    }
     const uint32_t cCellId = CellAt(aWorld, aCell, aPosition);
     if (!cCellId)
     {
@@ -212,8 +218,9 @@ void TravelService::FollowBetweenFrames(const GameId& aWorld, const GameId& aCel
         return;
     }
     // A MoveTo of the player is a travel like a door's (TESObjectREFR::MoveTo_Impl 56626 queues it, 40442).
-    m_tetherTargets.push_back({aWorld, aCell, aPosition, aHeading});
-    spdlog::info("Party travel: following to cell {:X} (worldspace {:X})", aCell.BaseId, aWorld.BaseId);
+    if (!again)
+        m_tetherTargets.push_back({aWorld, aCell, aPosition, aHeading});
+    spdlog::info("Party travel: following to cell {:X} (worldspace {:X}){}", aCell.BaseId, aWorld.BaseId, again ? ", again" : "");
     m_world.GetCharacterService().CarryMountTo(cCellId, aPosition);
     m_actorBridge.MoveActorTo(m_playerBridge.GetPlayerFormId(), cCellId, aPosition.x, aPosition.y, aPosition.z);
 }

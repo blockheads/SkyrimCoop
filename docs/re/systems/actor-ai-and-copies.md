@@ -297,15 +297,18 @@ them and never saw them. The host announced them while the guest had not loaded 
 our hook sat on `Finish` (13022), which ends few jobs.
 
 ```
-QueueReference 13057 (TESNPC base -> QueuedCharacter, ctor 140198A60)
+QueueReference 13057 (TESNPC base -> QueuedCharacter, ctor 13107)
   slot 14  QueuedReference 13020 / QueuedActor 13104 (Character::UpdateProcessLevel, then 13111)
   slot 19  13021 model files (QueuedCharacter 13111: biped, QueuedHead child, then 13021)
-  slot 13  ModelFilesDone 13026 -> AfterModelFiles 13024 -> background queue (14019C3A0) or main queue (14019C490)
+  slot 13  ModelFilesDone 13026 -> AfterModelFiles 13024 -> background queue (13212) or main queue (13213)
   slot 24  BackgroundLoad3D 13019 (QueuedCharacter 13108) -> Load3D 19727   (a held NPC: refused, +0x2C8 null)
   slot 20  QueuedReference::End 13023, main thread: attach if loaded (TES 13355), cell counts down (19152, 19156),
-           +0x9A = 2, RemoveHandle 13067                                      <- every job, our HookEndLoad3D
-  slot 12  Finish 13022: the same end for the rest (8 of 927 jobs measured), our HookFinishLoad3D
+           +0x9A = 2, RemoveHandle 13067                                      <- our HookEndLoad3D
+  slot 12  Finish 13022: the other caller of 13067, our HookFinishLoad3D
 ```
+
+Read: the steps above, and that `RemoveHandle` (13067) has two callers, 13023 and 13022. Inferred from the counts
+below, with no per-handle trace and the dispatch between the two ends unread: a held NPC's refused job ends in 13023.
 
 Measured with `player_probe` on the guest while its grid moved: 13019, 13024, 13026 and 13023 927 calls each (one per
 job), Finish 8; debug lines: 48 refused actor `Load3D` calls, no actor through `Finish`. Both ends now call
@@ -318,7 +321,8 @@ waited, so only a host that got somewhere first met this. Scenario `host-ahead-n
 After a player jumped 4 cells (`setpos`, no party travel), the other game's copy of it stood at the right spot with 3D
 but kept its old parent cell (Riverwood `9732`, loaded but detached there): process level 1, so out of the high-actor
 list, and not seen on screen (screenshot before and after). `Character::UpdateCellAttachment` (37352), which moves an
-actor into the cell it stands in, runs from `UpdateAI`; the probe counted 0 of its 4386 calls on this copy. With its
+actor into the cell it stands in, runs from `UpdateAI`; the probe counted 0 of its 4386 calls on this copy (measured;
+that the copy got no `UpdateAI` 37347 at all is inferred from it, 37347 was not probed). With its
 cell detached, `Character::GetDesiredProcessLevel` (37503) gives 1 (high only with the cell attached).
 `RunPresence` treated "same worldspace, has 3D" as here; outdoors it now also needs the copy's cell attached
 (`IActorBridge::IsActorCellAttached`), else the existing re-place (`MoveActorTo` the cell at its owner's position).

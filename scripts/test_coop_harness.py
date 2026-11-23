@@ -274,6 +274,14 @@ class Harness(unittest.TestCase):
             self.assertIn("client FF001234 IdleStopInstant x1", line)
             self.assertFalse(self.session.replay_refusals_line(log_time("2026-10-30 15:00:01.000")))
 
+    def test_a_pass_with_a_note_is_a_pass(self):
+        # PR 109 review: a scene that could not get home passes, the duo booted again after it.
+        from coop_harness.runner import passed
+        self.assertTrue(passed("PASS"))
+        self.assertTrue(passed("PASS [broke the baseline: duo booted again]"))
+        self.assertFalse(passed("FAIL (action: nope) [broke the baseline: duo booted again]"))
+        self.assertFalse(passed("NOT RUN (--fail-fast)"))
+
     def test_refusals_are_reported_when_an_action_fails(self):
         session = self.runner_fixture(lambda ctx: (_ for _ in ()).throw(ctx.failure("failed action")))
         session.replay_refusals_line = Mock(return_value="client FF001234 IdleStopInstant x1")

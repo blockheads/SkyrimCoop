@@ -1106,6 +1106,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool Teleported = false;
     float Heading = 0.f; // the player's (SetPlayerHeading)
     size_t Travels = 0;  // the player's teleports, ever
+    size_t DropPlayerMoves = 0; // this many of the player's next MoveTo never happen (a menu, a load in the way)
     // Each cell's COC marker (TESObjectCELL::GetCOCPlacementInfo), where a respawn puts the player; an exterior
     // without one: its centre.
     std::map<uint32_t, glm::vec3> CocMarkers;

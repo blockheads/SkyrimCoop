@@ -2174,8 +2174,8 @@ void CharacterService::RunPresence() noexcept
         }
         if (!cOwnerAround || cNow - place.LastMove < cRetry)
             continue;
-        // Outdoors also in a cell attached here: in a detached one it gets no UpdateAI, so nothing moves it to the
-        // cell it stands in (UpdateCellAttachment 37352) and it drops below high process (37503).
+        // Outdoors also in a cell attached here: in a detached one nothing moves it to the cell it stands in
+        // (UpdateCellAttachment 37352 never ran for it) and it is below high process (37503).
         const bool cCopyHere = place.WorldSpaceId
                                    ? m_actorBridge.GetActorWorldSpaceFormId(cFormId) == cPlayerWorldSpaceId &&
                                          m_actorBridge.IsActorCellAttached(cFormId)
