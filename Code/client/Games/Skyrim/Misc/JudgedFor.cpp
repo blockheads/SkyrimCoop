@@ -6,6 +6,7 @@
 #include <BSCore/LockOrder.h>
 #include <Components/TESCondition.h>
 #include <Forms/TESActorBase.h>
+#include <Forms/TESForm.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESQuest.h>
 #include <Games/TES.h>
@@ -22,6 +23,7 @@
 namespace
 {
 thread_local TESObjectREFR* t_pJudged = nullptr;
+thread_local JudgedFor::Mode t_mode = JudgedFor::Mode::kAsThePlayer;
 
 using TIsTrue = bool(const TESConditionItem*, ConditionCheckParams&);
 TIsTrue* RealIsTrue = nullptr;
@@ -35,6 +37,22 @@ TESObjectREFR* FixedRunOn(const TESConditionItem& acItem, const ConditionCheckPa
     if (acItem.runOn == RunOn::kQuestAlias && acParams.quest)
         return acParams.quest->GetAliasedRef(acItem.dataId);
     return nullptr;
+}
+
+// Whom the item's function runs on.
+TESObjectREFR* RunOn(const TESConditionItem& acItem, const ConditionCheckParams& acParams) noexcept
+{
+    using RunOn = TESConditionItem::RunOn;
+    if (acItem.runOn == RunOn::kSubject)
+        return acItem.flags.swapTarget ? acParams.targetRef : acParams.actionRef;
+    if (acItem.runOn == RunOn::kTarget)
+        return acItem.flags.swapTarget ? acParams.actionRef : acParams.targetRef;
+    return FixedRunOn(acItem, acParams);
+}
+
+float ComparisonOf(const TESConditionItem& acItem) noexcept
+{
+    return acItem.flags.global ? (acItem.comparison.global ? acItem.comparison.global->f : 0.f) : acItem.comparison.value;
 }
 
 float SettingOf(Setting& aSetting) noexcept
@@ -96,31 +114,33 @@ std::optional<bool> SpeechCheckFor(const TESConditionItem& acItem, const Conditi
         s_applyPerks(46, &aCharacter, pNpc, &amount);
         succeeds = aCharacter.GetGoldAmount() >= static_cast<int32_t>(amount);
     }
-    const float cComparison = acItem.flags.global ? (acItem.comparison.global ? acItem.comparison.global->f : 0.f)
-                                                  : acItem.comparison.value;
-    return JudgedRules::Compares(succeeds ? 1.f : 0.f, acItem.flags.opCode, cComparison);
+    return JudgedRules::Compares(succeeds ? 1.f : 0.f, acItem.flags.opCode, ComparisonOf(acItem));
 }
 
 // The item judged for the character: the player it reads is that character.
 __declspec(noinline) bool JudgedIsTrue(const TESConditionItem* apItem, ConditionCheckParams& aParams, TESObjectREFR* pCharacter)
 {
     auto* pPlayer = static_cast<TESObjectREFR*>(PlayerCharacter::Get());
-    const JudgedRules::Item cFacts{.Function = apItem->function,
-                                   .OnPlayer = FixedRunOn(*apItem, aParams) == pPlayer,
-                                   .PlayerParam = {apItem->params[0] == pPlayer, apItem->params[1] == pPlayer}};
-    // The subject or target the params name (the story manager's are the character already).
+    // The subject or target the params name (the story manager's are the character already); a spell's stay.
     TESObjectREFR* const pSubject = aParams.actionRef;
     TESObjectREFR* const pTarget = aParams.targetRef;
-    if (pSubject == pPlayer)
+    if (t_mode == JudgedFor::Mode::kAsThePlayer && pSubject == pPlayer)
         aParams.actionRef = pCharacter;
-    if (pTarget == pPlayer)
+    if (t_mode == JudgedFor::Mode::kAsThePlayer && pTarget == pPlayer)
         aParams.targetRef = pCharacter;
+    const JudgedRules::Item cFacts{.Function = apItem->function,
+                                   .OnPlayer = FixedRunOn(*apItem, aParams) == pPlayer,
+                                   .PlayerParam = {apItem->params[0] == pPlayer, apItem->params[1] == pPlayer},
+                                   .OnCharacter = RunOn(*apItem, aParams) == pCharacter,
+                                   .PlayerBaseParam = apItem->params[0] && apItem->params[0] == TESForm::GetById(JudgedRules::kPlayerBase)};
 
     bool result;
     auto* pActor = Cast<Actor>(pCharacter);
     if (const auto cSpeech = pActor ? SpeechCheckFor(*apItem, aParams, *pActor) : std::nullopt)
         result = *cSpeech;
-    else if (const auto cJudged = JudgedRules::For(cFacts))
+    else if (const auto cJudged = JudgedRules::For(cFacts); cJudged && cJudged->Value)
+        result = JudgedRules::Compares(*cJudged->Value, apItem->flags.opCode, ComparisonOf(*apItem));
+    else if (cJudged)
     {
         TESConditionItem item = *apItem;
         item.next = nullptr;
@@ -162,15 +182,18 @@ Hooks::Initializer s_judgedHooks(
 
 namespace JudgedFor
 {
-Scope::Scope(TESObjectREFR* apCharacter) noexcept
+Scope::Scope(TESObjectREFR* apCharacter, Mode aMode) noexcept
     : m_pPrevious(t_pJudged)
+    , m_previousMode(t_mode)
 {
     t_pJudged = apCharacter;
+    t_mode = aMode;
 }
 
 Scope::~Scope() noexcept
 {
     t_pJudged = m_pPrevious;
+    t_mode = m_previousMode;
 }
 
 TESObjectREFR* Get() noexcept
