@@ -1676,6 +1676,27 @@ std::optional<uint8_t> GetProcessLevel(uint32_t aFormId) noexcept
     return pActor->currentProcess->processLevel;
 }
 
+std::optional<EditorHome> GetEditorHome(uint32_t aFormId) noexcept
+{
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    if (!pRef)
+        return std::nullopt;
+    using TGetEditorLocation = bool(TESObjectREFR*, NiPoint3*, NiPoint3*, TESForm**, TESObjectCELL*);
+    POINTER_SKYRIMSE(TGetEditorLocation, s_getEditorLocation, 19514);
+    NiPoint3 position{};
+    NiPoint3 rotation{};
+    TESForm* pWorldOrCell = nullptr;
+    if (!s_getEditorLocation.Get()(pRef, &position, &rotation, &pWorldOrCell, nullptr) || !pWorldOrCell)
+        return std::nullopt;
+    return EditorHome{pWorldOrCell->formID, {position.x, position.y, position.z}};
+}
+
+bool IsParentCellAttached(uint32_t aFormId) noexcept
+{
+    const auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    return pRef && pRef->parentCell && pRef->parentCell->IsValid();
+}
+
 std::optional<int32_t> GetFactionRank(uint32_t aFormId, uint32_t aFactionId) noexcept
 {
     // GameFunc::native::GetFactionRank (subject, the faction parameter, unused, the result).

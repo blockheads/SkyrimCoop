@@ -2,6 +2,7 @@
 #include <Hooks/Initializer.h>
 #include <Hooks/FunctionHook.h>
 #include <Actor.h>
+#include <BSCore/LockOrder.h>
 #include <Interface/IMenu.h>
 #include <Interface/MenuAutoClose.h>
 #include <Events/LidUnposedEvent.h>
@@ -69,7 +70,8 @@ UI_MESSAGE_RESULTS Watched(AutoClosed& aMenu, IMenu* apMenu, UIMessage& aMessage
     return aMenu.Real(apMenu, aMessage);
 }
 
-void CheckWatched(AutoClosed& aMenu) noexcept
+// Out of line: UpdatePlayer's own frames are pass-through for the lock checker, this is ours.
+__declspec(noinline) void CheckWatched(AutoClosed& aMenu) noexcept
 {
     if (!aMenu.Watching || !InSession())
         return;
@@ -188,6 +190,8 @@ Hooks::Initializer s_hooks([] {
     Hooks::Nop(updatePlayer.Get() + 0x7A, 6);
     Hooks::PutCall(updatePlayer.Get() + 0x7A, &HasPlayerModel);
     HOOK_ID(36581, &RealUpdatePlayer, UpdatePlayer);
+    // The frame's world update (the grid's cell attach and detach) runs inside: its lock orders are the engine's.
+    LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&UpdatePlayer));
 
     // 1.6.1170: MapMenu's local-map updater sets the background flag and freezes the render frame.
     VersionDbPtr<uint8_t> localMap(53112);

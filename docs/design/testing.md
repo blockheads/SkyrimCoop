@@ -261,7 +261,7 @@ a 1.6.1170 copy instead (`SKYRIM_STEAM_GAME_DIR`, with `SKYRIM_SKSE_DIR` and `SK
 
 Play a repro as `scene`, goal verbs, `observe`/`why`, `expect`, `record_export`: [repro-mcp.md](repro-mcp.md), "The play
 flow". A recording with a scene away from the baseline exports with the tag `scene`: run it by name, on a duo booted for
-it, one per boot. In a fresh worktree a late save must be copied into `build/coop-test/prefix-host`'s Saves first.
+it; several run in one command, each going home before the next (repro-mcp.md). In a fresh worktree a late save must be copied into `build/coop-test/prefix-host`'s Saves first.
 
 `scripts/coop_mcp.py` is an MCP server (`.mcp.json`, server `skyrim-coop`) holding one harness `Session` open, so a
 bug can be set up step by step in the duo instead of in a scenario rerun from the start. Design and status:

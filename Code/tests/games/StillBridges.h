@@ -154,7 +154,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     }
     void ShowHudMessage(const std::string& aMessage) noexcept override
     {
+        HudLines.push_back(aMessage);
     }
+    // The HUD lines shown, oldest first.
+    std::vector<std::string> HudLines;
     void ShowItemChangeMessage(uint32_t aItemFormId, int32_t aCount) noexcept override
     {
     }
@@ -810,6 +813,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override
     {
         return {};
+    }
+    bool IsActorCellAttached(uint32_t aFormId) const noexcept override
+    {
+        return true;
     }
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override
     {

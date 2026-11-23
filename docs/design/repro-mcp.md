@@ -24,7 +24,10 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
   - A real world never starts in agreement (Riverwood, 2026-11-03: `head_track`, a guard's level, the player's hands),
     so differences at the start are shown and kept (`SCENE_KNOWN`), and only new ones fail, as the runner already
     treats a baseline's world and lock differences. They are read each run, not a list of known bugs.
-  - A flow tagged `scene` (fixture `scene`, `registry.py`) has no baseline: run by name, one per boot, no restore.
+  - A flow tagged `scene` (fixture `scene`, `registry.py`) has no world baseline: run by name. It goes home when it
+    ends and the runner settles the baseline before the next (2026-11-23), booting again by itself only if the games
+    cannot get there; several run in one command. Tagged `own-checks` too, its own expects judge it: what else
+    differs in a live place at its end (walking animals, what each game created) is logged, not failed.
   - `stage` spots (`scene_spot`): the home stage while the party is near it, else ahead of the host on a floor it can
     see by rays, refused otherwise.
 - **play** (`actions/play_verbs.py`): `go_to`, `talk`, `use`, `take`, `fight`. Each returns or fails with one outcome:

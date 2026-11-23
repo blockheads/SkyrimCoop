@@ -687,6 +687,16 @@ std::optional<NotifyPartyTravel> HostCharacters::CharacterPlace(uint32_t aSessio
     return place;
 }
 
+std::optional<HostCharacters::Outdoors> HostCharacters::OutdoorsAt(ConnectionId_t aPlayer) const noexcept
+{
+    const auto cPlace = m_places.find(aPlayer);
+    const auto cCharacter = m_characters.find(PlayerCharacterOf(aPlayer));
+    if (cPlace == m_places.end() || !cPlace->second.WorldSpaceId || cCharacter == m_characters.end() || !cCharacter->second.PlayerRecord ||
+        m_aheadOfHost.contains(aPlayer) || m_broughtToParty.contains(aPlayer) || m_announced.contains(aPlayer))
+        return std::nullopt;
+    return Outdoors{cPlace->second.WorldSpaceId, cCharacter->second.PlayerRecord->Position};
+}
+
 void HostCharacters::OnValues(const RequestActorValueChanges& acRequest, ConnectionId_t aSender) noexcept
 {
     KeepValues(acRequest.Id, acRequest.Values, false, aSender);

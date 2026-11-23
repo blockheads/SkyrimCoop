@@ -425,7 +425,7 @@ int Run(GLFWwindow* apWindow, const Options& acOptions)
             Rml::Shutdown();
             return 1;
         }
-        for (const char* pFont : {"LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf"})
+        for (const char* pFont : {"LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf", "LiberationSans-BoldItalic.ttf"})
             if (!Rml::LoadFontFace((app.Directory / "fonts" / pFont).string()))
             {
                 Rml::Shutdown();

@@ -1,0 +1,9 @@
+{
+  "party": [{"name": "Lydia", "level": 7, "health": 0.6}],
+  "death": {
+    "visible": false,
+    "name": "",
+    "status": "",
+    "leash_seconds": 10
+  }
+}

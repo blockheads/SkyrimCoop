@@ -242,7 +242,7 @@ TESQueuedHandles::QueueReference 13057 (ours)  cell attach 19280/19411, Enable, 
   a QueuedReference; its cell's queuedRefCount +0x170 (+ critical +0x16C) up   (19151, 19155)
 QueuedReference::BackgroundLoad3D 13019 (ours)   ready, cell loaded, no 3D -> vfunc 0x6A Load3D(true)
   Actor::Load3D 37177 -> TESObjectREFR::Load3D 19727: first test, deleted or disabled -> null
-QueuedReference::Finish 13022 (ours)             a model: Set3D; null: no attach
+QueuedReference::End 13023 / Finish 13022 (ours) a model: attached; null: no attach (End: nearly every job)
   either way its cell's counts down (19152, 19156) -> TESCellFullyLoadedEvent (19146) once both are 0
 ```
 
@@ -257,12 +257,13 @@ The fix (copy-contract.md, "A guest's own NPCs") cuts both funnels for an actor 
 `HookUpdateAI` returns before `RealUpdateAI` (no copy upkeep either: a held NPC is not put in deferred kill), and
 `HookLoad3D` on 19727 returns null, the disabled path above.
 
-The refused job ends in `QueuedReference::Finish` (13022, vtable slot 12 of every queued kind, main thread), and its
-handle leaves the queued map last (`TESQueuedHandles::RemoveHandle` 13067). Until then a `QueueReference` of the
-reference only changes its priority. So `HookFinishLoad3D` is where the job really ends: it raises `NpcHeldEvent` (for
+The refused job ends in `QueuedReference::End` (13023, vtable slot 20) or, for a few, `Finish` (13022, slot 12), on the
+main thread, and its handle leaves the queued map last (`TESQueuedHandles::RemoveHandle` 13067; 2026-11-22: until
+then the hook sat on `Finish` alone, below). Until then a `QueueReference` of the reference only changes its priority.
+So `HookEndLoad3D` and `HookFinishLoad3D` are where the job really ends: it raises `NpcHeldEvent` (for
 the `TESObjectLoadedEvent` that never comes, so a host spawn waiting on the load goes on) and queues the 3D again if the
 NPC stopped being held while the job was out (found by the PR 45 review). The byte `IsQueued` (13060) reads, ref
-+0x9A, is not cleared there, so it is not the test for a job still out.
++0x9A, is not cleared by `Finish` (`End` sets it to 2), so it is not the test for a job still out.
 
 Once it is a copy or claimed, `Actor::ApplyHeld3D` does what `Enable` (19800) does to queue a load:
 
@@ -286,6 +287,47 @@ and Enable's queued load is refused.
 A background `Load3D` that passed before holding started keeps its model in the job (+0x2C8) until `Finish` attaches it
 (19731), so the scan at the start sees no 3D. `HookFinishLoad3D` catches that too: a held NPC its job just gave 3D is
 reloaded the same way (found by the PR 45 review's second round).
+
+### A 3D job ends in `QueuedReference::End` (13023), not `Finish` (measured 2026-11-22)
+
+Playtest 2026-11-22 (report 1951-468): the host walked ahead to wolves north-east of Riverwood; the guest came after
+them and never saw them. The host announced them while the guest had not loaded their cells: no reference there
+(`TESForm::GetById` finds none for a cell this game never loaded), so each spawn waited (`m_pendingSpawns`) for
+`NpcHeldEvent`. Once the guest's grid reached the cells, `HookLoad3D` refused each wolf, and the event never came:
+our hook sat on `Finish` (13022), which ends few jobs.
+
+```
+QueueReference 13057 (TESNPC base -> QueuedCharacter, ctor 140198A60)
+  slot 14  QueuedReference 13020 / QueuedActor 13104 (Character::UpdateProcessLevel, then 13111)
+  slot 19  13021 model files (QueuedCharacter 13111: biped, QueuedHead child, then 13021)
+  slot 13  ModelFilesDone 13026 -> AfterModelFiles 13024 -> background queue (14019C3A0) or main queue (14019C490)
+  slot 24  BackgroundLoad3D 13019 (QueuedCharacter 13108) -> Load3D 19727   (a held NPC: refused, +0x2C8 null)
+  slot 20  QueuedReference::End 13023, main thread: attach if loaded (TES 13355), cell counts down (19152, 19156),
+           +0x9A = 2, RemoveHandle 13067                                      <- every job, our HookEndLoad3D
+  slot 12  Finish 13022: the same end for the rest (8 of 927 jobs measured), our HookFinishLoad3D
+```
+
+Measured with `player_probe` on the guest while its grid moved: 13019, 13024, 13026 and 13023 927 calls each (one per
+job), Finish 8; debug lines: 48 refused actor `Load3D` calls, no actor through `Finish`. Both ends now call
+`Actor::FinishLoad3D` (NpcHeldEvent, then 3D queued once the NPC is a copy). A spawn for an NPC already loaded never
+waited, so only a host that got somewhere first met this. Scenario `host-ahead-npcs-reach-guest`; GameTests
+`[leash]` flows (the fake: a plugin reference of an exterior cell never loaded is not in memory).
+
+### A copy in a detached cell is never moved to its new one (measured 2026-11-22)
+
+After a player jumped 4 cells (`setpos`, no party travel), the other game's copy of it stood at the right spot with 3D
+but kept its old parent cell (Riverwood `9732`, loaded but detached there): process level 1, so out of the high-actor
+list, and not seen on screen (screenshot before and after). `Character::UpdateCellAttachment` (37352), which moves an
+actor into the cell it stands in, runs from `UpdateAI`; the probe counted 0 of its 4386 calls on this copy. With its
+cell detached, `Character::GetDesiredProcessLevel` (37503) gives 1 (high only with the cell attached).
+`RunPresence` treated "same worldspace, has 3D" as here; outdoors it now also needs the copy's cell attached
+(`IActorBridge::IsActorCellAttached`), else the existing re-place (`MoveActorTo` the cell at its owner's position).
+Re-placing it by hand on the duo gave level 0 at once, and the copy showed. GameTests `[leash]` (the fake: a cell
+follows the position only while attached; a player's copy keeps its 3D in a detached cell).
+
+The missing wolf `847DD` of the same runs was not a reference away from home: it has no `ExtraStartingPosition`
+(`GetEditorLocation` 19514 false), its record is in the cell it stands in, and the guest showed it in a later run. Each
+`setpos` of the guest counted as an arrival there (the host resent its actors twice in 2 s), which is where it went.
 
 ### What the AI used to repair
 

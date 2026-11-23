@@ -69,6 +69,45 @@ Tests: `[travel]` GameTests (the host's and a guest's teleport inside the cell, 
 a late arrival not pulling a follower back), `HostAuthorityTests` party tether cases, scenario
 `party-teleports-in-cell`.
 
+## Soft leash: a guest stays in the host's grid (2026-11-22)
+
+The host owns every NPC, and its game loads only its own 5x5 grid (`uGridsToLoad`). A guest outdoors outside it sees
+none of the host's NPCs (the host never loaded them), and its own engine's NPCs there are held (copy-contract.md, "A
+guest's own NPCs"). The user's rule: a countdown, then a teleport to the host; coming back in time cancels it.
+
+```text
+host (HostLeash::Update, each frame, on frame time)
+  each guest: applies = it and the host outdoors in one worldspace (HostCharacters::OutdoorsAt, the players'
+              records) and neither down (HostDeath::Down)
+    applies, its cell out of the host's grid (GridCellCoords::IsCellInGridCell, +-2 cells)
+      newly out   -> nothing said for 2 s (kGraceSeconds): a step over the edge and back warns nobody
+      still out   -> NotifyLeash{kOut, 10} to it; 10 s left
+      10 s gone   -> BringToParty (NotifyPartyTravel to where the host's player is now)
+    back in       -> NotifyLeash{kBack}
+    no longer applies (a door, a trip announced, a fall) -> NotifyLeash{kOff}
+    sent to the host: nothing counts until it arrives; not arrived in 15 s, or arrived out of the grid (the host
+      walked on) -> sent again
+guest (GuestLeash)
+  kOut  -> a warning banner (death.rml #leash, model `leash_seconds` from LeashCountdown): "NEREVAR, DO NOT ATTEMPT
+           TO EXIT THE SIMULATION / YOU ARE FORCED TO COMPLY 10", the number counting down in place (the HUD's own
+           notifications queue for seconds each: ten would run behind)
+  kBack -> HUD "Back with the host";  kOff -> the countdown stops, nothing said
+```
+
+- No leash indoors, in another worldspace, for a player on its way somewhere (ahead of the host, a trip announced)
+  or down: load doors and every teleport already take the party, and a downed player respawns beside a standing one.
+- Each guest is leashed to the host only, with its own countdown; coming back and leaving again starts a full 10 s.
+- Open: the two games' countdowns are each their own frame time, so a stalled host teleports a little after the
+  guest's "1".
+- Not a teleport on every cell change: the host's grid moves every 4096 units, and a guest walking ahead would be
+  pulled back mid-fight. The leash is the fallback; a guest inside the grid sees the host's NPCs as its own grid
+  reaches them (actor-ai-and-copies.md, "A 3D job ends in `QueuedReference::End`").
+- Tests: `HostAuthorityTests [Leash]` (12 cases: the grace and stepping over the edge and back, the edge cell on every side and across the origin, back in time, ran
+  out and where to, a full countdown after a return, a trip that never lands or lands out of the grid, the host
+  walking away and back, two guests, indoors and other worldspaces, a door or a trip mid-countdown, a downed guest or
+  host, a guest leaving), `GameTests [leash]` (the HUD's ten lines once each, a second countdown, back in time, the
+  host walking to the guest, the host going indoors mid-countdown, two guests), scenario `guest-leash`.
+
 ## Fast travel advances the party clock
 
 A guest's native Calendar::Update is suppressed by GuestClock. Therefore measuring its clock before/after

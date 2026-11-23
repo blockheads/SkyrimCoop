@@ -58,7 +58,7 @@ class Runner:
         names = list(dict.fromkeys(requested)) if requested else [name for name in ctx.registry if "input" not in ctx.registry[name].tags or tag]
         names = ctx.with_accounts(names, requested or [])
         # A late save's scenario needs the duo booted from it: only when named, or asked for by `--tag late-save`.
-        # A scene takes a boot of its own (run_scene_flow): only when named.
+        # A scene goes somewhere real (minutes, and a boot if it cannot get home again): only when named.
         if not tag or "late-save" not in tag.split(","):
             names = [name for name in names if "late-save" not in ctx.registry[name].tags or name in (requested or [])]
         names = [name for name in names if ctx.registry[name].fixture != "scene" or name in (requested or [])]
@@ -100,15 +100,21 @@ class Runner:
         coop_report.main([str(ctx.reports_folder("")), str(ctx.reports_folder("client")), "--id", folder.name, "--since", "30"])
         return folder.name
 
-    def comparison_checks(ctx, known_world, known_locks):
+    def comparison_checks(ctx, known_world, known_locks, own_checks=False):
+        """The end comparison. own_checks (the tag `own-checks`): the flow's own expects judge its subject, and the
+        rest of a live place (walking animals, what each game created) is logged, not failed."""
         ctx.wait_for("the guest follows the host's weather and calendar", lambda: not ctx.world_sync_problems(), 5)
         if problems := ctx.check_desync(known=getattr(ctx, "SCENE_KNOWN", ())):
-            raise ctx.failure("desync afterwards: " + " | ".join(problems))
+            if not own_checks:
+                raise ctx.failure("desync afterwards: " + " | ".join(problems))
+            log("desync afterwards, outside this flow's own checks: " + " | ".join(problems))
         if dialogue := ctx.check_dialogue_trace():
             raise ctx.failure("the menus differ in a conversation: " + " | ".join(dialogue[:6]))
         if world := ctx.check_world(known_world | getattr(ctx, "SCENE_KNOWN_WORLD", set())):
-            raise ctx.failure(f"world differs afterwards ({len(world)} references): " +
-                              " | ".join(describe_world_differences(world, 20)))
+            described = f"world differs afterwards ({len(world)} references): " + " | ".join(describe_world_differences(world, 20))
+            if not own_checks:
+                raise ctx.failure(described)
+            log(described + " (outside this flow's own checks)")
         new_locks = ctx.new_lock_orders(known_locks)
         for game, report, ours in new_locks:
             if KEPT_APART in report and not ours:
@@ -176,7 +182,7 @@ class Runner:
             stop_graph_watch()  # the watch's engine reads end before the checks that judge the flow
             if one_sided := ctx.head_track_one_sided_line():
                 log(f"head targets read on one game only: {one_sided}")
-            ctx.comparison_checks(known_world, known_locks)
+            ctx.comparison_checks(known_world, known_locks, own_checks="own-checks" in flow.tags)
 
         try:
             for phase, action in (("setup", setup), ("action", lambda: flow.run(ctx)),
@@ -200,8 +206,19 @@ class Runner:
             stop_graph_watch()
             failures.extend(("cleanup", error) for error in ctx.cleanup_errors
                             if not any(error is existing for _, existing in failures))
-            if flow.fixture == "scene":  # no baseline to return to: the next flow boots again
-                restored = False
+            if flow.fixture == "scene":
+                # A place has no world baseline to compare: home again if the party gets there (the next flow goes on
+                # without a boot), else the runner boots again. Never this flow's failure.
+                if not (failures and until_fail):
+                    ctx.phase = "cleanup"
+                    try:
+                        ctx.forget_scene()
+                        if leftovers := ctx.settle_baseline(timeout=20.0):
+                            log("the scene left the games off the baseline: " + " | ".join(leftovers))
+                            restored = False
+                    except BaseException as error:
+                        log(f"the scene's return home failed: {error}")
+                        restored = False
             elif not (failures and until_fail):
                 ctx.phase = "cleanup"
                 ctx.observe("phase", name=name, phase="cleanup")
@@ -223,6 +240,13 @@ class Runner:
         if failures and not isinstance(failures[0][1], Exception):
             raise failures[0][1]
         return FlowResult(name, time.monotonic() - started, failures, restored, original_step or dict(ctx.CURRENT_STEP))
+
+    def booted_from_save(ctx):
+        """The duo was booted from a save (boot.json), not the blank cell."""
+        try:
+            return bool(json.loads((ctx.game("").control / BOOT_FILE).read_text()).get("save"))
+        except (OSError, ValueError):
+            return False
 
     def restart_duo(ctx):
         """Boots the duo again as it was booted (boot.json) and returns its baseline world."""
@@ -272,12 +296,11 @@ class Runner:
         suite_start = time.monotonic()
         ctx.phase = "setup"
         scene = any(ctx.registry[name].fixture == "scene" for name in order)
-        if scene and len(order) > 1:
-            raise ctx.failure(f"a scene flow takes a boot of its own, one at a time: {order}")
         try:
-            if scene:  # it checks the two games where it starts (ctx.scene): the differences at boot aren't its own
+            if scene and ctx.booted_from_save():
+                # A save's world is live, never the blank baseline: the scene checks the games where it starts.
                 baseline_world = ctx.check_world()
-            elif problems := ctx.settle_baseline():
+            elif problems := ctx.settle_baseline(timeout=20.0 if scene else 8.0):
                 if getattr(args, "no_restart", False):
                     raise ctx.failure("cannot reach the baseline before the first scenario: " + " | ".join(problems))
                 log("the games are off the baseline before the first scenario (" + " | ".join(problems) + ")")

@@ -49,6 +49,18 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **a guest behind the host sees the host's NPCs once its grid reaches them; a soft leash keeps guests
+in the host's grid** (`agent/missing-enemies-guest`). Playtest 2026-11-22 (report 1951-468): the host walked ahead to the wolves past Riverwood, the
+guest followed and never saw them. Their spawns waited on the guest for a reference it had not loaded, and the wake-up
+hook sat on `QueuedReference::Finish` (13022), which ends 8 of 927 3D jobs; `QueuedReference::End` (13023) ends the
+rest (measured with `player_probe`, `actor-ai-and-copies.md`). Both are hooked now. The soft leash
+([party-travel.md](design/party-travel.md), "Soft leash"): a guest outdoors out of the host's grid gets a 10 s
+countdown on its HUD, then party travel to the host; back in time, it stays (`HostLeash`, `GuestLeash`,
+`NotifyLeash`). A player's copy left in a cell that detached on the other game (a jump of 4 cells) kept that cell,
+got no `UpdateAI` and dropped below high process, unseen: `RunPresence` now re-places a copy whose cell is not
+attached (`actor-ai-and-copies.md`, "A copy in a detached cell"). Tests: `HostAuthorityTests [Leash]`,
+`GameTests [leash]`, scenarios `host-ahead-npcs-reach-guest`, `guest-leash`, `player-copies-after-setpos`.
+
 2026-11-22: **a disintegrated player's body is gone on every game until it respawns** (`agent/disintegrate-body`;
 [death-disintegrate.md](re/systems/death-disintegrate.md), "What we do"). After the freeze fix the victim's own body
 showed again once the ash shader ended (lying, then getting up) while the shooter's copy stayed dissolved. The refused
