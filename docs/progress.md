@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-22: **a shout that disintegrates a player froze its game** (`agent/shout-kill-crash`;
+[death-disintegrate.md](re/systems/death-disintegrate.md)). Dragonborn.esm's Unrelenting Force carries a disintegrate
+effect; on another player its ash pile script set critical stage `DisintegrateEnd`, the engine took the player's 3D
+(37616 -> `Set3D` 12358), and the frame never ended: `Main::Update` waited for its jobs (35409) and a job in
+`WaitForJobTask` (69516), both measured; that the job waited on the player's update is inferred. `Actor::SetCriticalStage` (37615) and
+`Actor.AttachAshPile` (54655) now refuse this game's player: it dies the normal way, with its body and no pile.
+Scenario `shout-kills-lying-guest` (MCP verb `shout_at_lying_player`), GameTests `[friendly-fire]`, ClientTests
+`[CriticalStage]`.
+
 2026-11-22: **kill moves: the frozen victim, and every weapon tried** (`agent/kill-moves-polish`;
 [kill-moves.md](re/systems/kill-moves.md), "A blow and its clip's end in one update"). A guest's kill move on a person
 left its victim standing in the clip's last pose for 1.5 s after the blow on every game, and a second swing then

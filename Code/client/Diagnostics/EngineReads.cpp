@@ -412,6 +412,14 @@ KillState GetKillState(uint32_t aFormId) noexcept
     return {s_isInDeferredKill(pActor), s_isKillQueued(pActor->currentProcess)};
 }
 
+float GetAlpha(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->currentProcess || !pActor->currentProcess->middleProcess)
+        return -1.f;
+    return pActor->currentProcess->middleProcess->alphaMult;
+}
+
 uint8_t GetKnockState(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);

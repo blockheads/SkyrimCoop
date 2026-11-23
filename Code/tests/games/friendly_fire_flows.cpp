@@ -9,6 +9,7 @@
 #include <Events/MeleeStaggerEvent.h>
 #include <Services/DeathService.h>
 #include <SessionIds.h>
+#include <Games/Skyrim/CriticalStageRules.h>
 
 namespace
 {
@@ -111,6 +112,61 @@ SCENARIO("A guest's fire bolt on the host's player burns the host's own player",
         }));
         CHECK(host.Reactions.empty());
     }
+}
+
+SCENARIO("The host's Unrelenting Force with its disintegrate effect kills a guest: a real death, its game runs on",
+         "[death][friendly-fire][magic]")
+{
+    // Dragonborn.esm's shout carries DLC2VoiceDisintegrateFFAimed: its script's DisintegrateEnd took the player's 3D,
+    // and the guest's frame waited on its player's update for good (docs/re/systems/death-disintegrate.md).
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) != 0; }, "the host's game has the guest's player");
+
+    const uint32_t cCopy = CopyOfPlayer(party, party.Host(), party.Guest());
+    party.As(party.Host(), [&] {
+        host.SpellHits(cCopy, FakeEngine::kPlayer, FakeEngine::kUnrelentingForce3, FakeEngine::kDisintegrateEffect, Health(guest));
+    });
+    auto& death = party.Guest().ctx().at<DeathService>();
+    party.Until([&] { return death.Spectating() != 0; }, "the guest spectates once dead", [&] {
+        return std::format("stalled {} dead {} stage {} 3d {}", guest.FrameStalled, guest.Actors.at(FakeEngine::kPlayer).Dead,
+                           guest.Actors.at(FakeEngine::kPlayer).CriticalStage, guest.ActorHas3D(FakeEngine::kPlayer));
+    });
+    THEN("its player kept its body: no ash pile, its 3D kept")
+    {
+        CHECK(guest.Actors.at(FakeEngine::kPlayer).CriticalStage == 0);
+        CHECK(guest.AshPiles.empty());
+        CHECK(guest.ActorHas3D(FakeEngine::kPlayer));
+    }
+}
+
+SCENARIO("The disintegrate effect turns an NPC to ash only if it dies while the effect lasts", "[death][magic]")
+{
+    constexpr uint32_t kPushEffect = 0x0007F82F; // VoiceUnrelentingForce3's first effect, no script
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    uint32_t pushed = 0, expired = 0, ashed = 0;
+    party.As(party.Host(), [&] {
+        pushed = host.LoadNpc(0x13BA1, kSmoke, {});
+        expired = host.LoadNpc(0x13BA1, kSmoke, {});
+        ashed = host.LoadNpc(0x13BA1, kSmoke, {});
+        host.AddMagicTargetEffect(pushed, FakeEngine::kPlayer, FakeEngine::kUnrelentingForce3, kPushEffect, 10.f, false, false, false);
+        host.AddMagicTargetEffect(expired, FakeEngine::kPlayer, FakeEngine::kUnrelentingForce3, FakeEngine::kDisintegrateEffect, 10.f,
+                                  false, false, false);
+    });
+    const uint64_t cHit = World::Get().GetTick();
+    party.Until([&] { return World::Get().GetTick() > cHit + 1100; }, "the disintegrate effect has run out");
+    party.As(party.Host(), [&] {
+        host.DamageActorHealth(pushed, FakeEngine::kPlayer, 10000.f);
+        host.DamageActorHealth(expired, FakeEngine::kPlayer, 10000.f);
+        host.AddMagicTargetEffect(ashed, FakeEngine::kPlayer, FakeEngine::kUnrelentingForce3, FakeEngine::kDisintegrateEffect, 10000.f,
+                                  false, false, false);
+    });
+    CHECK(host.AshPiles == std::vector<uint32_t>{ashed});
+    CHECK(host.Actors.at(ashed).CriticalStage == CriticalStage::kDisintegrateEnd);
+    CHECK(host.Actors.at(pushed).CriticalStage == 0);
+    CHECK(host.Actors.at(expired).CriticalStage == 0);
 }
 
 SCENARIO("A guest killed by another guest: a real death, spectating, and every chat names the killer",

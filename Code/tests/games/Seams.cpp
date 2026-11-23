@@ -223,6 +223,8 @@ World& World::Get() noexcept
 void World::Update() noexcept
 {
     auto& mainEngine = ctx().at<FakeEngine&>();
+    if (mainEngine.FrameStalled)
+        return;
     mainEngine.AtMainLoop = true;
     MainLoopTasks::Run();
     mainEngine.AtMainLoop = false;
