@@ -1159,7 +1159,7 @@ class ReproActions:
         if check == "weather_fading":  # the guest's weather fades into the one the host gives it (not cut), out of value [id] if given
             seen = ctx.weather_given()
             guest = seen["guest"]
-            if guest["override"] != seen["want"] or not guest["last"] or guest["pct"] >= 1.0:
+            if guest["override"] != seen["want"] or guest["weather"] != seen["want"] or not guest["last"] or guest["pct"] >= 1.0:
                 raise ctx.failure(f"[guest] not fading into {seen['want']:X}: holds {guest['override']:X}, shows "
                                   f"{guest['weather']:X}, fading out {guest['last']:X} at {guest['pct']:.2f}")
             if value and guest["last"] != int(str(value[0]), 16):
@@ -1167,18 +1167,28 @@ class ReproActions:
             return seen
         if check == "weather_fade":  # every change of `game`'s weather in `seconds` fades from the one before, at least value [n] (0: any)
             instance = "" if game in ("host", "") else "client"
-            changes, cuts, before = 0, [], ctx.sky(instance)
+            changes, cuts, before, unheld = 0, [], ctx.sky(instance), 0
+            given = {before["override"], before["weather"]} - {0}  # a guest's: what the host gave it
+            # Fades shorter than a read at a high time scale: cuts are judged at a normal one only.
+            judge_cuts = ctx.calendar("").get("scale", 20) <= 100
             end = time.monotonic() + (seconds or 20)
             want = (value or [1])[0]
             while time.monotonic() < end and (not want or changes < want):  # value [0]: watched all through
                 now = ctx.sky(instance)
+                given.add(now["override"])
+                # A guest's held weather lapsed: gone on consecutive reads (mid-fade the engine may drop it for a frame,
+                # held again the next by GuestEngine::HoldWeather; no change starts mid-fade, 26231)
+                unheld = unheld + 1 if instance and not now["override"] else 0
+                if unheld >= 3:
+                    cuts.append(f"its held weather lapsed (showing {now['weather']:X})")
+                    break
                 if now["weather"] != before["weather"]:
                     changes += 1
-                    if now["last"] != before["weather"]:
+                    if judge_cuts and now["last"] != before["weather"]:
                         cuts.append(f"{before['weather']:X} -> {now['weather']:X} (fading out {now['last']:X}, at {now['pct']:.2f})")
-                    # A guest's change is to the weather it holds: never its own game's roll (an expired override)
-                    if instance and now["weather"] != now["override"]:
-                        cuts.append(f"{before['weather']:X} -> {now['weather']:X}, its own: it holds {now['override']:X}")
+                    # A guest shows only weathers the host gave it: never its own game's roll (an expired override)
+                    if instance and now["weather"] not in given:
+                        cuts.append(f"{before['weather']:X} -> {now['weather']:X}, its own roll: given {sorted(given)}")
                 before = now
                 time.sleep(0.05)
             if cuts:

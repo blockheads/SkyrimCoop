@@ -256,14 +256,18 @@ bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
     Sky* pSky = Sky::Get();
     if (!pWeather || !pSky)
         return pWeather != nullptr;
-    Sky::s_pHeldWeather = pWeather;
     // The game changes its weather in many places (no single SetWeather): hold it as the forced one, faded into.
     const TESWeather* pShown = pSky->GetWeather();
     if (pSky->pOverrideWeather != pWeather && !(pShown && pShown->formID == Sky::kWorldMapWeather))
     {
         Breadcrumbs::Record("HoldWeather", pWeather->formID);
+        spdlog::info("HoldWeather: {:X} again (showing {:X}, fading out {:X}, forced {:X})", pWeather->formID,
+                     pShown ? pShown->formID : 0, pSky->pLastWeather ? pSky->pLastWeather->formID : 0,
+                     pSky->pOverrideWeather ? pSky->pOverrideWeather->formID : 0);
         pSky->FadeTo(pWeather, true);
     }
+    // Held, it never ages out (Sky's UpdateWeather hook; dropped mid-fade, where 26231 starts no change, set again here).
+    Sky::s_pHeldWeather = pWeather;
     return true;
 }
 

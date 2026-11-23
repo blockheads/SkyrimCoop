@@ -194,8 +194,10 @@ class Fixtures:
             state = me.get("state") or {}
             values = me.get("values") or {}
             current = ctx.game_state(name)
-            if not world.get("live") and current.get("weather") != world["weather"]:
-                problems.append(f"{game}: weather {current.get('weather')}, baseline {world['weather']}")
+            # The guest's held weather: what it shows may still be fading toward it (minutes, weather.md).
+            weather = ctx.sky(name)["override"] if name else current.get("weather")
+            if not world.get("live") and weather != world["weather"]:
+                problems.append(f"{game}: weather {weather}, baseline {world['weather']}")
             for field in ("year", "month", "day", "hour", "scale"):
                 if not world.get("live") and not is_close(current.get("time", {}).get(field), world["time"][field], 0.05):
                     problems.append(f"{game}: calendar {field} {current.get('time', {}).get(field)}, baseline {world['time'][field]}")

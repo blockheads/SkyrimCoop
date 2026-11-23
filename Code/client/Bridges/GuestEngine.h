@@ -44,8 +44,8 @@ public:
 
     // The calendar as the engine's clock leaves it (Calendar::Update 36291), date and days passed included.
     void SetCalendar(const TimeModel& acTime) noexcept;
-    // Shows the weather as the forced one, faded into (26241), again after the game changed its own; leaves the world
-    // map's alone. False: no such weather.
+    // Shows the weather as the forced one, faded into (26241), again after the game changed its own, and keeps it from
+    // expiring (Sky::s_pHeldWeather); leaves the world map's alone. False: no such weather.
     bool HoldWeather(const GameId& acWeather) noexcept;
     // The game's own weather again.
     void ReleaseWeather() noexcept;

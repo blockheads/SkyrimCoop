@@ -39,3 +39,8 @@ time	op	id	rva	item
 2026-11-23T03:59:08Z	read		0x66b150	{"name": "BSTaskPool_HandleTask"}
 2026-11-23T03:59:16Z	comment		0x66b17c	{"addr": "0x14066b17c", "comment": "task 0x59: a queued Sky::ForceWeather(weather, override) (Papyrus ForceActive / console fw)"}
 2026-11-23T03:59:16Z	comment		0x9a04ef	{"addr": "0x1409a04ef", "comment": "world map camera: forces the world map's weather (override)"}
+2026-11-23T05:05:18Z	comment		0x24f84f	{"addr": "0x14024f84f", "comment": "region's weather list (data type 3) holds the shown weather? keep it; else (below) roll the list: TESWeatherList::PickWeighted"}
+2026-11-23T05:05:18Z	comment		0x24f87c	{"addr": "0x14024f87c", "comment": "TESRegion::currentWeather (+0x38) = the shown weather, or the list's roll"}
+2026-11-23T05:05:18Z	comment		0x41291f	{"addr": "0x14041291f", "comment": "no interior, or an interior without a sky region: falls back to PlayerRegionState::lastKnownWeatherRegion"}
+2026-11-23T05:05:18Z	comment		0x412c4b	{"addr": "0x140412c4b", "comment": "v10: a save load in progress (BGSSaveLoadGame flag 2) with a weather shown: every region's weather set again (rolls) though the shown weather is unchanged"}
+2026-11-23T05:05:19Z	read		0x4128f5	{"name": "Sky::UpdateWeather"}

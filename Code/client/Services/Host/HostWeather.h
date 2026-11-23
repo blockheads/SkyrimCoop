@@ -41,7 +41,7 @@ private:
     const HostPlayers& m_players;
     const HostGame& m_game;
     std::optional<HostSky> m_sky;
-    // Each guest's weather region, and the weather it was sent.
+    // Each guest's weather region as it last reported it, and the weather it was sent.
     std::unordered_map<ConnectionId_t, GameId> m_regions;
     std::unordered_map<ConnectionId_t, GameId> m_sent;
 };

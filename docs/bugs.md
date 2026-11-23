@@ -341,6 +341,8 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   `weapon_drawn` false), the copy still holding the bow in the other slot. So it is a slot-0 mismatch on a sheathed
   bow; whether it shows (a drawn bow, its 3D) is not observed, and the user's report stays unreproduced. Start from
   `rejoined-guest-sees-rider`'s `at-failure.json`: what the hand repair compares for a form held in both slots.
+  Also `guest-weather-own-region` (2026-11-22, branch `agent/weather-per-region`): both Winterhold Guards' copies at
+  `[0, 79261]` / `[0, 80257]` against their owners' `[X, X]`, after the guest's solo moves and timescale 2000 (night).
 - **Not the repair's equip** (2026-11-22, piece D step 0): read in IDA, `coop_RealEquip` (38929) takes a bow's own
   BothHands slot unless the race's flags bit 30 keeps the passed hand; measured on `rejoined-guest-sees-rider`, the
   repair's RightHand equip of Faendal's bow on his copy left `[13985, 13985]`. The `[0, bow]` writer is still unread

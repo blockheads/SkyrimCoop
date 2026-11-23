@@ -22,10 +22,9 @@ void HostWeather::Update() noexcept
     if (!cHost)
         return;
     // None for a while (an interior, the map): guests keep what they hold.
-    const auto cSky = m_game.ReadWeather();
-    if (!cSky || cSky == m_sky)
-        return;
-    m_sky = cSky;
+    if (const auto cSky = m_game.ReadWeather())
+        m_sky = cSky;
+    // Each frame: a region's own weather can change with the shown one unchanged (a load's rolls, 26231).
     for (const ConnectionId_t cPlayer : m_players.Connections())
         if (cPlayer != cHost)
             SendFor(cPlayer);
@@ -63,8 +62,11 @@ void HostWeather::OnRegion(const WeatherRegionRequest& acRequest, ConnectionId_t
 
 void HostWeather::SendFor(ConnectionId_t aPlayer) noexcept
 {
+    // Not before its first report (none: a region-less place): a fade toward another region's weather would run first.
     const auto cRegion = m_regions.find(aPlayer);
-    const auto cWeather = WeatherFor(cRegion == m_regions.end() ? GameId{} : cRegion->second);
+    if (cRegion == m_regions.end())
+        return;
+    const auto cWeather = WeatherFor(cRegion->second);
     if (!cWeather)
         return;
     const auto cSent = m_sent.find(aPlayer);

@@ -31,7 +31,7 @@ struct Sky
     static Sky* Get() noexcept;
 
     static bool s_shouldUpdateWeather;
-    // A guest's held weather (GuestEngine::HoldWeather): its override does not expire while held.
+    // A guest's held weather (GuestEngine::HoldWeather): its override never ages out, refreshed as 26231 starts.
     static inline TESWeather* s_pHeldWeather = nullptr;
     // The weather a script or the console set (26241, 26243: their only callers but the map's), until the player's
     // weather region is read again (those calls clear it).

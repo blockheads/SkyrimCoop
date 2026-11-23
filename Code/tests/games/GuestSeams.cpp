@@ -123,9 +123,12 @@ void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
 
 bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
 {
-    // Sky::SetWeather(override) (26241): the forced weather, faded into by the next update.
-    FakeEngine::Current().ForcedWeather = acWeather;
-    FakeEngine::Current().WeatherHeld = true;
+    // Sky::SetWeather(override) (26241): the forced weather, faded into by the next update; held, kept from aging.
+    FakeEngine& engine = FakeEngine::Current();
+    engine.ForcedWeather = acWeather;
+    engine.WeatherHeld = true;
+    if (!engine.LastWeather)
+        engine.WeatherAge = 0;
     return true;
 }
 

@@ -8,7 +8,7 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **3614** distinct engine addresses used; **257** have code in CommonLib or SKSE; **2923** have no community name at all.
+- **3618** distinct engine addresses used; **259** have code in CommonLib or SKSE; **2923** have no community name at all.
 - **268** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -62,9 +62,9 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 25054 | `0x3d5460` | `TESQuest::ForceLocationIntoAlias` | IDA meh | hook → `HookForceLocation` | `RealForceLocation` | [QuestEvents.cpp:134](../../Code/client/Games/Skyrim/QuestEvents.cpp#L134) |  |
 | 25616 | `0x3f2bb0` | `TESTopicInfo::sub_25616` | meh | hook → `HookBeginTopicInfo` | `RealBeginTopicInfo` | [DialogueBridge.cpp:427](../../Code/client/Bridges/DialogueBridge.cpp#L427) |  |
 | 25931 | `0x3ff900` | `hkpAllCdPointCollector::LinearCastFrom` | IDA meh | hook → `HookLinearCast` | `RealLinearCast` | [SwingWatch.cpp:53](../../Code/client/TestHarness/SwingWatch.cpp#L53) |  |
-| 26231 | `0x412810` | `Sky::UpdateWeather` | PL meh | hook → `HookUpdateWeather` | `RealUpdateWeather` | [Sky.cpp:79](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L79) |  |
-| 26241 | `0x415440` | `Sky::SetWeather` | CL meh | hook → `HookSetWeather` | `RealSetWeather` | [Sky.cpp:77](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L77) |  |
-| 26243 | `0x415540` | `Sky::ForceWeather` | CL meh | hook → `HookForceWeather` | `RealForceWeather` | [Sky.cpp:78](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L78) |  |
+| 26231 | `0x412810` | `Sky::UpdateWeather` | PL meh | hook → `HookUpdateWeather` | `RealUpdateWeather` | [Sky.cpp:128](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L128) |  |
+| 26241 | `0x415440` | `Sky::SetWeather` | IDA CL meh | hook → `HookSetWeather` | `RealSetWeather` | [Sky.cpp:126](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L126) |  |
+| 26243 | `0x415540` | `Sky::ForceWeather` | IDA CL meh | hook → `HookForceWeather` | `RealForceWeather` | [Sky.cpp:127](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L127) |  |
 | 29846 | `0x4a5a30` | `?` | - | hook → `HookResolve` | `RealResolve` | [FollowerTargets.cpp:157](../../Code/client/Games/Skyrim/AI/FollowerTargets.cpp#L157) | **undocumented** |
 | 29924 | `0x4a7b10` | `TESConditionItem::IsTrue` | CL meh | hook → `HookIsTrue` | `RealIsTrue` | [JudgedFor.cpp:157](../../Code/client/Games/Skyrim/Misc/JudgedFor.cpp#L157) |  |
 | 32330 | `0x532820` | `?` | - | hook → `HookBuildEvent` | `RealBuildEvent` | [StoryEvents.cpp:131](../../Code/client/Games/Skyrim/Misc/StoryEvents.cpp#L131) | **undocumented** |
@@ -4072,12 +4072,16 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 13878 | `0x1c7d00` | `Sky::GetSingleton` | CL meh | call | `skyGet` | [Sky.cpp:17](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L17) |  |
-| 26231 | `0x412810` | `Sky::UpdateWeather` | PL meh | hook → `HookUpdateWeather` | `RealUpdateWeather` | [Sky.cpp:79](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L79) |  |
-| 26241 | `0x415440` | `Sky::SetWeather` | CL meh | hook → `HookSetWeather` | `RealSetWeather` | [Sky.cpp:77](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L77) |  |
-| 26242 | `0x4154c0` | `Sky::ResetWeather` | CL meh | call | `resetWeather` | [Sky.cpp:45](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L45) |  |
-| 26243 | `0x415540` | `Sky::ForceWeather` | CL meh | hook → `HookForceWeather` | `RealForceWeather` | [Sky.cpp:78](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L78) |  |
-| 26244 | `0x4155f0` | `Sky::ReleaseWeatherOverride` | meh | call | `releaseWeatherOverride` | [Sky.cpp:37](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L37) |  |
+| 13878 | `0x1c7d00` | `Sky::GetSingleton` | CL meh | call | `skyGet` | [Sky.cpp:18](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L18) |  |
+| 16448 | `0x24f820` | `TESRegion::SetCurrentWeather` | CL meh | call | `setCurrentWeather` | [Sky.cpp:94](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L94) |  |
+| 16450 | `0x24f8e0` | `TESRegion__HasWeather` | IDA meh | call | `hasWeather` | [Sky.cpp:87](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L87) |  |
+| 19007 | `0x2bf310` | `TESObjectCELL__GetInteriorSkyRegion` | IDA meh | call | `getSkyRegion` | [Sky.cpp:75](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L75) |  |
+| 26231 | `0x412810` | `Sky::UpdateWeather` | PL meh | hook → `HookUpdateWeather` | `RealUpdateWeather` | [Sky.cpp:128](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L128) |  |
+| 26241 | `0x415440` | `Sky::SetWeather` | IDA CL meh | hook → `HookSetWeather` | `RealSetWeather` | [Sky.cpp:126](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L126) |  |
+| 26242 | `0x4154c0` | `Sky::ResetWeather` | CL meh | call | `resetWeather` | [Sky.cpp:51](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L51) |  |
+| 26243 | `0x415540` | `Sky::ForceWeather` | IDA CL meh | hook → `HookForceWeather` | `RealForceWeather` | [Sky.cpp:127](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L127) |  |
+| 26244 | `0x4155f0` | `Sky::ReleaseWeatherOverride` | meh | call | `releaseWeatherOverride` | [Sky.cpp:43](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L43) |  |
+| 400477 | `0x21a36f0` | `PlayerRegionState::singleton` | CL | data | `regionState` | [Sky.cpp:79](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L79) |  |
 
 ## HotReload
 

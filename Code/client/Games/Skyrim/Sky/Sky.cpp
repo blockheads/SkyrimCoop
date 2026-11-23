@@ -68,11 +68,13 @@ static_assert(offsetof(PlayerRegionState, pLastKnownWeatherRegion) == 0x48);
 
 TESRegion* Sky::PlayerWeatherRegion() noexcept
 {
+    // An interior without a sky region falls back to the player's, as 26231 does.
     if (const TES* pTes = TES::Get(); pTes && pTes->interiorCell)
     {
         using TGetSkyRegion = TESRegion*(TESObjectCELL*);
         POINTER_SKYRIMSE(TGetSkyRegion, getSkyRegion, 19007);
-        return getSkyRegion(pTes->interiorCell);
+        if (TESRegion* pRegion = getSkyRegion(pTes->interiorCell))
+            return pRegion;
     }
     POINTER_SKYRIMSE(PlayerRegionState*, regionState, 400477);
     const PlayerRegionState* pState = *regionState.Get();
@@ -112,7 +114,8 @@ static TUpdateWeather* RealUpdateWeather = nullptr;
 
 void HookUpdateWeather(Sky* apThis)
 {
-    // A held override never ages out (26231 drops one after the climate's interval), once its fade is done.
+    // A held override never ages out (26231 drops one after the climate's interval, or at once when the hour went
+    // back: a guest's clock set to the host's), once its fade is done.
     if (Sky::s_pHeldWeather && apThis->pOverrideWeather == Sky::s_pHeldWeather && !apThis->pLastWeather)
         apThis->lastWeatherUpdate = apThis->currentGameHour;
     RealUpdateWeather(apThis);

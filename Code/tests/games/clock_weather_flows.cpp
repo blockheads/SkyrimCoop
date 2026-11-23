@@ -57,8 +57,12 @@ SCENARIO("A guest shows the weather the host gives its own region, faded into", 
     // The guest walks off to Riverwood, whose list has no snow: the host's game holds clear for it.
     guest.WeatherRegion = kRiverwood;
     party.Until([&] { return guest.Weather == kClear; }, "in its own region, the weather the host's game gives Riverwood");
-    for (int frame = 0; frame < 30; ++frame)
+    // Past the override's interval: still the held weather, never its game's own roll between.
+    party.Until([&] { return !guest.LastWeather; }, "the fade into Riverwood's weather ran its course");
+    const size_t cChanges = guest.WeatherChanges;
+    for (uint32_t frame = 0; frame < 3 * FakeEngine::kOverrideExpiryFrames; ++frame)
         party.Frame();
+    CHECK(guest.WeatherChanges == cChanges);
     CHECK(guest.Weather == kClear);
 
     // A script's or the console's forced weather wins everywhere, and once released, the region's own again.

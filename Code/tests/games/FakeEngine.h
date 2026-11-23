@@ -1119,8 +1119,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     GameId ForcedWeather{};
     GameId LastWeather{};
     uint32_t FadeFrames = 0;
-    size_t WeatherCuts = 0; // changes shown without a fade
+    size_t WeatherCuts = 0;    // changes shown without a fade
+    size_t WeatherChanges = 0; // changes shown, ever
     static constexpr uint32_t kWeatherFadeFrames = 10;
+    // Frames since the weather last changed (lastWeatherUpdate): an override ages out after the climate's interval,
+    // and the region rolls its own (26231).
+    uint32_t WeatherAge = 0;
+    static constexpr uint32_t kOverrideExpiryFrames = 6; // shorter than a fade, as at a high time scale
     // Sky::UpdateWeather's change (26231): fades from the shown one (a cut without aFade), then every region's own
     // weather is set (TESRegion::SetCurrentWeather 16448: the shown one where its list holds it, else a roll, here
     // its first).

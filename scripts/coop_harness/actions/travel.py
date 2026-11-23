@@ -47,22 +47,21 @@ class TravelActions:
     def solo_move(ctx, instance, x, y):
         """That game's player alone goes to (x, y) in its worldspace: placed (SetPosition, no queued travel, so no party
         travel) high above the spot, then on the floor a downward ray finds once the cells there are loaded. God mode
-        on for the drop. Returns where it stands."""
-        ctx.console_on(instance, "tgm")
-        before = ctx.player_cell(instance)
+        (tgm, off in the duo's games) on for the drop, toggled back however it ends. Returns where it stands."""
         high = 30000.0
-        ctx.player_command(instance, {"cmd": "place", "position": [x, y, high]})
-        ctx.wait_for(f"[{instance or 'host'}] the cells at ({x:.0f}, {y:.0f}) are loaded",
-                     lambda: ctx.player_cell(instance) not in (None, before), 30)
         def floor():
             reply = ctx.player_command(instance, {"cmd": "ray", "from": [x, y, high], "to": [x, y, -high]}) or {}
             hit = reply.get("ray") or {}
             return hit.get("point") if hit.get("hit") else None
-        point = ctx.wait_for(f"[{instance or 'host'}] a floor under ({x:.0f}, {y:.0f})", floor, 30)
-        ctx.player_command(instance, {"cmd": "place", "position": [x, y, point[2] + 20]})
-        ctx.wait_for(f"[{instance or 'host'}] stands on the ground there",
-                     lambda: ctx.local_player(instance).get("character_state") == ON_GROUND, 10)
         ctx.console_on(instance, "tgm")
+        try:
+            ctx.player_command(instance, {"cmd": "place", "position": [x, y, high]})
+            point = ctx.wait_for(f"[{instance or 'host'}] the floor at ({x:.0f}, {y:.0f}) is loaded", floor, 30)
+            ctx.player_command(instance, {"cmd": "place", "position": [x, y, point[2] + 20]})
+            ctx.wait_for(f"[{instance or 'host'}] stands on the ground there",
+                         lambda: ctx.local_player(instance).get("character_state") == ON_GROUND, 10)
+        finally:
+            ctx.console_on(instance, "tgm")
         return {"at": [x, y, point[2]], "cell": ctx.player_cell(instance)}
 
 

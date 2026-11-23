@@ -24,4 +24,7 @@ def run(ctx):
         ctx.console_on('', 'set timescale to 20')
     finally:
         ctx.console_on('', 'set timescale to 20')
+        # By hand: the party travels together again; after solo moves the guest's copies around are not all made
+        # (not weather), and the comparison afterwards would read that.
+        ctx.go_far('', 'cow Tamriel 27 24')
         ctx.unstage()

@@ -528,6 +528,8 @@ void FakeEngine::ShowWeather(const GameId& acWeather, bool aFade) noexcept
         LastWeather = {};
     }
     Weather = acWeather;
+    WeatherAge = 0;
+    ++WeatherChanges;
     for (const auto& [cRegion, cList] : RegionLists)
         SetRegionWeather(cRegion);
 }
@@ -781,11 +783,26 @@ void FakeEngine::Frame()
         actor.GraphPlace[3] = actor.Rotation[2];
     }
     ShakeSeconds = std::max(0.f, ShakeSeconds - 1.f / 60);
-    // The sky: a fade runs its course, then the forced weather, if another, fades in (26231).
-    if (LastWeather && ++FadeFrames >= kWeatherFadeFrames)
-        LastWeather = {};
+    // The sky as 26231 runs it: an aged override dropped first, a change, then the fade's progress (ended last).
+    // A guest's held override ages out, mid-fade too; a change (the region's roll, here another weather of its list)
+    // starts only once no fade runs. The host's weather is the test's to set.
+    if (WeatherHeld && ForcedWeather && ++WeatherAge > kOverrideExpiryFrames)
+        ForcedWeather = {};
     if (ForcedWeather && ForcedWeather != Weather && !LastWeather)
         ShowWeather(ForcedWeather);
+    else if (!ForcedWeather && WeatherHeld && !LastWeather && WeatherAge > kOverrideExpiryFrames)
+    {
+        const auto cList = RegionLists.find(WeatherRegion);
+        if (cList != RegionLists.end())
+            for (const GameId& cRolled : cList->second)
+                if (cRolled != Weather)
+                {
+                    ShowWeather(cRolled);
+                    break;
+                }
+    }
+    if (LastWeather && ++FadeFrames >= kWeatherFadeFrames)
+        LastWeather = {};
     // Game time at the time scale for the real time since the last frame, as the engine's frame delta is.
     const auto cNow = std::chrono::steady_clock::now();
     if (m_lastFrame.time_since_epoch().count())

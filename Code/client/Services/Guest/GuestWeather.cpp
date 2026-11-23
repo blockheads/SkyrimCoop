@@ -29,6 +29,8 @@ void GuestWeather::OnWeatherChange(const NotifyWeatherChange& acMessage) noexcep
         return;
     }
     m_hostWeather = acMessage.Id;
+    spdlog::info("{}: the host gives {:X}:{:X} for region {:X}", __FUNCTION__, acMessage.Id.ModId, acMessage.Id.BaseId,
+                 m_sentRegion ? m_sentRegion->BaseId : 0);
 }
 
 void GuestWeather::OnUpdate(const UpdateEvent&) noexcept
