@@ -717,22 +717,22 @@ class PlayerVerbs:
         raise verb_failure(ctx, "refused", f"[{instance or 'host'}] activating {target} did nothing in {USE_SECONDS:g} s: {changed or 'no change'}")
 
     @goal
-    def use_object_graphs(ctx, instance, target, seconds=5.0):
-        """As `use`, with `target`'s own graph watched in both games: each game's object gets the same input events,
-        each once (a lever furniture's pull reaches the host's lever and is not played twice on the puller's)."""
+    def use_object_graphs(ctx, instance, target, inputs, until, seconds=10.0):
+        """As `use`, with `target`'s own graph watched in both games until each raised graph event `until`: each game's
+        object got exactly the input events `inputs` (a lever furniture's pull on the host's lever, once on the puller's)."""
         refs = {game: ctx.resolve(target, game) for game in ("", "client")}
         with AnimTrace(ctx, f"use-graphs-{target}", {game: {refs[game]: target} for game in refs}, video=False) as trace:
             ctx.use(instance, target)
-            inputs = lambda: {game: [e["event"] for e in trace.entries if e["kind"] == "input" and e["game"] == game]
-                              for game in ("", "client")}
+            seen = lambda kind: {game: [e["event"] for e in trace.entries if e["kind"] == kind and e["game"] == game]
+                                 for game in ("", "client")}
             with contextlib.suppress(TestFailure):
-                ctx.wait_for(f"{target}: both games' graphs got its input", lambda: trace.take() or all(inputs().values()), seconds)
-            time.sleep(1.0)  # a second copy of the input would come a frame or a row later
+                ctx.wait_for(f"{target}: both games' graphs raised {until}",
+                             lambda: trace.take() or all(until in events for events in seen("graph").values()), seconds)
             trace.take()
-            got = inputs()
-        if not all(got.values()) or got[""] != got["client"] or len(set(got[""])) != len(got[""]):
-            raise verb_failure(ctx, "graphs_differ", f"{target}'s graph inputs: host {got['']}, guest {got['client']}: "
-                               "not the same events, each once, in both games")
+            got = seen("input")
+        if any(got[game] != list(inputs) for game in got):
+            raise verb_failure(ctx, "graphs_differ", f"{target}'s graph inputs: host {got['']}, guest {got['client']}, "
+                               f"not {list(inputs)} in each game")
         return {"how": "input", "inputs": got[""]}
 
     @goal

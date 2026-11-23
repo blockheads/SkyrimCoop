@@ -329,10 +329,20 @@ The kinds differ only in what moves the object, so in which row it travels (`doc
 | Door, gate (an open/close form) | `BGSOpenCloseForm::OpenOrClose` 14284 for any activator | `kOpenState`; a script's `Activate(Self)` as `kActivate` | GameTests "A lever a guest pulls moves once, on the host, ..." | `door-opens-for-both` |
 | Load door | never rerun (it would move the copy): each player's own game takes it through | none | none | `load-door-not-replayed` |
 | Something a lever's script opens (a gate, a portcullis, a trap: `refActOnFailure01.Activate(Self)`) | the host's script, by reference | `kActivate` (a door) or the target's own `kAnimation` | GameTests "A guest's pull of a scripted lever ..." (the row path) | `ring-turns-for-client`, `keyhole-asks-client` |
-| Pressure plate, trap trigger (`PressurePlate.psc`, trigger volumes) | the copy's body entering the host's trigger: `OnTriggerEnter` on the host (the guest's dropped) | `kAnimation` (`Down`/`Up`), the trap's own | none (the fake has no trigger volumes) | `plate-counts-client` |
+| Pressure plate, trap trigger (`PressurePlate.psc`, trigger volumes) | the copy's body entering the host's trigger: `OnTriggerEnter` on the host (the guest's dropped) | `kAnimation` (`Down`/`Up` from its script: inferred), the trap's own | none (the fake has no trigger volumes) | `plate-counts-client` (measures the plate script's state on the host) |
 | Container, chest lid | `TESObjectCONT::Activate` 17887: the player's lid and menu are its own game's; items are rows | `kOpenState`, `kItems` | GameTests chest flows | `chest-take-all` |
 | Flora | `TESProduceForm::Harvest` 14864 for any actor | `kHarvested` | GameTests "A plant one player picks is picked on every game" | none |
 | Furniture an NPC works (Hod's sawmill lever `1B752`) | the NPC's AI enters it; its copy's graph is a dependent (`furniture-graphs.md`) | the copy's own graph events | GameTests "A copy working a furniture drives ..." | `copy-worker-drives-furniture` |
+
+Where each row comes from:
+- **Read in IDA:** the lever furniture (17420, 24602; measured too, `guest-pulls-lever-furniture`); doors, containers,
+  flora and load doors (14284, 17887, 14864, 17922, `activation.md`); the NPC-worked furniture (39912, 63364,
+  `furniture-graphs.md`).
+- **Inferred:** the scripted activator and pressure plate rows. They come from the vanilla Papyrus sources
+  (`NorLever01SCRIPT`, `PressurePlate.psc`: `PlayAnimation` in `OnActivate` / `OnTriggerEnter`), our hooks on
+  `PlayAnimation` 56205 / `PlayAnimationAndWait` 56206, and the guest's event drop (104800, `guest-world-events.md`).
+  Their scenarios measure only the script's side on the host (the ring's and the plate's script state), not the
+  row on the guest.
 
 Open, not this audit's: a trap's hit on a guest (playtest 2026-11-22 items 13-14).
 

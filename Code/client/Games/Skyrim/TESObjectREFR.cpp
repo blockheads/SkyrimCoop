@@ -54,6 +54,7 @@
 #include <Havok/hkbStateMachine.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESObjectACTI.h>
+#include <ExtraData/ExtraFlags.h>
 #include <Forms/BGSAction.h>
 #include <Games/Animation/TESActionData.h>
 #include <Forms/TESWorldSpace.h>
@@ -1158,8 +1159,12 @@ bool TESObjectREFR::IsActivatorFurniture() const noexcept
     return pKeyword && pFurniture && EngineVirtual(pFurniture->keywordForm).Contains(pKeyword);
 }
 
-std::string TESObjectREFR::PickActivatorFurnitureEvent() noexcept
+std::string TESObjectREFR::PickActivatorFurnitureEvent(Actor& aActivator, bool aDefaultProcessingOnly) noexcept
 {
+    const auto* pFlags = static_cast<ExtraFlags*>(extraData.GetByType(ExtraDataType::Flags));
+    const bool cBlocked = !aDefaultProcessingOnly && pFlags && (pFlags->flags & ExtraFlags::kBlockActivate);
+    if (!IsActivatorFurniture() || cBlocked || aActivator.actorState.GetSitSleepState())
+        return {};
     using TPickIdleForAction = TESIdleForm*(void* apSelector, BGSActionData* apData);
     POINTER_SKYRIMSE(TPickIdleForAction, s_pickIdleForAction, 24602);
     POINTER_SKYRIMSE(void*, s_idleSelector, 400451); // the global 17420 passes to 24602
@@ -1205,8 +1210,8 @@ bool HookActivate(TESObjectREFR* apThis, TESObjectREFR* apActivator, uint8_t aUn
         evt.ObjectParentCellFormId = pCell ? pCell->formID : 0;
         evt.PreActivationOpenStateValue = static_cast<uint8_t>(cOpenState);
         // Picked before the engine's own pick moves it (17420, this game's player only).
-        if (apActivator == PlayerCharacter::Get() && apThis->IsActivatorFurniture())
-            evt.FurnitureEvent = apThis->PickActivatorFurnitureEvent();
+        if (apActivator == PlayerCharacter::Get())
+            evt.FurnitureEvent = apThis->PickActivatorFurnitureEvent(*pActivator, aDefaultProcessing);
         World::Get().GetRunner().Trigger(evt);
     }
 

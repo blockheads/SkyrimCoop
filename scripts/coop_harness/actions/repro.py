@@ -1096,12 +1096,16 @@ class ReproActions:
             def graphs():
                 return {g: (ctx.world_state(i, [ctx.resolve(name, i)]).get(ctx.resolve(name, i)) or {}).get("graph") or {}
                         for g, i in (("host", ""), ("guest", "client"))}
-            def holds(read):
-                return all(read[g].get(field) == value for g in read) if field else read["host"] == read["guest"]
+            def holds(read):  # a graph read in both games, the field in both
+                if not all(read.values()):
+                    return False
+                return all(field in read[g] and read[g][field] == value for g in read) if field else read["host"] == read["guest"]
             with contextlib.suppress(TestFailure):
                 ctx.wait_for(f"{name}: its graph agrees", lambda: holds(graphs()), seconds or 5)
             read = graphs()
             if not holds(read):
+                if not all(read.values()):
+                    raise ctx.failure(f"{name}: no graph read in {[g for g in read if not read[g]]}")
                 shown = {g: read[g].get(field) for g in read} if field else {k: (read["host"].get(k), read["guest"].get(k))
                         for k in set(read["host"]) | set(read["guest"]) if read["host"].get(k) != read["guest"].get(k)}
                 raise ctx.failure(f"{name}: its graph {'variable ' + field + ' is ' if field else 'differs: '}{shown}"

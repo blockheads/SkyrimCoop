@@ -3514,7 +3514,7 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
     event.ObjectFormId = aObject;
     event.ActivatorFormId = aActor;
     event.ObjectParentCellFormId = Actors.contains(aObject) ? Actors.at(aObject).Cell : References.at(aObject).Cell;
-    if (aActor == kPlayer && References.contains(aObject) && References.at(aObject).Lever)
+    if (aActor == kPlayer && References.contains(aObject) && References.at(aObject).Lever && !References.at(aObject).ActivationBlocked)
         event.FurnitureEvent = kPull;
     World::Get().GetRunner().Trigger(event);
     Activations.emplace_back(aObject, aActor);

@@ -295,6 +295,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // A lever furniture (KeywordActivatorFurnitureNoPlayer): only this game's player's activation sends its pull to
         // its graph (TESFurniture::Activate 17420); a copy's does nothing to it.
         bool Lever = false;
+        bool ActivationBlocked = false; // a script's BlockActivation: ActivateRef 19796 stops before 17420
         std::vector<std::string> GraphEvents; // the events its own graph got
         bool operator==(const Reference&) const = default;
     };

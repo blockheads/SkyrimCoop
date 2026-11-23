@@ -287,7 +287,7 @@ void FakeEngine::ScriptPlaysAnimation(uint32_t aObject, const std::string& acEve
 void FakeEngine::PullsLever(uint32_t aObject)
 {
     const auto it = References.find(aObject);
-    if (it == References.end() || !it->second.Lever)
+    if (it == References.end() || !it->second.Lever || it->second.ActivationBlocked)
         return;
     it->second.GraphEvents.push_back(kPull);
     if (IsGuest)

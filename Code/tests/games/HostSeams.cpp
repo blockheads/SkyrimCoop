@@ -214,7 +214,8 @@ void HostService::MakeAuthority() noexcept
             return;
         engine.RunsActivation(cObject, cActivator);
         // As HostEngine::Activate: a lever furniture's pull, which 17420 gives this game's player only, recorded.
-        if (const auto cLever = engine.References.find(cObject); cLever != engine.References.end() && cLever->second.Lever)
+        if (const auto cLever = engine.References.find(cObject); cLever != engine.References.end() && cLever->second.Lever &&
+            !cLever->second.ActivationBlocked)
         {
             cLever->second.GraphEvents.push_back(FakeEngine::kPull);
             ObjectChange pull{.Type = ObjectChange::Kind::kAnimation, .Object = SessionIdOf(cObject), .Event = FakeEngine::kPull};

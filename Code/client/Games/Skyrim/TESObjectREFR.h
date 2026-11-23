@@ -252,8 +252,10 @@ struct TESObjectREFR : TESForm
     bool SendAnimationEvent(BSFixedString* apEventName) noexcept;
     // A furniture with KeywordActivatorFurnitureNoPlayer: a lever, pull bar or chain the player pulls without entering.
     [[nodiscard]] bool IsActivatorFurniture() const noexcept;
-    // Its pull's graph event as TESFurniture::Activate 17420 picks it: ActionActivate from its own idles (24602).
-    [[nodiscard]] std::string PickActivatorFurnitureEvent() noexcept;
+    // The pull's graph event TESFurniture::Activate 17420 sends for aActivator: ActionActivate from its own idles
+    // (24602). Empty: not a lever furniture, its activation blocked (19796 stops at kBlockActivate) or aActivator
+    // sitting (17420 stands it up instead).
+    [[nodiscard]] std::string PickActivatorFurnitureEvent(Actor& aActivator, bool aDefaultProcessingOnly) noexcept;
 
     bool Activate(TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing) noexcept;
 

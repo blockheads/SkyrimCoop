@@ -91,6 +91,17 @@ SCENARIO("A lever furniture one player pulls moves once on every game", "[object
         settle();
         CHECK(pulls(host) == 1);
     }
+    WHEN("its script blocks activation and each player pulls it")
+    {
+        for (FakeEngine* pEngine : {&host, &guest, &other})
+            pEngine->References.at(kPullLever).ActivationBlocked = true;
+        party.As(party.Guest(0), [&] { guest.Activates(FakeEngine::kPlayer, kPullLever); });
+        party.Until([&] { return host.Activations.size() == 1; }, "the host's game runs the guest's pull");
+        party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, kPullLever); });
+        settle();
+        THEN("no game's lever moved: its script decides")
+        CHECK(pulls(host) + pulls(guest) + pulls(other) == 0);
+    }
 }
 
 // A scripted activator (NorLever01SCRIPT, defaultButtonSCRIPT, NorPullBar01SCRIPT, a claw door's ring): its host
