@@ -52,7 +52,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 2026-11-22: **a disintegrated player's body is gone on every game until it respawns** (`agent/disintegrate-body`;
 [death-disintegrate.md](re/systems/death-disintegrate.md), "What we do"). After the freeze fix the victim's own body
 showed again once the ash shader ended (lying, then getting up) while the shooter's copy stayed dissolved. The refused
-ash or goo end now hides the player's 3D (`kHidden`) until its revive. Snapshot readout `state.body_hidden`; MCP verb
+ash or goo end now hides the player's 3D (`kHidden`) until its revive. Snapshot readout `mod.body_hidden` (shown, not compared: a first-person player's is hidden by its camera); MCP verb
 `body_report`; `shout_at_lying_player` checks the hidden body and its return.
 
 2026-11-22: **a shout that disintegrates a player froze its game** (`agent/shout-kill-crash`;

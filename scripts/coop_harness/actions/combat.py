@@ -601,6 +601,8 @@ class CombatActions:
             ctx.console_on(victim, "player.pushactoraway player 5")
             ctx.wait_for(f"[{victim or 'host'}] the victim lies in its ragdoll", lambda: 0 < knock(victim, 0x14) <= 4, 5)
             ctx.wait_for(f"[{attacker or 'host'}] the victim's copy lies", lambda: 0 < knock(attacker, copy) <= 4, 5)
+            # Hidden by its own camera in first person: after the respawn it is as it was.
+            hidden_before = (ctx.player_snapshot(victim).get("mod") or {}).get("body_hidden")
             if health > 0:
                 ctx.console_on(victim, f"player.damageav health {max(0.0, ctx.player_health(victim) - health):g}")
             before = ctx.player_health(victim)
@@ -623,7 +625,7 @@ class CombatActions:
                              lambda: ctx.is_dead(ctx.player_snapshot(victim)), 5)
                 # Its ash script's end hides its body on its own game, as the shader leaves its copy unseen.
                 ctx.wait_for(f"[{victim or 'host'}] the dead victim's body is hidden, not left lying",
-                             lambda: (ctx.player_snapshot(victim).get("state") or {}).get("body_hidden"), 10)
+                             lambda: (ctx.player_snapshot(victim).get("mod") or {}).get("body_hidden"), 10)
             else:
                 ctx.wait_for(f"[{victim or 'host'}] the shout hits the lying victim",
                              lambda: (h := ctx.player_health(victim)) is not None and h < before - 1, 5)
@@ -635,8 +637,9 @@ class CombatActions:
                     snapshot = ctx.player_snapshot(victim)
                     state = snapshot.get("state") or {}
                     return (not ctx.is_dead(snapshot) and (snapshot.get("placement") or {}).get("has_3d")
-                            and state.get("alpha", 0) >= 0.99 and not state.get("body_hidden"))
-                ctx.wait_for(f"[{victim or 'host'}] the victim respawns with its body, opaque and shown", respawned, 40,
+                            and state.get("alpha", 0) >= 0.99
+                            and (snapshot.get("mod") or {}).get("body_hidden") == hidden_before)
+                ctx.wait_for(f"[{victim or 'host'}] the victim respawns with its body, opaque, shown as before", respawned, 40,
                              explain=lambda: str(ctx.player_snapshot(victim).get("state")))
         finally:
             ctx.console_on(attacker, f"player.setav shoutrecoverymult {recovery:g}")
@@ -652,7 +655,7 @@ class CombatActions:
             return {"position": (snapshot.get("placement") or {}).get("position"), "pose": snapshot.get("pose"),
                     "ragdoll": snapshot.get("ragdoll"), "knock": (snapshot.get("state") or {}).get("knock"),
                     "dead": ctx.is_dead(snapshot), "alpha": (snapshot.get("state") or {}).get("alpha"),
-                    "body_hidden": (snapshot.get("state") or {}).get("body_hidden"),
+                    "body_hidden": (snapshot.get("mod") or {}).get("body_hidden"),
                     "visuals": snapshot.get("visuals"), "has_3d": (snapshot.get("placement") or {}).get("has_3d"),
                     "shown": {k: (snapshot.get("mod") or {}).get(k)
                               for k in ("visuals_shown", "fade_state", "pose_visibility", "components")}}

@@ -236,6 +236,8 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
     mod["selected_spells"] = {ToGame(cMagic.LeftHandSpell), ToGame(cMagic.RightHandSpell)};
     mod["process_level"] = EngineReads::GetProcessLevel(aFormId);
     mod["fade_state"] = EngineReads::GetFadeState(aFormId);
+    // Its third-person 3D hidden (kHidden): a first-person player's is, by its camera; shown, not compared.
+    mod["body_hidden"] = EngineReads::IsBodyHidden(aFormId);
     mod["process_me"] = EngineReads::IsProcessMe(aFormId);
     mod["package_type"] = EngineReads::GetPackageType(aFormId);
     mod["subtitle"] = EngineReads::GetSubtitle(aFormId);
@@ -299,7 +301,6 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
                    {"deferred_kill", EngineReads::GetKillState(aFormId).Deferred},
                    {"kill_queued", EngineReads::GetKillState(aFormId).Queued},
                    {"alpha", EngineReads::GetAlpha(aFormId)},
-                   {"body_hidden", EngineReads::IsBodyHidden(aFormId)},
                    {"casting", CastingSpells(aFormId)},
                    {"hands", {actors.GetEquippedWeaponFormId(aFormId, 0), actors.GetEquippedWeaponFormId(aFormId, 1)}},
                    // The props its graph shows (ANIO, drawn): a copy holds its owner's (Alvor's hammer).
