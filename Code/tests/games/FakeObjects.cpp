@@ -123,6 +123,9 @@ void FakeEngine::LoadCell(uint32_t aCell)
 {
     const bool cAttaching = Attached.insert(aCell).second;
     InMemory.insert(aCell);
+    for (auto& [cId, cActor] : Actors)
+        if (cActor.Cell == aCell)
+            cActor.NotLoadedYet = false;
     // Cell attach queues each reference's 3D (QueueReference 13057).
     if (cAttaching)
         for (auto& [cId, cActor] : Actors)

@@ -1982,6 +1982,23 @@ TEST_CASE("Party travel preserves queued destinations and native travel hours", 
     CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
 }
 
+TEST_CASE("A leash notification carries out, back or off and its countdown", "[encoding.travel]")
+{
+    for (const auto cState : {NotifyLeash::Kind::kOff, NotifyLeash::Kind::kOut, NotifyLeash::Kind::kBack})
+    {
+        NotifyLeash leash;
+        leash.State = cState;
+        leash.Seconds = cState == NotifyLeash::Kind::kOut ? 10 : 0;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        leash.Serialize(writer);
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto decoded = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        CHECK(*CastUnique<NotifyLeash>(std::move(decoded)) == leash);
+    }
+}
+
 TEST_CASE("A give-back carries the actor's placement, its holder's last tick, its kill and its claim's end", "[encoding.travel]")
 {
     ActorGiveBackRequest giveBack;

@@ -25,6 +25,8 @@
 #include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestEye.h>
+#include <Services/Guest/GuestLeash.h>
+#include <Bridges/IPlayerBridge.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
 #include <Services/HostService.h>
@@ -487,7 +489,8 @@ struct GuestSeam::Guest
           Hands(aWorld, Engine),
           Wait(aWorld, aWorld.GetDispatcher(), Engine),
           Scene(aWorld, aWorld.GetDispatcher(), Engine),
-          Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>())
+          Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>()),
+          Leash(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IPlayerBridge&>())
     {
     }
 
@@ -503,6 +506,7 @@ struct GuestSeam::Guest
     GuestWait Wait;
     GuestScene Scene;
     GuestCopies Copies;
+    GuestLeash Leash;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
@@ -547,4 +551,5 @@ void GuestSeam::Update() noexcept
     m_pGuest->Record.OnUpdate(cUpdate);
     m_pGuest->Engine.FreePlaced();
     m_pGuest->Wait.OnUpdate();
+    m_pGuest->Leash.OnUpdate(cUpdate);
 }

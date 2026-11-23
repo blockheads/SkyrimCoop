@@ -86,6 +86,7 @@ struct TravelService
         GameId CellId{};
         glm::vec3 Position{};
         float Heading{}; // the leader's on arrival
+        bool AskedAgain{}; // sent here once more while on its way
     };
     std::vector<TetherTarget> m_tetherTargets;
     std::optional<ArrivalStack> m_stack;

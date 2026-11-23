@@ -1241,6 +1241,14 @@ class ReproActions:
             return {"apart": round(apart, 2)}
         if check == "at":
             place = where(shown.get(game or "host") or {})
+            if seconds and (place is None or math.dist(place, value) > within):
+                # Gets there within `seconds` (a trip the host sends, a countdown first).
+                def there():
+                    nonlocal place
+                    place = where(ctx.observe_one(name).get(game or "host") or {})
+                    return place is not None and math.dist(place, value) <= within
+                ctx.wait_for(f"{name} within {within} of {value}", there, seconds,
+                             explain=lambda: f"in the {game or 'host'}'s game at {place}")
             if place is None or math.dist(place, value) > within:
                 raise ctx.failure(f"{name}: in the {game or 'host'}'s game at {place}, not within {within} of {value}")
             return {"at": place}

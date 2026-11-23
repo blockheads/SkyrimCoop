@@ -58,6 +58,19 @@ and relayed: 7.3-10.2 s before, 1.35-1.59 s after
 ([network-performance.md](design/network-performance.md#steams-send-rate-2026-11-23)). ClientTests `[steam-pacing]`;
 scenario `steam-join-sends-save-fast` (two accounts). Not yet measured on a home line.
 
+2026-11-22: **a guest behind the host sees the host's NPCs once its grid reaches them; a soft leash keeps guests
+in the host's grid** (`agent/missing-enemies-guest`). Playtest 2026-11-22 (report 1951-468): the host walked ahead to the wolves past Riverwood, the
+guest followed and never saw them. Their spawns waited on the guest for a reference it had not loaded, and the wake-up
+hook sat on `QueuedReference::Finish` (13022), which the probe counted on 8 of 927 3D jobs; `QueuedReference::End` (13023)
+on all of them (measured with `player_probe`; the held NPC's job ending there is inferred, `actor-ai-and-copies.md`). Both are hooked now. The soft leash
+([party-travel.md](design/party-travel.md), "Soft leash"): a guest outdoors out of the host's grid for 2 s gets a 10 s
+countdown banner, then party travel to the host; back in time, it stays (`HostLeash`, `GuestLeash`, `NotifyLeash`;
+none indoors, on a trip or down; a trip that never lands is sent again). Scene scenarios go home when they end, so
+several run on one boot. A player's copy left in a cell that detached on the other game (a jump of 4 cells) kept that cell,
+nothing moved it into its new cell and it dropped below high process, unseen: `RunPresence` now re-places a copy whose cell is not
+attached (`actor-ai-and-copies.md`, "A copy in a detached cell"). Tests: `HostAuthorityTests [Leash]`,
+`GameTests [leash]`, scenarios `host-ahead-npcs-reach-guest`, `guest-leash`, `player-copies-after-setpos`.
+
 2026-11-22: **the lockpicking menu draws its lock again** (`agent/lockpicking-ui`;
 [lockpicking.md](re/systems/lockpicking.md)). Since personal menus stopped pausing (2026-10-27) the menu opened with
 nothing drawn on the host and guests: `LockpickingMenu::ProcessMessage` (51950) builds the lock only on the main thread,

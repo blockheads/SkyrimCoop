@@ -59,6 +59,18 @@ struct HostCharacters
     // Where a player's character stands now: its cell (outdoors its worldspace too), position and heading, from its
     // game's announcement, arrivals and movement (the host's own from its engine). None for any other character.
     [[nodiscard]] std::optional<NotifyPartyTravel> CharacterPlace(uint32_t aSessionId) const noexcept;
+    // A player's character outdoors: its worldspace and position from its records (no engine read). None indoors, on
+    // its way somewhere, or before its announcement.
+    struct Outdoors
+    {
+        GameId WorldSpaceId{};
+        Vector3_NetQuantize Position{};
+    };
+    [[nodiscard]] std::optional<Outdoors> OutdoorsAt(ConnectionId_t aPlayer) const noexcept;
+    // The party tether's trip to the host's player (the soft leash, HostLeash).
+    void BringToHost(ConnectionId_t aPlayer) noexcept { BringToParty(aPlayer); }
+    // Sent to the host's player and not arrived yet.
+    [[nodiscard]] bool OnWayToHost(ConnectionId_t aPlayer) const noexcept { return m_broughtToParty.contains(aPlayer); }
     // Every character but aPlayer's own (aOwnSessionId), as it is now.
     void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) noexcept;
     // Action claims (a ride, a kill move), which change their taken members' owner (SetOwner).

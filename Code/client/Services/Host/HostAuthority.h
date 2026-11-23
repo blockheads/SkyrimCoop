@@ -4,6 +4,7 @@
 #include <Messages/Message.h>
 #include <Opcodes.h>
 #include <Services/Host/HostCharacters.h>
+#include <Services/Host/HostLeash.h>
 #include <Services/Host/HostClock.h>
 #include <Services/Host/HostDevTools.h>
 #include <Services/Host/HostDeath.h>
@@ -212,6 +213,7 @@ private:
     HostRecords m_records;
     HostStory m_story;
     HostDeath m_death;
+    HostLeash m_leash;
     HostFollowers m_followers;
     HostDevTools m_devTools;
     std::vector<JoinerStore> m_joinerStores;

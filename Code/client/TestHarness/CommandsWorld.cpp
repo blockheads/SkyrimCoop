@@ -906,7 +906,8 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, whether it is a copy here and
-// still loading (kStillLoading: a spawn for it waits), its running package and process level (-1: no process).
+// still loading (kStillLoading: a spawn for it waits), its running package and process level (-1: no process), where the
+// game placed it (home: GetEditorLocation 19514) and whether its parent cell is attached here.
 nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
 {
     auto& actors = World::Get().GetActorBridge();
@@ -916,7 +917,12 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
     float position[3]{};
     actors.GetActorPosition(cActor, position[0], position[1], position[2]);
     const auto cLevel = EngineCalls::GetProcessLevel(cActor);
+    nlohmann::json home;
+    if (const auto cHome = EngineCalls::GetEditorHome(cActor))
+        home = {{"world_or_cell", cHome->WorldOrCell}, {"position", {cHome->Position[0], cHome->Position[1], cHome->Position[2]}}};
     return {{"ok", true},
+            {"home", home},
+            {"cell_attached", EngineCalls::IsParentCellAttached(cActor)},
             {"cell", actors.GetActorParentCellFormId(cActor)},
             {"worldspace", actors.GetActorWorldSpaceFormId(cActor)},
             {"position", {position[0], position[1], position[2]}},

@@ -317,6 +317,8 @@ public:
     // --- World position ---
     virtual uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept = 0;
     virtual uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept = 0;
+    // Its parent cell is attached here (in this game's loaded grid; TESObjectCELL state 7).
+    virtual bool IsActorCellAttached(uint32_t aFormId) const noexcept = 0;
 
     // --- Spawning / NPC serialization ---
     /// Create an Actor from an existing NPC base form. Returns the new actor's formID (0 on failure).
