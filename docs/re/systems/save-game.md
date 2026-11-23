@@ -47,6 +47,30 @@ The real quickload scenario checks the guest's own level rolls back, as well as 
 
 The manager is `BGSSaveLoadManager::singleton` (403340).
 
+## Inside a load (1.7.104, 2026-11-23)
+
+Read in IDA 1.7.104 for the save/load explanation (PR #110); names and comments in the database.
+
+- **Quickload and a menu load are one load.** `Load_Impl` (35728) and quickload's request (`0xD0000400`, handled in
+  `Thread::ProcessEvents_Internal` 35772) both hand the file to the save utility's vfunc `0xB8` with the same
+  parameters. Quickload first waits two passes of the queue (`g_quickloadFramesWaited`, its HUD line on the first)
+  and picks `SaveEntry::lastQuicksave`; a quicksave (`0xF0000200`) waits the same way, then `Save_Impl` device 4.
+- **The load runs on the main thread** as request `0xD0000010` (35772 -> `LoadGame_HookTarget_Enter` 442580 ->
+  `Thread::LoadGame_HookTarget` 35600). In 35600, in order:
+  1. the save's plugin list checked (`BGSSaveLoadGame__ReadPluginList` 442571), then `PrepareForLoad` (35779): VM
+     frozen, master file loads cancelled, queued model handles dropped, audio killed, menus closed;
+  2. global data (`LoadGlobalData` 35648), then a first pass over the save's change forms: each looked up and
+     `TESForm::Revert` (vfunc `0x90`, slot `0x12`, CommonLibSSE-NG) puts it back to its plugin state;
+  3. forms the running game changed that the save does not list are reverted too (`RevertFormsNotInSave` 35566):
+     a load inside a game is a revert plus the save's changes, not a new world;
+  4. a second pass: `LoadGame` (vfunc `0x78`) with each form's data;
+  5. `InitAndFinishLoadedForms(wait=1)` (35567): `InitLoadGame` (`0x80`) on each, then the IO manager's queue drained
+     on the main thread (`IOManager` 75708, priority 5, at `0x140615d01`), then `FinishLoadGame` (`0x88`) on each;
+  6. back in 442580, `FinishLoad` (35780): master file loads resume, terrain, the nearby actor list, the story
+     teller, the VM thawed.
+- **Read, not measured:** step 5 is where a load can wait on queued IO. Which jobs a given load waits for (the cells
+  and models around the player) is an inference; nothing here measured it.
+
 ## Back to the main menu (2026-11-18)
 
 A guest leaving goes back with `papyrus::Game::QuitToMainMenu` (55490, `0x140a253e0`; read in IDA, 1.7.104). It
