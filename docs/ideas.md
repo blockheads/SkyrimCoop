@@ -331,3 +331,8 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 - **Unwind data for SKSE's stubs** (2026-11-22, `docs/re/systems/stack-walk.md`): our stack walks end at SKSE's camera
   stub, so a stack under a camera change does not say who changed the camera. `RtlAddFunctionTable` with the stub's
   two pushes and 0x28 bytes would let every walker (ours, CrashLogger's) go on. When a stack cut there hides a cause.
+- **A save over Steam is capped by ENet now** (2026-11-23, `docs/design/network-performance.md`, Steam's send rate):
+  ENet sends 64 KiB a round trip, and its round trip through the Steam tunnel is about 80 ms where Steam's own ping is
+  17 ms: each end pumps the tunnel once a frame (`SteamService::PumpTunnels`). Pumping it off the frame, or sending the
+  save as Steam reliable messages beside ENet, would go several times faster. And a load restarts a save already on
+  its way ahead (2026-11-22's 11 s load). When a playtest shows the transfer is still what players wait for.
