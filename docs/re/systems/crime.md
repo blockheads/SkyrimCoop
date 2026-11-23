@@ -339,9 +339,9 @@ the stole-today flag (step 7). A non-owner only walks up and stops, but stays on
 
 The fix: the bridge hooks 39557 and remembers, by the witness's process, the crime it set inside `Judge`'s scope and
 that guest's copy (`CrimeRules::PendingCriminals`). Its 39631 hook runs the witness's look in the same scope when the
-witness still holds that crime, so step 6 reads the copy: unseen, the witness drops the crime and leaves the witness
-list, as in vanilla; seen, its alarm still names the host's player and the party rule picks the nearest. A copy gone
-by then (the guest left) drops the crime. Every alarm (theft, pickpocket, assault, murder, trespass, werewolf) sets
+witness still holds that crime, and a 37757 hook redirects that function's lookup in the scope too (it reads the
+knowledge through 39514, not 39515, and 39631's unseen drop waits on it, 0x1407041c7), so step 6 reads the copy: unseen, the witness drops the crime and leaves the witness
+list, as in vanilla; seen, its alarm still names the host's player and the party rule picks the nearest. A copy gone by then (the guest left) drops the crime and removes the witness (42507), as 39631's unseen path does. Every alarm (theft, pickpocket, assault, murder, trespass, werewolf) sets
 its witnesses' crimes through 39557 in that scope. Tests: ClientTests "A guest's pending crime is looked at from the
 guest's copy", GameTests "A guest's hidden theft is not judged by who sees the host" and "A guest's seen theft alarms
 the NPC that saw it".

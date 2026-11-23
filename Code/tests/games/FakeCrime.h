@@ -49,18 +49,35 @@ struct FakeCrime final : ICrimeBridge
     {
         for (const auto& [cWitness, cCrime] : std::exchange(PendingCrimes, {}))
         {
-            // The bridge's 39631 hook: the copy its crime named, in Judge's scope again.
+            // The bridge's 39631 and 37757 hooks: the copy its crime named, in Judge's scope again.
             const uint32_t cCopy = Criminals.Of(cWitness, cCrime);
+            if (cCopy && !m_engine.Actors.contains(cCopy))
+            {
+                Criminals.Judged(cWitness, 0); // the thief left: removed as a witness, crime dropped
+                Grudges[cWitness].Witness = false;
+                continue;
+            }
             const uint32_t cBody = cCopy ? cCopy : FakeEngine::kPlayer;
-            Criminals.Judged(cWitness, 0);
             const auto cSees = m_engine.SeesOf.find(cBody);
-            const auto cLevel = cSees == m_engine.SeesOf.end() ? cSees->second.end() : cSees->second.find(cWitness);
-            if (cSees != m_engine.SeesOf.end() && cLevel != cSees->second.end() && cLevel->second > 0)
+            const auto* cpLevel = [&]() -> const int32_t* {
+                if (cSees == m_engine.SeesOf.end())
+                    return nullptr;
+                const auto cFound = cSees->second.find(cWitness);
+                return cFound == cSees->second.end() ? nullptr : &cFound->second;
+            }();
+            if (!cpLevel)
+            {
+                PendingCrimes[cWitness] = cCrime; // no state of the criminal yet (37757): kept for a later update
+                continue;
+            }
+            Criminals.Judged(cWitness, 0);
+            if (*cpLevel > 0)
                 Alarms.push_back(cWitness);
             else
                 Grudges[cWitness].Witness = false;
         }
     }
+
     std::vector<CrimeConfiscation> TakeConfiscations() noexcept override
     {
         return std::exchange(Confiscations, {});
@@ -132,11 +149,13 @@ struct FakeCrime final : ICrimeBridge
         if (aRequest.Action == CrimeAction::Pickpocket && cActorTarget && !cStops)
             Pickpocketed.push_back(cTarget->first);
         const bool cTheft = (aRequest.Action == CrimeAction::Theft && !cStops) || aRequest.Action == CrimeAction::ContainerTheft;
-        if (cTheft)
+        // A warned theft returns before the witness loop (37556, then 37422 returns).
+        const bool cWarned = SeenThefts && cTheft && aRequest.AllowWarning && TheftWarnings < 2;
+        if (cTheft && !cWarned)
             GiveWitnessesTheCrime(aActor);
         if (SeenThefts && cTheft)
         {
-            if (aRequest.AllowWarning && TheftWarnings < 2)
+            if (cWarned)
             {
                 ++TheftWarnings;
                 // Skyrim: 37556 names g_thePlayer; the bridge's swaps put the criminal's copy there (CrimeRules::Warned).
