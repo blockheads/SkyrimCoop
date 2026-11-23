@@ -60,6 +60,7 @@ every other section needs the duo.
 
 **Ragdolls and death poses**
 
+- [A ragdolled copy holds its pose between updates](#a-ragdolled-copy-holds-its-pose-between-updates): small
 - [Revive leaves the body wrong](#revive-leaves-the-body-wrong): medium
 
 **Physics**
@@ -467,6 +468,18 @@ Size: small. Needs: the duo with the late save.
 - 2026-11-22, dev `aa723513` (`duo --save LateAfterDragonRising`): 1 of 1 again, the same step.
 
 ## Ragdolls and death poses
+
+### A ragdolled copy holds its pose between updates
+
+Read, not measured (2026-11-23, `re/systems/actor-movement.md`, "A copy's pose between its owner's updates"): in a frame
+where none of its owner's updates are due, the real 63587 does not run on a copy, so it is not registered for the
+ragdoll passes (63761), and with its ragdoll in the world 63589 writes no skeleton either. A copy knocked down or
+getting up holds its pose for that frame; the blend (`PoseTimeline`) reaches it only in the frames with an update.
+
+Agent task: measure it (held frames of a copy getting up), then register the graph in frames without an update as 63587
+does when a far graph's countdown has not run out, without stepping it; teach the fake the ragdoll passes first.
+
+Size: small. Needs: duo (knockdown scenarios), IDA (63587's countdown path).
 
 ### Revive leaves the body wrong
 

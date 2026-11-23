@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **other players' animations move on every frame** (`agent/smooth-animations`): a copy's graph runs its
+owner's updates due by its playback, so with both games' frames jittering apart it ran none in some frames (its pose
+held while its body moved on, read in IDA: 63581) and two in the next, 5-23 % of frames on the duo: "snappy, not
+interpolated". Now each generate pass's pose is kept and the pose shown is blended between the two kept around a
+time 1.5 owner frames behind playback (`PoseTimeline`, graph-input-stream.md, "A pose every frame"), as the engine does
+for a far graph. On the duo a copy's feet move as evenly as its owner's: standing still while its body moves in 0-0.3 % of
+frames (owners 0; 6.6-8.6 % with only the blend switched off), over 50 % off their neighbours' speed in 0.8-3.6 % (owners
+0.4-2.6 %; 20-22 % off). Measured with `smoothness`, which now has the watcher face the
+copy and the mover in third person. Scenarios `copy-poses-every-frame-host` / `-guest`; GameTests "A walking player's copy
+shows a pose that moves on every frame..." (jittered frames, and 60 against 50 fps); ClientTests `[pose-blend]`.
+
 2026-11-23: **a trap's disease no longer stops a guest's stamina regeneration** (`agent/stamina-drained`). Playtest
 2026-11-22 item 12: the guest's stamina sat at 0 and never came back (reports 2015-7c1/cc7). Its player held both
 of Rattles' effects (`TrapDiseaseRattles` 10A24E): Survival Mode's override adds a second `StaminaRate -2.5` for

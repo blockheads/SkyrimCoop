@@ -63,6 +63,13 @@ nlohmann::json FirstPerson(Harness&, const nlohmann::json&)
     return Ok();
 }
 
+// {"cmd": "third_person"}: the player's camera to third person (its own body drawn, as a copy is).
+nlohmann::json ThirdPerson(Harness&, const nlohmann::json&)
+{
+    EngineCalls::ForcePlayerThirdPerson();
+    return Ok();
+}
+
 // {"cmd": "strip", "actor": id}: unequips everything on it in this game only (a copy whose equipment
 // drifted from its owner's).
 nlohmann::json Strip(Harness&, const nlohmann::json& acRequest)
@@ -270,7 +277,7 @@ nlohmann::json Wake(Harness&, const nlohmann::json& acRequest)
 }
 
 constexpr Command cCommands[] = {
-    {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
+    {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson}, {"third_person", true, &ThirdPerson},
     {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn}, {"reset_3d", true, &Reset3DCommand},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing}, {"ragdoll_adds", false, &RagdollAdds}, {"ragdoll_out", false, &RagdollOut},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"put_on_mount", true, &PutOnMount}, {"board_ridden", true, &BoardRidden}, {"seat_on_mount", true, &SeatOnMountCommand}, {"sit_on_mount_quick", true, &SitOnMountQuickCommand}, {"take_reins", true, &TakeReinsCommand}, {"graph_event", true, &GraphEventCommand}, {"activate_text", true, &ActivateTextCommand}, {"clear_map_marker", true, &ClearMapMarker},
     {"wake", true, &Wake},

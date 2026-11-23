@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/Animation/PoseBlend.h>
 #include <Structs/GraphOps.h>
 #include <cstdint>
 #include <map>
@@ -143,6 +144,9 @@ struct FakeGraphMemory
     bool ActiveNodesChanged = false; // stateOrTransitionChanged: the next update walks the active nodes
     // Its owner's graph time: an owner's own steps; a copy's from the sync point it loaded, then its own steps.
     double Timeline = 0.0;
+    // Its newer output's pose (63568): one bone at x = its graph time as it generated; a copy's blended pose written
+    // over it (ShowPose) is what the frame shows (63581).
+    std::vector<PoseBone> Pose;
     // After each update and each event the graph took: (Timeline, state). The live check compares a copy's with its
     // owner's.
     struct Entry

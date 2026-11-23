@@ -359,8 +359,11 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
         entry["goal"] = {pExtension->CopyGoal[0], pExtension->CopyGoal[1], pExtension->CopyGoal[2]};
     for (const auto& cName : m_graphFloats)
         entry["floats"][cName] = EngineCalls::GetGraphFloat(aFormId, cName.c_str());
-    // A copy's clocks: the owner's time it shows, the game's copy clock and the session's time as read.
+    // The update its graph is on: an owner's recorded, a copy's replayed.
     auto& world = World::Get();
+    if (const auto cUpdate = world.GetGraphStreams().UpdateIndex(aFormId))
+        entry["graph_update"] = *cUpdate;
+    // A copy's clocks: the owner's time it shows, the game's copy clock and the session's time as read.
     for (auto&& [entity, form, interpolation] : world.view<FormIdComponent, InterpolationComponent>().each())
         if (form.Id == aFormId)
         {

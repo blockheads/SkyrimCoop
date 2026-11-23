@@ -1,6 +1,10 @@
 #pragma once
 
+#include <Games/Animation/PoseBlend.h>
 #include <Havok/hkbCharacter.h>
+
+#include <algorithm>
+#include <span>
 #include <Events/EventDispatcher.h>
 #include <Games/Animation/BSAnimationGraphEvent.h>
 
@@ -36,6 +40,16 @@ static_assert(offsetof(hkbGeneratorOutputTracks, headers) == 0x10);
 struct hkbGeneratorOutput
 {
     hkbGeneratorOutputTracks* tracks; // 00
+
+    // Its pose track (2): a bone transform (hkQsTransform, 48 bytes) for each bone posed, as 63581/63582 read it.
+    [[nodiscard]] std::span<PoseBone> Pose() const noexcept
+    {
+        if (!tracks || tracks->numTracks <= 2)
+            return {};
+        const auto& cHeader = tracks->headers[2];
+        auto* pBones = reinterpret_cast<PoseBone*>(reinterpret_cast<uint8_t*>(tracks) + cHeader.dataOffset);
+        return {pBones, static_cast<size_t>(std::max<int16_t>(cHeader.numData, 0))};
+    }
 };
 
 struct BShkbAnimationGraph
