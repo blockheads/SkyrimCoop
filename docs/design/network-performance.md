@@ -52,6 +52,44 @@ The bounds: an image of at most 256 MiB, pieces of 32 KiB, a decode to exactly t
 against its SHA-256 before it is stored or loaded. A join's or a load's save budgets 256 KiB an update and waits while
 ENet has more than 512 reliable commands queued; a save sent ahead one piece an update while fewer than 32 wait.
 
+## Steam's send rate (2026-11-23)
+
+Over Steam a save travelled at 120-240 KB/s (playtests of 2026-10-31 and 2026-11-22: a 1 MB save sent ahead took
+8-10 s, so a load soon after a save often sent it again). `SteamBridge` sets Steam's send rate to 4 MB/s (min = max)
+and its send buffer to 2 MB, on the listen socket and on `ConnectP2P`.
+
+How the two layers pace (read in their source):
+
+- **Steam** (GameNetworkingSockets `SNP_ThinkSendState`, `SNP_ClampSendRate`): a token bucket at
+  `SendRateMin`, queueing what is over it; no bandwidth estimation (min == max is "application has disabled
+  bandwidth estimation"; otherwise the first estimate is only clamped, so min wins; Valve: issues #108, #198, #270).
+  Skyrim's SDK header gives the default as 256K.
+- **ENet** (enet6 6.1.3, `protocol.c`, `peer.c`): at most `packetThrottle/32 x 64 KiB` of reliable data
+  unacknowledged; a command is resent after its round trip plus 4 variances (doubling each time), and
+  `enet_peer_throttle` cuts the throttle when a round trip comes in above the last plus 2 variances.
+
+So Steam's rate must drain ENet's window faster than ENet's resend timer: ENet sends its 64 KiB once a frame, and at
+1 MB/s Steam takes 62 ms to put it out, the tail waiting about 135 ms against a timer of about 100 ms. ENet resends
+packets that were only queued, sees a longer round trip and cuts its throttle, sometimes to 0/32 for seconds: the
+stalled start. Counted at each hop of the tunnel during a 5.2 s transfer: the host's ENet sent 1,141 datagrams, the
+guest's received all of them, yet ENet counted 154 lost.
+
+Measured on the two-account duo (`guest-joins-by-invite`, the guest's store emptied so the whole 1.38 MB save
+travels; the rate Steam applies read back through `GetConnectionRealTimeStatus`):
+
+- default (256 KB/s): transfer 7.3-10.2 s (six joins), joined in 9-12 s
+- min 256 KB/s, max 4 MB/s: Steam applied 262144 B/s, transfer 7.1-8.8 s: it does not adapt between them
+- 1 MB/s: 1.6-2.5 s, but 4 of 12 transfers stalled (3.5-5.4 s); relays only 2.0, 2.2, 5.2 s
+- 64 MB/s, relays only (`P2P_Transport_ICE_Enable` off): 2.0, 2.3, 13.0 s; ENet resent 98-301 packets a transfer
+- 4 MB/s: 1.35-1.59 s over six joins (three relayed), no stall, ENet's throttle at 16/32 at its lowest
+- 1 MB/s with ENet's throttle never cut (deceleration 0): 1.66-1.89 s, no stall; not kept, since the throttle is the
+  only back-off on a slow upload
+
+What caps a save now is ENet: 64 KiB a round trip, and its round trip through the tunnel is about 80 ms where Steam's
+ping is 17 ms (each end pumps the tunnel once a frame, `docs/ideas.md`). Valve's relays police a rate (#226): three
+relayed joins at 4 MB/s were as fast as direct ones. Not measured on a real home line: on an upload slower than
+32 Mbit/s Steam sends faster than the line carries, and ENet's throttle has to back off.
+
 ## Native checks of 2026-11-03 (the block reuse, since replaced)
 
 Steam 1.7.104, 2026-11-03: `guest-reuses-world-cache` passed twice, including two fresh guest processes each time,

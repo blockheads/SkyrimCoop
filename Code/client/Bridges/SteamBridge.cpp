@@ -211,12 +211,21 @@ struct SteamBridge::Impl
         }
     }
 
-    SteamNetworkingConfigValue_t StatusCallbackOption() noexcept
+    // Steam paces each connection at SendRateMin, fixed (default 256 KB/s). Slower than ENet's 64 KiB window drains,
+    // and ENet resends what is only queued here (docs/design/network-performance.md, Steam's send rate).
+    static constexpr int32 kSendRateMin = 4 * 1024 * 1024;
+    static constexpr int32 kSendRateMax = 4 * 1024 * 1024;
+    static constexpr int32 kSendBuffer = 2 * 1024 * 1024;
+
+    std::array<SteamNetworkingConfigValue_t, 4> ConnectionOptions() noexcept
     {
-        SteamNetworkingConfigValue_t option{};
-        option.SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
-                      reinterpret_cast<void*>(&Impl::OnConnectionStatus));
-        return option;
+        std::array<SteamNetworkingConfigValue_t, 4> options{};
+        options[0].SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
+                          reinterpret_cast<void*>(&Impl::OnConnectionStatus));
+        options[1].SetInt32(k_ESteamNetworkingConfig_SendRateMin, kSendRateMin);
+        options[2].SetInt32(k_ESteamNetworkingConfig_SendRateMax, kSendRateMax);
+        options[3].SetInt32(k_ESteamNetworkingConfig_SendBufferSize, kSendBuffer);
+        return options;
     }
 };
 
@@ -376,8 +385,8 @@ bool SteamBridge::Listen() noexcept
         return false;
     if (impl.ListenSocket != k_HSteamListenSocket_Invalid)
         return true;
-    const SteamNetworkingConfigValue_t cOption = impl.StatusCallbackOption();
-    impl.ListenSocket = impl.CreateListenSocketP2P(impl.Sockets(), 0, 1, &cOption);
+    const auto cOptions = impl.ConnectionOptions();
+    impl.ListenSocket = impl.CreateListenSocketP2P(impl.Sockets(), 0, static_cast<int>(cOptions.size()), cOptions.data());
     return impl.ListenSocket != k_HSteamListenSocket_Invalid;
 }
 
@@ -396,8 +405,8 @@ ISteamBridge::Connection SteamBridge::Connect(SteamId aPeer) noexcept
         return 0;
     SteamNetworkingIdentity peer{};
     peer.SetSteamID64(aPeer);
-    const SteamNetworkingConfigValue_t cOption = impl.StatusCallbackOption();
-    const HSteamNetConnection cConnection = impl.ConnectP2P(impl.Sockets(), &peer, 0, 1, &cOption);
+    const auto cOptions = impl.ConnectionOptions();
+    const HSteamNetConnection cConnection = impl.ConnectP2P(impl.Sockets(), &peer, 0, static_cast<int>(cOptions.size()), cOptions.data());
     return cConnection == k_HSteamNetConnection_Invalid ? 0 : cConnection;
 }
 
