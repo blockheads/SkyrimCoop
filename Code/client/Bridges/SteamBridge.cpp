@@ -1,4 +1,5 @@
 #include <Bridges/SteamBridge.h>
+#include <Bridges/SteamPacing.h>
 #include <PartySize.h>
 
 #include <steam/isteamnetworkingsockets.h>
@@ -211,20 +212,15 @@ struct SteamBridge::Impl
         }
     }
 
-    // Steam paces each connection at SendRateMin, fixed (default 256 KB/s). Slower than ENet's 64 KiB window drains,
-    // and ENet resends what is only queued here (docs/design/network-performance.md, Steam's send rate).
-    static constexpr int32 kSendRateMin = 4 * 1024 * 1024;
-    static constexpr int32 kSendRateMax = 4 * 1024 * 1024;
-    static constexpr int32 kSendBuffer = 2 * 1024 * 1024;
-
     std::array<SteamNetworkingConfigValue_t, 4> ConnectionOptions() noexcept
     {
         std::array<SteamNetworkingConfigValue_t, 4> options{};
         options[0].SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
                           reinterpret_cast<void*>(&Impl::OnConnectionStatus));
-        options[1].SetInt32(k_ESteamNetworkingConfig_SendRateMin, kSendRateMin);
-        options[2].SetInt32(k_ESteamNetworkingConfig_SendRateMax, kSendRateMax);
-        options[3].SetInt32(k_ESteamNetworkingConfig_SendBufferSize, kSendBuffer);
+        // Steam's default is 256 KB/s: SteamPacing.h.
+        options[1].SetInt32(k_ESteamNetworkingConfig_SendRateMin, SteamPacing::kSendRate);
+        options[2].SetInt32(k_ESteamNetworkingConfig_SendRateMax, SteamPacing::kSendRate);
+        options[3].SetInt32(k_ESteamNetworkingConfig_SendBufferSize, SteamPacing::kSendBuffer);
         return options;
     }
 };

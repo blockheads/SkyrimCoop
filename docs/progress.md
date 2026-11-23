@@ -55,7 +55,8 @@ load soon after it sent it again). `SteamBridge` sets the send rate to 4 MB/s (m
 between them) and a 2 MB send buffer. Slower rates also stalled a transfer: ENet resent packets only queued in
 Steam and cut its throttle to zero (counted at each hop: none lost). Two-account duo, a whole 1.38 MB save, direct
 and relayed: 7.3-10.2 s before, 1.35-1.59 s after
-([network-performance.md](design/network-performance.md#steams-send-rate-2026-11-23)). Not yet measured on a home line.
+([network-performance.md](design/network-performance.md#steams-send-rate-2026-11-23)). ClientTests `[steam-pacing]`;
+scenario `steam-join-sends-save-fast` (two accounts). Not yet measured on a home line.
 
 2026-11-22: **a disintegrated player's body is gone on every game until it respawns** (`agent/disintegrate-body`;
 [death-disintegrate.md](re/systems/death-disintegrate.md), "What we do"). After the freeze fix the victim's own body

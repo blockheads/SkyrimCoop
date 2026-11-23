@@ -24,3 +24,13 @@ time	op	id	rva	item
 2026-11-23T04:30:59Z	comment		0x6192fd	{"addr": "0x1406192fd", "comment": "Load step 5: InitAndFinishLoadedForms(wait=1): vfunc 0x80 per form, then blocks on the IO manager (75708) until the queued cell and model loads are in, then vfunc 0x88 (FinishLoadGame). The cell load's wait is here, on the main thread."}
 2026-11-23T04:30:59Z	comment		0x62815c	{"addr": "0x14062815c", "comment": "Load step 6, FinishLoad: master file loads resume, terrain manager update, nearby actor list, story teller, VM thawed (54016)."}
 2026-11-23T04:30:59Z	comment		0x615cf0	{"addr": "0x140615cf0", "comment": "wait=1 (a save's load): the IO manager drains its queue here (75708, priority 5) before FinishLoadGame runs on each form."}
+2026-11-23T07:49:55Z	read		0x618f37	{"name": "Thread::LoadGame_HookTarget"}
+2026-11-23T07:49:55Z	read		0x615ce0	{"name": "BGSSaveLoadGame::InitAndFinishLoadedForms"}
+2026-11-23T07:50:07Z	read	442580	0x627de0	{"name": "LoadGame_HookTarget_Enter"}
+2026-11-23T07:50:07Z	read	35600	0x618970	{"name": "Thread::LoadGame_HookTarget"}
+2026-11-23T07:50:07Z	read	35567	0x615af0	{"name": "BGSSaveLoadGame::InitAndFinishLoadedForms"}
+2026-11-23T07:50:16Z	comment		0x618c86	{"addr": "0x140618c86", "comment": "Load step 2: global data tables 0-8, 100-114, 1000-1005 (LoadGlobalData), then the change forms loop below: per form, header, LookupFormByID, then vfunc 0x90 = slot 0x12 TESForm::Revert (CommonLibSSE-NG) at 0x140618f5e: the form is put back to its plugin state before the save's data goes on. Corrected 2026-11-23 (PR #110 review): was wrongly named InitLoadGame."}
+2026-11-23T07:50:16Z	comment		0x618f5e	{"addr": "0x140618f5e", "comment": "TESForm::Revert (vfunc 0x90, slot 0x12, CommonLibSSE-NG): first pass over the save's change forms."}
+2026-11-23T07:50:16Z	comment		0x6192fd	{"addr": "0x1406192fd", "comment": "Load step 5: InitAndFinishLoadedForms(wait=1, 35567): vfunc 0x80 InitLoadGame per form; then (wait=1) TES 13387, IOManager 75713, the IO manager's drain at 0x140615d01 (75708, priority 5), TES 13415; then vfunc 0x88 FinishLoadGame per form. Read: this is where a load can wait on queued IO. Not read: which jobs a given load waits for (cells and models are an inference)."}
+2026-11-23T07:50:16Z	comment		0x615cf0	{"addr": "0x140615cf0", "comment": "AnimationFileManagerSingleton 63973 (not read), before the IO drain at 0x140615d01."}
+2026-11-23T07:50:16Z	comment		0x615d01	{"addr": "0x140615d01", "comment": "wait=1 (a save's load): IOManager 75708 with priority 5 drains the IO queue here, on the main thread, before FinishLoadGame runs on each form."}

@@ -23,6 +23,7 @@ from ..common import (
     TRACES,
 )
 from ..errors import TestFailure
+from ..utilities import log
 from ..comparisons import (
     distance,
     world_differences,
@@ -48,6 +49,31 @@ def scenario_guest_joins_by_invite(ctx):
         _game.rpc({"cmd": "steam_leave"})
         ctx.wait_on("", "the client's character leaves the host's game with the Steam session",
                 lambda actors: ctx.other_player(actors) is None)
+    finally:
+        ctx.steam_sessions_end()
+        if ctx.game_state("client").get("online") is not True:
+            ctx.rejoin_client()
+
+def scenario_steam_join_sends_save_fast(ctx):
+    """A friend with no save held joins through a Steam invite: the whole save crosses Steam in under 4 s. Steam paces
+    each connection at a fixed rate; its default (256 KB/s) took 7-10 s for a 1.4 MB save, and 1 MB/s stalled ENet
+    (docs/design/network-performance.md, Steam's send rate)."""
+    _game = ctx.game()
+    ctx.disconnect_client()
+    ctx.wait_on("", "the client's character leaves the host's game", lambda actors: ctx.other_player(actors) is None)
+    # The guest's store of received saves: emptied, so the whole save travels.
+    for path in (ctx.game("client").my_games / "SkyrimCoop" / "worlds").glob("*.world"):
+        path.unlink(missing_ok=True)
+    try:
+        ctx.client_accepts_steam_invite()
+        ctx.wait_for("Each game shows the other player, joined through Steam", ctx.both_see_each_other, 30, _game=_game)
+        timing = ctx.join_status("client").get("timings", {})
+        if timing.get("outcome") != "joined" or timing.get("against_held") or timing.get("from_store"):
+            raise ctx.failure(f"[client] no whole save came through Steam: {timing}")
+        log(f"[client] {timing.get('payload_bytes')} bytes crossed Steam in {timing.get('transfer_ms'):.0f} ms")
+        if timing.get("payload_bytes", 0) < 500_000 or timing.get("transfer_ms", 1e9) >= 4000:
+            raise ctx.failure(f"[client] the whole save took {timing.get('transfer_ms')} ms for {timing.get('payload_bytes')} "
+                              "bytes (expected under 4000 ms: Steam's send rate, SteamPacing.h)")
     finally:
         ctx.steam_sessions_end()
         if ctx.game_state("client").get("online") is not True:
