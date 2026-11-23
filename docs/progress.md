@@ -167,6 +167,14 @@ copy's ragdoll is in the played collision group; an actor's ragdoll rest is its 
 after it (a join, a cell load) lies there too. A guest's grab of a host corpse is the mover's until it rests (it lay
 151 units apart before); a hit on a corpse was checked on the duo and needs nothing.
 
+2026-11-22: **a hidden guest's theft judged by who sees the host, fixed** (`agent/theft-detected-wrong`;
+`docs/re/systems/crime.md`, "A hidden guest's theft judged by who sees the host"; playtest 2026-11-22). StealAlarm
+gives every loaded NPC the crime to judge on its next update (39557, 39631), and that look read the host's player:
+`Judge`'s scope covered only StealAlarm's own looks. A guest sneaking behind a closed door was attacked through the
+host at the bar by the owner who saw the host (alarm, then 39651's owner assault). Now the bridge remembers which
+guest's copy each witness's crime names (`CrimeRules::PendingCriminals`) and runs that look in its scope. Scenario
+`guest-hidden-theft-host-seen`; harness `crime_watch` (each NPC's alarm, anger, witness flag and sight over time).
+
 2026-11-21: **held-now state for a joiner, piece 9 of one-simulator.md, built** (`agent/piece-9`;
 `docs/re/systems/actor-ai-and-copies.md`, "A held cast's end"). A game joining mid-cutscene, mid-conversation, after a
 map marker or while another player channelled a spell got none of it. `HostAuthority::PlayerEntered` now sends from one

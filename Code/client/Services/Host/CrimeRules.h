@@ -3,6 +3,8 @@
 // CrimeBridge::Judge's checks with no engine (docs/re/systems/crime.md, "A created item's theft names its owner"):
 // ClientTests check them; the bridge and GameTests' fake follow them.
 #include <Messages/CrimeMessages.h>
+#include <cstdint>
+#include <map>
 
 namespace CrimeRules
 {
@@ -47,4 +49,41 @@ template <class T> [[nodiscard]] constexpr T Warned(T aPassed, T aPlayer, T aGue
 {
     return aGuestCopy && aPassed == aPlayer ? aGuestCopy : aPassed;
 }
+
+// The body each witness's pending crime (39557) was raised against: a guest's copy when Judge's scope set it. The
+// witness's later look (39631) reads it instead of the engine's player (crime.md, "A hidden guest's theft").
+class PendingCriminals
+{
+  public:
+    // 39557 on a witness: a crime and the copy in scope, or 0 (the host's own crime, or the crime cleared).
+    void Set(uintptr_t aWitness, uintptr_t aCrime, uint32_t aCopy)
+    {
+        if (aCrime && aCopy)
+            m_entries[aWitness] = {aCrime, aCopy};
+        else
+            m_entries.erase(aWitness);
+    }
+    // The copy this witness's pending crime names, 0 to judge it as the engine does.
+    [[nodiscard]] uint32_t Of(uintptr_t aWitness, uintptr_t aCrime) const
+    {
+        const auto cEntry = m_entries.find(aWitness);
+        return aCrime && cEntry != m_entries.end() && cEntry->second.Crime == aCrime ? cEntry->second.Copy : 0;
+    }
+    // After 39631: the witness still holds `aCrime` (not yet judged) or not.
+    void Judged(uintptr_t aWitness, uintptr_t aCrime)
+    {
+        if (!Of(aWitness, aCrime))
+            m_entries.erase(aWitness);
+    }
+    void Clear() { m_entries.clear(); }
+    [[nodiscard]] size_t Size() const { return m_entries.size(); }
+
+  private:
+    struct Entry
+    {
+        uintptr_t Crime;
+        uint32_t Copy;
+    };
+    std::map<uintptr_t, Entry> m_entries;
+};
 } // namespace CrimeRules
