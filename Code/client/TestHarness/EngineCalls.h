@@ -372,6 +372,9 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // runs it: inventory-changes.md), through our hook: what it wears right after, before any service answers. None: no
 // such actor or NPC base.
 std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcept;
+// DoReset3D(false) (40255) in this game only: its 3D rebuilt, possibly queued; whether its worn init (24725) runs is
+// not checked. False: no such actor.
+bool Reset3D(uint32_t aFormId) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
 // (the bridge's Activate and lock replays call past the hooks): the player activates the object
 // (pressing E on it), and the object's lock changes.

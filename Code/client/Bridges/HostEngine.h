@@ -38,7 +38,9 @@ public:
     void SetPartyThreats(const PartyThreat::State& acState) const noexcept;
 
     // The weather the game shows; none for no sky, or the world map's own.
-    [[nodiscard]] std::optional<GameId> ReadWeather() const noexcept;
+    [[nodiscard]] std::optional<HostSky> ReadWeather() const noexcept;
+    // The region's own weather (TESRegion, weather.md); none for no such region or one without weathers.
+    [[nodiscard]] std::optional<GameId> RegionWeather(const GameId& acRegion) const noexcept;
     // What this game's NPCs see of that character's copy (StealthEye::Read); none when its copy is not loaded.
     [[nodiscard]] std::optional<DetectionRules::EyeReading> ReadEye(uint32_t aSessionId) const noexcept;
     // Every global but the constants; the calendar's are marked.

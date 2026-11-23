@@ -332,6 +332,23 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
     }
 
     {
+        WeatherRegionRequest request;
+        request.Region = GameId(0, 0x2A72D);
+
+        Buffer::Writer writer(&buff);
+        request.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+
+        const RequestMessageFactory factory;
+        auto pMessage = factory.Extract(reader);
+
+        REQUIRE(pMessage);
+        REQUIRE(pMessage->GetOpcode() == request.GetOpcode());
+        CHECK(*CastUnique<WeatherRegionRequest>(std::move(pMessage)) == request);
+    }
+
+    {
         NotifyActorName notify;
         notify.ActorId = 7;
         notify.Name = "Bj\xC3\xB6rn";

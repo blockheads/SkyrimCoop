@@ -515,6 +515,34 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
     GraphEntry(actor, "reload");
 }
 
+void FakeEngine::ShowWeather(const GameId& acWeather, bool aFade) noexcept
+{
+    if (aFade && Weather)
+    {
+        LastWeather = Weather;
+        FadeFrames = 0;
+    }
+    else
+    {
+        WeatherCuts += Weather ? 1 : 0;
+        LastWeather = {};
+    }
+    Weather = acWeather;
+    WeatherAge = 0;
+    ++WeatherChanges;
+    for (const auto& [cRegion, cList] : RegionLists)
+        SetRegionWeather(cRegion);
+}
+
+void FakeEngine::SetRegionWeather(uint32_t aRegion) noexcept
+{
+    const auto cList = RegionLists.find(aRegion);
+    if (cList == RegionLists.end() || cList->second.empty())
+        RegionWeather.erase(aRegion);
+    else
+        RegionWeather[aRegion] = std::ranges::contains(cList->second, Weather) ? Weather : cList->second.front();
+}
+
 void FakeEngine::Frame()
 {
     ++m_frameCount;
@@ -755,6 +783,26 @@ void FakeEngine::Frame()
         actor.GraphPlace[3] = actor.Rotation[2];
     }
     ShakeSeconds = std::max(0.f, ShakeSeconds - 1.f / 60);
+    // The sky as 26231 runs it: an aged override dropped first, a change, then the fade's progress (ended last).
+    // A guest's held override ages out, mid-fade too; a change (the region's roll, here another weather of its list)
+    // starts only once no fade runs. The host's weather is the test's to set.
+    if (WeatherHeld && ForcedWeather && ++WeatherAge > kOverrideExpiryFrames)
+        ForcedWeather = {};
+    if (ForcedWeather && ForcedWeather != Weather && !LastWeather)
+        ShowWeather(ForcedWeather);
+    else if (!ForcedWeather && WeatherHeld && !LastWeather && WeatherAge > kOverrideExpiryFrames)
+    {
+        const auto cList = RegionLists.find(WeatherRegion);
+        if (cList != RegionLists.end())
+            for (const GameId& cRolled : cList->second)
+                if (cRolled != Weather)
+                {
+                    ShowWeather(cRolled);
+                    break;
+                }
+    }
+    if (LastWeather && ++FadeFrames >= kWeatherFadeFrames)
+        LastWeather = {};
     // Game time at the time scale for the real time since the last frame, as the engine's frame delta is.
     const auto cNow = std::chrono::steady_clock::now();
     if (m_lastFrame.time_since_epoch().count())

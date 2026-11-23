@@ -185,6 +185,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    bool IsTwoHandedWeapon(uint32_t) const noexcept override { return false; }
     std::string GetFormName(uint32_t aFormId) const noexcept override
     {
         const auto it = FormNames.find(aFormId);

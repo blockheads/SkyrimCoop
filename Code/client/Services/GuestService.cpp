@@ -36,7 +36,7 @@ struct GuestService::Guest
     Guest(World& aWorld, entt::dispatcher& aDispatcher) noexcept
         : Engine(aWorld.ctx().at<IBodyBridge&>())
         , Clock(aWorld, aDispatcher, Engine)
-        , Weather(aDispatcher, Engine)
+        , Weather(aWorld, aDispatcher, Engine)
         , Eye(aDispatcher, Engine)
         , WorldState(aWorld, aDispatcher, Engine)
         , Dialogue(aWorld, aDispatcher, aWorld.ctx().at<DialogueService>())

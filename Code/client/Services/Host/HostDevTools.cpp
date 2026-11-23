@@ -5,11 +5,12 @@
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostLeash.h>
 #include <Services/Host/HostPlayers.h>
 
 HostDevTools::HostDevTools(HostAuthority& aAuthority, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
-                           const HostGame& acGame) noexcept
-    : m_players(acPlayers), m_characters(acCharacters), m_game(acGame)
+                           const HostGame& acGame, HostLeash& aLeash) noexcept
+    : m_players(acPlayers), m_characters(acCharacters), m_game(acGame), m_leash(aLeash)
 {
     aAuthority.On(*this, &HostDevTools::OnDevCommand);
 }
@@ -27,6 +28,11 @@ void HostDevTools::OnDevCommand(const DevCommandRequest& acRequest, ConnectionId
     {
         const uint32_t cKilled = m_game.KillHostiles ? m_game.KillHostiles() : 0;
         spdlog::info("HostDevTools: /killall from {:x} killed {} actors", aSender, cKilled);
+    }
+    else if (cCommand.What == DevCommands::Kind::Leash || cCommand.What == DevCommands::Kind::Reset)
+    {
+        m_leash.SetOn(cCommand.What == DevCommands::Kind::Reset || cCommand.On.value_or(!m_leash.IsOn()));
+        spdlog::info("HostDevTools: {:x} turned the leash {}", aSender, m_leash.IsOn() ? "on" : "off");
     }
     else if (DevCommands::IsWorld(cCommand.What))
     {

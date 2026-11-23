@@ -1060,6 +1060,23 @@ class ReproActions:
             seen[name] = entry
         return seen
 
+    def sky(ctx, instance, region=0):
+        """That game's sky (the harness's sky command): weather, last (fading out), pct, override, default, region,
+        allowed (the region's list holds the weather), region_weather (the given region's own, else the player's)."""
+        reply = ctx.player_command(instance, {"cmd": "sky", "region": region}) or {}
+        if not reply.get("ok"):
+            raise ctx.failure(f"[{instance or 'host'}] no sky: {reply}")
+        return reply
+
+    def weather_given(ctx):
+        """Each game's sky and the weather the host gives the guest's region (HostWeather::WeatherFor): the host's when
+        forced (an override, or set by a script or the console and the region not read since), in the host's region or none, else that region's own in the host's game (the host's if it has none)."""
+        host, guest = ctx.sky(""), ctx.sky("client")
+        forced = host["override"] or (host.get("set") == host["weather"] and not host["region"])
+        same = forced or not guest["region"] or guest["region"] == host["region"]
+        want = host["weather"] if same else (ctx.sky("", region=guest["region"])["region_weather"] or host["weather"])
+        return {"host": host, "guest": guest, "want": want}
+
     def expect(ctx, name, check, within=5.0, game=None, value=None, of=None, field=None, seconds=0.0):
         """The correct behaviour, checked now: "same_place" (the two games within `within` units), "at" (that game's
         place within `within` of `value`), "at_rest_of" (that game's place within `within` of where the `of` game's body
@@ -1142,6 +1159,62 @@ class ReproActions:
             except TestFailure:
                 raise ctx.failure(f"{name}: the eye differs: {ctx.eyes(name)}") from None
             return {"eye": ctx.eyes(name)}
+        if check == "weather":  # the guest holds the weather the host gives its region (weather.md), within `seconds`;
+            # value true: and shows it, its region's list holding it, once the engine's fades ran (minutes at timescale 20)
+            def fits():
+                seen = ctx.weather_given()
+                held = seen["guest"]["override"] == seen["want"]
+                shown = seen["guest"]["weather"] == seen["want"] and not seen["guest"]["last"]
+                return seen if held and (not value or (shown and seen["guest"]["allowed"])) else None
+            try:
+                ctx.wait_for("[guest] holds the weather the host gives its region", fits, seconds or 10)
+            except TestFailure:
+                seen = ctx.weather_given()
+                raise ctx.failure(f"[guest] holds {seen['guest']['override']:X}, shows {seen['guest']['weather']:X} "
+                                  f"(fading out {seen['guest']['last']:X} at {seen['guest']['pct']:.2f}) in region "
+                                  f"{seen['guest']['region']:X} (allowed there: {seen['guest']['allowed']}), the host gives "
+                                  f"{seen['want']:X}; host {seen['host']['weather']:X} in region {seen['host']['region']:X}") from None
+            return ctx.weather_given()
+        if check == "weather_fading":  # the guest's weather fades into the one the host gives it (not cut), out of value [id] if given
+            seen = ctx.weather_given()
+            guest = seen["guest"]
+            if guest["override"] != seen["want"] or guest["weather"] != seen["want"] or not guest["last"] or guest["pct"] >= 1.0:
+                raise ctx.failure(f"[guest] not fading into {seen['want']:X}: holds {guest['override']:X}, shows "
+                                  f"{guest['weather']:X}, fading out {guest['last']:X} at {guest['pct']:.2f}")
+            if value and guest["last"] != int(str(value[0]), 16):
+                raise ctx.failure(f"[guest] fades out of {guest['last']:X}, not {value[0]}")
+            return seen
+        if check == "weather_fade":  # every change of `game`'s weather in `seconds` fades from the one before, at least value [n] (0: any)
+            instance = "" if game in ("host", "") else "client"
+            changes, cuts, before, unheld = 0, [], ctx.sky(instance), 0
+            given = {before["override"], before["weather"]} - {0}  # a guest's: what the host gave it
+            # Fades shorter than a read at a high time scale: cuts are judged at a normal one only.
+            judge_cuts = ctx.calendar("").get("scale", 20) <= 100
+            end = time.monotonic() + (seconds or 20)
+            want = (value or [1])[0]
+            while time.monotonic() < end and (not want or changes < want):  # value [0]: watched all through
+                now = ctx.sky(instance)
+                given.add(now["override"])
+                # A guest's held weather lapsed: gone on consecutive reads (mid-fade the engine may drop it for a frame,
+                # held again the next by GuestEngine::HoldWeather; no change starts mid-fade, 26231)
+                unheld = unheld + 1 if instance and not now["override"] else 0
+                if unheld >= 3:
+                    cuts.append(f"its held weather lapsed (showing {now['weather']:X})")
+                    break
+                if now["weather"] != before["weather"]:
+                    changes += 1
+                    if judge_cuts and now["last"] != before["weather"]:
+                        cuts.append(f"{before['weather']:X} -> {now['weather']:X} (fading out {now['last']:X}, at {now['pct']:.2f})")
+                    # A guest shows only weathers the host gave it: never its own game's roll (an expired override)
+                    if instance and now["weather"] not in given:
+                        cuts.append(f"{before['weather']:X} -> {now['weather']:X}, its own roll: given {sorted(given)}")
+                before = now
+                time.sleep(0.05)
+            if cuts:
+                raise ctx.failure(f"[{game or 'host'}] weather cut, not faded: {'; '.join(cuts)}")
+            if changes < (value or [1])[0]:
+                raise ctx.failure(f"[{game or 'host'}] its weather changed {changes} times in {seconds or 20} s, not {(value or [1])[0]}")
+            return {"changes": changes, "sky": ctx.sky(instance)}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
         if check == "stands":  # `name`'s body in `game` (or each) stands on its feet, its ragdoll out of the world
@@ -1527,6 +1600,8 @@ def _line(tool, args):
             return f"ctx.arrives_with_party({game}, {args.get('within', 3000.0)!r})"
         case "travel":
             return f"ctx.go_far({game}, {args['command']!r})"
+        case "solo_move":
+            return f"ctx.solo_move({game}, {args['x']!r}, {args['y']!r})"
         case "leave_dialogue":
             return "ctx.close_dialogues()"
         case "equip":

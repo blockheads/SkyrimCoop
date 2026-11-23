@@ -1261,6 +1261,15 @@ std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcep
     return worn;
 }
 
+bool Reset3D(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    pActor->DoReset3D(false);
+    return true;
+}
+
 void UnequipAllUnsynced(uint32_t aFormId) noexcept
 {
     if (Actor* pActor = GetActor(aFormId))

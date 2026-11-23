@@ -293,13 +293,32 @@ HostEngine::~HostEngine() noexcept
     GlobalEvents::Stop();
 }
 
-std::optional<GameId> HostEngine::ReadWeather() const noexcept
+std::optional<HostSky> HostEngine::ReadWeather() const noexcept
 {
     const Sky* pSky = Sky::Get();
     const TESWeather* pWeather = pSky ? pSky->GetWeather() : nullptr;
     if (!pWeather || pWeather->formID == Sky::kWorldMapWeather)
         return std::nullopt;
-    return ToSession(pWeather->formID);
+    const auto cWeather = ToSession(pWeather->formID);
+    if (!cWeather)
+        return std::nullopt;
+    const TESRegion* pRegion = Sky::PlayerWeatherRegion();
+    // Forced: a script's or the console's, overriding, or set and the region not read since (weather.md).
+    const bool cForced = pSky->pOverrideWeather || (Sky::s_pSetWeather == pWeather && !pRegion);
+    return HostSky{.Weather = *cWeather, .Forced = cForced,
+                   .Region = pRegion ? ToSession(pRegion->formID).value_or(GameId{}) : GameId{}};
+}
+
+std::optional<GameId> HostEngine::RegionWeather(const GameId& acRegion) const noexcept
+{
+    auto* pRegion = Cast<TESRegion>(TESForm::GetById(ToGame(acRegion)));
+    Sky* pSky = Sky::Get();
+    if (!pRegion || !pSky)
+        return std::nullopt;
+    // Set on each change of the shown weather (26231); none yet since the load: as that change would.
+    if (!pRegion->pCurrentWeather && pSky->GetWeather())
+        pRegion->SetCurrentWeather(pSky->GetWeather());
+    return pRegion->pCurrentWeather ? ToSession(pRegion->pCurrentWeather->formID) : std::nullopt;
 }
 
 std::optional<DetectionRules::EyeReading> HostEngine::ReadEye(uint32_t aSessionId) const noexcept
