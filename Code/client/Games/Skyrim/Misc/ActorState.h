@@ -18,6 +18,9 @@ struct ActorState : IMovementState
     // ActorState1::sneaking (CommonLibSSE-NG), what detection and Actor::IsSneaking read.
     bool IsSneaking() const noexcept { return flags1 & (1u << 9); }
 
+    // ActorState1::sprinting (CommonLibSSE-NG): no stamina regeneration while set (38452).
+    bool IsSprinting() const noexcept { return flags1 & (1u << 8); }
+
     // ActorState1::swimming (CommonLibSSE-NG).
     bool IsSwimming() const noexcept { return flags1 & (1u << 10); }
 

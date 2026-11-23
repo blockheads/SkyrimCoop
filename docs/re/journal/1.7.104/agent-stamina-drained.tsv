@@ -1,0 +1,70 @@
+time	op	id	rva	item
+2026-11-23T15:32:17Z	read	38452	0x6c4620	{"name": "Actor::UpdateStaminaRegen"}
+2026-11-23T15:32:17Z	read	38461	0x6c4c10	{"name": "Character::sub_38461"}
+2026-11-23T15:32:24Z	read		0x6c45a0	{"name": "Character::sub_38450"}
+2026-11-23T15:32:30Z	read	38459	0x6c48b0	{"name": "Actor::RegenerateActorValue"}
+2026-11-23T15:33:35Z	read		0x6c5bca	{"name": "Character::sub_38480"}
+2026-11-23T15:33:36Z	read		0x6c612d	{"name": "sub_1406C5C40"}
+2026-11-23T15:33:36Z	read		0x6c663f	{"name": "Actor::sub_38488"}
+2026-11-23T15:34:00Z	read		0x6c68ce	{"name": "Actor::sub_38492"}
+2026-11-23T15:34:00Z	read	38493	0x6c6ae0	{"name": "sub_1406C6AE0"}
+2026-11-23T15:34:28Z	read	38468	0x6c5220	{"name": "Actor::SetActorValueModifiers"}
+2026-11-23T15:34:29Z	read	38484	0x6c62e0	{"name": "Character::sub_38484"}
+2026-11-23T15:34:38Z	read	38483	0x6c6250	{"name": "Character::sub_38483"}
+2026-11-23T15:35:06Z	read		0x6c556a	{"name": "Actor::SendActorValueUpdate"}
+2026-11-23T15:35:06Z	read	39534	0x700140	{"name": "ActorProcess::GetActorValueRegenDelay"}
+2026-11-23T15:35:07Z	read	39535	0x700180	{"name": "sub_140700180"}
+2026-11-23T15:37:28Z	read	37321	0x678560	{"name": "Actor::Resurrect"}
+2026-11-23T15:37:40Z	read	41356	0x782350	{"name": "sub_140782350"}
+2026-11-23T15:37:46Z	read	39336	0x6f4800	{"name": "sub_1406F4800"}
+2026-11-23T15:37:46Z	read	37613	0x6936b0	{"name": "Actor::ClearDeathState"}
+2026-11-23T15:38:10Z	read		0x6cc0d2	{"name": "Actor::sub_38603"}
+2026-11-23T15:38:11Z	read		0x6b5687	{"name": "Character::UpdateSprintStamina"}
+2026-11-23T15:38:28Z	read	38460	0x6c4960	{"name": "Actor::GetActorValueRegenRate"}
+2026-11-23T15:41:43Z	name	38450	0x6c44f0	{"addr": "0x1406c44f0", "name": "Actor::IsActorValueDamaged"}
+2026-11-23T15:41:43Z	name	38461	0x6c4c10	{"addr": "0x1406c4c10", "name": "Actor::TickActorValueRegenDelay"}
+2026-11-23T15:41:43Z	name	38488	0x6c6590	{"addr": "0x1406c6590", "name": "Actor::UpdateActorValueDamagedFlag"}
+2026-11-23T15:41:43Z	name	38487	0x6c6520	{"addr": "0x1406c6520", "name": "Actor::OnStaminaModified"}
+2026-11-23T15:41:43Z	name	38480	0x6c5860	{"addr": "0x1406c5860", "name": "Actor::RecomputeActorValueDamagedFlags"}
+2026-11-23T15:41:43Z	name	38481	0x6c5c40	{"addr": "0x1406c5c40", "name": "Actor::ResetActorValueCaches"}
+2026-11-23T15:41:43Z	name	38493	0x6c6ae0	{"addr": "0x1406c6ae0", "name": "Actor::OnMagickaModified"}
+2026-11-23T15:41:43Z	name	39535	0x700180	{"addr": "0x140700180", "name": "ActorProcess::StoreActorValueRegenDelay"}
+2026-11-23T15:41:43Z	name	38603	0x6cbee0	{"addr": "0x1406cbee0", "name": "Actor::SpendAttackStaminaAndHit"}
+2026-11-23T15:41:47Z	read	38487	0x6c6520	{"name": "Actor::OnStaminaModified"}
+2026-11-23T15:41:51Z	name	38487	0x6c6520	{"addr": "0x1406c6520", "name": "Actor::RefreshActorValueDamagedFlag"}
+2026-11-23T15:42:03Z	comment	38452	0x6c4620	{"addr": "0x1406c4620", "comment": "From 1.6.1170 (instruction offsets require review): per frame (actor, deltaSecs); calls 38459(26).\nRead 1.7.104 (stamina-drained): regenerates only if TickActorValueRegenDelay(38461) says no delay left, CachedValues::flags kStaminaDamaged (1<<23) is set, the actor is not sprinting (ActorState1 bit 8; a ridden mount may) and, for the player, PlayerCamera::bowZoomedIn (+0x161) is false."}
+2026-11-23T15:42:03Z	comment	38461	0x6c4c10	{"addr": "0x1406c4c10", "comment": "Read 1.7.104 (stamina-drained): (actor, av, deltaSecs) -> true while HighProcessData's regen delay for av (+0x1C health, +0x20 stamina, +0x24 magicka) is above 0; stores delay - deltaSecs (floored at 0). The only place the delay counts down."}
+2026-11-23T15:42:03Z	comment	38488	0x6c6590	{"addr": "0x1406c6590", "comment": "Read 1.7.104 (stamina-drained): (actor, av, oldValue, delta), from the per-value modifier sinks (SendActorValueUpdate 38470). Sets CachedValues::flags 1<<21/22/23 (health/magicka/stamina damaged) when delta < 0 leaves it under max (permanent+temporary), clears it when delta > 0 reaches max. Edge-triggered: nothing else re-sets it until a load (38480)."}
+2026-11-23T15:42:03Z	comment	38480	0x6c5860	{"addr": "0x1406c5860", "comment": "Read 1.7.104 (stamina-drained): recomputes the damaged flags of health/magicka/stamina from current vs max; from FinishLoadGame and SwitchRace. Why a load clears a stuck pool."}
+2026-11-23T15:42:03Z	comment	38481	0x6c5c40	{"addr": "0x1406c5c40", "comment": "Read 1.7.104 (stamina-drained): resets the actor value caches (sub_1406E3120 per AV) and recomputes the three pools' damaged flags like 38480. From Actor vfunc (37922) and 38479."}
+2026-11-23T15:42:03Z	comment	38493	0x6c6ae0	{"addr": "0x1406c6ae0", "comment": "Read 1.7.104 (stamina-drained): magicka's modifier sink: interrupts concentration casts when it reaches 0, then UpdateActorValueDamagedFlag(38488)."}
+2026-11-23T15:42:03Z	comment	39535	0x700180	{"addr": "0x140700180", "comment": "Read 1.7.104 (stamina-drained): stores HighProcessData regen delay for av (+0x1C/+0x20/+0x24); TickActorValueRegenDelay's write."}
+2026-11-23T15:42:03Z	comment	38603	0x6cbee0	{"addr": "0x1406cbee0", "comment": "Used by plugin: Precision/src/Hooks.h:50.\nRead 1.7.104 (stamina-drained): an attack's hit frame: spends GetAttackStaminaCost from stamina (damage modifier); if that leaves stamina <= 0, sets the stamina regen delay to (cost - staminaBefore) / GetActorValueRegenRate(26) (38460) and flashes the meter. A rate of 0 makes the delay +inf: no regeneration until a load."}
+2026-11-23T15:42:03Z	comment	38022	0x6b5520	{"addr": "0x1406b5520", "comment": "From 1.6.1170 (instruction offsets require review): while sprinting and not mounted, drains stamina by equipped weight (player or player's mount). From Actor::Update 37348.\nRead 1.7.104 (stamina-drained): when sprinting empties stamina it sets the stamina regen delay to a fixed setting (dword_1420A8B88)."}
+2026-11-23T15:42:03Z	comment	37321	0x678560	{"addr": "0x140678560", "comment": "SkyrimCoop: hooked by HookResurrect (ActorValueEvents.cpp).\nRead 1.7.104 (stamina-drained): restores only health (RestoreActorValue mode 2, av 24); stamina and magicka keep their damage, regen delays and damaged flags."}
+2026-11-23T15:42:03Z	comment	38450	0x6c44f0	{"addr": "0x1406c44f0", "comment": "Read 1.7.104 (stamina-drained): (actor, av) -> CachedValues::flags damaged bit for 24/25/26 (1<<21/22/23), else current < max."}
+2026-11-23T15:49:37Z	read		0x6d79f1	{"name": "Character::UpdateMagicAndRegen"}
+2026-11-23T16:03:45Z	read	34526	0x5d1da0	{"name": "coop_RealAddTarget"}
+2026-11-23T16:03:45Z	read	34525	0x5d1c10	{"name": "coop_RealCheckAddEffectTargetData"}
+2026-11-23T16:04:07Z	read		0x1574e0	{"name": "sub_140157480"}
+2026-11-23T16:04:11Z	read	11085	0x14b890	{"name": "EffectSetting::sub_11085"}
+2026-11-23T16:04:23Z	name	11085	0x14b890	{"addr": "0x14014b890", "name": "EffectSetting::ConditionsPass"}
+2026-11-23T16:04:26Z	comment	11085	0x14b890	{"addr": "0x14014b890", "comment": "Read 1.7.104 (stamina-drained): (mgef, targetRef, caster) -> the magic effect's own conditions (EffectSetting +0x190) hold: TESCondition::IsTrue. Called by 34525 when an effect is added."}
+2026-11-23T16:04:26Z	comment	34525	0x5d1c10	{"addr": "0x1405d1c10", "comment": "SkyrimCoop: hooked by HookCheckAddEffectTargetData (MagicTarget.cpp).\nRead 1.7.104 (stamina-drained): (AddTargetData, args{target, caster, ..., +0x28 dual}, resistance) -> true when the effect may be added: its MGEF conditions hold (EffectSetting::ConditionsPass 11085, the caster flagged dual cast meanwhile), resistance > 0, not a hostile effect on an invulnerable target, and its archetype's ShouldApply. Survival Mode's alternate disease effects (Rattles: TrapDisDamageStaminaRegen / Survival_TrapDisDamageStaminaRegen) are chosen only here."}
+2026-11-23T16:39:29Z	read	39536	0x7001c0	{"name": "ActorProcess::SetActorValueRegenDelay"}
+2026-11-23T16:42:35Z	comment	39536	0x7001c0	{"addr": "0x1407001c0", "comment": "Read 1.7.104 (stamina-drained): (process, av, delay): stores a new regen delay in HighProcessData (+0x1C health, +0x20 stamina, +0x24 magicka) only if it is 0 or longer than the current one, capped at fHealth/fStamina/fMagickaRegenDelayMax."}
+2026-11-23T16:42:35Z	comment	38603	0x6cbee0	{"addr": "0x1406cbee0", "comment": "Used by plugin: Precision/src/Hooks.h:50.\nRead 1.7.104 (stamina-drained): an attack's hit frame: spends GetAttackStaminaCost from stamina (damage modifier); if that leaves stamina <= 0, asks SetActorValueRegenDelay (39536) for (cost - staminaBefore) / GetActorValueRegenRate(26) (38460) and flashes the meter. 39536 caps it at fStaminaRegenDelayMax, so a rate of 0 gives the cap, not an endless delay."}
+2026-11-23T16:53:43Z	read		0x5d1cd0	{"name": "coop_RealCheckAddEffectTargetData"}
+2026-11-23T16:53:47Z	read		0x5d31c1	{"name": "magichit"}
+2026-11-23T17:19:51Z	read	34063	0x5bb6c0	{"name": "ActiveEffect::Func5_34063"}
+2026-11-23T17:20:01Z	read	34062	0x5bb470	{"name": "ValueModifierEffect::sub_34062"}
+2026-11-23T17:24:27Z	read		0x5baa60	{"name": "ActiveEffect::Constructor"}
+2026-11-23T17:24:45Z	read		0x5d2280	{"name": "MagicTarget::UpdateActiveEffects"}
+2026-11-23T17:24:53Z	read		0x5bcfe0	{"name": "ActiveEffect::Update"}
+2026-11-23T17:27:31Z	read	21487	0x333dd0	{"name": "GameFunc::native::GetIsID"}
+2026-11-23T17:27:46Z	name	34062	0x5bb470	{"addr": "0x1405bb470", "name": "ActiveEffect::EvaluateEntryConditions"}
+2026-11-23T17:27:46Z	name	34063	0x5bb6c0	{"addr": "0x1405bb6c0", "name": "ActiveEffect::EvaluateConditions"}
+2026-11-23T17:27:53Z	comment	34062	0x5bb470	{"addr": "0x1405bb470", "comment": "Read 1.7.104 (stamina-drained): (effect, deltaSecs, force). The re-check of the spell's effect-entry conditions (EffectItem +0x20) while the effect lasts: only when flags 0x80 (entry has conditions) or a displacement spell (+0x68) is set, every fActiveEffectConditionUpdateInterval (or at once when forced): TESCondition::IsTrue(entry conditions, subject = the target (MagicTarget +0x50 vfunc+0x10), target = the caster from handle +0x34), and no displacing effect (FindAppropriateDisplaceEffect). Stores the verdict in conditionStatus (+0x80: 1 holds, 0 fails, -1 none). The magic effect's own conditions (MGEF +0x190) are NOT re-read here: only at add (34525)."}
+2026-11-23T17:27:53Z	comment	34063	0x5bb6c0	{"addr": "0x1405bb6c0", "comment": "Read 1.7.104 (stamina-drained): ActiveEffect vfunc 5 (EvaluateConditions), shared by most effect classes: 34062, then flags 0x8000 (inactive) follows conditionStatus; turning inactive stops its hit effects. Called by ActiveEffect::Update (34092) every frame (forced when delta is 0)."}
+2026-11-23T17:27:53Z	comment		0x5baa60	{"addr": "0x1405baa60", "comment": "Read 1.7.104 (stamina-drained): (effect, caster ref, spell, effect entry): +0x34 caster handle, +0x40 spell, +0x48 entry, +0x78 magnitude, +0x74 duration; flags +0x7C: 0x80 when the entry has conditions; conditionStatus +0x80 starts at 1 (holds)."}
+2026-11-23T17:27:53Z	comment	21487	0x333dd0	{"addr": "0x140333dd0", "comment": "Read 1.7.104 (stamina-drained): GetIsID: 1.0 when the reference's leveled base (ExtraLeveledCreature) or else its base form is the parameter. A player copy has its own temporary NPC base, so GetIsID(Player 00000007) is 0 on it."}

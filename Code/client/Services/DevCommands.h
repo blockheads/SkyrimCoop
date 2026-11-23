@@ -25,6 +25,7 @@ enum class Kind : uint8_t
     Spawn,
     KillAll,
     Weather,
+    Leash,
 };
 
 struct Command
@@ -33,7 +34,7 @@ struct Command
     float Value{1.f};            // speed, gravity
     uint32_t Count{1};           // spawn, lootbox
     uint32_t FormId{};           // spawn's NPC or leveled list, weather; gear's set (0 daedric, 1 glass)
-    std::optional<bool> On;      // god: on, off, or toggle
+    std::optional<bool> On;      // god, leash: on, off, or toggle
     std::optional<uint8_t> Odds; // kill move percent; none: the game's own
     std::string Text;            // the line as typed, for the chat
 };

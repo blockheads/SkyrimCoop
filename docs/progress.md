@@ -59,6 +59,75 @@ of frames (owners 0.4-2.2 %, copies 10-19 % before). Measured with `smoothness`,
 copy and the mover in third person. Scenarios `copy-poses-every-frame-host` / `-guest`; GameTests "A walking player's copy
 shows a pose that moves on every frame..." (jittered frames, and 60 against 50 fps); ClientTests `[pose-blend]`.
 
+2026-11-23: **a trap's disease no longer stops a guest's stamina regeneration** (`agent/stamina-drained`). Playtest
+2026-11-22 item 12: the guest's stamina sat at 0 and never came back (reports 2015-7c1/cc7). Its player held both
+of Rattles' effects (`TrapDiseaseRattles` 10A24E): Survival Mode's override adds a second `StaminaRate -2.5` for
+survival on, each picked by its magic effect's conditions (`Survival_ModeEnabled`), which the engine checks only when it
+adds an effect (34525 through `EffectSetting::ConditionsPass` 11085). A trap's disease on the guest's copy is relayed
+(`IsWorldCast`), and the guest's add skipped that check (`s_autoSucceedEffectCheck`), so 5 - 2.5 - 2.5 left a rate of
+0. The force is removed (and the 34525 hook with it): the owner's engine runs its own add check on a relayed
+effect, so conditions, resistance, invulnerability and the archetype's rule all apply as for its own casts. Conditions
+about the caster or the player (110 + 120 on magic effects, 39 + 228 on spell entries in the duo's plugins: the
+Destruction perk effects, Unrelenting Force's disintegrate, the werewolf howl's Totem summon) are judged for the
+casting player's copy, at the add and in the entry conditions' re-reads (34062): `JudgedFor`'s caster mode, and
+`GetIsID(Player)` holds for a player's character ([conditions.md](re/systems/conditions.md)). Scenarios
+`shout-disintegrates-lying-host` and `shout-kills-lying-guest` (the verb now sets the Black Book reward). The snapshot's `values.stamina_regen` reads every stamina regeneration gate (delay,
+damaged flag, rate, sprinting, bow zoom; [actor-values.md](re/systems/actor-values.md)). GameTests `[stamina]`; scenario
+`trap_disease_guest_stamina`.
+Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) stays open: the regen delay is capped (39536,
+`fStaminaRegenDelayMax`), so it is not a leftover delay; the readout will show which gate holds next time.
+
+2026-11-23: **a guest crash loading a leveled NPC's copy: we destroyed Skyrim's own EncWolf** (`agent/fabien-crash-3`;
+[leveled-copy-base.md](re/systems/leveled-copy-base.md)). The 2026-11-22 playtest's third guest crash (15678, a
+temporary base's faceNPC walk). A placed leveled copy whose game picked another animal was given the owner's face record
+(EncWolf 23ABE) as its base; the engine's re-roll of a leveled actor (37323, 37292: cell reset, respawn, `RecycleActor`)
+hands the current base to the garbage collector (36460) with no temporary check (read in IDA), which destroys such a
+record; that this destroyed EncWolf in Fabien's game, leaving every base and list pointing at it dangling, is inferred
+from the log's order of events (the dump holds no heap). Such a copy is now built again from the owner's pick with the engine's
+leveled build (14375, `RelevelActor`), a temporary base the engine may destroy. Checked: scenario
+`guest-releveled-copy-keeps-pick` (MCP, heap history on), GameTests `[copy-level]` (fails four checks without the fix),
+ClientTests `[npc-snapshot]`. The fake learned that a leveled actor's reset destroys its current base, whatever it is.
+
+2026-11-23: **a guest's open loot menu read a stack our reconcile had freed** (`agent/fabien-crashes`;
+[item-menus.md](re/systems/item-menus.md)). Two of the guest's three crashes in the 2026-11-22 playtest (Windows,
+`GetExtraData` 12329 under ContainerMenu's hover 51130 and take 51132): a ContainerMenu's entries hold the listed
+stacks' own lists (16106, read), and the copy's item reconcile after the guest's take freed the worn stack's list with
+the menu open. On Linux the menu kept listing the taken item on the corpse. The engine's `RemoveItem` (19689) queues
+only the item's update, which ContainerMenu keeps for its target until a full one (read); the player's own stacks and
+the console's and Papyrus's removals re-list at once (measured). Barter merges the merchant's and the vendor chests' own lists into its stock (0x14023D080, read) and went stale the
+same way (measured). Now each item menu (ContainerMenu, BarterMenu, InventoryMenu) is tracked from its `ProcessMessage`
+hook (`ItemMenuWatch`); a change to a holder one lists (`ContainerItems`, the hooks on `RemoveItem` 16059, unequip
+38934, outfit reset 418622, `ResetInventory` 37322) is noted before and after, and the UI's calls (82082, 82083) mark
+each noted menu to rebuild its whole list (`ItemList::Update_Impl` 51031) before a callback reads it. `ItemMenuGate`
+keeps a listed change and those UI calls apart across threads (bounded waits, no engine lock). Scenarios
+`guest-loot-menu-follows-corpse`, `guest-barter-follows-merchant-stock` (MCP verbs `loot`, `barter_open`,
+`open_inventory`, `expect_menu_lists`; `give_item` takes a holder), GameTests and ClientTests `[item-menu]`,
+ClientTests `[item-menu-gate]`. The third
+crash (an NPC's face template walk on the background loader, 15678) is open in [bugs.md](bugs.md).
+
+2026-11-23: **a lever furniture one player pulls moves on every game** (`agent/levers-synced`; playtest 2026-11-22 item
+11; `docs/re/systems/activation.md`, "Lever furniture"). Bleak Falls Temple's pillar lever is a furniture with
+`KeywordActivatorFurnitureNoPlayer`: `TESFurniture::Activate` 17420 sends its pull (ActionActivate from its own idles,
+24602) to its own graph for this game's player only, not through Papyrus, so the host's copy of a guest moved nothing
+and no row carried either player's pull. The host now runs that pull for a copy (`HostEngine::Activate`), picks the
+host player's in `HookActivate`, and sends both as `kAnimation` rows with the puller, which the puller's own game
+skips. No pull when the engine makes none: a script's `BlockActivation` (19796 stops at `ExtraFlags` kBlockActivate)
+or a sitting activator (17420 stands it up). An audit of every interactable kind and the path it syncs by: `docs/design/world-state-sync.md`,
+"Interactables". Tests: GameTests "A lever furniture one player pulls moves once on every game" (fails without the
+fix: the host's lever never moved; without the puller's skip, the guest's moved twice), "A guest's pull of a scripted
+lever moves it on every game by the host's script"; scenario `guest-pulls-lever-furniture`. Harness: `objects` lists
+activators and lever furniture; MCP: verb `use_object_graphs` (an object's exact graph inputs in both games, up to its
+own end event), `expect` "object" (a reference's graph variable in both games), `use` aims at an object's body when
+its origin is off it.
+
+2026-11-23: **a copy holds its bow in both hands, as its owner does** (`agent/hand-slot-copies`;
+[hand-slots.md](re/systems/hand-slots.md)). Measured: Faendal's copy is at `[0, bow]` at its first repair after a rejoin (the
+writer not read), and the copy repair checked one hand per item. It now checks both hands of a two-hander (the right
+only beside a worn torch, as Aela holds them) and equips it with BothHands (38911 would make no slot RightHand). `rejoined-guest-sees-rider` passes;
+GameTests "A copy left holding its bow in one hand holds it in both again". Also measured: an equip marks a torch
+worn left (17619), and the playtest's guards with a torch in each hand were not reproduced (real guards at night agree
+on both games). Harness `reset_3d`, snapshot `worn_left`, the repair's log line for hands it finds short.
+
 2026-11-23: **a save over Steam travels 5x faster** (`agent/save-load-explained`): Steam paced every P2P connection at
 its fixed default of 256 KB/s, so a save went at 120-240 KB/s in both playtests (a save sent ahead took 8-10 s and a
 load soon after it sent it again). `SteamBridge` sets the send rate to 4 MB/s (min = max: Steam does not adapt
@@ -493,7 +562,7 @@ victim the attacker may kill, 37229) and the roll ([dev-commands.md](re/systems/
 `[dev-commands]`; scenario `killmove-odds-every-swing` (one swing at a 1000-health wolf, guest and host).
 
 2026-11-16: dev chat commands for playtests (`/dev` lists them): `/heal`, `/god`, `/speed`, `/gravity`, `/shouts`,
-`/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather` in the host's
+`/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather`, `/leash` in the host's
 game at the typer's character. Anyone types them; the host runs world commands and sends the line to every game, which
 runs console lines on its own player ([dev-commands.md](design/dev-commands.md)). Kill moves have no chance in vanilla
 (the root idles need a fatal swing on the last enemy, 21744/21743): `/killmove` hooks those two conditions
@@ -1172,7 +1241,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Part | Status |
 |---|---|
 | Time (`HostClock`; set-time from any player) | done (`4e0efb0a`); set-time works in the game since 2026-10-20 (`/settime` in the chat, `guest-sets-time`); the whole calendar 2026-10-20: a guest takes the host's date and days passed too, written as `Calendar::Update` leaves them (`docs/re/systems/calendar.md`) |
-| Weather (`HostWeather`) | done (`50397fa0`) |
+| Weather (`HostWeather`) | done (`50397fa0`); per region 2026-11-22 (`WeatherRegionRequest`, `HostWeather::WeatherFor`) |
 | Host/guest code split, the world (2026-10-20) | done: `Services/Guest/` (`GuestClock`, `GuestWeather`, `GuestWorldState`) exist only while joined (`GuestService`); `Bridges/HostEngine` (the host's reads, set hour) and `Bridges/GuestEngine` (applying the host's calendar, weather, globals, quests) replace those `IWorldBridge` calls; `CalendarService` is `TimeScaleService`; `WeatherService`, `WorldStateService` deleted; `HostBridge` renamed `HostAuthority`. Actors next, by owner/copy (`docs/ideas.md`, "Client services by role") |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
 | Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
@@ -1785,7 +1854,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
 | Containers' items (changes, as counts per base item) | works both ways; the host's contents (its leveled roll) when a guest's cell loads (slice 2, 2026-10-21); an item's extra data (enchantment, tempering, poison) does not travel | `chest-take-reaches-others`, `guest-opens-hosts-roll` |
-| Time, weather | works | `host-time-reaches-client`, `guest-sets-time`, `host-wait-reaches-guest`, `shared-wait-host`/`-guest`, `shared-sleep-host`/`-guest`, `shared-wait-cancel`, `late-join-gets-calendar`, `party-fast-travels` (days passed), `weather-follows-host` |
+| Time, weather | works; weather per region (2026-11-22: a guest holds the weather the host's game gives its own region, the host's where forced or shared, faded into; `docs/re/systems/weather.md`) | `guest-weather-own-region`, `host-time-reaches-client`, `guest-sets-time`, `host-wait-reaches-guest`, `shared-wait-host`/`-guest`, `shared-sleep-host`/`-guest`, `shared-wait-cancel`, `late-join-gets-calendar`, `party-fast-travels` (days passed), `weather-follows-host` |
 | Party panel (RmlUi) | works alone; fails after other scenarios | `party-panel` |
 | Player levels (party panel) | works | `party-shows-levels` |
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |

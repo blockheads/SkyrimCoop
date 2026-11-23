@@ -23,6 +23,9 @@ uint16_t OnReference(uint16_t aFunction) noexcept
 
 std::optional<Judged> For(const Item& acItem) noexcept
 {
+    // The character is a player: GetIsID(Player) holds for it, whatever its own base.
+    if (acItem.Function == kGetIsID && acItem.OnCharacter && acItem.PlayerBaseParam)
+        return Judged{.Function = kGetIsID, .Value = 1.f};
     const uint16_t cOnReference = OnReference(acItem.Function);
     if (acItem.Function == kGetRelationshipRank ||
         (!cOnReference && !acItem.OnPlayer && !acItem.PlayerParam[0] && !acItem.PlayerParam[1]))

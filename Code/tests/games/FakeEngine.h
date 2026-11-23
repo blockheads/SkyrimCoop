@@ -22,6 +22,7 @@
 #include <Bridges/IBodyBridge.h>
 #include <Bridges/IBodyReads.h>
 #include <Games/KnockReplay.h>
+#include <Games/ItemMenuRebuild.h>
 #include <Physics/RagdollPending.h>
 #include <Physics/RagdollRest.h>
 
@@ -292,6 +293,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::set<uint32_t> Rolled; // items a leveled roll put in (their changes entry a roll's: ExtraLeveledItem lists)
         uint32_t LinkedDoor = 0; // a load door with no lock of its own: it uses this door's (GetLock 20223)
         bool Persistent = false; // in memory with its cell unloaded (a load door's other side)
+        // A lever furniture (KeywordActivatorFurnitureNoPlayer): only this game's player's activation sends its pull to
+        // its graph (TESFurniture::Activate 17420); a copy's does nothing to it.
+        bool Lever = false;
+        bool ActivationBlocked = false; // a script's BlockActivation: ActivateRef 19796 stops before 17420
+        std::vector<std::string> GraphEvents; // the events its own graph got
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
@@ -645,10 +651,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool KeepMotion(const BodyKey&) noexcept override { return false; }
     bool Settle(const BodyKey&) noexcept override { return false; }
 
-    // Every game's plugins, in one load order: Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm.
+    // Every game's plugins, in one load order: Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm and Survival Mode.
     std::vector<ModEntry> GetLoadedMods() const noexcept override
     {
-        return {{0, false, "Skyrim.esm"}, {1, false, "Update.esm"}, {0, true, "ccBGSSSE001-Fish.esm"}};
+        return {{0, false, "Skyrim.esm"}, {1, false, "Update.esm"}, {0, true, "ccBGSSSE001-Fish.esm"},
+                {1, true, "ccQDRSSE001-SurvivalMode.esl"}};
     }
     // One load order: every form is in every game.
     bool FormExists(uint32_t aFormId) const noexcept override { return aFormId != 0; }
@@ -773,11 +780,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::map<uint32_t, float> TemporaryValues;
         Inventory Items; // its CurrentMagicEquipment: the hands' selected spells (Actor::selectedSpells +0x1C8)
         // The weapon or torch each hand holds (AIProcess::equippedObjects, left and right): put there by an equip with
-        // 3D, emptied by TESNPC::ResetWornToOutfit 418622 (39811-39813) whose worn flags stay (measured, Aela's torch).
+        // 3D (a two-hander in both, a torch the left), emptied by TESNPC::ResetWornToOutfit 418622 whose worn flags
+        // stay (measured, Aela's torch).
         uint32_t HeldWeapons[2]{};
         // The spells its hands hold (AIProcess::equippedObjects, left and right): an equip without 3D only selects.
         uint32_t HeldSpells[2]{};
         bool EquipmentNeedsReset = false;
+        int EquipmentResets = 0; // ActorResetEquipment calls: the copy repair's strip and re-equip
         struct ReplayState : AnimationReplayStep
         {
             ReplayState() = default;
@@ -1115,6 +1124,26 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     TimeModel Calendar;
     GameId Weather{};
     bool WeatherHeld = false;
+    // The sky (docs/re/systems/weather.md): each region's weather list and own weather, the player's weather region
+    // (PlayerRegionState), the forced weather (Sky's override) and the one fading out.
+    std::map<uint32_t, std::vector<GameId>> RegionLists;
+    std::map<uint32_t, GameId> RegionWeather;
+    uint32_t WeatherRegion = 0;
+    GameId ForcedWeather{};
+    GameId LastWeather{};
+    uint32_t FadeFrames = 0;
+    size_t WeatherCuts = 0;    // changes shown without a fade
+    size_t WeatherChanges = 0; // changes shown, ever
+    static constexpr uint32_t kWeatherFadeFrames = 10;
+    // Frames since the weather last changed (lastWeatherUpdate): an override ages out after the climate's interval,
+    // and the region rolls its own (26231).
+    uint32_t WeatherAge = 0;
+    static constexpr uint32_t kOverrideExpiryFrames = 6; // shorter than a fade, as at a high time scale
+    // Sky::UpdateWeather's change (26231): fades from the shown one (a cut without aFade), then every region's own
+    // weather is set (TESRegion::SetCurrentWeather 16448: the shown one where its list holds it, else a roll, here
+    // its first).
+    void ShowWeather(const GameId& acWeather, bool aFade = true) noexcept;
+    void SetRegionWeather(uint32_t aRegion) noexcept;
     TimeModel GetGameTime() const noexcept override { return Calendar; }
     // Magic. A spell's kind as MagicService asks it (SpellItem's casting type and archetypes).
     struct SpellForm
@@ -1162,7 +1191,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                              {0x00027EB6, {.Invisibility = true}},                   // Invisibility
                                              {0x0001C789, {.Damage = true}},                         // Firebolt
                                              {kUnrelentingForce3, {.Damage = true}},
-                                             {kConjureFamiliar, {.Summons = kFamiliar}}};
+                                             {kConjureFamiliar, {.Summons = kFamiliar}},
+                                             {kRattles, {}}};
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
     struct Cast
     {
@@ -1186,12 +1216,31 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t EffectId = 0;
     };
     std::vector<Effect> Effects;
+    // A magic effect's own conditions (EffectSetting +0x190), checked when the engine adds it (34525, through 11085):
+    // here one global equal to a value, or a dual cast (the caster's kCheckAddEffectDualCast, set by 34525 meanwhile).
+    // Rattles under Survival Mode's override: one effect for each mode.
+    struct EffectCondition
+    {
+        uint32_t Global = 0;
+        float Equals = 0.f;
+        bool DualCast = false;
+    };
+    static constexpr uint32_t kDualCastEffect = 0x00099999; // stands for an effect whose conditions ask for a dual cast
+    static constexpr uint32_t kRattles = 0x0010A24E;            // TrapDiseaseRattles
+    static constexpr uint32_t kRattlesEffect = 0x0010A255;      // TrapDisDamageStaminaRegen, StaminaRate -2.5
+    static constexpr uint32_t kSurvivalRattlesEffect = 0xFE001981; // Survival_TrapDisDamageStaminaRegen, -2.5 more
+    static constexpr uint32_t kSurvivalModeEnabled = 0xFE001826;  // the global Survival_ModeEnabled
+    std::map<uint32_t, EffectCondition> EffectConditions{{kRattlesEffect, {kSurvivalModeEnabled, 0.f}},
+                                                         {kSurvivalRattlesEffect, {kSurvivalModeEnabled, 1.f}},
+                                                         {kDualCastEffect, {.DualCast = true}}};
+    bool EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept;
     std::vector<std::pair<uint32_t, uint32_t>> Reactions; // victim, attacker (Actor::ReactToAttack)
     // The actor casts by itself: our hook raises it unless the caster is a copy (HookSpellCast).
     void CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget = 0);
     // This game's spell lands on an actor (HookAddTarget): on another game's actor, our cast is a request for its
     // owner and is not applied here; on our own, applied.
-    void SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
+    void SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude,
+                   bool aDualCast = false);
     // A summon effect's actor (SummonCreatureEffect::CreateSummon 34993): one of aBase at its caster, commanded by it;
     // the caster's earlier summon dismissed (AIProcess::AddCommandedActor's limit, 1 without Twin Souls).
     uint32_t MakesSummon(uint32_t aCaster, uint32_t aBase);
@@ -1211,6 +1260,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                               uint32_t aEffectFormId, float aMagnitude, bool aIsDualCasting, bool aApplyHealPerkBonus,
                               bool aApplyStaminaPerkBonus) noexcept override
     {
+        // The engine's own add check (34525) runs for a relayed effect too: its conditions decide.
+        if (!EffectHolds(aEffectFormId, aIsDualCasting))
+            return;
         Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
         StartsAshPileEffect(aTargetFormId, aEffectFormId);
         if (Spell(aSpellFormId).Summons && !HoldSession) // a guest's CreateSummon (34993) makes nothing
@@ -1310,6 +1362,47 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::vector<std::pair<uint32_t, uint32_t>> Activations; // object, activator
     uint32_t LootMenuOf{}; // the dead actor whose loot menu the player opened (TESNPC::Activate -> OpenMenu 51140)
     uint32_t ChestMenuOf{}; // the chest whose menu the player opened (TESObjectCONT::Activate 17887)
+    bool InventoryMenuOpen{}; // the player's InventoryMenu (InventoryMenu::ProcessMessage 51848's kShow)
+    // Item menus list stacks by their own lists; a loot or chest menu's target and barter's merchant are left stale by
+    // RemoveItem 19689 (measured; docs/re/systems/item-menus.md, "Who sends which").
+    ItemMenuChanges ItemMenuNoted; // our hooks note, the UI's message pass (Frame) takes
+    int ItemMenuFreedLists{};      // the target's listed lists freed since the menu last listed
+    int ItemMenuFreedReads{};      // a take or hover read a freed list (the 2026-11-22 guest crashes, GetExtraData 12329)
+    [[nodiscard]] size_t ItemMenuKind() const noexcept { return LootMenuOf || ChestMenuOf ? 0 : BarterMerchant ? 1 : 2; }
+    [[nodiscard]] ItemMenuView ItemMenuOf() const noexcept
+    {
+        if (LootMenuOf || ChestMenuOf)
+            return {.Open = true, .Lists = {LootMenuOf ? LootMenuOf : ChestMenuOf, kPlayer}};
+        if (BarterMerchant)
+            return {.Open = true, .Lists = {BarterMerchant, kPlayer}, .AnyContainer = true};
+        return {.Open = InventoryMenuOpen, .Lists = {0, kPlayer}};
+    }
+    // The player hovers or takes the menu's highlighted entry (GetSelectedItem's lists: ContainerMenu 51130 / 51132).
+    void HoversInItemMenu() noexcept
+    {
+        if (ItemMenuOf().Open && ItemMenuFreedLists)
+            ++ItemMenuFreedReads;
+    }
+    // A change to aHolder's stacks: our hooks note it before and after (ItemMenuWatch::Note) the engine's change, a
+    // stack with extra data gone freeing its list (16059).
+    template <class Change> void ChangesStacks(uint32_t aHolder, Change&& aChange)
+    {
+        const bool cContainer = !Actors.contains(aHolder);
+        if (MustRebuildFirst(ItemMenuOf(), aHolder, cContainer))
+            ItemMenuNoted.Note(ItemMenuKind());
+        const auto cLists = [&] {
+            const auto cActor = Actors.find(aHolder);
+            return cActor == Actors.end() ? 0 : std::ranges::count_if(cActor->second.Items.Entries, [](const auto& acEntry) { return acEntry.ContainsExtraData(); });
+        };
+        const auto cBefore = cLists();
+        aChange();
+        // The engine's fact, apart from our rule: the menu's target or merchant was aliased.
+        const uint32_t cAliased = LootMenuOf ? LootMenuOf : ChestMenuOf ? ChestMenuOf : BarterMerchant;
+        if (cAliased && aHolder == cAliased)
+            ItemMenuFreedLists += static_cast<int>(std::max<std::ptrdiff_t>(0, cBefore - cLists()));
+        if (MustRebuildFirst(ItemMenuOf(), aHolder, cContainer))
+            ItemMenuNoted.Note(ItemMenuKind());
+    }
     // The chest's menu closes (the player, or our auto-close on a disabled chest): the lid's Close plays (ContainerMenu
     // 51125 -> OpenOrClose 14284); with no 3D only its flag closes.
     void ClosesChestMenu();
@@ -1353,6 +1446,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ToggleDoor(uint32_t aObject);
     // An activated plant is picked (for any actor, 14864): the host's records it (CHANGE_OBJECT_EMPTY), a guest's here only.
     void Harvest(uint32_t aObject);
+    // This game's player pulls a lever furniture (17420): its graph gets the pull; the host's records it as a row.
+    void PullsLever(uint32_t aObject);
+    // The host's script plays an animation on a reference (PlayAnimation 56205: HookPlayAnimation records it).
+    void ScriptPlaysAnimation(uint32_t aObject, const std::string& acEvent);
+    static constexpr const char* kPull = "Pull";
     // Combat. A melee hit, as our hook on Actor::DamageActor (Actor.cpp) takes it: raised as a hit, and a hit of this
     // game's player on another's actor raised as a health change and not applied here (its owner applies it).
     void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);
@@ -1726,6 +1824,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void DeleteActor(uint32_t aFormId) noexcept override;
     bool IsActorTemporary(uint32_t aFormId) const noexcept override { return aFormId >= 0xFF000000; }
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
+    bool IsActorLeveled(uint32_t aFormId) const noexcept override;
+    bool RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept override;
+    // A leveled actor's re-roll (37323/37292): its current base destroyed (36460, temporary or not), rolled to aPick.
+    void ResetLeveledActor(uint32_t aFormId, uint32_t aPick);
+    std::set<uint32_t> DestroyedNpcs; // NPC forms the collector destroyed: no longer found by id
     Inventory GetActorInventory(uint32_t aFormId) const noexcept override;
     void SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept override;
     void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept override;
@@ -1799,6 +1902,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         uint8_t Type = 0;   // FormType: kWeapon or kArmor
         uint32_t Slots = 0; // an armor's (BGSBipedObjectForm)
+        bool TwoHanded = false; // a weapon held in both hands (BothHands: a bow, a greatsword)
     };
     static constexpr uint8_t kWeapon = 41;
     static constexpr uint8_t kLight = 31;
@@ -1813,6 +1917,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, ItemForm> ItemForms{{0x00012EB7, {kWeapon}},          // Iron Sword
                                            {0x00013989, {kWeapon}},          // Steel Sword
                                            {0x0001397E, {kWeapon}},          // Iron Dagger
+                                           {0x00013985, {kWeapon, 0, true}}, // Hunting Bow
+                                           {0x0001D4EC, {kLight}},           // Torch
                                            {0x00012E49, {kArmor, 0x4}},      // Iron Armor (body)
                                            {0x00013952, {kArmor, 0x4}},      // Steel Armor (body)
                                            {0x00012E4D, {kArmor, 0x1 | 0x2}}}; // Iron Helmet (head, hair)
@@ -1882,6 +1988,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // One with extra data (an enchantment, tempering...), its own stack.
     void GetsItem(uint32_t aActor, const Inventory::Entry& acItem);
     void LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // That stack (its extra data, acItem.Count of it) leaves by itself: a script's RemoveItem of a named stack.
+    void LosesItem(uint32_t aActor, const Inventory::Entry& acItem);
     // A smithing or enchanting table improves one of the stack in place (InventoryChanges 16145 temper, 16146
     // EnchantObject): split off a counted stack and changed, no add or remove for our item hooks to see.
     void Improves(uint32_t aActor, const Inventory::Entry& acStack, const std::function<void(Inventory::Entry&)>& acChange);
@@ -1897,10 +2005,17 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] std::map<std::pair<uint32_t, uint32_t>, int32_t> Carried(uint32_t aActor) const;
     // TESObjectREFR::AddOrRemoveItem: another game's change (InventoryService, under ScopedInventoryOverride).
     void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override;
+    void AddOrRemoveStack(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept;
     void SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept override;
+    void SetCarriedStacks(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept;
     // What the actor wears: each worn item (its server id) and whether in the left hand.
     [[nodiscard]] std::set<std::tuple<uint32_t, uint32_t, bool>> Worn(uint32_t aActor) const;
     uint8_t GetFormType(uint32_t aFormId) const noexcept override;
+    bool IsTwoHandedWeapon(uint32_t aFormId) const noexcept override
+    {
+        const auto it = ItemForms.find(aFormId);
+        return it != ItemForms.end() && it->second.TwoHanded;
+    }
     bool IsRightHandEquipSlot(uint32_t aEquipSlotFormId) const noexcept override { return aEquipSlotFormId == kRightHand; }
     Inventory GetActorEquipment(uint32_t aActorFormId) const noexcept override;
     Inventory GetActorWornArmor(uint32_t aActorFormId) const noexcept override;
@@ -1910,6 +2025,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    // Its two-hander left in the right hand only, as Faendal's copy was at its first repair after a rejoin (measured,
+    // rejoined-guest-sees-rider 2026-11-23; the writer is not read). hand-slots.md.
+    void LeavesTwoHanderInRightOnly(uint32_t aFormId) { Actors.at(aFormId).HeldWeapons[0] = 0; }
 
     [[nodiscard]] bool Has(uint32_t aFlags) const noexcept
     {

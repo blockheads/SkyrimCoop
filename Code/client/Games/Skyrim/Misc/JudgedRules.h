@@ -21,6 +21,9 @@ inline constexpr uint16_t kGetPCInFaction = 132;
 // An NPC's relationship with the player is the party's standing (party-model.md: the party is the Dragonborn): left
 // as the host's player's when judged for another character.
 inline constexpr uint16_t kGetRelationshipRank = 403;
+// GetIsID (21487) compares a reference's base: a player copy has its own temporary NPC base, never Player.
+inline constexpr uint16_t kGetIsID = 72;
+inline constexpr uint32_t kPlayerBase = 0x7; // the NPC_ Player
 
 // One condition item, as the hook reads it.
 struct Item
@@ -28,6 +31,8 @@ struct Item
     uint16_t Function = 0;
     bool OnPlayer = false;                 // it runs on the player: a fixed reference or a quest alias holding it
     std::array<bool, 2> PlayerParam{};     // a parameter that is the player
+    bool OnCharacter = false;              // it runs on the character itself
+    bool PlayerBaseParam = false;          // its first parameter is the Player base (kPlayerBase)
 };
 
 // The item to evaluate in its place.
@@ -36,6 +41,7 @@ struct Judged
     uint16_t Function = 0;
     bool OnCharacter = false;              // runs on the character (a fixed reference to it)
     std::array<bool, 2> CharacterParam{};  // that parameter is the character
+    std::optional<float> Value;            // the function's value, worked out here: compared, not evaluated
     bool operator==(const Judged&) const = default;
 };
 

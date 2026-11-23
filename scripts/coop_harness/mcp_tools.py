@@ -293,7 +293,7 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
     takes it, as for its name and Activate prompt), "bounty" (crime faction `name`, hex: at least value [n] on the host
     and the same on the guest), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
     `seconds`; "set": not nothing; a handle: that handle in each game, for targets; no value: equal in both), "stands" (player `name`
-    stands on its feet in `game` or both within `seconds`: standing, not floating, sunk, lifted or lying, its ragdoll out of the physics world), "faces" (actor `name`'s body faces handle `of` within `within` degrees, in `game` or both, within `seconds`), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "graph" (owner's and copy's graphs read live for `seconds`, never apart for `within` s or more nor unread as long, the owner entering a state named like `field` at least `value` times (no `field`: its graph changing that often)), "stream" (the graph input stream's live check for `seconds`: every streamed copy's graph equal to its owner's at each update; with `name`, its copy compared on at least `value` updates), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`), "props" (every copy holds its owner's props, state.anim_objects, within `seconds`; at least `value` owners holding one, default 1), "stolen" (item `name`, hex: `game`'s player holds at least value [n] of it owned by `of`, hex: ExtraOwnership, the engine's stolen mark), "eye" (player `name`'s stealth eye shows the same in its own game and on its copy in the other, `value` if given, within `seconds`)."""
+    stands on its feet in `game` or both within `seconds`: standing, not floating, sunk, lifted or lying, its ragdoll out of the physics world), "faces" (actor `name`'s body faces handle `of` within `within` degrees, in `game` or both, within `seconds`), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "graph" (owner's and copy's graphs read live for `seconds`, never apart for `within` s or more nor unread as long, the owner entering a state named like `field` at least `value` times (no `field`: its graph changing that often)), "stream" (the graph input stream's live check for `seconds`: every streamed copy's graph equal to its owner's at each update; with `name`, its copy compared on at least `value` updates), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`), "props" (every copy holds its owner's props, state.anim_objects, within `seconds`; at least `value` owners holding one, default 1), "stolen" (item `name`, hex: `game`'s player holds at least value [n] of it owned by `of`, hex: ExtraOwnership, the engine's stolen mark), "object" (reference `name`'s graph variable `field` reads `value` in both games within `seconds`; no `field`: all its variables agree), "eye" (player `name`'s stealth eye shows the same in its own game and on its copy in the other, `value` if given, within `seconds`), "weather" (the guest holds the weather the host gives its region: the host's when forced or in the host's region, else that region's own; value true: and shows it once the engine's fades ran, its region's list holding it; within `seconds`), "weather_fading" (the guest's weather is fading now into the one the host gives it, not cut; out of value [hex id] if given), "weather_fade" (`game`'s weather changes value [n] times in `seconds`, each a fade from the one before, no cut; a guest's each to the weather it holds, never its own roll)."""
     return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
 
@@ -421,6 +421,13 @@ def travel(game: str, command: str) -> dict:
     """That game's player travels far by a console command (`coc Riverwood`); waits until it arrives there. The
     other player stays (the party tether is the game's to show, not this verb's)."""
     return {"ok": True, **session.go_far(_game(game), command)}
+
+
+@tool
+def solo_move(game: str, x: float, y: float) -> dict:
+    """That game's player alone goes to (x, y) in its worldspace, the other staying: no queued travel, so no party
+    travel (a player walking off, for a test of each player's own place). Lands on the floor a ray finds."""
+    return {"ok": True, **session.solo_move(_game(game), x, y)}
 
 
 @tool

@@ -268,8 +268,9 @@ std::optional<std::vector<std::pair<uint32_t, int32_t>>> GetContainerItems(uint3
 // The reference's items with extra data (an enchantment, tempering, a name...): a loose item's own (count and
 // extra data, extra data or not), else each stack with extra data its container holds; none: no such reference.
 std::optional<std::vector<Inventory::Entry>> GetItemStacks(uint32_t aObjectFormId) noexcept;
-// The player gets the item with its extra data, as an enchanting table's or a forge's item (our hooks see it).
-bool GiveItem(const Inventory::Entry& acItem) noexcept;
+// The player (or the holder, an actor or container) gets the item with its extra data, as an enchanting table's or a
+// forge's item (our hooks see it).
+bool GiveItem(const Inventory::Entry& acItem, uint32_t aHolderFormId = 0) noexcept;
 // The player drops that many of the item as the inventory's Drop does (PlayerCharacter::DropObject 40454): its first
 // stack with extra data, or with aPlain one without; the loose item made, none when it made none.
 std::optional<uint32_t> PlayerDrops(uint32_t aItemFormId, int32_t aCount, bool aPlain) noexcept;
@@ -374,6 +375,9 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // runs it: inventory-changes.md), through our hook: what it wears right after, before any service answers. None: no
 // such actor or NPC base.
 std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcept;
+// DoReset3D(false) (40255) in this game only: its 3D rebuilt, possibly queued; whether its worn init (24725) runs is
+// not checked. False: no such actor.
+bool Reset3D(uint32_t aFormId) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
 // (the bridge's Activate and lock replays call past the hooks): the player activates the object
 // (pressing E on it), and the object's lock changes.
@@ -514,6 +518,9 @@ struct CellObject
 {
     uint32_t Id;
     float Position[3];
+    uint32_t Base = 0;
+    bool Activator = false;          // TESObjectACTI
+    bool ActivatorFurniture = false; // a lever furniture (TESObjectREFR::IsActivatorFurniture)
 };
 std::vector<CellObject> GetCellObjects() noexcept;
 

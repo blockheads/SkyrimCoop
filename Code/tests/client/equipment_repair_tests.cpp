@@ -111,12 +111,17 @@ TEST_CASE("Non-weapons retain their native equip slot during repair", "[equipmen
     CHECK(EquipmentRepair::EquipSlot(42, false) == 0); // arrows
     CHECK(EquipmentRepair::EquipSlot(41, false) == 0x13F42);
     CHECK(EquipmentRepair::EquipSlot(41, true) == 0x13F43);
+    CHECK(EquipmentRepair::EquipSlot(41, false, true) == 0x13F45); // a bow: BothHands, never 38911's RightHand
 }
 
-TEST_CASE("A worn weapon is held in its hand, a torch in the left", "[equipment-repair][hand-weapon]")
+TEST_CASE("A worn weapon is held in its hand, a two-hander in both, a torch in the left", "[equipment-repair][hand-weapon]")
 {
-    CHECK(EquipmentRepair::HandOf(41, false) == 1u);
-    CHECK(EquipmentRepair::HandOf(41, true) == 0u);
-    CHECK(EquipmentRepair::HandOf(31, false) == 0u);
-    CHECK_FALSE(EquipmentRepair::HandOf(26, false)); // armor: no hand
+    using namespace EquipmentRepair;
+    CHECK(HandsOf(41, false) == kRightHandBit);
+    CHECK(HandsOf(41, true) == kLeftHandBit);
+    CHECK(HandsOf(41, false, true) == (kLeftHandBit | kRightHandBit)); // BothHands
+    CHECK(HandsOf(41, false, true, true) == kRightHandBit);            // Aela's bow beside her torch
+    CHECK(HandsOf(31, true) == kLeftHandBit);
+    CHECK(HandsOf(31, false) == kLeftHandBit); // no equip holds a torch right (17619)
+    CHECK(HandsOf(26, false) == 0);            // armor: no hand
 }

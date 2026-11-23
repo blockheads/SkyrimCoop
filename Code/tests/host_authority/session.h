@@ -18,6 +18,7 @@
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/NotifyWeatherChange.h>
+#include <Messages/WeatherRegionRequest.h>
 #include <Messages/WorldState.h>
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
@@ -215,6 +216,9 @@ struct Session
     std::unordered_map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
+    bool WeatherForced = false;                              // forced by a script or the console (Sky's override)
+    GameId WeatherRegion;                                    // the host's player's weather region
+    std::map<uint32_t, GameId> RegionWeathers;               // each region's own weather in the host's game, by base id
     std::map<uint32_t, DetectionRules::EyeReading> Eyes;      // the host's NPCs' reading of a character's copy, by id
     std::vector<std::string> ConsoleLines;                   // the dev commands' lines the host's console ran
     std::set<uint32_t> CannotPair;                           // the host's NPCs dead or with their graph stopped
@@ -331,7 +335,15 @@ private:
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.AdvanceTime = [this](float aHours) { HostClock.Time += aHours; };
-        game.ReadWeather = [this] { return Weather; };
+        game.ReadWeather = [this]() -> std::optional<HostSky> {
+            if (!Weather)
+                return std::nullopt;
+            return HostSky{.Weather = *Weather, .Forced = WeatherForced, .Region = WeatherRegion};
+        };
+        game.RegionWeather = [this](const GameId& acRegion) -> std::optional<GameId> {
+            const auto it = RegionWeathers.find(acRegion.BaseId);
+            return it == RegionWeathers.end() ? std::nullopt : std::optional(it->second);
+        };
         game.ReadEye = [this](uint32_t aSessionId) -> std::optional<DetectionRules::EyeReading> {
             const auto it = Eyes.find(aSessionId);
             return it == Eyes.end() ? std::nullopt : std::optional(it->second);
