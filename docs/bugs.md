@@ -1451,6 +1451,9 @@ Size: small. Needs: the duo.
 about twelve runs, passing on the next run with nothing changed. `GameTests` run alone passed 10 of 10 after the second one
 (its assertion count differs run to run, 5627 to 5650: some flow is timing-dependent). The gate now keeps each shard's
 log and prints the failed case (`check.sh`, `build/check/`), so the next one names its case.
+2026-11-23 on `agent/fabien-crash-3` (pre-push): "A host NPC gets up from a knockdown: its copy's ragdoll follows its
+owner's until both stand" (`physics_flows.cpp:887`): the copy's head ended 27.8 units from its owner's (limit 15); 10 of
+10 passed alone right after.
 
 Agent task: loop `GameTests` until it fails and fix that case's timing.
 
