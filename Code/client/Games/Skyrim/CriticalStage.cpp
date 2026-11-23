@@ -1,5 +1,8 @@
 #include <Actor.h>
+#include <CriticalStage.h>
 #include <CriticalStageRules.h>
+#include <NetImmerse/NiAVObject.h>
+#include <World.h>
 #include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -9,11 +12,33 @@
 using TSetCriticalStage = void(Actor*, uint32_t);
 static TSetCriticalStage* RealSetCriticalStage = nullptr;
 
+// Set while a refused stage keeps the player's third-person 3D hidden (NiAVObject kHidden), until its revive.
+static std::atomic_bool s_bodyHidden{false};
+
+static void HidePlayerBody(bool aHidden) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    NiAVObject* pBody = pPlayer ? pPlayer->Get3D1(false) : nullptr;
+    if (!pBody)
+        return;
+    pBody->flags = aHidden ? pBody->flags | NiAVObject::kHidden : pBody->flags & ~NiAVObject::kHidden;
+}
+
+void CriticalStage::ShowPlayerBody() noexcept
+{
+    if (s_bodyHidden.exchange(false))
+        HidePlayerBody(false);
+}
+
 static void HookSetCriticalStage(Actor* apActor, uint32_t aStage)
 {
-    if (!CriticalStage::Takes(apActor == PlayerCharacter::Get(), aStage))
+    const bool cPlayer = apActor == PlayerCharacter::Get();
+    if (!CriticalStage::Takes(cPlayer, aStage))
     {
         spdlog::info("CriticalStage: this game's player keeps its body (stage {} refused)", aStage);
+        // Papyrus calls in on a VM thread: the 3D's flag set from the main loop.
+        if (CriticalStage::HidesBody(cPlayer, aStage) && !s_bodyHidden.exchange(true))
+            World::Get().GetRunner().Queue([] { HidePlayerBody(s_bodyHidden.load()); });
         return;
     }
     RealSetCriticalStage(apActor, aStage);

@@ -133,12 +133,15 @@ SCENARIO("The host's Unrelenting Force with its disintegrate effect kills a gues
         return std::format("stalled {} dead {} stage {} 3d {}", guest.FrameStalled, guest.Actors.at(FakeEngine::kPlayer).Dead,
                            guest.Actors.at(FakeEngine::kPlayer).CriticalStage, guest.ActorHas3D(FakeEngine::kPlayer));
     });
-    THEN("its player kept its body: no ash pile, its 3D kept")
+    THEN("its player kept its body, hidden as the host's copy is: no ash pile, its 3D kept")
     {
         CHECK(guest.Actors.at(FakeEngine::kPlayer).CriticalStage == 0);
         CHECK(guest.AshPiles.empty());
         CHECK(guest.ActorHas3D(FakeEngine::kPlayer));
+        CHECK(guest.Actors.at(FakeEngine::kPlayer).BodyHidden);
     }
+    party.Until([&] { return !death.IsDown(); }, "the guest respawns", {}, nullptr, std::chrono::seconds(30));
+    CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).BodyHidden);
 }
 
 SCENARIO("The disintegrate effect turns an NPC to ash only if it dies while the effect lasts", "[death][magic]")

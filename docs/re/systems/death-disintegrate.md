@@ -58,9 +58,16 @@ Inferred: which wait job, and why the player's update does not finish without it
 
 - `Actor::SetCriticalStage` (37615) refuses any stage but none for this game's player: it dies the normal way (real
   death, spectating, respawn), with its body.
+- The refused GooEnd or DisintegrateEnd hides that body instead (its third-person 3D root's `kHidden`, CommonLib
+  `SetAppCulled`, as PapyrusExtender's node toggles do; set from the main loop) until `PlayerCharacter::Revive` shows
+  it (`CriticalStage::ShowPlayerBody`). Before (2026-11-22, the user on the duo): the shooter's copy stayed dissolved
+  by the relayed shader while the victim's own body showed again after it, lying and then getting up (it died
+  knocked down). Measured after: `state.body_hidden` true on the victim's game while dead, false after the revive,
+  both games showing it standing.
 - `Actor.AttachAshPile` (54655) refuses this game's player: no pile left where it died (the world check saw one on the
   guest only before).
-- The shader still plays for its 4 s, on the player and its copies: the death looks like one.
+- The shader still plays for its 4 s, on the player and its copies: the death looks like one, and the body is gone
+  on every game until the respawn.
 
 GameTests `[friendly-fire]` "The host's Unrelenting Force with its disintegrate effect kills a guest": the fake runs the
 ash pile script for a target that dies while the disintegrate effect lasts (1 s) and stalls a game whose player lost

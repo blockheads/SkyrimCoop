@@ -27,3 +27,11 @@ TEST_CASE("Only this game's player leaves no ash pile", "[CriticalStage]")
     CHECK_FALSE(TakesAshPile(true));
     CHECK(TakesAshPile(false));
 }
+
+TEST_CASE("A refused ash or goo end hides this game's player's body", "[CriticalStage]")
+{
+    CHECK(HidesBody(true, kDisintegrateEnd));
+    CHECK(HidesBody(true, kGooEnd));
+    CHECK_FALSE(HidesBody(true, kDisintegrateStart));
+    CHECK_FALSE(HidesBody(false, kDisintegrateEnd));
+}

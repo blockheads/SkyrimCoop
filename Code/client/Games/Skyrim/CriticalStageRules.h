@@ -24,6 +24,12 @@ constexpr uint32_t kDisintegrateEnd = 4;
     return !aThisGamesPlayer || aStage == kNone;
 }
 
+// What the refused stage would have done to the body, as the engine shows it: hidden until the player is revived.
+[[nodiscard]] constexpr bool HidesBody(bool aThisGamesPlayer, uint32_t aStage) noexcept
+{
+    return aThisGamesPlayer && RemovesBody(aStage);
+}
+
 // Actor.AttachAshPile (54655): a player that keeps its body leaves no ash pile.
 [[nodiscard]] constexpr bool TakesAshPile(bool aThisGamesPlayer) noexcept
 {

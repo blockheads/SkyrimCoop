@@ -29,6 +29,7 @@
 #include <Games/Misc/SubtitleManager.h>
 #include <Games/Skyrim/Events/EventDispatcher.h>
 #include <Games/Overrides.h>
+#include <NetImmerse/NiAVObject.h>
 #include <Games/References.h>
 #include <Games/TES.h>
 #include <SaveLoadManager.h>
@@ -410,6 +411,13 @@ KillState GetKillState(uint32_t aFormId) noexcept
     using TIsKillQueued = bool(const AIProcess*);
     POINTER_SKYRIMSE(TIsKillQueued, s_isKillQueued, 40011);
     return {s_isInDeferredKill(pActor), s_isKillQueued(pActor->currentProcess)};
+}
+
+bool IsBodyHidden(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    const NiAVObject* pBody = pActor ? pActor->Get3D1(false) : nullptr;
+    return pBody && (pBody->flags & NiAVObject::kHidden);
 }
 
 float GetAlpha(uint32_t aFormId) noexcept

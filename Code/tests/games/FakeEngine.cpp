@@ -1020,7 +1020,10 @@ void FakeEngine::SetCriticalStage(uint32_t aFormId, uint32_t aStage)
 {
     auto& actor = Actors.at(aFormId);
     if (!CriticalStage::Takes(aFormId == kPlayer, aStage)) // HookSetCriticalStage
+    {
+        actor.BodyHidden |= CriticalStage::HidesBody(aFormId == kPlayer, aStage);
         return;
+    }
     actor.CriticalStage = aStage;
     if (!CriticalStage::RemovesBody(aStage))
         return;
@@ -2767,6 +2770,7 @@ void FakeEngine::RevivePlayer() noexcept
     if (!player.Dead)
         return;
     player.Dead = false;
+    player.BodyHidden = false; // CriticalStage::ShowPlayerBody
     player.DyingFrames = player.DeadFrames = 0;
     for (const uint32_t cIndex : {kHealth, kMagicka, kStamina})
     {

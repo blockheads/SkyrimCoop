@@ -744,6 +744,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
         bool Loaded = true;  // its 3D is loaded (in the process lists)
         uint32_t CriticalStage = 0; // Actor+0xF0 (ACTOR_CRITICAL_STAGE)
+        bool BodyHidden = false; // its third-person 3D's kHidden (a refused ash or goo end, CriticalStage.cpp)
         bool HeadBuilt = false;         // its head is built: the frame its 3D is there (TESNPC::UpdateHeadState 24724)
         std::optional<Tints> HeadTints; // painted on its head (FaceGenSystem); a head built again has none (24731)
         uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
