@@ -24,8 +24,10 @@ class Fixtures:
     def world_sync_problems(ctx):
         host, guest = ctx.game_state(""), ctx.game_state("client")
         problems = []
-        if host.get("weather") != guest.get("weather"):
-            problems.append(f"weather: host {host.get('weather')}, guest {guest.get('weather')}")
+        # The guest holds the weather the host gives its region (weather.md), the host's own where they share one.
+        if host.get("weather") and (sky := ctx.weather_given())["guest"]["override"] != sky["want"]:
+            problems.append(f"weather: guest holds {sky['guest']['override']:X} in region {sky['guest']['region']:X}, "
+                            f"the host gives it {sky['want']:X}")
         if not ctx.same_calendar() or not is_close(host.get("time", {}).get("hour"), guest.get("time", {}).get("hour"), 0.05):
             problems.append(ctx.calendars("calendar differs"))
         return problems
@@ -192,8 +194,10 @@ class Fixtures:
             state = me.get("state") or {}
             values = me.get("values") or {}
             current = ctx.game_state(name)
-            if not world.get("live") and current.get("weather") != world["weather"]:
-                problems.append(f"{game}: weather {current.get('weather')}, baseline {world['weather']}")
+            # The guest's held weather: what it shows may still be fading toward it (minutes, weather.md).
+            weather = ctx.sky(name)["override"] if name else current.get("weather")
+            if not world.get("live") and weather != world["weather"]:
+                problems.append(f"{game}: weather {weather}, baseline {world['weather']}")
             for field in ("year", "month", "day", "hour", "scale"):
                 if not world.get("live") and not is_close(current.get("time", {}).get(field), world["time"][field], 0.05):
                     problems.append(f"{game}: calendar {field} {current.get('time', {}).get(field)}, baseline {world['time'][field]}")

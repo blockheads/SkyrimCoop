@@ -35,6 +35,9 @@ struct HostLeash
     // the last update).
     void Update(double aDelta) noexcept;
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
+    // /leash off (dev-commands.md): no countdown for anyone, a running one stops.
+    void SetOn(bool aOn) noexcept;
+    [[nodiscard]] bool IsOn() const noexcept { return m_on; }
 
 private:
     void Send(ConnectionId_t aPlayer, NotifyLeash::Kind aState) const noexcept;
@@ -51,4 +54,5 @@ private:
     HostCharacters& m_characters;
     const HostDeath& m_death;
     std::unordered_map<ConnectionId_t, Leash> m_out;
+    bool m_on{true};
 };

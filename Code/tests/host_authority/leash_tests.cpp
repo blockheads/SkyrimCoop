@@ -2,6 +2,7 @@
 #include "session.h"
 
 #include <Messages/EnterCellRequest.h>
+#include <Messages/RelayedMessages.h>
 #include <Messages/NotifyPartyTravel.h>
 #include <Messages/TravelMessages.h>
 
@@ -472,5 +473,40 @@ TEST_CASE("Leash: a trip that has not landed is dropped when a fall or a door ta
         const auto cTravels = session.SentTo<NotifyPartyTravel>(kPeer);
         REQUIRE(cTravels.size() == 1);
         CHECK(cTravels[0]->CellId == GameId(0, 0x133C9));
+    }
+}
+
+TEST_CASE("Leash: /leash off stops a running countdown and keeps a guest free until /leash on or /reset", "[HostAuthority][Leash]")
+{
+    Session session;
+    Clock clock = Outdoors(session);
+    const auto cTyped = [&](const char* acpLine) {
+        DevCommandRequest request;
+        request.Line = acpLine;
+        session.Receive(kPeer, request);
+    };
+
+    Walk(session, kPeer, {3 * kCell + 100.f, 100.f, 0.f});
+    Grace(clock);
+    REQUIRE(Leashes(session, kPeer) == std::vector{Kind::kOut});
+
+    session.Outbox.clear();
+    cTyped("/leash off");
+    CHECK(Leashes(session, kPeer) == std::vector{Kind::kOff});
+    clock.Pass(60000);
+    CHECK(Leashes(session, kPeer) == std::vector{Kind::kOff});
+    CHECK(session.SentTo<NotifyPartyTravel>(kPeer).empty());
+
+    // On again: a full grace and countdown from now, not the old one's rest.
+    for (const char* cpLine : {"/leash on", "/reset"})
+    {
+        INFO(cpLine);
+        cTyped("/leash off");
+        session.Outbox.clear();
+        cTyped(cpLine);
+        clock.Pass(100);
+        CHECK(session.SentTo<NotifyLeash>(kPeer).empty());
+        Grace(clock);
+        CHECK(Leashes(session, kPeer) == std::vector{Kind::kOut});
     }
 }

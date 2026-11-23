@@ -32,6 +32,7 @@
 #include <Messages/DeathMessages.h>
 #include <Messages/TravelMessages.h>
 #include <Messages/SummonRequest.h>
+#include <Messages/WeatherRegionRequest.h>
 
 struct RequestMessageFactory
 {
