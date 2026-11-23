@@ -137,6 +137,52 @@ overdue when heard: it is taken at once, the actions queued before it dropped (`
 is left is the host's replay lag; killing on the claimer first would start its ragdoll before its owner's
 (`docs/bugs.md`, "A claimed kill's victim holds its pose for the host's replay").
 
+## Every kill move (2026-11-23, `kill-moves-every`)
+
+The kill moves are idles (IDLE records) in the action idle tree, not engine code: a normal swing's pick walks
+`AttackRightRoot > NonMountedCombatRight` (a power attack `PowerAttackRoot > NonMountedCombatRightPower`, the same
+kill moves as twins without the `00` suffix), children in their `ANAM` sibling order, the first whose conditions
+pass. `scripts/re/kill_moves.py <Data>` lists every one (145 `pa_Kill...` events in the base game and DLC, 344 idles
+naming one); `--rows` walks the tree's conditions per victim race, weapon and side and writes the table
+`scripts/coop_harness/kill_moves.json`: 112 rows, 84 kill moves a player's normal swing can pick.
+
+```
+NonMountedCombatRight (children in order)
+  sprint attacks
+  KillingMoveSneakBackA00   sneaking, undetected
+  KillMoveFrontSideRoot00   GetRelativeAngle 90..270, GetTargetHeight -35..35, ShouldAttackKill (38559), KillMove global,
+                            the player only on target.IsLastHostileActor, weapon drawn, not blocking or staggered
+    <race roots>            target.GetIsRace (draugr, falmer, wolf, troll, sabre cat, bear, spider, spriggan, hagraven,
+                            giant, centurion, dragon, DLC races), then by GetEquippedItemType
+    KillMoveShortRoot00     target ActorTypeNPC: by weapon (blade, axe/mace, 2HM, 2HW, H2H, dual wield, decap perks)
+  KillMoveBackSideRoot00    target ActorTypeNPC, GetTargetHeight -35..35: back stabs, 2HM/2HW from behind, suplex
+  plain attacks
+```
+
+- Siblings carry `GetRandomPercent`: a row's swing picks one of its kill moves at random, so `kill_move_table` swings a
+  row until each played (two tries per kill move). A group whose children all fail is taken to pass on to its next
+  sibling: inferred from the tree's shape, the pick (37147) not read for it.
+- The decapitations need `SavageStrike` (1H) or `DevastatingBlow` (2H): the rows with perks add them.
+- Not in the table: dual wield (the verb equips one hand), bleeding-out victims, sneak kills, power attacks (the same
+  kill moves), creature and NPC attackers (`KillMoveRootDragon` and the creatures' own trees).
+
+## Slopes (2026-11-23)
+
+Not settled. Playtest item 16. What limits a kill move here may be the idles' height window, the pair's start, or both.
+
+- **Read in IDA.** `GetTargetHeight` 21551 (condition 720): `param.z - subject.z`, 0 when either is null. Every kill
+  move root needs -35..35 (the suplex -20..20), and the records name no reference (CTDA parameter 1 is 0). Not read:
+  what the condition item passes for an empty reference, so whether the window acts at all.
+- **Read in IDA.** `LayoutParticipants` 32792 gives a support's mark the lead's height; `TryMoveTo` 78260 sweeps it
+  there, `MoveCheckCountsLayer` 78300 picking layers (`0x01010000`: terrain, static, ground). What a contact's value
+  means to its depth test is not read.
+- **Measured** (duo, Riverwood's hillside, 24 degrees, a restrained bandit, a sword). The attacker moved to the victim's
+  height: 25 below, raised 34; above, lowered 17 to 28 (so here the victim leads). Attacker above its victim by 18.4:
+  no kill move; 23.2, 24.4, 24.5, 25.6, 40.2 and one unread: paired; 35.3, 35.6 and 43: none. The height is read before the
+  swing. 40.2 pairing contradicts a strict window.
+- The refused swings at 18.4 and 35.6 logged `PairEnd`/`pairedStop` inputs before the plain `attackStart`, those at 35.3
+  and 43 none. Inferred: a pair begun and refused in the first two, never picked in the others. Which check refused is not read.
+
 ## By weapon (measured 2026-11-22, `kill-moves-by-weapon`)
 
 A restrained bandit (`3DE53`) or wolf, one hit from death, `KillMoveRandom` 100. Each paired on both games, the

@@ -12,6 +12,7 @@
 #include <Physics/BodyPlayback.h>
 #include <Physics/RagdollPending.h>
 #include <Physics/RagdollRest.h>
+#include <Physics/RagdollStart.h>
 #include <Physics/BodyRelevance.h>
 #include <Physics/BodySends.h>
 #include <Physics/HavokStep.h>
@@ -510,10 +511,40 @@ TEST_CASE("A copy on its owner's place steps by nothing, as a still NPC: its ste
     CHECK(glm::length(CopyStep::Translation({10.f, 0.f, 2.f}, 1.57079633f) - glm::vec3(0.f, 10.f, 2.f)) < 1e-4f);
 }
 
-TEST_CASE("A copy's first ragdoll frame is steered unless it is well off", "[body-prediction][kill-move]")
+TEST_CASE("A copy's ragdoll takes up its owner's frames whole, each body from where it was", "[body-prediction][ragdoll-start][kill-move]")
 {
-    CHECK(BodyPrediction::PlaceDistance(true) < BodyPrediction::PlaceDistance(false));
-    CHECK(BodyPrediction::PlaceDistance(true) > 12.f); // a kill move's start, measured
+    const auto cBody = [](uint8_t aIndex, float aOff, bool aFirst) {
+        RagdollStart::Body body{.Position = {100.f + aOff, 0.f, 0.f}, .First = aFirst};
+        body.Frame.Key = {.Actor = 7, .Index = aIndex};
+        body.Frame.Position = {100.f, 0.f, 0.f};
+        body.Frame.LinearVelocity = {0.f, 10.f, 0.f};
+        return body;
+    };
+    RagdollStart start;
+    // HeadButt, 2026-11-23: limbs 38 and 46 off, the rest under 16. All steered, from where each is.
+    auto plan = start.Next({cBody(0, 5.f, true), cBody(5, 46.f, true), cBody(7, -38.f, true)}, 1.f);
+    CHECK_FALSE(plan.Place);
+    CHECK(plan.Targets[1].Position.x == Approx(146.f));
+    CHECK(plan.Targets[1].LinearVelocity.x == Approx(-46.f / RagdollStart::kSeconds));
+    plan = start.Next({cBody(0, 0.f, false), cBody(5, 23.f, false), cBody(7, -19.f, false)}, 1.f + RagdollStart::kSeconds / 2.f);
+    CHECK(plan.Targets[1].Position.x == Approx(123.f));
+    plan = start.Next({cBody(5, 0.f, false)}, 1.f + RagdollStart::kSeconds);
+    CHECK(plan.Targets[0].Position.x == Approx(100.f));
+    CHECK(plan.Targets[0].LinearVelocity == glm::vec3(0.f, 10.f, 0.f));
+    // One body far off: all put there, the near ones too.
+    plan = start.Next({cBody(0, 1.f, false), cBody(5, 70.f, false)}, 5.f);
+    CHECK(plan.Place);
+    CHECK(plan.Targets[0].Position.x == 100.f);
+}
+
+TEST_CASE("A copy's ragdoll turns from where it was onto its owner's frame", "[body-prediction][ragdoll-start]")
+{
+    RagdollStart start;
+    RagdollStart::Body body{.Rotation = glm::angleAxis(1.f, glm::vec3(0.f, 0.f, 1.f)), .First = true};
+    CHECK(glm::angle(start.Next({body}, 0.f).Targets[0].Rotation) == Approx(1.f));
+    body.First = false;
+    CHECK(glm::angle(start.Next({body}, RagdollStart::kSeconds / 2.f).Targets[0].Rotation) == Approx(0.5f));
+    CHECK(glm::angle(start.Next({body}, RagdollStart::kSeconds).Targets[0].Rotation) == Approx(0.f).margin(1e-3));
 }
 
 TEST_CASE("A copy's ragdoll rests as a pile: glided, put there once, put to sleep, then left alone", "[physics][ragdoll-rest]")

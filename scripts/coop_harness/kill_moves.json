@@ -1,0 +1,1360 @@
+[
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "hands",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveH2HKneeThrow",
+   "pa_KillMoveH2HBodySlam",
+   "pa_KillMoveH2HComboA",
+   "pa_KillMoveH2HSlamA"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "hands",
+  "behind": true,
+  "perks": [],
+  "events": [
+   "pa_KillMoveH2HSuplex"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMStabUpFace",
+   "pa_KillMove1HMStabDownChest",
+   "pa_KillMove1HMRepeatStabDown",
+   "pa_KillMove1HMGrappleStab",
+   "pa_KillMoveD",
+   "pa_KillMoveShortD",
+   "pa_KillMoveI",
+   "pa_KillMoveShortB"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [
+   "0003AF81",
+   "00052D52"
+  ],
+  "events": [
+   "pa_KillMove1HMDecap",
+   "pa_KillMove1HMStabUpFace",
+   "pa_KillMove1HMStabDownChest",
+   "pa_KillMove1HMRepeatStabDown",
+   "pa_KillMove1HMGrappleStab",
+   "pa_KillMoveD",
+   "pa_KillMoveShortD",
+   "pa_KillMoveI",
+   "pa_KillMoveShortB"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "dagger",
+  "behind": true,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMBackStab"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMStabUpFace",
+   "pa_KillMove1HMStabDownChest",
+   "pa_KillMove1HMRepeatStabDown",
+   "pa_KillMove1HMGrappleStab",
+   "pa_KillMoveD",
+   "pa_KillMoveShortD",
+   "pa_KillMoveI",
+   "pa_KillMoveShortB"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [
+   "0003AF81",
+   "00052D52"
+  ],
+  "events": [
+   "pa_KillMove1HMDecap",
+   "pa_KillMove1HMStabUpFace",
+   "pa_KillMove1HMStabDownChest",
+   "pa_KillMove1HMRepeatStabDown",
+   "pa_KillMove1HMGrappleStab",
+   "pa_KillMoveD",
+   "pa_KillMoveShortD",
+   "pa_KillMoveI",
+   "pa_KillMoveShortB"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "sword",
+  "behind": true,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMBackStab"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveShortC",
+   "pa_KillMoveShortA"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [
+   "0003AF81",
+   "00052D52"
+  ],
+  "events": [
+   "pa_KillMove1HMDecap",
+   "pa_KillMoveShortC",
+   "pa_KillMoveShortA"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveShortC",
+   "pa_KillMoveShortA"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [
+   "0003AF81",
+   "00052D52"
+  ],
+  "events": [
+   "pa_KillMove1HMDecap",
+   "pa_KillMoveShortC",
+   "pa_KillMoveShortA"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMSlash",
+   "pa_KillMove2HM3Slash",
+   "pa_KillMove2HMUnderSwingLeg",
+   "pa_KillMove2HMStabA"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [
+   "0003AF81",
+   "00052D52"
+  ],
+  "events": [
+   "pa_KillMove2HMDecap",
+   "pa_KillMove2HMSlash",
+   "pa_KillMove2HM3Slash",
+   "pa_KillMove2HMUnderSwingLeg",
+   "pa_KillMove2HMStabA"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "greatsword",
+  "behind": true,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMStabFromBehind"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWHeadButt",
+   "pa_KillMove2HWChopKick",
+   "pa_KillMove2HWB"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [
+   "0003AF81",
+   "00052D52"
+  ],
+  "events": [
+   "pa_KillMove2HWA",
+   "pa_KillMove2HWHeadButt",
+   "pa_KillMove2HWChopKick",
+   "pa_KillMove2HWB"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "battleaxe",
+  "behind": true,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWHackFromBehind"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWHeadButt",
+   "pa_KillMove2HWChopKick",
+   "pa_KillMove2HWB"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [
+   "0003AF81",
+   "00052D52"
+  ],
+  "events": [
+   "pa_KillMove2HWA",
+   "pa_KillMove2HWHeadButt",
+   "pa_KillMove2HWChopKick",
+   "pa_KillMove2HWB"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "warhammer",
+  "behind": true,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWHackFromBehind"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveDualWieldA",
+   "pa_KillMoveDWXSlash",
+   "pa_KillMoveDWDualSlash"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [
+   "0003AF81",
+   "00052D52"
+  ],
+  "events": [
+   "pa_KillMoveDWDecap",
+   "pa_KillMoveDualWieldA",
+   "pa_KillMoveDWXSlash",
+   "pa_KillMoveDWDualSlash"
+  ]
+ },
+ {
+  "victim": "bandit",
+  "base": "0003DE53",
+  "race": "NordRace",
+  "weapon": "dual swords",
+  "behind": true,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMBackStab"
+  ]
+ },
+ {
+  "victim": "draugr",
+  "base": "0001FB8F",
+  "race": "DraugrRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveDraugrShortB",
+   "pa_KillMoveDraugrB"
+  ]
+ },
+ {
+  "victim": "draugr",
+  "base": "0001FB8F",
+  "race": "DraugrRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveDraugrShortB",
+   "pa_KillMoveDraugrB"
+  ]
+ },
+ {
+  "victim": "draugr",
+  "base": "0001FB8F",
+  "race": "DraugrRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveDraugrShortA"
+  ]
+ },
+ {
+  "victim": "draugr",
+  "base": "0001FB8F",
+  "race": "DraugrRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveDraugrShortA"
+  ]
+ },
+ {
+  "victim": "draugr",
+  "base": "0001FB8F",
+  "race": "DraugrRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMDraugrA"
+  ]
+ },
+ {
+  "victim": "draugr",
+  "base": "0001FB8F",
+  "race": "DraugrRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWDraugrA"
+  ]
+ },
+ {
+  "victim": "draugr",
+  "base": "0001FB8F",
+  "race": "DraugrRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWDraugrA"
+  ]
+ },
+ {
+  "victim": "draugr",
+  "base": "0001FB8F",
+  "race": "DraugrRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveDraugrShortB",
+   "pa_KillMoveDraugrB"
+  ]
+ },
+ {
+  "victim": "falmer",
+  "base": "00023A9A",
+  "race": "FalmerRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMFalmerA",
+   "pa_KillMove1HMFalmerB",
+   "pa_KillMove1HMFalmerC"
+  ]
+ },
+ {
+  "victim": "falmer",
+  "base": "00023A9A",
+  "race": "FalmerRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMFalmerA",
+   "pa_KillMove1HMFalmerB",
+   "pa_KillMove1HMFalmerC"
+  ]
+ },
+ {
+  "victim": "falmer",
+  "base": "00023A9A",
+  "race": "FalmerRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMFalmerB",
+   "pa_KillMove1HMFalmerC"
+  ]
+ },
+ {
+  "victim": "falmer",
+  "base": "00023A9A",
+  "race": "FalmerRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMFalmerB",
+   "pa_KillMove1HMFalmerC"
+  ]
+ },
+ {
+  "victim": "falmer",
+  "base": "00023A9A",
+  "race": "FalmerRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMFalmerA",
+   "pa_KillMove2HMFalmerB"
+  ]
+ },
+ {
+  "victim": "falmer",
+  "base": "00023A9A",
+  "race": "FalmerRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWFalmerA"
+  ]
+ },
+ {
+  "victim": "falmer",
+  "base": "00023A9A",
+  "race": "FalmerRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWFalmerA"
+  ]
+ },
+ {
+  "victim": "falmer",
+  "base": "00023A9A",
+  "race": "FalmerRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMFalmerA",
+   "pa_KillMove1HMFalmerB",
+   "pa_KillMove1HMFalmerC"
+  ]
+ },
+ {
+  "victim": "wolf",
+  "base": "00023ABE",
+  "race": "WolfRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMWolfA",
+   "pa_KillMove1HMWolfB"
+  ]
+ },
+ {
+  "victim": "wolf",
+  "base": "00023ABE",
+  "race": "WolfRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMWolfA",
+   "pa_KillMove1HMWolfB"
+  ]
+ },
+ {
+  "victim": "wolf",
+  "base": "00023ABE",
+  "race": "WolfRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMWolfA",
+   "pa_KillMove1HMWolfB"
+  ]
+ },
+ {
+  "victim": "wolf",
+  "base": "00023ABE",
+  "race": "WolfRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMWolfA",
+   "pa_KillMove1HMWolfB"
+  ]
+ },
+ {
+  "victim": "wolf",
+  "base": "00023ABE",
+  "race": "WolfRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMWolfA",
+   "pa_KillMove2HMWolfB"
+  ]
+ },
+ {
+  "victim": "wolf",
+  "base": "00023ABE",
+  "race": "WolfRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWWolfA"
+  ]
+ },
+ {
+  "victim": "wolf",
+  "base": "00023ABE",
+  "race": "WolfRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWWolfA"
+  ]
+ },
+ {
+  "victim": "wolf",
+  "base": "00023ABE",
+  "race": "WolfRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMWolfA",
+   "pa_KillMove1HMWolfB"
+  ]
+ },
+ {
+  "victim": "troll",
+  "base": "00023ABA",
+  "race": "TrollRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveTrollA",
+   "pa_KillMove1HMTrollB"
+  ]
+ },
+ {
+  "victim": "troll",
+  "base": "00023ABA",
+  "race": "TrollRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveTrollA",
+   "pa_KillMove1HMTrollB"
+  ]
+ },
+ {
+  "victim": "troll",
+  "base": "00023ABA",
+  "race": "TrollRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMTrollB"
+  ]
+ },
+ {
+  "victim": "troll",
+  "base": "00023ABA",
+  "race": "TrollRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMTrollB"
+  ]
+ },
+ {
+  "victim": "troll",
+  "base": "00023ABA",
+  "race": "TrollRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMTrollA",
+   "pa_KillMove2HMTrollB"
+  ]
+ },
+ {
+  "victim": "troll",
+  "base": "00023ABA",
+  "race": "TrollRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWTrollA"
+  ]
+ },
+ {
+  "victim": "troll",
+  "base": "00023ABA",
+  "race": "TrollRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWTrollA"
+  ]
+ },
+ {
+  "victim": "troll",
+  "base": "00023ABA",
+  "race": "TrollRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveTrollA",
+   "pa_KillMove1HMTrollB"
+  ]
+ },
+ {
+  "victim": "sabre cat",
+  "base": "00023AB5",
+  "race": "SabreCatRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveSabreCat",
+   "pa_KillMoveSabreCatShortA"
+  ]
+ },
+ {
+  "victim": "sabre cat",
+  "base": "00023AB5",
+  "race": "SabreCatRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveSabreCat",
+   "pa_KillMoveSabreCatShortA"
+  ]
+ },
+ {
+  "victim": "sabre cat",
+  "base": "00023AB5",
+  "race": "SabreCatRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveSabreCatShortB"
+  ]
+ },
+ {
+  "victim": "sabre cat",
+  "base": "00023AB5",
+  "race": "SabreCatRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveSabreCatShortB"
+  ]
+ },
+ {
+  "victim": "sabre cat",
+  "base": "00023AB5",
+  "race": "SabreCatRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMSabreCatA",
+   "pa_KillMove2HMSabreCatB"
+  ]
+ },
+ {
+  "victim": "sabre cat",
+  "base": "00023AB5",
+  "race": "SabreCatRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWSabreCatA"
+  ]
+ },
+ {
+  "victim": "sabre cat",
+  "base": "00023AB5",
+  "race": "SabreCatRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWSabreCatA"
+  ]
+ },
+ {
+  "victim": "sabre cat",
+  "base": "00023AB5",
+  "race": "SabreCatRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveSabreCat",
+   "pa_KillMoveSabreCatShortA"
+  ]
+ },
+ {
+  "victim": "bear",
+  "base": "00023A8B",
+  "race": "BearBrownRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveBearA",
+   "pa_KillMove1HMBearB"
+  ]
+ },
+ {
+  "victim": "bear",
+  "base": "00023A8B",
+  "race": "BearBrownRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveBearA",
+   "pa_KillMove1HMBearB"
+  ]
+ },
+ {
+  "victim": "bear",
+  "base": "00023A8B",
+  "race": "BearBrownRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveBearA",
+   "pa_KillMove1HMBearB"
+  ]
+ },
+ {
+  "victim": "bear",
+  "base": "00023A8B",
+  "race": "BearBrownRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveBearA",
+   "pa_KillMove1HMBearB"
+  ]
+ },
+ {
+  "victim": "bear",
+  "base": "00023A8B",
+  "race": "BearBrownRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMBearA",
+   "pa_KillMove2HMBearB"
+  ]
+ },
+ {
+  "victim": "bear",
+  "base": "00023A8B",
+  "race": "BearBrownRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWBearA"
+  ]
+ },
+ {
+  "victim": "bear",
+  "base": "00023A8B",
+  "race": "BearBrownRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWBearA"
+  ]
+ },
+ {
+  "victim": "bear",
+  "base": "00023A8B",
+  "race": "BearBrownRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveBearA",
+   "pa_KillMove1HMBearB"
+  ]
+ },
+ {
+  "victim": "spider",
+  "base": "00023AAA",
+  "race": "FrostbiteSpiderRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSpiderStabA"
+  ]
+ },
+ {
+  "victim": "spider",
+  "base": "00023AAA",
+  "race": "FrostbiteSpiderRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSpiderStabA"
+  ]
+ },
+ {
+  "victim": "spider",
+  "base": "00023AAA",
+  "race": "FrostbiteSpiderRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSpiderSmashA"
+  ]
+ },
+ {
+  "victim": "spider",
+  "base": "00023AAA",
+  "race": "FrostbiteSpiderRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSpiderSmashA"
+  ]
+ },
+ {
+  "victim": "spider",
+  "base": "00023AAA",
+  "race": "FrostbiteSpiderRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMSpiderSlamA"
+  ]
+ },
+ {
+  "victim": "spider",
+  "base": "00023AAA",
+  "race": "FrostbiteSpiderRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWSpiderSlamA"
+  ]
+ },
+ {
+  "victim": "spider",
+  "base": "00023AAA",
+  "race": "FrostbiteSpiderRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWSpiderSlamA"
+  ]
+ },
+ {
+  "victim": "spider",
+  "base": "00023AAA",
+  "race": "FrostbiteSpiderRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSpiderStabA"
+  ]
+ },
+ {
+  "victim": "spriggan",
+  "base": "00023AB9",
+  "race": "SprigganRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSprigganB"
+  ]
+ },
+ {
+  "victim": "spriggan",
+  "base": "00023AB9",
+  "race": "SprigganRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSprigganB"
+  ]
+ },
+ {
+  "victim": "spriggan",
+  "base": "00023AB9",
+  "race": "SprigganRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSprigganA"
+  ]
+ },
+ {
+  "victim": "spriggan",
+  "base": "00023AB9",
+  "race": "SprigganRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSprigganA"
+  ]
+ },
+ {
+  "victim": "spriggan",
+  "base": "00023AB9",
+  "race": "SprigganRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMSprigganA"
+  ]
+ },
+ {
+  "victim": "spriggan",
+  "base": "00023AB9",
+  "race": "SprigganRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWSprigganA"
+  ]
+ },
+ {
+  "victim": "spriggan",
+  "base": "00023AB9",
+  "race": "SprigganRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWSprigganA"
+  ]
+ },
+ {
+  "victim": "spriggan",
+  "base": "00023AB9",
+  "race": "SprigganRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSprigganB"
+  ]
+ },
+ {
+  "victim": "hagraven",
+  "base": "00023AB0",
+  "race": "HagravenRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMHagravenB",
+   "pa_KillMove1HMHagravenA"
+  ]
+ },
+ {
+  "victim": "hagraven",
+  "base": "00023AB0",
+  "race": "HagravenRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMHagravenB",
+   "pa_KillMove1HMHagravenA"
+  ]
+ },
+ {
+  "victim": "hagraven",
+  "base": "00023AB0",
+  "race": "HagravenRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMHagravenA"
+  ]
+ },
+ {
+  "victim": "hagraven",
+  "base": "00023AB0",
+  "race": "HagravenRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMHagravenA"
+  ]
+ },
+ {
+  "victim": "hagraven",
+  "base": "00023AB0",
+  "race": "HagravenRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMHagravenA"
+  ]
+ },
+ {
+  "victim": "hagraven",
+  "base": "00023AB0",
+  "race": "HagravenRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWHagravenA"
+  ]
+ },
+ {
+  "victim": "hagraven",
+  "base": "00023AB0",
+  "race": "HagravenRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWHagravenA"
+  ]
+ },
+ {
+  "victim": "hagraven",
+  "base": "00023AB0",
+  "race": "HagravenRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMHagravenB",
+   "pa_KillMove1HMHagravenA"
+  ]
+ },
+ {
+  "victim": "giant",
+  "base": "00023AAE",
+  "race": "GiantRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveGiantA",
+   "pa_KillMove1HMGiantB"
+  ]
+ },
+ {
+  "victim": "giant",
+  "base": "00023AAE",
+  "race": "GiantRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveGiantA",
+   "pa_KillMove1HMGiantB"
+  ]
+ },
+ {
+  "victim": "giant",
+  "base": "00023AAE",
+  "race": "GiantRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMGiantB"
+  ]
+ },
+ {
+  "victim": "giant",
+  "base": "00023AAE",
+  "race": "GiantRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMGiantB"
+  ]
+ },
+ {
+  "victim": "giant",
+  "base": "00023AAE",
+  "race": "GiantRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMGiantA"
+  ]
+ },
+ {
+  "victim": "giant",
+  "base": "00023AAE",
+  "race": "GiantRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWGiantA"
+  ]
+ },
+ {
+  "victim": "giant",
+  "base": "00023AAE",
+  "race": "GiantRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWGiantA"
+  ]
+ },
+ {
+  "victim": "giant",
+  "base": "00023AAE",
+  "race": "GiantRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMoveGiantA",
+   "pa_KillMove1HMGiantB"
+  ]
+ },
+ {
+  "victim": "centurion",
+  "base": "00023A96",
+  "race": "DwarvenCenturionRace",
+  "weapon": "dagger",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSteamCenturionB",
+   "pa_KillMove1HMSteamCenturionA"
+  ]
+ },
+ {
+  "victim": "centurion",
+  "base": "00023A96",
+  "race": "DwarvenCenturionRace",
+  "weapon": "sword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSteamCenturionB",
+   "pa_KillMove1HMSteamCenturionA"
+  ]
+ },
+ {
+  "victim": "centurion",
+  "base": "00023A96",
+  "race": "DwarvenCenturionRace",
+  "weapon": "war axe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSteamCenturionA"
+  ]
+ },
+ {
+  "victim": "centurion",
+  "base": "00023A96",
+  "race": "DwarvenCenturionRace",
+  "weapon": "mace",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSteamCenturionA"
+  ]
+ },
+ {
+  "victim": "centurion",
+  "base": "00023A96",
+  "race": "DwarvenCenturionRace",
+  "weapon": "greatsword",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HMSteamCenturionA"
+  ]
+ },
+ {
+  "victim": "centurion",
+  "base": "00023A96",
+  "race": "DwarvenCenturionRace",
+  "weapon": "battleaxe",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWSteamCenturionA"
+  ]
+ },
+ {
+  "victim": "centurion",
+  "base": "00023A96",
+  "race": "DwarvenCenturionRace",
+  "weapon": "warhammer",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove2HWSteamCenturionA"
+  ]
+ },
+ {
+  "victim": "centurion",
+  "base": "00023A96",
+  "race": "DwarvenCenturionRace",
+  "weapon": "dual swords",
+  "behind": false,
+  "perks": [],
+  "events": [
+   "pa_KillMove1HMSteamCenturionB",
+   "pa_KillMove1HMSteamCenturionA"
+  ]
+ }
+]
