@@ -306,13 +306,15 @@ def scenario_copy_poses_every_frame(ctx, mover=""):
     result = smoothness.run_course(ctx, mover, AnimTrace)
     pose = result["measures"]["pose"]
     log(f"poses: {json.dumps(pose)}; trace {result['trace']}")
-    feet = pose["copy"]["feet"]
-    if not feet or feet["frames"] < 200:
-        raise ctx.failure("the copy was drawn and moving in too few frames: the watcher did not see it")
-    # Owners 0.4 to 2.6 %; copies 10 to 22 % before their poses were blended, 1.1 to 3.6 % after.
-    if feet["over50"] > 0.05:
-        raise ctx.failure(f"the copy's feet move unevenly in {feet['over50']:.1%} of its frames (its owner's "
-                          f"{pose['owner']['feet']['over50']:.1%}): its pose holds, then jumps")
+    for name in ("walk", "run", "strafe", "curve"):
+        if not result["measures"][name]["owner"]:
+            raise ctx.failure(f"the mover's player never moved in the {name}")
+    if pose["copy"]["frames"] < 200:
+        raise ctx.failure(f"the copy was drawn and moving in {pose['copy']['frames']} frames: the watcher did not see it")
+    # Owners 0; copies 3.4 to 8.6 % before their poses were blended, 0 to 0.3 % after.
+    if pose["copy"]["held"] > 0.015:
+        raise ctx.failure(f"the copy's feet stood still in {pose['copy']['held']:.1%} of the frames it moved in (its owner's "
+                          f"{pose['owner']['held']:.1%}): its pose holds, then jumps")
 
 
 def height_path(entries, game, who):

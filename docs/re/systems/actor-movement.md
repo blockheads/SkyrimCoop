@@ -325,7 +325,8 @@ on the duo: beyond the catch-up radius it runs (300-450 units/s), inside it walk
 ## A copy's pose between its owner's updates (2026-11-23)
 
 Read in IDA on 1.7.104 (63568, 63582, 63587, 63589, 63581 `coop_BShkbAnimationGraph_PoseFromBuffers`, 63575
-`coop_BShkbAnimationGraph_ChooseLod`; names and comments in the database):
+`coop_BShkbAnimationGraph_ChooseLod`; names and comments in the database; 63568, 63582
+and 63589 first read in `agent-copy-idle-graph.tsv`, 63562 and 63563 in `agent-floating-body.tsv`):
 
 ```
 BShkbAnimationGraph: two generated poses, +0x220 newer, +0x228 older, swapped at each behaviour update (63587)
@@ -347,8 +348,10 @@ in 19-23 %. Its playback clock stepped by its own frame (within 3 ms) on those f
 
 Since 2026-11-23 a streamed copy keeps each replayed generate pass's pose (the newer output's track 2) and, after its
 replay, writes the pose blended from the two around playback less 1.5 owner frames into that output. 63589 then runs 63581,
-which poses the skeleton from it with foot IK; with its bodies in the physics world (63564) the ragdoll passes pose it
-(`UpdateRagdollPrePhysics` / `PostPhysics`), reading the same output. The older output cannot be used as the engine does:
+which poses the skeleton from it with foot IK. With its ragdoll in the physics world (63564) 63581 leaves the skeleton
+to the ragdoll passes (63562 / 63563, reading the same output), and those run only for a graph 63587 registered that
+frame (63761, `physics.md`): a ragdolled copy still holds its pose in a frame without an update
+([bugs.md](../../bugs.md#a-ragdolled-copy-holds-its-pose-between-updates)). The older output cannot be used as the engine does:
 the every-frame path of 63587 empties its pose track after each update, and 63568 refills only the newer
 (`docs/design/graph-input-stream.md`, "A pose every frame").
 

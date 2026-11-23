@@ -5,6 +5,7 @@ import math
 import time
 
 MOVING = 40.0  # units/s: slower is standing, not measured
+HELD = 10.0    # units/s: feet slower against a moving body's root hold their pose
 WINDOW = 4     # frames either side for a frame's typical speed
 
 
@@ -109,7 +110,7 @@ def frames(entries, game, who):
 
 def _feet_local(entry):
     """Its feet against its drawn root, in its own frame (turning and moving taken out): what its pose alone moves."""
-    c, s = math.cos(-entry["yaw"]), math.sin(-entry["yaw"])
+    c, s = math.cos(entry["yaw"]), math.sin(entry["yaw"])  # a heading turns clockwise, as CopyStep::Local
     out = []
     for foot in entry["feet"]:
         dx, dy, dz = foot[0] - entry["root"][0], foot[1] - entry["root"][1], foot[2] - entry["root"][2]
@@ -118,8 +119,8 @@ def _feet_local(entry):
 
 
 def pose_steps(rows):
-    """How its pose advances while drawn and moving: how many of its frames ran 0, 1, 2... graph updates, and how
-    unevenly its feet move against its root (as `roughness`)."""
+    """How its pose advances while drawn and moving: how many of its frames ran 0, 1, 2... graph updates, the share of
+    frames its feet stood still against its root (`held`), and how unevenly they move (as `roughness`)."""
     updates, speeds = {}, []
     for a, b in zip(rows, rows[1:]):
         dt = (a.get("dt") or 0.0) / 1000.0
@@ -132,7 +133,8 @@ def pose_steps(rows):
             updates[ran] = updates.get(ran, 0) + 1
         if len(a.get("feet") or []) == 2 and len(b.get("feet") or []) == 2:
             speeds.append((b["time"], sum(map(math.dist, _feet_local(a), _feet_local(b))) / dt, 0.0))
-    return {"updates": updates, "feet": roughness(speeds)}
+    held = sum(speed < HELD for _, speed, _ in speeds) / len(speeds) if speeds else 0.0
+    return {"frames": len(speeds), "updates": updates, "held": round(held, 3), "feet": roughness(speeds)}
 
 
 def measure(entries, owner_game, copy_game, segments):
@@ -221,21 +223,23 @@ def run_course(ctx, mover, trace_type):
         ctx.act(mover, {"name": "runs in a curve", "ready": ["takes_input"], "buttons": ["forward"],
                         "turn": {"yaw": (yaw + 170) % 360, "rate": 90}, "seconds": 3}, expect=None)
 
-    ctx.player_command(mover, {"cmd": "third_person"})
-    ctx.act_start(watcher, {"name": "faces the copy", "turn": {"face": copy, "rate": 720}, "seconds": 60})
-    with trace_type(ctx, f"smoothness-{mover or 'host'}", {mover: {0x14: "owner"}, watcher: {copy: "copy"}}, video=False) as trace:
-        begun = time.time()
-        wire_before = {game: wire_sample(ctx, game) for game in ("", "client")}
-        segment("walk", lambda: ctx.hold_key(mover, "shift+w", 2.5))
-        segment("run", lambda: ctx.hold_key(mover, "w", 2.5))
-        segment("strafe", lambda: [ctx.hold_key(mover, key, 0.6) for key in ("d", "a", "d", "a")])
-        segment("curve", curve)
-        frame = ctx.game_frame(watcher)
-        ctx.wait_for("the copy has a second to finish", lambda: ctx.game_frame(watcher) > frame + 30, 5)
-        window = int((time.time() - begun) * 1000)
-        wire_after = {game: wire_sample(ctx, game) for game in ("", "client")}
-    ctx.player_command(watcher, {"cmd": "act_cancel"})
-    ctx.player_command(mover, {"cmd": "first_person"})
+    try:
+        ctx.player_command(mover, {"cmd": "third_person"})
+        ctx.act_start(watcher, {"name": "faces the copy", "turn": {"face": copy, "rate": 720}, "seconds": 60})
+        with trace_type(ctx, f"smoothness-{mover or 'host'}", {mover: {0x14: "owner"}, watcher: {copy: "copy"}}, video=False) as trace:
+            begun = time.time()
+            wire_before = {game: wire_sample(ctx, game) for game in ("", "client")}
+            segment("walk", lambda: ctx.hold_key(mover, "shift+w", 2.5))
+            segment("run", lambda: ctx.hold_key(mover, "w", 2.5))
+            segment("strafe", lambda: [ctx.hold_key(mover, key, 0.6) for key in ("d", "a", "d", "a")])
+            segment("curve", curve)
+            frame = ctx.game_frame(watcher)
+            ctx.wait_for("the copy has a second to finish", lambda: ctx.game_frame(watcher) > frame + 30, 5)
+            window = int((time.time() - begun) * 1000)
+            wire_after = {game: wire_sample(ctx, game) for game in ("", "client")}
+    finally:
+        ctx.player_command(watcher, {"cmd": "act_cancel"})
+        ctx.player_command(mover, {"cmd": "first_person"})
     perf = {game or "host": {**message_bytes((ctx.game(game).rpc({"cmd": "perf", "window_ms": window}, timeout=10) or {}).get("perf")),
                              "on the wire": wire_rate(wire_before[game], wire_after[game])} for game in ("", "client")}
     return {"trace": str(trace.dir), "measures": measure(trace.entries, mover, watcher, segments), "wire": perf}

@@ -594,9 +594,7 @@ SCENARIO("A jumping player's copy rises and falls with it, never stuck on the gr
 
 SCENARIO("A walking player's copy shows a pose that moves on every frame, however both games' frames fall", "[copies][copy-clock][animation][graph-pace]")
 {
-    // Skyrim (actor-movement.md, "A copy's pose between its owner's updates"): owners step their graph once a frame;
-    // a copy running every update due by its playback ran 0 or 2 in 5-23 % of its frames, both games' frames varying
-    // 16.5-24 ms apart. A frame with none showed the last pose (63581), the next jumped two.
+    // Skyrim: a copy's pose held in a frame without an update, then jumped two (actor-movement.md, "A copy's pose between its owner's updates").
     const auto cRun = [](double aHostFrom, double aHostTo, double aGuestFrom, double aGuestTo) {
         Party party(1, SmokeWorld, true);
         auto& host = Party::Engine(party.Host());
