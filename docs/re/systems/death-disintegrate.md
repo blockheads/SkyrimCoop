@@ -58,12 +58,31 @@ Inferred: which wait job, and why the player's update does not finish without it
 
 - `Actor::SetCriticalStage` (37615) refuses any stage but none for this game's player: it dies the normal way (real
   death, spectating, respawn), with its body.
-- The refused GooEnd or DisintegrateEnd hides that body instead (its third-person 3D root's `kHidden`, CommonLib
-  `SetAppCulled`, as PapyrusExtender's node toggles do; set from the main loop) until `PlayerCharacter::Revive` shows
-  it (`CriticalStage::ShowPlayerBody`). Before (2026-11-22, the user on the duo): the shooter's copy stayed dissolved
-  by the relayed shader while the victim's own body showed again after it, lying and then getting up (it died
-  knocked down). Measured after: `state.body_hidden` true on the victim's game while dead, false after the revive,
-  both games showing it standing.
+- The refused GooEnd or DisintegrateEnd hides that body while it lies dead, on its own game, as the shooter's game
+  already shows it (the copy dissolved by the relayed shader). Before (2026-11-22, the user on the duo): the victim's
+  body showed again once the shader ended, lying and then getting up (it died knocked down), while the shooter saw
+  nothing.
+
+  ```
+  37615 hook, this game's player, stage 2 or 4, the player dead now   (a later end: the revive went past, nothing)
+    -> marked; at the frame's start (MainLoopTasks, main thread): its third-person root's kHidden set
+  40476 hook (PlayerCharacter::ShowFirstPersonRoot): after the engine's switch, marked and dead -> hidden again;
+    marked and alive (a revive, a wipe's load: LoadGame calls 40476) -> the mark dropped
+  PlayerCharacter::Revive -> the mark dropped, 40476(camera first person): the roots as the camera has them
+  ```
+
+  - Read in IDA: `NiAVObject::Cull` (0x140EE0F30) returns at once for an object with `+0xF4` bit 0 (`kHidden`), so a
+    hidden root's subtree is not drawn. `PlayerCharacter::ShowFirstPersonRoot` (40476; player, first person) writes
+    opposite `kHidden` bits to the first- and third-person roots, only if the two are equal or the target root is
+    not yet as wanted; off the main thread it queues itself. Callers: the camera states (`FirstPersonState::OnEnterState`
+    50722, `ThirdPersonState::Update`, `BleedoutCameraState::Update`, ...), `PlayerCharacter::LoadGame` and
+    `FinishLoadGame`. So the camera owns the third-person root's bit (a first-person player's is set), and the hide
+    has to survive its switches; giving the bit back through 40476 restores the camera's state whatever it is.
+  - Measured (duo, `shout-kills-lying-guest`, players in first person at boot): `mod.body_hidden` true while dead,
+    as before the shout after the respawn; both games show it standing.
+  - Inferred: that the frame's-start write and 40476's own (inline only when `ShouldUseTaskQueue` 39033 says no) do
+    not race the culling's writes to the same word (71084 sets bit 26 during the cull, later in the frame). Not
+    read: what keeps the shooter's copy unseen after the shader (seen on the duo, screenshots).
 - `Actor.AttachAshPile` (54655) refuses this game's player: no pile left where it died (the world check saw one on the
   guest only before).
 - The shader still plays for its 4 s, on the player and its copies: the death looks like one, and the body is gone

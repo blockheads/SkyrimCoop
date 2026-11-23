@@ -1,33 +1,54 @@
 #include <Actor.h>
+#include <Camera/PlayerCamera.h>
 #include <CriticalStage.h>
 #include <CriticalStageRules.h>
-#include <NetImmerse/NiAVObject.h>
-#include <World.h>
 #include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
+#include <MainLoopTasks.h>
+#include <NetImmerse/NiAVObject.h>
 #include <PlayerCharacter.h>
 
 // Actor::SetCriticalStage (37615): the Papyrus native's and the console's; the ash pile scripts reach it on death.
 using TSetCriticalStage = void(Actor*, uint32_t);
 static TSetCriticalStage* RealSetCriticalStage = nullptr;
 
-// Set while a refused stage keeps the player's third-person 3D hidden (NiAVObject kHidden), until its revive.
-static std::atomic_bool s_bodyHidden{false};
+// PlayerCharacter::ShowFirstPersonRoot (40476): the camera's switch of the two roots' kHidden.
+using TShowFirstPersonRoot = void(PlayerCharacter*, bool);
+static TShowFirstPersonRoot* RealShowFirstPersonRoot = nullptr;
 
-static void HidePlayerBody(bool aHidden) noexcept
+// This game's player died to an ash or goo end: its third-person root kept hidden until it lives again.
+static std::atomic_bool s_ashDead{false};
+
+// On the main thread, or where 40476 runs inline: the camera's writes to the same flags.
+static void KeepBodyHidden(PlayerCharacter& aPlayer) noexcept
 {
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    NiAVObject* pBody = pPlayer ? pPlayer->Get3D1(false) : nullptr;
-    if (!pBody)
+    if (!CriticalStage::KeepsBodyHidden(s_ashDead.load(), aPlayer.IsDead()))
+    {
+        s_ashDead.store(false);
         return;
-    pBody->flags = aHidden ? pBody->flags | NiAVObject::kHidden : pBody->flags & ~NiAVObject::kHidden;
+    }
+    if (NiAVObject* pBody = aPlayer.Get3D1(false))
+        pBody->flags |= NiAVObject::kHidden;
+}
+
+static void HookShowFirstPersonRoot(PlayerCharacter* apPlayer, bool aFirstPerson)
+{
+    RealShowFirstPersonRoot(apPlayer, aFirstPerson);
+    using TShouldUseTaskQueue = bool();
+    POINTER_SKYRIMSE(TShouldUseTaskQueue, s_shouldUseTaskQueue, 39033);
+    // Off the main thread it was queued: the task calls in again.
+    if (apPlayer && !s_shouldUseTaskQueue.Get()())
+        KeepBodyHidden(*apPlayer);
 }
 
 void CriticalStage::ShowPlayerBody() noexcept
 {
-    if (s_bodyHidden.exchange(false))
-        HidePlayerBody(false);
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    PlayerCamera* pCamera = PlayerCamera::Get();
+    // The roots as the camera has them (40476 queues itself off the main thread).
+    if (s_ashDead.exchange(false) && pPlayer && pCamera)
+        RealShowFirstPersonRoot(pPlayer, pCamera->IsFirstPerson());
 }
 
 static void HookSetCriticalStage(Actor* apActor, uint32_t aStage)
@@ -36,9 +57,12 @@ static void HookSetCriticalStage(Actor* apActor, uint32_t aStage)
     if (!CriticalStage::Takes(cPlayer, aStage))
     {
         spdlog::info("CriticalStage: this game's player keeps its body (stage {} refused)", aStage);
-        // Papyrus calls in on a VM thread: the 3D's flag set from the main loop.
-        if (CriticalStage::HidesBody(cPlayer, aStage) && !s_bodyHidden.exchange(true))
-            World::Get().GetRunner().Queue([] { HidePlayerBody(s_bodyHidden.load()); });
+        // Papyrus calls in on a VM thread: hidden from the frame's start.
+        if (CriticalStage::HidesBody(cPlayer, apActor->IsDead(), aStage) && !s_ashDead.exchange(true))
+            MainLoopTasks::Queue([] {
+                if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
+                    KeepBodyHidden(*pPlayer);
+            });
         return;
     }
     RealSetCriticalStage(apActor, aStage);
@@ -62,4 +86,5 @@ static Hooks::Initializer s_criticalStageHooks([] {
     const HookGate cGate(__FILE__);
     HOOK_ID(37615, &RealSetCriticalStage, HookSetCriticalStage);
     HOOK_ID(54655, &RealAttachAshPile, HookAttachAshPile);
+    HOOK_ID(40476, &RealShowFirstPersonRoot, HookShowFirstPersonRoot);
 });
