@@ -89,6 +89,17 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         static VersionDbPtr<TCheck> check(51981);
         return {{"ok", true}, {"caught", check(menu)}};
     }
+    else if (action == "lock_unlock")
+    {
+        // The pick's success: LockpickingMenu::Unlock (51968) unlocks the target and activates it.
+        auto* ui = UI::Get();
+        auto* menu = ui ? ui->FindMenuByName("Lockpicking Menu") : nullptr;
+        if (!menu)
+            return Error("no lockpicking menu");
+        using TUnlock = void(void*);
+        static VersionDbPtr<TUnlock> unlock(51968);
+        unlock(menu);
+    }
     else if (action == "pay")
     {
         if (!faction)

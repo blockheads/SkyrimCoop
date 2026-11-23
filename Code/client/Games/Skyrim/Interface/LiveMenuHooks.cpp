@@ -5,11 +5,15 @@
 #include <Interface/IMenu.h>
 #include <Interface/MenuAutoClose.h>
 #include <Events/LidUnposedEvent.h>
+#include <Interface/Menus/LockpickingMenu.h>
 #include <Interface/Menus/MapMenu.h>
+#include <Interface/MenuPauseRules.h>
+#include <MainLoopTasks.h>
 #include <Interface/UI.h>
 #include <PlayerCharacter.h>
 #include <NetImmerse/NiNode.h>
 #include <World.h>
+
 
 namespace
 {
@@ -173,6 +177,36 @@ UI_MESSAGE_RESULTS MapProcess(MapMenu* apMenu, UIMessage& aMessage)
     return RealMapProcess(apMenu, aMessage);
 }
 
+// LockpickingMenu::ProcessMessage (51950, vtable slot 4): a live menu's kUpdate comes from Job_UI and never builds the
+// lock; one kUpdate between frames on the main thread builds it, as a paused game's would.
+TMenuProcess* RealLockpickProcess{};
+MenuPauseRules::MainThreadBuild s_lockpickBuild;
+
+void BuildLockpickOnMainThread()
+{
+    s_lockpickBuild.Ran();
+    UI* pUI = UI::Get();
+    auto* pMenu = pUI && pUI->GetMenuOpen("Lockpicking Menu")
+                      ? static_cast<LockpickingMenu*>(pUI->FindMenuByName("Lockpicking Menu"))
+                      : nullptr;
+    if (!pMenu || !MenuPauseRules::NeedsMainThreadBuild("Lockpicking Menu", pMenu->uiMenuFlags, pMenu->built3D))
+        return;
+    UIMessage update{};
+    update.menu.Set("Lockpicking Menu");
+    update.eType = UIMessage::kUpdate;
+    RealLockpickProcess(pMenu, update);
+    spdlog::info("LiveMenus: the lockpicking menu's 3D built on the main thread: {}", pMenu->built3D);
+}
+
+UI_MESSAGE_RESULTS LockpickProcess(IMenu* apMenu, UIMessage& aMessage)
+{
+    const auto cResult = RealLockpickProcess(apMenu, aMessage);
+    const auto* cpMenu = static_cast<const LockpickingMenu*>(apMenu);
+    if (aMessage.eType == UIMessage::kUpdate && s_lockpickBuild.Ask("Lockpicking Menu", cpMenu->uiMenuFlags, cpMenu->built3D))
+        MainLoopTasks::Queue(&BuildLockpickOnMainThread);
+    return cResult;
+}
+
 using TMenuMode = bool(uint32_t);
 TMenuMode* RealBookMenuMode{};
 
@@ -198,6 +232,10 @@ Hooks::Initializer s_hooks([] {
     // ProcessMessage, vtable slot 4 (ContainerMenu 215061, BarterMenu 214926).
     HOOK_ID(51126, &s_container.Real, ContainerProcess);
     HOOK_ID(50945, &s_barter.Real, BarterProcess);
+
+#if !COOP_SKYRIM_1_6_1170 // the +0x11C build flag was read in 1.7.104 only
+    HOOK_ID(51950, &RealLockpickProcess, LockpickProcess);
+#endif
 
     VersionDbPtr<uint8_t> bookProcess(51049);
     constexpr size_t cBookModeCall = COOP_SKYRIM_1_6_1170 ? 0x6F : 0x71;

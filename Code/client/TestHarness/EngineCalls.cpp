@@ -57,6 +57,7 @@
 #include <Interface/FxDelegateArgs.h>
 #include <Interface/GFxMovie.h>
 #include <Interface/IMenu.h>
+#include <Interface/Menus/LockpickingMenu.h>
 #include <Havok/hkbBehaviorGraph.h>
 #include <Havok/hkbNode.h>
 #include <Havok/hkbVariableValueSet.h>
@@ -200,6 +201,17 @@ std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept
     UI* pUI = UI::Get();
     const auto* cpMenu = pUI && pUI->GetMenuOpen(acpMenu) ? pUI->FindMenuByName(acpMenu) : nullptr;
     return cpMenu ? std::optional(cpMenu->uiMenuFlags) : std::nullopt;
+}
+
+std::optional<bool> IsLockpickBuilt() noexcept
+{
+    if constexpr (COOP_SKYRIM_1_6_1170)
+        return std::nullopt; // +0x11C read in 1.7.104 only
+    UI* pUI = UI::Get();
+    const auto* cpMenu = pUI && pUI->GetMenuOpen("Lockpicking Menu")
+                             ? static_cast<const LockpickingMenu*>(pUI->FindMenuByName("Lockpicking Menu"))
+                             : nullptr;
+    return cpMenu ? std::optional(cpMenu->built3D) : std::nullopt;
 }
 
 std::optional<bool> IsFirstPersonModelHidden() noexcept
