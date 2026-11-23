@@ -515,6 +515,32 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
     GraphEntry(actor, "reload");
 }
 
+void FakeEngine::ShowWeather(const GameId& acWeather, bool aFade) noexcept
+{
+    if (aFade && Weather)
+    {
+        LastWeather = Weather;
+        FadeFrames = 0;
+    }
+    else
+    {
+        WeatherCuts += Weather ? 1 : 0;
+        LastWeather = {};
+    }
+    Weather = acWeather;
+    for (const auto& [cRegion, cList] : RegionLists)
+        SetRegionWeather(cRegion);
+}
+
+void FakeEngine::SetRegionWeather(uint32_t aRegion) noexcept
+{
+    const auto cList = RegionLists.find(aRegion);
+    if (cList == RegionLists.end() || cList->second.empty())
+        RegionWeather.erase(aRegion);
+    else
+        RegionWeather[aRegion] = std::ranges::contains(cList->second, Weather) ? Weather : cList->second.front();
+}
+
 void FakeEngine::Frame()
 {
     ++m_frameCount;
@@ -755,6 +781,11 @@ void FakeEngine::Frame()
         actor.GraphPlace[3] = actor.Rotation[2];
     }
     ShakeSeconds = std::max(0.f, ShakeSeconds - 1.f / 60);
+    // The sky: a fade runs its course, then the forced weather, if another, fades in (26231).
+    if (LastWeather && ++FadeFrames >= kWeatherFadeFrames)
+        LastWeather = {};
+    if (ForcedWeather && ForcedWeather != Weather && !LastWeather)
+        ShowWeather(ForcedWeather);
     // Game time at the time scale for the real time since the last frame, as the engine's frame delta is.
     const auto cNow = std::chrono::steady_clock::now();
     if (m_lastFrame.time_since_epoch().count())

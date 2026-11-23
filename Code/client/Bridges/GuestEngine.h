@@ -44,10 +44,13 @@ public:
 
     // The calendar as the engine's clock leaves it (Calendar::Update 36291), date and days passed included.
     void SetCalendar(const TimeModel& acTime) noexcept;
-    // Shows the weather, again after the game changed its own; leaves the world map's alone. False: no such weather.
+    // Shows the weather as the forced one, faded into (26241), again after the game changed its own; leaves the world
+    // map's alone. False: no such weather.
     bool HoldWeather(const GameId& acWeather) noexcept;
     // The game's own weather again.
     void ReleaseWeather() noexcept;
+    // This game's player's weather region (Sky::PlayerWeatherRegion); none for none.
+    [[nodiscard]] GameId ReadWeatherRegion() const noexcept;
     // The eye's reads of this game's player answer what the host's NPCs see of it (StealthEye::Hold), until released.
     void HoldEye(const DetectionRules::EyeReading& acReading) noexcept;
     void ReleaseEye() noexcept;

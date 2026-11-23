@@ -256,12 +256,13 @@ bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
     Sky* pSky = Sky::Get();
     if (!pWeather || !pSky)
         return pWeather != nullptr;
-    // The game changes its weather in many places (no single SetWeather): put the host's back whenever it did.
+    Sky::s_pHeldWeather = pWeather;
+    // The game changes its weather in many places (no single SetWeather): hold it as the forced one, faded into.
     const TESWeather* pShown = pSky->GetWeather();
-    if (pShown != pWeather && !(pShown && pShown->formID == Sky::kWorldMapWeather))
+    if (pSky->pOverrideWeather != pWeather && !(pShown && pShown->formID == Sky::kWorldMapWeather))
     {
         Breadcrumbs::Record("HoldWeather", pWeather->formID);
-        pSky->ForceWeather(pWeather);
+        pSky->FadeTo(pWeather, true);
     }
     return true;
 }
@@ -269,8 +270,15 @@ bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
 void GuestEngine::ReleaseWeather() noexcept
 {
     Breadcrumbs::Record("ReleaseWeather", 0);
+    Sky::s_pHeldWeather = nullptr;
     if (Sky* pSky = Sky::Get())
         pSky->ReleaseWeatherOverride();
+}
+
+GameId GuestEngine::ReadWeatherRegion() const noexcept
+{
+    const TESRegion* pRegion = Sky::PlayerWeatherRegion();
+    return pRegion ? ToSession(pRegion->formID).value_or(GameId{}) : GameId{};
 }
 
 void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept

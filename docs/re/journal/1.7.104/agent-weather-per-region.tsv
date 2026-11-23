@@ -1,0 +1,41 @@
+time	op	id	rva	item
+2026-11-23T03:05:25Z	read	26231	0x412810	{"name": "Sky::UpdateWeather"}
+2026-11-23T03:05:37Z	decl			{"decl": "struct TESClimate;"}
+2026-11-23T03:05:37Z	decl			{"decl": "struct TESWeather;"}
+2026-11-23T03:05:37Z	decl			{"decl": "struct TESRegion;"}
+2026-11-23T03:05:37Z	decl			{"decl": "struct Sky { void *vtbl; void *root; void *moonsRoot; void *auroraRoot; void *auroraModel; void *extLightingOverride; unsigned int currentRoom; unsigned int previousRoom; float lightingTransition; float lightingTransitionTimer; TESClimate *currentClimate; TESWeather *currentWeather; TESWeather *lastWeather; TESWeather *defaultWeather; TESWeather *overrideWeather; TESRegion *region; void *atmosphere; void *stars; void *sun; void *clouds; void *masser; void *secunda; void *precip; float skyColor[51]; unsigned int unk174; unsigned int unk178; unsigned int unk17C; float unk180[3]; float windSpeed; float windAngle; float fogNear; float fogFar; unsigned int unk19C; unsigned int unk1A0; unsigned int unk1A4; float fogPower; float fogClamp; float currentGameHour; float lastWeatherUpdate; float currentWeatherPct; unsigned int mode; void *skySoundList; float flash; unsigned int pad1CC; unsigned int flashTime; float windowReflectionTimer; unsigned int lastMoonPhaseUpdate; unsigned int flags; unsigned char rest[0x2C8-0x1E0]; };"}
+2026-11-23T03:05:41Z	type	26231	0x412810	{"addr": "0x140412810", "kind": "function", "signature": "void __fastcall Sky__UpdateWeather(Sky *self)"}
+2026-11-23T03:05:41Z	type	26241	0x415440	{"addr": "0x140415440", "kind": "function", "signature": "void __fastcall Sky__SetWeather(Sky *self, TESWeather *weather, bool override, bool accelerate)"}
+2026-11-23T03:05:41Z	type	26243	0x415540	{"addr": "0x140415540", "kind": "function", "signature": "void __fastcall Sky__ForceWeather(Sky *self, TESWeather *weather, bool override)"}
+2026-11-23T03:05:41Z	type	26244	0x4155f0	{"addr": "0x1404155f0", "kind": "function", "signature": "void __fastcall Sky__ReleaseWeatherOverride(Sky *self)"}
+2026-11-23T03:05:41Z	type	26242	0x4154c0	{"addr": "0x1404154c0", "kind": "function", "signature": "void __fastcall Sky__ResetWeather(Sky *self)"}
+2026-11-23T03:06:07Z	read		0x4129d3	{"name": "Sky::UpdateWeather"}
+2026-11-23T03:06:10Z	name	16450	0x24f8e0	{"addr": "0x14024f8e0", "name": "TESRegion__HasWeather"}
+2026-11-23T03:06:10Z	name	20433	0x30a3c0	{"addr": "0x14030a3c0", "name": "TESWeatherList__PickWeighted"}
+2026-11-23T03:06:10Z	name	20435	0x30a580	{"addr": "0x14030a580", "name": "TESWeatherList__Contains"}
+2026-11-23T03:06:10Z	name	19007	0x2bf310	{"addr": "0x1402bf310", "name": "TESObjectCELL__GetInteriorSkyRegion"}
+2026-11-23T03:06:12Z	type	16450	0x24f8e0	{"addr": "0x14024f8e0", "kind": "function", "signature": "bool __fastcall TESRegion__HasWeather(TESRegion *region, TESWeather *weather)"}
+2026-11-23T03:06:12Z	type	20435	0x30a580	{"addr": "0x14030a580", "kind": "function", "signature": "bool __fastcall TESWeatherList__Contains(void *list, TESWeather *weather)"}
+2026-11-23T03:06:12Z	type	20433	0x30a3c0	{"addr": "0x14030a3c0", "kind": "function", "signature": "TESWeather *__fastcall TESWeatherList__PickWeighted(void *list)"}
+2026-11-23T03:06:20Z	comment		0x412867	{"addr": "0x140412867", "comment": "override weather (ForceWeather/SetWeather override, Papyrus SetActive(true)) expires after climate volatility hours: 22*(255-climate.volatility)/255+1 game hours since lastWeatherUpdate"}
+2026-11-23T03:06:20Z	comment		0x412916	{"addr": "0x140412916", "comment": "the weather region: interior cell's sky region (TES+0xC0 interior cell) else PlayerRegionState+0x48 (the player's exterior weather region)"}
+2026-11-23T03:06:20Z	comment		0x4129e3	{"addr": "0x1404129e3", "comment": "region changed: roll the new region's weighted weather list"}
+2026-11-23T03:06:20Z	comment		0x4129fc	{"addr": "0x1404129fc", "comment": "current weather also in the new region's list: keep it with a chance that falls as time since lastWeatherUpdate grows"}
+2026-11-23T03:06:20Z	comment		0x412988	{"addr": "0x140412988", "comment": "same region: re-roll the region (or climate) list once the volatility interval passed"}
+2026-11-23T03:06:20Z	comment		0x412bb6	{"addr": "0x140412bb6", "comment": "start a transition: lastWeather = current, current = picked (hard cut instead if fast travel flag 0x10 or interior mode)"}
+2026-11-23T03:06:20Z	comment		0x412c7c	{"addr": "0x140412c7c", "comment": "every region's currentWeather is set from Sky's (TESDataHandler region list)"}
+2026-11-23T03:06:20Z	comment		0x412d04	{"addr": "0x140412d04", "comment": "transition pct = hours since change / lerp by weather transDelta (weather+0x667)"}
+2026-11-23T03:06:20Z	comment	26243	0x415540	{"addr": "0x140415540", "comment": "ForceWeather: ResetWeather (clears clouds/precip: a hard cut), current = weather at 100%, override or default; clears PlayerRegionState region"}
+2026-11-23T03:06:20Z	comment	26241	0x415440	{"addr": "0x140415440", "comment": "SetWeather: transitions from the current weather; override=true sets overrideWeather, else defaultWeather and clears the region so UpdateWeather re-reads it"}
+2026-11-23T03:06:29Z	comment	26243	0x415540	{"addr": "0x140415540", "comment": "[re]\nAddressLib ID 26243\nmeh321: Sky::sub_26243\nCommonLibSSE: Sky::ForceWeather (CommonLibSSE-NG/src/RE/S/Sky.cpp:95)\nSkyrimCoop: hooked by HookForceWeather as RealForceWeather (Code/client/Games/Skyrim/Sky/Sky.cpp:78)\nForceWeather: ResetWeather (clears clouds/precip: a hard cut), current = weather at 100%, override or default; clears PlayerRegionState region"}
+2026-11-23T03:06:29Z	comment	26241	0x415440	{"addr": "0x140415440", "comment": "[re]\nAddressLib ID 26241\nCommonLibSSE: Sky::SetWeather (CommonLibSSE-NG/src/RE/S/Sky.cpp:167)\nSkyrimCoop: hooked by HookSetWeather as RealSetWeather (Code/client/Games/Skyrim/Sky/Sky.cpp:77)\nSetWeather: transitions from the current weather; override=true sets overrideWeather, else defaultWeather and clears the region so UpdateWeather re-reads it"}
+2026-11-23T03:06:44Z	read	36629	0x65d250	{"name": "sub_14065D250"}
+2026-11-23T03:34:45Z	read		0x418900	{"name": "Sky::sub_26287"}
+2026-11-23T03:36:01Z	comment		0x7794c4	{"addr": "0x1407794c4", "comment": "exterior cell: drop the weather region; re-picked below from the cell's regions holding the player (weather data type 3, override flag then priority) -> lastKnownWeatherRegion (+0x48)"}
+2026-11-23T03:36:59Z	read	11964	0x16f930	{"name": "sub_14016F930"}
+2026-11-23T03:37:01Z	name	11964	0x16f930	{"addr": "0x14016f930", "name": "ExtraDataList__GetCellSkyRegion"}
+2026-11-23T03:37:02Z	comment		0x16f939	{"addr": "0x14016f939", "comment": "ExtraCellSkyRegion (extra type 8): +0x10 the TESRegion an interior with a sky rolls weather from"}
+2026-11-23T03:59:07Z	read		0x9a04c0	{"name": "sub_1409A03E0"}
+2026-11-23T03:59:08Z	read		0x66b150	{"name": "BSTaskPool_HandleTask"}
+2026-11-23T03:59:16Z	comment		0x66b17c	{"addr": "0x14066b17c", "comment": "task 0x59: a queued Sky::ForceWeather(weather, override) (Papyrus ForceActive / console fw)"}
+2026-11-23T03:59:16Z	comment		0x9a04ef	{"addr": "0x1409a04ef", "comment": "world map camera: forces the world map's weather (override)"}

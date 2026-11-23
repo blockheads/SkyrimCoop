@@ -78,7 +78,8 @@
     X(RecordAskRequest) \
     X(ActorGiveBackRequest) \
     X(ClaimRequest)                 \
-    X(SummonRequest)
+    X(SummonRequest)                \
+    X(WeatherRegionRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \

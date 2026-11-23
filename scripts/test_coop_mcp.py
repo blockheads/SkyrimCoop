@@ -347,7 +347,7 @@ class Export(unittest.TestCase):
     def test_every_tool_replays_or_is_known_to_only_look(self):
         samples = {"game": "host", "target": "t", "name": "n", "check": "agree", "spec": {}, "frames": 1, "line": "x",
                    "request": {"cmd": "act"}, "key": "w", "item": "1", "step": {}, "save": "s", "command": "c", "call": "use",
-                   "lanes": [{"call": "use", "args": {"game": "host", "target": "t"}}]}
+                   "x": 0.0, "y": 0.0, "lanes": [{"call": "use", "args": {"game": "host", "target": "t"}}]}
         for name in mcp_tools.TOOLS:
             with self.subTest(tool=name):
                 self.assertTrue(name in repro.LOOKS or repro._line(name, {**samples, "args": {}}) is not None,

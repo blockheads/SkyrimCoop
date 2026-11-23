@@ -34,11 +34,18 @@ class LateBaseline(unittest.TestCase):
                          load_home=Mock(return_value=self.home), player_cell=Mock(return_value=44),
                          dialogue=Mock(return_value={}), reset_player=Mock(), reset_world=Mock(),
                          console_on=Mock(), check_desync=Mock(return_value=[]),
+                         sky=Mock(side_effect=lambda name, region=0: self.sky(functions, name)),
                          atomic_write=Mock(), log=Mock())
         for name, function in functions.items():
             target = 'coop_harness.fixtures.' + name if name in ('atomic_write', 'log') else None
             stack.enter_context(patch(target, function) if target else patch.object(self.session, name, function))
         return functions
+
+    @staticmethod
+    def sky(functions, name):
+        """Each game's sky as game_state's weather: held as shown, no region (both under one sky)."""
+        weather = functions['game_state'](name)['weather']
+        return dict(weather=weather, override=weather, set=0, region=0, region_weather=0, last=0, pct=1.0, allowed=True)
 
     def test_saved_world_keeps_its_quest_weather_time_and_npcs(self):
         functions = self.fixture()

@@ -1,4 +1,5 @@
 #include "Sky.h"
+#include <Games/TES.h>
 #include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -23,6 +24,11 @@ void Sky::SetWeather(TESWeather* apWeather) noexcept
 {
     // TODO: verify the use of these bools
     RealSetWeather(this, apWeather, true, true);
+}
+
+void Sky::FadeTo(TESWeather* apWeather, bool aOverride) noexcept
+{
+    RealSetWeather(this, apWeather, aOverride, false);
 }
 
 void Sky::ForceWeather(TESWeather* apWeather) noexcept
@@ -52,13 +58,52 @@ TESWeather* Sky::GetWeather() const noexcept
     return pCurrentWeather;
 }
 
+// The player's weather region, picked on each cell event (PlayerRegionState::Handle 41264).
+struct PlayerRegionState
+{
+    uint8_t unk0[0x48];
+    TESRegion* pLastKnownWeatherRegion; // 48
+};
+static_assert(offsetof(PlayerRegionState, pLastKnownWeatherRegion) == 0x48);
+
+TESRegion* Sky::PlayerWeatherRegion() noexcept
+{
+    if (const TES* pTes = TES::Get(); pTes && pTes->interiorCell)
+    {
+        using TGetSkyRegion = TESRegion*(TESObjectCELL*);
+        POINTER_SKYRIMSE(TGetSkyRegion, getSkyRegion, 19007);
+        return getSkyRegion(pTes->interiorCell);
+    }
+    POINTER_SKYRIMSE(PlayerRegionState*, regionState, 400477);
+    const PlayerRegionState* pState = *regionState.Get();
+    return pState ? pState->pLastKnownWeatherRegion : nullptr;
+}
+
+bool TESRegion::HasWeather(const TESWeather* apWeather) const noexcept
+{
+    using THasWeather = bool(const TESRegion*, const TESWeather*);
+    POINTER_SKYRIMSE(THasWeather, hasWeather, 16450);
+    return hasWeather(this, apWeather);
+}
+
+void TESRegion::SetCurrentWeather(TESWeather* apShown) noexcept
+{
+    using TSetCurrentWeather = void(TESRegion*, TESWeather*);
+    POINTER_SKYRIMSE(TSetCurrentWeather, setCurrentWeather, 16448);
+    setCurrentWeather(this, apShown);
+}
+
 void HookSetWeather(Sky* apThis, TESWeather* apWeather, bool abOverride, bool abAccelerate)
 {
+    if (!abOverride)
+        Sky::s_pSetWeather = apWeather;
     RealSetWeather(apThis, apWeather, abOverride, abAccelerate);
 }
 
 void HookForceWeather(Sky* apThis, TESWeather* apWeather, bool abOverride)
 {
+    if (!abOverride)
+        Sky::s_pSetWeather = apWeather;
     RealForceWeather(apThis, apWeather, abOverride);
 }
 
@@ -67,7 +112,12 @@ static TUpdateWeather* RealUpdateWeather = nullptr;
 
 void HookUpdateWeather(Sky* apThis)
 {
+    // A held override never ages out (26231 drops one after the climate's interval), once its fade is done.
+    if (Sky::s_pHeldWeather && apThis->pOverrideWeather == Sky::s_pHeldWeather && !apThis->pLastWeather)
+        apThis->lastWeatherUpdate = apThis->currentGameHour;
     RealUpdateWeather(apThis);
+    if (Sky::s_pSetWeather && Sky::PlayerWeatherRegion())
+        Sky::s_pSetWeather = nullptr;
 }
 
 static Hooks::Initializer s_skyHooks(
