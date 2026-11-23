@@ -1,3 +1,4 @@
+#include <BSCore/LockOrder.h>
 #include <Games/FreedWornList.h>
 #include <Games/Memory.h>
 #include <Games/Animation/GraphReference.h>
@@ -1505,18 +1506,30 @@ struct QueuedReference
 };
 static_assert(offsetof(QueuedReference, refHandle) == 0x2C0);
 
-// QueuedReference::Finish (13022, vtable slot 12 of every queued kind): a load job ends on the main thread, its handle
-// leaving the queue last. A held NPC's job ending, refused or begun before holding started (GuestNpcs,
-// actor-ai-and-copies.md).
+// A held NPC's 3D job ended: QueuedReference::End (13023) or Finish (13022). Out of line: the hooks pass through.
+__declspec(noinline) static void EndHeldLoad(uint32_t aHandle)
+{
+    if (GuestNpcs::Session())
+        if (auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(aHandle)))
+            pActor->FinishLoad3D();
+}
+
 using TFinishLoad3D = uint64_t(QueuedReference*);
 static TFinishLoad3D* RealFinishLoad3D = nullptr;
+static TFinishLoad3D* RealEndLoad3D = nullptr;
 uint64_t HookFinishLoad3D(QueuedReference* apThis)
 {
     const uint32_t cHandle = apThis->refHandle;
     const uint64_t cResult = RealFinishLoad3D(apThis);
-    if (GuestNpcs::Session())
-        if (auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(cHandle)))
-            pActor->FinishLoad3D();
+    EndHeldLoad(cHandle);
+    return cResult;
+}
+
+uint64_t HookEndLoad3D(QueuedReference* apThis)
+{
+    const uint32_t cHandle = apThis->refHandle;
+    const uint64_t cResult = RealEndLoad3D(apThis);
+    EndHeldLoad(cHandle);
     return cResult;
 }
 
@@ -1547,4 +1560,9 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK_ID(14646, &RealSetDisabled, HookSetDisabled);
         HOOK_ID(19727, &RealLoad3D, HookLoad3D);
         HOOK_ID(13022, &RealFinishLoad3D, HookFinishLoad3D);
+        HOOK_ID(13023, &RealEndLoad3D, HookEndLoad3D);
+        // Every reference's 3D job ends through them: a lock order inside is the engine's (lock-order.md, the Havok
+        // world against a reference's extra-data list).
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookFinishLoad3D));
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookEndLoad3D));
     });

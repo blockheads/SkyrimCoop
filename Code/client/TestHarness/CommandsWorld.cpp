@@ -7,6 +7,8 @@
 #include "Harness.h"
 #include "Status.h"
 #include <Games/Skyrim/Main.h>
+#include <Sky/Sky.h>
+#include <Forms/TESWeather.h>
 #include <Diagnostics/Counters.h>
 
 #include <World.h>
@@ -675,6 +677,27 @@ nlohmann::json StackJson(const Inventory::Entry& acItem)
             {"owner", ToGame(acItem.ExtraOwner)}};
 }
 
+// {"cmd": "sky", "region": id}: the weather shown and fading out, the fade's progress, the forced, default and set
+// (a script's or the console's, Sky::s_pSetWeather) weathers, the player's weather region, whether its list holds the shown weather, and the weather a region holds
+// (the given one, else the player's: TESRegion's own, weather.md). Ids are this game's form ids, 0 for none.
+nlohmann::json SkyCommand(Harness&, const nlohmann::json& acRequest)
+{
+    const Sky* pSky = Sky::Get();
+    if (!pSky)
+        return Error("no sky");
+    const auto id = [](const TESForm* apForm) { return apForm ? apForm->formID : 0u; };
+    const TESRegion* pPlayers = Sky::PlayerWeatherRegion();
+    const TESRegion* pAsked = pPlayers;
+    if (const uint32_t cRegion = acRequest.value("region", 0u))
+        pAsked = Cast<TESRegion>(TESForm::GetById(cRegion));
+    return {{"ok", true}, {"weather", id(pSky->pCurrentWeather)},
+            {"last", id(pSky->pLastWeather)}, {"pct", pSky->currentWeatherPct},
+            {"override", id(pSky->pOverrideWeather)},
+            {"default", id(pSky->pDefaultWeather)}, {"set", id(Sky::s_pSetWeather)},
+            {"region", id(pPlayers)}, {"allowed", pPlayers && pSky->pCurrentWeather && pPlayers->HasWeather(pSky->pCurrentWeather)},
+            {"region_weather", pAsked ? id(pAsked->pCurrentWeather) : 0u}};
+}
+
 // {"cmd": "item_stacks", "object": id}: a loose item's own count and extra data, or each stack with extra data a
 // container or actor holds (StackJson's fields).
 nlohmann::json ItemStacks(Harness&, const nlohmann::json& acRequest)
@@ -906,7 +929,8 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, whether it is a copy here and
-// still loading (kStillLoading: a spawn for it waits), its running package and process level (-1: no process).
+// still loading (kStillLoading: a spawn for it waits), its running package and process level (-1: no process), where the
+// game placed it (home: GetEditorLocation 19514) and whether its parent cell is attached here.
 nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
 {
     auto& actors = World::Get().GetActorBridge();
@@ -916,7 +940,12 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
     float position[3]{};
     actors.GetActorPosition(cActor, position[0], position[1], position[2]);
     const auto cLevel = EngineCalls::GetProcessLevel(cActor);
+    nlohmann::json home;
+    if (const auto cHome = EngineCalls::GetEditorHome(cActor))
+        home = {{"world_or_cell", cHome->WorldOrCell}, {"position", {cHome->Position[0], cHome->Position[1], cHome->Position[2]}}};
     return {{"ok", true},
+            {"home", home},
+            {"cell_attached", EngineCalls::IsParentCellAttached(cActor)},
             {"cell", actors.GetActorParentCellFormId(cActor)},
             {"worldspace", actors.GetActorWorldSpaceFormId(cActor)},
             {"position", {position[0], position[1], position[2]}},
@@ -1327,6 +1356,7 @@ constexpr Command cCommands[] = {
     {"reference_effects", true, &ReferenceEffects},
     {"activate", true, &Activate},
     {"item_stacks", true, &ItemStacks},
+    {"sky", true, &SkyCommand},
     {"give_item", true, &GiveItem},
     {"drop", true, &Drop},
     {"store", true, &Store},

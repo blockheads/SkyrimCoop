@@ -57,6 +57,28 @@ GameTests "A copy left holding its bow in one hand holds it in both again". Also
 worn left (17619), and the playtest's guards with a torch in each hand were not reproduced (real guards at night agree
 on both games). Harness `reset_3d`, snapshot `worn_left`, the repair's log line for hands it finds short.
 
+2026-11-23: **a save over Steam travels 5x faster** (`agent/save-load-explained`): Steam paced every P2P connection at
+its fixed default of 256 KB/s, so a save went at 120-240 KB/s in both playtests (a save sent ahead took 8-10 s and a
+load soon after it sent it again). `SteamBridge` sets the send rate to 4 MB/s (min = max: Steam does not adapt
+between them) and a 2 MB send buffer. Slower rates also stalled a transfer: ENet resent packets only queued in
+Steam and cut its throttle to zero (counted at each hop: none lost). Two-account duo, a whole 1.38 MB save, direct
+and relayed: 7.3-10.2 s before, 1.35-1.59 s after
+([network-performance.md](design/network-performance.md#steams-send-rate-2026-11-23)). ClientTests `[steam-pacing]`;
+scenario `steam-join-sends-save-fast` (two accounts). Not yet measured on a home line.
+
+2026-11-22: **a guest behind the host sees the host's NPCs once its grid reaches them; a soft leash keeps guests
+in the host's grid** (`agent/missing-enemies-guest`). Playtest 2026-11-22 (report 1951-468): the host walked ahead to the wolves past Riverwood, the
+guest followed and never saw them. Their spawns waited on the guest for a reference it had not loaded, and the wake-up
+hook sat on `QueuedReference::Finish` (13022), which the probe counted on 8 of 927 3D jobs; `QueuedReference::End` (13023)
+on all of them (measured with `player_probe`; the held NPC's job ending there is inferred, `actor-ai-and-copies.md`). Both are hooked now. The soft leash
+([party-travel.md](design/party-travel.md), "Soft leash"): a guest outdoors out of the host's grid for 2 s gets a 10 s
+countdown banner, then party travel to the host; back in time, it stays (`HostLeash`, `GuestLeash`, `NotifyLeash`;
+none indoors, on a trip or down; a trip that never lands is sent again). Scene scenarios go home when they end, so
+several run on one boot. A player's copy left in a cell that detached on the other game (a jump of 4 cells) kept that cell,
+nothing moved it into its new cell and it dropped below high process, unseen: `RunPresence` now re-places a copy whose cell is not
+attached (`actor-ai-and-copies.md`, "A copy in a detached cell"). Tests: `HostAuthorityTests [Leash]`,
+`GameTests [leash]`, scenarios `host-ahead-npcs-reach-guest`, `guest-leash`, `player-copies-after-setpos`.
+
 2026-11-22: **the lockpicking menu draws its lock again** (`agent/lockpicking-ui`;
 [lockpicking.md](re/systems/lockpicking.md)). Since personal menus stopped pausing (2026-10-27) the menu opened with
 nothing drawn on the host and guests: `LockpickingMenu::ProcessMessage` (51950) builds the lock only on the main thread,
@@ -469,7 +491,7 @@ victim the attacker may kill, 37229) and the roll ([dev-commands.md](re/systems/
 `[dev-commands]`; scenario `killmove-odds-every-swing` (one swing at a 1000-health wolf, guest and host).
 
 2026-11-16: dev chat commands for playtests (`/dev` lists them): `/heal`, `/god`, `/speed`, `/gravity`, `/shouts`,
-`/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather` in the host's
+`/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather`, `/leash` in the host's
 game at the typer's character. Anyone types them; the host runs world commands and sends the line to every game, which
 runs console lines on its own player ([dev-commands.md](design/dev-commands.md)). Kill moves have no chance in vanilla
 (the root idles need a fatal swing on the last enemy, 21744/21743): `/killmove` hooks those two conditions
@@ -1148,7 +1170,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Part | Status |
 |---|---|
 | Time (`HostClock`; set-time from any player) | done (`4e0efb0a`); set-time works in the game since 2026-10-20 (`/settime` in the chat, `guest-sets-time`); the whole calendar 2026-10-20: a guest takes the host's date and days passed too, written as `Calendar::Update` leaves them (`docs/re/systems/calendar.md`) |
-| Weather (`HostWeather`) | done (`50397fa0`) |
+| Weather (`HostWeather`) | done (`50397fa0`); per region 2026-11-22 (`WeatherRegionRequest`, `HostWeather::WeatherFor`) |
 | Host/guest code split, the world (2026-10-20) | done: `Services/Guest/` (`GuestClock`, `GuestWeather`, `GuestWorldState`) exist only while joined (`GuestService`); `Bridges/HostEngine` (the host's reads, set hour) and `Bridges/GuestEngine` (applying the host's calendar, weather, globals, quests) replace those `IWorldBridge` calls; `CalendarService` is `TimeScaleService`; `WeatherService`, `WorldStateService` deleted; `HostBridge` renamed `HostAuthority`. Actors next, by owner/copy (`docs/ideas.md`, "Client services by role") |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
 | Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
@@ -1761,7 +1783,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
 | Containers' items (changes, as counts per base item) | works both ways; the host's contents (its leveled roll) when a guest's cell loads (slice 2, 2026-10-21); an item's extra data (enchantment, tempering, poison) does not travel | `chest-take-reaches-others`, `guest-opens-hosts-roll` |
-| Time, weather | works | `host-time-reaches-client`, `guest-sets-time`, `host-wait-reaches-guest`, `shared-wait-host`/`-guest`, `shared-sleep-host`/`-guest`, `shared-wait-cancel`, `late-join-gets-calendar`, `party-fast-travels` (days passed), `weather-follows-host` |
+| Time, weather | works; weather per region (2026-11-22: a guest holds the weather the host's game gives its own region, the host's where forced or shared, faded into; `docs/re/systems/weather.md`) | `guest-weather-own-region`, `host-time-reaches-client`, `guest-sets-time`, `host-wait-reaches-guest`, `shared-wait-host`/`-guest`, `shared-sleep-host`/`-guest`, `shared-wait-cancel`, `late-join-gets-calendar`, `party-fast-travels` (days passed), `weather-follows-host` |
 | Party panel (RmlUi) | works alone; fails after other scenarios | `party-panel` |
 | Player levels (party panel) | works | `party-shows-levels` |
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |

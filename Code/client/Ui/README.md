@@ -11,8 +11,9 @@ loads the same files on Linux with fixtures and the stock GLFW/GL3 backend. No S
 | `assets/chat.rml`, `chat.rcss` | Compact transparent chat: AOL-style text and individually colored names |
 | `assets/party.rml`, `party.rcss` | RCT-style health faces next to player names and levels |
 | `assets/moods` | Seven downloaded guest mood PNGs, a new dead skull, sources and generation prompt |
+| `assets/death.rml`, `death.rcss` | The spectating banner, and the soft leash's warning band with its countdown (`leash_seconds`) |
 | `assets/aol-text.rcss` | 17dp chat typography and readable shadow |
-| `assets/fonts` | Oswald and Liberation Sans, with their licenses |
+| `assets/fonts` | Oswald and Liberation Sans (regular, bold, bold italic), with their licenses |
 | `Code/ui_workbench` | Fixtures, native input, asset reload, PNG loading, screenshot/check modes |
 
 ## Running

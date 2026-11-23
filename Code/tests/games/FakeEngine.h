@@ -742,6 +742,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool NotOnStealthMeter = false; // boolFlags kDoNotShowOnStealthMeter: 41408 skips it for the player
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
+        // A plugin's reference whose cell this game never loaded: not in memory (TESForm::GetById finds none; Skyrim
+        // 2026-11-22, host-ahead-npcs-reach-guest) until LoadCell. A spawn for it waits for this game's grid.
+        bool NotLoadedYet = false;
         bool Loaded = true;  // its 3D is loaded (in the process lists)
         uint32_t CriticalStage = 0; // Actor+0xF0 (ACTOR_CRITICAL_STAGE)
         bool BodyHidden = false;     // its third-person root's kHidden (first person, or a refused ash or goo end)
@@ -1105,6 +1108,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool Teleported = false;
     float Heading = 0.f; // the player's (SetPlayerHeading)
     size_t Travels = 0;  // the player's teleports, ever
+    size_t DropPlayerMoves = 0; // this many of the player's next MoveTo never happen (a menu, a load in the way)
     // Each cell's COC marker (TESObjectCELL::GetCOCPlacementInfo), where a respawn puts the player; an exterior
     // without one: its centre.
     std::map<uint32_t, glm::vec3> CocMarkers;
@@ -1113,6 +1117,26 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     TimeModel Calendar;
     GameId Weather{};
     bool WeatherHeld = false;
+    // The sky (docs/re/systems/weather.md): each region's weather list and own weather, the player's weather region
+    // (PlayerRegionState), the forced weather (Sky's override) and the one fading out.
+    std::map<uint32_t, std::vector<GameId>> RegionLists;
+    std::map<uint32_t, GameId> RegionWeather;
+    uint32_t WeatherRegion = 0;
+    GameId ForcedWeather{};
+    GameId LastWeather{};
+    uint32_t FadeFrames = 0;
+    size_t WeatherCuts = 0;    // changes shown without a fade
+    size_t WeatherChanges = 0; // changes shown, ever
+    static constexpr uint32_t kWeatherFadeFrames = 10;
+    // Frames since the weather last changed (lastWeatherUpdate): an override ages out after the climate's interval,
+    // and the region rolls its own (26231).
+    uint32_t WeatherAge = 0;
+    static constexpr uint32_t kOverrideExpiryFrames = 6; // shorter than a fade, as at a high time scale
+    // Sky::UpdateWeather's change (26231): fades from the shown one (a cut without aFade), then every region's own
+    // weather is set (TESRegion::SetCurrentWeather 16448: the shown one where its list holds it, else a roll, here
+    // its first).
+    void ShowWeather(const GameId& acWeather, bool aFade = true) noexcept;
+    void SetRegionWeather(uint32_t aRegion) noexcept;
     TimeModel GetGameTime() const noexcept override { return Calendar; }
     // Magic. A spell's kind as MagicService asks it (SpellItem's casting type and archetypes).
     struct SpellForm
@@ -1599,7 +1623,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A copy's skeleton is posed by its ragdoll: lying knocked down, or dead with the owner's ragdoll held.
     [[nodiscard]] bool RagdollPosed(uint32_t aFormId) const noexcept;
 
-    bool ActorExists(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId); }
+    bool ActorExists(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && !it->second.NotLoadedYet;
+    }
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override;
     bool IsActorCopy(uint32_t aFormId) const noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
@@ -1619,6 +1647,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
+    bool IsActorCellAttached(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && Attached.contains(it->second.Cell);
+    }
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     // Dead with a ragdoll, or its ragdoll's bodies awake (knocked down): as Actor::LiesInRagdoll.
     bool IsLyingInRagdoll(uint32_t aFormId) const noexcept override;

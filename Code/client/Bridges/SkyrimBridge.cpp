@@ -2295,6 +2295,12 @@ uint32_t SkyrimBridge::GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept
     return pWS ? pWS->formID : 0;
 }
 
+bool SkyrimBridge::IsActorCellAttached(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->parentCell && pActor->parentCell->IsValid();
+}
+
 uint32_t SkyrimBridge::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
 {
     Breadcrumbs::Record("SpawnActorFromNpc", aNpcFormId);

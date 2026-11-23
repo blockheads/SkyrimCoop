@@ -332,6 +332,23 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
     }
 
     {
+        WeatherRegionRequest request;
+        request.Region = GameId(0, 0x2A72D);
+
+        Buffer::Writer writer(&buff);
+        request.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+
+        const RequestMessageFactory factory;
+        auto pMessage = factory.Extract(reader);
+
+        REQUIRE(pMessage);
+        REQUIRE(pMessage->GetOpcode() == request.GetOpcode());
+        CHECK(*CastUnique<WeatherRegionRequest>(std::move(pMessage)) == request);
+    }
+
+    {
         NotifyActorName notify;
         notify.ActorId = 7;
         notify.Name = "Bj\xC3\xB6rn";
@@ -1980,6 +1997,23 @@ TEST_CASE("Party travel preserves queued destinations and native travel hours", 
     REQUIRE(decoded);
     CHECK(*CastUnique<NotifyPartySummon>(std::move(decoded)) == notify);
     CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
+}
+
+TEST_CASE("A leash notification carries out, back or off and its countdown", "[encoding.travel]")
+{
+    for (const auto cState : {NotifyLeash::Kind::kOff, NotifyLeash::Kind::kOut, NotifyLeash::Kind::kBack})
+    {
+        NotifyLeash leash;
+        leash.State = cState;
+        leash.Seconds = cState == NotifyLeash::Kind::kOut ? 10 : 0;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        leash.Serialize(writer);
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto decoded = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        CHECK(*CastUnique<NotifyLeash>(std::move(decoded)) == leash);
+    }
 }
 
 TEST_CASE("A give-back carries the actor's placement, its holder's last tick, its kill and its claim's end", "[encoding.travel]")

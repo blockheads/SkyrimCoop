@@ -167,8 +167,18 @@ void HostService::MakeAuthority() noexcept
         reading.Stealth = engine.LowestStealthPoints(cCopy);
         return reading;
     };
-    game.ReadWeather = [&engine] {
-        return engine.Weather.BaseId ? std::optional<GameId>(engine.Weather) : std::optional<GameId>{};
+    game.ReadWeather = [&engine]() -> std::optional<HostSky> {
+        if (!engine.Weather.BaseId)
+            return std::nullopt;
+        return HostSky{.Weather = engine.Weather, .Forced = static_cast<bool>(engine.ForcedWeather),
+                       .Region = engine.WeatherRegion ? GameId{0, engine.WeatherRegion} : GameId{}};
+    };
+    game.RegionWeather = [&engine](const GameId& acRegion) -> std::optional<GameId> {
+        // HostEngine::RegionWeather: none set since the load is set as the shown weather's change would.
+        if (!engine.RegionWeather.contains(acRegion.BaseId))
+            engine.SetRegionWeather(acRegion.BaseId);
+        const auto it = engine.RegionWeather.find(acRegion.BaseId);
+        return it == engine.RegionWeather.end() ? std::nullopt : std::optional(it->second);
     };
     game.ReadGlobals = [&engine] {
         std::vector<HostGlobal> globals;

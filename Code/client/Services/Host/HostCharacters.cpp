@@ -399,7 +399,8 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
     }
     // A follower that arrived where the party is not (two players led at once, and it followed the one that led
     // first): sent on to where the party went last. Not seen or reproduced yet; a guard for that race.
-    else if (acRequest.How == EnterCellRequest::Travel::kTether && m_partyTravel)
+    // One brought to the host's player (a join away from it, the leash) went there, not to the party's last trip.
+    else if (acRequest.How == EnterCellRequest::Travel::kTether && m_partyTravel && !m_broughtToParty.contains(aSender))
     {
         if (!At(*m_partyTravel, acRequest))
         {
@@ -685,6 +686,16 @@ std::optional<NotifyPartyTravel> HostCharacters::CharacterPlace(uint32_t aSessio
     place.Position = cBody->Position;
     place.Heading = cBody->Rotation.y;
     return place;
+}
+
+std::optional<HostCharacters::Outdoors> HostCharacters::OutdoorsAt(ConnectionId_t aPlayer) const noexcept
+{
+    const auto cPlace = m_places.find(aPlayer);
+    const auto cCharacter = m_characters.find(PlayerCharacterOf(aPlayer));
+    if (cPlace == m_places.end() || !cPlace->second.WorldSpaceId || cCharacter == m_characters.end() || !cCharacter->second.PlayerRecord ||
+        m_aheadOfHost.contains(aPlayer) || m_broughtToParty.contains(aPlayer) || m_announced.contains(aPlayer))
+        return std::nullopt;
+    return Outdoors{cPlace->second.WorldSpaceId, cCharacter->second.PlayerRecord->Position};
 }
 
 void HostCharacters::OnValues(const RequestActorValueChanges& acRequest, ConnectionId_t aSender) noexcept

@@ -1,34 +1,47 @@
 #pragma once
 
 #include <network/ENetInterface.h>
+#include <Services/Host/HostGame.h>
 #include <Structs/GameId.h>
 #include <NoCopyMove.h>
 
-struct HostGame;
-struct HostPlayers;
+#include <optional>
+#include <unordered_map>
 
+struct HostAuthority;
+struct HostPlayers;
 struct HostNetwork;
+struct WeatherRegionRequest;
 
 /**
- * @brief The session's weather is the host's. Peers hold the host's weather in place of their
- * own and change it when the host's changes.
+ * @brief The session's weather is the host's, per region (docs/re/systems/weather.md): each guest holds the weather the
+ * host's game gives the guest's region, the host's own where it is forced or in the host's region.
  */
 struct HostWeather
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostWeather(HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostWeather(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostWeather);
 
-    // Every frame: tells peers when the host's weather changed.
+    // Every frame: tells each guest when the weather for its region changed.
     void Update() noexcept;
-    void SendWeather(ConnectionId_t aPlayer) const noexcept;
+    void SendWeather(ConnectionId_t aPlayer) noexcept;
+    void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
+
+    // The weather a guest in aRegion holds; none: the host shows none to share.
+    [[nodiscard]] std::optional<GameId> WeatherFor(const GameId& acRegion) const noexcept;
 
 private:
+    void OnRegion(const WeatherRegionRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void SendFor(ConnectionId_t aPlayer) noexcept;
+
     HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostGame& m_game;
-    // What peers hold (none yet: the host has shown no weather to share).
-    GameId m_peersWeather{};
+    std::optional<HostSky> m_sky;
+    // Each guest's weather region as it last reported it, and the weather it was sent.
+    std::unordered_map<ConnectionId_t, GameId> m_regions;
+    std::unordered_map<ConnectionId_t, GameId> m_sent;
 };
