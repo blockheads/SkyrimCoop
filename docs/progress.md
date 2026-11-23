@@ -67,6 +67,17 @@ damaged flag, rate, sprinting, bow zoom; [actor-values.md](re/systems/actor-valu
 Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) stays open: the regen delay is capped (39536,
 `fStaminaRegenDelayMax`), so it is not a leftover delay; the readout will show which gate holds next time.
 
+2026-11-23: **a guest crash loading a leveled NPC's copy: we destroyed Skyrim's own EncWolf** (`agent/fabien-crash-3`;
+[leveled-copy-base.md](re/systems/leveled-copy-base.md)). The 2026-11-22 playtest's third guest crash (15678, a
+temporary base's faceNPC walk). A placed leveled copy whose game picked another animal was given the owner's face record
+(EncWolf 23ABE) as its base; the engine's re-roll of a leveled actor (37323, 37292: cell reset, respawn, `RecycleActor`)
+hands the current base to the garbage collector (36460) with no temporary check (read in IDA), which destroys such a
+record; that this destroyed EncWolf in Fabien's game, leaving every base and list pointing at it dangling, is inferred
+from the log's order of events (the dump holds no heap). Such a copy is now built again from the owner's pick with the engine's
+leveled build (14375, `RelevelActor`), a temporary base the engine may destroy. Checked: scenario
+`guest-releveled-copy-keeps-pick` (MCP, heap history on), GameTests `[copy-level]` (fails four checks without the fix),
+ClientTests `[npc-snapshot]`. The fake learned that a leveled actor's reset destroys its current base, whatever it is.
+
 2026-11-23: **a guest's open loot menu read a stack our reconcile had freed** (`agent/fabien-crashes`;
 [item-menus.md](re/systems/item-menus.md)). Two of the guest's three crashes in the 2026-11-22 playtest (Windows,
 `GetExtraData` 12329 under ContainerMenu's hover 51130 and take 51132): a ContainerMenu's entries hold the listed

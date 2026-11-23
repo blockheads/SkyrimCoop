@@ -16,6 +16,13 @@ TESNPC* HookSetLeveledNpc(TESNPC* apThis, TESNPC* apSelectedNpc)
     return RealSetLeveledNpc(apThis, Cast<TESNPC>(TESForm::GetById(0x3B547)));
 }
 
+TESNPC* TESNPC::BuildLeveled(TESNPC* apOriginal, TESNPC* apPick) noexcept
+{
+    using TBuildLeveled = TESNPC*(TESNPC*, TESNPC*);
+    POINTER_SKYRIMSE(TBuildLeveled, s_buildLeveled, 14375);
+    return s_buildLeveled.Get()(apOriginal, apPick);
+}
+
 static Hooks::Initializer s_npcInitHooks(
     []()
     {

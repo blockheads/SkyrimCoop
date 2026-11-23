@@ -160,6 +160,8 @@ public:
     void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;
     uint32_t GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept override;
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
+    bool IsActorLeveled(uint32_t aFormId) const noexcept override;
+    bool RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept override;
     Tints GetActorFaceTints(uint32_t aFormId) const noexcept override;
     void SetupActorFaceGen(uint32_t aFormId) noexcept override;
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override;

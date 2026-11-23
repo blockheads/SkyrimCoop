@@ -45,6 +45,7 @@ every other section needs the duo.
 **Copy-desync follow-ups**
 
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
+- [A re-leveled copy leaves its old temporary NPC](#a-re-leveled-copy-leaves-its-old-temporary-npc): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
@@ -145,10 +146,6 @@ every other section needs the duo.
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
 - [Seen once in the run of 2026-11-22](#seen-once-in-the-run-of-2026-11-22): small
 
-**From the 2026-11-22 playtest**
-
-- [A guest crash loading a leveled NPC's copy](#a-guest-crash-loading-a-leveled-npcs-copy): medium
-
 **Test tools**
 
 - [The gate fails on GameTests now and then](#the-gate-fails-on-gametests-now-and-then): small
@@ -156,6 +153,18 @@ every other section needs the duo.
 - [A staging spot 1500 units off with no floor](#a-staging-spot-1500-units-off-with-no-floor): small
 
 ## Copy-desync follow-ups
+
+### A re-leveled copy leaves its old temporary NPC
+
+PR #114 review, 2026-11-23 ([leveled-copy-base.md](re/systems/leveled-copy-base.md)): `RelevelActor` builds a new
+temporary NPC (14375) and sets it; the displaced temporary is not collected, so each correction after a guest re-roll
+leaves one NPC form behind. It is left on purpose: a queued 3D load may still read it, unread when its last reader ends.
+
+Agent task: read when the background loader (QueuedCharacter 13108 -> 37177) lets go of an actor's base, then hand the
+displaced temporary to the collector (36460) after that; GameTests `[copy-level]` checks it is retired.
+
+Size: small. Needs: IDA, then GameTests.
+
 
 ### A seated owner's copy keeps an old action
 
@@ -1447,26 +1456,6 @@ Size: small. Needs: the duo.
   [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws); not read whether its copy
   missed a sheathe.
 
-## From the 2026-11-22 playtest
-
-### A guest crash loading a leveled NPC's copy
-
-The guest (Fabien, Windows, `v1.6.7-1419-g206a7c42-dirty`) crashed at 03:40:26 his time
-(`/home/bighass/playtests/2026-11-22/raw/friend-player-2026-11-23-0340-5c8`, dump `crash_UTC_2026-11-23_02-40-26.dmp`).
-Access violation in 15678 at 0x1402195F3 on the background loader (`QueuedCharacter` 13108 -> 13019 -> `Actor::Load3D`
-37177 -> our `HookLoad3D` (pass-through) -> 19727 -> 20103 -> 19743 -> `TESNPC` 24740 -> 15678). Read in IDA: 15678
-walks the actor's base NPC's `faceNPC` chain (+0x1F0) to its root; one link held `0x3F1416AA0000086D`, not a pointer.
-The actor: copy `DC8E2` on temporary leveled base `FF0010BD`, as cell 9199 loaded. 3 s before, the guest logged
-"Failed to apply owner's NPC base 0:23ABE" for it and three other copies (`DC8E3`, `DC591`, `DC8DE`), and
-`ResetWornToOutfit` ran on that base on another thread 94 ms before. The dump has no heap: which link was bad, and
-who wrote or freed it, is unread.
-
-Agent task: read 24740 and the temporary base's life in IDA ([leveled-npc-copy-names.md](re/systems/leveled-npc-copy-names.md),
-[copy-face-tints.md](re/systems/copy-face-tints.md)); find why base `23ABE` fails to apply to a placed leveled copy;
-reproduce at cell 9199's leveled NPCs with the heap history on.
-
-Size: medium. Needs: IDA, the duo.
-
 ## Test tools
 
 ### The gate fails on GameTests now and then
@@ -1475,6 +1464,9 @@ Size: medium. Needs: IDA, the duo.
 about twelve runs, passing on the next run with nothing changed. `GameTests` run alone passed 10 of 10 after the second one
 (its assertion count differs run to run, 5627 to 5650: some flow is timing-dependent). The gate now keeps each shard's
 log and prints the failed case (`check.sh`, `build/check/`), so the next one names its case.
+2026-11-23 on `agent/fabien-crash-3` (pre-push): "A host NPC gets up from a knockdown: its copy's ragdoll follows its
+owner's until both stand" (`physics_flows.cpp:887`): the copy's head ended 27.8 units from its owner's (limit 15); 10 of
+10 passed alone right after.
 
 Agent task: loop `GameTests` until it fails and fix that case's timing.
 

@@ -1522,7 +1522,7 @@ uint32_t FakeEngine::GetActorBaseFormId(uint32_t aFormId) const noexcept
 bool FakeEngine::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept
 {
     const auto it = Actors.find(aFormId);
-    if (it == Actors.end() || !aBaseFormId)
+    if (it == Actors.end() || !aBaseFormId || DestroyedNpcs.contains(aBaseFormId))
         return false;
     it->second.Base = aBaseFormId;
     return true;
@@ -2795,6 +2795,38 @@ void FakeEngine::DeleteActor(uint32_t aFormId) noexcept
 bool FakeEngine::IsActorNpcTemporary(uint32_t aFormId) const noexcept
 {
     return GetActorBaseFormId(aFormId) >= 0xFF000000;
+}
+
+bool FakeEngine::IsActorLeveled(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && it->second.LeveledBase;
+}
+
+// 14375: a new temporary NPC from the pick (its face the pick's).
+bool FakeEngine::RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    const auto cPick = Npcs.find(aPickId);
+    if (it == Actors.end() || !it->second.LeveledBase || cPick == Npcs.end() || DestroyedNpcs.contains(aPickId))
+        return false;
+    const uint32_t cBuilt = NewTemporary();
+    Npcs[cBuilt] = cPick->second;
+    Npcs[cBuilt].FaceBase = aPickId;
+    Npcs[cBuilt].ChangeFlags = 0;
+    it->second.Base = cBuilt;
+    return true;
+}
+
+void FakeEngine::ResetLeveledActor(uint32_t aFormId, uint32_t aPick)
+{
+    auto& actor = Actors.at(aFormId);
+    if (!actor.LeveledBase || actor.Base == actor.LeveledBase)
+        return;
+    Npcs.erase(actor.Base);
+    DestroyedNpcs.insert(actor.Base);
+    actor.Base = actor.LeveledBase;
+    RelevelActor(aFormId, aPick);
 }
 
 Inventory FakeEngine::GetActorInventory(uint32_t aFormId) const noexcept

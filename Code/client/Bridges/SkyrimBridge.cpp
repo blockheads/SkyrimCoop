@@ -32,6 +32,7 @@
 #include <Forms/TESWorldSpace.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESNPC.h>
+#include <ExtraData/ExtraLeveledCreature.h>
 #include <Forms/BGSPerk.h>
 #include <Games/Memory.h>
 #include <Forms/ActorValueInfo.h>
@@ -2383,6 +2384,37 @@ bool SkyrimBridge::IsActorNpcTemporary(uint32_t aFormId) const noexcept
         return false;
     TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
     return pNpc ? pNpc->IsTemporary() : false;
+}
+
+static ExtraLeveledCreature* GetLeveledCreature(Actor* apActor) noexcept
+{
+    return apActor ? static_cast<ExtraLeveledCreature*>(apActor->extraData.GetByType(ExtraDataType::LeveledCreature)) : nullptr;
+}
+
+bool SkyrimBridge::IsActorLeveled(uint32_t aFormId) const noexcept
+{
+    const auto* pExtra = GetLeveledCreature(GetActor(aFormId));
+    return pExtra && pExtra->originalBase;
+}
+
+// As ExtraDataList::LoadGame's ExtraLeveledCreature case (0x140177F8F): 14375(original, pick), the pick recorded, the
+// new base set. The old temporary is left: a queued 3D load can still read it (leveled-copy-base.md).
+bool SkyrimBridge::RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept
+{
+    Breadcrumbs::Record("RelevelActor", aFormId, aPickId);
+    Actor* pActor = GetActor(aFormId);
+    auto* pExtra = GetLeveledCreature(pActor);
+    auto* pOriginal = pExtra ? Cast<TESNPC>(pExtra->originalBase) : nullptr;
+    auto* pPick = Cast<TESNPC>(TESForm::GetById(aPickId));
+    if (!pOriginal || !pPick)
+        return false;
+    TESNPC* pBuilt = TESNPC::BuildLeveled(pOriginal, pPick);
+    if (!pBuilt)
+        return false;
+    pExtra->templateBase = pPick;
+    pActor->GetExtension()->GraphDescriptorHash = 0;
+    pActor->SetBaseObject(pBuilt);
+    return true;
 }
 
 Tints SkyrimBridge::GetActorFaceTints(uint32_t aFormId) const noexcept
