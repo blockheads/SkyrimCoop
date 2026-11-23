@@ -1328,7 +1328,7 @@ BSPointerHandle<TESObjectREFR>* HookRemoveFromInventory(ExtraContainerChanges::D
     }
     if (pOwner && apItem && aCount > 0 && !ScopedInventoryOverride::IsOverriden() && !ScopedItemRemovalOverride::IsOverriden())
         SendRemoval(pOwner, apItem, aCount, apExtraList);
-    ItemMenuWatch::RebuildFirst(pOwner, apItem); // it may free a list an open item menu lists
+    ItemMenuWatch::RebuildFirst(pOwner); // it may free a list an open item menu lists
     return RealRemoveFromInventory(apThis, apResult, apRef, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apDropRef);
 }
 

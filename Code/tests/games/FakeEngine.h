@@ -1309,15 +1309,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t ChestMenuOf{}; // the chest whose menu the player opened (TESObjectCONT::Activate 17887)
     bool InventoryMenuOpen{}; // the player's InventoryMenu (InventoryMenu::ProcessMessage 51848's kShow)
     uint32_t BarterStock{};   // what an open BarterMenu sells: TESDataHandler +0xDB8's owner (50960)
-    // An open item menu lists its holders' stacks by their own lists (16106 at 0x14023929d). TESObjectREFR::RemoveItem
-    // (19689, our bridges' path) queues only that item's update, which ContainerMenu keeps for its target until a full
-    // update (51126; measured on a corpse), so a target's listed list freed is read again by the next take or hover.
-    // Measured re-listed at once: the player's own stacks (ContainerMenu's player side, InventoryMenu) and a script's
-    // or the console's removal (LosesItem). Barter's is not modelled. Marked to rebuild (Update_Impl 51031), the selection is hidden
-    // until the UI update rebuilds it (51144, at Frame). One item menu is open at a time.
-    bool ItemMenuPending{};
-    int ItemMenuFreedLists{}; // listed lists freed since the menu last listed
-    int ItemMenuFreedReads{}; // a take or hover read a freed list (the 2026-11-22 guest crashes, GetExtraData 12329)
+    // Item menus list stacks by their own lists; only a loot or chest menu's target is left stale by RemoveItem 19689
+    // (measured; docs/re/systems/item-menus.md, "Who sends which").
+    ItemMenuChanges ItemMenuNoted; // our hooks note, the UI job (Frame) takes
+    int ItemMenuFreedLists{};      // the target's listed lists freed since the menu last listed
+    int ItemMenuFreedReads{};      // a take or hover read a freed list (the 2026-11-22 guest crashes, GetExtraData 12329)
+    [[nodiscard]] size_t ItemMenuKind() const noexcept { return LootMenuOf || ChestMenuOf ? 0 : BarterMerchant ? 1 : 2; }
     [[nodiscard]] ItemMenuView ItemMenuOf() const noexcept
     {
         if (LootMenuOf || ChestMenuOf)
@@ -1329,23 +1326,22 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The player hovers or takes the menu's highlighted entry (GetSelectedItem's lists: ContainerMenu 51130 / 51132).
     void HoversInItemMenu() noexcept
     {
-        if (ItemMenuOf().Open && !ItemMenuPending && ItemMenuFreedLists)
+        if (ItemMenuOf().Open && ItemMenuFreedLists)
             ++ItemMenuFreedReads;
     }
-    // A change to aHolder's stacks: our hooks first (ItemMenuWatch::RebuildFirst, at RemoveItem 16059: the item's update
-    // and Update_Impl), then the engine's, a stack with extra data gone freeing its list (16059).
+    // A change to aHolder's stacks: our hooks note it (ItemMenuWatch::RebuildFirst), then the engine's change, a stack
+    // with extra data gone freeing its list (16059).
     template <class Change> void ChangesStacks(uint32_t aHolder, Change&& aChange)
     {
         if (MustRebuildFirst(ItemMenuOf(), aHolder))
-            ItemMenuPending = true;
+            ItemMenuNoted.Note(ItemMenuKind());
         const auto cLists = [&] {
             const auto cActor = Actors.find(aHolder);
             return cActor == Actors.end() ? 0 : std::ranges::count_if(cActor->second.Items.Entries, [](const auto& acEntry) { return acEntry.ContainsExtraData(); });
         };
         const auto cBefore = cLists();
         aChange();
-        const auto cView = ItemMenuOf();
-        if ((LootMenuOf || ChestMenuOf) && !ItemMenuPending && aHolder == cView.Lists[0])
+        if ((LootMenuOf || ChestMenuOf) && aHolder == ItemMenuOf().Lists[0])
             ItemMenuFreedLists += static_cast<int>(std::max<std::ptrdiff_t>(0, cBefore - cLists()));
     }
     // The chest's menu closes (the player, or our auto-close on a disabled chest): the lid's Close plays (ContainerMenu

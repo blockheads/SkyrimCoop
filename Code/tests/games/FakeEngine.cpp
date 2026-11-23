@@ -518,8 +518,8 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 void FakeEngine::Frame()
 {
     ++m_frameCount;
-    // A pending item menu lists the stacks again (ContainerMenu 51126's kInventoryUpdate -> 51144).
-    if (std::exchange(ItemMenuPending, false))
+    // The UI job (Job_UI 39042): a noted open item menu rebuilds its whole list (ItemMenuWatch::OnUiJob).
+    if (ItemMenuNoted.Take(ItemMenuKind(), ItemMenuOf().Open))
         ItemMenuFreedLists = 0;
     // The task queue's kills (36993): counted under a hold (37896 -> 38617).
     for (auto& [cId, actor] : Actors)

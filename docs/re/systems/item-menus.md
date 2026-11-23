@@ -26,8 +26,9 @@ The other item menus are built the same way (read 2026-11-22):
 
 ```
 BarterMenu 50945:    ItemList at +0x30; kInventoryUpdate for the player (403520) or BarterMenu::handle (405823)
-                     rebuilds (50958); its fill (50960) lists the player's changes and TESDataHandler +0xDB8
-                     (merchantInventory), each through 16106: aliases
+                     rebuilds (50958): with named items (+0x80, count +0x90) the partial 50960, else the full
+                     fill 50959; both list the player's changes and TESDataHandler +0xDB8 (merchantInventory)
+                     through 16106: aliases
 InventoryMenu 51848: ItemList at +0x48; kInventoryUpdate only for the player rebuilds (RefreshItemList 51866,
                      16106 over the player's changes): aliases
 ```
@@ -57,8 +58,10 @@ In a session all three run unpaused (`MenuPauseRules.h`), so the world changes u
 
 ## The crashes (2026-11-22)
 
-A guest's take from a corpse copy goes to the host (`ContainerTransfers`); 1 to 3 s later the copy's items are
-reconciled (`InventoryService` -> `SetCarriedStacks`), whose `RemoveItem` frees the taken worn stack's list. The menu,
+Inferred from the dumps' stacks and registers, the logs' breadcrumbs and the alias in 16106 (the Windows dumps hold no
+heap, so the free itself is not seen): a guest's take from a corpse copy goes to the host (`ContainerTransfers`); 1 to
+3 s later the copy's items are reconciled (`InventoryService` -> `SetCarriedStacks`), whose `RemoveItem` frees the taken
+worn stack's list. The menu,
 rebuilt after the take from the copy's old stacks, still lists it. The next hover or take reads it: access violation
 in `GetExtraData` +0x68 (the list's presence bits pointer garbage in both dumps). Logs: crash 1 at 02:57:31 (take,
 copy `1EBF0`, worn arrows), crash 2 at 03:25:47 (hover, copy `9BCD6`, worn `5BF0F`).
@@ -69,32 +72,31 @@ On Linux it did not crash, but the menu kept listing the taken item on the corps
 ## What we do
 
 ```
-each item menu's ProcessMessage hook (LiveMenuHooks: 51126, 50945, 51848)
+each item menu's ProcessMessage hook (LiveMenuHooks: 51126, 50945, 51848), on the UI job
   kShow  -> ItemMenuWatch::Shown(kind, menu)      kHide / kForceHide -> Hidden(kind), before the engine frees the list
-ItemMenuWatch::RebuildFirst(holder), before a holder's stacks change:
-  for each open item menu: the holders it lists (ItemMenuRebuild.h)
+ItemMenuWatch::RebuildFirst(holder), any thread, before a holder's stacks change:
+  for each open item menu: the holders it lists, from the engine's globals only (ItemMenuRebuild.h)
      ContainerMenu: its target (405962), the player
      BarterMenu:    merchantInventory's owner (TESDataHandler +0xDB8 -> +0x8), the player
      InventoryMenu: the player
-  listed: the item's update for the player (52849; none given: each item the holder has), then
-          ItemList::Update_Impl(list, player)   (51031: pending now; its rebuild re-reads the set) -- the engine's take
-called from:
-  SetCarriedStacks, SetContainerStacks, ApplyContainerContents   ours
-  HookRemoveFromInventory (16059), before the real one          every removal, ours or the engine's
-  HookResetWornToOutfit (418622), HookResetInventory (37322)     their lists merged or freed without 16059
+  listed: ItemMenuChanges::Note(menu)              an atomic flag; no menu memory touched
+  called from: ContainerItems (SetCarriedStacks, SetContainerStacks, ApplyContainerContents) and the hooks on
+               RemoveItem 16059, unequip 38934 (16067 merges worn lists), outfit reset 418622, ResetInventory 37322
+ItemMenuWatch::OnUiJob, at Job_UI's start (39042), before its messages (82082) and movies (82083):
+  each open menu with a noted change: its named items' count to 0 (+0x70; barter +0x90), so the rebuild is the full
+  one, then ItemList::Update_Impl(list, player)   (51031: selection hidden at once; one message)
 ```
 
-Only the target's side of ContainerMenu was seen stale, and only through `ContainerItems` (the crashes). The 16059,
-418622 and 37322 hooks are a guard for other paths through 19689: none of the paths tried showed a stale entry without
-them (the console's and Papyrus's removals, a host script's take from this game's player).
+Why on the UI job: the take's callback runs from a menu's ProcessMessage (crash 1, 82082), the hover's from the movies'
+advance (crash 2, 82083), both after Job_UI's start; menus close in 82082 on the same thread, so the menu touched is
+alive. A change on another thread is only flagged.
 
-The open menus are kept by our hooks, not asked of UI (82074 takes the UI's lock, held all through the UI job's
-message pass): 16059 runs on any thread. Our update runs in the VM job, before `Job_UI` in the same frame
-([lock-order.md](lock-order.md), "Orders the frame keeps apart"), so no hover comes between our change and the mark.
-An engine removal on another job thread may overlap `Job_UI` (not measured): the mark then shrinks the window to the
-removal itself, not closes it.
-
-Not covered: lists freed by other engine paths that skip 16059, 418622 and 37322 (none known).
+Left open: a removal on another thread while the UI job runs a callback can still free a list it reads (no engine lock
+is shared). Whether our update (the VM job) and Job_UI can overlap is not measured; [lock-order.md](lock-order.md)
+measured only main-loop tasks against our update. Only the target's side of ContainerMenu was seen stale, and only
+through `ContainerItems`; the other hooks guard paths through 19689 that showed no stale entry when tried (the console's
+and Papyrus's removals, a host script's take from this game's player). Not covered: any other path that frees a listed
+list without these functions.
 
 ## IDs
 
@@ -108,6 +110,9 @@ Not covered: lists freed by other engine paths that skip 16059, 418622 and 37322
 | 16106 | InventoryChanges::GetInventoryItemAt | a menu entry over the container's own lists |
 | 11756 | ExtraDataList__GetReferenceHandleRef (ours) | the crash 1 caller of 12329 |
 | 405962 | ContainerMenu::handle | the menu's target |
-| 50945, 50958, 50960 | BarterMenu::ProcessMessage, its rebuild, its fill | lists the player and merchantInventory |
+| 50945, 50958 | BarterMenu::ProcessMessage, its rebuild | lists the player and merchantInventory |
+| 50959, 50960 | BarterMenu__FillItemList, BarterMenu__UpdateChangedForms (ours) | full fill; named items only |
+| 39042 | Job_UI | 82082 (messages), then 82083 (movies): where the menus' callbacks run |
+| 38934 | our UnEquipHook's target | an unequip; 16067 can merge and free a worn list |
 | 51848, 51866 | InventoryMenu::ProcessMessage, RefreshItemList | lists the player |
 | 403520 | this game's player's ref handle | every item menu rebuilds for it |

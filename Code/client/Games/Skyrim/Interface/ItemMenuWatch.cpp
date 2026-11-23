@@ -4,8 +4,6 @@
 #include <Games/TES.h>
 #include <Interface/Menus/ItemMenus.h>
 #include <PlayerCharacter.h>
-#include <RTTI.h>
-#include <ExtraData/ExtraContainerChanges.h>
 #include <TESObjectREFR.h>
 
 #include <array>
@@ -15,34 +13,41 @@ namespace ItemMenuWatch
 {
 namespace
 {
-std::array<std::atomic<IMenu*>, 3> s_open{};
+std::array<std::atomic<IMenu*>, ItemMenuChanges::kMenus> s_open{};
+ItemMenuChanges s_changes;
 
-// The menu's list and the holders it lists (ItemMenuRebuild.h), read from the engine.
-std::pair<ItemList*, ItemMenuView> Read(Kind aKind, IMenu* apMenu, uint32_t aPlayer) noexcept
+// The holder a menu lists beside the player, from the engine's globals (no menu memory: any thread).
+uint32_t ListedHolder(Kind aKind) noexcept
 {
-    ItemList* pList = nullptr;
-    uint32_t holder = 0;
     switch (aKind)
     {
     case Kind::Container:
     {
-        pList = static_cast<ContainerMenu*>(apMenu)->pItemList;
         POINTER_SKYRIMSE(uint32_t, s_target, 405962); // ContainerMenu's target (CommonLibSSE-NG GetTargetRefHandle)
         const auto* pTarget = TESObjectREFR::GetByHandle(*s_target.Get());
-        holder = pTarget ? pTarget->formID : 0;
-        break;
+        return pTarget ? pTarget->formID : 0;
     }
     case Kind::Barter:
     {
-        pList = static_cast<BarterMenu*>(apMenu)->pItemList;
         const auto* pDataHandler = ModManager::Get();
         const auto* pStock = pDataHandler ? pDataHandler->merchantInventory : nullptr;
-        holder = pStock && pStock->parent ? pStock->parent->formID : 0;
-        break;
+        return pStock && pStock->parent ? pStock->parent->formID : 0;
     }
-    case Kind::Inventory: pList = static_cast<InventoryMenu*>(apMenu)->pItemList; break;
+    case Kind::Inventory: return 0;
     }
-    return {pList, ItemMenuView{.Open = pList != nullptr, .Lists = {holder, aPlayer}}};
+    return 0;
+}
+
+// The menu's list and the count of items its next rebuild would re-read alone.
+std::pair<ItemList*, uint32_t*> ListOf(Kind aKind, IMenu* apMenu) noexcept
+{
+    switch (aKind)
+    {
+    case Kind::Container: return {static_cast<ContainerMenu*>(apMenu)->pItemList, &static_cast<ContainerMenu*>(apMenu)->ChangedFormCount};
+    case Kind::Barter: return {static_cast<BarterMenu*>(apMenu)->pItemList, &static_cast<BarterMenu*>(apMenu)->ChangedFormCount};
+    case Kind::Inventory: return {static_cast<InventoryMenu*>(apMenu)->pItemList, &static_cast<InventoryMenu*>(apMenu)->ChangedFormCount};
+    }
+    return {};
 }
 } // namespace
 
@@ -56,37 +61,38 @@ void Hidden(Kind aKind) noexcept
     s_open[static_cast<size_t>(aKind)].store(nullptr, std::memory_order_release);
 }
 
-void RebuildFirst(const TESObjectREFR* apHolder, const TESBoundObject* apItem) noexcept
+void RebuildFirst(const TESObjectREFR* apHolder) noexcept
 {
     if (!apHolder)
         return;
-    auto* pPlayer = PlayerCharacter::Get();
+    const auto* pPlayer = PlayerCharacter::Get();
     const uint32_t cPlayer = pPlayer ? pPlayer->formID : 0;
-    std::array<ItemList*, 3> lists{};
-    bool listed = false;
     for (size_t i = 0; i < s_open.size(); ++i)
-        if (IMenu* pMenu = s_open[i].load(std::memory_order_acquire))
+        if (s_open[i].load(std::memory_order_acquire))
         {
-            const auto [pList, cView] = Read(static_cast<Kind>(i), pMenu, cPlayer);
+            const ItemMenuView cView{.Open = true, .Lists = {ListedHolder(static_cast<Kind>(i)), cPlayer}};
             if (MustRebuildFirst(cView, apHolder->formID))
-                lists[i] = pList, listed = true;
+                s_changes.Note(i);
         }
-    if (!listed)
-        return;
-    // The player's handle: every item menu's kInventoryUpdate takes it (403520; 51126, 50945, 51848). First each item
-    // into the menu's changed set (none given: all it holds), then Update_Impl, whose rebuild re-reads that set (51146).
-    using TSend = void(TESObjectREFR*, const TESBoundObject*);
-    POINTER_SKYRIMSE(TSend, s_send, 52849);
-    if (apItem)
-        s_send.Get()(pPlayer, apItem);
-    else if (const auto* pChanges = apHolder->FindContainerChanges(); pChanges && pChanges->entries)
-        for (const auto* pEntry : *pChanges->entries)
-            if (const auto* pItem = pEntry ? Cast<TESBoundObject>(pEntry->form) : nullptr)
-                s_send.Get()(pPlayer, pItem);
-    using TUpdate = void(ItemList*, TESObjectREFR*);
-    POINTER_SKYRIMSE(TUpdate, s_update, 51031);
-    for (ItemList* pList : lists)
-        if (pList)
-            s_update.Get()(pList, pPlayer);
+}
+
+void OnUiJob() noexcept
+{
+    auto* pPlayer = PlayerCharacter::Get();
+    for (size_t i = 0; i < s_open.size(); ++i)
+    {
+        IMenu* pMenu = s_open[i].load(std::memory_order_acquire);
+        if (!s_changes.Take(i, pMenu != nullptr) || !pPlayer)
+            continue;
+        const auto [pList, pChanged] = ListOf(static_cast<Kind>(i), pMenu);
+        if (!pList)
+            continue;
+        // No items named: the rebuild reads the whole list, not only those (51144 -> 51146, 50958 -> 50960).
+        *pChanged = 0;
+        // The player as owner: every item menu's kInventoryUpdate takes it (403520; 51126, 50945, 51848).
+        using TUpdate = void(ItemList*, TESObjectREFR*);
+        POINTER_SKYRIMSE(TUpdate, s_update, 51031);
+        s_update.Get()(pList, pPlayer);
+    }
 }
 } // namespace ItemMenuWatch

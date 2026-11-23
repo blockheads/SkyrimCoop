@@ -78,7 +78,7 @@ bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange
     for (const auto& [pItem, cCount] : aObject.GetContainerItems())
         if (std::ranges::none_of(wanted, [pItem](const auto& acWanted) { return acWanted.first == pItem; }))
         {
-            ItemMenuWatch::RebuildFirst(&aObject, pItem);
+            ItemMenuWatch::RebuildFirst(&aObject);
             aObject.SetContainerCount(pItem, 0);
         }
     for (const auto& [pItem, cCount] : wanted)
@@ -157,7 +157,7 @@ bool SetContainerStacks(TESObjectREFR& aObject, TESBoundObject& aItem, int32_t a
 {
     if (!aObject.GetContainer())
         return false;
-    ItemMenuWatch::RebuildFirst(&aObject, &aItem);
+    ItemMenuWatch::RebuildFirst(&aObject);
     if (!SameStacks(ReadContainerStacks(aObject, aItem), acStacks))
     {
         ScopedInventoryOverride _;
@@ -203,7 +203,7 @@ bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCou
 {
     if (!aActor.GetContainer())
         return false;
-    ItemMenuWatch::RebuildFirst(&aActor, &aItem);
+    ItemMenuWatch::RebuildFirst(&aActor);
     ScopedInventoryOverride _;
     std::vector<Inventory::Entry> missing;
     for (Inventory::Entry stack : acStacks)

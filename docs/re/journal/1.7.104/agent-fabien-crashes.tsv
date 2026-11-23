@@ -47,3 +47,7 @@ time	op	id	rva	item
 2026-11-23T05:52:16Z	name	50962	0x902cf0	{"addr": "0x140902CF0", "name": "BarterMenu__FillFromInventoryChanges"}
 2026-11-23T05:52:16Z	name	51146	0x913150	{"addr": "0x140913150", "name": "ContainerMenu__UpdateChangedForms"}
 2026-11-23T05:56:59Z	read		0x34d2e0	{"name": "GameFunc::handler::AddItem"}
+2026-11-23T14:57:14Z	read	50958	0x902270	{"name": "BarterMenu__RebuildItemList"}
+2026-11-23T14:57:51Z	read	39042	0x6e4e80	{"name": "Job_UI"}
+2026-11-23T14:57:53Z	name	50960	0x902810	{"addr": "0x140902810", "name": "BarterMenu__UpdateChangedForms"}
+2026-11-23T14:57:53Z	name	50959	0x9026a0	{"addr": "0x1409026a0", "name": "BarterMenu__FillItemList"}

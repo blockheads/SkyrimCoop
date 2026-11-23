@@ -3,11 +3,10 @@
 #include <cstdint>
 
 struct IMenu;
-struct TESBoundObject;
 struct TESObjectREFR;
 
-// The open item menus list their holders' stacks by those stacks' own lists (docs/re/systems/item-menus.md). Their
-// ProcessMessage hooks say when each shows and hides; any change to a listed holder's stacks marks the menu first.
+// The open item menus list their holders' stacks by those stacks' own lists (docs/re/systems/item-menus.md). A change
+// to a listed holder is noted on any thread; the UI job rebuilds the menu before its callbacks read the list.
 namespace ItemMenuWatch
 {
 enum class Kind : uint8_t
@@ -17,12 +16,15 @@ enum class Kind : uint8_t
     Inventory,
 };
 
-// The menu's kShow (it lists from now on) or kHide / kForceHide (before the engine frees its list).
+// The menu's kShow (it lists from now on) or kHide / kForceHide (before the engine frees its list), on the UI job.
 void Shown(Kind aKind, IMenu* apMenu) noexcept;
 void Hidden(Kind aKind) noexcept;
 
-// Before apHolder's stacks of apItem change (none: of anything it holds), ours or the engine's own (RemoveItem 16059,
-// outfit reset 418622, ResetInventory 37322): an open item menu listing it re-reads them, as after the engine's take
-// (each item's update 52849, then ItemList::Update_Impl 51031). Any thread.
-void RebuildFirst(const TESObjectREFR* apHolder, const TESBoundObject* apItem = nullptr) noexcept;
+// Before apHolder's stacks change, ours or the engine's (RemoveItem 16059, unequip 38934, outfit reset 418622,
+// ResetInventory 37322): an open item menu listing it is noted. Any thread; reads no menu.
+void RebuildFirst(const TESObjectREFR* apHolder) noexcept;
+
+// Job_UI's start (39042), before its messages (82082) and movies (82083) run any menu callback: each noted open menu
+// rebuilds its whole list (ItemList::Update_Impl 51031).
+void OnUiJob() noexcept;
 } // namespace ItemMenuWatch
