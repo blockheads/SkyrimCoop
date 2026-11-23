@@ -26,5 +26,5 @@ def run(ctx):
         ctx.expect('guest_player', 'actor', game='guest', value=2.5, field='values.stamina_regen.rate', seconds=3.0)
     finally:
         ctx.console_on('', f'player.removespell {RATTLES:X}')
-        ctx.console_on('client', f'player.removespell {RATTLES:X}')
+        ctx.console_on('client', f'player.dispel {RATTLES:X}')  # given as a combat spell: active, not in its list
         ctx.unstage()
