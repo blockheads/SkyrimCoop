@@ -309,7 +309,7 @@ def scenario_copy_poses_every_frame(ctx, mover=""):
     feet = pose["copy"]["feet"]
     if not feet or feet["frames"] < 200:
         raise ctx.failure("the copy was drawn and moving in too few frames: the watcher did not see it")
-    # Owners 0.4 to 2.2 %; copies 10 to 19 % before their poses were blended, 1.3 % after.
+    # Owners 0.4 to 2.6 %; copies 10 to 22 % before their poses were blended, 1.1 to 3.6 % after.
     if feet["over50"] > 0.05:
         raise ctx.failure(f"the copy's feet move unevenly in {feet['over50']:.1%} of its frames (its owner's "
                           f"{pose['owner']['feet']['over50']:.1%}): its pose holds, then jumps")

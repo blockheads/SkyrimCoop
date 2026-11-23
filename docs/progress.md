@@ -54,8 +54,8 @@ owner's updates due by its playback, so with both games' frames jittering apart 
 held while its body moved on, read in IDA: 63581) and two in the next, 5-23 % of frames on the duo: "snappy, not
 interpolated". Now each generate pass's pose is kept and the pose shown is blended between the two kept around a
 time 1.5 owner frames behind playback (`PoseTimeline`, graph-input-stream.md, "A pose every frame"), as the engine does
-for a far graph. On the duo a copy's feet move as evenly as its owner's: over 50 % off their neighbours' speed in 1.1-1.3 %
-of frames (owners 0.4-2.2 %, copies 10-19 % before). Measured with `smoothness`, which now has the watcher face the
+for a far graph. On the duo a copy's feet move as evenly as its owner's: over 50 % off their neighbours' speed in 1.1-3.6 %
+of frames (owners 0.4-2.6 %); with only the blend switched off 20-22 %. Measured with `smoothness`, which now has the watcher face the
 copy and the mover in third person. Scenarios `copy-poses-every-frame-host` / `-guest`; GameTests "A walking player's copy
 shows a pose that moves on every frame..." (jittered frames, and 60 against 50 fps); ClientTests `[pose-blend]`.
 
