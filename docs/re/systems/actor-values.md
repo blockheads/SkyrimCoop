@@ -36,11 +36,11 @@ relies on it: `TrapDisDamageStaminaRegen` when `Survival_ModeEnabled == 0`, `Sur
 `== 1`, each `StaminaRate -2.5` (read from the plugins).
 
 `magichit` (34547) gives 34525 the resistance from the target's own check (vfunc +0x50: spell, effect, source), and
-34525 also refuses a hostile effect on an invulnerable target and asks the archetype's `ShouldApply`. All of it reads
-the target, the spell and the caster, which a relayed effect carries (player copies hold their owner's perks,
-`PerkService`). Our relay used to force 34525 true on the owner's game (upstream's `s_autoSucceedEffectCheck`), so a
-trap's Rattles left a guest with both effects: rate 0. The force and its hook are gone: the owner's engine decides
-whether a relayed effect lands, as for its own casts.
+34525 also refuses a hostile effect on an invulnerable target and asks the archetype's `ShouldApply`. Our relay used to
+force 34525 true on the owner's game (upstream's `s_autoSucceedEffectCheck`), so a trap's Rattles left a guest with
+both effects: rate 0. The force and its hook are gone: the owner's engine decides whether a relayed effect lands, as
+for its own casts. Conditions about the caster or the player are judged for the casting player's copy
+([conditions.md](conditions.md#a-spell-from-another-players-character-1.7.104-read-in-ida-2026-11-23)).
 
 ## Copies
 

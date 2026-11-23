@@ -56,7 +56,12 @@ survival on, each picked by its magic effect's conditions (`Survival_ModeEnabled
 adds an effect (34525 through `EffectSetting::ConditionsPass` 11085). A trap's disease on the guest's copy is relayed
 (`IsWorldCast`), and the guest's add skipped that check (`s_autoSucceedEffectCheck`), so 5 - 2.5 - 2.5 left a rate of
 0. The force is removed (and the 34525 hook with it): the owner's engine runs its own add check on a relayed
-effect, so conditions, resistance, invulnerability and the archetype's rule all apply as for its own casts. The snapshot's `values.stamina_regen` reads every stamina regeneration gate (delay,
+effect, so conditions, resistance, invulnerability and the archetype's rule all apply as for its own casts. Conditions
+about the caster or the player (110 + 120 on magic effects, 39 + 228 on spell entries in the duo's plugins: the
+Destruction perk effects, Unrelenting Force's disintegrate, the werewolf howl's Totem summon) are judged for the
+casting player's copy, at the add and in the entry conditions' re-reads (34062): `JudgedFor`'s caster mode, and
+`GetIsID(Player)` holds for a player's character ([conditions.md](re/systems/conditions.md)). Scenarios
+`shout-disintegrates-lying-host` and `shout-kills-lying-guest` (the verb now sets the Black Book reward). The snapshot's `values.stamina_regen` reads every stamina regeneration gate (delay,
 damaged flag, rate, sprinting, bow zoom; [actor-values.md](re/systems/actor-values.md)). GameTests `[stamina]`; scenario
 `trap_disease_guest_stamina`.
 Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) stays open: the regen delay is capped (39536,

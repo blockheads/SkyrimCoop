@@ -56,3 +56,15 @@ time	op	id	rva	item
 2026-11-23T16:42:35Z	comment	38603	0x6cbee0	{"addr": "0x1406cbee0", "comment": "Used by plugin: Precision/src/Hooks.h:50.\nRead 1.7.104 (stamina-drained): an attack's hit frame: spends GetAttackStaminaCost from stamina (damage modifier); if that leaves stamina <= 0, asks SetActorValueRegenDelay (39536) for (cost - staminaBefore) / GetActorValueRegenRate(26) (38460) and flashes the meter. 39536 caps it at fStaminaRegenDelayMax, so a rate of 0 gives the cap, not an endless delay."}
 2026-11-23T16:53:43Z	read		0x5d1cd0	{"name": "coop_RealCheckAddEffectTargetData"}
 2026-11-23T16:53:47Z	read		0x5d31c1	{"name": "magichit"}
+2026-11-23T17:19:51Z	read	34063	0x5bb6c0	{"name": "ActiveEffect::Func5_34063"}
+2026-11-23T17:20:01Z	read	34062	0x5bb470	{"name": "ValueModifierEffect::sub_34062"}
+2026-11-23T17:24:27Z	read		0x5baa60	{"name": "ActiveEffect::Constructor"}
+2026-11-23T17:24:45Z	read		0x5d2280	{"name": "MagicTarget::UpdateActiveEffects"}
+2026-11-23T17:24:53Z	read		0x5bcfe0	{"name": "ActiveEffect::Update"}
+2026-11-23T17:27:31Z	read	21487	0x333dd0	{"name": "GameFunc::native::GetIsID"}
+2026-11-23T17:27:46Z	name	34062	0x5bb470	{"addr": "0x1405bb470", "name": "ActiveEffect::EvaluateEntryConditions"}
+2026-11-23T17:27:46Z	name	34063	0x5bb6c0	{"addr": "0x1405bb6c0", "name": "ActiveEffect::EvaluateConditions"}
+2026-11-23T17:27:53Z	comment	34062	0x5bb470	{"addr": "0x1405bb470", "comment": "Read 1.7.104 (stamina-drained): (effect, deltaSecs, force). The re-check of the spell's effect-entry conditions (EffectItem +0x20) while the effect lasts: only when flags 0x80 (entry has conditions) or a displacement spell (+0x68) is set, every fActiveEffectConditionUpdateInterval (or at once when forced): TESCondition::IsTrue(entry conditions, subject = the target (MagicTarget +0x50 vfunc+0x10), target = the caster from handle +0x34), and no displacing effect (FindAppropriateDisplaceEffect). Stores the verdict in conditionStatus (+0x80: 1 holds, 0 fails, -1 none). The magic effect's own conditions (MGEF +0x190) are NOT re-read here: only at add (34525)."}
+2026-11-23T17:27:53Z	comment	34063	0x5bb6c0	{"addr": "0x1405bb6c0", "comment": "Read 1.7.104 (stamina-drained): ActiveEffect vfunc 5 (EvaluateConditions), shared by most effect classes: 34062, then flags 0x8000 (inactive) follows conditionStatus; turning inactive stops its hit effects. Called by ActiveEffect::Update (34092) every frame (forced when delta is 0)."}
+2026-11-23T17:27:53Z	comment		0x5baa60	{"addr": "0x1405baa60", "comment": "Read 1.7.104 (stamina-drained): (effect, caster ref, spell, effect entry): +0x34 caster handle, +0x40 spell, +0x48 entry, +0x78 magnitude, +0x74 duration; flags +0x7C: 0x80 when the entry has conditions; conditionStatus +0x80 starts at 1 (holds)."}
+2026-11-23T17:27:53Z	comment	21487	0x333dd0	{"addr": "0x140333dd0", "comment": "Read 1.7.104 (stamina-drained): GetIsID: 1.0 when the reference's leveled base (ExtraLeveledCreature) or else its base form is the parameter. A player copy has its own temporary NPC base, so GetIsID(Player 00000007) is 0 on it."}

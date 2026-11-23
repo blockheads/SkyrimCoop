@@ -18,6 +18,8 @@
 #include <PlayerCharacter.h>
 
 #include <Effects/ActiveEffect.h>
+#include <Misc/JudgedFor.h>
+#include <TESObjectREFR.h>
 #include <Papyrus/GuestScripts.h>
 #include <Services/HostService.h>
 #include <Hooks/FunctionHook.h>
@@ -30,12 +32,25 @@ using TFindTargets = bool(MagicCaster*, float afEffectivenessMult, int32_t* arui
 using TAdjustForPerks = void(ActiveEffect*, Actor* apCaster, MagicTarget* apTarget);
 using THasPerk = bool(Actor*, TESForm* apPerk, void* apUnk1, double* afReturnValue);
 using TGetPerkRank = uint8_t(Actor*, TESForm* apPerk);
+using TEvaluateEntryConditions = void(ActiveEffect*, float aDelta, bool aForce);
 
 static TAddTarget* RealAddTarget = nullptr;
 static TFindTargets* RealFindTargets = nullptr;
 static TAdjustForPerks* RealAdjustForPerks = nullptr;
 static THasPerk* RealHasPerk = nullptr;
 static TGetPerkRank* RealGetPerkRank = nullptr;
+static TEvaluateEntryConditions* RealEvaluateEntryConditions = nullptr;
+
+namespace
+{
+// Another player's character as a spell's caster: its game's player, for that spell's conditions (conditions.md,
+// "A spell from another player's character").
+TESObjectREFR* PlayerCaster(TESObjectREFR* apCaster) noexcept
+{
+    auto* pActor = Cast<Actor>(apCaster);
+    return pActor && pActor->GetExtension()->IsOtherPlayer() ? pActor : nullptr;
+}
+} // namespace
 
 static thread_local bool s_applyHealPerkBonus = false;
 static thread_local bool s_applyStaminaPerkBonus = false;
@@ -52,7 +67,12 @@ bool MagicTarget::AddTarget(AddTargetData& arData, bool aApplyHealPerkBonus, boo
     s_applyHealPerkBonus = aApplyHealPerkBonus;
     s_applyStaminaPerkBonus = aApplyStaminaPerkBonus;
 
+    // The add check's conditions (34525) judge another player's character as the player who cast it.
+    std::optional<JudgedFor::Scope> judged;
+    if (TESObjectREFR* pCaster = PlayerCaster(arData.pCaster))
+        judged.emplace(pCaster, JudgedFor::Mode::kCaster);
     bool result = RealAddTarget(this, arData);
+    judged.reset();
 
     s_applyHealPerkBonus = false;
     s_applyStaminaPerkBonus = false;
@@ -219,6 +239,20 @@ bool HookHasPerk(Actor* apThis, TESForm* apPerk, void* apUnk1, double* afReturnV
     return RealHasPerk(apThis, apPerk, apUnk1, afReturnValue);
 }
 
+// ActiveEffect::EvaluateEntryConditions (34062): a lasting effect's entry conditions, re-read on its owner's game with
+// its caster; another player's character is judged as the player there too.
+void HookEvaluateEntryConditions(ActiveEffect* apThis, float aDelta, bool aForce)
+{
+    constexpr uint32_t cHasConditions = 0x80;
+    if (!(apThis->uiFlags & cHasConditions) && !apThis->pDisplacementSpell)
+        return RealEvaluateEntryConditions(apThis, aDelta, aForce);
+    TESObjectREFR* pCaster = PlayerCaster(TESObjectREFR::GetByHandle(apThis->hCaster));
+    if (!pCaster)
+        return RealEvaluateEntryConditions(apThis, aDelta, aForce);
+    const JudgedFor::Scope cJudged(pCaster, JudgedFor::Mode::kCaster);
+    RealEvaluateEntryConditions(apThis, aDelta, aForce);
+}
+
 uint8_t HookGetPerkRank(Actor* apThis, TESForm* apPerk)
 {
     return RealGetPerkRank(apThis, apPerk);
@@ -234,5 +268,6 @@ static Hooks::Initializer s_magicTargetHooks([]() {
     HOOK_ID(34410, &RealFindTargets, HookFindTargets);
     HOOK_ID(34053, &RealAdjustForPerks, HookAdjustForPerks);
     HOOK_ID(21622, &RealHasPerk, HookHasPerk);
+    HOOK_ID(34062, &RealEvaluateEntryConditions, HookEvaluateEntryConditions);
     //HOOK(&RealGetPerkRank, HookGetPerkRank);
 });

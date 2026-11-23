@@ -32,6 +32,16 @@ SCENARIO("A condition about the player is judged for the character", "[condition
     }
 }
 
+SCENARIO("A character is the player for GetIsID(Player)", "[conditions][magic]")
+{
+    // Unrelenting Force and Frost Breath under the Black Book reward: GetIsID Player on the caster (Dragonborn.esm).
+    THEN("run on the character, it holds") CHECK(For({.Function = kGetIsID, .OnCharacter = true, .PlayerBaseParam = true}) ==
+                                                 Judged{.Function = kGetIsID, .Value = 1.f});
+    THEN("run on anyone else, it is evaluated as it is")
+    CHECK_FALSE(For({.Function = kGetIsID, .PlayerBaseParam = true}));
+    THEN("another base on the character is evaluated as it is") CHECK_FALSE(For({.Function = kGetIsID, .OnCharacter = true}));
+}
+
 SCENARIO("A Speech check is the character's own", "[conditions]")
 {
     // Worked through Actor::WillIntimidateSucceed (37500) and Actor::GetBribeAmount (37499) by hand.
