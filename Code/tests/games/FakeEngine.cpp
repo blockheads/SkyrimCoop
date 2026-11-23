@@ -1020,7 +1020,11 @@ void FakeEngine::SetCriticalStage(uint32_t aFormId, uint32_t aStage)
 {
     auto& actor = Actors.at(aFormId);
     if (!CriticalStage::Takes(aFormId == kPlayer, aStage)) // HookSetCriticalStage
+    {
+        if (CriticalStage::HidesBody(aFormId == kPlayer, actor.Dead, aStage) && !std::exchange(AshDead, true))
+            KeepBodyHidden();
         return;
+    }
     actor.CriticalStage = aStage;
     if (!CriticalStage::RemovesBody(aStage))
         return;
@@ -1033,6 +1037,35 @@ void FakeEngine::StartsAshPileEffect(uint32_t aTarget, uint32_t aEffect)
 {
     if (const auto cAsh = AshPileEffects.find(aEffect); cAsh != AshPileEffects.end())
         AshPileUntil[aTarget] = World::Get().GetTick() + cAsh->second;
+}
+
+void FakeEngine::KeepBodyHidden()
+{
+    auto& player = Actors.at(kPlayer);
+    if (!CriticalStage::KeepsBodyHidden(AshDead, player.Dead))
+    {
+        AshDead = false;
+        return;
+    }
+    player.BodyHidden = true;
+}
+
+void FakeEngine::ShowFirstPersonRoot(bool aFirstPerson)
+{
+    auto& player = Actors.at(kPlayer);
+    const bool cFirst = player.FirstRootHidden, cThird = player.BodyHidden;
+    if (cFirst == cThird || (aFirstPerson ? cFirst : cThird))
+    {
+        player.BodyHidden = aFirstPerson;
+        player.FirstRootHidden = !aFirstPerson;
+    }
+    KeepBodyHidden(); // HookShowFirstPersonRoot
+}
+
+void FakeEngine::CameraEnters(bool aFirstPerson)
+{
+    CameraFirstPerson = aFirstPerson;
+    ShowFirstPersonRoot(aFirstPerson);
 }
 
 void FakeEngine::AttachAshPile(uint32_t aFormId)
@@ -2767,6 +2800,8 @@ void FakeEngine::RevivePlayer() noexcept
     if (!player.Dead)
         return;
     player.Dead = false;
+    if (std::exchange(AshDead, false)) // CriticalStage::ShowPlayerBody: the roots as the camera has them
+        ShowFirstPersonRoot(CameraFirstPerson);
     player.DyingFrames = player.DeadFrames = 0;
     for (const uint32_t cIndex : {kHealth, kMagicka, kStamina})
     {
@@ -3068,6 +3103,10 @@ void FakeEngine::RunMainLoop() noexcept
     Actor& player = Actors.at(kPlayer);
     player.Bleeding = player.Dead = false;
     player.DyingFrames = player.DeadFrames = 0;
+    // A load's new 3D, its roots set by PlayerCharacter::LoadGame's 40476.
+    player.BodyHidden = false;
+    player.FirstRootHidden = true;
+    ShowFirstPersonRoot(CameraFirstPerson);
     player.Values = FullValues();
     player.Items = saved.Items;
     player.Cell = saved.Cell.BaseId;

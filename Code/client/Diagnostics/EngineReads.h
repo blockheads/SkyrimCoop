@@ -165,6 +165,8 @@ float GetGraphFloat(uint32_t aFormId, const char* acpName) noexcept;
 int32_t GetGraphInt(uint32_t aFormId, const char* acpName) noexcept; // -1 if it has none
 
 KillState GetKillState(uint32_t aFormId) noexcept;
+// Its (third-person) 3D root app culled (NiAVObject kHidden): not drawn.
+bool IsBodyHidden(uint32_t aFormId) noexcept;
 // The middle-high process's alphaMult (Papyrus SetAlpha 54746); -1 without one.
 float GetAlpha(uint32_t aFormId) noexcept;
 

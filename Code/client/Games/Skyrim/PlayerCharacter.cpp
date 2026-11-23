@@ -1,4 +1,5 @@
 #include <PlayerCharacter.h>
+#include <CriticalStage.h>
 #include <BSCore/LockOrder.h>
 
 #include <Forms/TESTopicInfo.h>
@@ -140,6 +141,8 @@ void PlayerCharacter::Revive() noexcept
                 s_castPermanent(pCaster, pSpell, true);
     }
     DoReset3D(true);
+    // Its body, hidden in place of an ash pile's end (death-disintegrate.md).
+    CriticalStage::ShowPlayerBody();
     // Its graph runs and it speaks again: death stopped both, and only a load sets them for the player.
     flags2 |= ActorFlags::SHOULD_ANIM_GRAPH_UPDATE | ActorFlags::CAN_SPEAK;
     // Back in its hands.

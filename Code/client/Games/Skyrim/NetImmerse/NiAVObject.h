@@ -41,6 +41,7 @@ struct NiAVObject : NiObjectNET
     uint32_t flags; // F4, kHidden 1 (CommonLibSSE-NG NiAVObject::Flag)
     // flags: culled this frame (HighActorCuller 40335); then the actor's graph is not posed (38054).
     static constexpr uint32_t kNotVisible = 1u << 20;
+    static constexpr uint32_t kHidden = 1u; // app culled: not drawn, nor its children (CommonLib SetAppCulled)
     struct TESObjectREFR* userData; // F8
     float fadeAmount; // 100
     uint32_t lastUpdatedFrame; // 104, UpdateWorldData 70539

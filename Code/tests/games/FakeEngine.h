@@ -744,6 +744,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
         bool Loaded = true;  // its 3D is loaded (in the process lists)
         uint32_t CriticalStage = 0; // Actor+0xF0 (ACTOR_CRITICAL_STAGE)
+        bool BodyHidden = false;     // its third-person root's kHidden (first person, or a refused ash or goo end)
+        bool FirstRootHidden = true; // a player's first-person root's kHidden (shown in first person)
         bool HeadBuilt = false;         // its head is built: the frame its 3D is there (TESNPC::UpdateHeadState 24724)
         std::optional<Tints> HeadTints; // painted on its head (FaceGenSystem); a head built again has none (24731)
         uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
@@ -1130,6 +1132,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Measured: a player left with no 3D froze its game, Main::Update waiting for the frame's jobs (35409) and a job
     // in WaitForJobTask (69516) for good; which wait job, inferred (death-disintegrate.md). Nothing of it runs again.
     bool FrameStalled = false;
+    // The camera's switch of the player's two roots (PlayerCharacter::ShowFirstPersonRoot 40476, read): opposite
+    // kHidden bits, written only if they are equal or the target root is not yet as wanted; then our hook keeps an
+    // ash-dead player's third-person root hidden.
+    void ShowFirstPersonRoot(bool aFirstPerson);
+    // A camera state that switches the roots (FirstPersonState::OnEnterState 50722, ThirdPersonState::Update).
+    void CameraEnters(bool aFirstPerson);
+    bool CameraFirstPerson = false;
+    bool AshDead = false; // CriticalStage.cpp's mark: this game's player died to an ash or goo end
+    void KeepBodyHidden();
     // Actor.AttachAshPile (54655) under our hook's rule: the actors a pile was placed at (AttachAshPileFunctor).
     void AttachAshPile(uint32_t aFormId);
     std::vector<uint32_t> AshPiles;

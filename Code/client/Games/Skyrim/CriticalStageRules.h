@@ -24,6 +24,19 @@ constexpr uint32_t kDisintegrateEnd = 4;
     return !aThisGamesPlayer || aStage == kNone;
 }
 
+// What the refused stage would have done to the body, as the engine shows it: hidden while it lies dead. A stage
+// arriving after the revive (the ash script waits twice before its end) hides nothing.
+[[nodiscard]] constexpr bool HidesBody(bool aThisGamesPlayer, bool aDead, uint32_t aStage) noexcept
+{
+    return aThisGamesPlayer && aDead && RemovesBody(aStage);
+}
+
+// Whether a marked body is kept hidden; alive (a revive or a load went past), the mark is dropped.
+[[nodiscard]] constexpr bool KeepsBodyHidden(bool aMarked, bool aDead) noexcept
+{
+    return aMarked && aDead;
+}
+
 // Actor.AttachAshPile (54655): a player that keeps its body leaves no ash pile.
 [[nodiscard]] constexpr bool TakesAshPile(bool aThisGamesPlayer) noexcept
 {

@@ -236,6 +236,8 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
     mod["selected_spells"] = {ToGame(cMagic.LeftHandSpell), ToGame(cMagic.RightHandSpell)};
     mod["process_level"] = EngineReads::GetProcessLevel(aFormId);
     mod["fade_state"] = EngineReads::GetFadeState(aFormId);
+    // Its third-person 3D hidden (kHidden): a first-person player's is, by its camera; shown, not compared.
+    mod["body_hidden"] = EngineReads::IsBodyHidden(aFormId);
     mod["process_me"] = EngineReads::IsProcessMe(aFormId);
     mod["package_type"] = EngineReads::GetPackageType(aFormId);
     mod["subtitle"] = EngineReads::GetSubtitle(aFormId);

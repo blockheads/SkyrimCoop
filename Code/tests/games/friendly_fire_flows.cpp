@@ -133,12 +133,71 @@ SCENARIO("The host's Unrelenting Force with its disintegrate effect kills a gues
         return std::format("stalled {} dead {} stage {} 3d {}", guest.FrameStalled, guest.Actors.at(FakeEngine::kPlayer).Dead,
                            guest.Actors.at(FakeEngine::kPlayer).CriticalStage, guest.ActorHas3D(FakeEngine::kPlayer));
     });
-    THEN("its player kept its body: no ash pile, its 3D kept")
+    THEN("its player kept its body, hidden as the host's copy is: no ash pile, its 3D kept")
     {
         CHECK(guest.Actors.at(FakeEngine::kPlayer).CriticalStage == 0);
         CHECK(guest.AshPiles.empty());
         CHECK(guest.ActorHas3D(FakeEngine::kPlayer));
+        CHECK(guest.Actors.at(FakeEngine::kPlayer).BodyHidden);
     }
+    party.Until([&] { return !death.IsDown(); }, "the guest respawns", {}, nullptr, std::chrono::seconds(30));
+    CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).BodyHidden);
+}
+
+namespace
+{
+// The host's disintegrating shout kills aGuest's player; the guest's game hides its body until it respawns.
+void ShoutsAshKill(Party& aParty)
+{
+    FakeEngine& host = Party::Engine(aParty.Host());
+    FakeEngine& guest = Party::Engine(aParty.Guest());
+    aParty.Until([&] { return CopyOfPlayer(aParty, aParty.Host(), aParty.Guest()) != 0; }, "the host's game has the guest's player");
+    const uint32_t cCopy = CopyOfPlayer(aParty, aParty.Host(), aParty.Guest());
+    aParty.As(aParty.Host(), [&] {
+        host.SpellHits(cCopy, FakeEngine::kPlayer, FakeEngine::kUnrelentingForce3, FakeEngine::kDisintegrateEffect, Health(guest));
+    });
+    auto& death = aParty.Guest().ctx().at<DeathService>();
+    aParty.Until([&] { return death.Spectating() != 0; }, "the guest spectates once dead");
+}
+} // namespace
+
+SCENARIO("A guest disintegrated in first person: hidden through the camera's switches, the camera's roots after",
+         "[death][friendly-fire][magic]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Guest(), [&] { guest.CameraEnters(true); });
+    auto& player = guest.Actors.at(FakeEngine::kPlayer);
+    REQUIRE(player.BodyHidden); // first person: its camera's
+    ShoutsAshKill(party);
+    // The death camera's third-person update switches the roots: the dead body stays hidden.
+    party.As(party.Guest(), [&] { guest.CameraEnters(false); });
+    CHECK(player.BodyHidden);
+    party.As(party.Guest(), [&] { guest.CameraEnters(true); });
+    auto& death = party.Guest().ctx().at<DeathService>();
+    party.Until([&] { return !death.IsDown(); }, "the guest respawns", {}, nullptr, std::chrono::seconds(30));
+    THEN("revived in first person, its third-person root is the camera's: hidden, and shown in third person")
+    {
+        CHECK_FALSE(guest.AshDead);
+        CHECK(player.BodyHidden);
+        CHECK_FALSE(player.FirstRootHidden);
+        party.As(party.Guest(), [&] { guest.CameraEnters(false); });
+        CHECK_FALSE(player.BodyHidden);
+    }
+}
+
+SCENARIO("An ash script's end after the revive leaves the living guest shown", "[death][friendly-fire][magic]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& guest = Party::Engine(party.Guest());
+    ShoutsAshKill(party);
+    auto& death = party.Guest().ctx().at<DeathService>();
+    party.Until([&] { return !death.IsDown(); }, "the guest respawns", {}, nullptr, std::chrono::seconds(30));
+    // DLC2AttachAshPileOnDeath25 waits twice before its end: it can come after the revive.
+    party.As(party.Guest(), [&] { guest.SetCriticalStage(FakeEngine::kPlayer, CriticalStage::kDisintegrateEnd); });
+    party.As(party.Guest(), [&] { guest.CameraEnters(false); });
+    CHECK_FALSE(guest.AshDead);
+    CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).BodyHidden);
 }
 
 SCENARIO("The disintegrate effect turns an NPC to ash only if it dies while the effect lasts", "[death][magic]")

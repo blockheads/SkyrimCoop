@@ -27,3 +27,21 @@ TEST_CASE("Only this game's player leaves no ash pile", "[CriticalStage]")
     CHECK_FALSE(TakesAshPile(true));
     CHECK(TakesAshPile(false));
 }
+
+TEST_CASE("A refused ash or goo end hides this game's dead player's body", "[CriticalStage]")
+{
+    CHECK(HidesBody(true, true, kDisintegrateEnd));
+    CHECK(HidesBody(true, true, kGooEnd));
+    CHECK_FALSE(HidesBody(true, true, kDisintegrateStart));
+    CHECK_FALSE(HidesBody(false, true, kDisintegrateEnd));
+    // The ash script's end after the revive: the living player stays shown.
+    CHECK_FALSE(HidesBody(true, false, kDisintegrateEnd));
+}
+
+TEST_CASE("A hidden body is kept hidden only while its player is dead", "[CriticalStage]")
+{
+    CHECK(KeepsBodyHidden(true, true));
+    // Revived, or a wipe's load: the mark goes, the camera has the roots again.
+    CHECK_FALSE(KeepsBodyHidden(true, false));
+    CHECK_FALSE(KeepsBodyHidden(false, true));
+}

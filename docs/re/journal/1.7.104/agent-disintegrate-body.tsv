@@ -1,0 +1,7 @@
+time	op	id	rva	item
+2026-11-23T00:35:16Z	read	40476	0x748d10	{"name": "sub_140748D10"}
+2026-11-23T00:35:16Z	read	71084	0xf04ae0	{"name": "NiCullingProcess::Process1"}
+2026-11-23T00:36:09Z	read	70267	0xee0f30	{"name": "NiAVObject::Cull"}
+2026-11-23T00:36:13Z	name	40476	0x748d10	{"addr": "0x140748d10", "name": "PlayerCharacter::ShowFirstPersonRoot"}
+2026-11-23T00:36:17Z	comment	40476	0x748d10	{"addr": "0x140748d10", "comment": "ID 40476 (player, bool firstPerson): through the task queue off the main thread. Gets the first-person (vfunc 0x6F true) and third-person (false) roots and writes opposite kHidden bits (+0xF4 bit 0): firstPerson shows the first-person root and hides the third-person one, else the reverse. Applies only if the two bits are equal, or the target root is already in the wanted state's opposite (see the test at 0x140748db4). Called by the camera states (FirstPersonState::OnEnterState 50722, ThirdPersonState::Update, BleedoutCameraState::Update, AutoVanity, IronSights, VATS), PlayerCharacter::LoadGame/FinishLoadGame and RaceSexMenu. Our hook keeps an ash-dead player's third-person root hidden (docs/re/systems/death-disintegrate.md)."}
+2026-11-23T00:36:17Z	comment	70267	0xee0f30	{"addr": "0x140ee0f30", "comment": "NiAVObject::Cull(process): an object with kHidden (+0xF4 bit 0, CommonLib AppCulled) returns at once; else hands itself to the culling process (vfunc 0xB0). So a hidden root's subtree is never drawn."}
