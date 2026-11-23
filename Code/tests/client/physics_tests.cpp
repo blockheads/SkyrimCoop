@@ -11,9 +11,9 @@
 #include <Physics/BodyGroups.h>
 #include <Physics/BodyPlayback.h>
 #include <Physics/RagdollPending.h>
-#include <Physics/RagdollRest.h>
 #include <Physics/BodyRelevance.h>
-#include <Physics/BodySends.h>
+#include <Physics/BodyMotions.h>
+#include <Physics/BodyStream.h>
 #include <Physics/HavokStep.h>
 #include <Systems/CopyEase.h>
 #include <Systems/CopyStep.h>
@@ -72,9 +72,9 @@ struct Run
     uint64_t RestedAt{};
 };
 
-Run Fly(FakeFlight aFlight, const BodySends::Limits& acLimits = {})
+Run Fly(FakeFlight aFlight, const BodyStream::Limits& acLimits = {})
 {
-    BodySends sends(acLimits);
+    BodyStream sends(acLimits);
     BodyMotions motions;
     BodyPlayback playback;
     Run run;
@@ -83,9 +83,11 @@ Run Fly(FakeFlight aFlight, const BodySends::Limits& acLimits = {})
     {
         std::vector<BodyFrame> awake{aFlight.Body};
         motions.Mark(awake, tick);
-        const auto cDue = sends.Due(awake, tick);
-        run.Frames += cDue.size();
-        playback.Add(tick, cDue);
+        std::vector<BodyFrame> due;
+        for (const BodyState& cState : sends.Due({BodyState{.Frame = awake[0], .AuthSeq = 1}}, tick))
+            due.push_back(cState.Frame);
+        run.Frames += due.size();
+        playback.Add(tick, due);
         // The guest at the same tick (no delay here: the network's is the scenarios' to see).
         for (const auto& cPose : playback.At(tick))
             run.WorstError = std::max(run.WorstError, glm::distance(cPose.Body.Position, aFlight.Body.Position));
@@ -196,24 +198,30 @@ SCENARIO("A thrown body sends a few frames, not one per step", "[physics]")
     THEN("its arc needs none between the throw and the bounces")
     {
         CHECK(cRun.Frames > 2);
-        CHECK(cRun.Frames < 30);
+        CHECK(cRun.Frames < static_cast<size_t>((cRun.RestedAt - 1000) / 16) / 2);
     }
-    // A bounce is seen a step after it: the guess went on into the floor for one step past the threshold.
-    THEN("the guest is never further from the host's than a correction") CHECK(cRun.WorstError < 3.f * BodySends::Limits{}.Distance);
 }
 
 SCENARIO("A body the guest guesses right sends again only to repair a lost frame", "[physics]")
 {
-    BodySends sends;
-    BodyFrame frame{.Key = {.Object = GameId(0, 1)}, .LinearVelocity = {100.f, 0.f, 0.f}};
-    REQUIRE(sends.Due({frame}, 1000).size() == 1);
-    for (uint64_t tick = 1016; tick < 1500; tick += 16)
+    BodyStream sends;
+    // In free fall: its arc is every game's guess (on the ground it goes steadily: "A watcher's object stops...").
+    const BodyFrame cStart{.Key = {.Object = GameId(0, 1)}, .Position = {0.f, 0.f, 5000.f}, .LinearVelocity = {100.f, 0.f, 0.f}, .Gravity = true};
+    BodyState state{.Frame = cStart, .AuthSeq = 1};
+    // New: kChangedRepeats updates running, so a lost first one is repaired at once.
+    for (uint64_t tick = 1000; tick < 1000 + 16 * BodyTolerances::kChangedRepeats; tick += 16)
     {
-        frame.Position.x = 100.f * static_cast<float>(tick - 1000) / 1000.f;
-        CHECK(sends.Due({frame}, tick).empty());
+        state.Frame = Predict(cStart, static_cast<float>(tick - 1000) / 1000.f);
+        REQUIRE(sends.Due({state}, tick).size() == 1);
     }
-    frame.Position.x = 50.f;
-    CHECK(sends.Due({frame}, 1500).size() == 1);
+    const uint64_t cLast = 1000 + 16 * (BodyTolerances::kChangedRepeats - 1);
+    for (uint64_t tick = cLast + 16; tick < cLast + BodyTolerances::kRefreshMs; tick += 16)
+    {
+        state.Frame = Predict(cStart, static_cast<float>(tick - 1000) / 1000.f);
+        CHECK(sends.Due({state}, tick).empty());
+    }
+    state.Frame = Predict(cStart, static_cast<float>(cLast + BodyTolerances::kRefreshMs - 1000) / 1000.f);
+    CHECK(sends.Due({state}, cLast + BodyTolerances::kRefreshMs).size() == 1);
 }
 
 TEST_CASE("A woken body that never left where it woke is not moving", "[physics][woken-still]")
@@ -233,28 +241,30 @@ TEST_CASE("A woken body that never left where it woke is not moving", "[physics]
 
 SCENARIO("A guest's budget sends the most wrong first and the rest later", "[physics]")
 {
-    BodySends::Limits limits;
-    limits.BurstBytes = 10 * BodyFrame::kWireBytes;
-    BodySends sends(limits);
-    std::vector<BodyFrame> shelf;
+    const size_t cBytes = BodyState{}.WireBytes();
+    BodyStream::Limits limits;
+    limits.BurstBytes = 10.f * static_cast<float>(cBytes);
+    BodyStream sends(limits);
+    std::vector<BodyState> shelf;
     for (uint8_t i = 0; i < 40; ++i)
-        shelf.push_back({.Key = {.Object = GameId(0, 0x100u + i)}});
+        shelf.push_back({.Frame = {.Key = {.Object = GameId(0, 0x100u + i)}}, .AuthSeq = 1});
     // A burst at most, then the budget's share per update.
     CHECK(sends.Due(shelf, 1000).size() == 10);
     CHECK(sends.Due(shelf, 1000).empty());
-    CHECK(sends.Due(shelf, 1030).size() == static_cast<size_t>(limits.BytesPerSecond * 0.03f / BodyFrame::kWireBytes));
+    CHECK(sends.Due(shelf, 1030).size() == static_cast<size_t>(limits.BytesPerSecond * 0.03f / static_cast<float>(cBytes)));
     THEN("never more than a burst saved up") CHECK(sends.Due(shelf, 5000).size() == 10);
 
     WHEN("one body is far more wrong than another")
     {
-        BodySends fresh;
-        std::vector<BodyFrame> two{{.Key = {.Object = GameId(0, 1)}}, {.Key = {.Object = GameId(0, 2)}}};
-        fresh.Due(two, 1000);
-        two[0].Position.x = 3.f;
-        two[1].Position.x = 30.f;
-        const auto cDue = fresh.Due(two, 1016);
+        BodyStream fresh;
+        std::vector<BodyState> two{{.Frame = {.Key = {.Object = GameId(0, 1)}}, .AuthSeq = 1}, {.Frame = {.Key = {.Object = GameId(0, 2)}}, .AuthSeq = 1}};
+        for (uint64_t tick = 1000; tick < 1000 + BodyTolerances::kChangedRepeats; ++tick)
+            (void)fresh.Due(two, tick);
+        two[0].Frame.Position.x = 3.f;
+        two[1].Frame.Position.x = 30.f;
+        const auto cDue = fresh.Due(two, 1100);
         REQUIRE(cDue.size() == 2);
-        CHECK(cDue[0].Key == two[1].Key);
+        CHECK(cDue[0].Frame.Key == two[1].Frame.Key);
     }
 }
 
@@ -266,10 +276,10 @@ SCENARIO("A guest's playback arrives at a frame it has before the frame is due",
     CHECK(playback.At(1000)[0].Body.Position.x == Approx(0.f));
     // The host's body hit something at 1100, standing at x = 4: the guest, behind, has that frame at 1050.
     playback.Add(1100, {{.Key = cKey, .Position = {4.f, 0.f, 0.f}}});
-    THEN("it moves from its guess into the frame, and stands on it when it is due, no correction after")
+    THEN("on the ground it is shown on the line between the two, never past the second, and stands on it when it is due")
     {
-        CHECK(playback.At(1050)[0].Body.Position.x == Approx(5.f));
-        CHECK(playback.At(1075)[0].Body.Position.x == Approx(4.f + (7.5f - 4.f) * 0.5f));
+        CHECK(playback.At(1050)[0].Body.Position.x == Approx(2.f));
+        CHECK(playback.At(1075)[0].Body.Position.x == Approx(3.f));
         CHECK(playback.At(1100)[0].Body.Position.x == Approx(4.f));
         CHECK(playback.At(1150)[0].Body.Position.x == Approx(4.f));
     }
@@ -278,32 +288,20 @@ SCENARIO("A guest's playback arrives at a frame it has before the frame is due",
         playback.At(1050);
         playback.At(1100);
         playback.Rest(1200, {{.Key = cKey, .Position = {6.f, 0.f, 0.f}}});
-        CHECK(playback.At(1150)[0].Body.Position.x == Approx(4.f));
-        CHECK(playback.At(1175)[0].Body.Position.x == Approx(5.f));
+        CHECK(playback.At(1150)[0].Body.Position.x == Approx(5.f));
+        CHECK(playback.At(1175)[0].Body.Position.x == Approx(5.5f));
         const auto cAtRest = playback.At(1200);
         REQUIRE(cAtRest.size() == 1);
         CHECK(cAtRest[0].Rest);
     }
-    THEN("its velocity is blended along: a held body is moving where it shows")
+    THEN("its velocity is the line's")
     {
-        CHECK(playback.At(1050)[0].Body.LinearVelocity.x == Approx(100.f));
-        CHECK(playback.At(1075)[0].Body.LinearVelocity.x == Approx(50.f));
+        CHECK(playback.At(1050)[0].Body.LinearVelocity.x == Approx(40.f));
+        CHECK(playback.At(1075)[0].Body.LinearVelocity.x == Approx(40.f));
     }
 }
 
-SCENARIO("A guest's playback starts from where this game's own physics put the body", "[physics]")
-{
-    BodyPlayback playback;
-    const BodyKey cKey{.Object = GameId(0, 7)};
-    // This game's copy of the blast pushed it to x = 6 before the host's first frame (at x = 0, still).
-    playback.StartFrom({.Key = cKey, .Position = {6.f, 0.f, 0.f}});
-    playback.Add(1000, {{.Key = cKey}});
-    CHECK(playback.At(1000)[0].Body.Position.x == Approx(6.f));
-    CHECK(playback.At(1050)[0].Body.Position.x == Approx(3.f));
-    CHECK(playback.At(1100)[0].Body.Position.x == Approx(0.f));
-}
-
-SCENARIO("A guest's playback blends a correction in and places a rest once", "[physics]")
+SCENARIO("A playback takes a late frame as its target at once (the steer smooths it) and hands a rest over once", "[physics]")
 {
     BodyPlayback playback;
     const BodyKey cKey{.Object = GameId(0, 7)};
@@ -314,11 +312,10 @@ SCENARIO("A guest's playback blends a correction in and places a rest once", "[p
 
     // The host's body hit something at 1100: it stands at x = 4.
     playback.Add(1100, {{.Key = cKey, .Position = {4.f, 0.f, 0.f}}});
-    THEN("right after, it shows where its old guess was")
+    THEN("its target is the late frame from then")
     {
-        CHECK(playback.At(1100)[0].Body.Position.x == Approx(10.f));
-        CHECK(playback.At(1150)[0].Body.Position.x == Approx(7.f));
-        CHECK(playback.At(1200)[0].Body.Position.x == Approx(4.f));
+        CHECK(playback.At(1100)[0].Body.Position.x == Approx(4.f));
+        CHECK(playback.At(1150)[0].Body.Position.x == Approx(4.f));
     }
     WHEN("it rests")
     {
@@ -346,15 +343,10 @@ SCENARIO("A guest's playback blends a correction in and places a rest once", "[p
     }
 }
 
-TEST_CASE("A guest gets the frames of the bodies near its character", "[physics]")
+TEST_CASE("A guest gets the moving states of the bodies near its character", "[physics]")
 {
-    const BodyFrame cNear{.Key = {.Object = GameId(0, 1)}, .Position = {BodyRelevance::kGuestRadius - 100.f, 0.f, 0.f}};
-    const BodyFrame cFar{.Key = {.Object = GameId(0, 2)}, .Position = {BodyRelevance::kGuestRadius + 100.f, 0.f, 0.f}};
-    const auto cKept = BodyRelevance::Near({cNear, cFar}, glm::vec3{});
-    REQUIRE(cKept.size() == 1);
-    CHECK(cKept[0].Key == cNear.Key);
-    // No copy shown yet (joining, travelling): every frame, as before relevance.
-    CHECK(BodyRelevance::Near({cNear, cFar}, std::nullopt).size() == 2);
+    CHECK(BodyRelevance::IsNear({BodyRelevance::kGuestRadius - 100.f, 0.f, 0.f}, glm::vec3{}));
+    CHECK_FALSE(BodyRelevance::IsNear({BodyRelevance::kGuestRadius + 100.f, 0.f, 0.f}, glm::vec3{}));
 }
 
 TEST_CASE("Physics playback keeps millisecond precision at the network's epoch ticks", "[physics][epoch]")
@@ -362,13 +354,13 @@ TEST_CASE("Physics playback keeps millisecond precision at the network's epoch t
     constexpr uint64_t cEpoch = 1793145055000;
     const BodyKey cKey{.Object = GameId(0, 7)};
     BodyPlayback playback;
-    playback.Add(cEpoch, {{.Key = cKey, .LinearVelocity = {150.f, 0.f, 0.f}}});
+    playback.Add(cEpoch, {{.Key = cKey, .LinearVelocity = {150.f, 0.f, 0.f}, .Gravity = true}});
     auto shown = playback.At(cEpoch + 400);
     REQUIRE(shown.size() == 1);
     CHECK(shown[0].Body.Position.x == Approx(60.f));
 
     // The next frame already here: predict it backwards, then blend toward its due time.
-    playback.Add(cEpoch + 500, {{.Key = cKey, .Position = {75.f, 0.f, 0.f}, .LinearVelocity = {150.f, 0.f, 0.f}}});
+    playback.Add(cEpoch + 500, {{.Key = cKey, .Position = {75.f, 0.f, 0.f}, .LinearVelocity = {150.f, 0.f, 0.f}, .Gravity = true}});
     shown = playback.At(cEpoch + 450);
     REQUIRE(shown.size() == 1);
     CHECK(shown[0].Body.Position.x == Approx(67.5f));
@@ -516,66 +508,6 @@ TEST_CASE("A copy's first ragdoll frame is steered unless it is well off", "[bod
     CHECK(BodyPrediction::PlaceDistance(true) > 12.f); // a kill move's start, measured
 }
 
-TEST_CASE("A copy's ragdoll rests as a pile: glided, put there once, put to sleep, then left alone", "[physics][ragdoll-rest]")
-{
-    using Step = RagdollRest::Step;
-    RagdollRest rest;
-    rest.Start(10.f);
-    // Off its rest: glided there for half a second at most, then every body put there in one step.
-    CHECK(rest.Next(false, false, false, 10.f) == Step::kGlide);
-    CHECK(rest.Next(false, true, false, 10.4f) == Step::kGlide);
-    CHECK(rest.Next(false, false, false, 10.5f) == Step::kPlace);
-    // Put there: the next update puts the island to sleep; asleep, it is left alone for good.
-    CHECK(rest.Next(false, false, false, 10.52f) == Step::kSleep);
-    rest.Slept(true, 10.52f);
-    CHECK(rest.Next(false, false, false, 10.54f) == Step::kLeave);
-    CHECK(rest.Next(true, true, false, 20.f) == Step::kLeave);
-}
-
-TEST_CASE("A copy's ragdoll already at its rest and still is put to sleep at once, without a place", "[physics][ragdoll-rest]")
-{
-    RagdollRest rest;
-    rest.Start(0.f);
-    CHECK(rest.Next(true, true, false, 0.f) == RagdollRest::Step::kSleep);
-    // Near but still moving (a glide's last steer): glided on.
-    RagdollRest moving;
-    moving.Start(0.f);
-    CHECK(moving.Next(true, false, false, 0.f) == RagdollRest::Step::kGlide);
-}
-
-TEST_CASE("A copy's ragdoll whose island will not sleep is left after two seconds of trying", "[physics][ragdoll-rest]")
-{
-    RagdollRest rest;
-    rest.Start(0.f);
-    REQUIRE(rest.Next(true, true, false, 0.f) == RagdollRest::Step::kSleep);
-    rest.Slept(false, 0.f);
-    CHECK(rest.Next(true, true, false, 1.f) == RagdollRest::Step::kSleep);
-    rest.Slept(false, 1.f);
-    CHECK(rest.Next(true, true, false, 1.5f) == RagdollRest::Step::kSleep);
-    rest.Slept(false, BodyPrediction::kRestSleepSeconds);
-    CHECK(rest.Next(true, true, false, 3.f) == RagdollRest::Step::kLeave);
-}
-
-TEST_CASE("A copy's ragdoll knocked off its rest after it slept is taken there again, twice at most", "[physics][ragdoll-rest]")
-{
-    RagdollRest rest;
-    float now = 0.f;
-    const auto cSettle = [&] {
-        REQUIRE(rest.Next(true, true, false, now) == RagdollRest::Step::kSleep);
-        rest.Slept(true, now);
-    };
-    rest.Start(now);
-    cSettle();
-    for (uint8_t i = 0; i < RagdollRest::kAgainAtMost; ++i)
-    {
-        now += 5.f;
-        CHECK(rest.Next(false, false, true, now) == RagdollRest::Step::kGlide);
-        cSettle();
-    }
-    // Its game's physics will not keep it there: left where it lies.
-    CHECK(rest.Next(false, false, true, now + 5.f) == RagdollRest::Step::kLeave);
-}
-
 TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", "[physics][rising][shake]")
 {
     // knockdown-smoke (duo, 2026-11-11): a getting-up owner's hand went back and forth 4-6 units a frame; its copy's
@@ -597,8 +529,9 @@ TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", 
         return worst;
     };
     INFO("with its velocity the shown body strays " << cWorst(true) << " units from the shake's middle, without " << cWorst(false));
-    CHECK(cWorst(false) <= 2.6f);       // within the shake itself
-    CHECK(cWorst(true) > 2.f * 2.6f);   // guessed onward: twice the shake and more
+    // Shown between the states it has, with or without their velocity: within the shake itself.
+    CHECK(cWorst(false) <= 2.6f);
+    CHECK(cWorst(true) <= 2.6f);
 }
 
 TEST_CASE("A body is at rest once it keeps one pose for a while, whatever Havok's island says", "[physics][still]")
@@ -652,47 +585,15 @@ TEST_CASE("A steered object's correction never overshoots, whatever the frame ti
     CHECK(cWorst < 2.f);
 }
 
-TEST_CASE("A played body's gap is closed slowly while its frame moves slowly, stiffly when fast", "[physics]")
+TEST_CASE("A played body on the ground chases its target and no further; in free fall it joins the arc", "[physics]")
 {
-    BodyFrame frame{.Position = {100.f, 0.f, 0.f}, .Rotation = {1.f, 0.f, 0.f, 0.f}, .LinearVelocity = {3.f, 0.f, 0.f}};
+    BodyFrame frame{.Position = {100.f, 0.f, 0.f}, .Rotation = {1.f, 0.f, 0.f, 0.f}, .LinearVelocity = {300.f, 0.f, 0.f}};
     const float cFrame = 1.f / 60.f;
-    CHECK(BodyPrediction::SteerSeconds(frame, cFrame) == Approx(0.5f));
-    // One unit off a slow frame is taken back at 2 units/s on top of the frame's own 3: no turn-back.
-    CHECK(BodyPrediction::Steer({101.f, 0.f, 0.f}, frame.Rotation, frame, BodyPrediction::SteerSeconds(frame, cFrame)).Linear.x == Approx(1.f));
-    frame.LinearVelocity = {20.f, 0.f, 0.f};
-    CHECK(BodyPrediction::SteerSeconds(frame, cFrame) == Approx(0.25f));
-    // Fast, its gap still takes 150 ms: a body knocked from rest starts behind, and must not outrun its owner's.
-    frame.LinearVelocity = {400.f, 0.f, 0.f};
-    CHECK(BodyPrediction::SteerSeconds(frame, cFrame) == Approx(0.15f));
-    // A slow slide that spins fast is not slow.
-    frame.LinearVelocity = {3.f, 0.f, 0.f};
-    frame.AngularVelocity = {0.f, 0.f, 4.f};
-    CHECK(BodyPrediction::SteerSeconds(frame, cFrame) == Approx(0.15f));
-}
-
-TEST_CASE("A rest is put awake for one step so its contacts form, then put to sleep; one that left is held", "[physics]")
-{
-    using BodyPrediction::PlaceRest;
-    using BodyPrediction::RestPlacement;
-    // Asleep where the rest is: nothing to do.
-    CHECK(PlaceRest(true, false, false) == RestPlacement::kLeave);
-    CHECK(PlaceRest(true, false, true) == RestPlacement::kLeave);
-    // Its rest first heard of, wherever the body is: there awake, for a step.
-    CHECK(PlaceRest(false, true, false) == RestPlacement::kPlace);
-    CHECK(PlaceRest(false, false, false) == RestPlacement::kPlace);
-    CHECK(PlaceRest(true, true, false) == RestPlacement::kPlace);
-    // The frame after: still there, it sleeps with its contacts; gone, this game's physics will not keep it there.
-    CHECK(PlaceRest(true, true, true) == RestPlacement::kSleep);
-    CHECK(PlaceRest(false, true, true) == RestPlacement::kHold);
-    CHECK(PlaceRest(false, false, true) == RestPlacement::kHold);
-}
-
-TEST_CASE("A body off its rest glides onto it for half a second at most; far off it is put there", "[physics]")
-{
-    CHECK(BodyPrediction::GlidesToRest(9.f, 0.f, 64.f));
-    CHECK(BodyPrediction::GlidesToRest(9.f, 0.4f, 64.f));
-    CHECK_FALSE(BodyPrediction::GlidesToRest(9.f, 0.5f, 64.f));
-    CHECK_FALSE(BodyPrediction::GlidesToRest(100.f, 0.f, 64.f));
+    // Behind its target: toward it, not carried on by the target's own speed (it ran past a body slowing down).
+    CHECK(BodyPrediction::Follow({95.f, 0.f, 0.f}, frame.Rotation, frame, cFrame).Linear.x == Approx(5.f / BodyPrediction::kSteerSeconds));
+    CHECK(BodyPrediction::Follow(frame.Position, frame.Rotation, frame, cFrame).Linear == glm::vec3(0.f));
+    frame.Gravity = true;
+    CHECK(BodyPrediction::Follow(frame.Position, frame.Rotation, frame, cFrame).Linear.x == Approx(300.f));
 }
 
 TEST_CASE("An island is put to sleep only when every body in it is dynamic and still", "[physics]")
@@ -705,14 +606,6 @@ TEST_CASE("An island is put to sleep only when every body in it is dynamic and s
     // Sliding at a steady 90 units/s passes Havok's own last test against a fastest speed that high (0x140B869C0):
     // a free asleep beside it (FreeBody) asks this first (physics.md, "When an island sleeps").
     CHECK_FALSE(BodyPrediction::StillToSleep(true, 90.f, 0.f));
-}
-
-TEST_CASE("A rest among others is done once their island sleeps, two seconds at most", "[physics]")
-{
-    CHECK(BodyPrediction::RestSlept(true, 0.f));
-    CHECK_FALSE(BodyPrediction::RestSlept(false, 0.f));
-    CHECK_FALSE(BodyPrediction::RestSlept(false, 1.9f));
-    CHECK(BodyPrediction::RestSlept(false, 2.f));
 }
 
 TEST_CASE("A rest queued for a reference's body is known before it shows", "[physics]")

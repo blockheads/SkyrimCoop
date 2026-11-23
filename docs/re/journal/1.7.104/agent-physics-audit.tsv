@@ -1,0 +1,12 @@
+time	op	id	rva	item
+2026-11-23T17:08:05Z	read	62193	0xb7ed40	{"name": "hkpWorldAgentUtil__addAgent"}
+2026-11-23T17:08:05Z	read	61522	0xb61b50	{"name": "hkpWorldOperationUtil__cleanupDirtyIslands"}
+2026-11-23T17:08:11Z	read	64648	0xc056d0	{"name": "sub_140C056D0"}
+2026-11-23T17:08:24Z	name	64648	0xc056d0	{"addr": "0x140C056D0", "name": "hkAgentNnMachine_CreateAgent"}
+2026-11-23T17:08:28Z	comment	64648	0xc056d0	{"addr": "0x140C056D0", "comment": "AddressLib ID 64648 hkAgentNnMachine_CreateAgent(track, collA, cdBodyA, collB, cdBodyB, flags, agentType, input, contactMgr) (our name from Havok 2010; read 2026-11-23, physics audit). Called last by hkpWorldAgentUtil::addAgent (62193). Makes the pair's hkpAgentNnEntry in the island's track (entry +0x08 contact mgr, +0x18 collidable A, +0x20 collidable B) and appends it to BOTH hkpLinkedCollidable::m_collisionEntries: collidable+0x70 data, +0x78 size, 16 bytes each {hkpAgentNnEntry* agent, hkpLinkedCollidable* partner}. From a rigid body: hkpRigidBody+0x90 data, +0x98 size (collidable at +0x20). So a body's collision entries list exactly the bodies whose AABBs overlap it and the filter lets through: the pairs that merged its island (not the sparse small-island merges of 61522/61531)."}
+2026-11-23T17:08:28Z	read	40555	0x752630	{"name": "PlayerCharacter::sub_40555"}
+2026-11-23T17:32:41Z	read	26003	0x404740	{"name": "FindCollidableRef"}
+2026-11-23T17:32:55Z	read	77988	0x1051de0	{"name": "GetNiObjectFromHavokCollidable"}
+2026-11-23T17:33:01Z	comment	77988	0x1051de0	{"addr": "0x141051de0", "comment": "AddressLib ID 77988 GetNiObjectFromHavokCollidable(collidable) (Precision's GetNiObjectFromCollidable; read 2026-11-23, physics audit): the owner world object is collidable + its ownerOffset (signed byte at +0x20); its bhkWorldObject's NiObject (via 0x141047D80 property 2, else the owner's userData +0x18 through 77804). So a collidable's owner hkpRigidBody is collidable + ownerOffset when its broadphase handle type (+0x28, Havok's: 1 entity, 2 phantom) is an entity."}
+2026-11-23T22:43:59Z	read	78910	0x108cdd0	{"name": "bhkBlendCollisionObject::Func43_78910"}
+2026-11-23T22:43:59Z	read	78178	0x105d0e0	{"name": "bhkCollisionObject::Func44_78178"}

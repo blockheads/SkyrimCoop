@@ -273,6 +273,57 @@ class CollisionActions:
             watched[f"{ref:X}"] = {"frames": len(mine), "changes": len(lines), "lines": lines[-limit:]}
         return watched
 
+    def lies_on_npc(ctx, npc, ref, seconds=20.0, above=135.0, ahead=0.0, wakes=False):
+        """The host's console sets reference `ref` (the same id in both games) `above` `npc`'s feet (and `ahead` along
+        x) and lets it fall onto it; then both games' bodies of it are traced for `seconds` while the NPC goes about. The guest's must move as
+        the host's does: no frame's jump over 2 units, no more turn-backs than the host's and 3, no further travelled
+        than twice the host's and 10 units. Returns each game's motion (collision_metrics.measure) and how far apart
+        the two ended. `wakes`: first who_wakes on it in each game, half of `seconds` each (what it goes through there)."""
+        ref = ref if isinstance(ref, int) else int(ref, 16)
+        actor = ctx.resolve(npc, "")
+        at = ((ctx.actor_snapshot("", actor) or {}).get("placement") or {}).get("position")
+        if not at:
+            raise ctx.failure(f"[host] {npc} is not in the world")
+        ctx.staged().append(("put_back", ctx.where_now([ref])))
+        # `ahead`: units along the cell's x from its feet (an NPC leaning over a counter has its back there).
+        for axis, value in zip("xyz", (at[0] + ahead, at[1], at[2] + above)):
+            ctx.console_on("", f"{ref:X}.setpos {axis} {value:.0f}")
+        ctx.player_command("", {"cmd": "wake", "ref": ref})
+        time.sleep(2.0)
+        woken = {name: ctx.who_wakes(game, [ref], seconds / 2) for name, game in (("host", ""), ("guest", "client"))} if wakes else None
+        games = {"host": ctx.game(""), "guest": ctx.game("client")}
+        entries = {name: [] for name in games}
+        for name, game in games.items():
+            game.rpc({"cmd": "body_trace", "stop": True}, timeout=10)
+            if not (game.rpc({"cmd": "body_trace", "refs": [ref]}) or {}).get("ok"):
+                raise ctx.failure(f"[{name}] the body trace did not start")
+        end = time.monotonic() + seconds
+        try:
+            while time.monotonic() < end:
+                for name, game in games.items():
+                    entries[name].extend((game.rpc({"cmd": "body_trace"}, timeout=10) or {}).get("entries", []))
+        finally:
+            for name, game in games.items():
+                entries[name].extend((game.rpc({"cmd": "body_trace", "stop": True}, timeout=10) or {}).get("entries", []))
+        seen = {name: collision_metrics.measure(collision_metrics.path_of(entries[name], ref)) for name in games}
+        if not seen["host"] or not seen["guest"]:
+            raise ctx.failure(f"no trace of {ref:X}: host {len(entries['host'])} entries, guest {len(entries['guest'])}")
+        result = {name: {k: (round(v, 2) if isinstance(v, float) else v) for k, v in m.items() if k != "rest"} for name, m in seen.items()}
+        result["apart"] = round(math.dist(seen["host"]["rest"], seen["guest"]["rest"]), 2)
+        if woken:
+            result["woken"] = woken
+        host, guest = seen["host"], seen["guest"]
+        wrong = []
+        if guest["jump"] > 2.0:
+            wrong.append(f"jumped {guest['jump']:.1f} units in a frame (the host's {host['jump']:.1f})")
+        if guest["turns"] > host["turns"] + 3:
+            wrong.append(f"turned back {guest['turns']} times (the host's {host['turns']})")
+        if guest["path"] > 2 * host["path"] + 10:
+            wrong.append(f"travelled {guest['path']:.0f} units (the host's {host['path']:.0f})")
+        if wrong:
+            raise ctx.failure(f"[guest] {ref:X} on {npc} does not lie as the host's: " + "; ".join(wrong) + f" ({result})")
+        return result
+
     def collision_restless(ctx, walker="client", kind="drop_wheel_on_wheels", rounds=6, seconds=4.0, after=4.5):
         """Trials until one leaves `walker`'s game creeping: `after` seconds past the let go its objects still move a
         little (0.1 to 3 units in a second, no rest). Then, still inside that trial, who_wakes on them there for

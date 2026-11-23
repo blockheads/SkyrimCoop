@@ -28,6 +28,40 @@ static_assert(offsetof(hkpSimulationIsland, entities) == 0x60);
 static_assert(offsetof(hkpSimulationIsland, entityCount) == 0x68);
 
 struct ahkpWorld;
+struct hkpRigidBody;
+
+// hkpLinkedCollidable (CommonLibSSE-NG; read in IDA: hkAgentNnMachine_CreateAgent 64648 appends each new pair to both
+// bodies' entries, GetNiObjectFromHavokCollidable 77988 finds the owner by ownerOffset).
+struct hkpLinkedCollidable
+{
+    struct CollisionEntry
+    {
+        void* agentEntry;                     // 00: hkpAgentNnEntry
+        const hkpLinkedCollidable* partner;   // 08
+    };
+
+    uint8_t pad0[0x20];
+    int8_t ownerOffset;        // 20: its owner (hkpWorldObject) is this far from it
+    uint8_t pad21[0x28 - 0x21];
+    int8_t broadPhaseType;     // 28: hkpTypedBroadPhaseHandle::type, 1 an entity
+    uint8_t pad29[0x2C - 0x29];
+    uint32_t collisionFilterInfo; // 2C: layer in the low 7 bits, group the high 16
+    uint8_t pad30[0x70 - 0x30];
+    CollisionEntry* entries;   // 70: the pairs Havok made with it (AABBs overlap, the filter let them)
+    int32_t entryCount;        // 78
+    int32_t entryCapacity;     // 7C
+
+    // The rigid body that owns it, none for a phantom.
+    [[nodiscard]] const hkpRigidBody* Owner() const noexcept
+    {
+        return broadPhaseType == 1 ? reinterpret_cast<const hkpRigidBody*>(reinterpret_cast<const uint8_t*>(this) + ownerOffset) : nullptr;
+    }
+};
+static_assert(offsetof(hkpLinkedCollidable, ownerOffset) == 0x20);
+static_assert(offsetof(hkpLinkedCollidable, broadPhaseType) == 0x28);
+static_assert(offsetof(hkpLinkedCollidable, collisionFilterInfo) == 0x2C);
+static_assert(offsetof(hkpLinkedCollidable, entries) == 0x70);
+static_assert(sizeof(hkpLinkedCollidable) == 0x80);
 
 struct hkpRigidBody
 {
@@ -47,7 +81,8 @@ struct hkpRigidBody
     uint8_t pad0[0x10];
     ahkpWorld* world; // 10, hkpWorldObject::world: null when out of the physics world
     struct bhkWorldObject* userData; // 18: its bhkRigidBody (HIGGS, PLANCK)
-    uint8_t collidable[0x130 - 0x20]; // 20: hkpLinkedCollidable (TESHavokUtilities::FindCollidableRef 26003 takes it)
+    hkpLinkedCollidable collidable; // 20 (TESHavokUtilities::FindCollidableRef 26003 takes it)
+    uint8_t padA0[0x130 - 0xA0];
     hkpSimulationIsland* simulationIsland; // 130
     uint8_t pad138[0x150 - 0x138];
     // 150: its hkpMaxSizeMotion, embedded; called through its vtable (applyPointImpulse 0x14: hkpBoxMotion 61737)
@@ -78,13 +113,7 @@ struct hkpRigidBody
         return motionType == kDynamic || motionType == kSphereInertia || motionType == kBoxInertia || motionType == kThinBoxInertia;
     }
     [[nodiscard]] bool IsActive() const noexcept { return simulationIsland && simulationIsland->IsActive(); }
-    // hkpCollidable's broad phase collisionFilterInfo (collidable +0x2C): layer in the low 7 bits, group the high 16.
-    [[nodiscard]] uint32_t CollisionFilterInfo() const noexcept
-    {
-        uint32_t filter = 0;
-        std::memcpy(&filter, collidable + 0x2C, sizeof(filter));
-        return filter;
-    }
+    [[nodiscard]] uint32_t CollisionFilterInfo() const noexcept { return collidable.collisionFilterInfo; }
 };
 
 struct bhkWorld;
@@ -168,6 +197,8 @@ bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObj
 // lock): what Havok simulates and sleeps with it (61509 merges islands as their bodies' AABBs meet). None while the
 // island sleeps or the body is not dynamic.
 [[nodiscard]] std::optional<std::vector<hkpRigidBody*>> IslandMatesOf(const bhkWorldObject& acBody) noexcept;
+// The dynamic bodies Havok paired with it (its collidable's collision entries), read under the world's read lock.
+[[nodiscard]] std::vector<const hkpRigidBody*> TouchingOf(const bhkWorldObject& acBody) noexcept;
 // Keyframed and moving so: Havok carries it over the next step (swept, pushing what it meets at that speed), where
 // placing it each frame (60898) starts its contacts over every frame.
 bool SteerKeyframed(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept;

@@ -1,5 +1,7 @@
 #include <Physics/BodyPlayback.h>
 
+#include <Physics/BodyTolerances.h>
+
 #include <algorithm>
 #include <utility>
 
@@ -18,13 +20,6 @@ void BodyPlayback::Add(uint64_t aTick, const std::vector<BodyFrame>& acFrames) n
     }
 }
 
-void BodyPlayback::StartFrom(const BodyPose& acShown) noexcept
-{
-    Track& track = m_tracks[acShown.Key];
-    if (!track.Started)
-        track.From = acShown;
-}
-
 void BodyPlayback::Rest(uint64_t aTick, const std::vector<BodyPose>& acRests) noexcept
 {
     for (const auto& cRest : acRests)
@@ -40,17 +35,6 @@ void BodyPlayback::Rest(uint64_t aTick, const std::vector<BodyPose>& acRests) no
 
 namespace
 {
-// a moved toward b by aWeight, its velocities too.
-BodyFrame Blend(const BodyFrame& acA, const BodyFrame& acB, float aWeight) noexcept
-{
-    BodyFrame blend = acA;
-    blend.Position = glm::mix(acA.Position, acB.Position, aWeight);
-    blend.Rotation = glm::normalize(glm::slerp(acA.Rotation, acB.Rotation, aWeight));
-    blend.LinearVelocity = glm::mix(acA.LinearVelocity, acB.LinearVelocity, aWeight);
-    blend.AngularVelocity = glm::mix(acA.AngularVelocity, acB.AngularVelocity, aWeight);
-    return blend;
-}
-
 float Seconds(uint64_t aFrom, uint64_t aTo) noexcept
 {
     return aTo >= aFrom ? static_cast<float>(aTo - aFrom) / 1000.f : -static_cast<float>(aFrom - aTo) / 1000.f;
@@ -64,27 +48,13 @@ std::optional<BodyPlayback::Pose> BodyPlayback::Track::TakeRest(uint64_t aTick) 
     const auto [cRestTick, cRest] = *Rest;
     std::erase_if(Frames, [&](const auto& acFrame) { return acFrame.first <= cRestTick; });
     Rest.reset();
-    Started = false;
-    Toward = 0;
     return Pose{{.Key = cRest.Key, .Position = cRest.Position, .Rotation = cRest.Rotation, .Knocked = cRest.Knocked}, true, std::exchange(Received, 0), cRestTick};
 }
 
-void BodyPlayback::Track::Advance(uint64_t aTick, float aGravity) noexcept
+void BodyPlayback::Track::Advance(uint64_t aTick) noexcept
 {
     while (Frames.size() >= 2 && Frames[1].first <= aTick)
     {
-        const auto& [cOldTick, cOld] = Frames[0];
-        const auto& [cNewTick, cNew] = Frames[1];
-        // Blended into ahead, it stands on the new frame now; came too late, it leaves where the old guess was.
-        Offset = {};
-        RotationOffset = glm::quat(1.f, 0.f, 0.f, 0.f);
-        if (Started && !Toward)
-        {
-            const BodyFrame cGuess = BodyPrediction::Predict(cOld, Seconds(cOldTick, cNewTick), aGravity);
-            Offset = cGuess.Position - cNew.Position;
-            RotationOffset = cGuess.Rotation * glm::inverse(cNew.Rotation);
-        }
-        Toward = 0;
         Frames.pop_front();
     }
 }
@@ -92,35 +62,42 @@ void BodyPlayback::Track::Advance(uint64_t aTick, float aGravity) noexcept
 BodyFrame BodyPlayback::Track::Show(uint64_t aTick, float aGravity) noexcept
 {
     const auto& [cTick, cFrame] = Frames.front();
-    BodyFrame shown = BodyPrediction::Predict(cFrame, Seconds(cTick, aTick), aGravity);
-
-    // Its first frame: from where this game showed it.
-    if (const auto cFrom = std::exchange(From, std::nullopt); cFrom && !Started)
-    {
-        Offset = cFrom->Position - shown.Position;
-        RotationOffset = cFrom->Rotation * glm::inverse(shown.Rotation);
-        Started = true;
-    }
-    // A correction left from a late frame or its first, blended out.
-    if (const float cLeft = Started ? 1.f - std::min(1.f, Seconds(cTick, aTick) * 1000.f / kBlendMs) : 0.f; cLeft > 0.f)
-    {
-        shown.Position += Offset * cLeft;
-        shown.Rotation = glm::normalize(glm::slerp(glm::quat(1.f, 0.f, 0.f, 0.f), RotationOffset, cLeft) * shown.Rotation);
-    }
-    // The next frame (or the rest) here before it is due: blended into it from now, on it when it is due.
+    // The next state (or the rest) known: where its authority had it.
     std::optional<std::pair<uint64_t, BodyFrame>> next;
     if (Rest && (Frames.size() < 2 || Rest->first < Frames[1].first))
         next = {Rest->first, BodyFrame{.Key = cFrame.Key, .Position = Rest->second.Position, .Rotation = Rest->second.Rotation}};
     else if (Frames.size() >= 2)
-        next = {Frames[1].first, BodyPrediction::Predict(Frames[1].second, Seconds(Frames[1].first, aTick), aGravity)};
-    if (next && Started)
+        next = Frames[1];
+    // None yet: a free fall's arc is guessed on; on the ground it coasts kCoastMs and no further.
+    if (!next)
     {
-        if (!Toward)
-            Toward = aTick;
-        const float cSpan = Seconds(Toward, next->first);
-        shown = Blend(shown, next->second, cSpan > 0.f ? std::clamp(Seconds(Toward, aTick) / cSpan, 0.f, 1.f) : 1.f);
+        const float cSeconds = Seconds(cTick, aTick);
+        return BodyPrediction::Predict(cFrame, cFrame.Gravity ? cSeconds : std::min(cSeconds, static_cast<float>(BodyTolerances::kCoastMs) / 1000.f), aGravity);
     }
-    Started = true;
+    const float cSpan = Seconds(cTick, next->first);
+    if (cSpan <= 0.f)
+        return next->second;
+    const float s = std::clamp(Seconds(cTick, aTick) / cSpan, 0.f, 1.f);
+    BodyFrame shown = cFrame;
+    shown.Rotation = glm::normalize(glm::slerp(cFrame.Rotation, next->second.Rotation, s));
+    shown.AngularVelocity = glm::mix(cFrame.AngularVelocity, next->second.AngularVelocity, s);
+    const glm::vec3 cChord = next->second.Position - cFrame.Position;
+    // On the ground (a slide, a hand's hold): along the line between the two, never past either; their speeds jump
+    // with a hand or a contact, and a curve through them looped past the next (97 turn-backs on a carried object).
+    if (!cFrame.Gravity || !next->second.Gravity)
+    {
+        shown.Position = cFrame.Position + cChord * s;
+        shown.LinearVelocity = cChord / cSpan;
+        return shown;
+    }
+    // A free fall: on the arc through both with their speeds (a cubic Hermite through two points of one arc is it).
+    const glm::vec3& cFrom = cFrame.LinearVelocity;
+    const glm::vec3& cTo = next->second.LinearVelocity;
+    const float s2 = s * s, s3 = s2 * s;
+    shown.Position = (2.f * s3 - 3.f * s2 + 1.f) * cFrame.Position + (s3 - 2.f * s2 + s) * cSpan * cFrom + (-2.f * s3 + 3.f * s2) * next->second.Position +
+                     (s3 - s2) * cSpan * cTo;
+    shown.LinearVelocity = (6.f * s2 - 6.f * s) / cSpan * cFrame.Position + (3.f * s2 - 4.f * s + 1.f) * cFrom + (-6.f * s2 + 6.f * s) / cSpan * next->second.Position +
+                           (3.f * s2 - 2.f * s) * cTo;
     return shown;
 }
 
@@ -147,7 +124,7 @@ std::vector<BodyPlayback::Pose> BodyPlayback::At(const TickOf& acTickOf, float a
             m_ended[it->first] = std::max(m_ended[it->first], cRestTick);
             poses.push_back(*rest);
         }
-        track.Advance(aTick, aGravity);
+        track.Advance(aTick);
         if (!track.Showing(aTick))
         {
             // Nothing due yet; gone once it has neither frames nor a rest coming.

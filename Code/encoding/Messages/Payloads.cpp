@@ -484,46 +484,23 @@ namespace
 constexpr uint64_t kMaxBodies = 4096;
 } // namespace
 
-void Payloads::BodyFrames::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+void Payloads::BodyStates::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Tick);
-    Serialization::WriteVarInt(aWriter, Frames.size());
-    for (const auto& cFrame : Frames)
-        cFrame.Serialize(aWriter);
-    Serialization::WriteBool(aWriter, Held);
+    Serialization::WriteVarInt(aWriter, States.size());
+    for (const auto& cState : States)
+        cState.Serialize(aWriter);
 }
 
-void Payloads::BodyFrames::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+void Payloads::BodyStates::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Tick = Serialization::ReadVarInt(aReader);
     const uint64_t cCount = Serialization::ReadVarInt(aReader);
     if (cCount > kMaxBodies)
         return;
-    Frames.resize(cCount);
-    for (auto& frame : Frames)
-        frame.Deserialize(aReader);
-    Held = Serialization::ReadBool(aReader);
-}
-
-void Payloads::BodyRests::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, Tick);
-    Serialization::WriteVarInt(aWriter, Rests.size());
-    for (const auto& cRest : Rests)
-        cRest.Serialize(aWriter);
-    Serialization::WriteBool(aWriter, Placed);
-}
-
-void Payloads::BodyRests::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    Tick = Serialization::ReadVarInt(aReader);
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxBodies)
-        return;
-    Rests.resize(cCount);
-    for (auto& rest : Rests)
-        rest.Deserialize(aReader);
-    Placed = Serialization::ReadBool(aReader);
+    States.resize(cCount);
+    for (auto& state : States)
+        state.Deserialize(aReader);
 }
 
 void Payloads::PartyGold::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

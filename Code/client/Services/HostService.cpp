@@ -218,13 +218,13 @@ void HostService::MakeAuthority() noexcept
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
     game.TakePlaced = [this] { return m_pEngine->TakePlaced(); };
     game.TakeBodies = [this](uint64_t aTick) {
-        HostBodies bodies = m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
+        HostBodyReads bodies = m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
             for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
                 if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
                     return m_world.get<LocalComponent>(cEntity).Id;
             return 0;
         });
-        // Its actors' ragdoll rests are their record parts; the references' go to HostPhysics.
+        // Its actors' ragdoll rests are their record parts; the references' go to HostBodies.
         m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake);
         return bodies;
     };
@@ -242,17 +242,18 @@ void HostService::MakeAuthority() noexcept
         }
         return std::nullopt;
     };
-    game.FreeBody = [this](const BodyFrame& acFrame, uint64_t aReleasedAt) {
-        // The holder's frames this game played end here (BodyService); its own physics has the body again.
-        m_world.ctx().at<BodyService>().Forget(acFrame.Key, aReleasedAt);
-        return m_world.ctx().at<IBodyBridge&>().Free(acFrame);
+    game.TakeTouches = [this] { return m_pEngine->TakeTouches(); };
+    game.ReadTouching = [this](const std::vector<BodyKey>& acKeys) { return m_world.ctx().at<IBodyBridge&>().ReadTouching(acKeys); };
+    game.EndPlayback = [this](const BodyKey& acKey, uint64_t aUntil) {
+        // A guest's states this game played end here; its own physics has the body again, where it is.
+        m_world.ctx().at<BodyService>().Forget(acKey, std::max(aUntil, m_world.GetFrameTick()));
+        m_world.ctx().at<IBodyBridge&>().Release(acKey);
     };
-    game.FollowBodies = [this](const std::vector<BodyKey>& acKeys) { m_pEngine->FollowBodies(acKeys); };
     game.ReadBodies = [this](const std::vector<BodyKey>& acKeys) {
         std::vector<BodyPose> poses;
         for (const BodyKey& cKey : acKeys)
-            if (const auto cPose = m_world.ctx().at<IBodyBridge&>().ReadPose(cKey))
-                poses.push_back(*cPose);
+            if (const auto cRead = m_world.ctx().at<IBodyBridge&>().Read(cKey))
+                poses.push_back({.Key = cKey, .Position = cRead->Position, .Rotation = cRead->Rotation});
         return poses;
     };
     game.ReadCellState = [this](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {

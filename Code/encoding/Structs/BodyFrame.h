@@ -61,16 +61,37 @@ struct BodyPose
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 };
 
-// An impulse a player's character gave a body (Havok's character proxy), in the game's units (mass x units/s) at a
-// point in the world.
-struct BodyPush
+// Who simulates a body, as the game receiving its state hears it (docs/design/physics-authority-plan.md).
+enum class BodyAuthor : uint8_t
 {
-    BodyKey Key{};
-    glm::vec3 Impulse{};
-    glm::vec3 Point{};
+    kNone,  // nobody's: the host's game simulates it
+    kYou,   // the receiving game's player
+    kOther, // another player
+};
 
-    bool operator==(const BodyPush& acRhs) const noexcept = default;
+// Sequence numbers wrap at 16 bits: a is newer than b when it is less than half the range ahead.
+[[nodiscard]] constexpr bool SeqAfter(uint16_t aA, uint16_t aB) noexcept
+{
+    return aA != aB && static_cast<uint16_t>(aA - aB) < 0x8000;
+}
+
+// A body's state on the stream (Fiedler's scheme): its authority and two sequence numbers, held or at rest, and its
+// frame. At rest its pose goes exact and still; moving, quantized as a BodyFrame.
+struct BodyState
+{
+    BodyFrame Frame{};
+    BodyAuthor Author{};
+    uint16_t AuthSeq{}; // +1 at each take of authority and at each rest
+    uint16_t HoldSeq{}; // +1 at each grab; a newer one beats any AuthSeq
+    bool Held{};
+    bool AtRest{};
+    bool Placed{}; // at rest where the host's game put it (a script, the console): held there asleep, never woken
+
+    bool operator==(const BodyState& acRhs) const noexcept = default;
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    // As the receiver gets it.
+    [[nodiscard]] BodyState Quantized() const noexcept;
+    [[nodiscard]] size_t WireBytes() const noexcept { return AtRest ? 40 : BodyFrame::kWireBytes + 5; }
 };

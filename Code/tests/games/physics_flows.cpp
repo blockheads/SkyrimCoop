@@ -5,9 +5,11 @@
 
 #include <Components/RemoteComponent.h>
 #include <Services/BodyService.h>
-#include <Services/Guest/GuestHands.h>
+#include <Services/Guest/GuestBodies.h>
 #include <Messages/Relayed.h>
 #include <Physics/BodyPrediction.h>
+#include <Physics/BodyTolerances.h>
+#include <Physics/RestPlacer.h>
 #include <Bridges/PhysicsBodies.h>
 #include <Services/CopyRecords.h>
 #include <Structs/RagdollPart.h>
@@ -51,6 +53,31 @@ FakeEngine::Body& BodyOf(Party& aParty, World& aGame, const BodyKey& acKey)
 {
     return Party::Engine(aGame).Bodies.at(acKey);
 }
+
+// A game's own body: it took authority over it (the fake's class, BodyBridge::SetMoving).
+bool Moves(World& aGame, const BodyKey& acKey)
+{
+    const auto& cClasses = Party::Engine(aGame).Classes;
+    const auto it = cClasses.find(acKey);
+    return it != cClasses.end() && it->second == BodyClass::kMoving;
+}
+
+// The host's stream as a guest hears it: a body nobody has, at rest or moving.
+NotifyBodyStates RestOf(uint64_t aTick, const BodyKey& acKey, const glm::vec3& acAt, bool aKnocked = false, uint16_t aAuthSeq = 1)
+{
+    NotifyBodyStates states;
+    states.Tick = aTick;
+    states.States = {{.Frame = {.Key = acKey, .Position = acAt, .Knocked = aKnocked}, .Author = BodyAuthor::kNone, .AuthSeq = aAuthSeq, .AtRest = true}};
+    return states;
+}
+
+NotifyBodyStates FrameOf(uint64_t aTick, const BodyKey& acKey, const glm::vec3& acAt, const glm::vec3& acVelocity = {}, uint16_t aAuthSeq = 1)
+{
+    NotifyBodyStates states;
+    states.Tick = aTick;
+    states.States = {{.Frame = {.Key = acKey, .Position = acAt, .LinearVelocity = acVelocity}, .Author = BodyAuthor::kNone, .AuthSeq = aAuthSeq}};
+    return states;
+}
 } // namespace
 
 
@@ -69,7 +96,9 @@ SCENARIO("The host's player knocks a bucket off a table: the guest's flies with 
                            hostBucket.Awake ? "awake" : "asleep", guestBucket.Flight.Body.Position.z, guestBucket.Drives, guestBucket.Rests);
     };
     party.Until([&] { return !hostBucket.Awake && guestBucket.Rests > 0; }, "the bucket rests on both games", cWhere);
-    CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
+    // One that settled asleep within a settle of the rest is left there (RestPlacer: waking a pile to move it half a
+    // unit costs more than the half unit).
+    CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < BodyTolerances::kSameDistance);
     CHECK(std::abs(glm::dot(guestBucket.Flight.Body.Rotation, hostBucket.Flight.Body.Rotation)) > 0.9999f);
     THEN("the plate nobody touched is left alone")
     {
@@ -163,28 +192,22 @@ SCENARIO("An owner's reliable rest waits while the engine cannot settle its body
     Party party(1, Plugins);
     auto& body = BodyOf(party, party.Guest(), kBucket);
     body.RestBusy = true;
-    NotifyBodyRests rest;
-    rest.Tick = party.Host().GetTransport().GetTick();
-    rest.Rests = {{.Key = kBucket, .Position = {5.f, 6.f, kTable}}};
+    const auto rest = RestOf(party.Guest().GetFrameTick(), kBucket, {5.f, 6.f, kTable});
     party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(rest); });
     party.Until([&] { return body.RestAttempts > 0; }, "the engine first tries the rest");
     CHECK(body.Rests == 0);
     SECTION("a late moving frame cannot discard the deferred rest")
     {
-        NotifyBodyFrames frames;
-        frames.Tick = rest.Tick - GENERATE(0, 1);
-        frames.Frames = {{.Key = kBucket, .Position = {1.f, 2.f, kTable}}};
+        const auto frames = FrameOf(rest.Tick - GENERATE(0, 1), kBucket, {1.f, 2.f, kTable});
         party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(frames); });
         body.RestBusy = false;
         party.Until([&] { return body.Rests > 0; }, "the engine settles the retained rest when its locks are available");
-        CHECK(body.Flight.Body.Position == rest.Rests[0].Position);
+        CHECK(body.Flight.Body.Position == rest.States[0].Frame.Position);
         CHECK_FALSE(body.Held);
     }
     SECTION("a newer moving frame supersedes the deferred rest")
     {
-        NotifyBodyFrames frames;
-        frames.Tick = rest.Tick + 1;
-        frames.Frames = {{.Key = kBucket, .Position = {1.f, 2.f, kTable}}};
+        const auto frames = FrameOf(rest.Tick + 1, kBucket, {1.f, 2.f, kTable});
         party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(frames); });
         body.RestBusy = false;
         party.Until([&] { return body.Drives > 0; }, "the newer motion is played");
@@ -377,14 +400,14 @@ SCENARIO("A guest's own blast throws a bucket the host's does not: it gets the h
     ownMoves.push_back({kBucket, guestBucket.Flight.Body.Position, guestBucket.Flight.Body.Rotation});
     guestBucket.Flight.Body.Position += glm::vec3(300.f, 40.f, -80.f);
     ownMoves.push_back({kBucket, guestBucket.Flight.Body.Position, guestBucket.Flight.Body.Rotation});
-    party.Until([&] { return guestBucket.Rests > 0; }, "the guest gets the host's pose of it (GuestHands::kOwnMs)");
+    party.Until([&] { return guestBucket.Rests > 0; }, "the guest gets the host's pose of it (its hint)");
     CHECK(glm::distance(guestBucket.Flight.Body.Position, cHost) < 0.01f);
     CHECK_FALSE(hostBucket.Awake);
     THEN("a nudge that settles in place asks nothing")
     {
         const size_t cRests = guestBucket.Rests;
         ownMoves.push_back({kBucket, guestBucket.Flight.Body.Position + glm::vec3(0.5f, 0.f, 0.f), guestBucket.Flight.Body.Rotation});
-        const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(GuestHands::kOwnMs + 300);
+        const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(1300);
         while (std::chrono::steady_clock::now() < cUntil)
             party.Frame();
         CHECK(guestBucket.Rests == cRests);
@@ -545,7 +568,7 @@ SCENARIO("A host NPC dies and ragdolls: its copy's body lies as the host's, bone
                 const auto& cHostBone = host.Bodies.at({.Actor = guard, .Index = i});
                 const auto& cCopyBone = guest.Bodies.at({.Actor = cSession, .Index = i});
                 INFO("bone " << int(i));
-                CHECK(glm::distance(cCopyBone.Flight.Body.Position, cHostBone.Flight.Body.Position) < RagdollRest::kNear);
+                CHECK(glm::distance(cCopyBone.Flight.Body.Position, cHostBone.Flight.Body.Position) < FakeEngine::kRagdollNear);
                 CHECK_FALSE(cCopyBone.Held);
             }
             // Knocked off its rest (a push wakes it): taken there again.
@@ -553,7 +576,7 @@ SCENARIO("A host NPC dies and ragdolls: its copy's body lies as the host's, bone
             guest.Bodies.at(cHead).Awake = true;
             party.Until([&] { return !guest.Bodies.at(cHead).Awake; }, "the copy's head at rest again");
             CHECK(glm::distance(guest.Bodies.at(cHead).Flight.Body.Position,
-                                host.Bodies.at({.Actor = guard, .Index = kRagdollBodies - 1}).Flight.Body.Position) < RagdollRest::kNear);
+                                host.Bodies.at({.Actor = guard, .Index = kRagdollBodies - 1}).Flight.Body.Position) < FakeEngine::kRagdollNear);
         }
         AND_THEN("once the copy is gone, its held rest drives nothing (BodyService's copy index lasts one update)")
         {
@@ -616,7 +639,7 @@ SCENARIO("A dead copy at its owner's rest falls asleep there and stays asleep", 
             INFO("frame " << frame << ", bone " << int(i));
             REQUIRE_FALSE(cCopyBone.Awake);
             REQUIRE(glm::distance(cCopyBone.Flight.Body.Position, host.Bodies.at({.Actor = guard, .Index = i}).Flight.Body.Position) <
-                    RagdollRest::kNear);
+                    FakeEngine::kRagdollNear);
         }
     }
 }
@@ -677,7 +700,7 @@ SCENARIO("A guest joining beside a host corpse sees it lie as the host's", "[phy
         {
             const auto& cCopyBone = guest.Bodies.at({.Actor = cSession, .Index = i});
             if (cCopyBone.Awake || glm::distance(cCopyBone.Flight.Body.Position, host.Bodies.at({.Actor = guard, .Index = i}).Flight.Body.Position) >=
-                                       RagdollRest::kNear)
+                                       FakeEngine::kRagdollNear)
                 return false;
         }
         return true;
@@ -753,7 +776,7 @@ SCENARIO("A guest's player drags a host NPC's corpse: it lies where the guest le
     party.Until([&] {
         for (uint8_t i = 0; i < kRagdollBodies; ++i)
             if (cCopyBone(i).Awake || cHostBone(i).Awake ||
-                glm::distance(cHostBone(i).Flight.Body.Position, cCopyBone(i).Flight.Body.Position) >= RagdollRest::kNear)
+                glm::distance(cHostBone(i).Flight.Body.Position, cCopyBone(i).Flight.Body.Position) >= FakeEngine::kRagdollNear)
                 return false;
         return true;
     }, "the host's guard lies where the guest left it", cWhere);
@@ -764,7 +787,7 @@ SCENARIO("A guest's player drags a host NPC's corpse: it lies where the guest le
     CHECK(glm::distance(cCopyBone(0).Flight.Body.Position, starts[0] + cDrag) < 5.f);
     CHECK(glm::distance(cHostBone(0).Flight.Body.Position, cLay) > 100.f);
     for (uint8_t i = 0; i < kRagdollBodies; ++i)
-        CHECK(glm::distance(cHostBone(i).Flight.Body.Position, cCopyBone(i).Flight.Body.Position) < RagdollRest::kNear);
+        CHECK(glm::distance(cHostBone(i).Flight.Body.Position, cCopyBone(i).Flight.Body.Position) < FakeEngine::kRagdollNear);
     CHECK(guest.Classes.at(cGrabbed) == BodyClass::kPlayed); // at rest: the host's again
 
     // The host's own physics moves it next (a blast): it goes where that puts it, the guest's rest played no more.
@@ -822,7 +845,7 @@ SCENARIO("A host NPC is knocked down alive: its copy goes down with it and lies 
     {
         INFO("bone " << int(i));
         CHECK(glm::distance(guest.Bodies.at({.Actor = cSession, .Index = i}).Flight.Body.Position,
-                            host.Bodies.at({.Actor = guard, .Index = i}).Flight.Body.Position) < RagdollRest::kNear);
+                            host.Bodies.at({.Actor = guard, .Index = i}).Flight.Body.Position) < FakeEngine::kRagdollNear);
     }
 }
 
@@ -901,20 +924,18 @@ SCENARIO("A living ragdoll's reliable rest survives lost moving frames and is he
     FakeEngine::Body bone;
     bone.RagdollOf = cCopy;
     guest.Bodies[{.Actor = cSession}] = bone;
-    NotifyBodyRests rest;
-    rest.Tick = party.Host().GetTransport().GetTick();
-    rest.Rests = {{.Key = {.Actor = cSession}, .Position = {12.1234f, 2.f, 3.f}, .Knocked = true}};
+    const auto rest = RestOf(party.Guest().GetFrameTick(), {.Actor = cSession}, {12.1234f, 2.f, 3.f}, true);
     party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(rest); });
     party.Until([&] { return guest.Actors.at(cCopy).KnockedDown && guest.Bodies.at({.Actor = cSession}).Drives > 0; },
                 "the reliable rest takes the copy down without a moving frame");
     auto& body = guest.Bodies.at({.Actor = cSession});
     party.Until([&] { return !body.Awake; }, "the copy's body asleep at the rest");
-    CHECK(glm::distance(body.Flight.Body.Position, rest.Rests[0].Position) < RagdollRest::kNear);
+    CHECK(glm::distance(body.Flight.Body.Position, rest.States[0].Frame.Position) < FakeEngine::kRagdollNear);
     // Knocked off it (a push wakes it): taken back while its owner lies.
     body.Flight.Body.Position.x += 20.f;
     body.Awake = true;
     party.Until([&] { return !body.Awake; }, "the copy's body asleep at the rest again");
-    CHECK(glm::distance(body.Flight.Body.Position, rest.Rests[0].Position) < RagdollRest::kNear);
+    CHECK(glm::distance(body.Flight.Body.Position, rest.States[0].Frame.Position) < FakeEngine::kRagdollNear);
     // Native action replay is covered in the duo; this flow checks the service's owner-end control.
     party.As(party.Guest(), [&] { party.Guest().ctx().at<BodyService>().EndRagdoll(cSession, rest.Tick); });
     const auto cDrives = guest.Bodies.at({.Actor = cSession}).Drives;
@@ -1051,7 +1072,7 @@ SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's c
             INFO((pGame == &party.Host() ? "the host's copy" : "the other guest's copy") << ", bone " << int(i));
             CHECK(Party::Engine(*pGame).IsActorDead(cCopyOn(*pGame)));
             CHECK(cCopyBone.Drives > 0);
-            CHECK(glm::distance(cCopyBone.Flight.Body.Position, cOwnBone.Flight.Body.Position) < RagdollRest::kNear);
+            CHECK(glm::distance(cCopyBone.Flight.Body.Position, cOwnBone.Flight.Body.Position) < FakeEngine::kRagdollNear);
         }
     // Skyrim (duo, kill-move-kills-guest, 2026-11-11, 14 of 14 runs): every dead copy's 18 bodies stayed awake at 3 to
     // 8 units/s within 0.8 units of their rests. Its owner's rest was steered to every step with no end, and a
@@ -1327,7 +1348,7 @@ SCENARIO("A host's recorded rest places the observer's reference between frames"
     CHECK(watched.SceneWritesDuringJobs == 0);
 }
 
-SCENARIO("A loaded body takes its rest from the host's body rest alone and not from its move row", "[physics][world-rest-phase]")
+SCENARIO("A loaded body takes its rest and a script's move from its body's state alone, not from its move row", "[physics][world-rest-phase]")
 {
     // Seen 2026-11-02 for a ladle: BodyService placed the host's rest, then the move row placed it again (red-flags.md, 4).
     Party party(1, Plugins);
@@ -1350,12 +1371,11 @@ SCENARIO("A loaded body takes its rest from the host's body rest alone and not f
     CHECK(watched.MoveRows == 0);
     CHECK(watched.NodePosition == cRest);
 
-    // A script's move (the console's setpos) has no body rest: its row places it.
-    const float cMoved[6]{cRest.x + 50.f, cRest.y, cRest.z, 0.f, 0.f, 0.f};
-    changes.Changes[0].Data.assign(reinterpret_cast<const char*>(cMoved), sizeof(cMoved));
-    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(changes); });
-    party.Until([&] { return watched.MoveRows == 1; }, "the scripted move places the bucket");
-    CHECK(watched.NodePosition.x == cMoved[0]);
+    // A script's move (the console's setpos): the host's game placed it, its body's state carries it (HostBodies::OnHostPlaced).
+    const glm::vec3 cMoved{cRest.x + 50.f, cRest.y, cRest.z};
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlaceByGame(kBucket, cMoved); });
+    party.Until([&] { return glm::distance(watched.Flight.Body.Position, cMoved) < 0.01f && !watched.Awake; }, "the scripted move places the bucket");
+    CHECK(watched.MoveRows == 0);
 }
 
 SCENARIO("A guest's player moves the bucket: the host's move row of it does not put the guest's back", "[physics][mover]")
@@ -1370,7 +1390,7 @@ SCENARIO("A guest's player moves the bucket: the host's move row of it does not 
         engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
         engine.Knock(kBucket, {160.f, 0.f, 0.f});
     });
-    party.Until([&] { return party.Guest().ctx().at<BodyService>().MovedHere(kBucket.Object); }, "the bucket is the guest's");
+    party.Until([&] { return Moves(party.Guest(), kBucket); }, "the bucket is the guest's");
     NotifyObjectChanges changes;
     const float cPose[6]{100.f, 200.f, kTable + 40.f, 0.f, 0.f, 0.f};
     ObjectChange change{.Type = ObjectChange::Kind::kMove, .Object = kBucket.Object};
@@ -1398,12 +1418,10 @@ SCENARIO("A host frame from before the guest's push comes after its rest: the gu
         engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
         engine.Knock(kBucket, {160.f, 0.f, 0.f});
     });
-    party.Until([&] { return party.Guest().ctx().at<BodyService>().MovedHere(kBucket.Object); }, "the bucket is the guest's");
-    party.Until([&] { return !guestBucket.Awake && !party.Guest().ctx().at<BodyService>().MovedHere(kBucket.Object); }, "the guest's bucket rests");
+    party.Until([&] { return Moves(party.Guest(), kBucket); }, "the bucket is the guest's");
+    party.Until([&] { return !guestBucket.Awake && !Moves(party.Guest(), kBucket); }, "the guest's bucket rests");
     const glm::vec3 cRest = guestBucket.Flight.Body.Position;
-    NotifyBodyFrames late;
-    late.Tick = cBefore;
-    late.Frames = {{.Key = kBucket, .Position = {100.f, 200.f, kTable}, .LinearVelocity = {50.f, 0.f, 0.f}}};
+    const auto late = FrameOf(cBefore, kBucket, {100.f, 200.f, kTable}, {50.f, 0.f, 0.f}, 0);
     party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(late); });
     for (int i = 0; i < 30; ++i)
         party.Frame();
@@ -1434,7 +1452,7 @@ SCENARIO("The host's game places the bucket a guest's push still moves: it stays
         return std::format("host's at ({:.0f}, {:.0f}), guest's at ({:.0f}, {:.0f}) {}", hostBucket.Flight.Body.Position.x, hostBucket.Flight.Body.Position.y,
                            guestBucket.Flight.Body.Position.x, guestBucket.Flight.Body.Position.y, guestBucket.Awake ? "awake" : "asleep");
     };
-    party.Until([&] { return !party.Guest().ctx().at<BodyService>().MovedHere(kBucket.Object) && !guestBucket.Awake; }, "the guest gives the bucket back", cWhere);
+    party.Until([&] { return !Moves(party.Guest(), kBucket) && !guestBucket.Awake; }, "the guest gives the bucket back", cWhere);
     for (int i = 0; i < 60; ++i)
         party.Frame();
     THEN("both games have it where the host's game put it")
@@ -1501,11 +1519,11 @@ SCENARIO("A guest's copy walks into the bucket in the host's game: its capsule k
     }
 }
 
-SCENARIO("A guest's own physics moves a pile's bodies one after another: the host is asked about all of them at once", "[physics][mover]")
+SCENARIO("A guest's own physics moves a pile's bodies one after another: each gets the host's pose back at once", "[physics][mover]")
 {
     // The duo, 2026-11-15 (carry_into_pile): six bodies the guest's physics kept moving were asked one at a time, a
-    // second after each moved; each rest of the host's landed among the others still off theirs, which moved it
-    // again, every second for good.
+    // second after each moved, and never settled. Now a body the host never sent is hinted at once, and the stream
+    // brings its state back.
     Party party(1, Plugins);
     auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
     auto& guestPlate = BodyOf(party, party.Guest(), kPlate);
@@ -1516,41 +1534,40 @@ SCENARIO("A guest's own physics moves a pile's bodies one after another: the hos
         ownMoves.push_back({acKey, aBody.Flight.Body.Position, aBody.Flight.Body.Rotation});
     };
     cMove(kBucket, guestBucket);
-    const auto cLater = std::chrono::steady_clock::now() + std::chrono::milliseconds(GuestHands::kOwnMs / 2);
+    const auto cLater = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
     while (std::chrono::steady_clock::now() < cLater)
         party.Frame();
     cMove(kPlate, guestPlate);
-    party.Until([&] { return guestBucket.Rests > 0; }, "the guest gets the host's pose of the bucket");
-    THEN("the plate's came with it") CHECK(guestPlate.Rests > 0);
+    party.Until([&] { return guestBucket.Rests > 0 && guestPlate.Rests > 0; }, "the guest gets the host's pose of both");
+    CHECK(guestBucket.Rests == 1);
 }
 
-SCENARIO("The guest's physics will not keep the bucket at the host's rest: asked twice, then left where it lies", "[physics][mover]")
+SCENARIO("The guest's physics knocks the bucket off the host's rest again and again: it is steered back each time", "[physics][mover]")
 {
     // The duo, 2026-11-15 (push_line): a ladle leaning at the host's rest fell in the guest's game, was asked about and
-    // put back, and fell again, every 1.2 s for 45 s.
+    // put back, and fell again, every 1.2 s for 45 s; then (kAsksAtMost, kAgainAtMost) it was left where it fell,
+    // apart. Now it is kept at the host's rest by steering (RestPlacer::kKeep).
     Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
     auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
-    auto& ownMoves = Party::Engine(party.Guest()).OwnMoves;
-    const auto cFalls = [&] {
-        ownMoves.push_back({kBucket, guestBucket.Flight.Body.Position, guestBucket.Flight.Body.Rotation});
-        guestBucket.Flight.Body.Position += glm::vec3(30.f, 0.f, 0.f);
-        ownMoves.push_back({kBucket, guestBucket.Flight.Body.Position, guestBucket.Flight.Body.Rotation});
-    };
-    for (size_t rests = 1; rests <= GuestHands::kAsksAtMost; ++rests)
+    guestBucket.Flight.Floor = kTable;
+    float furthest = 0.f;
+    for (int fall = 0; fall < 5; ++fall)
     {
-        cFalls();
-        party.Until([&] { return guestBucket.Rests >= rests; }, "the guest gets the host's pose of the bucket");
+        // Its own physics moves it alone (the host's never does): left alone it slides 18 units off.
+        party.As(party.Guest(), [&] { Party::Engine(party.Guest()).Knock(kBucket, {120.f, 0.f, 0.f}); });
+        const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(600);
+        while (std::chrono::steady_clock::now() < cUntil)
+        {
+            party.Frame();
+            furthest = std::max(furthest, glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position));
+        }
+        party.Until([&] { return glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < BodyTolerances::kSameDistance; },
+                    "the guest's bucket is back at the host's rest");
     }
-    cFalls();
-    const glm::vec3 cFell = guestBucket.Flight.Body.Position;
-    const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(GuestHands::kOwnMs + 500);
-    while (std::chrono::steady_clock::now() < cUntil)
-        party.Frame();
-    THEN("the third fall is left")
-    {
-        CHECK(guestBucket.Rests == GuestHands::kAsksAtMost);
-        CHECK(glm::distance(guestBucket.Flight.Body.Position, cFell) < 0.01f);
-    }
+    INFO("the guest's bucket got " << furthest << " units off at most");
+    CHECK(furthest > 0.5f);
+    CHECK(furthest < 10.f);
 }
 
 SCENARIO("The host's rest of the bucket has its contacts in the guest's game: the guest's push slides it, not throws it", "[physics][mover]")
@@ -1624,7 +1641,8 @@ SCENARIO("A guest's player bumps the bucket into the plate: the plate is the gue
         auto& engine = Party::Engine(party.Guest());
         engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
         engine.Knock(kBucket, {160.f, 0.f, 0.f});
-        // The bucket runs into the plate in the guest's game; no player touched the plate.
+        // The bucket runs into the plate in the guest's game (Havok pairs them); no player touched the plate.
+        engine.Lands(kBucket, kPlate);
         engine.Knock(kPlate, {120.f, 60.f, 0.f});
     });
     party.Until([&] { return !guestPlate.Awake && hostPlate.Rests > 0 && !hostPlate.Awake; }, "the plate rests on both games");
@@ -1690,9 +1708,8 @@ SCENARIO("A guest's player knocks the bucket and it rests: the host's move row o
         engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
         engine.Knock(kBucket, {160.f, 0.f, 0.f});
     });
-    auto& service = party.Guest().ctx().at<BodyService>();
-    party.Until([&] { return service.MovedHere(kBucket.Object); }, "the bucket is the guest's");
-    party.Until([&] { return !service.MovedHere(kBucket.Object); }, "the guest's bucket rests and its rest goes out");
+    party.Until([&] { return Moves(party.Guest(), kBucket); }, "the bucket is the guest's");
+    party.Until([&] { return !Moves(party.Guest(), kBucket); }, "the guest's bucket rests and its rest goes out");
     const glm::vec3 cRest = guestBucket.Flight.Body.Position;
     NotifyObjectChanges changes;
     const float cPose[6]{cRest.x + 1.f, cRest.y, cRest.z, 0.f, 0.f, 0.f};
@@ -1801,7 +1818,7 @@ SCENARIO("A guest's player knocks the bucket and the plate: the plate's rest wai
     THEN("the plate is still the guest's while its bucket slides: its rest has not gone out")
     {
         REQUIRE(guestBucket.Awake);
-        CHECK(party.Guest().ctx().at<BodyService>().MovedHere(kPlate.Object));
+        CHECK(Moves(party.Guest(), kPlate));
         CHECK(hostPlate.Rests == 0);
     }
     party.Until([&] { return !guestBucket.Awake && hostBucket.Rests > 0 && hostPlate.Rests > 0 && !hostBucket.Awake && !hostPlate.Awake; },
@@ -1847,7 +1864,7 @@ SCENARIO("A guest's bucket lands on the plate and shifts it before the guest's g
     }
 }
 
-SCENARIO("The host's game moves the plate while the guest's bucket lands on it: its rest waits for the pile, then is put", "[physics][mover]")
+SCENARIO("The host's player pushes the plate the guest's bucket lands on: the last toucher has it, its rest is put on the guest's", "[physics][mover]")
 {
     // Review of PR #101: a host rest of a body in the guest's pile that the guest never claimed was dropped for good.
     Party party(1, Plugins);
@@ -1864,13 +1881,195 @@ SCENARIO("The host's game moves the plate while the guest's bucket lands on it: 
         engine.Lands(kBucket, kPlate);
     });
     party.Frame();
-    // The host's own game slides its plate (its player's push) while the guest's pile is awake.
-    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kPlate, {0.f, 120.f, 0.f}); });
-    party.Until([&] { return !hostPlate.Awake && glm::distance(hostPlate.Flight.Body.Position, cPlate) > 5.f; }, "the host's plate rests elsewhere");
-    party.Until([&] { return !guestBucket.Awake && !guestPlate.Awake && glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < 0.01f; },
-                "the guest's plate lies at the host's rest once its pile is still");
-    THEN("the guest's plate lies where the host's does")
+    // The host's player pushes its plate while the guest's pile is awake: the last toucher takes it.
+    party.As(party.Host(), [&] {
+        auto& engine = Party::Engine(party.Host());
+        engine.PlayerPushes.push_back({kPlate, {0.f, 120.f, 0.f}, hostPlate.Flight.Body.Position});
+        engine.Knock(kPlate, {0.f, 120.f, 0.f});
+    });
+    // Whoever touched it last (the guest's bucket may knock it again after the push), both games end with one plate.
+    party.Until([&] { return !hostPlate.Awake && !guestBucket.Awake && !guestPlate.Awake &&
+                             glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < BodyTolerances::kSameDistance; },
+                "the plate lies in one place in both games once the pile is still");
+    for (int i = 0; i < 60; ++i)
+        party.Frame();
+    THEN("the guest's plate lies where the host's does, moved off where it lay")
     {
-        CHECK(glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < 0.01f);
+        CHECK(glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < BodyTolerances::kSameDistance);
+        CHECK(glm::distance(hostPlate.Flight.Body.Position, cPlate) > 1.f);
     }
+}
+
+SCENARIO("The host's game places a bucket whose rest it took from a guest: it stays where the host's game put it", "[physics][mover]")
+{
+    // The duo, 2026-11-23 (push_line's staging): the host's game had put a guest's rest of the ladle and kept that rest's
+    // placer; the console's setpos later woke it off that rest, and the placer took it back there.
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
+        engine.Knock(kBucket, {160.f, 0.f, 0.f});
+    });
+    party.Until([&] { return !Moves(party.Guest(), kBucket) && !guestBucket.Awake && hostBucket.Rests > 0 && !hostBucket.Awake; },
+                "the guest's rest is put on the host's bucket");
+    // The console moves it, then wakes it (the harness's wake): it falls onto the table there.
+    const glm::vec3 cPlaced{-400.f, 300.f, kTable + 16.f};
+    party.As(party.Host(), [&] {
+        auto& engine = Party::Engine(party.Host());
+        engine.PlaceByGame(kBucket, cPlaced);
+        engine.Knock(kBucket, {});
+    });
+    party.Until([&] { return !hostBucket.Awake && hostBucket.Flight.Body.Position.z <= kTable + 0.01f; }, "the host's bucket lands");
+    party.Until([&] { return !guestBucket.Awake && glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < BodyTolerances::kSameDistance; },
+                "the guest's bucket lies at the host's rest");
+    for (int i = 0; i < 60; ++i)
+        party.Frame();
+    THEN("both games have it where the host's game put it, not back at the guest's old rest")
+    {
+        INFO(std::format("host's at ({:.2f}, {:.2f}, {:.2f}) {}, guest's at ({:.2f}, {:.2f}, {:.2f}) {}", hostBucket.Flight.Body.Position.x,
+                         hostBucket.Flight.Body.Position.y, hostBucket.Flight.Body.Position.z, hostBucket.Awake ? "awake" : "asleep",
+                         guestBucket.Flight.Body.Position.x, guestBucket.Flight.Body.Position.y, guestBucket.Flight.Body.Position.z,
+                         guestBucket.Awake ? "awake" : "asleep"));
+        CHECK(glm::distance(glm::vec2(hostBucket.Flight.Body.Position), glm::vec2(cPlaced)) < 0.01f);
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < BodyTolerances::kSameDistance);
+    }
+}
+
+SCENARIO("A guest's player leans on the bucket it shifted for four seconds: it stays the guest's, not taken as silent", "[physics][mover]")
+{
+    Party party(1, Plugins);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    const auto cLean = [&] {
+        party.As(party.Guest(), [&] { Party::Engine(party.Guest()).PlayerPushes.push_back({kBucket, {1.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
+    };
+    cLean();
+    party.Until([&] { return Moves(party.Guest(), kBucket); }, "the bucket is the guest's");
+    const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(4000);
+    bool kept = true;
+    while (std::chrono::steady_clock::now() < cUntil)
+    {
+        cLean();
+        party.Frame();
+        kept &= Moves(party.Guest(), kBucket);
+    }
+    CHECK(kept);
+}
+
+SCENARIO("The host's game hangs a bucket in the air (a rack's weapon, the console): the guest's hangs there too, asleep", "[physics][placed]")
+{
+    // The duo, 2026-11-23 (object-rests-beside-orgnar): the Sleeping Giant's rack weapons, placed by the host's game,
+    // were put awake for a step on the guest and fell to the floor. A body the game leaves asleep in a pose it cannot
+    // hold awake is held there (the old move row's keyframe and free asleep: HoldAt).
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    const glm::vec3 cHung{150.f, 260.f, kTable + 60.f};
+    hostBucket.OnlyAsleep = guestBucket.OnlyAsleep = true; // a rack holds it only asleep
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlaceByGame(kBucket, cHung); });
+    party.Until([&] { return glm::distance(guestBucket.Flight.Body.Position, cHung) < 0.01f && guestBucket.Rests > 0; }, "the guest's bucket is put there");
+    for (int i = 0; i < 60; ++i)
+        party.Frame();
+    THEN("it hangs there asleep in both games")
+    {
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, cHung) < 0.01f);
+        CHECK_FALSE(guestBucket.Awake);
+        CHECK(glm::distance(hostBucket.Flight.Body.Position, cHung) < 0.01f);
+    }
+}
+
+SCENARIO("The host's console moves the bucket an axis at a time through the plate: the guest's goes straight to the last", "[physics][placed]")
+{
+    // The console's setpos goes x, y, z, one a frame, through whatever lies between. Each is a placement of the host's
+    // game; the playback (100 ms behind) keeps only the newest rest, so the guest's body never stops inside the plate.
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    const glm::vec3 cPlate = BodyOf(party, party.Host(), kPlate).Flight.Body.Position;
+    const glm::vec3 cThrough{cPlate.x, hostBucket.Flight.Body.Position.y, kTable}; // inside the plate
+    const glm::vec3 cLast{cPlate.x, cPlate.y + 60.f, kTable};
+    // One move a frame, as the console's setpos runs.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlaceByGame(kBucket, cThrough); });
+    party.Frame();
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlaceByGame(kBucket, cLast); });
+    bool simulatedInside = false;
+    party.Until([&] {
+        simulatedInside |= !guestBucket.Held && glm::distance(guestBucket.Flight.Body.Position, cThrough) < 0.01f;
+        return glm::distance(guestBucket.Flight.Body.Position, cLast) < 0.01f && !guestBucket.Held;
+    }, "the guest's bucket lies at the console's last move, freed");
+    CHECK_FALSE(simulatedInside);
+    CHECK_FALSE(guestBucket.Awake);
+}
+
+SCENARIO("The host's console moves the bucket as the guest's rest of it is being put in its game: it lies where the console put it", "[physics][placed]")
+{
+    // The duo, 2026-11-23 (guest-push-like-vanilla): the host's game still played the guest's ladle to its rest, and
+    // steered it back there from where setpos had put it.
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
+        engine.Knock(kBucket, {160.f, 0.f, 0.f});
+    });
+    party.Until([&] { return Moves(party.Guest(), kBucket); }, "the bucket is the guest's");
+    party.Until([&] { return !Moves(party.Guest(), kBucket); }, "the guest's bucket rests and its rest goes out");
+    const int cAfter = GENERATE(0, 1, 3, 8, 15);
+    for (int i = 0; i < cAfter; ++i)
+        party.Frame();
+    const glm::vec3 cLast{150.f, 460.f, kTable};
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlaceByGame(kBucket, cLast); });
+    // Past the guest's playback delay and the rest's steps, in the network's time.
+    const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+    while (std::chrono::steady_clock::now() < cUntil)
+        party.Frame();
+    INFO("placed " << cAfter << " frames after the rest; the host's at y " << hostBucket.Flight.Body.Position.y << ", the guest's at y " << guestBucket.Flight.Body.Position.y);
+    CHECK(glm::distance(hostBucket.Flight.Body.Position, cLast) < 0.5f);
+    CHECK(glm::distance(guestBucket.Flight.Body.Position, cLast) < 0.5f);
+}
+
+SCENARIO("The host's bucket lies on what holds it only there: the guest's, woken again and again, is kept at the host's rest, never snapped", "[physics][kept-rest]")
+{
+    // The playtest of 2026-11-23 and mask_on_orgnar_lies_as_hosts: a mask on Orgnar's back. It is woken
+    // through his animated body (measured on the guest: 13486, 78910). What holds it only in the host's game is not
+    // known; here a floor does. The guest's fell, was glided back and put (a 3.7 unit jump), twice, then left 3 units off.
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    // Held up in the host's game; nothing under it in the guest's but the table, 40 units down.
+    hostBucket.Flight.Floor = kTable + 40.f;
+    guestBucket.Flight.Floor = kTable;
+    // It falls onto that in the host's game: a rest of its physics, not a placement.
+    party.As(party.Host(), [&] {
+        hostBucket.Flight.Body.Position.z = kTable + 60.f;
+        Party::Engine(party.Host()).Knock(kBucket, {});
+    });
+    party.Until([&] { return !hostBucket.Awake && guestBucket.Rests > 0 && !guestBucket.Awake; }, "the bucket rests on both games");
+    const glm::vec3 cOn = hostBucket.Flight.Body.Position;
+    REQUIRE(glm::distance(guestBucket.Flight.Body.Position, cOn) < 0.5f);
+    float furthestStep = 0.f, furthestOff = 0.f;
+    glm::vec3 last = guestBucket.Flight.Body.Position;
+    for (int wake = 0; wake < 6; ++wake)
+    {
+        // Woken, not pushed: awake with nothing under it.
+        party.As(party.Guest(), [&] { Party::Engine(party.Guest()).Knock(kBucket, {}); });
+        // The fake's physics steps in the network's time: a second of it for each wake.
+        const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+        while (std::chrono::steady_clock::now() < cUntil)
+        {
+            party.Frame();
+            furthestStep = std::max(furthestStep, glm::distance(guestBucket.Flight.Body.Position, last));
+            furthestOff = std::max(furthestOff, glm::distance(guestBucket.Flight.Body.Position, cOn));
+            last = guestBucket.Flight.Body.Position;
+        }
+    }
+    INFO("the guest's bucket stepped " << furthestStep << " units in a frame at most, and was " << furthestOff << " off the host's rest at worst");
+    CHECK(furthestStep < 2.f);
+    CHECK(furthestOff < 5.f);
+    CHECK(glm::distance(guestBucket.Flight.Body.Position, cOn) < 2.f);
 }

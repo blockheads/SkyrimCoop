@@ -170,20 +170,86 @@ void BodyPose::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Knocked = Key.Actor && Serialization::ReadBool(aReader);
 }
 
-void BodyPush::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
+void BodyState::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    WriteKey(aWriter, Key);
-    for (int i = 0; i < 3; ++i)
-        Serialization::WriteFloat(aWriter, Impulse[i]);
-    for (int i = 0; i < 3; ++i)
-        Serialization::WriteFloat(aWriter, Point[i]);
+    WriteKey(aWriter, Frame.Key);
+    aWriter.WriteBits(static_cast<uint64_t>(Author), 2);
+    aWriter.WriteBits(AuthSeq, 16);
+    aWriter.WriteBits(HoldSeq, 16);
+    Serialization::WriteBool(aWriter, Held);
+    Serialization::WriteBool(aWriter, AtRest);
+    if (AtRest)
+        Serialization::WriteBool(aWriter, Placed);
+    if (AtRest)
+    {
+        for (int i = 0; i < 3; ++i)
+            Serialization::WriteFloat(aWriter, Frame.Position[i]);
+        Serialization::WriteFloat(aWriter, Frame.Rotation.x);
+        Serialization::WriteFloat(aWriter, Frame.Rotation.y);
+        Serialization::WriteFloat(aWriter, Frame.Rotation.z);
+        Serialization::WriteFloat(aWriter, Frame.Rotation.w);
+    }
+    else
+    {
+        WriteVector(aWriter, Frame.Position, kPositionScale, kPositionBits);
+        aWriter.WriteBits(PackRotation(Frame.Rotation), 32);
+        WriteVector(aWriter, Frame.LinearVelocity, kVelocityScale, kVelocityBits);
+        WriteVector(aWriter, Frame.AngularVelocity, kAngularScale, kVelocityBits);
+        Serialization::WriteBool(aWriter, Frame.Gravity);
+    }
+    if (Frame.Key.Actor)
+        Serialization::WriteBool(aWriter, Frame.Knocked);
 }
 
-void BodyPush::Deserialize(Wire::Buffer::Reader& aReader) noexcept
+void BodyState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
-    ReadKey(aReader, Key);
-    for (int i = 0; i < 3; ++i)
-        Impulse[i] = Serialization::ReadFloat(aReader);
-    for (int i = 0; i < 3; ++i)
-        Point[i] = Serialization::ReadFloat(aReader);
+    *this = {};
+    ReadKey(aReader, Frame.Key);
+    uint64_t bits = 0;
+    aReader.ReadBits(bits, 2);
+    Author = static_cast<BodyAuthor>(std::min<uint64_t>(bits, 2));
+    aReader.ReadBits(bits, 16);
+    AuthSeq = static_cast<uint16_t>(bits);
+    aReader.ReadBits(bits, 16);
+    HoldSeq = static_cast<uint16_t>(bits);
+    Held = Serialization::ReadBool(aReader);
+    AtRest = Serialization::ReadBool(aReader);
+    Placed = AtRest && Serialization::ReadBool(aReader);
+    if (AtRest)
+    {
+        for (int i = 0; i < 3; ++i)
+            Frame.Position[i] = Serialization::ReadFloat(aReader);
+        Frame.Rotation.x = Serialization::ReadFloat(aReader);
+        Frame.Rotation.y = Serialization::ReadFloat(aReader);
+        Frame.Rotation.z = Serialization::ReadFloat(aReader);
+        Frame.Rotation.w = Serialization::ReadFloat(aReader);
+    }
+    else
+    {
+        Frame.Position = ReadVector(aReader, kPositionScale, kPositionBits);
+        aReader.ReadBits(bits, 32);
+        Frame.Rotation = UnpackRotation(static_cast<uint32_t>(bits));
+        Frame.LinearVelocity = ReadVector(aReader, kVelocityScale, kVelocityBits);
+        Frame.AngularVelocity = ReadVector(aReader, kAngularScale, kVelocityBits);
+        Frame.Gravity = Serialization::ReadBool(aReader);
+    }
+    Frame.Knocked = Frame.Key.Actor && Serialization::ReadBool(aReader);
+}
+
+BodyState BodyState::Quantized() const noexcept
+{
+    BodyState state = *this;
+    if (AtRest)
+    {
+        state.Frame.LinearVelocity = state.Frame.AngularVelocity = {};
+        state.Frame.Gravity = false;
+    }
+    else
+    {
+        state.Frame = Frame.Quantized();
+        state.Placed = false;
+    }
+    if (!state.Frame.Key.Actor)
+        state.Frame.Knocked = false;
+    return state;
 }

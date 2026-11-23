@@ -29,6 +29,7 @@ enum class Delivery
     {
     case kPartyTravelRequest:
     case kPartySummonRequest: return Delivery::kReliableNow;
+    case kBodyStatesRequest: return Delivery::kUnreliable; // the stream repairs a loss
     case kReferencesMoveRequest:
         return MustArrive(static_cast<const ReferencesMoveRequest&>(acMessage).Updates) ? Delivery::kReliable : Delivery::kUnreliable;
     default: return Delivery::kReliable;

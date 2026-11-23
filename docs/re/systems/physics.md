@@ -645,6 +645,30 @@ then the narrowphase agent is made in the merged island's track (+0x98)
   out of the world, then `hkpEntity::Activate` (60849) on its body under the world's write lock; nothing writes a
   velocity.
 
+## What a body touches (read in IDA on 1.7.104, 2026-11-23)
+
+`hkpWorldAgentUtil::addAgent` (62193) ends in `hkAgentNnMachine_CreateAgent` (64648, our name from Havok 2010's),
+which makes the pair's agent entry (+0x18 and +0x20 its two collidables) and appends it to both bodies'
+`hkpLinkedCollidable` collision entries: collidable +0x70 data, +0x78 count, 16 bytes each (agent entry, partner
+collidable). From a rigid body that is +0x90 and +0x98 (its collidable sits at +0x20). So a body's entries are the
+bodies whose AABBs overlap it and the filter (78553) let through: the pairs that merged its island, without the
+small islands `cleanupDirtyIslands` (61522) merges that never touch. Not read: where an entry is removed. Used by
+`BodyBridge::ReadTouching` (`TouchingOf`); an overlap is not a touch, so a paired body is taken only once it moves
+(`PairedPoses`; measured on the duo 2026-11-23: a held bottle on Orgnar's bar paired with every bottle beside it).
+
+A rest put awake on a body the game left asleep in a pose it cannot hold awake falls (measured 2026-11-23, the
+Sleeping Giant's rack weapons on the guest): our island sleep (`DeactivateIsland`) skips the body's own stillness,
+so it reports asleep, and Havok's last test (62264, "When an island sleeps") can wake the island again. Such a rest
+(placed by the host's game: `BodyState::Placed`) is held there asleep instead: keyframed, then 60908 without
+activation (`HoldAt`).
+
+A mask on Orgnar's back (`mask_on_orgnar_lies_as_hosts`, 2026-11-23): `who_wakes` on the guest, after the mask had
+settled, had every wake through Orgnar's animated body 13486 (motion 4), with the stack of "Woken still" (78910 ->
+78100), not through his capsule (62648). Measured again with the watch on both games, one after the other (10 s each, from 2 s after the drop): host 22
+activations, all through 13486 (motion 4), none waking the mask itself; guest 14, all through 13486 (one through a
+motion 7 of it), the mask woken twice. So the waker is the same in both games; what moves it off its rest in the
+guest's is not known. `RestPlacer::kKeep` steers a woken rest back whatever woke it.
+
 ## A body put into a capsule creeps out (read in IDA on 1.7.104, measured 2026-11-22)
 
 `hkpCharacterProxy`'s push of the bodies in its manifold (62648, named `hkpCharacterProxy__updateRigidBodyInteractions`

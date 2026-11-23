@@ -195,6 +195,9 @@ GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
     m_bodyBridge.SetReferences([this](const GameId& acId) {
         const TESObjectREFR* pObject = FindReference(acId);
         return pObject ? pObject->formID : 0u;
+    }, [this](uint32_t aFormId) {
+        const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+        return pObject ? HostIdOf(*pObject) : std::nullopt;
     });
     PlayerCharacter::SetPickUpGate([this](TESObjectREFR& aObject) { return IsPartyItem(aObject); });
     ContainerEvents::Start();
@@ -214,7 +217,7 @@ GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
 
 GuestEngine::~GuestEngine() noexcept
 {
-    m_bodyBridge.SetReferences({});
+    m_bodyBridge.SetReferences({}, {});
     PlayerCharacter::SetPickUpGate({});
     // The host's created objects go with the session: a next one makes them again.
     World::Get().ctx().at<CreatedIds>().Clear();
@@ -582,18 +585,10 @@ void GuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
     pPlayer->AddOrRemoveItem(acGrant.Item);
 }
 
-bool GuestEngine::RestsThere(const ObjectChange& acMove) noexcept
+bool GuestEngine::HasLiveBody(const GameId& acObject) noexcept
 {
-    float pose[6];
-    TESObjectREFR* pObject = acMove.Object.ModId == ObjectChange::kCreatedModId ? nullptr : FindReference(acMove.Object);
-    if (!pObject || acMove.Data.size() != sizeof(pose) || !pObject->GetNiNode() || ReferenceBodies::ReadFrames(*pObject).empty())
-        return false;
-    std::memcpy(pose, acMove.Data.data(), sizeof(pose));
-    for (int axis = 0; axis < 3; ++axis)
-        if (std::abs(pObject->position[axis] - pose[axis]) > ReferenceBodies::kSameDistance ||
-            std::abs(pObject->rotation[axis] - pose[3 + axis]) > ReferenceBodies::kSameAngle)
-            return false;
-    return true;
+    TESObjectREFR* pObject = FindReference(acObject);
+    return pObject && pObject->GetNiNode() && !ReferenceBodies::ReadFrames(*pObject).empty();
 }
 
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept

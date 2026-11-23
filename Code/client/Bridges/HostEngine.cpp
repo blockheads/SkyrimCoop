@@ -1,5 +1,6 @@
 #include <Bridges/PlacedByGame.h>
 #include <Bridges/HostEngine.h>
+#include <Games/Skyrim/PlayerHands.h>
 #include <Games/Skyrim/StealthEye.h>
 #include <Papyrus/SystemQuests.h>
 #include <MainLoopTasks.h>
@@ -257,7 +258,9 @@ HostEngine::HostEngine(IBodyBridge& aBodies) noexcept
     m_bodyBridge.SetReferences([this](const GameId& acId) {
         const uint32_t cFormId = acId.ModId == ObjectChange::kCreatedModId ? 0xFF000000 | acId.BaseId : ToGame(acId);
         return cFormId && IsShared(cFormId) ? cFormId : 0u;
-    });
+    }, [this](uint32_t aFormId) { return IsShared(aFormId) ? ToSessionOrCreated(aFormId) : std::nullopt; });
+    // The host's player's pushes and hits take bodies too (HostBodies).
+    PlayerHands::Watch(true);
     if (!FormChanges::Watch(&OnFormChange))
         spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
     FollowerTargets::Start();
@@ -275,7 +278,8 @@ HostEngine::HostEngine(IBodyBridge& aBodies) noexcept
 
 HostEngine::~HostEngine() noexcept
 {
-    m_bodyBridge.SetReferences({});
+    m_bodyBridge.SetReferences({}, {});
+    PlayerHands::Watch(false);
     m_bodyBridge.ForgetAll();
     ModManager::WatchCreated(nullptr);
     FormChanges::Unwatch(&OnFormChange);

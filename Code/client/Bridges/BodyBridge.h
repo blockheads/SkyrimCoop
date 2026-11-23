@@ -15,20 +15,22 @@ struct bhkNiCollisionObject;
 class BodyBridge final : public IBodyBridge
 {
 public:
-    void SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf) noexcept override;
-    [[nodiscard]] std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
-    // A played reference body this far off its frame is put there, not steered.
-    static constexpr float kPlaceFar = 64.f;
-
+    void SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf, std::function<std::optional<GameId>(uint32_t aFormId)> aIdOf) noexcept override;
+    [[nodiscard]] std::optional<BodyRead> Read(const BodyKey& acKey) noexcept override;
+    [[nodiscard]] std::vector<std::pair<BodyKey, BodyKey>> ReadTouching(const std::vector<BodyKey>& acKeys) noexcept override;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept override;
+    bool Glide(const BodyPose& acRest) noexcept override;
+    bool Place(const BodyPose& acRest) noexcept override;
+    bool Sleep(const BodyKey& acKey) noexcept override;
+    bool HoldAt(const BodyPose& acRest) noexcept override;
+    bool RestRagdoll(const BodyPose& acRest, uint32_t aCopyFormId) noexcept override;
+    bool Release(const BodyKey& acKey) noexcept override;
     [[nodiscard]] uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept override;
     void SetCopies(const std::vector<uint32_t>& acCopyFormIds) noexcept override;
     bool KnockDown(uint32_t aCopyFormId) noexcept override;
     void SetMoving(const BodyKey& acKey, bool aMoving) noexcept override;
     void Forget(const BodyKey& acKey) noexcept override;
     void ForgetAll() noexcept override;
-    bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
-    bool Free(const BodyFrame& acFrame) noexcept override;
     bool KeepMotion(const BodyKey& acKey) noexcept override;
     bool Settle(const BodyKey& acKey) noexcept override;
 
@@ -67,17 +69,12 @@ private:
     };
     std::map<BodyKey, Class> m_classes;
     std::function<uint32_t(const GameId& acId)> m_formIdOf;
+    std::function<std::optional<GameId>(uint32_t aFormId)> m_idOf;
     std::map<BodyKey, uint8_t> m_motions; // the reference bodies held here: their own motion type
-    // The owner's rest of each reference body, and whether it was put there (PlaceRest's aPlaced).
-    struct Rested
-    {
-        BodyPose Pose;
-        bool Placed{};
-        std::chrono::steady_clock::time_point Since; // first asked for: it glides there at most kRestGlideSeconds
-        bool Done{}; // put there: until then its waking is the rest's, not this game moving it (SetMoving)
-        std::optional<std::chrono::steady_clock::time_point> Sleeping; // first put to sleep among others (RestSlept)
-    };
-    std::map<BodyKey, Rested> m_rested;
+    // Another game's rest being put here: its wakes are the rest's, not this game moving it (SetMoving).
+    std::set<BodyKey> m_placing;
+    // A held reference body keyframed for its hold here first gets its own motion back (Glide, Place).
+    bool Unhold(const BodyKey& acKey, const Found& acBody) noexcept;
     std::map<BodyKey, std::pair<uint32_t, bhkWorldObject*>> m_ragdolls; // copy and body generation initialized here
     // A lying copy's ragdoll bodies are played (BodyGroups): each one's own group, given back as it stands.
     std::map<BodyKey, uint16_t> m_ragdollGroups;

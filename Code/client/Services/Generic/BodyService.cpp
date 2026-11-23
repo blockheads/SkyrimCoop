@@ -1,8 +1,8 @@
 #include <Services/BodyService.h>
 
 #include <Bridges/IBodyBridge.h>
-#include <Physics/BodySends.h>
 #include <Physics/BodyPrediction.h>
+#include <Physics/BodyTolerances.h>
 #include <Components.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
@@ -19,8 +19,7 @@ BodyService::BodyService(World& aWorld, entt::dispatcher& aDispatcher, IBodyBrid
     : m_world(aWorld)
     , m_bridge(aBridge)
 {
-    Listen<NotifyBodyFrames, &BodyService::OnFrames>(m_connections, aDispatcher, this);
-    Listen<NotifyBodyRests, &BodyService::OnRests>(m_connections, aDispatcher, this);
+    Listen<NotifyBodyStates, &BodyService::OnStates>(m_connections, aDispatcher, this);
     Listen<UpdateEvent, &BodyService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &BodyService::OnDisconnected>(m_connections, aDispatcher, this);
     // Its owner's ragdoll rest, also for a copy made after it (docs/design/one-simulator.md, piece 10).
@@ -63,18 +62,25 @@ void BodyService::DeclareRagdolls(uint64_t aTick, std::vector<BodyPose>& aRests,
     }
 }
 
-void BodyService::Forget(const BodyKey& acKey, uint64_t aReleasedAt) noexcept
+void BodyService::Forget(const BodyKey& acKey, uint64_t aUntil) noexcept
 {
-    if (aReleasedAt)
-        PlaybackOf(acKey).ForgetUntil(acKey, aReleasedAt);
+    if (aUntil)
+        PlaybackOf(acKey).ForgetUntil(acKey, aUntil);
     else
         PlaybackOf(acKey).Forget(acKey);
     m_ragdollRests.erase(acKey);
-    m_pendingRests.erase(acKey);
-    m_heldRests.erase(acKey);
+    m_rests.erase(acKey);
+    m_placed.erase(acKey);
     m_following.erase(acKey);
     Hold(acKey, false);
     m_bridge.Forget(acKey);
+}
+
+bool BodyService::Shows(const GameId& acObject) const noexcept
+{
+    const auto cOf = [&acObject](const auto& acEntry) { return !acEntry.first.Actor && acEntry.first.Object == acObject; };
+    return std::ranges::any_of(m_following, [&acObject](const BodyKey& acKey) { return !acKey.Actor && acKey.Object == acObject; }) ||
+           std::ranges::any_of(m_rests, cOf) || m_playback.RestComing(acObject);
 }
 
 void BodyService::Hold(const BodyKey& acKey, bool aHeld) noexcept
@@ -107,44 +113,41 @@ void BodyService::KnockDown(uint32_t aCopyFormId) noexcept
     (void)m_bridge.KnockDown(aCopyFormId);
 }
 
-void BodyService::OnFrames(const NotifyBodyFrames& acMessage) noexcept
+void BodyService::OnStates(const NotifyBodyStates& acMessage) noexcept
 {
     std::vector<BodyFrame> frames, ragdolls;
-    for (const auto& cFrame : acMessage.Frames)
+    std::vector<BodyPose> rests, ragdollRests;
+    for (const BodyState& cState : acMessage.States)
     {
-        if (m_pKeeper && !m_pKeeper->TakesFrame(cFrame.Key))
+        if (m_pKeeper && !m_pKeeper->Hears(cState))
             continue;
-        if (const auto it = m_pendingRests.find(cFrame.Key); it != m_pendingRests.end() && acMessage.Tick > it->second.first)
-            m_pendingRests.erase(it);
-        // This game's own physics may have moved it first (its copy of the blast): from there into the owner's.
-        if (!cFrame.Key.Actor && !m_playback.Has(cFrame.Key))
-            if (const auto cShown = m_bridge.ReadPose(cFrame.Key))
-                m_playback.StartFrom(*cShown);
-        if (!cFrame.Key.Actor)
-            Hold(cFrame.Key, acMessage.Held);
-        (cFrame.Key.Actor ? ragdolls : frames).push_back(cFrame);
+        const BodyKey& cKey = cState.Frame.Key;
+        if (cState.AtRest)
+        {
+            if (!cKey.Actor)
+                Hold(cKey, false);
+            (cKey.Actor ? ragdollRests : rests).push_back({.Key = cKey, .Position = cState.Frame.Position, .Rotation = cState.Frame.Rotation,
+                                                           .Knocked = cState.Frame.Knocked});
+            if (cState.Placed)
+                m_placed.insert(cKey);
+            else
+                m_placed.erase(cKey);
+            continue;
+        }
+        if (!cKey.Actor)
+        {
+            Hold(cKey, cState.Held);
+            if (const auto it = m_rests.find(cKey); it != m_rests.end() && acMessage.Tick > it->second.Tick)
+                m_rests.erase(it); // moving again: a new rest will come
+        }
+        (cKey.Actor ? ragdolls : frames).push_back(cState.Frame);
     }
     m_playback.Add(acMessage.Tick, frames);
     m_ragdolls.Add(acMessage.Tick, ragdolls);
+    m_playback.Rest(acMessage.Tick, rests);
+    m_ragdolls.Rest(acMessage.Tick, ragdollRests);
     if (!ragdolls.empty())
         m_world.GetCopyClock().OnSnapshot(acMessage.Tick, m_world.GetTransport().GetTick());
-}
-
-void BodyService::OnRests(const NotifyBodyRests& acMessage) noexcept
-{
-    std::vector<BodyPose> rests, ragdolls;
-    for (const auto& cRest : acMessage.Rests)
-    {
-        Hold(cRest.Key, false);
-        if (acMessage.Placed && m_pKeeper)
-            m_pKeeper->GiveBack(cRest.Key);
-        if (m_pKeeper && !cRest.Key.Actor && m_pKeeper->HoldsRest(cRest.Key))
-            m_heldRests[cRest.Key] = {acMessage.Tick, cRest};
-        else if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest))
-            (cRest.Key.Actor ? ragdolls : rests).push_back(cRest);
-    }
-    m_playback.Rest(acMessage.Tick, rests);
-    m_ragdolls.Rest(acMessage.Tick, ragdolls);
 }
 
 void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
@@ -156,8 +159,8 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_held.clear();
     m_heldElsewhere.clear();
     m_ragdollRests.clear();
-    m_pendingRests.clear();
-    m_heldRests.clear();
+    m_rests.clear();
+    m_placed.clear();
     m_missing.clear();
     m_bridge.ForgetAll();
 }
@@ -220,67 +223,32 @@ void BodyService::Apply() noexcept
     m_bridge.SetCopies(copies);
     // The frame clock, steady by the engine's frames: the session's time as read lags unevenly (S10, copy-clock.md).
     const uint64_t cTick = m_world.GetFrameTick();
-    // What this game's player took is its own now: the owner's playback of it stops, its older frames too.
+    // What this game took is its own now: the playback of it stops, its older states too.
     if (m_pKeeper)
-        for (const BodyKey& cKey : m_pKeeper->Update(cTick, m_following))
+        for (const BodyKey& cKey : m_pKeeper->Update(cTick))
         {
             Forget(cKey, cTick);
             m_bridge.SetMoving(cKey, true); // this game's now: it meets what other games move
         }
-    m_restsTried.clear();
-    // Held for the keeper's pile: put once the pile is done, unless the body became this game's own (Forget).
-    for (auto it = m_heldRests.begin(); it != m_heldRests.end();)
-    {
-        if (m_pKeeper && m_pKeeper->HoldsRest(it->first))
-        {
-            ++it;
-            continue;
-        }
-        // Only where the owner has it elsewhere: put back within the send limits it shoved the pile it lay in.
-        const BodyPose& cRest = it->second.second;
-        const auto cNow = m_bridge.ReadPose(cRest.Key);
-        const BodySendLimits cLimits;
-        const auto cApart = cNow ? BodyPrediction::Between({.Position = cNow->Position, .Rotation = cNow->Rotation},
-                                                           {.Position = cRest.Position, .Rotation = cRest.Rotation})
-                                 : BodyPrediction::Error{cLimits.Distance + 1.f, 0.f};
-        if ((cApart.Distance > cLimits.Distance || cApart.Angle > cLimits.Angle) && (!m_pKeeper || !m_pKeeper->KeepsRest(cRest)))
-            m_playback.Rest(it->second.first, {cRest});
-        it = m_heldRests.erase(it);
-    }
-    Show(m_playback, [cAt = PlaybackTick(cTick)](const BodyKey&) { return cAt; });
+    Show(m_playback, [cAt = PlaybackTick(cTick)](const BodyKey&) { return cAt; }, cTick);
     // A copy's ragdoll at its copy's time; this game's own corpse another game's player moves, at the references'.
     Show(m_ragdolls, [this, cAt = PlaybackTick(cTick)](const BodyKey& acKey) {
         const uint64_t cCopyTick = CopyTickOf(acKey.Actor);
         return cCopyTick ? cCopyTick : (OwnActorOf(acKey.Actor) ? cAt : 0);
-    });
-    for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
-    {
-        if (m_restsTried.contains(it->first))
-        {
-            ++it;
-            continue;
-        }
-        if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->second.second)) && m_bridge.Rest(it->second.second, 0))
-        {
-            if (m_pKeeper)
-                m_pKeeper->OnRest(it->second.second);
-            it = m_pendingRests.erase(it);
-        }
-        else
-            ++it;
-    }
+    }, cTick);
+    PlaceRests(cTick);
     for (auto it = m_ragdollRests.begin(); it != m_ragdollRests.end();)
     {
         const auto& cRest = it->second.second;
-        // This game's player moves that corpse now (Keeper): its own flight decides until it rests.
-        if (m_pKeeper && m_pKeeper->KeepsRest(cRest))
+        // This game moves that corpse now: its own fall decides until it rests.
+        if (m_pKeeper && m_pKeeper->Simulates(cRest.Key))
         {
             it = m_ragdollRests.erase(it);
             continue;
         }
         const uint32_t cCopy = ActorOf(cRest.Key.Actor);
         const BodyFrame cFrame{.Key = cRest.Key, .Position = cRest.Position, .Rotation = cRest.Rotation, .Knocked = cRest.Knocked};
-        if (!cCopy || !m_bridge.Rest(cRest, cCopy) || !m_bridge.Drive(cFrame, cCopy))
+        if (!cCopy || !m_bridge.RestRagdoll(cRest, cCopy) || !m_bridge.Drive(cFrame, cCopy))
             it = m_ragdollRests.erase(it);
         else
             ++it;
@@ -302,57 +270,44 @@ uint64_t BodyService::CopyTickOf(uint32_t aSessionId) noexcept
     return cEntity != entt::null ? InterpolationSystem::PlaybackTick(m_world, cEntity) : 0;
 }
 
-void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTickOf) noexcept
+void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTickOf, uint64_t aNow) noexcept
 {
     if (!aPlayback.Count())
         return;
     for (const auto& cPose : aPlayback.At(acTickOf))
     {
         const BodyKey& cKey = cPose.Body.Key;
-        const uint32_t cCopy = cKey.Actor ? ActorOf(cKey.Actor) : 0;
         const BodyPose cAt{.Key = cKey, .Position = cPose.Body.Position, .Rotation = cPose.Body.Rotation, .Knocked = cPose.Body.Knocked};
-        if (cPose.Rest && cKey.Actor && m_pKeeper && m_pKeeper->KeepsRest(cAt))
-            continue;
-        // Queued before its body joined the keeper's pile: it waits with the others.
-        if (cPose.Rest && !cKey.Actor && m_pKeeper && m_pKeeper->HoldsRest(cKey))
-        {
-            m_heldRests[cKey] = {cPose.Tick, cAt};
-            aPlayback.Forget(cKey);
-            continue;
-        }
-        if (cPose.Rest && cKey.Actor)
-            m_ragdollRests[cKey] = {cPose.Tick, cAt};
-        else
-            m_ragdollRests.erase(cKey);
-        // A held body too: its holder's alone, so keyframed here (this game's grab refuses it), as its holder shows it.
-        const bool cDone = cPose.Rest ? m_bridge.Rest(cAt, cCopy) : m_bridge.Drive(cPose.Body, cCopy, m_held.contains(cKey));
         if (cPose.Rest)
-            m_restsTried.insert(cKey);
-        if (cPose.Rest && !cKey.Actor && !cDone)
         {
-            m_pendingRests[cKey] = {cPose.Tick, cAt};
             m_following.erase(cKey);
+            if (cKey.Actor)
+            {
+                if (!m_pKeeper || !m_pKeeper->Simulates(cKey))
+                    m_ragdollRests[cKey] = {cPose.Tick, cAt};
+                continue;
+            }
+            // The same rest again (the stream resends resting bodies): its placer goes on.
+            Resting& resting = m_rests[cKey];
+            const auto cApart = BodyPrediction::Between({.Position = resting.Pose.Position, .Rotation = resting.Pose.Rotation}, cPose.Body);
+            if (resting.Pose.Key != cKey || cApart.Distance >= BodyTolerances::kSameDistance || cApart.Angle >= BodyTolerances::kStillAngle)
+                resting = {.Pose = cAt, .Tick = cPose.Tick, .Placer = RestPlacer(aNow), .Placed = m_placed.contains(cKey), .Frames = cPose.Frames};
             continue;
         }
-        m_pendingRests.erase(cKey);
-        // Not loaded here (its cell, or its 3D): nothing to show; its cell's load gets the owner's rest.
-        if (!cDone)
+        if (cKey.Actor)
+            m_ragdollRests.erase(cKey);
+        const uint32_t cCopy = cKey.Actor ? ActorOf(cKey.Actor) : 0;
+        // A held body: its holder's alone, so keyframed here (this game's grab refuses it), as its holder shows it.
+        if (!m_bridge.Drive(cPose.Body, cCopy, m_held.contains(cKey)))
         {
+            // Not loaded here (its cell, or its 3D): nothing to show; its cell's load gets the record's rest.
             aPlayback.Forget(cKey);
             if (m_missing.insert(cKey).second)
                 spdlog::warn("BodyService: {} is not in this game", WorldStateLog::DescribeBody(cKey));
             continue;
         }
         m_missing.erase(cKey);
-        if (cPose.Rest)
-        {
-            m_following.erase(cKey);
-            if (m_pKeeper)
-                m_pKeeper->OnRest(cAt);
-            spdlog::info("BodyService: placed the owner's rest of {} at ({:.0f}, {:.0f}, {:.0f}) after {} frames", WorldStateLog::DescribeBody(cKey),
-                         cPose.Body.Position.x, cPose.Body.Position.y, cPose.Body.Position.z, cPose.Frames);
-        }
-        else if (m_following.insert(cKey).second)
+        if (m_following.insert(cKey).second)
             spdlog::info("BodyService: follows the owner's {}", WorldStateLog::DescribeBody(cKey));
     }
     for (const auto& cLost : aPlayback.TakeLost())
@@ -361,5 +316,59 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
         m_bridge.Forget(cLost.Key);
         spdlog::warn("BodyService: lost {}: no frame for {} ms and no rest, after {} frames", WorldStateLog::DescribeBody(cLost.Key),
                      BodyPlayback::kLostMs, cLost.Frames);
+    }
+}
+
+void BodyService::PlaceRests(uint64_t aNow) noexcept
+{
+    using Step = RestPlacer::Step;
+    for (auto it = m_rests.begin(); it != m_rests.end();)
+    {
+        const BodyKey& cKey = it->first;
+        Resting& resting = it->second;
+        const auto cRead = m_bridge.Read(cKey);
+        if (!cRead)
+        {
+            if (m_missing.insert(cKey).second)
+                spdlog::warn("BodyService: {} is not in this game", WorldStateLog::DescribeBody(cKey));
+            it = m_rests.erase(it);
+            continue;
+        }
+        const auto cApart = BodyPrediction::Between({.Position = cRead->Position, .Rotation = cRead->Rotation},
+                                                    {.Position = resting.Pose.Position, .Rotation = resting.Pose.Rotation});
+        const bool cNear = cApart.Distance < BodyTolerances::kSameDistance && cApart.Angle < BodyTolerances::kStillAngle;
+        const bool cFar = cApart.Distance > BodyTolerances::kPlaceFar;
+        const bool cStill = BodyPrediction::StillToSleep(cRead->Dynamic, glm::length(cRead->LinearVelocity), glm::length(cRead->AngularVelocity));
+        const bool cAsleep = !cRead->Active;
+        // The host's game put it there (a rack's weapon, the console): held there asleep, as the engine left it.
+        if (resting.Placed && !resting.Placer.Done)
+        {
+            if (!(cNear && cAsleep))
+                m_bridge.HoldAt(resting.Pose);
+            resting.Placer.Held();
+        }
+        else switch (resting.Placer.Next(cNear, cFar, cStill, cAsleep, cRead->Active && !cNear, aNow))
+        {
+        case Step::kGlide: m_bridge.Glide(resting.Pose); break;
+        case Step::kPlace: m_bridge.Place(resting.Pose); break;
+        case Step::kSleep: resting.Placer.Slept(m_bridge.Sleep(cKey), aNow); break;
+        case Step::kHold:
+            m_bridge.HoldAt(resting.Pose);
+            resting.Placer.Held();
+            break;
+        case Step::kKeep: m_bridge.Glide(resting.Pose); break;
+        case Step::kLeave: break;
+        }
+        if (resting.Placer.Done && !std::exchange(resting.Logged, true))
+            spdlog::info("BodyService: placed the owner's rest of {} at ({:.0f}, {:.0f}, {:.0f}) after {} frames", WorldStateLog::DescribeBody(cKey),
+                         resting.Pose.Position.x, resting.Pose.Position.y, resting.Pose.Position.z, resting.Frames);
+        // Put: on the host's game (no keeper) the body is its own again, whatever moves it next; a guest's keeps the
+        // rest to keep it there against its own physics' drift (RestPlacer::kKeep).
+        if (resting.Placer.Done && !m_pKeeper)
+        {
+            it = m_rests.erase(it);
+            continue;
+        }
+        ++it;
     }
 }
