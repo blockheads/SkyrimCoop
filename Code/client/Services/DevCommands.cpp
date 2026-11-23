@@ -75,6 +75,7 @@ constexpr std::array cSpecs{
     Spec{"spawn", Kind::Spawn, "/spawn <wolf|bandit|draugr|troll|sabrecat|giant|dragon> [1-20]"},
     Spec{"killall", Kind::KillAll, "/killall"},
     Spec{"weather", Kind::Weather, "/weather <clear|rain|snow|storm|blizzard|fog>"},
+    Spec{"leash", Kind::Leash, "/leash [on|off]"},
 };
 
 std::vector<std::string_view> Words(std::string_view aLine) noexcept
@@ -154,6 +155,7 @@ Parsed Parse(std::string_view aLine) noexcept
             return cUsage;
         break;
     case Kind::God:
+    case Kind::Leash:
         if (cArg(1) == "on")
             command.On = true;
         else if (cArg(1) == "off")
@@ -222,7 +224,7 @@ std::string Help() noexcept
 
 bool IsWorld(Kind aKind) noexcept
 {
-    return aKind == Kind::Spawn || aKind == Kind::KillAll || aKind == Kind::Weather;
+    return aKind == Kind::Spawn || aKind == Kind::KillAll || aKind == Kind::Weather || aKind == Kind::Leash;
 }
 
 std::optional<std::string> ConsoleName(uint32_t aFormId, uint32_t aPlayerFormId) noexcept
@@ -297,6 +299,7 @@ std::vector<std::string> PlayerLines(const Command& acCommand) noexcept
     case Kind::Spawn:
     case Kind::KillAll:
     case Kind::Weather:
+    case Kind::Leash:
         break;
     }
     return lines;

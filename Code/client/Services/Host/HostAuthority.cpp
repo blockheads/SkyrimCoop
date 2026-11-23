@@ -92,7 +92,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_death(*this, aNetwork, m_players, m_characters)
     , m_leash(aNetwork, m_players, m_characters, m_death)
     , m_followers(*this, aNetwork, m_players, m_characters, m_death, m_game)
-    , m_devTools(*this, m_players, m_characters, m_game)
+    , m_devTools(*this, m_players, m_characters, m_game, m_leash)
 {
     using enum Delivery;
     m_records.OnKept = [this](uint32_t aId, const RecordPart& acPart) {

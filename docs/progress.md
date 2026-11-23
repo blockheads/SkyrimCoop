@@ -483,7 +483,7 @@ victim the attacker may kill, 37229) and the roll ([dev-commands.md](re/systems/
 `[dev-commands]`; scenario `killmove-odds-every-swing` (one swing at a 1000-health wolf, guest and host).
 
 2026-11-16: dev chat commands for playtests (`/dev` lists them): `/heal`, `/god`, `/speed`, `/gravity`, `/shouts`,
-`/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather` in the host's
+`/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather`, `/leash` in the host's
 game at the typer's character. Anyone types them; the host runs world commands and sends the line to every game, which
 runs console lines on its own player ([dev-commands.md](design/dev-commands.md)). Kill moves have no chance in vanilla
 (the root idles need a fatal swing on the last enemy, 21744/21743): `/killmove` hooks those two conditions

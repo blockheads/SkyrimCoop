@@ -29,7 +29,7 @@ TEST_CASE("Dev commands: a bad argument gives the command's usage, nothing to ru
     for (const char* cpLine :
          {"/spawn", "/spawn unicorn", "/spawn wolf 0", "/spawn wolf 21", "/spawn wolf 2 3", "/speed", "/speed 11",
           "/speed fast", "/gravity 0", "/gravity 3.5", "/god maybe", "/killmove", "/killmove 101", "/killmove -1",
-          "/weather sunny", "/lootbox 11", "/gear iron", "/heal now"})
+          "/weather sunny", "/lootbox 11", "/gear iron", "/heal now", "/leash loose", "/leash off now"})
     {
         const auto cParsed = Parse(cpLine);
         INFO(cpLine);
@@ -47,6 +47,9 @@ TEST_CASE("Dev commands: a world command is the host's; every player command run
     CHECK(WorldLines(*Parse("/spawn dragon").Run, "player") == std::vector<std::string>{"player.placeatme 5EACF 1"});
     CHECK(WorldLines(*Parse("/weather storm").Run, "player") == std::vector<std::string>{"fw C8220"});
     CHECK(IsWorld(Parse("/killall").Run->What));
+    CHECK(IsWorld(Parse("/leash").Run->What));
+    CHECK(Parse("/leash off").Run->On == false);
+    CHECK(WorldLines(*Parse("/leash on").Run, "player").empty());
     CHECK(PlayerLines(*cSpawn).empty());
 
     for (const char* cpLine :
