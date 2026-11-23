@@ -14,6 +14,7 @@ from ..common import (
     DO_NOTHING_PACKAGE,
     HOME_CELL,
     IRON_SWORD,
+    ON_GROUND,
     RIVER_BANK,
     RIVER_CELL,
     RIVER_SPOT,
@@ -41,6 +42,27 @@ class TravelActions:
         # The arrival's fade: until it ends the game takes no input and resets the player's heading.
         for name in ("", "client"):
             ctx.wait_for(f"[{name or 'host'}] the arrival's fade is over", lambda name=name: ctx.takes_input(name), 10)
+
+
+    def solo_move(ctx, instance, x, y):
+        """That game's player alone goes to (x, y) in its worldspace: placed (SetPosition, no queued travel, so no party
+        travel) high above the spot, then on the floor a downward ray finds once the cells there are loaded. God mode
+        (tgm, off in the duo's games) on for the drop, toggled back however it ends. Returns where it stands."""
+        high = 30000.0
+        def floor():
+            reply = ctx.player_command(instance, {"cmd": "ray", "from": [x, y, high], "to": [x, y, -high]}) or {}
+            hit = reply.get("ray") or {}
+            return hit.get("point") if hit.get("hit") else None
+        ctx.console_on(instance, "tgm")
+        try:
+            ctx.player_command(instance, {"cmd": "place", "position": [x, y, high]})
+            point = ctx.wait_for(f"[{instance or 'host'}] the floor at ({x:.0f}, {y:.0f}) is loaded", floor, 30)
+            ctx.player_command(instance, {"cmd": "place", "position": [x, y, point[2] + 20]})
+            ctx.wait_for(f"[{instance or 'host'}] stands on the ground there",
+                         lambda: ctx.local_player(instance).get("character_state") == ON_GROUND, 10)
+        finally:
+            ctx.console_on(instance, "tgm")
+        return {"at": [x, y, point[2]], "cell": ctx.player_cell(instance)}
 
 
     def water(ctx, instance, form_id=None):

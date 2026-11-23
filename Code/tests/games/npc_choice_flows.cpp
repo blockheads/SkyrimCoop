@@ -153,3 +153,52 @@ TEST_CASE("A placed leveled NPC's copy keeps its game's resolved base and level"
     CHECK(guest.GetActorNpcTemplateBaseFormId(cPlaced) == cFace);
     CHECK(guest.Npcs.at(cFace).Level == 1);
 }
+
+TEST_CASE("A leveled copy whose game picked another NPC keeps the owner's pick a temporary base", "[copies][npc-choice][copy-level]")
+{
+    // Playtest 2026-11-22: a placed LvlAnimalCanyonPredator; the host picked EncWolf, the guest another wolf. A copy
+    // given the EncWolf record itself lost it at the guest's cell reset (36460), and every later EncWolf copy crashed.
+    constexpr uint32_t cEncWolf = 0x23ABE, cOtherWolf = 0x23AB7, cLeveled = 0x422B3, cPlaced = 0xDC8E3;
+    constexpr uint32_t cResolved = 0xFF000F00;
+    int game = 0;
+    Party party(1, [&](FakeEngine& aEngine) {
+        SmokeWorld(aEngine);
+        aEngine.Npcs[cEncWolf].Name = "Wolf";
+        aEngine.Npcs[cOtherWolf].Name = "Ice Wolf";
+        aEngine.Npcs[cLeveled].Name = "Wolf";
+        const uint32_t cPick = game++ == 0 ? cEncWolf : cOtherWolf;
+        aEngine.Npcs[cResolved] = aEngine.Npcs[cPick];
+        aEngine.Npcs[cResolved].FaceBase = cPick;
+        aEngine.PlaceNpc(cPlaced, cResolved, 0x31D2E, {});
+        aEngine.Actors.at(cPlaced).LeveledBase = cLeveled;
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t sid = 0;
+    party.Until([&] {
+        for (auto&& [entity, form, local] : party.Host().view<FormIdComponent, LocalComponent>().each())
+            if (form.Id == cPlaced)
+                sid = local.Id;
+        return sid != 0;
+    }, "the host owns the wolf");
+    // The owner's pick: the record itself, or a temporary base built from it.
+    const auto cFace = [&] { return guest.IsActorNpcTemporary(cPlaced) ? guest.GetActorNpcTemplateBaseFormId(cPlaced) : guest.GetActorBaseFormId(cPlaced); };
+    party.Until([&] { return guest.IsActorCopy(cPlaced) && cFace() == cEncWolf; }, "the guest's wolf takes the host's pick");
+    CHECK(guest.IsActorNpcTemporary(cPlaced));
+    CHECK(host.GetActorNpcTemplateBaseFormId(cPlaced) == cEncWolf);
+
+    // The guest's cell resets the reference: the engine rolls it again and collects its current base.
+    party.As(party.Guest(), [&] { guest.ResetLeveledActor(cPlaced, cOtherWolf); });
+    CHECK(guest.Npcs.contains(cEncWolf));
+    CHECK_FALSE(guest.DestroyedNpcs.contains(cEncWolf));
+
+    std::vector<NotifyCharacterSpawn> spawns;
+    party.As(party.Host(), [&] { spawns = party.Host().GetCharacterService().BuildSpawnRequests(0); });
+    party.As(party.Guest(), [&] {
+        for (const auto& cSpawn : spawns)
+            if (cSpawn.SessionId == sid)
+                party.Guest().GetCharacterService().OnCharacterSpawn(cSpawn);
+    });
+    CHECK(guest.GetActorNpcTemplateBaseFormId(cPlaced) == cEncWolf);
+    CHECK(guest.IsActorNpcTemporary(cPlaced));
+}

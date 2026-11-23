@@ -25,6 +25,8 @@ public:
     // --- Generic form queries ---
     virtual bool FormExists(uint32_t aFormId) const noexcept = 0;
     virtual uint8_t GetFormType(uint32_t aFormId) const noexcept = 0;
+    // A weapon whose equip slot covers both hands (BothHands: a bow, a greatsword).
+    virtual bool IsTwoHandedWeapon(uint32_t aFormId) const noexcept = 0;
     virtual std::string GetFormName(uint32_t aFormId) const noexcept = 0;
 
     // --- TESGlobal ---
@@ -74,7 +76,8 @@ public:
     virtual bool IsSpellEffectVampireLord(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept = 0;
     /// Returns true if the given effect item is a slow-time effect.
     virtual bool IsSpellEffectSlow(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept = 0;
-    /// Apply a magic target effect on an actor using a specific effect from a spell.
+    /// Apply a spell's effect on an actor as the engine adds any (MagicTarget::AddTarget 34526): its own add check
+    /// (34525: the effect's conditions, resistance, invulnerability) decides whether it lands.
     virtual void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId,
                                        uint32_t aSpellFormId, uint32_t aEffectFormId,
                                        float aMagnitude, bool aIsDualCasting,

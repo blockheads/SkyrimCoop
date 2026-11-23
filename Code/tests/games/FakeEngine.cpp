@@ -31,6 +31,7 @@
 #include <Services/ContainerOpens.h>
 #include <Services/DeathDrops.h>
 #include <Events/AddTargetEvent.h>
+#include <Services/HostService.h>
 #include <Events/SummonEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
@@ -515,9 +516,40 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
     GraphEntry(actor, "reload");
 }
 
+void FakeEngine::ShowWeather(const GameId& acWeather, bool aFade) noexcept
+{
+    if (aFade && Weather)
+    {
+        LastWeather = Weather;
+        FadeFrames = 0;
+    }
+    else
+    {
+        WeatherCuts += Weather ? 1 : 0;
+        LastWeather = {};
+    }
+    Weather = acWeather;
+    WeatherAge = 0;
+    ++WeatherChanges;
+    for (const auto& [cRegion, cList] : RegionLists)
+        SetRegionWeather(cRegion);
+}
+
+void FakeEngine::SetRegionWeather(uint32_t aRegion) noexcept
+{
+    const auto cList = RegionLists.find(aRegion);
+    if (cList == RegionLists.end() || cList->second.empty())
+        RegionWeather.erase(aRegion);
+    else
+        RegionWeather[aRegion] = std::ranges::contains(cList->second, Weather) ? Weather : cList->second.front();
+}
+
 void FakeEngine::Frame()
 {
     ++m_frameCount;
+    // The UI's calls (82082, 82083): a noted open item menu rebuilds its whole list (ItemMenuWatch::UiCall).
+    if (ItemMenuNoted.Take(ItemMenuKind(), ItemMenuOf().Open))
+        ItemMenuFreedLists = 0;
     // The task queue's kills (36993): counted under a hold (37896 -> 38617).
     for (auto& [cId, actor] : Actors)
         if (std::exchange(actor.KillQueued, false) && (actor.Copy || actor.KillHeld))
@@ -755,6 +787,26 @@ void FakeEngine::Frame()
         actor.GraphPlace[3] = actor.Rotation[2];
     }
     ShakeSeconds = std::max(0.f, ShakeSeconds - 1.f / 60);
+    // The sky as 26231 runs it: an aged override dropped first, a change, then the fade's progress (ended last).
+    // A guest's held override ages out, mid-fade too; a change (the region's roll, here another weather of its list)
+    // starts only once no fade runs. The host's weather is the test's to set.
+    if (WeatherHeld && ForcedWeather && ++WeatherAge > kOverrideExpiryFrames)
+        ForcedWeather = {};
+    if (ForcedWeather && ForcedWeather != Weather && !LastWeather)
+        ShowWeather(ForcedWeather);
+    else if (!ForcedWeather && WeatherHeld && !LastWeather && WeatherAge > kOverrideExpiryFrames)
+    {
+        const auto cList = RegionLists.find(WeatherRegion);
+        if (cList != RegionLists.end())
+            for (const GameId& cRolled : cList->second)
+                if (cRolled != Weather)
+                {
+                    ShowWeather(cRolled);
+                    break;
+                }
+    }
+    if (LastWeather && ++FadeFrames >= kWeatherFadeFrames)
+        LastWeather = {};
     // Game time at the time scale for the real time since the last frame, as the engine's frame delta is.
     const auto cNow = std::chrono::steady_clock::now();
     if (m_lastFrame.time_since_epoch().count())
@@ -1470,7 +1522,7 @@ uint32_t FakeEngine::GetActorBaseFormId(uint32_t aFormId) const noexcept
 bool FakeEngine::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept
 {
     const auto it = Actors.find(aFormId);
-    if (it == Actors.end() || !aBaseFormId)
+    if (it == Actors.end() || !aBaseFormId || DestroyedNpcs.contains(aBaseFormId))
         return false;
     it->second.Base = aBaseFormId;
     return true;
@@ -2745,6 +2797,38 @@ bool FakeEngine::IsActorNpcTemporary(uint32_t aFormId) const noexcept
     return GetActorBaseFormId(aFormId) >= 0xFF000000;
 }
 
+bool FakeEngine::IsActorLeveled(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && it->second.LeveledBase;
+}
+
+// 14375: a new temporary NPC from the pick (its face the pick's).
+bool FakeEngine::RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    const auto cPick = Npcs.find(aPickId);
+    if (it == Actors.end() || !it->second.LeveledBase || cPick == Npcs.end() || DestroyedNpcs.contains(aPickId))
+        return false;
+    const uint32_t cBuilt = NewTemporary();
+    Npcs[cBuilt] = cPick->second;
+    Npcs[cBuilt].FaceBase = aPickId;
+    Npcs[cBuilt].ChangeFlags = 0;
+    it->second.Base = cBuilt;
+    return true;
+}
+
+void FakeEngine::ResetLeveledActor(uint32_t aFormId, uint32_t aPick)
+{
+    auto& actor = Actors.at(aFormId);
+    if (!actor.LeveledBase || actor.Base == actor.LeveledBase)
+        return;
+    Npcs.erase(actor.Base);
+    DestroyedNpcs.insert(actor.Base);
+    actor.Base = actor.LeveledBase;
+    RelevelActor(aFormId, aPick);
+}
+
 Inventory FakeEngine::GetActorInventory(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
@@ -3233,7 +3317,8 @@ void FakeEngine::StopsCasting(uint32_t aCaster, uint32_t aSource)
         World::Get().GetRunner().Trigger(InterruptCastEvent(aCaster, aSource));
 }
 
-void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
+void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude,
+                           bool aDualCast)
 {
     const auto cTarget = Actors.find(aTarget);
     if (cTarget == Actors.end())
@@ -3250,7 +3335,9 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
     }
     if (cTarget->second.Copy)
     {
-        if (!cOurCast)
+        // A world cast (a trap, no actor) on another player's copy goes to that player's game (IsWorldCast).
+        const bool cWorldCast = !aCaster && IsOtherPlayer(aTarget) && World::Get().GetHostService().IsHosting();
+        if (!cOurCast && !cWorldCast)
             return;
         AddTargetEvent event;
         event.TargetID = aTarget;
@@ -3258,10 +3345,23 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
         event.SpellID = aSpell;
         event.EffectID = aEffect;
         event.Magnitude = aMagnitude;
+        event.IsDualCasting = aDualCast;
         World::Get().GetRunner().Trigger(event);
         return;
     }
-    Effects.push_back({aTarget, aCaster, aSpell, aEffect});
+    if (EffectHolds(aEffect, aDualCast))
+        Effects.push_back({aTarget, aCaster, aSpell, aEffect});
+}
+
+bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept
+{
+    const auto cCondition = EffectConditions.find(aEffect);
+    if (cCondition == EffectConditions.end())
+        return true;
+    if (cCondition->second.DualCast)
+        return aDualCast;
+    const auto cGlobal = Globals.find(cCondition->second.Global);
+    return (cGlobal != Globals.end() ? cGlobal->second : 0.f) == cCondition->second.Equals;
 }
 
 uint32_t FakeEngine::MakesSummon(uint32_t aCaster, uint32_t aBase)
@@ -3514,6 +3614,8 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
     event.ObjectFormId = aObject;
     event.ActivatorFormId = aActor;
     event.ObjectParentCellFormId = Actors.contains(aObject) ? Actors.at(aObject).Cell : References.at(aObject).Cell;
+    if (aActor == kPlayer && References.contains(aObject) && References.at(aObject).Lever && !References.at(aObject).ActivationBlocked)
+        event.FurnitureEvent = kPull;
     World::Get().GetRunner().Trigger(event);
     Activations.emplace_back(aObject, aActor);
     if (ActivateMount(aActor, aObject))
@@ -3538,6 +3640,8 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
     }
     ToggleDoor(aObject);
     Harvest(aObject);
+    if (aActor == kPlayer)
+        PullsLever(aObject);
 }
 
 // The alias clear hooks report their quest after the engine removes the fill, without a stage/flag event.

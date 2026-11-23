@@ -125,14 +125,25 @@ void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
 
 bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
 {
-    FakeEngine::Current().Weather = acWeather;
-    FakeEngine::Current().WeatherHeld = true;
+    // Sky::SetWeather(override) (26241): the forced weather, faded into by the next update; held, kept from aging.
+    FakeEngine& engine = FakeEngine::Current();
+    engine.ForcedWeather = acWeather;
+    engine.WeatherHeld = true;
+    if (!engine.LastWeather)
+        engine.WeatherAge = 0;
     return true;
 }
 
 void GuestEngine::ReleaseWeather() noexcept
 {
+    FakeEngine::Current().ForcedWeather = {};
     FakeEngine::Current().WeatherHeld = false;
+}
+
+GameId GuestEngine::ReadWeatherRegion() const noexcept
+{
+    const uint32_t cRegion = FakeEngine::Current().WeatherRegion;
+    return cRegion ? GameId{0, cRegion} : GameId{};
 }
 
 void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
@@ -482,7 +493,7 @@ struct GuestSeam::Guest
 {
     explicit Guest(World& aWorld)
         : Engine(aWorld.ctx().at<IBodyBridge&>()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
-          Weather(aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
+          Weather(aWorld, aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
           Saves(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),

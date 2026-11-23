@@ -32,6 +32,7 @@
 #include <Forms/TESWorldSpace.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESNPC.h>
+#include <ExtraData/ExtraLeveledCreature.h>
 #include <Forms/BGSPerk.h>
 #include <Games/Memory.h>
 #include <Forms/ActorValueInfo.h>
@@ -806,6 +807,17 @@ uint8_t SkyrimBridge::GetFormType(uint32_t aFormId) const noexcept
     if (TESForm* pForm = TESForm::GetById(aFormId))
         return static_cast<uint8_t>(pForm->formType);
     return 0;
+}
+
+bool SkyrimBridge::IsTwoHandedWeapon(uint32_t aFormId) const noexcept
+{
+    // Its equip slot covers both hands (BGSEquipSlot::Covers 23605), as AddEquippedObject (39192) fills them.
+    using TCovers = bool(const TESForm*, const TESForm*);
+    POINTER_SKYRIMSE(TCovers, s_covers, 23605);
+    const auto* pWeapon = Cast<TESObjectWEAP>(TESForm::GetById(aFormId));
+    const auto& cObjects = DefaultObjectManager::Get();
+    return pWeapon && pWeapon->equipSlot && s_covers(pWeapon->equipSlot, cObjects.leftEquipSlot) &&
+           s_covers(pWeapon->equipSlot, cObjects.rightEquipSlot);
 }
 
 std::string SkyrimBridge::GetFormName(uint32_t aFormId) const noexcept
@@ -2372,6 +2384,37 @@ bool SkyrimBridge::IsActorNpcTemporary(uint32_t aFormId) const noexcept
         return false;
     TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
     return pNpc ? pNpc->IsTemporary() : false;
+}
+
+static ExtraLeveledCreature* GetLeveledCreature(Actor* apActor) noexcept
+{
+    return apActor ? static_cast<ExtraLeveledCreature*>(apActor->extraData.GetByType(ExtraDataType::LeveledCreature)) : nullptr;
+}
+
+bool SkyrimBridge::IsActorLeveled(uint32_t aFormId) const noexcept
+{
+    const auto* pExtra = GetLeveledCreature(GetActor(aFormId));
+    return pExtra && pExtra->originalBase;
+}
+
+// As ExtraDataList::LoadGame's ExtraLeveledCreature case (0x140177F8F): 14375(original, pick), the pick recorded, the
+// new base set. The old temporary is left: a queued 3D load can still read it (leveled-copy-base.md).
+bool SkyrimBridge::RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept
+{
+    Breadcrumbs::Record("RelevelActor", aFormId, aPickId);
+    Actor* pActor = GetActor(aFormId);
+    auto* pExtra = GetLeveledCreature(pActor);
+    auto* pOriginal = pExtra ? Cast<TESNPC>(pExtra->originalBase) : nullptr;
+    auto* pPick = Cast<TESNPC>(TESForm::GetById(aPickId));
+    if (!pOriginal || !pPick)
+        return false;
+    TESNPC* pBuilt = TESNPC::BuildLeveled(pOriginal, pPick);
+    if (!pBuilt)
+        return false;
+    pExtra->templateBase = pPick;
+    pActor->GetExtension()->GraphDescriptorHash = 0;
+    pActor->SetBaseObject(pBuilt);
+    return true;
 }
 
 Tints SkyrimBridge::GetActorFaceTints(uint32_t aFormId) const noexcept

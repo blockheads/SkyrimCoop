@@ -20,6 +20,8 @@ struct TESNPC : TESActorBase
     static constexpr FormType Type = FormType::Npc;
 
     static TESNPC* Create(const std::string& acBuffer, uint32_t aChangeFlags) noexcept;
+    // The engine's leveled build (14375): a new temporary NPC copied from apOriginal, then from apPick's templates.
+    static TESNPC* BuildLeveled(TESNPC* apOriginal, TESNPC* apPick) noexcept;
 
     TESNPC* GetTemplateBase() const noexcept
     {

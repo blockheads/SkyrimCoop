@@ -10,6 +10,8 @@ struct PlayerCamera : public TESCamera
     uint32_t cameraTarget;
     uint8_t pad40[0x78];
     TESCameraState* cameraStates[13];
+    uint8_t pad120[0x161 - 0x120];
+    bool bowZoomedIn; // 161, no stamina regeneration for the player while set (38452)
     static PlayerCamera* Get() noexcept;
     // The actor the camera follows (SetCameraTarget 50838), and its state (TESCamera::SetState 33026).
     void SetTarget(Actor* apTarget) noexcept;
@@ -35,3 +37,4 @@ static_assert(offsetof(PlayerCamera, state) == 0x28);
 
 static_assert(offsetof(PlayerCamera, cameraTarget) == 0x3C);
 static_assert(offsetof(PlayerCamera, cameraStates) == 0xB8);
+static_assert(offsetof(PlayerCamera, bowZoomedIn) == 0x161);

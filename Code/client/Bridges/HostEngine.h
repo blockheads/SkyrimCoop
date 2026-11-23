@@ -38,7 +38,9 @@ public:
     void SetPartyThreats(const PartyThreat::State& acState) const noexcept;
 
     // The weather the game shows; none for no sky, or the world map's own.
-    [[nodiscard]] std::optional<GameId> ReadWeather() const noexcept;
+    [[nodiscard]] std::optional<HostSky> ReadWeather() const noexcept;
+    // The region's own weather (TESRegion, weather.md); none for no such region or one without weathers.
+    [[nodiscard]] std::optional<GameId> RegionWeather(const GameId& acRegion) const noexcept;
     // What this game's NPCs see of that character's copy (StealthEye::Read); none when its copy is not loaded.
     [[nodiscard]] std::optional<DetectionRules::EyeReading> ReadEye(uint32_t aSessionId) const noexcept;
     // Every global but the constants; the calendar's are marked.
@@ -55,7 +57,8 @@ public:
     // A world script's event on an object, kept for the others: it activated a door (by a reference) or played an
     // animation on it; or a container's items changed (not an actor's).
     void RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept;
-    void RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent) noexcept;
+    // aPullerFormId: the player whose pull of a lever furniture it was (its own game played it), else 0.
+    void RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent, uint32_t aPullerFormId = 0) noexcept;
     void RecordItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept;
     // A guest's activation, run by its player's copy (TESObjectREFR::ActivateRef 19796, our hook passing it by).
     void Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) noexcept;

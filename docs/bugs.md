@@ -45,6 +45,7 @@ every other section needs the duo.
 **Copy-desync follow-ups**
 
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
+- [A re-leveled copy leaves its old temporary NPC](#a-re-leveled-copy-leaves-its-old-temporary-npc): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
@@ -152,6 +153,18 @@ every other section needs the duo.
 - [A staging spot 1500 units off with no floor](#a-staging-spot-1500-units-off-with-no-floor): small
 
 ## Copy-desync follow-ups
+
+### A re-leveled copy leaves its old temporary NPC
+
+PR #114 review, 2026-11-23 ([leveled-copy-base.md](re/systems/leveled-copy-base.md)): `RelevelActor` builds a new
+temporary NPC (14375) and sets it; the displaced temporary is not collected, so each correction after a guest re-roll
+leaves one NPC form behind. It is left on purpose: a queued 3D load may still read it, unread when its last reader ends.
+
+Agent task: read when the background loader (QueuedCharacter 13108 -> 37177) lets go of an actor's base, then hand the
+displaced temporary to the collector (36460) after that; GameTests `[copy-level]` checks it is retired.
+
+Size: small. Needs: IDA, then GameTests.
+
 
 ### A seated owner's copy keeps an old action
 
@@ -341,10 +354,20 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   `weapon_drawn` false), the copy still holding the bow in the other slot. So it is a slot-0 mismatch on a sheathed
   bow; whether it shows (a drawn bow, its 3D) is not observed, and the user's report stays unreproduced. Start from
   `rejoined-guest-sees-rider`'s `at-failure.json`: what the hand repair compares for a form held in both slots.
+  Also `guest-weather-own-region` (2026-11-22, branch `agent/weather-per-region`): both Winterhold Guards' copies at
+  `[0, 79261]` / `[0, 80257]` against their owners' `[X, X]`, after the guest's solo moves and timescale 2000 (night).
 - **Not the repair's equip** (2026-11-22, piece D step 0): read in IDA, `coop_RealEquip` (38929) takes a bow's own
   BothHands slot unless the race's flags bit 30 keeps the passed hand; measured on `rejoined-guest-sees-rider`, the
   repair's RightHand equip of Faendal's bow on his copy left `[13985, 13985]`. The `[0, bow]` writer is still unread
   (39811 sets one hand per call: outfit reset, MoveToHigh, disarm; `docs/re/systems/actor-state.md`).
+- **The bow's slot fixed** (2026-11-23, PR #108, re/systems/hand-slots.md): measured, Faendal's copy is at `[0, bow]` at
+  its first repair after a rejoin (the writer not read), and the repair checked one hand per item. It now checks both
+  hands of a two-hander (the right only beside a worn torch) and equips it with BothHands; `rejoined-guest-sees-rider` passes (GameTests
+  "A copy left holding its bow in one hand holds it in both again").
+- **The guards' torches (2026-11-22 playtest) not reproduced** (2026-11-23): two Winterhold guards at night held
+  `[torch, 0]` and `[torch, sword]` on both games for 30 s. No equip puts a torch in the right hand (17619), so a host
+  guard with one in each hand would come from elsewhere; a `/bug` on one would show its hands and worn marks.
+- Still open: the report itself, a weapon's 3D missing in play, is not observed; the 3D readout above is the next step.
 
 ### End comparisons in towns
 
@@ -1448,6 +1471,10 @@ Size: small. Needs: the duo.
 - `guest-steals-created-item` (scene, one run): "the party's bounty is {'host': {}, 'guest': {}}, expected at least 1".
 - `object-rests-beside-orgnar` (scene, one run): "[guest] cheese has the host's rest" timed out after 2 s.
 - `guest-rejoins-while-joined` and `guest_shows_only_hosts_npcs` (scenes): see [After a guest rejoins](#after-a-guest-rejoins).
+- `guest-weather-own-region` (2026-11-23, every step passed): its end comparison found a Snow Fox (`107C2B`, Winterhold)
+  at `weapon_state` 0 on the host and its copy on the guest at 3 (Drawn). The reverse of
+  [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws); not read whether its copy
+  missed a sheathe.
 
 ## Test tools
 
@@ -1457,6 +1484,9 @@ Size: small. Needs: the duo.
 about twelve runs, passing on the next run with nothing changed. `GameTests` run alone passed 10 of 10 after the second one
 (its assertion count differs run to run, 5627 to 5650: some flow is timing-dependent). The gate now keeps each shard's
 log and prints the failed case (`check.sh`, `build/check/`), so the next one names its case.
+2026-11-23 on `agent/fabien-crash-3` (pre-push): "A host NPC gets up from a knockdown: its copy's ragdoll follows its
+owner's until both stand" (`physics_flows.cpp:887`): the copy's head ended 27.8 units from its owner's (limit 15); 10 of
+10 passed alone right after.
 
 Agent task: loop `GameTests` until it fails and fix that case's timing.
 

@@ -78,7 +78,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_crime(*this, aNetwork, m_players, m_characters, m_game)
     , m_purse(m_players, m_characters, m_game)
     , m_partyItems(m_players, m_characters, m_game)
-    , m_weather(aNetwork, m_players, m_game)
+    , m_weather(*this, aNetwork, m_players, m_game)
     , m_eye(m_players, m_characters, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
     , m_items(*this, aNetwork, m_players, m_characters, m_purse, m_partyItems, m_game)
@@ -91,7 +91,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_death(*this, aNetwork, m_players, m_characters)
     , m_leash(aNetwork, m_players, m_characters, m_death)
     , m_followers(*this, aNetwork, m_players, m_characters, m_death, m_game)
-    , m_devTools(*this, m_players, m_characters, m_game)
+    , m_devTools(*this, m_players, m_characters, m_game, m_leash)
 {
     using enum Delivery;
     m_records.OnKept = [this](uint32_t aId, const RecordPart& acPart) {
@@ -200,6 +200,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_bodies.OnPlayerLeft(aConnection);
         m_death.Left(aConnection);
         m_eye.OnPlayerLeft(aConnection);
+        m_weather.OnPlayerLeft(aConnection);
     });
 }
 

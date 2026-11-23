@@ -413,6 +413,24 @@ KillState GetKillState(uint32_t aFormId) noexcept
     return {s_isInDeferredKill(pActor), s_isKillQueued(pActor->currentProcess)};
 }
 
+std::optional<StaminaRegen> GetStaminaRegen(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    const AIProcess* pProcess = pActor ? pActor->currentProcess : nullptr;
+    if (!pProcess)
+        return std::nullopt;
+    using TGetRegenRate = float(Actor*, uint32_t);
+    POINTER_SKYRIMSE(TGetRegenRate, s_getRegenRate, 38460);
+    const PlayerCamera* pCamera = PlayerCamera::Get();
+    StaminaRegen regen;
+    regen.Delay = pProcess->highProcess ? pProcess->highProcess->staminaRegenDelay : 0.f;
+    regen.Damaged = pProcess->cachedValues && (pProcess->cachedValues->flags & CachedValues::kStaminaDamaged);
+    regen.Rate = s_getRegenRate(pActor, 26);
+    regen.Sprinting = pActor->actorState.IsSprinting();
+    regen.BowZoomed = aFormId == 0x14 && pCamera && pCamera->bowZoomedIn;
+    return regen;
+}
+
 bool IsBodyHidden(uint32_t aFormId) noexcept
 {
     Actor* pActor = GetActor(aFormId);

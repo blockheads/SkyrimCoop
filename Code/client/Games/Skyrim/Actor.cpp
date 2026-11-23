@@ -1,4 +1,5 @@
 #include <Forms/BGSAction.h>
+#include <Interface/ItemMenuWatch.h>
 #include <Games/Animation/ActorMediator.h>
 #include <Games/Animation/TESActionData.h>
 #include <Games/Animation/ReplayState.h>
@@ -1850,6 +1851,7 @@ void HookResetInventory(Actor* apThis, bool aLeveledOnly)
 {
     if (apThis->GetExtension()->IsCopy())
         return;
+    const ItemMenuWatch::Change cChange(apThis); // frees the lists an open item menu lists
     RealResetInventory(apThis, aLeveledOnly);
 }
 
@@ -1954,7 +1956,10 @@ static TResetWornToOutfit* RealResetWornToOutfit = nullptr;
 
 void HookResetWornToOutfit(void* apNpc, Actor* apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag)
 {
-    RealResetWornToOutfit(apNpc, apActor, aUnused3, aEquipBestWeapons, aUnused5, aKeepTlsFlag);
+    {
+        const ItemMenuWatch::Change cChange(apActor); // its unequips merge worn lists (16067)
+        RealResetWornToOutfit(apNpc, apActor, aUnused3, aEquipBestWeapons, aUnused5, aKeepTlsFlag);
+    }
     if (apActor)
         World::Get().GetRunner().Trigger(WornResetEvent{apActor->formID});
 }

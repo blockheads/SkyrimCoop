@@ -160,6 +160,8 @@ public:
     void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;
     uint32_t GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept override;
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
+    bool IsActorLeveled(uint32_t aFormId) const noexcept override;
+    bool RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept override;
     Tints GetActorFaceTints(uint32_t aFormId) const noexcept override;
     void SetupActorFaceGen(uint32_t aFormId) noexcept override;
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override;
@@ -177,6 +179,7 @@ public:
     // -----------------------------------------------------------------
     bool FormExists(uint32_t aFormId) const noexcept override;
     uint8_t GetFormType(uint32_t aFormId) const noexcept override;
+    bool IsTwoHandedWeapon(uint32_t aFormId) const noexcept override;
     std::string GetFormName(uint32_t aFormId) const noexcept override;
     float GetGlobalValue(uint32_t aFormId) const noexcept override;
     void SetGlobalValue(uint32_t aFormId, float aValue) noexcept override;
