@@ -205,6 +205,8 @@ std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept
 
 std::optional<bool> IsLockpickBuilt() noexcept
 {
+    if constexpr (COOP_SKYRIM_1_6_1170)
+        return std::nullopt; // +0x11C read in 1.7.104 only
     UI* pUI = UI::Get();
     const auto* cpMenu = pUI && pUI->GetMenuOpen("Lockpicking Menu")
                              ? static_cast<const LockpickingMenu*>(pUI->FindMenuByName("Lockpicking Menu"))

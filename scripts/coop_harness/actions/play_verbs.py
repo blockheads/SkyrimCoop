@@ -719,17 +719,22 @@ class PlayerVerbs:
     @goal
     def pick_lock(ctx, instance, target):
         """The player stands at locked `target` with a lockpick and activates it (real input): the lockpicking menu opens
-        with its lock built (51950, `lock_not_built` if never), the pick succeeds (LockpickingMenu::Unlock 51968, not by
-        input), and both games read the lock open."""
+        with its lock built (51950, `lock_not_built` if never), the pick succeeds (LockpickingMenu::Unlock 51968, the
+        engine's success path, not the rotate controls), and both games read the lock open."""
         ctx.can_play(instance)
         ref = ctx.resolve(target, instance)
-        if not ctx.door_lock(instance, ref)[0]:
-            raise verb_failure(ctx, "refused", f"{target} is not locked")
+        refs = {game: ctx.resolve(target, game) for game in ("", "client")}
+
+        def locked(game):  # None when that game's cell list lacks it: not a read either way
+            row = ctx.cell_objects(game).get(refs[game])
+            return None if row is None else bool(row.get("has_lock") and row.get("locked"))
+
+        ctx.wait_for(f"{target} reads locked in both games", lambda: all(locked(game) for game in refs), 10)
         if not ctx.item_count(instance, 0x14, 0xA):
             ctx.console_on(instance, "player.additem a 1")
-        for game in ("", "client"):  # an open door is aimed through: shut it, as a locked one stands
-            if ctx.door_state(game, ctx.resolve(target, game)):
-                ctx.object_command(game, {"cmd": "door_open", "object": ctx.resolve(target, game), "open": False})
+        for game in refs:  # an open door is aimed through: shut it, as a locked one stands
+            if ctx.door_state(game, refs[game]):
+                ctx.object_command(game, {"cmd": "door_open", "object": refs[game], "open": False})
         ctx.place_before(instance, ref, 100)
         ctx.activate_ref(instance, ref, target)
         who = f"[{instance or 'host'}]"
@@ -741,10 +746,8 @@ class PlayerVerbs:
             time.sleep(0.1)
         ctx.player_command(instance, {"cmd": "crime", "action": "lock_unlock"})
         ctx.wait_for(f"{who} the lockpicking menu closes on the pick", lambda: "Lockpicking Menu" not in ctx.menus(instance), 5)
-        other = "" if instance else "client"
-        ctx.wait_for(f"{who} {target}'s lock is open in both games",
-                     lambda: not ctx.door_lock(instance, ref)[0] and not ctx.door_lock(other, ctx.resolve(target, other))[0], 10)
-        return {"how": "input", "built": True}
+        ctx.wait_for(f"{who} {target} reads unlocked in both games", lambda: all(locked(game) is False for game in refs), 10)
+        return {"how": "input", "unlock": "engine", "built": True}
 
     @goal
     def pickpocket(ctx, instance, target, item, caught=False):

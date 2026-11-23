@@ -25,16 +25,20 @@ An NPC with a lockpick unlocks the door outright (17922, after the player branch
 
 ## Who sends kUpdate on which thread
 
-`Main::Update` (36564 at +0xA9C) calls `UI::ProcessMessages` (82082) itself only in job mode 0, the paused game
-(`coop_menuMode` 35406). Otherwise `Job_UI` (39042) runs `ProcessMessages`, `AdvanceMovies` and the console's queued
-commands on a job thread. So a lockpicking menu with its pause flags cleared (`MenuPauseRules`) gets every kUpdate
-off the main thread and never builds its lock: the menu is on the stack, the background blurred, nothing drawn and no
-input bar (measured on the duo, host and guest, 2026-11-22 playtest).
+- Read: `Main::Update` (36564 at +0xA9C) calls `UI::ProcessMessages` (82082) itself only when `coop_menuMode(0)`
+  (35406) is false; `Job_UI` (39042) also runs `ProcessMessages`, `AdvanceMovies` and the console's queued commands.
+  51950 builds the lock only when `GetCurrentThreadId() == Main+0x28` (`cmp [rdi+11Ch]`; 51960 sets it).
+- Inferred: an unpaused game (our cleared pause flags, `MenuPauseRules`) is the nonzero job mode, so the menu's
+  kUpdate comes from `Job_UI` on a job thread. `lock-order.md` ties the render step's event-2 wait to job mode 1 only;
+  the other modes are unread.
+- Measured (duo, host and guest, 2026-11-22 playtest): with the pause flags cleared the menu is on the stack with
+  `built3D` false, the background blurred, nothing drawn and no input bar; with one main-thread kUpdate it builds and draws.
 
 Skyrim Souls RE (`MenuProcessing.cpp`) turns `Job_UI` off (+0xB) and calls `ProcessMessages`/`AdvanceMovies` from
-`Main::Update`+0xAF1 for every menu. We do it for this menu only: `LiveMenuHooks.cpp` hooks 51950, and when a kUpdate
-leaves the menu unbuilt it queues one kUpdate for `MainLoopTasks` (between frames on the main thread, no frame jobs
-running), which builds it the way the paused game's kUpdate would.
+`Main::Update`+0xAF1 for every menu. We do it for this menu only: `LiveMenuHooks.cpp` hooks 51950 (1.7.104 builds
+only: +0x11C was read there), and when a kUpdate leaves the menu unbuilt it queues one kUpdate for `MainLoopTasks`.
+Those run from `HookMainLoop` before `Main::Update` (the same place a journal save runs, `pausing-menus.md`); that no
+UI job runs then is inferred from `Main::Update` waiting for its frame jobs (35409) before it returns.
 
 ## Our hooks on this path
 

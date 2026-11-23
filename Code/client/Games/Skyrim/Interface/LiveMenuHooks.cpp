@@ -14,7 +14,6 @@
 #include <NetImmerse/NiNode.h>
 #include <World.h>
 
-#include <atomic>
 
 namespace
 {
@@ -181,11 +180,11 @@ UI_MESSAGE_RESULTS MapProcess(MapMenu* apMenu, UIMessage& aMessage)
 // LockpickingMenu::ProcessMessage (51950, vtable slot 4): a live menu's kUpdate comes from Job_UI and never builds the
 // lock; one kUpdate between frames on the main thread builds it, as a paused game's would.
 TMenuProcess* RealLockpickProcess{};
-std::atomic<bool> s_lockpickBuildQueued{false};
+MenuPauseRules::MainThreadBuild s_lockpickBuild;
 
 void BuildLockpickOnMainThread()
 {
-    s_lockpickBuildQueued = false;
+    s_lockpickBuild.Ran();
     UI* pUI = UI::Get();
     auto* pMenu = pUI && pUI->GetMenuOpen("Lockpicking Menu")
                       ? static_cast<LockpickingMenu*>(pUI->FindMenuByName("Lockpicking Menu"))
@@ -203,9 +202,7 @@ UI_MESSAGE_RESULTS LockpickProcess(IMenu* apMenu, UIMessage& aMessage)
 {
     const auto cResult = RealLockpickProcess(apMenu, aMessage);
     const auto* cpMenu = static_cast<const LockpickingMenu*>(apMenu);
-    if (aMessage.eType == UIMessage::kUpdate &&
-        MenuPauseRules::NeedsMainThreadBuild("Lockpicking Menu", cpMenu->uiMenuFlags, cpMenu->built3D) &&
-        !s_lockpickBuildQueued.exchange(true))
+    if (aMessage.eType == UIMessage::kUpdate && s_lockpickBuild.Ask("Lockpicking Menu", cpMenu->uiMenuFlags, cpMenu->built3D))
         MainLoopTasks::Queue(&BuildLockpickOnMainThread);
     return cResult;
 }
@@ -236,7 +233,9 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(51126, &s_container.Real, ContainerProcess);
     HOOK_ID(50945, &s_barter.Real, BarterProcess);
 
+#if !COOP_SKYRIM_1_6_1170 // the +0x11C build flag was read in 1.7.104 only
     HOOK_ID(51950, &RealLockpickProcess, LockpickProcess);
+#endif
 
     VersionDbPtr<uint8_t> bookProcess(51049);
     constexpr size_t cBookModeCall = COOP_SKYRIM_1_6_1170 ? 0x6F : 0x71;

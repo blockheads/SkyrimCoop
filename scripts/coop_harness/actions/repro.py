@@ -1549,10 +1549,14 @@ def _called(name, args):
     return _line("verb", {"name": name, "args": args})
 
 
+CHECKING_VERBS = ("pick_lock",)
+
+
 def _is_expect(entry):
     """A check, kept even when it failed (a failing expect is the bug): the tool, a verb that checks what it did
     (pick_lock), or an expect* verb through `verb`."""
-    return entry["tool"] in ("expect", "pick_lock") or (entry["tool"] == "verb" and entry["args"].get("name", "").startswith("expect"))
+    name = entry["args"].get("name", "") if entry["tool"] == "verb" else entry["tool"]
+    return name.startswith("expect") or name in CHECKING_VERBS
 
 
 def _replayed(entry):

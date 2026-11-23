@@ -38,3 +38,14 @@ TEST_CASE("A live lockpicking menu gets its 3D built on the main thread until it
     CHECK_FALSE(MenuPauseRules::NeedsMainThreadBuild("Lockpicking Menu", 0xFFFFFFFF, false));
     CHECK_FALSE(MenuPauseRules::NeedsMainThreadBuild("Journal Menu", 0, false));
 }
+
+TEST_CASE("A lockpicking menu's main-thread build is queued once until it runs", "[menus]")
+{
+    const uint32_t cLive = MenuPauseRules::Flags("Lockpicking Menu", 0xFFFFFFFF, true);
+    MenuPauseRules::MainThreadBuild build;
+    CHECK(build.Ask("Lockpicking Menu", cLive, false));
+    CHECK_FALSE(build.Ask("Lockpicking Menu", cLive, false)); // Job_UI's next kUpdate before the main loop ran it
+    build.Ran();
+    CHECK_FALSE(build.Ask("Lockpicking Menu", cLive, true));
+    CHECK(build.Ask("Lockpicking Menu", cLive, false)); // a later menu, not built yet
+}
