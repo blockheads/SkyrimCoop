@@ -260,6 +260,14 @@ TEST_CASE("A reference that leaves its rest in the place's step is held there; a
     RestPlacer reference(0);
     REQUIRE(reference.Next(false, true, false, false, false, 0) == Step::kPlace);
     CHECK(reference.Next(false, false, false, false, false, 16) == Step::kHold);
+    reference.Hold(16);
+    // Held again each update until it is read asleep there, kSleepMs at most.
+    CHECK(reference.Next(true, false, true, false, false, 32) == Step::kHold);
+    RestPlacer refused = reference;
+    CHECK(reference.Next(true, false, true, true, false, 48) == Step::kLeave);
+    CHECK(reference.Done);
+    CHECK(refused.Next(false, false, false, false, false, 16 + RestPlacer::kSleepMs) == Step::kLeave);
+    CHECK(refused.Done);
     RestPlacer ragdoll(0, false);
     REQUIRE(ragdoll.Next(false, true, false, false, false, 0) == Step::kPlace);
     CHECK(ragdoll.Next(false, false, false, false, false, 16) == Step::kSleep);

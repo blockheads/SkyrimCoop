@@ -2033,6 +2033,82 @@ SCENARIO("The host's console moves the bucket as the guest's rest of it is being
     CHECK(glm::distance(guestBucket.Flight.Body.Position, cLast) < 0.5f);
 }
 
+SCENARIO("A rest the host's physics changed after confirming the guest's, its frames unheard, is put in the guest's game", "[physics][confirmed-rest]")
+{
+    Party party(1, Plugins);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    guestBucket.Flight.Floor = BodyOf(party, party.Host(), kBucket).Flight.Floor = kTable;
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
+        engine.Knock(kBucket, {160.f, 0.f, 0.f});
+    });
+    party.Until([&] { return Moves(party.Guest(), kBucket); }, "the bucket is the guest's");
+    party.Until([&] { return !Moves(party.Guest(), kBucket); }, "the guest's bucket rests and its rest goes out");
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    // The host's own physics moved it and it settled: the number unchanged (a touch and a rest: 2), the pose new.
+    const glm::vec3 cNow = guestBucket.Flight.Body.Position + glm::vec3(30.f, 0.f, 0.f);
+    NotifyBodyStates states;
+    states.Tick = party.Guest().GetFrameTick();
+    states.States = {{.Frame = {.Key = kBucket, .Position = cNow}, .AuthSeq = 2, .AtRest = true}};
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(states); });
+    party.Until([&] { return glm::distance(guestBucket.Flight.Body.Position, cNow) < 1.f; }, "the guest's bucket is put at the new rest");
+}
+
+SCENARIO("A rest of a bucket not loaded in the guest's game is put once its body is there", "[physics][placed]")
+{
+    Party party(1, Plugins);
+    auto& guest = Party::Engine(party.Guest());
+    BodyOf(party, party.Host(), kBucket).Flight.Floor = BodyOf(party, party.Guest(), kBucket).Flight.Floor = kTable;
+    auto unloaded = guest.Bodies.extract(kBucket);
+    const glm::vec3 cWhere{150.f, 460.f, kTable};
+    const auto cFor = [&](int aMs) {
+        const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(aMs);
+        while (std::chrono::steady_clock::now() < cUntil)
+            party.Frame();
+    };
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlaceByGame(kBucket, cWhere); });
+    cFor(400);
+    guest.Bodies.insert(std::move(unloaded));
+    cFor(400);
+    CHECK(glm::distance(BodyOf(party, party.Guest(), kBucket).Flight.Body.Position, cWhere) < 0.5f);
+}
+
+SCENARIO("A bucket the host's game hangs beside a moving plate hangs in the guest's game once the plate is still", "[physics][placed]")
+{
+    // The rack weapons: the island sleep is refused while another body in it moves, and the weapon fell.
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    auto& guestPlate = BodyOf(party, party.Guest(), kPlate);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = guestPlate.Flight.Floor = kTable;
+    hostBucket.OnlyAsleep = guestBucket.OnlyAsleep = true;
+    auto& guest = Party::Engine(party.Guest());
+    guest.Islands = {{kBucket, kPlate}};
+    const glm::vec3 cHung{150.f, 260.f, kTable + 60.f};
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlaceByGame(kBucket, cHung); });
+    const auto cStart = std::chrono::steady_clock::now();
+    const auto cMs = [&] { return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - cStart).count(); };
+    float furthest = 0.f;
+    bool there = false;
+    while (cMs() < 1000)
+    {
+        // The plate beside it keeps moving for half a second.
+        guestPlate.Awake = cMs() < 500;
+        guestPlate.Flight.Resting = !guestPlate.Awake;
+        guestPlate.Flight.Body.LinearVelocity = {guestPlate.Awake ? 100.f : 0.f, 0.f, 0.f};
+        guestPlate.Flight.Floor = kTable - 500.f; // in the air: it does not stop
+        party.Frame();
+        const float cOff = glm::distance(guestBucket.Flight.Body.Position, cHung);
+        there |= cOff < 0.5f;
+        furthest = there ? std::max(furthest, cOff) : 0.f;
+    }
+    CHECK(furthest < 0.5f); // not fallen and steered back meanwhile
+    CHECK(glm::distance(guestBucket.Flight.Body.Position, cHung) < 0.5f);
+    CHECK_FALSE(guestBucket.Awake);
+}
+
 SCENARIO("The host's bucket lies on what holds it only there: the guest's, woken again and again, is kept at the host's rest, never snapped", "[physics][kept-rest]")
 {
     // The playtest of 2026-11-23 and mask_on_orgnar_lies_as_hosts: a mask on Orgnar's back. It is woken

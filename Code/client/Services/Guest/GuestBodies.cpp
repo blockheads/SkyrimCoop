@@ -176,10 +176,14 @@ std::vector<BodyKey> GuestBodies::Update(uint64_t aTick) noexcept
     request.States = m_stream.Due(states, aTick);
     // What this game's physics moved alone that the host never sent: the host is told, its state comes back.
     for (const BodyPose& cMoved : own.Moved)
-        if (!m_authority.Is(cMoved.Key, kMe) && !m_heard.contains(cMoved.Key) && m_hinted.insert(cMoved.Key).second)
-        {
+        if (!m_authority.Is(cMoved.Key, kMe) && !m_heard.contains(cMoved.Key) && m_hinted.try_emplace(cMoved.Key, 0, cMoved).second)
             spdlog::info("GuestBodies: this game moved the host's {} by itself", WorldStateLog::DescribeBody(cMoved.Key));
-            request.States.push_back({.Frame = {.Key = cMoved.Key, .Position = cMoved.Position, .Rotation = cMoved.Rotation}, .AtRest = true});
+    // Unreliable: again until the host's state comes.
+    for (auto& [cKey, hint] : m_hinted)
+        if (!hint.first || aTick >= hint.first + kHintMs)
+        {
+            hint.first = aTick;
+            request.States.push_back({.Frame = {.Key = cKey, .Position = hint.second.Position, .Rotation = hint.second.Rotation}, .AtRest = true});
         }
     for (size_t first = 0; first < request.States.size(); first += kStatesPerMessage)
     {
@@ -201,7 +205,9 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
     // Its own rest come back on the stream (repeats, refreshes): it lies there already.
     if (const auto it = m_confirmed.find(cKey); it != m_confirmed.end())
     {
-        if (acState.AtRest && acState.Author == BodyAuthor::kNone && acState.AuthSeq == it->second)
+        const auto cApart = BodyPrediction::Between(it->second.Frame, acState.Frame);
+        if (acState.AtRest && acState.Author == BodyAuthor::kNone && acState.AuthSeq == it->second.AuthSeq &&
+            cApart.Distance < BodyTolerances::kSameDistance && cApart.Angle < BodyTolerances::kStillAngle)
             return false;
         m_confirmed.erase(it);
     }
@@ -220,7 +226,7 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
             Drop(cKey);
             if (!cOwn)
                 return true;
-            m_confirmed[cKey] = acState.AuthSeq;
+            m_confirmed[cKey] = acState;
         }
         else
         {

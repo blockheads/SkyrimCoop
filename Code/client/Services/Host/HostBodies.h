@@ -18,15 +18,8 @@ struct HostNetwork;
 struct HostPlayers;
 
 /**
- * @brief The host arbitrates every body (docs/design/physics-authority-plan.md, piece 2), after Fiedler:
- *
- *   one row a body: its claim (BodyAuthority: a player, or nobody), its last state and whose game it came from
- *   a guest's state stands by its numbers (Accept); its rest gives the body back to nobody, which the stream confirms
- *   the host's game simulates every body nobody has, and its player's: their states come from its own reads
- *   its player's push, hit or grab takes a body; what that body touches with nobody's claim is taken too
- *   its game placing a body (a script, the console), or a guest gone silent: nobody's again, by a newer number
- *   each game gets the states of the bodies it does not simulate (BodyStream): moving ones near its character,
- *   resting ones everywhere
+ * @brief The host arbitrates every body (docs/design/physics-authority-plan.md, piece 2): one row a body, its claim
+ * (BodyAuthority) and last state, streamed to the games that do not simulate it (BodyStream).
  */
 struct HostBodies
 {

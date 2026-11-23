@@ -92,7 +92,7 @@ void HostBodies::OnStates(const BodyStatesRequest& acMessage, ConnectionId_t aSe
         row.Frame = cState.Frame;
         row.Placed = false;
         row.Tick = acMessage.Tick;
-        row.Heard = std::max(m_tick, acMessage.Tick);
+        row.Heard = m_tick; // this game's clock: a guest's may run ahead
         row.Quiet = 0;
         // Its rest: the host's game puts it, the stream confirms it to its mover.
         row.FromGuest = cState.AtRest;
@@ -306,7 +306,7 @@ void HostBodies::Update(uint64_t aTick) noexcept
                                                       aTick > row.Heard + BodyTolerances::kSilentMs)
             Unclaim(cKey, "its authority went silent");
     for (auto& [cKey, row] : m_rows)
-        if (row.FromGuest && aTick - row.Heard > BodyTolerances::kSilentMs)
+        if (row.FromGuest && row.Given && aTick > row.Heard + BodyTolerances::kSilentMs)
             row.FromGuest = false;
     Read(aTick);
     Stream(aTick);
@@ -332,8 +332,23 @@ void HostBodies::OnHostPlaced(const GameId& acObject, const glm::vec3& acWhere) 
         }
     for (auto& [cKey, row] : m_rows)
     {
-        if (cKey.Actor || cKey.Object != acObject || glm::distance(acWhere, row.Frame.Position) <= kPlacedApart)
+        if (cKey.Actor || cKey.Object != acObject)
             continue;
+        if (glm::distance(acWhere, row.Frame.Position) <= kPlacedApart)
+        {
+            // Near a state a guest's game steers it by: that state's. At rest and nobody's: any new pose is the game's.
+            const auto cNow = m_authority.Of(cKey).AtRest && !row.FromGuest && m_game.ReadBodies ? m_game.ReadBodies({cKey}) : std::vector<BodyPose>{};
+            if (cNow.empty())
+                continue;
+            const auto cApart = BodyPrediction::Between({.Position = cNow[0].Position, .Rotation = cNow[0].Rotation}, row.Frame);
+            if (cApart.Distance < BodyTolerances::kSameDistance && cApart.Angle < BodyTolerances::kStillAngle)
+                continue;
+            Unclaim(cKey, "the host's game placed it");
+            row.Frame = {.Key = cKey, .Position = cNow[0].Position, .Rotation = cNow[0].Rotation};
+            row.Placed = true;
+            m_authority.Rested(cKey);
+            continue;
+        }
         if (const auto cClaim = m_authority.Of(cKey); cClaim.Held && IsGuest(cClaim.Player))
             continue; // a held body is its holder's alone
         Unclaim(cKey, "the host's game placed it");

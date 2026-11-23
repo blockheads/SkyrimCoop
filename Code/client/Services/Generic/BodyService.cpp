@@ -331,9 +331,11 @@ void BodyService::PlaceRests(uint64_t aNow) noexcept
         {
             if (m_missing.insert(cKey).second)
                 spdlog::warn("BodyService: {} is not in this game", WorldStateLog::DescribeBody(cKey));
-            it = m_rests.erase(it);
+            // A guest's: put once its body is here (the stream's repeats are no newer than it).
+            it = m_pKeeper ? std::next(it) : m_rests.erase(it);
             continue;
         }
+        m_missing.erase(cKey);
         const auto cApart = BodyPrediction::Between({.Position = cRead->Position, .Rotation = cRead->Rotation},
                                                     {.Position = resting.Pose.Position, .Rotation = resting.Pose.Rotation});
         const bool cNear = cApart.Distance < BodyTolerances::kSameDistance && cApart.Angle < BodyTolerances::kStillAngle;
@@ -341,20 +343,16 @@ void BodyService::PlaceRests(uint64_t aNow) noexcept
         const bool cStill = BodyPrediction::StillToSleep(cRead->Dynamic, glm::length(cRead->LinearVelocity), glm::length(cRead->AngularVelocity));
         const bool cAsleep = !cRead->Active;
         // The host's game put it there (a rack's weapon, the console): held there asleep, as the engine left it.
-        if (resting.Placed && !resting.Placer.Done)
-        {
-            if (!(cNear && cAsleep))
-                m_bridge.HoldAt(resting.Pose);
-            resting.Placer.Held();
-        }
-        else switch (resting.Placer.Next(cNear, cFar, cStill, cAsleep, cRead->Active && !cNear, aNow))
+        if (resting.Placed)
+            resting.Placer.Hold(aNow);
+        switch (resting.Placer.Next(cNear, cFar, cStill, cAsleep, cRead->Active && !cNear, aNow))
         {
         case Step::kGlide: m_bridge.Glide(resting.Pose); break;
         case Step::kPlace: m_bridge.Place(resting.Pose); break;
         case Step::kSleep: resting.Placer.Slept(m_bridge.Sleep(cKey), aNow); break;
         case Step::kHold:
+            resting.Placer.Hold(aNow);
             m_bridge.HoldAt(resting.Pose);
-            resting.Placer.Held();
             break;
         case Step::kKeep: m_bridge.Glide(resting.Pose); break;
         case Step::kLeave: break;

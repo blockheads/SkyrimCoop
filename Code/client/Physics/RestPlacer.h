@@ -3,18 +3,8 @@
 #include <cstdint>
 #include <optional>
 
-// Putting another game's rest on a body this game simulates (docs/re/systems/physics.md, "A rest needs its contacts",
-// "A pile sleeps together"), one for a reference's body and a copy's ragdoll alike. No engine: ClientTests.
-//
-//   kGlide  steered onto it, kGlideMs at most (put there at once it snapped up to 16 units)
-//   kPlace  put there awake and still: the next physics step finds its contacts (61518, 61321)
-//   kSleep  its island put to sleep once all of it is still (60850 sleeps the island), kSleepMs at most
-//   kHold   a reference that left in that step does not stay there by itself: held there asleep
-//   kLeave  there
-//   kKeep   done, then awake off it (nothing holds it up here): steered back each
-//           update, never put (glided and put again it jumped 3.7 units a second, then was left where it fell)
-//
-// Each update calls Next once, after a physics step: a place is never slept in the same update.
+// Puts another game's rest on a body this game simulates, a step an update (docs/design/physics-sync.md, "RestPlacer's
+// steps"). No engine: ClientTests.
 struct RestPlacer
 {
     static constexpr uint64_t kGlideMs = 500;
@@ -49,6 +39,12 @@ struct RestPlacer
             // Steered until it is back and still, then put to sleep again.
             return aNear && aStill ? Step::kSleep : Step::kKeep;
         }
+        // Held there until read asleep at it (its island's sleep is refused while another body in it moves).
+        if (Holding)
+        {
+            Done = (aNear && aAsleep) || aTick - *Holding >= kSleepMs;
+            return Done ? Step::kLeave : Step::kHold;
+        }
         // There already, asleep: its sleep is a no-op (an inactive island: DeactivateIsland), which completes it.
         if (aNear && aAsleep && !Placed)
             return Step::kSleep;
@@ -70,12 +66,17 @@ struct RestPlacer
             Sleeping = aTick;
         Done = aAsleep || aTick - *Sleeping >= kSleepMs;
     }
-    // kHold's result: held there asleep.
-    void Held() noexcept { Done = true; }
+    // From here held there (kHold) until asleep at it, kSleepMs at most.
+    void Hold(uint64_t aTick) noexcept
+    {
+        if (!Done && !Holding)
+            Holding = aTick;
+    }
 
     uint64_t Since{};
     bool Holds{};
     std::optional<uint64_t> Sleeping;
+    std::optional<uint64_t> Holding;
     bool Placed{};
     bool Done{};
     bool Keeping{}; // done, then woken off it: steered back until it sleeps there

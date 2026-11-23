@@ -406,12 +406,8 @@ Size: medium. Needs: duo.
   `LateAfterDragonslayerBackinSkyrim` boot `faendal-letter` passed whole (once), and
   `copy-keeps-spell-after-party-travel` ended on 12 references (weapon racks, ACTI `8AF59`
   `WeaponRackMidACTIVATOR`, with `0x8000000` on one game: not read, an activator has no container).
-  2026-11-23 (`agent/physics-audit`): the Sleeping Giant's rack weapons end apart too (`guest-grabs-orgnar-bottle`):
-  on the guest's cell load its own weapons fall ("moved by itself"); the host's rack script then places each, and the
-  guest holds that rest asleep (`BodyState::Placed`, `HoldAt`), yet it ends on the floor. Inferred, not read: `HoldAt`
-  keyframes through 78077, which activates the island, and frees it asleep in the same update while other weapons in
-  it are awake, so the island sleep is refused. The old move row held every body keyframed and freed them two
-  updates later (`FreePlaced`).
+  2026-11-23: the Sleeping Giant's rack weapons ended apart too; `HoldAt` each update until asleep passes
+  `guest-grabs-orgnar-bottle` (1 run), `docs/re/systems/physics.md`.
 
 ### A strafing copy catches for a frame
 
@@ -553,13 +549,17 @@ Size: medium. Needs: the duo, then GameTests.
   run in 13 to 20** (the copy's head ends 25 to 32 units from its owner's, 0 while both rose): measured 2026-11-23, 3
   of 40 runs on dev `4dc32008` and 2 of 40 on `agent/physics-audit`, so not from the authority change. Not traced:
   the copy stands a playback delay before its owner's last frames are due, by wall-clock frame timing.
-- **2026-11-23, the physics scenarios of the authority change** (`agent/physics-audit`, before its last fix: a guest's
-  rest always reaches the host's game). 8 of 14 passed once. Failed: `guest-push-like-vanilla`,
-  `guest_drops_wheel_on_wheels_like_vanilla`, `host-push-mixed-like-vanilla` ("rests on the lane" timeouts; the first
-  traced to that fix, the other two not traced, none rerun since), `guest-drags-host-corpse` (the grab broke at its first
-  frame, so the corpse echo's fix is unproven in Skyrim; it and the stale rows' have no fast test),
-  `guest_drops_on_bottles_like_vanilla` (108.5 units, vanilla from 109.2), `host-tavern-like-vanilla` (9 turns, vanilla
-  up to 8). Not compared with dev.
+- **A guest's touch of a body the host's game is just placing overrides the placement** (2026-11-23,
+  `guest_drops_wheel_on_wheels_like_vanilla`, 1 run of 1): the host's `setpos` put a wheel on the lane; the guest, still
+  showing it at its spawn by the player, took it ("pushes") 80 ms later and it came to rest 2300 units off in both games.
+  Inferred from the log's order; in play a script's move of an object a player stands against. Start:
+  `GuestBodies::TakeHands`, `BodyAuthority::Accept` (a guest's number one past the host's placement stands).
+- **Physics scenarios of the authority change, not passing or not rerun** (`agent/physics-audit`): on its final build
+  `mask_on_orgnar_lies_as_hosts`, `guest-grabs-orgnar-bottle`, `guest-push-like-vanilla` and
+  `host-push-mixed-like-vanilla` passed once each. On an earlier build failed and not rerun: `guest-drags-host-corpse`
+  (the grab broke at its first frame, so the corpse echo's fix is unproven in Skyrim; it has no fast test),
+  `guest_drops_on_bottles_like_vanilla` (108.5 units, vanilla from 109.2), `host-tavern-like-vanilla` (9 turns, vanilla up
+  to 8). None compared with dev.
 - **Why the guest's mask on Orgnar's back leaves its rest is not known** (2026-11-23): `RestPlacer::kKeep` steers it
   back (`mask_on_orgnar_lies_as_hosts` passes), and both games' wakes go through his animated body 13486
   (`physics.md`), but the engine path that moves only the guest's was not read.

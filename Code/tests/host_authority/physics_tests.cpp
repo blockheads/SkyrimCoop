@@ -199,6 +199,58 @@ TEST_CASE("Physics: the host's game placing a body, or its player touching it, e
     CHECK(LastTo(session, kPeer)->Frame.Position.x > 23.f);
 }
 
+TEST_CASE("Physics: a guest's rest stamped ahead of the host's clock still goes to the host's game", "[HostAuthority][Physics][guest-rest]")
+{
+    Session session;
+    session.Receive(kPeer, StateOf(1000, 10.f, 1));
+    session.Frame(1016);
+    session.Outbox.clear();
+    session.Receive(kPeer, StateOf(1033, 20.f, 2, 0, false, true));
+    session.Frame(1032);
+    REQUIRE(LastTo(session, kHost));
+    CHECK(LastTo(session, kHost)->AtRest);
+}
+
+TEST_CASE("Physics: the host's game placing a sleeping body a little off, or turning it, goes to every guest", "[HostAuthority][Physics][placed]")
+{
+    Session session;
+    session.Moving.Rested = {{.Key = kLadle, .Position = {10.f, 0.f, 100.f}}};
+    session.Frame(1000);
+    session.Outbox.clear();
+    BodyPose now{.Key = kLadle, .Position = {10.f, 0.f, 100.f}};
+    SECTION("moved 8 units") now.Position.x = 18.f;
+    SECTION("turned in place") now.Rotation = glm::angleAxis(0.5f, glm::vec3(0.f, 0.f, 1.f));
+    session.Bodies = {now};
+    session.Placed = {{kLadle.Object, now.Position}};
+    session.Frame(1016);
+    REQUIRE(LastTo(session, kPeer));
+    CHECK(LastTo(session, kPeer)->Placed);
+    CHECK(LastTo(session, kPeer)->Frame.Position == now.Position);
+    CHECK(std::abs(glm::dot(LastTo(session, kPeer)->Frame.Rotation, now.Rotation)) > 0.9999f);
+}
+
+TEST_CASE("Physics: a moving body the host's game no longer reads is read where it is, at rest, or forgotten", "[HostAuthority][Physics]")
+{
+    // Streamed on stale, every game dropped it as lost on arrival.
+    Session session;
+    session.Moving.Awake = {{.Key = kLadle, .Position = {10.f, 0.f, 100.f}, .LinearVelocity = {50.f, 0.f, 0.f}}};
+    session.Frame(1000);
+    session.Outbox.clear();
+    SECTION("still there")
+    {
+        session.Bodies = {{.Key = kLadle, .Position = {30.f, 0.f, 100.f}}};
+        session.Frame(3100);
+        REQUIRE(LastTo(session, kPeer));
+        CHECK(LastTo(session, kPeer)->AtRest);
+        CHECK(LastTo(session, kPeer)->Frame.Position.x == 30.f);
+    }
+    SECTION("gone")
+    {
+        session.Frame(3100);
+        CHECK_FALSE(LastTo(session, kPeer));
+    }
+}
+
 TEST_CASE("Physics: an authority gone silent, or gone, gives its bodies back where they are", "[HostAuthority][Physics]")
 {
     Session session;

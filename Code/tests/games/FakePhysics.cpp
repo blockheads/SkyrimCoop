@@ -528,6 +528,15 @@ bool FakeEngine::HoldAt(const BodyPose& acRest) noexcept
     body.SceneWritesDuringJobs += !AtMainLoop;
     body.NodePosition = acRest.Position;
     body.NodeRotation = acRest.Rotation;
+    // Its island's sleep is refused while another body in it moves (SettleFound's DeactivateIsland): awake, it falls.
+    for (const auto& cIsland : Islands)
+        if (cIsland.contains(acRest.Key))
+            for (const BodyKey& cOther : cIsland)
+                if (const auto cBody = Bodies.find(cOther); cOther != acRest.Key && cBody != Bodies.end() && cBody->second.Awake && !cBody->second.Flight.Resting)
+                {
+                    body.Awake = true;
+                    body.Flight.Resting = false;
+                }
     body.Rested = acRest;
     body.RestStep = false;
     ++body.Rests;

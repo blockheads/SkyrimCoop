@@ -289,7 +289,11 @@ class CollisionActions:
         for axis, value in zip("xyz", (at[0] + ahead, at[1], at[2] + above)):
             ctx.console_on("", f"{ref:X}.setpos {axis} {value:.0f}")
         ctx.player_command("", {"cmd": "wake", "ref": ref})
-        time.sleep(2.0)
+        def on_it(instance):
+            body = ctx.body_of(instance, ref)
+            return body and body["position"][2] < at[2] + above - 5 and math.dist(body["position"][:2], at[:2]) < 120
+        ctx.wait_for(f"[host] {ref:X} falls onto {npc}", lambda: on_it(""), 10)
+        ctx.wait_for(f"[client] shows {ref:X} there", lambda: on_it("client"), 10)
         woken = {name: ctx.who_wakes(game, [ref], seconds / 2) for name, game in (("host", ""), ("guest", "client"))} if wakes else None
         games = {"host": ctx.game(""), "guest": ctx.game("client")}
         entries = {name: [] for name in games}
@@ -314,6 +318,8 @@ class CollisionActions:
             result["woken"] = woken
         host, guest = seen["host"], seen["guest"]
         wrong = []
+        if result["apart"] > 2.0:
+            wrong.append(f"ended {result['apart']} units from the host's")
         if guest["jump"] > 2.0:
             wrong.append(f"jumped {guest['jump']:.1f} units in a frame (the host's {host['jump']:.1f})")
         if guest["turns"] > host["turns"] + 3:

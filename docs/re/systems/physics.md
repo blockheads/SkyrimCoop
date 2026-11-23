@@ -657,10 +657,11 @@ small islands `cleanupDirtyIslands` (61522) merges that never touch. Not read: w
 (`PairedPoses`; measured on the duo 2026-11-23: a held bottle on Orgnar's bar paired with every bottle beside it).
 
 A rest put awake on a body the game left asleep in a pose it cannot hold awake falls (measured 2026-11-23, the
-Sleeping Giant's rack weapons on the guest): our island sleep (`DeactivateIsland`) skips the body's own stillness,
-so it reports asleep, and Havok's last test (62264, "When an island sleeps") can wake the island again. Such a rest
-(placed by the host's game: `BodyState::Placed`) is held there asleep instead: keyframed, then 60908 without
-activation (`HoldAt`).
+Sleeping Giant's rack weapons on the guest). Why is inferred, not read: our island sleep (`DeactivateIsland`) skips the
+body's own stillness, so it reports asleep, and Havok's last test (62264, "When an island sleeps") can wake the island
+again. Such a rest (placed by the host's game: `BodyState::Placed`) is held there instead: keyframed, then 60908 without
+activation (`HoldAt`), each update until read asleep there, since a moving neighbour refuses the island's sleep (ours:
+`DeactivateIsland`; that this is the rack's case is inferred).
 
 A mask on Orgnar's back (`mask_on_orgnar_lies_as_hosts`, 2026-11-23): `who_wakes` on the guest, after the mask had
 settled, had every wake through Orgnar's animated body 13486 (motion 4), with the stack of "Woken still" (78910 ->

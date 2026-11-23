@@ -16,15 +16,8 @@
 struct World;
 
 /**
- * @brief This game's authority over the session's bodies (docs/design/physics-authority-plan.md, piece 1):
- *
- *   its player's push, hit, drop or grab takes a body; one of its bodies touching a body nobody has takes that too
- *   its bodies' states go to the host on the stream (BodyStream); a pile rests as one, and stays this game's until
- *   the host confirms the rest
- *   the host's state of a body this game has: shown only if the host's numbers say another stands (BodyAuthority::Hear)
- *   its player's ragdoll: its states while it moves, its rest as its record part (BodyService::DeclareRagdolls)
- *   a body this game's physics moved alone that the host never sent: the host is told once (a hint), and its state
- *   comes back on the stream
+ * @brief This game's authority over the session's bodies (docs/design/physics-authority-plan.md, piece 1): what its player
+ * moves, streamed to the host until the host confirms its rest.
  */
 struct GuestBodies final : BodyService::Keeper
 {
@@ -60,9 +53,10 @@ private:
     std::set<BodyKey> m_held;               // in this game's player's hands
     std::map<BodyKey, BodyPose> m_rests;    // its rests, until the host confirms them
     std::map<BodyKey, BodyPose> m_last;     // its bodies where this game's physics last read them
-    std::map<BodyKey, uint16_t> m_confirmed; // its rests the host confirmed, by number: lying here already
+    std::map<BodyKey, BodyState> m_confirmed; // its rests the host confirmed: lying here already
     std::set<BodyKey> m_heard;              // bodies the host's stream has carried
     std::map<BodyKey, BodyPose> m_hostRests; // the host's last rest of each, as heard
-    std::set<BodyKey> m_hinted;             // moved here alone, the host told
+    std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_hinted; // moved here alone, the host told then (again each kHintMs until heard)
+    static constexpr uint64_t kHintMs = 1000;
     uint32_t m_ragdollFrames{};             // the ragdoll's frames read since it woke (logged)
 };

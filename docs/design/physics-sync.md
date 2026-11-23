@@ -91,6 +91,20 @@ yet: a ragdoll's 18 bodies share the same budget.
   moved (`guest-push-like-vanilla`'s "rests on the lane" timeout; its log showed the rest taken, then `lost`, between
   them the body pulled back). GameTests `[placed]`, HostAuthorityTests `[guest-rest]`.
 
+### RestPlacer's steps
+
+```text
+  kGlide  steered onto it, kGlideMs at most (put there at once it snapped up to 16 units)
+  kPlace  put there awake and still: the next physics step finds its contacts (61518, 61321)
+  kSleep  its island put to sleep once all of it is still (60850 sleeps the island), kSleepMs at most
+  kHold   a reference that left in that step does not stay there by itself: held there until asleep, kSleepMs at most
+  kLeave  there
+  kKeep   done, then awake off it (nothing holds it up here): steered back each
+           update, never put (glided and put again it jumped 3.7 units a second, then was left where it fell)
+```
+
+Each update calls Next once, after a physics step: a place is never slept in the same update.
+
 ## A rest nothing holds up here is kept by steering (2026-11-23, built)
 
 The playtest: a mask set on Orgnar's back snapped about once a second on the guest while he wiped his counter.
