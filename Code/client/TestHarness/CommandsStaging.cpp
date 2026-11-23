@@ -47,11 +47,13 @@ nlohmann::json MenuFlags(Harness&, const nlohmann::json& acRequest)
     const auto cHidden = EngineCalls::IsFirstPersonModelHidden();
     const auto cLocal = EngineCalls::IsLocalMapShown();
     const auto cReady = EngineCalls::IsLocalMapReady();
+    const auto cLockpick = EngineCalls::IsLockpickBuilt();
     return {{"ok", true}, {"flags", cFlags ? nlohmann::json(*cFlags) : nlohmann::json(nullptr)},
             {"pauses", EngineCalls::GetMenuPauseCount()},
             {"first_person_hidden", cHidden ? nlohmann::json(*cHidden) : nlohmann::json(nullptr)},
             {"local_map", cLocal ? nlohmann::json(*cLocal) : nlohmann::json(nullptr)},
-            {"local_map_ready", cReady ? nlohmann::json(*cReady) : nlohmann::json(nullptr)}};
+            {"local_map_ready", cReady ? nlohmann::json(*cReady) : nlohmann::json(nullptr)},
+            {"lockpick_built", cLockpick ? nlohmann::json(*cLockpick) : nlohmann::json(nullptr)}};
 }
 
 // {"cmd": "first_person"}: the player's camera to first person.

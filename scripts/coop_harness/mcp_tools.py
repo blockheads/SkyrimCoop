@@ -449,6 +449,13 @@ def take(game: str, target: str) -> dict:
 
 
 @tool
+def pick_lock(game: str, target: str) -> dict:
+    """That game's player picks a locked handle's lock: activates it (real input), the lockpicking menu must open with
+    its lock built (why lock_not_built), the pick succeeds, and both games must read it open."""
+    return {"ok": True, **session.pick_lock(_game(game), target)}
+
+
+@tool
 def pickpocket(game: str, target: str, item: str, caught: bool = False) -> dict:
     """That game's player sneaks up to an NPC and takes `item` (its name in the list) from its pockets, the chance
     pinned: caught (the alarm closes the menu) or not."""

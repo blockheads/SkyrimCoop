@@ -58,6 +58,13 @@ and relayed: 7.3-10.2 s before, 1.35-1.59 s after
 ([network-performance.md](design/network-performance.md#steams-send-rate-2026-11-23)). ClientTests `[steam-pacing]`;
 scenario `steam-join-sends-save-fast` (two accounts). Not yet measured on a home line.
 
+2026-11-22: **the lockpicking menu draws its lock again** (`agent/lockpicking-ui`;
+[lockpicking.md](re/systems/lockpicking.md)). Since personal menus stopped pausing (2026-10-27) the menu opened with
+nothing drawn on the host and guests: `LockpickingMenu::ProcessMessage` (51950) builds the lock only on the main thread,
+and an unpaused game's UI runs in `Job_UI` (39042). One kUpdate between frames on the main thread builds it. Scenarios
+`host-`/`guest-lockpick-menu-builds-lock` (MCP verb `pick_lock`: the lock built, the pick, both games read it open);
+ClientTests `NeedsMainThreadBuild`.
+
 2026-11-22: **a disintegrated player's body is gone on every game until it respawns** (`agent/disintegrate-body`;
 [death-disintegrate.md](re/systems/death-disintegrate.md), "What we do"). After the freeze fix the victim's own body
 showed again once the ash shader ended (lying, then getting up) while the shooter's copy stayed dissolved. The refused
@@ -168,6 +175,14 @@ glided there, put there once, put to sleep and left (`RagdollRest`), so it no lo
 copy's ragdoll is in the played collision group; an actor's ragdoll rest is its `kRagdoll` record part, so a copy made
 after it (a join, a cell load) lies there too. A guest's grab of a host corpse is the mover's until it rests (it lay
 151 units apart before); a hit on a corpse was checked on the duo and needs nothing.
+
+2026-11-22: **a hidden guest's theft judged by who sees the host, fixed** (`agent/theft-detected-wrong`;
+`docs/re/systems/crime.md`, "A hidden guest's theft judged by who sees the host"; playtest 2026-11-22). StealAlarm
+gives every loaded NPC the crime to judge on its next update (39557, 39631), and that look read the host's player:
+`Judge`'s scope covered only StealAlarm's own looks. A guest sneaking behind a closed door was attacked through the
+host at the bar by the owner who saw the host (alarm, then 39651's owner assault). Now the bridge remembers which
+guest's copy each witness's crime names (`CrimeRules::PendingCriminals`) and runs that look in its scope. Scenario
+`guest-hidden-theft-host-seen`; harness `crime_watch` (each NPC's alarm, anger, witness flag and sight over time).
 
 2026-11-21: **held-now state for a joiner, piece 9 of one-simulator.md, built** (`agent/piece-9`;
 `docs/re/systems/actor-ai-and-copies.md`, "A held cast's end"). A game joining mid-cutscene, mid-conversation, after a
