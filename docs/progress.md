@@ -49,6 +49,21 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **a lever furniture one player pulls moves on every game** (`agent/levers-synced`; playtest 2026-11-22 item
+11; `docs/re/systems/activation.md`, "Lever furniture"). Bleak Falls Temple's pillar lever is a furniture with
+`KeywordActivatorFurnitureNoPlayer`: `TESFurniture::Activate` 17420 sends its pull (ActionActivate from its own idles,
+24602) to its own graph for this game's player only, not through Papyrus, so the host's copy of a guest moved nothing
+and no row carried either player's pull. The host now runs that pull for a copy (`HostEngine::Activate`), picks the
+host player's in `HookActivate`, and sends both as `kAnimation` rows with the puller, which the puller's own game
+skips. No pull when the engine makes none: a script's `BlockActivation` (19796 stops at `ExtraFlags` kBlockActivate)
+or a sitting activator (17420 stands it up). An audit of every interactable kind and the path it syncs by: `docs/design/world-state-sync.md`,
+"Interactables". Tests: GameTests "A lever furniture one player pulls moves once on every game" (fails without the
+fix: the host's lever never moved; without the puller's skip, the guest's moved twice), "A guest's pull of a scripted
+lever moves it on every game by the host's script"; scenario `guest-pulls-lever-furniture`. Harness: `objects` lists
+activators and lever furniture; MCP: verb `use_object_graphs` (an object's exact graph inputs in both games, up to its
+own end event), `expect` "object" (a reference's graph variable in both games), `use` aims at an object's body when
+its origin is off it.
+
 2026-11-23: **a copy holds its bow in both hands, as its owner does** (`agent/hand-slot-copies`;
 [hand-slots.md](re/systems/hand-slots.md)). Measured: Faendal's copy is at `[0, bow]` at its first repair after a rejoin (the
 writer not read), and the copy repair checked one hand per item. It now checks both hands of a two-hander (the right

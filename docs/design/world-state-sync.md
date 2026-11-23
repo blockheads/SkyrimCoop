@@ -316,6 +316,36 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
                                                          └ items on the copy → inventory changes
 ```
 
+## Interactables: which kind syncs how (audit 2026-11-23)
+
+Every player's interaction with the world's objects goes one generic way: the guest's activation runs on the host's
+game by its copy (`ActivateRequest` -> `HostGame::Activate`), and what changed reaches every game as the host's rows.
+The kinds differ only in what moves the object, so in which row it travels (`docs/re/systems/activation.md`).
+
+| Kind (examples) | What moves it on the host | Row to the guests | Fast test | Scenario |
+|---|---|---|---|---|
+| Scripted activator: levers (`NorLever01SCRIPT`), pull bars (`NorPullBar01SCRIPT`), buttons (`defaultButtonSCRIPT`), BFB pillars, claw door rings, wheels, chains | its `OnActivate` script on the host, run for the copy (the guest's own is dropped, `WorldEvents`) | `kAnimation` (`HookPlayAnimation` / `AndWait`) | GameTests "A guest's pull of a scripted lever moves it on every game by the host's script" | `ring-turns-for-client` |
+| Lever furniture (`KeywordActivatorFurnitureNoPlayer`: BFB's pillar lever `AA8C3`) | `TESFurniture::Activate` 17420 for its own player only: `HostEngine::Activate` runs the pull for a copy | `kAnimation` with the puller (`Value`), skipped by the puller's own game | GameTests "A lever furniture one player pulls moves once on every game" | `guest-pulls-lever-furniture` |
+| Door, gate (an open/close form) | `BGSOpenCloseForm::OpenOrClose` 14284 for any activator | `kOpenState`; a script's `Activate(Self)` as `kActivate` | GameTests "A lever a guest pulls moves once, on the host, ..." | `door-opens-for-both` |
+| Load door | never rerun (it would move the copy): each player's own game takes it through | none | none | `load-door-not-replayed` |
+| Something a lever's script opens (a gate, a portcullis, a trap: `refActOnFailure01.Activate(Self)`) | the host's script, by reference | `kActivate` (a door) or the target's own `kAnimation` | GameTests "A guest's pull of a scripted lever ..." (the row path) | `ring-turns-for-client`, `keyhole-asks-client` |
+| Pressure plate, trap trigger (`PressurePlate.psc`, trigger volumes) | the copy's body entering the host's trigger: `OnTriggerEnter` on the host (the guest's dropped) | `kAnimation` (`Down`/`Up` from its script: inferred), the trap's own | none (the fake has no trigger volumes) | `plate-counts-client` (measures the plate script's state on the host) |
+| Container, chest lid | `TESObjectCONT::Activate` 17887: the player's lid and menu are its own game's; items are rows | `kOpenState`, `kItems` | GameTests chest flows | `chest-take-all` |
+| Flora | `TESProduceForm::Harvest` 14864 for any actor | `kHarvested` | GameTests "A plant one player picks is picked on every game" | none |
+| Furniture an NPC works (Hod's sawmill lever `1B752`) | the NPC's AI enters it; its copy's graph is a dependent (`furniture-graphs.md`) | the copy's own graph events | GameTests "A copy working a furniture drives ..." | `copy-worker-drives-furniture` |
+
+Where each row comes from:
+- **Read in IDA:** the lever furniture (17420, 24602; measured too, `guest-pulls-lever-furniture`); doors, containers,
+  flora and load doors (14284, 17887, 14864, 17922, `activation.md`); the NPC-worked furniture (39912, 63364,
+  `furniture-graphs.md`).
+- **Inferred:** the scripted activator and pressure plate rows. They come from the vanilla Papyrus sources
+  (`NorLever01SCRIPT`, `PressurePlate.psc`: `PlayAnimation` in `OnActivate` / `OnTriggerEnter`), our hooks on
+  `PlayAnimation` 56205 / `PlayAnimationAndWait` 56206, and the guest's event drop (104800, `guest-world-events.md`).
+  Their scenarios measure only the script's side on the host (the ring's and the plate's script state), not the
+  row on the guest.
+
+Open, not this audit's: a trap's hit on a guest (playtest 2026-11-22 items 13-14).
+
 ## Unknowns
 
 - **Messages and the engine's side effects.** Each kind's apply call must be checked for what it does

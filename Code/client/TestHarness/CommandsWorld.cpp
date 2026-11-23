@@ -365,7 +365,8 @@ nlohmann::json GraphWriters(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"writers", writers}};
 }
 
-// {"cmd": "objects"}: the doors, containers and furniture in the player's cell (state, lock, load door, position).
+// {"cmd": "objects"}: the doors, containers, furniture and activators in the player's cell (state, lock, load door,
+// position, base; lever: a lever furniture).
 nlohmann::json Objects(Harness&, const nlohmann::json&)
 {
     constexpr uint8_t cDoor = 29;      // FormType::Door
@@ -381,6 +382,9 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
         // open_state: TESObjectREFR::OpenState, 1 open, 2 opening, 3 closed, 4 closing.
         objects.push_back(
             {{"id", cId},
+             {"base", cObject.Base},
+             {"activator", cObject.Activator},
+             {"lever", cObject.ActivatorFurniture},
              {"door", cIsDoor},
              {"furniture", forms.IsObjectBaseFormType(cId, cFurniture)},
              {"container", forms.IsObjectBaseFormType(cId, cContainer)},

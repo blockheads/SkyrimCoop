@@ -1233,6 +1233,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendMessage.Changes.push_back({ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D6), {}, 0, "Trigger01", "Done"});
+        ObjectChange pull{ObjectChange::Kind::kAnimation, GameId(0, 0x1B752), {}, 0, {}, "Pull"};
+        pull.Value = 7; // the puller's character
+        sendMessage.Changes.push_back(pull);
         sendMessage.Changes.push_back({ObjectChange::Kind::kEnabled, GameId(0, 0xA05C0)});
         ObjectChange enabled{ObjectChange::Kind::kEnabled, GameId(0, 0xA05AC)};
         enabled.Value = 1;

@@ -1109,6 +1109,25 @@ class ReproActions:
             if held["host"] != held["guest"]:
                 raise ctx.failure(f"{name}: holds differently: " + ctx.item_differences(held["host"], held["guest"], "host", "guest"))
             return {"items": len(held["host"])}
+        if check == "object":  # reference `name`'s graph: variable `field` reads `value` in both games (no field: all agree)
+            def graphs():
+                return {g: (ctx.world_state(i, [ctx.resolve(name, i)]).get(ctx.resolve(name, i)) or {}).get("graph") or {}
+                        for g, i in (("host", ""), ("guest", "client"))}
+            def holds(read):  # a graph read in both games, the field in both
+                if not all(read.values()):
+                    return False
+                return all(field in read[g] and read[g][field] == value for g in read) if field else read["host"] == read["guest"]
+            with contextlib.suppress(TestFailure):
+                ctx.wait_for(f"{name}: its graph agrees", lambda: holds(graphs()), seconds or 5)
+            read = graphs()
+            if not holds(read):
+                if not all(read.values()):
+                    raise ctx.failure(f"{name}: no graph read in {[g for g in read if not read[g]]}")
+                shown = {g: read[g].get(field) for g in read} if field else {k: (read["host"].get(k), read["guest"].get(k))
+                        for k in set(read["host"]) | set(read["guest"]) if read["host"].get(k) != read["guest"].get(k)}
+                raise ctx.failure(f"{name}: its graph {'variable ' + field + ' is ' if field else 'differs: '}{shown}"
+                                  f"{', not ' + repr(value) + ' in both games' if field else ''}")
+            return {"graph": read["host"]}
         if check == "bounty":  # `name` a crime faction (hex id): the host's bounty there at least value[0], the guest's the same
             def rows():
                 return {g: sum(ctx.party_bounty()[g].get(f"{int(name, 16):X}", [0, 0])) for g in ("host", "guest")}

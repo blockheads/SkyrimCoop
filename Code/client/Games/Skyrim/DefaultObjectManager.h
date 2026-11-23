@@ -9,8 +9,10 @@ struct DefaultObjectManager
     static DefaultObjectManager& Get();
     enum Object : uint32_t
     {
+        kActionActivate = 55, // CommonLibSSE-NG; an activator furniture's pull (TESFurniture::Activate 17420)
         kActionRagdoll = 107, // what KnockExplosion (39895) and KnockParalyze (39894) play
         kActionGetUp = 108,
+        kKeywordActivatorFurnitureNoPlayer = 182, // a furniture the player pulls without entering (17420)
         kWerewolfAvailablePerks = 320,
         kVampireAvailablePerks = 321,
     };

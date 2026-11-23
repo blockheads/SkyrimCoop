@@ -515,6 +515,9 @@ struct CellObject
 {
     uint32_t Id;
     float Position[3];
+    uint32_t Base = 0;
+    bool Activator = false;          // TESObjectACTI
+    bool ActivatorFurniture = false; // a lever furniture (TESObjectREFR::IsActivatorFurniture)
 };
 std::vector<CellObject> GetCellObjects() noexcept;
 

@@ -45,7 +45,8 @@ ActivateRef 19796 (this, activator, a3, objectToGet, count, defaultProcessingOnl
 - **Activator** (`TESObjectACTI::Activate` 17702): no branch on the player. `TrespassAlarm` (not an owner and
   detected), its sound, its water's `Activate`, `OpenOrClose` (a lever's pose). All world but the sound.
 - **Furniture** (`TESFurniture::Activate` 17420): only for this game's player (sit, sleep menu, crafting). Returns 0
-  for a copy, but `ActivateRef` still sends its `OnActivate`.
+  for a copy, but `ActivateRef` still sends its `OnActivate`. One of its player branches is world, not screen: a
+  **lever furniture** (below).
 - **Flora, tree** (`TESProduceForm::Harvest` 14864):
   - Any actor: the produce goes into the activator's inventory, the harvested flag is set (`0x2000`,
     `CHANGE_OBJECT_EMPTY` 0x200000, no row yet) and the switch node is posed.
@@ -60,6 +61,36 @@ ActivateRef 19796 (this, activator, a3, objectToGet, count, defaultProcessingOnl
 - **Items, lights** (17670; `TESObjectLIGH::Activate` 17615 for a carryable light): the activator picks it up (`Actor`
   vfunc 0xCC0). Loose items
   have their own claim (`PickUpRequest`, `HostItems`).
+
+## Lever furniture (playtest 2026-11-22, item 11)
+
+A furniture whose keywords hold default object 182, `KeywordActivatorFurnitureNoPlayer` (CommonLibSSE-NG), is an
+activator the player does not enter: Bleak Falls Temple's pillar puzzle lever `AA8C3` (base `B7DB4`, the only one in
+`BleakFallsBarrow01`, measured with harness `objects`' `lever`). Read in IDA 2026-11-23 (journal `agent-levers-synced.tsv`):
+
+```text
+TESFurniture::Activate 17420 (furniture, ref, activator)
+  activator != gPlayerCharacter3 -> return 0             a copy's pull stops here: the lever never moves
+  ... (sit marker, sleep, a bed: the player's own)
+  keywords (+0x90, vfunc 4) hold default object 182:
+    BGSActionData: actor slot = the furniture ref, action = ActionActivate (default object 55), no target
+    coop_PickIdleForAction 24602 (global 400451): the furniture's own idle tree picks the idle, its event (+0x28)
+    the event -> the ref's own graph (IAnimationGraphManagerHolder +0x38, vfunc 1, NotifyAnimationGraph)
+```
+
+Not Papyrus `PlayAnimation`, so `HookPlayAnimation` never saw it and no row carried it either way: a guest's pull
+moved only its own lever (the host's copy's activation returned 0; its `OnActivate`, the darts or the door, did run),
+and the host's pull moved only the host's. The fix runs the same path: `TESObjectREFR::IsActivatorFurniture` (the
+keyword) and `PickActivatorFurnitureEvent` (24602 on fresh action data, as 17420). The host's game, rerunning a
+guest's activation (`HostEngine::Activate`), picks the pull, sends it to the lever's graph and records it as a
+`kAnimation` row with the puller's character (`Value`); the host's player's own pull is picked in `HookActivate`
+before the engine's own (`ActivateEvent::FurnitureEvent`) and recorded the same way. A guest applies the row unless
+the puller is its own player (`GuestWorldState`: its engine already played it). Measured 2026-11-23 on the duo (scenario `guest-pulls-lever-furniture`, harness `anim_trace` on `AA8C3`): the guest's
+pull reached its lever as input `Lever_PlayerPush` from `26F598` (the notify in 17420), the host's 14 ms later from
+our replay; each lever then raised `ObjectActivated` and `LeverPushReset`, and neither got the input twice. The host's
+pull, the same the other way. An NPC working a furniture lever
+(Hod's sawmill lever `1B752`) enters it through AI: its copy's graph events reach it as a dependent graph
+(`furniture-graphs.md`).
 
 ## Locks
 
