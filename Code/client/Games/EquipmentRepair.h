@@ -9,22 +9,30 @@ namespace EquipmentRepair
 constexpr uint8_t kWeaponType = 41;
 constexpr uint32_t kRightHand = 0x13F42;
 constexpr uint32_t kLeftHand = 0x13F43;
+constexpr uint32_t kBothHands = 0x13F45;
 
-// A weapon goes in its hand; everything else (armor, a torch, ammo) in its own default slot (0).
-constexpr uint32_t EquipSlot(uint8_t aType, bool aLeft) noexcept
+constexpr uint8_t kLightType = 31;
+constexpr uint8_t kLeftHandBit = 1, kRightHandBit = 2;
+
+// A one-handed weapon goes in its hand, a two-hander in BothHands (passed: no slot is RightHand, 38911, which a
+// dual-wield race keeps, 38926); armor, a torch or ammo in its own slot (0): a torch's LeftHand (17619). hand-slots.md.
+constexpr uint32_t EquipSlot(uint8_t aType, bool aLeft, bool aTwoHanded = false) noexcept
 {
-    return aType == kWeaponType ? (aLeft ? kLeftHand : kRightHand) : 0;
+    if (aType != kWeaponType)
+        return 0;
+    return aTwoHanded ? kBothHands : aLeft ? kLeftHand : kRightHand;
 }
 
-// The hand a worn item is held in (0 left, 1 right): a weapon's own, a torch the left; none for anything else.
-constexpr std::optional<uint32_t> HandOf(uint8_t aType, bool aLeft) noexcept
+// The hands a worn item is held in (kLeftHandBit, kRightHandBit): a one-handed weapon its own, a torch the left (an
+// equip's only hand for it, 17619), a two-hander both unless the left holds something else worn (Aela's [torch, bow],
+// measured). 0 for anything else.
+constexpr uint8_t HandsOf(uint8_t aType, bool aLeft, bool aTwoHanded = false, bool aLeftTaken = false) noexcept
 {
-    constexpr uint8_t cLight = 31;
+    if (aType == kWeaponType && aTwoHanded)
+        return aLeftTaken ? kRightHandBit : kLeftHandBit | kRightHandBit;
     if (aType == kWeaponType)
-        return aLeft ? 0u : 1u;
-    if (aType == cLight)
-        return 0u;
-    return std::nullopt;
+        return aLeft ? kLeftHandBit : kRightHandBit;
+    return aType == kLightType ? kLeftHandBit : 0;
 }
 
 // A hand the owner holds a spell in holds something on a loaded copy: EquipSpell (38928) without a process only

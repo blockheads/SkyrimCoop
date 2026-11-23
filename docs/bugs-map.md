@@ -29,7 +29,7 @@ The grouping of 2026-11-22 (after one-simulator's ten pieces) and what to build 
    a move or a rebuilt process can change either, and they are checked apart
      |-- hand spells on a copy     fixed 11-04, held 11-07
      |-- Revive's hands            fixed
-     `-- a copy without its weapon OPEN: unreproduced (a sheathed bow's slot, 11-22)
+     `-- a copy without its weapon OPEN: the bow's slot fixed 11-23 (hand-slots.md); its 3D unobserved
 
  COPY LIFECYCLE: an owner's actor unloads, moves or is removed
  -------------------------------------------------------------
@@ -96,7 +96,8 @@ Camilla's `Behavior02=MT_Idle.HKX` is the same shape in the log and was not samp
 
 ### B. A copy's hands
 
-Entry: [A copy without its weapon](bugs.md#a-copy-without-its-weapon), the user's report of 2026-11-06.
+Entry: [A copy without its weapon](bugs.md#a-copy-without-its-weapon), the user's report of 2026-11-06; the bow's
+hand slot fixed 2026-11-23 (re/systems/hand-slots.md).
 
 Read: a held item lives in two places. Hands are the AI process's slots (`ActorProcess` 39192 writes +240/+248, called
 from Equip 38929 and `InitWornArmor`); worn marks are inventory extra data. `PlayerCharacter::Resurrect` (40491) and a

@@ -773,11 +773,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::map<uint32_t, float> TemporaryValues;
         Inventory Items; // its CurrentMagicEquipment: the hands' selected spells (Actor::selectedSpells +0x1C8)
         // The weapon or torch each hand holds (AIProcess::equippedObjects, left and right): put there by an equip with
-        // 3D, emptied by TESNPC::ResetWornToOutfit 418622 (39811-39813) whose worn flags stay (measured, Aela's torch).
+        // 3D (a two-hander in both, a torch the left), emptied by TESNPC::ResetWornToOutfit 418622 whose worn flags
+        // stay (measured, Aela's torch).
         uint32_t HeldWeapons[2]{};
         // The spells its hands hold (AIProcess::equippedObjects, left and right): an equip without 3D only selects.
         uint32_t HeldSpells[2]{};
         bool EquipmentNeedsReset = false;
+        int EquipmentResets = 0; // ActorResetEquipment calls: the copy repair's strip and re-equip
         struct ReplayState : AnimationReplayStep
         {
             ReplayState() = default;
@@ -1819,6 +1821,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         uint8_t Type = 0;   // FormType: kWeapon or kArmor
         uint32_t Slots = 0; // an armor's (BGSBipedObjectForm)
+        bool TwoHanded = false; // a weapon held in both hands (BothHands: a bow, a greatsword)
     };
     static constexpr uint8_t kWeapon = 41;
     static constexpr uint8_t kLight = 31;
@@ -1833,6 +1836,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, ItemForm> ItemForms{{0x00012EB7, {kWeapon}},          // Iron Sword
                                            {0x00013989, {kWeapon}},          // Steel Sword
                                            {0x0001397E, {kWeapon}},          // Iron Dagger
+                                           {0x00013985, {kWeapon, 0, true}}, // Hunting Bow
+                                           {0x0001D4EC, {kLight}},           // Torch
                                            {0x00012E49, {kArmor, 0x4}},      // Iron Armor (body)
                                            {0x00013952, {kArmor, 0x4}},      // Steel Armor (body)
                                            {0x00012E4D, {kArmor, 0x1 | 0x2}}}; // Iron Helmet (head, hair)
@@ -1921,6 +1926,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // What the actor wears: each worn item (its server id) and whether in the left hand.
     [[nodiscard]] std::set<std::tuple<uint32_t, uint32_t, bool>> Worn(uint32_t aActor) const;
     uint8_t GetFormType(uint32_t aFormId) const noexcept override;
+    bool IsTwoHandedWeapon(uint32_t aFormId) const noexcept override
+    {
+        const auto it = ItemForms.find(aFormId);
+        return it != ItemForms.end() && it->second.TwoHanded;
+    }
     bool IsRightHandEquipSlot(uint32_t aEquipSlotFormId) const noexcept override { return aEquipSlotFormId == kRightHand; }
     Inventory GetActorEquipment(uint32_t aActorFormId) const noexcept override;
     Inventory GetActorWornArmor(uint32_t aActorFormId) const noexcept override;
@@ -1930,6 +1940,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    // Its two-hander left in the right hand only, as Faendal's copy was at its first repair after a rejoin (measured,
+    // rejoined-guest-sees-rider 2026-11-23; the writer is not read). hand-slots.md.
+    void LeavesTwoHanderInRightOnly(uint32_t aFormId) { Actors.at(aFormId).HeldWeapons[0] = 0; }
 
     [[nodiscard]] bool Has(uint32_t aFlags) const noexcept
     {

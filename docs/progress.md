@@ -49,6 +49,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **a copy holds its bow in both hands, as its owner does** (`agent/hand-slot-copies`;
+[hand-slots.md](re/systems/hand-slots.md)). Measured: Faendal's copy is at `[0, bow]` at its first repair after a rejoin (the
+writer not read), and the copy repair checked one hand per item. It now checks both hands of a two-hander (the right
+only beside a worn torch, as Aela holds them) and equips it with BothHands (38911 would make no slot RightHand). `rejoined-guest-sees-rider` passes;
+GameTests "A copy left holding its bow in one hand holds it in both again". Also measured: an equip marks a torch
+worn left (17619), and the playtest's guards with a torch in each hand were not reproduced (real guards at night agree
+on both games). Harness `reset_3d`, snapshot `worn_left`, the repair's log line for hands it finds short.
+
 2026-11-23: **a save over Steam travels 5x faster** (`agent/save-load-explained`): Steam paced every P2P connection at
 its fixed default of 256 KB/s, so a save went at 120-240 KB/s in both playtests (a save sent ahead took 8-10 s and a
 load soon after it sent it again). `SteamBridge` sets the send rate to 4 MB/s (min = max: Steam does not adapt

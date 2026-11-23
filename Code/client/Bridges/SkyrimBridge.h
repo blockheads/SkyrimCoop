@@ -177,6 +177,7 @@ public:
     // -----------------------------------------------------------------
     bool FormExists(uint32_t aFormId) const noexcept override;
     uint8_t GetFormType(uint32_t aFormId) const noexcept override;
+    bool IsTwoHandedWeapon(uint32_t aFormId) const noexcept override;
     std::string GetFormName(uint32_t aFormId) const noexcept override;
     float GetGlobalValue(uint32_t aFormId) const noexcept override;
     void SetGlobalValue(uint32_t aFormId, float aValue) noexcept override;
