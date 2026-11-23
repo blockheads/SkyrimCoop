@@ -4,7 +4,10 @@
 threads taking the same two locks in opposite orders, the first time it sees it. A report is history, not a wait.
 `[ours]` means our DLL is below an engine frame on that stack; pass-through hooks are excluded with
 `LockOrder::IgnoreFrames` (main loop, VM update, `HookUpdateAI`, `HookCheckForNewPackage`, `HookApplyMovement`'s
-engine path, `HookSendEvent`, the alias name hooks around 24011 and 24012). Its list once held 8 of the 10 hooks and dropped the
+engine path, `HookSendEvent`, the alias name hooks around 24011 and 24012, the 3D job's ends `HookEndLoad3D` and
+`HookFinishLoad3D` since 2026-11-23: 13023 is on the Havok world pattern below, which read as ours once it was hooked;
+`LiveMenuHooks`' `UpdatePlayer` on 36581 too: a guest whose grid shifted by itself detaches cells under it, 19130 >
+`DetachHavok` 19717 > 12355 > 77803, the list-first side of that pattern, seen in `guest-leash`). Its list once held 8 of the 10 hooks and dropped the
 rest silently, so the engine's own orders read as ours and failed `party-buys-house-host`: the alias walk 39213 > 37172 > 12721 >
 11737 (`[ours]`: its frames were pass-through) against `ClearRefAlias` > 12047 > 12719. Now 32, a critical log past that, and
 a harness unit counting the calls.

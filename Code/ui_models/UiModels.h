@@ -68,6 +68,8 @@ struct DeathModel
 {
     bool Visible = false;
     Rml::String Name, Status;
+    // The leash's warning banner (GuestLeash): seconds until this player is sent to the host, 0 for none.
+    int LeashSeconds = 0;
     Rml::DataModelHandle Handle;
     bool Bind(Rml::Context& aContext);
 };

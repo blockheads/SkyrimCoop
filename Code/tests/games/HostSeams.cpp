@@ -167,8 +167,18 @@ void HostService::MakeAuthority() noexcept
         reading.Stealth = engine.LowestStealthPoints(cCopy);
         return reading;
     };
-    game.ReadWeather = [&engine] {
-        return engine.Weather.BaseId ? std::optional<GameId>(engine.Weather) : std::optional<GameId>{};
+    game.ReadWeather = [&engine]() -> std::optional<HostSky> {
+        if (!engine.Weather.BaseId)
+            return std::nullopt;
+        return HostSky{.Weather = engine.Weather, .Forced = static_cast<bool>(engine.ForcedWeather),
+                       .Region = engine.WeatherRegion ? GameId{0, engine.WeatherRegion} : GameId{}};
+    };
+    game.RegionWeather = [&engine](const GameId& acRegion) -> std::optional<GameId> {
+        // HostEngine::RegionWeather: none set since the load is set as the shown weather's change would.
+        if (!engine.RegionWeather.contains(acRegion.BaseId))
+            engine.SetRegionWeather(acRegion.BaseId);
+        const auto it = engine.RegionWeather.find(acRegion.BaseId);
+        return it == engine.RegionWeather.end() ? std::nullopt : std::optional(it->second);
     };
     game.ReadGlobals = [&engine] {
         std::vector<HostGlobal> globals;
@@ -210,8 +220,18 @@ void HostService::MakeAuthority() noexcept
     game.Activate = [&engine](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) {
         const uint32_t cObject = aNpcId ? Utils::GetFormIdBySessionId(aNpcId) : FormIdOf(acObject);
         const uint32_t cActivator = Utils::GetFormIdBySessionId(aActivatorId);
-        if (cActivator && (!aNpcId || !engine.IsActorCopy(cObject)))
-            engine.RunsActivation(cObject, cActivator);
+        if (!cActivator || (aNpcId && engine.IsActorCopy(cObject)))
+            return;
+        engine.RunsActivation(cObject, cActivator);
+        // As HostEngine::Activate: a lever furniture's pull, which 17420 gives this game's player only, recorded.
+        if (const auto cLever = engine.References.find(cObject); cLever != engine.References.end() && cLever->second.Lever &&
+            !cLever->second.ActivationBlocked)
+        {
+            cLever->second.GraphEvents.push_back(FakeEngine::kPull);
+            ObjectChange pull{.Type = ObjectChange::Kind::kAnimation, .Object = SessionIdOf(cObject), .Event = FakeEngine::kPull};
+            pull.Value = aActivatorId;
+            engine.Recorded.push_back(std::move(pull));
+        }
     };
     game.Summon = [&engine](uint32_t aCasterId, const SummonRequest& acSummon) {
         const uint32_t cCopy = Utils::GetFormIdBySessionId(aCasterId);

@@ -53,3 +53,31 @@ struct NotifyPartySummon final : NotifyMessage
     NotifyPartyTravel Destination;
     std::string Username; // who summoned
 };
+
+// The soft leash (party-travel.md): a guest outdoors out of the host's loaded grid hears a countdown, then goes to the
+// host; back in time, or once the leash no longer applies (a trip, indoors, a player down), the countdown stops.
+struct NotifyLeash final : NotifyMessage
+{
+    static constexpr NotifyOpcode Opcode = kNotifyLeash;
+
+    NotifyLeash() : NotifyMessage(Opcode)
+    {
+    }
+
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
+
+    bool operator==(const NotifyLeash& acRhs) const noexcept
+    {
+        return GetOpcode() == acRhs.GetOpcode() && State == acRhs.State && Seconds == acRhs.Seconds;
+    }
+
+    enum class Kind : uint8_t
+    {
+        kOff,  // the countdown stops, nothing said (a trip took over, indoors, a player down)
+        kOut,  // out of the host's grid: the countdown starts
+        kBack, // back in the host's grid: the countdown stops, and the player is told
+    };
+    Kind State{Kind::kOff};
+    uint8_t Seconds{}; // kOut: the countdown's length
+};

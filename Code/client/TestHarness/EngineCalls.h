@@ -161,6 +161,8 @@ void EndConsolePauses() noexcept;
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept;
 // The flags of one open menu, for live-menu regressions.
 std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept;
+// The open lockpicking menu's lock and pick 3D are built (51950), nullopt with no menu.
+std::optional<bool> IsLockpickBuilt() noexcept;
 std::optional<bool> IsFirstPersonModelHidden() noexcept;
 std::optional<bool> IsLocalMapShown() noexcept;
 std::optional<bool> IsLocalMapReady() noexcept;
@@ -371,6 +373,9 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // runs it: inventory-changes.md), through our hook: what it wears right after, before any service answers. None: no
 // such actor or NPC base.
 std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcept;
+// DoReset3D(false) (40255) in this game only: its 3D rebuilt, possibly queued; whether its worn init (24725) runs is
+// not checked. False: no such actor.
+bool Reset3D(uint32_t aFormId) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
 // (the bridge's Activate and lock replays call past the hooks): the player activates the object
 // (pressing E on it), and the object's lock changes.
@@ -511,6 +516,9 @@ struct CellObject
 {
     uint32_t Id;
     float Position[3];
+    uint32_t Base = 0;
+    bool Activator = false;          // TESObjectACTI
+    bool ActivatorFurniture = false; // a lever furniture (TESObjectREFR::IsActivatorFurniture)
 };
 std::vector<CellObject> GetCellObjects() noexcept;
 
@@ -650,6 +658,15 @@ std::vector<IdleNode> CheckIdleTree(uint32_t aIdleFormId, uint32_t aSubjectFormI
 bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
 // AIProcess::processLevel (0 high, 1 middle-high, 2 middle-low, 3 low); none without a process.
 std::optional<uint8_t> GetProcessLevel(uint32_t aFormId) noexcept;
+// Where the game placed the reference (TESObjectREFR::GetEditorLocation 19514): its world or cell and position.
+struct EditorHome
+{
+    uint32_t WorldOrCell{};
+    float Position[3]{};
+};
+std::optional<EditorHome> GetEditorHome(uint32_t aFormId) noexcept;
+// The reference's parent cell is attached here (cell state 7): its cell in this game's loaded grid.
+bool IsParentCellAttached(uint32_t aFormId) noexcept;
 // The condition GetIsCurrentPackage (21529) on the actor: what dialogue lines read.
 std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
 // The condition GetFactionRank (21493) on the actor: -1 when not a member, as conditions read it.

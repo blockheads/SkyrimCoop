@@ -1,0 +1,26 @@
+time	op	id	rva	item
+2026-11-23T03:02:40Z	read	51959	0x94dc60	{"name": "LockpickingMenu::OpenMenu"}
+2026-11-23T03:02:45Z	read	82076	0x11696e0	{"name": "sub_1411696E0"}
+2026-11-23T03:03:17Z	read		0x283460	{"name": "TESObjectDOOR::Activate"}
+2026-11-23T03:04:03Z	name	82076	0x11696e0	{"addr": "0x1411696E0", "name": "UI::IsPauseMenuDisabled"}
+2026-11-23T03:04:07Z	comment		0x94dcb1	{"addr": "0x14094dcb1", "comment": "Refused silently while UI::numDisablePauseMenu (UI+0x168) > 0: a menu with flag 0x80 is open."}
+2026-11-23T03:04:07Z	comment		0x94dd11	{"addr": "0x14094dd11", "comment": "Lock level 5 (requires key) or a broken lock: 'DRSLocked' HUD message, no menu."}
+2026-11-23T03:04:07Z	comment		0x94dd62	{"addr": "0x14094dd62", "comment": "Needs a lockpick (gLockpickMiscItem, 0xA) or default object 5 (skeleton key); else sOutOfLockpicks."}
+2026-11-23T03:04:07Z	comment		0x94dd7c	{"addr": "0x14094dd7c", "comment": "Sets the menu's target (406271) and difficulty, then queues kShow for 'Lockpicking Menu' (InterfaceStrings+0x118)."}
+2026-11-23T03:04:07Z	comment		0x283403	{"addr": "0x140283403", "comment": "Locked (REFR_LOCK flag 1) and the activator does not own it (sub_17930): try the key, else lockpick."}
+2026-11-23T03:04:07Z	comment		0x28353a	{"addr": "0x14028353a", "comment": "The player without the key: LockpickingMenu::OpenMenu (51959); the door stays shut (returns 0)."}
+2026-11-23T03:04:07Z	comment		0x283546	{"addr": "0x140283546", "comment": "An NPC with a lockpick (or key) unlocks it outright, trespass alarm if owned."}
+2026-11-23T03:06:32Z	read	51960	0x94dde0	{"name": "LockpickingMenu::sub_51960"}
+2026-11-23T03:10:09Z	read		0x281d9a	{"name": "TESObjectCONT::Activate"}
+2026-11-23T03:10:30Z	read	12402	0x180d60	{"name": "IsLockBroken"}
+2026-11-23T03:10:30Z	read	12399	0x180c10	{"name": "REFR_LOCK::GetLockLevel"}
+2026-11-23T03:15:55Z	read	51950	0x94d350	{"name": "LockpickingMenu::ProcessMouseMove4"}
+2026-11-23T03:16:46Z	read		0x6a1a30	{"name": "Actor::PauseCurrentDialogue"}
+2026-11-23T03:16:49Z	read	39042	0x6e4e80	{"name": "Job_UI"}
+2026-11-23T03:17:34Z	comment		0x65930c	{"addr": "0x14065930C", "comment": "UI::ProcessMessages on the main thread only in job mode 0 (game paused); otherwise Job_UI (39042) runs it on a job thread. Menus kept live in a session get their kUpdate there."}
+2026-11-23T03:17:34Z	comment		0x6e4e8b	{"addr": "0x1406e4e8b", "comment": "Job_UI: UI::ProcessMessages, AdvanceMovies and console commands on a job thread, unless the byte is set; sets job event 2 that the render step waits on."}
+2026-11-23T03:17:34Z	comment		0x94d430	{"addr": "0x14094d430", "comment": "LockpickingMenu::ProcessMessage kUpdate (0): builds the lock and pick 3D (51960, 51963, 51969, 51967, 51977) once (+0x11C), only on the main thread (Main+0x28). Off the main thread (Job_UI, an unpaused game) it never builds: the menu opens with nothing drawn."}
+2026-11-23T03:17:34Z	comment		0x94d3ae	{"addr": "0x14094d3ae", "comment": "Type 7 (kUserEvent) with the cancel user event: queues kHide for the menu."}
+2026-11-23T03:17:34Z	comment		0x94d40d	{"addr": "0x14094d40d", "comment": "kShow (1): 51964."}
+2026-11-23T03:17:35Z	name	51950	0x94d350	{"addr": "0x14094d350", "name": "LockpickingMenu::ProcessMessage"}
+2026-11-23T03:17:35Z	name	51960	0x94dde0	{"addr": "0x14094dde0", "name": "LockpickingMenu::Build3D"}

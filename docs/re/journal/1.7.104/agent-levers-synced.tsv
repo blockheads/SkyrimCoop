@@ -1,0 +1,7 @@
+time	op	id	rva	item
+2026-11-23T15:33:40Z	read	17420	0x26f340	{"name": "TESFurniture::Activate"}
+2026-11-23T15:36:03Z	read	24602	0x3b9040	{"name": "sub_1403B9040"}
+2026-11-23T15:36:16Z	comment		0x26f4d2	{"addr": "0x14026f4d2", "comment": "levers-synced: default object 182 = KeywordActivatorFurnitureNoPlayer (CommonLibSSE-NG). A furniture with it is an activator the player does not enter: a lever, pull bar or chain (BFB's pillar lever). Its pull is ActionActivate (55) picked from its own idle tree (coop_PickIdleForAction 24602) and sent to its own graph below. Only this game's player reaches here: a copy's (the host's rerun of a guest's pull) returns 0 at the top, so the lever never moves on the host."}
+2026-11-23T15:36:16Z	comment		0x26f595	{"addr": "0x14026f595", "comment": "levers-synced: the furniture's own graph gets the idle's event (IAnimationGraphManagerHolder +0x38 vfunc 1 NotifyAnimationGraph). Not Papyrus PlayAnimation: our script-animation hook never sees it, so no row carries it either way."}
+2026-11-23T16:10:17Z	data			{"old": "qword_1421A05F0", "new": "g_coopIdleSelector"}
+2026-11-23T16:10:18Z	comment		0x26f378	{"addr": "0x14026f378", "comment": "levers-synced: only this game's player goes on. A copy's activation (the host rerunning a guest's, HostEngine::Activate) returns 0 here: no sit, and no lever-furniture pull either (that branch below is world, not screen). SkyrimCoop runs the pull for a copy itself: TESObjectREFR::PickActivatorFurnitureEvent."}

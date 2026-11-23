@@ -340,6 +340,13 @@ class Export(unittest.TestCase):
         self.assertIn("ctx.expect(name='door', check='agree')", text)
         self.assertEqual(text.count("ctx.swing()"), 1, "a failed verb that is not a check is left out")
 
+    def test_a_failed_pick_lock_stays_by_its_tool_and_through_verb(self):
+        entries = [{"tool": "pick_lock", "args": {"game": "guest", "target": "door"}, "ok": False},
+                   {"tool": "verb", "args": {"name": "pick_lock", "args": {"instance": "host", "target": "door"}}, "ok": False}]
+        text = repro.export_scenario(entries, "x", "Doc.", ["recorded"])
+        self.assertIn("ctx.pick_lock('client', 'door')", text)
+        self.assertIn("ctx.pick_lock(instance='', target='door')", text)
+
     def test_a_scenario_using_the_players_handles_names_them_first(self):
         entries = [{"tool": "expect", "args": {"name": "guest_player", "check": "stays", "field": "state.dead", "value": False}, "ok": False}]
         self.assertIn("try:\n        ctx.name_players()\n        ctx.expect('guest_player'", repro.export_scenario(entries, "x", "D.", []))
@@ -347,7 +354,7 @@ class Export(unittest.TestCase):
     def test_every_tool_replays_or_is_known_to_only_look(self):
         samples = {"game": "host", "target": "t", "name": "n", "check": "agree", "spec": {}, "frames": 1, "line": "x",
                    "request": {"cmd": "act"}, "key": "w", "item": "1", "step": {}, "save": "s", "command": "c", "call": "use",
-                   "lanes": [{"call": "use", "args": {"game": "host", "target": "t"}}]}
+                   "x": 0.0, "y": 0.0, "lanes": [{"call": "use", "args": {"game": "host", "target": "t"}}]}
         for name in mcp_tools.TOOLS:
             with self.subTest(tool=name):
                 self.assertTrue(name in repro.LOOKS or repro._line(name, {**samples, "args": {}}) is not None,

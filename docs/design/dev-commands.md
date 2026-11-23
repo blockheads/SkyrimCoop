@@ -40,6 +40,7 @@ every game: DevToolsService::OnNotifyDevCommand
 | `/spawn <kind> [1-20]` | host | `<typer>.placeatme <list> <n>`: wolf, bandit, draugr, troll, sabrecat, giant, dragon (leveled lists, Skyrim.esm) |
 | `/killall` | host | none: `KillHostiles`, the console's `killall` kills every actor, copies and followers too |
 | `/weather <kind>` | host | `fw <id>`; `HostWeather` shares it as any weather (no sky in an interior) |
+| `/leash [on\|off]` | host | none: `HostLeash::SetOn`; off stops a running countdown (`kOff`), `/reset` turns it on |
 | `/dev` | this game | the list |
 
 `ConsoleNameOf`: the host's player is `player`, a guest's character is its copy's reference id (`FF...`). The console

@@ -141,7 +141,7 @@ Measured on a copy with the harness's `reset_worn` (418622 called as 24725 calls
 - Aela's copy lost the torch its owner wore (not in her outfit), and its hands were emptied (`state.hands` [0, 0]
   against its owner's torch and bow) while the bow's worn flag stayed. The process's hands are cleared by 418622's
   `ActorProcess` calls (39811-39813, read only as calls). So a copy's repair also checks that each hand holds the
-  weapon or torch its owner wears there (`EquipmentRepair::HandOf`).
+  weapon or torch its owner wears there (`EquipmentRepair::HandsOf`; both hands for a two-hander, hand-slots.md).
 - Lydia's copy kept an iron helmet her outfit lacks, and her sword: both were equipped on the copy by its repair,
   forced, so locked (above). Aela's torch was lost all the same; why a forced light comes off is not read.
 - A player copy's round trip to another cell (Riverwood inn and back) kept its worn set: no strip logged.

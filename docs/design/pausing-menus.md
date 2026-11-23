@@ -84,6 +84,13 @@ Tests: ClientTests `menu_auto_close_tests.cpp`; Skyrim `host-/guest-chest-list-f
 with its own container open is not a player's path (no quicksave or console in that menu); its journal save is
 `host-journal-save`.
 
+## The lockpicking menu's lock (2026-11-22)
+
+A live lockpicking menu opened with nothing drawn (2026-11-22 playtest, host and guest): its kUpdate builds the lock
+only on the main thread, and an unpaused game sends it from `Job_UI`. `LiveMenuHooks.cpp` gives it one kUpdate between
+frames on the main thread (`docs/re/systems/lockpicking.md`). The old scenarios only read the menu stack; the
+`pick_lock` verb reads the built lock (`menu_flags` `lockpick_built`) and picks it.
+
 ## Validation
 
 Tier 1: personal-menu pause flags, preserved input/saving flags, case-insensitive names, offline

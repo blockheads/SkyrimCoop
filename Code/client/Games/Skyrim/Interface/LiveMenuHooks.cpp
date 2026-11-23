@@ -2,15 +2,20 @@
 #include <Hooks/Initializer.h>
 #include <Hooks/FunctionHook.h>
 #include <Actor.h>
+#include <BSCore/LockOrder.h>
 #include <Interface/IMenu.h>
 #include <Interface/ItemMenuWatch.h>
 #include <Interface/MenuAutoClose.h>
 #include <Events/LidUnposedEvent.h>
+#include <Interface/Menus/LockpickingMenu.h>
 #include <Interface/Menus/MapMenu.h>
+#include <Interface/MenuPauseRules.h>
+#include <MainLoopTasks.h>
 #include <Interface/UI.h>
 #include <PlayerCharacter.h>
 #include <NetImmerse/NiNode.h>
 #include <World.h>
+
 
 namespace
 {
@@ -75,7 +80,8 @@ UI_MESSAGE_RESULTS Watched(AutoClosed& aMenu, IMenu* apMenu, UIMessage& aMessage
     return aMenu.Real(apMenu, aMessage);
 }
 
-void CheckWatched(AutoClosed& aMenu) noexcept
+// Out of line: UpdatePlayer's own frames are pass-through for the lock checker, this is ours.
+__declspec(noinline) void CheckWatched(AutoClosed& aMenu) noexcept
 {
     if (!aMenu.Watching || !InSession())
         return;
@@ -210,6 +216,36 @@ uint64_t UiMovies(UI* apUI)
     return RealUiMovies(apUI);
 }
 
+// LockpickingMenu::ProcessMessage (51950, vtable slot 4): a live menu's kUpdate comes from Job_UI and never builds the
+// lock; one kUpdate between frames on the main thread builds it, as a paused game's would.
+TMenuProcess* RealLockpickProcess{};
+MenuPauseRules::MainThreadBuild s_lockpickBuild;
+
+void BuildLockpickOnMainThread()
+{
+    s_lockpickBuild.Ran();
+    UI* pUI = UI::Get();
+    auto* pMenu = pUI && pUI->GetMenuOpen("Lockpicking Menu")
+                      ? static_cast<LockpickingMenu*>(pUI->FindMenuByName("Lockpicking Menu"))
+                      : nullptr;
+    if (!pMenu || !MenuPauseRules::NeedsMainThreadBuild("Lockpicking Menu", pMenu->uiMenuFlags, pMenu->built3D))
+        return;
+    UIMessage update{};
+    update.menu.Set("Lockpicking Menu");
+    update.eType = UIMessage::kUpdate;
+    RealLockpickProcess(pMenu, update);
+    spdlog::info("LiveMenus: the lockpicking menu's 3D built on the main thread: {}", pMenu->built3D);
+}
+
+UI_MESSAGE_RESULTS LockpickProcess(IMenu* apMenu, UIMessage& aMessage)
+{
+    const auto cResult = RealLockpickProcess(apMenu, aMessage);
+    const auto* cpMenu = static_cast<const LockpickingMenu*>(apMenu);
+    if (aMessage.eType == UIMessage::kUpdate && s_lockpickBuild.Ask("Lockpicking Menu", cpMenu->uiMenuFlags, cpMenu->built3D))
+        MainLoopTasks::Queue(&BuildLockpickOnMainThread);
+    return cResult;
+}
+
 using TMenuMode = bool(uint32_t);
 TMenuMode* RealBookMenuMode{};
 
@@ -225,6 +261,8 @@ Hooks::Initializer s_hooks([] {
     Hooks::Nop(updatePlayer.Get() + 0x7A, 6);
     Hooks::PutCall(updatePlayer.Get() + 0x7A, &HasPlayerModel);
     HOOK_ID(36581, &RealUpdatePlayer, UpdatePlayer);
+    // The frame's world update (the grid's cell attach and detach) runs inside: its lock orders are the engine's.
+    LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&UpdatePlayer));
 
     // 1.6.1170: MapMenu's local-map updater sets the background flag and freezes the render frame.
     VersionDbPtr<uint8_t> localMap(53112);
@@ -238,6 +276,10 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(51848, &RealInventoryProcess, InventoryProcess);
     HOOK_ID(82082, &RealUiMessages, UiMessages);
     HOOK_ID(82083, &RealUiMovies, UiMovies);
+
+#if !COOP_SKYRIM_1_6_1170 // the +0x11C build flag was read in 1.7.104 only
+    HOOK_ID(51950, &RealLockpickProcess, LockpickProcess);
+#endif
 
     VersionDbPtr<uint8_t> bookProcess(51049);
     constexpr size_t cBookModeCall = COOP_SKYRIM_1_6_1170 ? 0x6F : 0x71;

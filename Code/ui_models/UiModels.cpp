@@ -95,7 +95,8 @@ bool ChatModel::Bind(Rml::Context& aContext)
 bool DeathModel::Bind(Rml::Context& aContext)
 {
     auto model = aContext.CreateDataModel("death");
-    if (!model || !model.Bind("visible", &Visible) || !model.Bind("name", &Name) || !model.Bind("status", &Status))
+    if (!model || !model.Bind("visible", &Visible) || !model.Bind("name", &Name) || !model.Bind("status", &Status) ||
+        !model.Bind("leash_seconds", &LeashSeconds))
         return false;
     Handle = model.GetModelHandle();
     return true;

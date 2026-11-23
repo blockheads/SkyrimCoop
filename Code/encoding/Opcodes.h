@@ -78,7 +78,8 @@
     X(RecordAskRequest) \
     X(ActorGiveBackRequest) \
     X(ClaimRequest)                 \
-    X(SummonRequest)
+    X(SummonRequest)                \
+    X(WeatherRegionRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -165,7 +166,8 @@
     X(NotifyActorGiveBack) \
     X(NotifyClaim) \
     X(NotifyClaimRefused) \
-    X(NotifyStealthEye)
+    X(NotifyStealthEye) \
+    X(NotifyLeash)
 
 #define COOP_OPCODE(aName) k##aName,
 

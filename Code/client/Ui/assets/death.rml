@@ -12,5 +12,17 @@
         <div class="hint" data-if="name != ''">Left/right arrow or click to change player</div>
         <div class="hint" data-if="name != ''">Party must be out of combat for 10 seconds to respawn</div>
     </div>
+    <!-- The soft leash's warning (party-travel.md): the number counts down in place. -->
+    <div id="leash" data-if="leash_seconds > 0">
+        <div class="rail"/>
+        <div class="band">
+            <div class="sign"><div class="triangle"/><div class="mark">!</div></div>
+            <div class="words">
+                <div class="small">NEREVAR, DO NOT ATTEMPT TO EXIT THE SIMULATION</div>
+                <div class="big">YOU ARE FORCED TO COMPLY {{ leash_seconds }}</div>
+            </div>
+        </div>
+        <div class="rail"/>
+    </div>
 </body>
 </rml>

@@ -118,7 +118,7 @@ bool Parse(const Json& acData, Ui::PartyModel& aParty, Ui::ChatModel& aChat, Ui:
         const auto& death = acData["death"];
         if (!death.is_object() || !Boolean(death, "visible", aDeath.Visible) ||
             !String(death, "name", aDeath.Name) ||
-            !String(death, "status", aDeath.Status)) return false;
+            !String(death, "status", aDeath.Status) || !Number(death, "leash_seconds", aDeath.LeashSeconds, 0, 60)) return false;
     }
     return true;
 }

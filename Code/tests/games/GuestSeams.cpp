@@ -25,6 +25,8 @@
 #include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestEye.h>
+#include <Services/Guest/GuestLeash.h>
+#include <Bridges/IPlayerBridge.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
 #include <Services/HostService.h>
@@ -123,14 +125,25 @@ void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
 
 bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
 {
-    FakeEngine::Current().Weather = acWeather;
-    FakeEngine::Current().WeatherHeld = true;
+    // Sky::SetWeather(override) (26241): the forced weather, faded into by the next update; held, kept from aging.
+    FakeEngine& engine = FakeEngine::Current();
+    engine.ForcedWeather = acWeather;
+    engine.WeatherHeld = true;
+    if (!engine.LastWeather)
+        engine.WeatherAge = 0;
     return true;
 }
 
 void GuestEngine::ReleaseWeather() noexcept
 {
+    FakeEngine::Current().ForcedWeather = {};
     FakeEngine::Current().WeatherHeld = false;
+}
+
+GameId GuestEngine::ReadWeatherRegion() const noexcept
+{
+    const uint32_t cRegion = FakeEngine::Current().WeatherRegion;
+    return cRegion ? GameId{0, cRegion} : GameId{};
 }
 
 void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
@@ -480,14 +493,15 @@ struct GuestSeam::Guest
 {
     explicit Guest(World& aWorld)
         : Engine(aWorld.ctx().at<IBodyBridge&>()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
-          Weather(aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
+          Weather(aWorld, aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
           Saves(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
           Hands(aWorld, Engine),
           Wait(aWorld, aWorld.GetDispatcher(), Engine),
           Scene(aWorld, aWorld.GetDispatcher(), Engine),
-          Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>())
+          Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>()),
+          Leash(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IPlayerBridge&>())
     {
     }
 
@@ -503,6 +517,7 @@ struct GuestSeam::Guest
     GuestWait Wait;
     GuestScene Scene;
     GuestCopies Copies;
+    GuestLeash Leash;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
@@ -547,4 +562,5 @@ void GuestSeam::Update() noexcept
     m_pGuest->Record.OnUpdate(cUpdate);
     m_pGuest->Engine.FreePlaced();
     m_pGuest->Wait.OnUpdate();
+    m_pGuest->Leash.OnUpdate(cUpdate);
 }

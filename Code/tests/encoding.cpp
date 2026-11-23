@@ -332,6 +332,23 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
     }
 
     {
+        WeatherRegionRequest request;
+        request.Region = GameId(0, 0x2A72D);
+
+        Buffer::Writer writer(&buff);
+        request.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+
+        const RequestMessageFactory factory;
+        auto pMessage = factory.Extract(reader);
+
+        REQUIRE(pMessage);
+        REQUIRE(pMessage->GetOpcode() == request.GetOpcode());
+        CHECK(*CastUnique<WeatherRegionRequest>(std::move(pMessage)) == request);
+    }
+
+    {
         NotifyActorName notify;
         notify.ActorId = 7;
         notify.Name = "Bj\xC3\xB6rn";
@@ -1216,6 +1233,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendMessage.Changes.push_back({ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D6), {}, 0, "Trigger01", "Done"});
+        ObjectChange pull{ObjectChange::Kind::kAnimation, GameId(0, 0x1B752), {}, 0, {}, "Pull"};
+        pull.Value = 7; // the puller's character
+        sendMessage.Changes.push_back(pull);
         sendMessage.Changes.push_back({ObjectChange::Kind::kEnabled, GameId(0, 0xA05C0)});
         ObjectChange enabled{ObjectChange::Kind::kEnabled, GameId(0, 0xA05AC)};
         enabled.Value = 1;
@@ -1980,6 +2000,23 @@ TEST_CASE("Party travel preserves queued destinations and native travel hours", 
     REQUIRE(decoded);
     CHECK(*CastUnique<NotifyPartySummon>(std::move(decoded)) == notify);
     CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
+}
+
+TEST_CASE("A leash notification carries out, back or off and its countdown", "[encoding.travel]")
+{
+    for (const auto cState : {NotifyLeash::Kind::kOff, NotifyLeash::Kind::kOut, NotifyLeash::Kind::kBack})
+    {
+        NotifyLeash leash;
+        leash.State = cState;
+        leash.Seconds = cState == NotifyLeash::Kind::kOut ? 10 : 0;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        leash.Serialize(writer);
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto decoded = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        CHECK(*CastUnique<NotifyLeash>(std::move(decoded)) == leash);
+    }
 }
 
 TEST_CASE("A give-back carries the actor's placement, its holder's last tick, its kill and its claim's end", "[encoding.travel]")

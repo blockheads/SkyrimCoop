@@ -515,6 +515,34 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
     GraphEntry(actor, "reload");
 }
 
+void FakeEngine::ShowWeather(const GameId& acWeather, bool aFade) noexcept
+{
+    if (aFade && Weather)
+    {
+        LastWeather = Weather;
+        FadeFrames = 0;
+    }
+    else
+    {
+        WeatherCuts += Weather ? 1 : 0;
+        LastWeather = {};
+    }
+    Weather = acWeather;
+    WeatherAge = 0;
+    ++WeatherChanges;
+    for (const auto& [cRegion, cList] : RegionLists)
+        SetRegionWeather(cRegion);
+}
+
+void FakeEngine::SetRegionWeather(uint32_t aRegion) noexcept
+{
+    const auto cList = RegionLists.find(aRegion);
+    if (cList == RegionLists.end() || cList->second.empty())
+        RegionWeather.erase(aRegion);
+    else
+        RegionWeather[aRegion] = std::ranges::contains(cList->second, Weather) ? Weather : cList->second.front();
+}
+
 void FakeEngine::Frame()
 {
     ++m_frameCount;
@@ -676,7 +704,7 @@ void FakeEngine::Frame()
     }
     if (Actors.contains(kPlayer))
         ShovePlayer();
-    // Load jobs end (QueuedReference::Finish): a model attaches; then Actor::FinishLoad3D (HookFinishLoad3D).
+    // Load jobs end (QueuedReference::End 13023, or Finish 13022): a model attaches; then Actor::FinishLoad3D.
     if (!LoadsHeld)
         for (auto& [cId, actor] : Actors)
         {
@@ -758,6 +786,26 @@ void FakeEngine::Frame()
         actor.GraphPlace[3] = actor.Rotation[2];
     }
     ShakeSeconds = std::max(0.f, ShakeSeconds - 1.f / 60);
+    // The sky as 26231 runs it: an aged override dropped first, a change, then the fade's progress (ended last).
+    // A guest's held override ages out, mid-fade too; a change (the region's roll, here another weather of its list)
+    // starts only once no fade runs. The host's weather is the test's to set.
+    if (WeatherHeld && ForcedWeather && ++WeatherAge > kOverrideExpiryFrames)
+        ForcedWeather = {};
+    if (ForcedWeather && ForcedWeather != Weather && !LastWeather)
+        ShowWeather(ForcedWeather);
+    else if (!ForcedWeather && WeatherHeld && !LastWeather && WeatherAge > kOverrideExpiryFrames)
+    {
+        const auto cList = RegionLists.find(WeatherRegion);
+        if (cList != RegionLists.end())
+            for (const GameId& cRolled : cList->second)
+                if (cRolled != Weather)
+                {
+                    ShowWeather(cRolled);
+                    break;
+                }
+    }
+    if (LastWeather && ++FadeFrames >= kWeatherFadeFrames)
+        LastWeather = {};
     // Game time at the time scale for the real time since the last frame, as the engine's frame delta is.
     const auto cNow = std::chrono::steady_clock::now();
     if (m_lastFrame.time_since_epoch().count())
@@ -996,7 +1044,7 @@ void FakeEngine::Load3D(uint32_t aFormId)
 {
     auto& actor = Actors.at(aFormId);
     actor.Refused3D = HeldOnGuest(aFormId);
-    // A job ends in Frame (QueuedReference::Finish); a load with no job held back attaches at once, as the services
+    // A job ends in Frame (QueuedReference::End); a load with no job held back attaches at once, as the services
     // see it. Held back, its model waits for Finish (BackgroundLoad3D's result, +0x2C8).
     actor.LoadQueued = actor.Refused3D || LoadsHeld;
     actor.ModelReady = !actor.Refused3D && LoadsHeld;
@@ -1162,7 +1210,10 @@ std::vector<uint32_t> FakeEngine::GetLoadedActorFormIds() const noexcept
 bool FakeEngine::ActorHas3D(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
-    return it != Actors.end() && it->second.Loaded && !it->second.Disabled && (aFormId == kPlayer || Attached.contains(it->second.Cell));
+    // A player's copy keeps its 3D in a cell that detached (persistent; Skyrim 2026-11-22, player-copies-after-setpos).
+    const bool cKept = it != Actors.end() && it->second.Player && it->second.Copy && it->second.Persistent;
+    return it != Actors.end() && it->second.Loaded && !it->second.Disabled &&
+           (aFormId == kPlayer || cKept || Attached.contains(it->second.Cell));
 }
 
 uint32_t FakeEngine::GetEquippedWeaponFormId(uint32_t aActorFormId, uint32_t aSlot) const noexcept
@@ -2308,8 +2359,9 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     if (it->second.Stepped && it->second.InFurniture && it->second.Collides)
         it->second.Position[1] -= kFurnitureOffset * static_cast<float>(1 + it->second.Movements % 3);
     std::copy_n(aRotation, 3, it->second.Rotation);
-    // Outdoors its parent cell follows where it stands.
-    if (it->second.WorldSpace)
+    // Outdoors its parent cell follows where it stands while that cell is attached: in a detached one it gets no UpdateAI,
+    // so no UpdateCellAttachment (37352; Skyrim 2026-11-22, player-copies-after-setpos).
+    if (it->second.WorldSpace && Attached.contains(it->second.Cell))
         if (const uint32_t cCell = CellAt(it->second.WorldSpace, {aPosition[0], aPosition[1], aPosition[2]}))
         {
             const uint32_t cFrom = std::exchange(it->second.Cell, cCell);
@@ -2581,6 +2633,11 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return;
+    if (aFormId == kPlayer && DropPlayerMoves)
+    {
+        --DropPlayerMoves;
+        return;
+    }
     // MoveTo tears down the native mount interaction, including when the moved reference is the horse.
     std::vector<uint32_t> riders;
     for (const auto& [cRider, cMount] : Mounts)
@@ -3508,6 +3565,8 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
     event.ObjectFormId = aObject;
     event.ActivatorFormId = aActor;
     event.ObjectParentCellFormId = Actors.contains(aObject) ? Actors.at(aObject).Cell : References.at(aObject).Cell;
+    if (aActor == kPlayer && References.contains(aObject) && References.at(aObject).Lever && !References.at(aObject).ActivationBlocked)
+        event.FurnitureEvent = kPull;
     World::Get().GetRunner().Trigger(event);
     Activations.emplace_back(aObject, aActor);
     if (ActivateMount(aActor, aObject))
@@ -3532,6 +3591,8 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
     }
     ToggleDoor(aObject);
     Harvest(aObject);
+    if (aActor == kPlayer)
+        PullsLever(aObject);
 }
 
 // The alias clear hooks report their quest after the engine removes the fill, without a stage/flag event.

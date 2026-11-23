@@ -13,6 +13,8 @@
 #include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestEye.h>
+#include <Services/Guest/GuestLeash.h>
+#include <Bridges/IPlayerBridge.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
 #include <Services/Guest/GuestDialogue.h>
@@ -34,7 +36,7 @@ struct GuestService::Guest
     Guest(World& aWorld, entt::dispatcher& aDispatcher) noexcept
         : Engine(aWorld.ctx().at<IBodyBridge&>())
         , Clock(aWorld, aDispatcher, Engine)
-        , Weather(aDispatcher, Engine)
+        , Weather(aWorld, aDispatcher, Engine)
         , Eye(aDispatcher, Engine)
         , WorldState(aWorld, aDispatcher, Engine)
         , Dialogue(aWorld, aDispatcher, aWorld.ctx().at<DialogueService>())
@@ -44,6 +46,7 @@ struct GuestService::Guest
         , Wait(aWorld, aDispatcher, Engine)
         , Scene(aWorld, aDispatcher, Engine)
         , Copies(aWorld, aDispatcher, aWorld.ctx().at<IActorBridge&>())
+        , Leash(aWorld, aDispatcher, aWorld.ctx().at<IPlayerBridge&>())
     {
     }
 
@@ -59,6 +62,7 @@ struct GuestService::Guest
     GuestWait Wait;
     GuestScene Scene;
     GuestCopies Copies;
+    GuestLeash Leash;
 };
 
 GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
@@ -127,4 +131,5 @@ void GuestService::OnUpdate(const UpdateEvent& acEvent) noexcept
     // The host's rests a world state row placed: simulated again, asleep (BodyService plays the rest).
     m_pGuest->Engine.FreePlaced();
     m_pGuest->Wait.OnUpdate();
+    m_pGuest->Leash.OnUpdate(acEvent);
 }

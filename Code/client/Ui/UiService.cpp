@@ -10,6 +10,7 @@
 #include <Components/FormIdComponent.h>
 #include <Components/PlayerComponent.h>
 #include <Events/SessionNoticeEvent.h>
+#include <Services/Guest/GuestLeash.h>
 #include <Events/SetTimeCommandEvent.h>
 #include <Services/DevCommands.h>
 #include <Services/DevToolsService.h>
@@ -167,7 +168,7 @@ void UiService::Create(IDXGISwapChain* apSwapChain) noexcept
     if (!Rml::LoadFontFace(m_directory + "/fonts/Oswald-Variable.ttf"))
         spdlog::error("UI: font not found in {}", m_directory);
 
-    for (const char* pFont : {"LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf"})
+    for (const char* pFont : {"LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf", "LiberationSans-BoldItalic.ttf"})
         if (!Rml::LoadFontFace(m_directory + "/fonts/" + pFont))
             spdlog::error("UI: font {} not found in {}", pFont, m_directory);
 
@@ -602,6 +603,9 @@ void UiService::UpdateDeath() noexcept
     m_death.Visible = cDown && !UiInput::GetHudVisibility().BlockingMenu;
     m_death.Name = cpDeath ? cpDeath->SpectatingName() : "";
     m_death.Status = cpDeath ? cpDeath->Status() : "";
+    // The leash's warning banner (GuestLeash), while this player stands.
+    const auto* cpLeash = m_world.ctx().find<LeashCountdown>();
+    m_death.LeashSeconds = !cDown && cpLeash && !UiInput::GetHudVisibility().BlockingMenu ? cpLeash->Seconds : 0;
     UiInput::SetSpectatorAvailable(cDown && cpDeath->Spectating());
     if (m_death.Handle)
         m_death.Handle.DirtyAllVariables();

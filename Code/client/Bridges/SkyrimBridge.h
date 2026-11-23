@@ -152,6 +152,7 @@ public:
     void ActorFinishDismount(uint32_t aRiderFormId) noexcept override;
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
+    bool IsActorCellAttached(uint32_t aFormId) const noexcept override;
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
     uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
     bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
@@ -176,6 +177,7 @@ public:
     // -----------------------------------------------------------------
     bool FormExists(uint32_t aFormId) const noexcept override;
     uint8_t GetFormType(uint32_t aFormId) const noexcept override;
+    bool IsTwoHandedWeapon(uint32_t aFormId) const noexcept override;
     std::string GetFormName(uint32_t aFormId) const noexcept override;
     float GetGlobalValue(uint32_t aFormId) const noexcept override;
     void SetGlobalValue(uint32_t aFormId, float aValue) noexcept override;

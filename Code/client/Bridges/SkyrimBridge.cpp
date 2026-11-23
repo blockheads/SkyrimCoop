@@ -808,6 +808,17 @@ uint8_t SkyrimBridge::GetFormType(uint32_t aFormId) const noexcept
     return 0;
 }
 
+bool SkyrimBridge::IsTwoHandedWeapon(uint32_t aFormId) const noexcept
+{
+    // Its equip slot covers both hands (BGSEquipSlot::Covers 23605), as AddEquippedObject (39192) fills them.
+    using TCovers = bool(const TESForm*, const TESForm*);
+    POINTER_SKYRIMSE(TCovers, s_covers, 23605);
+    const auto* pWeapon = Cast<TESObjectWEAP>(TESForm::GetById(aFormId));
+    const auto& cObjects = DefaultObjectManager::Get();
+    return pWeapon && pWeapon->equipSlot && s_covers(pWeapon->equipSlot, cObjects.leftEquipSlot) &&
+           s_covers(pWeapon->equipSlot, cObjects.rightEquipSlot);
+}
+
 std::string SkyrimBridge::GetFormName(uint32_t aFormId) const noexcept
 {
     if (TESForm* pForm = TESForm::GetById(aFormId))
@@ -2282,6 +2293,12 @@ uint32_t SkyrimBridge::GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept
         return 0;
     auto* pWS = pActor->GetWorldSpace();
     return pWS ? pWS->formID : 0;
+}
+
+bool SkyrimBridge::IsActorCellAttached(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->parentCell && pActor->parentCell->IsValid();
 }
 
 uint32_t SkyrimBridge::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept

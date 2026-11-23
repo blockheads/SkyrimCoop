@@ -47,11 +47,13 @@ nlohmann::json MenuFlags(Harness&, const nlohmann::json& acRequest)
     const auto cHidden = EngineCalls::IsFirstPersonModelHidden();
     const auto cLocal = EngineCalls::IsLocalMapShown();
     const auto cReady = EngineCalls::IsLocalMapReady();
+    const auto cLockpick = EngineCalls::IsLockpickBuilt();
     return {{"ok", true}, {"flags", cFlags ? nlohmann::json(*cFlags) : nlohmann::json(nullptr)},
             {"pauses", EngineCalls::GetMenuPauseCount()},
             {"first_person_hidden", cHidden ? nlohmann::json(*cHidden) : nlohmann::json(nullptr)},
             {"local_map", cLocal ? nlohmann::json(*cLocal) : nlohmann::json(nullptr)},
-            {"local_map_ready", cReady ? nlohmann::json(*cReady) : nlohmann::json(nullptr)}};
+            {"local_map_ready", cReady ? nlohmann::json(*cReady) : nlohmann::json(nullptr)},
+            {"lockpick_built", cLockpick ? nlohmann::json(*cLockpick) : nlohmann::json(nullptr)}};
 }
 
 // {"cmd": "first_person"}: the player's camera to first person.
@@ -77,6 +79,12 @@ nlohmann::json ResetWorn(Harness&, const nlohmann::json& acRequest)
     if (!cWorn)
         return Error("no such actor or NPC base");
     return {{"ok", true}, {"worn_after", *cWorn}};
+}
+
+// {"cmd": "reset_3d", "actor": id}: DoReset3D(false) in this game only (EngineCalls::Reset3D).
+nlohmann::json Reset3DCommand(Harness&, const nlohmann::json& acRequest)
+{
+    return EngineCalls::Reset3D(acRequest.value("actor", 0u)) ? Ok() : Error("no such actor");
 }
 
 // {"cmd": "freeze", "actor": id, "frozen": true}: freezes the actor in this game (EngineCalls::FreezeActor): a
@@ -263,7 +271,7 @@ nlohmann::json Wake(Harness&, const nlohmann::json& acRequest)
 
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
-    {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing}, {"ragdoll_adds", false, &RagdollAdds}, {"ragdoll_out", false, &RagdollOut},
+    {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn}, {"reset_3d", true, &Reset3DCommand},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing}, {"ragdoll_adds", false, &RagdollAdds}, {"ragdoll_out", false, &RagdollOut},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"put_on_mount", true, &PutOnMount}, {"board_ridden", true, &BoardRidden}, {"seat_on_mount", true, &SeatOnMountCommand}, {"sit_on_mount_quick", true, &SitOnMountQuickCommand}, {"take_reins", true, &TakeReinsCommand}, {"graph_event", true, &GraphEventCommand}, {"activate_text", true, &ActivateTextCommand}, {"clear_map_marker", true, &ClearMapMarker},
     {"wake", true, &Wake},
     {"body_velocity", true, &BodyVelocity},

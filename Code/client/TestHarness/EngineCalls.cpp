@@ -57,6 +57,7 @@
 #include <Interface/FxDelegateArgs.h>
 #include <Interface/GFxMovie.h>
 #include <Interface/IMenu.h>
+#include <Interface/Menus/LockpickingMenu.h>
 #include <Havok/hkbBehaviorGraph.h>
 #include <Havok/hkbNode.h>
 #include <Havok/hkbVariableValueSet.h>
@@ -200,6 +201,17 @@ std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept
     UI* pUI = UI::Get();
     const auto* cpMenu = pUI && pUI->GetMenuOpen(acpMenu) ? pUI->FindMenuByName(acpMenu) : nullptr;
     return cpMenu ? std::optional(cpMenu->uiMenuFlags) : std::nullopt;
+}
+
+std::optional<bool> IsLockpickBuilt() noexcept
+{
+    if constexpr (COOP_SKYRIM_1_6_1170)
+        return std::nullopt; // +0x11C read in 1.7.104 only
+    UI* pUI = UI::Get();
+    const auto* cpMenu = pUI && pUI->GetMenuOpen("Lockpicking Menu")
+                             ? static_cast<const LockpickingMenu*>(pUI->FindMenuByName("Lockpicking Menu"))
+                             : nullptr;
+    return cpMenu ? std::optional(cpMenu->built3D) : std::nullopt;
 }
 
 std::optional<bool> IsFirstPersonModelHidden() noexcept
@@ -1002,8 +1014,9 @@ std::vector<CellObject> GetCellObjects() noexcept
     std::vector<CellObject> objects;
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     if (TESObjectCELL* pCell = pPlayer ? pPlayer->GetParentCellEx() : nullptr)
-        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container, FormType::Furniture}))
-            objects.push_back({pRef->formID, {pRef->position.x, pRef->position.y, pRef->position.z}});
+        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container, FormType::Furniture, FormType::Activator}))
+            objects.push_back({pRef->formID, {pRef->position.x, pRef->position.y, pRef->position.z}, pRef->baseForm ? pRef->baseForm->formID : 0,
+                               pRef->baseForm && pRef->baseForm->formType == FormType::Activator, pRef->IsActivatorFurniture()});
     return objects;
 }
 
@@ -1246,6 +1259,15 @@ std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcep
     for (const auto& cEntry : pActor->GetEquipment().Entries)
         worn.push_back(ItemForm(cEntry.BaseId));
     return worn;
+}
+
+bool Reset3D(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    pActor->DoReset3D(false);
+    return true;
 }
 
 void UnequipAllUnsynced(uint32_t aFormId) noexcept
@@ -1674,6 +1696,27 @@ std::optional<uint8_t> GetProcessLevel(uint32_t aFormId) noexcept
     if (!pActor || !pActor->currentProcess)
         return std::nullopt;
     return pActor->currentProcess->processLevel;
+}
+
+std::optional<EditorHome> GetEditorHome(uint32_t aFormId) noexcept
+{
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    if (!pRef)
+        return std::nullopt;
+    using TGetEditorLocation = bool(TESObjectREFR*, NiPoint3*, NiPoint3*, TESForm**, TESObjectCELL*);
+    POINTER_SKYRIMSE(TGetEditorLocation, s_getEditorLocation, 19514);
+    NiPoint3 position{};
+    NiPoint3 rotation{};
+    TESForm* pWorldOrCell = nullptr;
+    if (!s_getEditorLocation.Get()(pRef, &position, &rotation, &pWorldOrCell, nullptr) || !pWorldOrCell)
+        return std::nullopt;
+    return EditorHome{pWorldOrCell->formID, {position.x, position.y, position.z}};
+}
+
+bool IsParentCellAttached(uint32_t aFormId) noexcept
+{
+    const auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    return pRef && pRef->parentCell && pRef->parentCell->IsValid();
 }
 
 std::optional<int32_t> GetFactionRank(uint32_t aFormId, uint32_t aFactionId) noexcept

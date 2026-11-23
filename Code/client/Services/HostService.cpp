@@ -68,6 +68,9 @@ void HostService::OnActivate(const ActivateEvent& acEvent) noexcept
 {
     if (IsHosting() && acEvent.ByReference)
         m_pEngine->RecordActivation(acEvent.ObjectFormId, acEvent.ActivatorFormId, acEvent.PreActivationOpenStateValue);
+    // The host's player's pull of a lever furniture moves only its own graph: the guests' follow from the row.
+    if (IsHosting() && !acEvent.FurnitureEvent.empty())
+        m_pEngine->RecordAnimation(acEvent.ObjectFormId, {}, acEvent.FurnitureEvent, acEvent.ActivatorFormId);
 }
 
 void HostService::OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept
@@ -210,6 +213,7 @@ void HostService::MakeAuthority() noexcept
     game.SetHour = [this](float aHours) { m_pEngine->SetHour(aHours); };
     game.AdvanceTime = [this](float aHours) { m_pEngine->AdvanceTime(aHours); };
     game.ReadWeather = [this] { return m_pEngine->ReadWeather(); };
+    game.RegionWeather = [this](const GameId& acRegion) { return m_pEngine->RegionWeather(acRegion); };
     game.ReadEye = [this](uint32_t aSessionId) { return m_pEngine->ReadEye(aSessionId); };
     game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
     game.TakeGlobalChanges = [this] { return m_pEngine->TakeGlobalChanges(); };
