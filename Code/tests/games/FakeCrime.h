@@ -24,6 +24,42 @@ struct FakeCrime final : ICrimeBridge
     void UpdatePlayers(std::span<const uint32_t> aPlayers) noexcept override
     {
         CrimePlayers.assign(aPlayers.begin(), aPlayers.end());
+        ProcessPendingCrimes(); // the host's frame: each witness's UpdateHighProcessAI
+    }
+    // Skyrim: StealAlarm puts every loaded NPC on the crime's witness list and gives it the crime, seen or not
+    // (Crime__AddWitness 42506, SetPendingCrime 39557). On its next update (39631) each looks at the crime's
+    // criminal, the engine's player: seen, an alarm at that player; unseen, off the witness list (crime.md,
+    // "A hidden guest's theft judged by who sees the host").
+    std::map<uint32_t, uint32_t> PendingCrimes; // by witness, the crime it holds
+    CrimeRules::PendingCriminals Criminals;     // the bridge's 39557 hook in Judge's scope
+    std::vector<uint32_t> Alarms;               // witnesses that saw the criminal and raised the alarm
+    uint32_t CrimeIds{};
+    void GiveWitnessesTheCrime(uint32_t aCriminal) noexcept
+    {
+        ++CrimeIds;
+        for (const auto& [cId, cActor] : m_engine.Actors)
+            if (cId != aCriminal && cId != FakeEngine::kPlayer && cActor.Loaded && !cActor.Dead && !cActor.Player)
+            {
+                PendingCrimes[cId] = CrimeIds;
+                Criminals.Set(cId, CrimeIds, aCriminal);
+                Grudges[cId].Witness = true;
+            }
+    }
+    void ProcessPendingCrimes() noexcept
+    {
+        for (const auto& [cWitness, cCrime] : std::exchange(PendingCrimes, {}))
+        {
+            // The bridge's 39631 hook: the copy its crime named, in Judge's scope again.
+            const uint32_t cCopy = Criminals.Of(cWitness, cCrime);
+            const uint32_t cBody = cCopy ? cCopy : FakeEngine::kPlayer;
+            Criminals.Judged(cWitness, 0);
+            const auto cSees = m_engine.SeesOf.find(cBody);
+            const auto cLevel = cSees == m_engine.SeesOf.end() ? cSees->second.end() : cSees->second.find(cWitness);
+            if (cSees != m_engine.SeesOf.end() && cLevel != cSees->second.end() && cLevel->second > 0)
+                Alarms.push_back(cWitness);
+            else
+                Grudges[cWitness].Witness = false;
+        }
     }
     std::vector<CrimeConfiscation> TakeConfiscations() noexcept override
     {
@@ -96,6 +132,8 @@ struct FakeCrime final : ICrimeBridge
         if (aRequest.Action == CrimeAction::Pickpocket && cActorTarget && !cStops)
             Pickpocketed.push_back(cTarget->first);
         const bool cTheft = (aRequest.Action == CrimeAction::Theft && !cStops) || aRequest.Action == CrimeAction::ContainerTheft;
+        if (cTheft)
+            GiveWitnessesTheCrime(aActor);
         if (SeenThefts && cTheft)
         {
             if (aRequest.AllowWarning && TheftWarnings < 2)

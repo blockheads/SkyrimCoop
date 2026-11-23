@@ -8,6 +8,7 @@
 #include <FormIds.h>
 #include <Forms/TESFaction.h>
 #include <Forms/TESObjectCELL.h>
+#include <Forms/TESPackage.h>
 #include <ExtraData/ExtraOwnership.h>
 #include <Games/TES.h>
 #include <Interface/UI.h>
@@ -113,9 +114,14 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         static VersionDbPtr<TCrimeFaction> crimeFaction(37380);
         const auto* own = reinterpret_cast<const CrimeEngine::Faction*>(crimeFaction(actor));
         auto* high = actor->currentProcess ? actor->currentProcess->highProcess : nullptr;
+        const auto* cPackage = actor->currentProcess ? actor->currentProcess->currentPackage.package : nullptr;
         return {{"ok", true}, {"bounty", get(actor, faction)}, {"attack_on_sight", (actor->flags2 & 0x8000) != 0},
                 {"angry", (actor->flags2 & 0x800) != 0}, {"pending_crime", high && high->pendingCrime},
                 {"faction_enemy", own && (own->Flags & 0x8) != 0},
+                // The package on the process (+0x20): 21 an alarm, 34 a steal warning. The player's stole-today flag
+                // (+0xE8 bit 0x8000, StealAlarm 37422) is what makes a theft's owner attack (39651).
+                {"package_type", cPackage ? cPackage->packType : 0xFF},
+                {"stole_today", (player->flags1 & 0x8000) != 0},
                 {"party_criminal", World::Get().ctx().at<CrimeService>().PartyIsCriminalTo(actor->formID)}};
     }
     else if (action == "set_warnings")

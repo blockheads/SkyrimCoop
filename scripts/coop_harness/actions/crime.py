@@ -1,5 +1,6 @@
 """Crime verbs for repros (docs/re/systems/crime.md): ownership, the party's bounty, what a witness saw."""
 import math
+import time
 from ..comparisons import flatten
 from ..utilities import log
 
@@ -57,6 +58,26 @@ class CrimeActions:
         combat = ctx.player_command("", {"cmd": "combat_targets", "actor": actor})
         return {**state, "combat_target": flatten(ctx.actor_row("", actor)).get("ai.combat_target"),
                 "candidates": [(c["actor"], c["flags"], c["detection"]) for c in combat.get("candidates", [])]}
+
+    def crime_watch(ctx, npcs, seconds=10.0, every=0.25):
+        """The host's `npcs` over time after a crime, one row per change: each one's angry, pending_crime,
+        party_criminal, package_type (21 an alarm, 34 a steal warning), combat target and its last level of each
+        player (crime.md, "A hidden guest's theft"). Returns {rows: [[seconds, npc, state]], stole_today, bounty}."""
+        start, last, rows, stole = time.monotonic(), {}, [], False
+        while time.monotonic() - start < seconds:
+            for npc in npcs:
+                actor = ctx.resolve(npc, "host")
+                state = ctx.crime_command("", "actor_state", actor=actor)
+                stole = state.pop("stole_today", False)
+                row = {key: state[key] for key in ("angry", "pending_crime", "party_criminal", "package_type")}
+                row["target"] = flatten(ctx.actor_row("", actor)).get("ai.combat_target")
+                for player in ("host_player", "guest_player"):
+                    row["sees_" + player.split("_")[0]] = ctx.witness(npc, player).get("level", -1000) > 0
+                if row != last.get(npc):
+                    last[npc] = row
+                    rows.append([round(time.monotonic() - start, 2), npc, row])
+            time.sleep(every)
+        return {"rows": rows, "stole_today": stole, "bounty": ctx.bounty_total()}
 
     def make_angry(ctx, npc):
         """Gives the host's `npc` kAngryWithPlayer, the state an NPC keeps from an earlier fight (crime.md)."""

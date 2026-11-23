@@ -146,6 +146,8 @@ using TLockOpen = uintptr_t(TESObjectREFR*);
 using TLockCrime = bool(void*);
 using TContainerTake = bool(void*, ExtraContainerChanges::Entry*, uint32_t, bool);
 using TReportCrime = void(Actor*, CrimeEngine::Crime*);
+using TSetPendingCrime = void*(AIProcess*, void*);
+using TProcessPendingCrime = void*(AIProcess*, Actor*);
 TSteal* RealSteal{};
 TPickpocket* RealPickpocket{};
 TAssault* RealAssault{};
@@ -164,6 +166,10 @@ TLockOpen* RealLockOpen{};
 TLockCrime* RealLockCrime{};
 TContainerTake* RealContainerTake{};
 TReportCrime* RealReportCrime{};
+TSetPendingCrime* RealSetPendingCrime{};
+TProcessPendingCrime* RealProcessPendingCrime{};
+std::mutex s_pendingMutex; // 39631 runs on the AI threads
+CrimeRules::PendingCriminals s_pending; // by the witness's process
 
 void HookReportCrime(Actor* aReporter, CrimeEngine::Crime* aCrime)
 {
@@ -320,6 +326,44 @@ void* HookProcessKnowledge(void* aProcess, Actor* aWitness, Actor* aTarget)
     // and murder all read here. One scoped target adjustment covers all three paths.
     return RealProcessKnowledge(aProcess, aWitness,
                                 t_criminal && aTarget == PlayerCharacter::Get() ? t_criminal : aTarget);
+}
+
+void* HookSetPendingCrime(AIProcess* aProcess, void* aCrime)
+{
+    // Every alarm gives its witnesses the crime (39557); in Judge's scope it is a guest's copy's.
+    {
+        std::lock_guard lock(s_pendingMutex);
+        s_pending.Set(reinterpret_cast<uintptr_t>(aProcess), reinterpret_cast<uintptr_t>(aCrime),
+                      t_criminal ? t_criminal->formID : 0);
+    }
+    return RealSetPendingCrime(aProcess, aCrime);
+}
+
+void* HookProcessPendingCrime(AIProcess* aProcess, Actor* aWitness)
+{
+    // The witness's look at the crime's criminal (39631) is at the guest's copy, not the host's player.
+    const auto cKey = reinterpret_cast<uintptr_t>(aProcess);
+    auto* high = aProcess ? aProcess->highProcess : nullptr;
+    const auto cCrime = [high] { return high ? reinterpret_cast<uintptr_t>(high->pendingCrime) : uintptr_t{}; };
+    uint32_t copyId{};
+    {
+        std::lock_guard lock(s_pendingMutex);
+        copyId = s_pending.Of(cKey, cCrime());
+    }
+    if (!copyId)
+        return RealProcessPendingCrime(aProcess, aWitness);
+    auto* copy = Cast<Actor>(TESForm::GetById(copyId));
+    void* result{};
+    if (OtherPlayer(copy))
+    {
+        ScopedCriminal scope(copy);
+        result = RealProcessPendingCrime(aProcess, aWitness);
+    }
+    else
+        result = RealSetPendingCrime(aProcess, nullptr); // the thief left: nobody sees it
+    std::lock_guard lock(s_pendingMutex);
+    s_pending.Judged(cKey, cCrime());
+    return result;
 }
 
 uint32_t HookCrimeGold(Actor* aActor, TESFaction* aFaction)
@@ -615,6 +659,8 @@ static Hooks::Initializer s_hooks([] {
     HOOK_ID(51981, &RealLockCrime, HookLockCrime);
     HOOK_ID(51141, &RealContainerTake, HookContainerTake);
     HOOK_ID(37679, &RealReportCrime, HookReportCrime);
+    HOOK_ID(39557, &RealSetPendingCrime, HookSetPendingCrime);
+    HOOK_ID(39631, &RealProcessPendingCrime, HookProcessPendingCrime);
     // 1.7.104 offsets (read in IDA); the callees by Address Library ID.
     if constexpr (!COOP_SKYRIM_1_6_1170)
     {
@@ -685,6 +731,10 @@ void CrimeBridge::SetRole(Role aRole) noexcept
         s_reports.clear();
         s_containerItems.clear();
         s_caughtLock = 0;
+        {
+            std::lock_guard pendingLock(s_pendingMutex);
+            s_pending.Clear();
+        }
         m_reactionState.clear();
         m_players.clear();
     }

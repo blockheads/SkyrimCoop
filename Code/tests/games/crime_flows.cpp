@@ -110,6 +110,61 @@ SCENARIO("A guest's theft is judged after the witnesses looked, and what follows
     CHECK(judged[1].first == CrimeAction::PayFine);
 }
 
+namespace
+{
+// A guest steals from a chest, an NPC of the host's in the same cell; `aSees` is what the NPC's detection computes of
+// each player (crime.md, "A hidden guest's theft judged by who sees the host").
+struct WatchedTheft
+{
+    static constexpr uint32_t kCell = 0x00031D2E;
+    Party party{1, [](FakeEngine& aEngine) {
+                    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+                    aEngine.LoadCell(kCell);
+                }};
+    FakeEngine& engine = Party::Engine(party.Host());
+    FakeCrime& host = Crime(party.Host());
+    uint32_t npc = 0, thief = 0;
+
+    WatchedTheft(int32_t aSeesHost, int32_t aSeesGuest)
+    {
+        party.As(party.Host(), [&] { npc = engine.LoadNpc(0x00013479, kCell, {100.f, 0.f, 0.f}); });
+        party.Agree("the NPC and the players' copies exist everywhere");
+        std::optional<uint32_t> guestSession;
+        party.As(party.Guest(), [&] { guestSession = Utils::GetSessionIdByFormId(FakeEngine::kPlayer); });
+        party.As(party.Host(), [&] { thief = Utils::GetFormIdBySessionId(guestSession.value_or(0)); });
+        REQUIRE(thief);
+        engine.SeesOf[FakeEngine::kPlayer][npc] = aSeesHost;
+        engine.SeesOf[thief][npc] = aSeesGuest;
+        CrimeRequest theft;
+        theft.Action = CrimeAction::ContainerTheft;
+        theft.Target = GameId(0, 0x539DD);
+        CrimeItem gold;
+        gold.Item.BaseId = GameId(0, 0xF);
+        gold.Item.Count = 100;
+        gold.Taking = true;
+        theft.Items = {gold};
+        Crime(party.Guest()).Actions.push_back(theft);
+        party.Until([&] { return host.CrimeIds == 1 && host.PendingCrimes.empty(); },
+                    "the host judges the theft and the NPC looks at the thief on its next update");
+    }
+};
+} // namespace
+
+SCENARIO("A guest's hidden theft is not judged by who sees the host", "[crime][witness]")
+{
+    // guest-hidden-theft-host-seen (playtest 2026-11-22): the guest behind a closed door, the host at the bar.
+    WatchedTheft theft(/*host*/ 34, /*guest*/ -18);
+    CHECK(theft.host.Alarms.empty());
+    CHECK_FALSE(theft.host.PartyIsCriminalTo(theft.npc));
+}
+
+SCENARIO("A guest's seen theft alarms the NPC that saw it, wherever the host is", "[crime][witness]")
+{
+    WatchedTheft theft(/*host*/ -18, /*guest*/ 34);
+    CHECK(theft.host.Alarms == std::vector<uint32_t>{theft.npc});
+    CHECK(theft.host.PartyIsCriminalTo(theft.npc));
+}
+
 SCENARIO("A guest's seen theft is warned: the owner takes it back from the guest's game, no bounty", "[crime][theft-warning]")
 {
     // guest-theft-warned (2026-11-13): StartStealWarning (37556) and its step (procedure 40) name g_thePlayer; the

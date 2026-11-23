@@ -289,6 +289,63 @@ and the host raises it on its NPC with no item (`CrimeBridge::Judge`). Before 20
 check and `Judge` each wanted an item and a count, so a caught pickpocket never left the guest
 (`guest-pickpockets-lucan`; `guest-pickpocket-party-alarm` drove 37423 with gold and 5, a shape the game never makes).
 
+## A hidden guest's theft judged by who sees the host (playtest 2026-11-22)
+
+Every look on the theft path, read in IDA (37422, 41335, 38094, 39557, 39631, 37554, 39651, 39361, 39695, 37534,
+42506, 42507, 37757), with whose body it reads in coop. `Judge`'s scope (`HookProcessKnowledge`, 39515) turns a
+knowledge read of `g_thePlayer` into the guest's copy, on that call stack only.
+
+```
+step                                         reads                           coop reads
+1 owner actor (41335)                        highest detection of the        the copy (scope)
+    owner NPC / faction member, high         player by ANY high actor (41408)
+    process; none: a unique owner NPC's      + item weight factor > 0
+    actor, seen or not; else return
+2 owner sees (0x14068219c)                   detection(owner, criminal)      the copy (scope)
+    yes: warning (37556) or StartAlarm
+3 stole-today (+0xE8 bit 0x8000)             written on the criminal         the host's player
+4 witness loop (38094, 0x14068265b)          detection(each, criminal)       the copy (scope)
+    each high actor, no range: AddWitness,
+    SetPendingCrime, seen or not
+5 seen: bounty (37679), guards (39361)       distance to the criminal's      the host's place
+                                             position, no detection          (party rule: the arrest)
+--- StealAlarm returns, the scope ends ---
+6 ProcessPendingCrime (39631), each          detection(it, crime +0x0C)      THE HOST'S PLAYER
+    witness's next update                    at priority 3
+    seen: ShouldAttack (37534: angry, enemy faction, reaction) -> assault; else StartAlarm (alarm package 21)
+    not seen: RemoveWitness (42507) once it holds states of criminal and victim (37757)
+7 the alarm package (39651)                  no detection: this witness      the host's player
+    owns the theft and the target stole      owns it, target's stole-today
+    today: SetAngryWithPlayer, assault
+    else: walk to the target (40076): no bounty in its faction ends it
+```
+
+In vanilla the criminal is the thief at every step. In coop steps 6 and 7 read the host's player, whose detection
+the greeting pass keeps fresh, so a guest's theft nobody saw is judged again by who sees the host.
+
+Measured on the duo (Sleeping Giant Inn, Orgnar's chest behind a closed door, `crime_watch`; no warning, bounty 0
+and stole-today set in all four):
+
+| case | thief hidden | other player | what the NPCs did |
+|---|---|---|---|
+| A | guest | host at the bar, seen | Orgnar: alarm package at 0.85 s, angry and fighting the host at 2.0 s; Delphine joins at 2.85 s, not angry |
+| B | host | guest at the bar, seen | nothing (the vanilla path) |
+| C | guest | host hidden too | nothing, nobody left a witness |
+| D | guest, chest owned by an absent NPC | host at the bar, seen | Orgnar: alarm package 0.86-2.0 s, ends; no anger, no fight; he stays a witness |
+
+So the attack needs three things: a witness that sees the host (step 6), that witness owning what was stolen, and
+the stole-today flag (step 7). A non-owner only walks up and stops, but stays on the witness list
+(`CriminalInterest`'s Witness). Scenario: `guest-hidden-theft-host-seen` (case A).
+
+The fix: the bridge hooks 39557 and remembers, by the witness's process, the crime it set inside `Judge`'s scope and
+that guest's copy (`CrimeRules::PendingCriminals`). Its 39631 hook runs the witness's look in the same scope when the
+witness still holds that crime, so step 6 reads the copy: unseen, the witness drops the crime and leaves the witness
+list, as in vanilla; seen, its alarm still names the host's player and the party rule picks the nearest. A copy gone
+by then (the guest left) drops the crime. Every alarm (theft, pickpocket, assault, murder, trespass, werewolf) sets
+its witnesses' crimes through 39557 in that scope. Tests: ClientTests "A guest's pending crime is looked at from the
+guest's copy", GameTests "A guest's hidden theft is not judged by who sees the host" and "A guest's seen theft alarms
+the NPC that saw it".
+
 ## What SkyrimCoop does about it
 
 The party rule (`party-model.md`, Crime): one player's crime flags the whole party, and a hostile NPC attacks whoever is
@@ -304,6 +361,7 @@ near it.
 - `CrimeService` holds a guest's theft 0.5 s, asking every witness each frame (41408), then judges: the greeting pass
   does this for the real player, and a copy's state has to be fresh in that one call. Actions after it wait behind it;
   a lock check is answered at once.
+- A witness's later look at a guest's crime (39631) is at that guest's copy ("A hidden guest's theft" above).
 - A guest's seen theft is warned like the host's (2026-11-13, "The steal warning" below): the warning's calls that name
   `g_thePlayer` get the guest's copy, and the given-back runs on the guest's game.
 - Tried and removed: remembering which guest did a crime and running 39631 / 39651 in its scope so only that guest was
@@ -329,11 +387,13 @@ near it.
 | 378208 | gGameSetting_sAddCrimeGold | the HUD line's "bounty added to" |
 | 40660 | PlayerCharacter::SetEscaping | an escape's bounty, the same HUD line |
 | 41354 | KnownCrime (coop_RealKnownCrime) | a player crime this witness knows (`CriminalInterest`'s Witness) |
-| 42505, 42506 | Crime__HasWitness, Crime__AddWitness | the crime's witness array |
+| 42505, 42506, 42507 | Crime__HasWitness, Crime__AddWitness, Crime__RemoveWitness | the crime's witness array |
+| 38094 | ProcessLists__GatherCrimeWitnesses | every high actor, no range: StealAlarm's witness candidates |
+| 37757 | Actor__FindKnowledgeState (ours) | a witness's detection state of a target, no request |
 | 42503, 41350, 37675 | Crime__Release, ProcessLists__ExpireOldCrimes, Actor__ForgivePlayerCrimes | crimes leave victims' lists, angry cleared |
 | 37554 | Actor__StartAlarm | witness's alarm or assault on the criminal |
 | 39651 | AIProcess__UpdateAlarmPackage | a running alarm assaults its target |
-| 39631, 39557 | AIProcess__ProcessPendingCrime, AIProcess__SetPendingCrime | a witness's deferred judgment |
+| 39631, 39557 | AIProcess__ProcessPendingCrime, AIProcess__SetPendingCrime | a witness's deferred judgment; both hooked (`PendingCriminals`) |
 | 40076 | AIProcess__ConfrontAlarmTarget | alarm at its target: arrest, or assault |
 | 39632 | AIProcess__UpdateGreetAndPlayerDetection | keeps detection of the real player fresh |
 | 37463, 37429, 24526 | Actor__SetAngryWithPlayer, Actor__CrimeFactionIsHostileNow, TESFaction__PlayerEnemyIsActive | what makes a witness attack |
