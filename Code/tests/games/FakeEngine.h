@@ -1802,9 +1802,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
     bool IsActorLeveled(uint32_t aFormId) const noexcept override;
     bool RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept override;
-    // A leveled actor's reset or respawn (Character 37323, Actor::ResetReference 37292): back to its original form, its
-    // current base handed to the garbage collector (36460, no temporary check: a permanent record is destroyed too),
-    // then rolled again (14374), here to aPick.
+    // A leveled actor's re-roll (37323/37292): its current base destroyed (36460, temporary or not), rolled to aPick.
     void ResetLeveledActor(uint32_t aFormId, uint32_t aPick);
     std::set<uint32_t> DestroyedNpcs; // NPC forms the collector destroyed: no longer found by id
     Inventory GetActorInventory(uint32_t aFormId) const noexcept override;

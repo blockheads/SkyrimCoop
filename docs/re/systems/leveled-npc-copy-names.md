@@ -37,8 +37,9 @@ up an **actor**, so it did nothing. Placed copies now apply the snapshot too.
 
 The first implementation kept plugin records immutable by attaching a private NPC base.
 The lifetime regression below supersedes that implementation: names now belong to the actor reference. This is the same factory/copy operation used by native
-14375; its second argument is a template array, despite the unused inherited hook's guessed
-`TESNPC*` signature. That hook remains disabled. The new `ExtraLeveledCreature` layout is checked
+14375. Its second argument is one `TESNPC*`, the pick (corrected 2026-11-23, read in IDA: 14375 passes it to
+`CopyFromTemplateForms` 24720 at 0x1401DCFCB, which checks its form type 43 at 0x1403C1EC8; an earlier note here called it
+a template array). The inherited hook remains disabled; `TESNPC::BuildLeveled` calls it ([leveled-copy-base.md](leveled-copy-base.md)). The new `ExtraLeveledCreature` layout is checked
 against CommonLibSSE-NG (`originalBase +0x10`, `templateBase +0x18`, size `0x20`).
 
 Fast verification: created and placed name/race checks pass, and each game's shared face record

@@ -18,7 +18,7 @@ Two paths roll it again, and both destroy the current base without checking it i
 
 Each sets the original back, clears the extra, then hands the old base to `GarbageCollector__DestroyForm_36460`, which
 removes it from the form map and deletes it (or queues that), whatever it is. The engine assumes a leveled actor's
-current base is the temporary it built. Only `ExtraDataList::LoadGame`'s ExtraLeveledCreature case (0x140177F9C) checks
+current base is the temporary it built. Only `ExtraDataList::LoadGame`'s (12095) ExtraLeveledCreature case (0x140177F9C) checks
 `IsTemporaryFormID` first.
 
 ## What went wrong
@@ -41,8 +41,10 @@ symptom follows from step 2.
 `NpcSnapshot::ChooseBaseApply`: a leveled reference (`IsActorLeveled`, an ExtraLeveledCreature with an original) whose
 pick differs is built again, the engine's way: `SkyrimBridge::RelevelActor` calls 14375 (`TESNPC::BuildLeveled`) with
 the original and the owner's pick, records the pick in the extra and sets the new temporary base, as LoadGame's case 45
-does. A later reset destroys only that temporary. The old temporary is left (not collected): a queued 3D load can still
-read it. Other actors still take the owner's base.
+does. A later reset destroys only that temporary. The old temporary is left (not collected): a precaution, not read or
+measured; the crash itself was the background loader (QueuedCharacter 13108 -> Load3D 37177) reading a base another
+thread changed, and when its last reader is done is not known. Each correction after a guest re-roll leaves one such
+form (`docs/bugs.md`). Other actors still take the owner's base.
 
 Measured on the duo (`guest-releveled-copy-keeps-pick`, heap history on): at level 50 the guest's `RecycleActor` gave its
 copy of `DC8E3` a Skeever; the host's announcement made it a new temporary (`FF000E8B`) with EncWolf as face and pick; a

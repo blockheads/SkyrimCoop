@@ -45,6 +45,7 @@ every other section needs the duo.
 **Copy-desync follow-ups**
 
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
+- [A re-leveled copy leaves its old temporary NPC](#a-re-leveled-copy-leaves-its-old-temporary-npc): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
@@ -152,6 +153,18 @@ every other section needs the duo.
 - [A staging spot 1500 units off with no floor](#a-staging-spot-1500-units-off-with-no-floor): small
 
 ## Copy-desync follow-ups
+
+### A re-leveled copy leaves its old temporary NPC
+
+PR #114 review, 2026-11-23 ([leveled-copy-base.md](re/systems/leveled-copy-base.md)): `RelevelActor` builds a new
+temporary NPC (14375) and sets it; the displaced temporary is not collected, so each correction after a guest re-roll
+leaves one NPC form behind. It is left on purpose: a queued 3D load may still read it, unread when its last reader ends.
+
+Agent task: read when the background loader (QueuedCharacter 13108 -> 37177) lets go of an actor's base, then hand the
+displaced temporary to the collector (36460) after that; GameTests `[copy-level]` checks it is retired.
+
+Size: small. Needs: IDA, then GameTests.
+
 
 ### A seated owner's copy keeps an old action
 

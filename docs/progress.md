@@ -53,8 +53,9 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 [leveled-copy-base.md](re/systems/leveled-copy-base.md)). The 2026-11-22 playtest's third guest crash (15678, a
 temporary base's faceNPC walk). A placed leveled copy whose game picked another animal was given the owner's face record
 (EncWolf 23ABE) as its base; the engine's re-roll of a leveled actor (37323, 37292: cell reset, respawn, `RecycleActor`)
-hands the current base to the garbage collector (36460) with no temporary check (read in IDA), so EncWolf was destroyed
-and every base and list pointing at it dangled. Such a copy is now built again from the owner's pick with the engine's
+hands the current base to the garbage collector (36460) with no temporary check (read in IDA), which destroys such a
+record; that this destroyed EncWolf in Fabien's game, leaving every base and list pointing at it dangling, is inferred
+from the log's order of events (the dump holds no heap). Such a copy is now built again from the owner's pick with the engine's
 leveled build (14375, `RelevelActor`), a temporary base the engine may destroy. Checked: scenario
 `guest-releveled-copy-keeps-pick` (MCP, heap history on), GameTests `[copy-level]` (fails four checks without the fix),
 ClientTests `[npc-snapshot]`. The fake learned that a leveled actor's reset destroys its current base, whatever it is.
