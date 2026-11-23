@@ -68,6 +68,9 @@ void HostService::OnActivate(const ActivateEvent& acEvent) noexcept
 {
     if (IsHosting() && acEvent.ByReference)
         m_pEngine->RecordActivation(acEvent.ObjectFormId, acEvent.ActivatorFormId, acEvent.PreActivationOpenStateValue);
+    // The host's player's pull of a lever furniture moves only its own graph: the guests' follow from the row.
+    if (IsHosting() && !acEvent.FurnitureEvent.empty())
+        m_pEngine->RecordAnimation(acEvent.ObjectFormId, {}, acEvent.FurnitureEvent, acEvent.ActivatorFormId);
 }
 
 void HostService::OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept

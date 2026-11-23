@@ -53,6 +53,9 @@
 #include <Havok/hkbVariableValueSet.h>
 #include <Havok/hkbStateMachine.h>
 #include <Forms/TESObjectCELL.h>
+#include <Forms/TESObjectACTI.h>
+#include <Forms/BGSAction.h>
+#include <Games/Animation/TESActionData.h>
 #include <Forms/TESWorldSpace.h>
 
 #include <Structs/AnimationGraphDescriptorManager.h>
@@ -1146,6 +1149,30 @@ bool TESObjectREFR::SendAnimationEvent(BSFixedString* apEventName) noexcept
     return EngineVirtual(animationGraphHolder).SendAnimationEvent(apEventName);
 }
 
+bool TESObjectREFR::IsActivatorFurniture() const noexcept
+{
+    if (!baseForm || baseForm->formType != FormType::Furniture)
+        return false;
+    auto* pKeyword = static_cast<BGSKeyword*>(DefaultObjectManager::GetObject(DefaultObjectManager::kKeywordActivatorFurnitureNoPlayer));
+    auto* pFurniture = Cast<TESObjectACTI>(baseForm);
+    return pKeyword && pFurniture && EngineVirtual(pFurniture->keywordForm).Contains(pKeyword);
+}
+
+std::string TESObjectREFR::PickActivatorFurnitureEvent() noexcept
+{
+    using TPickIdleForAction = TESIdleForm*(void* apSelector, BGSActionData* apData);
+    POINTER_SKYRIMSE(TPickIdleForAction, s_pickIdleForAction, 24602);
+    POINTER_SKYRIMSE(void*, s_idleSelector, 400451); // the global 17420 passes to 24602
+
+    auto* pAction = static_cast<BGSAction*>(DefaultObjectManager::GetObject(DefaultObjectManager::kActionActivate));
+    if (!pAction || !*s_idleSelector.Get())
+        return {};
+    // As 17420: the furniture itself in the actor's slot, no target.
+    TESActionData data(2, reinterpret_cast<Actor*>(this), pAction, nullptr);
+    s_pickIdleForAction(*s_idleSelector.Get(), &data);
+    return data.eventName.AsAscii() ? std::string(data.eventName.AsAscii()) : std::string{};
+}
+
 bool HookPlayAnimation(void* apThis, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName)
 {
     spdlog::debug("EventName: {}", apEventName->AsAscii());
@@ -1177,6 +1204,9 @@ bool HookActivate(TESObjectREFR* apThis, TESObjectREFR* apActivator, uint8_t aUn
         TESObjectCELL* pCell = apThis->GetParentCellEx();
         evt.ObjectParentCellFormId = pCell ? pCell->formID : 0;
         evt.PreActivationOpenStateValue = static_cast<uint8_t>(cOpenState);
+        // Picked before the engine's own pick moves it (17420, this game's player only).
+        if (apActivator == PlayerCharacter::Get() && apThis->IsActivatorFurniture())
+            evt.FurnitureEvent = apThis->PickActivatorFurnitureEvent();
         World::Get().GetRunner().Trigger(evt);
     }
 

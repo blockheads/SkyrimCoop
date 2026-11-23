@@ -393,7 +393,7 @@ void HostEngine::RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFor
     m_events.push_back(std::move(event));
 }
 
-void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent) noexcept
+void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent, uint32_t aPullerFormId) noexcept
 {
     const auto cObject = ToSessionOrCreated(aObjectFormId);
     if (!cObject)
@@ -401,6 +401,7 @@ void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAn
     ObjectChange event{ObjectChange::Kind::kAnimation, *cObject};
     event.Animation = acAnimation;
     event.Event = acEvent;
+    event.Value = aPullerFormId ? Utils::GetSessionIdByFormId(aPullerFormId).value_or(0) : 0;
     m_events.push_back(std::move(event));
 }
 
@@ -445,7 +446,15 @@ void HostEngine::Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aAct
         return;
     }
     Breadcrumbs::Record("HostEngine::Activate", cObjectId, pActor->formID);
+    // A lever furniture moves only for this game's player (TESFurniture::Activate 17420): its pull, picked first.
+    const std::string cPull = pObject->IsActivatorFurniture() ? pObject->PickActivatorFurnitureEvent() : std::string{};
     pObject->Activate(pActor, 0, nullptr, 1, 0);
+    if (cPull.empty())
+        return;
+    BSFixedString event(cPull.c_str());
+    pObject->SendAnimationEvent(&event);
+    RecordAnimation(cObjectId, {}, cPull, pActor->formID);
+    spdlog::info("HostEngine: {:X} pulled by {:X}'s copy: '{}'", cObjectId, pActor->formID, cPull);
 }
 
 void HostEngine::Summon(uint32_t aCasterId, const SummonRequest& acSummon) noexcept

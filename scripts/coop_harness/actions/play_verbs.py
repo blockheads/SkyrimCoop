@@ -549,6 +549,17 @@ class PlayerVerbs:
                                "until": ["aimed"], "seconds": 3})
             with contextlib.suppress(TestFailure):
                 ctx.wait_for(f"[{instance or 'host'}] the crosshair on {target}'s body", lambda: on() == ref, 2)
+        if on() != ref and not row:
+            # An object's origin can lie off its body (a lever furniture's at its floor): its body, then above it.
+            x, y, z = ctx.place_of(instance, ref)
+            body = (ctx.body_of(instance, ref) or {}).get("position")
+            for point in ([list(body)] if body else []) + [[x, y, z + height] for height in (40, 80, 120)]:
+                if on() == ref:
+                    break
+                ctx.act(instance, {"name": f"aims at {target}'s body", "ready": ["takes_input"], "turn": {"face": point, "rate": 180},
+                                   "until": ["aimed"], "seconds": 3})
+                with contextlib.suppress(TestFailure):
+                    ctx.wait_for(f"[{instance or 'host'}] the crosshair on {target}'s body", lambda: on() == ref, 2)
         if (crosshair := on()) != ref:
             if crosshair:
                 raise verb_failure(ctx, "blocked", f"[{instance or 'host'}] {crosshair:X} is between the player and {target}",
@@ -704,6 +715,25 @@ class PlayerVerbs:
         if changed and not container:  # a door swung, a lever moved: only the object shows it
             return {"how": "input", "changed": changed, "menus": []}
         raise verb_failure(ctx, "refused", f"[{instance or 'host'}] activating {target} did nothing in {USE_SECONDS:g} s: {changed or 'no change'}")
+
+    @goal
+    def use_object_graphs(ctx, instance, target, seconds=5.0):
+        """As `use`, with `target`'s own graph watched in both games: each game's object gets the same input events,
+        each once (a lever furniture's pull reaches the host's lever and is not played twice on the puller's)."""
+        refs = {game: ctx.resolve(target, game) for game in ("", "client")}
+        with AnimTrace(ctx, f"use-graphs-{target}", {game: {refs[game]: target} for game in refs}, video=False) as trace:
+            ctx.use(instance, target)
+            inputs = lambda: {game: [e["event"] for e in trace.entries if e["kind"] == "input" and e["game"] == game]
+                              for game in ("", "client")}
+            with contextlib.suppress(TestFailure):
+                ctx.wait_for(f"{target}: both games' graphs got its input", lambda: trace.take() or all(inputs().values()), seconds)
+            time.sleep(1.0)  # a second copy of the input would come a frame or a row later
+            trace.take()
+            got = inputs()
+        if not all(got.values()) or got[""] != got["client"] or len(set(got[""])) != len(got[""]):
+            raise verb_failure(ctx, "graphs_differ", f"{target}'s graph inputs: host {got['']}, guest {got['client']}: "
+                               "not the same events, each once, in both games")
+        return {"how": "input", "inputs": got[""]}
 
     @goal
     def take(ctx, instance, target):

@@ -10,6 +10,7 @@ constexpr uint32_t kLever = 0x000F1B2C; // a placed reference in QASmoke
 constexpr uint32_t kGate = 0x000F1B2D;  // a locked one
 constexpr uint32_t kChest = 0x000C2CE8; // QASmoke's small chest, a lid that opens
 constexpr uint32_t kPlant = 0x000F1B2E; // a flora reference (a mountain flower)
+constexpr uint32_t kPullLever = 0x000F1B2F; // a lever furniture (Bleak Falls Barrow's pillar lever's kind)
 
 void Plugins(FakeEngine& aEngine)
 {
@@ -19,6 +20,7 @@ void Plugins(FakeEngine& aEngine)
     aEngine.References[kGate] = {.Cell = kSmoke, .Locked = true, .LockLevel = 50};
     aEngine.References[kChest] = {.Cell = kSmoke, .Chest = true};
     aEngine.References[kPlant] = {.Cell = kSmoke, .Plant = true};
+    aEngine.References[kPullLever] = {.Cell = kSmoke, .Lever = true};
 }
 
 
@@ -57,6 +59,56 @@ SCENARIO("A lever a guest pulls moves once, on the host, and no other guest repl
 
     THEN("the other guest replayed nothing")
     CHECK(other.Activations.empty());
+}
+
+// Playtest 2026-11-22 item 11; scenario guest-pulls-lever-furniture; docs/re/systems/activation.md, "Lever furniture".
+SCENARIO("A lever furniture one player pulls moves once on every game", "[objects]")
+{
+    Party party(2, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest(0));
+    FakeEngine& other = Party::Engine(party.Guest(1));
+    party.Until([&] { return PlayerCopy(host, 1) != 0 && PlayerCopy(other) != 0; }, "every game has every player");
+    const auto pulls = [](FakeEngine& aEngine) { return aEngine.References.at(kPullLever).GraphEvents.size(); };
+    // A marker from the host after the pull: every guest has had whatever came before.
+    const auto settle = [&] {
+        party.As(party.Host(), [&] { host.PlayerSetsLock(kGate, false, 50); });
+        party.Until([&] { return !guest.References[kGate].Locked && !other.References[kGate].Locked; }, "both guests have the host's later change");
+    };
+
+    WHEN("a guest pulls it")
+    {
+        party.As(party.Guest(0), [&] { guest.Activates(FakeEngine::kPlayer, kPullLever); });
+        party.Until([&] { return pulls(host) == 1 && pulls(other) == 1; }, "the host's lever and the other guest's move");
+        settle();
+        THEN("the guest's own moved once, by its own engine")
+        CHECK(pulls(guest) == 1);
+    }
+    WHEN("the host pulls it")
+    {
+        party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, kPullLever); });
+        party.Until([&] { return pulls(guest) == 1 && pulls(other) == 1; }, "both guests' levers move");
+        settle();
+        CHECK(pulls(host) == 1);
+    }
+}
+
+// A scripted activator (NorLever01SCRIPT, defaultButtonSCRIPT, NorPullBar01SCRIPT, a claw door's ring): its host
+// script's PlayAnimation is a row; a guest's own script never ran (WorldEvents drops its OnActivate).
+SCENARIO("A guest's pull of a scripted lever moves it on every game by the host's script", "[objects]")
+{
+    Party party(2, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest(0));
+    FakeEngine& other = Party::Engine(party.Guest(1));
+    party.Until([&] { return PlayerCopy(host, 1) != 0 && PlayerCopy(other) != 0; }, "every game has every player");
+
+    party.As(party.Guest(0), [&] { guest.Activates(FakeEngine::kPlayer, kLever); });
+    party.Until([&] { return host.Activations.size() == 1; }, "the host's game runs the guest's pull");
+    party.As(party.Host(), [&] { host.ScriptPlaysAnimation(kLever, "FullPull"); }); // its OnActivate, on the host
+    party.Until([&] { return guest.References[kLever].GraphEvents.size() == 1 && other.References[kLever].GraphEvents.size() == 1; },
+                "both guests' levers play the host's animation");
+    CHECK(guest.References[kLever].GraphEvents.front() == "FullPull");
 }
 
 SCENARIO("A plant one player picks is picked on every game", "[objects]")

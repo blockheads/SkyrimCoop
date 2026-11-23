@@ -292,6 +292,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::set<uint32_t> Rolled; // items a leveled roll put in (their changes entry a roll's: ExtraLeveledItem lists)
         uint32_t LinkedDoor = 0; // a load door with no lock of its own: it uses this door's (GetLock 20223)
         bool Persistent = false; // in memory with its cell unloaded (a load door's other side)
+        // A lever furniture (KeywordActivatorFurnitureNoPlayer): only this game's player's activation sends its pull to
+        // its graph (TESFurniture::Activate 17420); a copy's does nothing to it.
+        bool Lever = false;
+        std::vector<std::string> GraphEvents; // the events its own graph got
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
@@ -1353,6 +1357,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ToggleDoor(uint32_t aObject);
     // An activated plant is picked (for any actor, 14864): the host's records it (CHANGE_OBJECT_EMPTY), a guest's here only.
     void Harvest(uint32_t aObject);
+    // This game's player pulls a lever furniture (17420): its graph gets the pull; the host's records it as a row.
+    void PullsLever(uint32_t aObject);
+    // The host's script plays an animation on a reference (PlayAnimation 56205: HookPlayAnimation records it).
+    void ScriptPlaysAnimation(uint32_t aObject, const std::string& acEvent);
+    static constexpr const char* kPull = "Pull";
     // Combat. A melee hit, as our hook on Actor::DamageActor (Actor.cpp) takes it: raised as a hit, and a hit of this
     // game's player on another's actor raised as a health change and not applied here (its owner applies it).
     void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);

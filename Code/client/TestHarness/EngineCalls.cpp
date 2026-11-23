@@ -1014,8 +1014,9 @@ std::vector<CellObject> GetCellObjects() noexcept
     std::vector<CellObject> objects;
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     if (TESObjectCELL* pCell = pPlayer ? pPlayer->GetParentCellEx() : nullptr)
-        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container, FormType::Furniture}))
-            objects.push_back({pRef->formID, {pRef->position.x, pRef->position.y, pRef->position.z}});
+        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container, FormType::Furniture, FormType::Activator}))
+            objects.push_back({pRef->formID, {pRef->position.x, pRef->position.y, pRef->position.z}, pRef->baseForm ? pRef->baseForm->formID : 0,
+                               pRef->baseForm && pRef->baseForm->formType == FormType::Activator, pRef->IsActivatorFurniture()});
     return objects;
 }
 
