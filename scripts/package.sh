@@ -3,7 +3,8 @@
 # It includes the plugin without the test harness, UI, bundled start, launcher under Steam's launcher name, and
 # runtime-specific pinned vendor files: matching SKSE (skse.silverlock.org), Address Library (Nexus 32444), and Alternate
 # Start 4.2.6a (Nexus 272) with the USSEP 4.3.9c it requires (Nexus 266), archives in build/mods.
-# Zipped as build/package/SkyrimCoop-<git describe>-skyrim-<runtime>.zip. Its DLL and PDB stay beside it in
+# Two zips in build/package: SkyrimCoop-<git describe>-skyrim-<runtime>.zip is the mod alone (an update for friends who
+# have the vendor files), and the same name with -full adds them (a first install). The DLL and PDB stay beside them in
 # <zip stem>-symbols/ (BUILD: the commit a crash report names; RUNTIME: the matching Skyrim), for
 # scripts/re/symbolize_crash.py --build: players' crash logs carry module offsets, never symbols.
 # Its own xmake configuration (build/package-config, build/package-build): the test build's is untouched. Dev mode,
@@ -53,27 +54,36 @@ files = {
     "licenses/zstd.txt": root / "Code/external/licenses/zstd.txt",
     "licenses/lz4.txt": root / "Code/external/licenses/lz4.txt",
 }
-for line in pins.read_text().splitlines():
-    name = line.split("  ", 1)[1]
-    files[name] = vendor / name
 # The UI's fixtures are its tests' inputs (scripts/check-ui.sh), not the game's.
 for source in ui.rglob("*"):
     if source.is_file() and "fixtures" not in source.relative_to(ui).parts:
         files[f"Data/SKSE/Plugins/SkyrimCoop/ui/{source.relative_to(ui).as_posix()}"] = source
+full = dict(files)
+for line in pins.read_text().splitlines():
+    name = line.split("  ", 1)[1]
+    full[name] = vendor / name
+
+
+def write(out, contents):
+    # Sorted entries with fixed dates and modes: the same files make the same zip.
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in sorted(contents):
+            entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            entry.external_attr = 0o644 << 16
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(entry, contents[name].read_bytes())
+    print(f"{out} ({out.stat().st_size // 1024} KB, {len(contents)} files)")
+
+
 out = root / f"build/package/SkyrimCoop-{version}-skyrim-{runtime}.zip"
 out.parent.mkdir(parents=True, exist_ok=True)
-# Sorted entries with fixed dates and modes: the same files make the same zip.
-with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
-    for name in sorted(files):
-        entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
-        entry.external_attr = 0o644 << 16
-        entry.compress_type = zipfile.ZIP_DEFLATED
-        archive.writestr(entry, files[name].read_bytes())
+write(out, files)
+write(out.with_name(f"{out.stem}-full.zip"), full)
 symbols = out.parent / f"{out.stem}-symbols"
 symbols.mkdir(exist_ok=True)
 for name in ("SkyrimTogetherClient.dll", "SkyrimTogetherClient.pdb"):
     shutil.copy2(built / name, symbols / name)
 (symbols / "BUILD").write_text(commit + "\n")
 (symbols / "RUNTIME").write_text(runtime + "\n")
-print(f"{out} ({out.stat().st_size // 1024} KB, {len(files)} files); symbols in {symbols.name}")
+print(f"symbols in {symbols}")
 EOF

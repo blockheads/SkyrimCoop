@@ -1,8 +1,9 @@
 # Installing SkyrimCoop (playtest)
 
 You need Skyrim Special Edition (or Anniversary Edition) on Steam, game version **1.7.104**,
-on Windows or on Linux through Proton. The zip has everything else: SKSE, Alternate Start - Live Another Life and the
-Unofficial Skyrim Special Edition Patch it needs.
+on Windows or on Linux through Proton. The `-full` zip has everything else: SKSE, Address Library, Alternate Start -
+Live Another Life and the Unofficial Skyrim Special Edition Patch it needs. The zip without `-full` is SkyrimCoop
+alone, an update for a game that already has them.
 
 The package filename names its Skyrim version. A separate **1.6.1170** build remains available for older
 installations; install the package matching your executable. The default build and primary support target are 1.7.104.
@@ -14,7 +15,7 @@ installations; install the package matching your executable. The default build a
 2. Before the first installation, rename Bethesda's `SkyrimSELauncher.exe` to `SkyrimSELauncher.bethesda.exe`.
    Keep that file: it provides the graphics options. If SkyrimCoop already replaced the launcher, use Steam's
    Properties > Installed Files > Verify integrity once to restore it, then rename it.
-3. Extract the whole zip into that folder.
+3. Extract the whole `-full` zip into that folder.
 4. Press Play in Steam, then **Play co-op**.
 
 That's it. Each start checks your game version, enables the zip's plugins and starts Skyrim through SKSE. A message box
@@ -43,7 +44,7 @@ settings are preserved.
 
 ## Updating and uninstalling
 
-- A new zip: extract it the same way. Keep `SkyrimSELauncher.bethesda.exe`; updates do not include or replace it.
+- A new version: extract its zip (without `-full`) the same way. Keep `SkyrimSELauncher.bethesda.exe`; updates do not include or replace it.
 - Verifying the game's files in Steam puts Steam's own launcher back: extract the zip again.
 - To uninstall: in Steam, Properties > Installed Files > Verify integrity of game files (restores Steam's launcher),
   then delete `Data/SKSE/Plugins/SkyrimTogetherClient.dll`, `Data/SkyrimCoopStart.esp` and the

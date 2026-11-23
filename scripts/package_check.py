@@ -6,7 +6,7 @@ this is a boot check read from the plugin's log, not a joined session.
 
 The clean game folder (build/clean-install/game) links the Steam install's files, without SKSE, its plugins or
 anything of ours: the package brings them. Uses the shared duo display (:99): run it as `scripts/duo.py run -- python3 scripts/package_check.py`.
-  scripts/package_check.py [ZIP]
+  scripts/package_check.py [ZIP]   (default: the newest -full zip, a first install)
 """
 import os
 import shutil
@@ -61,7 +61,7 @@ def install(package):
 
 
 def main():
-    package = Path(sys.argv[1]) if len(sys.argv) > 1 else max((ROOT / "build/package").glob("*.zip"),
+    package = Path(sys.argv[1]) if len(sys.argv) > 1 else max((ROOT / "build/package").glob("*-full.zip"),
                                                                  key=lambda path: path.stat().st_mtime)
     ct.host = Game("", install=GAME, prefix=HOME / "prefix", display=":99")
     ct.games = (ct.host, ct.guest)
