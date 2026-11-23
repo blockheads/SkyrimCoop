@@ -10,3 +10,5 @@ time	op	id	rva	item
 2026-11-23T17:33:01Z	comment	77988	0x1051de0	{"addr": "0x141051de0", "comment": "AddressLib ID 77988 GetNiObjectFromHavokCollidable(collidable) (Precision's GetNiObjectFromCollidable; read 2026-11-23, physics audit): the owner world object is collidable + its ownerOffset (signed byte at +0x20); its bhkWorldObject's NiObject (via 0x141047D80 property 2, else the owner's userData +0x18 through 77804). So a collidable's owner hkpRigidBody is collidable + ownerOffset when its broadphase handle type (+0x28, Havok's: 1 entity, 2 phantom) is an entity."}
 2026-11-23T22:43:59Z	read	78910	0x108cdd0	{"name": "bhkBlendCollisionObject::Func43_78910"}
 2026-11-23T22:43:59Z	read	78178	0x105d0e0	{"name": "bhkCollisionObject::Func44_78178"}
+2026-11-23T23:34:18Z	read		0xb997fc	{"name": "ahkpCharacterRigidBody::sub_62458"}
+2026-11-23T23:34:18Z	read		0x109be51	{"name": "bhkCharRigidBodyController::Func19_79206"}

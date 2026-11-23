@@ -44,6 +44,20 @@ nlohmann::json NodeJson(NiNode& aRoot, const BSFixedString& acName)
     return {pNode->world.translate.x, pNode->world.translate.y, pNode->world.translate.z};
 }
 
+// What Havok paired with it (its collision entries, AABBs overlapping: 64648): whose body, its layer, motion and where.
+nlohmann::json PairsJson(const bhkWorldObject& acBody)
+{
+    auto pairs = nlohmann::json::array();
+    for (const hkpRigidBody* pOther : TouchingOf(acBody, true))
+    {
+        const TESObjectREFR* pReference = ReferenceOf(*pOther);
+        const float cScale = 69.991249f; // game units a Havok unit
+        pairs.push_back({{"ref", pReference ? pReference->formID : 0}, {"layer", pOther->CollisionFilterInfo() & 0x7F}, {"motion", pOther->motionType},
+                         {"position", {pOther->translation[0] * cScale, pOther->translation[1] * cScale, pOther->translation[2] * cScale}}});
+    }
+    return pairs;
+}
+
 nlohmann::json GeometryJson(NiAVObject& aRoot)
 {
     auto entries = nlohmann::json::array();
@@ -121,6 +135,8 @@ void BodyTrace::Poll()
             // The bone it moves: where a person sees that part of the body.
             if (float bone[3]; pActor && EngineCalls::BoneOf(*pBody, bone))
                 body["bone"] = {bone[0], bone[1], bone[2]};
+            if (!pActor)
+                body["pairs"] = PairsJson(*pBody);
             bodies.push_back(std::move(body));
         }
         const auto& cTranslate = p3D->world.translate;

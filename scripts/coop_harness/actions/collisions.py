@@ -3,6 +3,7 @@ baseline"). A trial stages objects ahead of a player on one lane, the player wal
 are traced each frame; collision_metrics turns the traces into numbers, and a vanilla game's runs set their range."""
 import json
 import math
+import pathlib
 import time
 
 from .. import collision_metrics
@@ -273,7 +274,7 @@ class CollisionActions:
             watched[f"{ref:X}"] = {"frames": len(mine), "changes": len(lines), "lines": lines[-limit:]}
         return watched
 
-    def lies_on_npc(ctx, npc, ref, seconds=20.0, above=135.0, ahead=0.0, wakes=False):
+    def lies_on_npc(ctx, npc, ref, seconds=20.0, above=135.0, ahead=0.0, wakes=False, save=""):
         """The host's console sets reference `ref` (the same id in both games) `above` `npc`'s feet (and `ahead` along
         x) and lets it fall onto it; then both games' bodies of it are traced for `seconds` while the NPC goes about. The guest's must move as
         the host's does: no frame's jump over 2 units, no more turn-backs than the host's and 3, no further travelled
@@ -281,25 +282,33 @@ class CollisionActions:
         the two ended. `wakes`: first who_wakes on it in each game, half of `seconds` each (what it goes through there)."""
         ref = ref if isinstance(ref, int) else int(ref, 16)
         actor = ctx.resolve(npc, "")
+        traced = [ref] + ([actor] if save else [])
         at = ((ctx.actor_snapshot("", actor) or {}).get("placement") or {}).get("position")
         if not at:
             raise ctx.failure(f"[host] {npc} is not in the world")
         ctx.staged().append(("put_back", ctx.where_now([ref])))
-        # `ahead`: units along the cell's x from its feet (an NPC leaning over a counter has its back there).
-        for axis, value in zip("xyz", (at[0] + ahead, at[1], at[2] + above)):
-            ctx.console_on("", f"{ref:X}.setpos {axis} {value:.0f}")
-        ctx.player_command("", {"cmd": "wake", "ref": ref})
         def on_it(instance):
-            body = ctx.body_of(instance, ref)
-            return body and body["position"][2] < at[2] + above - 5 and math.dist(body["position"][:2], at[:2]) < 120
-        ctx.wait_for(f"[host] {ref:X} falls onto {npc}", lambda: on_it(""), 10)
-        ctx.wait_for(f"[client] shows {ref:X} there", lambda: on_it("client"), 10)
+            body, now = ctx.body_of(instance, ref), ctx.actor_snapshot(instance, ctx.resolve(npc, instance))
+            off = [p - a for p, a in zip(body["position"], now["placement"]["position"])] if body and now else None
+            return bool(off) and math.hypot(*off[:2]) < 60 and off[2] > 90
+        # `ahead`: units along the cell's x from its feet (an NPC leaning over a counter has its back there). Its pose
+        # decides which spot holds: each in turn until the host's lies on it three seconds on.
+        spots = [(above, ahead, 0), (105, 30, 0), (125, 15, 0), (120, 20, -15), (120, 20, 0), (112, 24, 0), (118, 18, 10)]
+        for z, x, y in spots * 3:
+            for axis, value in zip("xyz", (at[0] + x, at[1] + y, at[2] + z)):
+                ctx.console_on("", f"{ref:X}.setpos {axis} {value:.0f}")
+            ctx.player_command("", {"cmd": "wake", "ref": ref})
+            time.sleep(3.0)
+            if on_it(""):
+                break
+        else:
+            raise ctx.failure(f"[host] {ref:X} lies on {npc} from none of {spots}")
         woken = {name: ctx.who_wakes(game, [ref], seconds / 2) for name, game in (("host", ""), ("guest", "client"))} if wakes else None
         games = {"host": ctx.game(""), "guest": ctx.game("client")}
         entries = {name: [] for name in games}
         for name, game in games.items():
             game.rpc({"cmd": "body_trace", "stop": True}, timeout=10)
-            if not (game.rpc({"cmd": "body_trace", "refs": [ref]}) or {}).get("ok"):
+            if not (game.rpc({"cmd": "body_trace", "refs": traced}) or {}).get("ok"):
                 raise ctx.failure(f"[{name}] the body trace did not start")
         end = time.monotonic() + seconds
         try:
@@ -309,6 +318,8 @@ class CollisionActions:
         finally:
             for name, game in games.items():
                 entries[name].extend((game.rpc({"cmd": "body_trace", "stop": True}, timeout=10) or {}).get("entries", []))
+        if save:  # both games' entries, the NPC's bodies too
+            pathlib.Path(save).write_text(json.dumps(entries))
         seen = {name: collision_metrics.measure(collision_metrics.path_of(entries[name], ref)) for name in games}
         if not seen["host"] or not seen["guest"]:
             raise ctx.failure(f"no trace of {ref:X}: host {len(entries['host'])} entries, guest {len(entries['guest'])}")
@@ -329,6 +340,26 @@ class CollisionActions:
         if wrong:
             raise ctx.failure(f"[guest] {ref:X} on {npc} does not lie as the host's: " + "; ".join(wrong) + f" ({result})")
         return result
+
+    def settles_on_npc(ctx, npc, ref, spots, seconds=6.0):
+        """For each [x, y, z] off `npc`'s feet in `spots`: the host's console lets `ref` fall there; `seconds` later, where
+        each game has it off the feet, and how fast it goes: the spots that keep it on the NPC."""
+        ref = ref if isinstance(ref, int) else int(ref, 16)
+        actor, found = ctx.resolve(npc, ""), []
+        ctx.staged().append(("put_back", ctx.where_now([ref])))
+        for spot in spots:
+            at = ctx.actor_snapshot("", actor)["placement"]["position"]
+            for axis, value in zip("xyz", [a + s for a, s in zip(at, spot)]):
+                ctx.console_on("", f"{ref:X}.setpos {axis} {value:.0f}")
+            ctx.player_command("", {"cmd": "wake", "ref": ref})
+            time.sleep(seconds)
+            row = {"spot": spot}
+            for name, game in (("host", ""), ("guest", "client")):
+                body = ctx.body_of(game, ref)
+                row[name] = {"off": [round(p - a, 1) for p, a in zip(body["position"], at)], "awake": body["awake"],
+                             "speed": round(math.hypot(*body["velocity"]), 1)} if body else None
+            found.append(row)
+        return found
 
     def collision_restless(ctx, walker="client", kind="drop_wheel_on_wheels", rounds=6, seconds=4.0, after=4.5):
         """Trials until one leaves `walker`'s game creeping: `after` seconds past the let go its objects still move a

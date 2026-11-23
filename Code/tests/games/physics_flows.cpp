@@ -2109,6 +2109,36 @@ SCENARIO("A bucket the host's game hangs beside a moving plate hangs in the gues
     CHECK_FALSE(guestBucket.Awake);
 }
 
+SCENARIO("The host's console moves the bucket away as the guest's player touches it, the guest's game still showing it there: it lies where the console put it", "[physics][placed]")
+{
+    // The duo, 2026-11-23 (guest_drops_wheel_on_wheels_like_vanilla): the touch's number, one past the host's
+    // placement, stood: the wheel came to rest by the guest's player, 2300 units off.
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    const glm::vec3 cAt = guestBucket.Flight.Body.Position, cWhere{150.f, 1460.f, kTable};
+    const int cAfter = GENERATE(0, 1, 3, 6);
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlaceByGame(kBucket, cWhere); });
+    // The console wakes it there, as staging does.
+    party.Frame();
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {}); });
+    for (int i = 0; i < cAfter; ++i)
+        party.Frame();
+    REQUIRE(glm::distance(guestBucket.Flight.Body.Position, cAt) < 1.f); // shown a playback delay behind
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
+        engine.Knock(kBucket, {160.f, 0.f, 0.f});
+    });
+    const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(1500);
+    while (std::chrono::steady_clock::now() < cUntil)
+        party.Frame();
+    INFO("touched " << cAfter << " frames after; the host's at y " << hostBucket.Flight.Body.Position.y << ", the guest's at y " << guestBucket.Flight.Body.Position.y);
+    CHECK(glm::distance(hostBucket.Flight.Body.Position, cWhere) < 2.f);
+    CHECK(glm::distance(guestBucket.Flight.Body.Position, cWhere) < 2.f);
+}
+
 SCENARIO("The host's bucket lies on what holds it only there: the guest's, woken again and again, is kept at the host's rest, never snapped", "[physics][kept-rest]")
 {
     // The playtest of 2026-11-23 and mask_on_orgnar_lies_as_hosts: a mask on Orgnar's back. It is woken

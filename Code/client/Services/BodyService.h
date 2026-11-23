@@ -56,6 +56,8 @@ struct BodyService
     void DeclareRagdolls(uint64_t aTick, std::vector<BodyPose>& aRests, const std::vector<BodyFrame>& acAwake) noexcept;
     // This game simulates the body now (it took it): its playback ends, its older states too.
     void Forget(const BodyKey& acKey, uint64_t aUntil = 0) noexcept;
+    // This game gives the body back: the host's states of it stand, from before the taking too.
+    void Reopen(const BodyKey& acKey) noexcept { PlaybackOf(acKey).Reopen(acKey); }
     // A reference another game's player holds (its states come held): its holder's alone, so this game's player
     // may not activate it (pick it up) meanwhile.
     [[nodiscard]] bool HeldElsewhere(uint32_t aFormId) const noexcept { return aFormId && m_heldElsewhere.contains(aFormId); }

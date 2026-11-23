@@ -50,10 +50,21 @@ void GuestBodies::Drop(const BodyKey& acKey) noexcept
     m_last.erase(acKey);
 }
 
+bool GuestBodies::Elsewhere(const BodyKey& acKey) const noexcept
+{
+    const auto it = m_newest.find(acKey);
+    if (acKey.Actor || it == m_newest.end() || m_authority.Is(acKey, kMe))
+        return false;
+    const auto cRead = m_world.ctx().at<IBodyBridge&>().Read(acKey);
+    return cRead && glm::distance(cRead->Position, it->second) > BodyTolerances::kPlaceFar;
+}
+
 void GuestBodies::TakeHands(uint64_t aTick, std::map<BodyKey, BodyFrame>& aHeld, std::vector<BodyKey>& aTaken) noexcept
 {
     const auto cTake = [&](const BodyKey& acKey, const char* acpHow) {
         const bool cWasMine = m_authority.Is(acKey, kMe) && !m_authority.Of(acKey).AtRest;
+        if (Elsewhere(acKey))
+            return;
         if (m_authority.Touch(acKey, kMe, aTick) && !cWasMine)
             Took(acKey, acpHow, aTaken);
     };
@@ -111,7 +122,7 @@ std::vector<BodyKey> GuestBodies::Update(uint64_t aTick) noexcept
         const auto it = m_hostRests.find(acKey);
         return it != m_hostRests.end() ? std::optional(it->second) : std::nullopt;
     });
-    for (const BodyKey& cKey : m_authority.Spread(kMe, cContacts, aTick, [this](const BodyKey& acKey) { return m_paired.Moved(acKey); }))
+    for (const BodyKey& cKey : m_authority.Spread(kMe, cContacts, aTick, [this](const BodyKey& acKey) { return m_paired.Moved(acKey) && !Elsewhere(acKey); }))
         Took(cKey, "knocks", taken);
 
     // Its bodies not awake here are still; a pile rests as one.
@@ -199,6 +210,7 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
 {
     const BodyKey& cKey = acState.Frame.Key;
     m_heard.insert(cKey);
+    m_newest[cKey] = acState.Frame.Position;
     if (acState.AtRest)
         m_hostRests[cKey] = {.Key = cKey, .Position = acState.Frame.Position, .Rotation = acState.Frame.Rotation};
     m_hinted.erase(cKey);
@@ -225,13 +237,17 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
             spdlog::info("GuestBodies: the host {} this game's rest of {}", cOwn ? "confirmed" : "took back", WorldStateLog::DescribeBody(cKey));
             Drop(cKey);
             if (!cOwn)
+            {
+                m_world.ctx().at<BodyService>().Reopen(cKey);
                 return true;
+            }
             m_confirmed[cKey] = acState;
         }
         else
         {
             spdlog::info("GuestBodies: the host's {} is another's: this game yields it", WorldStateLog::DescribeBody(cKey));
             Drop(cKey);
+            m_world.ctx().at<BodyService>().Reopen(cKey);
         }
     }
     return cHeard == BodyAuthority::Heard::kApply;

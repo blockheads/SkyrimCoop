@@ -40,6 +40,8 @@ private:
     void Ragdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyState>& aStates) noexcept;
     // No longer this game's: the host's states show it from now.
     void Drop(const BodyKey& acKey) noexcept;
+    // The host's newest state of it is too far off to steer to: it is not where this game still shows it.
+    [[nodiscard]] bool Elsewhere(const BodyKey& acKey) const noexcept;
     void Took(const BodyKey& acKey, const char* acpHow, std::vector<BodyKey>& aTaken) noexcept;
     [[nodiscard]] GuestEngine::SessionOf_t CopySessions() const noexcept;
     [[nodiscard]] uint32_t PlayerId() const noexcept;
@@ -57,6 +59,7 @@ private:
     std::set<BodyKey> m_heard;              // bodies the host's stream has carried
     std::map<BodyKey, BodyPose> m_hostRests; // the host's last rest of each, as heard
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_hinted; // moved here alone, the host told then (again each kHintMs until heard)
+    std::map<BodyKey, glm::vec3> m_newest; // where the host's newest state has each
     static constexpr uint64_t kHintMs = 1000;
     uint32_t m_ragdollFrames{};             // the ragdoll's frames read since it woke (logged)
 };

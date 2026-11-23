@@ -51,6 +51,8 @@ public:
     void Forget(const BodyKey& acKey) noexcept;
     // A release already applied locally: queued older frames must not restart its playback.
     void ForgetUntil(const BodyKey& acKey, uint64_t aTick) noexcept;
+    // ForgetUntil undone: a state from before it plays.
+    void Reopen(const BodyKey& acKey) noexcept { m_ended.erase(acKey); }
     // The bodies left since the last call: no frame for kLostMs and no rest.
     [[nodiscard]] std::vector<Lost> TakeLost() noexcept;
     [[nodiscard]] size_t Count() const noexcept { return m_tracks.size(); }

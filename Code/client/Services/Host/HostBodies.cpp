@@ -327,6 +327,8 @@ void HostBodies::OnHostPlaced(const GameId& acObject, const glm::vec3& acWhere) 
         if (const auto cPoses = m_game.ReadBodies({cFirst}); !cPoses.empty())
         {
             m_rows[cFirst] = {.Frame = {.Key = cFirst, .Position = acWhere, .Rotation = cPoses[0].Rotation}, .Tick = m_tick, .Placed = true};
+            // By a newer number: a touch from before a game heard of it does not stand.
+            m_authority.Unclaim(cFirst);
             m_authority.Rested(cFirst);
             return;
         }

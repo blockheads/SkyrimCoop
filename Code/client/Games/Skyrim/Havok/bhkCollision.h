@@ -198,7 +198,7 @@ bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObj
 // island sleeps or the body is not dynamic.
 [[nodiscard]] std::optional<std::vector<hkpRigidBody*>> IslandMatesOf(const bhkWorldObject& acBody) noexcept;
 // The dynamic bodies Havok paired with it (its collidable's collision entries), read under the world's read lock.
-[[nodiscard]] std::vector<const hkpRigidBody*> TouchingOf(const bhkWorldObject& acBody) noexcept;
+[[nodiscard]] std::vector<const hkpRigidBody*> TouchingOf(const bhkWorldObject& acBody, bool aAll = false) noexcept;
 // Keyframed and moving so: Havok carries it over the next step (swept, pushing what it meets at that speed), where
 // placing it each frame (60898) starts its contacts over every frame.
 bool SteerKeyframed(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept;
