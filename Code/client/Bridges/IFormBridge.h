@@ -74,11 +74,8 @@ public:
     virtual bool IsSpellEffectVampireLord(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept = 0;
     /// Returns true if the given effect item is a slow-time effect.
     virtual bool IsSpellEffectSlow(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept = 0;
-    /// The effect's own conditions on its target (EffectSetting::ConditionsPass 11085), as the engine checks them
-    /// before adding it (34525): a relayed effect skips that check.
-    virtual bool MagicEffectConditionsHold(uint32_t aTargetFormId, uint32_t aCasterFormId, uint32_t aSpellFormId,
-                                           uint32_t aEffectFormId, bool aIsDualCasting) const noexcept = 0;
-    /// Apply a magic target effect on an actor using a specific effect from a spell.
+    /// Apply a spell's effect on an actor as the engine adds any (MagicTarget::AddTarget 34526): its own add check
+    /// (34525: the effect's conditions, resistance, invulnerability) decides whether it lands.
     virtual void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId,
                                        uint32_t aSpellFormId, uint32_t aEffectFormId,
                                        float aMagnitude, bool aIsDualCasting,

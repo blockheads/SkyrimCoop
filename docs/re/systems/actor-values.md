@@ -33,9 +33,14 @@ A magic effect's own conditions (`EffectSetting` +0x190) are checked once, when 
 `MagicTarget::AddTarget` (34526) → `CheckAddEffect` (34525) → `EffectSetting::ConditionsPass` (11085,
 `TESCondition::IsTrue(target, caster)`), with the resistance roll. Survival Mode's override of the trap disease Rattles
 relies on it: `TrapDisDamageStaminaRegen` when `Survival_ModeEnabled == 0`, `Survival_TrapDisDamageStaminaRegen` when
-`== 1`, each `StaminaRate -2.5` (read from the plugins). Our relay applies an effect on its owner's game with 34525
-forced true (`s_autoSucceedEffectCheck`: the caster's game decided the hit), so `MagicService` checks the conditions
-first (`IFormBridge::MagicEffectConditionsHold`). Before that, a trap's Rattles left a guest with both effects: rate 0.
+`== 1`, each `StaminaRate -2.5` (read from the plugins).
+
+`magichit` (34547) gives 34525 the resistance from the target's own check (vfunc +0x50: spell, effect, source), and
+34525 also refuses a hostile effect on an invulnerable target and asks the archetype's `ShouldApply`. All of it reads
+the target, the spell and the caster, which a relayed effect carries (player copies hold their owner's perks,
+`PerkService`). Our relay used to force 34525 true on the owner's game (upstream's `s_autoSucceedEffectCheck`), so a
+trap's Rattles left a guest with both effects: rate 0. The force and its hook are gone: the owner's engine decides
+whether a relayed effect lands, as for its own casts.
 
 ## Copies
 

@@ -26,20 +26,17 @@
 #include <VersionDb.h>
 
 using TAddTarget = bool(MagicTarget*, MagicTarget::AddTargetData& arData);
-using TCheckAddEffectTargetData = bool(MagicTarget::AddTargetData*, void* arArgs, float afResistance);
 using TFindTargets = bool(MagicCaster*, float afEffectivenessMult, int32_t* aruiTargetCount, TESBoundObject* apSource, char abLoadCast, char abAdjust);
 using TAdjustForPerks = void(ActiveEffect*, Actor* apCaster, MagicTarget* apTarget);
 using THasPerk = bool(Actor*, TESForm* apPerk, void* apUnk1, double* afReturnValue);
 using TGetPerkRank = uint8_t(Actor*, TESForm* apPerk);
 
 static TAddTarget* RealAddTarget = nullptr;
-static TCheckAddEffectTargetData* RealCheckAddEffectTargetData = nullptr;
 static TFindTargets* RealFindTargets = nullptr;
 static TAdjustForPerks* RealAdjustForPerks = nullptr;
 static THasPerk* RealHasPerk = nullptr;
 static TGetPerkRank* RealGetPerkRank = nullptr;
 
-static thread_local bool s_autoSucceedEffectCheck = false;
 static thread_local bool s_applyHealPerkBonus = false;
 static thread_local bool s_applyStaminaPerkBonus = false;
 
@@ -52,13 +49,11 @@ void MagicTarget::DispelAllSpells(bool aNow) noexcept
 
 bool MagicTarget::AddTarget(AddTargetData& arData, bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept
 {
-    s_autoSucceedEffectCheck = true;
     s_applyHealPerkBonus = aApplyHealPerkBonus;
     s_applyStaminaPerkBonus = aApplyStaminaPerkBonus;
 
     bool result = RealAddTarget(this, arData);
 
-    s_autoSucceedEffectCheck = false;
     s_applyHealPerkBonus = false;
     s_applyStaminaPerkBonus = false;
 
@@ -192,14 +187,6 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
     return RealAddTarget(apThis, arData);
 }
 
-bool HookCheckAddEffectTargetData(MagicTarget::AddTargetData* apThis, void* arArgs, float afResistance)
-{
-    if (s_autoSucceedEffectCheck)
-        return true;
-
-    return RealCheckAddEffectTargetData(apThis, arArgs, afResistance);
-}
-
 bool HookFindTargets(MagicCaster* apThis, float afEffectivenessMult, int32_t* aruiTargetCount, TESBoundObject* apSource, char abLoadCast, char abAdjust)
 {
     return RealFindTargets(apThis, afEffectivenessMult, aruiTargetCount, apSource, abLoadCast, abAdjust);
@@ -244,7 +231,6 @@ static Hooks::Initializer s_magicTargetHooks([]() {
     RealGetPerkRank = getPerkRank.Get();
 
     HOOK_ID(34526, &RealAddTarget, HookAddTarget);
-    HOOK_ID(34525, &RealCheckAddEffectTargetData, HookCheckAddEffectTargetData);
     HOOK_ID(34410, &RealFindTargets, HookFindTargets);
     HOOK_ID(34053, &RealAdjustForPerks, HookAdjustForPerks);
     HOOK_ID(21622, &RealHasPerk, HookHasPerk);

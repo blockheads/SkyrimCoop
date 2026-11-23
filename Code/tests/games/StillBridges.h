@@ -303,10 +303,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
-    bool MagicEffectConditionsHold(uint32_t, uint32_t, uint32_t, uint32_t, bool) const noexcept override
-    {
-        return true;
-    }
     void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId, uint32_t aSpellFormId,
                               uint32_t aEffectFormId, float aMagnitude, bool aIsDualCasting, bool aApplyHealPerkBonus,
                               bool aApplyStaminaPerkBonus) noexcept override

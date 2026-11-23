@@ -44,7 +44,6 @@ struct MagicTarget
 
     struct AddTargetData
     {
-        bool CheckAddEffect(void* arArgs, float afResistance);
 
         bool ShouldSync();
         bool IsForbiddenEffect(Actor* apTarget);

@@ -55,10 +55,10 @@ of Rattles' effects (`TrapDiseaseRattles` 10A24E): Survival Mode's override adds
 survival on, each picked by its magic effect's conditions (`Survival_ModeEnabled`), which the engine checks only when it
 adds an effect (34525 through `EffectSetting::ConditionsPass` 11085). A trap's disease on the guest's copy is relayed
 (`IsWorldCast`), and the guest's add skipped that check (`s_autoSucceedEffectCheck`), so 5 - 2.5 - 2.5 left a rate of
-0. `MagicService` now applies a relayed effect only if its conditions hold on its target (`MagicEffectConditionsHold`),
-as the host's own player gets it. The snapshot's `values.stamina_regen` reads every stamina regeneration gate (delay,
+0. The force is removed (and the 34525 hook with it): the owner's engine runs its own add check on a relayed
+effect, so conditions, resistance, invulnerability and the archetype's rule all apply as for its own casts. The snapshot's `values.stamina_regen` reads every stamina regeneration gate (delay,
 damaged flag, rate, sprinting, bow zoom; [actor-values.md](re/systems/actor-values.md)). GameTests `[stamina]`; scenario
-`trap_disease_guest_stamina`. The relayed check keeps the cast's dual-cast state (34525 marks the caster meanwhile).
+`trap_disease_guest_stamina`.
 Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) stays open: the regen delay is capped (39536,
 `fStaminaRegenDelayMax`), so it is not a leftover delay; the readout will show which gate holds next time.
 

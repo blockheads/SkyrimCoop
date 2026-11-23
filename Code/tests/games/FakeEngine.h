@@ -1206,10 +1206,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                                          {kSurvivalRattlesEffect, {kSurvivalModeEnabled, 1.f}},
                                                          {kDualCastEffect, {.DualCast = true}}};
     bool EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept;
-    bool MagicEffectConditionsHold(uint32_t, uint32_t, uint32_t, uint32_t aEffectFormId, bool aIsDualCasting) const noexcept override
-    {
-        return EffectHolds(aEffectFormId, aIsDualCasting);
-    }
     std::vector<std::pair<uint32_t, uint32_t>> Reactions; // victim, attacker (Actor::ReactToAttack)
     // The actor casts by itself: our hook raises it unless the caster is a copy (HookSpellCast).
     void CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget = 0);
@@ -1236,6 +1232,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                               uint32_t aEffectFormId, float aMagnitude, bool aIsDualCasting, bool aApplyHealPerkBonus,
                               bool aApplyStaminaPerkBonus) noexcept override
     {
+        // The engine's own add check (34525) runs for a relayed effect too: its conditions decide.
+        if (!EffectHolds(aEffectFormId, aIsDualCasting))
+            return;
         Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
         StartsAshPileEffect(aTargetFormId, aEffectFormId);
         if (Spell(aSpellFormId).Summons && !HoldSession) // a guest's CreateSummon (34993) makes nothing

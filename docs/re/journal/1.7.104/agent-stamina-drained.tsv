@@ -54,3 +54,5 @@ time	op	id	rva	item
 2026-11-23T16:39:29Z	read	39536	0x7001c0	{"name": "ActorProcess::SetActorValueRegenDelay"}
 2026-11-23T16:42:35Z	comment	39536	0x7001c0	{"addr": "0x1407001c0", "comment": "Read 1.7.104 (stamina-drained): (process, av, delay): stores a new regen delay in HighProcessData (+0x1C health, +0x20 stamina, +0x24 magicka) only if it is 0 or longer than the current one, capped at fHealth/fStamina/fMagickaRegenDelayMax."}
 2026-11-23T16:42:35Z	comment	38603	0x6cbee0	{"addr": "0x1406cbee0", "comment": "Used by plugin: Precision/src/Hooks.h:50.\nRead 1.7.104 (stamina-drained): an attack's hit frame: spends GetAttackStaminaCost from stamina (damage modifier); if that leaves stamina <= 0, asks SetActorValueRegenDelay (39536) for (cost - staminaBefore) / GetActorValueRegenRate(26) (38460) and flashes the meter. 39536 caps it at fStaminaRegenDelayMax, so a rate of 0 gives the cap, not an endless delay."}
+2026-11-23T16:53:43Z	read		0x5d1cd0	{"name": "coop_RealCheckAddEffectTargetData"}
+2026-11-23T16:53:47Z	read		0x5d31c1	{"name": "magichit"}
