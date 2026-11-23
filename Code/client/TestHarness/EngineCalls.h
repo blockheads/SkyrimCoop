@@ -161,6 +161,8 @@ void EndConsolePauses() noexcept;
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept;
 // The flags of one open menu, for live-menu regressions.
 std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept;
+// The open lockpicking menu's lock and pick 3D are built (51950), nullopt with no menu.
+std::optional<bool> IsLockpickBuilt() noexcept;
 std::optional<bool> IsFirstPersonModelHidden() noexcept;
 std::optional<bool> IsLocalMapShown() noexcept;
 std::optional<bool> IsLocalMapReady() noexcept;
@@ -649,6 +651,15 @@ std::vector<IdleNode> CheckIdleTree(uint32_t aIdleFormId, uint32_t aSubjectFormI
 bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
 // AIProcess::processLevel (0 high, 1 middle-high, 2 middle-low, 3 low); none without a process.
 std::optional<uint8_t> GetProcessLevel(uint32_t aFormId) noexcept;
+// Where the game placed the reference (TESObjectREFR::GetEditorLocation 19514): its world or cell and position.
+struct EditorHome
+{
+    uint32_t WorldOrCell{};
+    float Position[3]{};
+};
+std::optional<EditorHome> GetEditorHome(uint32_t aFormId) noexcept;
+// The reference's parent cell is attached here (cell state 7): its cell in this game's loaded grid.
+bool IsParentCellAttached(uint32_t aFormId) noexcept;
 // The condition GetIsCurrentPackage (21529) on the actor: what dialogue lines read.
 std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
 // The condition GetFactionRank (21493) on the actor: -1 when not a member, as conditions read it.

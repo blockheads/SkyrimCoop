@@ -166,7 +166,8 @@
     X(NotifyActorGiveBack) \
     X(NotifyClaim) \
     X(NotifyClaimRefused) \
-    X(NotifyStealthEye)
+    X(NotifyStealthEye) \
+    X(NotifyLeash)
 
 #define COOP_OPCODE(aName) k##aName,
 

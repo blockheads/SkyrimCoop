@@ -49,6 +49,35 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **a save over Steam travels 5x faster** (`agent/save-load-explained`): Steam paced every P2P connection at
+its fixed default of 256 KB/s, so a save went at 120-240 KB/s in both playtests (a save sent ahead took 8-10 s and a
+load soon after it sent it again). `SteamBridge` sets the send rate to 4 MB/s (min = max: Steam does not adapt
+between them) and a 2 MB send buffer. Slower rates also stalled a transfer: ENet resent packets only queued in
+Steam and cut its throttle to zero (counted at each hop: none lost). Two-account duo, a whole 1.38 MB save, direct
+and relayed: 7.3-10.2 s before, 1.35-1.59 s after
+([network-performance.md](design/network-performance.md#steams-send-rate-2026-11-23)). ClientTests `[steam-pacing]`;
+scenario `steam-join-sends-save-fast` (two accounts). Not yet measured on a home line.
+
+2026-11-22: **a guest behind the host sees the host's NPCs once its grid reaches them; a soft leash keeps guests
+in the host's grid** (`agent/missing-enemies-guest`). Playtest 2026-11-22 (report 1951-468): the host walked ahead to the wolves past Riverwood, the
+guest followed and never saw them. Their spawns waited on the guest for a reference it had not loaded, and the wake-up
+hook sat on `QueuedReference::Finish` (13022), which the probe counted on 8 of 927 3D jobs; `QueuedReference::End` (13023)
+on all of them (measured with `player_probe`; the held NPC's job ending there is inferred, `actor-ai-and-copies.md`). Both are hooked now. The soft leash
+([party-travel.md](design/party-travel.md), "Soft leash"): a guest outdoors out of the host's grid for 2 s gets a 10 s
+countdown banner, then party travel to the host; back in time, it stays (`HostLeash`, `GuestLeash`, `NotifyLeash`;
+none indoors, on a trip or down; a trip that never lands is sent again). Scene scenarios go home when they end, so
+several run on one boot. A player's copy left in a cell that detached on the other game (a jump of 4 cells) kept that cell,
+nothing moved it into its new cell and it dropped below high process, unseen: `RunPresence` now re-places a copy whose cell is not
+attached (`actor-ai-and-copies.md`, "A copy in a detached cell"). Tests: `HostAuthorityTests [Leash]`,
+`GameTests [leash]`, scenarios `host-ahead-npcs-reach-guest`, `guest-leash`, `player-copies-after-setpos`.
+
+2026-11-22: **the lockpicking menu draws its lock again** (`agent/lockpicking-ui`;
+[lockpicking.md](re/systems/lockpicking.md)). Since personal menus stopped pausing (2026-10-27) the menu opened with
+nothing drawn on the host and guests: `LockpickingMenu::ProcessMessage` (51950) builds the lock only on the main thread,
+and an unpaused game's UI runs in `Job_UI` (39042). One kUpdate between frames on the main thread builds it. Scenarios
+`host-`/`guest-lockpick-menu-builds-lock` (MCP verb `pick_lock`: the lock built, the pick, both games read it open);
+ClientTests `NeedsMainThreadBuild`.
+
 2026-11-22: **a disintegrated player's body is gone on every game until it respawns** (`agent/disintegrate-body`;
 [death-disintegrate.md](re/systems/death-disintegrate.md), "What we do"). After the freeze fix the victim's own body
 showed again once the ash shader ended (lying, then getting up) while the shooter's copy stayed dissolved. The refused
@@ -159,6 +188,14 @@ glided there, put there once, put to sleep and left (`RagdollRest`), so it no lo
 copy's ragdoll is in the played collision group; an actor's ragdoll rest is its `kRagdoll` record part, so a copy made
 after it (a join, a cell load) lies there too. A guest's grab of a host corpse is the mover's until it rests (it lay
 151 units apart before); a hit on a corpse was checked on the duo and needs nothing.
+
+2026-11-22: **a hidden guest's theft judged by who sees the host, fixed** (`agent/theft-detected-wrong`;
+`docs/re/systems/crime.md`, "A hidden guest's theft judged by who sees the host"; playtest 2026-11-22). StealAlarm
+gives every loaded NPC the crime to judge on its next update (39557, 39631), and that look read the host's player:
+`Judge`'s scope covered only StealAlarm's own looks. A guest sneaking behind a closed door was attacked through the
+host at the bar by the owner who saw the host (alarm, then 39651's owner assault). Now the bridge remembers which
+guest's copy each witness's crime names (`CrimeRules::PendingCriminals`) and runs that look in its scope. Scenario
+`guest-hidden-theft-host-seen`; harness `crime_watch` (each NPC's alarm, anger, witness flag and sight over time).
 
 2026-11-21: **held-now state for a joiner, piece 9 of one-simulator.md, built** (`agent/piece-9`;
 `docs/re/systems/actor-ai-and-copies.md`, "A held cast's end"). A game joining mid-cutscene, mid-conversation, after a

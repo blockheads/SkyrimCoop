@@ -53,6 +53,12 @@ struct HostDeath
         const auto it = m_party.find(aPlayer);
         return it != m_party.end() && it->second.Known && !it->second.Body.Down;
     }
+    // Its character is down (dead, waiting for its respawn).
+    [[nodiscard]] bool Down(ConnectionId_t aPlayer) const noexcept
+    {
+        const auto it = m_party.find(aPlayer);
+        return it != m_party.end() && it->second.Body.Down;
+    }
     [[nodiscard]] bool Wiped() const noexcept { return m_wiped; }
 
 private:

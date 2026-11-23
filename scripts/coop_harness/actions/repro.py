@@ -1314,6 +1314,14 @@ class ReproActions:
             return {"apart": round(apart, 2)}
         if check == "at":
             place = where(shown.get(game or "host") or {})
+            if seconds and (place is None or math.dist(place, value) > within):
+                # Gets there within `seconds` (a trip the host sends, a countdown first).
+                def there():
+                    nonlocal place
+                    place = where(ctx.observe_one(name).get(game or "host") or {})
+                    return place is not None and math.dist(place, value) <= within
+                ctx.wait_for(f"{name} within {within} of {value}", there, seconds,
+                             explain=lambda: f"in the {game or 'host'}'s game at {place}")
             if place is None or math.dist(place, value) > within:
                 raise ctx.failure(f"{name}: in the {game or 'host'}'s game at {place}, not within {within} of {value}")
             return {"at": place}
@@ -1532,6 +1540,8 @@ def _line(tool, args):
             return f"ctx.use({game}, {args['target']!r})"
         case "take":
             return f"ctx.take({game}, {args['target']!r})"
+        case "pick_lock":
+            return f"ctx.pick_lock({game}, {args['target']!r})"
         case "pickpocket":
             return f"ctx.pickpocket({game}, {args['target']!r}, {args['item']!r}, {args.get('caught', False)!r})"
         case "fight":
@@ -1622,9 +1632,14 @@ def _called(name, args):
     return _line("verb", {"name": name, "args": args})
 
 
+CHECKING_VERBS = ("pick_lock",)
+
+
 def _is_expect(entry):
-    """A check, kept even when it failed (a failing expect is the bug): the tool, or an expect* verb through `verb`."""
-    return entry["tool"] == "expect" or (entry["tool"] == "verb" and entry["args"].get("name", "").startswith("expect"))
+    """A check, kept even when it failed (a failing expect is the bug): the tool, a verb that checks what it did
+    (pick_lock), or an expect* verb through `verb`."""
+    name = entry["args"].get("name", "") if entry["tool"] == "verb" else entry["tool"]
+    return name.startswith("expect") or name in CHECKING_VERBS
 
 
 def _replayed(entry):

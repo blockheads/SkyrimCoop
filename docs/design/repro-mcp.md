@@ -24,12 +24,16 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
   - A real world never starts in agreement (Riverwood, 2026-11-03: `head_track`, a guard's level, the player's hands),
     so differences at the start are shown and kept (`SCENE_KNOWN`), and only new ones fail, as the runner already
     treats a baseline's world and lock differences. They are read each run, not a list of known bugs.
-  - A flow tagged `scene` (fixture `scene`, `registry.py`) has no baseline: run by name, one per boot, no restore.
+  - A flow tagged `scene` (fixture `scene`, `registry.py`) has no world baseline: run by name. It goes home when it
+    ends and the runner settles the baseline before the next (2026-11-23), booting again by itself only if the games
+    cannot get there; several run in one command. Tagged `own-checks` too, its own expects judge it: what else
+    differs in a live place at its end (walking animals, what each game created) is logged, not failed.
   - `stage` spots (`scene_spot`): the home stage while the party is near it, else ahead of the host on a floor it can
     see by rays, refused otherwise.
 - **play** (`actions/play_verbs.py`): `go_to`, `talk`, `use`, `take`, `fight`. Each returns or fails with one outcome:
   `{done, how, why, seconds, trace}`. `why`: `no_path`, `stalled`, `moved_off`, `timeout`, `menu_blocked`, `no_line`,
-  `refused`, `player_down`. `go_to` is AI-driven: for getting there, not for testing movement (`by_input` for that).
+  `refused`, `player_down`, `lock_not_built`. `pick_lock` picks a locked door or chest (the menu's 3D must build, the
+  pick succeeds by the engine's Unlock, both games read the lock open). `go_to` is AI-driven: for getting there, not for testing movement (`by_input` for that).
   `talk` goes on with an open conversation. `fight(until_dead=False)` swings `hits` times and leaves the target alive (a friendly
   hit, a provoked fight); `expect_enemy(npc, of)` checks the host's NPC reads a player as an enemy (reaction 1, hostile). `walk_to`, `steer_to`, `talk_to` and `pick` are their parts, no longer tools.
 - **watch**: `look(game)`; `observe(names)` shows only what changed since the last look, `apart` and `differs`; `why()` is

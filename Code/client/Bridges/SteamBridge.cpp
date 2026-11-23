@@ -1,4 +1,5 @@
 #include <Bridges/SteamBridge.h>
+#include <Bridges/SteamPacing.h>
 #include <PartySize.h>
 
 #include <steam/isteamnetworkingsockets.h>
@@ -211,12 +212,16 @@ struct SteamBridge::Impl
         }
     }
 
-    SteamNetworkingConfigValue_t StatusCallbackOption() noexcept
+    std::array<SteamNetworkingConfigValue_t, 4> ConnectionOptions() noexcept
     {
-        SteamNetworkingConfigValue_t option{};
-        option.SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
-                      reinterpret_cast<void*>(&Impl::OnConnectionStatus));
-        return option;
+        std::array<SteamNetworkingConfigValue_t, 4> options{};
+        options[0].SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
+                          reinterpret_cast<void*>(&Impl::OnConnectionStatus));
+        // Steam's default is 256 KB/s: SteamPacing.h.
+        options[1].SetInt32(k_ESteamNetworkingConfig_SendRateMin, SteamPacing::kSendRate);
+        options[2].SetInt32(k_ESteamNetworkingConfig_SendRateMax, SteamPacing::kSendRate);
+        options[3].SetInt32(k_ESteamNetworkingConfig_SendBufferSize, SteamPacing::kSendBuffer);
+        return options;
     }
 };
 
@@ -376,8 +381,8 @@ bool SteamBridge::Listen() noexcept
         return false;
     if (impl.ListenSocket != k_HSteamListenSocket_Invalid)
         return true;
-    const SteamNetworkingConfigValue_t cOption = impl.StatusCallbackOption();
-    impl.ListenSocket = impl.CreateListenSocketP2P(impl.Sockets(), 0, 1, &cOption);
+    const auto cOptions = impl.ConnectionOptions();
+    impl.ListenSocket = impl.CreateListenSocketP2P(impl.Sockets(), 0, static_cast<int>(cOptions.size()), cOptions.data());
     return impl.ListenSocket != k_HSteamListenSocket_Invalid;
 }
 
@@ -396,8 +401,8 @@ ISteamBridge::Connection SteamBridge::Connect(SteamId aPeer) noexcept
         return 0;
     SteamNetworkingIdentity peer{};
     peer.SetSteamID64(aPeer);
-    const SteamNetworkingConfigValue_t cOption = impl.StatusCallbackOption();
-    const HSteamNetConnection cConnection = impl.ConnectP2P(impl.Sockets(), &peer, 0, 1, &cOption);
+    const auto cOptions = impl.ConnectionOptions();
+    const HSteamNetConnection cConnection = impl.ConnectP2P(impl.Sockets(), &peer, 0, static_cast<int>(cOptions.size()), cOptions.data());
     return cConnection == k_HSteamNetConnection_Invalid ? 0 : cConnection;
 }
 

@@ -24,7 +24,60 @@ struct FakeCrime final : ICrimeBridge
     void UpdatePlayers(std::span<const uint32_t> aPlayers) noexcept override
     {
         CrimePlayers.assign(aPlayers.begin(), aPlayers.end());
+        ProcessPendingCrimes(); // the host's frame: each witness's UpdateHighProcessAI
     }
+    // Skyrim: StealAlarm puts every loaded NPC on the crime's witness list and gives it the crime, seen or not
+    // (Crime__AddWitness 42506, SetPendingCrime 39557). On its next update (39631) each looks at the crime's
+    // criminal, the engine's player: seen, an alarm at that player; unseen, off the witness list (crime.md,
+    // "A hidden guest's theft judged by who sees the host").
+    std::map<uint32_t, uint32_t> PendingCrimes; // by witness, the crime it holds
+    CrimeRules::PendingCriminals Criminals;     // the bridge's 39557 hook in Judge's scope
+    std::vector<uint32_t> Alarms;               // witnesses that saw the criminal and raised the alarm
+    uint32_t CrimeIds{};
+    void GiveWitnessesTheCrime(uint32_t aCriminal) noexcept
+    {
+        ++CrimeIds;
+        for (const auto& [cId, cActor] : m_engine.Actors)
+            if (cId != aCriminal && cId != FakeEngine::kPlayer && cActor.Loaded && !cActor.Dead && !cActor.Player)
+            {
+                PendingCrimes[cId] = CrimeIds;
+                Criminals.Set(cId, CrimeIds, aCriminal);
+                Grudges[cId].Witness = true;
+            }
+    }
+    void ProcessPendingCrimes() noexcept
+    {
+        for (const auto& [cWitness, cCrime] : std::exchange(PendingCrimes, {}))
+        {
+            // The bridge's 39631 and 37757 hooks: the copy its crime named, in Judge's scope again.
+            const uint32_t cCopy = Criminals.Of(cWitness, cCrime);
+            if (cCopy && !m_engine.Actors.contains(cCopy))
+            {
+                Criminals.Judged(cWitness, 0); // the thief left: removed as a witness, crime dropped
+                Grudges[cWitness].Witness = false;
+                continue;
+            }
+            const uint32_t cBody = cCopy ? cCopy : FakeEngine::kPlayer;
+            const auto cSees = m_engine.SeesOf.find(cBody);
+            const auto* cpLevel = [&]() -> const int32_t* {
+                if (cSees == m_engine.SeesOf.end())
+                    return nullptr;
+                const auto cFound = cSees->second.find(cWitness);
+                return cFound == cSees->second.end() ? nullptr : &cFound->second;
+            }();
+            if (!cpLevel)
+            {
+                PendingCrimes[cWitness] = cCrime; // no state of the criminal yet (37757): kept for a later update
+                continue;
+            }
+            Criminals.Judged(cWitness, 0);
+            if (*cpLevel > 0)
+                Alarms.push_back(cWitness);
+            else
+                Grudges[cWitness].Witness = false;
+        }
+    }
+
     std::vector<CrimeConfiscation> TakeConfiscations() noexcept override
     {
         return std::exchange(Confiscations, {});
@@ -96,9 +149,13 @@ struct FakeCrime final : ICrimeBridge
         if (aRequest.Action == CrimeAction::Pickpocket && cActorTarget && !cStops)
             Pickpocketed.push_back(cTarget->first);
         const bool cTheft = (aRequest.Action == CrimeAction::Theft && !cStops) || aRequest.Action == CrimeAction::ContainerTheft;
+        // A warned theft returns before the witness loop (37556, then 37422 returns).
+        const bool cWarned = SeenThefts && cTheft && aRequest.AllowWarning && TheftWarnings < 2;
+        if (cTheft && !cWarned)
+            GiveWitnessesTheCrime(aActor);
         if (SeenThefts && cTheft)
         {
-            if (aRequest.AllowWarning && TheftWarnings < 2)
+            if (cWarned)
             {
                 ++TheftWarnings;
                 // Skyrim: 37556 names g_thePlayer; the bridge's swaps put the criminal's copy there (CrimeRules::Warned).
