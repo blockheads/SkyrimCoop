@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/Animation/PoseBlend.h>
 #include <Messages/Payloads.h>
 #include <Structs/GraphOps.h>
 #include <atomic>
@@ -34,6 +35,10 @@ struct IGraphTarget
     virtual void Generate() = 0; // the generate pass (63568), where its owner ran one: never on its own
     // The props its owner's graph showed at the point (ANIO, drawn), held as a save's load does (43580).
     virtual void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) = 0;
+    // The pose its last generate pass made (the newer output's pose track, 63568), and the pose to show this frame
+    // written there instead (63581 and the ragdoll passes pose the skeleton from it). Empty: none to blend.
+    [[nodiscard]] virtual std::span<const PoseBone> GeneratedPose() { return {}; }
+    virtual void ShowPose(std::span<const PoseBone>) {}
 };
 
 // An op with its frame, before batching.
@@ -121,7 +126,8 @@ struct GraphReplayer
     {
         return m_point ? m_point->Project : 0;
     }
-    // The ops due by aPlaybackTick, in order (on the graph's thread): the updates it ran.
+    // The ops due by aPlaybackTick, in order (on the graph's thread): the updates it ran. Then the pose to show at
+    // aPlaybackTick, blended from its owner's last generated poses (PoseTimeline).
     size_t Run(uint64_t aPlaybackTick, IGraphTarget& aTarget);
     // The owner's update index it runs now or ran last (a readout: the harness's live check).
     [[nodiscard]] uint32_t CurrentUpdate() const noexcept { return m_current.load(std::memory_order_relaxed); }
@@ -150,6 +156,8 @@ struct GraphReplayer
     std::vector<std::shared_ptr<std::atomic<bool>>> m_loads; // clip files loading: its point's sets, or the front load op
     bool m_clipsAsked = false;
     uint32_t m_clipWaits = 0;
+    PoseTimeline m_poses;
+    std::vector<PoseBone> m_shown;
 };
 
 // Every actor's stream on one game: the owner's recorders (written on the graphs' threads), the copies' replayers.

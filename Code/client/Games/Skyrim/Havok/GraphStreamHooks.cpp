@@ -20,6 +20,7 @@
 #include <Misc/BSFixedString.h>
 #include <World.h>
 #include <WorldGate.h>
+#include <algorithm>
 #include <map>
 #include <mutex>
 #include <string>
@@ -307,6 +308,18 @@ struct SkyrimGraphTarget final : IGraphTarget
     }
     // Inline, not through the behaviour job queue (63568's second argument): the same pass.
     void Generate() override { RealGenerate(&Graph, 0); }
+    // The newer output (+0x220), which 63568 generated into and 63581 poses the skeleton from.
+    std::span<const PoseBone> GeneratedPose() override
+    {
+        return Graph.generatorOutputs[0] ? Graph.generatorOutputs[0]->Pose() : std::span<const PoseBone>{};
+    }
+    void ShowPose(std::span<const PoseBone> aPose) override
+    {
+        if (!Graph.generatorOutputs[0])
+            return;
+        const auto cPose = Graph.generatorOutputs[0]->Pose();
+        std::copy_n(aPose.begin(), std::min(aPose.size(), cPose.size()), cPose.begin());
+    }
     void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) override
     {
         if (!Graph.holder)
@@ -335,7 +348,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
     {
         if (streams.NeedsTimeDelta(cFormId))
             streams.SetTimeDelta(cFormId, TimeDeltaIndex(*apGraph));
-        // Its owner's ops due by now instead of its own update; none due, its graph holds its pose.
+        // Its owner's ops due by now instead of its own update; its pose is blended between them (PoseTimeline).
         InStream _;
         SkyrimGraphTarget target(*apGraph, *apData, apScratch);
         streams.Replay(cFormId, target, apGraph, Project(*apGraph));
