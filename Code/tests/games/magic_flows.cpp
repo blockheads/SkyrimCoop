@@ -293,19 +293,25 @@ SCENARIO("An instant FX Persist effect gone before the frame still flashes on co
 }
 
 // Playtest 2026-11-22 item 12: a Bleak Falls Barrow trap's Rattles left the guest with no stamina regeneration (both
-// Survival Mode variants applied, StaminaRate 5 - 2.5 - 2.5). The host's player gets the one its conditions pick.
+// Survival Mode variants applied, StaminaRate 5 - 2.5 - 2.5). Each game's player gets the one its conditions pick.
 SCENARIO("A trap's disease on the guest's character applies only the effects its conditions pick, as on the host's player",
          "[magic][stamina]")
 {
+    const float cSurvival = GENERATE(0.f, 1.f);
+    const uint32_t cPicked = cSurvival != 0.f ? FakeEngine::kSurvivalRattlesEffect : FakeEngine::kRattlesEffect;
+    const uint32_t cOther = cSurvival != 0.f ? FakeEngine::kRattlesEffect : FakeEngine::kSurvivalRattlesEffect;
     Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+    // Survival Mode's toggle, a global the guest's game holds as the host's.
+    host.Globals[FakeEngine::kSurvivalModeEnabled] = cSurvival;
+    guest.Globals[FakeEngine::kSurvivalModeEnabled] = cSurvival;
 
-    // The trap (no actor) casts every effect of the spell; the engine's add check picks.
+    // The trap (no actor) casts every effect of the spell, the picked one last; the engine's add check picks.
     party.As(party.Host(), [&] {
         for (const uint32_t cTarget : {PlayerCopy(host), FakeEngine::kPlayer})
-            for (const uint32_t cEffect : {FakeEngine::kSurvivalRattlesEffect, FakeEngine::kRattlesEffect})
+            for (const uint32_t cEffect : {cOther, cPicked})
                 host.SpellHits(cTarget, 0, FakeEngine::kRattles, cEffect, 2.5f);
     });
     const auto cHas = [](const FakeEngine& acEngine, uint32_t aEffect) {
@@ -313,12 +319,35 @@ SCENARIO("A trap's disease on the guest's character applies only the effects its
             return acEffect.Target == FakeEngine::kPlayer && acEffect.EffectId == aEffect;
         });
     };
-    party.Until([&] { return cHas(guest, FakeEngine::kRattlesEffect); }, "the guest's player catches Rattles");
+    party.Until([&] { return cHas(guest, cPicked); }, "the guest's player catches Rattles");
 
-    THEN("the host's player has Rattles' Survival-off effect only")
+    THEN("the host's player has the picked effect only")
     {
-        CHECK(cHas(host, FakeEngine::kRattlesEffect));
-        CHECK_FALSE(cHas(host, FakeEngine::kSurvivalRattlesEffect));
+        CHECK(cHas(host, cPicked));
+        CHECK_FALSE(cHas(host, cOther));
     }
-    THEN("so has the guest's: its stamina still regenerates") CHECK_FALSE(cHas(guest, FakeEngine::kSurvivalRattlesEffect));
+    THEN("so has the guest's: its stamina still regenerates") CHECK_FALSE(cHas(guest, cOther));
+}
+
+SCENARIO("A relayed effect whose conditions ask for a dual cast lands on a dual cast only", "[magic][stamina]")
+{
+    constexpr uint32_t kOakflesh = 0x0005AD5C;
+    const bool cDual = GENERATE(false, true);
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    // The host's player's spell on the guest's copy: its game decides the hit, the guest's checks the conditions.
+    party.As(party.Host(), [&] {
+        host.SpellHits(PlayerCopy(host), FakeEngine::kPlayer, kOakflesh, FakeEngine::kDualCastEffect, 10.f, cDual);
+        host.SpellHits(PlayerCopy(host), FakeEngine::kPlayer, kOakflesh, FakeEngine::kRattlesEffect, 10.f, cDual);
+    });
+    const auto cHas = [&](uint32_t aEffect) {
+        return std::ranges::any_of(guest.Effects, [&](const auto& acEffect) {
+            return acEffect.Target == FakeEngine::kPlayer && acEffect.EffectId == aEffect;
+        });
+    };
+    party.Until([&] { return cHas(FakeEngine::kRattlesEffect); }, "the guest's player gets the spell's plain effect");
+    THEN("the dual-cast effect lands as the cast was") CHECK(cHas(FakeEngine::kDualCastEffect) == cDual);
 }

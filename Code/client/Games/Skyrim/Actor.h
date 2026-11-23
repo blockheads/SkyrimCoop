@@ -378,6 +378,7 @@ struct Actor : TESObjectREFR
         CAN_SPEAK = 1 << 13,               // cleared for the dead (Character::UpdateAI 37347)
         IS_COMMANDED_ACTOR = 1 << 16,
         IS_ESSENTIAL = 1 << 18,
+        CHECK_ADD_EFFECT_DUAL_CAST = 1 << 30, // kCheckAddEffectDualCast: set by 34525 while it checks a dual cast's conditions
     };
 
     bool IsMount() const noexcept { return flags2 & ActorFlags::IS_A_MOUNT; }

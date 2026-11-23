@@ -77,7 +77,7 @@ public:
     /// The effect's own conditions on its target (EffectSetting::ConditionsPass 11085), as the engine checks them
     /// before adding it (34525): a relayed effect skips that check.
     virtual bool MagicEffectConditionsHold(uint32_t aTargetFormId, uint32_t aCasterFormId, uint32_t aSpellFormId,
-                                           uint32_t aEffectFormId) const noexcept = 0;
+                                           uint32_t aEffectFormId, bool aIsDualCasting) const noexcept = 0;
     /// Apply a magic target effect on an actor using a specific effect from a spell.
     virtual void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId,
                                        uint32_t aSpellFormId, uint32_t aEffectFormId,

@@ -366,7 +366,7 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
     }
 
     // The caster's game decided the hit; the effect's own conditions are the target's (a disease's Survival Mode variant).
-    if (!m_formBridge.MagicEffectConditionsHold(cTargetFormId, cCasterFormId, cSpellId, cEffectId))
+    if (!m_formBridge.MagicEffectConditionsHold(cTargetFormId, cCasterFormId, cSpellId, cEffectId, acMessage.IsDualCasting))
     {
         spdlog::debug("{}: effect {:X} of spell {:X} on {:X}: its conditions fail here, not applied", __FUNCTION__,
                       cEffectId, cSpellId, cTargetFormId);

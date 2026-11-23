@@ -24,6 +24,12 @@ def run(ctx):
         ctx.script_call(instance='', klass='Actor', function='DoCombatSpellApply',
                         args=[{'form': RATTLES}, {'form': copy}], on=copy)
         ctx.expect('guest_player', 'actor', game='guest', value=2.5, field='values.stamina_regen.rate', seconds=3.0)
+        # Both variants take 2.5: the guest holds the very effect the host's engine picked for its own player.
+        picked = lambda game: sorted(e['effect'] for e in ctx.player_snapshot(game).get('effects') or []
+                                     if e.get('spell') == RATTLES)
+        if picked('client') != picked(''):
+            raise ctx.failure(f"the guest's Rattles effects {[hex(e) for e in picked('client')]}, "
+                              f"the host player's {[hex(e) for e in picked('')]}")
     finally:
         ctx.console_on('', f'player.removespell {RATTLES:X}')
         ctx.console_on('client', f'player.dispel {RATTLES:X}')  # given as a combat spell: active, not in its list

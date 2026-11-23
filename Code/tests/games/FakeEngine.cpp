@@ -3234,7 +3234,8 @@ void FakeEngine::StopsCasting(uint32_t aCaster, uint32_t aSource)
         World::Get().GetRunner().Trigger(InterruptCastEvent(aCaster, aSource));
 }
 
-void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
+void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude,
+                           bool aDualCast)
 {
     const auto cTarget = Actors.find(aTarget);
     if (cTarget == Actors.end())
@@ -3261,18 +3262,21 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
         event.SpellID = aSpell;
         event.EffectID = aEffect;
         event.Magnitude = aMagnitude;
+        event.IsDualCasting = aDualCast;
         World::Get().GetRunner().Trigger(event);
         return;
     }
-    if (EffectHolds(aEffect))
+    if (EffectHolds(aEffect, aDualCast))
         Effects.push_back({aTarget, aCaster, aSpell, aEffect});
 }
 
-bool FakeEngine::EffectHolds(uint32_t aEffect) const noexcept
+bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept
 {
     const auto cCondition = EffectConditions.find(aEffect);
     if (cCondition == EffectConditions.end())
         return true;
+    if (cCondition->second.DualCast)
+        return aDualCast;
     const auto cGlobal = Globals.find(cCondition->second.Global);
     return (cGlobal != Globals.end() ? cGlobal->second : 0.f) == cCondition->second.Equals;
 }

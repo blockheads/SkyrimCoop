@@ -15,13 +15,14 @@ Stamina (38452) then regenerates only if all of these hold:
 
 | Gate | Where | Set / cleared by |
 |---|---|---|
-| no regen delay left | `HighProcessData::staminaRegenDelay` (+0x20; health +0x1C, magicka +0x24), counted down only in 38461 | raised by `SendActorValueUpdate` (38470) on any loss (`fDamagedStaminaRegenDelay`), by sprinting that empties stamina (38022, a fixed setting), and by an attack that empties it (38603): `(cost - before) / GetActorValueRegenRate(26)` |
-| "damaged" flag | `AIProcess::cachedValues->flags` 1<<23 (health 1<<21, magicka 1<<22) | edge-triggered by the modifier sinks (38488 through 38470): set when a loss leaves it under max, cleared when a gain reaches max; recomputed only by a load (38480, `FinishLoadGame`) or a race switch |
+| no regen delay left | `HighProcessData::staminaRegenDelay` (+0x20; health +0x1C, magicka +0x24), counted down only in 38461 | `ActorProcess::SetActorValueRegenDelay` (39536), which keeps a new delay only if longer and caps it at `fStaminaRegenDelayMax` (`fHealth`/`fMagicka...`): from `SendActorValueUpdate` (38470) on any loss (`fDamagedStaminaRegenDelay`), sprinting that empties stamina (38022, a fixed setting), an attack that empties it (38603: `(cost - before) / GetActorValueRegenRate(26)`) |
+| "damaged" flag | `AIProcess::cachedValues->flags` 1<<23 (health 1<<21, magicka 1<<22) | edge-triggered by the modifier sinks (38488 through 38470): set when a loss leaves it under max, cleared when a gain reaches max; recomputed from the values by a load (38480, `FinishLoadGame`), a race switch, and the cache reset (`ResetActorValueCaches`, from 38479 and Actor vfunc 37922) |
 | not sprinting | `ActorState1` bit 8, copied each update from the graph's `IsSprinting` (38022) | the behavior graph |
 | no bow zoom (player) | `PlayerCamera::bowZoomedIn` (+0x161) | the bow zoom |
 
-Rate (38460): `max × StaminaRate% × fCombatStaminaRegenRateMult (in combat) × StaminaRateMult%`; a rate of 0 when an
-attack empties stamina makes the 38603 delay +inf. `Actor::Resurrect` (37321) restores only health.
+Rate (38460): `max × StaminaRate% × fCombatStaminaRegenRateMult (in combat) × StaminaRateMult%`. At a rate of 0 the
+38603 quotient is +inf, but 39536 caps it (`fStaminaRegenDelayMax`): a zero rate stops regeneration
+only while it lasts. `Actor::Resurrect` (37321) restores only health.
 
 The snapshot's `values.stamina_regen` reads all five (delay, damaged, rate, sprinting, bow_zoomed:
 `Diagnostics::EngineReads::GetStaminaRegen`), in bug reports and the harness.

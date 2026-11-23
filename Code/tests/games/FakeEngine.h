@@ -1189,29 +1189,34 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     };
     std::vector<Effect> Effects;
     // A magic effect's own conditions (EffectSetting +0x190), checked when the engine adds it (34525, through 11085):
-    // here one global equal to a value. Rattles under Survival Mode's override: one effect for each mode.
+    // here one global equal to a value, or a dual cast (the caster's kCheckAddEffectDualCast, set by 34525 meanwhile).
+    // Rattles under Survival Mode's override: one effect for each mode.
     struct EffectCondition
     {
         uint32_t Global = 0;
         float Equals = 0.f;
+        bool DualCast = false;
     };
+    static constexpr uint32_t kDualCastEffect = 0x00099999; // stands for an effect whose conditions ask for a dual cast
     static constexpr uint32_t kRattles = 0x0010A24E;            // TrapDiseaseRattles
     static constexpr uint32_t kRattlesEffect = 0x0010A255;      // TrapDisDamageStaminaRegen, StaminaRate -2.5
     static constexpr uint32_t kSurvivalRattlesEffect = 0xFE001981; // Survival_TrapDisDamageStaminaRegen, -2.5 more
     static constexpr uint32_t kSurvivalModeEnabled = 0xFE001826;  // the global Survival_ModeEnabled
     std::map<uint32_t, EffectCondition> EffectConditions{{kRattlesEffect, {kSurvivalModeEnabled, 0.f}},
-                                                         {kSurvivalRattlesEffect, {kSurvivalModeEnabled, 1.f}}};
-    bool EffectHolds(uint32_t aEffect) const noexcept;
-    bool MagicEffectConditionsHold(uint32_t, uint32_t, uint32_t, uint32_t aEffectFormId) const noexcept override
+                                                         {kSurvivalRattlesEffect, {kSurvivalModeEnabled, 1.f}},
+                                                         {kDualCastEffect, {.DualCast = true}}};
+    bool EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept;
+    bool MagicEffectConditionsHold(uint32_t, uint32_t, uint32_t, uint32_t aEffectFormId, bool aIsDualCasting) const noexcept override
     {
-        return EffectHolds(aEffectFormId);
+        return EffectHolds(aEffectFormId, aIsDualCasting);
     }
     std::vector<std::pair<uint32_t, uint32_t>> Reactions; // victim, attacker (Actor::ReactToAttack)
     // The actor casts by itself: our hook raises it unless the caster is a copy (HookSpellCast).
     void CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget = 0);
     // This game's spell lands on an actor (HookAddTarget): on another game's actor, our cast is a request for its
     // owner and is not applied here; on our own, applied.
-    void SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
+    void SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude,
+                   bool aDualCast = false);
     // A summon effect's actor (SummonCreatureEffect::CreateSummon 34993): one of aBase at its caster, commanded by it;
     // the caster's earlier summon dismissed (AIProcess::AddCommandedActor's limit, 1 without Twin Souls).
     uint32_t MakesSummon(uint32_t aCaster, uint32_t aBase);

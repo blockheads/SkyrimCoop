@@ -208,7 +208,7 @@ public:
     bool IsSpellEffectVampireLord(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept override;
     bool IsSpellEffectSlow(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept override;
     bool MagicEffectConditionsHold(uint32_t aTargetFormId, uint32_t aCasterFormId, uint32_t aSpellFormId,
-                                   uint32_t aEffectFormId) const noexcept override;
+                                   uint32_t aEffectFormId, bool aIsDualCasting) const noexcept override;
     void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId,
                                uint32_t aSpellFormId, uint32_t aEffectFormId,
                                float aMagnitude, bool aIsDualCasting,

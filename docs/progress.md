@@ -58,8 +58,9 @@ adds an effect (34525 through `EffectSetting::ConditionsPass` 11085). A trap's d
 0. `MagicService` now applies a relayed effect only if its conditions hold on its target (`MagicEffectConditionsHold`),
 as the host's own player gets it. The snapshot's `values.stamina_regen` reads every stamina regeneration gate (delay,
 damaged flag, rate, sprinting, bow zoom; [actor-values.md](re/systems/actor-values.md)). GameTests `[stamina]`; scenario
-`trap_disease_guest_stamina`. Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) is not proven:
-an attack that empties stamina at rate 0 sets a +inf regen delay (38603) that a respawn keeps; the readout will show it.
+`trap_disease_guest_stamina`. The relayed check keeps the cast's dual-cast state (34525 marks the caster meanwhile).
+Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) stays open: the regen delay is capped (39536,
+`fStaminaRegenDelayMax`), so it is not a leftover delay; the readout will show which gate holds next time.
 
 2026-11-23: **a save over Steam travels 5x faster** (`agent/save-load-explained`): Steam paced every P2P connection at
 its fixed default of 256 KB/s, so a save went at 120-240 KB/s in both playtests (a save sent ahead took 8-10 s and a

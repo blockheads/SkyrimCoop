@@ -303,7 +303,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
-    bool MagicEffectConditionsHold(uint32_t, uint32_t, uint32_t, uint32_t) const noexcept override
+    bool MagicEffectConditionsHold(uint32_t, uint32_t, uint32_t, uint32_t, bool) const noexcept override
     {
         return true;
     }
