@@ -29,6 +29,19 @@ struct ActorPackage
 };
 static_assert(sizeof(ActorPackage) == 0x30);
 
+// AIProcess::CachedValues (CommonLibSSE-NG): flags 1<<21/22/23 say health/magicka/stamina are damaged; their
+// regeneration (38451-38453) runs only while set. The modifier sink 38488 sets and clears them, a load (38480) recomputes.
+struct CachedValues
+{
+    static constexpr uint32_t kHealthDamaged = 1u << 21;
+    static constexpr uint32_t kMagickaDamaged = 1u << 22;
+    static constexpr uint32_t kStaminaDamaged = 1u << 23;
+
+    uint8_t pad0[0x2C];
+    uint32_t flags; // 2C
+};
+static_assert(offsetof(CachedValues, flags) == 0x2C);
+
 struct AIProcess
 {
     bool SetCurrentAmmo(TESAmmo* apAmmo) noexcept;
@@ -43,7 +56,9 @@ struct AIProcess
     MiddleProcess* middleProcess; // 08 (CommonLib middleHigh)
     HighProcessData* highProcess; // 10 (CommonLib high)
     ActorPackage currentPackage;  // 18
-    uint8_t pad48[0xF0 - 0x48];
+    uint8_t pad48[0x50 - 0x48];
+    CachedValues* cachedValues; // 50
+    uint8_t pad58[0xF0 - 0x58];
     TESForm* equippedObject[2]; // F0
     uint8_t pad100[0x110 - 0x100];
     uint32_t followTarget; // 110 RefHandle
@@ -82,7 +97,12 @@ struct HighProcessData
     // Sets the slots that differ from acTargets (form ids, 0 none).
     void SetHeadTrackTargets(const std::array<uint32_t, kHeadTrackTypes>& acTargets) noexcept;
 
-    uint8_t pad0[0x140];
+    uint8_t pad0[0x1C];
+    // Seconds before each pool regenerates again (ActorProcess::GetActorValueRegenDelay 39534).
+    float healthRegenDelay;  // 1C
+    float staminaRegenDelay; // 20
+    float magickaRegenDelay; // 24
+    uint8_t pad28[0x140 - 0x28];
     uint32_t headTrackTarget[kHeadTrackTypes]; // 140 RefHandle
     bool headTracked[kHeadTrackTypes];         // 158
     uint8_t pad15E[0x218 - 0x15E];
@@ -99,6 +119,7 @@ struct HighProcessData
 };
 
 static_assert(sizeof(BSSoundHandle) == 0xC);
+static_assert(offsetof(HighProcessData, staminaRegenDelay) == 0x20);
 static_assert(offsetof(HighProcessData, headTrackTarget) == 0x140);
 static_assert(offsetof(HighProcessData, headTracked) == 0x158);
 static_assert(offsetof(HighProcessData, soundHandles) == 0x2FC);
@@ -106,6 +127,7 @@ static_assert(offsetof(HighProcessData, actionClipsLoaded) == 0x430);
 static_assert(offsetof(HighProcessData, pendingCrime) == 0x440);
 static_assert(offsetof(HighProcessData, talkingToPC) == 0x458);
 static_assert(offsetof(AIProcess, highProcess) == 0x10);
+static_assert(offsetof(AIProcess, cachedValues) == 0x50);
 static_assert(offsetof(AIProcess, currentPackage) == 0x18);
 static_assert(offsetof(AIProcess, equippedObject) == 0xF0);
 static_assert(offsetof(AIProcess, followTarget) == 0x110);

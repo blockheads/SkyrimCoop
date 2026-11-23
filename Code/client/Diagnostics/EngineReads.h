@@ -108,6 +108,17 @@ struct Water
     float SecondsUnder = 0.f;
 };
 
+// What lets stamina regenerate (Actor::UpdateStaminaRegen 38452, docs/re/systems/actor-values.md): the delay left
+// (HighProcessData), the damaged flag (CachedValues), the rate (38460), sprinting and the player's bow zoom.
+struct StaminaRegen
+{
+    float Delay = 0.f;
+    bool Damaged = false;
+    float Rate = 0.f;
+    bool Sprinting = false;
+    bool BowZoomed = false;
+};
+
 AiReadout GetAiReadout(uint32_t aFormId) noexcept;
 
 std::optional<BaseLooks> GetBaseLooks(uint32_t aFormId) noexcept;
@@ -165,6 +176,8 @@ float GetGraphFloat(uint32_t aFormId, const char* acpName) noexcept;
 int32_t GetGraphInt(uint32_t aFormId, const char* acpName) noexcept; // -1 if it has none
 
 KillState GetKillState(uint32_t aFormId) noexcept;
+
+std::optional<StaminaRegen> GetStaminaRegen(uint32_t aFormId) noexcept;
 // Its (third-person) 3D root app culled (NiAVObject kHidden): not drawn.
 bool IsBodyHidden(uint32_t aFormId) noexcept;
 // The middle-high process's alphaMult (Papyrus SetAlpha 54746); -1 without one.

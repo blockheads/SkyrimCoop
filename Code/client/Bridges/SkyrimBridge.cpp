@@ -2572,6 +2572,22 @@ bool SkyrimBridge::IsSpellEffectSlow(uint32_t aSpellFormId, uint32_t aEffectForm
     return pEffect ? pEffect->IsSlowEffect() : false;
 }
 
+bool SkyrimBridge::MagicEffectConditionsHold(uint32_t aTargetFormId, uint32_t aCasterFormId, uint32_t aSpellFormId,
+                                             uint32_t aEffectFormId) const noexcept
+{
+    MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellFormId));
+    EffectItem* pEffect = pSpell ? pSpell->GetEffect(aEffectFormId) : nullptr;
+    Actor* pTarget = GetActor(aTargetFormId);
+    if (!pEffect || !pEffect->pEffectSetting || !pTarget)
+        return true;
+    if (pEffect->IsSlowEffect())
+        pTarget = PlayerCharacter::Get();
+    // EffectSetting::ConditionsPass (11085): (effect, target, caster), as 34525 calls it.
+    using TConditionsPass = bool(EffectSetting*, TESObjectREFR*, Actor*);
+    POINTER_SKYRIMSE(TConditionsPass, s_conditionsPass, 11085);
+    return s_conditionsPass(pEffect->pEffectSetting, pTarget, aCasterFormId ? GetActor(aCasterFormId) : nullptr);
+}
+
 void SkyrimBridge::AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId,
                                          uint32_t aSpellFormId, uint32_t aEffectFormId,
                                          float aMagnitude, bool aIsDualCasting,

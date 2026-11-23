@@ -645,10 +645,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool KeepMotion(const BodyKey&) noexcept override { return false; }
     bool Settle(const BodyKey&) noexcept override { return false; }
 
-    // Every game's plugins, in one load order: Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm.
+    // Every game's plugins, in one load order: Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm and Survival Mode.
     std::vector<ModEntry> GetLoadedMods() const noexcept override
     {
-        return {{0, false, "Skyrim.esm"}, {1, false, "Update.esm"}, {0, true, "ccBGSSSE001-Fish.esm"}};
+        return {{0, false, "Skyrim.esm"}, {1, false, "Update.esm"}, {0, true, "ccBGSSSE001-Fish.esm"},
+                {1, true, "ccQDRSSE001-SurvivalMode.esl"}};
     }
     // One load order: every form is in every game.
     bool FormExists(uint32_t aFormId) const noexcept override { return aFormId != 0; }
@@ -1162,7 +1163,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                              {0x00027EB6, {.Invisibility = true}},                   // Invisibility
                                              {0x0001C789, {.Damage = true}},                         // Firebolt
                                              {kUnrelentingForce3, {.Damage = true}},
-                                             {kConjureFamiliar, {.Summons = kFamiliar}}};
+                                             {kConjureFamiliar, {.Summons = kFamiliar}},
+                                             {kRattles, {}}};
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
     struct Cast
     {
@@ -1186,6 +1188,24 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t EffectId = 0;
     };
     std::vector<Effect> Effects;
+    // A magic effect's own conditions (EffectSetting +0x190), checked when the engine adds it (34525, through 11085):
+    // here one global equal to a value. Rattles under Survival Mode's override: one effect for each mode.
+    struct EffectCondition
+    {
+        uint32_t Global = 0;
+        float Equals = 0.f;
+    };
+    static constexpr uint32_t kRattles = 0x0010A24E;            // TrapDiseaseRattles
+    static constexpr uint32_t kRattlesEffect = 0x0010A255;      // TrapDisDamageStaminaRegen, StaminaRate -2.5
+    static constexpr uint32_t kSurvivalRattlesEffect = 0xFE001981; // Survival_TrapDisDamageStaminaRegen, -2.5 more
+    static constexpr uint32_t kSurvivalModeEnabled = 0xFE001826;  // the global Survival_ModeEnabled
+    std::map<uint32_t, EffectCondition> EffectConditions{{kRattlesEffect, {kSurvivalModeEnabled, 0.f}},
+                                                         {kSurvivalRattlesEffect, {kSurvivalModeEnabled, 1.f}}};
+    bool EffectHolds(uint32_t aEffect) const noexcept;
+    bool MagicEffectConditionsHold(uint32_t, uint32_t, uint32_t, uint32_t aEffectFormId) const noexcept override
+    {
+        return EffectHolds(aEffectFormId);
+    }
     std::vector<std::pair<uint32_t, uint32_t>> Reactions; // victim, attacker (Actor::ReactToAttack)
     // The actor casts by itself: our hook raises it unless the caster is a copy (HookSpellCast).
     void CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget = 0);

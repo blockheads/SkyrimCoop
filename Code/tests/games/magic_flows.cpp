@@ -291,3 +291,34 @@ SCENARIO("An instant FX Persist effect gone before the frame still flashes on co
     CHECK(guest.FlashedVisuals.size() == 1);
     CHECK_FALSE(guest.IsPlayingEffectHitVisuals(cCopy, cCure));
 }
+
+// Playtest 2026-11-22 item 12: a Bleak Falls Barrow trap's Rattles left the guest with no stamina regeneration (both
+// Survival Mode variants applied, StaminaRate 5 - 2.5 - 2.5). The host's player gets the one its conditions pick.
+SCENARIO("A trap's disease on the guest's character applies only the effects its conditions pick, as on the host's player",
+         "[magic][stamina]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    // The trap (no actor) casts every effect of the spell; the engine's add check picks.
+    party.As(party.Host(), [&] {
+        for (const uint32_t cTarget : {PlayerCopy(host), FakeEngine::kPlayer})
+            for (const uint32_t cEffect : {FakeEngine::kSurvivalRattlesEffect, FakeEngine::kRattlesEffect})
+                host.SpellHits(cTarget, 0, FakeEngine::kRattles, cEffect, 2.5f);
+    });
+    const auto cHas = [](const FakeEngine& acEngine, uint32_t aEffect) {
+        return std::ranges::any_of(acEngine.Effects, [&](const auto& acEffect) {
+            return acEffect.Target == FakeEngine::kPlayer && acEffect.EffectId == aEffect;
+        });
+    };
+    party.Until([&] { return cHas(guest, FakeEngine::kRattlesEffect); }, "the guest's player catches Rattles");
+
+    THEN("the host's player has Rattles' Survival-off effect only")
+    {
+        CHECK(cHas(host, FakeEngine::kRattlesEffect));
+        CHECK_FALSE(cHas(host, FakeEngine::kSurvivalRattlesEffect));
+    }
+    THEN("so has the guest's: its stamina still regenerates") CHECK_FALSE(cHas(guest, FakeEngine::kSurvivalRattlesEffect));
+}
