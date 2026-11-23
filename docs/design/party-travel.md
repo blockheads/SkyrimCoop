@@ -99,12 +99,14 @@ guest (GuestLeash)
 - No leash indoors, in another worldspace, for a player on its way somewhere (ahead of the host, a trip announced)
   or down: load doors and every teleport already take the party, and a downed player respawns beside a standing one.
 - Each guest is leashed to the host only, with its own countdown; coming back and leaving again starts a full 10 s.
+- `/leash off` (any player, the host decides: dev-commands.md) frees everyone until `/leash on` or `/reset`; a
+  scenario that sends a guest far away on purpose types it (`guest-weather-own-region`).
 - Open: the two games' countdowns are each their own frame time, so a stalled host teleports a little after the
   guest's "1".
 - Not a teleport on every cell change: the host's grid moves every 4096 units, and a guest walking ahead would be
   pulled back mid-fight. The leash is the fallback; a guest inside the grid sees the host's NPCs as its own grid
   reaches them (actor-ai-and-copies.md, "A 3D job ends in `QueuedReference::End`").
-- Tests: `HostAuthorityTests [Leash]` (14 cases: an older party trip not followed after the leash's, a trip dropped when a
+- Tests: `HostAuthorityTests [Leash]` (15 cases: /leash off and on again, an older party trip not followed after the leash's, a trip dropped when a
   fall or a door takes over, the grace and stepping over the edge and back, the edge cell on every side and across the origin, back in time, ran
   out and where to, a full countdown after a return, a trip that never lands or lands out of the grid, the host
   walking away and back, two guests, indoors and other worldspaces, a door or a trip mid-countdown, a downed guest or

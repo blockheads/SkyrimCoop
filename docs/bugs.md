@@ -145,6 +145,10 @@ every other section needs the duo.
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
 - [Seen once in the run of 2026-11-22](#seen-once-in-the-run-of-2026-11-22): small
 
+**From the 2026-11-22 playtest**
+
+- [A guest crash loading a leveled NPC's copy](#a-guest-crash-loading-a-leveled-npcs-copy): medium
+
 **Test tools**
 
 - [The gate fails on GameTests now and then](#the-gate-fails-on-gametests-now-and-then): small
@@ -341,10 +345,20 @@ Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
   `weapon_drawn` false), the copy still holding the bow in the other slot. So it is a slot-0 mismatch on a sheathed
   bow; whether it shows (a drawn bow, its 3D) is not observed, and the user's report stays unreproduced. Start from
   `rejoined-guest-sees-rider`'s `at-failure.json`: what the hand repair compares for a form held in both slots.
+  Also `guest-weather-own-region` (2026-11-22, branch `agent/weather-per-region`): both Winterhold Guards' copies at
+  `[0, 79261]` / `[0, 80257]` against their owners' `[X, X]`, after the guest's solo moves and timescale 2000 (night).
 - **Not the repair's equip** (2026-11-22, piece D step 0): read in IDA, `coop_RealEquip` (38929) takes a bow's own
   BothHands slot unless the race's flags bit 30 keeps the passed hand; measured on `rejoined-guest-sees-rider`, the
   repair's RightHand equip of Faendal's bow on his copy left `[13985, 13985]`. The `[0, bow]` writer is still unread
   (39811 sets one hand per call: outfit reset, MoveToHigh, disarm; `docs/re/systems/actor-state.md`).
+- **The bow's slot fixed** (2026-11-23, PR #108, re/systems/hand-slots.md): measured, Faendal's copy is at `[0, bow]` at
+  its first repair after a rejoin (the writer not read), and the repair checked one hand per item. It now checks both
+  hands of a two-hander (the right only beside a worn torch) and equips it with BothHands; `rejoined-guest-sees-rider` passes (GameTests
+  "A copy left holding its bow in one hand holds it in both again").
+- **The guards' torches (2026-11-22 playtest) not reproduced** (2026-11-23): two Winterhold guards at night held
+  `[torch, 0]` and `[torch, sword]` on both games for 30 s. No equip puts a torch in the right hand (17619), so a host
+  guard with one in each hand would come from elsewhere; a `/bug` on one would show its hands and worn marks.
+- Still open: the report itself, a weapon's 3D missing in play, is not observed; the 3D readout above is the next step.
 
 ### End comparisons in towns
 
@@ -1428,6 +1442,30 @@ Size: small. Needs: the duo.
 - `guest-steals-created-item` (scene, one run): "the party's bounty is {'host': {}, 'guest': {}}, expected at least 1".
 - `object-rests-beside-orgnar` (scene, one run): "[guest] cheese has the host's rest" timed out after 2 s.
 - `guest-rejoins-while-joined` and `guest_shows_only_hosts_npcs` (scenes): see [After a guest rejoins](#after-a-guest-rejoins).
+- `guest-weather-own-region` (2026-11-23, every step passed): its end comparison found a Snow Fox (`107C2B`, Winterhold)
+  at `weapon_state` 0 on the host and its copy on the guest at 3 (Drawn). The reverse of
+  [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws); not read whether its copy
+  missed a sheathe.
+
+## From the 2026-11-22 playtest
+
+### A guest crash loading a leveled NPC's copy
+
+The guest (Fabien, Windows, `v1.6.7-1419-g206a7c42-dirty`) crashed at 03:40:26 his time
+(`/home/bighass/playtests/2026-11-22/raw/friend-player-2026-11-23-0340-5c8`, dump `crash_UTC_2026-11-23_02-40-26.dmp`).
+Access violation in 15678 at 0x1402195F3 on the background loader (`QueuedCharacter` 13108 -> 13019 -> `Actor::Load3D`
+37177 -> our `HookLoad3D` (pass-through) -> 19727 -> 20103 -> 19743 -> `TESNPC` 24740 -> 15678). Read in IDA: 15678
+walks the actor's base NPC's `faceNPC` chain (+0x1F0) to its root; one link held `0x3F1416AA0000086D`, not a pointer.
+The actor: copy `DC8E2` on temporary leveled base `FF0010BD`, as cell 9199 loaded. 3 s before, the guest logged
+"Failed to apply owner's NPC base 0:23ABE" for it and three other copies (`DC8E3`, `DC591`, `DC8DE`), and
+`ResetWornToOutfit` ran on that base on another thread 94 ms before. The dump has no heap: which link was bad, and
+who wrote or freed it, is unread.
+
+Agent task: read 24740 and the temporary base's life in IDA ([leveled-npc-copy-names.md](re/systems/leveled-npc-copy-names.md),
+[copy-face-tints.md](re/systems/copy-face-tints.md)); find why base `23ABE` fails to apply to a placed leveled copy;
+reproduce at cell 9199's leveled NPCs with the heap history on.
+
+Size: medium. Needs: IDA, the duo.
 
 ## Test tools
 

@@ -250,6 +250,12 @@ struct TESObjectREFR : TESForm
     // TESObjectREFR::GetOwner 20194 (its ownership, a linked door's, the encounter zone's, the cell's).
     TESForm* GetItemsOwner() const noexcept;
     bool SendAnimationEvent(BSFixedString* apEventName) noexcept;
+    // A furniture with KeywordActivatorFurnitureNoPlayer: a lever, pull bar or chain the player pulls without entering.
+    [[nodiscard]] bool IsActivatorFurniture() const noexcept;
+    // The pull's graph event TESFurniture::Activate 17420 sends for aActivator: ActionActivate from its own idles
+    // (24602). Empty: not a lever furniture, its activation blocked (19796 stops at kBlockActivate) or aActivator
+    // sitting (17420 stands it up instead).
+    [[nodiscard]] std::string PickActivatorFurnitureEvent(Actor& aActivator, bool aDefaultProcessingOnly) noexcept;
 
     bool Activate(TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing) noexcept;
 

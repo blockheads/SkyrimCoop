@@ -1,0 +1,43 @@
+#pragma once
+
+#include <array>
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+
+// An open item menu (ContainerMenu, BarterMenu, InventoryMenu) lists its holders' stacks by their own extra data lists
+// (16106 at 0x14023929d). A change to a listed holder is noted on any thread, before and after it; the UI's message
+// pass (82082) rebuilds the menu before its callbacks can read the list (docs/re/systems/item-menus.md).
+struct ItemMenuView
+{
+    bool Open{};
+    // ContainerMenu: its target (405962) and the player; BarterMenu: the merchant (405823) and the player;
+    // InventoryMenu: the player.
+    std::array<uint32_t, 2> Lists{};
+    // BarterMenu also lists the vendor chest's and the vendor's owned containers' stacks (merged by 0x14023D080):
+    // any container (not an actor) counts.
+    bool AnyContainer{};
+};
+
+[[nodiscard]] constexpr bool MustRebuildFirst(const ItemMenuView& acMenu, uint32_t aHolder, bool aContainer = false) noexcept
+{
+    return acMenu.Open && aHolder &&
+           (aHolder == acMenu.Lists[0] || aHolder == acMenu.Lists[1] || (acMenu.AnyContainer && aContainer));
+}
+
+// Each menu's noted change: any thread notes it, the UI's message pass takes it.
+class ItemMenuChanges
+{
+public:
+    static constexpr size_t kMenus = 3;
+
+    void Note(size_t aMenu) noexcept { m_changed[aMenu].store(true, std::memory_order_release); }
+    // Once per noted change, for a menu still open; a closed menu's is dropped. A note after a take is a new one.
+    [[nodiscard]] bool Take(size_t aMenu, bool aOpen) noexcept
+    {
+        return m_changed[aMenu].exchange(false, std::memory_order_acq_rel) && aOpen;
+    }
+
+private:
+    std::array<std::atomic<bool>, kMenus> m_changed{};
+};

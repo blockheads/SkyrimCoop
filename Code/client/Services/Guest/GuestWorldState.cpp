@@ -23,6 +23,7 @@
 #include <Services/WorldStateLog.h>
 #include <World.h>
 #include <FormIds.h>
+#include <SessionIds.h>
 #include <Diagnostics/Profile.h>
 
 #include <cstring>
@@ -114,6 +115,9 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
                 spdlog::info("GuestWorldState: {} left: this game's player moves it", WorldStateLog::Describe(cChange));
                 continue;
             }
+            // This game's player's own pull of a lever furniture: its engine played it (TESFurniture::Activate 17420).
+            if (cChange.Type == ObjectChange::Kind::kAnimation && cChange.Value && cChange.Value == Utils::GetSessionIdByFormId(0x14))
+                continue;
             if (m_engine.ApplyObjectChange(cChange, message.Cell != GameId{}))
                 applied.push_back(cChange);
             else

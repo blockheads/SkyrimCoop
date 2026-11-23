@@ -1,3 +1,4 @@
+#include <Interface/ItemMenuWatch.h>
 #include <HookSwitch.h>
 
 #include <EquipManager.h>
@@ -211,7 +212,7 @@ void* UnEquipHook(EquipManager* apThis, Actor* apActor, TESForm* apItem, EquipDa
     }
 
     spdlog::debug("UnEquipHook, actor: {:X}", apActor->formID);
-
+    const ItemMenuWatch::Change cChange(apActor); // its unequip can merge and free a worn list (16067)
     return RealUnEquip(apThis, apActor, apItem, apData);
 }
 

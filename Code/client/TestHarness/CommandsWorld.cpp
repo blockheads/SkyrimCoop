@@ -7,6 +7,8 @@
 #include "Harness.h"
 #include "Status.h"
 #include <Games/Skyrim/Main.h>
+#include <Sky/Sky.h>
+#include <Forms/TESWeather.h>
 #include <Diagnostics/Counters.h>
 
 #include <World.h>
@@ -363,7 +365,8 @@ nlohmann::json GraphWriters(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"writers", writers}};
 }
 
-// {"cmd": "objects"}: the doors, containers and furniture in the player's cell (state, lock, load door, position).
+// {"cmd": "objects"}: the doors, containers, furniture and activators in the player's cell (state, lock, load door,
+// position, base; lever: a lever furniture).
 nlohmann::json Objects(Harness&, const nlohmann::json&)
 {
     constexpr uint8_t cDoor = 29;      // FormType::Door
@@ -379,6 +382,9 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
         // open_state: TESObjectREFR::OpenState, 1 open, 2 opening, 3 closed, 4 closing.
         objects.push_back(
             {{"id", cId},
+             {"base", cObject.Base},
+             {"activator", cObject.Activator},
+             {"lever", cObject.ActivatorFurniture},
              {"door", cIsDoor},
              {"furniture", forms.IsObjectBaseFormType(cId, cFurniture)},
              {"container", forms.IsObjectBaseFormType(cId, cContainer)},
@@ -675,6 +681,27 @@ nlohmann::json StackJson(const Inventory::Entry& acItem)
             {"owner", ToGame(acItem.ExtraOwner)}};
 }
 
+// {"cmd": "sky", "region": id}: the weather shown and fading out, the fade's progress, the forced, default and set
+// (a script's or the console's, Sky::s_pSetWeather) weathers, the player's weather region, whether its list holds the shown weather, and the weather a region holds
+// (the given one, else the player's: TESRegion's own, weather.md). Ids are this game's form ids, 0 for none.
+nlohmann::json SkyCommand(Harness&, const nlohmann::json& acRequest)
+{
+    const Sky* pSky = Sky::Get();
+    if (!pSky)
+        return Error("no sky");
+    const auto id = [](const TESForm* apForm) { return apForm ? apForm->formID : 0u; };
+    const TESRegion* pPlayers = Sky::PlayerWeatherRegion();
+    const TESRegion* pAsked = pPlayers;
+    if (const uint32_t cRegion = acRequest.value("region", 0u))
+        pAsked = Cast<TESRegion>(TESForm::GetById(cRegion));
+    return {{"ok", true}, {"weather", id(pSky->pCurrentWeather)},
+            {"last", id(pSky->pLastWeather)}, {"pct", pSky->currentWeatherPct},
+            {"override", id(pSky->pOverrideWeather)},
+            {"default", id(pSky->pDefaultWeather)}, {"set", id(Sky::s_pSetWeather)},
+            {"region", id(pPlayers)}, {"allowed", pPlayers && pSky->pCurrentWeather && pPlayers->HasWeather(pSky->pCurrentWeather)},
+            {"region_weather", pAsked ? id(pAsked->pCurrentWeather) : 0u}};
+}
+
 // {"cmd": "item_stacks", "object": id}: a loose item's own count and extra data, or each stack with extra data a
 // container or actor holds (StackJson's fields).
 nlohmann::json ItemStacks(Harness&, const nlohmann::json& acRequest)
@@ -689,7 +716,8 @@ nlohmann::json ItemStacks(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "give_item", "item": id, "count": 1, "health": 1.4, "enchantment": id, "enchant_charge": 1000, "charge": 800,
-// "name": "Old Friend"}: the player gets it with that extra data (as an enchanting table's or a forge's).
+// "name": "Old Friend", "holder": id}: the player (or the holder) gets it with that extra data (as an enchanting table's or
+// a forge's).
 nlohmann::json GiveItem(Harness&, const nlohmann::json& acRequest)
 {
     Inventory::Entry item;
@@ -700,8 +728,8 @@ nlohmann::json GiveItem(Harness&, const nlohmann::json& acRequest)
     item.ExtraEnchantCharge = static_cast<uint16_t>(acRequest.value("enchant_charge", 0u));
     item.ExtraCharge = acRequest.value("charge", 0.f);
     item.ExtraName = acRequest.value("name", std::string());
-    if (!EngineCalls::GiveItem(item))
-        return Error("no such item");
+    if (!EngineCalls::GiveItem(item, acRequest.value("holder", 0u)))
+        return Error("no such item, or the holder holds nothing");
     return Ok();
 }
 
@@ -1333,6 +1361,7 @@ constexpr Command cCommands[] = {
     {"reference_effects", true, &ReferenceEffects},
     {"activate", true, &Activate},
     {"item_stacks", true, &ItemStacks},
+    {"sky", true, &SkyCommand},
     {"give_item", true, &GiveItem},
     {"drop", true, &Drop},
     {"store", true, &Store},

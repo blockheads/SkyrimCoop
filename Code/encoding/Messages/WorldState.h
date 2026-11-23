@@ -240,7 +240,7 @@ struct ObjectChange
     std::string Animation; // kAnimation: PlayAnimationAndWait's, empty for PlayAnimation
     std::string Event;     // kAnimation
     GameId Item{};                   // kItems: the base item; kOwner: the owner; kBase: the base
-    uint32_t Value{};                // a state's; kItems: the count
+    uint32_t Value{};                // a state's; kItems: the count; kAnimation: the puller's character session id, or 0
     std::string Data;      // kSaveData, kMove, kContents
     std::vector<Inventory::Entry> Stacks; // HasStacks: items with extra data, each its count
 

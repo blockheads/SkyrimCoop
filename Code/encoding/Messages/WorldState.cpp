@@ -157,6 +157,7 @@ void NotifyObjectChanges::SerializeRaw(Wire::Buffer::Writer& aWriter) const noex
         {
             Serialization::WriteString(aWriter, cChange.Animation);
             Serialization::WriteString(aWriter, cChange.Event);
+            Serialization::WriteVarInt(aWriter, cChange.Value);
         }
         else
         {
@@ -199,6 +200,7 @@ void NotifyObjectChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
         {
             change.Animation = Serialization::ReadString(aReader);
             change.Event = Serialization::ReadString(aReader);
+            change.Value = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
         }
         else
         {

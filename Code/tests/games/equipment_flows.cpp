@@ -319,7 +319,7 @@ TEST_CASE("An actual equip brings the owner's queued ammo to its copy immediatel
 
 TEST_CASE("Aela's torch survives full equipment repair in its native slot", "[equipment][torch-repair]")
 {
-    constexpr uint32_t cTorch = 0x1D4EC;
+    constexpr uint32_t cTorch = 0x1D4EC; // an equip marks it worn left (17619, measured: hand-slots.md)
     Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
@@ -332,11 +332,11 @@ TEST_CASE("Aela's torch survives full equipment repair in its native slot", "[eq
         guest.Equips(FakeEngine::kPlayer, cTorch, 0);
         guest.Equips(FakeEngine::kPlayer, kIronSword, FakeEngine::kRightHand);
     });
-    party.Until([&] { return Wears(host, cCopy, cTorch) && Wears(host, cCopy, kIronSword); }, "the copy holds its torch and weapon");
+    party.Until([&] { return Wears(host, cCopy, cTorch, true) && Wears(host, cCopy, kIronSword); }, "the copy holds its torch and weapon");
     party.As(party.Host(), [&] { host.RebuildCopyEquipment(cCopy, kIronSword); });
-    REQUIRE_FALSE(Wears(host, cCopy, cTorch));
+    REQUIRE_FALSE(Wears(host, cCopy, cTorch, true));
     party.As(party.Guest(), [&] { guest.Equips(FakeEngine::kPlayer, kIronSword, FakeEngine::kRightHand); });
-    party.Until([&] { return Wears(host, cCopy, cTorch); }, "the unchanged owner torch is repaired", {}, nullptr, std::chrono::seconds(1));
+    party.Until([&] { return Wears(host, cCopy, cTorch, true); }, "the unchanged owner torch is repaired", {}, nullptr, std::chrono::seconds(1));
     CHECK(Wears(host, cCopy, kIronSword));
     CHECK(host.CountOf(cCopy, cTorch) == 1);
 }

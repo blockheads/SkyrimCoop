@@ -12,6 +12,7 @@
 #include <Events/ContainerChangeEvent.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
+#include <SessionIds.h>
 #include <Events/AddTargetEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
@@ -276,6 +277,27 @@ void FakeEngine::ToggleDoor(uint32_t aObject)
         SetOpen(aObject, !it->second.Open);
 }
 
+void FakeEngine::ScriptPlaysAnimation(uint32_t aObject, const std::string& acEvent)
+{
+    References.at(aObject).GraphEvents.push_back(acEvent);
+    if (!IsGuest)
+        Recorded.push_back({.Type = ObjectChange::Kind::kAnimation, .Object = SessionIdOf(aObject), .Event = acEvent});
+}
+
+void FakeEngine::PullsLever(uint32_t aObject)
+{
+    const auto it = References.find(aObject);
+    if (it == References.end() || !it->second.Lever || it->second.ActivationBlocked)
+        return;
+    it->second.GraphEvents.push_back(kPull);
+    if (IsGuest)
+        return;
+    // HookActivate's pick, recorded by HostService::OnActivate with its puller.
+    ObjectChange pull{.Type = ObjectChange::Kind::kAnimation, .Object = SessionIdOf(aObject), .Event = kPull};
+    pull.Value = Utils::GetSessionIdByFormId(kPlayer).value_or(0);
+    Recorded.push_back(std::move(pull));
+}
+
 void FakeEngine::Harvest(uint32_t aObject)
 {
     const auto it = References.find(aObject);
@@ -417,6 +439,7 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         }
         break;
     case ObjectChange::Kind::kHarvested: reference.Harvested = acChange.Value != 0; break;
+    case ObjectChange::Kind::kAnimation: reference.GraphEvents.push_back(acChange.Event); break; // PlayAnimation
     case ObjectChange::Kind::kEnabled: // Disable drops the 3D, Enable queues its load (Finishes3D)
         if (reference.Disabled != ((acChange.Value & 1) == 0))
             reference.Has3D = false;
