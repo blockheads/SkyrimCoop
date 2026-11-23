@@ -9,15 +9,18 @@ namespace EquipmentRepair
 constexpr uint8_t kWeaponType = 41;
 constexpr uint32_t kRightHand = 0x13F42;
 constexpr uint32_t kLeftHand = 0x13F43;
+constexpr uint32_t kBothHands = 0x13F45;
 
 constexpr uint8_t kLightType = 31;
 constexpr uint8_t kLeftHandBit = 1, kRightHandBit = 2;
 
-// A one-handed weapon goes in its hand; a two-hander, armor, a torch or ammo in its own slot (0): a two-hander's
-// BothHands fills both hands, a torch's LeftHand the left (17619). docs/re/systems/hand-slots.md.
+// A one-handed weapon goes in its hand, a two-hander in BothHands (passed: no slot is RightHand, 38911, which a
+// dual-wield race keeps, 38926); armor, a torch or ammo in its own slot (0): a torch's LeftHand (17619). hand-slots.md.
 constexpr uint32_t EquipSlot(uint8_t aType, bool aLeft, bool aTwoHanded = false) noexcept
 {
-    return aType == kWeaponType && !aTwoHanded ? (aLeft ? kLeftHand : kRightHand) : 0;
+    if (aType != kWeaponType)
+        return 0;
+    return aTwoHanded ? kBothHands : aLeft ? kLeftHand : kRightHand;
 }
 
 // The hands a worn item is held in (kLeftHandBit, kRightHandBit), as a forced worn list's 3D load holds it (24736):

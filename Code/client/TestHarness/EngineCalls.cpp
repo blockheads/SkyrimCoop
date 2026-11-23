@@ -1264,10 +1264,11 @@ std::optional<std::array<uint32_t, 2>> HoldInHand(uint32_t aFormId, uint32_t aIt
 {
     Actor* pActor = GetActor(aFormId);
     TESForm* pItem = TESForm::GetById(aItem);
-    if (!pActor || !pItem || !pActor->currentProcess)
+    if (!pActor || !pItem || !pActor->currentProcess || aHand > 1)
         return std::nullopt;
     ScopedEquipOverride _;
-    pActor->HoldInHand(pItem, aHand == 0);
+    if (!pActor->HoldInHand(pItem, aHand == 0))
+        return std::nullopt;
     std::array<uint32_t, 2> hands{};
     for (uint32_t hand = 0; hand < 2; ++hand)
         if (const TESForm* pHeld = pActor->currentProcess->equippedObject[hand])

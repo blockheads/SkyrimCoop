@@ -51,6 +51,7 @@ every other section needs the duo.
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
+- [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
 - [A refused rider left crouched](#a-refused-rider-left-crouched): small
@@ -314,6 +315,41 @@ Size: small. Needs: IDA, duo (`jitter`), then a fast test.
     furniture"); these creatures' controllers carry `kQuadruped` and `kCanPitch`/`kCanRoll`, which tilt the capsule to the
     ground (`bhkCharacterController::sub_78292`). Not yet read: whether that tilt moves the reported position.
   - Test: `jitter` on a creature, then a fast test once the cause is read.
+
+### A copy without its weapon
+
+Some NPCs' and other players' copies show no weapon on a guest's game.
+
+Agent task: Add a readout of the weapon's 3D on a copy, catch it empty-handed, then read what took the weapon. Make the
+equipment snapshot compare the hands' weapons as it does their spells.
+
+Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
+
+- **Seen by the user in play** (2026-11-06), not reproduced: party travel and one fight kept hands and worn items agreeing
+  (bugs-map.md, "A copy's hands"). A move did strip a copy's armour until the 3 s reconcile.
+- The snapshot compares worn items and hand spells, not hand weapons; a copy refuses the engine's equips.
+- Lead: copy `13485`'s engine tried to equip about once a second for over 2 minutes in the 2026-11-04 playtest.
+- **A mechanism, measured** (2026-11-19, one-simulator.md piece 3): the engine's outfit reset (TESNPC 418622, run on a
+  3D load by 24725) empties a copy's hands and leaves the weapon's worn flag, so a repair comparing worn flags saw
+  nothing (harness `reset_worn` on Aela's copy: hands [0, 0], her owner's torch and bow). The repair now checks each
+  hand holds its worn weapon or torch (GameTests "A copy whose hands the engine's outfit reset emptied holds its
+  owner's weapon again"). Not closed: no scenario of play that fails on dev shows a copy without its weapon.
+- **A hand-slot difference in scenarios** (2026-11-22, dev `aa723513`): `rejoined-guest-sees-rider` 2 of 2 ends with
+  Faendal's copy on the guest holding `[0, 80261]` where his owner holds `[80261, 80261]` (`state.hands`, the process's
+  slots), and `elder-scroll-vision-reaches-party` (late save) with the host player's copy at `[0, 80260]` against
+  `[80260, 80260]`. Both are bows (`13985` Hunting Bow, `13984` Long Bow), sheathed on both games (`weapon_state` 0,
+  `weapon_drawn` false), the copy still holding the bow in the other slot. So it is a slot-0 mismatch on a sheathed
+  bow; whether it shows (a drawn bow, its 3D) is not observed, and the user's report stays unreproduced. Start from
+  `rejoined-guest-sees-rider`'s `at-failure.json`: what the hand repair compares for a form held in both slots.
+- **Not the repair's equip** (2026-11-22, piece D step 0): read in IDA, `coop_RealEquip` (38929) takes a bow's own
+  BothHands slot unless the race's flags bit 30 keeps the passed hand; measured on `rejoined-guest-sees-rider`, the
+  repair's RightHand equip of Faendal's bow on his copy left `[13985, 13985]`. The `[0, bow]` writer is still unread
+  (39811 sets one hand per call: outfit reset, MoveToHigh, disarm; `docs/re/systems/actor-state.md`).
+- **The hand slots fixed** (2026-11-23, PR #108, re/systems/hand-slots.md): the `[0, bow]` writer is a copy's 3D load
+  (24736 holds a forced bow worn right in the right only), and the playtest's guards' second torch was lost because an
+  equip holds a torch left only (17619). The repair now checks every hand an item is held in and holds a right-hand
+  torch as a 3D load does (scenario `npc-torch-each-hand`, GameTests "[hand-weapon]"). Still open: the report itself,
+  a weapon's 3D missing in play, is not observed; the 3D readout above is the next step.
 
 ### End comparisons in towns
 

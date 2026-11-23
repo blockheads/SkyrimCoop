@@ -111,7 +111,7 @@ TEST_CASE("Non-weapons retain their native equip slot during repair", "[equipmen
     CHECK(EquipmentRepair::EquipSlot(42, false) == 0); // arrows
     CHECK(EquipmentRepair::EquipSlot(41, false) == 0x13F42);
     CHECK(EquipmentRepair::EquipSlot(41, true) == 0x13F43);
-    CHECK(EquipmentRepair::EquipSlot(41, false, true) == 0); // a bow: its own BothHands
+    CHECK(EquipmentRepair::EquipSlot(41, false, true) == 0x13F45); // a bow: BothHands, never 38911's RightHand
 }
 
 TEST_CASE("A worn weapon or torch is held in the hand its mark names, a two-hander in both", "[equipment-repair][hand-weapon]")

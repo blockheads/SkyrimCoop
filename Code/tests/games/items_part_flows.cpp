@@ -109,7 +109,7 @@ SCENARIO("A copy whose hands the engine's outfit reset emptied holds its owner's
 
 namespace
 {
-constexpr uint32_t kTorch = 0x1D4EC, kHuntingBow = 0x13985;
+constexpr uint32_t kTorch = 0x1D4EC, kHuntingBow = 0x13985, kGold = 0xF;
 
 // The guard carrying two torches in both games, as the plugins place it; on the guest its 3D is not loaded yet.
 void TorchGuardWorld(FakeEngine& aEngine)
@@ -127,27 +127,39 @@ std::array<uint32_t, 2> Hands(const FakeEngine& acEngine, uint32_t aActor)
 SCENARIO("A guard's copy holds a torch in each hand as its owner does", "[items][items-part][hand-weapon][torch]")
 {
     // 2026-11-22 playtest: Winterhold guards with a torch in each hand on the host, one on the guest. An equip holds a
-    // torch left only (17619); its 3D load holds a torch worn right in the right (24736). hand-slots.md.
+    // torch left only (17619); a 3D load holds a forced torch worn right in the right (24736). hand-slots.md.
     const bool cLateJoin = GENERATE(false, true);
     Party party(1, TorchGuardWorld, !cLateJoin);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
-    const auto cHoldTorches = [&] {
+    // As npc-torch-each-hand stages it: a forced torch held in a hand, then an item change publishes the owner's items.
+    const auto cHold = [&](uint32_t aHand) {
         party.As(party.Host(), [&] {
-            host.Equips(kGuard, kTorch, 0);
-            host.ActorHoldInHand(kGuard, kTorch, 1);
+            REQUIRE(host.ActorHoldInHand(kGuard, kTorch, aHand));
+            host.GetsItem(kGuard, kGold, 1);
         });
-        REQUIRE(Hands(host, kGuard) == std::array<uint32_t, 2>{kTorch, kTorch});
+    };
+    const auto cGuestSees = [&]() {
+        party.Until([&] { return guest.IsActorCopy(kGuard); }, "the guest's guard is the host's copy");
+        party.As(party.Guest(), [&] { guest.Load3D(kGuard); });
     };
     if (cLateJoin)
     {
-        cHoldTorches();
+        cHold(1);
+        cHold(0);
         party.Join(party.Guest());
+        cGuestSees();
     }
-    party.Until([&] { return guest.IsActorCopy(kGuard); }, "the guest's guard is the host's copy");
-    party.As(party.Guest(), [&] { guest.Load3D(kGuard); });
-    if (!cLateJoin)
-        cHoldTorches();
+    else
+    {
+        cGuestSees();
+        cHold(1);
+        REQUIRE(Hands(host, kGuard) == std::array<uint32_t, 2>{0, kTorch});
+        party.Until([&] { return Hands(guest, kGuard) == std::array<uint32_t, 2>{0, kTorch}; },
+                    "the guard's copy holds its torch in the right hand, as no equip does");
+        cHold(0);
+    }
+    REQUIRE(Hands(host, kGuard) == std::array<uint32_t, 2>{kTorch, kTorch});
     party.Until([&] { return Hands(guest, kGuard) == std::array<uint32_t, 2>{kTorch, kTorch}; },
                 "the guard's copy holds a torch in each hand");
     party.Agree("the copy wears what its owner wears");

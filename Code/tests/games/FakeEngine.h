@@ -723,6 +723,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Hidden = false;      // a held copy hidden: its enables refused (HookEnable, HookSetDisabled)
         std::set<uint32_t> Outfit;     // its outfit's items: an enable's inventory reset removes them (19690)
         std::set<uint32_t> ForcedWorn; // worn items whose list holds ExtraCannotWear (an equip with forceEquip: ours)
+        std::set<std::pair<uint32_t, uint32_t>> ForcedHands; // (item, hand 0 left 1 right) of those forced lists' marks
         uint32_t EnableParent = 0; // its enable parent (XESP): takes the parent's state as the parent loads
         bool NoProcess = false;   // its process freed, its handle still valid (marked deleted, MarkForDelete)
         bool Essential = false;  // goes down at 0 health instead of dying

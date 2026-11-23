@@ -928,6 +928,10 @@ bool Actor::HoldInHand(TESForm* apItem, bool aLeft) noexcept
     auto* pChanges = GetContainerChanges();
     if (!apItem || !pNpc || !pChanges || !pChanges->entries || !currentProcess)
         return false;
+    // The third-person biped 24736 writes the torch into (15690), checked as 38004 checks it after the same call.
+    auto* pBiped = static_cast<void**>(sub_7E(false));
+    if (!pBiped || !*pBiped)
+        return false;
     const ExtraDataType cHand = aLeft ? ExtraDataType::WornLeft : ExtraDataType::Worn;
     // InventoryChanges' worn marking (16066): one unworn item's list marked worn in that hand, forced (ExtraCannotWear).
     using TMarkWorn = void(ExtraContainerChanges::Data*, TESForm*, int32_t, Actor*, ExtraDataList*, bool, bool, bool);
@@ -951,7 +955,7 @@ bool Actor::HoldInHand(TESForm* apItem, bool aLeft) noexcept
     ExtraContainerChanges::Entry only{pEntry->form, &one, 1, {}};
     using TInitWorn = bool(TESNPC*, Actor*, void*, ExtraContainerChanges::Entry*);
     POINTER_SKYRIMSE(TInitWorn, s_initWorn, 24736);
-    s_initWorn(pNpc, this, sub_7E(false), &only);
+    s_initWorn(pNpc, this, pBiped, &only);
     // SetEquipFlag(1) then Update3DModel: the biped's objects attached (39395's bit 1, Actor 19743).
     using TSetEquipFlag = void(AIProcess*, uint8_t);
     POINTER_SKYRIMSE(TSetEquipFlag, s_setEquipFlag, 39907);

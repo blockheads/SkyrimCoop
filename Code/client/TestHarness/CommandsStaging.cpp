@@ -87,7 +87,7 @@ nlohmann::json HoldInHandCommand(Harness&, const nlohmann::json& acRequest)
 {
     const auto cHands = EngineCalls::HoldInHand(acRequest.value("actor", 0u), acRequest.value("item", 0u), acRequest.value("hand", 1u));
     if (!cHands)
-        return Error("no such actor or item");
+        return Error("not held: no such actor or item, no biped, none left unworn, or a hand other than 0 or 1");
     return {{"ok", true}, {"hands", *cHands}};
 }
 

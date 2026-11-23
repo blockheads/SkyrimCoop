@@ -3,8 +3,9 @@
 An actor's hands are `AIProcess::equippedObjects` (+0xF0 left, +0xF8 right; `state.hands` in the harness). The worn
 marks on the inventory's extra lists (`ExtraWorn` 0x16 right, `ExtraWornLeft` 0x17 left) are separate. Two writers fill
 the hands, and they follow different rules. A copy runs both, so it can hold a weapon or torch differently from its
-owner. This was the shared cause of "A copy without its weapon" (bugs.md, closed 2026-11-23): a bow at `[0, bow]` and a
-guard's two torches shown as one.
+owner. This was the shared cause of the hand-slot cases under "A copy without its weapon" (bugs.md): a bow at
+`[0, bow]` and a guard's two torches shown as one. Whether it is what the 2026-11-06 report saw (a weapon's 3D gone) is
+inferred, not observed.
 
 Read in IDA (1.7.104) unless marked measured.
 
@@ -16,7 +17,7 @@ Read in IDA (1.7.104) unless marked measured.
   -> 38929: slot = item's own slot (BGSEquipType, vfunc +0x20)
        passed slot wins: 38926 (race flag bit 30 CanDualWield, a weapon, a hand slot)
                          or the own slot has parents and lacks UseAllParents
-       -> ActorProcess::AddEquippedObject 39192: each hand the slot covers (BGSEquipSlot::Covers 0x14038F910)
+       -> ActorProcess::AddEquippedObject 39192: each hand the slot covers (BGSEquipSlot::Covers 23605)
        -> Character::MarkEquippedWorn 38001 -> Actor::AddWornItem 38004 -> 16066:
             worn left = (slot == LeftHand); forceEquip adds ExtraCannotWear
 ```
@@ -52,7 +53,9 @@ Read in IDA (1.7.104) unless marked measured.
 
 - Each worn weapon or torch must be in every hand it is held in (`HandsOf`): its mark's hand, and both for a
   two-hander (`TESObjectWEAP::IsTwoHanded`, animation type 5-7 or 9 as 39811 tests it).
-- A two-hander is equipped with no slot (its own BothHands). A torch marked left is equipped with no slot (LeftHand).
+- A two-hander is equipped with BothHands passed: no slot becomes RightHand (38911), which 38926 keeps for a race with
+  flags bit 30. BothHands is no hand slot, so 38929 keeps it and fills both hands. A torch marked left is equipped
+  with no slot (LeftHand).
 - A torch marked right: `Actor::HoldInHand` does what a 3D load does for one list. 16066 marks one more of the
   stack worn right, forced. 24736 runs on that list alone. Then `SetEquipFlag(1)` 39907 and `Update3DModel` 39395
   attach the biped's objects (bit 1 -> Actor 19743).

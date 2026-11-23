@@ -373,7 +373,8 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // such actor or NPC base.
 std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcept;
 // One carried item held in that hand (0 left, 1 right) as a 3D load holds a forced worn list (Actor::HoldInHand): a
-// torch in the right hand, the state the 2026-11-22 playtest's guards were in. Its hands after: [left, right].
+// torch in the right hand, the state the 2026-11-22 playtest's guards were in. Its hands after: [left, right]; none
+// when not held (no such actor or item, no biped, nothing left to mark, a hand other than 0 or 1).
 std::optional<std::array<uint32_t, 2>> HoldInHand(uint32_t aFormId, uint32_t aItem, uint32_t aHand) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
 // (the bridge's Activate and lock replays call past the hooks): the player activates the object

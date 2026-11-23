@@ -2461,6 +2461,8 @@ void FakeEngine::EnableActor(uint32_t aFormId) noexcept
         if (cExpectedToSurvive && cTwin && !freed.IsFreed(&cList))
             ++WornListDoubleFrees;
         it->second.ForcedWorn.erase(cItem);
+        it->second.ForcedHands.erase({cItem, 0u});
+        it->second.ForcedHands.erase({cItem, 1u});
     }
 }
 

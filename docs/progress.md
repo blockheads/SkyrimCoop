@@ -50,7 +50,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 ## News
 
 2026-11-23: **a copy holds what its owner holds in both hands: a bow in both, a torch in each** (`agent/hand-slot-copies`;
-[hand-slots.md](re/systems/hand-slots.md)). The shared cause of "A copy without its weapon": an equip holds a torch in
+[hand-slots.md](re/systems/hand-slots.md)). The shared cause of the hand-slot cases under "A copy without its weapon" (the report's missing 3D stays open): an equip holds a torch in
 the left hand only (17619) and a two-hander in both, but a copy's 3D load holds its forced lists by their marks
 (24736): a bow at `[0, bow]`, a torch marked right in the right. The repair checked one hand per item and could not
 put a torch right. Now it checks every hand an item is held in, equips two-handers with their own slot, and holds a
