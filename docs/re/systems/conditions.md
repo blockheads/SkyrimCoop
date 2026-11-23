@@ -74,3 +74,38 @@ from a stack copy (`JudgedRules`):
 
 `IsTrue` is on every condition's stack, on every thread: `LockOrder::IgnoreFrames` covers its pass-through, so an engine
 lock order seen there is not ours unless a judgement runs (`JudgedIsTrue`).
+
+## A spell from another player's character (1.7.104, read in IDA 2026-11-23)
+
+A relayed spell effect lands on its owner's game with the caster's copy as caster, so any condition about the caster or
+"the player" reads the wrong actor there. Two lists, two times:
+
+- **The magic effect's own conditions** (`EffectSetting` +0x190) are read only when the effect is added:
+  `MagicTarget::AddTarget` (34526) → `magichit` (34547) → `CheckAddEffect` (34525) → `EffectSetting::ConditionsPass`
+  (11085) = `TESCondition::IsTrue(list, subject = the target, target = the caster)`.
+- **The spell's effect-entry conditions** (`EffectItem` +0x20) are re-read while the effect lasts:
+  `ActiveEffect::Update` (34092, every frame) → `EvaluateConditions` (vfunc 5, 34063) →
+  `EvaluateEntryConditions` (34062), every `fActiveEffectConditionUpdateInterval` (at once when forced), when the
+  effect's flags hold 0x80 (set by the constructor 34049 when the entry has conditions) or a displacement spell. Same
+  subject and target (the caster from the effect's handle, +0x34). The verdict goes to `conditionStatus` (+0x80, 1 at
+  creation); 34063 turns the effect inactive (flags 0x8000) while it fails.
+- `GetIsID` (21487) compares the reference's leveled base, else its base form: a player copy has its own temporary
+  NPC base, so `GetIsID(Player 00000007)` is 0 on it.
+
+How often (the duo's plugins: vanilla, DLC, CC, USSEP; `CTDA` run on): magic effects 2114 items on the subject, 110 on
+the target (the caster) and 120 on `PlayerRef`; effect entries 1932 / 39 / 228. The caster ones are mostly the
+Destruction perk effects (`HasPerk`: Intense Flames, Deep Freeze, Disintegrate), the Impact stagger, Mystic Binding's
+bound weapons, and `GetIsID Player` on Unrelenting Force and Frost Breath (Dragonborn.esm); the `PlayerRef` ones are
+`HasPerk` (Totem of the Moon on the werewolf howl's summon), `GetEquipped`, `IsInDangerousWater`, globals.
+
+What we do: both evaluations run in `JudgedFor::Scope` with the caster's copy, in `Mode::kCaster`, whenever the
+caster is another player's character: our `MagicTarget::AddTarget` (the relay and the host's summon replay) for the
+add, a hook on 34062 for the re-reads. The caster mode leaves the params' subject and target as they are (the subject
+is the real target, possibly this game's own player) and makes the player-reading items (`PlayerRef`, player
+parameters, `GetPC*`) the caster's; `GetIsID(Player)` run on the character holds (`JudgedRules`). Items about the target
+are judged on the real target; items about the caster read its copy, which carries its owner's perks, equipment and
+values (`PerkService`, the equipment and value relays).
+
+Not carried by the relay (so not judged): the item a spell came from (`AddTargetData::pSource`; the target's resistance
+virtual, 38737, returns 1.0 for an armor source) and a caster that is not an actor (a trap: no caster on the owner).
+

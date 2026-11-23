@@ -1435,7 +1435,13 @@ class ReproActions:
                 return len(set(repr(unordered(seen)) for seen in got.values())) > 1
             if target:
                 return any(seen not in targets[label] for label, seen in got.items())
-            return not all(got.values()) if value == "set" else any(seen != value for seen in got.values())
+            if value == "set":
+                return not all(got.values())
+            # A float field (an engine rate reads 2.4999998): equal within a thousandth of the value.
+            if isinstance(value, float):
+                return any(not isinstance(seen, (int, float)) or abs(seen - value) > 1e-3 * max(1.0, abs(value))
+                           for seen in got.values())
+            return any(seen != value for seen in got.values())
         ended, started = time.monotonic() + seconds, time.monotonic()
         expected = 'the same in both' if value is None else repr(value)
         if stays:  # the first reading, every 0.2 s, and one at the deadline
