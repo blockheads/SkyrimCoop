@@ -133,10 +133,10 @@ holds level 1000 (PC level mult 1.0, stored times 1000), its face record level 1
 A copy of a placed reference was always given the owner's face record (`SetActorBaseFormId`), so it dropped its own
 game's resolved base and read the face's stats. When this game's reference already resolved to the same face (both
 games load one save), the copy keeps that engine-owned base; the engine manages its lifetime as in a vanilla game,
-unlike the private bases above. Only a different face still swaps to the face record. GameTests `[copy-level]`.
+unlike the private bases above. A different face is built again from the owner's pick (14375), never the face record:
+a reset destroys a leveled actor's current base ([leveled-copy-base.md](leveled-copy-base.md), 2026-11-23). GameTests `[copy-level]`.
 
-Open: a copy whose game picked another face, and created copies (`SpawnActorFromNpc` of the face), still take the face
-record's stats; a resolved base for them needs the engine's leveled build (14375) with the owner's pick.
+Open: created copies (`SpawnActorFromNpc` of the face) still take the face record's stats.
 
 ## The name travels by itself now (2026-11-05)
 

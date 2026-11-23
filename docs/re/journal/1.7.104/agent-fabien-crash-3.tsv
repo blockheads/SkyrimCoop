@@ -1,0 +1,40 @@
+time	op	id	rva	item
+2026-11-23T17:39:09Z	read	15678	0x218e50	{"name": "sub_140218E50"}
+2026-11-23T17:39:09Z	read	24740	0x3c4dc0	{"name": "TESNPC::sub_24740"}
+2026-11-23T17:39:49Z	read	14375	0x1dcf40	{"name": "coop_SetLeveledNpc"}
+2026-11-23T17:39:59Z	read	23277	0x384070	{"name": "sub_140384070"}
+2026-11-23T17:42:02Z	read	37466	0x686600	{"name": "Actor::SetObjectReference"}
+2026-11-23T17:42:05Z	read	19785	0x2f0c00	{"name": "TESObjectREFR::SetObjectReference"}
+2026-11-23T17:42:13Z	read	38917	0x6ddb90	{"name": "sub_1406DDB90"}
+2026-11-23T17:42:23Z	name	12095	0x175910	{"addr": "0x140175910", "name": "ExtraDataList__LoadGame"}
+2026-11-23T17:42:23Z	name	15678	0x218e50	{"addr": "0x140218e50", "name": "BipedAnim__AttachParts_15678"}
+2026-11-23T17:42:23Z	comment		0x177f9c	{"addr": "0x140177f9c", "comment": "ExtraLeveledCreature (45) on load: new resolved base from 14375; the actor's current base is destroyed (vfunc 0) only if TESDataHandler::IsTemporaryFormID(base->formID): a permanent base (a copy swapped to the owner's face record) is kept."}
+2026-11-23T17:42:23Z	comment	23277	0x384070	{"addr": "0x140384070", "comment": "Not on the leveled-copy crash path: a console/debug handler that builds a leveled NPC (14375), places it at the player and makes it a teammate."}
+2026-11-23T17:42:23Z	comment	38917	0x6ddb90	{"addr": "0x1406DDB90", "comment": "Not on the leveled-copy crash path: loads a saved list of (bound object, ExtraDataLists via ExtraDataList::LoadGame, equip slot)."}
+2026-11-23T17:42:23Z	comment		0x2195f0	{"addr": "0x1402195f0", "comment": "Root walk of faceNPC (+0x1F0): rcx = current link, rax = its faceNPC. A fault here with rax == rcx means the faulting pointer came from the previous link's +0x1F0 (or the base's own when first)."}
+2026-11-23T17:43:26Z	read	11812	0x1696d0	{"name": "sub_1401696D0"}
+2026-11-23T17:43:43Z	read	20231	0x3016e0	{"name": "Character::sub_20231"}
+2026-11-23T17:43:47Z	read	14374	0x1dcba0	{"name": "sub_1401DCBA0"}
+2026-11-23T17:43:48Z	read		0x676190	{"name": "Actor::Func150_37289"}
+2026-11-23T17:43:59Z	read	37292	0x676210	{"name": "Actor::ResetReference_37292"}
+2026-11-23T17:44:12Z	read	36460	0x64df30	{"name": "GarbageCollector::sub_36460"}
+2026-11-23T17:44:27Z	name	36460	0x64df30	{"addr": "0x14064df30", "name": "GarbageCollector__DestroyForm_36460"}
+2026-11-23T17:44:27Z	name	14374	0x1dcba0	{"addr": "0x1401DCBA0", "name": "TESLevCharacter__ResolveForReference"}
+2026-11-23T17:44:27Z	name	11812	0x1696d0	{"addr": "0x1401696D0", "name": "ExtraDataList__SetLeveledCreature"}
+2026-11-23T17:44:27Z	name	20231	0x3016e0	{"addr": "0x1403016e0", "name": "Character__SetLeveledCreature_20231"}
+2026-11-23T17:44:33Z	comment	36460	0x64df30	{"addr": "0x14064df30", "comment": "AddressLib 36460. Destroys a form: at once (TESDataHandler 0x1B6EA0 removes it from the form map, then vfunc 0 delete) outside a job or during a load, else queued in the collector's list for later deletion. No temporary-ID check: callers must pass a form they own."}
+2026-11-23T17:44:33Z	comment	14374	0x1dcba0	{"addr": "0x1401DCBA0", "comment": "Leveled actor resolve for a reference (a1 = original NPC's TESActorBaseData, a2 = ref): rolls the NPC's LVLN template (14752), builds a new temporary NPC copied from the ref's current base (factory vfunc 0x178) then CopyFromTemplateForms(pick), records ExtraLeveledCreature {original = current base, template = pick} (20231) and SetObjectReference(new). Then (a3 == 0) resets inventory/AI state, SwitchRace."}
+2026-11-23T17:44:33Z	comment	11812	0x1696d0	{"addr": "0x1401696D0", "comment": "Sets ExtraLeveledCreature (45) {originalBase +0x10, templateBase +0x18}; both null removes it."}
+2026-11-23T17:44:33Z	comment	20231	0x3016e0	{"addr": "0x1403016e0", "comment": "AddressLib 20231. For an NPC base: sets (a2,a3 non-null: flag 0x40000 via 14608) or clears the reference's ExtraLeveledCreature (11811-like wrapper)."}
+2026-11-23T17:44:33Z	comment		0x6762b1	{"addr": "0x1406762b1", "comment": "The current base handed to the GC (36460) is destroyed without a temporary check: the engine assumes a leveled actor's current base is the temporary one it built. A copy given a permanent face record (coop SetActorBaseFormId) loses that record here: playtest 2026-11-22 crash 3 (EncWolf 23ABE)."}
+2026-11-23T17:44:38Z	comment	20231	0x3016e0	{"addr": "0x1403016e0", "comment": "AddressLib 20231. For an NPC base: sets (a2,a3 non-null: flag 0x40000 via 14608) or clears (vfunc 0x58) the reference's ExtraLeveledCreature through 0x1401696D0."}
+2026-11-23T17:44:55Z	read	37323	0x678a50	{"name": "Character::sub_37323"}
+2026-11-23T17:44:56Z	read	37322	0x678950	{"name": "Actor::ResetInventory"}
+2026-11-23T17:45:08Z	read	19231	0x2cf9d0	{"name": "sub_1402CF9D0"}
+2026-11-23T17:45:08Z	read	19286	0x2d2cb0	{"name": "sub_1402D2CB0"}
+2026-11-23T17:45:19Z	name	37323	0x678a50	{"addr": "0x140678a50", "name": "Character__RerollLeveledBase_37323"}
+2026-11-23T17:45:19Z	name	19231	0x2cf9d0	{"addr": "0x1402CF9D0", "name": "TESObjectCELL__RespawnRefsLoop"}
+2026-11-23T17:45:19Z	name	19286	0x2d2cb0	{"addr": "0x1402D2CB0", "name": "TESObjectCELL__ResetRefFunctor_19286"}
+2026-11-23T17:45:23Z	comment	37323	0x678a50	{"addr": "0x140678a50", "comment": "AddressLib 37323. A leveled actor (ExtraLeveledCreature original != current base) that may respawn (CanRespawn unless a2 == -1): back to the original base, clears the extra, destroys the current base (GC 36460, no temporary check), and rolls again (0x1401DCBA0). Callers: cell respawn loop 0x1402CF9D0, ResetReference native, ref alias init, quest start, script reset."}
+2026-11-23T17:45:23Z	comment	19231	0x2cf9d0	{"addr": "0x1402CF9D0", "comment": "Per reference of a cell list: a persistent or dead-in-editor NPC that may respawn (37290) is re-rolled (37323); other refs pick their leveled base (20232)."}
+2026-11-23T17:45:23Z	comment	19286	0x2d2cb0	{"addr": "0x1402D2CB0", "comment": "AddressLib 19286. Cell reset functor per reference (from TESObjectCELL 19084): temporary refs are deleted; an actor past its respawn time goes through ResetReference 37292 (which re-rolls a leveled actor and destroys its current base)."}

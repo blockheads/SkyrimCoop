@@ -33,3 +33,13 @@ TEST_CASE("A copy keeps its game's resolved leveled base only when it has the ow
     CHECK_FALSE(NpcSnapshot::KeepsResolvedBase(false, 0x3DEE0, 0x3DEE0));
     CHECK_FALSE(NpcSnapshot::KeepsResolvedBase(true, 0, 0));
 }
+
+TEST_CASE("A leveled copy takes another pick as a new leveled base, never the record itself", "[copies][npc-snapshot][copy-level]")
+{
+    using NpcSnapshot::BaseApply;
+    CHECK(NpcSnapshot::ChooseBaseApply(true, true, 0x23ABE, 0x23ABE) == BaseApply::Keep);
+    CHECK(NpcSnapshot::ChooseBaseApply(true, true, 0x23AB7, 0x23ABE) == BaseApply::Relevel);
+    CHECK(NpcSnapshot::ChooseBaseApply(true, false, 0, 0x23ABE) == BaseApply::Relevel); // a record from an older swap
+    CHECK(NpcSnapshot::ChooseBaseApply(false, false, 0, 0x1C194) == BaseApply::Swap);
+    CHECK(NpcSnapshot::ChooseBaseApply(false, true, 0x3DEE1, 0x3DEE0) == BaseApply::Swap);
+}
