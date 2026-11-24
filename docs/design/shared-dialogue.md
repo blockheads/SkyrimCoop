@@ -131,7 +131,14 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
 1. **Start.** A peer activates a copy. The start reaches `Actor::SetDialogueWithPlayer` (37200), which
    `DialogueService` stops and sends instead: `DialogueStartRequest` (the NPC's session id). `HostDialogue`
    refuses it for an actor the host does not own or a player's character, or while another conversation runs; a start for the NPC
-   already in conversation returns silently (the peer joins locally, step 7). Otherwise it tells the host's
+   already in conversation returns silently (the peer joins locally, step 7). One start at a time (2026-11-24): while one
+   is on its way, another ask for the same NPC joins it (the second player, or the same one pressing again) and one for
+   another NPC is refused; every asker is in the conversation it opens, and every one is refused when the host's game
+   cannot start it. A start whose every asker left before it opened ends as it opens (nobody would end it). An ask for
+   the NPC already in conversation puts the asker in it and sends it the open again, with the pick the NPC is answering
+   (`NotifyDialogueOpen::Picked`); a game keeps what it has of a conversation it hears of again. (A second ask used to replace the first: the host's game refused the second start, the
+   conversation opened with nobody listed while the first asker's menu opened, and nothing ended it; the walker,
+   [dialogue-stress.md](dialogue-stress.md), found it.) Otherwise it tells the host's
    game to start (`NotifyDialogueStart`). That game, unless it talks to someone already (one conversation at a
    time), starts it hidden: `DialogueBridge::Start(npc, false)` skips the menu (52853) and the turn (40496),
    and refuses an NPC fighting or dead (a start from code would run all the same). A start it cannot make goes

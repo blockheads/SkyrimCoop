@@ -821,6 +821,7 @@ class ReproActions:
 
     def unstage(ctx):
         """Removes what stage made (objects, spawned NPCs) in both games and thaws the world."""
+        ctx.voice_unwatch()
         with contextlib.suppress(TestFailure):
             ctx.freeze_world(False)
         if getattr(ctx, "LINE_DELAY", 0):

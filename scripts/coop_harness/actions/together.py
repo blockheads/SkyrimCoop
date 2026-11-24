@@ -1,10 +1,12 @@
 """Both players acting at once (docs/design/repro-mcp.md, "together"), and the dialogue verbs its lanes use."""
+import collections
 import re
 import threading
 import time
 from ..common import ACTIVATE_KEY, CLIENT_NETNS, DOWN_KEY, UP_KEY
 from ..errors import TestFailure
 from .. import game as game_module
+from ..voice_watch import VoiceWatch, layered
 
 # How far ahead the shared moment is: each lane reads its game's clock and queues its input before it.
 LEAD_SECONDS = 0.4
@@ -231,6 +233,44 @@ class TogetherActions:
             raise ctx.failure(f"the host built {result['host_builds']} options, not the greeting's {len(greeting)} each time")
         return result
 
+    def voice_mark(ctx, name, game="host", wait=5.0):
+        """Starts watching the actor's voice line in that game (coop_harness/voice_watch.py): each sound its voice handle
+        takes from now on is a line started, read by voice_lines. A watch already running stops first. Waits up to `wait`
+        seconds for a line to start (a pick goes through the host first); returns the line playing then."""
+        form = ctx.resolve(name, game)
+        instance = "client" if game in ("client", "guest") else ""
+        ctx.voice_unwatch()
+        deadline = time.monotonic() + wait
+        while ctx.voice(instance, form).get("sound", -1) == -1 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        ctx.VOICE_WATCH = VoiceWatch(lambda: ctx.voice(instance, form))
+        return {"playing": ctx.VOICE_WATCH.rows[0]}
+
+    def voice_unwatch(ctx):
+        """Stops a voice watch still running (unstage calls it): its result, or None."""
+        watch, ctx.VOICE_WATCH = getattr(ctx, "VOICE_WATCH", None), None
+        return watch.stop() if watch else None
+
+    def voice_lines(ctx):
+        """The voice sounds the actor started since voice_mark (the first: the one playing then), and stops watching."""
+        result = ctx.voice_unwatch()
+        if result is None:
+            raise ctx.failure("voice_lines before voice_mark")
+        return result
+
+    def expect_no_line_layered(ctx, seconds=0.0):
+        """No voice line the actor started since voice_mark began while the one before still played (Actor::SpeakSound
+        37542 stops nothing: two calls layer, louder). Watches `seconds` more first, then stops watching. Sampled: it
+        can miss two starts between reads (voice_watch.py)."""
+        if seconds:
+            time.sleep(seconds)
+        result = ctx.voice_lines()
+        if result["rows"][0].get("sound", -1) == -1:
+            raise ctx.failure("no voice line was playing at voice_mark: nothing to watch")
+        if found := layered(result["rows"]):
+            raise ctx.failure(f"a voice line started over one still playing ({found[0]['before_left']:.1f} s left): {result['rows']}")
+        return result
+
     def guest_replays_mark(ctx):
         """Where the guest's log is now: expect_no_line_replayed looks at what its menus replayed after it."""
         ctx.REPLAY_MARK = ctx.log_trail("client", 1 << 62)[1]
@@ -333,3 +373,36 @@ class TogetherActions:
         """That game's player presses E once in its dialogue menu, whatever it shows: the highlighted option, a skip."""
         ctx.tap_key(instance, ACTIVATE_KEY)
         return {"pressed": True}
+
+    def voice_log_mark(ctx):
+        """Where each game's plugin log ends now: voice_starts reads the `Voice:` lines after it."""
+        ctx.VOICE_LOG_MARK = {name: ctx.plugin_log(name).stat().st_size for name in ("", "client")}
+        return ctx.VOICE_LOG_MARK
+
+    def voice_starts(ctx, instance, form):
+        """The voice files that game started on the actor since voice_log_mark, counted: its engine's (the host's NPC,
+        "Voice: <form> (local) says") or the lines relayed to its copy ("Voice: copy <form> says its owner's")."""
+        name = "client" if instance in ("client", "guest") else ""
+        with open(ctx.plugin_log(name), "rb") as log:
+            log.seek(getattr(ctx, "VOICE_LOG_MARK", {}).get(name, 0))
+            text = log.read().decode("utf-8", "replace")
+        pattern = (rf"Voice: copy {form:X} says its owner's (.+)$" if name else rf"Voice: {form:X} \(local\) says (.+)$")
+        return collections.Counter(match.group(1).strip() for match in re.finditer(pattern, text, re.M))
+
+    def expect_same_voice_starts(ctx, name):
+        """Every voice file the host's engine started on the NPC since voice_log_mark reached the guest's copy as often,
+        no more and no less (a replay adds one, a missed line drops one), and at least one did."""
+        host = ctx.voice_starts("", ctx.resolve(name, "host"))
+        guest = ctx.voice_starts("client", ctx.resolve(name, "guest"))
+        if not host:
+            raise ctx.failure(f"[host] its engine voiced nothing on {name} since the mark: nothing to compare")
+        if host != guest:
+            raise ctx.failure(f"{name}'s lines: host's engine {dict(host - guest)} more, the guest's copy {dict(guest - host)} more")
+        return {"lines": sum(host.values())}
+
+    def speak_calls(ctx, instance=""):
+        """That game's voice starts so far: the engine's Actor::SpeakSound calls through our hook (37542,
+        HookSpeakSoundFunction) and our own relayed ones (ActorSpeakSound), from the harness's perf readout."""
+        _game = ctx.game(instance)
+        calls = (ctx.player_command(instance, {"cmd": "perf", "window_ms": 1000}).get("perf") or {}).get("calls") or {}
+        return {"engine": calls.get("HookSpeakSoundFunction", 0), "relayed": calls.get("ActorSpeakSound", 0)}

@@ -1504,6 +1504,7 @@ void CharacterService::OnNotifyDialogue(const NotifyDialogue& acMessage) noexcep
     if (!m_actorBridge.ActorHas3D(formIdComponent.Id))
         return;
 
+    spdlog::debug("Voice: copy {:X} says its owner's {}", formIdComponent.Id, acMessage.SoundFilename.c_str());
     m_actorBridge.ActorStopCurrentDialogue(formIdComponent.Id);
     m_actorBridge.ActorSpeakSound(formIdComponent.Id, std::string(acMessage.SoundFilename.c_str()));
 }

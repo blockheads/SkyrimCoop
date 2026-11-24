@@ -17,6 +17,8 @@
 #include <FormIds.h>
 #include <Diagnostics/Profile.h>
 
+#include <algorithm>
+
 DialogueService::DialogueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                  IDialogueBridge& aBridge) noexcept
     : m_world(aWorld)
@@ -328,6 +330,16 @@ void DialogueService::OnDisconnected(const DisconnectedEvent&) noexcept
 
 void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
 {
+    // The same conversation again (an ask that crossed it): what this game has of it stays.
+    if (acMessage.Conversation == m_conversation)
+    {
+        m_step = std::max(m_step, acMessage.Step);
+        if (m_pickedText.empty())
+            m_pickedText = acMessage.Picked;
+        if (m_pRole)
+            m_pRole->OnOpen(acMessage);
+        return;
+    }
     m_conversation = acMessage.Conversation;
     m_resuming = false;
     m_npcSessionId = acMessage.NpcId;
@@ -339,7 +351,7 @@ void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
     m_highlight.reset();
     m_pendingHighlight.reset();
     m_hovered = false;
-    m_pickedText.clear();
+    m_pickedText = acMessage.Picked; // joined while the NPC answers a pick: its menu shows it
     m_pickedShownStep = 0;
     if (m_pRole)
         m_pRole->OnOpen(acMessage);

@@ -3184,3 +3184,48 @@ class LocalPaths(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VoiceWatching(unittest.TestCase):
+    """coop_harness/voice_watch.py and the voice verbs: one watch's samples, layered lines, cleanup."""
+
+    def test_a_line_started_over_one_still_playing_is_layered(self):
+        from coop_harness.voice_watch import layered
+        rows = [{"sound": 1, "seconds": 8.0}, {"sound": 2, "before_left": 0.03}, {"sound": 3, "before_left": 4.2}]
+        self.assertEqual([row["sound"] for row in layered(rows)], [3])
+
+    def test_a_watch_records_each_new_sound_once(self):
+        from coop_harness.voice_watch import VoiceWatch
+        reads = iter([{"sound": 5, "seconds": 2.0}] * 3 + [{"sound": -1}] + [{"sound": 6, "seconds": 3.0}] * 50)
+        watch = VoiceWatch(lambda: next(reads, {"sound": 6, "seconds": 3.0}), interval=0.001)
+        deadline = time.monotonic() + 2
+        while watch.sounds[-1] != 6 and time.monotonic() < deadline:
+            time.sleep(0.005)
+        result = watch.stop()
+        self.assertEqual(result["sounds"], [5, 6])
+        self.assertEqual(result["rows"][1]["before_left"], -1)  # the line before had ended (-1: no sound read last)
+
+    def test_marking_again_stops_the_first_watch_and_unstage_stops_the_last(self):
+        session = Session.__new__(Session)
+        session.voice = lambda instance, form: {"sound": form, "seconds": 1.0}
+        session.resolve = lambda name, game: {"a": 11, "b": 22}[name]
+        session.voice_mark("a")
+        first = session.VOICE_WATCH
+        session.voice_mark("b")
+        self.assertFalse(first._thread.is_alive())
+        time.sleep(0.15)
+        self.assertEqual(session.voice_lines()["sounds"], [22])
+        session.voice_mark("a")
+        last = session.VOICE_WATCH
+        self.assertEqual(session.voice_unwatch()["sounds"], [11])
+        self.assertFalse(last._thread.is_alive())
+        self.assertIsNone(session.voice_unwatch())
+
+    def test_expecting_needs_a_line_at_the_mark(self):
+        session = Session.__new__(Session)
+        session.voice = lambda instance, form: {"sound": -1}
+        session.resolve = lambda name, game: 1
+        session.failure = TestFailure
+        session.voice_mark("a", wait=0)
+        with self.assertRaises(TestFailure):
+            session.expect_no_line_layered()

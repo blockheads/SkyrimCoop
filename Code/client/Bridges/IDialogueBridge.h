@@ -69,6 +69,14 @@ public:
     virtual bool IsChoices() const noexcept = 0;
     /// The greeting selected by this game's engine; copies use the host's selected INFO.
     virtual uint32_t GetGreeting() const noexcept = 0;
+    /// Whose audio a line's voice files are (25502): the info that owns it (a shared response's dataInfo, else the
+    /// info) and its plugin's file name; none for an unknown info.
+    struct VoiceSource
+    {
+        uint32_t Info{};
+        std::string Plugin;
+    };
+    virtual std::optional<VoiceSource> GetVoiceSource(uint32_t aInfo) const noexcept = 0;
 
     // Starting and ending it.
 
@@ -91,6 +99,9 @@ public:
     /// A conversation whose speaker is gone or has no process (deleted while talking: the engine's end then does
     /// nothing and no conversation starts again) is cleared, as ending one does. True: there was one.
     virtual bool ClearOrphaned() noexcept = 0;
+    /// The conversation is cleared now, whatever its speaker (MenuTopicManager::Clear 35274), and its menu closes: a
+    /// speaker about to be deleted is never updated again.
+    virtual void Clear() noexcept = 0;
 
     // The list and picks.
 

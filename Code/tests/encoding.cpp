@@ -834,8 +834,10 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendOpen.Conversation = 4;
         sendOpen.NpcId = 0x21;
         sendOpen.Everyone = true;
+        sendOpen.InIt = true;
         sendOpen.Greeting = GameId(2, 0x803);
         sendOpen.Step = 3; // a joiner's open, mid-conversation
+        sendOpen.Picked = "I'm not sure. Tell me about him.";
 
         Buffer::Writer writer(&buff);
         sendRequest.Serialize(writer);
@@ -854,9 +856,10 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK((recvRequest.Conversation == 3 && recvRequest.Step == 7 && recvRequest.Choices && recvRequest.Options == sendRequest.Options));
         CHECK(recvRequest.Players == sendRequest.Players);
         CHECK((recvList.Step == 8 && !recvList.Choices && recvList.Options == sendList.Options));
-        CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone));
+        CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone && recvOpen.InIt));
         CHECK(recvOpen.Greeting == sendOpen.Greeting);
         CHECK(recvOpen.Step == 3);
+        CHECK(recvOpen.Picked == sendOpen.Picked);
         DialogueOpenedRequest sendOpened, recvOpened;
         sendOpened.NpcId = 0x21;
         sendOpened.Everyone = true;
@@ -1520,6 +1523,11 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         chunk.Ahead = true;
         chunk.Data = std::string(NotifySaveChunk::kMaxData, '\x7F');
         roundTrip(chunk, NotifyMessageFactory{});
+    }
+
+    SECTION("The host's game waiting to save is a notice with nothing in it")
+    {
+        roundTrip(NotifySaveWaiting{}, NotifyMessageFactory{});
     }
 
     SECTION("A guest names the saves its store holds")
