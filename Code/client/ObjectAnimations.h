@@ -5,9 +5,8 @@
 #include <map>
 #include <utility>
 
-// The host's scripts' animations on a guest's objects, in order: a script waited for the clip before its next one
-// (PlayAnimationAndWait 56206), and a graph still in that clip refuses the next. Kept until its graph takes it, no
-// longer than kWait. aSend(animation) is the graph's answer. Checked by ClientTests.
+// The host's scripts' animations on a guest's objects, in order (PlayAnimationAndWait 56206): each kept until its graph
+// takes it (aSend's answer), no longer than kWait.
 template <class TObject, class TAnimation> class ObjectAnimations
 {
   public:

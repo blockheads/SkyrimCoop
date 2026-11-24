@@ -124,3 +124,12 @@ time	op	id	rva	item
 2026-11-24T01:31:00Z	comment		0x7e6000	{"addr": "0x1407e6000", "comment": ""}
 2026-11-24T01:31:00Z	comment	43849	0x7e5ee0	{"addr": "0x1407e5ee0", "comment": "43849. An explosion applies itself to each actor in its list once: TESHitEvent first (before any check), then line of sight (43852); a hostile one's HitData + ProcessHit (38586) unless the target is its cause; then its enchantment (base +0x70) cast by its NonActorMagicCaster (+0x110), or its cause actor's caster, never on the cause."}
 2026-11-24T01:31:01Z	name	43849	0x7e5ee0	{"addr": "0x1407e5ee0", "name": "Explosion__ApplyToTargets"}
+2026-11-24T02:05:17Z	read		0xa4ece0	{"name": "sub_140A4A610"}
+2026-11-24T02:05:33Z	read	56641	0xa5d770	{"name": "papyrus::ObjectReference::SetDestroyed"}
+2026-11-24T02:05:37Z	read	14649	0x1e6520	{"name": "sub_1401E6520"}
+2026-11-24T02:05:43Z	name	14649	0x1e6520	{"addr": "0x1401e6520", "name": "TESForm__SetDestroyed"}
+2026-11-24T02:05:49Z	comment	14649	0x1e6520	{"addr": "0x1401e6520", "comment": "14649. Form flag 0x800000 (kDestroyed) set or cleared, then AddChange(CHANGE_FORM_FLAGS) (vfunc +0x50). ObjectReference.SetDestroyed (56641) calls only this; a tripped tripwire's script sets it."}
+2026-11-24T02:05:49Z	comment		0xa4ece0	{"addr": "0x140a4ece0", "comment": "not on the path: ObjectReference natives' registration (SetDestroyed -> 56641)"}
+2026-11-24T02:05:49Z	comment		0x6f3600	{"addr": "0x1406f3600", "comment": "not on the path: read while tracing traps' casts, unrelated"}
+2026-11-24T05:15:33Z	read		0x7e4600	{"name": "Explosion::Func162_43830"}
+2026-11-24T05:16:17Z	comment		0x7e4600	{"addr": "0x1407e4600", "comment": "43830 (Explosion vfunc 162). Places the explosion's placed object (BGSExplosion +0xB8, often a hazard) at the explosion through TESDataHandler::CreateReferenceAtLocation (13723); its handle kept at +0x100. Hooked by ModManager.cpp so the host does not send it as created: each game's explosion places its own."}

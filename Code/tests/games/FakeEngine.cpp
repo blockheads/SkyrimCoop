@@ -9,6 +9,7 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+#include <Systems/CopyStep.h>
 
 #include <Events/DismountEvent.h>
 #include <Events/BoardEvent.h>
@@ -2357,8 +2358,15 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     {
         std::copy_n(aPosition, 3, it->second.Goal);
         it->second.Position[0] -= kStepShort;
-        it->second.Position[2] = std::min(cHeight, aPosition[2]);
+        // Never up (support and gravity keep its height), resting kRigidRest under its owner; the write-back after
+        // physics (HookSetPosition) gives the reference its owner's height on its owner's place.
+        const float cGround = std::min(it->second.ControllerZ.value_or(cHeight) + kRigidRest, aPosition[2]);
+        it->second.ControllerZ = cGround - kRigidRest;
+        const glm::vec3 cAt(it->second.Position[0], it->second.Position[1], *it->second.ControllerZ);
+        it->second.Position[2] = CopyStep::RestHeight(cAt, {aPosition[0], aPosition[1], aPosition[2]});
     }
+    else
+        it->second.ControllerZ = aPosition[2]; // a warp places its capsule there
     // Its capsule meets its furniture; the write-back after physics moves it where it was pushed (actor-movement.md).
     // Actor::Move clears the no-collision bit out of furniture (37507, 0x14068990A).
     if (it->second.Stepped && !it->second.InFurniture)

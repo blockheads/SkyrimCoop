@@ -1,6 +1,7 @@
 #include <Games/ReferenceStates.h>
 
 #include <Games/FormState.h>
+#include <Games/EnabledRow.h>
 #include <Events/LidUnposedEvent.h>
 #include <World.h>
 #include <SaveLoad.h>
@@ -22,28 +23,36 @@ namespace ReferenceStates
 namespace
 {
 // Enable and Disable (19800, 19801) flip the disabled flag through TESForm::SetDisabled (14646), SetDelete (19565)
-// the deleted one; both are form flags. 1: enabled; kDeleted: deleted.
-constexpr uint32_t kDeleted = 2;
+// the deleted one, SetDestroyed (14649) the destroyed one: form flags all (EnabledRow).
+constexpr uint32_t kDeleted = EnabledRow::Pack({.Enabled = false, .Deleted = true});
+constexpr uint32_t kDestroyedFlag = 0x800000;
 
 bool ReadEnabled(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {
-    aChange.Value = (acObject.IsDisabled() ? 0 : 1) | (acObject.IsDeleted() ? kDeleted : 0);
+    aChange.Value = EnabledRow::Pack({.Enabled = !acObject.IsDisabled(), .Deleted = acObject.IsDeleted(), .Destroyed = (acObject.flags & kDestroyedFlag) != 0});
     return true;
 }
 
 // At once, no fade: the host's fade already played.
 bool ApplyEnabled(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
-    if (acChange.Value & kDeleted)
+    const EnabledRow::State cState = EnabledRow::Unpack(acChange.Value);
+    if (cState.Destroyed != ((aObject.flags & kDestroyedFlag) != 0))
+    {
+        using TSetDestroyed = bool(TESForm*, bool);
+        POINTER_SKYRIMSE(TSetDestroyed, s_setDestroyed, 14649);
+        s_setDestroyed.Get()(&aObject, cState.Destroyed);
+    }
+    if (cState.Deleted)
     {
         if (!aObject.IsDisabled())
             aObject.DisableImpl();
         aObject.SetDelete(true);
         return true;
     }
-    if (acChange.Value && aObject.IsDisabled())
+    if (cState.Enabled && aObject.IsDisabled())
         aObject.EnableImpl();
-    else if (!acChange.Value && !aObject.IsDisabled())
+    else if (!cState.Enabled && !aObject.IsDisabled())
         aObject.DisableImpl();
     return true;
 }

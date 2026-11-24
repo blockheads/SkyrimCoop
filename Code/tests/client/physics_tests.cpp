@@ -503,6 +503,16 @@ TEST_CASE("A copy on its owner's place steps by nothing, as a still NPC: its ste
     CHECK(glm::length(CopyStep::Translation({10.f, 0.f, 2.f}, 1.57079633f) - glm::vec3(0.f, 10.f, 2.f)) < 1e-4f);
 }
 
+TEST_CASE("A copy on its owner's place stands at its owner's height, not its controller's rest", "[physics][copy-step]")
+{
+    // WarehouseTraps' gas plate (2026-11-23): the guest at 272.6, its copy's controller resting at 272.07.
+    CHECK(CopyStep::RestHeight({-1121.f, -2566.f, 272.07f}, {-1121.04f, -2566.f, 272.6f}) == 272.6f);
+    CHECK(CopyStep::RestHeight({0.f, 0.f, 99.f}, {0.f, 0.f, 100.f}) == 100.f);
+    // Walking (off its owner's place), or a ledge apart: its controller's.
+    CHECK(CopyStep::RestHeight({0.f, 0.f, 99.f}, {3.f, 0.f, 100.f}) == 99.f);
+    CHECK(CopyStep::RestHeight({0.f, 0.f, 80.f}, {0.f, 0.f, 100.f}) == 80.f);
+}
+
 TEST_CASE("A copy's ragdoll takes up its owner's frames whole, each body from where it was", "[body-prediction][ragdoll-start][kill-move]")
 {
     const auto cBody = [](uint8_t aIndex, float aOff, bool aFirst) {

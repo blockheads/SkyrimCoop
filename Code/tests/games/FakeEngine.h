@@ -288,6 +288,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t RecordFlags{};
         uint32_t Base = 0; // a created one's (a script's PlaceAtMe)
         bool Disabled = false; // a script's Disable (kEnabled's row)
+        bool Destroyed = false; // its form flag 0x800000 (SetDestroyed 14649, kEnabled's row): a tripwire tripped
         uint32_t Owner = 0; // its ExtraOwnership (an NPC or a faction); none: its cell's (CellOwners)
         bool Plant = false;     // a flora or tree reference: an activation picks it (TESProduceForm::Harvest 14864)
         bool Harvested = false; // its form flag 0x2000
@@ -363,6 +364,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetOpen(uint32_t aDoor, bool aOpen);
     // The host's script disables or enables a reference (Disable 19801 / Enable 19800): made and recorded.
     void ScriptSetsEnabled(uint32_t aReference, bool aEnabled);
+    // The host's script marks a reference destroyed (ObjectReference.SetDestroyed 56641 -> 14649): made and recorded.
+    void ScriptSetsDestroyed(uint32_t aReference, bool aDestroyed);
     // Each cell's location (BGSLocation), by cell: the player moved into a cell of another location raises CLOC.
     std::map<uint32_t, uint32_t> Locations;
     // The story event types this game registers, by index (BGSStoryEventManager::registeredEvents).
@@ -665,6 +668,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static constexpr float kCapsuleRadius = 20.f;
     // Havok's character step lands this short of a stepped copy's goal (measured: 0.04 units).
     static constexpr float kStepShort = 0.04f;
+    // A copy's rigid-body controller rests this far below its player owner's proxy (actor-movement.md, "A copy's rest height").
+    static constexpr float kRigidRest = 0.55f;
     // A character's body wakes its island when its step sets a new velocity (62456): the bodies this near its axis.
     static constexpr float kIslandReach = kCapsuleRadius + 40.f;
     static constexpr float kCapsuleTop = 128.f;
@@ -770,6 +775,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool ModelReady = false; // its job's model loaded, attached at Finish
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
         float Goal[3]{};      // a stepped copy's owner's place: Havok's step lands kStepShort short of it
+        std::optional<float> ControllerZ; // a stepped copy's capsule's height: kRigidRest under its owner's on a floor
         bool InFurniture = false; // sit/sleep state set: a colliding capsule there is pushed off its goal by its furniture
         bool Collides = true;     // its capsule collides (filter bit 0x8000 clear); the engine clears it in furniture
         uint8_t BodiesLayer = 0;  // the layer its own 3D's bodies are on in the world, 0 out of it: the AI puts an

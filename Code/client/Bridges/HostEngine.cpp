@@ -227,7 +227,7 @@ void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRe
 }
 
 // A world object the host's game made (not an actor, a projectile or an explosion), as the guests make theirs: an
-// item with its count and extra data (a drop), a trap's hazard.
+// item with its count and extra data (a drop), a script's hazard (an explosion's is each game's: ModManager).
 std::optional<ObjectChange> ReadCreate(TESObjectREFR& aRef) noexcept
 {
     if ((aRef.formType != FormType::Reference && aRef.formType != FormType::PlacedHazard) || aRef.IsDeleted() || !aRef.baseForm || !Cast<TESBoundObject>(aRef.baseForm))
@@ -429,13 +429,16 @@ void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAn
     if (cHas3D)
         FarAnimations::Hold(*pObject); // its script may wait for the clip, out of this game's sight
     std::pair last{acAnimation, acEvent};
+    const auto cNow = std::chrono::steady_clock::now();
     const auto cLast = m_unseenAnimations.find(aObjectFormId);
-    if (!TrapRules::SendsAnimation(cHas3D, cLast != m_unseenAnimations.end() && cLast->second == last))
+    const bool cSame = cLast != m_unseenAnimations.end() && cLast->second.Played == last;
+    const auto cSince = cSame ? std::chrono::duration_cast<std::chrono::milliseconds>(cNow - cLast->second.At) : std::chrono::milliseconds{};
+    if (!TrapRules::SendsAnimation(cHas3D, cSame, cSince))
         return;
     if (cHas3D)
         m_unseenAnimations.erase(aObjectFormId);
     else
-        m_unseenAnimations[aObjectFormId] = std::move(last);
+        m_unseenAnimations[aObjectFormId] = {std::move(last), cNow};
     ObjectChange event{ObjectChange::Kind::kAnimation, *cObject};
     event.Animation = acAnimation;
     event.Event = acEvent;

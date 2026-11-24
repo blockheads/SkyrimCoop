@@ -2,7 +2,7 @@
 
 Recorded with the repro MCP (docs/design/repro-mcp.md)."""
 # hand-written: from the recording below, its two failed tries dropped (the host's away spot was the guest's;
-# the puller had no path from afar: now put beside the lever first)
+# the puller had no path from afar: now put beside the lever first); the gas steps added by hand after it
 # recorded: 20261123-185606-warehouse-traps-hurt-both.jsonl, 10 calls (scripts/check_scenarios.py)
 NAME = 'warehouse_traps_hurt_both'
 TAGS = ['magic', 'physics', 'scene', 'traps']
@@ -18,5 +18,8 @@ def run(ctx):
         ctx.expect_trap_hurts(who='guest', at=[1536, -1472, -128], away=[1536, -1250, -128], rounds=1, seconds=6, health=100)
         ctx.expect_trap_hurts(who='host', at=[3328, -480, -128], away=[3100, -380, -128], rounds=1, seconds=5, health=100)
         ctx.expect_trap_hurts(who='guest', at=[5500, -650, -128], away=[5300, -700, -128], rounds=1, seconds=6, health=100, pull='78EE0')
+        # The poison gas (plate FDA6B): each walks onto it; its explosion went off under a guest's copy's feet (2026-11-23).
+        ctx.expect_trap_hurts(who='guest', at=[-1121, -2566, 266], away=[-1121, -2420, 266], rounds=2, seconds=5, health=300, walk_on='FDA6B')
+        ctx.expect_trap_hurts(who='host', at=[-1121, -2566, 266], away=[-1121, -2420, 266], rounds=2, seconds=5, health=300, walk_on='FDA6B')
     finally:
         ctx.unstage()

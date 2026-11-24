@@ -3,11 +3,9 @@
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <CreatedIds.h>
-#include <Events/ProjectileLaunchedEvent.h>
 #include <Events/TrapEvents.h>
 #include <FormIds.h>
 #include <Messages/Relayed.h>
-#include <Services/HostService.h>
 #include <Services/ProjectileLaunches.h>
 #include <Services/TransportService.h>
 #include <SessionIds.h>
@@ -21,7 +19,6 @@ TrapService::TrapService(World& aWorld, entt::dispatcher& aDispatcher, Transport
     Listen<TrapContactEvent, &TrapService::OnTrapContact>(m_connections, aDispatcher, this);
     Listen<TrapHitEvent, &TrapService::OnTrapHit>(m_connections, aDispatcher, this);
     Listen<NotifyTrapHit, &TrapService::OnTrapHitNotify>(m_connections, aDispatcher, this);
-    Listen<ProjectileLaunchedEvent, &TrapService::OnProjectileLaunched>(m_connections, aDispatcher, this);
     Listen<NotifyWorldProjectile, &TrapService::OnWorldProjectile>(m_connections, aDispatcher, this);
 }
 
@@ -70,24 +67,6 @@ void TrapService::OnTrapHitNotify(const NotifyTrapHit& acMessage) const noexcept
     const uint32_t cTrap = FromWire(acMessage.Trap);
     spdlog::info("TrapService: {:X} takes the hit of {:X} for {:.1f}", cTarget, cTrap, acMessage.Damage);
     m_actorBridge.TakeTrapHit(cTarget, cTrap, acMessage);
-}
-
-void TrapService::OnProjectileLaunched(const ProjectileLaunchedEvent& acEvent) const noexcept
-{
-    // An object's, not an actor's; a spell's is shown by its cast (docs/design/traps.md).
-    if (!acEvent.ByObject || acEvent.SpellID || !m_world.ctx().at<HostService>().IsHosting())
-        return;
-    const auto cShooter = ToWire(acEvent.ShooterID);
-    if (!cShooter)
-        return;
-    spdlog::debug("TrapService: {:X} fires from ({:.0f}, {:.0f}, {:.0f}) at x {:.2f} z {:.2f}", acEvent.ShooterID, acEvent.Origin.x,
-                  acEvent.Origin.y, acEvent.Origin.z, acEvent.XAngle, acEvent.ZAngle);
-    WorldProjectileRequest request;
-    request.Shooter = *cShooter;
-    ProjectileLaunches::Fill(request.Launch, acEvent);
-    static auto& s_sent = Diagnostics::Counters::Get("world projectiles sent");
-    Diagnostics::Counters::Add(s_sent, 1);
-    m_transport.Send(request);
 }
 
 void TrapService::OnWorldProjectile(const NotifyWorldProjectile& acMessage) const noexcept

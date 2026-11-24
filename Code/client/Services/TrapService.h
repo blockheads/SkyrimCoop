@@ -9,7 +9,6 @@
 
 class IActorBridge;
 class IFormBridge;
-struct ProjectileLaunchedEvent;
 struct TrapContactEvent;
 struct TrapHitEvent;
 struct TransportService;
@@ -17,7 +16,7 @@ struct World;
 
 /**
  * @brief The world's traps (docs/design/traps.md): what touched a guest's player goes to the host's script, its hit to
- * that player's game, and what the host's objects fire to every guest.
+ * that player's game; what the host's objects fire (HostWorldProjectiles) is fired here too.
  */
 struct TrapService
 {
@@ -30,7 +29,6 @@ private:
     void OnTrapContact(const TrapContactEvent& acEvent) const noexcept;
     void OnTrapHit(const TrapHitEvent& acEvent) const noexcept;
     void OnTrapHitNotify(const NotifyTrapHit& acMessage) const noexcept;
-    void OnProjectileLaunched(const ProjectileLaunchedEvent& acEvent) const noexcept;
     void OnWorldProjectile(const NotifyWorldProjectile& acMessage) const noexcept;
 
     // A world reference's id on the wire and back, a created one's by the host's id.

@@ -3,6 +3,7 @@
 #include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Games/FormChangeRows.h>
+#include <Games/EnabledRow.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 #include "FakeDialogue.h"
@@ -95,6 +96,11 @@ ObjectChange LockRow(uint32_t aReference, const FakeEngine::Reference& acHolder)
 }
 
 // ReferenceStates' open row: 1 open or opening.
+uint32_t EnabledValue(const FakeEngine::Reference& acReference)
+{
+    return EnabledRow::Pack({.Enabled = !acReference.Disabled, .Destroyed = acReference.Destroyed});
+}
+
 ObjectChange OpenRow(uint32_t aDoor, const FakeEngine::Reference& acReference)
 {
     ObjectChange row{.Type = ObjectChange::Kind::kOpenState, .Object = SessionIdOf(aDoor)};
@@ -238,7 +244,15 @@ void FakeEngine::ScriptSetsEnabled(uint32_t aReference, bool aEnabled)
     reference.Disabled = !aEnabled;
     reference.Has3D = false; // Disable drops it, Enable queues its load (Finishes3D)
     Changed.insert(aReference);
-    Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = aEnabled ? 1u : 0u});
+    Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = EnabledValue(reference)});
+}
+
+void FakeEngine::ScriptSetsDestroyed(uint32_t aReference, bool aDestroyed)
+{
+    auto& reference = References.at(aReference);
+    reference.Destroyed = aDestroyed;
+    Changed.insert(aReference);
+    Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = EnabledValue(reference)});
 }
 
 void FakeEngine::ClosesChestMenu()
@@ -447,7 +461,8 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
     case ObjectChange::Kind::kEnabled: // Disable drops the 3D, Enable queues its load (Finishes3D)
         if (reference.Disabled != ((acChange.Value & 1) == 0))
             reference.Has3D = false;
-        reference.Disabled = (acChange.Value & 1) == 0;
+        reference.Disabled = !EnabledRow::Unpack(acChange.Value).Enabled;
+        reference.Destroyed = EnabledRow::Unpack(acChange.Value).Destroyed;
         break;
     case ObjectChange::Kind::kContents: ApplyContents(reference, acChange); break;
     default: break;
@@ -469,7 +484,7 @@ std::optional<std::vector<ObjectChange>> FakeEngine::CellState(const GameId& acC
             ObjectChange create{.Type = ObjectChange::Kind::kCreate, .Object = CreatedId(cId), .Item = SessionIdOf(cReference.Base)};
             create.Data = ObjectChange::PackPlacement({.Cell = SessionIdOf(cCell)});
             rows.push_back(std::move(create));
-            rows.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = CreatedId(cId), .Value = cReference.Disabled ? 0u : 1u});
+            rows.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = CreatedId(cId), .Value = EnabledValue(cReference)});
         }
     for (const auto& [cId, cReference] : References)
     {

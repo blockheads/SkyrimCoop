@@ -8,6 +8,7 @@
 #include <Services/Host/HostGame.h>
 #include <Structs/GameId.h>
 
+#include <chrono>
 #include <map>
 #include <optional>
 #include <unordered_set>
@@ -121,7 +122,12 @@ private:
     PhysicsBodies m_bodies{m_reads};
     std::vector<std::pair<GameId, glm::vec3>> m_placed;
     // The last animation sent for each object animated with no 3D here (TrapRules::SendsAnimation).
-    std::unordered_map<uint32_t, std::pair<std::string, std::string>> m_unseenAnimations;
+    struct UnseenAnimation
+    {
+        std::pair<std::string, std::string> Played;
+        std::chrono::steady_clock::time_point At;
+    };
+    std::unordered_map<uint32_t, UnseenAnimation> m_unseenAnimations;
     std::vector<ObjectChange> m_events; // the scripts' events since the last TakeObjectChanges
     std::unordered_map<uint32_t, uint32_t> m_created; // the created references that went out: id -> base
 };

@@ -42,6 +42,7 @@
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
 #include <Services/Host/HostTakeBacks.h>
+#include <Services/Host/HostWorldProjectiles.h>
 #include <Services/BodyService.h>
 #include <Services/CrimeService.h>
 #include <Services/InventoryService.h>
@@ -91,6 +92,7 @@ void HostService::MakeAuthority() noexcept
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
         [&engine](const auto& acState) { engine.PartyThreats = acState; });
+    m_pWorldProjectiles = std::make_unique<HostWorldProjectiles>(m_world, m_dispatcher);
     m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, engine, [this](uint32_t aId) {
         if (m_pAuthority)
             m_pAuthority->ActorTaken(aId);
@@ -409,6 +411,7 @@ void HostService::StopHosting() noexcept
 {
     m_pAggro.reset();
     m_pTakeBacks.reset();
+    m_pWorldProjectiles.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();

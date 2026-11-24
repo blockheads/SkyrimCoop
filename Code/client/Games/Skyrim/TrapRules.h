@@ -2,6 +2,8 @@
 
 #include <Games/Skyrim/HitRules.h>
 
+#include <chrono>
+
 // Whose a trap's contact and hit are, with no engine (docs/design/traps.md): the host runs the trap's script, each
 // game judges what touched its own player. Checked by ClientTests; the hooks and GameTests' fake engine follow it.
 namespace TrapRules
@@ -39,26 +41,23 @@ enum class Hit
     return aHosting && aTarget == OtherPlayer ? Hit::AskOwner : Hit::Drop;
 }
 
-// An effect on this game's player cast by an object of the world (a trap's Spell.Cast): on a guest the host's game
-// decides it and asks for it (MagicTarget's world cast), so its own copy of that cast applies nothing; its own script's
-// does. One with no caster (the host's explosion or hazard, made here too) applies, as its dart's hit does.
+// A guest's own copy of an object's cast on its player (a trap's Spell.Cast) applies nothing: the host's asks for it.
 [[nodiscard]] constexpr bool AppliesWorldEffect(bool aIsGuest, HitRules::Party aTarget, bool aCastByObject, bool aOwnScript) noexcept
 {
     return !aIsGuest || aTarget != HitRules::Party::LocalPlayer || !aCastByObject || aOwnScript;
 }
 
-// A world cast (no caster: a hazard) of an effect this game's actor already has: skipped, as the hazard's own
-// IsSpellTarget (43987) skips an actor already under it. The host's copy never takes the effect, so its hazard casts
-// again at each tick; applied each time, the burns stacked.
+// A world cast (no caster) of an effect this game's actor already has: skipped, as a hazard's IsSpellTarget (43987) does.
 [[nodiscard]] constexpr bool SkipsWorldEffect(bool aNoCaster, bool aAlreadyActive) noexcept
 {
     return aNoCaster && aAlreadyActive;
 }
 
-// An animation the host's script plays on an object with no 3D does nothing there (its graph takes no event), so a
-// script looping on it returns at once: sent when it differs from the last, not each time.
-[[nodiscard]] inline bool SendsAnimation(bool aHas3D, bool aSameAsLast) noexcept
+// A script looping on an object with no 3D here (its graph takes no event) repeats at once: a repeat this soon is not sent.
+inline constexpr std::chrono::milliseconds cAnimationRepeat{1000};
+
+[[nodiscard]] constexpr bool SendsAnimation(bool aHas3D, bool aSameAsLast, std::chrono::milliseconds aSinceLast) noexcept
 {
-    return aHas3D || !aSameAsLast;
+    return aHas3D || !aSameAsLast || aSinceLast >= cAnimationRepeat;
 }
 } // namespace TrapRules

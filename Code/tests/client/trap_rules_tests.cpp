@@ -46,11 +46,13 @@ TEST_CASE("A world cast of an effect already on the actor is skipped; a player's
     CHECK_FALSE(SkipsWorldEffect(false, true));
 }
 
-TEST_CASE("An animation repeated on an object with no 3D is sent once", "[TrapRules]")
+TEST_CASE("An animation repeated at once on an object with no 3D is sent once; a later repeat is sent", "[TrapRules]")
 {
-    CHECK(SendsAnimation(true, true));
-    CHECK(SendsAnimation(false, false));
-    CHECK_FALSE(SendsAnimation(false, true));
+    using namespace std::chrono_literals;
+    CHECK(SendsAnimation(true, true, 0ms));
+    CHECK(SendsAnimation(false, false, 0ms));
+    CHECK_FALSE(SendsAnimation(false, true, 30ms)); // the script's loop
+    CHECK(SendsAnimation(false, true, 5s));         // the trap fires again
 }
 
 TEST_CASE("An object's cast on the host is shown on every game; an actor's or a guest's own is not", "[TrapRules]")

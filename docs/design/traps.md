@@ -67,16 +67,10 @@ left looping sent about 30 a second for minutes.
     the fire plate's hazard (both), falling rocks (both), the mace (the guest), the log lean-to the host pulls (the guest).
 
 Open:
-- **The poison gas reaches the guest less often than the host** (the guest's own copy of each explosion casts its
-  poison, or the host's does, each at most once: below). An explosion poisons only past its line of sight, which starts
-  from its position moved along its normal (43852). The host's copy of the guest stands about 2 units lower than the
-  guest does, inside the pressed plate: an explosion placed there faces down, its ray starts under the floor and is
-  blocked, on the host and on the guest's copy of it alike (the host's own player: placed above, facing up, poisoned
-  each round). The copy's height on a pressed plate is the open part.
 - **A guest pushing the host's swinging mace**: its body went to the guest's physics (`HostHands: ... moves 2464D`), as
   any body its player touches does; the trap's swing may then follow the guest's game. Not measured further.
-- The older scenarios' spots were set with the blind placement; `put_player` now asks a ray for floor first, so a spot
-  inside a trap's collision (the scythes') may now fail loudly and need moving.
+- Floor rays look past triggers (layer 12: a pressure plate's volume, 15 above the floor characters stand on), in the
+  harness's `floor_under` and the body readout (`EngineReads::GetBodyPose`), which read a player on a plate as sunk.
 
 ## A hazard's burn once (measured, 2026-11-23)
 
@@ -95,3 +89,40 @@ message), and the guest's copy then poisoned it again: 1.3 a tick against the ho
 side now checks for the other's: the host's request is skipped while an effect of the spell by an object lasts
 (`ActiveEffectInfo::CasterIsActor`, MagicService), and the guest's own cast with no caster while the host's (no caster)
 lasts (HookAddTarget). GameTests "An explosion's poison on a guest's player is applied once", both orders.
+
+## A tripped tripwire is broken on every game (read and measured, 2026-11-23)
+
+A tripwire's script marks it destroyed when tripped (`ObjectReference.SetDestroyed` 56641 -> `TESForm__SetDestroyed`
+14649: form flag 0x800000 and a form-flags change). World state's `kEnabled` row took that change but sent only
+disabled and deleted, so the guest's tripwires stayed whole (the end comparison, on all three in WarehouseTraps). The row
+now packs destroyed too (`Games/EnabledRow.h`, ClientTests `enabled_row_tests`), applied by 14649 on the guest; GameTests
+"A reference the host's script marks destroyed is destroyed on the guest".
+
+The scenarios' hits: a burn drains a little each frame, under the 0.5 a readout step counted, so `trap_rounds` adds the
+drain up until it is a hit (the flames' first round read as missed while the host's burn was applied four times).
+
+## A copy stands at its owner's height (measured, 2026-11-23)
+
+The gas plate never poisoned a guest who walked onto it (the host: every round). An explosion takes its normal from the
+nearest non-actor surface its phantom touches (`Explosion::sub_43851` 43851: contact point and normal, an actor's bodies
+skipped) and starts its line of sight along it (43852). The host's copy of the guest stood half a unit under the guest
+(272.07 against 272.6): a copy is an NPC, its `bhkCharRigidBodyController` resting lower than a player's proxy (body
+readouts: a player's feet 0.4 above a floor ray, NPCs' 0.7 to 1.5 below), and within `CopyStep::kStill` it steps by
+nothing. The explosion placed at its feet was under the plate's surface, faced down and its ray started under the floor;
+the guest's copy of the explosion, placed where the host's went off, the same. Now a stepped copy on its owner's place
+(standing or walking: its step lands 0.04 short; not one pushed off it or a ledge apart) takes its owner's height at the
+write-back after physics (`HookSetPosition`, `CopyStep::RestHeight`; the reference
+only, its capsule rests where it does): the copy 0.2 off its owner, the guest poisoned in 4 rounds of 4. ClientTests
+"A copy on its owner's place stands at its owner's height", GameTests "A guest's player standing still: its copy on the
+host stands at its height" (the fake's copy controller rests `kRigidRest` under its owner); the gas steps in
+`warehouse_traps_hurt_both`.
+
+## Review fixes (2026-11-23)
+
+- The host's dedupe of an animation repeated on an object with no 3D (a script looping there) now drops a repeat only
+  within `TrapRules::cAnimationRepeat` (1 s): a trap fired again later still reaches the guests.
+- Not taken: dropping a refusal at once when no clip of ours runs. Measured: a tripwire's graph refused the host's
+  first `TRIGGER` and took it on a retry; dropped, the guest's mace never fell. Every refusal waits up to `kWait`.
+- An explosion's placed object (a hazard: `Explosion::Func162` 43830 through `CreateReferenceAtLocation` 13723) is
+  not sent as created: each game's explosion places its own (`ModManager.cpp`). A script's `PlaceAtMe` hazard still is.
+- The host's world-projectile send lives in `Services/Host/HostWorldProjectiles`.

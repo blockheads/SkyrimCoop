@@ -170,6 +170,19 @@ SCENARIO("A chest the host disables under a guest's open menu shows one lid once
     CHECK_FALSE(guest.References.at(kChest).Open);
 }
 
+// warehouse_traps_hurt_both (2026-11-23): a tripped tripwire's script marks it destroyed (form flag 0x800000); the
+// guest's stayed whole, the world check finding it on every tripwire.
+SCENARIO("A reference the host's script marks destroyed is destroyed on the guest", "[objects]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+    party.As(party.Host(), [&] { host.ScriptSetsDestroyed(kChest, true); });
+    party.Until([&] { return guest.References.at(kChest).Destroyed; }, "the guest's is destroyed");
+    CHECK_FALSE(guest.References.at(kChest).Disabled);
+}
+
 // Scenario host-menus-close-when-target-goes: the same on the host's own chest.
 SCENARIO("A chest the host disables under its own open menu shows one lid once enabled", "[objects]")
 {

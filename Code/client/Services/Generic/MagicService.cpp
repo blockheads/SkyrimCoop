@@ -366,8 +366,7 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
         return;
     }
 
-    // A hazard's or explosion's cast while one still lasts here (the host's copy never takes it, so a hazard casts again
-    // each tick; this game's copy of the explosion cast its own, by the explosion: an object).
+    // A hazard's or explosion's cast while one by an object still lasts here (docs/design/traps.md).
     const auto cEffects = cCasterFormId ? std::vector<IActorBridge::ActiveEffectInfo>{} : m_actorBridge.GetActorActiveEffects(cTargetFormId);
     const bool cActive = std::ranges::any_of(cEffects, [&](const auto& acEffect) {
         return acEffect.SpellFormId == cSpellId && acEffect.EffectFormId == cEffectId && !acEffect.CasterIsActor;

@@ -8,13 +8,17 @@ class TrapActions:
         its point, or a failure naming what the ray found (nothing, a wall, a ceiling)."""
         x, y, z = at
         start = z + above
-        for _ in range(4):  # a surface well above `at` (a beam's top) is passed under: the floor nearest `at`
+        for _ in range(6):  # a surface well above `at` (a beam's top) is passed under: the floor nearest `at`
             for _ in range(10):  # a frame's picks can be spent: the next frame's
                 reply = ctx.game(instance).rpc({"cmd": "ray", "from": [x, y, start], "to": [x, y, z - below], "layer": 30}) or {}
                 if reply.get("ok"):
                     break
                 time.sleep(0.05)
             ray = reply.get("ray") or {}
+            # A trigger (a plate's volume: characters pass it) or what no one stands on (a tripwire's rope): looked past.
+            if ray.get("hit") and (ray.get("layer") == 12 or ray["normal"][2] < 0.7):
+                start = ray["point"][2] - 0.5
+                continue
             if not ray.get("hit") or ray["point"][2] < z + 60:
                 break
             start = ray["point"][2] - 8
@@ -67,8 +71,8 @@ class TrapActions:
                     row[("start", "stop", "hit")[e["type"]]] += 1
         return {"contacts": seen, "health": {g: [round(v[0], 1), round(min(v), 1), round(v[-1], 1)] for g, v in health.items()}}
 
-    def trap_rounds(ctx, who, at, away, rounds=4, seconds=6.0, health=1000, holder_at=None, gap=0.0, use=None, pull=None):
-        """`pull` (a lever, hex): the other player walks up and pulls it once `who` stands at `at`. `who` (host or guest) put on `at` (a trap's plate) and back to `away`, `rounds` times, with `health` points: the
+    def trap_rounds(ctx, who, at, away, rounds=4, seconds=6.0, health=1000, holder_at=None, gap=0.0, use=None, pull=None, walk_on=None):
+        """`walk_on` (a plate, hex): `who` runs onto it from `away` by real input instead of being put on `at`. `pull` (a lever, hex): the other player walks up and pulls it once `who` stands at `at`. `who` (host or guest) put on `at` (a trap's plate) and back to `away`, `rounds` times, with `health` points: the
         hits it took each time (each loss of health between two looks)."""
         instance = "" if who == "host" else "client"
         other = "client" if instance == "" else ""
@@ -81,7 +85,10 @@ class TrapActions:
             time.sleep(3.0)
             ctx.console_on(instance, f"player.restoreav health {health}")
             time.sleep(0.5)
-            ctx.put_player(instance, at, gap)
+            if walk_on:
+                ctx.steer_to(instance, walk_on, 15.0, sprint=False)
+            else:
+                ctx.put_player(instance, at, gap)
             if holder_at:  # the other player holds the trap's trigger
                 ctx.put_player(other, holder_at)
             since = {g: ctx.engine_events(g)[1] for g in ("", "client")}
@@ -99,11 +106,13 @@ class TrapActions:
                 if now < last - 0.5:
                     hits.append(round(last - now, 1))
                 last = now
-            while time.monotonic() < end:
+            while time.monotonic() < end:  # a burn drains a little each frame: its loss adds up to a hit of 0.5 or more
                 now = ctx.player_health(instance)
                 if now < last - 0.5:
                     hits.append(round(last - now, 1))
-                last = now
+                    last = now
+                elif now > last:
+                    last = now
                 time.sleep(0.03)
             struck = lambda g: [f"{e['target']:X} by {e['cause']:X}" for e in ctx.engine_events(g, since[g])[0]
                                 if e["kind"] == "hit" and e["target"] in (0x14, ctx.other_player_form(g))][:8]
@@ -115,11 +124,11 @@ class TrapActions:
         ctx.console_on(instance, "player.setav health 100")
         return results
 
-    def expect_trap_hurts(ctx, who, at, away, rounds=4, holder_at=None, gap=0.0, use=None, seconds=6.0, pull=None, health=1000, least=None):
+    def expect_trap_hurts(ctx, who, at, away, rounds=4, holder_at=None, gap=0.0, use=None, seconds=6.0, pull=None, health=1000, least=None, walk_on=None):
         """`who` stepping on a trap's plate `rounds` times is hurt every time (or in `least` of them: a trap firing at
         random), on its own game (trap_rounds); fails naming
         the rounds it was not, with each game's contacts then."""
-        results = ctx.trap_rounds(who, at, away, rounds, seconds=seconds, health=health, holder_at=holder_at, gap=gap, use=use, pull=pull)
+        results = ctx.trap_rounds(who, at, away, rounds, seconds=seconds, health=health, holder_at=holder_at, gap=gap, use=use, pull=pull, walk_on=walk_on)
         missed = [i for i, r in enumerate(results) if not r["hits"]]
         if rounds - len(missed) < (rounds if least is None else least):
             raise ctx.failure(f"[{who}] the trap hurt it in {rounds - len(missed)} of {rounds} rounds; missed {missed}: "

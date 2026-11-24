@@ -388,6 +388,28 @@ SCENARIO("A guest's player stands beside a bucket the host knocks: it comes to r
     }
 }
 
+// WarehouseTraps' gas plate (2026-11-23): the guest's player at 272.6, its copy's rigid-body controller resting at 272.07;
+// the gas's explosion, placed at the copy's feet, went under the plate's surface and its poison never reached the guest.
+SCENARIO("A guest's player standing still: its copy on the host stands at its height", "[physics][copy-step]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    party.As(party.Guest(), [&] {
+        auto& player = Party::Engine(party.Guest()).Actors.at(FakeEngine::kPlayer);
+        player.Position[0] = 130.f, player.Position[1] = 200.f, player.Position[2] = 0.f; // the fake's flat floor
+    });
+    const auto cCopy = [&]() -> const FakeEngine::Actor* {
+        for (const auto& [cFormId, cActor] : host.Actors)
+            if (cActor.Copy && cActor.Player && cActor.Stepped && std::abs(cActor.Goal[0] - 130.f) < 1.f)
+                return &cActor;
+        return nullptr;
+    };
+    party.Until([&] { return cCopy() != nullptr; }, "the guest's copy stands there on the host");
+    const auto cMoves = cCopy()->Movements;
+    party.Until([&] { return cCopy()->Movements >= cMoves + 3; }, "the copy is stepped a few more frames");
+    CHECK(cCopy()->Position[2] == Approx(0.f).margin(0.01));
+}
+
 SCENARIO("A guest's own blast throws a bucket the host's does not: it gets the host's pose back", "[physics]")
 {
     Party party(1, Plugins);

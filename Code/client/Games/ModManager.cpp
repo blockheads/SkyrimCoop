@@ -40,11 +40,24 @@ TSpawnNewREFR* RealSpawnNewREFR;
 
 static std::atomic<void (*)(uint32_t)> s_createdWatcher{nullptr};
 
+// Explosion's placed object (Explosion::Func162 43830, BGSExplosion +0xB8: a hazard): each game's explosion places its own.
+using TPlaceObject = uint64_t(void* apExplosion);
+TPlaceObject* RealExplosionPlaces = nullptr;
+thread_local bool t_explosionPlaces = false;
+
+uint64_t ExplosionPlaces(void* apExplosion)
+{
+    t_explosionPlaces = true;
+    const uint64_t cResult = RealExplosionPlaces(apExplosion);
+    t_explosionPlaces = false;
+    return cResult;
+}
+
 uint32_t& SpawnNewREFR(ModManager* apThis, uint32_t& aRefHandleOut, TESForm* apBaseForm, NiPoint3* apPosition, NiPoint3* apRotation, TESObjectCELL* apParentCell, TESWorldSpace* apWorldSpace, Actor* apActor, uintptr_t a9, uintptr_t a10, char aForcePersist, char a12)
 {
     uint32_t& handle = RealSpawnNewREFR(apThis, aRefHandleOut, apBaseForm, apPosition, apRotation, apParentCell, apWorldSpace, apActor, a9, a10, aForcePersist, a12);
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
-    if (const auto cWatcher = s_createdWatcher.load(std::memory_order_acquire); cWatcher && pSaveLoad && !pSaveLoad->IsSavingOrLoading())
+    if (const auto cWatcher = s_createdWatcher.load(std::memory_order_acquire); cWatcher && pSaveLoad && !pSaveLoad->IsSavingOrLoading() && !t_explosionPlaces)
         if (const TESObjectREFR* pRef = TESObjectREFR::GetByHandle(handle))
             cWatcher(pRef->formID);
     return handle;
@@ -103,4 +116,5 @@ static Hooks::Initializer s_tesHooks(
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(13723, &RealSpawnNewREFR, SpawnNewREFR);
+        HOOK_ID(43830, &RealExplosionPlaces, ExplosionPlaces);
     });
