@@ -937,6 +937,12 @@ std::string GetActivateText(uint32_t aRefId) noexcept
     return out;
 }
 
+std::optional<bool> MountPointClear(uint32_t aActorId) noexcept
+{
+    const auto* cpActor = Cast<Actor>(TESForm::GetById(aActorId));
+    return cpActor ? std::optional<bool>((cpActor->flags2 & Actor::MOUNT_POINT_CLEAR) != 0) : std::nullopt;
+}
+
 NameData GetNameData(uint32_t aRefId) noexcept
 {
     NameData data;

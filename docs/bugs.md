@@ -1093,31 +1093,16 @@ Size: small. Needs: the duo.
 
 ### A rider at a scenario's end
 
-Left of it (2026-11-17, `agent/horse-riding`): the horse-buying scenarios at Whiterun's stables. The rest is fixed:
-the crouched rider ("pelvis 0") was the scenario getting off within ~0.1 s of being seated, which the engine answers
-with no exit clip (vanilla too, `docs/re/systems/mounts.md`); a copy left seated by such a ride's end now gets off.
+Left of it (2026-11-23): the guest's horse menu once lacking the bought horse. The crouched rider ("pelvis 0") was a
+get-off within ~0.1 s of being seated (mounts.md); a get-off that does nothing with the bought horse is it standing in
+its shed, with no room beside it (mounts.md, "No room to get off"): not a bug.
 
-Agent task: Find why the stables' bought horse can't be got off, and make `party-buys-horse-host/guest` pass.
+Agent task: when the horse menu shows the gap again, find what the guest's menu lists.
 
 Size: small. Needs: the duo.
 
-- **The host can't get off the guest's bought horse** (`party-buys-horse-guest`, 3 of 3 runs 2026-11-17): seated
-  (sit state 3, the horse's pair over), Activate pressed with the crosshair clear: no dismount package, no Detach,
-  still riding 15 s later. The same horse unbought, or given the purchase's owner and faction by console, lets the
-  host off at once. Not read: what the purchase (StablesScript, its packages 98454/3EAB9) leaves on the horse;
-  `Character::ActivateMount` (37864) takes a ClearMountPosition package instead of Dismount when the mount lacks
-  flags2 bit 4.
-- **The guest can't get off the host's bought horse** (2026-11-23, `agent/horse-mount-guest`: 2 of 3 runs with a
-  `get_off` after `guest-mounts-bought-horse`'s get-on; `party-buys-horse-host` got off in its one run): seated (sit
-  state 3), Activate with the crosshair clear, still riding 15 s later, as the host's shape above. Start there: 37864
-  (read: riding, it takes `Dismount` only if the mount's flags2 (+0x204) has bit 4, else
-  `InitiateClearMountPositionPackage` on the mount), and what the purchase's packages (98454 `PlayerHorseReturnToStable`
-  runs on the host until a player rides it, gated by `IsPlayersLastRiddenMount` 21588) leave on that bit. The guest's crosshair missing that horse
-  (its copy's name emptied) is fixed (names.md, "A stores-text alias's fill empties a custom name").
 - **The guest's horse menu lacks the horse** (2026-11-16, once): not seen again on a clean world.
   - Start: buy through the MCP (`talk`, the topics), then `mount_readout` and the horse's packages before getting on.
-- 2026-11-22, dev `aa723513`: `party-buys-horse-guest` passed 4 of 4 (the full run and 3 reruns), so the first shape
-  did not show; no fast test covers it.
 
 ### A guest crashed loading a copy's idle clips
 

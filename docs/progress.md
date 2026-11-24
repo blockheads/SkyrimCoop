@@ -56,7 +56,7 @@ into `PlayersHorse`, a stores-text alias, whose fill clears every named alias's 
 read "" and the crosshair skips a nameless reference. `HookClearCachedName` keeps a custom name
 (`re/systems/names.md`). GameTests "A bought horse keeps its name...", ClientTests `[names]`; Skyrim
 `guest-mounts-bought-horse` (the guest gets on). New harness readouts `name_data` / probe `set_name`, verb `name_data`.
-Getting off that horse is still the open bugs.md shape ("A rider at a scenario's end").
+Getting off that horse inside its shed does nothing: no room beside it, as in single player (`re/systems/mounts.md`).
 
 2026-11-23: **a quest item a guest loots from a body or chest moves the host's quest on** (`agent/golden-claw-quest`).
 Playtest 2026-11-22, item 15: the guest looted the Golden Claw from Arvel and MS13 stayed on "retrieve the claw". The

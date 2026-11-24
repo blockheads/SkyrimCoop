@@ -504,6 +504,8 @@ bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept;
 // The crosshair's prompt for this actor (TESNPC::GetActivateText 24716, our hook's answer too); empty for none.
 std::string GetActivateText(uint32_t aRefId) noexcept;
 // A reference's display name and its ExtraTextDisplayData (names.md): cached text, message, quest, instance.
+// A mount's kMountPointClear (flags2 bit 2, Actor::MOUNT_POINT_CLEAR); none for no such actor.
+std::optional<bool> MountPointClear(uint32_t aActorId) noexcept;
 struct NameData
 {
     bool Found = false;

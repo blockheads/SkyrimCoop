@@ -43,3 +43,19 @@ time	op	id	rva	item
 2026-11-24T03:41:08Z	comment		0x3d5141	{"addr": "0x1403d5141", "comment": "InitializeRefAlias 24011 on the new ref (names it only if it has no ExtraTextDisplayData of another quest). Then a stores-text alias (0x100) stores its text and clears the quest's named aliases' cached names (ClearAliasNameCaches)."}
 2026-11-24T03:50:39Z	read	40621	0x757a70	{"name": "PlayerCharacter::UpdateCrosshairs"}
 2026-11-24T03:51:00Z	comment	40621	0x757a70	{"addr": "0x140757a70", "comment": "40621 PlayerCharacter::UpdateCrosshairs: the crosshair's prompt for the picked ref (CrosshairPickData +4, else +0xC): the base's GetActivateText (vfunc 0x260, TESNPC 24716), or the display name for a +0xC pick; no filter on the ref itself (CanPickRef 0x14040B1E0 refuses a nameless one, at the pick). Read 2026-11-23 (co-op: horse-mount-guest)."}
+2026-11-24T04:22:43Z	read	37907	0x6ac730	{"name": "Actor::InitiateClearMountPositionPackage"}
+2026-11-24T04:23:39Z	read		0x67bc80	{"name": "Actor::UpdateMovement"}
+2026-11-24T04:23:45Z	read		0x67bd24	{"name": "Actor::UpdateMovement"}
+2026-11-24T04:23:52Z	read		0x6863c9	{"name": "Actor::sub_37461"}
+2026-11-24T04:25:37Z	comment		0x67bd24	{"addr": "0x14067bd24", "comment": "kMountPointClear (flags2 0x4) on this mount: re-checked only while unset. Ridden (GetMountedBy, vfunc 0x70): the rider's controller TryMoveTo the dismount point (rider process, 0x140725BE0), then 25 units further: both fit -> set, else stays clear. Not ridden: set. Read by Character::ActivateMount 37864 (co-op: horse-mount-guest)."}
+2026-11-24T04:25:37Z	comment		0x68627b	{"addr": "0x14068627b", "comment": "37461: the same kMountPointClear check as UpdateMovement 37350's, unconditionally (sets or clears flags2 0x4). No caller found in IDA."}
+2026-11-24T04:25:37Z	comment		0x6a7892	{"addr": "0x1406a7892", "comment": "Riding it: the mount's kMountPointClear (flags2 0x4, UpdateMovement 37350) -> Dismount 37906; unset -> the mount's ClearMountPosition package (37907) and no dismount yet (co-op: horse-mount-guest)."}
+2026-11-24T04:25:37Z	comment	37907	0x6ac730	{"addr": "0x1406ac730", "comment": "37907: a created ClearMountPosition package (type 43) on the mount, at the mount's own place, put on through vfunc 0x37C/8 (1784: PutCreatedPackage). From ActivateMount 37864 when the mount point is not clear."}
+2026-11-24T04:27:55Z	read	37906	0x6ac260	{"name": "Actor::Dismount"}
+2026-11-24T04:29:41Z	read	39933	0x725c00	{"name": "sub_140725C00"}
+2026-11-24T04:44:20Z	name	39933	0x725c00	{"addr": "0x140725c00", "name": "AIProcess::SetDismountPoint"}
+2026-11-24T04:44:20Z	name	39932	0x725be0	{"addr": "0x140725be0", "name": "AIProcess::GetDismountPoint"}
+2026-11-24T04:44:20Z	name	37461	0x686260	{"addr": "0x140686260", "name": "Actor::UpdateMountPointClear"}
+2026-11-24T04:44:24Z	comment	39933	0x725c00	{"addr": "0x140725c00", "comment": "39933: the rider's dismount point: the mount's place plus (a3,a4,a5) rotated by the mount's angle (vfunc 0xA4), with the mount's +0x1F8 record's offset (+0x168..) added; stored in the process's middle-high +0xC8. Dismount 37906 calls it with that record's +0x174/+0x178/+0x17C."}
+2026-11-24T04:44:24Z	comment	39932	0x725be0	{"addr": "0x140725be0", "comment": "39932: the stored dismount point (middle-high +0xC8), set by SetDismountPoint 39933. Read by UpdateMovement 37350 / 37461 (kMountPointClear) and Dismount 37906."}
+2026-11-24T04:44:24Z	comment		0x6ac344	{"addr": "0x1406ac344", "comment": "The player: the dismount point recomputed (39933), the controller's 0x8000 filter bit dropped for the sweep, TryMoveTo (flag 1) there; blocked -> a menu sound and no dismount (returns 0). Measured 2026-11-23: refused this way in the Whiterun stable's stall (the bought horse at 18685,-11150, 274 degrees), in a game with no session too: vanilla (co-op: horse-mount-guest)."}
