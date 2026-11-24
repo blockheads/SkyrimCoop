@@ -2490,6 +2490,49 @@ class KillMoveActions(unittest.TestCase):
         ctx.wait_for.assert_called_once()
 
 
+class KillMoveTableTests(unittest.TestCase):
+    """The kill move table and the measures kill_move_on takes per kill move (docs/re/systems/kill-moves.md)."""
+
+    @staticmethod
+    def trace(offsets):
+        """Two games' pairs: each game's attacker at the origin, the victim at `offsets[game]` (gap, height) from it,
+        from that game's own kill move start; the client's clip starts 0.3 s later (a copy's lag)."""
+        from coop_harness.objects import AnimTrace
+        trace = AnimTrace.__new__(AnimTrace)
+        trace.entries, trace.session = [], MagicMock()
+        for game, start in (("", 10.0), ("client", 10.3)):
+            trace.entries.append({"game": game, "who": "attacker", "kind": "state", "time": start, "state": {"kill_move": True}})
+            for step in range(20):
+                t = start + step * 0.1
+                gap, height = offsets[game](step * 0.1)
+                trace.entries.append({"game": game, "who": "attacker", "kind": "pos", "time": t, "pos": [0, 0, 0], "yaw": 0.0})
+                trace.entries.append({"game": game, "who": "victim", "kind": "pos", "time": t, "pos": [0, gap, height], "yaw": 3.14})
+            trace.entries.append({"game": game, "who": "victim", "kind": "graph", "event": "KillActor", "time": start + 1.5})
+        return trace
+
+    def test_a_copy_behind_its_owner_by_its_lag_shows_the_pair_alike(self):
+        from coop_harness.actions.combat import kill_move_apart
+        same = lambda t: (60.0, 0.0)
+        apart = kill_move_apart(self.trace({"": same, "client": same}), "", "client")
+        self.assertEqual((apart["gap"], apart["height"], apart["turn"]), (0.0, 0.0, 0.0))
+
+    def test_a_victim_shown_higher_on_the_other_game_is_measured_before_the_blow_only(self):
+        from coop_harness.actions.combat import kill_move_apart
+        # Above by 30 until the blow (1.5 s), by 90 after it: the ragdoll's fall is not the pair's.
+        higher = lambda t: (60.0, 30.0 if t < 1.55 else 90.0)
+        apart = kill_move_apart(self.trace({"": lambda t: (60.0, 0.0), "client": higher}), "", "client")
+        self.assertEqual(apart["height"], 30.0)
+
+    def test_the_table_has_each_weapons_kill_moves_on_a_person(self):
+        from coop_harness.actions.combat import KILL_MOVE_TABLE, KILL_MOVE_WEAPONS
+        rows = {(row["victim"], row["weapon"], row["behind"], bool(row["perks"])): row["events"] for row in KILL_MOVE_TABLE}
+        self.assertIn("pa_KillMove2HWChopKick", rows[("bandit", "battleaxe", False, False)])
+        self.assertEqual(rows[("bandit", "sword", True, False)], ["pa_KillMove1HMBackStab"])
+        self.assertIn("pa_KillMove2HWDraugrA", rows[("draugr", "battleaxe", False, False)])
+        self.assertNotIn(("bandit", "mace", True, False), rows)  # pa_KillingBlow: no kill move (kill-moves.md)
+        self.assertTrue(all(row["weapon"] in KILL_MOVE_WEAPONS or row["weapon"] == "dual swords" for row in KILL_MOVE_TABLE))
+
+
 class SkippedClipTests(unittest.TestCase):
     def trace(self, *states):
         from types import SimpleNamespace

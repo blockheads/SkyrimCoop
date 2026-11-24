@@ -113,6 +113,8 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
         const BodyFrame* pRest;
     };
     std::vector<Resting> rests;
+    std::vector<RagdollStart::Body> steered;
+    std::vector<Body*> steeredBodies;
     for (const auto& cDrive : acDrives)
     {
         const auto it = Bodies.find(RagdollKey(cDrive.Frame.Key, aCopy));
@@ -129,15 +131,28 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
             rests.push_back({it->first, &body, &cDrive.Frame});
             continue;
         }
-        // Steered onto its owner's frame (78089/78090): a steer wakes it.
-        body.RestAt.reset();
-        body.Flight.Body.Position = cDrive.Frame.Position;
-        body.Flight.Body.Rotation = cDrive.Frame.Rotation;
-        body.Flight.Body.LinearVelocity = cDrive.Frame.LinearVelocity;
-        body.Awake = true;
-        ++body.Drives;
+        steered.push_back({cDrive.Frame, body.Flight.Body.Position, body.Flight.Body.Rotation, cDrive.Place});
+        steeredBodies.push_back(&body);
         driven.insert(it->first);
     }
+    // Steered onto its owner's frames (78089/78090), which wakes it; a steer lands within the frame here. A ragdoll part
+    // put there, part steered, its joints throw (duo 2026-11-23): a plan is for the whole ragdoll.
+    const auto cPlan = steered.empty() ? RagdollStart::Plan{} : m_ragdollStarts[aCopy].Next(steered, cNow);
+    for (size_t i = 0; i < steered.size(); ++i)
+    {
+        Body& body = *steeredBodies[i];
+        const BodyFrame& cTarget = cPlan.Targets[i];
+        if (!cPlan.Place)
+            RagdollJump = std::max(RagdollJump, glm::distance(body.Flight.Body.Position, cTarget.Position));
+        body.RestAt.reset();
+        body.Flight.Body.Position = cTarget.Position;
+        body.Flight.Body.Rotation = cTarget.Rotation;
+        body.Flight.Body.LinearVelocity = cTarget.LinearVelocity;
+        body.Awake = true;
+        ++body.Drives;
+    }
+    if (!rests.empty() && steered.empty())
+        m_ragdollStarts.erase(aCopy);
     if (!rests.empty())
     {
         auto& rest = m_copyRests[aCopy];
@@ -149,7 +164,7 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
             pBody->RestTurn = pRest->Rotation;
             const bool cNear = glm::distance(pBody->Flight.Body.Position, pRest->Position) <= kRagdollNear;
             allNear &= cNear;
-            anyFar |= glm::distance(pBody->Flight.Body.Position, pRest->Position) > BodyPrediction::PlaceDistance(false);
+            anyFar |= glm::distance(pBody->Flight.Body.Position, pRest->Position) > BodyTolerances::kPlaceFar;
             allAsleep &= !pBody->Awake;
             allStill &= BodyPrediction::StillToSleep(true, glm::length(pBody->Flight.Body.LinearVelocity), 0.f);
             anyWoken |= pBody->Awake && !cNear;
@@ -336,7 +351,7 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHel
         return true;
     if (acFrame.Key.Actor)
     {
-        m_pendingRagdolls.Put(aCopyFormId, acFrame, false);
+        m_pendingRagdolls.Put(aCopyFormId, acFrame, it->second.Drives == 0); // its first (BodyBridge::Find)
         return true;
     }
     Body& body = it->second;

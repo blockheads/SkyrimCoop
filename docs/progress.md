@@ -173,6 +173,16 @@ effect; on another player its ash pile script set critical stage `DisintegrateEn
 Scenario `shout-kills-lying-guest` (MCP verb `shout_at_lying_player`), GameTests `[friendly-fire]`, ClientTests
 `[CriticalStage]`.
 
+2026-11-23: **kill moves: every one listed, a copy's ragdoll starts whole** (`agent/kill-moves-every`;
+[kill-moves.md](re/systems/kill-moves.md), "Every kill move", "A copy's ragdoll starts whole", "Slopes"). The ESM's
+kill move idles per victim, weapon and side (`scripts/re/kill_moves.py` -> `kill_moves.json`, 112 rows) and an MCP verb
+that swings through them (`kill_move_table`, scenario `kill_moves_every`); `kill_move_ragdoll` measures a victim's fall
+on each game. The host's kill moves seen on the guest flickered (up to 32): a copy's first ragdoll frames placed its far
+limbs and steered the rest. `RagdollStart` now plans the whole ragdoll, its gap blended out over 0.2 s: 0 flickers in
+25 falls. The engine's own drop of a copy's ragdoll at its death (58291, probed) is left as it is: played, it looks
+right (the user). GameTests and ClientTests `[ragdoll-start]`. Open: fighting victims, creatures and the host's swings
+through the table; why slopes refuse kill moves (an attacker 18 or 35+ units off the victim's height got none).
+
 2026-11-22: **kill moves: the frozen victim, and every weapon tried** (`agent/kill-moves-polish`;
 [kill-moves.md](re/systems/kill-moves.md), "A blow and its clip's end in one update"). A guest's kill move on a person
 left its victim standing in the clip's last pose for 1.5 s after the blow on every game, and a second swing then

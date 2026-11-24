@@ -2,6 +2,7 @@
 import argparse
 import collections
 import contextlib
+import json
 import math
 import os
 import re
@@ -9,18 +10,24 @@ import socket
 import subprocess
 import time
 import uuid
+from pathlib import Path
 from ..comparisons import is_close
 from ..common import (
     FIREBOLT,
     HOME_CELL,
     INN,
+    IRON_SWORD,
+    KILL_MOVE_ALIGN_S,
+    KILL_MOVE_APART,
     KILL_MOVE_BLOW_WINDOW,
     KILL_MOVE_DROP,
     KILL_MOVE_RANDOM,
+    KILL_MOVE_SETTLE_S,
     LYDIA,
     MELEE_GAP,
     POSITION_TOLERANCE,
     SPELL_GAP,
+    TEST_HOME,
     UNRELENTING_FORCE,
     UNRELENTING_FORCE_THREE,
     UNRELENTING_FORCE_WORDS,
@@ -30,7 +37,82 @@ from ..common import (
 from ..errors import TestFailure
 from ..comparisons import distance
 from ..utilities import log
-from ..objects import AnimTrace, GodMode, RagdollTrace
+from ..objects import AnimTrace, DYNAMIC_MOTIONS, GodMode, RagdollTrace
+
+# The kill move table (scripts/re/kill_moves.py --rows) and the weapons its rows name; dual wield is left out:
+# kill_move_on equips one hand.
+KILL_MOVE_TABLE = json.loads((Path(__file__).resolve().parents[1] / "kill_moves.json").read_text())
+KILL_MOVE_LOG = TEST_HOME / "kill-moves.jsonl"
+KILL_MOVE_WEAPONS = {"hands": 0, "dagger": 0x1397E, "sword": IRON_SWORD, "war axe": 0x13790, "mace": 0x13982,
+                     "greatsword": 0x1359D, "battleaxe": 0x13980, "warhammer": 0x13981}
+
+
+def ragdoll_fall(bodies, game, actor, blow):
+    """kill_move_ragdoll's numbers for one game: the traced ragdoll from its clip's KillActor (`blow`)."""
+    frames = bodies.frames(game, actor)
+    if not blow or not frames:
+        return {"blow": bool(blow), "frames": len(frames)}
+    t0 = blow["time"]
+    after = [(f["t"] / 1e6 - t0, f) for f in frames if f["t"] / 1e6 >= t0]
+    first = lambda test: next((round(t, 2) for t, f in after if test(f)), None)
+    pelvis = [(t, f["pelvis"]) for t, f in after if f.get("pelvis")]
+    out = {"dead_s": first(lambda f: f.get("dead")),
+           "dynamic_s": first(lambda f: any((b or {}).get("motion") in DYNAMIC_MOTIONS for b in f["bodies"]))}
+    if pelvis:
+        out["still_s"] = next((round(t, 2) for t, p in pelvis if math.dist(p, pelvis[0][1]) > 1.0), None)
+        early = [math.dist(a[1], b[1]) for a, b in zip(pelvis, pelvis[1:]) if b[0] < 1.0]
+        out["jump"] = round(max(early, default=0.0), 1)
+        out["travel"] = round(math.dist(pelvis[0][1], pelvis[-1][1]), 1)
+    out["speed"] = round(max((math.hypot(*b["velocity"]) for _, f in after for b in f["bodies"] if b and b.get("velocity")), default=0.0))
+    measure = bodies.measure(game, actor)
+    if measure:
+        out["flickers"] = sum(len(v["flickers"]) for v in measure["series"].values())
+        out["turns"] = max(v["worst"] for v in measure["series"].values())
+        out["stray"] = round(measure["stray"], 1)
+    asleep = [not any((b or {}).get("awake") for b in f["bodies"]) for _, f in after]
+    out["rest_s"] = next((round(after[i][0], 1) for i in range(len(after)) if after[i][1].get("dead") and all(asleep[i:])), None)
+    return out
+
+
+def kill_move_apart(trace, attacker, other):
+    """How differently the other game shows the pair than the attacker's: through each game's own clip (from its
+    attacker's kill move start, past the slide to the mark, to its victim's KillActor), the largest difference in the attacker-to-victim gap,
+    in the victim's height above the attacker and in the victim's turn from the attacker's (units, degrees)."""
+    def start(game):
+        return next((e["time"] for e in trace.entries if e["game"] == game and e["who"] == "attacker" and e["kind"] == "state"
+                     and e["state"].get("kill_move")), None)
+    def samples(game):
+        t0 = start(game)
+        if t0 is None:
+            return []
+        blow = trace.find(game, "victim", "KillActor")
+        end = min(blow["time"] if blow else t0 + KILL_MOVE_ALIGN_S, t0 + KILL_MOVE_ALIGN_S)
+        out = []
+        poses = {who: [e for e in trace.entries if e["game"] == game and e["who"] == who and e["kind"] == "pos" and e["time"] >= t0]
+                 for who in ("attacker", "victim")}
+        for mine in poses["attacker"]:
+            if mine["time"] > end:
+                break
+            theirs = min(poses["victim"], key=lambda e: abs(e["time"] - mine["time"]), default=None)
+            if theirs is None or abs(theirs["time"] - mine["time"]) > 0.05:
+                continue
+            gap = math.hypot(theirs["pos"][0] - mine["pos"][0], theirs["pos"][1] - mine["pos"][1])
+            turn = (math.degrees(theirs["yaw"] - mine["yaw"]) + 180) % 360 - 180
+            out.append((mine["time"] - t0, gap, theirs["pos"][2] - mine["pos"][2], turn))
+        return out
+    own, seen = samples(attacker), samples(other)
+    worst = {"gap": 0.0, "height": 0.0, "turn": 0.0, "at": {}}  # at: when each was worst
+    for t, gap, height, turn in seen:
+        if t < KILL_MOVE_SETTLE_S:
+            continue
+        near = min(own, key=lambda s: abs(s[0] - t), default=None)
+        if near is None or abs(near[0] - t) > 0.05:
+            continue
+        for key, value in (("gap", abs(gap - near[1])), ("height", abs(height - near[2])), ("turn", abs((turn - near[3] + 180) % 360 - 180))):
+            if value > worst[key]:
+                worst[key] = round(value, 1)
+                worst["at"][key] = round(t, 2)
+    return worst
 
 
 class CombatActions:
@@ -104,31 +186,44 @@ class CombatActions:
         return crossed
 
 
-    def kill_move_on(ctx, attacker, base, weapon, behind=False, watch=6.0, strict=False, rest=True):
+    def kill_move_on(ctx, attacker, base, weapon, behind=False, watch=6.0, strict=False, rest=True, at=None, bearing=None, perks=(), fighting=False):
         """`attacker`'s player ("" the host, "client") strikes a restrained host NPC of `base`, one hit from death, with
         `weapon` (a form id; 0 bare hands) from its front or from `behind`. Returns what played (`action`; None: a plain
         swing), each game's time from the action to the death, and `problems`: what a player would see wrong `watch`
         seconds after it (someone still in a kill move or its pair, the victim alive or its kill held, its ragdoll
         missing, keyframed or awake, the two games' bodies apart, an attacker that cannot walk). `strict`: fails on any
         problem, or when no kill move played. `rest` False leaves the lying bodies unread (bugs.md, "A kill move's dead
-        copy awake or lying apart")."""
+        copy awake or lying apart"). `at`: the victim's spot (default the stage); `bearing`: the attacker's side of the
+        victim (0 north, 90 east) instead of its front or back. `perks`: form ids the attacker holds for the swing (the
+        decapitations need SavageStrike or DevastatingBlow). `fighting`: the victim is not restrained but fights the
+        attacker (its AI on, the attacker invulnerable), as in a real fight. `height`: the attacker's feet above the victim's, what
+        the kill move idles' GetTargetHeight window reads (kill-moves.md, "Slopes")."""
         games = ("", "client")
         other = "client" if attacker == "" else ""
         said = lambda game: game or "host"
-        npc, _, copy = ctx.spawn_host_npc(base, restrained=True)
+        npc, _, copy = ctx.spawn_host_npc(base, restrained=not fighting, goal=at)
+        if fighting:
+            ctx.god_mode(attacker, True)
+            ctx.console_on("", f"{npc:08X}.startcombat {0x14 if attacker == '' else ctx.client_on_host():X}")
         victim = {"": npc, "client": copy}
         killer = {attacker: 0x14, other: ctx.other_player(ctx.actors_on(other))}
         report = {"attacker": said(attacker), "weapon": f"{weapon:X}", "behind": behind, "action": None, "problems": []}
         ctx.console_on(attacker, "set KillMoveRandom to 100")
+        for perk in perks:
+            ctx.console_on(attacker, f"player.addperk {perk}")
         try:
+            ctx.sheathe(attacker)  # an equip into hands left raised by the last kill move plays no counted animation
             ctx.equip_weapon(attacker, weapon)
             ctx.draw(attacker)
             ctx.console_on("", f"{npc:08X}.damageav health {ctx.host_world(npc)['values']['health'] - 3:.0f}")
             ctx.wait_on("client", "the victim's copy shows it one hit from death",
                         lambda actors: (actors.get(str(copy), {}).get("health") or 100) < 5, 3)
             front = math.degrees(ctx.actors_on("client")[str(copy)]["rotation"][2])
-            ctx.place_before(attacker, victim[attacker], MELEE_GAP, front + (180 if behind else 0))
-            ctx.place_before(other, victim[other], 300, front + 90)
+            side = bearing if bearing is not None else front + (180 if behind else 0)
+            ctx.place_before(attacker, victim[attacker], MELEE_GAP, side)
+            ctx.place_before(other, victim[other], 300, side + 90)
+            report["height"] = round(ctx.player_snapshot(attacker)["placement"]["position"][2]
+                                     - ctx.actor_snapshot(attacker, victim[attacker])["placement"]["position"][2], 1)
             check = {}
             def will_kill():
                 check.update(ctx.player_command(attacker, {"cmd": "kill_move_check", "victim": victim[attacker]}))
@@ -192,6 +287,10 @@ class CombatActions:
                     state = ctx.actor_snapshot(game, victim[game]).get("state") or {}
                     if state.get("deferred_kill") or state.get("kill_queued"):
                         report["problems"].append(f"[{said(game)}] the victim's kill is still held (deferred {state.get('deferred_kill')}, queued {state.get('kill_queued')})")
+            if started:
+                report["apart"] = kill_move_apart(trace, attacker, other)
+                if report["apart"]["gap"] > KILL_MOVE_APART or report["apart"]["height"] > KILL_MOVE_APART:
+                    report["problems"].append(f"[{said(other)}] the pair stands apart from the {said(attacker)}'s: {report['apart']}")
             def lying():
                 return {game: ctx.ragdoll_of(game, victim[game]) if rest and dead(game) else [] for game in games}
             try:
@@ -221,6 +320,10 @@ class CombatActions:
                 ctx.player_command(attacker, {"cmd": "input", "button": "back", "down": False})
         finally:
             ctx.console_on(attacker, f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+            if fighting:
+                ctx.god_mode(attacker, False)
+            for perk in perks:
+                ctx.console_on(attacker, f"player.removeperk {perk}")
             if weapon:  # the one it was given: a second of its kind would take the hand when one is unequipped
                 ctx.console_on(attacker, f"player.removeitem {weapon:08X} 1")
             ctx.console_on("", f"{npc:08X}.disable")
@@ -230,6 +333,106 @@ class CombatActions:
             raise ctx.failure(f"kill move {report['action'] or '(none: a plain swing)'} with {weapon:X}: " + ("; ".join(report["problems"]) or "no pair started"))
         return report
 
+
+    def kill_move_ragdoll(ctx, attacker, base, weapon, behind=False, alone=False, seconds=12.0):
+        """A kill move on a restrained NPC (`attacker` "" the host, "client" the guest), its victim's ragdoll traced every
+        frame on each game: how it falls, against the same in one game with no session (`alone`, after
+        vanilla_start(plugin=true): our hooks load but no session runs). Per game, from the victim's clip's KillActor:
+        dead_s, dynamic_s (first frame a ragdoll body is dynamic), still_s (how long the pelvis then stayed within a unit),
+        jump (its most in one frame in the first second), speed (body peak, units/s), flickers, turns (worst second),
+        stray, rest_s and travel (pelvis, blow to rest)."""
+        games = ("",) if alone else ("", "client")
+        if alone:
+            before = set((ctx.game("").read_status() or {}).get("world") or {})
+            ctx.console_on("", f"player.placeatme {base} 1")
+            npc = int(next(iter(ctx.wait_for("[host] the NPC loads", lambda: {key for key in (ctx.game("").read_status() or {}).get("world") or {}
+                                                                              if key not in before}, 10))))
+            ctx.console_on("", f"{npc:08X}.setrestrained 1")
+            victim = {"": npc}
+        else:
+            npc, _, copy = ctx.spawn_host_npc(base, restrained=True)
+            victim = {"": npc, "client": copy}
+        report = {"attacker": "alone" if alone else attacker or "host", "weapon": f"{weapon:X}", "action": None}
+        ctx.console_on(attacker, "set KillMoveRandom to 100")
+        try:
+            ctx.sheathe(attacker)
+            ctx.equip_weapon(attacker, weapon)
+            ctx.draw(attacker)
+            health = ctx.actor_snapshot("", npc)["values"]["health"]
+            ctx.console_on("", f"{npc:08X}.damageav health {health - 3:.0f}")
+            ctx.wait_for("the victim is one hit from death on the attacker's game",
+                         lambda: ((ctx.actor_snapshot(attacker, victim[attacker]).get("values") or {}).get("health") or 100) < 5, 5)
+            facing = math.degrees(ctx.actor_snapshot(attacker, victim[attacker])["placement"]["rotation"][2])
+            ctx.place_before(attacker, victim[attacker], MELEE_GAP, facing + (180 if behind else 0))
+            if not alone:
+                ctx.place_before("client" if attacker == "" else "", victim["client" if attacker == "" else ""], 300, 90)
+            ctx.wait_for("a blow now is a kill move", lambda: (check := ctx.player_command(
+                attacker, {"cmd": "kill_move_check", "victim": victim[attacker]})).get("should_attack_kill")
+                and check.get("attack_target") == victim[attacker], 5)
+            watched = {game: {victim[game]: "victim"} for game in games}
+            watched[attacker][0x14] = "attacker"
+            with AnimTrace(ctx, "kill-move-ragdoll", watched, video=False) as trace, \
+                    RagdollTrace(ctx, "kill-move-ragdoll", {game: {victim[game]: "victim"} for game in games}) as bodies:
+                ctx.press(attacker, "right")
+                try:
+                    started = trace.wait_state(attacker, "attacker", "kill_move", True, 3)
+                finally:
+                    ctx.release(attacker, "right")
+                action = trace.action_before(started)
+                report["action"] = action and action["event"]
+                ctx.wait_for("the victim dies on every game", lambda: all(ctx.is_dead(ctx.actor_snapshot(g, victim[g])) for g in games), 12)
+                end = time.monotonic() + seconds
+                while time.monotonic() < end:
+                    bodies.take()
+                    trace.take()
+                    if all((f := bodies.frames(g, victim[g])) and f[-1].get("dead") and not any((b or {}).get("awake") for b in f[-1]["bodies"])
+                           for g in games):
+                        break
+                    time.sleep(0.2)
+                trace.take()
+            for game in games:
+                report[game or "host"] = ragdoll_fall(bodies, game, victim[game], trace.find(game, "victim", "KillActor"))
+            return report
+        finally:
+            ctx.console_on(attacker, f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+            if weapon:
+                ctx.console_on(attacker, f"player.removeitem {weapon:08X} 1")
+            ctx.console_on("", f"{npc:08X}.disable")
+            ctx.console_on("", f"{npc:08X}.markfordelete")
+
+    def kill_move_table(ctx, attacker, victims=(), tries=2):
+        """`attacker`'s player ("" the host, "client") swings through the kill move table (kill_moves.json, made by
+        scripts/re/kill_moves.py --rows: the kill moves a normal swing can pick per victim, weapon and side) with
+        kill_move_on, `victims` (names) or all. A row is swung until each of its kill moves played, `tries` swings per
+        kill move at most; each swing's report is appended to build/coop-test/kill-moves.jsonl. Returns {played: {event: [each time's problems]}, unpaired: rows that never paired, missed:
+        kill moves never picked}."""
+        played, unpaired = {}, []
+        KILL_MOVE_LOG.parent.mkdir(parents=True, exist_ok=True)
+        rows = [row for row in KILL_MOVE_TABLE if row["weapon"] in KILL_MOVE_WEAPONS and (not victims or row["victim"] in victims)]
+        rows.sort(key=lambda row: -len(row["events"]))  # the rows with most kill moves first: fewer rows left to swing
+        for row in rows:
+            what = f"{row['victim']}, {row['weapon']}{' from behind' if row['behind'] else ''}{' with perks' if row['perks'] else ''}"
+            swung = 0
+            while any(event not in played for event in row["events"]) and swung < tries * len(row["events"]):
+                swung += 1
+                try:
+                    report = ctx.kill_move_on(attacker=attacker, base=row["base"], weapon=KILL_MOVE_WEAPONS[row["weapon"]],
+                                              behind=row["behind"], perks=row["perks"])
+                except TestFailure as failure:  # one row's stop is said with the rest, not the table's end
+                    unpaired.append(f"{what}: {failure}")
+                    ctx.unstage()
+                    break
+                log(f"[{report['attacker']}] {what}: {report['action'] or 'no kill move'}, apart {report.get('apart')}, "
+                    f"problems {report['problems']}")
+                with KILL_MOVE_LOG.open("a") as out:  # each swing kept, also when the run is cut short
+                    out.write(json.dumps({"row": what, **report}) + "\n")
+                if report["action"]:
+                    played.setdefault(report["action"], []).append([f"{what}: {problem}" for problem in report["problems"]])
+                elif swung >= len(row["events"]) and not any(event in played for event in row["events"]):
+                    unpaired.append(f"{what} (check {report.get('check')})")
+                    break
+        missed = sorted({event for row in rows for event in row["events"]} - set(played))
+        return {"played": played, "unpaired": unpaired, "missed": missed}
 
     def combat_watch(ctx, npc, seconds=5.0, every=0.33, sight=None):
         """An NPC of the host's in a fight, over time: its gap to its target, how far the target's predicted place (what its

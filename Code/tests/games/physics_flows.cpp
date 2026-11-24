@@ -512,8 +512,13 @@ SCENARIO("A copy's body correction waits for the engine update that maps its bon
     BodyFrame frame{.Key = cKey, .Position = {20.f, 30.f, 40.f}, .Knocked = true};
     party.As(party.Guest(), [&] { REQUIRE(guest.Drive(frame, cCopy)); });
     CHECK(body.Flight.Body.Position == cBefore);
-    party.Frame();
-    CHECK(body.Flight.Body.Position == frame.Position);
+    // Its gap to the frame is blended out (RagdollStart).
+    for (int i = 0; i < 20; ++i)
+    {
+        party.Frame();
+        party.As(party.Guest(), [&] { REQUIRE(guest.Drive(frame, cCopy)); });
+    }
+    CHECK(glm::distance(body.Flight.Body.Position, frame.Position) < 1e-3f);
 }
 
 SCENARIO("A host NPC dies and ragdolls: its copy's body lies as the host's, bone by bone", "[physics][corpse-rest]")
@@ -593,6 +598,41 @@ SCENARIO("A host NPC dies and ragdolls: its copy's body lies as the host's, bone
             CHECK(guest.Bodies.at(cHead).Rests == cRests);
         }
     }
+}
+
+// Skyrim (duo, 2026-11-23, kill_move_ragdoll): a kill move's victim on the guest starts its fall 10 to 46 units behind its
+// owner's, limb by limb. Its bodies 16 or more off were put there and the rest steered: 17-unit jumps, 32 flickers.
+SCENARIO("A copy's ragdoll starts its fall whole, its gap to its owner's blended out", "[physics][ragdoll-start][kill-move]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {20.f, 20.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the host's guard");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    const uint32_t cSession = SessionOf(party.Host(), guard);
+    for (uint8_t i = 0; i < kRagdollBodies; ++i)
+    {
+        FakeEngine::Body bone;
+        bone.Flight.Body.Position = {20.f, 20.f, 40.f + 20.f * i};
+        bone.RagdollOf = guard;
+        host.Bodies[{.Actor = guard, .Index = i}] = bone;
+        bone.RagdollOf = cCopy;
+        bone.Flight.Body.Position.x += i == 0 ? 10.f : 30.f; // its clip left its limbs differently here
+        guest.Bodies[{.Actor = cSession, .Index = i}] = bone;
+    }
+    party.As(party.Host(), [&] {
+        host.Hit(guard, 200.f);
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            host.Knock({.Actor = guard, .Index = i}, {40.f * i, 30.f, 50.f}, {0.f, 2.f, 1.f});
+    });
+    const BodyKey cHead{.Actor = cSession, .Index = kRagdollBodies - 1};
+    party.Until([&] { return guest.Bodies.at(cHead).Rests > 0; }, "the guard's ragdoll rests");
+    CHECK(guest.RagdollJump < 8.f);
+    for (uint8_t i = 0; i < kRagdollBodies; ++i)
+        CHECK(glm::distance(guest.Bodies.at({.Actor = cSession, .Index = i}).Flight.Body.Position,
+                            host.Bodies.at({.Actor = guard, .Index = i}).Flight.Body.Position) < FakeEngine::kRagdollNear);
 }
 
 // Skyrim (duo, death-spectate-host's RagdollTrace, 2026-11-12, 11 of 13 traces): the dead player's copy reached its

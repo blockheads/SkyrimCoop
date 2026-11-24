@@ -24,6 +24,7 @@
 #include <Games/KnockReplay.h>
 #include <Games/ItemMenuRebuild.h>
 #include <Physics/RagdollPending.h>
+#include <Physics/RagdollStart.h>
 #include <Physics/RestPlacer.h>
 
 #include <Games/QuestChanges.h>
@@ -506,6 +507,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // "Woken still").
         bool KeptAwake = false;
     };
+    float RagdollJump = 0.f;   // the furthest a steer took one of its bodies in a frame
     // How long an actor takes to get up (knock states 5 and 6), and how fast its get-up moves its ragdoll's bodies.
     static constexpr uint32_t kRisingFrames = 60;
     static constexpr float kRisingSpeed = 120.f;
@@ -2104,6 +2106,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPending::Drive>& acDrives) noexcept;
     [[nodiscard]] BodyKey RagdollKey(const BodyKey& acKey, uint32_t aActor) const noexcept;
     std::map<uint32_t, RestPlacer> m_copyRests;
+    std::map<uint32_t, RagdollStart> m_ragdollStarts;
     uint64_t m_frameCount = 0; // frames run: the fake's 60 a second
     bool m_inSystemQuest = false; // a system quest's function runs (CallsQuest): its natives are its instance's
     std::chrono::steady_clock::time_point m_lastFrame;

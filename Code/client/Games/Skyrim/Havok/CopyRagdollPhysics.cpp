@@ -8,7 +8,9 @@
 #include <Hooks/Initializer.h>
 #include <Physics/BodyGroups.h>
 #include <Physics/BodyPrediction.h>
+#include <Physics/BodyTolerances.h>
 #include <Physics/RagdollPending.h>
+#include <Physics/RagdollStart.h>
 #include <Physics/RestPlacer.h>
 #include <RTTI.h>
 #include <chrono>
@@ -36,6 +38,7 @@ struct CopyRest
     std::optional<RestPlacer::Step> Logged; // the last step logged: each change once
 };
 std::map<uint32_t, CopyRest> s_rests;
+std::map<uint32_t, RagdollStart> s_starts; // each copy's ragdoll taking up its owner's frames
 
 uint64_t NowMs() noexcept
 {
@@ -64,7 +67,7 @@ void RestBodies(Actor& aCopy, std::vector<Resting>& aBodies)
         const auto cError = BodyPrediction::Between({.Position = cBody.Read.Position, .Rotation = cBody.Read.Rotation}, cBody.Frame);
         const bool cNear = cError.Distance <= kNear && cError.Angle <= kNearAngle;
         allNear &= cNear;
-        anyFar |= cError.Distance > BodyPrediction::PlaceDistance(false);
+        anyFar |= cError.Distance > BodyTolerances::kPlaceFar;
         allAsleep &= !cBody.Read.Active;
         allStill &= BodyPrediction::StillToSleep(cBody.Read.Dynamic, glm::length(cBody.Read.LinearVelocity), glm::length(cBody.Read.AngularVelocity));
         anyWoken |= cBody.Read.Active && !cNear;
@@ -132,6 +135,8 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         return;
     const auto* pRagdoll = aDriver.ragdoll;
     std::vector<Resting> resting;
+    std::vector<RagdollStart::Body> driven;
+    std::vector<bhkWorldObject*> drivenBodies;
     for (const auto& cDrive : bodies)
     {
         const auto& cFrame = cDrive.Frame;
@@ -147,16 +152,40 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
             resting.push_back({pBody, cFrame, read});
             continue;
         }
-        if (glm::distance(read.Position, cFrame.Position) < BodyPrediction::PlaceDistance(cDrive.Place))
-        {
-            const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, cFrame);
-            SteerBody(*pBody, cSteer.Linear, cSteer.Angular);
-        }
-        else
-            PlaceBody(*pBody, cFrame.Position, cFrame.Rotation, cFrame.LinearVelocity, cFrame.AngularVelocity, true);
+        driven.push_back({cFrame, read.Position, read.Rotation, cDrive.Place});
+        drivenBodies.push_back(pBody);
     }
+    RagdollStart::Plan plan;
+    if (!driven.empty())
+    {
+        std::scoped_lock lock(s_bodyLock);
+        if (s_starts.size() >= 512 && !s_starts.contains(aCopy.formID))
+            s_starts.clear(); // copies gone before their rest
+        plan = s_starts[aCopy.formID].Next(driven, NowMs());
+    }
+    for (size_t i = 0; i < driven.size(); ++i)
+    {
+        const auto& cTarget = plan.Targets[i];
+        if (plan.Place)
+        {
+            PlaceBody(*drivenBodies[i], cTarget.Position, cTarget.Rotation, cTarget.LinearVelocity, cTarget.AngularVelocity, true);
+            continue;
+        }
+        const auto cSteer = BodyPrediction::Steer(driven[i].Position, driven[i].Rotation, cTarget);
+        SteerBody(*drivenBodies[i], cSteer.Linear, cSteer.Angular);
+    }
+    if (plan.Place)
+        spdlog::info("CopyRagdollPhysics: {:X} put on its owner's frames, {} bodies", aCopy.formID, driven.size());
     if (!resting.empty())
+    {
+        // Its start ends once no body of it moves: a limb still blending keeps its gap.
+        if (driven.empty())
+        {
+            std::scoped_lock lock(s_bodyLock);
+            s_starts.erase(aCopy.formID);
+        }
         RestBodies(aCopy, resting);
+    }
     else if (!bodies.empty())
     {
         std::scoped_lock lock(s_bodyLock);

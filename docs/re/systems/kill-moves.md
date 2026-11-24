@@ -137,6 +137,55 @@ overdue when heard: it is taken at once, the actions queued before it dropped (`
 is left is the host's replay lag; killing on the claimer first would start its ragdoll before its owner's
 (`docs/bugs.md`, "A claimed kill's victim holds its pose for the host's replay").
 
+## Every kill move (2026-11-23, `kill-moves-every`)
+
+The kill moves are idles (IDLE records) in the action idle tree, not engine code: a normal swing's pick walks
+`AttackRightRoot > NonMountedCombatRight` (a power attack `PowerAttackRoot > NonMountedCombatRightPower`, the same
+kill moves as twins without the `00` suffix), children in their `ANAM` sibling order, the first whose conditions
+pass. `scripts/re/kill_moves.py <Data>` lists every one (145 `pa_Kill...` events in the base game and DLC, 344 idles
+naming one); `--rows` walks the tree's conditions per victim race, weapon and side and writes the table
+`scripts/coop_harness/kill_moves.json`: 112 rows, 84 kill moves a player's normal swing can pick. The 84 are
+candidates: the walk's first-passing-child order and its fallback to the next sibling are inferred from the records, not
+read at `TESIdleForm` 24570 (the pick, 37147 -> 24602 -> 24570, traced in `agent-piece-4b.tsv`).
+
+```
+NonMountedCombatRight (children in order)
+  sprint attacks
+  KillingMoveSneakBackA00   sneaking, undetected
+  KillMoveFrontSideRoot00   GetRelativeAngle 90..270, GetTargetHeight -35..35, ShouldAttackKill (38559), KillMove global,
+                            the player only on target.IsLastHostileActor, weapon drawn, not blocking or staggered
+    <race roots>            target.GetIsRace (draugr, falmer, wolf, troll, sabre cat, bear, spider, spriggan, hagraven,
+                            giant, centurion, dragon, DLC races), then by GetEquippedItemType
+    KillMoveShortRoot00     target ActorTypeNPC: by weapon (blade, axe/mace, 2HM, 2HW, H2H, dual wield, decap perks)
+  KillMoveBackSideRoot00    target ActorTypeNPC, GetTargetHeight -35..35: back stabs, 2HM/2HW from behind, suplex
+  plain attacks
+```
+
+- Siblings carry `GetRandomPercent`: a row's swing picks one of its kill moves at random, so `kill_move_table` swings a
+  row until each played (two tries per kill move). A group whose children all fail is taken to pass on to its next
+  sibling: inferred from the tree's shape, the pick (37147) not read for it.
+- The decapitations need `SavageStrike` (1H) or `DevastatingBlow` (2H): the rows with perks add them.
+- Not in the table: dual wield (the verb equips one hand), bleeding-out victims, sneak kills, power attacks (the same
+  kill moves), creature and NPC attackers (`KillMoveRootDragon` and the creatures' own trees), dragons as victims (`KillMoveDragonRoot00`:
+  `pa_KillMove2HWDragonRodeoSlash` and others; the harness cannot stage a dragon).
+
+## Slopes (2026-11-23)
+
+Not settled. Playtest item 16. What limits a kill move here may be the idles' height window, the pair's start, or both.
+
+- **Read in IDA.** `GetTargetHeight` 21551 (condition 720): `param.z - subject.z`, 0 when either is null. Every kill
+  move root needs -35..35 (the suplex -20..20), and the records name no reference (CTDA parameter 1 is 0). Not read:
+  what the condition item passes for an empty reference, so whether the window acts at all.
+- **Read in IDA.** `LayoutParticipants` 32792 gives a support's mark the lead's height; `TryMoveTo` 78260 sweeps it
+  there, `MoveCheckCountsLayer` 78300 picking layers (`0x01010000`: terrain, static, ground). What a contact's value
+  means to its depth test is not read.
+- **Measured** (duo, Riverwood's hillside, 24 degrees, a restrained bandit, a sword). The attacker moved to the victim's
+  height: 25 below, raised 34; above, lowered 17 to 28 (so here the victim leads). Attacker above its victim by 18.4:
+  no kill move; 23.2, 24.4, 24.5, 25.6, 40.2 and one unread: paired; 35.3, 35.6 and 43: none. The height is read before the
+  swing. 40.2 pairing contradicts a strict window.
+- The refused swings at 18.4 and 35.6 logged `PairEnd`/`pairedStop` inputs before the plain `attackStart`, those at 35.3
+  and 43 none. Inferred: a pair begun and refused in the first two, never picked in the others. Which check refused is not read.
+
 ## By weapon (measured 2026-11-22, `kill-moves-by-weapon`)
 
 A restrained bandit (`3DE53`) or wolf, one hit from death, `KillMoveRandom` 100. Each paired on both games, the
@@ -316,14 +365,36 @@ kill): it waits for its owner's death action, about 115 ms later. Traced on `kil
 
 Now it holds that pose: `KillActorHandler` 42838 starts the hold, `HookUpdateAnimationGraphs` gives its graph no update until
 the death action (or 1.5 s, `cPoseHoldMs`). Nothing drives a ragdoll with no graph update, and limbs free-fell 45 units in the
-hold, so its bodies' velocities are zeroed each update (`HoldCopyRagdollStill`). Its first ragdoll frame steers instead of
-teleporting unless 16+ units off (`PlaceDistance`). Before: 0 of 3, up to 81-unit flickers. After: 6 of 6, 0 flickers, no
-bone over 25 units off. This also explains the note in `progress.md` about a wolf's copy holding its pose after its blow:
+hold, so its bodies' velocities are zeroed each update (`HoldCopyRagdollStill`). Before: 0 of 3, up to 81-unit flickers.
+After: 6 of 6, 0 flickers, no bone over 25 units off. Its first frames were then steered body by body unless 16+ units
+off (`PlaceDistance`, replaced 2026-11-23: next section). This also explains the note in `progress.md` about a wolf's copy holding its pose after its blow:
 that hold is now deliberate.
 
 Its ragdoll is its own through the clip (2026-11-18): the victim state's `AddRagdollToWorld` puts it in the world on
 the copy before its owner's stream does, and mirroring the owner's body layer had taken it out again until the death
 (`docs/re/systems/physics.md`, "A kill move's victim copy keeps its ragdoll").
+
+## A copy's ragdoll starts whole (2026-11-23)
+
+The host's battleaxe kill moves seen on the guest (10 falls): up to 32 flickers, 4 to 23 units of pelvis jump (the host's
+own screen 0.4 to 4.6). The log showed the first frames split the ragdoll: limbs 16+ units off were placed (`PlaceDistance`),
+the rest steered, and (inferred: the trace shows the mixed placements and a burst in the same falls) the joints between
+them threw the bodies about. That showed in 3 of 6 falls, all HeadButts, each at
+its burst.
+
+`RagdollStart` (`Code/client/Physics/RagdollStart.h`) plans the whole ragdoll at once: each body's gap at its first frame is
+blended out over 0.2 s, and one body 64+ units off (`BodyTolerances::kPlaceFar`) puts them all on their frames. After: 0
+flickers in 9 of 9 falls, and in 16 more on the authority scheme's base. Tests: GameTests and ClientTests `[ragdoll-start]`.
+
+Not fixed by it: the host's HeadButts on the guest still jump about 18 units (4 of 5, 2026-11-23). The trace: every body of
+the copy's ragdoll drops about 22 units in one frame at its death (the host's rises), while its frame is 100 ms behind;
+`RagdollStart` then takes that as its gap and blends it out. Nothing of ours logged a placement there, and `KillImpl` 37896's
+ragdoll part sets no body's position (`SetRagdollMotionType`: 63627 skips the ragdoll's own bodies; vfunc 12, 63631, sets its
+constraints' motors). A probe around 58291 (duo, 2 HeadButt-free rounds of 5 with a death jump) showed the move inside
+the engine's own `hkbRagdollDriver::driveToPose` on the copy's first update after its death: body 0 moved 10 and 9.6 units
+in that one call, our steer after it nothing. Its callees read so far set no position (IDA comments at 58291); whether its
+keyframed-to-dynamic `setMotionType` puts a body back to its swept transform's start is not read yet.
+Left as it is (the user, 2026-11-23): watched in play, the kill moves look right; the death's drop is the engine's.
 
 ## `client-kill-move` timing
 
