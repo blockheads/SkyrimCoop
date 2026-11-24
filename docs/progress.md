@@ -55,9 +55,10 @@ open on, and the engine's next `MenuTopicManager::Update` (35289) ran `UpdateInD
 `GuestDialogue::OnLeft` clears the conversation (`MenuTopicManager::Clear` 35274) as the guest leaves. GameTests "A
 guest leaving the session mid-conversation ends its game's conversation on the copy it loses" and "...right after
 its speaker's copy is freed still closes its menu" (the fake now keeps a deleted temporary actor's handle resolving
-until the frame's end and counts updates of a speaker without a process); scenario `dialogue-guest-leaves-mid-line`. The playtest's doubled voice line
-on the host after a rejoin (bug 3) was not reproduced in six paths, sampled on the host NPC's voice handle (MCP
-`voice_mark`, `voice_lines`, `expect_no_line_layered`; sampled, not an engine record). Found on the way: a join from the main menu fails while the
+until the frame's end and counts updates of a speaker without a process); scenario `dialogue-guest-leaves-mid-line`. The playtest's layered voices (bug 3: the guest left
+Lucan's conversation and talked again, 2026-10-31) were fixed by 0d64013e (2026-11-17, a guest's menu no longer replays
+the NPC's last line on every opening); per-line voice logs (`Voice:`) and the MCP verbs `voice_mark`, `voice_lines`,
+`expect_no_line_layered`, `speak_calls` show each line once on dev. Found on the way: a join from the main menu fails while the
 host's dialogue menu is open (no save then), `bugs.md`, "A join while the host talks".
 
 2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;

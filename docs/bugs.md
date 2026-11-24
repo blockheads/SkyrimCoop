@@ -225,8 +225,8 @@ dialogue menu is open).
 
 Size: small. Needs: the user's call on the behaviour, then GameTests; the duo once.
 
-- Also seen while looking for a doubled voice line on the host after a rejoin (playtest bug 3, not reproduced:
-  `dialogue.md`, same section). Scenario: `dialogue-guest-leaves-mid-line`'s second half leaves the guest out while
+- Found while looking into the playtest's layered voices after a rejoin (bug 3, fixed by 0d64013e: `dialogue.md`,
+  same section). Scenario: `dialogue-guest-leaves-mid-line`'s second half leaves the guest out while
   the host's menu is open and joins only after it closes.
 
 ### A copy's interaction idle

@@ -368,13 +368,15 @@ Read in IDA (named and commented there), measured on the duo (`dialogue-guest-le
   A conversation the host's game runs for a guest without its menu does not block it.
 - **Closing the host's menu stops the NPC's line** (measured): 35274's path from the menu's close ends it, so no line
   plays on after a close.
-- **No line layered on the host, as far as sampling shows** (the voice handle's sound id, `HighProcessData::
-  soundHandles[0]`, read every 50 ms through the status: a new sound while the last read of the old one still had voice
-  time left is taken as two lines at once. Sampled, not an engine record: two starts between reads show only the last,
-  and a skip between reads could look like an overlap):
-  the host's NPC said each response once with a guest leaving and joining again from the main menu (the guest's own
-  conversation, and the host's shared with the guest), and with the guest rejoining in place (`rejoin_client`, the
-  host's conversation and the shared one). The playtest report of a doubled line on the host was not reproduced.
+- **The playtest's layered voices were the guest's, and are fixed** (bug 3: Fabien, the guest, left Lucan's
+  conversation during the claw quest and talked to him again, 2026-10-31). That build replayed the NPC's last line on
+  every menu opening (`ReplayGreeting`), over the copy's line; since 0d64013e (2026-11-17) only a menu the guest's own
+  ask opened replays it ("The copy's voice", above; scenario `dialogue-guest-joins-mid-line`). Measured again on dev
+  with a log line per voice start (actor and file, `Voice:`): a guest leaving the menu mid-answer and talking again,
+  near and after moving 1,500 units off, gets each of the host's lines once; its rejoin stops the copy's current line
+  (`SaySelected` 35283 on the copy) until the next one. The host's engine calls `Actor::SpeakSound` twice per response,
+  about 20 ms apart (both the host's and the copy's logs), with one sound each (the voice handle's ids rise by one per
+  response); each relay stops the copy's line before its own.
 
 ## Building options (2026-10-18)
 
