@@ -433,6 +433,24 @@ void Actor::DispelAllSpells(bool aNow) noexcept
     magicTarget.DispelAllSpells(aNow);
 }
 
+void Actor::ClearPowerCooldowns() noexcept
+{
+    POINTER_SKYRIMSE(void(Actor*), s_clear, 38825);
+    s_clear(this);
+}
+
+void Actor::SetPowerCooldown(SpellItem* apPower, float aSeconds) noexcept
+{
+    POINTER_SKYRIMSE(void(Actor*, SpellItem*, float), s_set, 38738);
+    s_set(this, apPower, aSeconds);
+}
+
+GameList<ActiveEffect>* Actor::GetActiveEffects() noexcept
+{
+    POINTER_SKYRIMSE(GameList<ActiveEffect>*(MagicTarget*), s_effects, 38795);
+    return s_effects(&magicTarget);
+}
+
 bool Actor::IsInCombat() const noexcept
 {
     PAPYRUS_FUNCTION(bool, Actor, IsInCombat);

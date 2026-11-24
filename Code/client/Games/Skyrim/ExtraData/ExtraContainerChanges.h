@@ -15,6 +15,8 @@ struct ExtraContainerChanges : BSExtraData
     struct Entry
     {
         bool IsQuestObject() noexcept;
+        // The stack holding its ExtraHotkey (InventoryEntryData::GetFavoriteExtraList 15998), null when none.
+        ExtraDataList* GetFavoriteList() noexcept;
 
         TESForm* form;
         GameList<ExtraDataList>* dataList;
@@ -31,6 +33,8 @@ struct ExtraContainerChanges : BSExtraData
         void Save(BGSSaveFormBuffer* apBuffer);
         void Load(BGSLoadFormBuffer* apBuffer);
         TESObjectARMO* GetArmor(uint32_t aSlotId) noexcept;
+        // Favorites the stack (apList, or one of the entry's split off), as the item menus do (InventoryChanges::SetFavorite 16098).
+        void SetFavorite(Entry* apEntry, ExtraDataList* apList) noexcept;
 
         GameList<Entry>* entries;
         TESObjectREFR* parent;
