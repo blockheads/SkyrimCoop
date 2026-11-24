@@ -55,6 +55,11 @@ public:
     std::vector<BodyKey> Rest(uint32_t aPlayer, const std::set<BodyKey>& acStill, const std::vector<std::pair<BodyKey, BodyKey>>& acContacts,
                               uint64_t aTick) noexcept;
 
+    // Of acContacts (Havok's pairs), the bodies that touch one acHostOnly names (a trap's): the host's too, so a pile
+    // has one simulator (a guest's tripwire rope under the host's rocks pushed back and forth for good).
+    [[nodiscard]] static std::set<BodyKey> TouchingHostOnly(const std::vector<std::pair<BodyKey, BodyKey>>& acContacts,
+                                                            const std::function<bool(const BodyKey&)>& acHostOnly);
+
     // The host: whether aPlayer's state of a body stands (its claim kept), its rest given back to nobody.
     bool Accept(uint32_t aPlayer, const BodyState& acState) noexcept;
     // The host: nobody's again, the number moved on (the host's game placed it, or its authority went silent).

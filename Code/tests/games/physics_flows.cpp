@@ -325,6 +325,42 @@ SCENARIO("A bucket at rest in an island kept awake is nudged again: its new rest
     CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
 }
 
+// WarehouseTraps' tripwire (2026-11-24): the guest's player took its rope as the host's rocks fell onto it, and each
+// game steered the other's bodies in one pile: the rope moved at 2-30 units/s for good (a game without a session: still
+// in 5 s). A pile with a trap's body in it has one simulator, the host.
+SCENARIO("A guest's player pushes a bucket a trap's rock rests on: the host's game keeps simulating it", "[physics][traps]")
+{
+    const BodyKey cRock{.Object = GameId(0, 0x00079979)};
+    Party party(1, [&](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        FakeEngine::Body rock;
+        rock.Layer = 14;
+        rock.Flight.Body.Position = {100.f, 200.f, kTable + 20.f};
+        aEngine.Bodies[cRock] = rock;
+        aEngine.Lands(cRock, kBucket);
+    });
+    FakeEngine& guest = Party::Engine(party.Guest());
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    CHECK_FALSE(Moves(party.Guest(), kBucket));
+
+    WHEN("a bucket the guest already moves comes to touch the rock")
+    {
+        party.As(party.Guest(), [&] { guest.Islands.clear(); });
+        party.As(party.Host(), [&] { Party::Engine(party.Host()).Islands.clear(); });
+        party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {400.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
+        party.Until([&] { return Moves(party.Guest(), kBucket); }, "the guest's push takes the bucket");
+        party.As(party.Host(), [&] { Party::Engine(party.Host()).Lands(cRock, kBucket); });
+        party.As(party.Guest(), [&] { guest.Lands(cRock, kBucket); });
+        // While it still moves: not its rest (a rest is nobody's too).
+        party.Until([&] { return !Moves(party.Guest(), kBucket) || guestBucket.Flight.Resting; }, "the bucket goes back or stops");
+        CHECK_FALSE(Moves(party.Guest(), kBucket));
+        CHECK_FALSE(guestBucket.Flight.Resting);
+    }
+}
+
 SCENARIO("The host's player holds a bucket still in the air and lets go: the guest's first rest is where it lands", "[physics][still]")
 {
     // Review of #56: its stillness matured in the hand, so the release was taken for a rest in midair.

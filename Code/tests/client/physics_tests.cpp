@@ -10,6 +10,8 @@
 
 #include <Physics/BodyGroups.h>
 #include <Games/ScriptMotion.h>
+#include <Physics/BodyAuthority.h>
+#include <set>
 #include <Physics/BodyPlayback.h>
 #include <Physics/RagdollPending.h>
 #include <Physics/RagdollStart.h>
@@ -737,4 +739,15 @@ TEST_CASE("A script's motion type packs with its allowActivate and the last one 
     store.Remember(0x7998B, ScriptMotion::Pack(4, false));
     store.Remember(0x7998B, ScriptMotion::Pack(1, false)); // tripped
     CHECK(store.Of(0x7998B) == ScriptMotion::Pack(1, false));
+}
+
+TEST_CASE("A body touching a trap's is the host's; two trap bodies or two loose ones bind nothing", "[physics][traps]")
+{
+    const BodyKey cRope{.Object = GameId(0, 0x7998B), .Index = 2};
+    const BodyKey cRock{.Object = GameId(0, 0x79979)};
+    const BodyKey cOtherRock{.Object = GameId(0, 0x79975)};
+    const BodyKey cBucket{.Object = GameId(0, 0x1A0F3)};
+    const auto cTrap = [&](const BodyKey& acKey) { return acKey == cRock || acKey == cOtherRock; };
+    const auto cBound = BodyAuthority::TouchingHostOnly({{cRope, cRock}, {cRock, cOtherRock}, {cBucket, cRope}}, cTrap);
+    CHECK(cBound == std::set<BodyKey>{cRope});
 }

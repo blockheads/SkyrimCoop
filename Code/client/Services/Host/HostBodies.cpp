@@ -54,7 +54,7 @@ bool HostBodies::IsGuest(uint32_t aPlayer) const noexcept
 bool HostBodies::MayClaim(const BodyKey& acKey, ConnectionId_t aSender) const noexcept
 {
     if (!acKey.Actor)
-        return !(m_game.IsTrapBody && m_game.IsTrapBody(acKey));
+        return !(m_game.IsTrapBody && m_game.IsTrapBody(acKey)) && !m_trapBound.contains(acKey);
     const ConnectionId_t cOwner = m_characters.OwnerOf(acKey.Actor);
     return cOwner == aSender || (cOwner == m_players.Host() && m_game.IsDead && m_game.IsDead(acKey.Actor));
 }
@@ -308,8 +308,26 @@ void HostBodies::Update(uint64_t aTick) noexcept
     for (auto& [cKey, row] : m_rows)
         if (row.FromGuest && row.Given && aTick > row.Heard + BodyTolerances::kSilentMs)
             row.FromGuest = false;
+    TrapBound();
     Read(aTick);
     Stream(aTick);
+}
+
+void HostBodies::TrapBound() noexcept
+{
+    m_trapBound.clear();
+    if (!m_game.ReadTouching || !m_game.IsTrapBody)
+        return;
+    std::vector<BodyKey> moved;
+    for (const auto& [cKey, cRow] : m_rows)
+        if (const auto cClaim = m_authority.Of(cKey); !cKey.Actor && IsGuest(cClaim.Player) && !cClaim.AtRest)
+            moved.push_back(cKey);
+    if (moved.empty())
+        return;
+    m_trapBound = BodyAuthority::TouchingHostOnly(m_game.ReadTouching(moved), m_game.IsTrapBody);
+    for (const BodyKey& cKey : m_trapBound)
+        if (IsGuest(m_authority.Of(cKey).Player))
+            Unclaim(cKey, "it touches a trap's body");
 }
 
 void HostBodies::OnPlayerLeft(ConnectionId_t aPlayer) noexcept

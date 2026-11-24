@@ -119,6 +119,16 @@ rocks and mace keyframed before their traps fire; `warehouse_traps_hurt_both`'s 
 apart to 6, the rocks within a unit. Left: a tripped tripwire's rope keeps moving on both games (2 to 30 units/s past
 15 s), not yet compared with a game without a session.
 
+## A pile with a trap's body has one simulator (measured, 2026-11-24)
+
+A tripped tripwire's rope (props, so anyone's to take) under the host's falling rocks (a trap's, the host's alone):
+the guest's player, standing in the rope as it tripped, took it, and each game steered the other's bodies in one pile.
+The rope moved at 2 to 30 units/s past 15 s on both games, where a game without a session stills it in 5 s and the
+host tripping it (one simulator) in 3 s. A body touching a trap's body (Havok's pairs, `BodyAuthority::TouchingHostOnly`)
+is now the host's too: the host gives back a guest's moving body that touches one and refuses its claim meanwhile, and
+a guest does not take one. Measured: the host's rope still in 5 s and asleep by 8 s, the guest's still by 14 s (its
+player, standing in it, still claims it: its touches number past the host's until it steps off).
+
 ## Motion type and kSetLocal
 
 Waking a body runs the engine's island activation listener (25857), which takes its reference's extra data lock

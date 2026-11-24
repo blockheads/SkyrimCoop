@@ -228,3 +228,17 @@ BodyState BodyAuthority::Stamp(const BodyFrame& acFrame, uint32_t aReceiver) con
         state.Frame.LinearVelocity = state.Frame.AngularVelocity = {};
     return state;
 }
+
+std::set<BodyKey> BodyAuthority::TouchingHostOnly(const std::vector<std::pair<BodyKey, BodyKey>>& acContacts,
+                                                  const std::function<bool(const BodyKey&)>& acHostOnly)
+{
+    std::set<BodyKey> bound;
+    for (const auto& [cA, cB] : acContacts)
+    {
+        if (acHostOnly(cB) && !acHostOnly(cA))
+            bound.insert(cA);
+        if (acHostOnly(cA) && !acHostOnly(cB))
+            bound.insert(cB);
+    }
+    return bound;
+}
