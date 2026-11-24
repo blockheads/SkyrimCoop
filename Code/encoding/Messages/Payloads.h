@@ -169,16 +169,6 @@ struct ProjectileLaunch
     bool UnkBool2{};
 };
 
-// A projectile whose shooter is an object of the world; Launch.ShooterID is not used.
-struct WorldProjectile
-{
-    GameId Shooter{};
-    ProjectileLaunch Launch{};
-    bool operator==(const WorldProjectile&) const noexcept = default;
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-};
-
 struct AddTarget
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;

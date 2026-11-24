@@ -13,6 +13,12 @@ namespace OwnerEffects
     return std::ranges::binary_search(acHeld, aEffect);
 }
 
+// A spell's: the owner holds one of its effects (aEffects).
+[[nodiscard]] inline bool HasAny(const std::vector<uint32_t>& acHeld, const std::vector<uint32_t>& acEffects) noexcept
+{
+    return std::ranges::any_of(acEffects, [&](uint32_t aEffect) { return Has(acHeld, aEffect); });
+}
+
 // aHasKeyword(effect id): that effect's form carries the keyword asked about.
 template <class THasKeyword> [[nodiscard]] bool HasWithKeyword(const std::vector<uint32_t>& acHeld, THasKeyword&& aHasKeyword) noexcept
 {

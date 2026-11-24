@@ -295,6 +295,25 @@ TEST_CASE("Shots: replayed everywhere else, from the shooter's owner only", "[Ho
     CHECK(session.Outbox.empty());
 }
 
+TEST_CASE("Shots: an object's (no shooter) replayed everywhere else, from whichever game ran it", "[HostAuthority][Magic]")
+{
+    Session session;
+    session.Character(kPeer);
+
+    // A Storm Call bolt from its script's activator (projectiles.md).
+    ProjectileLaunchRequest shot;
+    shot.OriginZ = 3600.f;
+    session.Receive(kPeer, shot);
+    REQUIRE(session.SentTo<NotifyProjectileLaunch>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kHost)[0]->ShooterID == 0);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kPeer).empty());
+
+    session.Outbox.clear();
+    session.Receive(kHost, shot);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kHost).empty());
+}
+
 TEST_CASE("Spell effects: applied by the target's owner alone", "[HostAuthority][Magic]")
 {
     Session session;
@@ -711,16 +730,6 @@ TEST_CASE("A trap's contact comes from the touched guest's game, its hit from th
     REQUIRE(session.SentTo<NotifyTrapHit>(kPeer).size() == 1);
     CHECK(session.SentTo<NotifyTrapHit>(kPeer)[0]->Damage == 60.f);
     CHECK(session.SentTo<NotifyTrapHit>(kOtherPeer).empty());
-
-    WorldProjectileRequest shot;
-    shot.Shooter = GameId(0, 0x3720F);
-    session.Outbox.clear();
-    session.Receive(kPeer, shot);
-    CHECK(session.Outbox.empty());
-    session.Receive(kHost, shot);
-    CHECK(session.SentTo<NotifyWorldProjectile>(kPeer).size() == 1);
-    CHECK(session.SentTo<NotifyWorldProjectile>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<NotifyWorldProjectile>(kHost).empty());
 }
 
 TEST_CASE("A quest one per player: the game that learned it tells every other", "[HostAuthority][SystemQuests]")

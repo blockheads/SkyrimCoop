@@ -133,10 +133,10 @@ SCENARIO("A trap's change after its animation waits behind it on a guest", "[tra
     CHECK(guest.References.at(kWall).GraphEvents == std::vector<std::string>{"TRIGGER"});
 }
 
-// WarehouseTraps' fire plate and poison gas (2026-11-23): the host's hazard and explosion cast on its copy of the guest
-// (no caster at all) while the guest's own copies of them cast on its player; both applied, the burns and poisons
-// stacked. A cast with no caster is its target's own game's: the host's on the copy is not sent.
-SCENARIO("A hazard's or explosion's effect on a guest's player is its own game's", "[traps]")
+// WarehouseTraps' fire plate and poison gas (2026-11-23, 2026-11-24): a hazard's or explosion's effect on a guest's
+// player is the host's verdict on its copy; the guest's own copies of them apply nothing. A hazard casts only on an
+// actor not under its spell, which the copy now answers with its player's effects: one burn, not one a tick.
+SCENARIO("A hazard's or explosion's effect on a guest's player is the host's verdict, once", "[traps]")
 {
     static constexpr uint32_t kFireHazardSpell = 0x0005A1A5;
     constexpr uint32_t kFireDamage = 0x0005A1A6;
@@ -153,26 +153,27 @@ SCENARIO("A hazard's or explosion's effect on a guest's player is its own game's
     const auto cOn = [&](uint32_t aSpell) {
         return std::ranges::count_if(guest.Effects, [&](const auto& acEffect) { return acEffect.Target == FakeEngine::kPlayer && acEffect.Spell == aSpell; });
     };
-    party.As(party.Host(), [&] {
-        for (int i = 0; i < 4; ++i)
-            host.SpellHits(PlayerCopy(host), 0, kFireHazardSpell, kFireDamage, 5.f);
-        host.ExplosionHits(PlayerCopy(host), 0xFF000901, kPoisonSpell, kPoison, 2.f);
-    });
-    Settle(party, 1);
-    CHECK(cOn(kFireHazardSpell) == 0);
-    CHECK(cOn(kPoisonSpell) == 0);
     party.As(party.Guest(), [&] {
-        guest.SpellHits(FakeEngine::kPlayer, 0, kFireHazardSpell, kFireDamage, 5.f);
+        guest.HazardHits(FakeEngine::kPlayer, kFireHazardSpell, kFireDamage, 5.f);
         guest.ExplosionHits(FakeEngine::kPlayer, 0xFF000900, kPoisonSpell, kPoison, 2.f);
     });
+    party.As(party.Host(), [&] { host.HazardHits(PlayerCopy(host), kFireHazardSpell, kFireDamage, 5.f); });
+    party.Until([&] { return cOn(kFireHazardSpell) == 1; }, "the host's burn reaches the guest");
+    party.Until([&] { return host.ActorHasEffect(PlayerCopy(host), kFireDamage); }, "the host's copy holds its player's burn");
+    party.As(party.Host(), [&] {
+        for (int i = 0; i < 3; ++i)
+            host.HazardHits(PlayerCopy(host), kFireHazardSpell, kFireDamage, 5.f);
+        host.ExplosionHits(PlayerCopy(host), 0xFF000901, kPoisonSpell, kPoison, 2.f);
+    });
+    party.Until([&] { return cOn(kPoisonSpell) == 1; }, "the host's poison reaches the guest");
     Settle(party, 1);
     CHECK(cOn(kFireHazardSpell) == 1);
     CHECK(cOn(kPoisonSpell) == 1);
 }
 
 // WarehouseTraps' gas (TrapPoisonGas, 2026-11-24): its script places an explosion on whoever stands in it unless they
-// already have its effect (HasMagicEffectWithKeyword). The guest's copy never had: every trigger fired on it, and its
-// poison stacked on the guest. A copy answers with its owner's effects.
+// already have its effect (HasMagicEffectWithKeyword). The guest's copy never had, so every trigger fired on it, and
+// its poison stacked on the guest. A copy answers with its owner's effects.
 SCENARIO("A script asking a guest's copy for an effect gets its player's answer", "[traps][effects]")
 {
     static constexpr uint32_t kPoisonSpell = 0x000A0370;
@@ -185,11 +186,12 @@ SCENARIO("A script asking a guest's copy for an effect gets its player's answer"
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
     CHECK_FALSE(host.ActorHasEffect(PlayerCopy(host), kPoison));
-    party.As(party.Guest(), [&] { guest.ExplosionHits(FakeEngine::kPlayer, 0xFF000900, kPoisonSpell, kPoison, 2.f); });
+    party.As(party.Host(), [&] { host.ExplosionHits(PlayerCopy(host), 0xFF000901, kPoisonSpell, kPoison, 2.f); });
     party.Until([&] { return host.ActorHasEffect(PlayerCopy(host), kPoison); }, "the host's copy has the guest's poison");
+    CHECK(std::ranges::count_if(guest.Effects, [](const auto& acEffect) { return acEffect.Target == FakeEngine::kPlayer; }) >= 1);
 }
 
-SCENARIO("A dart an object of the host's world fires flies on every guest, once", "[traps]")
+SCENARIO("A dart an object fires flies on every other game, once, with no shooter", "[traps]")
 {
     Party party(2, Plugins);
     FakeEngine& host = Party::Engine(party.Host());
@@ -198,17 +200,21 @@ SCENARIO("A dart an object of the host's world fires flies on every guest, once"
     party.Until([&] { return PlayerCopy(host, 1) != 0; }, "the host has both guests");
     WHEN("the host's trap fires")
     {
-        party.As(party.Host(), [&] { host.ObjectFires(kDarts, kDart, {10.f, 20.f, 30.f}); });
+        party.As(party.Host(), [&] { host.ObjectShoots(kDarts, 0, kSmoke, {10.f, 20.f, 30.f}, kDart); });
         party.Until([&] { return guest.Shots.size() == 1 && other.Shots.size() == 1; }, "both guests fire it");
         Settle(party, 2);
         CHECK(guest.Shots.size() == 1);
-        CHECK(host.Shots.empty());
+        CHECK(host.Shots.size() == 1); // its own
+        // Its hit on the guest's copy is the host's verdict, taken by the guest's player (darts_hurt_puller: the guest's
+        // dart, relaunched with no shooter, had no damage, and the host's on the copy was dropped).
+        const float cBefore = Health(guest, FakeEngine::kPlayer);
+        party.As(party.Host(), [&] { host.ObjectProjectileHits(PlayerCopy(host, 0), 9.f); });
+        party.Until([&] { return Health(guest, FakeEngine::kPlayer) <= cBefore - 9.f; }, "the guest's player takes the dart's hit");
     }
-    WHEN("a guest's engine fires one of its own")
+    WHEN("a guest's engine fires one of its own (its player's Storm Call)")
     {
-        party.As(party.Guest(0), [&] { guest.ObjectFires(kDarts, kDart, {10.f, 20.f, 30.f}); });
-        Settle(party, 2);
-        CHECK(host.Shots.empty());
-        CHECK(other.Shots.empty());
+        party.As(party.Guest(0), [&] { guest.ObjectShoots(kDarts, 0, kSmoke, {10.f, 20.f, 30.f}, kDart); });
+        party.Until([&] { return host.Shots.size() == 1 && other.Shots.size() == 1; }, "the host and the other guest fire it");
+        CHECK(guest.Shots.size() == 1); // its own
     }
 }

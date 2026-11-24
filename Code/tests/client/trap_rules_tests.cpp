@@ -31,10 +31,10 @@ TEST_CASE("A trap's hit is taken by its target's own game", "[TrapRules]")
     CHECK(OfHit(true, false, LocalPlayer) == Hit::Apply);
 }
 
-TEST_CASE("On a guest its own copy of a trap's cast applies nothing to its player; an explosion's or hazard's does", "[TrapRules]")
+TEST_CASE("On a guest its own copy of a world cast applies nothing to its player: the host's verdict does", "[TrapRules]")
 {
-    CHECK_FALSE(AppliesWorldEffect(true, LocalPlayer, true, false)); // the trap's Spell.Cast: the host's asks
-    CHECK(AppliesWorldEffect(true, LocalPlayer, false, false));      // no caster: its own copy of the explosion
+    CHECK_FALSE(AppliesWorldEffect(true, LocalPlayer, true, false)); // a trap's spell, hazard, explosion: the host's asks
+    CHECK(AppliesWorldEffect(true, LocalPlayer, false, false));      // an actor's
     CHECK(AppliesWorldEffect(true, LocalPlayer, true, true));        // its own script's
     CHECK(AppliesWorldEffect(false, LocalPlayer, true, false));
     CHECK(AppliesWorldEffect(true, Copy, true, false));
@@ -56,13 +56,11 @@ TEST_CASE("An animation repeated at once on an object with no 3D is sent once; a
     CHECK(SendsAnimation(false, true, 5s));         // the trap fires again
 }
 
-TEST_CASE("An object's cast on the host is shown on every game; an actor's or a guest's own is not", "[TrapRules]")
+TEST_CASE("A cast runs on the game whose script cast it, even one a guest's step caused: its projectile reaches the others", "[TrapRules]")
 {
     using namespace PartyRules;
     const Reach cCast{.Kind = Call::kCast};
-    CHECK(RouteOf({.Reach = cCast, .Hosting = true, .ObjectCaster = true}) == Routing{.To = Destination::kEveryGame});
-    CHECK(RouteOf({.Reach = cCast, .Cause = 0xFF000801, .GuestCause = true, .Hosting = true, .ObjectCaster = true}) == Routing{.To = Destination::kEveryGame});
     CHECK(RouteOf({.Reach = cCast, .Hosting = true}) == Routing{});
-    CHECK(RouteOf({.Reach = cCast, .Guest = true, .ObjectCaster = true}) == Routing{});
-    CHECK(RouteOf({.Reach = cCast, .Cause = kMirrored | 1, .ObjectCaster = true}) == Routing{});
+    CHECK(RouteOf({.Reach = cCast, .Cause = 0xFF000801, .GuestCause = true, .Hosting = true}) == Routing{});
+    CHECK(RouteOf({.Reach = cCast, .Guest = true}) == Routing{});
 }

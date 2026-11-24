@@ -124,14 +124,14 @@ bool IsFriendly(const MagicItem* apSpell) noexcept
     return apSpell->IsHealingSpell() || apSpell->IsBuffSpell();
 }
 
-// The host's world on a guest's character: an object's cast (a statue's, a trap's Spell.Cast), or a script making the
-// copy cast. Not one with no caster at all (a hazard's, an explosion's): the guest's own copy of it judges its player.
-bool IsWorldCast(Actor* apTarget, Actor* apCaster, bool aHasCaster) noexcept
+// The host's world on a guest's character: no actor casts it (a statue, a trap's spell or projectile, a hazard, an
+// explosion), or a script making the copy cast. The host's verdict, sent to the guest's game.
+bool IsWorldCast(Actor* apTarget, Actor* apCaster) noexcept
 {
     if (!apTarget->GetExtension()->IsOtherPlayer() || !World::Get().GetHostService().IsHosting())
         return false;
     const uint32_t cGuest = GuestScripts::NativeGuest();
-    return (!apCaster && aHasCaster) || (IsCopy(apCaster) && cGuest && cGuest != 0x14); // 0x14: the host's own player's script
+    return !apCaster || (IsCopy(apCaster) && cGuest && cGuest != 0x14); // 0x14: the host's own player's script
 }
 } // namespace
 
@@ -178,7 +178,7 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
     // this hook). Copies never apply effects themselves; they show the owner's resulting state.
     if (pTargetActorEx->IsCopy())
     {
-        const bool cWorldCast = IsWorldCast(pTargetActor, pCasterActor, arData.pCaster != nullptr);
+        const bool cWorldCast = IsWorldCast(pTargetActor, pCasterActor);
 
         // Someone else's actor hit by someone else's spell, or by nothing of ours: their games
         // handle it.
@@ -201,9 +201,8 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
         return false;
     }
 
-    // On a guest, its own copy of the host's trap's cast (an object casts it): the host's game decides and asks.
-    const bool cByObject = arData.pCaster && !pCasterActor;
-    if (!TrapRules::AppliesWorldEffect(GuestNpcs::Session() != 0, HitRules::PartyOf(pTargetActor), cByObject, GuestScripts::NativeGuest() == 0x14))
+    // On a guest, its own copy of a world cast (no actor casts it): the host's game decides and asks.
+    if (!TrapRules::AppliesWorldEffect(GuestNpcs::Session() != 0, HitRules::PartyOf(pTargetActor), pCasterActor == nullptr, GuestScripts::NativeGuest() == 0x14))
         return false;
 
     // Our actor. A replayed spell from someone else's character also lands here, but its caster's
@@ -218,12 +217,14 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
     return RealAddTarget(apThis, arData);
 }
 
-// MagicTarget::HasMagicEffect (34517) / HasMagicEffectWithKeyword (34518): a copy answers with its owner's effects,
-// to scripts, conditions and plugins alike (copy-contract.md, "Effects: the owner's").
+// MagicTarget::HasMagicEffect (34517) / HasMagicEffectWithKeyword (34518) / MagicItem::IsSpellTarget (34513): a copy
+// answers with its owner's effects, to scripts, conditions, hazards and plugins alike (copy-contract.md).
 using THasMagicEffect = bool(MagicTarget*, EffectSetting*);
 static THasMagicEffect* RealHasMagicEffect = nullptr;
 using THasMagicEffectWithKeyword = bool(MagicTarget*, BGSKeyword*, ActiveEffect**);
 static THasMagicEffectWithKeyword* RealHasMagicEffectWithKeyword = nullptr;
+using TIsSpellTarget = bool(MagicTarget*, MagicItem*);
+static TIsSpellTarget* RealIsSpellTarget = nullptr;
 
 namespace
 {
@@ -240,6 +241,22 @@ bool HookHasMagicEffect(MagicTarget* apThis, EffectSetting* apEffect)
     if (const auto cHeld = CopyEffectsOf(apThis))
         return apEffect && OwnerEffects::Has(*cHeld, apEffect->formID);
     return RealHasMagicEffect(apThis, apEffect);
+}
+
+// A hazard casts only on an actor not under its spell (43987): the owner holding one of the spell's effects.
+bool HookIsSpellTarget(MagicTarget* apThis, MagicItem* apSpell)
+{
+    if (const auto cHeld = CopyEffectsOf(apThis))
+    {
+        if (!apSpell)
+            return false;
+        std::vector<uint32_t> effects;
+        for (const EffectItem* pItem : apSpell->listOfEffects)
+            if (pItem && pItem->pEffectSetting)
+                effects.push_back(pItem->pEffectSetting->formID);
+        return OwnerEffects::HasAny(*cHeld, effects);
+    }
+    return RealIsSpellTarget(apThis, apSpell);
 }
 
 bool HookHasMagicEffectWithKeyword(MagicTarget* apThis, BGSKeyword* apKeyword, ActiveEffect** appFound)
@@ -318,6 +335,7 @@ static Hooks::Initializer s_magicTargetHooks([]() {
     HOOK_ID(34410, &RealFindTargets, HookFindTargets);
     HOOK_ID(34517, &RealHasMagicEffect, HookHasMagicEffect);
     HOOK_ID(34518, &RealHasMagicEffectWithKeyword, HookHasMagicEffectWithKeyword);
+    HOOK_ID(34513, &RealIsSpellTarget, HookIsSpellTarget);
     HOOK_ID(34053, &RealAdjustForPerks, HookAdjustForPerks);
     HOOK_ID(21622, &RealHasPerk, HookHasPerk);
     HOOK_ID(34062, &RealEvaluateEntryConditions, HookEvaluateEntryConditions);

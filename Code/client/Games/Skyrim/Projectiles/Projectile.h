@@ -60,6 +60,8 @@ struct Projectile : TESObjectREFR
     float fDamage;
 
     static BSPointerHandle<Projectile>* Launch(BSPointerHandle<Projectile>* apResult, LaunchData& arData) noexcept;
+    // On the host, a hit with no actor aggressor (an object's projectile, a causeless explosion) on this thread (38586).
+    [[nodiscard]] static bool WorldHit() noexcept;
 };
 
 static_assert(sizeof(Projectile::LaunchData) == 0xA8);

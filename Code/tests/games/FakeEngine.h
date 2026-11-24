@@ -1306,6 +1306,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // An explosion's enchantment on an actor (43849, by its NonActorMagicCaster): the hook sees no caster actor, the
     // effect's caster is the explosion.
     void ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
+    // A placed hazard's tick on an actor in it (43987): cast with no caster, unless the actor is under its spell.
+    void HazardHits(uint32_t aTarget, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
     // An effect starts on this game's actor: its start raises the visuals' change (34094, EffectEvents).
     void StartsEffect(const Effect& acEffect);
     // A script or condition asks whether the actor has that effect (MagicTarget::HasMagicEffect 34517): a copy answers
@@ -1414,8 +1416,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The trap's script on a contact: in CanHit, ProcessTrapHit on the target (Actor::DoTrap1 37509, our hook).
     void RunsTrapScript(uint32_t aTrap, uint32_t aActor);
     void TakeTrapHit(uint32_t aFormId, uint32_t aTrapFormId, const Payloads::TrapHit& acHit) noexcept override;
-    // An object's Weapon.Fire (a dart trap): Projectile::Launch with the object as shooter.
-    void ObjectFires(uint32_t aObject, uint32_t aWeapon, const glm::vec3& acOrigin);
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override
     {
         Staggers.emplace_back(aFormId, aHitterId, aMagnitude);
@@ -1540,11 +1540,16 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // game's player on another's actor raised as a health change and not applied here (its owner applies it).
     void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);
     // Damage reaching an actor as HookDamageActor takes it (HitRules), from a swing or an effect being applied.
-    void TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect);
+    void TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit = false);
     [[nodiscard]] HitRules::Party PartyOf(uint32_t aFormId) const noexcept;
     // A projectile this game's actor launched (our hook on Projectile::Launch raises it); one another game's actor
     // launched, relaunched here (LaunchProjectile).
     void Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin);
+    // A projectile an object shot, of any kind: an activator's Spell.RemoteCast (magicProjectileStormScript), a statue,
+    // a dart port's Weapon.Fire (aWeapon).
+    void ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aCell, const glm::vec3& acOrigin, uint32_t aWeapon = 0);
+    // That projectile hits an actor here (44204): its HitData has no aggressor.
+    void ObjectProjectileHits(uint32_t aTarget, float aDamage);
     struct Shot
     {
         uint32_t Shooter = 0;

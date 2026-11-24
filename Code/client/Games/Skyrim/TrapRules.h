@@ -47,10 +47,11 @@ enum class Hit
     return aHosting && aTarget == OtherPlayer ? Hit::AskOwner : Hit::Drop;
 }
 
-// A guest's own copy of an object's cast on its player (a trap's Spell.Cast) applies nothing: the host's asks for it.
-[[nodiscard]] constexpr bool AppliesWorldEffect(bool aIsGuest, HitRules::Party aTarget, bool aCastByObject, bool aOwnScript) noexcept
+// A guest's own copy of a world cast on its player (no actor casts it: a trap's spell, a hazard, an explosion, a
+// projectile an object shot) applies nothing: the host's verdict asks for it. Its own script's does.
+[[nodiscard]] constexpr bool AppliesWorldEffect(bool aIsGuest, HitRules::Party aTarget, bool aNoActorCaster, bool aOwnScript) noexcept
 {
-    return !aIsGuest || aTarget != HitRules::Party::LocalPlayer || !aCastByObject || aOwnScript;
+    return !aIsGuest || aTarget != HitRules::Party::LocalPlayer || !aNoActorCaster || aOwnScript;
 }
 
 // A script looping on an object with no 3D here (its graph takes no event) repeats at once: a repeat this soon is not sent.

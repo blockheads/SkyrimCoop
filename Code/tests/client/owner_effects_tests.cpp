@@ -12,4 +12,7 @@ TEST_CASE("A copy has an effect, or one with a keyword, when its owner holds it"
     // The gas trap's check: its poison carries the gas keyword.
     CHECK(OwnerEffects::HasWithKeyword(cHeld, [](uint32_t aId) { return aId == 0x9F28F; }));
     CHECK_FALSE(OwnerEffects::HasWithKeyword(cHeld, [](uint32_t) { return false; }));
+    // A hazard's spell (IsSpellTarget): one of its effects.
+    CHECK(OwnerEffects::HasAny(cHeld, {0x5A1A6, 0x9F28F}));
+    CHECK_FALSE(OwnerEffects::HasAny(cHeld, {0x5A1A6}));
 }

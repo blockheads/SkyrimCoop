@@ -19,6 +19,7 @@
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
 #include <Systems/CopyStep.h>
+#include <Projectiles/Projectile.h>
 #include <Misc/GameVM.h>
 #include <DefaultObjectManager.h>
 #include <Forms/TESNPC.h>
@@ -1538,13 +1539,13 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
 
     // Direct authority: the hittee's owner applies a hit; our player's hit on another game's actor (a host NPC, another
     // player) is a request to that owner, and the copy mirrors the owner's health instead.
-    switch (HitRules::Of(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), s_applyingEffect))
+    switch (HitRules::Of(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), s_applyingEffect, Projectile::WorldHit()))
     {
     case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
         return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
     case HitRules::Route::AskOwner:
-        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter->formID));
+        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter ? apHitter->formID : 0));
         return wouldKill;
     case HitRules::Route::Mirror: return wouldKill;
     case HitRules::Route::Drop: return false;

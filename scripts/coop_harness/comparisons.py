@@ -157,6 +157,9 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
                 differences[field] = text
             continue
         if field == "collision":
+            # An explosion's debris bodies fly on each game's own physics, as its pose does.
+            if FORM_TYPE_NAMES.get(host.get("type")) == "EXPL":
+                continue
             if text := collision_difference(a, b, turns=not plant, places=not loose):
                 differences[field] = text
             continue

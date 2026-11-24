@@ -36,3 +36,12 @@ TEST_CASE("Our own actors take what the world does to them", "[HitRules]")
     CHECK(Of(Local, LocalPlayer, false) == Route::Apply);
     CHECK(Of(Local, Copy, false) == Route::Apply);
 }
+
+TEST_CASE("The host's world hit on another player's copy (an object's projectile) asks that player's game", "[HitRules]")
+{
+    using namespace HitRules;
+    CHECK(Of(Party::OtherPlayer, Party::None, false, true) == Route::AskOwner);
+    CHECK(Of(Party::OtherPlayer, Party::None, false, false) == Route::Mirror); // a copy's own fall
+    CHECK(Of(Party::Copy, Party::None, false, true) == Route::Mirror);
+    CHECK(Of(Party::LocalPlayer, Party::None, false, true) == Route::Apply);
+}

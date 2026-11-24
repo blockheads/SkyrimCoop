@@ -161,6 +161,7 @@ private:
     // applies it like every other copy.
     void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) noexcept;
     void OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's player cast a summon on itself: the host's game puts it on that player's copy (the host creates).
     void OnSummon(const SummonRequest& acRequest, ConnectionId_t aSender) const noexcept;
@@ -171,7 +172,6 @@ private:
     // A trap touched a guest's player, from its own game; a trap's hit on a guest's player, from the host's.
     void OnTrapContact(const TrapContactRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnTrapHit(const TrapHitRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnWorldProjectile(const WorldProjectileRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnRecipes(const RecipesRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's container change (its player took or stored an item): a proposal the host's world takes (step 6).

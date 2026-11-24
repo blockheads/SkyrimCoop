@@ -23,9 +23,12 @@ enum class Route
 };
 
 // aApplyingEffect: the damage comes from an effect this game applies (another game's spell on our actor among them).
-[[nodiscard]] constexpr Route Of(Party aHittee, Party aHitter, bool aApplyingEffect) noexcept
+// aWorldHit: the host's world hits (an object's projectile): on another player's copy, the host's verdict for its game.
+[[nodiscard]] constexpr Route Of(Party aHittee, Party aHitter, bool aApplyingEffect, bool aWorldHit = false) noexcept
 {
     const bool cOurs = aHittee == Party::LocalPlayer || aHittee == Party::Local;
+    if (aWorldHit && aHitter == Party::None && aHittee == Party::OtherPlayer)
+        return Route::AskOwner;
     if (aHitter == Party::LocalPlayer)
         return cOurs ? Route::Apply : Route::AskOwner;
     if (aHitter == Party::OtherPlayer)

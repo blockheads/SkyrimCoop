@@ -78,17 +78,6 @@ void TrapHit::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Material = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
-void WorldProjectile::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Shooter.Serialize(aWriter);
-    Launch.SerializePayload(aWriter);
-}
-void WorldProjectile::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    Shooter.Deserialize(aReader);
-    Launch.DeserializePayload(aReader);
-}
-
 void ActorPerks::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
