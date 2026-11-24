@@ -885,7 +885,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
     {
     }
-    void SetCopyEffects(uint32_t, std::vector<uint32_t>) noexcept override
+    void SetCopyEffects(uint32_t, std::vector<OwnerEffects::Held>) noexcept override
     {
     }
     bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override

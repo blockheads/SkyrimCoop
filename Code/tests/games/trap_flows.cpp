@@ -158,7 +158,11 @@ SCENARIO("A hazard's or explosion's effect on a guest's player is the host's ver
         guest.HazardHits(FakeEngine::kPlayer, kFireHazardSpell, kFireDamage, 5.f);
         guest.ExplosionHits(FakeEngine::kPlayer, 0xFF000900, kPoisonSpell, kPoison, 2.f);
     });
-    party.As(party.Host(), [&] { host.HazardHits(PlayerCopy(host), kFireHazardSpell, kFireDamage, 5.f); });
+    // Two ticks before the copy's answer can come back (review of #129): both go out, one burn.
+    party.As(party.Host(), [&] {
+        host.HazardHits(PlayerCopy(host), kFireHazardSpell, kFireDamage, 5.f);
+        host.HazardHits(PlayerCopy(host), kFireHazardSpell, kFireDamage, 5.f);
+    });
     party.Until([&] { return cOn(kFireHazardSpell) == 1; }, "the host's burn reaches the guest");
     party.Until([&] { return host.ActorHasEffect(PlayerCopy(host), kFireDamage); }, "the host's copy holds its player's burn");
     party.As(party.Host(), [&] {
@@ -211,6 +215,11 @@ SCENARIO("A dart an object fires flies on every other game, once, with no shoote
         const float cBefore = Health(guest, FakeEngine::kPlayer);
         party.As(party.Host(), [&] { host.ObjectProjectileHits(PlayerCopy(host, 0), 9.f); });
         party.Until([&] { return Health(guest, FakeEngine::kPlayer) <= cBefore - 9.f; }, "the guest's player takes the dart's hit");
+        // The guest's own relaunch of an exploding shot (a catapult's) hits its player too: dropped, the host's counts.
+        const float cAfter = Health(guest, FakeEngine::kPlayer);
+        party.As(party.Guest(0), [&] { guest.ObjectProjectileHits(FakeEngine::kPlayer, 30.f); });
+        Settle(party, 2);
+        CHECK(Health(guest, FakeEngine::kPlayer) == Approx(cAfter));
     }
     WHEN("a guest's engine fires one of its own (its player's Storm Call)")
     {

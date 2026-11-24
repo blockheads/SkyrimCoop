@@ -23,12 +23,15 @@ enum class Route
 };
 
 // aApplyingEffect: the damage comes from an effect this game applies (another game's spell on our actor among them).
-// aWorldHit: the host's world hits (an object's projectile): on another player's copy, the host's verdict for its game.
-[[nodiscard]] constexpr Route Of(Party aHittee, Party aHitter, bool aApplyingEffect, bool aWorldHit = false) noexcept
+// aWorldHit: a hit with no actor aggressor (an object's projectile, a causeless explosion). The host's on another
+// player's copy is its verdict for that player's game; a guest's own copy of it on its player is dropped (aGuest).
+[[nodiscard]] constexpr Route Of(Party aHittee, Party aHitter, bool aApplyingEffect, bool aWorldHit = false, bool aGuest = false) noexcept
 {
     const bool cOurs = aHittee == Party::LocalPlayer || aHittee == Party::Local;
-    if (aWorldHit && aHitter == Party::None && aHittee == Party::OtherPlayer)
+    if (aWorldHit && aHitter == Party::None && !aGuest && aHittee == Party::OtherPlayer)
         return Route::AskOwner;
+    if (aWorldHit && aHitter == Party::None && aGuest && aHittee == Party::LocalPlayer)
+        return Route::Drop;
     if (aHitter == Party::LocalPlayer)
         return cOurs ? Route::Apply : Route::AskOwner;
     if (aHitter == Party::OtherPlayer)

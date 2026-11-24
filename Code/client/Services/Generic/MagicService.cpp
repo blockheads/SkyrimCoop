@@ -1,4 +1,5 @@
 #include <Services/MagicService.h>
+#include <Games/Skyrim/TrapRules.h>
 
 #include <World.h>
 
@@ -363,6 +364,17 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
     {
         spdlog::warn("{}: effect for a copy ({:X}) ignored", __FUNCTION__, cTargetFormId);
         return;
+    }
+
+    // The host's world cast (no caster: a hazard's tick) while one of it lasts here: its copy's answer was not back yet.
+    if (!cCasterFormId)
+    {
+        const auto cEffects = m_actorBridge.GetActorActiveEffects(cTargetFormId);
+        const bool cActive = std::ranges::any_of(cEffects, [&](const auto& acEffect) {
+            return acEffect.SpellFormId == cSpellId && acEffect.EffectFormId == cEffectId && !acEffect.CasterIsActor;
+        });
+        if (TrapRules::SkipsWorldEffect(true, cActive))
+            return;
     }
 
     m_formBridge.AddMagicTargetEffect(cTargetFormId, cCasterFormId, cSpellId, cEffectId,

@@ -32,6 +32,13 @@ enum class Contact
     return aType != 1; // TESTrapHitEvent's stop
 }
 
+// The host's world cast of an effect this actor already has from no actor: skipped. Two of its hazard's ticks can go
+// out before its copy answers with the effect (IsSpellTarget, 43987).
+[[nodiscard]] constexpr bool SkipsWorldEffect(bool aWorldCast, bool aAlreadyActive) noexcept
+{
+    return aWorldCast && aAlreadyActive;
+}
+
 enum class Hit
 {
     Apply,    // the engine's hit here

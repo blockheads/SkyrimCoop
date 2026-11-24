@@ -52,8 +52,10 @@ One rule for everything the world does to a player: **the host's game decides, e
 - **Hazards and explosions** (`PlaceAtMe`): created references the host sends like any other (`HostEngine::ReadCreate`);
   an explosion's placed hazard each game's explosion places.
 - **What they do to a guest's character:** the host's verdict on its copy (`MagicTarget`'s world cast, any cast no actor
-  casts -> `AddTargetRequest`); a guest's own copy of a world cast applies nothing to its player
-  (`TrapRules::AppliesWorldEffect`). A trap's script that asks the copy about its effects gets its player's answer
+  casts -> `AddTargetRequest`; a world hit, no actor aggressor -> a health change); a guest's own copy of a world cast
+  or world hit applies nothing to its player (`TrapRules::AppliesWorldEffect`, `HitRules::Of`). The host's hazard ticks
+  can reach the guest twice before its copy answers: a guest skips a world cast of an effect it holds from no actor
+  (`TrapRules::SkipsWorldEffect`). A trap's script that asks the copy about its effects gets its player's answer
   (copy-contract.md), so the host's gas and hazards stop at a player already under them.
 
 ## Tests

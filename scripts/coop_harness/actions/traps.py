@@ -77,50 +77,55 @@ class TrapActions:
         instance = "" if who == "host" else "client"
         other = "client" if instance == "" else ""
         ctx.console_on(instance, f"player.setav health {health}")
-        results = []
-        for _ in range(rounds):
+        # No regeneration while watched: a small hit landing during a walk (a dart's 0.8) is still there to read.
+        ctx.console_on(instance, "player.modav healrate -0.7")
+        try:
+            results = []
+            for _ in range(rounds):
+                ctx.put_player(instance, away)
+                if holder_at:  # off the trigger: it steps on again each round
+                    ctx.put_player(other, [away[0] + 80, away[1], away[2]])
+                time.sleep(3.0)
+                ctx.console_on(instance, f"player.restoreav health {health}")
+                time.sleep(0.5)
+                if walk_on:
+                    ctx.steer_to(instance, walk_on, 15.0, sprint=False)
+                else:
+                    ctx.put_player(instance, at, gap)
+                if holder_at:  # the other player holds the trap's trigger
+                    ctx.put_player(other, holder_at)
+                since = {g: ctx.engine_events(g)[1] for g in ("", "client")}
+                last, hits = ctx.player_health(instance), []
+                if use:  # a lever: `who` walks up and pulls it, by real input
+                    ctx.name_handle("trap_lever", {"host": int(use, 16), "guest": int(use, 16)})
+                    ctx.use(instance, "trap_lever")
+                if pull:  # beside it first (a path from afar may not exist); its darts may land while the pull is confirmed
+                    ctx.put_player(other, pull, 120.0)
+                    ctx.name_handle("trap_lever", {"host": int(pull, 16), "guest": int(pull, 16)})
+                    ctx.use(other, "trap_lever")
+                end = time.monotonic() + seconds
+                if use or pull:  # what landed meanwhile
+                    now = ctx.player_health(instance)
+                    if now < last - 0.5:
+                        hits.append(round(last - now, 1))
+                    last = now
+                while time.monotonic() < end:  # a burn drains a little each frame: its loss adds up to a hit of 0.5 or more
+                    now = ctx.player_health(instance)
+                    if now < last - 0.5:
+                        hits.append(round(last - now, 1))
+                        last = now
+                    elif now > last:
+                        last = now
+                    time.sleep(0.03)
+                struck = lambda g: [f"{e['target']:X} by {e['cause']:X}" for e in ctx.engine_events(g, since[g])[0]
+                                    if e["kind"] == "hit" and e["target"] in (0x14, ctx.other_player_form(g))][:8]
+                kinds = lambda g: [f"{e['target']:X}:{('start', 'stop', 'hit')[e['type']]}" for e in ctx.engine_events(g, since[g])[0]
+                                   if e["kind"] == "trap_hit"]
+                place = (ctx.actor_place(instance, 0x14) or {}).get("position")
+                results.append({"hits": hits, "host": kinds("")[:12], "guest": kinds("client")[:12], "ended": place, "struck": {"host": struck(""), "guest": struck("client")}})
             ctx.put_player(instance, away)
-            if holder_at:  # off the trigger: it steps on again each round
-                ctx.put_player(other, [away[0] + 80, away[1], away[2]])
-            time.sleep(3.0)
-            ctx.console_on(instance, f"player.restoreav health {health}")
-            time.sleep(0.5)
-            if walk_on:
-                ctx.steer_to(instance, walk_on, 15.0, sprint=False)
-            else:
-                ctx.put_player(instance, at, gap)
-            if holder_at:  # the other player holds the trap's trigger
-                ctx.put_player(other, holder_at)
-            since = {g: ctx.engine_events(g)[1] for g in ("", "client")}
-            last, hits = ctx.player_health(instance), []
-            if use:  # a lever: `who` walks up and pulls it, by real input
-                ctx.name_handle("trap_lever", {"host": int(use, 16), "guest": int(use, 16)})
-                ctx.use(instance, "trap_lever")
-            if pull:  # beside it first (a path from afar may not exist); its darts may land while the pull is confirmed
-                ctx.put_player(other, pull, 120.0)
-                ctx.name_handle("trap_lever", {"host": int(pull, 16), "guest": int(pull, 16)})
-                ctx.use(other, "trap_lever")
-            end = time.monotonic() + seconds
-            if use or pull:  # what landed meanwhile
-                now = ctx.player_health(instance)
-                if now < last - 0.5:
-                    hits.append(round(last - now, 1))
-                last = now
-            while time.monotonic() < end:  # a burn drains a little each frame: its loss adds up to a hit of 0.5 or more
-                now = ctx.player_health(instance)
-                if now < last - 0.5:
-                    hits.append(round(last - now, 1))
-                    last = now
-                elif now > last:
-                    last = now
-                time.sleep(0.03)
-            struck = lambda g: [f"{e['target']:X} by {e['cause']:X}" for e in ctx.engine_events(g, since[g])[0]
-                                if e["kind"] == "hit" and e["target"] in (0x14, ctx.other_player_form(g))][:8]
-            kinds = lambda g: [f"{e['target']:X}:{('start', 'stop', 'hit')[e['type']]}" for e in ctx.engine_events(g, since[g])[0]
-                               if e["kind"] == "trap_hit"]
-            place = (ctx.actor_place(instance, 0x14) or {}).get("position")
-            results.append({"hits": hits, "host": kinds("")[:12], "guest": kinds("client")[:12], "ended": place, "struck": {"host": struck(""), "guest": struck("client")}})
-        ctx.put_player(instance, away)
+        finally:
+            ctx.console_on(instance, "player.modav healrate 0.7")
         ctx.console_on(instance, "player.setav health 100")
         return results
 

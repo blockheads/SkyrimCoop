@@ -8,7 +8,6 @@
 #include <Actor.h>
 #include <Games/ActorExtension.h>
 #include <World.h>
-#include <Services/HostService.h>
 #include <Combat/HitData.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Games/Skyrim/Forms/TESObjectCELL.h>
@@ -21,6 +20,7 @@
 #include <VersionDb.h>
 #include <Diagnostics/Counters.h>
 
+#include <atomic>
 #include <format>
 
 using TLaunch = BSPointerHandle<Projectile>*(BSPointerHandle<Projectile>*, Projectile::LaunchData& arData);
@@ -139,16 +139,15 @@ namespace
 {
 thread_local bool t_worldHit = false;
 
-// TESObjectREFR::ProcessHit (38586): a hit with no actor aggressor (an object's projectile, a causeless explosion) is the
-// world's. Off the main thread it queues itself and runs again there (TaskQueueInterface::ShouldUseTaskQueue), so the
-// scope is set on each run, around its DoDamage (37335).
+std::atomic<uint32_t> s_relayedTarget{0}; // the actor the host's relayed hit is for (ProcessHit may run it later, queued)
+
+// TESObjectREFR::ProcessHit (38586): a hit with no actor aggressor is the world's, scoped around its DoDamage (37335).
 using TProcessHit = uint64_t(TESObjectREFR*, HitData*);
 TProcessHit* RealProcessHit = nullptr;
 
 uint64_t HookProcessHit(TESObjectREFR* apTarget, HitData* apHit)
 {
-    const bool cWorld = apHit && World::Get().GetHostService().IsHosting() && !Cast<Actor>(TESObjectREFR::GetByHandle(apHit->aggressor));
-    t_worldHit = cWorld;
+    t_worldHit = apHit && !Cast<Actor>(TESObjectREFR::GetByHandle(apHit->aggressor));
     const uint64_t cResult = RealProcessHit(apTarget, apHit);
     t_worldHit = false;
     return cResult;
@@ -158,6 +157,17 @@ uint64_t HookProcessHit(TESObjectREFR* apTarget, HitData* apHit)
 bool Projectile::WorldHit() noexcept
 {
     return t_worldHit;
+}
+
+void Projectile::RelayedHit(uint32_t aTargetFormId) noexcept
+{
+    s_relayedTarget = aTargetFormId;
+}
+
+bool Projectile::TakeRelayedHit(uint32_t aTargetFormId) noexcept
+{
+    uint32_t cExpected = aTargetFormId;
+    return aTargetFormId && s_relayedTarget.compare_exchange_strong(cExpected, 0);
 }
 
 static Hooks::Initializer s_projectileHooks(

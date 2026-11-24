@@ -221,14 +221,14 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
 // answers with its owner's effects, to scripts, conditions, hazards and plugins alike (copy-contract.md).
 using THasMagicEffect = bool(MagicTarget*, EffectSetting*);
 static THasMagicEffect* RealHasMagicEffect = nullptr;
-using THasMagicEffectWithKeyword = bool(MagicTarget*, BGSKeyword*, ActiveEffect**);
+using THasMagicEffectWithKeyword = bool(MagicTarget*, BGSKeyword*, MagicItem**);
 static THasMagicEffectWithKeyword* RealHasMagicEffectWithKeyword = nullptr;
 using TIsSpellTarget = bool(MagicTarget*, MagicItem*);
 static TIsSpellTarget* RealIsSpellTarget = nullptr;
 
 namespace
 {
-std::shared_ptr<const std::vector<uint32_t>> CopyEffectsOf(MagicTarget* apTarget) noexcept
+std::shared_ptr<const std::vector<OwnerEffects::Held>> CopyEffectsOf(MagicTarget* apTarget) noexcept
 {
     Actor* pActor = apTarget ? apTarget->GetTargetAsActor() : nullptr;
     const auto* pExtension = pActor ? CastingSafety::ExtensionOf(pActor) : nullptr;
@@ -243,35 +243,27 @@ bool HookHasMagicEffect(MagicTarget* apThis, EffectSetting* apEffect)
     return RealHasMagicEffect(apThis, apEffect);
 }
 
-// A hazard casts only on an actor not under its spell (43987): the owner holding one of the spell's effects.
+// A hazard casts only on an actor not under its spell (43987).
 bool HookIsSpellTarget(MagicTarget* apThis, MagicItem* apSpell)
 {
     if (const auto cHeld = CopyEffectsOf(apThis))
-    {
-        if (!apSpell)
-            return false;
-        std::vector<uint32_t> effects;
-        for (const EffectItem* pItem : apSpell->listOfEffects)
-            if (pItem && pItem->pEffectSetting)
-                effects.push_back(pItem->pEffectSetting->formID);
-        return OwnerEffects::HasAny(*cHeld, effects);
-    }
+        return apSpell && OwnerEffects::HasSpell(*cHeld, apSpell->formID);
     return RealIsSpellTarget(apThis, apSpell);
 }
 
-bool HookHasMagicEffectWithKeyword(MagicTarget* apThis, BGSKeyword* apKeyword, ActiveEffect** appFound)
+bool HookHasMagicEffectWithKeyword(MagicTarget* apThis, BGSKeyword* apKeyword, MagicItem** appSpell)
 {
     if (const auto cHeld = CopyEffectsOf(apThis))
     {
-        if (appFound)
-            *appFound = nullptr; // a copy holds none of its own (every caller passes none: 19646, 54650)
-        const bool cHas = apKeyword && OwnerEffects::HasWithKeyword(*cHeld, [apKeyword](uint32_t aId) {
-                              auto* pEffect = Cast<EffectSetting>(TESForm::GetById(aId));
-                              return pEffect && pEffect->keywordForm.count > 0 && EngineVirtual(pEffect->keywordForm).Contains(apKeyword);
-                          });
-        return cHas;
+        const OwnerEffects::Held* pFound = apKeyword ? OwnerEffects::WithKeyword(*cHeld, [apKeyword](uint32_t aId) {
+            auto* pEffect = Cast<EffectSetting>(TESForm::GetById(aId));
+            return pEffect && pEffect->keywordForm.count > 0 && EngineVirtual(pEffect->keywordForm).Contains(apKeyword);
+        }) : nullptr;
+        if (appSpell)
+            *appSpell = pFound ? Cast<MagicItem>(TESForm::GetById(pFound->Spell)) : nullptr;
+        return pFound != nullptr;
     }
-    return RealHasMagicEffectWithKeyword(apThis, apKeyword, appFound);
+    return RealHasMagicEffectWithKeyword(apThis, apKeyword, appSpell);
 }
 
 bool HookFindTargets(MagicCaster* apThis, float afEffectivenessMult, int32_t* aruiTargetCount, TESBoundObject* apSource, char abLoadCast, char abAdjust)

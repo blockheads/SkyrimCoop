@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <Messages/Payloads.h>
 #include <Wire/Serialization.h>
 
@@ -454,32 +455,32 @@ void Subtitle::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 void ActiveEffects::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
-    Serialization::WriteVarInt(aWriter, EffectIds.size());
-    for (const auto& cEffectId : EffectIds)
-        cEffectId.Serialize(aWriter);
-    Serialization::WriteVarInt(aWriter, HeldIds.size());
-    for (const auto& cEffectId : HeldIds)
-        cEffectId.Serialize(aWriter);
+    const size_t cEffects = std::min(EffectIds.size(), kMaxEffects);
+    Serialization::WriteVarInt(aWriter, cEffects);
+    for (size_t i = 0; i < cEffects; ++i)
+        EffectIds[i].Serialize(aWriter);
+    const size_t cHeld = std::min(Held.size(), kMaxEffects);
+    Serialization::WriteVarInt(aWriter, cHeld);
+    for (size_t i = 0; i < cHeld; ++i)
+    {
+        Held[i].Spell.Serialize(aWriter);
+        Held[i].Effect.Serialize(aWriter);
+    }
 }
 
 void ActiveEffects::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    const auto cCount = Serialization::ReadVarInt(aReader);
-    EffectIds.clear();
-    for (uint64_t i = 0; i < cCount && i < 256; ++i)
-    {
-        GameId effectId;
+    const auto cCount = std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects);
+    EffectIds.assign(cCount, GameId{});
+    for (auto& effectId : EffectIds)
         effectId.Deserialize(aReader);
-        EffectIds.push_back(effectId);
-    }
-    const auto cHeld = Serialization::ReadVarInt(aReader);
-    HeldIds.clear();
-    for (uint64_t i = 0; i < cHeld && i < 256; ++i)
+    const auto cHeld = std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects);
+    Held.assign(cHeld, {});
+    for (auto& held : Held)
     {
-        GameId effectId;
-        effectId.Deserialize(aReader);
-        HeldIds.push_back(effectId);
+        held.Spell.Deserialize(aReader);
+        held.Effect.Deserialize(aReader);
     }
 }
 

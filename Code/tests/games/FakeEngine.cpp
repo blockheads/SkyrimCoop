@@ -3520,7 +3520,8 @@ std::vector<IActorBridge::ActiveEffectInfo> FakeEngine::GetActorActiveEffects(ui
             effects.push_back({.EffectFormId = cId});
     for (const auto& cEffect : Effects)
         if (cEffect.Target == aFormId)
-            effects.push_back({.EffectFormId = cEffect.EffectId, .SpellFormId = cEffect.Spell, .CasterFormId = cEffect.Caster});
+            effects.push_back({.EffectFormId = cEffect.EffectId, .SpellFormId = cEffect.Spell, .CasterFormId = cEffect.Caster,
+                               .CasterIsActor = Actors.contains(cEffect.Caster)});
     return effects;
 }
 
@@ -3649,7 +3650,7 @@ HitRules::Party FakeEngine::PartyOf(uint32_t aFormId) const noexcept
 
 void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit)
 {
-    switch (HitRules::Of(PartyOf(aHittee), PartyOf(aHitter), aApplyingEffect, aWorldHit))
+    switch (HitRules::Of(PartyOf(aHittee), PartyOf(aHitter), aApplyingEffect, aWorldHit, aWorldHit && HoldSession != 0))
     {
     case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage));
@@ -3722,8 +3723,8 @@ void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile
 
 void FakeEngine::ObjectProjectileHits(uint32_t aTarget, float aDamage)
 {
-    // Projectile::Func190 (44204) with no actor shooter: a HitData with no aggressor, the host's world hit.
-    TakesDamage(aTarget, 0, aDamage, false, World::Get().GetHostService().IsHosting());
+    // Projectile::Func190 (44204) with no actor shooter: a HitData with no aggressor (ProcessHit 38586), a world hit.
+    TakesDamage(aTarget, 0, aDamage, false, true);
 }
 
 void FakeEngine::ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProjectile, uint32_t aCell,

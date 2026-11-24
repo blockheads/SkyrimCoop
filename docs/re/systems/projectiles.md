@@ -68,9 +68,11 @@ above zero, which its constructor (44100) works out from the shooter: relaunched
 (`InitializeArrowData` 44002), and `ProcessHit` (38586) on a guest's copy reached `DoDamage` (37335) with no hitter and
 was dropped. A hit with no actor aggressor is now the host's world hit (`Projectile::WorldHit`, scoped on each run of
 38586, which queues itself off the main thread: `TaskQueueInterface::ShouldUseTaskQueue`): on another player's copy it
-goes to its owner as a health change (`HitRules::Of`, `aWorldHit`). Open: a projectile that explodes on impact also
-explodes on the guest's relaunch (the Fishing catapult: force 2300, radius 2000); whether that explosion hurts the guest's player there too (twice with the host's
-verdict) is not measured (traps.md).
+goes to its owner as a health change (`HitRules::Of`, `aWorldHit`). On a guest, its own copy of a world hit on its
+player (the relaunch of a projectile that explodes on impact, the Fishing catapult: force 2300, radius 2000, whose
+explosion 43849 hits through 38586) is dropped: the host's verdict counts, once. The host's relayed trap hit, applied
+through `DoTrap1` (37509 -> 38586) with no aggressor too, is exempt (`Projectile::RelayedHit`). Not measured on the
+catapult.
 
 Outdoors the message carries the worldspace, and the cell goes as none when the engine made it (no plugin record:
 `ToSessionCell`); the others find the cell from the worldspace and the origin (`TravelService::CellAt`), as for actors.

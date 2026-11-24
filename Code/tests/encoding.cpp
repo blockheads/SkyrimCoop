@@ -2149,8 +2149,22 @@ TEST_CASE("Trap contacts, hits and the world's projectiles round trip", "[encodi
     RequestActiveEffects effects;
     effects.SessionId = 9;
     effects.EffectIds = {GameId(0, 0x13CA9)};
-    effects.HeldIds = {GameId(0, 0x13CA9), GameId(0, 0x9F28F)};
+    effects.Held = {{GameId(0, 0x12FCD), GameId(0, 0x13CA9)}, {GameId(0, 0xA0370), GameId(0, 0x9F28F)}};
     cRequest(effects);
+    // Each list holds at most kMaxEffects: a longer one goes out cut, the next field still read in its place.
+    RequestActiveEffects many;
+    many.SessionId = 9;
+    many.EffectIds.assign(257, GameId(0, 0x13CA9));
+    many.Held.assign(257, {GameId(0, 0x12FCD), GameId(0, 0x13CA9)});
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    many.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    const auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    const auto& cDecoded = static_cast<const RequestActiveEffects&>(*decoded);
+    CHECK(cDecoded.EffectIds.size() == Payloads::ActiveEffects::kMaxEffects);
+    CHECK(cDecoded.Held.size() == Payloads::ActiveEffects::kMaxEffects);
 }
 
 TEST_CASE("A guest's summon reaches the host with its spell, effect and magnitude", "[encoding.summon]")

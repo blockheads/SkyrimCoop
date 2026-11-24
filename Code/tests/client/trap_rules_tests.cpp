@@ -40,6 +40,13 @@ TEST_CASE("On a guest its own copy of a world cast applies nothing to its player
     CHECK(AppliesWorldEffect(true, Copy, true, false));
 }
 
+TEST_CASE("The host's world cast of an effect already on the actor from no actor is skipped", "[TrapRules]")
+{
+    CHECK(SkipsWorldEffect(true, true));
+    CHECK_FALSE(SkipsWorldEffect(true, false));
+    CHECK_FALSE(SkipsWorldEffect(false, true));
+}
+
 TEST_CASE("A stop contact carries no vectors: its event leaves them stack scratch", "[TrapRules]")
 {
     CHECK(CarriesVectors(Payloads::TrapContact::kStart));

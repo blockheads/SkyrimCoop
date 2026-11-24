@@ -345,9 +345,17 @@ struct ActiveEffects
 
     bool operator==(const ActiveEffects&) const noexcept = default;
 
+    struct Held
+    {
+        GameId Spell{};
+        GameId Effect{};
+        bool operator==(const Held&) const noexcept = default;
+    };
+
     uint32_t SessionId{};
-    std::vector<GameId> EffectIds{};
-    std::vector<GameId> HeldIds{};
+    std::vector<GameId> EffectIds{}; // at most kMaxEffects each
+    std::vector<Held> Held{};
+    static constexpr size_t kMaxEffects = 256;
 };
 
 // An effect's visuals that play once (no FX Persist) just started on one of the owner's actors: its copies play them.

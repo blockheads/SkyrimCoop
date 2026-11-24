@@ -51,6 +51,7 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <Games/OwnerEffects.h>
 #include <set>
 #include <string_view>
 #include <tuple>
@@ -836,7 +837,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t ExtraPackageFallback{};
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
         std::set<uint32_t> ShownVisuals;  // a copy's visuals played for its owner's
-        std::vector<uint32_t> OwnerEffects; // a copy's owner's active effects (SetCopyEffects), sorted
+        std::vector<OwnerEffects::Held> OwnerEffects; // a copy's owner's active effects (SetCopyEffects)
         ActorValues Values = FullValues();
         std::map<uint32_t, float> Bases = FullValues().ActorMaxValuesList;
         std::map<uint32_t, float> TemporaryValues;
@@ -1701,13 +1702,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         if (const auto it = Actors.find(aFormId); it != Actors.end())
             it->second.ShownVisuals.erase(aEffectFormId);
     }
-    void SetCopyEffects(uint32_t aFormId, std::vector<uint32_t> aEffectIds) noexcept override
+    void SetCopyEffects(uint32_t aFormId, std::vector<OwnerEffects::Held> aHeld) noexcept override
     {
         if (const auto it = Actors.find(aFormId); it != Actors.end() && it->second.Copy)
-        {
-            std::ranges::sort(aEffectIds);
-            it->second.OwnerEffects = std::move(aEffectIds);
-        }
+            it->second.OwnerEffects = std::move(aHeld);
     }
     bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override
     {

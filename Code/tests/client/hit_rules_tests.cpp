@@ -44,4 +44,8 @@ TEST_CASE("The host's world hit on another player's copy (an object's projectile
     CHECK(Of(Party::OtherPlayer, Party::None, false, false) == Route::Mirror); // a copy's own fall
     CHECK(Of(Party::Copy, Party::None, false, true) == Route::Mirror);
     CHECK(Of(Party::LocalPlayer, Party::None, false, true) == Route::Apply);
+    // A guest's own copy of the world's hit on its player (its relaunch of a catapult's shot): the host's verdict counts.
+    CHECK(Of(Party::LocalPlayer, Party::None, false, true, true) == Route::Drop);
+    CHECK(Of(Party::LocalPlayer, Party::None, false, false, true) == Route::Apply); // its own fall
+    CHECK(Of(Party::Local, Party::None, false, true, true) == Route::Apply);
 }
