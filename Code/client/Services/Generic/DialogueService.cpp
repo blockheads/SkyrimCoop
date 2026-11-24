@@ -1,5 +1,6 @@
 #include <Services/DialogueService.h>
 #include <Services/DialogueMenuPolicy.h>
+#include <Bridges/IActorBridge.h>
 
 #include <Components.h>
 #include <Events/DisconnectedEvent.h>
@@ -50,6 +51,7 @@ void DialogueService::SetRole(Role* apRole) noexcept
     m_bridge.SetFilters({
         .Start = [this](uint32_t aActorFormId, bool aForceGreet) { return !m_pRole || m_pRole->OnStartAsked(aActorFormId, aForceGreet); },
         .Talk = [this](uint32_t aActorFormId) { return m_pRole && m_transport.IsOnline() && m_pRole->OnTalk(aActorFormId); },
+        .OtherPlayer = [this](uint32_t aActorFormId) { return m_world.GetActorBridge().IsOtherPlayer(aActorFormId); },
         .Pick = [this](uint32_t aIndex) { return OnPickAsked(aIndex); },
         .Skip = [this]() { OnSkipAsked(); },
         .List = [this]() { return m_pRole ? m_pRole->OnListBuilt() : std::nullopt; },

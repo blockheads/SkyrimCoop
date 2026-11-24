@@ -21,6 +21,12 @@
 #include <optional>
 #include <string>
 
+namespace Payloads
+{
+struct TrapContact;
+struct TrapHit;
+}
+
 struct ContainerTransferRequest;
 struct SummonRequest;
 
@@ -139,6 +145,8 @@ struct HostGame
     // A guest's player's summon (its request: spell, effect, magnitude, point, dual cast) put on that player's copy,
     // aCasterId, cast by it: the host's engine makes the summon, commanded by the copy (summons.md).
     std::function<void(uint32_t aCasterId, const SummonRequest& acSummon)> Summon;
+    // A trap touched a guest's player in its game: raised here for its copy, the trap's script decides.
+    std::function<void(const Payloads::TrapContact& acContact)> TouchTrap;
     // A guest's lock change, accepted into the host's world (it then goes out as the host's change).
     std::function<void(const GameId& acObject, bool aLocked, uint8_t aLockLevel)> SetLock;
     // A guest's container change, accepted (a kItems change): the host's container holds that many, its stacks with
@@ -171,6 +179,8 @@ struct HostGame
     std::function<void(const GameId& acSpell, bool aAdded)> StoreStorySpell;
     std::function<bool(const std::string& acKey)> HasRecord;
     std::function<void(const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell, const std::array<float, 3>& acPosition)> StorePlace;
+    // A guest left: its record's timed state (effects, cooldowns) stops aging (CharacterRecords::Settle).
+    std::function<void(const std::string& acKey)> SettleRecord;
     // The host's difficulty (0 Novice to 5 Legendary): the session's.
     std::function<uint32_t()> ReadDifficulty;
     // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.

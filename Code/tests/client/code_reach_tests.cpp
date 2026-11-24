@@ -22,6 +22,7 @@ constexpr uintptr_t kToggleControls = 0x140C00000; // ControlMap::ToggleControls
 constexpr uintptr_t kShakeCamera = 0x140500000;
 constexpr uintptr_t kSetStage = 0x140300000;
 constexpr uintptr_t kCreateReference = 0x1401BC1C0; // CreateReferenceAtLocation 13723
+constexpr uintptr_t kInterruptCast = 0x1405CAAE0;   // MagicCaster::InterruptCast 34408
 constexpr uintptr_t kElsewhere = 0x140900000;
 constexpr uintptr_t kApplyArtObject = 0x140366B20; // some engine function
 constexpr uintptr_t kHudMessage = 0x14097A5E0;     // SendHUDMessage::ShowHUDMessage
@@ -143,6 +144,7 @@ const Sinks cSinks{.Functions = {{kToggleControls, {{Call::kControls}}},
                                  {kShakeCamera, {{Call::kScreen}}},
                                  {kSetStage, {{Call::kWorld}}},
                                  {kCreateReference, {{Call::kCreate}}},
+                                 {kInterruptCast, {{Call::kCast}}},
                                  {kApplyArtObject, {{Call::kShow}}},
                                  {kHudMessage, {{Call::kScreen}}},
                                  {kEquipObject, {{Call::kItem}}}}};
@@ -274,6 +276,17 @@ SCENARIO("Which of the party's calls a native makes", "[reach]")
     {
         CHECK(ClassifyCall({false, false, {kCreateReference}}, cSinks).Kind == Call::kCreate);
         CHECK(ClassifyCall({false, true, {kShakeCamera, kSetStage, kCreateReference}}, cSinks).Kind == Call::kCreate);
+    }
+    THEN("an object's cast is a cast, not the screen's (ObjectReference.InterruptCast, a trap's Spell.Cast)")
+    {
+        CHECK(ClassifyCall({false, false, {kInterruptCast}}, cSinks).Kind == Call::kCast);
+        CHECK(ClassifyCall({false, true, {kShakeCamera, kInterruptCast}}, cSinks).Kind == Call::kCast);
+        // Spell.Cast queues a CastFunctor (its vtable addressed): the caster is its first argument.
+        constexpr uintptr_t cCastFunctor = 0x1419A2EC0;
+        const Sinks cCasts{.Objects = {{cCastFunctor, {{.Kind = Call::kCast, .Argument = uint8_t{0}}}}}};
+        Facts cast{};
+        cast.Addressed = {cCastFunctor};
+        CHECK(ClassifyCall(cast, cCasts) == Reach{.Kind = Call::kCast, .Argument = uint8_t{0}});
     }
     THEN("a notification is the screen's (Debug.Notification)")
     CHECK(ClassifyCall({false, false, {kHudMessage}}, cSinks).Kind == Call::kScreen);

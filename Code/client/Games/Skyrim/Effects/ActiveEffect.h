@@ -43,6 +43,8 @@ struct ActiveEffect
     virtual void sub_18();
 
     static ActiveEffect* Instantiate(Actor* apCaster, MagicItem* apSpell, EffectItem* apEffect);
+    // Ended (kDispelled 0x40000); aForce: finished now (ActiveEffect::Dispel 34061).
+    void Dispel(bool aForce) noexcept;
 
     uint8_t pad8[0x34 - 0x8];
     uint32_t hCaster;

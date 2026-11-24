@@ -57,6 +57,32 @@ both games. With `owned` it is the party's as a stable sale makes it (`PlayerHor
 `guest-rides-spawned-horse`: the guest gets on an owned spawned horse with real input, both games show it ridden
 (duo, 2026-11-24).
 
+2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
+the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it
+into `PlayersHorse`, a stores-text alias, whose fill clears every named alias's cached name (read in IDA: 25052 ->
+`TESQuest::ClearAliasNameCaches` -> 12769). A message name regenerates; a custom name is only that cache, so the copy
+read "" and the crosshair skips a nameless reference. `HookClearCachedName` keeps a custom name
+(`re/systems/names.md`). GameTests "A bought horse keeps its name...", ClientTests `[names]`; Skyrim
+`guest-mounts-bought-horse` (the guest gets on). New harness readouts `name_data` / probe `set_name`, verb `name_data`.
+Getting off that horse inside its shed does nothing: no room beside it, as in single player (`re/systems/mounts.md`).
+
+2026-11-23: **no crosshair prompt over another player** (`agent/no-talk-to-players`). Each game's crosshair offered
+"Talk" over the other player's character (and Pickpocket while sneaking, Search when dead, all leading nowhere). Our hook
+on `Actor::CanTalkToPlayer` (37469) answers no for another player's copy, so E starts no conversation, and
+`HookGetActivateText` (24716) gives it no prompt at all (`re/systems/dialogue.md`, "No talking to players"). ClientTests,
+GameTests, scenario `no-prompt-over-players`.
+
+2026-11-23: **a guest keeps its own favorites, damage, effects and cooldowns over a reload or rejoin**
+(`agent/favorites-audit`, bug 17). A guest loads the host's save and its character record goes on the save's player;
+what the record lacked stayed the host's: the host's spell favorites (save global 109), no item favorites (the
+inventory's `RemoveAllItems` drops every `ExtraHotkey`), no damage, no timed effects (blessings, potions), the host's
+power cooldowns, trainer count, misc stats and camera view. The record now carries them (`PlayerRecord::Own`,
+`PlayerSaveState`): item favorites as stacks with their keys, globals 0, 109 and 110 as the engine's own bytes,
+damage, timed effects recast with their elapsed time, cooldowns, trainings, first person. The guest's record also goes
+after its health changes or it casts. Read in IDA: [player-save-state.md](re/systems/player-save-state.md). Scenario
+`guest_keeps_own_state_on_reload`; GameTests "A guest keeps its own favorites, damage, effects, cooldowns, trainings
+and view over a host load and a rejoin"; ClientTests `[own-state]`.
+
 2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
 [actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after
 `stage` (golden-claw-guest, arvels-journal-guest-loots) lay 83-111 degrees and up to 582 units apart. `stage` freezes
@@ -143,6 +169,14 @@ keeps a listed change and those UI calls apart across threads (bounded waits, no
 `open_inventory`, `expect_menu_lists`; `give_item` takes a holder), GameTests and ClientTests `[item-menu]`,
 ClientTests `[item-menu-gate]`. The third
 crash (an NPC's face template walk on the background loader, 15678) is open in [bugs.md](bugs.md).
+
+2026-11-23: **traps hurt every player on its own game** (`agent/traps-synced`; playtest 2026-11-22 items 13, 14;
+`docs/design/traps.md`, `docs/re/systems/traps.md`). The host runs a trap's script; a guest's player's touch goes to it
+(`TrapContactRequest`), its hit back to that guest (`NotifyTrapHit`, `DoTrap1` there); the host's far traps keep their
+graphs running (their scripts waited on clips); a guest plays the host's animations in order once its graph takes them;
+darts an object fires reach every guest; an object's `Spell.Cast` shows on every game. Scenarios `spike_wall_hurts_both`,
+`scythes_hurt_both`, `darts_hurt_puller`, `flames_hurt_both`, `warehouse_traps_hurt_both` (fire plate, rocks, mace, logs). A tripped tripwire is broken on the guest too (its destroyed flag in the `kEnabled` row).
+An explosion's poison reaches a guest once (its copy's cast or the host's). A guest's copy stands at its owner's height, so the gas poisons a guest walking onto its plate.
 
 2026-11-23: **a lever furniture one player pulls moves on every game** (`agent/levers-synced`; playtest 2026-11-22 item
 11; `docs/re/systems/activation.md`, "Lever furniture"). Bleak Falls Temple's pillar lever is a furniture with

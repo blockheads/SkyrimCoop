@@ -26,6 +26,7 @@
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestEye.h>
 #include <Services/Guest/GuestLeash.h>
+#include <Services/Guest/GuestTraps.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
@@ -203,6 +204,13 @@ void GuestEngine::RetryQuestAliases() noexcept
                     continue;
                 }
                 aliases[cFill.AliasId] = cRef;
+            }
+        // As TESQuest::ForceRefIntoAlias (25052): a stores-text alias's new fill clears its quest's names' caches.
+        for (const auto& [cAlias, cRef] : aliases)
+            if (cRef && (engine.AliasFlags[it->first][cAlias] & 0x100) && (!cPrevious.contains(cAlias) || cPrevious.at(cAlias) != cRef))
+            {
+                engine.ClearAliasNameCaches(it->first);
+                break;
             }
         if (!engine.AtMainLoop && aliases != cPrevious)
             engine.WorkerQuestWrites.push_back(it->first);
@@ -501,7 +509,8 @@ struct GuestSeam::Guest
           Wait(aWorld, aWorld.GetDispatcher(), Engine),
           Scene(aWorld, aWorld.GetDispatcher(), Engine),
           Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>()),
-          Leash(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IPlayerBridge&>())
+          Leash(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IPlayerBridge&>()),
+          Traps(aWorld, aWorld.GetDispatcher())
     {
     }
 
@@ -518,6 +527,7 @@ struct GuestSeam::Guest
     GuestScene Scene;
     GuestCopies Copies;
     GuestLeash Leash;
+    GuestTraps Traps;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)

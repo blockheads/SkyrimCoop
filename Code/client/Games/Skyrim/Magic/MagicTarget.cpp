@@ -21,6 +21,9 @@
 #include <Misc/JudgedFor.h>
 #include <TESObjectREFR.h>
 #include <Papyrus/GuestScripts.h>
+#include <Combat/HitOwnership.h>
+#include <TrapRules.h>
+#include <Bridges/IActorBridge.h>
 #include <Services/HostService.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -193,6 +196,21 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
         if (pCasterActor && !IsFriendly(arData.pSpell))
             World::Get().GetRunner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
         return false;
+    }
+
+    // On a guest, its own copy of the host's trap's cast (an object casts it): the host's game decides and asks.
+    const bool cByObject = arData.pCaster && !pCasterActor;
+    if (!TrapRules::AppliesWorldEffect(GuestNpcs::Session() != 0, HitRules::PartyOf(pTargetActor), cByObject, GuestScripts::NativeGuest() == 0x14))
+        return false;
+    // A guest's copy of the host's explosion or hazard (no caster) after the host's verdict for it, which comes first.
+    if (GuestNpcs::Session() && !arData.pCaster && pTargetActor == PlayerCharacter::Get())
+    {
+        const auto cEffects = World::Get().GetActorBridge().GetActorActiveEffects(pTargetActor->formID);
+        const bool cActive = std::ranges::any_of(cEffects, [&](const auto& acEffect) {
+            return acEffect.SpellFormId == arData.pSpell->formID && acEffect.EffectFormId == arData.pEffectItem->pEffectSetting->formID && !acEffect.CasterFormId;
+        });
+        if (TrapRules::SkipsWorldEffect(true, cActive))
+            return false;
     }
 
     // Our actor. A replayed spell from someone else's character also lands here, but its caster's

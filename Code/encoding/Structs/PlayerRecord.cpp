@@ -42,7 +42,7 @@ bool PlayerRecord::operator==(const PlayerRecord& acRhs) const noexcept
            Skills == acRhs.Skills && PerkPoints == acRhs.PerkPoints && Perks == acRhs.Perks && Spells == acRhs.Spells && Values == acRhs.Values &&
            Items == acRhs.Items && Extras == acRhs.Extras && Cell == acRhs.Cell && WorldSpace == acRhs.WorldSpace && Position == acRhs.Position &&
            Words == acRhs.Words && PermanentValues == acRhs.PermanentValues && Knowledge == acRhs.Knowledge &&
-           Recipes == acRhs.Recipes;
+           Recipes == acRhs.Recipes && Own == acRhs.Own;
 }
 
 void PlayerRecord::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
@@ -115,6 +115,7 @@ void PlayerRecord::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteVarInt(aWriter, Recipes.size());
     for (const Recipe& cRecipe : Recipes)
         cRecipe.Serialize(aWriter);
+    Own.Serialize(aWriter);
 }
 
 void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader, bool aItemOwners) noexcept
@@ -201,4 +202,7 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader, bool aItemOwners) 
         for (Recipe& recipe : Recipes)
             recipe.Deserialize(aReader);
     }
+    Own = {};
+    if (!aReader.Eof())
+        Own.Deserialize(aReader);
 }

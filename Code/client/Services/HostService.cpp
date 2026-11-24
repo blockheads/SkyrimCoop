@@ -4,6 +4,7 @@
 #include <Services/HostService.h>
 #include <Games/PartyItems.h>
 #include <Services/Host/HostAggro.h>
+#include <Services/Host/HostTraps.h>
 #include <Services/Host/HostTakeBacks.h>
 #include <Bridges/IBodyBridge.h>
 #include <Services/BodyService.h>
@@ -165,6 +166,7 @@ void HostService::MakeAuthority() noexcept
     m_world.ctx().at<CreatedIds>().SetHosting(true);
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(),
         [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); });
+    m_pTraps = std::make_unique<HostTraps>(m_world, m_dispatcher);
     m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(), [this](uint32_t aId) {
         if (m_pAuthority)
             m_pAuthority->ActorTaken(aId);
@@ -268,6 +270,7 @@ void HostService::MakeAuthority() noexcept
     game.ReadContents = [this](const GameId& acObject) { return m_pEngine->ReadContents(acObject); };
     game.Activate = [this](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) { m_pEngine->Activate(acObject, aNpcId, aActivatorId); };
     game.Summon = [this](uint32_t aCasterId, const SummonRequest& acSummon) { m_pEngine->Summon(aCasterId, acSummon); };
+    game.TouchTrap = [this](const Payloads::TrapContact& acContact) { m_pEngine->TouchTrap(acContact); };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
     game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { m_pEngine->RaiseStoryEvent(acEvent); };
@@ -286,7 +289,11 @@ void HostService::MakeAuthority() noexcept
     };
     game.StoreRecord = [cRecords](const PlayerRecord& acRecord) {
         if (auto* pRecords = cRecords())
-            pRecords->Put(acRecord);
+            pRecords->Put(acRecord, CharacterRecords::Clock::now());
+    };
+    game.SettleRecord = [cRecords](const std::string& acKey) {
+        if (auto* pRecords = cRecords())
+            pRecords->Settle(acKey, CharacterRecords::Clock::now());
     };
     game.StoreStorySpell = [cRecords](const GameId& acSpell, bool aAdded) {
         if (auto* pRecords = cRecords())
@@ -315,6 +322,7 @@ void HostService::StopHosting() noexcept
 {
     m_pAggro.reset();
     m_pTakeBacks.reset();
+    m_pTraps.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();

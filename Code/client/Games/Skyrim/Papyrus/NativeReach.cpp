@@ -102,6 +102,8 @@ const Sinks& EngineSinks() noexcept
     POINTER_SKYRIMSE(void, s_messageBox, 52269);       // Debug.MessageBox's box
     POINTER_SKYRIMSE(void, s_messageShow, 442726);     // Message.Show's box
     POINTER_SKYRIMSE(void, s_helpMessage, 51587);      // HelpMessageManager (Message.ShowAsHelpMessage)
+    POINTER_SKYRIMSE(void, s_castFunctor, 218111);        // SkyrimScript::CastFunctor's vtable: Spell.Cast (55747) queues one
+    POINTER_SKYRIMSE(void, s_interruptCast, 34408);       // MagicCaster::InterruptCast (ObjectReference.InterruptCast 56187)
     // An actor's items.
     POINTER_SKYRIMSE(void, s_equipObject, 38894);      // ActorEquipManager::EquipObject
     POINTER_SKYRIMSE(void, s_unequipObject, 38901);    // ActorEquipManager::UnequipObject
@@ -149,6 +151,10 @@ const Sinks& EngineSinks() noexcept
                                       &s_forceThirdPerson, &s_setCameraTarget, &s_musicAdd, &s_musicRemove, &s_rumble, &s_hudMessage,
                                       &s_messageBox, &s_messageShow, &s_helpMessage})
             cAdd(*pFunction, {Call::kScreen});
+        // An object's cast (a trap's): Spell.Cast's source is its first argument, InterruptCast's its self.
+        if (const auto cVtable = reinterpret_cast<uintptr_t>(s_castFunctor.GetPtr()))
+            sinks.Objects[cVtable] = {{.Kind = Call::kCast, .Argument = uint8_t{0}}};
+        cAdd(s_interruptCast, {Call::kCast});
         cAdd(s_equipObject, {Call::kItem});
         cAdd(s_unequipObject, {Call::kItem});
         cAdd(s_openBarter, {Call::kPlayerMenu});
@@ -363,7 +369,7 @@ Reach CallOf(BSScript::IFunction* apFunction) noexcept
     }
     if (call.Kind == Call::kQuestion && apFunction->GetReturnType().type == BSScript::Variable::kEmpty)
         call = {}; // an action reading a place (a move), no question
-    static constexpr const char* cNames[] = {"", "controls", "screen", "world", "show", "progression", "items", "question", "body", "player menu", "creation"};
+    static constexpr const char* cNames[] = {"", "controls", "screen", "world", "show", "progression", "items", "question", "body", "player menu", "cast", "creation"};
     static_assert(std::size(cNames) == static_cast<size_t>(Call::kCreate) + 1);
     if (call.Kind != Call::kNone)
         spdlog::debug("NativeReach: {}.{} calls the {}", apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(),

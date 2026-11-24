@@ -154,6 +154,13 @@ void ExtraDataList::SetOwner(TESForm* apOwner) noexcept
     s_setOwner(this, apOwner);
 }
 
+void ExtraDataList::SetHotkey(int8_t aHotkey) noexcept
+{
+    using TSetHotkey = void(ExtraDataList*, int8_t);
+    POINTER_SKYRIMSE(TSetHotkey, s_setHotkey, 11664);
+    s_setHotkey(this, aHotkey);
+}
+
 void ExtraDataList::SetCount(uint16_t aCount) noexcept
 {
     using TSetCount = void(ExtraDataList*, uint16_t aCount);

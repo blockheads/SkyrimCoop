@@ -100,6 +100,12 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
             // This game's player's own pull of a lever furniture: its engine played it (TESFurniture::Activate 17420).
             if (cChange.Type == ObjectChange::Kind::kAnimation && cChange.Value && cChange.Value == Utils::GetSessionIdByFormId(0x14))
                 continue;
+            if (cChange.Type == ObjectChange::Kind::kAnimation)
+            {
+                m_animations.Play(uint64_t{cChange.Object.ModId} << 32 | cChange.Object.BaseId, cChange, std::chrono::steady_clock::now(),
+                                  [this](const ObjectChange& acChange) { return m_engine.ApplyObjectChange(acChange, false); });
+                continue;
+            }
             if (m_engine.ApplyObjectChange(cChange, message.Cell != GameId{}))
                 applied.push_back(cChange);
             else
@@ -254,7 +260,10 @@ void GuestWorldState::OnUpdate(const UpdateEvent&) noexcept
         PlayerNatives::Answer(acAnswer.ReplyId, std::monostate{});
         return true;
     });
-    m_mainTasks.Queue([this] { m_engine.RetryQuestAliases(); });
+    m_mainTasks.Queue([this] {
+        m_engine.RetryQuestAliases();
+        m_animations.Update(std::chrono::steady_clock::now(), [this](const ObjectChange& acChange) { return m_engine.ApplyObjectChange(acChange, false); });
+    });
     auto cells = m_engine.AttachedCells();
     for (const uint32_t cCell : cells)
         if (std::ranges::find(m_cells, cCell) == m_cells.end())

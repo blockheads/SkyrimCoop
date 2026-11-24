@@ -205,6 +205,8 @@ void FakeEngine::AddsSpell(uint32_t aActor, uint32_t aSpell, bool aAdded, uint32
 PlayerRecord FakeEngine::ReadPlayer() const noexcept
 {
     PlayerRecord record = Player;
+    // As JoinBridge: the engine's own state of its player (PlayerSaveState::Read).
+    record.Own = Own;
     if (record.Name.empty()) record.Name = Name;
     const Actor& cPlayer = Actors.at(kPlayer);
     // As JoinBridge: what the player carries, from its inventory; no place. Its souls and the words it unlocked.
@@ -236,7 +238,13 @@ void FakeEngine::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     Actor& cPlayer = Actors.at(kPlayer);
     Player = acRecord;
     Player.Key.clear();
+    Player.Own = {};
     Player.Items = {};
+    // SetActorInventory's RemoveAllItems: every stack's ExtraHotkey goes with the save's player's items.
+    Own.FavoriteItems.clear();
+    // As JoinBridge: the record's own state over the save's player's (PlayerSaveState::Apply), none from an old record.
+    if (acRecord.Own.Present)
+        Own = acRecord.Own;
     for (const Recipe& cRecipe : acRecord.Recipes)
         World::Get().GetRecipes().Learn(cRecipe);
     cPlayer.Items = acRecord.Items;

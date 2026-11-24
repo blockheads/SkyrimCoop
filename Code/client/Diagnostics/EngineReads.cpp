@@ -234,8 +234,10 @@ std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept
     const float cFrom[3]{cFeet.x, cFeet.y, cFeet.z + 50.f};
     const float cTo[3]{cFeet.x, cFeet.y, cFeet.z - 2000.f};
     auto cFloor = GameRaycast::CastRay(cFrom, cTo, 30, aFormId);
-    // A character never stands on an actor's body (its capsule passes a corpse, layer 30 against 32): looked past.
-    for (int i = 0; i < 3 && cFloor && cFloor->Hit && Cast<Actor>(TESForm::GetById(cFloor->Reference)); ++i)
+    // A character never stands on an actor's body (its capsule passes a corpse, layer 30 against 32) nor on a trigger
+    // (layer 12: a pressure plate's volume, 15 above the floor it stands on, measured): looked past.
+    constexpr uint32_t cTriggerLayer = 12;
+    for (int i = 0; i < 3 && cFloor && cFloor->Hit && (Cast<Actor>(TESForm::GetById(cFloor->Reference)) || cFloor->Layer == cTriggerLayer); ++i)
     {
         const float cBelow[3]{cFeet.x, cFeet.y, cFloor->Point[2] - 0.5f};
         cFloor = GameRaycast::CastRay(cBelow, cTo, 30, aFormId);

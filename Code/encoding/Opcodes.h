@@ -76,7 +76,10 @@
     X(ClaimRequest)                 \
     X(SummonRequest)                \
     X(BodyStatesRequest)            \
-    X(WeatherRegionRequest)
+    X(WeatherRegionRequest)        \
+    X(TrapContactRequest)          \
+    X(TrapHitRequest)              \
+    X(WorldProjectileRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -163,7 +166,9 @@
     X(NotifyClaimRefused) \
     X(NotifyStealthEye) \
     X(NotifyLeash)                 \
-    X(NotifyBodyStates)
+    X(NotifyBodyStates) \
+    X(NotifyTrapHit) \
+    X(NotifyWorldProjectile)
 
 #define COOP_OPCODE(aName) k##aName,
 

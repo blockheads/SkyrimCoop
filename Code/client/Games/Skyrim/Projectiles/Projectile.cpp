@@ -77,7 +77,10 @@ BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Pro
     if (arData.pProjectileBase)
         Event.ProjectileBaseID = arData.pProjectileBase->formID;
     if (arData.pShooter)
+    {
         Event.ShooterID = arData.pShooter->formID;
+        Event.ByObject = !Cast<Actor>(arData.pShooter);
+    }
     if (arData.pFromWeapon)
         Event.WeaponID = arData.pFromWeapon->formID;
     if (arData.pFromAmmo)
