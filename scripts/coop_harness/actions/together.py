@@ -369,3 +369,10 @@ class TogetherActions:
         """That game's player presses E once in its dialogue menu, whatever it shows: the highlighted option, a skip."""
         ctx.tap_key(instance, ACTIVATE_KEY)
         return {"pressed": True}
+
+    def speak_calls(ctx, instance=""):
+        """That game's voice starts so far: the engine's Actor::SpeakSound calls through our hook (37542,
+        HookSpeakSoundFunction) and our own relayed ones (ActorSpeakSound), from the harness's perf readout."""
+        _game = ctx.game(instance)
+        calls = (ctx.player_command(instance, {"cmd": "perf", "window_ms": 1000}).get("perf") or {}).get("calls") or {}
+        return {"engine": calls.get("HookSpeakSoundFunction", 0), "relayed": calls.get("ActorSpeakSound", 0)}
