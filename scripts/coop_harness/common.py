@@ -186,6 +186,7 @@ DIVE_SECONDS = 6
 SURFACE_PACKAGE = 29
 INN_DOOR_INSIDE, INN_DOOR_OUTSIDE = 0x13419, 0x13424
 HORSE = "00109E3D"
+HORSE_RACE = 0x131FD  # HorseRace (Skyrim.esm)
 PLAYER_FACTION = 0xDB1  # PlayerFaction: the party owns what it buys
 PLAYER_HORSE_FACTION = 0x68D78  # a bought horse is a member, rank 1
 ACTIVATE_KEY = 0x12

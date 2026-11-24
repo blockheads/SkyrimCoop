@@ -13,7 +13,8 @@ def run(ctx):
         ctx.spawn_horse(instance='client', owned=True)
         ctx.use('client', 'horse')
         ctx.expect('horse', 'actor', within=5.0, value=True, field='placement.ridden', seconds=10.0)
+        ctx.wait_seated(instance='client')
         ctx.get_off(instance='client')
+        ctx.horse_owned_by(horse='horse', owner='host')  # handed back before unstage deletes it
     finally:
-        ctx.remove('horse')
         ctx.unstage()

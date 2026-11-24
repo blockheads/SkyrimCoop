@@ -142,23 +142,45 @@ class Harness(unittest.TestCase):
         with self.assertRaises(ObservedCurrentCopy):
             session.death_spectate_respawn("client", travel_down=True)
 
-    def test_spawn_horse_places_at_the_guests_copy_and_sells_it_to_the_party(self):
+    def spawn_horse_session(self):
         session = self.session
         session.console_on = Mock()
         session.player_copy = Mock(return_value=0xFF000801)
-        spawned = iter([{"local_actors": {}}, {"local_actors": {str(0xFF000900): {}}}])
-        session.local_player = Mock(side_effect=lambda game: next(spawned))
-        session.wait_for = Mock(side_effect=lambda description, predicate, *args, **kwargs: predicate())
+        wolf = {str(0xFF000850): {"identity": {"race": 0x13744}}}
+        horse = {str(0xFF000900): {"identity": {"race": 0x131FD}}}
+        # An unrelated NPC loads first, then the horse.
+        spawned = iter([{"local_actors": {}}, {"local_actors": wolf}, {"local_actors": {**wolf, **horse}}])
+        last = {}
+        session.local_player = Mock(side_effect=lambda game: last.update(next(spawned, last)) or dict(last))
+        def wait_for(description, predicate, *args, **kwargs):
+            while not (value := predicate()):
+                pass
+            return value
+        session.wait_for = Mock(side_effect=wait_for)
         session.host_npc_state = Mock(return_value={"session_id": 7})
         session.copy_of = Mock(return_value=0xFF000A00)
         session.player_command = Mock(return_value={"owner": 0xDB1})
         session.faction_rank = Mock(return_value=1)
         session.actor_state = Mock(return_value={"mod": {"fade_state": 0}})
+        return session
+
+    def test_spawn_horse_places_at_the_guests_copy_and_sells_it_to_the_party(self):
+        session = self.spawn_horse_session()
         self.assertEqual(session.spawn_horse("client", owned=True), "horse")
         self.assertEqual([c.args for c in session.console_on.call_args_list],
                          [("", "FF000801.placeatme 00109E3D 1"), ("", "FF000900.addtofaction 68D78 1"),
                           ("", "FF000900.setownership DB1")])
         self.assertEqual(session.handles()["horse"], {"host": 0xFF000900, "guest": 0xFF000A00})
+        self.assertEqual(session.staged(), [("npc", 0xFF000900)])
+
+    def test_spawn_horse_is_staged_for_cleanup_when_its_copy_never_comes(self):
+        session = self.spawn_horse_session()
+        session.handles()["horse"] = {"host": 0xFF000123}  # an older horse keeps its name
+        session.copy_of = Mock(side_effect=TestFailure("no copy"))
+        with self.assertRaises(TestFailure):
+            session.spawn_horse("")
+        self.assertEqual(session.staged(), [("npc", 0xFF000900)])
+        self.assertEqual(session.handles()["horse"], {"host": 0xFF000123})
 
     def test_registration_is_unique_and_has_a_fixture(self):
         registry = Registry()
