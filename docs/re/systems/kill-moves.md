@@ -144,7 +144,9 @@ The kill moves are idles (IDLE records) in the action idle tree, not engine code
 kill moves as twins without the `00` suffix), children in their `ANAM` sibling order, the first whose conditions
 pass. `scripts/re/kill_moves.py <Data>` lists every one (145 `pa_Kill...` events in the base game and DLC, 344 idles
 naming one); `--rows` walks the tree's conditions per victim race, weapon and side and writes the table
-`scripts/coop_harness/kill_moves.json`: 112 rows, 84 kill moves a player's normal swing can pick.
+`scripts/coop_harness/kill_moves.json`: 112 rows, 84 kill moves a player's normal swing can pick. The 84 are
+candidates: the walk's first-passing-child order and its fallback to the next sibling are inferred from the records, not
+read at `TESIdleForm` 24570 (the pick, 37147 -> 24602 -> 24570, traced in `agent-piece-4b.tsv`).
 
 ```
 NonMountedCombatRight (children in order)
@@ -164,7 +166,8 @@ NonMountedCombatRight (children in order)
   sibling: inferred from the tree's shape, the pick (37147) not read for it.
 - The decapitations need `SavageStrike` (1H) or `DevastatingBlow` (2H): the rows with perks add them.
 - Not in the table: dual wield (the verb equips one hand), bleeding-out victims, sneak kills, power attacks (the same
-  kill moves), creature and NPC attackers (`KillMoveRootDragon` and the creatures' own trees).
+  kill moves), creature and NPC attackers (`KillMoveRootDragon` and the creatures' own trees), dragons as victims (`KillMoveDragonRoot00`:
+  `pa_KillMove2HWDragonRodeoSlash` and others; the harness cannot stage a dragon).
 
 ## Slopes (2026-11-23)
 
@@ -375,7 +378,8 @@ the copy before its owner's stream does, and mirroring the owner's body layer ha
 
 The host's battleaxe kill moves seen on the guest (10 falls): up to 32 flickers, 4 to 23 units of pelvis jump (the host's
 own screen 0.4 to 4.6). The log showed the first frames split the ragdoll: limbs 16+ units off were placed (`PlaceDistance`),
-the rest steered, and the joints between them threw the bodies about. That showed in 3 of 6 falls, all HeadButts, each at
+the rest steered, and (inferred: the trace shows the mixed placements and a burst in the same falls) the joints between
+them threw the bodies about. That showed in 3 of 6 falls, all HeadButts, each at
 its burst.
 
 `RagdollStart` (`Code/client/Physics/RagdollStart.h`) plans the whole ragdoll at once: each body's gap at its first frame is

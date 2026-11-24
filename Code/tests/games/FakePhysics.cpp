@@ -151,7 +151,7 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
         body.Awake = true;
         ++body.Drives;
     }
-    if (!rests.empty())
+    if (!rests.empty() && steered.empty())
         m_ragdollStarts.erase(aCopy);
     if (!rests.empty())
     {

@@ -24,7 +24,10 @@ def run(ctx):
         for said in attackers:
             table = ctx.kill_move_table('client' if said == 'guest' else '', victims)
             log(f"[{said}] {len(table['played'])} kill moves played; not picked in their tries: {table['missed']}")
+            if not table['played'] and not table['unpaired']:
+                wrong.append(f"[{said}] no row swung: victims {victims}")
             wrong += [f"[{said}] no kill move: {row}" for row in table['unpaired']]
+            wrong += [f"[{said}] never picked: {event}" for event in table['missed']]
             for event, times in sorted(table['played'].items()):
                 if bad := [problems for problems in times if problems]:
                     wrong.append(f"[{said}] {event} wrong {len(bad)} of {len(times)}: {bad[0]}")

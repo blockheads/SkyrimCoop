@@ -2,7 +2,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "hands",
   "behind": false,
   "perks": [],
@@ -16,7 +16,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "hands",
   "behind": true,
   "perks": [],
@@ -27,7 +27,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "dagger",
   "behind": false,
   "perks": [],
@@ -45,7 +45,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "dagger",
   "behind": false,
   "perks": [
@@ -67,7 +67,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "dagger",
   "behind": true,
   "perks": [],
@@ -78,7 +78,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "sword",
   "behind": false,
   "perks": [],
@@ -96,7 +96,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "sword",
   "behind": false,
   "perks": [
@@ -118,7 +118,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "sword",
   "behind": true,
   "perks": [],
@@ -129,7 +129,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "war axe",
   "behind": false,
   "perks": [],
@@ -141,7 +141,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "war axe",
   "behind": false,
   "perks": [
@@ -157,7 +157,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "mace",
   "behind": false,
   "perks": [],
@@ -169,7 +169,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "mace",
   "behind": false,
   "perks": [
@@ -185,7 +185,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "greatsword",
   "behind": false,
   "perks": [],
@@ -199,7 +199,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "greatsword",
   "behind": false,
   "perks": [
@@ -217,7 +217,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "greatsword",
   "behind": true,
   "perks": [],
@@ -228,7 +228,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "battleaxe",
   "behind": false,
   "perks": [],
@@ -241,7 +241,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "battleaxe",
   "behind": false,
   "perks": [
@@ -258,7 +258,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "battleaxe",
   "behind": true,
   "perks": [],
@@ -269,7 +269,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "warhammer",
   "behind": false,
   "perks": [],
@@ -282,7 +282,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "warhammer",
   "behind": false,
   "perks": [
@@ -299,7 +299,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "warhammer",
   "behind": true,
   "perks": [],
@@ -310,7 +310,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "dual swords",
   "behind": false,
   "perks": [],
@@ -323,7 +323,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "dual swords",
   "behind": false,
   "perks": [
@@ -340,7 +340,7 @@
  {
   "victim": "bandit",
   "base": "0003DE53",
-  "race": "NordRace",
+  "race": "RedguardRace",
   "weapon": "dual swords",
   "behind": true,
   "perks": [],

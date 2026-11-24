@@ -159,6 +159,8 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
     if (!driven.empty())
     {
         std::scoped_lock lock(s_bodyLock);
+        if (s_starts.size() >= 512 && !s_starts.contains(aCopy.formID))
+            s_starts.clear(); // copies gone before their rest
         plan = s_starts[aCopy.formID].Next(driven, NowMs());
     }
     for (size_t i = 0; i < driven.size(); ++i)
@@ -176,6 +178,8 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         spdlog::info("CopyRagdollPhysics: {:X} put on its owner's frames, {} bodies", aCopy.formID, driven.size());
     if (!resting.empty())
     {
+        // Its start ends once no body of it moves: a limb still blending keeps its gap.
+        if (driven.empty())
         {
             std::scoped_lock lock(s_bodyLock);
             s_starts.erase(aCopy.formID);

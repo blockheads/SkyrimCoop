@@ -142,6 +142,8 @@ def evaluate(condition, row, functions, names):
         value = FIXED[name]
     else:
         return None
+    if value is None:
+        return None
     return {'==': value == condition['value'], '!=': value != condition['value'], '>': value > condition['value'],
             '>=': value >= condition['value'], '<': value < condition['value'], '<=': value <= condition['value']}[condition['op']]
 
@@ -194,8 +196,8 @@ def reachable(node, row, tree, functions, names):
     return events, sure
 
 
-VICTIMS = [  # (name, a base to spawn, its race)
-    ('bandit', '0003DE53', 'NordRace'), ('draugr', '0001FB8F', 'DraugrRace'), ('falmer', '00023A9A', 'FalmerRace'),
+VICTIMS = [  # (name, a base to spawn, its race); dragons left out: the harness cannot stage one
+    ('bandit', '0003DE53', 'RedguardRace'), ('draugr', '0001FB8F', 'DraugrRace'), ('falmer', '00023A9A', 'FalmerRace'),
     ('wolf', '00023ABE', 'WolfRace'), ('troll', '00023ABA', 'TrollRace'), ('sabre cat', '00023AB5', 'SabreCatRace'),
     ('bear', '00023A8B', 'BearBrownRace'), ('spider', '00023AAA', 'FrostbiteSpiderRace'),
     ('spriggan', '00023AB9', 'SprigganRace'), ('hagraven', '00023AB0', 'HagravenRace'), ('giant', '00023AAE', 'GiantRace'),
