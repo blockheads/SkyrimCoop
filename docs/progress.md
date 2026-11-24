@@ -49,6 +49,12 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **no crosshair prompt over another player** (`agent/no-talk-to-players`). Each game's crosshair offered
+"Talk" over the other player's character (and Pickpocket while sneaking, Search when dead, all leading nowhere). Our hook
+on `Actor::CanTalkToPlayer` (37469) answers no for another player's copy, so E starts no conversation, and
+`HookGetActivateText` (24716) gives it no prompt at all (`re/systems/dialogue.md`, "No talking to players"). ClientTests,
+GameTests, scenario `no-prompt-over-players`.
+
 2026-11-23: **a guest keeps its own favorites, damage, effects and cooldowns over a reload or rejoin**
 (`agent/favorites-audit`, bug 17). A guest loads the host's save and its character record goes on the save's player;
 what the record lacked stayed the host's: the host's spell favorites (save global 109), no item favorites (the

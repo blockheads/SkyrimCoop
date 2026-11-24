@@ -141,7 +141,10 @@ nlohmann::json BoardRidden(Harness&, const nlohmann::json& acRequest)
 // {"cmd": "activate_text", "ref": id}: the prompt the crosshair shows for it (EngineCalls::GetActivateText).
 nlohmann::json ActivateTextCommand(Harness&, const nlohmann::json& acRequest)
 {
-    return {{"ok", true}, {"text", EngineCalls::GetActivateText(acRequest.value("ref", 0u))}};
+    const auto cText = EngineCalls::GetActivateText(acRequest.value("ref", 0u));
+    if (!cText)
+        return {{"ok", false}, {"error", "not an actor with an NPC base here"}};
+    return {{"ok", true}, {"text", *cText}};
 }
 
 // {"cmd": "graph_event", "actor": id, "event": "PairEnd"}: the event to its graphs (EngineCalls::SendGraphEvent).

@@ -921,14 +921,14 @@ bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept
     return true;
 }
 
-std::string GetActivateText(uint32_t aRefId) noexcept
+std::optional<std::string> GetActivateText(uint32_t aRefId) noexcept
 {
     using TGetActivateText = bool(TESNPC*, TESObjectREFR*, BSString*);
     POINTER_SKYRIMSE(TGetActivateText, s_getActivateText, 24716); // TESNPC::GetActivateText, through our hook
     auto* pRef = Cast<Actor>(TESForm::GetById(aRefId));
     auto* pBase = pRef ? Cast<TESNPC>(pRef->baseForm) : nullptr;
     if (!pBase)
-        return {};
+        return std::nullopt;
     struct Text // BSString's layout, freed here: its own destructor is the engine's
     {
         char* data = nullptr;

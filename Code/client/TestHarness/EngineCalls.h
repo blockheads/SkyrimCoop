@@ -506,8 +506,9 @@ bool SitOnMountQuick(uint32_t aRiderId, uint32_t aMountId) noexcept;
 bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept;
 // Probe: a graph event to the actor's graphs (TESObjectREFR::SendAnimationEvent); true when one took it.
 bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept;
-// The crosshair's prompt for this actor (TESNPC::GetActivateText 24716, our hook's answer too); empty for none.
-std::string GetActivateText(uint32_t aRefId) noexcept;
+// The crosshair's prompt for this actor (TESNPC::GetActivateText 24716, our hook's answer too); empty for none, nothing
+// when it is no actor with an NPC base here.
+std::optional<std::string> GetActivateText(uint32_t aRefId) noexcept;
 // Takes the actor out of any furniture and moves it to that spot in the player's cell, wherever it was (loaded or
 // not), as MoveTo does (56626).
 bool MoveActorToPlayer(uint32_t aFormId, const float acPosition[3]) noexcept;
