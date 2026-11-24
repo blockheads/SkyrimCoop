@@ -55,15 +55,8 @@ static TIsInCombat* RealIsInCombat = nullptr;
 using TGetCombatState = uint32_t(Actor*);
 static TGetCombatState* RealGetCombatState = nullptr;
 
-// Who gets a copy's owner's combat state: the condition functions (IsInCombat 21576, GetCombatState 21740) and
-// plugins (any caller outside the game's image, as Open Animation Replacer). The engine's own callers act on the
-// combat controller after a yes, which a copy never has, often through a wrapper (EngagingInCombat 38563: weapon
-// fire, spell aim): they get the copy's own answer (audit: docs/re/systems/actor-ai-and-copies.md, "Combat state
-// and its readers"). Return addresses: the function's Address Library ID and the offset after its call.
-static constexpr std::pair<uint32_t, uint32_t> cOwnerAnswerSites[] = {
-    {21576, 0x38}, // GameFunc::native::IsInCombat
-    {21740, 0x28}, // GameFunc::native::GetCombatState
-};
+// A copy's owner's combat state goes to CopyCombat's sites and plugins; other engine callers use the combat controller
+// (docs/re/systems/actor-ai-and-copies.md, "Combat state and its readers").
 
 // A caller outside the game's image: a plugin.
 static bool IsOutsideGame(uintptr_t aAddress) noexcept
@@ -81,10 +74,10 @@ static bool GetsOwnersCombatState(const void* apReturnAddress) noexcept
 {
     static const auto s_sites = []() {
         std::vector<uintptr_t> sites;
-        for (const auto& [cId, cOffset] : cOwnerAnswerSites)
+        for (const auto& cSite : CopyCombat::cOwnerAnswerSites)
         {
-            VersionDbPtr<uint8_t> function(cId);
-            sites.push_back(reinterpret_cast<uintptr_t>(function.Get()) + cOffset);
+            VersionDbPtr<uint8_t> function(cSite.Id);
+            sites.push_back(reinterpret_cast<uintptr_t>(function.Get()) + cSite.ReturnOffset);
         }
         return sites;
     }();

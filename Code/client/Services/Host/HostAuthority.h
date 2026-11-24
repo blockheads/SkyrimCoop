@@ -23,7 +23,6 @@
 #include <Services/Host/HostWait.h>
 #include <Services/Host/HostCrime.h>
 #include <Services/Host/HostPartyItems.h>
-#include <Services/Host/HostPurse.h>
 #include <Services/Host/HostWeather.h>
 #include <Services/Host/HostEye.h>
 #include <Services/Host/HostWorldState.h>
@@ -66,7 +65,7 @@ struct SummonRequest;
  * loading), HostItems (a guest's drops and pickups), HostPlayerNatives (the script calls one game sends to others),
  * HostStory (a guest's story events),
  * HostBodies (who simulates each physics body, and the states each game gets); HostWeather and HostEye (a guest's
- * stealth eye) have no rules, and HostPurse (the party's gold) takes a player's gold out of the item relay.
+ * stealth eye) have no rules, and HostPartyItems (the party's gold) takes a player's gold out of the item relay.
  */
 struct HostAuthority
 {
@@ -160,7 +159,7 @@ private:
 
     // Anyone may change an actor's items (a peer handing its follower a sword); the owner's game
     // applies it like every other copy.
-    void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) noexcept;
     void OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's player cast a summon on itself: the host's game puts it on that player's copy (the host creates).
@@ -198,7 +197,6 @@ private:
     HostClock m_clock;
     HostWait m_wait;
     HostCrime m_crime;
-    HostPurse m_purse;
     HostPartyItems m_partyItems;
     HostWeather m_weather;
     HostEye m_eye;

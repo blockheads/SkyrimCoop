@@ -755,6 +755,10 @@ meh321 where they have one, ours otherwise.
     state only to the condition functions (21576 and 21740, by return address: Address Library ID plus offset) and to
     plugins (callers outside the game's image); every engine caller gets the copy's own answer (no controller: no).
     Papyrus `IsInCombat` (54945) and `GetCombatState` (54679) tail-jump from the VM's call and get the copy's own.
+  - **The regen rate (2026-11-23, read in IDA 1.7.104):** `Actor::GetActorValueRegenRate` (38460) asks `IsInCombat`
+    twice and never reads `+0x160`: so it gets the owner's answer too. Before, a copy of an NPC or player in combat
+    showed the out-of-combat rate (stamina 5.0 against the owner's 1.75: `fCombatStaminaRegenRateMult` 0.35).
+    Details: [actor-values.md](actor-values.md#the-combat-multiplier-and-copies-1.7.104-read-in-ida-2026-11-23).
 - **A player's own combat flag:** `PlayerCharacter::IsInCombat` (41024) reads `+0xBE3` bit 0x20.
   `PlayerCharacter::UpdateInCombat` (41238, ours) sets it each update when 41261 (ours,
   `CombatManager::CountGroupsTargetingPlayer`) counts a combat group targeting the player (the members in
@@ -988,6 +992,22 @@ between hits, so a scenario steps up before each swing and judges each hit again
 that leaves the cell takes the client's copy of it (the client's own persistent reference) along, still a copy
 (`docs/design/copy-contract.md`, "When the owner's actor goes away"). `release_host_npc` sends the host's home
 while still frozen: thawed and unloaded, its AI walks it on in jumps of ~300 units, which the copy does not follow.
+
+### A frozen actor that dies (2026-11-23)
+
+Read in IDA on 1.7.104 (41466 and 37488, comments in the database) and measured on the duo. Measured: a killed actor
+that updates sends `AddRagdollToWorld` and, about a second on, `Ragdoll`, and its life state goes from 1 (dying) to 2.
+What writes the 2 for a loaded actor is not read: of `SetLifeState`'s callers, 41311 (a calendar-stamped pass over
+the process lists, health at 0) and 41313 (after a pathing submit) are not that path; `KillImmediate` is not reached by
+the console's kill. With `kProcessMe` clear `ProcessLists::CollectAnimatedHighActors` (41466) lists the actor for no
+animation job, and `ProcessLists::UpdateHighActor` (41369) gives it `UpdateNoAI` instead of `Actor::Update`. A frozen
+actor killed by the console sent `DeathAnim` and nothing after: life state 1 for good, its skeleton in the clip's first pose at its reference, and
+its 18 ragdoll bodies keyframed (motion 4) at a constant velocity, drifting 750 units into a hillside in a minute
+(inferred: the last velocity `driveToPose` 58291 gave them; no graph update changes it). So its body never rested,
+no rest reached the guest, and the guest's copy, which updates, ragdolled and lay where its own physics put it, 129 to
+351 units off (`frozen-npc-corpse-rests-as-host`). Not a bug of the games: nobody freezes an NPC in play. Since then the
+harness thaws a frozen actor at its death (`TestHarness/FrozenActors.h`, polled each frame). `SetRestrained(false)`
+(37488) writes life state 0 only while it reads 6, so the thaw leaves a dying actor dying.
 
 
 ### Empty copied packages (2026-11-02 review, Steam 1.7.104)

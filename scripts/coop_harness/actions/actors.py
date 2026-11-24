@@ -83,9 +83,9 @@ class ActorsActions:
         ctx.player_command(instance, {"cmd": "freeze", "actor": ctx.resolve(actor, instance), "frozen": frozen})
 
 
-    def stage_host_npc(ctx, npc, goal=None):
+    def stage_host_npc(ctx, npc, goal=None, frozen=True):
         """Brings one of the host's placed NPCs (wherever it is, in furniture or not) onto the stage (or to `goal`) and
-        freezes it there; returns the client's copy. release_host_npc sends it back."""
+        freezes it there (frozen=False: thawed once there); returns the client's copy. release_host_npc sends it back."""
         goal = goal or ctx.stage_spot()
         # Its own package can bring it into the cell elsewhere (an unloaded actor travelling to the player arrives at
         # the door): it is frozen once here, then moved within the cell.
@@ -101,6 +101,8 @@ class ActorsActions:
         copy = ctx.copy_of("client", ctx.host_npc_state(npc)["session_id"])
         ctx.wait_on("client", f"its copy of {npc:X} on the stage",
                 lambda actors: distance((actors.get(str(copy), {}).get("actual") or [1e9, 1e9])[:2], goal[:2]) < 60, 10)
+        if not frozen:
+            ctx.freeze("", npc, False)
         return copy
 
 

@@ -2,6 +2,7 @@
 #include <Events/ActorRenamedEvent.h>
 #include <Events/GameLoadedEvent.h>
 #include <Services/HostService.h>
+#include <Games/PartyItems.h>
 #include <Services/Host/HostAggro.h>
 #include <Services/Host/HostTakeBacks.h>
 #include <Bridges/IBodyBridge.h>
@@ -188,6 +189,7 @@ void HostService::MakeAuthority() noexcept
         return m_world.ctx().at<InventoryService>().PartyItemsOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId());
     };
     game.ItemName = [this](const GameId& acItem) { return m_world.ctx().at<InventoryService>().ItemName(acItem); };
+    game.ItemFormType = [this](const GameId& acItem) { return m_world.ctx().at<InventoryService>().ItemFormType(acItem); };
     game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) { return m_world.ctx().at<CrimeService>().Judge(aActor, aCrime); };
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
@@ -274,6 +276,7 @@ void HostService::MakeAuthority() noexcept
     };
     game.TransferContainer = [this](const ContainerTransferRequest& acRequest, uint32_t aPlayer) { return m_pEngine->TransferContainer(acRequest, aPlayer); };
     game.TakeItem = [this](const GameId& acObject) { return m_pEngine->TakeItem(acObject); };
+    game.DropPartyItem = [this](const Inventory::Entry& acItem, uint32_t aPlayer) { return m_pEngine->DropPartyItem(acItem, aPlayer); };
     game.TakeQuestObject = [this](const GameId& acObject) { return m_pEngine->TakeQuestObject(acObject); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     // The records live in SaveService, which a world tearing down drops before its Steam lobby kicks the guests.
@@ -302,6 +305,7 @@ void HostService::MakeAuthority() noexcept
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
+    m_world.ctx().at<InventoryService>().SetArrivalDecider(&PartyItems::ArrivesAsParty);
     m_pConversation = std::make_unique<HostConversation>(m_world, m_dispatcher, m_world.ctx().at<DialogueService>());
 
     InstallFrontDoor();
@@ -321,6 +325,7 @@ void HostService::StopHosting() noexcept
         m_world.GetTransport().Close();
     m_pConversation.reset();
     m_pNetwork.reset();
+    m_world.ctx().at<InventoryService>().SetArrivalDecider({});
     m_pAuthority.reset();
     m_pEngine.reset();
     m_world.ctx().at<CreatedIds>().SetHosting(false);

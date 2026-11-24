@@ -510,14 +510,17 @@ class ReproActions:
             spot = ctx.scene_spot(index)
             if "ref" in npc:
                 host = int(str(npc["ref"]), 16) if isinstance(npc["ref"], str) else npc["ref"]
-                copy = ctx.stage_host_npc(host, spot)
+                copy = ctx.stage_host_npc(host, spot, frozen=npc.get("frozen", True))
             else:
                 base = npc["base"] if isinstance(npc["base"], str) else f"{npc['base']:X}"
                 host, _, copy = ctx.spawn_host_npc(base, restrained=npc.get("frozen", True), goal=spot)
                 ctx.staged().append(("npc", host))
+            frozen_handles = ctx.__dict__.setdefault("FROZEN_HANDLES", set())
             if npc.get("frozen", True):
                 ctx.freeze("", host)
-                ctx.__dict__.setdefault("FROZEN_HANDLES", set()).add(npc["name"])
+                frozen_handles.add(npc["name"])
+            else:
+                frozen_handles.discard(npc["name"])
             ctx.name_handle(npc["name"], {"host": host, "guest": copy})
         for item in spec.get("items", []):
             game = "client" if item.get("who") in ("guest", "client") else ""

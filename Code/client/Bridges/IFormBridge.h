@@ -133,6 +133,8 @@ public:
     /// Drop or pick up an item from an actor's inventory.
     virtual void ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept = 0;
     /// Add or remove an item from an object/actor's inventory.
+    // Names up to aCount of the item where they are (an alias's stack, else a worn or favorite one); how many it named.
+    virtual int32_t TagStackInPlace(uint32_t aObjectFormId, uint32_t aItemFormId, const std::string& acName, int32_t aCount) noexcept = 0;
     virtual void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept = 0;
     // A copy carries aCount of the item, acStacks of them with their extra data (worn flags and charge aside), changed
     // only where they differ; nothing raised or equipped (InventoryService's items part).

@@ -1,0 +1,15 @@
+time	op	id	rva	item
+2026-11-24T02:40:23Z	read	63562	0xbca840	{"name": "BShkbAnimationGraph::UpdateRagdollPrePhysics"}
+2026-11-24T02:40:29Z	read		0xbc98a5	{"name": "GraphPhysicsStepListener::prePhysics"}
+2026-11-24T02:44:08Z	read	37186	0x671dc0	{"name": "Character::PlayRagdollInstant"}
+2026-11-24T03:17:22Z	read	41466	0x78a2d0	{"name": "ProcessLists::CollectAnimatedHighActors"}
+2026-11-24T03:17:29Z	comment	41466	0x78a2d0	{"addr": "0x14078a2d0", "comment": "From 1.6.1170, checked on 1.7.104 2026-11-23: our name. Lists high actors with !kInTempChangeList (+0xE8 & 0x200), !(form flags 0x200000), kProcessMe (+0xE8 & 2), a process, 3D with a parent and an attached cell, for 41370's animation jobs. An actor frozen with kProcessMe clear (EnableAI(false), the harness's FreezeActor) and killed gets no graph update: its death clip never reaches its Ragdoll event, its life state stays 1, and its ragdoll bodies stay keyframed at the last velocity driveToPose gave them, drifting (duo, body-rests-differently)."}
+2026-11-24T03:17:29Z	comment		0x78a35a	{"addr": "0x14078a35a", "comment": "kProcessMe (boolBits bit 1) gates the animation job"}
+2026-11-24T03:18:26Z	read	37488	0x687b40	{"name": "Actor::SetRestrained"}
+2026-11-24T03:18:32Z	comment	37488	0x687b40	{"addr": "0x140687b40", "comment": "Actor::SetRestrained(actor, on), read 2026-11-23: on -> SetLifeState(6) and StopMoving; off -> SetLifeState(0) only while the life state (+0xC8 bits 21-24) is 6, so a dying (1) or dead (2) actor is left as it is (the harness thaws a frozen actor at its death)."}
+2026-11-24T03:42:00Z	read	41311	0x77d0e0	{"name": "sub_14077D0E0"}
+2026-11-24T03:42:04Z	read	41313	0x77d7b0	{"name": "sub_14077D7B0"}
+2026-11-24T03:42:08Z	read		0x77dd80	{"name": "sub_14077D7B0"}
+2026-11-24T03:42:22Z	comment	41311	0x77d0e0	{"addr": "0x14077d0e0", "comment": "41311 (read 2026-11-23, body-rests-differently): stamps calendar globals, then over ProcessLists' four handle arrays (+0x90): an actor with health (AV 24) <= 0 gets SetLifeState(2); otherwise Character 37471(0). Not the per-frame death of a loaded high actor (no graph involved); which update calls it is not read."}
+2026-11-24T03:42:22Z	comment		0x77ddbb	{"addr": "0x14077ddbb", "comment": "41313: SetLifeState(2), after a PathingRequestQueue::Submit branch; not read whole, not the in-graph death (body-rests-differently)"}
+2026-11-24T03:42:23Z	read	63551	0xbc9810	{"name": "GraphPhysicsStepListener::prePhysics"}

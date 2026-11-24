@@ -60,6 +60,28 @@ after its health changes or it casts. Read in IDA: [player-save-state.md](re/sys
 `guest_keeps_own_state_on_reload`; GameTests "A guest keeps its own favorites, damage, effects, cooldowns, trainings
 and view over a host load and a rejoin"; ClientTests `[own-state]`.
 
+2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
+[actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after
+`stage` (golden-claw-guest, arvels-journal-guest-loots) lay 83-111 degrees and up to 582 units apart. `stage` freezes
+an NPC (kProcessMe off), and a frozen actor gets no graph update (41466): its death never got past `DeathAnim` on the
+host, its ragdoll drifted keyframed into the hill and never rested, so the guest's copy kept its own fall. On flat
+ground and thawed, the copy lies as the host's. The harness now thaws a frozen actor at its death (`FrozenActors`,
+ClientTests `[frozen-actors]`), and `stage` honors `frozen: false` for a placed NPC (`ref`). Scenario
+`frozen-npc-corpse-rests-as-host`. No GameTests flow: the fake engine has no harness freeze and no game code changed.
+
+2026-11-23: **a quest item a guest loots from a body or chest moves the host's quest on** (`agent/golden-claw-quest`).
+Playtest 2026-11-22, item 15: the guest looted the Golden Claw from Arvel and MS13 stayed on "retrieve the claw". The
+host's take for a guest removed the item to nowhere, which unbinds the item's quest alias script (read in IDA:
+`re/systems/inventory-changes.md`, "An alias-held item leaving a container"), and the guest kept a plain claw. Now
+such a stack moves with a target: a quest object or a key to the host's player (the party's), any other alias item
+to the taker's copy, through its drops and pickups too. 189 Skyrim.esm aliases create their item in an inventory, MQ103's Dragonstone among them. GameTests
+`[container-transfer]`, HostAuthorityTests; Skyrim `golden-claw-guest` reaches stage 40 on both games (its end
+comparison fails on a filed corpse-pose desync, bugs.md). Then the shared-items plan ([shared-items.md](design/shared-items.md)), steps 1
+to 3: `HostPartyItems` holds the party's gold too (`HostPurse` gone); every item a quest alias holds goes to the host's
+player as a party item (Arvel's journal is shared now); a guest's drop or store of its mirror moves the host's real stack,
+alias and all; the host decides each arrival and the finder's own stack is renamed in place, never taken back. The lock
+checker forgets a freed extra data list's pairs and keeps two orders of our update apart (lock-order.md).
+
 2026-11-23: **other players' animations move on every frame** (`agent/smooth-animations`): a copy's graph runs its
 owner's updates due by its playback, so with both games' frames jittering apart it ran none in some frames (its pose
 held while its body moved on, read in IDA: 63581) and two in the next, 5-23 % of frames on the duo: "snappy, not
@@ -88,6 +110,14 @@ damaged flag, rate, sprinting, bow zoom; [actor-values.md](re/systems/actor-valu
 `trap_disease_guest_stamina`.
 Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) stays open: the regen delay is capped (39536,
 `fStaminaRegenDelayMax`), so it is not a leftover delay; the readout will show which gate holds next time.
+
+2026-11-23: **a copy's regen rate is its owner's in combat** (`agent/stamina-regen-combat`). `GetActorValueRegenRate`
+(38460) applies the combat multipliers only if `IsInCombat` says yes, and a copy answered with its own (no combat
+controller): a fighting NPC's or player's copy showed the out-of-combat rate (stamina 1/0.35 times the owner's). Its
+two call sites now get the owner's answer, as the conditions do (`CopyCombat::cOwnerAnswerSites`;
+[actor-values.md](re/systems/actor-values.md#the-combat-multiplier-and-copies-1.7.104-read-in-ida-2026-11-23)).
+Copies regenerate nothing, so only the readout and plugins saw it. ClientTests `[CopyCombat]`; scenario
+`copy-regen-rate-in-combat`.
 
 2026-11-23: **a guest crash loading a leveled NPC's copy: we destroyed Skyrim's own EncWolf** (`agent/fabien-crash-3`;
 [leveled-copy-base.md](re/systems/leveled-copy-base.md)). The 2026-11-22 playtest's third guest crash (15678, a
@@ -2867,7 +2897,7 @@ What the first playtest build has besides what works today (the table above):
 17. **The party's purse** (decided and built 2026-10-27, merged into dev;
     [party-purse.md](design/party-purse.md)): every player carries one purse, the host's player's gold. Any
     player's gold change (loot, trade, training, a fine, a reward on a guest's copy) reaches the host as before
-    (`RequestInventoryChanges`), which keeps it in its player's gold (`HostPurse`) and sends the purse to every game
+    (`RequestInventoryChanges`), which keeps it in its player's gold (`HostPartyItems`) and sends the purse to every game
     (`NotifyPartyGold`); each game sets its player and its copies of players silently, a copy whose spawn items land
     later too. A joining guest carries the purse, not what it brought. Items and quest item rewards stay each
     player's. Tiers 1-2 (`purse_tests.cpp`, `purse_flows.cpp`, join and records flows) and both lossy profiles for
