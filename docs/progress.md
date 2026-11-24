@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
+the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it
+into `PlayersHorse`, a stores-text alias, whose fill clears every named alias's cached name (read in IDA: 25052 ->
+`TESQuest::ClearAliasNameCaches` -> 12769). A message name regenerates; a custom name is only that cache, so the copy
+read "" and the crosshair skips a nameless reference. `HookClearCachedName` keeps a custom name
+(`re/systems/names.md`). GameTests "A bought horse keeps its name...", ClientTests `[names]`; Skyrim
+`guest-mounts-bought-horse` (the guest gets on). New harness readouts `name_data` / probe `set_name`, verb `name_data`.
+Getting off that horse is still the open bugs.md shape ("A rider at a scenario's end").
+
 2026-11-23: **a quest item a guest loots from a body or chest moves the host's quest on** (`agent/golden-claw-quest`).
 Playtest 2026-11-22, item 15: the guest looted the Golden Claw from Arvel and MS13 stayed on "retrieve the claw". The
 host's take for a guest removed the item to nowhere, which unbinds the item's quest alias script (read in IDA:

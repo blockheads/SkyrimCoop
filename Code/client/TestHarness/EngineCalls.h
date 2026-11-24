@@ -503,6 +503,24 @@ bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept;
 bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept;
 // The crosshair's prompt for this actor (TESNPC::GetActivateText 24716, our hook's answer too); empty for none.
 std::string GetActivateText(uint32_t aRefId) noexcept;
+// A reference's display name and its ExtraTextDisplayData (names.md): cached text, message, quest, instance.
+struct NameData
+{
+    bool Found = false;
+    std::string Name;
+    bool HasText = false;
+    std::string Cached;
+    uint32_t Message = 0;
+    uint32_t Quest = 0;
+    int32_t Instance = 0;
+    float Temper = 0.f;
+    uint16_t CustomLength = 0;
+    uintptr_t TextPointer = 0; // DisplayName.data: its pool entry starts 0x18 before (BSStringPool::LookupOrInsert)
+    uint32_t EntryFlags = 0;   // the entry's +0x8: reference count in the low 15 bits
+};
+NameData GetNameData(uint32_t aRefId) noexcept;
+// Probe: the actor's custom name set again, as a copy's name part does (ExtraDataList::SetCustomName).
+bool SetCustomName(uint32_t aRefId, const std::string& acName) noexcept;
 // Takes the actor out of any furniture and moves it to that spot in the player's cell, wherever it was (loaded or
 // not), as MoveTo does (56626).
 bool MoveActorToPlayer(uint32_t aFormId, const float acPosition[3]) noexcept;

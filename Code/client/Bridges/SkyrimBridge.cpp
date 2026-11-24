@@ -617,7 +617,10 @@ std::string SkyrimBridge::GetActorDisplayName(uint32_t aFormId) const noexcept
 void SkyrimBridge::SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
+    {
         pActor->extraData.SetCustomName(acName.c_str(), true);
+        spdlog::debug("Actor {:X} named '{}'", aFormId, acName);
+    }
 }
 
 void SkyrimBridge::SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept

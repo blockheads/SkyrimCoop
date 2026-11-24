@@ -241,6 +241,12 @@ class MountsActions:
         ctx.wait_for(f"[{instance or 'host'}] the prompt for {target} offers {word}", lambda: word in text(), 5,
                      explain=lambda: f"prompt {text()!r}")
 
+    def name_data(ctx, target):
+        """Each game's display name for `target` and its ExtraTextDisplayData (cached text, message, quest, instance:
+        names.md), the readout behind a crosshair that takes nothing."""
+        return {game or "host": ctx.player_command(game, {"cmd": "name_data", "ref": ctx.resolve(target, game)})
+                for game in ("", "client")}
+
     def drives(ctx, instance, horse, seconds=2.5, least=300):
         """That game's player holds forward: the horse goes at least `least` units on both games and every rider
         stays on it (a horse nobody steers stays put)."""

@@ -1097,8 +1097,7 @@ Left of it (2026-11-17, `agent/horse-riding`): the horse-buying scenarios at Whi
 the crouched rider ("pelvis 0") was the scenario getting off within ~0.1 s of being seated, which the engine answers
 with no exit clip (vanilla too, `docs/re/systems/mounts.md`); a copy left seated by such a ride's end now gets off.
 
-Agent task: Find why the stables' bought horse can't be got off or aimed at, and make `party-buys-horse-host/guest`
-pass.
+Agent task: Find why the stables' bought horse can't be got off, and make `party-buys-horse-host/guest` pass.
 
 Size: small. Needs: the duo.
 
@@ -1108,14 +1107,13 @@ Size: small. Needs: the duo.
   host off at once. Not read: what the purchase (StablesScript, its packages 98454/3EAB9) leaves on the horse;
   `Character::ActivateMount` (37864) takes a ClearMountPosition package instead of Dismount when the mount lacks
   flags2 bit 4.
-- **The guest's crosshair misses the host's bought horse** (`party-buys-horse-host`, 4 of 4): "the crosshair is on
-  nothing, not 429428: 123-138 units off", the aim at its body too. The unbought horse, same stall, is aimed at and
-  ridden.
+- **The guest can't get off the host's bought horse** (`guest-mounts-bought-horse`'s duo run, 2026-11-23, once): seated
+  (sit state 3), `get_off` timed out still riding, as the host's shape above. The guest's crosshair missing that horse
+  (its copy's name emptied) is fixed (names.md, "A stores-text alias's fill empties a custom name").
 - **The guest's horse menu lacks the horse** (2026-11-16, once): not seen again on a clean world.
   - Start: buy through the MCP (`talk`, the topics), then `mount_readout` and the horse's packages before getting on.
 - 2026-11-22, dev `aa723513`: `party-buys-horse-guest` passed 4 of 4 (the full run and 3 reruns), so the first shape
-  did not show; no fast test covers it. `party-buys-horse-host` 2 of 2: "the crosshair is on nothing, not 429428: 230
-  units off" (238 in the rerun).
+  did not show; no fast test covers it.
 
 ### A guest crashed loading a copy's idle clips
 
@@ -1519,6 +1517,9 @@ Size: small. Needs: the duo.
   at `weapon_state` 0 on the host and its copy on the guest at 3 (Drawn). The reverse of
   [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws); not read whether its copy
   missed a sheathe.
+- `guest-mounts-bought-horse` (2026-11-23, every step passed): its end comparison found Ria (`1A6D8`, QASmoke) at
+  `values.stamina_regen.delay` 1.17 on the host and 0.0 on its copy. A new readout (the stamina-regen gates, same
+  day); not read whether a copy's delay should follow its owner's at all.
 
 ## Test tools
 

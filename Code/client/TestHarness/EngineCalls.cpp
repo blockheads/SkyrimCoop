@@ -25,6 +25,7 @@
 #include <Effects/ReferenceEffect.h>
 #include <Components/TESContainer.h>
 #include <ExtraData/ExtraOwnership.h>
+#include <ExtraData/ExtraTextDisplayData.h>
 #include <ExtraData/ExtraInteraction.h>
 #include <ExtraData/ExtraLeveledCreature.h>
 #include <Forms/TESForm.h>
@@ -934,6 +935,36 @@ std::string GetActivateText(uint32_t aRefId) noexcept
     if (text.data)
         Memory::Free(text.data);
     return out;
+}
+
+NameData GetNameData(uint32_t aRefId) noexcept
+{
+    NameData data;
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aRefId));
+    if (!pRef)
+        return data;
+    data.Found = true;
+    data.Name = pRef->GetDisplayFullName();
+    if (const auto* pText = static_cast<const ExtraTextDisplayData*>(pRef->extraData.GetByType(ExtraDataType::TextDisplayData)))
+    {
+        data.HasText = true;
+        data.Cached = pText->DisplayName.data ? pText->DisplayName.data : "";
+        data.Message = pText->pDisplayNameText ? pText->pDisplayNameText->formID : 0u;
+        data.Quest = pText->pOwnerQuest ? pText->pOwnerQuest->formID : 0u;
+        data.Instance = pText->iOwnerInstance;
+        data.Temper = pText->fTemperFactor;
+        data.CustomLength = pText->usCustomNameLength;
+        data.TextPointer = reinterpret_cast<uintptr_t>(pText->DisplayName.data);
+        if (pText->DisplayName.data)
+            data.EntryFlags = *reinterpret_cast<const uint32_t*>(pText->DisplayName.data - 0x18 + 0x8);
+    }
+    return data;
+}
+
+bool SetCustomName(uint32_t aRefId, const std::string& acName) noexcept
+{
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aRefId));
+    return pRef && pRef->extraData.SetCustomName(acName.c_str(), true);
 }
 
 bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept
