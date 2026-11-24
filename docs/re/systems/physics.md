@@ -663,12 +663,11 @@ again. Such a rest (placed by the host's game: `BodyState::Placed`) is held ther
 activation (`HoldAt`), each update until read asleep there, since a moving neighbour refuses the island's sleep (ours:
 `DeactivateIsland`; that this is the rack's case is inferred).
 
-A mask on Orgnar's back (`mask_on_orgnar_lies_as_hosts`, 2026-11-23): `who_wakes` on the guest, after the mask had
-settled, had every wake through Orgnar's animated body 13486 (motion 4), with the stack of "Woken still" (78910 ->
-78100), not through his capsule (62648). Measured again with the watch on both games, one after the other (10 s each, from 2 s after the drop): host 22
-activations, all through 13486 (motion 4), none waking the mask itself; guest 14, all through 13486 (one through a
-motion 7 of it), the mask woken twice. So the waker is the same in both games; what moves it off its rest in the
-guest's is not known. `RestPlacer::kKeep` steers a woken rest back whatever woke it.
+A mask on Orgnar's back snapped on the guest (a playtest, 2026-11-23): not reproduced. The scenario that stood for it
+dropped a basket (`601A5`) that slid off him or was put inside his head, and its measurements are dropped. Read: an NPC's
+capsule can be a rigid body (`bhkCharRigidBodyController` 79206), which a turn activates (62458: its angular velocity set when
+it changes). Measured, Orgnar leaning on his bar: his copy's animated
+bodies (motion 4) are 2 to 4 units higher in the chest, its feet and hands 5 to 13 off the host's; not tied to the mask.
 
 ## A body put into a capsule creeps out (read in IDA on 1.7.104, measured 2026-11-22)
 

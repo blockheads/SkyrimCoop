@@ -261,7 +261,7 @@ std::optional<std::vector<hkpRigidBody*>> IslandMatesOf(const bhkWorldObject& ac
     return mates;
 }
 
-std::vector<const hkpRigidBody*> TouchingOf(const bhkWorldObject& acBody, bool aAll) noexcept
+std::vector<const hkpRigidBody*> TouchingOf(const bhkWorldObject& acBody) noexcept
 {
     const hkpRigidBody* pBody = acBody.referencedObject;
     bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
@@ -271,7 +271,7 @@ std::vector<const hkpRigidBody*> TouchingOf(const bhkWorldObject& acBody, bool a
     std::vector<const hkpRigidBody*> touching;
     for (int32_t i = 0; i < pBody->collidable.entryCount; ++i)
         if (const hkpLinkedCollidable* pPartner = pBody->collidable.entries[i].partner)
-            if (const hkpRigidBody* pOther = pPartner->Owner(); pOther && pOther != pBody && (aAll || pOther->IsDynamic()))
+            if (const hkpRigidBody* pOther = pPartner->Owner(); pOther && pOther != pBody && pOther->IsDynamic())
                 touching.push_back(pOther);
     return touching;
 }

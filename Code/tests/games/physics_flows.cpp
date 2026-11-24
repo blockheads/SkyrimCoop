@@ -2141,9 +2141,8 @@ SCENARIO("The host's console moves the bucket away as the guest's player touches
 
 SCENARIO("The host's bucket lies on what holds it only there: the guest's, woken again and again, is kept at the host's rest, never snapped", "[physics][kept-rest]")
 {
-    // The playtest of 2026-11-23 and mask_on_orgnar_lies_as_hosts: a mask on Orgnar's back. It is woken
-    // through his animated body (measured on the guest: 13486, 78910). What holds it only in the host's game is not
-    // known; here a floor does. The guest's fell, was glided back and put (a 3.7 unit jump), twice, then left 3 units off.
+    // The playtest of 2026-11-23: a mask on Orgnar's back snapped on the guest (not reproduced in Skyrim). Here a floor
+    // holds it only in the host's game: the guest's fell, was glided back and put, twice, then left where it fell.
     Party party(1, Plugins);
     auto& hostBucket = BodyOf(party, party.Host(), kBucket);
     auto& guestBucket = BodyOf(party, party.Guest(), kBucket);

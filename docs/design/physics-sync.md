@@ -91,6 +91,9 @@ yet: a ragdoll's 18 bodies share the same budget.
   moved (`guest-push-like-vanilla`'s "rests on the lane" timeout; its log showed the rest taken, then `lost`, between
   them the body pulled back). GameTests `[placed]`, HostAuthorityTests `[guest-rest]`.
 
+- A guest's touch counts only where the host's newest state can be steered to (`GuestBodies::Elsewhere`, `kPlaceFar`); the
+  host's first placement of a body raises its number; a body a guest yields hears the host's older states (`Reopen`).
+
 ### RestPlacer's steps
 
 ```text
@@ -107,21 +110,11 @@ Each update calls Next once, after a physics step: a place is never slept in the
 
 ## A rest nothing holds up here is kept by steering (2026-11-23, built)
 
-The playtest: a mask set on Orgnar's back snapped about once a second on the guest while he wiped his counter.
-
-```text
-measured  the guest's wakes, once settled, all go through Orgnar's animated body (13486; `docs/re/systems/physics.md`)
-unknown   why the host's mask stays where the guest's falls
-before RestPlacer: woken off its rest -> glided 0.5 s (gravity kept it off), put (a 3.7 unit jump), slept; twice,
-       then left where it fell, 3 units off, until the host's next rest began it again
-now    RestPlacer::kKeep: done, then awake off it -> steered toward the rest every update (BodyBridge::Glide), never
-       put; back and still, put to sleep again. How far under it hovers was not measured.
-```
-
-- The put-back count (`kAgainAtMost`, before it `kAsksAtMost`) is gone: nothing is left apart, nothing jumps.
-- Scenario `mask_on_orgnar_lies_as_hosts` (MCP verb `lies_on_npc`: both games' bodies traced 30 s; before: the
-  guest's jumped 3.7 units, turned back 11 times, travelled 27 units to the host's 4). GameTests `[kept-rest]` (a
-  floor only the host's game has; before: a 3.5 unit step, left 40 units off); ClientTests `[rest-placer]`.
+A playtest saw a mask set on Orgnar's back snap about once a second on the guest. Not reproduced in Skyrim, and why it
+left its rest is not known. Read in our code: a rest woken off was glided 0.5 s, put, slept, twice, then left where it
+fell. `RestPlacer::kKeep`: done, then awake off it -> steered toward the rest every update (`BodyBridge::Glide`), never
+put; back and still, put to sleep again. The put-back count (`kAgainAtMost`) is gone. Tests: GameTests `[kept-rest]` (a
+floor only the host's game has; before: a 3.5 unit step, left 40 units off); ClientTests `[rest-placer]`.
 
 # History (replaced 2026-11-23)
 
