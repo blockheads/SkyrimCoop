@@ -1,0 +1,57 @@
+time	op	id	rva	item
+2026-11-23T18:09:29Z	read		0x9dbe62	{"name": "BSTEventSink_TESContainerChangedEvent_::Handle"}
+2026-11-23T18:09:38Z	read	53517	0x9ba460	{"name": "sub_1409BA460"}
+2026-11-23T18:10:45Z	read	16149	0x23f640	{"name": "InventoryChanges::SendContainerChangedEvent"}
+2026-11-23T18:11:26Z	read	16065	0x2310f0	{"name": "sub_1402310F0"}
+2026-11-23T18:11:44Z	read	16147	0x23f390	{"name": "InventoryChanges::SetUniqueID"}
+2026-11-23T18:11:54Z	read	54003	0x9e04e0	{"name": "BSTEventSink_TESUniqueIDChangeEvent_::Handle"}
+2026-11-23T18:12:08Z	name	16065	0x2310f0	{"addr": "0x1402310F0", "name": "InventoryChanges__SendRemovedToNowhereEvents"}
+2026-11-23T18:12:08Z	name	53517	0x9ba460	{"addr": "0x1409BA460", "name": "SkyrimVM__InventoryItemHandle"}
+2026-11-23T18:12:08Z	name	12031	0x171ee0	{"addr": "0x140171EE0", "name": "ExtraDataList__SetUniqueIDs"}
+2026-11-23T18:12:08Z	name	16053	0x22c310	{"addr": "0x14022C310", "name": "InventoryChanges__AddListFrom"}
+2026-11-23T18:12:08Z	name	16052	0x22b990	{"addr": "0x14022B990", "name": "InventoryChanges__AddList"}
+2026-11-23T18:12:17Z	comment	16065	0x2310f0	{"addr": "0x1402310F0", "comment": "RemoveItem 16059 with no target (apMoveToRef null): TESContainerChangedEvent {old=owner, new=0, item, count, ref, uid=0} (a6: before/after), and if the list has a unique id: clears it (SetUniqueIDs(list,0,0)) and sends TESUniqueIDChangeEvent {old owner, ref, item, oldUid, 0}: the VM unbinds the item's scripts (an alias-held inventory item loses its alias script). coop: golden claw, docs/re/systems/quest-items.md"}
+2026-11-23T18:12:17Z	comment	53517	0x9ba460	{"addr": "0x1409BA460", "comment": "VM handle of an inventory item: (uid << 32) | containerFormId | 0x1000000000000. An alias-held item in a container is bound to this handle."}
+2026-11-23T18:12:17Z	comment	12031	0x171ee0	{"addr": "0x140171EE0", "comment": "(list, uid, owner container FormID): writes ExtraUniqueID (uid 0, owner 0 clears it)"}
+2026-11-23T18:12:17Z	comment	16053	0x22c310	{"addr": "0x14022C310", "comment": "The add of a moved list from another reference (RemoveItem's target path): InventoryChanges::SetUniqueID 16147 gives the list a uid in this container (TESUniqueIDChangeEvent remaps the VM handle), then SendContainerChangedEvent 16149 with the list: OnContainerChanged reaches the item's alias script with new = this owner."}
+2026-11-23T18:12:17Z	comment	16052	0x22b990	{"addr": "0x14022B990", "comment": "The add of a list from nowhere (no source reference): SetUniqueID 16147 when the list needs one, then SendContainerChangedEvent 16149."}
+2026-11-23T18:12:17Z	comment		0x9dbb1c	{"addr": "0x1409dbb1c", "comment": "OnContainerChanged target: the item's inventory handle (uid, new container else old) when the event has a uid; else / also the item reference's (event+0x10)"}
+2026-11-23T18:12:17Z	comment		0x9e05a7	{"addr": "0x1409e05a7", "comment": "new (uid,base) both 0: unbind the old handle's scripts (removed to nowhere); old 0: bind; else remap old handle -> new (vtable +232) and its registrations"}
+2026-11-23T18:45:46Z	read	55285	0xa1b4f0	{"name": "papyrus::ReferenceAlias::AddInventoryEventFilter"}
+2026-11-23T18:45:52Z	read	53950	0x9da5f0	{"name": "SkyrimVM::sub_53950"}
+2026-11-23T20:45:19Z	read	21435	0x331740	{"name": "GameFunc::native::GetItemCount"}
+2026-11-23T20:45:38Z	read	56173	0xa45ca0	{"name": "papyrus::ObjectReference::GetItemCount"}
+2026-11-23T20:45:41Z	read	56497	0xa56fa0	{"name": "sub_140A56FA0"}
+2026-11-23T20:45:47Z	name	56497	0xa56fa0	{"addr": "0x140A56FA0", "name": "papyrus__ObjectReference__GetItemCountImpl"}
+2026-11-23T20:45:47Z	name	16111	0x239750	{"addr": "0x140239750", "name": "InventoryChanges__GetItemCountByKeyword"}
+2026-11-23T20:45:49Z	comment	56497	0xa56fa0	{"addr": "0x140A56FA0", "comment": "Papyrus GetItemCount (56173) body: a base item -> InventoryChanges::GetItemCount 16108; a form list -> the sum of 16108 per entry; a reference -> 1 when its handle is this container's (ExtraReferenceHandle on its list); a keyword -> GetItemCountByKeyword. Reads only this reference's own changes. coop: one pack, the party's count (docs/design/party-pack.md)"}
+2026-11-23T20:45:49Z	comment		0x33174c	{"addr": "0x14033174c", "comment": "Condition GetItemCount (21435): the subject's InventoryChanges::GetItemCount 16108, a form list summed. Dialogue, quest objectives and package conditions read counts here."}
+2026-11-23T20:46:01Z	read	54033	0x9e3580	{"name": "SkyrimVM::RelayEvent"}
+2026-11-23T20:46:12Z	name	19655	0x2e6a40	{"addr": "0x1402e6a40", "name": "TESObjectREFR__HasAliases"}
+2026-11-23T20:46:12Z	name	19656	0x2e6a70	{"addr": "0x1402e6a70", "name": "TESObjectREFR__VisitAliases"}
+2026-11-23T20:46:13Z	comment		0x9e35e1	{"addr": "0x1409e35e1", "comment": "RelayEvent: the event goes to each quest alias holding the reference (its extra data list's alias array, 19655/19656), then for an actor to each active effect on it. A player's copy is in no alias: its item events reach only its own scripts and effects, never the player aliases (which hold 0x14)."}
+2026-11-23T23:31:07Z	name	56647	0xa5db60	{"addr": "0x140A5DB60", "name": "papyrus__RemoveItemFromContainer"}
+2026-11-23T23:31:07Z	name	16061	0x230cc0	{"addr": "0x140230CC0", "name": "InventoryChanges__RemoveReference"}
+2026-11-23T23:31:08Z	comment	56098	0xa418e0	{"addr": "0x140A418E0", "comment": "RemoveItemFunctor run (vtable slot 1): +0x10 container handle, +0x14 other container handle, +0x18 item form id, +0x1C count, +0x20 silent, +0x0C stack id, +0x28 VM. A reference item -> InventoryChanges__RemoveReference (count forced to 1; with no other container the reference is then deleted); a base item, list or keyword -> papyrus__RemoveItemFromContainer. Queued post-render by papyrus RemoveItem 56218. coop: party-pack.md piece 3"}
+2026-11-23T23:31:08Z	read	56647	0xa5db60	{"name": "papyrus__RemoveItemFromContainer"}
+2026-11-23T23:34:21Z	name	56098	0xa418e0	{"addr": "0x140A418E0", "name": "SkyrimScript__RemoveItemFunctor__Run"}
+2026-11-23T23:34:22Z	comment		0xa5dd90	{"addr": "0x140a5dd90", "comment": "An actor's removal is clamped to GetItemCountImpl: never hook that body for the party's count (over-removal), only the Papyrus entry 56173. Then vfunc 0x56 RemoveItem, reason 4 with another container else 0; the worn stack's list is passed first, so a worn item goes first (party-pack.md piece 3)"}
+2026-11-23T23:36:12Z	read	37520	0x68acb0	{"name": "Actor::DropObject"}
+2026-11-23T23:36:13Z	read	16061	0x230cc0	{"name": "InventoryChanges__RemoveReference"}
+2026-11-24T00:27:58Z	read	40454	0x746e00	{"name": "PlayerCharacter::DropObject"}
+2026-11-24T00:28:11Z	read	16062	0x230e10	{"name": "sub_140230E10"}
+2026-11-24T00:28:30Z	name	16062	0x230e10	{"addr": "0x140230E10", "name": "InventoryChanges__PlaceDropped"}
+2026-11-24T00:28:33Z	comment	16062	0x230e10	{"addr": "0x140230E10", "comment": "RemoveItem's kDropping with no reference to bring back: (changes, out handle, dropper, item, count, list, position or null, rotation or null). Creates the reference at the position given (else in front of the dropper) but always in the DROPPER's parent cell and worldspace (CreateReferenceAtLocation). coop: party-inventory.md"}
+2026-11-24T00:28:33Z	comment		0xa5dd90	{"addr": "0x140a5dd90", "comment": "An actor's removal is clamped to GetItemCountImpl: hooking that body would change how much a script removes. Then vfunc 0x56 RemoveItem, reason 4 with another container else 0; the worn stack's list is passed first, so a worn item goes first (party-inventory.md)"}
+2026-11-24T01:03:20Z	read	11591	0x15a2f0	{"name": "sub_14015A2F0"}
+2026-11-24T01:03:22Z	read	11590	0x15a0b0	{"name": "sub_14015A0B0"}
+2026-11-24T01:04:41Z	name	11591	0x15a2f0	{"addr": "0x14015a2f0", "name": "ExtraDataList__MoveExtrasFrom"}
+2026-11-24T01:04:41Z	name	11590	0x15a0b0	{"addr": "0x14015a0b0", "name": "ExtraDataList__CopyExtrasFrom"}
+2026-11-24T01:04:44Z	comment	11591	0x15a2f0	{"addr": "0x14015a2f0", "comment": "(dest, source, remove): copies a fixed set of extra data types from source's list to dest's; with remove, takes them out of source. Locks source+0x18 for write, then dest+0x18 for write (0x14015a35e, 0x14015a370). RemoveItem 16059 calls it (0x14022e49e) when a drop makes a reference. coop: lock-order.md, bugs.md 'A granted pickup's lock order'"}
+2026-11-24T01:04:44Z	comment	11590	0x15a0b0	{"addr": "0x14015a0b0", "comment": "(dest, source, keep): copies another fixed set of extra data types from source to dest; without keep, takes them out of source. Locks source+0x18 for read, then dest+0x18 for write (0x14015a11e, 0x14015a130). InventoryChanges__AddList calls it (0x14022bb06). Both copies lock source then destination: an inversion needs the same two lists copied both ways at once"}
+2026-11-24T01:30:20Z	read	11584	0x157470	{"name": "ExtraDataList__dtor"}
+2026-11-24T01:30:52Z	read	418612	0x17c090	{"name": "sub_14017C090"}
+2026-11-24T01:30:53Z	read	11572	0x156960	{"name": "sub_140156960"}
+2026-11-24T01:30:59Z	name	11572	0x156960	{"addr": "0x140156960", "name": "ExtraDataList__Destroy"}
+2026-11-24T01:30:59Z	name	418612	0x17c090	{"addr": "0x14017c090", "name": "ExtraDataList__DeletingDtor"}
+2026-11-24T01:31:00Z	comment	11572	0x156960	{"addr": "0x140156960", "comment": "ExtraDataList's destructor body (11572): resets the vtable, frees each extra (its deleting dtor) and the bitfield. The thunk 11584 and the deleting destructor 418612 (the vtable's, then SizedDelete 24) both call it. coop: the lock checker bumps the list lock's generation here (LockOrder.cpp), so a list allocated again at this address starts with no lock pairs"}

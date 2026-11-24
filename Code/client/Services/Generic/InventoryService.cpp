@@ -13,6 +13,7 @@
 #include <Events/EquipmentChangeEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/ItemsChangedEvent.h>
+#include <Services/HostService.h>
 #include <Events/ReferenceLoadedEvent.h>
 #include <Events/WornResetEvent.h>
 #include <Services/CopyRecords.h>
@@ -111,7 +112,7 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
 {
     Touch(acEvent.FormId);
     // An actor's items reach its copies as its part; a player character's change still goes to the host for the party's
-    // gold and items (HostPurse, HostPartyItems: the host's scripts may change a guest's copy).
+    // gold and items (HostPartyItems: the host's scripts may change a guest's copy).
     const bool cPlayer = acEvent.FormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId() || m_actorBridge.IsOtherPlayer(acEvent.FormId);
     if (!m_transport.IsConnected() || !cPlayer)
         return;
@@ -136,22 +137,21 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
     }
     request.SessionId = sessionIdRes.value();
 
-    // A key, a quest item or the story's gift arriving on a player is the party's (party-items.md): this game takes its
-    // own copy back, and the host gives every player the tagged one.
+    // An item arriving on a player: the host's game decides whether it is the party's (shared-items.md). Its own player's
+    // and copies' here; a guest's is sent plain, with what it saw, and renamed when the host says so (OnNotifyPartyItem).
     const uint32_t cItemId = ToGame(acEvent.Item.BaseId);
-    if (!acEvent.Drop && acEvent.Item.Count > 0 && !acEvent.Item.ExtraName.starts_with(PartyItems::cTag) &&
-        PartyItems::ArrivesAsParty(cItemId, m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven))
+    const bool cArrival = !acEvent.Drop && acEvent.Item.Count > 0 && !acEvent.Item.ExtraName.starts_with(PartyItems::cTag);
+    request.StoryGiven = acEvent.StoryGiven;
+    request.AliasHeld = acEvent.AliasHeld;
+    if (cArrival && m_world.GetHostService().IsHosting() &&
+        PartyItems::ArrivesAsParty(cItemId, m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven, acEvent.AliasHeld))
     {
         request.NewPartyItem = true;
-        request.StoryGiven = acEvent.StoryGiven;
         if (!acEvent.Item.IsQuestItem)
         {
-            Inventory::Entry own = acEvent.Item;
-            own.Count = -own.Count;
-            ScopedInventoryOverride _;
-            m_formBridge.ObjectAddOrRemoveItem(acEvent.FormId, own);
             request.Item.ExtraName = PartyItems::Tagged(acEvent.Item.ExtraName, m_formBridge.GetFormName(cItemId));
             request.Item.ExtraWorn = request.Item.ExtraWornLeft = false;
+            RenameAsParty(acEvent.FormId, acEvent.Item, request.Item.ExtraName);
         }
     }
 
@@ -436,8 +436,33 @@ void InventoryService::OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexc
             SetGold(cFormId, acMessage.Gold);
 }
 
+// The host decided an item this game's player found is the party's: that many of its stack get the tag where they are,
+// never taken back (a stack a quest alias holds keeps its list; a plain one is replaced at once, silently).
+void InventoryService::RenameAsParty(uint32_t aHolder, const Inventory::Entry& acFound, const std::string& acTagged) const noexcept
+{
+    const uint32_t cItemId = ToGame(acFound.BaseId);
+    if (m_formBridge.TagAliasStack(aHolder, cItemId, acTagged))
+        return;
+    ScopedInventoryOverride _;
+    Inventory::Entry plain = acFound;
+    plain.ExtraWorn = plain.ExtraWornLeft = plain.IsQuestItem = false;
+    plain.Count = -acFound.Count;
+    m_formBridge.ObjectAddOrRemoveItem(aHolder, plain);
+    Inventory::Entry tagged = plain;
+    tagged.Count = acFound.Count;
+    tagged.ExtraName = acTagged;
+    m_formBridge.ObjectAddOrRemoveItem(aHolder, tagged);
+}
+
 void InventoryService::OnNotifyPartyItem(const NotifyPartyItem& acMessage) noexcept
 {
+    if (acMessage.Converted > 0)
+    {
+        Inventory::Entry found = acMessage.Item;
+        found.Count = acMessage.Converted;
+        found.ExtraName = PartyItems::Untagged(acMessage.Item.ExtraName, m_formBridge.GetFormName(ToGame(acMessage.Item.BaseId)));
+        RenameAsParty(0x14, found, acMessage.Item.ExtraName);
+    }
     if (m_partyItems)
     {
         std::erase_if(*m_partyItems, [&](const Inventory::Entry& acItem) { return PartyItems::SameStack(acMessage.Item, acItem); });
@@ -545,6 +570,11 @@ void InventoryService::AddPartyItem(uint32_t aActorFormId, const Inventory::Entr
             if (cEntry.BaseId == acItem.BaseId)
                 spdlog::warn("  carried {}", cDescribe(cEntry));
     }
+}
+
+uint8_t InventoryService::ItemFormType(const GameId& acItem) const noexcept
+{
+    return m_formBridge.GetFormType(ToGame(acItem));
 }
 
 std::string InventoryService::ItemName(const GameId& acItem) const noexcept

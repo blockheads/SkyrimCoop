@@ -188,6 +188,7 @@ void HostService::MakeAuthority() noexcept
         return m_world.ctx().at<InventoryService>().PartyItemsOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId());
     };
     game.ItemName = [this](const GameId& acItem) { return m_world.ctx().at<InventoryService>().ItemName(acItem); };
+    game.ItemFormType = [this](const GameId& acItem) { return m_world.ctx().at<InventoryService>().ItemFormType(acItem); };
     game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) { return m_world.ctx().at<CrimeService>().Judge(aActor, aCrime); };
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
@@ -274,6 +275,7 @@ void HostService::MakeAuthority() noexcept
     };
     game.TransferContainer = [this](const ContainerTransferRequest& acRequest, uint32_t aPlayer) { return m_pEngine->TransferContainer(acRequest, aPlayer); };
     game.TakeItem = [this](const GameId& acObject) { return m_pEngine->TakeItem(acObject); };
+    game.DropPartyItem = [this](const Inventory::Entry& acItem, uint32_t aPlayer) { return m_pEngine->DropPartyItem(acItem, aPlayer); };
     game.TakeQuestObject = [this](const GameId& acObject) { return m_pEngine->TakeQuestObject(acObject); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     // The records live in SaveService, which a world tearing down drops before its Steam lobby kicks the guests.

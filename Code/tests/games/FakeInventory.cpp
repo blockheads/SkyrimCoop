@@ -261,6 +261,8 @@ void FakeEngine::AddItems(uint32_t aActor, uint32_t aItem, int32_t aCount)
     const auto cActor = Actors.find(aActor);
     if (cActor == Actors.end() || !aCount)
         return;
+    if (aCount < 0) // removed to nowhere: the alias is unbound and freed with its list
+        AliasStacks.erase({aActor, aItem});
     const GameId cId = ServerId(aItem);
     auto& entries = cActor->second.Items.Entries;
     // Plain items: the item's entry with no extra data of its own (a named or tempered stack is its own list).
@@ -401,6 +403,9 @@ void FakeEngine::PicksUp(uint32_t aObject)
     }
     Inventory::Entry cItem = it->second.Item;
     cItem.IsQuestItem = it->second.QuestObject;
+    const bool cAliasHeld = it->second.Alias.has_value() || it->second.QuestObject;
+    if (it->second.Alias)
+        AliasStacks[{kPlayer, ::ItemForm(cItem.BaseId)}] = *it->second.Alias;
     // PlayerCharacter::PickUpObject (40533), before the item goes: a created item's StealAlarm names a loaded actor
     // owning it, none no alarm; a guest's CrimeBridge sends it to the host (HookSteal).
     if (IsGuest && it->second.Owner)
@@ -420,7 +425,9 @@ void FakeEngine::PicksUp(uint32_t aObject)
     Loose.erase(it);
     HostDecides.erase(aObject);
     m_freedTemporary.insert(aObject);
-    World::Get().GetRunner().Trigger(InventoryChangeEvent(kPlayer, cItem));
+    InventoryChangeEvent arrival(kPlayer, cItem);
+    arrival.AliasHeld = cAliasHeld;
+    World::Get().GetRunner().Trigger(std::move(arrival));
     {
         ScopedInventoryOverride _;
         AddEntry(kPlayer, cItem);
@@ -488,10 +495,104 @@ bool FakeEngine::TakeQuestObject(const GameId& acObject)
 {
     const uint32_t cId = 0xFF000000 | acObject.BaseId;
     const auto it = acObject.ModId == ObjectChange::kCreatedModId ? Loose.find(cId) : Loose.end();
-    if (it == Loose.end() || !it->second.QuestObject)
+    if (it == Loose.end() || (!it->second.QuestObject && !it->second.Alias))
         return false;
     PicksUp(cId);
     return true;
+}
+
+std::optional<GameId> FakeEngine::DropsPartyItem(const Inventory::Entry& acItem, uint32_t aCopy)
+{
+    // As HostEngine::DropPartyItem: the host's player's real stack (its name), not a quest object's, in the copy's cell.
+    const uint32_t cItem = ::ItemForm(acItem.BaseId);
+    const auto cAlias = AliasStacks.find({kPlayer, cItem});
+    if ((cAlias != AliasStacks.end() && cAlias->second.QuestObject) || !Actors.contains(aCopy) || Actors.at(aCopy).Cell != Actors.at(kPlayer).Cell)
+        return std::nullopt;
+    auto& entries = Actors.at(kPlayer).Items.Entries;
+    const auto it = std::ranges::find_if(entries, [&](const auto& acEntry) {
+        return acEntry.BaseId == acItem.BaseId && !acEntry.IsQuestItem && acEntry.ExtraName == acItem.ExtraName && acEntry.Count > 0;
+    });
+    if (it == entries.end())
+        return std::nullopt;
+    Inventory::Entry dropped = *it;
+    dropped.Count = std::min(std::abs(acItem.Count), it->Count);
+    if ((it->Count -= dropped.Count) <= 0)
+        entries.erase(it);
+    const uint32_t cId = PlaceLoose(Actors.at(aCopy).Cell, dropped);
+    if (cAlias != AliasStacks.end())
+    {
+        Loose.at(cId).Alias = cAlias->second;
+        AliasStacks.erase(cAlias);
+    }
+    RecordCreated(cId);
+    return CreatedId(cId);
+}
+
+void FakeEngine::AliasCreatesIn(uint32_t aHolder, uint32_t aItem, const AliasStack& acAlias)
+{
+    Inventory::Entry stack;
+    stack.BaseId = ServerId(aItem);
+    stack.Count = 1;
+    stack.IsQuestItem = acAlias.QuestObject;
+    GetsItem(aHolder, stack);
+    AliasStacks[{aHolder, aItem}] = acAlias;
+}
+
+void FakeEngine::MovesStack(uint32_t aFrom, uint32_t aTo, uint32_t aItem, int32_t aCount)
+{
+    // The list moves whole (0x14022C310): its alias is re-keyed to the new holder before the removal below.
+    std::optional<AliasStack> alias;
+    if (const auto it = AliasStacks.find({aFrom, aItem}); it != AliasStacks.end())
+    {
+        alias = it->second;
+        AliasStacks.erase(it);
+        AliasStacks[{aTo, aItem}] = *alias;
+    }
+    Inventory::Entry stack;
+    stack.BaseId = ServerId(aItem);
+    stack.IsQuestItem = alias && alias->QuestObject;
+    stack.Count = -aCount;
+    if (const auto cRef = References.find(aFrom); cRef != References.end() && !Actors.contains(aFrom))
+    {
+        // A chest's (SetItems keeps its stacks with extra data): the moved one's name with it.
+        std::vector<Inventory::Entry> stacks;
+        for (const auto& cStack : cRef->second.Stacks)
+            if (cStack.BaseId == stack.BaseId)
+                stacks.push_back(cStack);
+        if (const auto it = std::ranges::find_if(stacks, [](const auto& acStack) { return acStack.Count > 0; }); it != stacks.end())
+        {
+            stack.ExtraName = it->ExtraName;
+            it->Count -= aCount;
+            std::erase_if(stacks, [](const auto& acStack) { return acStack.Count <= 0; });
+        }
+        ScopedInventoryOverride _;
+        SetItems(aFrom, aItem, cRef->second.Items[aItem] - aCount, stacks);
+    }
+    else
+        GetsItem(aFrom, stack);
+    stack.Count = aCount;
+    if (!ScopedInventoryOverride::IsOverriden())
+    {
+        InventoryChangeEvent arrival(aTo, stack);
+        arrival.AliasHeld = alias.has_value();
+        World::Get().GetRunner().Trigger(std::move(arrival));
+    }
+    {
+        ScopedInventoryOverride _;
+        AddEntry(aTo, stack);
+    }
+    // OnContainerChanged reaches the alias's script, which runs where the world is decided.
+    if (!alias || !DecidesWorld || (aTo != kPlayer && !IsOtherPlayer(aTo)))
+        return;
+    auto& quest = Quests[alias->Quest];
+    quest.Id = GameId{0, alias->Quest};
+    quest.CurrentStage = alias->Stage;
+    if (std::ranges::find(quest.DoneStages, alias->Stage) == quest.DoneStages.end())
+    {
+        quest.DoneStages.push_back(alias->Stage);
+        std::ranges::sort(quest.DoneStages);
+    }
+    QuestChanged(alias->Quest);
 }
 
 void FakeEngine::RecordCreated(uint32_t aObject)
@@ -546,6 +647,8 @@ void FakeEngine::AddEntry(uint32_t aActor, const Inventory::Entry& acItem)
     // As AddOrRemoveItem: no form here for the item, nothing added; none for its coating's poison, no coating.
     if (!::ItemForm(acItem.BaseId))
         return;
+    if (acItem.Count < 0) // removed to nowhere: the alias is unbound and freed with its list
+        AliasStacks.erase({aActor, ::ItemForm(acItem.BaseId)});
     Inventory::Entry stack = acItem;
     if (stack.ExtraPoisonId && !::ItemForm(stack.ExtraPoisonId))
         stack.ExtraPoisonId = {}, stack.ExtraPoisonCount = 0;
@@ -608,6 +711,20 @@ std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aA
 // Added (a worn one equipped, as SetInventory's adds do) or removed. A removal takes from a stack with extra data only
 // when it names that stack's own list (InventoryChanges::RemoveItem 16059; a list rebuilt from the entry matched none
 // in Skyrim, 2026-10-30): the bridge's TESObjectREFR::AddOrRemoveItem finds it.
+bool FakeEngine::TagAliasStack(uint32_t aObjectFormId, uint32_t aItemFormId, const std::string& acName) noexcept
+{
+    const auto cAlias = AliasStacks.find({aObjectFormId, aItemFormId});
+    if (cAlias == AliasStacks.end() || cAlias->second.QuestObject)
+        return false;
+    for (auto& entry : Actors.at(aObjectFormId).Items.Entries)
+        if (entry.BaseId == ServerId(aItemFormId) && !entry.IsQuestItem && entry.Count > 0)
+        {
+            entry.ExtraName = acName;
+            return true;
+        }
+    return false;
+}
+
 void FakeEngine::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
 {
     if (aItem.Count < 0)

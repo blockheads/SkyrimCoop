@@ -108,7 +108,7 @@ SOURCE_TAGS = [
     ("Code/client/Services/*PlayerService.*", {'session', 'values', 'spawn'}),
     ("Code/client/Services/*DeathService.*", {'death'}),
     ("Code/client/Services/Host/HostDeath.*", {'death'}),
-    ("Code/client/Services/Host/HostPurse.*", {'inventory'}),
+    ("Code/client/Services/Host/HostPartyItems.*", {'inventory', 'party-items'}),
     ("Code/client/Services/HostServiceReload.*", {'death', 'join'}),
     ("Code/encoding/Messages/DeathMessages.*", {'death'}),
     ("Code/client/Events/PlayerDeathEvent.h", {'death'}),

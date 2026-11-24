@@ -213,6 +213,98 @@ def scenario_party_quest_item_guest(ctx):
     scenario_party_quest_item(ctx, "client")
 
 
+BUCKET = 0x747FB  # Bucket02a: a plain misc item
+JOURNAL_ALIAS, ALIAS_EXTRA = 16, 136  # MS13's ArvelsJournal alias (not a quest object); ExtraAliasInstanceArray
+
+
+def alias_places(ctx, item):
+    """MS13 runs, its journal alias holding an `item` placed before the host's player: the reference."""
+    ctx.console_on("", f"resetquest {CLAW_QUEST:X}")
+    ctx.console_on("", f"setstage {CLAW_QUEST:X} 10")
+    ctx.wait_for("[host] MS13 runs", lambda: ctx.quest_stage("", CLAW_QUEST) == 10, 10)
+    before = set(ctx.world_state(""))
+    ctx.console_on("", f"player.placeatme {item:X} 1")
+    ref = ctx.wait_for("[host] the item lies in its world", lambda: next(
+        (r for r, f in ctx.world_state("").items() if r not in before and f["base"] == item), None), 10)
+    ctx.player_command("", {"cmd": "quest_force_alias", "quest": CLAW_QUEST, "alias": JOURNAL_ALIAS, "ref": ref})
+    ctx.wait_for(f"[host] MS13's alias holds {ref:X}",
+                 lambda: ctx.quest_snapshot("", CLAW_QUEST)["aliases"].get(JOURNAL_ALIAS, (0,))[0] == ref, 5)
+    return ref
+
+
+def alias_cleanup(ctx, item, lying):
+    ctx.console_on("", f"resetquest {CLAW_QUEST:X}")
+    for game in ("", "client"):
+        if (held := ctx.item_count(game, 0x14, item) or 0) > 0:
+            ctx.console_on(game, f"player.removeitem {item:X} {held}")
+        for ref in set(loose_of(ctx, game, item)) - lying[game]:
+            ctx.console_on(game, f"{ref:X}.disable")
+            ctx.console_on(game, f"{ref:X}.markfordelete")
+
+
+def loose_of(ctx, game, item):
+    return [ref for ref, fields in ctx.world_state(game).items()
+            if fields["base"] == item and not fields["flags"] & (FORM_DELETED | FORM_DISABLED)]
+
+
+def carry_count(ctx, item):
+    """Each player and copy's count of the item: {"host player": n, "host copy": n, ...}."""
+    return {f"{name(game)} {who}": ctx.item_count(game, holder, item) or 0
+            for game in ("", "client") for who, holder in (("player", 0x14), ("copy", ctx.player_copy(game))) if holder is not None}
+
+
+def scenario_alias_item_guest_drops(ctx):
+    """The guest picks up, drops and picks up again an item a quest alias holds: the party's each time, the host's
+    player holding the real one, alias and all, and the alias's own reference lying in the world between."""
+    item = BUCKET
+    for game in ("", "client"):
+        if ctx.item_count(game, 0x14, item):
+            raise ctx.failure(f"[{name(game)}] its player carries the bucket to begin with")
+    lying = {game: set(loose_of(ctx, game, item)) for game in ("", "client")}
+    try:
+        ref = alias_places(ctx, item)
+        for lap in ("picks it up", "picks it up again"):
+            twin = ctx.wait_for("[client] the item lies in its world",
+                                lambda: next(iter(set(loose_of(ctx, "client", item)) - lying["client"]), None), 10)
+            ctx.player_command("client", {"cmd": "activate", "object": twin})
+            ctx.wait_for(f"every player carries one after the guest {lap}", lambda: set(carry_count(ctx, item).values()) == {1}, 10)
+            ctx.expect_stack_extra("", 0x14, item, ALIAS_EXTRA)
+            ctx.wait_for("[client] it lies there no more", lambda: not set(loose_of(ctx, "client", item)) - lying["client"], 10)
+            if lap == "picks it up":
+                ctx.player_command("client", {"cmd": "drop", "item": item})  # its "[P]" stack, as the inventory's Drop
+                ctx.wait_for("nobody carries it", lambda: set(carry_count(ctx, item).values()) == {0}, 10)
+                ctx.wait_for(f"[host] the alias's own reference {ref:X} lies in its world",
+                             lambda: set(loose_of(ctx, "", item)) - lying[""] == {ref}, 10)
+    finally:
+        alias_cleanup(ctx, item, lying)
+
+
+def scenario_alias_key_taken(ctx, taker):
+    """A key a quest alias holds, taken from a chest: every player carries [P], the host's player's with the alias."""
+    chest, lying = SMALL_CHEST, {game: set(loose_keys(ctx, game)) for game in ("", "client")}
+    before, held = ctx.container_items("", chest), {}
+    held = {item: ctx.item_count(taker, 0x14, item) or 0 for item in before}
+    try:
+        ref = alias_places(ctx, KEY)
+        ctx.script_call("", "ObjectReference", "AddItem", [{"form": ref}, 1, True], on=chest)
+        for game in ("", "client"):
+            ctx.wait_for(f"[{name(game)}] the chest holds the key", lambda game=game: (ctx.item_count(game, chest, KEY) or 0) == 1, 10)
+        ctx.expect_stack_extra("", chest, KEY, ALIAS_EXTRA)
+        ctx.take_all(taker, chest)
+        all_carry(ctx, 1, f"the {name(taker)}'s player took it out")
+        ctx.hold()
+        all_carry(ctx, 1, "still one a moment later")
+        ctx.expect_stack_extra("", 0x14, KEY, ALIAS_EXTRA)
+    finally:
+        alias_cleanup(ctx, KEY, lying)
+        if (stored := ctx.item_count("", chest, KEY) or 0) > 0:
+            ctx.console_on("", f"{chest:X}.removeitem {KEY:X} {stored}")
+        for item, count in before.items():
+            if (taken := (ctx.item_count(taker, 0x14, item) or 0) - held[item]) > 0:
+                ctx.console_on(taker, f"player.removeitem {item:X} {taken}")
+                ctx.console_on("", f"{chest:X}.additem {item:X} {min(taken, count)}")
+
+
 SWORD = 0x12EB7  # Iron Sword
 SWORD_TAGGED = "[P] Iron Sword"
 BELETHOR = "00013BA1"

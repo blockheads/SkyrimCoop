@@ -20,10 +20,20 @@ inline constexpr uint32_t cGold = 0xF;       // Gold001: the party's purse holds
     return acItem.IsQuestItem || acItem.ExtraName.starts_with(cTag);
 }
 
-// An item arriving in a player's inventory is the party's: a key, a quest item, or the story's (a quest's script).
-[[nodiscard]] inline bool ArrivesAsParty(uint32_t aFormId, uint8_t aFormType, bool aQuestItem, bool aStoryGiven) noexcept
+// An item arriving in a player's inventory is the party's: a key, a stack a quest alias holds (a quest object or not),
+// or the story's (a quest's script). Gold is the purse's.
+[[nodiscard]] inline bool ArrivesAsParty(uint32_t aFormId, uint8_t aFormType, bool aQuestItem, bool aStoryGiven, bool aAliasHeld) noexcept
 {
-    return aFormId != cGold && (aFormType == cKeyFormType || aQuestItem || aStoryGiven);
+    return aFormId != cGold && (aFormType == cKeyFormType || aQuestItem || aStoryGiven || aAliasHeld);
+}
+
+// The name a party copy came from: its tag taken off (the form's own name: empty).
+[[nodiscard]] inline std::string Untagged(std::string_view aTagged, std::string_view aFormName = {})
+{
+    if (!aTagged.starts_with(cTag))
+        return std::string(aTagged);
+    const std::string_view cName = aTagged.substr(cTag.size());
+    return cName == aFormName ? std::string() : std::string(cName);
 }
 
 // A carried stack is that party item: the same base, name ("[P] <name>") and improvements (tempering, enchantment), not

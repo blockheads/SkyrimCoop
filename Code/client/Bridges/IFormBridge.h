@@ -133,6 +133,8 @@ public:
     /// Drop or pick up an item from an actor's inventory.
     virtual void ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept = 0;
     /// Add or remove an item from an object/actor's inventory.
+    // Names the stack of the item a quest alias holds there (not a quest object's) in place; false: none.
+    virtual bool TagAliasStack(uint32_t aObjectFormId, uint32_t aItemFormId, const std::string& acName) noexcept = 0;
     virtual void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept = 0;
     // A copy carries aCount of the item, acStacks of them with their extra data (worn flags and charge aside), changed
     // only where they differ; nothing raised or equipped (InventoryService's items part).

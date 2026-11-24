@@ -1,3 +1,4 @@
+#include <array>
 #include <HookSwitch.h>
 
 #include "LockOrder.h"
@@ -196,6 +197,37 @@ TLockFunction* RealLockForWrite = nullptr;
 TLockFunction* RealUnlockForRead = nullptr;
 TLockFunction* RealUnlockForWrite = nullptr;
 
+// A lock's generation: bumped when the object holding it is destroyed, so a later object at the same address starts with no
+// pairs. Extra data lists only (their lock at +0x18; ExtraDataList__Destroy 11572): the engine frees and allocates them
+// all the time. A shared slot only makes generations move more often.
+std::array<std::atomic<uint32_t>, 1 << 16> s_generations{};
+
+std::atomic<uint32_t>& GenerationSlot(const void* apLock)
+{
+    const auto cAddress = reinterpret_cast<uintptr_t>(apLock);
+    return s_generations[((cAddress >> 3) ^ (cAddress >> 19)) & (s_generations.size() - 1)];
+}
+
+uint32_t GenerationOf(const void* apLock)
+{
+    return GenerationSlot(apLock).load(std::memory_order_relaxed);
+}
+
+uint64_t PairOf(const void* apOuter, const void* apInner, uint8_t aOuterMode, uint8_t aInnerMode)
+{
+    return LockOrderHistory::Key(reinterpret_cast<uint64_t>(apOuter), reinterpret_cast<uint64_t>(apInner), aOuterMode, aInnerMode,
+                                 GenerationOf(apOuter), GenerationOf(apInner));
+}
+
+using TListDestroyed = void*(void*);
+TListDestroyed* RealListDestroyed = nullptr;
+void* HookListDestroyed(void* apList)
+{
+    void* pResult = RealListDestroyed(apList);
+    GenerationSlot(static_cast<uint8_t*>(apList) + 0x18).fetch_add(1, std::memory_order_relaxed);
+    return pResult;
+}
+
 uint64_t EdgeKey(const void* apOuter, const void* apInner)
 {
     uint64_t hash = reinterpret_cast<uint64_t>(apOuter) * 0x9E3779B97F4A7C15ull;
@@ -206,8 +238,7 @@ uint64_t EdgeKey(const void* apOuter, const void* apInner)
 
 Edge* FindEdge(const void* apOuter, const void* apInner, uint8_t aOuterMode, uint8_t aInnerMode)
 {
-    const uint64_t cKey = LockOrderHistory::Key(reinterpret_cast<uint64_t>(apOuter), reinterpret_cast<uint64_t>(apInner),
-                                               aOuterMode, aInnerMode);
+    const uint64_t cKey = PairOf(apOuter, apInner, aOuterMode, aInnerMode);
     for (size_t probe = 0; probe < 64; ++probe)
     {
         Edge& edge = s_edges[(cKey + probe) & (cEdgeCapacity - 1)];
@@ -263,8 +294,7 @@ void RecordEdge(const Held& acOuter, const void* apInner, uint8_t aInnerMode, ui
         return;
     if (s_edgeCount.load(std::memory_order_relaxed) > cEdgeCapacity / 2)
         ResetEdges();
-    const uint64_t cKey = LockOrderHistory::Key(reinterpret_cast<uint64_t>(acOuter.Lock), reinterpret_cast<uint64_t>(apInner),
-                                               acOuter.Mode, aInnerMode);
+    const uint64_t cKey = PairOf(acOuter.Lock, apInner, acOuter.Mode, aInnerMode);
     for (size_t probe = 0; probe < 64; ++probe)
     {
         Edge& edge = s_edges[(cKey + probe) & (cEdgeCapacity - 1)];
@@ -471,13 +501,15 @@ int BeginAcquire(const void* apLock, uint8_t aMode, uint64_t aCaller)
                         continue;
                     Report(cKeptApart ? cPattern ^ 0x4B455054ull : cPattern, std::format(
                         "{}lock order inversion [{} > {} vs {} > {}]: thread {} holds {} for {} (taken by {}) and asks "
-                        "for {} for {} (by {}); thread {} held {} for {} (taken by {}) and asked for {} for {} (by {})",
+                        "for {} for {} (by {}); thread {} held {} for {} (taken by {}) and asked for {} for {} (by {}); this side in "
+                        "{}, the other seen in {}",
                         cKeptApart ? "kept apart by the frame: " : "", FormatAddress(cHeld.Caller), FormatAddress(aCaller), FormatAddress(pReverse->OuterCaller),
                         FormatAddress(pReverse->InnerCaller), cThreadId, DescribeLock(cHeld.Lock), ModeName(cHeld.Mode),
                         FormatAddress(cHeld.Caller), DescribeLock(apLock), ModeName(aMode), FormatAddress(aCaller),
                         pReverse->ThreadId, DescribeLock(apLock),
                         ModeName(theirHeld), FormatAddress(pReverse->OuterCaller), DescribeLock(cHeld.Lock),
-                        ModeName(theirWant), FormatAddress(pReverse->InnerCaller)),
+                        ModeName(theirWant), FormatAddress(pReverse->InnerCaller), LockOrderAttribution::StretchNames(t_stretch),
+                        LockOrderAttribution::StretchNames(pReverse->Stretches.load(std::memory_order_relaxed))),
                            FindPairStack(pReverse->OuterCaller, pReverse->InnerCaller));
                 }
         }
@@ -604,6 +636,8 @@ static Hooks::Initializer s_lockOrderHooks([]() {
     HOOK_ID(68234, &RealLockForWrite, HookLockForWrite);
     HOOK_ID(68239, &RealUnlockForRead, HookUnlockForRead);
     HOOK_ID(68240, &RealUnlockForWrite, HookUnlockForWrite);
+    HOOK_ID(11572, &RealListDestroyed, HookListDestroyed);
+    LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookListDestroyed));
     s_enabled = true;
     spdlog::info("LockOrder: tracking BSReadWriteLock at SkyrimSE.exe+{:#x}",
                  reinterpret_cast<uintptr_t>(RealLockForRead) - s_engineBase);

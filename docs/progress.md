@@ -49,6 +49,19 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **a quest item a guest loots from a body or chest moves the host's quest on** (`agent/golden-claw-quest`).
+Playtest 2026-11-22, item 15: the guest looted the Golden Claw from Arvel and MS13 stayed on "retrieve the claw". The
+host's take for a guest removed the item to nowhere, which unbinds the item's quest alias script (read in IDA:
+`re/systems/inventory-changes.md`, "An alias-held item leaving a container"), and the guest kept a plain claw. Now
+such a stack moves with a target: a quest object or a key to the host's player (the party's), any other alias item
+to the taker's copy, through its drops and pickups too. 189 Skyrim.esm aliases create their item in an inventory, MQ103's Dragonstone among them. GameTests
+`[container-transfer]`, HostAuthorityTests; Skyrim `golden-claw-guest` reaches stage 40 on both games (its end
+comparison fails on a filed corpse-pose desync, bugs.md). Then the shared-items plan ([shared-items.md](design/shared-items.md)), steps 1
+to 3: `HostPartyItems` holds the party's gold too (`HostPurse` gone); every item a quest alias holds goes to the host's
+player as a party item (Arvel's journal is shared now); a guest's drop or store of its mirror moves the host's real stack,
+alias and all; the host decides each arrival and the finder's own stack is renamed in place, never taken back. The lock
+checker forgets a freed extra data list's pairs and keeps two orders of our update apart (lock-order.md).
+
 2026-11-23: **other players' animations move on every frame** (`agent/smooth-animations`): a copy's graph runs its
 owner's updates due by its playback, so with both games' frames jittering apart it ran none in some frames (its pose
 held while its body moved on, read in IDA: 63581) and two in the next, 5-23 % of frames on the duo: "snappy, not
@@ -2846,7 +2859,7 @@ What the first playtest build has besides what works today (the table above):
 17. **The party's purse** (decided and built 2026-10-27, merged into dev;
     [party-purse.md](design/party-purse.md)): every player carries one purse, the host's player's gold. Any
     player's gold change (loot, trade, training, a fine, a reward on a guest's copy) reaches the host as before
-    (`RequestInventoryChanges`), which keeps it in its player's gold (`HostPurse`) and sends the purse to every game
+    (`RequestInventoryChanges`), which keeps it in its player's gold (`HostPartyItems`) and sends the purse to every game
     (`NotifyPartyGold`); each game sets its player and its copies of players silently, a copy whose spawn items land
     later too. A joining guest carries the purse, not what it brought. Items and quest item rewards stay each
     player's. Tiers 1-2 (`purse_tests.cpp`, `purse_flows.cpp`, join and records flows) and both lossy profiles for

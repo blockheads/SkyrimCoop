@@ -2,6 +2,8 @@
 // change of one changes them, and every game hears the count now.
 #include "session.h"
 
+#include <Games/PartyItems.h>
+
 #include <Messages/ContainerTransferRequest.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/RequestInventoryChanges.h>
@@ -73,7 +75,7 @@ TEST_CASE("A guest's new party item is the party's: the host's player carries it
     }
 }
 
-TEST_CASE("The host's own change of a party stack is in its inventory already; the story's gift is told as received", "[HostAuthority][PartyItems]")
+TEST_CASE("The host's own change of a party stack is in its inventory already, its gift too; the gift is told as received", "[HostAuthority][PartyItems]")
 {
     Session session;
     const auto cPlayers = Players(session);
@@ -83,8 +85,10 @@ TEST_CASE("The host's own change of a party stack is in its inventory already; t
     CHECK(session.PartyItems[{kSword, "[P] Iron Sword"}] == 1);
     CHECK(Heard(session, kPeer)->Item.Count == 1);
 
+    // The host's engine renamed its gift where it is (shared-items.md): its player carries it already.
     auto gift = Sword(cPlayers.at(kHost), 1, true);
     gift.StoryGiven = true;
+    session.PartyItems[{kSword, "[P] Iron Sword"}] = 2;
     session.Outbox.clear();
     session.Receive(kHost, gift);
     CHECK(session.PartyItems[{kSword, "[P] Iron Sword"}] == 2);
@@ -148,5 +152,62 @@ TEST_CASE("A guest's take of a party stack from a host chest is the party's", "[
         session.Receive(kPeer, take);
         CHECK(session.PartyItems[{kSword, "[P] Iron Sword"}] == 0);
         CHECK(Heard(session, kOtherPeer)->Item.Count == 0);
+    }
+}
+
+TEST_CASE("A guest's take of a quest alias's item the host's player got sends no grant; chat names the guest", "[HostAuthority][PartyItems]")
+{
+    // HostEngine::MoveAliasStack moved the Golden Claw to the host's player with its alias: its arrival there is the
+    // party's (InventoryService); the guest gets its copy as a party item, not a grant of its own.
+    Session session;
+    const auto cPlayers = Players(session);
+    const GameId cClaw(0, 0x39647);
+    // The host's player's arrival reaches the party's items inside the move (the host's local route).
+    session.Transferred = [&](const ContainerTransferRequest& acRequest) {
+        Inventory::Entry moved = acRequest.Item;
+        moved.IsQuestItem = true;
+        RequestInventoryChanges arrival;
+        arrival.SessionId = cPlayers.at(kHost);
+        arrival.Item = moved;
+        arrival.NewPartyItem = true;
+        session.Receive(kHost, arrival);
+        return moved;
+    };
+    ContainerTransferRequest take;
+    take.Container = GameId(0, 0xC2CE8);
+    take.Item.BaseId = cClaw;
+    take.Item.Count = 1;
+    session.Receive(kPeer, take);
+    CHECK(session.SentTo<NotifyInventoryChanges>(kPeer).empty());
+    const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(kOtherPeer);
+    REQUIRE(cLines.size() == 1);
+    CHECK(cLines[0]->ChatMessage == "Lydia found Iron Sword for the party"); // the session's ItemName is the sword's
+}
+
+TEST_CASE("A guest's plain key arrival: the host decides it is the party's and tells the finder to rename its own", "[HostAuthority][PartyItems]")
+{
+    Session session;
+    const auto cPlayers = Players(session);
+    session.FormTypes[GameId(0, 0x93B08)] = PartyItems::cKeyFormType;
+    RequestInventoryChanges found;
+    found.SessionId = cPlayers.at(kPeer);
+    found.Item.BaseId = GameId(0, 0x93B08);
+    found.Item.Count = 1;
+    session.Receive(kPeer, found);
+    CHECK(session.PartyItems[{GameId(0, 0x93B08), "[P] Iron Sword"}] == 1); // the session names every item the sword
+    REQUIRE(Heard(session, kPeer));
+    CHECK(Heard(session, kPeer)->Converted == 1);
+    CHECK(Heard(session, kPeer)->Shown == 0);
+    REQUIRE(Heard(session, kOtherPeer));
+    CHECK(Heard(session, kOtherPeer)->Converted == 0);
+    CHECK(Heard(session, kOtherPeer)->Shown == 1);
+
+    SECTION("an ordinary item stays the finder's")
+    {
+        session.Outbox.clear();
+        RequestInventoryChanges loot = found;
+        loot.Item.BaseId = GameId(0, 0x12EB7);
+        session.Receive(kPeer, loot);
+        CHECK_FALSE(Heard(session, kPeer));
     }
 }

@@ -76,12 +76,11 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_clock(*this, aNetwork, m_players, m_game)
     , m_wait(*this, aNetwork, m_players, m_game)
     , m_crime(*this, aNetwork, m_players, m_characters, m_game)
-    , m_purse(m_players, m_characters, m_game)
     , m_partyItems(m_players, m_characters, m_game)
     , m_weather(*this, aNetwork, m_players, m_game)
     , m_eye(m_players, m_characters, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
-    , m_items(*this, aNetwork, m_players, m_characters, m_purse, m_partyItems, m_game)
+    , m_items(*this, aNetwork, m_players, m_characters, m_partyItems, m_game)
     , m_bodies(*this, aNetwork, m_players, m_characters, m_game)
     , m_timeScale(*this, aNetwork, m_players)
     , m_dialogue(*this, aNetwork, m_players, m_characters)
@@ -169,7 +168,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         // Every character with its record, and the claims on them.
         {"characters", [this](ConnectionId_t aPlayer, uint32_t aId) { m_characters.SendExistingCharacters(aPlayer, aId); }},
         // Its player and every copy carry the party's gold and items, its own brought in replaced.
-        {"purse", [this](ConnectionId_t, uint32_t) { m_purse.Send(); }},
         {"party items", [this](ConnectionId_t, uint32_t) { m_partyItems.Send(); }},
         {"cutscene controls", [this](ConnectionId_t aPlayer, uint32_t) { m_playerNatives.SendHeld(aPlayer); }},
         {"waypoint", [this](ConnectionId_t aPlayer, uint32_t) {
@@ -284,10 +282,10 @@ bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSend
     return true;
 }
 
-void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept
+void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) noexcept
 {
     // An actor's items reach its copies as its owner's part (HostRecords, kItems); the party's gold and items here.
-    if (m_purse.Change(acRequest, aSender) || m_partyItems.Change(acRequest, aSender))
+    if (m_partyItems.Change(acRequest, aSender))
         return;
     // The host's script changed another game's actor (a quest taking a guest's claw): its owner runs it, and its part follows.
     if (aSender == m_players.Host() && acRequest.UpdateClients && m_characters.OwnerOf(acRequest.SessionId) != aSender)

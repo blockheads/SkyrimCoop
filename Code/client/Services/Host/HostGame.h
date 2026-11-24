@@ -69,6 +69,8 @@ struct HostGame
     std::function<void(const Inventory::Entry&)> AddPartyItem;
     std::function<std::vector<Inventory::Entry>()> ReadPartyItems;
     std::function<std::string(const GameId&)> ItemName;
+    // An item's form type (a key: PartyItems::cKeyFormType), for deciding a guest's arrival.
+    std::function<uint8_t(const GameId&)> ItemFormType;
     // The host's own actors as its engine shows them now, but aExcludedSessionId.
     std::function<std::vector<NotifyCharacterSpawn>(uint32_t aExcludedSessionId)> OwnSpawns;
     // The host's copy of another player's character (position, items, hands, action) into the spawn, its values left
@@ -142,7 +144,8 @@ struct HostGame
     // A guest's container change, accepted (a kItems change): the host's container holds that many, its stacks with
     // extra data as given (and it goes out as the host's change).
     std::function<void(const ObjectChange& acItems)> SetItems;
-    // Native transfer between a container and the guest's copy; returns the signed amount actually moved.
+    // Native transfer between a container and the guest's copy; returns the signed amount actually moved. IsQuestItem: the
+    // host's player's own stack moved instead (an alias's item taken into it, a party item's real stack put from it).
     std::function<Inventory::Entry(const ContainerTransferRequest&, uint32_t aPlayer)> TransferContainer;
     // A guest's drop: the host's game makes the item (its count and extra data) there, the party's one reference; its
     // created id, none while that cell is not loaded here, an empty id when it cannot be made (no such item here).
@@ -150,8 +153,10 @@ struct HostGame
     // A guest picks up the party's loose item: taken out of the host's world (the deletion goes out), what it held;
     // none when it is gone (another player was first).
     std::function<std::optional<Inventory::Entry>(const GameId& acObject)> TakeItem;
-    // A loose quest object (a quest's alias holds it) the host's player picks up for the party (party-items.md); false
-    // for any other.
+    // A guest's drop of its mirror of a party item: the host's player drops the real one where that player's copy stands
+    // (its created id); none when it cannot, and the old way applies (removed, made anew from the drop).
+    std::function<std::optional<GameId>(const Inventory::Entry& acItem, uint32_t aPlayer)> DropPartyItem;
+    // A loose item a quest alias holds the host's player picks up for the party (shared-items.md); false for any other.
     std::function<bool(const GameId& acObject)> TakeQuestObject;
     // A guest's story event, queued in the host's story manager and judged for the guest's character (HostStory).
     std::function<void(const StoryEvent& acEvent)> RaiseStoryEvent;

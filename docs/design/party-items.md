@@ -95,7 +95,7 @@ party's by its quest flag and shows the quest marker. The ownership-field marker
 - **The story's gift:** `GuestScripts`. An `AddItemFunctor` queued from a quest's script is marked
   (`HookFunctorQueued`), and its run (56095) sets `StoryGiving()`, which the add hooks copy into
   `InventoryChangeEvent::StoryGiven`.
-- **Host:** `HostPartyItems` beside `HostPurse` keeps the host's player's tagged stacks as the counts.
+- **Host:** `HostPartyItems` keeps the host's player's tagged stacks as the counts.
   `NotifyPartyItem` goes to every game with a HUD `Shown`. A new party item is told in chat. HostAuthorityTests
   `[PartyItems]`.
 - **Each game:** `InventoryService::OnNotifyPartyItem` sets its player and every player copy to the count, silently,
@@ -124,6 +124,15 @@ party's by its quest flag and shows the quest marker. The ownership-field marker
   dropping its copy gets it back (as Skyrim refuses a quest item's drop). The upstream quest-item copy in
   `TESObjectREFR::AddOrRemoveItem` is removed. GameTests "A guest picks up a quest object", HostAuthorityTests,
   ClientTests; Skyrim `party-quest-item-host` / `-guest` pass.
+- **A quest item in a body or chest (2026-11-23, playtest 2026-11-22 item 15):** a guest looting the Golden Claw from
+  Arvel left MS13 at 30: the host's take removed it to nowhere, which unbinds its alias's script, and the guest kept a
+  plain claw. Now a guest's take of a stack an alias holds is moved with a target (`HostEngine::MoveAliasStack`): a
+  quest object or a key to the host's player (the party's, as a loose pickup); since the shared-items plan (step 3) every
+  alias item does, and a guest's drop of its mirror drops the host's real stack (`shared-items.md`). Before that, any other alias item went to the taker's copy (its
+  own; the copy compares as the player). 189 Skyrim.esm aliases create their item in an inventory (MQ103's
+  Dragonstone among them). Engine path: `re/systems/inventory-changes.md`, "An alias-held item leaving a container".
+  GameTests `[container-transfer]` (the host's take, a guest's, a non-quest alias item), HostAuthorityTests; Skyrim
+  `golden-claw-guest`.
 - **Improving (2026-10-30):** hooks on tempering (16145) and enchanting (16146) read the owner's stacks of the item
   before and after; the difference goes out as item changes (`Games/ItemChanges.h` `Diff`). An improved stack is
   another party stack (`SameStack` matches health and enchantment, not a copy's own charge or poison), so every copy

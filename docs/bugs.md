@@ -61,6 +61,8 @@ every other section needs the duo.
 **Ragdolls and death poses**
 
 - [A ragdolled copy holds its pose between updates](#a-ragdolled-copy-holds-its-pose-between-updates): small
+- [A script's reference added to a body is not on the guest's copy](#a-scripts-reference-added-to-a-body-is-not-on-the-guests-copy): small
+- [A killed NPC's body lies differently on the guest](#a-killed-npcs-body-lies-differently-on-the-guest): small
 - [Revive leaves the body wrong](#revive-leaves-the-body-wrong): medium
 
 **Physics**
@@ -468,6 +470,28 @@ Size: small. Needs: the duo with the late save.
 - 2026-11-22, dev `aa723513` (`duo --save LateAfterDragonRising`): 1 of 1 again, the same step.
 
 ## Ragdolls and death poses
+
+### A script's reference added to a body is not on the guest's copy
+
+Papyrus `AddItem` of a reference into dead Arvel (2026-11-23, 1 of 1): the host's body held it, and the guest's Take
+All found nothing. Not traced: whether the guest's copy lacked the item, or the take missed it. A chest works
+(`alias-key-taken-guest`).
+
+Agent task: read the guest's copy's items after the call, then what raises an NPC's items part for it.
+
+Size: small. Needs: duo, then GameTests.
+
+### A killed NPC's body lies differently on the guest
+
+Arvel the Swift, killed on the host by the console (`39655.kill`) moments after `stage` placed him beside the
+players, came to rest facing 111 degrees apart on the two games, his head 113 units and pelvis 74 units apart, and
+stayed so (`golden-claw-guest`, 2026-11-23, 1 of 1: the run's end comparison, after its quest check passed). Seen
+again the same day: 582 units apart. The spot is a hillside and the bodies tumble down it, so check flat ground first.
+
+Agent task: find why a host NPC's death ragdoll rests elsewhere on the guest's copy: compare both games' ragdoll
+traces from the kill to the rest.
+
+Size: small. Needs: duo (`golden-claw-guest`), then GameTests.
 
 ### A ragdolled copy holds its pose between updates
 
@@ -963,6 +987,8 @@ Size: small. Needs: GameTests, then the duo.
   (`{'host player': 0, 'host copy': 1, 'client player': 0, 'client copy': 1}`) after the party-item scenarios before
   it, and `party-quest-item-guest` beside it ("a player carries the Golden Claw to begin with"); both passed in the
   shuffled rerun.
+- 2026-11-23 (`agent/golden-claw-quest`): `party-item-moves-guest` passed, then `party-item-moves-host` stopped at its
+  start with both copies holding the key: the cleanup removed it from both players by console 0.1 s apart.
 
 ### An action sent before its copy exists
 
@@ -1448,7 +1474,13 @@ Size: small. Needs: the duo, then GameTests.
 scenario cannot pick it. Not read: whether the guest still holds it as the party's stack, or only the tag is missing
 from that menu's names.
 
-Agent task: read the guest's party stacks and the barter menu's names at that step.
+2026-11-23 (`agent/golden-claw-quest`, 1 of 1): the guest's sale found "[P] Iron Sword" and went through (nobody
+carried it, the purse was paid); the host's buy-back then failed, Belethor on the host listing no sword. The host's log
+shows the guest's sale only as the guest's count change (`Party item 12EB7 ... asked -1`, no container put): the sold
+sword reaches no merchant on the host, so there is nothing to buy back. Not read: where a guest's barter sale goes.
+
+Agent task: read the guest's party stacks and the barter menu's names at that step, and where a guest's sale lands on
+the host.
 
 Size: small. Needs: the duo, then GameTests.
 

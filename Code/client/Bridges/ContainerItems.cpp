@@ -197,6 +197,18 @@ bool ApplyContainerItems(TESObjectREFR& aObject, const ObjectChange& acChange) n
     return true;
 }
 
+bool TagAliasStack(TESObjectREFR& aHolder, TESBoundObject& aItem, const char* acpName) noexcept
+{
+    if (auto* pEntry = FindEntry(aHolder, aItem); pEntry && pEntry->dataList)
+        for (ExtraDataList* pList : *pEntry->dataList)
+            if (pList && pList->Contains(ExtraDataType::AliasInstanceArray) && !pList->HasQuestObjectAlias())
+            {
+                pList->SetCustomName(acpName);
+                return true;
+            }
+    return false;
+}
+
 bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept
 {
     if (!aActor.GetContainer())

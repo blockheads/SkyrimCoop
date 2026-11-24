@@ -92,6 +92,41 @@ SCENARIO("A quest's reward on a guest's character is the party's too", "[party-i
     party.Until([&] { return AllCarry(cGames, 1); }, "every player carries it", [&] { return Swords(cGames); });
 }
 
+SCENARIO("A guest finds a key: the host decides it is the party's, and the guest's own is renamed, never taken back", "[party-items]")
+{
+    // Before: the guest's game took its key back and waited a round trip for the tagged one (the key blinked out).
+    constexpr uint32_t kKey = 0x00093B08; // Key to Breezehome
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    for (FakeEngine* pEngine : {&host, &guest})
+    {
+        pEngine->FormNames[kKey] = "Key to Breezehome";
+        pEngine->ItemForms[kKey].Type = 45; // KEYM
+    }
+    party.Until([&] { return PlayerCopies(host).size() == 1 && PlayerCopies(guest).size() == 1; }, "each game has the other's player");
+    party.As(party.Guest(), [&] { guest.GetsItem(FakeEngine::kPlayer, kKey, 1); });
+    const auto cTagged = [&](const FakeEngine& acEngine, uint32_t aHolder) {
+        int32_t count = 0;
+        for (const auto& cEntry : acEngine.EntriesOf(aHolder, kKey))
+            count += cEntry.ExtraName == "[P] Key to Breezehome" ? cEntry.Count : 0;
+        return count;
+    };
+    bool left = false;
+    party.Until(
+        [&] {
+            left = left || guest.CountOf(FakeEngine::kPlayer, kKey) == 0;
+            return cTagged(guest, FakeEngine::kPlayer) == 1 && guest.CountOf(FakeEngine::kPlayer, kKey) == 1 && cTagged(host, FakeEngine::kPlayer) == 1 &&
+                   cTagged(host, PlayerCopies(host)[0]) == 1 && cTagged(guest, PlayerCopies(guest)[0]) == 1;
+        },
+        "every player and copy carries one [P] key, the guest's renamed", [&] {
+            return std::format("guest {} ({} tagged), host {}, host's copy {}, guest's copy {}", guest.CountOf(FakeEngine::kPlayer, kKey),
+                               cTagged(guest, FakeEngine::kPlayer), cTagged(host, FakeEngine::kPlayer), cTagged(host, PlayerCopies(host)[0]),
+                               cTagged(guest, PlayerCopies(guest)[0]));
+        });
+    CHECK_FALSE(left);
+}
+
 SCENARIO("Ordinary loot stays the finder's own", "[party-items]")
 {
     Party party(1, SmokeWorld);

@@ -55,9 +55,10 @@ TEST_CASE("An inversion between the main loop's tasks and our update is kept apa
     // ClearFills in MainLoopTasks against a respawn's cast in World::Update: never at once.
     CHECK(KeptApartByFrame(kMainLoopTasks, kOurUpdate));
     CHECK(KeptApartByFrame(kOurUpdate, kMainLoopTasks));
-    // The same stretch on two threads, or anywhere else, can overlap.
+    // Our update on two worker threads: one job a frame, never two at once (a drop and the pickup it undoes, 2026-11-23).
+    CHECK(KeptApartByFrame(kOurUpdate, kOurUpdate));
+    // Main loop tasks run on the main thread only: the same stretch on two threads is not theirs. Anywhere else can overlap.
     CHECK_FALSE(KeptApartByFrame(kMainLoopTasks, kMainLoopTasks));
-    CHECK_FALSE(KeptApartByFrame(kOurUpdate, kOurUpdate));
     CHECK_FALSE(KeptApartByFrame(kElsewhere, kOurUpdate));
     CHECK_FALSE(KeptApartByFrame(kMainLoopTasks, kElsewhere));
     // A reverse order also seen elsewhere is a risk however often it was seen in the other stretch.
@@ -110,5 +111,18 @@ TEST_CASE("Main loop tasks and our update seen at once keep nothing apart", "[lo
     frame.Leave(kMainLoopTasks);
     frame.Leave(kOurUpdate);
     CHECK_FALSE(frame.KeptApart(kOurUpdate, kMainLoopTasks));
+    CHECK_FALSE(frame.KeptApart(kMainLoopTasks, kOurUpdate));
+}
+
+TEST_CASE("Our update on two threads at once keeps nothing apart", "[locks]")
+{
+    using namespace LockOrderAttribution;
+    StretchOverlap frame;
+    CHECK(frame.KeptApart(kOurUpdate, kOurUpdate));
+    CHECK_FALSE(frame.Enter(kOurUpdate));
+    frame.Leave(kOurUpdate);
+    CHECK_FALSE(frame.Enter(kOurUpdate)); // one after the other: the claim holds
+    CHECK(frame.Enter(kOurUpdate));       // a second thread inside while the first still is
+    CHECK_FALSE(frame.KeptApart(kOurUpdate, kOurUpdate));
     CHECK_FALSE(frame.KeptApart(kMainLoopTasks, kOurUpdate));
 }

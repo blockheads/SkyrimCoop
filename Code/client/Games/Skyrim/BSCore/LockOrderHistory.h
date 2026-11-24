@@ -5,11 +5,14 @@
 
 namespace LockOrderHistory
 {
-// A mode belongs to its own observation: a later write must not borrow a reader's callers or thread.
-constexpr uint64_t Key(uint64_t aOuter, uint64_t aInner, uint8_t aOuterMode, uint8_t aInnerMode) noexcept
+// A mode belongs to its own observation: a later write must not borrow a reader's callers or thread. A lock's generation
+// counts the objects destroyed at its address: a pair seen on an earlier object is not this one's.
+constexpr uint64_t Key(uint64_t aOuter, uint64_t aInner, uint8_t aOuterMode, uint8_t aInnerMode, uint32_t aOuterGeneration = 0,
+                       uint32_t aInnerGeneration = 0) noexcept
 {
     uint64_t hash = aOuter * 0x9E3779B97F4A7C15ull;
     hash ^= std::rotl(aInner, 31) * 0xC2B2AE3D27D4EB4Full;
+    hash ^= ((uint64_t{aOuterGeneration} << 32) | aInnerGeneration) * 0xD6E8FEB86659FD93ull;
     hash ^= hash >> 29;
     return (hash & ~uint64_t{7}) | (uint64_t{aOuterMode} << 2) | (uint64_t{aInnerMode} << 1) | 1;
 }

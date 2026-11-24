@@ -36,4 +36,6 @@ struct InventoryChangeEvent
     bool UpdateClients = true;
     // Added by a quest's script (a quest, alias, dialogue line or scene): the story gave it (party-items.md).
     bool StoryGiven = false;
+    // Its stack a quest alias holds (ExtraAliasInstanceArray): the party's, a quest object or not (shared-items.md).
+    bool AliasHeld = false;
 };

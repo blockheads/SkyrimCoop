@@ -1,7 +1,6 @@
 #include <Services/Host/HostItems.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostPartyItems.h>
-#include <Services/Host/HostPurse.h>
 #include <Messages/ContainerTransferRequest.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
@@ -13,12 +12,11 @@
 
 #include <algorithm>
 
-HostItems::HostItems(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostPurse& acPurse, const HostPartyItems& acPartyItems, const HostGame& acGame) noexcept
+HostItems::HostItems(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, HostPartyItems& aPartyItems, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_characters(acCharacters)
-    , m_purse(acPurse)
-    , m_partyItems(acPartyItems)
+    , m_partyItems(aPartyItems)
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostItems::OnContainerTransfer);
@@ -54,7 +52,9 @@ void HostItems::OnDrop(const DropItemRequest& acRequest, ConnectionId_t aSender)
 
 bool HostItems::Make(ConnectionId_t aPlayer, const DropItemRequest& acRequest) noexcept
 {
-    const auto cObject = m_game.CreateItem(acRequest.Item, acRequest.Placement);
+    // A party item: the host's player dropped the real one for it already (HostPartyItems, from its item change).
+    const std::optional<GameId> cDropped = m_partyItems.TakeDropped(aPlayer, acRequest.Item.BaseId);
+    const auto cObject = cDropped ? cDropped : m_game.CreateItem(acRequest.Item, acRequest.Placement);
     if (!cObject)
         return false;
     if (*cObject == GameId{})
@@ -95,10 +95,10 @@ void HostItems::OnPickUp(const PickUpRequest& acRequest, ConnectionId_t aSender)
     if (const auto cMade = m_made.find({aSender, acRequest.Tag}); acRequest.Tag && cMade != m_made.end())
         object = cMade->second;
     std::erase_if(m_made, [&](const auto& acMade) { return acMade.second == object; });
-    // A quest object is the party's: held by the host's player, so the host's quests see the player hold it.
+    // An item a quest alias holds is the party's: held by the host's player, so the host's quests see the player hold it.
     if (object != GameId{} && m_game.TakeQuestObject && m_game.TakeQuestObject(object))
     {
-        spdlog::info("HostItems: {:x} picked up quest object {:X}: the party holds it", aSender, object.LogFormat());
+        spdlog::info("HostItems: {:x} picked up {:X}, an alias holds it: the party holds it", aSender, object.LogFormat());
         return;
     }
     if (const auto cItem = object != GameId{} ? m_game.TakeItem(object) : std::nullopt)
@@ -124,15 +124,33 @@ void HostItems::OnContainerTransfer(const ContainerTransferRequest& acRequest, C
         acRequest.Item.Count == INT32_MIN || (acRequest.ContainerActorId &&
         (m_characters.IsPlayerCharacter(acRequest.ContainerActorId) || m_characters.OwnerOf(acRequest.ContainerActorId) != m_players.Host())))
         return;
+    // Before the move: the host's player's arrival of a quest item is told in chat as this guest's find.
+    const GameId cItem = acRequest.Item.BaseId;
+    if (acRequest.Item.Count > 0)
+        m_partyItems.FoundBy(cItem, aSender);
     Inventory::Entry moved = m_game.TransferContainer(acRequest, cPlayer);
+    if (acRequest.Item.Count > 0 && !(moved.Count > 0 && moved.IsQuestItem))
+        m_partyItems.FoundBy(cItem, 0);
     if (!moved.Count)
         return;
+    // A quest alias's item went to the host's player with its alias (HostEngine::MoveAliasStack): its arrival there
+    // makes it the party's, as a loose one's pickup does.
+    if (moved.Count > 0 && moved.IsQuestItem)
+    {
+        spdlog::info("HostItems: {:x} took quest item {:X}: the party holds it", aSender, moved.BaseId.LogFormat());
+        return;
+    }
+    // A put the host's player made with its real stack: its change, so the party's count is not taken twice.
+    const bool cHostsOwn = moved.IsQuestItem;
+    moved.IsQuestItem = false;
     RequestInventoryChanges change;
-    change.SessionId = cPlayer;
+    change.SessionId = cHostsOwn ? m_characters.PlayerCharacterOf(m_players.Host()) : cPlayer;
     change.Item = moved;
     // Gold and party stacks are the party's (party-purse.md, party-items.md). The rest: the looter's own game changes its
     // player, whose items part goes to the others; the NPC's goes out as the host's own part (ItemsChangedEvent).
-    if (!m_purse.Change(change, m_players.Host()) && !m_partyItems.Change(change, aSender))
+    // Gold: as the host's change, so the taker's HUD shows it too.
+    const bool cGold = moved.BaseId == Payloads::PartyGold::kGold;
+    if (!m_partyItems.Change(change, cGold || cHostsOwn ? m_players.Host() : aSender))
     {
         NotifyInventoryChanges notify;
         notify.SessionId = cPlayer;

@@ -34,7 +34,7 @@ struct CopyRecords;
 /**
  * @brief Actors' items as their owner's record part (docs/design/one-simulator.md, piece 3): an owner declares what its
  * actor carries and wears when it changes (kItems), a copy is made to carry and wear that. Containers' items are world
- * state (HostWorldState, GuestWorldState); the party's gold and party items are the host's (HostPurse, HostPartyItems).
+ * state (HostWorldState, GuestWorldState); the party's gold and party items are the host's (HostPartyItems).
  */
 struct InventoryService
 {
@@ -45,7 +45,7 @@ struct InventoryService
     NO_COPY_MOVE(InventoryService);
 
     void OnUpdate(const UpdateEvent& acUpdateEvent) noexcept;
-    // This game's player's item change: to the host for the party's gold and items (HostPurse, HostPartyItems).
+    // This game's player's item change: to the host for the party's gold and items (HostPartyItems).
     void OnInventoryChangeEvent(const InventoryChangeEvent& acEvent) noexcept;
 
     // The host's change to this game's own actor (a loot it granted), or a drop.
@@ -65,8 +65,10 @@ struct InventoryService
     // change to it silently, every party stack it carries, and an item's name.
     [[nodiscard]] int32_t PartyItemCount(uint32_t aActorFormId, const Inventory::Entry& acItem) const noexcept;
     void AddPartyItem(uint32_t aActorFormId, const Inventory::Entry& acItem) const noexcept;
+    void RenameAsParty(uint32_t aHolder, const Inventory::Entry& acFound, const std::string& acTagged) const noexcept;
     [[nodiscard]] std::vector<Inventory::Entry> PartyItemsOf(uint32_t aActorFormId) const noexcept;
     [[nodiscard]] std::string ItemName(const GameId& acItem) const noexcept;
+    [[nodiscard]] uint8_t ItemFormType(const GameId& acItem) const noexcept;
 
 
     // A copy about to equip an item it does not carry gets one, silently (its owner wears it).

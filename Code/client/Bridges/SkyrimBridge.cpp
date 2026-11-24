@@ -1202,6 +1202,13 @@ void SkyrimBridge::ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventor
         pActor->DropOrPickUpObject(aItem, nullptr, nullptr);
 }
 
+bool SkyrimBridge::TagAliasStack(uint32_t aObjectFormId, uint32_t aItemFormId, const std::string& acName) noexcept
+{
+    TESObjectREFR* pHolder = GetRefr(aObjectFormId);
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(aItemFormId));
+    return pHolder && pItem && ::TagAliasStack(*pHolder, *pItem, acName.c_str());
+}
+
 void SkyrimBridge::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
 {
     Breadcrumbs::Record("ObjectAddOrRemoveItem", aObjectFormId);

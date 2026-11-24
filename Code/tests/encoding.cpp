@@ -18,6 +18,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestMessageFactory.h>
 #include <Messages/RelayedMessages.h>
 #include <Messages/Delivery.h>
@@ -1826,6 +1827,7 @@ TEST_CASE("A party item goes to every game with its extra data, count and HUD ch
     sent.Item.ExtraName = "[P] Iron Sword";
     sent.Item.ExtraHealth = 1.2f;
     sent.Shown = -1;
+    sent.Converted = 2;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     sent.Serialize(writer);
@@ -2630,4 +2632,22 @@ TEST_CASE("A record part longer than 64 KB round-trips whole", "[encoding][recor
     CHECK(read.Kind == RecordKind::kItems);
     CHECK(read.Version == 7);
     CHECK(read.Bytes == part.Bytes);
+}
+
+TEST_CASE("A player's item change carries what the host decides a party item by", "[encoding.party-items]")
+{
+    RequestInventoryChanges sent;
+    sent.SessionId = 7;
+    sent.Item.BaseId = GameId(0, 0x39654);
+    sent.Item.Count = 1;
+    sent.StoryGiven = true;
+    sent.AliasHeld = true;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    sent.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == kRequestInventoryChanges);
+    CHECK(static_cast<const RequestInventoryChanges&>(*decoded) == sent);
 }
