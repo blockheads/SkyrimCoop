@@ -82,6 +82,6 @@ TEST_CASE("A copy's regen rate asks for its owner's combat state", "[CopyCombat]
     CHECK(AnswersOwner(21576, 0x38));
     CHECK(AnswersOwner(21740, 0x28));
     CHECK_FALSE(AnswersOwner(38460, 0x10));
-    // Actor::EngagingInCombat (38563) uses the combat controller after a yes.
-    CHECK_FALSE(AnswersOwner(38563, 0x1A));
+    // Actor::EngagingInCombat (38563, its call returns at +0x12) uses the combat controller after a yes.
+    CHECK_FALSE(AnswersOwner(38563, 0x12));
 }

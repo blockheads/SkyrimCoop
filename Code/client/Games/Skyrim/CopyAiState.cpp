@@ -55,11 +55,8 @@ static TIsInCombat* RealIsInCombat = nullptr;
 using TGetCombatState = uint32_t(Actor*);
 static TGetCombatState* RealGetCombatState = nullptr;
 
-// Who gets a copy's owner's combat state: the callers in CopyCombat's site table (conditions, the regen rate) and
-// plugins (any caller outside the game's image, as Open Animation Replacer). The engine's other callers act on the
-// combat controller after a yes, which a copy never has, often through a wrapper (EngagingInCombat 38563: weapon
-// fire, spell aim): they get the copy's own answer (audit: docs/re/systems/actor-ai-and-copies.md, "Combat state
-// and its readers").
+// A copy's owner's combat state goes to CopyCombat's sites and plugins; other engine callers use the combat controller
+// (docs/re/systems/actor-ai-and-copies.md, "Combat state and its readers").
 
 // A caller outside the game's image: a plugin.
 static bool IsOutsideGame(uintptr_t aAddress) noexcept
