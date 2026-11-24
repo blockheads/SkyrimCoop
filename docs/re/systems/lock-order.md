@@ -28,9 +28,11 @@ Pairs are kept by the two locks' addresses. An extra data list is freed and allo
 on a dead list read as the pair of the new list at its address: `alias-item-guest-drops` and `party-item-moves-host`
 reported the boot's quest alias fill (`TESQuest` 25083 under `coc`, a created reference's list copied into a container's)
 against a drop much later (a new reference's list), both the engine's copies of extra data, which lock source then
-destination (`ExtraDataList__MoveExtrasFrom` `0x14015A2F0`, `ExtraDataList__CopyExtrasFrom` `0x14015A0B0`, read in IDA).
+destination (`ExtraDataList__MoveExtrasFrom` 11591 `0x14015A2F0`, `ExtraDataList__CopyExtrasFrom` 11590 `0x14015A0B0`, read in IDA).
 Each lock now has a generation in the pair's key (`LockOrderHistory::Key`), bumped after `ExtraDataList__Destroy`
 (11572, which the thunk 11584 and the deleting destructor 418612 call): a list at a reused address starts with no pairs.
+Generations are kept by the lock's own address (`LockGenerations`), so destroying one list never moves another live
+lock's (review of PR #118: a shared slot had erased a live lock's history).
 Other objects holding locks are not tracked (none seen this way). ClientTests `[locks]`.
 
 What that left (measured the same day, the report now naming each side's stretches): a quest's own reference (never

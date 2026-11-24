@@ -83,8 +83,8 @@ public:
     // A guest's pickup granted: the party's loose item taken out of this world (disabled and deleted, the deletion goes
     // out), what it held; none when it is gone.
     [[nodiscard]] std::optional<Inventory::Entry> TakeItem(const GameId& acObject) noexcept;
-    // A guest dropped its mirror of a party item: this game's player drops the real stack where that player's copy stands
-    // (its name and alias with it); the created id, none when it cannot (another cell, a quest object).
+    // A guest's drop of its mirror: this game's player drops the real stack where its copy stands (shared-items.md).
+    // The created id; an empty id refuses (a quest object, an alias's elsewhere); none: no real stack.
     [[nodiscard]] std::optional<GameId> DropPartyItem(const Inventory::Entry& acItem, uint32_t aPlayer) noexcept;
     // A loose item a quest alias holds (ExtraAliasInstanceArray), a quest object or not, picked up by this game's player
     // for the party (shared-items.md): the alias follows it into the player's inventory. False for any other item.

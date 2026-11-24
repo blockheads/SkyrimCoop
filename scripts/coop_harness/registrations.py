@@ -393,6 +393,9 @@ def register_flows(registry):
     registry.add("party-reward-reaches-everyone", ["party-items", "inventory", "quest"],
                  lambda ctx: party_items.scenario_party_reward_reaches_everyone(ctx),
                  doc="A quest's stage fragment gives the player an item (Cidhna Mine's skooma): every player carries it as [P], and chat says so.")
+    registry.add("arvels-journal-guest-loots", ["party-items", "inventory", "quest", "late-save"],  # hand-written: the review's case, read first
+                 lambda ctx: party_items.scenario_arvels_journal_guest_loots(ctx),
+                 doc="The guest loots Arvel's body: his journal is the party's, the host's player holding the real one.")
     registry.add("alias-item-guest-drops", ["party-items", "inventory", "quest", "drops"],  # hand-written: the bug was played first (inventory-changes.md)
                  lambda ctx: party_items.scenario_alias_item_guest_drops(ctx),
                  doc="The guest picks up, drops and picks up again an item a quest alias holds: the alias goes with it.")

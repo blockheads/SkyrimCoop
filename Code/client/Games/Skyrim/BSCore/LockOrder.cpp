@@ -7,6 +7,7 @@
 
 #include <CrashHandler.h>
 #include <HeapHistory.h>
+#include <ExtraData/ExtraDataList.h>
 #include <HotReload/Handoff.h>
 #include <Hooks/SkseBranchPatch.h>
 
@@ -197,20 +198,12 @@ TLockFunction* RealLockForWrite = nullptr;
 TLockFunction* RealUnlockForRead = nullptr;
 TLockFunction* RealUnlockForWrite = nullptr;
 
-// A lock's generation: bumped when the object holding it is destroyed, so a later object at the same address starts with no
-// pairs. Extra data lists only (their lock at +0x18; ExtraDataList__Destroy 11572): the engine frees and allocates them
-// all the time. A shared slot only makes generations move more often.
-std::array<std::atomic<uint32_t>, 1 << 16> s_generations{};
-
-std::atomic<uint32_t>& GenerationSlot(const void* apLock)
-{
-    const auto cAddress = reinterpret_cast<uintptr_t>(apLock);
-    return s_generations[((cAddress >> 3) ^ (cAddress >> 19)) & (s_generations.size() - 1)];
-}
+// Destroyed extra data lists' locks (ExtraDataList__Destroy 11572): a list at a reused address starts with no pairs.
+LockOrderHistory::LockGenerations<1 << 16> s_generations;
 
 uint32_t GenerationOf(const void* apLock)
 {
-    return GenerationSlot(apLock).load(std::memory_order_relaxed);
+    return s_generations.Of(reinterpret_cast<uint64_t>(apLock));
 }
 
 uint64_t PairOf(const void* apOuter, const void* apInner, uint8_t aOuterMode, uint8_t aInnerMode)
@@ -224,7 +217,7 @@ TListDestroyed* RealListDestroyed = nullptr;
 void* HookListDestroyed(void* apList)
 {
     void* pResult = RealListDestroyed(apList);
-    GenerationSlot(static_cast<uint8_t*>(apList) + 0x18).fetch_add(1, std::memory_order_relaxed);
+    s_generations.Destroyed(reinterpret_cast<uint64_t>(&static_cast<ExtraDataList*>(apList)->lock));
     return pResult;
 }
 

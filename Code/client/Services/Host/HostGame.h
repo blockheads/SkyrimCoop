@@ -154,7 +154,7 @@ struct HostGame
     // none when it is gone (another player was first).
     std::function<std::optional<Inventory::Entry>(const GameId& acObject)> TakeItem;
     // A guest's drop of its mirror of a party item: the host's player drops the real one where that player's copy stands
-    // (its created id); none when it cannot, and the old way applies (removed, made anew from the drop).
+    // (its created id); an empty id refuses it (the real one kept); none: the old way (removed, made anew from the drop).
     std::function<std::optional<GameId>(const Inventory::Entry& acItem, uint32_t aPlayer)> DropPartyItem;
     // A loose item a quest alias holds the host's player picks up for the party (shared-items.md); false for any other.
     std::function<bool(const GameId& acObject)> TakeQuestObject;

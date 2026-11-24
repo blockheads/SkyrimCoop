@@ -54,6 +54,12 @@ bool HostItems::Make(ConnectionId_t aPlayer, const DropItemRequest& acRequest) n
 {
     // A party item: the host's player dropped the real one for it already (HostPartyItems, from its item change).
     const std::optional<GameId> cDropped = m_partyItems.TakeDropped(aPlayer, acRequest.Item.BaseId);
+    if (cDropped && *cDropped == GameId{})
+    {
+        spdlog::info("HostItems: {:x}'s drop {:X} of the party's {:X} refused: it goes back", aPlayer, acRequest.Tag, acRequest.Item.BaseId.LogFormat());
+        Grant(aPlayer, {}, acRequest.Tag, acRequest.Item);
+        return true;
+    }
     const auto cObject = cDropped ? cDropped : m_game.CreateItem(acRequest.Item, acRequest.Placement);
     if (!cObject)
         return false;
@@ -150,7 +156,7 @@ void HostItems::OnContainerTransfer(const ContainerTransferRequest& acRequest, C
     // player, whose items part goes to the others; the NPC's goes out as the host's own part (ItemsChangedEvent).
     // Gold: as the host's change, so the taker's HUD shows it too.
     const bool cGold = moved.BaseId == Payloads::PartyGold::kGold;
-    if (!m_partyItems.Change(change, cGold || cHostsOwn ? m_players.Host() : aSender))
+    if (!m_partyItems.Change(change, cGold || cHostsOwn ? m_players.Host() : aSender, false))
     {
         NotifyInventoryChanges notify;
         notify.SessionId = cPlayer;

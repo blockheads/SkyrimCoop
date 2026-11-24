@@ -282,3 +282,28 @@ SCENARIO("A quest's gold reward goes to the party's purse, not a party item", "[
     CHECK_FALSE(cTaggedGold(host));
     CHECK_FALSE(cTaggedGold(guest));
 }
+
+SCENARIO("A guest's story gift it wears before the host's answer is renamed worn, not taken off", "[party-items]")
+{
+    // The review of PR #118: the rename replaced the stack, dropping its worn and favorite marks.
+    Party party(1, SmokeWorld);
+    NameSword(party);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopies(host).size() == 1 && PlayerCopies(guest).size() == 1; }, "each game has the other's player");
+    party.As(party.Guest(), [&] {
+        guest.QuestGivesItem(FakeEngine::kPlayer, kSword, 1);
+        guest.Equips(FakeEngine::kPlayer, kSword);
+    });
+    const auto cWornTagged = [&] {
+        const auto cStacks = guest.EntriesOf(FakeEngine::kPlayer, kSword);
+        return cStacks.size() == 1 && cStacks[0].ExtraName == kTagged && cStacks[0].IsWorn();
+    };
+    party.Until(cWornTagged, "the guest wears one sword, the party's", [&] {
+        std::string text;
+        for (const auto& cStack : guest.EntriesOf(FakeEngine::kPlayer, kSword))
+            text += std::format("['{}' x{} worn {}] ", cStack.ExtraName, cStack.Count, cStack.IsWorn());
+        return text;
+    });
+    party.Until([&] { return PartyCopies(host, FakeEngine::kPlayer) == 1; }, "the host's player holds the real one");
+}

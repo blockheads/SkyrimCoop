@@ -108,12 +108,17 @@ stays: the move to 0x14, the chat's finder, the flows and scenarios (the journal
 1  done: one store, HostPartyItems (HostPurse is gone), no behavior change               HostAuthorityTests as they are
 2  done: a guest sends a plain arrival with what it saw (StoryGiven, AliasHeld); HostPartyItems decides by
       PartyItems::ArrivesAsParty and tells the finder to rename its own (NotifyPartyItem::Converted); the host's own
-      arrivals are renamed in place (InventoryService::RenameAsParty). Nothing is taken back
+      arrivals are renamed in place (InventoryService::RenameAsParty, TagStackInPlace: an alias's or a worn or
+      favorite stack where it is, never a named one). Nothing is taken back. A container grant asks no rename
+      (the item is not in the finder's pack yet). The host installs the decision (SetArrivalDecider)
       GameTests: a guest's key is never out of its pack
 3  done: alias items all to 0x14 (MoveAliasStack, TakeQuestObject: any alias; InventoryChangeEvent::AliasHeld);
       a guest's drop drops the host's real stack where its copy stands (HostEngine::DropPartyItem, HostPartyItems'
       m_dropped, HostItems::Make adopts it); copy paths deleted (DropAliasItem, TakeAliasItem, CopyGrantedEvent)
-      a guest's store of a mirror puts the host's real stack in (HostEngine::TransferContainer's put; IsQuestItem)
+      a guest's store of a mirror puts the host's real stack in (HostEngine::TransferContainer's put; IsQuestItem),
+      a quest object's too; with no real stack left it stores nothing, never the mirror
+      a drop the host's player cannot make (another interior, a quest object) is refused: the real stack kept, the
+      dropper's own drop given back (HostPartyItems' m_refused, HostItems::Make); a pickpocket keeps kSteal's owner
    left: a sale, which reaches the host only as a count change (bugs.md, "The party's sword unnamed at a merchant")
       scenarios: golden-claw-guest, alias-item-guest-drops, alias-key-taken-*
 4  watched items (RE the filters first)                                                NN01: a guest's root counts, hand-in

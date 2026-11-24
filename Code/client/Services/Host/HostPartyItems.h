@@ -31,10 +31,9 @@ struct HostPartyItems
         "iatethosefood", "me -> ur mom", "uhm guys?"};
 
     // True for a change of gold or a party stack on a player's character: the party's, not relayed as an item.
-    [[nodiscard]] bool Change(const RequestInventoryChanges& acFound, ConnectionId_t aSender) noexcept;
-    // A guest found a quest item the host's player now holds for the party (a body's or chest's stack): its arrival
-    // there is told in chat as that guest's find.
-    // aFinder 0 forgets it.
+    // aInFinderPack false: a grant the finder's game has not added yet (a container take), so no rename is asked of it.
+    [[nodiscard]] bool Change(const RequestInventoryChanges& acFound, ConnectionId_t aSender, bool aInFinderPack = true) noexcept;
+    // A guest found the quest item the host's player now holds for the party: chat names it at the arrival (0 forgets).
     void FoundBy(const GameId& acItem, ConnectionId_t aFinder) noexcept
     {
         if (aFinder)
@@ -42,7 +41,8 @@ struct HostPartyItems
         else
             m_finders.erase(acItem);
     }
-    // The real stack the host's player dropped for that player's drop of its mirror, taken once (HostItems: its twin).
+    // The real stack the host's player dropped for that player's drop of its mirror, taken once (HostItems: its twin);
+    // an empty id: the drop was refused.
     [[nodiscard]] std::optional<GameId> TakeDropped(ConnectionId_t aPlayer, const GameId& acItem) noexcept
     {
         const auto it = m_dropped.find({aPlayer, acItem.LogFormat()});
@@ -66,4 +66,5 @@ struct HostPartyItems
     const HostGame& m_game;
     std::unordered_map<GameId, ConnectionId_t> m_finders;
     std::map<std::pair<ConnectionId_t, uint64_t>, GameId> m_dropped; // (player, item) -> the real stack it dropped
+    std::map<std::pair<ConnectionId_t, uint64_t>, int32_t> m_refused; // (player, item) -> refused drops still coming back
 };

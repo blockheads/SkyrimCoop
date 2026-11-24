@@ -48,16 +48,16 @@ ExtraDataList* FindStack(TESObjectREFR& aSource, TESBoundObject& aItem, const In
 Inventory::Entry HostEngine::MoveAliasStack(TESObjectREFR& aContainer, TESBoundObject& aItem, ExtraDataList& aList, int32_t aCount,
                                             const ContainerTransferRequest& acRequest) noexcept
 {
-    // Moved whole with a target, the alias keeps it and its script hears the new container (removed to nowhere it is
-    // unbound: inventory-changes.md, "An alias-held item leaving a container"). It goes to this game's player, where the
-    // party holds it (shared-items.md); its arrival there is a new party item (InventoryService).
+    // Moved with a target (16059), the alias keeps it and its script hears the new container: this game's player, where
+    // the party holds it (inventory-changes.md, "An alias-held item leaving a container"; shared-items.md).
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     Inventory::Entry moved = ContainerTransfers::Stack(acRequest.Item);
     moved.Count = 0;
     if (!pPlayer)
         return moved;
     const int32_t cBefore = aContainer.GetContainerCount(&aItem).value_or(0);
-    aContainer.RemoveItem(&aItem, aCount, ITEM_REMOVE_REASON::kStoreInContainer, &aList, pPlayer);
+    // kSteal stamps the source's owner on the moved list (16059 with a target): a pickpocket's item stays stolen.
+    aContainer.RemoveItem(&aItem, aCount, acRequest.Steal ? ITEM_REMOVE_REASON::kSteal : ITEM_REMOVE_REASON::kStoreInContainer, &aList, pPlayer);
     moved.Count = std::clamp(cBefore - aContainer.GetContainerCount(&aItem).value_or(cBefore), 0, aCount);
     moved.IsQuestItem = true; // HostItems: the host's player holds it
     spdlog::info("HostEngine: take {} of {:X} from {:X}: an alias holds it, moved to {:X}", moved.Count, aItem.formID, aContainer.formID, pPlayer->formID);
@@ -75,17 +75,25 @@ std::optional<GameId> HostEngine::DropPartyItem(const Inventory::Entry& acItem, 
     auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(acItem.BaseId)));
     if (!pPlayer || !pCopy || !pItem)
         return std::nullopt;
-    // PlaceDropped (0x140230E10) puts a drop in the dropper's own cell: the copy must stand in it, or in its worldspace.
-    const TESObjectCELL* pCell = pPlayer->GetParentCell();
-    const TESObjectCELL* pCopyCell = pCopy->GetParentCell();
-    if (!pCell || !pCopyCell || (pCell != pCopyCell && (!pCell->worldspace || pCell->worldspace != pCopyCell->worldspace)))
-        return std::nullopt;
     Inventory::Entry wanted = ContainerTransfers::Stack(acItem);
     int32_t count = std::abs(acItem.Count);
     ExtraDataList* pList = FindStack(*pPlayer, *pItem, wanted, count);
-    // A quest object's drop is refused as Skyrim refuses it (party-items.md).
-    if (!pList || pList->HasQuestObjectAlias())
-        return std::nullopt;
+    if (!pList)
+    {
+        // A quest object's real stack keeps its alias's name: refused, as Skyrim refuses its drop.
+        wanted.ExtraName.clear();
+        count = std::abs(acItem.Count);
+        ExtraDataList* pQuest = FindStack(*pPlayer, *pItem, wanted, count);
+        return pQuest && pQuest->HasQuestObjectAlias() ? std::optional(GameId{}) : std::nullopt;
+    }
+    // PlaceDropped (16062) puts a drop in the dropper's own cell: elsewhere an alias's stack is refused, not lost.
+    const TESObjectCELL* pCell = pPlayer->GetParentCell();
+    const TESObjectCELL* pCopyCell = pCopy->GetParentCell();
+    const bool cAliasHeld = pList->Contains(ExtraDataType::AliasInstanceArray);
+    if (pList->HasQuestObjectAlias())
+        return GameId{};
+    if (!pCell || !pCopyCell || (pCell != pCopyCell && (!pCell->worldspace || pCell->worldspace != pCopyCell->worldspace)))
+        return cAliasHeld ? std::optional(GameId{}) : std::nullopt;
     const NiPoint3 cPosition = pCopy->position;
     const NiPoint3 cRotation = pCopy->rotation;
     ScopedInventoryOverride _;
@@ -136,13 +144,25 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
         if (ExtraDataList* pAlias = FindStack(*pSource, *pItem, moved, aliasCount, true))
             return MoveAliasStack(*pContainer, *pItem, *pAlias, aliasCount, acRequest);
     ScopedInventoryOverride _;
-    // A put of a party item's mirror: the host's player's real stack goes in instead, its name and alias with it
+    // A put of a party item's mirror: the host's player's real stack goes in instead, name and alias with it, or nothing
     // (shared-items.md). IsQuestItem tells HostItems the host's player's own stack moved.
     if (!cTake && PartyItems::IsParty(moved))
         if (PlayerCharacter* pHost = PlayerCharacter::Get())
         {
             int32_t count = std::abs(acRequest.Item.Count);
-            if (ExtraDataList* pReal = FindStack(*pHost, *pItem, moved, count); pReal && !pReal->HasQuestObjectAlias())
+            ExtraDataList* pReal = FindStack(*pHost, *pItem, moved, count);
+            if (!pReal)
+            {
+                // A quest object's real stack keeps its alias's name, not the mirror's tag.
+                Inventory::Entry quest = moved;
+                quest.ExtraName.clear();
+                count = std::abs(acRequest.Item.Count);
+                pReal = FindStack(*pHost, *pItem, quest, count);
+                if (pReal && !pReal->HasQuestObjectAlias())
+                    pReal = nullptr;
+            }
+            moved.Count = 0;
+            if (pReal)
             {
                 const int32_t cBefore = pHost->GetContainerCount(pItem).value_or(0);
                 pHost->RemoveItem(pItem, count, ITEM_REMOVE_REASON::kStoreInContainer, pReal, pContainer);
@@ -153,8 +173,8 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
                     RecordItems(pContainer->formID, pItem->formID);
                 else if (moved.Count)
                     World::Get().GetRunner().Trigger(ItemsChangedEvent{pContainer->formID});
-                return moved;
             }
+            return moved;
         }
     // A take only leaves the container: the looter's own game changes its player (one-simulator.md, piece 3). A put
     // moves from the host's copy of the player, its count spent at once against a second put before the player's

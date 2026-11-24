@@ -41,7 +41,7 @@ template <class T> void HostPartyItems::SendChange(T aNotify, int32_t aChange, C
     m_players.SendToOthers(aNotify, aShownThere);
 }
 
-bool HostPartyItems::Change(const RequestInventoryChanges& acFound, ConnectionId_t aSender) noexcept
+bool HostPartyItems::Change(const RequestInventoryChanges& acFound, ConnectionId_t aSender, bool aInFinderPack) noexcept
 {
     // A guest's plain arrival: the party's when the rule says so (its finder renames its own, Converted below).
     RequestInventoryChanges acRequest = acFound;
@@ -58,14 +58,22 @@ bool HostPartyItems::Change(const RequestInventoryChanges& acFound, ConnectionId
         {
             acRequest.Item.ExtraName = PartyItems::Tagged(acFound.Item.ExtraName, m_game.ItemName(acFound.Item.BaseId));
             acRequest.Item.ExtraWorn = acRequest.Item.ExtraWornLeft = false;
-            converted = acFound.Item.Count;
+            converted = aInFinderPack ? acFound.Item.Count : 0;
         }
     }
     const bool cGold = acRequest.Item.BaseId == Payloads::PartyGold::kGold;
     if ((!cGold && (!PartyItems::IsParty(acRequest.Item) || !m_game.ReadPartyItem)) || !m_characters.IsPlayerCharacter(acRequest.SessionId))
         return false;
-    // A guest changes only its own player's; the host's scripts any player's (rule 2: a guest's copy).
+    // The refused drop's item coming back to its dropper (HostItems::Make): nothing changed.
     const ConnectionId_t cHost = m_players.Host();
+    if (const auto it = m_refused.find({aSender, acRequest.Item.BaseId.LogFormat()});
+        it != m_refused.end() && aSender != cHost && acRequest.Item.Count > 0 && !acRequest.Drop)
+    {
+        if ((it->second -= acRequest.Item.Count) <= 0)
+            m_refused.erase(it);
+        return true;
+    }
+    // A guest changes only its own player's; the host's scripts any player's (rule 2: a guest's copy).
     const ConnectionId_t cChanger = m_characters.OwnerOf(acRequest.SessionId);
     if (aSender != cHost && cChanger != aSender)
         return true;
@@ -95,7 +103,13 @@ bool HostPartyItems::Change(const RequestInventoryChanges& acFound, ConnectionId
             dropped = m_game.DropPartyItem(acRequest.Item, acRequest.SessionId);
         if (dropped)
             m_dropped[{aSender, acRequest.Item.BaseId.LogFormat()}] = *dropped;
-        else
+        if (dropped && *dropped == GameId{})
+        {
+            // Refused: the dropper gets its drop back (HostItems::Make), the party's count unchanged.
+            m_refused[{aSender, acRequest.Item.BaseId.LogFormat()}] -= acRequest.Item.Count;
+            return true;
+        }
+        if (!dropped)
             m_game.AddPartyItem(acRequest.Item);
     }
     NotifyPartyItem notify;

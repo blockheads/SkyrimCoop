@@ -1587,6 +1587,7 @@ static void ReportAdd(const Actor& acActor, const TESBoundObject& acItem, ExtraD
         TESObjectREFR::GetItemFromExtraData(item, apExtraData);
     InventoryChangeEvent event(acActor.formID, std::move(item));
     event.StoryGiven = GuestScripts::StoryGiving();
+    event.AliasHeld = apExtraData && apExtraData->Contains(ExtraDataType::AliasInstanceArray);
     World::Get().GetRunner().Trigger(std::move(event));
 }
 

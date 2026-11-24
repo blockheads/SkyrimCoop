@@ -24,8 +24,9 @@ struct TESBoundObject;
 // Makes the container hold aCount of the item, acStacks of them with their extra data (the rest plain), raising
 // nothing; false for no container.
 bool SetContainerStacks(TESObjectREFR& aObject, TESBoundObject& aItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept;
-// Names the carried stack a quest alias holds (not a quest object's) in place, its alias kept; false: none.
-bool TagAliasStack(TESObjectREFR& aHolder, TESBoundObject& aItem, const char* acpName) noexcept;
+// Names up to aCount of the item where they are (an alias's list, else a worn or favorite one, never a quest object's or
+// a named one), keeping their marks; how many it named.
+int32_t TagStackInPlace(TESObjectREFR& aHolder, TESBoundObject& aItem, const char* acpName, int32_t aCount) noexcept;
 // An actor carries aCount of the item, acStacks of them with their extra data (worn flags and charge aside): only the
 // stacks that differ removed (by their own lists) or added, then the plain count; raising nothing.
 bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept;

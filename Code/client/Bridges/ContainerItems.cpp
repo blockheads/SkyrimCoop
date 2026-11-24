@@ -197,16 +197,24 @@ bool ApplyContainerItems(TESObjectREFR& aObject, const ObjectChange& acChange) n
     return true;
 }
 
-bool TagAliasStack(TESObjectREFR& aHolder, TESBoundObject& aItem, const char* acpName) noexcept
+int32_t TagStackInPlace(TESObjectREFR& aHolder, TESBoundObject& aItem, const char* acpName, int32_t aCount) noexcept
 {
-    if (auto* pEntry = FindEntry(aHolder, aItem); pEntry && pEntry->dataList)
+    auto* pEntry = FindEntry(aHolder, aItem);
+    if (!pEntry || !pEntry->dataList)
+        return 0;
+    // An alias's list first, then one that reads plain to us (worn, a favorite): never one already named.
+    for (const bool cAliasPass : {true, false})
         for (ExtraDataList* pList : *pEntry->dataList)
-            if (pList && pList->Contains(ExtraDataType::AliasInstanceArray) && !pList->HasQuestObjectAlias())
-            {
-                pList->SetCustomName(acpName);
-                return true;
-            }
-    return false;
+        {
+            if (!pList || pList->HasQuestObjectAlias() || pList->Contains(ExtraDataType::AliasInstanceArray) != cAliasPass ||
+                (!cAliasPass && ReadStack(aItem, pList)))
+                continue;
+            const auto* pCount = static_cast<const ExtraCount*>(pList->GetByType(ExtraDataType::Count));
+            const int32_t cInList = pCount && pCount->count > 0 ? pCount->count : 1;
+            if (cInList <= aCount && pList->SetCustomName(acpName))
+                return cInList;
+        }
+    return 0;
 }
 
 bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept

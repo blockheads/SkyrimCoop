@@ -2,6 +2,7 @@
 #include <Events/ActorRenamedEvent.h>
 #include <Events/GameLoadedEvent.h>
 #include <Services/HostService.h>
+#include <Games/PartyItems.h>
 #include <Services/Host/HostAggro.h>
 #include <Services/Host/HostTakeBacks.h>
 #include <Bridges/IBodyBridge.h>
@@ -304,6 +305,7 @@ void HostService::MakeAuthority() noexcept
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
+    m_world.ctx().at<InventoryService>().SetArrivalDecider(&PartyItems::ArrivesAsParty);
     m_pConversation = std::make_unique<HostConversation>(m_world, m_dispatcher, m_world.ctx().at<DialogueService>());
 
     InstallFrontDoor();
@@ -323,6 +325,7 @@ void HostService::StopHosting() noexcept
         m_world.GetTransport().Close();
     m_pConversation.reset();
     m_pNetwork.reset();
+    m_world.ctx().at<InventoryService>().SetArrivalDecider({});
     m_pAuthority.reset();
     m_pEngine.reset();
     m_world.ctx().at<CreatedIds>().SetHosting(false);

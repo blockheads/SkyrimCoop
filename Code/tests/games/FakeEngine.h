@@ -462,7 +462,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // copy's cell; none for a quest object or another cell.
     std::optional<GameId> DropsPartyItem(const Inventory::Entry& acItem, uint32_t aCopy);
     // 16059 with a target: the stack moves whole, its alias with it; the add's events on the target.
-    void MovesStack(uint32_t aFrom, uint32_t aTo, uint32_t aItem, int32_t aCount);
+    void MovesStack(uint32_t aFrom, uint32_t aTo, uint32_t aItem, int32_t aCount, bool aSteal = false);
     // The actor's entries of that item, extra data and all.
     [[nodiscard]] std::vector<Inventory::Entry> EntriesOf(uint32_t aActor, uint32_t aItem) const;
 
@@ -2047,7 +2047,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Every item the actor carries (server ids) and how many.
     [[nodiscard]] std::map<std::pair<uint32_t, uint32_t>, int32_t> Carried(uint32_t aActor) const;
     // TESObjectREFR::AddOrRemoveItem: another game's change (InventoryService, under ScopedInventoryOverride).
-    bool TagAliasStack(uint32_t aObjectFormId, uint32_t aItemFormId, const std::string& acName) noexcept override;
+    int32_t TagStackInPlace(uint32_t aObjectFormId, uint32_t aItemFormId, const std::string& acName, int32_t aCount) noexcept override;
     void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override;
     void AddOrRemoveStack(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept;
     void SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept override;

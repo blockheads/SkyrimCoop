@@ -263,10 +263,16 @@ void HostService::MakeAuthority() noexcept
         if (!cTake && moved.Count && PartyItems::IsParty(moved) && !acRequest.ContainerActorId)
         {
             auto& entries = engine.Actors.at(FakeEngine::kPlayer).Items.Entries;
-            if (const auto it = std::ranges::find_if(entries, [&](const auto& acEntry) {
-                    return acEntry.BaseId == moved.BaseId && !acEntry.IsQuestItem && acEntry.ExtraName == moved.ExtraName && acEntry.Count > 0;
-                });
-                it != entries.end())
+            auto it = std::ranges::find_if(entries, [&](const auto& acEntry) {
+                return acEntry.BaseId == moved.BaseId && !acEntry.IsQuestItem && acEntry.ExtraName == moved.ExtraName && acEntry.Count > 0;
+            });
+            if (it == entries.end()) // a quest object's real stack keeps its alias's name
+                it = std::ranges::find_if(entries, [&](const auto& acEntry) { return acEntry.BaseId == moved.BaseId && acEntry.IsQuestItem && acEntry.Count > 0; });
+            if (it == entries.end())
+            {
+                moved.Count = 0;
+                return moved;
+            }
             {
                 ScopedInventoryOverride _;
                 const int32_t cCount = std::min(-moved.Count, it->Count);
@@ -296,7 +302,7 @@ void HostService::MakeAuthority() noexcept
         if (cTake && moved.Count && engine.AliasStacks.contains({cContainer, cItem}))
         {
             moved.IsQuestItem = true;
-            engine.MovesStack(cContainer, FakeEngine::kPlayer, cItem, moved.Count);
+            engine.MovesStack(cContainer, FakeEngine::kPlayer, cItem, moved.Count, acRequest.Steal);
             aliasMoved = true;
         }
         // As HostEngine::TransferContainer: a take changes only the container, the player's own game its player; a put
@@ -447,6 +453,7 @@ void HostService::MakeAuthority() noexcept
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(engine);
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
+    m_world.ctx().at<InventoryService>().SetArrivalDecider(&PartyItems::ArrivesAsParty);
     m_pConversation = std::make_unique<HostConversation>(m_world, m_dispatcher, m_world.ctx().at<DialogueService>());
     InstallFrontDoor();
 }
@@ -466,6 +473,7 @@ void HostService::StopHosting() noexcept
     m_world.ctx().at<CreatedIds>().SetHosting(false);
     m_pConversation.reset();
     m_pNetwork.reset();
+    m_world.ctx().at<InventoryService>().SetArrivalDecider({});
     m_pAuthority.reset();
     m_pSaves.reset();
 }

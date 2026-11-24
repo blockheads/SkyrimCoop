@@ -279,6 +279,29 @@ def scenario_alias_item_guest_drops(ctx):
         alias_cleanup(ctx, item, lying)
 
 
+def scenario_arvels_journal_guest_loots(ctx):
+    """The guest loots Arvel's body: his journal (MS13's ArvelsJournal alias, not a quest object) is the party's, every
+    player carrying "[P] Arvel's Journal" and the host's player the real one, alias and all (review of PR #118)."""
+    ctx.needs_save("LateOutsideHelgen")
+    journal = 0x39654
+    try:
+        ctx.console_on("", f"setstage {CLAW_QUEST:X} 30")
+        ctx.stage({"npcs": [{"name": "arvel", "ref": 0x39655, "frozen": False}],
+                   "players": {"host": {"near": "arvel", "gap": 150}, "guest": {"near": "arvel", "gap": 150, "bearing": 90}}})
+        ctx.console_on("", "39655.setghost 0")  # MS13's web package ghosts him (PF_MS13ArvelWebForcegreetPack)
+        ctx.kill("arvel")
+        ctx.take("client", "arvel")
+        ctx.wait_for("every player carries one [P] Arvel's Journal", lambda: set(
+            sum(st["count"] for st in ctx.item_stacks(game, holder) if st["item"] == journal and st["name"] == "[P] Arvel's Journal")
+            for game in ("", "client") for holder in (0x14, ctx.player_copy(game))) == {1}, 10)
+        ctx.expect_stack_extra("", 0x14, journal, ALIAS_EXTRA)
+    finally:
+        ctx.unstage()
+        for game in ("", "client"):
+            if (held := ctx.item_count(game, 0x14, journal) or 0) > 0:
+                ctx.console_on(game, f"player.removeitem {journal:X} {held}")
+
+
 def scenario_alias_key_taken(ctx, taker):
     """A key a quest alias holds, taken from a chest: every player carries [P], the host's player's with the alias."""
     chest, lying = SMALL_CHEST, {game: set(loose_keys(ctx, game)) for game in ("", "client")}

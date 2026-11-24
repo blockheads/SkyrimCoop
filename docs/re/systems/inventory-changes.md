@@ -246,28 +246,29 @@ quest objects), MQ103's Dragonstone in the barrow's boss among them.
 ```text
 an inventory item's VM handle = (uid << 32) | container FormID | 1<<48     SkyrimVM__InventoryItemHandle 0x1409BA460
 RemoveItem 16059 with a target (apMoveToRef)
-  -> InventoryChanges__AddListFrom 0x14022C310: the list moves whole (alias with it)
-     SetUniqueID 16147: a uid in the new container -> TESUniqueIDChangeEvent
-       VM sink 54003: remaps the old handle (uid, Arvel) to (uid', player)
-     SendContainerChangedEvent 16149 {old, new = target, item, count, ref, uid'}
-       VM sink 53966: OnContainerChanged to the handle (uid', new) and the reference's -> the alias's script
+  -> InventoryChanges__AddListFrom 16053 (0x14022C310, read): the list moves whole (alias with it)
+     a list holding a unique id (extra 0x9F) gets one in the new container (SetUniqueID 16147 ->
+       TESUniqueIDChangeEvent; VM sink 54003 remaps the handle); a list without one keeps none
+     SendContainerChangedEvent 16149 {old, new = target, item, count, ref, uid}
+       VM sink 53966: OnContainerChanged to the item's reference (event +0x10) and to its uid's handle -> the alias's script
 RemoveItem 16059 with no target
-  -> InventoryChanges__SendRemovedToNowhereEvents 0x1402310F0
+  -> InventoryChanges__SendRemovedToNowhereEvents 16065 (0x1402310F0, read)
      TESContainerChangedEvent {old, new = 0, ref, uid = 0}: the script hears new = None
-     the list's uid cleared -> TESUniqueIDChangeEvent {.., 0, 0}: sink 54003 unbinds the item's scripts
+     only if the list holds a uid: it is cleared -> TESUniqueIDChangeEvent {.., 0, 0}: sink 54003 unbinds that handle
      the list (and its alias instance) is freed
 ```
 
 So `HostEngine::TransferContainer` (no target since 2026-11-19, above) ended an alias-held item's quest role when a
-guest took it: its script heard no player and was unbound, and the guest kept a plain claw as its own loot. Measured
-2026-11-23 (`golden-claw-guest`, from `LateOutsideHelgen`): "a list found", MS13 stayed at 30 on both games. The
-host's own take moves the list to its player (the target path) and runs as vanilla.
+guest took it: its script heard the claw leave for no container (the event's new container is 0), and the guest kept a
+plain claw as its own loot. The claw's list holds no unique id (measured), so 54003's unbinding is not shown for it: only
+the empty destination is. Measured 2026-11-23 (`golden-claw-guest`, from `LateOutsideHelgen`): "a list found", MS13
+stayed at 30 on both games. The host's own take moves the list to its player (the target path) and runs as vanilla.
 
 The fix (`HostEngine::MoveAliasStack`): a guest's take of a stack whose list holds `ExtraAliasInstanceArray` (0x88)
-gives 16059 a target. A quest object (`HasQuestObjectAlias`, 12052) goes to the host's player, where the party holds
-it (`party-items.md`); its arrival there is the party's. Any other alias item goes to the taker's copy, its own; on the
-host the copy compares as the player (`papyrus-guest-scripts.md`, rule 1). Measured: MS13 reached 40 on both games,
-the claw moved to `14`, Arvel's journal to the guest's copy. Arvel's web package ghosts him
+gives 16059 a target, the host's player, where the party holds it (`shared-items.md`). Measured: MS13 reached 40 on
+both games, the claw moved to `14`. An intermediate version sent a non-quest-object alias item (Arvel's journal) to the
+taker's copy instead; the journal's rows and the copy measurements of that day are from it, and the shared-items plan
+replaced it. Arvel's web package ghosts him
 (`PF_MS13ArvelWebForcegreetPack` `setGhost()`): the scenario clears it before the kill. A kill move was not tried.
 
 ## What the story hears and counts of a player's items (2026-11-23, IDA 1.7.104, read)
@@ -303,7 +304,7 @@ does that on the copy, and `FF000D81` itself lies in the world again (our creati
 sent create, delete, create). A later pickup goes into the taker's copy (`TakeAliasItem`,
 `Actor::PickUpObject` 37521), its list 136 and 28 again.
 
-A drop's place (read): with no reference to bring back, `InventoryChanges__PlaceDropped` `0x140230E10` makes one at
+A drop's place (read): with no reference to bring back, `InventoryChanges__PlaceDropped` 16062 `0x140230E10` makes one at
 the position given, always in the dropper's parent cell and worldspace.
 
 A script's removal: papyrus RemoveItem 56218 queues `RemoveItemFunctor`, run at `0x140A418E0` (vtable slot 1; 56095

@@ -1,5 +1,6 @@
 #include "Party.h"
 #include "Fixtures.h"
+#include <Games/Overrides.h>
 #include <Services/ContainerTransfers.h>
 #include <Services/CopyRecords.h>
 #include <SessionIds.h>
@@ -485,6 +486,10 @@ SCENARIO("A guest pickpockets an alias's item: the party's, its alias on the hos
     ArvelHasJournal(body);
     body.party.As(body.party.Guest(), [&] { body.guest.Pickpockets(body.guest.CopiesOf(kArvel)[0], kArvelsJournal, false); });
     ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    THEN("the real one is Arvel's: stolen")
+    {
+        CHECK(body.host.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0).ExtraOwner == GameId(0, kArvel));
+    }
 }
 
 SCENARIO("A guest drops a party item an alias holds and picks it up again: the host's real one, alias and all", "[container-transfer][party-items][drops]")
@@ -547,4 +552,94 @@ SCENARIO("A guest stores a party item an alias holds in a chest and takes it bac
     });
     ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
     CHECK(body.host.ContainerCountOf(kChest, kArvelsJournal) == 0);
+}
+
+SCENARIO("A guest's store of a party item the host's player no longer holds stores nothing", "[container-transfer][party-items]")
+{
+    // The review of PR #118: the put fell through to the guest's copy's mirror, putting a copy of the party's item away.
+    ArvelsBody body;
+    ArvelHasJournal(body);
+    GuestTakesJournal(body);
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    // Another player stored the last real one first: the host's player holds none, the guest's count not yet told.
+    body.party.As(body.party.Host(), [&] {
+        ScopedInventoryOverride _;
+        Inventory::Entry real = body.host.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0);
+        real.Count = -1;
+        body.host.GetsItem(FakeEngine::kPlayer, real);
+    });
+    body.party.As(body.party.Guest(), [&] {
+        const auto cJournal = body.guest.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0);
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), FakeEngine::kPlayer, kChest, cJournal));
+    });
+    const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+    body.party.Until([&] { return std::chrono::steady_clock::now() > cUntil; }, "the store is handled");
+    CHECK(body.host.ContainerCountOf(kChest, kArvelsJournal) == 0);
+    CHECK(body.guest.ContainerCountOf(kChest, kArvelsJournal) == 0);
+}
+
+SCENARIO("A guest stores a quest object it carries as the party's: the host's real one goes in, alias and all", "[container-transfer][party-items]")
+{
+    ArvelsBody body;
+    body.party.As(body.party.Guest(), [&] {
+        const auto cClaw = body.guest.EntriesOf(body.guest.CopiesOf(kArvel)[0], kClaw).at(0);
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), body.guest.CopiesOf(kArvel)[0], FakeEngine::kPlayer, cClaw));
+    });
+    body.Until(40, "MS13 reaches 40 and every player carries the claw");
+    body.party.As(body.party.Guest(), [&] {
+        const auto cClaw = body.guest.EntriesOf(FakeEngine::kPlayer, kClaw).at(0);
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), FakeEngine::kPlayer, kChest, cClaw));
+    });
+    body.party.Until([&] { return body.host.ContainerCountOf(kChest, kClaw) == 1 && body.host.CountOf(FakeEngine::kPlayer, kClaw) == 0; },
+                     "the host's claw is in the chest");
+    CHECK(body.host.AliasStacks.contains({kChest, kClaw}));
+}
+
+SCENARIO("A guest takes a key from a chest while carrying its own: it keeps its own and gets the party's", "[container-transfer][party-items]")
+{
+    // The review of PR #118: the host told the taker to rename a key it never got, renaming the one it owned instead.
+    static constexpr uint32_t kKey = 0x00093B08; // Key to Breezehome
+    Party party(1, [](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        aEngine.References[kChest].Items[kKey] = 1;
+        aEngine.FormNames[kKey] = "Key to Breezehome";
+        aEngine.ItemForms[kKey].Type = 45; // KEYM
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopies(host).size() == 1 && guest.ContainerCountOf(kChest, kKey) == 1; }, "the guest sees the chest's key");
+    party.As(party.Guest(), [&] {
+        ScopedInventoryOverride _;
+        guest.GetsItem(FakeEngine::kPlayer, kKey, 1); // its own, from its save
+        Inventory::Entry key;
+        key.BaseId = GameId(0, kKey);
+        key.Count = 1;
+        REQUIRE(ContainerTransfers::Propose(party.Guest(), kChest, FakeEngine::kPlayer, key));
+    });
+    const auto cOf = [&](bool aTagged) {
+        int32_t count = 0;
+        for (const auto& cEntry : guest.EntriesOf(FakeEngine::kPlayer, kKey))
+            count += (cEntry.ExtraName == "[P] Key to Breezehome") == aTagged ? cEntry.Count : 0;
+        return count;
+    };
+    party.Until([&] { return cOf(true) == 1 && cOf(false) == 1; }, "the guest carries its own key and the party's",
+                [&] { return std::format("own {}, party's {}", cOf(false), cOf(true)); });
+}
+
+SCENARIO("A guest drops a party item an alias holds where the host's player cannot: refused, the real one kept", "[container-transfer][party-items][drops]")
+{
+    // The review of PR #118: in another interior the real journal went to nowhere and a new one was made.
+    ArvelsBody body;
+    ArvelHasJournal(body);
+    GuestTakesJournal(body);
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    body.party.As(body.party.Host(), [&] { body.host.Actors.at(FakeEngine::kPlayer).Cell = 0x0001A26F; }); // another interior
+    body.party.As(body.party.Guest(), [&] { body.guest.DropsInWorld(body.guest.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0)); });
+    body.party.Until([&] { return body.guest.Loose.empty() && body.guest.CountOf(FakeEngine::kPlayer, kArvelsJournal) == 1; },
+                     "the guest has its drop back", [&] {
+                         return std::format("guest {} loose {}, host loose {}", body.guest.CountOf(FakeEngine::kPlayer, kArvelsJournal),
+                                            body.guest.Loose.size(), body.host.Loose.size());
+                     });
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    CHECK(body.host.Loose.empty());
 }

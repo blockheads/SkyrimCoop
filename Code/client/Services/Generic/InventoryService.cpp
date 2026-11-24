@@ -13,7 +13,6 @@
 #include <Events/EquipmentChangeEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/ItemsChangedEvent.h>
-#include <Services/HostService.h>
 #include <Events/ReferenceLoadedEvent.h>
 #include <Events/WornResetEvent.h>
 #include <Services/CopyRecords.h>
@@ -143,8 +142,8 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
     const bool cArrival = !acEvent.Drop && acEvent.Item.Count > 0 && !acEvent.Item.ExtraName.starts_with(PartyItems::cTag);
     request.StoryGiven = acEvent.StoryGiven;
     request.AliasHeld = acEvent.AliasHeld;
-    if (cArrival && m_world.GetHostService().IsHosting() &&
-        PartyItems::ArrivesAsParty(cItemId, m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven, acEvent.AliasHeld))
+    if (cArrival && m_decidesArrival &&
+        m_decidesArrival(cItemId, m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven, acEvent.AliasHeld))
     {
         request.NewPartyItem = true;
         if (!acEvent.Item.IsQuestItem)
@@ -440,16 +439,16 @@ void InventoryService::OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexc
 // never taken back (a stack a quest alias holds keeps its list; a plain one is replaced at once, silently).
 void InventoryService::RenameAsParty(uint32_t aHolder, const Inventory::Entry& acFound, const std::string& acTagged) const noexcept
 {
-    const uint32_t cItemId = ToGame(acFound.BaseId);
-    if (m_formBridge.TagAliasStack(aHolder, cItemId, acTagged))
+    const int32_t cRest = acFound.Count - m_formBridge.TagStackInPlace(aHolder, ToGame(acFound.BaseId), acTagged, acFound.Count);
+    if (cRest <= 0)
         return;
     ScopedInventoryOverride _;
     Inventory::Entry plain = acFound;
     plain.ExtraWorn = plain.ExtraWornLeft = plain.IsQuestItem = false;
-    plain.Count = -acFound.Count;
+    plain.Count = -cRest;
     m_formBridge.ObjectAddOrRemoveItem(aHolder, plain);
     Inventory::Entry tagged = plain;
-    tagged.Count = acFound.Count;
+    tagged.Count = cRest;
     tagged.ExtraName = acTagged;
     m_formBridge.ObjectAddOrRemoveItem(aHolder, tagged);
 }
