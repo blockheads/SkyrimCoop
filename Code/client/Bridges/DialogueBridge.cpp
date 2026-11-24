@@ -735,10 +735,15 @@ bool DialogueBridge::ShowPicked(const std::string& acText) noexcept
     visible.value.boolean = true;
     if (cDisplay == DialogueMenuPolicy::PickedDisplay::FromGreeting)
     {
-        // As ShowDialogueList with its copy visible, in TOPIC_CLICKED: Tab then closes it (StartHideMenu).
+        // As ShowDialogueList with its copy visible, then a click's frame (its rows hidden, the pick shown), in
+        // TOPIC_CLICKED: Tab then closes it (StartHideMenu).
         pMovie->SetVariable("_root.DialogueMenu_mc.eMenuState", Number(DialogueMenuPolicy::kTopicClicked), 0);
         pMovie->SetVariable("_root.DialogueMenu_mc.TopicListHolder._visible", visible, 0);
         pMovie->SetVariable("_root.DialogueMenu_mc.TopicListHolder.PanelCopy_mc._visible", visible, 0);
+        argument.value.string = "topicClicked";
+        pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.gotoAndPlay", nullptr, &argument, 1);
+        // Its list was never filled: drawn empty, its rows lose their authored "Topic" text.
+        pMovie->Invoke("_root.DialogueMenu_mc.TopicList.InvalidateData", nullptr, nullptr, 0);
     }
     // TOPIC_CLICKED may already display a losing local choice; replace it with the host's accepted text.
     pMovie->SetVariable("_root.DialogueMenu_mc.TopicListHolder.TextCopy_mc._visible", visible, 0);

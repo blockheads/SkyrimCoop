@@ -58,6 +58,8 @@ and talking again at once got its new menu's greeting replay, which replayed the
 no greeting during his line). Only the greeting's line is replayed now (`VoiceFiles::IsLineOf`); 2 of 2 pass. A join while the host's dialogue menu is open now waits for the host's save (up to
 180 s), told why (`NotifySaveWaiting`), instead of failing after 30 s. The walker checks every voiced line reaches each
 copy once; the soak gained Lucan's claw conversation under stress (`dialogue-lucan-claw-under-stress`, MS13 agreeing).
+A guest rejoining mid-answer
+now also sees the pick and the answer's text, not the SWF's placeholder rows and its greeting (checked by screenshot).
 GameTests flows, ClientTests and HostAuthorityTests for each.
 
 2026-11-24: **a dialogue walker found two ways a conversation outlived everyone in it** (`agent/rejoin-dialogue-layers`;

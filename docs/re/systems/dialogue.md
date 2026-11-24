@@ -391,8 +391,13 @@ only calls `SkipText` in `SHOW_GREETING` (eMenuState 0) and closes the menu (`St
   to the host, so it skipped the NPC's line for everyone. `DialogueBridge::ShowPicked` now takes a menu in
   `SHOW_GREETING` to `TOPIC_CLICKED` with the pick shown (`DialogueMenuPolicy::PickedDisplay::FromGreeting`: the list
   holder and its copy visible, as `ShowDialogueList` with its copy), the state every other menu is in while the NPC
-  answers; Tab then closes it and the next list shows as after a pick. GameTests "A guest that talks again while the
-  NPC answers leaves with Tab..." (the fake's menu has the greeting state, `FakeDialogue::MenuState`).
+  answers; Tab then closes it and the next list shows as after a pick. It also plays the holder's `topicClicked` frame
+  and draws the never-filled list empty (`TopicList.InvalidateData`): without them the menu showed the SWF's
+  placeholder rows ("Topic", "Selected Topic") over the pick (duo screenshot). Its subtitle was its own engine's
+  greeting text: the menu now shows the answer's last relayed subtitle on the copy (`GuestDialogue::OnUpdate`, no
+  voice). Checked by screenshot on the duo: the rejoined menu matches a menu that stayed (the pick, the answer's text).
+  GameTests "A guest that talks again while the NPC answers leaves with Tab..." (the fake's menu has the greeting
+  state, `FakeDialogue::MenuState`; the fake records subtitles).
 - **A guest's own ask replayed the NPC's answer** (the playtest's layered voices, reproduced on the duo): the opening
   menu silences the copy, so a menu the guest's own ask opened says the host's greeting again (`ReplayGreeting`, the
   last relayed line within 3 s). A guest alone in the conversation that leaves mid-answer ends it, the NPC finishes his
@@ -403,8 +408,8 @@ only calls `SkipText` in `SHOW_GREETING` (eMenuState 0) and closes the menu (`St
   again"); with the fix 2 of 2 pass. The walker found the same through another start (seed 1: the host's player clicked
   before its game knew the conversation). Only a line of the greeting info the host names is replayed
   now: a voice file's name carries its info (`VoiceFiles::IsLineOf`: the Creation Kit's
-  `<quest>_<topic>_<info, plugin index 00>_<response>`, Andurs's greeting `..._000D79A5_1.wav`); the subtitle by its
-  info.
+  `<quest>_<topic>_<info, plugin index 00>_<response>`, Andurs's greeting `..._000D79A5_1.wav`); its subtitle goes
+  with it (`SubtitleEvent::TopicFormID` is Fallout 4's, 0 in Skyrim).
 
 ## The speaker dies or fights (1.7.104, 2026-11-24)
 

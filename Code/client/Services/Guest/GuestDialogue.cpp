@@ -125,6 +125,11 @@ void GuestDialogue::OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept
         m_dialogue.CloseMenu();
     else if (aMenuOpen && !m_menuOpen && m_dialogue.Conversation() && m_replayGreeting)
         ReplayGreeting();
+    // Joined while the NPC answers: its menu shows the answer's line, not its own engine's greeting text.
+    else if (aMenuOpen && !m_menuOpen && m_dialogue.Conversation() && m_dialogue.Step() > 1 && !m_dialogue.PartyList() &&
+             m_lastSubtitle.SessionId == m_dialogue.NpcSessionId())
+        if (const uint32_t cCopy = Utils::GetFormIdBySessionId(m_dialogue.NpcSessionId()))
+            m_world.GetActorBridge().ActorShowSubtitle(cCopy, m_lastSubtitle.Text, m_lastSubtitle.TopicInfo, false);
     if (aMenuOpen)
         m_replayGreeting = false;
     m_menuOpen = aMenuOpen;
@@ -150,12 +155,11 @@ void GuestDialogue::ReplayGreeting() noexcept
         return;
     auto& actors = m_world.GetActorBridge();
     // Only the greeting's line: an answer said before the menu opened (a pick, or the host's own click) is the copy's
-    // still, and a replay would layer it.
-    if (m_lastLine.SessionId == cNpc && cNow - m_lastLine.At < cRecent && VoiceFiles::IsLineOf(m_lastLine.Text, m_greeting))
-    {
-        spdlog::info("Dialogue: the menu opens: the NPC's last line again on copy {:X}", cCopy);
-        actors.ActorSpeakSound(cCopy, m_lastLine.Text);
-    }
-    if (m_lastSubtitle.SessionId == cNpc && cNow - m_lastSubtitle.At < cRecent && m_lastSubtitle.TopicInfo == m_greeting)
+    // still, and a replay would layer it. Its subtitle goes with it (a subtitle names no info in Skyrim).
+    if (m_lastLine.SessionId != cNpc || cNow - m_lastLine.At >= cRecent || !VoiceFiles::IsLineOf(m_lastLine.Text, m_greeting))
+        return;
+    spdlog::info("Dialogue: the menu opens: the NPC's last line again on copy {:X}", cCopy);
+    actors.ActorSpeakSound(cCopy, m_lastLine.Text);
+    if (m_lastSubtitle.SessionId == cNpc && cNow - m_lastSubtitle.At < cRecent)
         actors.ActorShowSubtitle(cCopy, m_lastSubtitle.Text, m_lastSubtitle.TopicInfo, false);
 }

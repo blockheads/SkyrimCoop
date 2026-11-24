@@ -1570,6 +1570,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
             ++SpokeWithout3D;
         Lines.emplace_back(aFormId, acFilename);
     }
+    // Subtitles shown over actors (SubtitleManager::ShowSubtitle; an open dialogue menu shows its speaker's).
+    std::vector<std::pair<uint32_t, std::string>> Subtitles;
+    void ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t, bool) noexcept override
+    {
+        Subtitles.emplace_back(aFormId, acText);
+    }
     // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
     void Fights(uint32_t aActor, uint32_t aTarget);
     // Actor::StartCombat (38561) as an attack runs it on its victim (AIProcess::StartAssault): the victim takes a combat

@@ -5,6 +5,7 @@
 #include "Fixtures.h"
 #include <Services/DialogueService.h>
 #include <Events/DialogueEvent.h>
+#include <Events/SubtitleEvent.h>
 #include <Services/Guest/VoiceFiles.h>
 
 #include <chrono>
@@ -426,6 +427,10 @@ SCENARIO("A guest that talks again while the NPC answers leaves with Tab, skippi
     auto& hostTalk = Talk(party.Host());
     auto& guestTalk = Talk(party.Guest());
     hostTalk.LinesTakeTime = true;
+    // The host's engine subtitles each line it says (SubtitleManager::ShowSubtitle, our hook's SubtitleEvent).
+    hostTalk.OnSaid = [&](const IDialogueBridge::Option& acSaid) {
+        party.Host().GetDispatcher().trigger(SubtitleEvent(hostTalk.Speaker, "Answer to " + acSaid.Text, false));
+    };
     uint32_t npc = 0;
     party.As(party.Host(), [&] { npc = Party::Engine(party.Host()).LoadNpc(kNpc, kCell); });
     party.Until([&] { return !Party::Engine(party.Guest()).CopiesOf(kNpc).empty(); }, "the guest has the NPC");
@@ -443,6 +448,11 @@ SCENARIO("A guest that talks again while the NPC answers leaves with Tab, skippi
     Settle(party);
     REQUIRE(guestTalk.MenuOpen);
     THEN("its menu shows the pick, as the others while the NPC answers") CHECK(guestTalk.MenuState() == 2);
+    THEN("and the answer's line, not its own engine's greeting text")
+    {
+        const auto& cSubtitles = Party::Engine(party.Guest()).Subtitles;
+        CHECK(std::ranges::count(cSubtitles, std::pair{cCopy, std::string("Answer to More")}) == 2); // relayed, then on rejoining
+    }
     party.As(party.Guest(), [&] { guestTalk.PlayerLeaves(); });
     Settle(party);
     THEN("Tab closes it, and the NPC's line goes on")
