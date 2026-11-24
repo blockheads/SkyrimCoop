@@ -839,10 +839,12 @@ bool MoveActorHome(uint32_t aFormId) noexcept
     return (s_moveToMyEditorLocation.Get())(pActor, nullptr, false);
 }
 
-bool IsActorDead(uint32_t aFormId) noexcept
+FrozenActors::Life ActorLife(uint32_t aFormId) noexcept
 {
     const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    return pActor && pActor->IsDead();
+    if (!pActor || pActor->IsDeleted())
+        return FrozenActors::Life::kGone;
+    return pActor->IsDead() ? FrozenActors::Life::kDead : FrozenActors::Life::kAlive;
 }
 
 bool CopyHoldsDoNothing(uint32_t aFormId) noexcept
@@ -949,16 +951,26 @@ bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept
     return pActor && pActor->SendAnimationEvent(&event);
 }
 
+namespace
+{
+// What freezing changed, to put back on thawing. Freezing again (once the actor has its 3D) adds the
+// controller it did not have yet.
+struct FrozenBefore
+{
+    bool Restrained;
+    std::optional<uint32_t> ControllerFlags;
+};
+std::unordered_map<uint32_t, FrozenBefore> s_frozen;
+} // namespace
+
+void ForgetFrozen(uint32_t aFormId) noexcept
+{
+    s_frozen.erase(aFormId);
+}
+
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
 {
-    // What freezing changed, to put back on thawing. Freezing again (once the actor has its 3D) adds the
-    // controller it did not have yet.
-    struct Before
-    {
-        bool Restrained;
-        std::optional<uint32_t> ControllerFlags;
-    };
-    static std::unordered_map<uint32_t, Before> s_frozen;
+    using Before = FrozenBefore;
     constexpr uint32_t cFrozen = bhkCharacterController::kNotPushable | bhkCharacterController::kNoCharacterCollisions;
     constexpr uint32_t cHits = bhkCharacterController::kRecordHits | bhkCharacterController::kHitDamage;
     using TActorCall = void(Actor*);

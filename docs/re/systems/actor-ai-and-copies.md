@@ -991,10 +991,13 @@ while still frozen: thawed and unloaded, its AI walks it on in jumps of ~300 uni
 
 ### A frozen actor that dies (2026-11-23)
 
-Read in IDA on 1.7.104 (41466 and 37488, comments in the database) and measured on the duo. A killed actor finishes
-dying in its graph: the death clip sends `Ragdoll`, and its life state goes from 1 (dying) to 2. With `kProcessMe` clear
-`ProcessLists::CollectAnimatedHighActors` (41466) lists it for no animation job, so a frozen actor killed by the console
-sent `DeathAnim` and nothing after: life state 1 for good, its skeleton in the clip's first pose at its reference, and
+Read in IDA on 1.7.104 (41466 and 37488, comments in the database) and measured on the duo. Measured: a killed actor
+that updates sends `AddRagdollToWorld` and, about a second on, `Ragdoll`, and its life state goes from 1 (dying) to 2.
+What writes the 2 for a loaded actor is not read: of `SetLifeState`'s callers, 41311 (a calendar-stamped pass over
+the process lists, health at 0) and 41313 (after a pathing submit) are not that path; `KillImmediate` is not reached by
+the console's kill. With `kProcessMe` clear `ProcessLists::CollectAnimatedHighActors` (41466) lists the actor for no
+animation job, and `ProcessLists::UpdateHighActor` (41369) gives it `UpdateNoAI` instead of `Actor::Update`. A frozen
+actor killed by the console sent `DeathAnim` and nothing after: life state 1 for good, its skeleton in the clip's first pose at its reference, and
 its 18 ragdoll bodies keyframed (motion 4) at a constant velocity, drifting 750 units into a hillside in a minute
 (inferred: the last velocity `driveToPose` 58291 gave them; no graph update changes it). So its body never rested,
 no rest reached the guest, and the guest's copy, which updates, ragdolled and lay where its own physics put it, 129 to

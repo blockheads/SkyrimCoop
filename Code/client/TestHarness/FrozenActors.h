@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <set>
-#include <vector>
 
 namespace TestHarness
 {
@@ -11,6 +10,13 @@ namespace TestHarness
 class FrozenActors
 {
 public:
+    enum class Life
+    {
+        kAlive,
+        kDead, // dying counts
+        kGone, // no such actor any more (deleted, unloaded with its game)
+    };
+
     void Set(uint32_t aFormId, bool aFrozen)
     {
         if (aFrozen)
@@ -20,19 +26,24 @@ public:
     }
     [[nodiscard]] bool Frozen(uint32_t aFormId) const noexcept { return m_frozen.contains(aFormId); }
 
-    // The frozen ones dead now (dying counts), forgotten: the caller thaws them.
-    template <class TDead> [[nodiscard]] std::vector<uint32_t> TakeDead(const TDead& acDead)
+    // Each frame: a dead one is thawed, a gone one forgotten (its saved freeze too), both dropped.
+    template <class TLife, class TThaw, class TForget> void Poll(const TLife& acLife, const TThaw& acThaw, const TForget& acForget)
     {
-        std::vector<uint32_t> dead;
         for (auto it = m_frozen.begin(); it != m_frozen.end();)
-            if (acDead(*it))
+        {
+            const uint32_t cFormId = *it;
+            const Life cLife = acLife(cFormId);
+            if (cLife == Life::kAlive)
             {
-                dead.push_back(*it);
-                it = m_frozen.erase(it);
-            }
-            else
                 ++it;
-        return dead;
+                continue;
+            }
+            it = m_frozen.erase(it);
+            if (cLife == Life::kDead)
+                acThaw(cFormId);
+            else
+                acForget(cFormId);
+        }
     }
 
 private:

@@ -515,9 +515,12 @@ class ReproActions:
                 base = npc["base"] if isinstance(npc["base"], str) else f"{npc['base']:X}"
                 host, _, copy = ctx.spawn_host_npc(base, restrained=npc.get("frozen", True), goal=spot)
                 ctx.staged().append(("npc", host))
+            frozen_handles = ctx.__dict__.setdefault("FROZEN_HANDLES", set())
             if npc.get("frozen", True):
                 ctx.freeze("", host)
-                ctx.__dict__.setdefault("FROZEN_HANDLES", set()).add(npc["name"])
+                frozen_handles.add(npc["name"])
+            else:
+                frozen_handles.discard(npc["name"])
             ctx.name_handle(npc["name"], {"host": host, "guest": copy})
         for item in spec.get("items", []):
             game = "client" if item.get("who") in ("guest", "client") else ""
