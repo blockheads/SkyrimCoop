@@ -49,6 +49,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-24: **a horse to test mounts with: the harness verb `spawn_horse`** (`agent/dev-spawn-horse`;
+[player-mount.md](re/systems/player-mount.md), "A horse to test with"). `verb spawn_horse {instance, owned}` makes the
+host place a saddled horse (109E3D) beside that game's player (its player, or the guest's copy) and names it `horse` in
+both games. With `owned` it is the party's as a stable sale makes it (`PlayerHorseFaction` rank 1, owned by
+`PlayerFaction`). Test builds only: an MCP verb, not a chat command. Unit test in `test_coop_harness.py`. Scenario
+`guest-rides-spawned-horse`: the guest gets on an owned spawned horse with real input, both games show it ridden
+(duo, 2026-11-24).
+
 2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
 [actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after
 `stage` (golden-claw-guest, arvels-journal-guest-loots) lay 83-111 degrees and up to 582 units apart. `stage` freezes

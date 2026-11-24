@@ -14,6 +14,8 @@ from ..common import (
     HOME_CELL,
     HORSE,
     OUTDOOR_CELL,
+    PLAYER_FACTION,
+    PLAYER_HORSE_FACTION,
     RIVER_CELL,
 )
 from ..errors import TestFailure
@@ -43,6 +45,34 @@ class MountsActions:
         _game = ctx.game(instance)
         world = (_game.read_status() or {}).get("world") or {}
         return next((int(k) for k, v in world.items() if v.get("player") and k != "20"), None)
+
+    def spawn_horse(ctx, instance="", owned=False, handle="horse"):
+        """Spawns a tame saddled horse beside that game's player, ready to mount, and names it `handle` in both
+        games; returns the handle. The host places it (an NPC, the host's) at its player or at the guest's copy.
+        owned: the party's, as a stable sale makes it (PlayerHorseFaction rank 1, owned by PlayerFaction)."""
+        at = "player" if instance in ("", "host") else f"{ctx.player_copy('') or 0:08X}"
+        if at == "00000000":
+            raise ctx.failure("[host] the guest's character is not loaded here: no copy to place the horse at")
+        before = set(ctx.local_player("").get("local_actors", {}))
+        ctx.console_on("", f"{at}.placeatme {HORSE} 1")  # PlaceAtMe 22104 -> 22511
+        horse = int(next(iter(ctx.wait_for("[host] the horse spawns",
+                                           lambda: set(ctx.local_player("").get("local_actors", {})) - before, 15))))
+        sid = ctx.wait_for("[host] the horse has a session id",
+                           lambda: (s := ctx.host_npc_state(horse).get("session_id")) is not None and s >= 0 and (s,), 10)[0]
+        copy = ctx.copy_of("client", sid)
+        if owned:  # the stable's TIF__00068CF4: docs/re/systems/player-mount.md
+            ctx.console_on("", f"{horse:08X}.addtofaction {PLAYER_HORSE_FACTION:X} 1")  # 22456
+            ctx.console_on("", f"{horse:08X}.setownership {PLAYER_FACTION:X}")  # 22372
+            # The host's own state only: the guest's copy is what a scenario expects (form change sync).
+            ctx.wait_for(f"[host] the horse {horse:X} is the party's",
+                         lambda: ctx.player_command("", {"cmd": "form", "form": horse}).get("owner") == PLAYER_FACTION
+                         and ctx.faction_rank("", horse, PLAYER_HORSE_FACTION) >= 1, 10)
+        # A placed actor fades in, and nothing activates it until it has (TESNPC::Activate).
+        for game, form in (("", horse), ("client", copy)):
+            ctx.wait_for(f"[{game or 'host'}] the horse has faded in",
+                         lambda game=game, form=form: ctx.actor_state(game, form).get("mod", {}).get("fade_state") == 0, 10)
+        ctx.name_handle(handle, {"host": horse, "guest": copy})
+        return handle
 
 
     def mount_roundtrip(ctx, riding_game="client", cross_border=False, leave=False, follow=False):

@@ -142,6 +142,24 @@ class Harness(unittest.TestCase):
         with self.assertRaises(ObservedCurrentCopy):
             session.death_spectate_respawn("client", travel_down=True)
 
+    def test_spawn_horse_places_at_the_guests_copy_and_sells_it_to_the_party(self):
+        session = self.session
+        session.console_on = Mock()
+        session.player_copy = Mock(return_value=0xFF000801)
+        spawned = iter([{"local_actors": {}}, {"local_actors": {str(0xFF000900): {}}}])
+        session.local_player = Mock(side_effect=lambda game: next(spawned))
+        session.wait_for = Mock(side_effect=lambda description, predicate, *args, **kwargs: predicate())
+        session.host_npc_state = Mock(return_value={"session_id": 7})
+        session.copy_of = Mock(return_value=0xFF000A00)
+        session.player_command = Mock(return_value={"owner": 0xDB1})
+        session.faction_rank = Mock(return_value=1)
+        session.actor_state = Mock(return_value={"mod": {"fade_state": 0}})
+        self.assertEqual(session.spawn_horse("client", owned=True), "horse")
+        self.assertEqual([c.args for c in session.console_on.call_args_list],
+                         [("", "FF000801.placeatme 00109E3D 1"), ("", "FF000900.addtofaction 68D78 1"),
+                          ("", "FF000900.setownership DB1")])
+        self.assertEqual(session.handles()["horse"], {"host": 0xFF000900, "guest": 0xFF000A00})
+
     def test_registration_is_unique_and_has_a_fixture(self):
         registry = Registry()
         registry.add("ordinary", ["inventory"], lambda session: None)

@@ -1,0 +1,12 @@
+time	op	id	rva	item
+2026-11-24T07:00:02Z	read	22104	0x353590	{"name": "GameFunc::handler::PlaceAtMe"}
+2026-11-24T07:00:05Z	read	22511	0x362ab0	{"name": "sub_140362AB0"}
+2026-11-24T07:00:39Z	read	22372	0x35d410	{"name": "GameFunc::handler::SetOwnership"}
+2026-11-24T07:00:45Z	read	22456	0x360610	{"name": "GameFunc::handler::AddToFaction"}
+2026-11-24T07:01:36Z	read	22189	0x355770	{"name": "GameFunc::handler::SetFactionRank"}
+2026-11-24T07:01:39Z	read		0x3557c7	{"name": "GameFunc::handler::SetFactionRank"}
+2026-11-24T07:01:57Z	name	22511	0x362ab0	{"addr": "0x140362AB0", "name": "coop_PlaceAtMeImpl"}
+2026-11-24T07:02:02Z	comment	22511	0x362ab0	{"addr": "0x140362AB0", "comment": "coop: PlaceAtMe's body (22511, the console's 22104 calls it): a leveled list is rolled at the target's calc level (TESLeveledList::CalculateCurrentFormList), each pick placed by TESDataHandler::CreateReferenceAtLocation at a random offset around the target (sincos of GetRandomNumber); out: the last placed ref's handle. /spawn and the harness's spawn_horse ride on it."}
+2026-11-24T07:02:02Z	comment	22372	0x35d410	{"addr": "0x14035d410", "comment": "[re]\nAddressLib ID 22372\ncoop: the console's SetOwnership: owner = its argument, or the player's NPC base (g_thePlayer+0x40) when none; ExtraDataList::SetOwnerForm on the ref's extra list (+0x70), then AddChange(0x40). Hex-Rays drops the argument; read the disassembly. A stable sale sets PlayerFaction (setownership DB1), not the player's base."}
+2026-11-24T07:02:02Z	comment	22456	0x360610	{"addr": "0x140360610", "comment": "[re]\nAddressLib ID 22456\ncoop: the console's AddToFaction: when the ref is an actor (formType 0x3E) and the faction resolved, Actor::AddToFaction(faction, rank). Hex-Rays shows only ExtractArgs; read the disassembly."}
+2026-11-24T07:02:02Z	comment	22189	0x355770	{"addr": "0x140355770", "comment": "[re]\nAddressLib ID 22189\ncoop: the console's SetFactionRank: dynamic cast to Actor, then Actor__SetFactionRank(faction, rank). Hex-Rays drops the call; read the disassembly."}

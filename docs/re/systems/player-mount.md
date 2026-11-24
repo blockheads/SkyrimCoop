@@ -26,6 +26,21 @@ own player, so a party horse is "owned" on every game, and each game's engine ke
 - Hearthfire (`BYOHHouseHorseScript`): one horse per house, enabled on cell attach after `bBoughtHorse`.
 - Inferred, not read (the topic conditions are in the ESM): a stable stops offering its horse once sold.
 
+## A horse to test with (read in IDA, 2026-11-24)
+
+The harness verb `spawn_horse` (test builds, `testing.md`) makes a horse as the console does, on the host:
+
+- `<at>.placeatme 109E3D 1`: `PlaceAtMe` (22104) calls `coop_PlaceAtMeImpl` (22511, named here). It rolls a leveled
+  list at the target's calc level (`TESLeveledList::CalculateCurrentFormList`) and places each pick with
+  `TESDataHandler::CreateReferenceAtLocation` at a random offset around the target. `<at>` is `player` or the guest's
+  copy (`FF...`, console.md).
+- `owned`, as the sale above: `addtofaction 68D78 1` (`AddToFaction` 22456: `Actor::AddToFaction` when the reference
+  is an actor, form type 0x3E) and `setownership DB1` (22372: `ExtraDataList::SetOwnerForm` on the reference's extras,
+  then `AddChange(0x40)`). With no argument `setownership` sets the player's own NPC base, which is not what a sale
+  sets. Not done: `PlayersHorse.ForceRefTo` (no console line), which only matters when that horse dies.
+- Hex-Rays drops the calls after `ObScript_ExtractArgs` in 22456, 22372 and `SetFactionRank` (22189): read their
+  disassembly, not the pseudocode.
+
 ## Two riders on one horse (read in IDA and probed on the duo, 2026-11-17)
 
 - A horse holds one interaction. `RefrInteraction::AttachTo` (41532 calls it) replaces only the rider's own

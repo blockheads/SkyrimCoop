@@ -43,6 +43,9 @@ every game: DevToolsService::OnNotifyDevCommand
 | `/leash [on\|off]` | host | none: `HostLeash::SetOn`; off stops a running countdown (`kOff`), `/reset` turns it on |
 | `/dev` | this game | the list |
 
+A horse to ride is not a chat command: the test harness's `spawn_horse` verb places one (`testing.md`, the MCP list),
+so player builds stay without it.
+
 `ConsoleNameOf`: the host's player is `player`, a guest's character is its copy's reference id (`FF...`). The console
 takes an id as a reference only when it starts with a letter (`console.md`).
 
