@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Messages/WorldState.h>
+#include <Games/EnabledRow.h>
 #include <Structs/BodyFrame.h>
 
 #include <format>
@@ -25,9 +26,11 @@ inline std::string Describe(const ObjectChange& acChange)
     case ObjectChange::Kind::kActivate: return std::format("activate {:X} by {:X} (open state {})", cObject, acChange.Activator.LogFormat(), acChange.OpenState);
     case ObjectChange::Kind::kAnimation: return std::format("animation {:X} '{}' '{}'", cObject, acChange.Animation.c_str(), acChange.Event.c_str());
     case ObjectChange::Kind::kItems: return std::format("items {:X} holds {} of {:X}", cObject, acChange.Value, acChange.Item.LogFormat());
-    // ReferenceStates' packing: 1 enabled, 2 deleted.
     case ObjectChange::Kind::kEnabled:
-        return std::format("{} {:X}", (acChange.Value & 2) ? "delete" : acChange.Value ? "enable" : "disable", cObject);
+    {
+        const EnabledRow::State cState = EnabledRow::Unpack(acChange.Value);
+        return std::format("{} {:X}{}", cState.Deleted ? "delete" : cState.Enabled ? "enable" : "disable", cObject, cState.Destroyed ? " destroyed" : "");
+    }
     // ReferenceStates' packing: the level in the low byte, locked at 0x100.
     case ObjectChange::Kind::kLock:
         return std::format("lock {:X} {} at {}", cObject, (acChange.Value & 0x100) ? "locked" : "unlocked", acChange.Value & 0xFF);

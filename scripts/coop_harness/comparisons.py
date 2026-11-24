@@ -144,6 +144,10 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
             # flag and where it hangs its bodies' places, compared as any.
             if plant:
                 continue
+            # An explosion's debris (its add-on nodes) flies on each game's own effect clock; where it went off is
+            # compared as any.
+            if FORM_TYPE_NAMES.get(host.get("type")) == "EXPL":
+                continue
             # Untouched in both and without a graph: only its model's own loops, on each game's clock (frozen
             # off-camera at different phases).
             if not any(r.get(k) for r in (host, guest) for k in ("changes", "graph")):
@@ -240,7 +244,8 @@ def world_differences(host, guest, host_again=(), guest_again=()):
         if ref_id < CREATED_ID and ref_id not in host:
             differences[reference_label(ref)] = {"present": "client only"}
     # A created reference deleted is gone (the engine frees it): only a living one is compared. A cast's projectiles
-    # and hazards are each game's own, as the cast is (HostEngine's ReadCreate sends plain references only).
+    # and hazards are each game's own, as the cast is (HostEngine's ReadCreate sends a hazard placed by a script, not one
+    # a spell places).
     def alive_created(world):
         return [r for r in world.values() if r["id"] >= CREATED_ID and not (r.get("flags") or 0) & FORM_DELETED
                 and FORM_TYPE_NAMES.get(r["type"]) not in ("PROJ", "HAZD")]

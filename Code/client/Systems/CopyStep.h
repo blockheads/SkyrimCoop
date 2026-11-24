@@ -34,6 +34,16 @@ struct CopyStep
     // the engine leaves alone (79201); any other step sets it and wakes the copy's island (62456).
     static constexpr float kStill = 0.5f;
 
+    // On its owner's place, a rest apart (its bhkCharRigidBodyController sits lower than a player's proxy), not a ledge:
+    // its owner's height (actor-movement.md, "A copy's rest height").
+    static constexpr float kRestBand = 4.f;
+
+    [[nodiscard]] static float RestHeight(const glm::vec3& acAt, const glm::vec3& acGoal) noexcept
+    {
+        const float cX = acGoal.x - acAt.x, cY = acGoal.y - acAt.y;
+        return cX * cX + cY * cY < kStill * kStill && std::abs(acGoal.z - acAt.z) < kRestBand ? acGoal.z : acAt.z;
+    }
+
     // A world offset in an actor's own frame for Actor::Move: x right, y forward (heading aHeading, its rotation z).
     [[nodiscard]] static glm::vec3 Local(const glm::vec3& acOffset, float aHeading) noexcept
     {

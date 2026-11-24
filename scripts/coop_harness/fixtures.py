@@ -146,10 +146,8 @@ class Fixtures:
         position = (me.get("placement") or {}).get("position")
         goal = home["position"]
         if not position or distance(position, goal) > HOME_TOLERANCE:
-            # Lifted a little and dropped onto the floor there (see place()).
-            ctx.run_console(f"player.setpos z {goal[2] + 20:.0f}", _game=_game)
-            ctx.run_console(f"player.setpos x {goal[0]:.0f}", _game=_game)
-            ctx.run_console(f"player.setpos y {goal[1]:.0f}", _game=_game)
+            # On the floor a ray finds there, in one placement (a setpos per axis passes through elsewhere on the way).
+            ctx.put_player(instance, goal)
         ctx.run_console(f"player.setangle z {math.degrees(home['heading']) % 360:.0f}", _game=_game)
         ctx.run_console("player.setangle x 0", _game=_game)
 

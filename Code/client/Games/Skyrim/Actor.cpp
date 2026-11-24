@@ -1465,8 +1465,14 @@ char HookSetPosition(Actor* apThis, NiPoint3& aPosition)
 
     ScopedReferencesOverride recursionGuard;
 
+    // A stepped copy's controller's place, at its owner's height on its owner's place (CopyStep::RestHeight). Writes the
+    // reference only (no warp): its capsule rests where it does.
+    NiPoint3 place = aPosition;
+    if (bIsCopy && pExtension->HasCopyGoal)
+        place.z = CopyStep::RestHeight({place.x, place.y, place.z}, {pExtension->CopyGoal[0], pExtension->CopyGoal[1], pExtension->CopyGoal[2]});
+
     // It just works TM
-    apThis->SetPosition(aPosition, false);
+    apThis->SetPosition(place, false);
 
     return 1;
 }

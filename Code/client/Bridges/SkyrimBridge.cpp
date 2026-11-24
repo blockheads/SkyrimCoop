@@ -21,6 +21,7 @@
 #include <Games/IFormFactory.h>
 
 // SKSE / game headers (allowed only here)
+#include <Combat/Traps.h>
 #include <Actor.h>
 #include <Havok/Ragdoll.h>
 #include <Havok/bhkCharacterController.h>
@@ -674,7 +675,10 @@ std::vector<IActorBridge::ActiveEffectInfo> SkyrimBridge::GetActorActiveEffects(
         info.EffectFormId = pEffectItem && pEffectItem->pEffectSetting ? pEffectItem->pEffectSetting->formID : 0;
         info.SpellFormId = pEffect->pSpell ? pEffect->pSpell->formID : 0;
         if (TESObjectREFR* pCaster = TESObjectREFR::GetByHandle(pEffect->hCaster))
+        {
             info.CasterFormId = pCaster->formID;
+            info.CasterIsActor = Cast<Actor>(pCaster) != nullptr;
+        }
         info.Magnitude = pEffect->fMagnitude;
         info.Duration = pEffect->fDuration;
         info.Elapsed = pEffect->fElapsedSeconds;
@@ -2068,6 +2072,13 @@ ActorAiFields SkyrimBridge::GetActorAiFields(uint32_t aFormId) const noexcept
     if (const TESObjectREFR* pFurniture = pActor->GetSeatFurniture())
         fields.FurnitureId = pFurniture->formID;
     return fields;
+}
+
+void SkyrimBridge::TakeTrapHit(uint32_t aFormId, uint32_t aTrapFormId, const Payloads::TrapHit& acHit) noexcept
+{
+    Breadcrumbs::Record("TakeTrapHit", aFormId, aTrapFormId);
+    if (Actor* pActor = GetActor(aFormId); pActor && !pActor->GetExtension()->IsCopy())
+        Traps::TakeHit(*pActor, Cast<TESObjectREFR>(TESForm::GetById(aTrapFormId)), acHit);
 }
 
 void SkyrimBridge::StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept

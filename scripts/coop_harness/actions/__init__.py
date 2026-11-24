@@ -19,6 +19,7 @@ from .repro import PressTiming, RefSteps, ReproActions
 from .crime import CrimeActions
 from .together import TogetherActions
 from .collisions import CollisionActions
+from .traps import TrapActions
 
 
 class Actions(
@@ -44,5 +45,6 @@ class Actions(
     PlayerVerbs,
     CrimeActions,
     CollisionActions,
+    TrapActions,
 ):
     pass

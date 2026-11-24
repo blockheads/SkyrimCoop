@@ -162,6 +162,14 @@ keeps a listed change and those UI calls apart across threads (bounded waits, no
 ClientTests `[item-menu-gate]`. The third
 crash (an NPC's face template walk on the background loader, 15678) is open in [bugs.md](bugs.md).
 
+2026-11-23: **traps hurt every player on its own game** (`agent/traps-synced`; playtest 2026-11-22 items 13, 14;
+`docs/design/traps.md`, `docs/re/systems/traps.md`). The host runs a trap's script; a guest's player's touch goes to it
+(`TrapContactRequest`), its hit back to that guest (`NotifyTrapHit`, `DoTrap1` there); the host's far traps keep their
+graphs running (their scripts waited on clips); a guest plays the host's animations in order once its graph takes them;
+darts an object fires reach every guest; an object's `Spell.Cast` shows on every game. Scenarios `spike_wall_hurts_both`,
+`scythes_hurt_both`, `darts_hurt_puller`, `flames_hurt_both`, `warehouse_traps_hurt_both` (fire plate, rocks, mace, logs). A tripped tripwire is broken on the guest too (its destroyed flag in the `kEnabled` row).
+An explosion's poison reaches a guest once (its copy's cast or the host's). A guest's copy stands at its owner's height, so the gas poisons a guest walking onto its plate.
+
 2026-11-23: **a lever furniture one player pulls moves on every game** (`agent/levers-synced`; playtest 2026-11-22 item
 11; `docs/re/systems/activation.md`, "Lever furniture"). Bleak Falls Temple's pillar lever is a furniture with
 `KeywordActivatorFurnitureNoPlayer`: `TESFurniture::Activate` 17420 sends its pull (ActionActivate from its own idles,

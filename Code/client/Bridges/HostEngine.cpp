@@ -1,3 +1,6 @@
+#include <Combat/Traps.h>
+#include <TrapRules.h>
+#include <FarAnimations.h>
 #include <Bridges/PlacedByGame.h>
 #include <Bridges/HostEngine.h>
 #include <Games/Skyrim/PlayerHands.h>
@@ -176,21 +179,15 @@ EngineLog s_log;
 
 void OnCreated(uint32_t aFormId) noexcept
 {
-    s_log.Created(aFormId);
+    if (!ModManager::ExplosionPlaces()) // its explosion's copy places it on every game
+        s_log.Created(aFormId);
 }
 
 static_assert(FormChangeRows::cReferenceOwnership == TESObjectREFR::CHANGE_REFR_EXTRA_OWNERSHIP);
 
 FormChangeRows::Form FormOf(const TESForm& acForm) noexcept
 {
-    using FormChangeRows::Form;
-    switch (acForm.formType)
-    {
-    case FormType::Reference: return Form::kReference;
-    case FormType::Cell: return Form::kCell;
-    case FormType::Character: return Form::kActor;
-    default: return Form::kOther;
-    }
+    return FormChangeRows::OfFormType(static_cast<uint8_t>(acForm.formType));
 }
 
 // An actor's rows its change record holds (FormChangeRows: its owner).
@@ -224,10 +221,10 @@ void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRe
 }
 
 // A world object the host's game made (not an actor, a projectile or an explosion), as the guests make theirs: an
-// item with its count and extra data (a drop).
+// item with its count and extra data (a drop), a script's hazard (an explosion's is each game's: OnCreated).
 std::optional<ObjectChange> ReadCreate(TESObjectREFR& aRef) noexcept
 {
-    if (aRef.formType != FormType::Reference || aRef.IsDeleted() || !aRef.baseForm || !Cast<TESBoundObject>(aRef.baseForm))
+    if ((aRef.formType != FormType::Reference && aRef.formType != FormType::PlacedHazard) || aRef.IsDeleted() || !aRef.baseForm || !Cast<TESBoundObject>(aRef.baseForm))
         return std::nullopt;
     const auto cObject = ToSessionOrCreated(aRef.formID);
     const auto cItem = ItemId(aRef.baseForm->formID);
@@ -421,6 +418,21 @@ void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAn
     const auto cObject = ToSessionOrCreated(aObjectFormId);
     if (!cObject)
         return;
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
+    const bool cHas3D = pObject && pObject->GetNiNode();
+    if (cHas3D)
+        FarAnimations::Hold(*pObject); // its script may wait for the clip, out of this game's sight
+    std::pair last{acAnimation, acEvent};
+    const auto cNow = std::chrono::steady_clock::now();
+    const auto cLast = m_unseenAnimations.find(aObjectFormId);
+    const bool cSame = cLast != m_unseenAnimations.end() && cLast->second.Played == last;
+    const auto cSince = cSame ? std::chrono::duration_cast<std::chrono::milliseconds>(cNow - cLast->second.At) : std::chrono::milliseconds{};
+    if (!TrapRules::SendsAnimation(cHas3D, cSame, cSince))
+        return;
+    if (cHas3D)
+        m_unseenAnimations.erase(aObjectFormId);
+    else
+        m_unseenAnimations[aObjectFormId] = {std::move(last), cNow};
     ObjectChange event{ObjectChange::Kind::kAnimation, *cObject};
     event.Animation = acAnimation;
     event.Event = acEvent;
@@ -506,6 +518,15 @@ void HostEngine::Summon(uint32_t aCasterId, const SummonRequest& acSummon) noexc
     data.bDualCast = acSummon.DualCast;
     spdlog::info("HostEngine: guest {:X}'s summon {:X} made by its copy {:X}", aCasterId, pSpell->formID, pCopy->formID);
     pCopy->magicTarget.AddTarget(data, false, false);
+}
+
+void HostEngine::TouchTrap(const Payloads::TrapContact& acContact) noexcept
+{
+    const uint32_t cTrap = acContact.Trap.ModId == ObjectChange::kCreatedModId ? 0xFF000000 | acContact.Trap.BaseId : ToGame(acContact.Trap);
+    auto* pTrap = Cast<TESObjectREFR>(TESForm::GetById(cTrap));
+    auto* pCopy = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(acContact.TargetId)));
+    if (pTrap && pCopy && pCopy->GetExtension()->IsOtherPlayer())
+        Traps::RaiseContact(*pTrap, *pCopy, acContact);
 }
 
 void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept

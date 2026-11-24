@@ -1,0 +1,135 @@
+time	op	id	rva	item
+2026-11-23T17:39:07Z	read	25715	0x3f7290	{"name": "TESTrapListener::sub_25715"}
+2026-11-23T17:39:08Z	read	25696	0x3f6e60	{"name": "TrapEntry::sub_25696"}
+2026-11-23T17:39:08Z	read	25708	0x3f70e0	{"name": "TESTrapListener::sub_25708"}
+2026-11-23T17:39:08Z	read	25726	0x3f7990	{"name": "TrapTargetEntry::Func0_25726"}
+2026-11-23T17:39:13Z	read	26031	0x405e60	{"name": "TrapEntry::Func2_26031"}
+2026-11-23T17:39:14Z	read	26067	0x408120	{"name": "bhkTrapListener::Func2_26067"}
+2026-11-23T17:39:14Z	read	26068	0x408200	{"name": "bhkTrapListener::Func3_26068"}
+2026-11-23T17:39:15Z	read	26053	0x407b30	{"name": "bhkTrapListener::Func1_26053"}
+2026-11-23T17:39:16Z	read		0xa47f85	{"name": "papyrus::ObjectReference::ProcessTrapHit"}
+2026-11-23T17:39:16Z	read	37508	0x68a450	{"name": "Actor::DoTrap2"}
+2026-11-23T17:39:17Z	read	37509	0x68a650	{"name": "Actor::DoTrap1"}
+2026-11-23T17:39:17Z	read		0x9dff73	{"name": "BSTEventSink_TESTrapHitEvent_::Handle"}
+2026-11-23T17:39:18Z	read	25718	0x3f76c0	{"name": "TESTrapListener::sub_25718"}
+2026-11-23T17:39:29Z	read	26032	0x405eb0	{"name": "TrapTargetEntry::Func1_26032"}
+2026-11-23T17:39:30Z	read	26033	0x4060e0	{"name": "TrapTargetEntry::Func2_26033"}
+2026-11-23T17:39:30Z	read	26034	0x4062b0	{"name": "TrapTargetEntry::sub_26034"}
+2026-11-23T17:39:31Z	read	44000	0x7efb90	{"name": "sub_1407EFB90"}
+2026-11-23T17:39:37Z	read	17699	0x279fa0	{"name": "TESObjectACTI::sub_17699"}
+2026-11-23T17:39:38Z	read	26036	0x4066c0	{"name": "TriggerEntry::sub_26036"}
+2026-11-23T17:39:38Z	read	38586	0x6ca640	{"name": "TESObjectREFR::sub_38586"}
+2026-11-23T17:40:34Z	read	26048	0x407920	{"name": "TESTrapListener::sub_26048"}
+2026-11-23T17:40:35Z	read	26054	0x407bc0	{"name": "TESTrapListener::sub_26054"}
+2026-11-23T17:40:36Z	read	78627	0x1081f00	{"name": "bhkTrapListener::Func4_78627"}
+2026-11-23T17:41:07Z	read	26047	0x4078c0	{"name": "sub_1404078C0"}
+2026-11-23T17:41:08Z	read	19195	0x2cc880	{"name": "sub_1402CC880"}
+2026-11-23T17:41:09Z	read	26062	0x407e40	{"name": "bhkTrapListener::phantomRemovedCallback"}
+2026-11-23T17:41:30Z	read	79131	0x10980a0	{"name": "bhkCharProxyController::contactPointAddedCallback"}
+2026-11-23T17:41:30Z	read	78298	0x1066970	{"name": "bhkCharacterController::IsHurtfulBody"}
+2026-11-23T17:41:31Z	read	78302	0x1066c60	{"name": "bhkCharacterController::ProcessHurtfulBody"}
+2026-11-23T17:41:32Z	read	78303	0x1066f50	{"name": "bhkCharRigidBodyController::sub_78303"}
+2026-11-23T17:41:33Z	read	78294	0x10667c0	{"name": "bhkCharacterController::ClearContacts"}
+2026-11-23T17:41:33Z	read	77844	0x104a3c0	{"name": "bhkWorld::sub_77844"}
+2026-11-23T17:41:48Z	read		0x10dd968	{"name": "bhkCharacterPointCollector::sub_80510"}
+2026-11-23T17:41:49Z	read	80512	0x10ddd20	{"name": "sub_1410DDD20"}
+2026-11-23T17:42:06Z	read	79185	0x1099c20	{"name": "bhkCharRigidBodyController::postSimulationCallback"}
+2026-11-23T17:42:13Z	read	79186	0x1099d00	{"name": "hkpCharacterRigidBodyListener::Func1_79186"}
+2026-11-23T17:42:14Z	read	79149	0x1098c90	{"name": "sub_141098C90"}
+2026-11-23T17:42:14Z	read	80508	0x10dd570	{"name": "bhkCharacterPointCollector::addCdPoint"}
+2026-11-23T17:42:58Z	read	43959	0x7ee0a0	{"name": "Hazard::sub_43959"}
+2026-11-23T17:42:58Z	read	37335	0x6797c0	{"name": "Actor::DoDamage"}
+2026-11-23T17:43:11Z	read		0x7fab79	{"name": "Projectile::Func172_44123"}
+2026-11-23T17:44:06Z	name	25715	0x3f7290	{"addr": "0x1403f7290", "name": "TESTrapListener__AddContact"}
+2026-11-23T17:44:06Z	name	25716	0x3f7620	{"addr": "0x1403f7620", "name": "TESTrapListener__RemoveContact"}
+2026-11-23T17:44:06Z	name	25696	0x3f6e60	{"addr": "0x1403f6e60", "name": "TrapEntry__FindOrAddTarget"}
+2026-11-23T17:44:06Z	name	25708	0x3f70e0	{"addr": "0x1403f70e0", "name": "TESTrapListener__ForgetTarget"}
+2026-11-23T17:44:06Z	name	25718	0x3f76c0	{"addr": "0x1403f76c0", "name": "TESTrapListener__ForgetTrap"}
+2026-11-23T17:44:06Z	name	26067	0x408120	{"addr": "0x140408120", "name": "bhkTrapListener__ContactAdded"}
+2026-11-23T17:44:06Z	name	26068	0x408200	{"addr": "0x140408200", "name": "bhkTrapListener__ContactRemoved"}
+2026-11-23T17:44:06Z	name	26053	0x407b30	{"addr": "0x140407b30", "name": "bhkTrapListener__Step"}
+2026-11-23T17:44:06Z	name	26031	0x405e60	{"addr": "0x140405e60", "name": "TrapEntry__StepTargets"}
+2026-11-23T17:44:06Z	name	26032	0x405eb0	{"addr": "0x140405eb0", "name": "TrapTargetEntry__Step"}
+2026-11-23T17:44:06Z	name	26033	0x4060e0	{"addr": "0x1404060e0", "name": "TrapTargetEntry__SendHitStart"}
+2026-11-23T17:44:06Z	name	26034	0x4062b0	{"addr": "0x1404062b0", "name": "TrapTargetEntry__GetVelocityAndPosition"}
+2026-11-23T17:44:06Z	name	44000	0x7efb90	{"addr": "0x1407efb90", "name": "HitData__InitializeTrapHit"}
+2026-11-23T17:44:06Z	name	26047	0x4078c0	{"addr": "0x1404078c0", "name": "TESTrapListener__ctor"}
+2026-11-23T17:44:06Z	name	19195	0x2cc880	{"addr": "0x1402cc880", "name": "TESObjectCELL__CreateHavokWorld"}
+2026-11-23T17:44:06Z	name	80510	0x10dd8a0	{"addr": "0x1410dd8a0", "name": "bhkCharacterPointCollector__ReportTrapContacts"}
+2026-11-23T17:44:13Z	comment	80510	0x10dd8a0	{"addr": "0x1410dd8a0", "comment": "80510. After a character step (proxy sub_141098C90, rigid body 79186): for each collected contact whose body's layer is 14 (trap) or 16, calls world+0xC5C0 (TESTrapListener) vfunc 0x38 (contact new) or 0x40 (contact gone). A trap's contacts come only from a character controller's step, the player's and an NPC's alike."}
+2026-11-23T17:44:13Z	comment	26067	0x408120	{"addr": "0x140408120", "comment": "26067. Only actors (form type 62) are targets. An activator's keyword filters the actor (vfunc 0x240). Then AddContact 25715."}
+2026-11-23T17:44:13Z	comment	26068	0x408200	{"addr": "0x140408200", "comment": "26068. Contact gone: TESTrapHitEvent type 1 (stop) to ScriptEventSourceHolder+0xF78."}
+2026-11-23T17:44:13Z	comment	26032	0x405eb0	{"addr": "0x140405eb0", "comment": "26032. Each step while in contact: TESTrapHitEvent type 2 (OnTrapHit) no more often than fTrapHitEventDelayMS (500), then Actor vfunc 0x2C8 (DoTrap2 37508: no damage). A trap deals no damage here: its script does."}
+2026-11-23T17:44:13Z	comment	26033	0x4060e0	{"addr": "0x1404060e0", "comment": "26033. New contact: TESTrapHitEvent type 0 (OnTrapHitStart), with the relative velocity and position (26034)."}
+2026-11-23T17:44:13Z	comment	53999	0x9dfc80	{"addr": "0x1409dfc80", "comment": "53999. TESTrapHitEvent -> OnTrapHitStart (0), OnTrapHitStop (1), OnTrapHit (2) on the TRAP's scripts (handle = the trap), RelayEvent. Skips dead targets. Runs in the physics step, no VM native on the thread."}
+2026-11-23T17:44:13Z	comment	56212	0xa47e60	{"addr": "0x140a47e60", "comment": "56212. Builds TrapData (trap handle, damage, push, velocity, position, material, stagger) and calls the target's vfunc 0x2C0 = Actor::DoTrap1 37509."}
+2026-11-23T17:44:13Z	comment	37509	0x68a650	{"addr": "0x14068a650", "comment": "37509. HitData__InitializeTrapHit (44000), then ProcessHit 38586 with no aggressor (sourceRef = the trap): DoDamage 37335 with a null hitter."}
+2026-11-23T17:44:13Z	comment	44000	0x7efb90	{"addr": "0x1407efb90", "comment": "44000. HitData from a TrapData: target handle, damage = TrapData+4 + +8, armor through 44014, sourceRef (+0x20) the trap, no aggressor."}
+2026-11-23T17:44:13Z	comment	26047	0x4078c0	{"addr": "0x1404078c0", "comment": "26047. TESTrapListener (0x40 bytes), one per cell's Havok world."}
+2026-11-23T17:44:13Z	comment	19195	0x2cc880	{"addr": "0x1402cc880", "comment": "19195. A cell's Havok world; puts its TESTrapListener at world+0xC5C0 through 77844."}
+2026-11-23T17:44:17Z	read		0x7e62f2	{"name": "Explosion::sub_43849"}
+2026-11-23T18:11:03Z	read	56206	0xa473f0	{"name": "papyrus::ObjectReference::PlayAnimationAndWait"}
+2026-11-23T18:12:56Z	read	19695	0x2e8390	{"name": "TESObjectREFR::DoTrap"}
+2026-11-23T18:13:03Z	read	56187	0xa45f90	{"name": "papyrus::ObjectReference::InterruptCast"}
+2026-11-23T18:13:08Z	read	55747	0xa32e90	{"name": "papyrus::Spell::Cast"}
+2026-11-23T18:19:11Z	read	43987	0x7ef530	{"name": "sub_1407EF530"}
+2026-11-23T18:19:12Z	read	43984	0x7ef290	{"name": "sub_1407EF290"}
+2026-11-23T18:19:18Z	name	43987	0x7ef530	{"addr": "0x1407ef530", "name": "HazardTargets__CheckActor"}
+2026-11-23T18:19:18Z	name	43984	0x7ef290	{"addr": "0x1407ef290", "name": "HazardTargets__CheckHighActors"}
+2026-11-23T18:19:18Z	name	79149	0x1098c90	{"addr": "0x141098c90", "name": "bhkCharProxyController__StepProxy"}
+2026-11-23T18:19:18Z	name	80512	0x10ddd20	{"addr": "0x1410ddd20", "name": "bhkCharacterPointCollector__ReportOneTrapContact"}
+2026-11-23T18:19:21Z	comment	43987	0x7ef530	{"addr": "0x1407ef530", "comment": "43987. Hazard 43959's check of one actor: in range and not already under its spell (MagicTarget::IsSpellTarget) -> cast by the hazard's cause, or by a local NonActorMagicCaster when it has none (a trap's)."}
+2026-11-23T18:19:21Z	comment	43984	0x7ef290	{"addr": "0x1407ef290", "comment": "The same as 43987 for every high actor."}
+2026-11-23T18:19:21Z	comment	79149	0x1098c90	{"addr": "0x141098c90", "comment": "79149. The player's proxy integrate, then ReportTrapContacts 80510."}
+2026-11-23T18:19:21Z	comment	80512	0x10ddd20	{"addr": "0x1410ddd20", "comment": "80512. One collected contact to the trap listener, as 80510 does inline."}
+2026-11-23T18:19:21Z	comment	56187	0xa45f90	{"addr": "0x140a45f90", "comment": "56187. An actor: Actor::InterruptCast. An object: its ExtraMagicCaster (49) -> MagicCaster::InterruptCast 34408."}
+2026-11-23T18:56:32Z	read	19204	0x2cd200	{"name": "UpdateAnimationJob"}
+2026-11-23T18:56:32Z	read	20119	0x2fd930	{"name": "TESObjectREFR::UpdateAnimation"}
+2026-11-23T18:56:38Z	read	18894	0x2b9e10	{"name": "TESObjectCELL::sub_18894"}
+2026-11-23T18:56:41Z	read	19384	0x2d64b0	{"name": "BSFadeNode::sub_19384"}
+2026-11-23T18:56:42Z	read	19744	0x2eeb00	{"name": "TESObjectREFR::sub_19744"}
+2026-11-23T18:56:43Z	read	20120	0x2fdba0	{"name": "TESObjectREFR::sub_20120"}
+2026-11-23T18:57:07Z	name	19384	0x2d64b0	{"addr": "0x1402d64b0", "name": "BSFadeNode__IsFadedIn"}
+2026-11-23T18:57:07Z	name	20120	0x2fdba0	{"addr": "0x1402fdba0", "name": "TESObjectREFR__UpdateAnimationScaled"}
+2026-11-23T18:57:10Z	comment	19384	0x2d64b0	{"addr": "0x1402d64b0", "comment": "19384. Whether this game's camera sees the object's fade node at all (current fade +0x130 > 0; +0x109 bits 0x24 force yes). Gates an object's graph: UpdateAnimationJob 19204 and 18900 skip it otherwise, so a far object's clip never ends and a script in PlayAnimationAndWait 56206 waits on."}
+2026-11-23T18:57:10Z	comment	19204	0x2cd200	{"addr": "0x1402cd200", "comment": "19204. Non-actor references' graphs (a hazard's base 38 aside), each only while BSFadeNode__IsFadedIn 19384."}
+2026-11-23T18:57:10Z	comment	18894	0x2b9e10	{"addr": "0x1402b9e10", "comment": "18894. A managed node's update (its world transforms), while faded in and its room visible. Not the graph: that is 19204."}
+2026-11-23T18:57:10Z	comment	20120	0x2fdba0	{"addr": "0x1402fdba0", "comment": "20120. UpdateAnimation vfunc 0x7D with the frame's time, VATS' multiplier applied."}
+2026-11-23T18:57:10Z	comment	20119	0x2fd930	{"addr": "0x1402fd930", "comment": "20119. An object's graph update (disabled or deleted: none)."}
+2026-11-23T21:24:42Z	read	44002	0x7f0030	{"name": "HitData::InitializeArrowData"}
+2026-11-23T21:25:12Z	read	56653	0xa5e190	{"name": "papyrus::WEAPON::Fire"}
+2026-11-23T21:26:16Z	read		0x7f8d20	{"name": "Projectile::Constructor"}
+2026-11-23T21:26:23Z	read		0x6f3600	{"name": "sub_1406F35F0"}
+2026-11-24T01:04:06Z	read	43826	0x7e3be0	{"name": "sub_1407E3BE0"}
+2026-11-24T01:04:12Z	read	43827	0x7e3d50	{"name": "sub_1407E3D50"}
+2026-11-24T01:04:13Z	read	43812	0x7e3470	{"name": "sub_1407E3470"}
+2026-11-24T01:04:36Z	read		0x7e6a00	{"name": "Explosion::sub_43851"}
+2026-11-24T01:04:41Z	read	43852	0x7e7c00	{"name": "Explosion::sub_43852"}
+2026-11-24T01:06:14Z	read	34697	0x5d8e80	{"name": "MagicCaster::Func1_34697"}
+2026-11-24T01:06:18Z	read	34404	0x5ca500	{"name": "sub_1405CA500"}
+2026-11-24T01:07:07Z	read	34461	0x5cf950	{"name": "sub_1405CF950"}
+2026-11-24T01:07:22Z	name	34461	0x5cf950	{"addr": "0x1405cf950", "name": "MagicCaster__AreaTargetVisitor"}
+2026-11-24T01:07:22Z	name	34404	0x5ca500	{"addr": "0x1405ca500", "name": "MagicCaster__CastSpellImmediateBase"}
+2026-11-24T01:07:22Z	name	43827	0x7e3d50	{"addr": "0x1407e3d50", "name": "Explosion__Ctor"}
+2026-11-24T01:07:22Z	name	43812	0x7e3470	{"addr": "0x1407e3470", "name": "Explosion__Create"}
+2026-11-24T01:07:22Z	name	43826	0x7e3be0	{"addr": "0x1407e3be0", "name": "Explosion__CtorDefault"}
+2026-11-24T01:07:22Z	name	34695	0x5d8d90	{"addr": "0x1405d8d90", "name": "NonActorMagicCaster__Ctor"}
+2026-11-24T01:07:22Z	name	43852	0x7e7c00	{"addr": "0x1407e7c00", "name": "Explosion__HasLineOfSight"}
+2026-11-24T01:30:46Z	comment	43852	0x7e7c00	{"addr": "0x1407e7c00", "comment": "43852. An explosion's line of sight to a target: a ray (layer 43, the target's controller group skipped) from the explosion's position moved along its normal (+0x130..0x138, times a setting) to the target's 3D bound centre. Down-facing normal (placed inside a surface) starts it under the floor: blocked, no damage and no enchantment."}
+2026-11-24T01:30:46Z	comment	34461	0x5cf950	{"addr": "0x1405cf950", "comment": "34461. One actor of an area cast: skipped if the caster's own actor, without 3D or a ghost, or outside the area; else MagicTarget::AddTarget (34526)."}
+2026-11-24T01:30:46Z	comment	34404	0x5ca500	{"addr": "0x1405ca500", "comment": "34404. MagicCaster's CastSpellImmediate: stores the desired target and spell, then FindTargets (34410)."}
+2026-11-24T01:30:46Z	comment	43827	0x7e3d50	{"addr": "0x1407e3d50", "comment": "43827. Explosion from its init data: cause handle at +0xF8 (a2+0x10), a NonActorMagicCaster at +0x110 when the cause is no actor (it casts the enchantment, effects' caster = the explosion), radius +0xB4, flag 0x80 for a non-hostile effect."}
+2026-11-24T01:30:46Z	comment	34695	0x5d8d90	{"addr": "0x1405d8d90", "comment": "NonActorMagicCaster ctor: its object reference at +0x58 (an explosion, or none for a hazard's stack caster)."}
+2026-11-24T01:30:52Z	comment		0x7e6000	{"addr": "0x1407e6000", "comment": "placeholder"}
+2026-11-24T01:31:00Z	comment		0x7e6000	{"addr": "0x1407e6000", "comment": ""}
+2026-11-24T01:31:00Z	comment	43849	0x7e5ee0	{"addr": "0x1407e5ee0", "comment": "43849. An explosion applies itself to each actor in its list once: TESHitEvent first (before any check), then line of sight (43852); a hostile one's HitData + ProcessHit (38586) unless the target is its cause; then its enchantment (base +0x70) cast by its NonActorMagicCaster (+0x110), or its cause actor's caster, never on the cause."}
+2026-11-24T01:31:01Z	name	43849	0x7e5ee0	{"addr": "0x1407e5ee0", "name": "Explosion__ApplyToTargets"}
+2026-11-24T02:05:17Z	read		0xa4ece0	{"name": "sub_140A4A610"}
+2026-11-24T02:05:33Z	read	56641	0xa5d770	{"name": "papyrus::ObjectReference::SetDestroyed"}
+2026-11-24T02:05:37Z	read	14649	0x1e6520	{"name": "sub_1401E6520"}
+2026-11-24T02:05:43Z	name	14649	0x1e6520	{"addr": "0x1401e6520", "name": "TESForm__SetDestroyed"}
+2026-11-24T02:05:49Z	comment	14649	0x1e6520	{"addr": "0x1401e6520", "comment": "14649. Form flag 0x800000 (kDestroyed) set or cleared, then AddChange(CHANGE_FORM_FLAGS) (vfunc +0x50). ObjectReference.SetDestroyed (56641) calls only this; a tripped tripwire's script sets it."}
+2026-11-24T02:05:49Z	comment		0xa4ece0	{"addr": "0x140a4ece0", "comment": "not on the path: ObjectReference natives' registration (SetDestroyed -> 56641)"}
+2026-11-24T02:05:49Z	comment		0x6f3600	{"addr": "0x1406f3600", "comment": "not on the path: read while tracing traps' casts, unrelated"}
+2026-11-24T05:15:33Z	read		0x7e4600	{"name": "Explosion::Func162_43830"}
+2026-11-24T05:16:17Z	comment		0x7e4600	{"addr": "0x1407e4600", "comment": "43830 (Explosion vfunc 162). Places the explosion's placed object (BGSExplosion +0xB8, often a hazard) at the explosion through TESDataHandler::CreateReferenceAtLocation (13723); its handle kept at +0x100. Hooked by ModManager.cpp so the host does not send it as created: each game's explosion places its own."}

@@ -43,6 +43,7 @@
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
 #include <Services/Host/HostTakeBacks.h>
+#include <Services/Host/HostTraps.h>
 #include <Services/BodyService.h>
 #include <Services/CrimeService.h>
 #include <Services/InventoryService.h>
@@ -92,6 +93,7 @@ void HostService::MakeAuthority() noexcept
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
         [&engine](const auto& acState) { engine.PartyThreats = acState; });
+    m_pTraps = std::make_unique<HostTraps>(m_world, m_dispatcher);
     m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, engine, [this](uint32_t aId) {
         if (m_pAuthority)
             m_pAuthority->ActorTaken(aId);
@@ -244,6 +246,10 @@ void HostService::MakeAuthority() noexcept
         const uint32_t cSpell = FormIdOf(acSummon.SpellId);
         if (cCopy && engine.IsOtherPlayer(cCopy) && engine.SpellForms.contains(cSpell) && engine.SpellForms.at(cSpell).Summons)
             engine.AddMagicTargetEffect(cCopy, cCopy, cSpell, FormIdOf(acSummon.EffectId), acSummon.Magnitude, acSummon.DualCast, false, false);
+    };
+    game.TouchTrap = [&engine](const Payloads::TrapContact& acContact) {
+        if (const uint32_t cCopy = Utils::GetFormIdBySessionId(acContact.TargetId); cCopy && engine.References.contains(FormIdOf(acContact.Trap)))
+            engine.RunsTrapScript(FormIdOf(acContact.Trap), cCopy);
     };
     game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
@@ -466,6 +472,7 @@ void HostService::StopHosting() noexcept
 {
     m_pAggro.reset();
     m_pTakeBacks.reset();
+    m_pTraps.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();

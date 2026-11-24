@@ -5,7 +5,11 @@ import copy
 
 from coop_harness.common import log_time
 from coop_harness import smoothness
+from coop_harness.common import FORM_TYPE_NAMES
 from coop_harness.comparisons import compare_actors, dialogue_differences, reference_differences, refused_replays, world_differences
+
+
+EXPL_TYPE = next(k for k, v in FORM_TYPE_NAMES.items() if v == "EXPL")
 
 
 class ContainerComparison(unittest.TestCase):
@@ -124,6 +128,15 @@ class Scenery(unittest.TestCase):
         # Review of PR #91: created ids are each game's own; a host moth at the guest item's id hid it.
         item = {"id": 0xFF000A01, "base": 0x64B3F, "type": 32, "cell": 0x3C, "flags": 0, "position": [1.0, 2.0, 3.0]}
         self.assertEqual(list(world_differences({self.MOTH["id"]: self.MOTH}, {item["id"]: item}).values()), [{"present": "client only"}])
+
+    def test_an_explosions_debris_is_not_a_difference(self):
+        # spike_wall_hurts_both, 2026-11-23: a created explosion's AddOnNode43 pieces 100 units apart.
+        boom = {"id": 0xFF00089E, "base": 0x88109, "type": EXPL_TYPE, "cell": 0x3C, "flags": 0, "changes": 2, "position": [4928.0, 992.0, -224.0],
+                "pose": {"AddOnNode43": {"position": [4758.0, 879.0, -443.0], "rotate": [1.0] + [0.0] * 8}}}
+        flown = {**boom, "id": 0xFF000901, "pose": {"AddOnNode43": {"position": [4928.0, 992.0, -224.0], "rotate": [1.0] + [0.0] * 8}}}
+        self.assertEqual(world_differences({boom["id"]: boom}, {flown["id"]: flown}), {})
+        elsewhere = {**flown, "position": [5928.0, 992.0, -224.0]}
+        self.assertNotEqual(world_differences({boom["id"]: boom}, {elsewhere["id"]: elsewhere}), {})
 
     def test_a_cabbage_on_one_game_only_is_still_a_difference(self):
         self.assertEqual(list(world_differences({self.CABBAGE["id"]: self.CABBAGE}, {}).values()), [{"present": "host only"}])

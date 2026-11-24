@@ -94,6 +94,7 @@ every other section needs the duo.
 **Combat**
 
 - [After the host dies](#after-the-host-dies): small, the lock order inversion left
+- [A guest's horse in a trap](#a-guests-horse-in-a-trap): small, no duo first
 
 **Found by the playthrough flow**
 
@@ -833,6 +834,18 @@ Size: small. Needs: duo.
   three runs do not show the pair gone.
 - 2026-11-22, measured hook sizes (agent/hook-sizes): passed 1 of 1 without the pair; only the engine's Havok/list pair
   (lock-order.md). If it returns, its report's `ours from` line names the frame that tagged it.
+
+### A guest's horse in a trap
+
+Agent task: route a trap's contact and hit for a guest-owned actor that is not its player (a ridden horse) to its owner's
+game, with a mounted GameTests flow in which the horse loses health once.
+
+Size: small. Needs: no duo first (GameTests), the duo to confirm.
+
+- **A guest's ridden horse takes no trap damage** (review of PR #124, 2026-11-24, read, not measured): on the guest it
+  is `Local`, so `TrapRules::OfContact` drops its contact; on the host it is a `Copy`, so `OfHit` drops the script's
+  hit, and `HostAuthority::OnTrapHit` accepts only player targets. `trap_rules_tests` currently expects the drop.
+  - Start: `TrapRules.h` (`OfContact`, `OfHit`), `HostAuthority::OnTrapContact` / `OnTrapHit` (owner checks).
 
 ## Found by the playthrough flow
 

@@ -10,6 +10,7 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+#include <Systems/CopyStep.h>
 
 #include <Events/DismountEvent.h>
 #include <Events/BoardEvent.h>
@@ -50,6 +51,8 @@
 #include <Games/NpcSnapshot.h>
 #include <Events/HitEvent.h>
 #include <Events/ProjectileLaunchedEvent.h>
+#include <Events/TrapEvents.h>
+#include <Games/Skyrim/TrapRules.h>
 #include <Events/SpellCastEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/LockChangeEvent.h>
@@ -2376,8 +2379,15 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     {
         std::copy_n(aPosition, 3, it->second.Goal);
         it->second.Position[0] -= kStepShort;
-        it->second.Position[2] = std::min(cHeight, aPosition[2]);
+        // Never up (support and gravity keep its height), resting kRigidRest under its owner; the write-back after
+        // physics (HookSetPosition) gives the reference its owner's height on its owner's place.
+        const float cGround = std::min(it->second.ControllerZ.value_or(cHeight) + kRigidRest, aPosition[2]);
+        it->second.ControllerZ = cGround - kRigidRest;
+        const glm::vec3 cAt(it->second.Position[0], it->second.Position[1], *it->second.ControllerZ);
+        it->second.Position[2] = CopyStep::RestHeight(cAt, {aPosition[0], aPosition[1], aPosition[2]});
     }
+    else
+        it->second.ControllerZ = aPosition[2]; // a warp places its capsule there
     // Its capsule meets its furniture; the write-back after physics moves it where it was pushed (actor-movement.md).
     // Actor::Move clears the no-collision bit out of furniture (37507, 0x14068990A).
     if (it->second.Stepped && !it->second.InFurniture)
@@ -3384,6 +3394,24 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
         Effects.push_back({aTarget, aCaster, aSpell, aEffect});
 }
 
+void FakeEngine::ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
+{
+    const auto cTarget = Actors.find(aTarget);
+    if (cTarget == Actors.end())
+        return;
+    if (cTarget->second.Copy)
+        return SpellHits(aTarget, 0, aSpell, aEffect, aMagnitude);
+    // HookAddTarget: a guest's player already under the host's verdict for this explosion
+    const bool cGuest = HoldSession != 0;
+    const bool cActive = std::ranges::any_of(Effects, [&](const Effect& acEffect) {
+        return acEffect.Target == aTarget && acEffect.Spell == aSpell && acEffect.EffectId == aEffect && !acEffect.Caster;
+    });
+    if (cGuest && aTarget == kPlayer && TrapRules::SkipsWorldEffect(true, cActive))
+        return;
+    if (EffectHolds(aEffect, false))
+        Effects.push_back({aTarget, aExplosion, aSpell, aEffect});
+}
+
 bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept
 {
     const auto cCondition = EffectConditions.find(aEffect);
@@ -3474,6 +3502,10 @@ std::vector<IActorBridge::ActiveEffectInfo> FakeEngine::GetActorActiveEffects(ui
     if (const auto it = Actors.find(aFormId); it != Actors.end())
         for (const uint32_t cId : it->second.Visuals)
             effects.push_back({.EffectFormId = cId});
+    for (const auto& cEffect : Effects)
+        if (cEffect.Target == aFormId)
+            effects.push_back({.EffectFormId = cEffect.EffectId, .SpellFormId = cEffect.Spell, .CasterFormId = cEffect.Caster,
+                               .CasterIsActor = Actors.contains(cEffect.Caster)});
     return effects;
 }
 
@@ -3614,6 +3646,50 @@ void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, 
     case HitRules::Route::Mirror:
     case HitRules::Route::Drop: break;
     }
+}
+
+void FakeEngine::TouchesTrap(uint32_t aActor, uint32_t aTrap)
+{
+    World& world = World::Get();
+    switch (TrapRules::OfContact(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor), false))
+    {
+    case TrapRules::Contact::Raise: RunsTrapScript(aTrap, aActor); break;
+    case TrapRules::Contact::AskHost: world.GetRunner().Trigger(TrapContactEvent{aTrap, aActor, {.Velocity = {1.f, 2.f, 3.f}}}); break;
+    case TrapRules::Contact::Drop: break;
+    }
+}
+
+void FakeEngine::RunsTrapScript(uint32_t aTrap, uint32_t aActor)
+{
+    if (!DecidesWorld) // a guest: WorldEvents drops a trap's events
+        return;
+    auto& trap = References.at(aTrap);
+    trap.TrapContacts.push_back(aActor);
+    if (!trap.TrapCanHit)
+        return;
+    World& world = World::Get();
+    switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor)))
+    {
+    case TrapRules::Hit::Apply: TakesDamage(aActor, 0, trap.TrapDamage, false); break;
+    case TrapRules::Hit::AskOwner: world.GetRunner().Trigger(TrapHitEvent{aTrap, aActor, {.Damage = trap.TrapDamage}}); break;
+    case TrapRules::Hit::Drop: break;
+    }
+}
+
+void FakeEngine::TakeTrapHit(uint32_t aFormId, uint32_t, const Payloads::TrapHit& acHit) noexcept
+{
+    TakesDamage(aFormId, 0, acHit.Damage, false);
+}
+
+void FakeEngine::ObjectFires(uint32_t aObject, uint32_t aWeapon, const glm::vec3& acOrigin)
+{
+    ProjectileLaunchedEvent event{};
+    event.Origin = acOrigin;
+    event.ShooterID = aObject;
+    event.ByObject = true;
+    event.WeaponID = aWeapon;
+    event.ParentCellID = References.at(aObject).Cell;
+    World::Get().GetRunner().Trigger(event);
 }
 
 void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)

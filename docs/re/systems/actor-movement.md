@@ -362,3 +362,14 @@ the every-frame path of 63587 empties its pose track after each update, and 6356
 - skymp drives remote actors with Papyrus `TranslateTo` toward the predicted point plus `KeepOffsetFromActor`
   for the gait (`skymp5-client/src/sync/movementApply.ts`): the engine moves them, it never teleports except
   across cells or past a distance.
+
+## A copy's rest height (2026-11-23)
+
+A copy is an NPC with a `bhkCharRigidBodyController`; its owner, a player, has a proxy. On the same floor the rigid body
+rests lower: body readouts put a player's feet 0.4 above a layer-30 floor ray and NPCs' 0.7 to 1.5 below; a guest's
+copy stood 0.53 under the guest on WarehouseTraps' gas plate, inside `CopyStep::kStill`, so never stepped up. What
+reads its place saw it there: an explosion placed at its feet went under the plate (`docs/design/traps.md`). The
+write-back after physics (`TESObjectREFR::SetPosition` 19790, `HookSetPosition`) now gives a stepped copy on its owner's
+place (within `kStill` across, `CopyStep::kRestBand` 4 units up or down) its owner's height; the capsule is not warped.
+Walking counts: the step lands 0.04 short. Left out: a copy its capsule's collision holds off its owner's place
+(furniture, an NPC) or a ledge apart, whose own height is the true one until it catches up.

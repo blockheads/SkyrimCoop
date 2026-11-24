@@ -15,3 +15,12 @@ TEST_CASE("A reference's states and a cell's or an actor's owner become rows; an
     CHECK(FormChangeRows::Sent(Form::kActor, 0x00FF0002, cReferenceFlags) == 0);
     CHECK(FormChangeRows::Sent(Form::kOther, 0xFFFFFFFF, cReferenceFlags) == 0);
 }
+
+TEST_CASE("A script's placed hazard is a reference: its later rows (disabled, deleted) are sent", "[FormChangeRows]")
+{
+    CHECK(FormChangeRows::OfFormType(61) == Form::kReference);
+    CHECK(FormChangeRows::OfFormType(70) == Form::kReference);
+    CHECK(FormChangeRows::OfFormType(62) == Form::kActor);
+    CHECK(FormChangeRows::OfFormType(60) == Form::kCell);
+    CHECK(FormChangeRows::OfFormType(43) == Form::kOther);
+}

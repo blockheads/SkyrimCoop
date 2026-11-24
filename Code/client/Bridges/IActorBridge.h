@@ -16,6 +16,12 @@
 #include <Structs/ActionEvent.h>
 #include <Structs/WeaponState.h>
 
+namespace Payloads
+{
+struct TrapContact;
+struct TrapHit;
+}
+
 /// All Actor* and related operations abstracted away from SKSE headers.
 /// Implementations must NOT leak any SKSE type into the return type or
 /// parameter list — only primitives, std::string, std::vector<T>, and
@@ -185,6 +191,7 @@ public:
         uint32_t EffectFormId{};
         uint32_t SpellFormId{};
         uint32_t CasterFormId{};
+        bool CasterIsActor{}; // false for an object's cast: a trap, an explosion (its NonActorMagicCaster), a hazard
         float Magnitude{};
         float Duration{};
         float Elapsed{};
@@ -275,6 +282,8 @@ public:
     // One of this game's own actors, as its AI runs it.
     virtual ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept = 0;
     // A copy: holds its owner's AI state.
+    /// This game's actor takes a trap's hit the host's script gave its copy there.
+    virtual void TakeTrapHit(uint32_t aFormId, uint32_t aTrapFormId, const Payloads::TrapHit& acHit) noexcept = 0;
     virtual void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept = 0;
     [[nodiscard]] virtual Perks GetPlayerPerks() const noexcept = 0;
     virtual void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept = 0;

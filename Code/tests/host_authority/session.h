@@ -237,6 +237,7 @@ struct Session
     std::vector<QuestState> Quests;                               // the host's quests
     std::vector<std::tuple<GameId, uint32_t, uint32_t>> Activations; // guests' activations the host's game ran
     std::vector<std::pair<uint32_t, GameId>> Summons; // guests' summons the host's game made: caster, spell
+    std::vector<Payloads::TrapContact> TrapsTouched;
     std::vector<std::tuple<GameId, bool, uint8_t>> LocksSet; // guests' lock changes the host's game took
     std::vector<StoryEvent> StoriesRaised;                    // guests' story events the host's story manager queued
     std::vector<ObjectChange> ItemsSet;                      // guests' container changes the host's game took
@@ -381,6 +382,7 @@ private:
         };
         game.Summon = [this](uint32_t aCasterId, const SummonRequest& acSummon) { Summons.emplace_back(aCasterId, acSummon.SpellId); };
         game.Activate = [this](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) { Activations.emplace_back(acObject, aNpcId, aActivatorId); };
+        game.TouchTrap = [this](const Payloads::TrapContact& acContact) { TrapsTouched.push_back(acContact); };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
         game.SetItems = [this](const ObjectChange& acItems) { ItemsSet.push_back(acItems); };
         game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { StoriesRaised.push_back(acEvent); };

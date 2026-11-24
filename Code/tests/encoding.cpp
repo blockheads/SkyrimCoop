@@ -2114,6 +2114,45 @@ TEST_CASE("Melee stagger messages retain the hitter, victim and native magnitude
     CHECK(static_cast<const MeleeStaggerRequest&>(*decoded) == request);
 }
 
+TEST_CASE("Trap contacts, hits and the world's projectiles round trip", "[encoding.traps]")
+{
+    const auto cRequest = [](const auto& acMessage) {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        acMessage.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        const auto decoded = RequestMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        CHECK(static_cast<const std::remove_cvref_t<decltype(acMessage)>&>(*decoded) == acMessage);
+    };
+    TrapContactRequest contact;
+    contact.TargetId = 37;
+    contact.Trap = GameId(0, 0x54B15);
+    contact.Type = Payloads::TrapContact::kHit;
+    contact.Velocity = {1.f, -2.5f, 3.f};
+    contact.Position = {100.f, 200.f, -300.f};
+    contact.Material = 0xABCD1234;
+    contact.Motion = 4;
+    contact.Initial = true;
+    cRequest(contact);
+    TrapHitRequest hit;
+    hit.TargetId = 37;
+    hit.Trap = GameId(0xFFFFFFFF, 0x812);
+    hit.Damage = 60.f;
+    hit.Push = 5.f;
+    hit.Stagger = 0.5f;
+    hit.Velocity = {1.f, 2.f, 3.f};
+    hit.Position = {4.f, 5.f, 6.f};
+    hit.Material = 7;
+    cRequest(hit);
+    WorldProjectileRequest shot;
+    shot.Shooter = GameId(0, 0x3720F);
+    shot.Launch.WeaponID = GameId(0, 0x236A5);
+    shot.Launch.OriginX = 10.f;
+    shot.Launch.XAngle = 0.25f;
+    cRequest(shot);
+}
+
 TEST_CASE("A guest's summon reaches the host with its spell, effect and magnitude", "[encoding.summon]")
 {
     SummonRequest request;

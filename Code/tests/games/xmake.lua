@@ -26,7 +26,7 @@ target("GameTests")
               "../../client/Services/Guest/GuestWorldState.cpp", "../../client/Services/Guest/GuestClock.cpp",
               "../../client/Services/Guest/GuestWeather.cpp", "../../client/Services/Guest/GuestEye.cpp", "../../client/Services/Generic/BodyService.cpp",
               "../../client/Services/Guest/GuestBodies.cpp", "../../client/Services/Guest/GuestWait.cpp",
-              "../../client/Services/Guest/GuestScene.cpp", "../../client/Services/Guest/GuestCopies.cpp", "../../client/Services/Guest/GuestLeash.cpp",
+              "../../client/Services/Guest/GuestScene.cpp", "../../client/Services/Guest/GuestCopies.cpp", "../../client/Services/Guest/GuestLeash.cpp", "../../client/Services/Guest/GuestTraps.cpp",
               "../../client/Services/Generic/MapService.cpp", "../../client/Services/Generic/PartyMarkerService.cpp",
               "../../client/Services/Generic/TimeScaleService.cpp", "../../client/Services/Generic/WaitService.cpp", "../../client/Services/Generic/CrimeService.cpp", "../../client/Services/Generic/MagicService.cpp",
               "../../client/Services/Generic/EffectVisualsService.cpp", "../../client/Services/Generic/AiStateService.cpp", "../../client/Services/Generic/ActorStateService.cpp", "../../client/Services/Generic/KillMoveService.cpp", "../../client/Services/Generic/ClaimService.cpp",
