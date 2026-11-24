@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
+[actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after
+`stage` (golden-claw-guest, arvels-journal-guest-loots) lay 83-111 degrees and up to 582 units apart. `stage` freezes
+an NPC (kProcessMe off), and a frozen actor gets no graph update (41466): its death never got past `DeathAnim` on the
+host, its ragdoll drifted keyframed into the hill and never rested, so the guest's copy kept its own fall. On flat
+ground and thawed, the copy lies as the host's. The harness now thaws a frozen actor at its death (`FrozenActors`,
+ClientTests `[frozen-actors]`), and `stage` honors `frozen: false` for a placed NPC (`ref`). Scenario
+`frozen-npc-corpse-rests-as-host`. No GameTests flow: the fake engine has no harness freeze and no game code changed.
+
 2026-11-23: **other players' animations move on every frame** (`agent/smooth-animations`): a copy's graph runs its
 owner's updates due by its playback, so with both games' frames jittering apart it ran none in some frames (its pose
 held while its body moved on, read in IDA: 63581) and two in the next, 5-23 % of frames on the duo: "snappy, not

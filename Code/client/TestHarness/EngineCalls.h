@@ -487,6 +487,8 @@ bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) 
 // movement), no velocity, and its controller neither pushed nor colliding with characters, so it stands still and
 // players pass through it; it still takes hits. Thawing puts back what freezing changed.
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept;
+// Dead or dying (Actor::IsDead); false for no such actor.
+bool IsActorDead(uint32_t aFormId) noexcept;
 // A copy takes its own do-nothing package, as when its owner's is one the engine made (SkyrimBridge::SetCopyAiFields).
 bool CopyHoldsDoNothing(uint32_t aFormId) noexcept;
 // Probe: the rider on the mount at once, its own MountInteraction (Actor::PutOnMount), even with another rider on it.

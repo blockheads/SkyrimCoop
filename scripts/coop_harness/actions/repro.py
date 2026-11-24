@@ -510,7 +510,7 @@ class ReproActions:
             spot = ctx.scene_spot(index)
             if "ref" in npc:
                 host = int(str(npc["ref"]), 16) if isinstance(npc["ref"], str) else npc["ref"]
-                copy = ctx.stage_host_npc(host, spot)
+                copy = ctx.stage_host_npc(host, spot, frozen=npc.get("frozen", True))
             else:
                 base = npc["base"] if isinstance(npc["base"], str) else f"{npc['base']:X}"
                 host, _, copy = ctx.spawn_host_npc(base, restrained=npc.get("frozen", True), goal=spot)

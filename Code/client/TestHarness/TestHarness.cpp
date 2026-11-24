@@ -73,6 +73,10 @@ void Poll()
 
     if (harness.Files.InWorld())
     {
+        // A frozen actor that died needs its update to finish dying (FrozenActors).
+        for (const uint32_t cDead : harness.Frozen.TakeDead(EngineCalls::IsActorDead))
+            if (EngineCalls::FreezeActor(cDead, false))
+                spdlog::info("Thawed {:X} at its death: frozen, it would never finish dying", cDead);
         harness.Actions.Poll(harness);
         harness.Input.Poll();
     }

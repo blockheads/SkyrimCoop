@@ -839,6 +839,12 @@ bool MoveActorHome(uint32_t aFormId) noexcept
     return (s_moveToMyEditorLocation.Get())(pActor, nullptr, false);
 }
 
+bool IsActorDead(uint32_t aFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    return pActor && pActor->IsDead();
+}
+
 bool CopyHoldsDoNothing(uint32_t aFormId) noexcept
 {
     Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
