@@ -390,6 +390,7 @@ constraints' motors). A probe around 58291 (duo, 2 HeadButt-free rounds of 5 wit
 the engine's own `hkbRagdollDriver::driveToPose` on the copy's first update after its death: body 0 moved 10 and 9.6 units
 in that one call, our steer after it nothing. Its callees read so far set no position (IDA comments at 58291); whether its
 keyframed-to-dynamic `setMotionType` puts a body back to its swept transform's start is not read yet.
+Left as it is (the user, 2026-11-23): watched in play, the kill moves look right; the death's drop is the engine's.
 
 ## `client-kill-move` timing
 
