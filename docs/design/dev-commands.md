@@ -13,6 +13,7 @@ any player types /spawn wolf 3
 host: HostDevTools::OnDevCommand
   Parse again (a bad line is dropped)
   /killall:      HostGame::KillHostiles (the host's game kills what is hostile to its player)
+  /spawn horse:  HostGame::SpawnPartyHorses at the typer's character (loaded on the host, else dropped)
   world command: DevCommands::WorldLines(command, ConsoleNameOf(typer's character)) -> HostGame::RunConsole
                  /spawn needs the typer's character loaded on the host (its copy), else dropped
   NotifyDevCommand{Line, By} -> every game, the typer's and the host's own too
@@ -38,13 +39,11 @@ every game: DevToolsService::OnNotifyDevCommand
 | `/killmove <0-100\|default>` | every game | none: the kill move conditions' odds (below) |
 | `/reset` | every game | god off, speed 1, gravity 1, kill move odds the game's own, whatever set them |
 | `/spawn <kind> [1-20]` | host | `<typer>.placeatme <list> <n>`: wolf, bandit, draugr, troll, sabrecat, giant, dragon (leveled lists, Skyrim.esm) |
+| `/spawn horse [1-20]` | host | none: `IDevToolsBridge::SpawnPartyHorses` places saddled horses (109E3D) beside the typer, each the party's as a stable sells one (`PlayerHorseFaction` rank 1, owned by `PlayerFaction`); a console `placeatme` names no new reference to own |
 | `/killall` | host | none: `KillHostiles`, the console's `killall` kills every actor, copies and followers too |
 | `/weather <kind>` | host | `fw <id>`; `HostWeather` shares it as any weather (no sky in an interior) |
 | `/leash [on\|off]` | host | none: `HostLeash::SetOn`; off stops a running countdown (`kOff`), `/reset` turns it on |
 | `/dev` | this game | the list |
-
-A horse to ride is not a chat command: the test harness's `spawn_horse` verb places one (`testing.md`, the MCP list),
-so player builds stay without it.
 
 `ConsoleNameOf`: the host's player is `player`, a guest's character is its copy's reference id (`FF...`). The console
 takes an id as a reference only when it starts with a letter (`console.md`).
@@ -73,6 +72,6 @@ every value back, so the console, the harness or a cog swap never leaves it wron
 
 ClientTests `[dev-commands]` (parse, lines, odds, console names); HostAuthorityTests `[DevTools]`; GameTests
 `[dev-commands]` (a guest's `/heal` heals both players; a guest's `/spawn` gives the guest copies, `/killall` kills
-them; `/killmove` and `/reset` reach both games). Skyrim 2026-11-16 (duo, by hand): spawn at the guest's copy, speed,
+them; a guest's `/spawn horse` is the party's on both games; `/killmove` and `/reset` reach both games). Skyrim 2026-11-16 (duo, by hand): spawn at the guest's copy, speed,
 gravity, jump, gear, shout recovery and kill move picks read back in both games. Scenario `killmove-odds-every-swing`:
 at 100 one swing at a 1000-health wolf is a kill move, the guest's and the host's.

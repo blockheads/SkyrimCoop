@@ -47,15 +47,12 @@ class MountsActions:
         world = (_game.read_status() or {}).get("world") or {}
         return next((int(k) for k, v in world.items() if v.get("player") and k != "20"), None)
 
-    def spawn_horse(ctx, instance="", owned=False, handle="horse"):
-        """Spawns a tame saddled horse beside that game's player, ready to mount, and names it `handle` in both
-        games; returns the handle. The host places it (an NPC, the host's) at its player or at the guest's copy.
-        owned: the party's, as a stable sale makes it (PlayerHorseFaction rank 1, owned by PlayerFaction)."""
-        at = "player" if instance in ("", "host") else f"{ctx.player_copy('') or 0:08X}"
-        if at == "00000000":
-            raise ctx.failure("[host] the guest's character is not loaded here: no copy to place the horse at")
+    def spawn_horse(ctx, instance="", handle="horse"):
+        """That game's player types /spawn horse: the host places a saddled horse beside it, the party's as a stable
+        sells one (PlayerHorseFaction rank 1, owned by PlayerFaction). Names it `handle` in both games once it is
+        ready to mount; returns the handle (dev-commands.md)."""
         before = set(ctx.local_player("").get("local_actors", {}))
-        ctx.console_on("", f"{at}.placeatme {HORSE} 1")  # PlaceAtMe 22104 -> 22511
+        ctx.say(instance, "/spawn horse")
 
         def placed_horses():  # new placed references (FF...) of HorseRace: another NPC loading meanwhile is not it
             actors = ctx.local_player("").get("local_actors", {})
@@ -66,16 +63,12 @@ class MountsActions:
             raise ctx.failure(f"[host] {len(found)} new horses appeared, not one: {[f'{f:X}' for f in found]}")
         horse = found[0]
         ctx.staged().append(("npc", horse))  # unstage deletes it, whatever fails below
+        ctx.wait_for(f"[host] the horse {horse:X} is the party's",
+                     lambda: ctx.player_command("", {"cmd": "form", "form": horse}).get("owner") == PLAYER_FACTION
+                     and ctx.faction_rank("", horse, PLAYER_HORSE_FACTION) >= 1, 10)
         sid = ctx.wait_for("[host] the horse has a session id",
                            lambda: (s := ctx.host_npc_state(horse).get("session_id")) is not None and s >= 0 and (s,), 10)[0]
         copy = ctx.copy_of("client", sid)
-        if owned:  # the stable's TIF__00068CF4: docs/re/systems/player-mount.md
-            ctx.console_on("", f"{horse:08X}.addtofaction {PLAYER_HORSE_FACTION:X} 1")  # 22456
-            ctx.console_on("", f"{horse:08X}.setownership {PLAYER_FACTION:X}")  # 22372
-            # The host's own state only: the guest's copy is what a scenario expects (form change sync).
-            ctx.wait_for(f"[host] the horse {horse:X} is the party's",
-                         lambda: ctx.player_command("", {"cmd": "form", "form": horse}).get("owner") == PLAYER_FACTION
-                         and ctx.faction_rank("", horse, PLAYER_HORSE_FACTION) >= 1, 10)
         # Inferred, not read: Activate on an actor still fading in did nothing (mount_roundtrip waits too).
         for game, form in (("", horse), ("client", copy)):
             ctx.wait_for(f"[{game or 'host'}] the horse has faded in",

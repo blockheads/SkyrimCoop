@@ -144,8 +144,7 @@ class Harness(unittest.TestCase):
 
     def spawn_horse_session(self):
         session = self.session
-        session.console_on = Mock()
-        session.player_copy = Mock(return_value=0xFF000801)
+        session.say = Mock()
         wolf = {str(0xFF000850): {"identity": {"race": 0x13744}}}
         horse = {str(0xFF000900): {"identity": {"race": 0x131FD}}}
         # An unrelated NPC loads first, then the horse.
@@ -164,12 +163,10 @@ class Harness(unittest.TestCase):
         session.actor_state = Mock(return_value={"mod": {"fade_state": 0}})
         return session
 
-    def test_spawn_horse_places_at_the_guests_copy_and_sells_it_to_the_party(self):
+    def test_spawn_horse_types_the_dev_command_and_names_the_new_horse(self):
         session = self.spawn_horse_session()
-        self.assertEqual(session.spawn_horse("client", owned=True), "horse")
-        self.assertEqual([c.args for c in session.console_on.call_args_list],
-                         [("", "FF000801.placeatme 00109E3D 1"), ("", "FF000900.addtofaction 68D78 1"),
-                          ("", "FF000900.setownership DB1")])
+        self.assertEqual(session.spawn_horse("client"), "horse")
+        session.say.assert_called_once_with("client", "/spawn horse")
         self.assertEqual(session.handles()["horse"], {"host": 0xFF000900, "guest": 0xFF000A00})
         self.assertEqual(session.staged(), [("npc", 0xFF000900)])
 

@@ -65,6 +65,29 @@ SCENARIO("A guest's /spawn places the wolves at its character in the host's game
     }
 }
 
+SCENARIO("A guest's /spawn horse places a horse at its character, the party's on both games", "[dev-commands]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    party.As(party.Guest(), [&] { party.Guest().ctx().at<DevToolsService>().Run("/spawn horse"); });
+    party.Until([&] { return guest.CopiesOf(DevCommands::cHorse).size() == 1; }, "the guest sees the host's horse");
+    REQUIRE(Tools(party.Host()).Horses.size() == 1);
+    const uint32_t cHorse = Tools(party.Host()).Horses[0];
+    CHECK(Tools(party.Guest()).Horses.empty());
+    CHECK(Tools(party.Host()).Lines.empty());
+    const float* cpAt = host.Actors.at(PlayerCopy(host)).Position;
+    const float* cpHorse = host.Actors.at(cHorse).Position;
+    CHECK(std::hypot(cpHorse[0] - cpAt[0], cpHorse[1] - cpAt[1]) < 300.f); // beside the guest's character
+    CHECK(host.Actors.at(cHorse).Owner == DevCommands::cPlayerFaction);
+    CHECK(host.Factions[cHorse][DevCommands::cPlayerHorseFaction] == 1);
+    const uint32_t cCopy = guest.CopiesOf(DevCommands::cHorse)[0];
+    party.Until([&] { return guest.Actors.at(cCopy).Owner == DevCommands::cPlayerFaction; },
+                "the guest's copy is the party's too");
+}
+
 SCENARIO("/killmove and /reset reach every game's kill move odds", "[dev-commands][kill-move]")
 {
     Party party(1, SmokeWorld);

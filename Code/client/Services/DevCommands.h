@@ -28,6 +28,11 @@ enum class Kind : uint8_t
     Leash,
 };
 
+// /spawn horse: a saddled horse (Skyrim.esm NPC_), the party's as a stable sells one (docs/re/systems/player-mount.md).
+constexpr uint32_t cHorse = 0x109E3D;
+constexpr uint32_t cPlayerHorseFaction = 0x68D78;
+constexpr uint32_t cPlayerFaction = 0xDB1;
+
 struct Command
 {
     Kind What{};
@@ -52,6 +57,8 @@ struct Parsed
 
 // A world command is the host's alone; the others run on every game, each on its own player.
 [[nodiscard]] bool IsWorld(Kind aKind) noexcept;
+// /spawn horse: placed by IDevToolsBridge::SpawnPartyHorses, no console line (a console placeatme names no new reference).
+[[nodiscard]] bool IsPartyHorse(const Command& acCommand) noexcept;
 
 // An actor as the console names it: "player", or its reference id when that starts with a letter (a copy's FF...;
 // docs/re/systems/console.md); none for 0 or an id the console takes as a number.
