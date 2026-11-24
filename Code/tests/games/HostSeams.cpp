@@ -1,3 +1,4 @@
+#include <Games/PartyItems.h>
 #include <Events/ItemsChangedEvent.h>
 #include <Events/GameLoadFailedEvent.h>
 #include <Events/GameLoadedEvent.h>
@@ -130,6 +131,7 @@ void HostService::MakeAuthority() noexcept
         return m_world.ctx().at<InventoryService>().PartyItemsOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId());
     };
     game.ItemName = [this](const GameId& acItem) { return m_world.ctx().at<InventoryService>().ItemName(acItem); };
+    game.ItemFormType = [this](const GameId& acItem) { return m_world.ctx().at<InventoryService>().ItemFormType(acItem); };
     game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) { return m_world.ctx().at<CrimeService>().Judge(aActor, aCrime); };
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) {
         return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId);
@@ -263,15 +265,66 @@ void HostService::MakeAuthority() noexcept
         const bool cTake = moved.Count > 0;
         const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.ContainerCountOf(cContainer, cItem)) : engine.CountOf(cPlayer, cItem);
         moved.Count = std::min(std::abs(moved.Count), cAvailable) * (cTake ? 1 : -1);
+        // As HostEngine::TransferContainer: a put of a party item's mirror moves the host's player's real stack.
+        if (!cTake && moved.Count && PartyItems::IsParty(moved) && !acRequest.ContainerActorId)
+        {
+            auto& entries = engine.Actors.at(FakeEngine::kPlayer).Items.Entries;
+            auto it = std::ranges::find_if(entries, [&](const auto& acEntry) {
+                return acEntry.BaseId == moved.BaseId && !acEntry.IsQuestItem && acEntry.ExtraName == moved.ExtraName && acEntry.Count > 0;
+            });
+            if (it == entries.end()) // a quest object's real stack keeps its alias's name
+                it = std::ranges::find_if(entries, [&](const auto& acEntry) { return acEntry.BaseId == moved.BaseId && acEntry.IsQuestItem && acEntry.Count > 0; });
+            if (it == entries.end())
+            {
+                moved.Count = 0;
+                return moved;
+            }
+            {
+                ScopedInventoryOverride _;
+                const int32_t cCount = std::min(-moved.Count, it->Count);
+                Inventory::Entry real = *it;
+                real.Count = cCount;
+                if ((it->Count -= cCount) <= 0)
+                    entries.erase(it);
+                auto& reference = engine.References.at(cContainer);
+                std::vector<Inventory::Entry> stacks;
+                for (const auto& cStack : reference.Stacks)
+                    if (cStack.BaseId == moved.BaseId)
+                        stacks.push_back(cStack);
+                stacks.push_back(real);
+                engine.SetItems(cContainer, cItem, reference.Items[cItem] + cCount, stacks);
+                if (const auto cAlias = engine.AliasStacks.find({FakeEngine::kPlayer, cItem}); cAlias != engine.AliasStacks.end())
+                {
+                    engine.AliasStacks[{cContainer, cItem}] = cAlias->second;
+                    engine.AliasStacks.erase(cAlias);
+                }
+                moved.Count = -cCount;
+                moved.IsQuestItem = true;
+                return moved;
+            }
+        }
+        // As HostEngine::MoveAliasStack: a quest alias's stack moves to this game's player, its arrival raised.
+        bool aliasMoved = false;
+        if (cTake && moved.Count && engine.AliasStacks.contains({cContainer, cItem}))
+        {
+            moved.IsQuestItem = true;
+            engine.MovesStack(cContainer, FakeEngine::kPlayer, cItem, moved.Count, acRequest.Steal);
+            aliasMoved = true;
+        }
         // As HostEngine::TransferContainer: a take changes only the container, the player's own game its player; a put
         // moves from the player's copy here.
-        if (moved.Count)
+        if (moved.Count && !aliasMoved)
         {
             ScopedInventoryOverride _;
             if (!cTake)
                 engine.GetsItem(cPlayer, moved);
             Inventory::Entry other = moved;
             other.Count = -other.Count;
+            // As FindStack: a plain request matches a quest item's list too (ContainerTransfers::Stack drops the flag).
+            const auto cStacks = acRequest.ContainerActorId ? engine.EntriesOf(cContainer, cItem) : std::vector<Inventory::Entry>{};
+            if (!other.ContainsExtraData() && std::ranges::any_of(cStacks, [](const auto& acStack) { return acStack.IsQuestItem; }) &&
+                std::ranges::none_of(cStacks, [](const auto& acStack) { return !acStack.ContainsExtraData(); }))
+                other.IsQuestItem = true;
             if (acRequest.ContainerActorId)
                 engine.GetsItem(cContainer, other);
             else
@@ -287,7 +340,7 @@ void HostService::MakeAuthority() noexcept
             World::Get().GetRunner().Trigger(ItemsChangedEvent{cContainer});
         // A theft marks the item as the container's owner's (16059 on its target): an actor's NPC, else the
         // reference's owner, else its cell's.
-        if (cTake && acRequest.Steal && moved.Count && moved.ExtraOwner == GameId{} && cItem != 0xF)
+        if (cTake && acRequest.Steal && moved.Count && !moved.IsQuestItem && moved.ExtraOwner == GameId{} && cItem != 0xF)
         {
             uint32_t owner{};
             if (acRequest.ContainerActorId) // its original leveled form, else its base (TESObjectREFR::GetItemsOwner)
@@ -308,6 +361,9 @@ void HostService::MakeAuthority() noexcept
         return engine.CreateLoose(acItem, FormIdOf(acPlacement.Cell));
     };
     game.TakeItem = [&engine](const GameId& acObject) { return engine.TakeLoose(acObject); };
+    game.DropPartyItem = [&engine](const Inventory::Entry& acItem, uint32_t aPlayer) {
+        return engine.DropsPartyItem(acItem, Utils::GetFormIdBySessionId(aPlayer));
+    };
     game.TakeQuestObject = [&engine](const GameId& acObject) { return engine.TakeQuestObject(acObject); };
     // The real PhysicsBodies over the fake engine's physics, keyed as HostEngine::TakeBodies keys them: an actor's
     // ragdoll by its session id, only this game's own actors' (a copy's is played here).
@@ -384,7 +440,11 @@ void HostService::MakeAuthority() noexcept
     };
     game.StoreRecord = [cRecords](const PlayerRecord& acRecord) {
         if (auto* pRecords = cRecords())
-            pRecords->Put(acRecord);
+            pRecords->Put(acRecord, CharacterRecords::Clock::now());
+    };
+    game.SettleRecord = [cRecords](const std::string& acKey) {
+        if (auto* pRecords = cRecords())
+            pRecords->Settle(acKey, CharacterRecords::Clock::now());
     };
     game.StoreStorySpell = [cRecords](const GameId& acSpell, bool aAdded) {
         if (auto* pRecords = cRecords())
@@ -403,6 +463,7 @@ void HostService::MakeAuthority() noexcept
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(engine);
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
+    m_world.ctx().at<InventoryService>().SetArrivalDecider(&PartyItems::ArrivesAsParty);
     m_pConversation = std::make_unique<HostConversation>(m_world, m_dispatcher, m_world.ctx().at<DialogueService>());
     InstallFrontDoor();
 }
@@ -423,6 +484,7 @@ void HostService::StopHosting() noexcept
     m_world.ctx().at<CreatedIds>().SetHosting(false);
     m_pConversation.reset();
     m_pNetwork.reset();
+    m_world.ctx().at<InventoryService>().SetArrivalDecider({});
     m_pAuthority.reset();
     m_pSaves.reset();
 }

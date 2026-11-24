@@ -2,7 +2,7 @@
 // and every game hears what it is now.
 #include "session.h"
 
-#include <Services/Host/HostPurse.h>
+#include <Services/Host/HostPartyItems.h>
 
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/RequestInventoryChanges.h>
@@ -128,7 +128,7 @@ TEST_CASE("A player's spending is told in every game's chat; a gain is not", "[H
         const std::string& cText = cLines[0]->ChatMessage;
         CHECK(cText.starts_with("Lydia "));
         CHECK(cText.ends_with(" 40 gold"));
-        CHECK(std::ranges::any_of(HostPurse::cSpendWords, [&](std::string_view aWord) { return cText == std::format("Lydia {} 40 gold", aWord); }));
+        CHECK(std::ranges::any_of(HostPartyItems::cSpendWords, [&](std::string_view aWord) { return cText == std::format("Lydia {} 40 gold", aWord); }));
     }
 
     SECTION("the host's own spending names the host's player")

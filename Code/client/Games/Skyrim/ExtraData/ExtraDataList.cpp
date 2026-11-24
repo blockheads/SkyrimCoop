@@ -154,6 +154,13 @@ void ExtraDataList::SetOwner(TESForm* apOwner) noexcept
     s_setOwner(this, apOwner);
 }
 
+void ExtraDataList::SetHotkey(int8_t aHotkey) noexcept
+{
+    using TSetHotkey = void(ExtraDataList*, int8_t);
+    POINTER_SKYRIMSE(TSetHotkey, s_setHotkey, 11664);
+    s_setHotkey(this, aHotkey);
+}
+
 void ExtraDataList::SetCount(uint16_t aCount) noexcept
 {
     using TSetCount = void(ExtraDataList*, uint16_t aCount);
@@ -161,7 +168,7 @@ void ExtraDataList::SetCount(uint16_t aCount) noexcept
     s_setCount(this, aCount);
 }
 
-void ExtraDataList::SetCustomName(const char* acpName, bool aOverQuest) noexcept
+bool ExtraDataList::SetCustomName(const char* acpName, bool aOverQuest) noexcept
 {
     auto* pText = static_cast<ExtraTextDisplayData*>(GetByType(ExtraDataType::TextDisplayData));
     if (!pText)
@@ -181,11 +188,12 @@ void ExtraDataList::SetCustomName(const char* acpName, bool aOverQuest) noexcept
         pText->pOwnerQuest = nullptr;
     }
     if (pText->pDisplayNameText || pText->pOwnerQuest)
-        return;
+        return false;
     pText->DisplayName.Set(acpName);
     pText->usCustomNameLength = static_cast<uint16_t>(std::strlen(acpName));
     pText->iOwnerInstance = ExtraTextDisplayData::kCustomName;
     pText->fTemperFactor = 1.f;
+    return true;
 }
 
 bool ExtraDataList::HasQuestObjectAlias() noexcept

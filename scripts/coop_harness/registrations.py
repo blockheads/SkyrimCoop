@@ -393,6 +393,12 @@ def register_flows(registry):
     registry.add("party-reward-reaches-everyone", ["party-items", "inventory", "quest"],
                  lambda ctx: party_items.scenario_party_reward_reaches_everyone(ctx),
                  doc="A quest's stage fragment gives the player an item (Cidhna Mine's skooma): every player carries it as [P], and chat says so.")
+    registry.add("arvels-journal-guest-loots", ["party-items", "inventory", "quest", "late-save"],  # hand-written: the review's case, read first
+                 lambda ctx: party_items.scenario_arvels_journal_guest_loots(ctx),
+                 doc="The guest loots Arvel's body: his journal is the party's, the host's player holding the real one.")
+    registry.add("alias-item-guest-drops", ["party-items", "inventory", "quest", "drops"],  # hand-written: the bug was played first (inventory-changes.md)
+                 lambda ctx: party_items.scenario_alias_item_guest_drops(ctx),
+                 doc="The guest picks up, drops and picks up again an item a quest alias holds: the alias goes with it.")
     for game, who in (("host", "the host"), ("guest", "a guest")):
         registry.add(f"party-rents-room-{game}", ["ownership", "dialogue", "spawn", "cells"],
                      lambda ctx, game=game: getattr(ownership, f"scenario_party_rents_room_{game}")(ctx),
@@ -408,6 +414,9 @@ def register_flows(registry):
         registry.add(f"party-quest-item-{game}", ["party-items", "inventory", "quest"],
                      lambda ctx, game=game: getattr(party_items, f"scenario_party_quest_item_{game}")(ctx),
                      doc=f"{who.capitalize()} picks up the Golden Claw while MS13 holds it: every player carries one claw.")
+        registry.add(f"alias-key-taken-{game}", ["party-items", "inventory", "quest"],  # hand-written: the bug was played first (inventory-changes.md)
+                     lambda ctx, game=game: party_items.scenario_alias_key_taken(ctx, "client" if game == "guest" else ""),
+                     doc=f"{who.capitalize()} takes a key a quest alias holds from a chest: the party's, its alias kept.")
         registry.add(f"party-item-sold-{game}", ["party-items", "inventory", "menus"],
                      lambda ctx, game=game: getattr(party_items, f"scenario_party_item_sold_{game}")(ctx),
                      doc=f"{who.capitalize()} sells the party's sword: nobody carries it and the purse is paid; the other "

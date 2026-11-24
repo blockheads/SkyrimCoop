@@ -232,3 +232,81 @@ boots the games with the heap history itself: `count_double_frees`, then `expect
 - `ObjectReference.Delete` 56154 frees nothing itself: `SetDelete`, `Set3D(null)` (inline under the reference's
   lock 12358, or task 24 through 36943), then a `DeleteFunctor` after the frame's render -> `GarbageCollector::Add`
   36459 -> `Job_Garbage` (36479). No free of it showed in either run.
+
+## An alias-held item leaving a container (2026-11-23, IDA 1.7.104, read)
+
+The Golden Claw (playtest 2026-11-22, item 15). MS13's `GoldenClaw` alias (11) creates `MS13GoldenClaw` (39647) **in**
+Arvel's inventory (ESM: `ALCO 39647`, `ALCA 0x80000001`, the quest-object flag): the alias holds a created reference
+(`FF000D80` in the duo's save, harness `quest`) that lives in Arvel's inventory. Measured (`stack_extras`): its list
+holds the alias (136) and the reference's handle (28), and no unique id. So the reference's handle (16149's event
++0x10) is this item's path to its script; the unique id's, below, is read but not what these items use. Its script (`MS13GoldenClawScript`) sets stage 40 on
+`OnContainerChanged` when the new container is `Game.GetPlayer()`. 189 Skyrim.esm aliases are made this way (131
+quest objects), MQ103's Dragonstone in the barrow's boss among them.
+
+```text
+an inventory item's VM handle = (uid << 32) | container FormID | 1<<48     SkyrimVM__InventoryItemHandle 0x1409BA460
+RemoveItem 16059 with a target (apMoveToRef)
+  -> InventoryChanges__AddListFrom 16053 (0x14022C310, read): the list moves whole (alias with it)
+     a list holding a unique id (extra 0x9F) gets one in the new container (SetUniqueID 16147 ->
+       TESUniqueIDChangeEvent; VM sink 54003 remaps the handle); a list without one keeps none
+     SendContainerChangedEvent 16149 {old, new = target, item, count, ref, uid}
+       VM sink 53966: OnContainerChanged to the item's reference (event +0x10) and to its uid's handle -> the alias's script
+RemoveItem 16059 with no target
+  -> InventoryChanges__SendRemovedToNowhereEvents 16065 (0x1402310F0, read)
+     TESContainerChangedEvent {old, new = 0, ref, uid = 0}: the script hears new = None
+     only if the list holds a uid: it is cleared -> TESUniqueIDChangeEvent {.., 0, 0}: sink 54003 unbinds that handle
+     the list (and its alias instance) is freed
+```
+
+So `HostEngine::TransferContainer` (no target since 2026-11-19, above) ended an alias-held item's quest role when a
+guest took it: its script heard the claw leave for no container (the event's new container is 0), and the guest kept a
+plain claw as its own loot. The claw's list holds no unique id (measured), so 54003's unbinding is not shown for it: only
+the empty destination is. Measured 2026-11-23 (`golden-claw-guest`, from `LateOutsideHelgen`): "a list found", MS13
+stayed at 30 on both games. The host's own take moves the list to its player (the target path) and runs as vanilla.
+
+The fix (`HostEngine::MoveAliasStack`): a guest's take of a stack whose list holds `ExtraAliasInstanceArray` (0x88)
+gives 16059 a target, the host's player, where the party holds it (`shared-items.md`). Measured: MS13 reached 40 on
+both games, the claw moved to `14`. An intermediate version sent a non-quest-object alias item (Arvel's journal) to the
+taker's copy instead; the journal's rows and the copy measurements of that day are from it, and the shared-items plan
+replaced it. Arvel's web package ghosts him
+(`PF_MS13ArvelWebForcegreetPack` `setGhost()`): the scenario clears it before the kill. A kill move was not tried.
+
+## What the story hears and counts of a player's items (2026-11-23, IDA 1.7.104, read)
+
+For the party's one pack (the story hears, counts and takes the party's items as the player's): where the engine's
+quest scripts and conditions meet a player's inventory, and what a guest's copy on the host does there.
+
+```text
+a copy's items change on the host (InventoryService::ApplyItems -> SetCarriedStacks / SetContainerCount)
+  engine add (19708 -> 19688) / remove (16059): TESContainerChangedEvent 16149 is sent (ScopedInventoryOverride
+  silences only our hooks)
+  VM sink 53966: OnItemAdded / OnItemRemoved to the container's handle (its filter checked), then RelayEvent 54033
+    -> each quest alias holding that reference (TESObjectREFR__HasAliases 19655 / VisitAliases 19656), each
+       effect on an actor
+  a copy is in no alias: a player alias (it holds 0x14) never hears a guest's items
+
+counts the story asks
+  condition GetItemCount 21435 (dialogue, objectives, packages): the subject's InventoryChanges::GetItemCount 16108
+  Papyrus GetItemCount 56173 -> 0x140A56FA0: 16108 for an item or each form list entry; a reference: 1 when it
+    lies in this container; a keyword: GetItemCountByKeyword 0x140239750
+  16108's other callers are the engine's own (ammo, worn marks, lockpicks through PlayerCharacter::GetItemCount)
+```
+
+A copy's alias stack (a guest's take of a non-quest-object alias item, `MoveAliasStack`) reads as plain to
+`SetCarriedStacks` (its `ReadStack` sees no extra data of ours): kept while the owner's count matches, removed to
+nowhere (its alias with it) when the owner's items part holds fewer. Measured 2026-11-23 by the list's extras: the
+journal on the guest's copy holds 136 and 28. A quest's fill id proves nothing here: it read `FF000D81` after the
+stack was gone too.
+
+A guest's drop (measured the same day): the host made a new journal (`FF000A43`), and the copy's own went to nowhere.
+`Actor::DropObject` (37520) removes with `kDropping`, the item's own list and a place; `HostEngine::DropAliasItem`
+does that on the copy, and `FF000D81` itself lies in the world again (our creation watch sees it: announcing it too
+sent create, delete, create). A later pickup goes into the taker's copy (`TakeAliasItem`,
+`Actor::PickUpObject` 37521), its list 136 and 28 again.
+
+A drop's place (read): with no reference to bring back, `InventoryChanges__PlaceDropped` 16062 `0x140230E10` makes one at
+the position given, always in the dropper's parent cell and worldspace.
+
+A script's removal: papyrus RemoveItem 56218 queues `RemoveItemFunctor`, run at `0x140A418E0` (vtable slot 1; 56095
+is the AddItem functor's). A base item goes through 56647, which clamps an actor's count with
+`GetItemCountImpl` `0x140A56FA0`: the party's count must hook only the Papyrus entry 56173, never that body.

@@ -241,7 +241,9 @@ char HookPickUpObject(PlayerCharacter* apThis, TESObjectREFR* apObject, int32_t 
     // The inventory change event should always be sent to the server, otherwise the server inventory won't be updated.
     bool shouldUpdateClients = apObject->IsTemporary() && !ScopedActivateOverride::IsOverriden();
 
-    World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item), false, shouldUpdateClients));
+    InventoryChangeEvent event(apThis->formID, std::move(item), false, shouldUpdateClients);
+    event.AliasHeld = apObject->GetExtraDataList() && apObject->GetExtraDataList()->Contains(ExtraDataType::AliasInstanceArray);
+    World::Get().GetRunner().Trigger(std::move(event));
 
     ScopedInventoryOverride _;
 

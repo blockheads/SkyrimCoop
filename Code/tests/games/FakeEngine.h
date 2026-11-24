@@ -159,6 +159,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         return phase;
     }
     PlayerRecord Player;             // this game's player, as ReadPlayer reads it (but its items and place: the actor's)
+    // What the engine keeps of its player beside the character, saved and loaded with its save (favorites, damage,
+    // timed effects, cooldowns, trainings, view: player-save-state.md); a load brings the save's player's.
+    PlayerOwnState Own;
     bool RefusesSaves = false;       // Save_Impl's own refusals (combat, a menu)
     std::vector<std::string> Loaded; // the saves this game loaded, by name
     bool IsAtMainMenu() const noexcept override { return AtMainMenu; }
@@ -413,6 +416,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void QuestChanged(uint32_t aId) { QuestWrites.Quest(aId); }
     void ClearReferenceAlias(uint32_t aQuest, uint32_t aAlias);
     void ClearLocationAlias(uint32_t aQuest, uint32_t aAlias);
+    // A stack a quest alias holds in an actor's inventory (created in it: MS13's GoldenClaw in Arvel), by (holder,
+    // item). Its script sets Stage when it moves into a player (OnContainerChanged; on the host a player's copy compares
+    // as the player). Removed with no target (16059) it loses the alias (inventory-changes.md).
+    struct AliasStack
+    {
+        uint32_t Quest = 0;
+        uint16_t Stage = 0;
+        bool QuestObject = true;
+    };
     // Loose items (docs/design/dropped-items.md): references made at run time holding an item (its count and extra
     // data), each game's own 0xFF ids. The host's go out as kCreate and their deletion; a guest's are its player's
     // drops, or twins of the host's (GuestEngine's m_created, the seams').
@@ -422,6 +434,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         Inventory::Entry Item;
         // A quest's alias holds it (a quest object, the host's game's alone): picked up, the engine's quest item.
         bool QuestObject = false;
+        // The alias holding it, not a quest object (QuestObject above): it follows the item into the hands that pick it up.
+        std::optional<AliasStack> Alias{};
         // Its owner form (ExtraOwnership, an NPC base): a guest's player picking it up steals it (CrimeBridge).
         uint32_t Owner = 0;
     };
@@ -452,6 +466,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::optional<Inventory::Entry> TakeLoose(const GameId& acObject);
     // A loose quest object the host's player picks up (HostGame::TakeQuestObject); false for any other.
     bool TakeQuestObject(const GameId& acObject);
+    // By (holder, item).
+    std::map<std::pair<uint32_t, uint32_t>, AliasStack> AliasStacks;
+    // An actor gets a stack its quest's alias holds (the alias's create-in fill).
+    void AliasCreatesIn(uint32_t aHolder, uint32_t aItem, const AliasStack& acAlias);
+    // HostEngine::DropPartyItem: this game's player drops the real stack of a party item (its name, its alias) in that
+    // copy's cell; none for a quest object or another cell.
+    std::optional<GameId> DropsPartyItem(const Inventory::Entry& acItem, uint32_t aCopy);
+    // 16059 with a target: the stack moves whole, its alias with it; the add's events on the target.
+    void MovesStack(uint32_t aFrom, uint32_t aTo, uint32_t aItem, int32_t aCount, bool aSteal = false);
     // The actor's entries of that item, extra data and all.
     [[nodiscard]] std::vector<Inventory::Entry> EntriesOf(uint32_t aActor, uint32_t aItem) const;
 
@@ -710,6 +733,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // a permanent form; Base is then each game's own temporary NPC.
         uint32_t LeveledBase = 0;
         std::string DisplayName;
+        bool CustomName = false;  // DisplayName is a custom name (ExtraTextDisplayData instance -2), not an alias's message
+        bool NameEmptied = false; // its name's cache cleared with nothing to regenerate it from: reads "" (12769)
         uint32_t Cell = 0;
         uint32_t WorldSpace = 0;
         float Position[3]{};
@@ -1327,6 +1352,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, std::map<uint32_t, int32_t>> Factions; // by actor: each faction it is in, at its rank
     std::map<uint32_t, std::set<uint32_t>> AddedSpells;       // by actor (Actor::AddSpell)
     std::map<uint32_t, std::map<uint32_t, uint32_t>> QuestAliasReferences;
+    // A reference alias's flags by quest and alias: 0x100 stores text, 0x4000 uses stored text (a display name).
+    std::map<uint32_t, std::map<uint32_t, uint32_t>> AliasFlags;
+    // The reference aliases with a display name message (ALDN), by quest.
+    std::map<uint32_t, std::set<uint32_t>> AliasNameMessages;
+    // TESQuest::ClearAliasNameCaches (after a stores-text alias's fill, 25052): every named alias's reference has its
+    // cached name cleared (12769); a custom name lives only there (docs/re/systems/names.md).
+    void ClearAliasNameCaches(uint32_t aQuest);
     std::set<uint32_t> BodyQuests;                            // started by a player's body here (a beast form's)
     uint32_t WordsLearnedShown = 0; // "Word of power learned" (51648): Game.TeachWord's HUD
     uint32_t SoulsAbsorbedShown = 0; // "Dragon soul absorbed" (51649): the soul sink, this game's player's gains
@@ -2051,6 +2083,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Every item the actor carries (server ids) and how many.
     [[nodiscard]] std::map<std::pair<uint32_t, uint32_t>, int32_t> Carried(uint32_t aActor) const;
     // TESObjectREFR::AddOrRemoveItem: another game's change (InventoryService, under ScopedInventoryOverride).
+    int32_t TagStackInPlace(uint32_t aObjectFormId, uint32_t aItemFormId, const std::string& acName, int32_t aCount) noexcept override;
     void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override;
     void AddOrRemoveStack(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept;
     void SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept override;

@@ -318,6 +318,11 @@ struct Actor : TESObjectREFR
     void EndMountPair() noexcept;
     void GenerateMagicCasters() noexcept;
     void DispelAllSpells(bool aNow = false) noexcept;
+    // Its power cooldowns emptied (38825, as Actor::Revert does), and one added unless that power has one (38738).
+    void ClearPowerCooldowns() noexcept;
+    void SetPowerCooldown(SpellItem* apPower, float aSeconds) noexcept;
+    // Its active effects (MagicTarget::GetActiveEffectList, 38795), null without a process.
+    [[nodiscard]] GameList<ActiveEffect>* GetActiveEffects() noexcept;
     void Reset() noexcept;
     void Kill() noexcept;
     // The engine keeps the actor alive whatever its health until EndDeferredKill (papyrus StartDeferredKill).
@@ -372,6 +377,8 @@ struct Actor : TESObjectREFR
     enum ActorFlags
     {
         IS_A_MOUNT = 1 << 1,
+        MOUNT_POINT_CLEAR = 1 << 2,    // the rider fits at the dismount point (UpdateMovement 37350); else a get-off
+                                       // takes the mount's ClearMountPosition package (37864, 37907)
         GETTING_ON_OFF_MOUNT = 1 << 3, // from InitiateMountPackage or Dismount until MountDismountEndHandler (42881)
         SHOULD_ANIM_GRAPH_UPDATE = 1 << 8, // its graph runs (holder vfunc 0x0E, 37985); KillImpl clears it
         ANGRY_WITH_PLAYER = 1 << 11,       // kAngryWithPlayer: Actor__SetAngryWithPlayer (37463), read by ShouldAttack (37534)
@@ -416,10 +423,11 @@ public:
         float damageModifier;
     };
 
+    // A power's cooldown (Actor+0x188): real seconds left, counted down and freed by 38824 (docs/re/systems/player-save-state.md).
     struct SpellItemEntry
     {
         SpellItem* pItem;
-        float unk8;
+        float seconds;
         SpellItemEntry* pNext;
     };
 
@@ -459,7 +467,7 @@ public:
     uint32_t unkEC;
     uint32_t unk178;               // F0
     uint32_t unk17C;               // F4
-    SpellItemEntry* spellItemHead; // F8
+    SpellItemEntry* powerCooldowns; // 188 (Actor::SetPowerCooldown 38738)
     BSTSmallArray<SpellItem> addedSpells; // spells added to this actor (AddSpell)
     ActorMagicCaster* casters[4];
     MagicItem* magicItems[4];

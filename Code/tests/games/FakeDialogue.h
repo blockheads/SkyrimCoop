@@ -4,6 +4,7 @@
 // at a time, a menu that may be open or not, the list the engine builds from a small script of topics, and the
 // service's filters where our hooks ask them (DialogueHooks.cpp). Each World has its own.
 #include <Bridges/IDialogueBridge.h>
+#include <Services/ActivatePrompts.h>
 #include <Services/DialogueMenuPolicy.h>
 
 #include <algorithm>
@@ -66,14 +67,36 @@ struct FakeDialogue final : IDialogueBridge
     std::vector<Option> Said; // every option said here, in order
     uint32_t Skips = 0;       // lines this game's engine was told to move past (35290)
 
-    // This game's player talks to an actor (activates it), as the engine with our hooks: Talk first, then Start.
+    // This game's player talks to an actor (activates it), as the engine with our hooks: Talk first (24715), then
+    // CanTalkToPlayer (37469), then Start.
     void PlayerTalksTo(uint32_t aActorFormId)
     {
         if (m_filters.Talk && m_filters.Talk(aActorFormId))
             return;
+        if (!CanTalkToPlayer(aActorFormId))
+            return;
         if (m_filters.Start && !m_filters.Start(aActorFormId, false))
             return;
         Start(aActorFormId, true);
+    }
+    // The crosshair's prompt over an actor that is no horse (GetActivateText 24716, in its order): none over another
+    // player's character (our hook), Search when dead, Pickpocket while the player sneaks, Talk when it can talk to
+    // the player, else none.
+    [[nodiscard]] std::string ActivateText(uint32_t aActorFormId, bool aDead = false, bool aSneaking = false) const
+    {
+        if (!ActivatePrompts::Offered(m_filters.OtherPlayer && m_filters.OtherPlayer(aActorFormId)))
+            return "";
+        if (aDead)
+            return "Search";
+        if (aSneaking)
+            return "Pickpocket";
+        return CanTalkToPlayer(aActorFormId) ? "Talk" : "";
+    }
+    // Actor::CanTalkToPlayer (37469) as our hook answers it, from the engine's own (race flag, AllowPCDialogue).
+    std::function<bool(uint32_t aActorFormId)> EngineCanTalk = [](uint32_t) { return true; };
+    [[nodiscard]] bool CanTalkToPlayer(uint32_t aActorFormId) const
+    {
+        return DialogueMenuPolicy::TalksToPlayer(EngineCanTalk(aActorFormId), m_filters.OtherPlayer && m_filters.OtherPlayer(aActorFormId));
     }
     void NpcGreets(uint32_t aActorFormId)
     {

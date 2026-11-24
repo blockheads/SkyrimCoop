@@ -6,6 +6,7 @@
 
 #include <Havok/Raycast.h>
 #include <Havok/SwingCast.h>
+#include <TestHarness/FrozenActors.h>
 
 #include <Diagnostics/EngineReads.h>
 #include <Structs/Inventory.h>
@@ -487,6 +488,10 @@ bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) 
 // movement), no velocity, and its controller neither pushed nor colliding with characters, so it stands still and
 // players pass through it; it still takes hits. Thawing puts back what freezing changed.
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept;
+// Its saved freeze dropped, unthawed: the actor is gone.
+void ForgetFrozen(uint32_t aFormId) noexcept;
+// Alive, dead or dying (Actor::IsDead), or gone (no such actor, or deleted).
+FrozenActors::Life ActorLife(uint32_t aFormId) noexcept;
 // A copy takes its own do-nothing package, as when its owner's is one the engine made (SkyrimBridge::SetCopyAiFields).
 bool CopyHoldsDoNothing(uint32_t aFormId) noexcept;
 // Probe: the rider on the mount at once, its own MountInteraction (Actor::PutOnMount), even with another rider on it.
@@ -501,8 +506,29 @@ bool SitOnMountQuick(uint32_t aRiderId, uint32_t aMountId) noexcept;
 bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept;
 // Probe: a graph event to the actor's graphs (TESObjectREFR::SendAnimationEvent); true when one took it.
 bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept;
-// The crosshair's prompt for this actor (TESNPC::GetActivateText 24716, our hook's answer too); empty for none.
-std::string GetActivateText(uint32_t aRefId) noexcept;
+// The crosshair's prompt for this actor (TESNPC::GetActivateText 24716, our hook's answer too); empty for none, nothing
+// when it is no actor with an NPC base here.
+std::optional<std::string> GetActivateText(uint32_t aRefId) noexcept;
+// A mount's kMountPointClear (flags2 bit 2, Actor::MOUNT_POINT_CLEAR); none for no such actor.
+std::optional<bool> MountPointClear(uint32_t aActorId) noexcept;
+// A reference's display name and its ExtraTextDisplayData (names.md): cached text, message, quest, instance.
+struct NameData
+{
+    bool Found = false;
+    std::string Name;
+    bool HasText = false;
+    std::string Cached;
+    uint32_t Message = 0;
+    uint32_t Quest = 0;
+    int32_t Instance = 0;
+    float Temper = 0.f;
+    uint16_t CustomLength = 0;
+    uintptr_t TextPointer = 0; // DisplayName.data: its pool entry starts 0x18 before (BSStringPool::LookupOrInsert)
+    uint32_t EntryFlags = 0;   // the entry's +0x8: reference count in the low 15 bits
+};
+NameData GetNameData(uint32_t aRefId) noexcept;
+// Probe: the actor's custom name set again, as a copy's name part does (ExtraDataList::SetCustomName).
+bool SetCustomName(uint32_t aRefId, const std::string& acName) noexcept;
 // Takes the actor out of any furniture and moves it to that spot in the player's cell, wherever it was (loaded or
 // not), as MoveTo does (56626).
 bool MoveActorToPlayer(uint32_t aFormId, const float acPosition[3]) noexcept;

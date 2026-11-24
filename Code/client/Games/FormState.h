@@ -13,4 +13,8 @@ bool Save(const TESForm& acForm, uint32_t aChangeFlags, std::string& aData) noex
 // Loads acData into aForm as the engine loads a reference's changes when its cell attaches, under its
 // loading bit. False while a save or load runs.
 bool Load(TESForm& aForm, uint32_t aChangeFlags, const std::string& acData) noexcept;
+// A save global's bytes as a save writes them (SaveGlobalData 35639, by type: 109 MagicFavorites), and back
+// (LoadGlobalData 35642, the code a save's load runs). False while a save or load runs, or for an unknown type.
+bool SaveGlobal(uint32_t aType, std::string& aData) noexcept;
+bool LoadGlobal(uint32_t aType, const std::string& acData) noexcept;
 } // namespace FormState

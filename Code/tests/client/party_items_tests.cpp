@@ -6,15 +6,16 @@
 #include <Services/SpeakerUpdate.h>
 #include <Games/HiddenCopies.h>
 
-TEST_CASE("Keys, quest items and the story's items arrive as the party's; loot and gold do not", "[PartyItems]")
+TEST_CASE("Keys, quest items, aliases' items and the story's arrive as the party's; loot and gold do not", "[PartyItems]")
 {
     constexpr uint32_t cSword = 0x12EB7;
-    CHECK(PartyItems::ArrivesAsParty(0x3D5, PartyItems::cKeyFormType, false, false));
-    CHECK(PartyItems::ArrivesAsParty(cSword, 41, true, false));  // a quest item
-    CHECK(PartyItems::ArrivesAsParty(cSword, 41, false, true));  // a quest's script gave it
-    CHECK_FALSE(PartyItems::ArrivesAsParty(cSword, 41, false, false)); // a weapon picked up
+    CHECK(PartyItems::ArrivesAsParty(0x3D5, PartyItems::cKeyFormType, false, false, false));
+    CHECK(PartyItems::ArrivesAsParty(cSword, 41, true, false, true));  // a quest item
+    CHECK(PartyItems::ArrivesAsParty(cSword, 41, false, false, true)); // a quest alias holds it, not a quest object
+    CHECK(PartyItems::ArrivesAsParty(cSword, 41, false, true, false)); // a quest's script gave it
+    CHECK_FALSE(PartyItems::ArrivesAsParty(cSword, 41, false, false, false)); // a weapon picked up
     // A quest's gold reward (Lucan's): the party's purse, every player's gold already (party-purse.md).
-    CHECK_FALSE(PartyItems::ArrivesAsParty(PartyItems::cGold, 32, false, true));
+    CHECK_FALSE(PartyItems::ArrivesAsParty(PartyItems::cGold, 32, false, true, true));
 }
 
 TEST_CASE("A party stack is a tagged or quest one; its tag goes in front once", "[PartyItems]")
@@ -105,4 +106,11 @@ TEST_CASE("A speaker with no process skips its update in a session; one with a p
     CHECK_FALSE(SpeakerUpdate::Skipped(true, true));
     CHECK_FALSE(SpeakerUpdate::Skipped(false, false));
     CHECK_FALSE(SpeakerUpdate::Skipped(true, false));
+}
+
+TEST_CASE("A party copy's name without its tag: the form's own name is no custom name", "[PartyItems]")
+{
+    CHECK(PartyItems::Untagged("[P] Key to Breezehome", "Key to Breezehome").empty());
+    CHECK(PartyItems::Untagged("[P] Lucky Blade", "Iron Sword") == "Lucky Blade");
+    CHECK(PartyItems::Untagged("Iron Sword", "Iron Sword") == "Iron Sword"); // not a party copy: as it is
 }

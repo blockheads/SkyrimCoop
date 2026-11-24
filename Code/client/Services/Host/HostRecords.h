@@ -35,7 +35,7 @@ struct HostRecords
     void OnPlayerRecord(const PlayerRecordRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // The host's game is saving: each guest's record takes the place of the host's copy of its character.
     void OnSaving() const noexcept;
-    // A guest leaves (before its characters go): its record keeps the place it left from.
+    // A guest leaves (before its characters go): its record keeps the place it left from, its timed state as it left.
     void OnPlayerLeft(ConnectionId_t aPlayer) const noexcept;
 
     // A character announced with these parts (they replace any held), and a character gone.

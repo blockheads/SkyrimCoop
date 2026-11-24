@@ -61,6 +61,7 @@ every other section needs the duo.
 **Ragdolls and death poses**
 
 - [A ragdolled copy holds its pose between updates](#a-ragdolled-copy-holds-its-pose-between-updates): small
+- [A script's reference added to a body is not on the guest's copy](#a-scripts-reference-added-to-a-body-is-not-on-the-guests-copy): small
 - [Revive leaves the body wrong](#revive-leaves-the-body-wrong): medium
 
 **Physics**
@@ -469,6 +470,16 @@ Size: small. Needs: the duo with the late save.
 - 2026-11-22, dev `aa723513` (`duo --save LateAfterDragonRising`): 1 of 1 again, the same step.
 
 ## Ragdolls and death poses
+
+### A script's reference added to a body is not on the guest's copy
+
+Papyrus `AddItem` of a reference into dead Arvel (2026-11-23, 1 of 1): the host's body held it, and the guest's Take
+All found nothing. Not traced: whether the guest's copy lacked the item, or the take missed it. A chest works
+(`alias-key-taken-guest`).
+
+Agent task: read the guest's copy's items after the call, then what raises an NPC's items part for it.
+
+Size: small. Needs: duo, then GameTests.
 
 ### A ragdolled copy holds its pose between updates
 
@@ -976,6 +987,8 @@ Size: small. Needs: GameTests, then the duo.
   (`{'host player': 0, 'host copy': 1, 'client player': 0, 'client copy': 1}`) after the party-item scenarios before
   it, and `party-quest-item-guest` beside it ("a player carries the Golden Claw to begin with"); both passed in the
   shuffled rerun.
+- 2026-11-23 (`agent/golden-claw-quest`): `party-item-moves-guest` passed, then `party-item-moves-host` stopped at its
+  start with both copies holding the key: the cleanup removed it from both players by console 0.1 s apart.
 
 ### An action sent before its copy exists
 
@@ -1080,29 +1093,16 @@ Size: small. Needs: the duo.
 
 ### A rider at a scenario's end
 
-Left of it (2026-11-17, `agent/horse-riding`): the horse-buying scenarios at Whiterun's stables. The rest is fixed:
-the crouched rider ("pelvis 0") was the scenario getting off within ~0.1 s of being seated, which the engine answers
-with no exit clip (vanilla too, `docs/re/systems/mounts.md`); a copy left seated by such a ride's end now gets off.
+Left of it (2026-11-23): the guest's horse menu once lacking the bought horse. The crouched rider ("pelvis 0") was a
+get-off within ~0.1 s of being seated (mounts.md); a get-off that does nothing with the bought horse is it standing in
+its shed, with no room beside it (mounts.md, "No room to get off"): not a bug.
 
-Agent task: Find why the stables' bought horse can't be got off or aimed at, and make `party-buys-horse-host/guest`
-pass.
+Agent task: when the horse menu shows the gap again, find what the guest's menu lists.
 
 Size: small. Needs: the duo.
 
-- **The host can't get off the guest's bought horse** (`party-buys-horse-guest`, 3 of 3 runs 2026-11-17): seated
-  (sit state 3, the horse's pair over), Activate pressed with the crosshair clear: no dismount package, no Detach,
-  still riding 15 s later. The same horse unbought, or given the purchase's owner and faction by console, lets the
-  host off at once. Not read: what the purchase (StablesScript, its packages 98454/3EAB9) leaves on the horse;
-  `Character::ActivateMount` (37864) takes a ClearMountPosition package instead of Dismount when the mount lacks
-  flags2 bit 4.
-- **The guest's crosshair misses the host's bought horse** (`party-buys-horse-host`, 4 of 4): "the crosshair is on
-  nothing, not 429428: 123-138 units off", the aim at its body too. The unbought horse, same stall, is aimed at and
-  ridden.
 - **The guest's horse menu lacks the horse** (2026-11-16, once): not seen again on a clean world.
   - Start: buy through the MCP (`talk`, the topics), then `mount_readout` and the horse's packages before getting on.
-- 2026-11-22, dev `aa723513`: `party-buys-horse-guest` passed 4 of 4 (the full run and 3 reruns), so the first shape
-  did not show; no fast test covers it. `party-buys-horse-host` 2 of 2: "the crosshair is on nothing, not 429428: 230
-  units off" (238 in the rerun).
 
 ### A guest crashed loading a copy's idle clips
 
@@ -1461,7 +1461,13 @@ Size: small. Needs: the duo, then GameTests.
 scenario cannot pick it. Not read: whether the guest still holds it as the party's stack, or only the tag is missing
 from that menu's names.
 
-Agent task: read the guest's party stacks and the barter menu's names at that step.
+2026-11-23 (`agent/golden-claw-quest`, 1 of 1): the guest's sale found "[P] Iron Sword" and went through (nobody
+carried it, the purse was paid); the host's buy-back then failed, Belethor on the host listing no sword. The host's log
+shows the guest's sale only as the guest's count change (`Party item 12EB7 ... asked -1`, no container put): the sold
+sword reaches no merchant on the host, so there is nothing to buy back. Not read: where a guest's barter sale goes.
+
+Agent task: read the guest's party stacks and the barter menu's names at that step, and where a guest's sale lands on
+the host.
 
 Size: small. Needs: the duo, then GameTests.
 
@@ -1500,6 +1506,9 @@ Size: small. Needs: the duo.
   at `weapon_state` 0 on the host and its copy on the guest at 3 (Drawn). The reverse of
   [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws); not read whether its copy
   missed a sheathe.
+- `guest-mounts-bought-horse` (2026-11-23, every step passed): its end comparison found Ria (`1A6D8`, QASmoke) at
+  `values.stamina_regen.delay` 1.17 on the host and 0.0 on its copy. A new readout (the stamina-regen gates, same
+  day); not read whether a copy's delay should follow its owner's at all.
 
 ## Test tools
 

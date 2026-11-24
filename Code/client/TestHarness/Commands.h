@@ -30,6 +30,8 @@ std::span<const Command> StagingCommands();
 std::span<const Command> InputCommands();
 std::span<const Command> WorldCommands();
 std::span<const Command> KnowledgeCommands();
+// The player's own state its save keeps (PlayerState.cpp).
+std::span<const Command> PlayerStateCommands();
 std::span<const Command> CrimeCommands();
 std::span<const Command> SessionCommands();
 std::span<const Command> MemoryCommands();

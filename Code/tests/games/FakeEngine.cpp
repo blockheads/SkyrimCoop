@@ -1,5 +1,6 @@
 #include <Games/Skyrim/CriticalStageRules.h>
 #include <Games/Animation/DeferredClips.h>
+#include <Games/DisplayNames.h>
 #include <Games/FreedWornList.h>
 #include <Diagnostics/HeadTrackRead.h>
 #include <Games/Skyrim/CopyCombat.h>
@@ -1538,7 +1539,25 @@ bool FakeEngine::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noex
 void FakeEngine::SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
         it->second.DisplayName = PooledNames.try_emplace(NameKey(acName), acName).first->second;
+        it->second.CustomName = true;
+        it->second.NameEmptied = false;
+    }
+}
+
+void FakeEngine::ClearAliasNameCaches(uint32_t aQuest)
+{
+    for (const auto& [cAlias, cRef] : QuestAliasReferences[aQuest])
+    {
+        const auto cActor = Actors.find(cRef);
+        const bool cNamed = (AliasFlags[aQuest][cAlias] & 0x4000) || AliasNameMessages[aQuest].contains(cAlias);
+        if (!cNamed || cActor == Actors.end() || cActor->second.DisplayName.empty())
+            continue;
+        // A message name regenerates; a custom name has nothing to come back from (our hook on 12769 keeps it).
+        if (cActor->second.CustomName && DisplayNames::CacheClears(false, false, DisplayNames::kCustomInstance))
+            cActor->second.NameEmptied = true;
+    }
 }
 
 std::string FakeEngine::GetFormName(uint32_t aFormId) const noexcept
@@ -1552,6 +1571,8 @@ std::string FakeEngine::GetFormName(uint32_t aFormId) const noexcept
 std::string FakeEngine::GetActorDisplayName(uint32_t aFormId) const noexcept
 {
     const auto actor = Actors.find(aFormId);
+    if (actor != Actors.end() && actor->second.NameEmptied)
+        return {};
     if (actor != Actors.end() && !actor->second.DisplayName.empty())
         return actor->second.DisplayName;
     if (aFormId == kPlayer)
@@ -3086,6 +3107,8 @@ void FakeEngine::PlayerNames(const std::string& acName)
 void FakeEngine::AliasNames(uint32_t aFormId, const std::string& acName)
 {
     Actors.at(aFormId).DisplayName = acName;
+    Actors.at(aFormId).CustomName = false;
+    Actors.at(aFormId).NameEmptied = false;
     World::Get().GetRunner().Trigger(ActorRenamedEvent{aFormId, GetActorDisplayName(aFormId)});
 }
 
@@ -3129,6 +3152,7 @@ IJoinBridge::SaveFiles FakeEngine::MakeSave()
         Serialization::WriteVarInt(writer, cFaction);
         Serialization::WriteVarInt(writer, static_cast<uint32_t>(cRank));
     }
+    Own.Serialize(writer);
     return SaveFiles{std::string(reinterpret_cast<const char*>(buffer.GetData()), writer.Size()) + SavePadding, World::Get().ctx().at<SaveService>().WriteCoSave()};
 }
 
@@ -3185,6 +3209,8 @@ void FakeEngine::RunMainLoop() noexcept
         const auto cFaction = static_cast<uint32_t>(Serialization::ReadVarInt(reader));
         factions[cFaction] = static_cast<int32_t>(Serialization::ReadVarInt(reader));
     }
+    // The save's player's own state (save global 109, its stacks' hotkeys, effects, ...): the saving game's player's.
+    Own.Deserialize(reader);
     // The save's player's souls: its value in the save (the record sets the joining character's own).
     Souls[kPlayer] = 0.f;
     for (const PlayerRecord::Value& cValue : saved.Values)
@@ -3203,6 +3229,7 @@ void FakeEngine::RunMainLoop() noexcept
         }
     saved.Extras.erase(SystemQuestState::kExtra);
     Player = saved;
+    Player.Own = {};
     Knowledge = saved.Knowledge;
     Player.Items = {};
     Player.Cell = {};

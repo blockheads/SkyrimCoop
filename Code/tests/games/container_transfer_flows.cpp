@@ -1,6 +1,9 @@
 #include "Party.h"
 #include "Fixtures.h"
+#include <Games/Overrides.h>
 #include <Services/ContainerTransfers.h>
+#include <Services/CopyRecords.h>
+#include <SessionIds.h>
 
 namespace
 {
@@ -324,4 +327,319 @@ SCENARIO("A chest the host's script places reaches a guest with what it rolled",
                    cItems.at(kGold) == 50;
         },
         "the guest's chest holds the host's garnet and 50 gold");
+}
+
+namespace
+{
+// MS13 (the Golden Claw): its GoldenClaw alias creates the claw in Arvel; the claw's script sets 40 when a player gets
+// it (MS13GoldenClawScript). Playtest 2026-11-22, item 15.
+constexpr uint32_t kGoldenClawQuest = 0x39645, kArvel = 0x39646, kClaw = 0x39647, kArvelsJournal = 0x39654;
+
+struct ArvelsBody
+{
+    Party party;
+    FakeEngine& host;
+    FakeEngine& guest;
+    uint32_t arvel = 0;
+
+    ArvelsBody()
+        : party(1, [](FakeEngine& aEngine) {
+            Plugins(aEngine);
+            aEngine.FormNames[kClaw] = "Golden Claw";
+            QuestState quest;
+            quest.Id = GameId{0, kGoldenClawQuest};
+            quest.Flags = 1;
+            quest.CurrentStage = 30;
+            quest.DoneStages = {10, 30};
+            aEngine.Quests[kGoldenClawQuest] = quest;
+        })
+        , host(Party::Engine(party.Host()))
+        , guest(Party::Engine(party.Guest()))
+    {
+        party.As(party.Host(), [&] {
+            arvel = host.LoadNpc(kArvel, kCell, {30.f, 40.f, 0.f});
+            host.AliasCreatesIn(arvel, kClaw, {.Quest = kGoldenClawQuest, .Stage = 40});
+        });
+        party.Until(
+            [&] {
+                return PlayerCopies(host).size() == 1 && PlayerCopies(guest).size() == 1 && guest.CopiesOf(kArvel).size() == 1 &&
+                       guest.CountOf(guest.CopiesOf(kArvel)[0], kClaw) == 1;
+            },
+            "the guest sees Arvel carrying the claw");
+    }
+
+    // Every player and copy carries one claw, and MS13 stands at the stage in both games.
+    void Until(uint16_t aStage, const char* acpWhat)
+    {
+        const auto cClaws = [&] {
+            return std::format("host player {}, host's copy {}, guest player {}, guest's copy {}, Arvel {}; MS13 host {} guest {}",
+                               host.CountOf(FakeEngine::kPlayer, kClaw), host.CountOf(PlayerCopies(host)[0], kClaw),
+                               guest.CountOf(FakeEngine::kPlayer, kClaw), guest.CountOf(PlayerCopies(guest)[0], kClaw), host.CountOf(arvel, kClaw),
+                               host.Quests.at(kGoldenClawQuest).CurrentStage, guest.Quests[kGoldenClawQuest].CurrentStage);
+        };
+        party.Until(
+            [&] {
+                return host.Quests.at(kGoldenClawQuest).CurrentStage == aStage && guest.Quests[kGoldenClawQuest].CurrentStage == aStage &&
+                       host.CountOf(arvel, kClaw) == 0 && host.CountOf(FakeEngine::kPlayer, kClaw) == 1 &&
+                       host.CountOf(PlayerCopies(host)[0], kClaw) == 1 && guest.CountOf(FakeEngine::kPlayer, kClaw) == 1 &&
+                       guest.CountOf(PlayerCopies(guest)[0], kClaw) == 1;
+            },
+            acpWhat, cClaws);
+    }
+};
+} // namespace
+
+SCENARIO("The host takes a quest alias's item from a body: its quest moves on, every player carries it", "[container-transfer][party-items]")
+{
+    ArvelsBody body;
+    body.party.As(body.party.Host(), [&] { body.host.MovesStack(body.arvel, FakeEngine::kPlayer, kClaw, 1); });
+    body.Until(40, "MS13 reaches 40 in both games and every player carries the claw");
+}
+
+SCENARIO("A guest takes a quest alias's item from a body: the host's quest moves on, every player carries it", "[container-transfer][party-items]")
+{
+    // The host's take for a guest removed the claw to nowhere: its alias and script were gone, MS13 stayed at 30.
+    ArvelsBody body;
+    body.party.As(body.party.Guest(), [&] {
+        const auto cClaw = body.guest.EntriesOf(body.guest.CopiesOf(kArvel)[0], kClaw).at(0);
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), body.guest.CopiesOf(kArvel)[0], FakeEngine::kPlayer, cClaw));
+    });
+    body.Until(40, "MS13 reaches 40 in both games and every player carries the claw");
+    THEN("the host's player holds the quest item, the alias with it")
+    {
+        CHECK(body.host.AliasStacks.contains({FakeEngine::kPlayer, kClaw}));
+    }
+}
+
+namespace
+{
+constexpr uint32_t kBorkulsKey = 0xABB00; // a key an alias holds, not a quest object (MS02's BorkulKey)
+
+// Every player and copy carries aCount of the item, the host's player's with its alias, named "[P] <name>".
+void ExpectShared(ArvelsBody& aBody, uint32_t aItem, const char* acpTagged, int32_t aCount = 1)
+{
+    const auto cCount = [aItem](const FakeEngine& acEngine, uint32_t aHolder) { return acEngine.CountOf(aHolder, aItem); };
+    const auto cAt = [&] {
+        return std::format("host {} copy {} guest {} copy {} alias {}", cCount(aBody.host, FakeEngine::kPlayer), cCount(aBody.host, PlayerCopies(aBody.host)[0]),
+                           cCount(aBody.guest, FakeEngine::kPlayer), cCount(aBody.guest, PlayerCopies(aBody.guest)[0]),
+                           aBody.host.AliasStacks.contains({FakeEngine::kPlayer, aItem}));
+    };
+    const auto cOneEach = [&] {
+        return cCount(aBody.host, FakeEngine::kPlayer) == aCount && cCount(aBody.host, PlayerCopies(aBody.host)[0]) == aCount &&
+               cCount(aBody.guest, FakeEngine::kPlayer) == aCount && cCount(aBody.guest, PlayerCopies(aBody.guest)[0]) == aCount;
+    };
+    aBody.party.Until(cOneEach, "every player and copy carries it", cAt);
+    const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+    aBody.party.Until([&] { return std::chrono::steady_clock::now() > cUntil; }, "a while passes");
+    INFO(cAt());
+    CHECK(cOneEach());
+    if (aCount == 0)
+        return;
+    CHECK(aBody.host.AliasStacks.contains({FakeEngine::kPlayer, aItem}));
+    CHECK(aBody.host.EntriesOf(FakeEngine::kPlayer, aItem).at(0).ExtraName == acpTagged);
+}
+
+void ArvelHasKey(ArvelsBody& aBody)
+{
+    for (FakeEngine* pEngine : {&aBody.host, &aBody.guest})
+    {
+        pEngine->FormNames[kBorkulsKey] = "Borkul's Key";
+        pEngine->ItemForms[kBorkulsKey].Type = 45; // KEYM
+    }
+    aBody.party.As(aBody.party.Host(), [&] {
+        aBody.host.AliasCreatesIn(aBody.arvel, kBorkulsKey, {.Quest = kGoldenClawQuest, .Stage = 37, .QuestObject = false});
+    });
+    aBody.party.Until([&] { return aBody.guest.CountOf(aBody.guest.CopiesOf(kArvel)[0], kBorkulsKey) == 1; }, "the guest sees the key");
+}
+// MS13's ArvelsJournal alias holds Arvel's journal in him: not a quest object (stage 37 when a player gets it here).
+void ArvelHasJournal(ArvelsBody& aBody)
+{
+    for (FakeEngine* pEngine : {&aBody.host, &aBody.guest})
+        pEngine->FormNames[kArvelsJournal] = "Arvel's Journal";
+    aBody.party.As(aBody.party.Host(), [&] {
+        aBody.host.AliasCreatesIn(aBody.arvel, kArvelsJournal, {.Quest = kGoldenClawQuest, .Stage = 37, .QuestObject = false});
+    });
+    aBody.party.Until([&] { return aBody.guest.CountOf(aBody.guest.CopiesOf(kArvel)[0], kArvelsJournal) == 1; }, "the guest sees the journal");
+}
+
+void GuestTakesJournal(ArvelsBody& aBody)
+{
+    aBody.party.As(aBody.party.Guest(), [&] {
+        const auto cJournal = aBody.guest.EntriesOf(aBody.guest.CopiesOf(kArvel)[0], kArvelsJournal).at(0);
+        REQUIRE(ContainerTransfers::Propose(aBody.party.Guest(), aBody.guest.CopiesOf(kArvel)[0], FakeEngine::kPlayer, cJournal));
+    });
+}
+} // namespace
+
+SCENARIO("A guest takes an alias's item that is not a quest object: the party's, its alias on the host's player", "[container-transfer][party-items]")
+{
+    ArvelsBody body;
+    ArvelHasJournal(body);
+    GuestTakesJournal(body);
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    CHECK(body.host.Quests.at(kGoldenClawQuest).CurrentStage == 37);
+}
+
+SCENARIO("A guest pickpockets an alias's item: the party's, its alias on the host's player", "[container-transfer][party-items]")
+{
+    ArvelsBody body;
+    ArvelHasJournal(body);
+    body.party.As(body.party.Guest(), [&] { body.guest.Pickpockets(body.guest.CopiesOf(kArvel)[0], kArvelsJournal, false); });
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    THEN("the real one is Arvel's: stolen")
+    {
+        CHECK(body.host.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0).ExtraOwner == GameId(0, kArvel));
+    }
+}
+
+SCENARIO("A guest drops a party item an alias holds and picks it up again: the host's real one, alias and all", "[container-transfer][party-items][drops]")
+{
+    // Skyrim 2026-11-23: the host made a new journal for the guest's drop, and the alias's went to nowhere.
+    ArvelsBody body;
+    ArvelHasJournal(body);
+    GuestTakesJournal(body);
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    body.party.As(body.party.Guest(), [&] { body.guest.DropsInWorld(body.guest.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0)); });
+    ExpectShared(body, kArvelsJournal, "", 0);
+    body.party.Until([&] { return body.host.Loose.size() == 1; }, "the journal lies in the host's world");
+    CHECK(body.host.Loose.begin()->second.Alias.has_value());
+    body.party.Until([&] { return body.guest.Loose.size() == 1 && body.guest.HostDecides.size() == 1; }, "the guest's drop is the host's");
+    body.party.As(body.party.Guest(), [&] { body.guest.PicksUp(body.guest.Loose.begin()->first); });
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    CHECK(body.host.Loose.empty());
+}
+
+SCENARIO("The host takes a key an alias holds: the party's, its alias kept", "[container-transfer][party-items]")
+{
+    ArvelsBody body;
+    ArvelHasKey(body);
+    body.party.As(body.party.Host(), [&] { body.host.MovesStack(body.arvel, FakeEngine::kPlayer, kBorkulsKey, 1); });
+    ExpectShared(body, kBorkulsKey, "[P] Borkul's Key");
+}
+
+SCENARIO("A guest takes a key an alias holds: the party's, its alias kept on the host's player", "[container-transfer][party-items]")
+{
+    ArvelsBody body;
+    ArvelHasKey(body);
+    body.party.As(body.party.Guest(), [&] {
+        const auto cKey = body.guest.EntriesOf(body.guest.CopiesOf(kArvel)[0], kBorkulsKey).at(0);
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), body.guest.CopiesOf(kArvel)[0], FakeEngine::kPlayer, cKey));
+    });
+    ExpectShared(body, kBorkulsKey, "[P] Borkul's Key");
+}
+
+SCENARIO("A guest stores a party item an alias holds in a chest and takes it back: the host's real one, alias and all", "[container-transfer][party-items]")
+{
+    // The host's put moved the guest's copy's mirror into the chest, and the real one went to nowhere.
+    ArvelsBody body;
+    ArvelHasJournal(body);
+    GuestTakesJournal(body);
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    body.party.As(body.party.Guest(), [&] {
+        const auto cJournal = body.guest.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0);
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), FakeEngine::kPlayer, kChest, cJournal));
+    });
+    ExpectShared(body, kArvelsJournal, "", 0);
+    body.party.Until([&] { return body.host.ContainerCountOf(kChest, kArvelsJournal) == 1 && body.guest.ContainerCountOf(kChest, kArvelsJournal) == 1; },
+                     "the chest holds the journal on both games");
+    CHECK(body.host.AliasStacks.contains({kChest, kArvelsJournal}));
+    body.party.As(body.party.Guest(), [&] {
+        Inventory::Entry journal;
+        journal.BaseId = GameId(0, kArvelsJournal);
+        journal.Count = 1;
+        journal.ExtraName = "[P] Arvel's Journal";
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), kChest, FakeEngine::kPlayer, journal));
+    });
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    CHECK(body.host.ContainerCountOf(kChest, kArvelsJournal) == 0);
+}
+
+SCENARIO("A guest's store of a party item the host's player no longer holds stores nothing", "[container-transfer][party-items]")
+{
+    // The review of PR #118: the put fell through to the guest's copy's mirror, putting a copy of the party's item away.
+    ArvelsBody body;
+    ArvelHasJournal(body);
+    GuestTakesJournal(body);
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    // Another player stored the last real one first: the host's player holds none, the guest's count not yet told.
+    body.party.As(body.party.Host(), [&] {
+        ScopedInventoryOverride _;
+        Inventory::Entry real = body.host.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0);
+        real.Count = -1;
+        body.host.GetsItem(FakeEngine::kPlayer, real);
+    });
+    body.party.As(body.party.Guest(), [&] {
+        const auto cJournal = body.guest.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0);
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), FakeEngine::kPlayer, kChest, cJournal));
+    });
+    const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+    body.party.Until([&] { return std::chrono::steady_clock::now() > cUntil; }, "the store is handled");
+    CHECK(body.host.ContainerCountOf(kChest, kArvelsJournal) == 0);
+    CHECK(body.guest.ContainerCountOf(kChest, kArvelsJournal) == 0);
+}
+
+SCENARIO("A guest stores a quest object it carries as the party's: the host's real one goes in, alias and all", "[container-transfer][party-items]")
+{
+    ArvelsBody body;
+    body.party.As(body.party.Guest(), [&] {
+        const auto cClaw = body.guest.EntriesOf(body.guest.CopiesOf(kArvel)[0], kClaw).at(0);
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), body.guest.CopiesOf(kArvel)[0], FakeEngine::kPlayer, cClaw));
+    });
+    body.Until(40, "MS13 reaches 40 and every player carries the claw");
+    body.party.As(body.party.Guest(), [&] {
+        const auto cClaw = body.guest.EntriesOf(FakeEngine::kPlayer, kClaw).at(0);
+        REQUIRE(ContainerTransfers::Propose(body.party.Guest(), FakeEngine::kPlayer, kChest, cClaw));
+    });
+    body.party.Until([&] { return body.host.ContainerCountOf(kChest, kClaw) == 1 && body.host.CountOf(FakeEngine::kPlayer, kClaw) == 0; },
+                     "the host's claw is in the chest");
+    CHECK(body.host.AliasStacks.contains({kChest, kClaw}));
+}
+
+SCENARIO("A guest takes a key from a chest while carrying its own: it keeps its own and gets the party's", "[container-transfer][party-items]")
+{
+    // The review of PR #118: the host told the taker to rename a key it never got, renaming the one it owned instead.
+    static constexpr uint32_t kKey = 0x00093B08; // Key to Breezehome
+    Party party(1, [](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        aEngine.References[kChest].Items[kKey] = 1;
+        aEngine.FormNames[kKey] = "Key to Breezehome";
+        aEngine.ItemForms[kKey].Type = 45; // KEYM
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopies(host).size() == 1 && guest.ContainerCountOf(kChest, kKey) == 1; }, "the guest sees the chest's key");
+    party.As(party.Guest(), [&] {
+        ScopedInventoryOverride _;
+        guest.GetsItem(FakeEngine::kPlayer, kKey, 1); // its own, from its save
+        Inventory::Entry key;
+        key.BaseId = GameId(0, kKey);
+        key.Count = 1;
+        REQUIRE(ContainerTransfers::Propose(party.Guest(), kChest, FakeEngine::kPlayer, key));
+    });
+    const auto cOf = [&](bool aTagged) {
+        int32_t count = 0;
+        for (const auto& cEntry : guest.EntriesOf(FakeEngine::kPlayer, kKey))
+            count += (cEntry.ExtraName == "[P] Key to Breezehome") == aTagged ? cEntry.Count : 0;
+        return count;
+    };
+    party.Until([&] { return cOf(true) == 1 && cOf(false) == 1; }, "the guest carries its own key and the party's",
+                [&] { return std::format("own {}, party's {}", cOf(false), cOf(true)); });
+}
+
+SCENARIO("A guest drops a party item an alias holds where the host's player cannot: refused, the real one kept", "[container-transfer][party-items][drops]")
+{
+    // The review of PR #118: in another interior the real journal went to nowhere and a new one was made.
+    ArvelsBody body;
+    ArvelHasJournal(body);
+    GuestTakesJournal(body);
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    body.party.As(body.party.Host(), [&] { body.host.Actors.at(FakeEngine::kPlayer).Cell = 0x0001A26F; }); // another interior
+    body.party.As(body.party.Guest(), [&] { body.guest.DropsInWorld(body.guest.EntriesOf(FakeEngine::kPlayer, kArvelsJournal).at(0)); });
+    body.party.Until([&] { return body.guest.Loose.empty() && body.guest.CountOf(FakeEngine::kPlayer, kArvelsJournal) == 1; },
+                     "the guest has its drop back", [&] {
+                         return std::format("guest {} loose {}, host loose {}", body.guest.CountOf(FakeEngine::kPlayer, kArvelsJournal),
+                                            body.guest.Loose.size(), body.host.Loose.size());
+                     });
+    ExpectShared(body, kArvelsJournal, "[P] Arvel's Journal");
+    CHECK(body.host.Loose.empty());
 }

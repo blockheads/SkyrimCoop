@@ -603,7 +603,7 @@ bool HostEngine::TakeQuestObject(const GameId& acObject) noexcept
     auto* pObject = cFormId ? Cast<TESObjectREFR>(TESForm::GetById(cFormId)) : nullptr;
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     ExtraDataList* pExtra = pObject ? pObject->GetExtraDataList() : nullptr;
-    if (!pPlayer || !pExtra || pObject->IsDeleted() || pObject->IsDisabled() || !pExtra->HasQuestObjectAlias())
+    if (!pPlayer || !pExtra || pObject->IsDeleted() || pObject->IsDisabled() || !pExtra->Contains(ExtraDataType::AliasInstanceArray))
         return false;
     pPlayer->PickUpGranted(*pObject, 1);
     return true;

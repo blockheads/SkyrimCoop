@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -55,10 +56,22 @@ enum Stretch : uint8_t
 
 // An inversion whose reverse order was only ever seen in a stretch that never runs alongside this one. Elsewhere on
 // either side, or the reverse also seen elsewhere, is a risk.
+// The stretches named, for a report: "our update+elsewhere".
+inline std::string StretchNames(uint8_t aStretches)
+{
+    std::string names;
+    for (const auto& [cBit, cpName] : {std::pair{kElsewhere, "elsewhere"}, std::pair{kMainLoopTasks, "main loop tasks"}, std::pair{kOurUpdate, "our update"}})
+        if (aStretches & cBit)
+            names += (names.empty() ? "" : "+") + std::string(cpName);
+    return names.empty() ? "none" : names;
+}
+
 inline bool KeptApartByFrame(uint8_t aStretch, uint8_t aReverseStretches) noexcept
 {
+    // Our update is one job a frame, finished before the next starts (lock-order.md): two of its orders never overlap,
+    // whichever worker thread each ran on. StretchOverlap checks it each run.
     return (aStretch == kMainLoopTasks && aReverseStretches == kOurUpdate) ||
-           (aStretch == kOurUpdate && aReverseStretches == kMainLoopTasks);
+           (aStretch == kOurUpdate && aReverseStretches == kMainLoopTasks) || (aStretch == kOurUpdate && aReverseStretches == kOurUpdate);
 }
 
 // Adds a stretch to an edge's history; OR only, so a sighting made while the edge is being published stays.
@@ -75,8 +88,8 @@ inline bool FirstReportOfKind(std::atomic<uint8_t>& aReported, bool aKeptApart) 
     return (aReported.fetch_or(cBit) & cBit) == 0;
 }
 
-// The frame's claim, checked each run: main loop tasks and our update are never active at once. Once seen together,
-// nothing is kept apart for the rest of the run.
+// The frame's claim, checked each run: main loop tasks and our update are never active at once, nor our update on two
+// threads. Once seen, nothing is kept apart for the rest of the run.
 struct StretchOverlap
 {
     std::atomic<uint32_t> Active[2]{};
@@ -88,8 +101,8 @@ struct StretchOverlap
         const int cIndex = Index(aStretch);
         if (cIndex < 0)
             return false;
-        Active[cIndex].fetch_add(1);
-        if (Active[1 - cIndex].load() == 0)
+        const uint32_t cInside = Active[cIndex].fetch_add(1);
+        if (Active[1 - cIndex].load() == 0 && !(aStretch == kOurUpdate && cInside > 0))
             return false;
         return !Seen.exchange(true);
     }

@@ -26,6 +26,33 @@ TEST_CASE("lock history keeps writer evidence separate from the first reader", "
     CHECK(LockOrderHistory::Key(cReference, cAlias, 0, 1) != LockOrderHistory::Key(cReference, cAlias, 1, 0));
 }
 
+TEST_CASE("a pair seen on an object destroyed since is not the pair of the object now at its address", "[locks]")
+{
+    // An extra data list freed and allocated again at the same address (bugs.md, "A granted pickup's lock order").
+    constexpr uint64_t cList = 0x27BC0F88, cOther = 0x2812B498;
+    CHECK(LockOrderHistory::Key(cList, cOther, 0, 1) == LockOrderHistory::Key(cList, cOther, 0, 1, 0, 0));
+    CHECK(LockOrderHistory::Key(cList, cOther, 0, 1, 1, 0) != LockOrderHistory::Key(cList, cOther, 0, 1, 0, 0));
+    CHECK(LockOrderHistory::Key(cList, cOther, 0, 1, 0, 1) != LockOrderHistory::Key(cList, cOther, 0, 1, 0, 0));
+    CHECK(LockOrderHistory::Key(cList, cOther, 0, 1, 1, 0) != LockOrderHistory::Key(cList, cOther, 0, 1, 0, 1));
+}
+
+TEST_CASE("a destroyed lock's generation is its own: another lock sharing its slot keeps its pairs", "[locks]")
+{
+    // The review of PR #118: live A shares a slot with destroyed C; A -> B, C destroyed, then B -> A must still match.
+    LockOrderHistory::LockGenerations<16> generations;
+    const uint64_t cA = 0x1000, cC = cA + (uint64_t{16} << 3); // the same home slot
+    REQUIRE(generations.Home(cA) == generations.Home(cC));
+    const auto cRecorded = LockOrderHistory::Key(cA, 0x2000, 0, 1, generations.Of(cA), generations.Of(0x2000));
+    generations.Destroyed(cC);
+    CHECK(generations.Of(cC) == 1);
+    CHECK(generations.Of(cA) == 0);
+    CHECK(LockOrderHistory::Key(cA, 0x2000, 0, 1, generations.Of(cA), generations.Of(0x2000)) == cRecorded);
+    generations.Destroyed(cA);
+    generations.Destroyed(cA);
+    CHECK(generations.Of(cA) == 2);
+    CHECK(generations.Of(cC) == 1);
+}
+
 TEST_CASE("an inverted ask is live only while another thread holds the lock from the reverse order", "[locks]")
 {
     // mounted-guest-leaves: the main thread holds a reference's extra data (17A479) and asks for the havok world lock

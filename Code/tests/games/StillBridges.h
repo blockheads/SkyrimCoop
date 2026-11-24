@@ -376,6 +376,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
     }
     void SetCopyItemCount(uint32_t, const GameId&, int32_t, const std::vector<Inventory::Entry>&) noexcept override {}
+    int32_t TagStackInPlace(uint32_t, uint32_t, const std::string&, int32_t) noexcept override { return 0; }
     void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override
     {
     }

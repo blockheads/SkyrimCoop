@@ -92,6 +92,41 @@ SCENARIO("A quest's reward on a guest's character is the party's too", "[party-i
     party.Until([&] { return AllCarry(cGames, 1); }, "every player carries it", [&] { return Swords(cGames); });
 }
 
+SCENARIO("A guest finds a key: the host decides it is the party's, and the guest's own is renamed, never taken back", "[party-items]")
+{
+    // Before: the guest's game took its key back and waited a round trip for the tagged one (the key blinked out).
+    constexpr uint32_t kKey = 0x00093B08; // Key to Breezehome
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    for (FakeEngine* pEngine : {&host, &guest})
+    {
+        pEngine->FormNames[kKey] = "Key to Breezehome";
+        pEngine->ItemForms[kKey].Type = 45; // KEYM
+    }
+    party.Until([&] { return PlayerCopies(host).size() == 1 && PlayerCopies(guest).size() == 1; }, "each game has the other's player");
+    party.As(party.Guest(), [&] { guest.GetsItem(FakeEngine::kPlayer, kKey, 1); });
+    const auto cTagged = [&](const FakeEngine& acEngine, uint32_t aHolder) {
+        int32_t count = 0;
+        for (const auto& cEntry : acEngine.EntriesOf(aHolder, kKey))
+            count += cEntry.ExtraName == "[P] Key to Breezehome" ? cEntry.Count : 0;
+        return count;
+    };
+    bool left = false;
+    party.Until(
+        [&] {
+            left = left || guest.CountOf(FakeEngine::kPlayer, kKey) == 0;
+            return cTagged(guest, FakeEngine::kPlayer) == 1 && guest.CountOf(FakeEngine::kPlayer, kKey) == 1 && cTagged(host, FakeEngine::kPlayer) == 1 &&
+                   cTagged(host, PlayerCopies(host)[0]) == 1 && cTagged(guest, PlayerCopies(guest)[0]) == 1;
+        },
+        "every player and copy carries one [P] key, the guest's renamed", [&] {
+            return std::format("guest {} ({} tagged), host {}, host's copy {}, guest's copy {}", guest.CountOf(FakeEngine::kPlayer, kKey),
+                               cTagged(guest, FakeEngine::kPlayer), cTagged(host, FakeEngine::kPlayer), cTagged(host, PlayerCopies(host)[0]),
+                               cTagged(guest, PlayerCopies(guest)[0]));
+        });
+    CHECK_FALSE(left);
+}
+
 SCENARIO("Ordinary loot stays the finder's own", "[party-items]")
 {
     Party party(1, SmokeWorld);
@@ -246,4 +281,29 @@ SCENARIO("A quest's gold reward goes to the party's purse, not a party item", "[
                 [&] { return std::format("host {}, guest {}", host.CountOf(FakeEngine::kPlayer, kGold), guest.CountOf(FakeEngine::kPlayer, kGold)); });
     CHECK_FALSE(cTaggedGold(host));
     CHECK_FALSE(cTaggedGold(guest));
+}
+
+SCENARIO("A guest's story gift it wears before the host's answer is renamed worn, not taken off", "[party-items]")
+{
+    // The review of PR #118: the rename replaced the stack, dropping its worn and favorite marks.
+    Party party(1, SmokeWorld);
+    NameSword(party);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopies(host).size() == 1 && PlayerCopies(guest).size() == 1; }, "each game has the other's player");
+    party.As(party.Guest(), [&] {
+        guest.QuestGivesItem(FakeEngine::kPlayer, kSword, 1);
+        guest.Equips(FakeEngine::kPlayer, kSword);
+    });
+    const auto cWornTagged = [&] {
+        const auto cStacks = guest.EntriesOf(FakeEngine::kPlayer, kSword);
+        return cStacks.size() == 1 && cStacks[0].ExtraName == kTagged && cStacks[0].IsWorn();
+    };
+    party.Until(cWornTagged, "the guest wears one sword, the party's", [&] {
+        std::string text;
+        for (const auto& cStack : guest.EntriesOf(FakeEngine::kPlayer, kSword))
+            text += std::format("['{}' x{} worn {}] ", cStack.ExtraName, cStack.Count, cStack.IsWorn());
+        return text;
+    });
+    party.Until([&] { return PartyCopies(host, FakeEngine::kPlayer) == 1; }, "the host's player holds the real one");
 }

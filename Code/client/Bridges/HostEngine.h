@@ -21,6 +21,9 @@ struct TrapHit;
 
 namespace PartyThreat { struct State; }
 struct TESObjectREFR;
+struct TESBoundObject;
+struct ExtraDataList;
+struct Actor;
 struct ContainerTransferRequest;
 
 /**
@@ -89,8 +92,11 @@ public:
     // A guest's pickup granted: the party's loose item taken out of this world (disabled and deleted, the deletion goes
     // out), what it held; none when it is gone.
     [[nodiscard]] std::optional<Inventory::Entry> TakeItem(const GameId& acObject) noexcept;
-    // A loose quest object (a quest's alias holds it, ExtraAliasInstanceArray) picked up by this game's player for the
-    // party (party-items.md): the alias follows it into the player's inventory. False for any other item.
+    // A guest's drop of its mirror: this game's player drops the real stack where its copy stands (shared-items.md).
+    // The created id; an empty id refuses (a quest object, an alias's elsewhere); none: no real stack.
+    [[nodiscard]] std::optional<GameId> DropPartyItem(const Inventory::Entry& acItem, uint32_t aPlayer) noexcept;
+    // A loose item a quest alias holds (ExtraAliasInstanceArray), a quest object or not, picked up by this game's player
+    // for the party (shared-items.md): the alias follows it into the player's inventory. False for any other item.
     [[nodiscard]] bool TakeQuestObject(const GameId& acObject) noexcept;
     // Since the last call: each reference the game created, the state of each one the funnel saw change, the
     // physics objects that came to rest, the records that lost rows, then the scripts' events in order.
@@ -110,6 +116,9 @@ public:
                                                                                   const std::vector<ChangedReference>& acChanged) const noexcept;
 
 private:
+    // A guest's take of a stack a quest alias holds: moved to this game's player, alias and all (IsQuestItem set).
+    [[nodiscard]] Inventory::Entry MoveAliasStack(TESObjectREFR& aContainer, TESBoundObject& aItem, ExtraDataList& aList, int32_t aCount,
+                                                  const ContainerTransferRequest& acRequest) noexcept;
     // The guests have it: a plugin's reference, or one this game created that went out (kCreate).
     [[nodiscard]] bool IsShared(uint32_t aFormId) const noexcept;
     // The created references that went out and are gone here (deleted, freed, or their id now another's), as

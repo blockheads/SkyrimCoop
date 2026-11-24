@@ -205,6 +205,13 @@ void GuestEngine::RetryQuestAliases() noexcept
                 }
                 aliases[cFill.AliasId] = cRef;
             }
+        // As TESQuest::ForceRefIntoAlias (25052): a stores-text alias's new fill clears its quest's names' caches.
+        for (const auto& [cAlias, cRef] : aliases)
+            if (cRef && (engine.AliasFlags[it->first][cAlias] & 0x100) && (!cPrevious.contains(cAlias) || cPrevious.at(cAlias) != cRef))
+            {
+                engine.ClearAliasNameCaches(it->first);
+                break;
+            }
         if (!engine.AtMainLoop && aliases != cPrevious)
             engine.WorkerQuestWrites.push_back(it->first);
         it = ready ? m_pendingAliases.erase(it) : std::next(it);

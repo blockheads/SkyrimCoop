@@ -6,6 +6,7 @@
 
 enum class FormType : uint8_t
 {
+    Spell = 22, // SpellItem (SPEL)
     Activator = 24, // TESObjectACTI
     Armor = 26,
     Book = 27,

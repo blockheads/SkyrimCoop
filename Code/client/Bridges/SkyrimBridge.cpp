@@ -618,7 +618,10 @@ std::string SkyrimBridge::GetActorDisplayName(uint32_t aFormId) const noexcept
 void SkyrimBridge::SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
+    {
         pActor->extraData.SetCustomName(acName.c_str(), true);
+        spdlog::debug("Actor {:X} named '{}'", aFormId, acName);
+    }
 }
 
 void SkyrimBridge::SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept
@@ -1204,6 +1207,13 @@ void SkyrimBridge::ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventor
     Breadcrumbs::Record("ActorDropOrPickUpObject", aActorFormId);
     if (Actor* pActor = GetActor(aActorFormId))
         pActor->DropOrPickUpObject(aItem, nullptr, nullptr);
+}
+
+int32_t SkyrimBridge::TagStackInPlace(uint32_t aObjectFormId, uint32_t aItemFormId, const std::string& acName, int32_t aCount) noexcept
+{
+    TESObjectREFR* pHolder = GetRefr(aObjectFormId);
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(aItemFormId));
+    return pHolder && pItem ? ::TagStackInPlace(*pHolder, *pItem, acName.c_str(), aCount) : 0;
 }
 
 void SkyrimBridge::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept

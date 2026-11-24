@@ -25,6 +25,7 @@
 #include <Effects/ReferenceEffect.h>
 #include <Components/TESContainer.h>
 #include <ExtraData/ExtraOwnership.h>
+#include <ExtraData/ExtraTextDisplayData.h>
 #include <ExtraData/ExtraInteraction.h>
 #include <ExtraData/ExtraLeveledCreature.h>
 #include <Forms/TESForm.h>
@@ -839,6 +840,14 @@ bool MoveActorHome(uint32_t aFormId) noexcept
     return (s_moveToMyEditorLocation.Get())(pActor, nullptr, false);
 }
 
+FrozenActors::Life ActorLife(uint32_t aFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor || pActor->IsDeleted())
+        return FrozenActors::Life::kGone;
+    return pActor->IsDead() ? FrozenActors::Life::kDead : FrozenActors::Life::kAlive;
+}
+
 bool CopyHoldsDoNothing(uint32_t aFormId) noexcept
 {
     Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
@@ -913,14 +922,14 @@ bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept
     return true;
 }
 
-std::string GetActivateText(uint32_t aRefId) noexcept
+std::optional<std::string> GetActivateText(uint32_t aRefId) noexcept
 {
     using TGetActivateText = bool(TESNPC*, TESObjectREFR*, BSString*);
     POINTER_SKYRIMSE(TGetActivateText, s_getActivateText, 24716); // TESNPC::GetActivateText, through our hook
     auto* pRef = Cast<Actor>(TESForm::GetById(aRefId));
     auto* pBase = pRef ? Cast<TESNPC>(pRef->baseForm) : nullptr;
     if (!pBase)
-        return {};
+        return std::nullopt;
     struct Text // BSString's layout, freed here: its own destructor is the engine's
     {
         char* data = nullptr;
@@ -936,6 +945,43 @@ std::string GetActivateText(uint32_t aRefId) noexcept
     return out;
 }
 
+std::optional<bool> MountPointClear(uint32_t aActorId) noexcept
+{
+    const auto* cpActor = Cast<Actor>(TESForm::GetById(aActorId));
+    return cpActor ? std::optional<bool>((cpActor->flags2 & Actor::MOUNT_POINT_CLEAR) != 0) : std::nullopt;
+}
+
+NameData GetNameData(uint32_t aRefId) noexcept
+{
+    NameData data;
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aRefId));
+    if (!pRef)
+        return data;
+    data.Found = true;
+    // Its fields before the name: GetDisplayFullName (19781 -> 12768) refills an emptied cache.
+    if (const auto* pText = static_cast<const ExtraTextDisplayData*>(pRef->extraData.GetByType(ExtraDataType::TextDisplayData)))
+    {
+        data.HasText = true;
+        data.Cached = pText->DisplayName.data ? pText->DisplayName.data : "";
+        data.Message = pText->pDisplayNameText ? pText->pDisplayNameText->formID : 0u;
+        data.Quest = pText->pOwnerQuest ? pText->pOwnerQuest->formID : 0u;
+        data.Instance = pText->iOwnerInstance;
+        data.Temper = pText->fTemperFactor;
+        data.CustomLength = pText->usCustomNameLength;
+        data.TextPointer = reinterpret_cast<uintptr_t>(pText->DisplayName.data);
+        if (const BSStringPoolEntry* cpEntry = BSStringPoolEntry::Of(pText->DisplayName.data))
+            data.EntryFlags = cpEntry->uiFlags;
+    }
+    data.Name = pRef->GetDisplayFullName();
+    return data;
+}
+
+bool SetCustomName(uint32_t aRefId, const std::string& acName) noexcept
+{
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aRefId));
+    return pRef && pRef->extraData.SetCustomName(acName.c_str(), true);
+}
+
 bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept
 {
     Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
@@ -943,16 +989,26 @@ bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept
     return pActor && pActor->SendAnimationEvent(&event);
 }
 
+namespace
+{
+// What freezing changed, to put back on thawing. Freezing again (once the actor has its 3D) adds the
+// controller it did not have yet.
+struct FrozenBefore
+{
+    bool Restrained;
+    std::optional<uint32_t> ControllerFlags;
+};
+std::unordered_map<uint32_t, FrozenBefore> s_frozen;
+} // namespace
+
+void ForgetFrozen(uint32_t aFormId) noexcept
+{
+    s_frozen.erase(aFormId);
+}
+
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
 {
-    // What freezing changed, to put back on thawing. Freezing again (once the actor has its 3D) adds the
-    // controller it did not have yet.
-    struct Before
-    {
-        bool Restrained;
-        std::optional<uint32_t> ControllerFlags;
-    };
-    static std::unordered_map<uint32_t, Before> s_frozen;
+    using Before = FrozenBefore;
     constexpr uint32_t cFrozen = bhkCharacterController::kNotPushable | bhkCharacterController::kNoCharacterCollisions;
     constexpr uint32_t cHits = bhkCharacterController::kRecordHits | bhkCharacterController::kHitDamage;
     using TActorCall = void(Actor*);

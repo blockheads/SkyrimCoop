@@ -18,6 +18,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestMessageFactory.h>
 #include <Messages/RelayedMessages.h>
 #include <Messages/Delivery.h>
@@ -1453,6 +1454,13 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         record.Cell = GameId(0, 0x31D2E);
         record.WorldSpace = GameId(0, 0x3C);
         record.Position = {1024.5f, -2048.25f, 64.f};
+        record.Own.Present = true;
+        record.Own.FavoriteItems = {{sword, 3}};
+        record.Own.Globals[PlayerOwnState::kMagicFavorites] = std::string("\x04\x00\xCD\x7F\x00", 5);
+        record.Own.Damage = {-40.f, 0.f, -7.5f};
+        record.Own.Effects = {{GameId(0, 0xFB99A), 0, 30.f, 1440.f}};
+        record.Own.Cooldowns = {{GameId(0, 0xE40C8), 900.f}};
+        record.Own.Trainings = 2;
         roundTrip(request, RequestMessageFactory{});
     }
 
@@ -1826,6 +1834,7 @@ TEST_CASE("A party item goes to every game with its extra data, count and HUD ch
     sent.Item.ExtraName = "[P] Iron Sword";
     sent.Item.ExtraHealth = 1.2f;
     sent.Shown = -1;
+    sent.Converted = 2;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     sent.Serialize(writer);
@@ -2669,4 +2678,22 @@ TEST_CASE("A record part longer than 64 KB round-trips whole", "[encoding][recor
     CHECK(read.Kind == RecordKind::kItems);
     CHECK(read.Version == 7);
     CHECK(read.Bytes == part.Bytes);
+}
+
+TEST_CASE("A player's item change carries what the host decides a party item by", "[encoding.party-items]")
+{
+    RequestInventoryChanges sent;
+    sent.SessionId = 7;
+    sent.Item.BaseId = GameId(0, 0x39654);
+    sent.Item.Count = 1;
+    sent.StoryGiven = true;
+    sent.AliasHeld = true;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    sent.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == kRequestInventoryChanges);
+    CHECK(static_cast<const RequestInventoryChanges&>(*decoded) == sent);
 }

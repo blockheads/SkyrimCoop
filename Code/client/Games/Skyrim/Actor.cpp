@@ -50,6 +50,7 @@
 #include <Events/NpcHeldEvent.h>
 #include <World.h>
 #include <Bridges/IActorBridge.h>
+#include <Services/ActivatePrompts.h>
 #include <Services/SpeakerUpdate.h>
 #include <Services/PapyrusService.h>
 #include <Services/DeathDrops.h>
@@ -430,6 +431,24 @@ void Actor::DoReset3D(bool aUpdateWeight) noexcept
 void Actor::DispelAllSpells(bool aNow) noexcept
 {
     magicTarget.DispelAllSpells(aNow);
+}
+
+void Actor::ClearPowerCooldowns() noexcept
+{
+    POINTER_SKYRIMSE(void(Actor*), s_clear, 38825);
+    s_clear(this);
+}
+
+void Actor::SetPowerCooldown(SpellItem* apPower, float aSeconds) noexcept
+{
+    POINTER_SKYRIMSE(void(Actor*, SpellItem*, float), s_set, 38738);
+    s_set(this, apPower, aSeconds);
+}
+
+GameList<ActiveEffect>* Actor::GetActiveEffects() noexcept
+{
+    POINTER_SKYRIMSE(GameList<ActiveEffect>*(MagicTarget*), s_effects, 38795);
+    return s_effects(&magicTarget);
 }
 
 bool Actor::IsInCombat() const noexcept
@@ -1593,6 +1612,7 @@ static void ReportAdd(const Actor& acActor, const TESBoundObject& acItem, ExtraD
         TESObjectREFR::GetItemFromExtraData(item, apExtraData);
     InventoryChangeEvent event(acActor.formID, std::move(item));
     event.StoryGiven = GuestScripts::StoryGiving();
+    event.AliasHeld = apExtraData && apExtraData->Contains(ExtraDataType::AliasInstanceArray);
     World::Get().GetRunner().Trigger(std::move(event));
 }
 
@@ -1772,10 +1792,13 @@ static bool OffersBoarding(Actor* apMount) noexcept
 using TGetActivateText = bool(TESNPC*, TESObjectREFR* apTarget, BSString* apText);
 static TGetActivateText* RealGetActivateText = nullptr;
 
-// The crosshair's prompt (TESNPC::GetActivateText 24716): a horse offers Ride only when CanRide (38706) passes, which
-// refuses a ridden one. A horse a party player drives offers it too.
+// The crosshair's prompt (TESNPC::GetActivateText 24716; false: none, UpdateCrosshairs 40621): none over another
+// player's character. A horse offers Ride only when CanRide (38706) passes, which refuses a ridden one; a horse a party
+// player drives offers it too.
 bool HookGetActivateText(TESNPC* apThis, TESObjectREFR* apTarget, BSString* apText)
 {
+    if (auto* pActor = Cast<Actor>(apTarget); pActor && !ActivatePrompts::Offered(pActor->GetExtension()->IsOtherPlayer()))
+        return false;
     if (RealGetActivateText(apThis, apTarget, apText))
         return true;
     auto* pMount = Cast<Actor>(apTarget);
