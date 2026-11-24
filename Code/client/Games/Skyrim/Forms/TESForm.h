@@ -22,6 +22,7 @@ enum class FormType : uint8_t
     Cell = 60,
     Reference = 61,
     Character = 62,
+    PlacedHazard = 70,  // a hazard in the world (Hazard)
     WorldSpace = 71,
     Quest = 77,
     QuestItem = Quest,

@@ -15,6 +15,7 @@
 #include <Structs/Recipe.h>
 #include <Structs/ScriptValue.h>
 #include <Wire/Buffer.h>
+#include <array>
 #include <optional>
 
 namespace Payloads
@@ -25,6 +26,44 @@ struct MeleeStagger
     uint32_t HitterId{};
     float Magnitude{};
     bool operator==(const MeleeStagger&) const noexcept = default;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+};
+
+// TESTrapHitEvent as a guest's engine raised it for its own player.
+struct TrapContact
+{
+    enum Kind : uint8_t
+    {
+        kStart = 0,
+        kStop = 1,
+        kHit = 2
+    };
+    uint32_t TargetId{};
+    GameId Trap{};
+    Kind Type{};
+    std::array<float, 3> Velocity{}; // Havok units
+    std::array<float, 3> Position{};
+    uint32_t Material{};
+    uint32_t Motion{};
+    bool Initial{};
+    bool operator==(const TrapContact&) const noexcept = default;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+};
+
+// What a script's ProcessTrapHit makes of a contact (the engine's TrapData, 56212).
+struct TrapHit
+{
+    uint32_t TargetId{};
+    GameId Trap{};
+    float Damage{};
+    float Push{};
+    float Stagger{};
+    std::array<float, 3> Velocity{};
+    std::array<float, 3> Position{};
+    uint32_t Material{};
+    bool operator==(const TrapHit&) const noexcept = default;
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 };
@@ -128,6 +167,16 @@ struct ProjectileLaunch
     bool ForceConeOfFire{};
     bool UnkBool1{};
     bool UnkBool2{};
+};
+
+// A projectile whose shooter is an object of the world; Launch.ShooterID is not used.
+struct WorldProjectile
+{
+    GameId Shooter{};
+    ProjectileLaunch Launch{};
+    bool operator==(const WorldProjectile&) const noexcept = default;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 };
 
 struct AddTarget

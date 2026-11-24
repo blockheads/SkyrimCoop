@@ -239,6 +239,10 @@ void HostService::MakeAuthority() noexcept
         if (cCopy && engine.IsOtherPlayer(cCopy) && engine.SpellForms.contains(cSpell) && engine.SpellForms.at(cSpell).Summons)
             engine.AddMagicTargetEffect(cCopy, cCopy, cSpell, FormIdOf(acSummon.EffectId), acSummon.Magnitude, acSummon.DualCast, false, false);
     };
+    game.TouchTrap = [&engine](const Payloads::TrapContact& acContact) {
+        if (const uint32_t cCopy = Utils::GetFormIdBySessionId(acContact.TargetId); cCopy && engine.References.contains(FormIdOf(acContact.Trap)))
+            engine.RunsTrapScript(FormIdOf(acContact.Trap), cCopy);
+    };
     game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
     };

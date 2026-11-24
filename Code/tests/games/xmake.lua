@@ -31,7 +31,7 @@ target("GameTests")
               "../../client/Services/Generic/TimeScaleService.cpp", "../../client/Services/Generic/WaitService.cpp", "../../client/Services/Generic/CrimeService.cpp", "../../client/Services/Generic/MagicService.cpp",
               "../../client/Services/Generic/EffectVisualsService.cpp", "../../client/Services/Generic/AiStateService.cpp", "../../client/Services/Generic/ActorStateService.cpp", "../../client/Services/Generic/KillMoveService.cpp", "../../client/Services/Generic/ClaimService.cpp",
               "../../client/Services/CopyRecords.cpp", "../../client/Services/Generic/CopyRecordsService.cpp",
-              "../../client/Services/Generic/CombatService.cpp", "../../client/Services/Generic/PerkService.cpp",
+              "../../client/Services/Generic/CombatService.cpp", "../../client/Services/Generic/TrapService.cpp", "../../client/Services/Generic/PerkService.cpp",
               "../../client/Services/Generic/ObjectService.cpp",
               "../../client/Services/Generic/DialogueService.cpp", "../../client/Services/Guest/GuestDialogue.cpp",
               "../../client/Services/Generic/SteamService.cpp", "../../client/Services/Generic/SaveService.cpp",

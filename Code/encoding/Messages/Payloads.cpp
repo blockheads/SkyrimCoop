@@ -18,6 +18,77 @@ void MeleeStagger::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Magnitude = Serialization::ReadFloat(aReader);
 }
 
+namespace
+{
+void WriteVector(Wire::Buffer::Writer& aWriter, const std::array<float, 3>& acVector) noexcept
+{
+    for (const float cValue : acVector)
+        Serialization::WriteFloat(aWriter, cValue);
+}
+void ReadVector(Wire::Buffer::Reader& aReader, std::array<float, 3>& aVector) noexcept
+{
+    for (float& value : aVector)
+        value = Serialization::ReadFloat(aReader);
+}
+} // namespace
+
+void TrapContact::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, TargetId);
+    Trap.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, Type);
+    WriteVector(aWriter, Velocity);
+    WriteVector(aWriter, Position);
+    Serialization::WriteVarInt(aWriter, Material);
+    Serialization::WriteVarInt(aWriter, Motion);
+    Serialization::WriteBool(aWriter, Initial);
+}
+void TrapContact::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    TargetId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Trap.Deserialize(aReader);
+    Type = static_cast<Kind>(Serialization::ReadVarInt(aReader) & 0xFF);
+    ReadVector(aReader, Velocity);
+    ReadVector(aReader, Position);
+    Material = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Motion = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Initial = Serialization::ReadBool(aReader);
+}
+
+void TrapHit::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, TargetId);
+    Trap.Serialize(aWriter);
+    Serialization::WriteFloat(aWriter, Damage);
+    Serialization::WriteFloat(aWriter, Push);
+    Serialization::WriteFloat(aWriter, Stagger);
+    WriteVector(aWriter, Velocity);
+    WriteVector(aWriter, Position);
+    Serialization::WriteVarInt(aWriter, Material);
+}
+void TrapHit::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    TargetId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Trap.Deserialize(aReader);
+    Damage = Serialization::ReadFloat(aReader);
+    Push = Serialization::ReadFloat(aReader);
+    Stagger = Serialization::ReadFloat(aReader);
+    ReadVector(aReader, Velocity);
+    ReadVector(aReader, Position);
+    Material = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
+void WorldProjectile::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Shooter.Serialize(aWriter);
+    Launch.SerializePayload(aWriter);
+}
+void WorldProjectile::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Shooter.Deserialize(aReader);
+    Launch.DeserializePayload(aReader);
+}
+
 void ActorPerks::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);

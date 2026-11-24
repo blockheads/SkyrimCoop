@@ -298,6 +298,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Lever = false;
         bool ActivationBlocked = false; // a script's BlockActivation: ActivateRef 19796 stops before 17420
         std::vector<std::string> GraphEvents; // the events its own graph got
+        // A trap: what its script does with a contact (state CanHit, the damage it resolved); the contacts its scripts got.
+        bool InClip = false; // its graph runs a clip: it refuses the next script's event
+        bool TrapCanHit = false;
+        float TrapDamage = 0.f;
+        std::vector<uint32_t> TrapContacts;
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
@@ -1241,6 +1246,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // owner and is not applied here; on our own, applied.
     void SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude,
                    bool aDualCast = false);
+    // An explosion's enchantment on an actor (43849, by its NonActorMagicCaster): the hook sees no caster actor, the
+    // effect's caster is the explosion.
+    void ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
     // A summon effect's actor (SummonCreatureEffect::CreateSummon 34993): one of aBase at its caster, commanded by it;
     // the caster's earlier summon dismissed (AIProcess::AddCommandedActor's limit, 1 without Twin Souls).
     uint32_t MakesSummon(uint32_t aCaster, uint32_t aBase);
@@ -1331,6 +1339,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     Perks GetPlayerPerks() const noexcept override;
     void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;
+    // A character's step touches a trap (TESTrapHitEvent, as our hook on its VM sink 53999 takes it): its script's event,
+    // a request to the host, or nothing (TrapRules). The engine itself deals no damage.
+    void TouchesTrap(uint32_t aActor, uint32_t aTrap);
+    // The trap's script on a contact: in CanHit, ProcessTrapHit on the target (Actor::DoTrap1 37509, our hook).
+    void RunsTrapScript(uint32_t aTrap, uint32_t aActor);
+    void TakeTrapHit(uint32_t aFormId, uint32_t aTrapFormId, const Payloads::TrapHit& acHit) noexcept override;
+    // An object's Weapon.Fire (a dart trap): Projectile::Launch with the object as shooter.
+    void ObjectFires(uint32_t aObject, uint32_t aWeapon, const glm::vec3& acOrigin);
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override
     {
         Staggers.emplace_back(aFormId, aHitterId, aMagnitude);

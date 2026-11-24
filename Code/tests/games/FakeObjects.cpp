@@ -439,7 +439,11 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         }
         break;
     case ObjectChange::Kind::kHarvested: reference.Harvested = acChange.Value != 0; break;
-    case ObjectChange::Kind::kAnimation: reference.GraphEvents.push_back(acChange.Event); break; // PlayAnimation
+    case ObjectChange::Kind::kAnimation: // the graph refuses an event while its own clip runs (measured on the spike wall)
+        if (reference.InClip)
+            return false;
+        reference.GraphEvents.push_back(acChange.Event);
+        break;
     case ObjectChange::Kind::kEnabled: // Disable drops the 3D, Enable queues its load (Finishes3D)
         if (reference.Disabled != ((acChange.Value & 1) == 0))
             reference.Has3D = false;

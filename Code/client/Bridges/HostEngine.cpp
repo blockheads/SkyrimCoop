@@ -1,3 +1,6 @@
+#include <Combat/Traps.h>
+#include <TrapRules.h>
+#include <FarAnimations.h>
 #include <Bridges/PlacedByGame.h>
 #include <Bridges/HostEngine.h>
 #include <Games/Skyrim/StealthEye.h>
@@ -223,10 +226,10 @@ void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRe
 }
 
 // A world object the host's game made (not an actor, a projectile or an explosion), as the guests make theirs: an
-// item with its count and extra data (a drop).
+// item with its count and extra data (a drop), a trap's hazard.
 std::optional<ObjectChange> ReadCreate(TESObjectREFR& aRef) noexcept
 {
-    if (aRef.formType != FormType::Reference || aRef.IsDeleted() || !aRef.baseForm || !Cast<TESBoundObject>(aRef.baseForm))
+    if ((aRef.formType != FormType::Reference && aRef.formType != FormType::PlacedHazard) || aRef.IsDeleted() || !aRef.baseForm || !Cast<TESBoundObject>(aRef.baseForm))
         return std::nullopt;
     const auto cObject = ToSessionOrCreated(aRef.formID);
     const auto cItem = ItemId(aRef.baseForm->formID);
@@ -417,6 +420,18 @@ void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAn
     const auto cObject = ToSessionOrCreated(aObjectFormId);
     if (!cObject)
         return;
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
+    const bool cHas3D = pObject && pObject->GetNiNode();
+    if (cHas3D)
+        FarAnimations::Hold(*pObject); // its script may wait for the clip, out of this game's sight
+    std::pair last{acAnimation, acEvent};
+    const auto cLast = m_unseenAnimations.find(aObjectFormId);
+    if (!TrapRules::SendsAnimation(cHas3D, cLast != m_unseenAnimations.end() && cLast->second == last))
+        return;
+    if (cHas3D)
+        m_unseenAnimations.erase(aObjectFormId);
+    else
+        m_unseenAnimations[aObjectFormId] = std::move(last);
     ObjectChange event{ObjectChange::Kind::kAnimation, *cObject};
     event.Animation = acAnimation;
     event.Event = acEvent;
@@ -502,6 +517,15 @@ void HostEngine::Summon(uint32_t aCasterId, const SummonRequest& acSummon) noexc
     data.bDualCast = acSummon.DualCast;
     spdlog::info("HostEngine: guest {:X}'s summon {:X} made by its copy {:X}", aCasterId, pSpell->formID, pCopy->formID);
     pCopy->magicTarget.AddTarget(data, false, false);
+}
+
+void HostEngine::TouchTrap(const Payloads::TrapContact& acContact) noexcept
+{
+    const uint32_t cTrap = acContact.Trap.ModId == ObjectChange::kCreatedModId ? 0xFF000000 | acContact.Trap.BaseId : ToGame(acContact.Trap);
+    auto* pTrap = Cast<TESObjectREFR>(TESForm::GetById(cTrap));
+    auto* pCopy = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(acContact.TargetId)));
+    if (pTrap && pCopy && pCopy->GetExtension()->IsOtherPlayer())
+        Traps::RaiseContact(*pTrap, *pCopy, acContact);
 }
 
 void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept

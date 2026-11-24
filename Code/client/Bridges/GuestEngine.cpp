@@ -154,17 +154,14 @@ bool ActivateDoor(TESObjectREFR& aDoor, const ObjectChange& acChange) noexcept
     return true;
 }
 
-// As the host's script played it: PlayAnimationAndWait (56206) when it named an animation, else PlayAnimation (56205).
-void PlayAnimation(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
+// As the host's script played it (false: the graph is still in a clip and refuses it): the event PlayAnimation (56205) and PlayAnimationAndWait (56206) send the graph.
+bool PlayAnimation(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
-    BSFixedString event(acChange.Event.c_str());
-    if (acChange.Animation.empty())
-        aObject.PlayAnimation(&event);
-    else
-    {
-        BSFixedString animation(acChange.Animation.c_str());
-        aObject.PlayAnimationAndWait(&animation, &event);
-    }
+    BSFixedString event(acChange.Animation.empty() ? acChange.Event.c_str() : acChange.Animation.c_str());
+    const bool cTaken = aObject.SendAnimationEvent(&event);
+    if (cTaken)
+        spdlog::debug("GuestEngine: {:X} plays {}", aObject.formID, event.AsAscii());
+    return cTaken;
 }
 
 } // namespace
@@ -639,7 +636,7 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
     {
     case ObjectChange::Kind::kMove: return PlaceAtHostRest(*pObject, acChange);
     case ObjectChange::Kind::kActivate: return ActivateDoor(*pObject, acChange);
-    case ObjectChange::Kind::kAnimation: PlayAnimation(*pObject, acChange); return true;
+    case ObjectChange::Kind::kAnimation: return PlayAnimation(*pObject, acChange);
     case ObjectChange::Kind::kRecord:
         ReferenceStates::RecordRows(*pObject, acChange.Value);
         return true;

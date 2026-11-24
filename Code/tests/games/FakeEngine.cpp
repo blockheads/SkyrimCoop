@@ -49,6 +49,8 @@
 #include <Games/NpcSnapshot.h>
 #include <Events/HitEvent.h>
 #include <Events/ProjectileLaunchedEvent.h>
+#include <Events/TrapEvents.h>
+#include <Games/Skyrim/TrapRules.h>
 #include <Events/SpellCastEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/LockChangeEvent.h>
@@ -3321,6 +3323,24 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
         Effects.push_back({aTarget, aCaster, aSpell, aEffect});
 }
 
+void FakeEngine::ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
+{
+    const auto cTarget = Actors.find(aTarget);
+    if (cTarget == Actors.end())
+        return;
+    if (cTarget->second.Copy)
+        return SpellHits(aTarget, 0, aSpell, aEffect, aMagnitude);
+    // HookAddTarget: a guest's player already under the host's verdict for this explosion
+    const bool cGuest = HoldSession != 0;
+    const bool cActive = std::ranges::any_of(Effects, [&](const Effect& acEffect) {
+        return acEffect.Target == aTarget && acEffect.Spell == aSpell && acEffect.EffectId == aEffect && !acEffect.Caster;
+    });
+    if (cGuest && aTarget == kPlayer && TrapRules::SkipsWorldEffect(true, cActive))
+        return;
+    if (EffectHolds(aEffect, false))
+        Effects.push_back({aTarget, aExplosion, aSpell, aEffect});
+}
+
 bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept
 {
     const auto cCondition = EffectConditions.find(aEffect);
@@ -3411,6 +3431,10 @@ std::vector<IActorBridge::ActiveEffectInfo> FakeEngine::GetActorActiveEffects(ui
     if (const auto it = Actors.find(aFormId); it != Actors.end())
         for (const uint32_t cId : it->second.Visuals)
             effects.push_back({.EffectFormId = cId});
+    for (const auto& cEffect : Effects)
+        if (cEffect.Target == aFormId)
+            effects.push_back({.EffectFormId = cEffect.EffectId, .SpellFormId = cEffect.Spell, .CasterFormId = cEffect.Caster,
+                               .CasterIsActor = Actors.contains(cEffect.Caster)});
     return effects;
 }
 
@@ -3551,6 +3575,50 @@ void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, 
     case HitRules::Route::Mirror:
     case HitRules::Route::Drop: break;
     }
+}
+
+void FakeEngine::TouchesTrap(uint32_t aActor, uint32_t aTrap)
+{
+    World& world = World::Get();
+    switch (TrapRules::OfContact(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor), false))
+    {
+    case TrapRules::Contact::Raise: RunsTrapScript(aTrap, aActor); break;
+    case TrapRules::Contact::AskHost: world.GetRunner().Trigger(TrapContactEvent{aTrap, aActor, {.Velocity = {1.f, 2.f, 3.f}}}); break;
+    case TrapRules::Contact::Drop: break;
+    }
+}
+
+void FakeEngine::RunsTrapScript(uint32_t aTrap, uint32_t aActor)
+{
+    if (!DecidesWorld) // a guest: WorldEvents drops a trap's events
+        return;
+    auto& trap = References.at(aTrap);
+    trap.TrapContacts.push_back(aActor);
+    if (!trap.TrapCanHit)
+        return;
+    World& world = World::Get();
+    switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor)))
+    {
+    case TrapRules::Hit::Apply: TakesDamage(aActor, 0, trap.TrapDamage, false); break;
+    case TrapRules::Hit::AskOwner: world.GetRunner().Trigger(TrapHitEvent{aTrap, aActor, {.Damage = trap.TrapDamage}}); break;
+    case TrapRules::Hit::Drop: break;
+    }
+}
+
+void FakeEngine::TakeTrapHit(uint32_t aFormId, uint32_t, const Payloads::TrapHit& acHit) noexcept
+{
+    TakesDamage(aFormId, 0, acHit.Damage, false);
+}
+
+void FakeEngine::ObjectFires(uint32_t aObject, uint32_t aWeapon, const glm::vec3& acOrigin)
+{
+    ProjectileLaunchedEvent event{};
+    event.Origin = acOrigin;
+    event.ShooterID = aObject;
+    event.ByObject = true;
+    event.WeaponID = aWeapon;
+    event.ParentCellID = References.at(aObject).Cell;
+    World::Get().GetRunner().Trigger(event);
 }
 
 void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)

@@ -170,6 +170,10 @@ private:
     // owns that actor.
     void OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's lock change (its player picked it, or a key): a proposal the host's world takes (step 6).
+    // A trap touched a guest's player, from its own game; a trap's hit on a guest's player, from the host's.
+    void OnTrapContact(const TrapContactRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnTrapHit(const TrapHitRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnWorldProjectile(const WorldProjectileRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnRecipes(const RecipesRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's container change (its player took or stored an item): a proposal the host's world takes (step 6).

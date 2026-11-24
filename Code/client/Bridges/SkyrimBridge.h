@@ -130,6 +130,7 @@ public:
     void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override;
     uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept override;
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override;
+    void TakeTrapHit(uint32_t aFormId, uint32_t aTrapFormId, const Payloads::TrapHit& acHit) noexcept override;
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override;
     Perks GetPlayerPerks() const noexcept override;
     void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;

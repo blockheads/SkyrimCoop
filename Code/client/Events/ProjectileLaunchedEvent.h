@@ -12,6 +12,7 @@ struct ProjectileLaunchedEvent
     glm::vec3 Origin{};
     uint32_t ProjectileBaseID;
     uint32_t ShooterID;
+    bool ByObject{}; // its shooter is an object of the world (a dart trap), not an actor
     uint32_t WeaponID;
     uint32_t AmmoID;
     float ZAngle;

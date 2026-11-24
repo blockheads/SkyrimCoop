@@ -97,6 +97,7 @@ struct CallFacts
     bool PlayerInCall = false;  // this game's player (0x14) is its object or an argument
     bool InSystemQuest = false; // a system quest's script calls it: this game's instance, for its own player
     bool SystemObject = false;  // its object is a system quest or one of its globals: each game's own
+    bool ObjectCaster = false;  // a cast's caster is an object of the world, not an actor (a trap)
     bool CreatedObject = false; // its object is a reference the host's game created (CreatedIds)
 };
 

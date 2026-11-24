@@ -20,6 +20,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     uint8_t BodiesLayer(uint32_t) const noexcept override { return 0; }
     bool GraphsStepPhysics(uint32_t) const noexcept override { return true; }
     void SetCopyPhysics(uint32_t, uint8_t, bool) noexcept override {}
+    void TakeTrapHit(uint32_t, uint32_t, const Payloads::TrapHit&) noexcept override {}
     void StaggerActor(uint32_t, float, uint32_t) noexcept override {}
     std::string Name;
     uint16_t Level = 1;
