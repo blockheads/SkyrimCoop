@@ -49,6 +49,19 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-24: **a spell an object casts shows on every game: Storm Call's lightning** (`agent/storm-call-lightning`,
+[projectiles.md](re/systems/projectiles.md)). Bug 18: only the shouting game saw the bolts. `magicProjectileStormScript`
+casts each bolt with `Spell.RemoteCast` from an activator it placed in the sky, so the projectile's shooter is that
+activator (read in IDA: `NonActorMagicCaster` 34699 → `FindTargets` 34410 → `FireProjectile` 34452), and
+`CombatService` sent only launches shot by its game's actors. Now a spell projectile shot by an object (an activator, a
+statue, no shooter) goes out with shooter 0 from whichever game launched it, and the others relaunch it with no shooter:
+it flies and strikes, and with no shooter's caster its spell applies nothing there (44169/44206); its effects still go
+to their targets' owners from the launching game. Scenario `storm-call-bolts-reach-guest` (the host's and the guest's
+shout: before, 3 bolts struck and 0 shown each way; now each game relaunches every bolt the other struck), readout
+`projectile <base>` / `projectile <base> relaunched` counters, MCP verb `storm_call` (a checking verb, kept in exports
+when it fails); GameTests "A storm bolt a script casts from an activator shows on every game", HostAuthorityTests
+"Shots: an object's...".
+
 2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
 [actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after
 `stage` (golden-claw-guest, arvels-journal-guest-loots) lay 83-111 degrees and up to 582 units apart. `stage` freezes
@@ -2501,6 +2514,10 @@ removed (git history keeps them).
 
 ### World state
 
+- **Storm Call's created activators end apart** (2026-11-24, `storm-call-bolts-reach-guest`'s end comparison, logged
+  under `own-checks`): its activators (`ACTI B79FF`, placed by `magicProjectileStormScript` and moved by `SetPosition`)
+  are on the host only, or in another cell or pose on the guest, after the storm. Invisible markers; whether the
+  script's moves and its `Delete` at the effect's end reach the guest's copies was not read.
 - **Why a lid flipped without 3D comes back part open is unread** (2026-11-18, `docs/re/systems/guest-world-events.md`,
   "A lid after a disable"): `InitNonNPCAnimation` (19757) already calls `SetOpenState` with snap at a 3D load, yet the
   new 3D shows 0.116 of the open 0.128 rad. The fix poses it afterwards (`ObjectService`, measured to agree); what

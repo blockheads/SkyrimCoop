@@ -1660,7 +1660,7 @@ def _called(name, args):
     return _line("verb", {"name": name, "args": args})
 
 
-CHECKING_VERBS = ("pick_lock",)
+CHECKING_VERBS = ("pick_lock", "storm_call")
 
 
 def _is_expect(entry):

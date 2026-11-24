@@ -132,7 +132,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
     // Magic and combat: an effect landing works like a hit.
     Relay<InterruptCastRequest, NotifyInterruptCast>(FromOwner, &InterruptCastRequest::CasterId);
-    Relay<ProjectileLaunchRequest, NotifyProjectileLaunch>(FromOwner, &ProjectileLaunchRequest::ShooterID);
+    On(*this, &HostAuthority::OnProjectileLaunch);
     Relay<AddTargetRequest, NotifyAddTarget>(ToOwner, &AddTargetRequest::TargetId);
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
     // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
@@ -305,6 +305,13 @@ void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, Connect
     NotifyMeleeStagger notify;
     static_cast<Payloads::MeleeStagger&>(notify) = acRequest;
     Deliver(notify, Delivery::ToOwner, acRequest.HitteeId, aSender);
+}
+
+void HostAuthority::OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    // An actor's shot from its owner; an object's (shooter 0: a script's activator, a statue) from the game that ran it.
+    Deliver(ToNotify<ProjectileLaunchRequest, NotifyProjectileLaunch>(acRequest), acRequest.ShooterID ? Delivery::FromOwner : Delivery::FromAnyone,
+            acRequest.ShooterID, aSender);
 }
 
 void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept

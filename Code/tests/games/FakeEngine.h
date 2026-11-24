@@ -1505,6 +1505,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A projectile this game's actor launched (our hook on Projectile::Launch raises it); one another game's actor
     // launched, relaunched here (LaunchProjectile).
     void Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin);
+    // A projectile an object shot: an activator's Spell.RemoteCast (magicProjectileStormScript), a statue.
+    void ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aCell, const glm::vec3& acOrigin);
     struct Shot
     {
         uint32_t Shooter = 0;

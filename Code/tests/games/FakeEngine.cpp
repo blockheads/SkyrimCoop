@@ -3612,6 +3612,18 @@ void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acO
     Shots.push_back({aShooter, aSpell, acOrigin});
 }
 
+void FakeEngine::ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aCell, const glm::vec3& acOrigin)
+{
+    ProjectileLaunchedEvent event{};
+    event.Origin = acOrigin;
+    event.ShooterID = aObject;
+    event.SpellID = aSpell;
+    event.ParentCellID = aCell;
+    event.FromObject = true;
+    World::Get().GetRunner().Trigger(event);
+    Shots.push_back({aObject, aSpell, acOrigin});
+}
+
 void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
 {
     ActivateEvent event;

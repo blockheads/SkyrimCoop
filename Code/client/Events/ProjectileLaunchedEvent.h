@@ -30,4 +30,6 @@ struct ProjectileLaunchedEvent
     bool ForceConeOfFire;
     bool UnkBool1;
     bool UnkBool2;
+    // Shot by a reference that is no actor (an activator's Spell.RemoteCast, a statue) or by nothing.
+    bool FromObject = false;
 };

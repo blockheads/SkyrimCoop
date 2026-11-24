@@ -295,6 +295,25 @@ TEST_CASE("Shots: replayed everywhere else, from the shooter's owner only", "[Ho
     CHECK(session.Outbox.empty());
 }
 
+TEST_CASE("Shots: an object's (no shooter) replayed everywhere else, from whichever game ran it", "[HostAuthority][Magic]")
+{
+    Session session;
+    session.Character(kPeer);
+
+    // A Storm Call bolt from its script's activator (projectiles.md).
+    ProjectileLaunchRequest shot;
+    shot.OriginZ = 3600.f;
+    session.Receive(kPeer, shot);
+    REQUIRE(session.SentTo<NotifyProjectileLaunch>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kHost)[0]->ShooterID == 0);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kPeer).empty());
+
+    session.Outbox.clear();
+    session.Receive(kHost, shot);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kHost).empty());
+}
+
 TEST_CASE("Spell effects: applied by the target's owner alone", "[HostAuthority][Magic]")
 {
     Session session;
