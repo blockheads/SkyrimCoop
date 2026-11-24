@@ -1275,6 +1275,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         ObjectChange owner{ObjectChange::Kind::kOwner, GameId(0, 0xC2CE5)};
         owner.Item = GameId(0, 0x7);
         sendMessage.Changes.push_back(owner);
+        ObjectChange motion{ObjectChange::Kind::kMotion, GameId(0, 0x7998B)};
+        motion.Value = 0x104; // keyframed, allowActivate
+        sendMessage.Changes.push_back(motion);
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);

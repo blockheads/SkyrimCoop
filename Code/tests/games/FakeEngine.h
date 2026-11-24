@@ -296,6 +296,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Owner = 0; // its ExtraOwnership (an NPC or a faction); none: its cell's (CellOwners)
         bool Plant = false;     // a flora or tree reference: an activation picks it (TESProduceForm::Harvest 14864)
         bool Harvested = false; // its form flag 0x2000
+        uint32_t Motion = 0;    // the motion type a script last gave it (kMotion's row, ScriptMotion::Pack); 0 its model's
         std::set<uint32_t> Rolled; // items a leveled roll put in (their changes entry a roll's: ExtraLeveledItem lists)
         uint32_t LinkedDoor = 0; // a load door with no lock of its own: it uses this door's (GetLock 20223)
         bool Persistent = false; // in memory with its cell unloaded (a load door's other side)
@@ -496,6 +497,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     struct Body
     {
         uint32_t Layer = 4; // COL_LAYER: clutter; a trap's 14 (IsTrap)
+        bool ReportedAwake = false; // its island's wake was reported (TakeMovedReferences)
         bool NeedsKnock{};
         bool RestBusy{};
         size_t RestAttempts{};
@@ -1541,6 +1543,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ToggleDoor(uint32_t aObject);
     // An activated plant is picked (for any actor, 14864): the host's records it (CHANGE_OBJECT_EMPTY), a guest's here only.
     void Harvest(uint32_t aObject);
+    // The host's script sets its motion type (ObjectReference.SetMotionType 56232 -> 56332: a havok change, its row).
+    void ScriptSetsMotionType(uint32_t aObject, uint32_t aType);
     // This game's player pulls a lever furniture (17420): its graph gets the pull; the host's records it as a row.
     void PullsLever(uint32_t aObject);
     // The host's script plays an animation on a reference (PlayAnimation 56205: HookPlayAnimation records it).

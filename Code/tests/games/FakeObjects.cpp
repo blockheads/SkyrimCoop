@@ -1,3 +1,4 @@
+#include <Games/ScriptMotion.h>
 #include <Games/ContainerCount.h>
 #include <Events/LidUnposedEvent.h>
 #include <Events/MenuEvent.h>
@@ -114,6 +115,12 @@ ObjectChange HarvestedRow(uint32_t aPlant, const FakeEngine::Reference& acRefere
     ObjectChange row{.Type = ObjectChange::Kind::kHarvested, .Object = SessionIdOf(aPlant)};
     row.Value = acReference.Harvested ? 1 : 0;
     return row;
+}
+
+// ReferenceStates' motion row: what a script last set.
+ObjectChange MotionRow(uint32_t aObject, const FakeEngine::Reference& acReference)
+{
+    return {.Type = ObjectChange::Kind::kMotion, .Object = SessionIdOf(aObject), .Value = acReference.Motion};
 }
 
 ObjectChange ItemsRow(uint32_t aContainer, const FakeEngine::Reference& acReference, uint32_t aItem)
@@ -324,6 +331,16 @@ void FakeEngine::Harvest(uint32_t aObject)
     Recorded.push_back(HarvestedRow(aObject, it->second));
 }
 
+void FakeEngine::ScriptSetsMotionType(uint32_t aObject, uint32_t aType)
+{
+    auto& reference = References.at(aObject);
+    reference.Motion = ScriptMotion::Pack(aType, false);
+    if (IsGuest)
+        return;
+    Changed.insert(aObject);
+    Recorded.push_back(MotionRow(aObject, reference));
+}
+
 uint32_t FakeEngine::PlaceContainer(uint32_t aCell, uint32_t aBase)
 {
     const uint32_t cId = NewTemporary();
@@ -386,6 +403,8 @@ std::vector<ObjectChange> FakeEngine::RowsOf(uint32_t aReference) const
         rows.push_back(OpenRow(aReference, cReference));
     if (cReference.Plant)
         rows.push_back(HarvestedRow(aReference, cReference));
+    if (cReference.Motion)
+        rows.push_back(MotionRow(aReference, cReference));
     for (const auto& [cItem, cCount] : cReference.Items)
         rows.push_back(ItemsRow(aReference, cReference, cItem));
     return rows;
@@ -453,6 +472,11 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         }
         break;
     case ObjectChange::Kind::kHarvested: reference.Harvested = acChange.Value != 0; break;
+    case ObjectChange::Kind::kMotion: // ApplyMotion: on its 3D's bodies
+        if (!reference.Has3D)
+            return false;
+        reference.Motion = acChange.Value;
+        break;
     case ObjectChange::Kind::kAnimation: // the graph refuses an event while its own clip runs (measured on the spike wall)
         if (reference.InClip)
             return false;

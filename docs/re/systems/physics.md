@@ -94,6 +94,31 @@ went 21 units deeper into a head than in a game without a session (2026-11-01, `
 "Matches a game without co-op"). That holds with the node's `NiAVObject::Update` and the collision object's
 `kNotify` both left out: the write (vfunc 0x2B) itself does it.
 
+## Still in an awake island (measured, 2026-11-24)
+
+WarehouseTraps' falling rocks land in one island with the log trap's ropes (15 to 28 bodies), which never stop
+moving, so Havok never sleeps it. A body trace of rock 79979 on the host: still from 6.7 s (its own stillness count
+36 by 8.6 s, island active), nudged at 8.9 s, then its body slid 17 units while its 3D stayed at the old rest. The
+host had sent that rest by the rock's own stillness and stopped watching it; the nudge came with no wake (its island
+was awake all along), so no frames, no new rest, and no node repair: the guest placed the old rest, the host's own 3D
+stood there too, and its physics lay elsewhere (33 units in another run). `PhysicsBodies` now keeps a reference that
+rested in an awake island watched (its rest sent once), until its island sleeps: a nudge sends frames and a new rest,
+and its node is repaired (GameTests "A bucket at rest in an island kept awake is nudged again").
+
+## A script's motion type (read and measured, 2026-11-24)
+
+`ObjectReference.SetMotionType` (56232) queues a `SetMotionTypeFunctor` after render; its run (56332) calls
+`NiAVObject::SetMotionType` (77866: recursive, not forced, so a fixed peg stays fixed) on the reference's 3D, then
+`AddChange(4)`, the havok change a save keeps. It runs where the script runs: the host. `Tripwire` and `PhysicsTrap`
+keyframe their bodies in `OnCellAttach`; on a guest they stayed their model's dynamic (traced: the tripwire's rope
+motion 3 on the guest against 4 on the host, the hanging rocks the same), so the guest's player pushed a tripwire's
+rope and took it, and anything waking a hanging rock there would have dropped it. A hook on 56332 remembers each
+reference's scripted type (`ScriptMotion`); the host's rows carry it (`kMotion`, read with the reference its havok
+change marks), and a guest applies it as 56332 does, at once and at each cell load. Measured: the guest's tripwire,
+rocks and mace keyframed before their traps fire; `warehouse_traps_hurt_both`'s end comparison went from 8 references
+apart to 6, the rocks within a unit. Left: a tripped tripwire's rope keeps moving on both games (2 to 30 units/s past
+15 s), not yet compared with a game without a session.
+
 ## Motion type and kSetLocal
 
 Waking a body runs the engine's island activation listener (25857), which takes its reference's extra data lock

@@ -2,6 +2,7 @@
 // player's game takes the hit.
 #include "Party.h"
 #include "Fixtures.h"
+#include <Games/ScriptMotion.h>
 
 namespace
 {
@@ -12,6 +13,7 @@ constexpr uint32_t kDart = 0x000236A5;
 constexpr uint32_t kDartProjectile = 0x0003BE11; // a trap dart's projectile base
 constexpr uint32_t kMarker = 0x00037210; // a trap that never hits: what reaches it, came after the rest
 constexpr uint32_t kGuard = 0x0001A67C;
+constexpr uint32_t kTripwire = 0x0007998B; // WarehouseTraps' (Tripwire: keyframed by its OnCellAttach)
 
 void Plugins(FakeEngine& aEngine)
 {
@@ -20,6 +22,7 @@ void Plugins(FakeEngine& aEngine)
     aEngine.References[kWall] = {.Cell = kSmoke, .TrapCanHit = true, .TrapDamage = 30.f};
     aEngine.References[kDarts] = {.Cell = kSmoke};
     aEngine.References[kMarker] = {.Cell = kSmoke};
+    aEngine.References[kTripwire] = {.Cell = kSmoke};
 }
 
 float Health(FakeEngine& aEngine, uint32_t aActor = FakeEngine::kPlayer)
@@ -266,4 +269,27 @@ SCENARIO("A copy made after its owner's effect started answers with it", "[traps
     party.Until([&] { return PlayerCopies(second).size() == 2; }, "the second guest has both other players");
     for (const uint32_t cCopy : PlayerCopies(second))
         CHECK(second.ActorHasEffect(cCopy, kPoison));
+}
+
+// WarehouseTraps' tripwire (2026-11-24): its script keyframes its rope as its cell attaches, on the host alone; a
+// guest's stayed its model's dynamic, its player pushed it and took it. A script's motion type is the host's row.
+SCENARIO("A script's motion type on the host's object reaches every guest, joined now or later", "[traps][motion]")
+{
+    Party party(2, Plugins, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& first = Party::Engine(party.Guest(0));
+    FakeEngine& second = Party::Engine(party.Guest(1));
+    constexpr uint32_t kKeyframed = 4, kDynamic = 1;
+    party.As(party.Host(), [&] { host.ScriptSetsMotionType(kTripwire, kKeyframed); });
+
+    party.Join(party.Guest(0));
+    party.Until([&] { return first.References.at(kTripwire).Motion == ScriptMotion::Pack(kKeyframed, false); },
+                "the first guest's tripwire is keyframed as it joins");
+    party.As(party.Host(), [&] { host.ScriptSetsMotionType(kTripwire, kDynamic); }); // tripped: Tripwire's Active state
+    party.Until([&] { return first.References.at(kTripwire).Motion == ScriptMotion::Pack(kDynamic, false); },
+                "the first guest's tripwire goes dynamic with the host's");
+
+    party.Join(party.Guest(1));
+    party.Until([&] { return second.References.at(kTripwire).Motion == ScriptMotion::Pack(kDynamic, false); },
+                "a later guest's tripwire is as the host's is now");
 }

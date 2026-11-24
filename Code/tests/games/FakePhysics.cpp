@@ -655,10 +655,16 @@ std::vector<uint32_t> FakeEngine::TakeMovedReferences() noexcept
                 Wake(cKey, kStepMs);
         }
     }
+    // Reported as its island wakes (the change funnel, 25857): in an island something keeps awake (KeptAwake), a later
+    // nudge reports nothing (WarehouseTraps' rocks beside their ropes, 2026-11-24).
     std::vector<uint32_t> moved;
-    for (const auto& [cKey, cBody] : Bodies)
-        if (cBody.Awake && !cBody.Held && std::ranges::find(moved, ReferenceOf(cKey)) == moved.end())
+    for (auto& [cKey, body] : Bodies)
+    {
+        const bool cWoke = body.Awake && !body.Held && !(body.KeptAwake && body.ReportedAwake);
+        body.ReportedAwake = body.Awake && !body.Held;
+        if (cWoke && std::ranges::find(moved, ReferenceOf(cKey)) == moved.end())
             moved.push_back(ReferenceOf(cKey));
+    }
     return moved;
 }
 

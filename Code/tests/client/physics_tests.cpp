@@ -9,6 +9,7 @@
 #include "../FakeFlight.h"
 
 #include <Physics/BodyGroups.h>
+#include <Games/ScriptMotion.h>
 #include <Physics/BodyPlayback.h>
 #include <Physics/RagdollPending.h>
 #include <Physics/RagdollStart.h>
@@ -724,4 +725,16 @@ TEST_CASE("A trap's layers are the trap's and the cloud trap's, nothing loose", 
     CHECK(BodyGroups::IsTrapLayer(16));
     CHECK_FALSE(BodyGroups::IsTrapLayer(10)); // a mace's chain: props
     CHECK_FALSE(BodyGroups::IsTrapLayer(4));
+}
+
+TEST_CASE("A script's motion type packs with its allowActivate and the last one stands", "[physics][motion]")
+{
+    CHECK(ScriptMotion::TypeOf(ScriptMotion::Pack(4, true)) == 4);
+    CHECK(ScriptMotion::AllowsActivate(ScriptMotion::Pack(4, true)));
+    CHECK_FALSE(ScriptMotion::AllowsActivate(ScriptMotion::Pack(1, false)));
+    ScriptMotion::Store store;
+    CHECK_FALSE(store.Of(0x7998B));
+    store.Remember(0x7998B, ScriptMotion::Pack(4, false));
+    store.Remember(0x7998B, ScriptMotion::Pack(1, false)); // tripped
+    CHECK(store.Of(0x7998B) == ScriptMotion::Pack(1, false));
 }

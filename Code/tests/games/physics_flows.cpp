@@ -299,6 +299,32 @@ SCENARIO("A knocked bucket stops where an animated body keeps its island awake: 
     }
 }
 
+// WarehouseTraps' rocks (2026-11-24): they share an island with ropes that never sleep. A rock rested by its own
+// stillness, then a rope nudged it: no wake reported it (its island never slept), so the host sent nothing more and
+// its node stayed at the old rest while its body slid 17 units. A still body in an awake island stays watched.
+SCENARIO("A bucket at rest in an island kept awake is nudged again: its new rest reaches the guest", "[physics][still]")
+{
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    hostBucket.KeptAwake = true;
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {0.f, 120.f, 0.f}); });
+    party.Until([&] { return hostBucket.Flight.Resting && guestBucket.Rests > 0; }, "the first rest reaches the guest");
+    const size_t cRests = guestBucket.Rests;
+    const float cFirst = hostBucket.Flight.Body.Position.x;
+    // An island mate nudges it: Havok's island was awake all along.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {120.f, 0.f, 0.f}); });
+    const auto cWhere = [&] {
+        return std::format("host's at x {:.1f} {}, guest's at x {:.1f}, {} rests", hostBucket.Flight.Body.Position.x,
+                           hostBucket.Flight.Resting ? "stopped" : "moving", guestBucket.Flight.Body.Position.x, guestBucket.Rests);
+    };
+    party.Until([&] { return hostBucket.Flight.Resting && guestBucket.Rests > cRests; }, "its second rest reaches the guest", cWhere);
+    INFO(cWhere());
+    CHECK(hostBucket.Flight.Body.Position.x > cFirst + 10.f);
+    CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
+}
+
 SCENARIO("The host's player holds a bucket still in the air and lets go: the guest's first rest is where it lands", "[physics][still]")
 {
     // Review of #56: its stillness matured in the hand, so the release was taken for a rest in midair.
