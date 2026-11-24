@@ -35,18 +35,6 @@ from ..objects import (
 )
 
 
-def scenario_physics_push_reaches_guest(ctx):
-    """Physics sync (docs/design/physics-sync.md): the host's player knocks clutter with a fireball. The client's
-    object it knocks hardest follows the host's frames (simulated, nudged onto them: its mass kept), its 3D flies with the
-    host's and lies where the host's lies; everything the blast woke rests before the world is compared."""
-    ctx.knock_clutter_with_fireball("")
-
-def scenario_guest_cast_moves_host(ctx):
-    """Physics sync's step 5 (docs/design/physics-sync.md, "A guest's own actions"): the client's player knocks clutter
-    with a fireball. Its copy's cast is replayed on the host, whose blast throws the host's clutter; the client's
-    follows the host's (nudged, its mass kept) and lies where the host's lies."""
-    ctx.knock_clutter_with_fireball("client")
-
 def scenario_guest_bump_moves_host(ctx):
     """Physics sync's step 5 (docs/design/physics-sync.md, "A guest's own actions"): the client's player walks into a
     ladle on the floor. Its character pushes the client's ladle, which is the client's until it rests there

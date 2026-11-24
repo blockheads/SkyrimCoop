@@ -82,9 +82,8 @@ public:
     // object, the activator or the item is not in this game.
     // aLoad: a cell's state, not a change; a state already as the host's is left alone (no events for it).
     bool ApplyObjectChange(const ObjectChange& acChange, bool aLoad = false) noexcept;
-    // A move row's reference loaded here with dynamic bodies, already where the row puts it: placed by the host's body
-    // rest (BodyService). A script's move is somewhere else and still applies.
-    [[nodiscard]] bool RestsThere(const ObjectChange& acMove) noexcept;
+    // That reference has a dynamic body loaded here: the body stream places it, not its move row.
+    [[nodiscard]] bool HasLiveBody(const GameId& acObject) noexcept;
     // This game's container's count of the item now (Bridges/ContainerItems.h), for a proposal to the host.
     [[nodiscard]] std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept;
     // The cells loaded here now and done loading (the interior, or the exterior grid's attached ones), by form id.
@@ -100,9 +99,9 @@ public:
     [[nodiscard]] bool IsPlacementPending(const GameId& acObject) const noexcept;
     // This game's player's pushes of the host's references' bodies since the last call (its character's,
     // PlayerHands), one per body.
-    [[nodiscard]] std::vector<BodyPush> TakePushes() noexcept;
+    [[nodiscard]] std::vector<BodyKey> TakePushes() noexcept;
     // Its weapon swings' hits on the host's references' bodies since the last call (PlayerHands::TakeHits), one per body.
-    [[nodiscard]] std::vector<BodyPush> TakeHits() noexcept;
+    [[nodiscard]] std::vector<BodyKey> TakeHits() noexcept;
     // What this game's player holds (PlayerCharacter::grabbedObject): a host reference's bodies, or a copy's corpse's by
     // its session id, watched until they rest (40555 grabs a dead actor).
     using SessionOf_t = std::function<uint32_t(uint32_t aFormId)>;
@@ -121,14 +120,6 @@ public:
         std::vector<BodyPose> RagdollRested;
     };
     [[nodiscard]] OwnBodies TakeOwnBodies(uint64_t aTick, const SessionOf_t& acSessionOf) noexcept;
-    // The awake simulation islands acKeys' bodies are in (a pile Havok woke whole and simulates with them: 61509):
-    // every reference's dynamic body in each, acKeys' own included, where it is now; Island: the same for one island.
-    struct IslandBody
-    {
-        BodyPose Pose;
-        uint32_t Island{};
-    };
-    [[nodiscard]] std::vector<IslandBody> ReadIslands(const std::vector<BodyKey>& acKeys) noexcept;
     // A reference's body this game took as its own: read as moved from now, however little it has left where it woke.
     void FollowOwn(const BodyKey& acKey) noexcept;
 
@@ -165,8 +156,8 @@ private:
 
     // The host's id of this game's reference (a created one's through m_created).
     [[nodiscard]] std::optional<GameId> HostIdOf(const TESObjectREFR& acObject) const noexcept;
-    // The player's pushes or hits on the host's references' bodies, keyed, one per body (impulses summed).
-    [[nodiscard]] std::vector<BodyPush> Keyed(const std::vector<PlayerHands::Push>& acPushes) const noexcept;
+    // The player's pushes or hits on the host's references' bodies, keyed, one per body.
+    [[nodiscard]] std::vector<BodyKey> Keyed(const std::vector<PlayerHands::Push>& acPushes) const noexcept;
     IBodyBridge& m_bodyBridge; // the session's bodies here
     std::vector<std::pair<BodyKey, uint32_t>> m_placed; // held at a move row's rest: updates since
     BodyReads m_reads;

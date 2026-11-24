@@ -261,6 +261,21 @@ std::optional<std::vector<hkpRigidBody*>> IslandMatesOf(const bhkWorldObject& ac
     return mates;
 }
 
+std::vector<const hkpRigidBody*> TouchingOf(const bhkWorldObject& acBody) noexcept
+{
+    const hkpRigidBody* pBody = acBody.referencedObject;
+    bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
+    if (!pWorld)
+        return {};
+    BSReadLockGuard _(pWorld->worldLock);
+    std::vector<const hkpRigidBody*> touching;
+    for (int32_t i = 0; i < pBody->collidable.entryCount; ++i)
+        if (const hkpLinkedCollidable* pPartner = pBody->collidable.entries[i].partner)
+            if (const hkpRigidBody* pOther = pPartner->Owner(); pOther && pOther != pBody && pOther->IsDynamic())
+                touching.push_back(pOther);
+    return touching;
+}
+
 std::optional<uint16_t> SetBodyGroup(bhkWorldObject& aBody, uint16_t aGroup) noexcept
 {
     hkpRigidBody* pBody = aBody.referencedObject;
@@ -274,7 +289,7 @@ std::optional<uint16_t> SetBodyGroup(bhkWorldObject& aBody, uint16_t aGroup) noe
     const uint32_t cNew = (cFilter & 0xFFFF) | (static_cast<uint32_t>(aGroup) << 16);
     {
         BSWriteLockGuard _(pWorld->worldLock);
-        std::memcpy(pBody->collidable + 0x2C, &cNew, sizeof(cNew));
+        pBody->collidable.collisionFilterInfo = cNew;
     }
     using TUpdateCollisionFilter = void(bhkWorldObject*);
     POINTER_SKYRIMSE(TUpdateCollisionFilter, s_updateCollisionFilter, 77794);
@@ -318,5 +333,5 @@ TESObjectREFR* ReferenceOf(const hkpRigidBody& acBody) noexcept
 {
     using TFindCollidableRef = TESObjectREFR*(const void*);
     POINTER_SKYRIMSE(TFindCollidableRef, s_findCollidableRef, 26003);
-    return s_findCollidableRef(acBody.collidable);
+    return s_findCollidableRef(&acBody.collidable);
 }

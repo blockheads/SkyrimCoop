@@ -407,6 +407,8 @@ Size: medium. Needs: duo.
   `LateAfterDragonslayerBackinSkyrim` boot `faendal-letter` passed whole (once), and
   `copy-keeps-spell-after-party-travel` ended on 12 references (weapon racks, ACTI `8AF59`
   `WeaponRackMidACTIVATOR`, with `0x8000000` on one game: not read, an activator has no container).
+  2026-11-23: the Sleeping Giant's rack weapons ended apart too; `HoldAt` each update until asleep passes
+  `guest-grabs-orgnar-bottle` (1 run), `docs/re/systems/physics.md`.
 
 ### A strafing copy catches for a frame
 
@@ -556,6 +558,23 @@ Size: medium. Needs: the duo, then GameTests.
   bad read, 28 minutes up; `kept/host-crash-2026-11-15-20-48-12.log`).
 - **The harness's `world_state` crashed the host once** (access violation in `EngineCalls.cpp` `ReadPose`, walking an
   object's 3D), on the first call after staging; not seen again (nor in the 2026-11-18 reruns).
+- **GameTests "A host NPC gets up from a knockdown: its copy's ragdoll follows its owner's until both stand" fails 1
+  run in 13 to 20** (the copy's head ends 25 to 32 units from its owner's, 0 while both rose): measured 2026-11-23, 3
+  of 40 runs on dev `4dc32008` and 2 of 40 on `agent/physics-audit`, so not from the authority change. With dev `38e7098d`
+  (pose blending) merged and the touch fix: 8 of 30 alone; which of the two raised it was not measured. Not traced:
+  the copy stands a playback delay before its owner's last frames are due, by wall-clock frame timing.
+- **`guest_drops_wheel_on_wheels_like_vanilla` not rerun** since its cause was fixed (2026-11-23, a guest's touch overrode
+  a host's placement 2300 units away; GameTests `[placed]`): passing in the fast tests only.
+- **Physics scenarios of the authority change, not passing or not rerun** (`agent/physics-audit`): on an earlier build
+  `guest-grabs-orgnar-bottle`, `guest-push-like-vanilla` and
+  `host-push-mixed-like-vanilla` passed once each. On an earlier build failed and not rerun: `guest-drags-host-corpse`
+  (the grab broke at its first frame, so the corpse echo's fix is unproven in Skyrim; it has no fast test),
+  `guest_drops_on_bottles_like_vanilla` (108.5 units, vanilla from 109.2), `host-tavern-like-vanilla` (9 turns, vanilla up
+  to 8). None compared with dev.
+- **A mask set on Orgnar's back snapped on the guest** (the 2026-11-23 playtest), not reproduced: `RestPlacer::kKeep`
+  (`physics-sync.md`) is shown by fast tests only. Start: a real placement by a player's grab, both games traced.
+- **Orgnar's copy leaning on his bar is posed 2 to 4 units higher, hands and feet 5 to 13 off** (measured 2026-11-23,
+  before dev's pose blending, `physics.md`). Not read why.
 - **2026-11-22, a guest's drop onto a pile** (`agent/physics-piles-drop`, final build; `physics-sync.md`, "A drop onto
   a pile"). Guest walker, 3 rounds a run: `drop_wheel_on_wheels` 3 runs of 3 as vanilla, `drop_on_bottles` 1 of 1,
   `pile_carry_release`, `tavern`, `push_mixed` 1 of 1, `carry_into_pile` 1 of 2 (the other a staging timeout, below).

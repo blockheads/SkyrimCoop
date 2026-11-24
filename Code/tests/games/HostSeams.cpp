@@ -209,7 +209,11 @@ void HostService::MakeAuthority() noexcept
         return quests;
     };
     game.TakeObjectChanges = [&engine] { return std::exchange(engine.Recorded, {}); };
-    game.TakePlaced = [&engine] { return std::exchange(engine.Placed, {}); };
+    game.TakePlaced = [&engine] {
+        for (auto& [cKey, body] : engine.Bodies)
+            body.PlacedByGame = false; // read: where the game put it (HostEngine::TakeObjectChanges clears PlacedByGame)
+        return std::exchange(engine.Placed, {});
+    };
     game.ReadCellState = [&engine](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
         return engine.CellState(acCell, acChanged);
     };
@@ -302,11 +306,6 @@ void HostService::MakeAuthority() noexcept
     // The real PhysicsBodies over the fake engine's physics, keyed as HostEngine::TakeBodies keys them: an actor's
     // ragdoll by its session id, only this game's own actors' (a copy's is played here).
     const auto physics = std::make_shared<PhysicsBodies>(engine);
-    game.FollowBodies = [&engine, physics](const std::vector<BodyKey>& acKeys) {
-        for (const BodyKey& cKey : acKeys)
-            if (!cKey.Actor)
-                (void)physics->Follow(FakeEngine::ReferenceOf(cKey));
-    };
     game.TakeBodies = [&engine, this, physics](uint64_t aTick) {
         const auto cSessionOf = [this](uint32_t aFormId) -> uint32_t {
             for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
@@ -327,7 +326,7 @@ void HostService::MakeAuthority() noexcept
         };
         engine.PhysicsTick = engine.PhysicsTime(m_pNetwork->GetTick());
         const auto cUpdate = physics->Take(aTick);
-        HostBodies bodies;
+        HostBodyReads bodies;
         for (const auto& cAwake : cUpdate.Awake)
             if (const auto cKey = cOwner(cAwake))
                 for (BodyFrame frame : cAwake.Read)
@@ -351,9 +350,18 @@ void HostService::MakeAuthority() noexcept
         m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake); // as HostService
         return bodies;
     };
-    game.FreeBody = [&engine, this](const BodyFrame& acFrame, uint64_t aReleasedAt) {
-        m_world.ctx().at<BodyService>().Forget(acFrame.Key, aReleasedAt);
-        return engine.Free(acFrame);
+    game.TakeTouches = [&engine] {
+        std::vector<BodyKey> keys;
+        for (const auto& cPush : std::exchange(engine.PlayerPushes, {}))
+            keys.push_back(cPush.Key);
+        for (const auto& cHit : std::exchange(engine.PlayerHits, {}))
+            keys.push_back(cHit.Key);
+        return keys;
+    };
+    game.ReadTouching = [&engine](const std::vector<BodyKey>& acKeys) { return engine.ReadTouching(acKeys); };
+    game.EndPlayback = [&engine, this](const BodyKey& acKey, uint64_t aUntil) {
+        m_world.ctx().at<BodyService>().Forget(acKey, std::max(aUntil, m_world.GetFrameTick()));
+        engine.Release(acKey);
     };
     game.ReadBodies = [&engine](const std::vector<BodyKey>& acKeys) {
         std::vector<BodyPose> poses;

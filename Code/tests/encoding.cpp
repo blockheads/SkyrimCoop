@@ -1577,6 +1577,34 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
 
 TEST_CASE("Physics bodies", "[encoding.physics]")
 {
+    BodyFrame frame;
+    frame.Key = {.Object = GameId(0, 0x1A0F3), .Index = 2};
+    frame.Position = {-182345.53f, 90211.2f, -1024.03f};
+    frame.Rotation = glm::normalize(glm::quat(0.3f, -0.6f, 0.2f, 0.7f));
+    frame.LinearVelocity = {120.4f, -310.9f, -686.f};
+    frame.AngularVelocity = {3.1f, -0.25f, 12.f};
+    frame.Gravity = true;
+
+    SECTION("A frame quantizes within a millimetre and a tenth of a degree, and to itself again")
+    {
+        const BodyFrame cQuantized = frame.Quantized();
+        CHECK(glm::distance(cQuantized.Position, frame.Position) < 1.f / 32);
+        CHECK(std::abs(glm::dot(cQuantized.Rotation, frame.Rotation)) > std::cos(0.002f));
+        CHECK(glm::distance(cQuantized.LinearVelocity, frame.LinearVelocity) < 0.25f);
+        CHECK(cQuantized.Quantized() == cQuantized);
+    }
+
+    SECTION("A frame takes about BodyFrame::kWireBytes")
+    {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        frame.Serialize(writer);
+        CHECK(writer.Size() <= BodyFrame::kWireBytes);
+    }
+}
+
+TEST_CASE("Body states cross both ways, each as its receiver gets it", "[encoding.physics]")
+{
     const auto roundTrip = []<class TFactory = NotifyMessageFactory>(const auto& acMessage, TFactory aFactory = {}) {
         Buffer buffer;
         Buffer::Writer writer(&buffer);
@@ -1587,70 +1615,26 @@ TEST_CASE("Physics bodies", "[encoding.physics]")
         using Message = std::remove_cvref_t<decltype(acMessage)>;
         return *CastUnique<Message>(std::move(decoded));
     };
-
-    BodyFrame frame;
-    frame.Key = {.Object = GameId(0, 0x1A0F3), .Index = 2};
-    frame.Position = {-182345.53f, 90211.2f, -1024.03f};
-    frame.Rotation = glm::normalize(glm::quat(0.3f, -0.6f, 0.2f, 0.7f));
-    frame.LinearVelocity = {120.4f, -310.9f, -686.f};
-    frame.AngularVelocity = {3.1f, -0.25f, 12.f};
-    frame.Gravity = true;
-
-    SECTION("A frame arrives as its quantized self, within a millimetre and a tenth of a degree")
-    {
-        NotifyBodyFrames frames;
-        frames.Tick = 123456789;
-        frames.Frames = {frame, BodyFrame{.Key = {.Actor = 0x22, .Index = 14}, .Knocked = true}};
-        frames.Held = true;
-        const auto cDecoded = roundTrip(frames);
-        REQUIRE(cDecoded.Frames.size() == 2);
-        CHECK(cDecoded.Held);
-        CHECK(cDecoded.Frames[1].Knocked);
-        CHECK(cDecoded.Tick == frames.Tick);
-        CHECK(cDecoded.Frames[0] == frame.Quantized());
-        CHECK(cDecoded.Frames[1] == frames.Frames[1].Quantized());
-        CHECK(glm::distance(cDecoded.Frames[0].Position, frame.Position) < 1.f / 32);
-        CHECK(std::abs(glm::dot(cDecoded.Frames[0].Rotation, frame.Rotation)) > std::cos(0.002f));
-        CHECK(glm::distance(cDecoded.Frames[0].LinearVelocity, frame.LinearVelocity) < 0.25f);
-        THEN("a quantized frame quantizes to itself") CHECK(frame.Quantized().Quantized() == frame.Quantized());
-    }
-
-    SECTION("A frame takes about BodyFrame::kWireBytes")
-    {
-        Buffer buffer;
-        Buffer::Writer writer(&buffer);
-        frame.Serialize(writer);
-        CHECK(writer.Size() <= BodyFrame::kWireBytes);
-    }
-
-    SECTION("A rest goes exactly")
-    {
-        NotifyBodyRests rests;
-        rests.Tick = 42;
-        rests.Rests = {{.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation}};
-        CHECK(roundTrip(rests) == rests);
-        rests.Placed = true;
-        CHECK(roundTrip(rests).Placed);
-    }
-
-    SECTION("A guest's hold and release go to the host")
-    {
-        BodyFramesRequest held;
-        held.Tick = 77;
-        held.Frames = {frame};
-        CHECK(roundTrip(held, RequestMessageFactory{}).Frames[0] == frame.Quantized());
-        BodyReleaseRequest released;
-        released.Tick = 78;
-        released.Frames = {frame};
-        CHECK(roundTrip(released, RequestMessageFactory{}).Frames[0] == frame.Quantized());
-        BodyPoseRequest asked;
-        asked.Rests = {{.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation}};
-        CHECK(roundTrip(asked, RequestMessageFactory{}) == asked);
-        BodyRestsRequest rests;
-        rests.Tick = 79;
-        rests.Rests = asked.Rests;
-        CHECK(roundTrip(rests, RequestMessageFactory{}) == rests);
-    }
+    const BodyState cMoving{.Frame = {.Key = {.Object = GameId(0, 0x1A0F3), .Index = 2}, .Position = {-182345.53f, 90211.2f, -1024.03f},
+                                      .Rotation = glm::normalize(glm::quat(0.3f, -0.6f, 0.2f, 0.7f)), .LinearVelocity = {120.4f, -310.9f, -686.f},
+                                      .Gravity = true},
+                            .Author = BodyAuthor::kOther, .AuthSeq = 300, .HoldSeq = 2, .Held = true};
+    const BodyState cRest{.Frame = {.Key = {.Actor = 0x22, .Index = 14}, .Position = {1.000001f, 2.f, 3.f}, .Knocked = true},
+                          .Author = BodyAuthor::kNone, .AuthSeq = 65535, .AtRest = true};
+    NotifyBodyStates states;
+    states.Tick = 123456789;
+    states.States = {cMoving, cRest};
+    const auto cDecoded = roundTrip(states);
+    REQUIRE(cDecoded.States.size() == 2);
+    CHECK(cDecoded.Tick == states.Tick);
+    CHECK(cDecoded.States[0] == cMoving.Quantized());
+    CHECK(cDecoded.States[1] == cRest.Quantized());
+    CHECK(cDecoded.States[1].Frame.Position == cRest.Frame.Position);
+    BodyStatesRequest request;
+    request.Tick = 7;
+    request.States = {cRest};
+    CHECK(roundTrip(request, RequestMessageFactory{}).States[0] == cRest.Quantized());
+    CHECK(DeliveryOf(request) == Delivery::kUnreliable);
 }
 
 TEST_CASE("Shared wait messages keep generation, authority and the whole calendar", "[encoding.wait]")
@@ -2366,8 +2350,7 @@ TEST_CASE("A guest sends movement unreliably and movement with actions or a tele
     movement.Updates[2].UpdatedMovement.Teleported = false;
     movement.Updates[2].ActionEvents.emplace_back();
     CHECK(DeliveryOf(movement) == Delivery::kReliable);
-    CHECK(DeliveryOf(BodyFramesRequest{}) == Delivery::kReliable);
-    CHECK(DeliveryOf(BodyReleaseRequest{}) == Delivery::kReliable);
+    CHECK(DeliveryOf(BodyStatesRequest{}) == Delivery::kUnreliable);
     CHECK(DeliveryOf(PartyTravelRequest{}) == Delivery::kReliableNow);
 }
 

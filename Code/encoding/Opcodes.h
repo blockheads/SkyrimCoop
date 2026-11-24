@@ -44,13 +44,9 @@
     X(EffectFlashRequest)           \
     X(DismountRequest)              \
     X(PlayerRecordRequest)          \
-    X(BodyFramesRequest)            \
-    X(BodyReleaseRequest)           \
-    X(BodyPoseRequest)              \
     X(WaitRequest)                  \
     X(WaitWorldRequest)             \
     X(PlayerDeathRequest)           \
-    X(BodyRestsRequest)             \
     X(CrimeRequest)                 \
     X(DropItemRequest)              \
     X(PickUpRequest)                \
@@ -79,6 +75,7 @@
     X(ActorGiveBackRequest) \
     X(ClaimRequest)                 \
     X(SummonRequest)                \
+    X(BodyStatesRequest)            \
     X(WeatherRegionRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
@@ -127,8 +124,6 @@
     X(NotifyDismount)              \
     X(NotifySaveChunk)             \
     X(NotifyPlayerPerished)        \
-    X(NotifyBodyFrames)            \
-    X(NotifyBodyRests)             \
     X(NotifyWaitState)             \
     X(NotifyWaitWorld)             \
     X(NotifyPartyDeath)            \
@@ -167,7 +162,8 @@
     X(NotifyClaim) \
     X(NotifyClaimRefused) \
     X(NotifyStealthEye) \
-    X(NotifyLeash)
+    X(NotifyLeash)                 \
+    X(NotifyBodyStates)
 
 #define COOP_OPCODE(aName) k##aName,
 

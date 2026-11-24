@@ -245,11 +245,12 @@ struct Session
     std::map<uint32_t, ObjectChange> CreatedContents;             // the created containers' contents, by created base id
     std::map<uint32_t, std::vector<ObjectChange>> LoadedCells;    // the cells loaded in the host's game (by base id), their state
     std::vector<ChangedReference> GuestChanged;                   // what the last cell read was told a guest changed
-    std::vector<BodyFrame> Freed;   // and let go
+    std::vector<BodyKey> Ended;     // a guest's authority ended: the host's game simulates it again (HostGame::EndPlayback)
+    std::vector<BodyKey> Touches;   // the host's player's pushes and hits this update (HostGame::TakeTouches)
+    std::vector<std::pair<BodyKey, BodyKey>> Contacts; // pairs Havok made (HostGame::ReadTouching)
     std::vector<BodyPose> Bodies;   // the host's bodies where they are
-    std::vector<BodyKey> Followed;  // bodies a guest asked about: sent from now though unmoved (HostGame::FollowBodies)
     std::vector<std::pair<GameId, glm::vec3>> Placed;     // references the host's game itself moved (a script, the console)
-    HostBodies Moving;              // the host's physics this update, taken by the next frame
+    HostBodyReads Moving;           // the host's physics this update, taken by the next frame
     std::map<uint32_t, glm::vec3> PlayerPositions; // where the host's game shows each guest's character, by player id
     uint32_t Difficulty = 3;                                 // the host's difficulty (Expert)
     std::optional<std::vector<Followers::State>> Followers;
@@ -401,13 +402,20 @@ private:
             Loose.erase(it);
             return item;
         };
-        game.FreeBody = [this](const BodyFrame& acFrame, uint64_t) { Freed.push_back(acFrame); return true; };
+        game.EndPlayback = [this](const BodyKey& acKey, uint64_t) { Ended.push_back(acKey); };
+        game.TakeTouches = [this] { return std::exchange(Touches, {}); };
+        game.ReadTouching = [this](const std::vector<BodyKey>& acKeys) {
+            std::vector<std::pair<BodyKey, BodyKey>> pairs;
+            for (const auto& cPair : Contacts)
+                if (std::ranges::find(acKeys, cPair.first) != acKeys.end())
+                    pairs.push_back(cPair);
+            return pairs;
+        };
         game.TakeBodies = [this](uint64_t) { return std::exchange(Moving, {}); };
         game.ReadPlayerPosition = [this](uint32_t aPlayerId) -> std::optional<glm::vec3> {
             const auto it = PlayerPositions.find(aPlayerId);
             return it != PlayerPositions.end() ? std::optional(it->second) : std::nullopt;
         };
-        game.FollowBodies = [this](const std::vector<BodyKey>& acKeys) { Followed.insert(Followed.end(), acKeys.begin(), acKeys.end()); };
         game.ReadBodies = [this](const std::vector<BodyKey>& acKeys) {
             std::vector<BodyPose> poses;
             for (const auto& cBody : Bodies)

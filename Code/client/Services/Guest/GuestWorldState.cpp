@@ -89,30 +89,12 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
         std::vector<ObjectChange> applied;
         for (const auto& cChange : message.Changes)
         {
-            // A loaded body's live rest is BodyService's, between frames: one writer for its pose (red-flags.md, 4).
+            // A live move of a reference whose body is loaded here is the body stream's: one writer for its pose
+            // (physics-authority-plan.md, piece 4). A cell's load, or a reference with no body here, takes the row.
             if (message.Cell == GameId{} && cChange.Type == ObjectChange::Kind::kMove &&
-                (m_engine.RestsThere(cChange) || m_world.ctx().at<BodyService>().RestComing(cChange.Object)))
+                (m_engine.Adopting(cChange.Object) || m_engine.HasLiveBody(cChange.Object)))
             {
-                spdlog::debug("GuestWorldState: {} is its body rest's to place", WorldStateLog::Describe(cChange));
-                continue;
-            }
-            // This game's own rest, placed by the host and sent back as its move row: already there. Applied, it keyframed
-            // the body and slept its island, a wheel falling beside it too (physics.md, "When an island sleeps").
-            if (message.Cell == GameId{} && cChange.Type == ObjectChange::Kind::kMove && cChange.Data.size() == 6 * sizeof(float))
-            {
-                float pose[6];
-                std::memcpy(pose, cChange.Data.data(), sizeof(pose));
-                if (m_world.ctx().at<BodyService>().RestedHere(cChange.Object, {pose[0], pose[1], pose[2]}))
-                {
-                    spdlog::debug("GuestWorldState: {} is this game's own rest come back", WorldStateLog::Describe(cChange));
-                    continue;
-                }
-            }
-            // What this game's player moves (its drop included) lands where this game's physics puts it.
-            if (message.Cell == GameId{} && cChange.Type == ObjectChange::Kind::kMove &&
-                (m_engine.Adopting(cChange.Object) || m_world.ctx().at<BodyService>().MovedHere(cChange.Object)))
-            {
-                spdlog::info("GuestWorldState: {} left: this game's player moves it", WorldStateLog::Describe(cChange));
+                spdlog::debug("GuestWorldState: {} is its body's to place", WorldStateLog::Describe(cChange));
                 continue;
             }
             // This game's player's own pull of a lever furniture: its engine played it (TESFurniture::Activate 17420).
