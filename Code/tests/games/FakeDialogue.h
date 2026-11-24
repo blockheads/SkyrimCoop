@@ -130,9 +130,11 @@ struct FakeDialogue final : IDialogueBridge
     {
         m_filters = std::move(aFilters);
     }
+    // The speaker's handle resolves (LookupREFRByHandle): none once its actor is freed.
+    std::function<bool(uint32_t aSpeaker)> SpeakerResolves;
     uint32_t GetSpeaker() const noexcept override
     {
-        return Speaker;
+        return Speaker && (!SpeakerResolves || SpeakerResolves(Speaker)) ? Speaker : 0;
     }
     bool IsMenuOpen() const noexcept override
     {
@@ -224,12 +226,14 @@ struct FakeDialogue final : IDialogueBridge
     {
         End();
     }
-    // The engine's frame (MenuTopicManager::Update 35289): the speaker's UpdateInDialogue (37541) reads its process
-    // unchecked, so a speaker left without one faults, unless our hook skips it (SpeakerUpdate).
+    // The engine's frame (MenuTopicManager::Update 35289): an actor speaker whose handle resolves, with the menu flag
+    // (+0xB1) set, gets UpdateInDialogue (37541), which reads its process unchecked: none faults, unless our hook skips
+    // it (SpeakerUpdate).
     uint32_t SpeakerFaults = 0;
     void EngineFrame(bool aOnline) noexcept
     {
-        if (Speaker && SpeakerHasProcess && !SpeakerHasProcess(Speaker) && !SpeakerUpdate::Skipped(false, aOnline))
+        if (Speaker && MenuOpen && SpeakerResolves && SpeakerResolves(Speaker) && SpeakerHasProcess &&
+            !SpeakerHasProcess(Speaker) && !SpeakerUpdate::Skipped(false, aOnline))
             ++SpeakerFaults;
     }
     bool PlayerMenuOpen = false;

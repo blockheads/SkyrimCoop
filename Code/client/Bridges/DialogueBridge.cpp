@@ -575,7 +575,7 @@ bool DialogueBridge::ClearOrphaned() noexcept
 void DialogueBridge::Clear() noexcept
 {
     MenuTopicManager* pManager = MenuTopicManager::Get();
-    if (!pManager || !TESObjectREFR::GetByHandle(pManager->speaker))
+    if (!pManager || (!pManager->menuOpen && !TESObjectREFR::GetByHandle(pManager->speaker)))
         return;
     pManager->Clear();
     CloseMenu();

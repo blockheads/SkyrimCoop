@@ -198,6 +198,33 @@ SCENARIO("A guest leaving the session mid-conversation ends its game's conversat
     }
 }
 
+// The copy freed (its handle gone) just before the guest leaves: offline, ClearOrphaned no longer runs.
+SCENARIO("A guest leaving right after its speaker's copy is freed still closes its menu", "[dialogue][dialogue-race][join]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    hostTalk.Greeting = guestTalk.Greeting = {kFirst, kSecond};
+    party.As(party.Host(), [&] { host.LoadNpc(kNpc, kCell); });
+    party.Until([&] { return guest.CopiesOf(kNpc).size() == 1; }, "the guest's game has a copy of the NPC");
+    const uint32_t cCopy = guest.CopiesOf(kNpc)[0];
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return guestTalk.MenuOpen && hostTalk.Speaker; }, "the guest talks to the NPC");
+
+    party.As(party.Guest(), [&] {
+        guest.DeleteActor(cCopy);
+        guest.Releasing.clear(); // freed: its handle no longer resolves
+    });
+    REQUIRE(!guestTalk.GetSpeaker());
+    party.Leave(party.Guest());
+    party.Until([&] { return !party.Guest().GetTransport().IsOnline(); }, "the guest is out");
+    for (int i = 0; i < 5; ++i)
+        party.Frame();
+    THEN("its menu is closed") CHECK(!guestTalk.MenuOpen);
+}
+
 namespace
 {
 const IDialogueBridge::Option kThird{.Topic = 0x1003, .Info = 0x2003, .Text = "Third"};

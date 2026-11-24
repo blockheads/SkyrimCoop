@@ -2794,6 +2794,7 @@ void FakeEngine::DeleteActor(uint32_t aFormId) noexcept
     if (!IsActorTemporary(aFormId) || !Actors.erase(aFormId))
         return;
     m_freedTemporary.insert(aFormId);
+    Releasing.insert(aFormId);
 }
 
 bool FakeEngine::IsActorNpcTemporary(uint32_t aFormId) const noexcept

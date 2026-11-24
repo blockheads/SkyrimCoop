@@ -156,6 +156,9 @@ World::World()
         const auto it = engine.Actors.find(aSpeaker);
         return it != engine.Actors.end() && !it->second.NoProcess;
     };
+    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerResolves = [](uint32_t aSpeaker) {
+        return FakeEngine::Current().HandleResolves(aSpeaker);
+    };
     static_cast<FakeDialogue&>(*m_pDialogueBridge).DialogueLoaded = [](uint32_t aQuest) {
         return FakeEngine::Current().DialogueLoaded.contains(aQuest);
     };
@@ -241,6 +244,7 @@ void World::Update() noexcept
     // A delayed line delivers in wall time: recovery must use that clock too.
     m_dispatcher.trigger(UpdateEvent(std::getenv("COOP_NET") ? cDelta : 1.0 / 60));
     static_cast<FakeDialogue&>(*m_pDialogueBridge).EngineFrame(m_transport.IsOnline());
+    ctx().at<FakeEngine&>().Releasing.clear();
     // The real AnimationSystem replays a dying owner's action at its copy's time (CopyPlayback).
     auto& engine = ctx().at<FakeEngine&>();
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())

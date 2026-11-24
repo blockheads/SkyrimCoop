@@ -5,6 +5,7 @@ import time
 from ..common import ACTIVATE_KEY, CLIENT_NETNS, DOWN_KEY, UP_KEY
 from ..errors import TestFailure
 from .. import game as game_module
+from ..voice_watch import VoiceWatch, layered
 
 # How far ahead the shared moment is: each lane reads its game's clock and queues its input before it.
 LEAD_SECONDS = 0.4
@@ -232,48 +233,38 @@ class TogetherActions:
         return result
 
     def voice_mark(ctx, name, game="host"):
-        """Starts watching the actor's voice line in that game: each sound its voice handle (mod.voice) takes from now
-        on is a line started, read by voice_lines. Returns the line playing now."""
+        """Starts watching the actor's voice line in that game (coop_harness/voice_watch.py): each sound its voice handle
+        takes from now on is a line started, read by voice_lines. A watch already running stops first. Returns the line
+        playing now."""
         form = ctx.resolve(name, game)
         instance = "client" if game in ("client", "guest") else ""
-        now = ctx.voice(instance, form)
-        ctx.VOICE_WATCH = {"form": form, "instance": instance, "sounds": [now.get("sound", -1)], "rows": [now], "last": now}
-        stop = threading.Event()
+        ctx.voice_unwatch()
+        ctx.VOICE_WATCH = VoiceWatch(lambda: ctx.voice(instance, form))
+        return {"playing": ctx.VOICE_WATCH.rows[0]}
 
-        def watch():
-            while not stop.wait(0.05):
-                try:
-                    row = ctx.voice(instance, form)
-                except Exception:  # a game busy loading or saving answers late: the next read
-                    continue
-                last = ctx.VOICE_WATCH["last"]
-                if row.get("sound", -1) not in (-1, ctx.VOICE_WATCH["sounds"][-1]):
-                    # The voice timer the line before still had at its last read: above a frame or two, it overlaps.
-                    ctx.VOICE_WATCH["sounds"].append(row["sound"])
-                    ctx.VOICE_WATCH["rows"].append({**row, "at": time.monotonic(), "before_left": last.get("seconds", -1)})
-                ctx.VOICE_WATCH["last"] = row
-
-        ctx.VOICE_WATCH["stop"] = stop
-        threading.Thread(target=watch, daemon=True).start()
-        return {"playing": now}
+    def voice_unwatch(ctx):
+        """Stops a voice watch still running (unstage calls it): its result, or None."""
+        watch, ctx.VOICE_WATCH = getattr(ctx, "VOICE_WATCH", None), None
+        return watch.stop() if watch else None
 
     def voice_lines(ctx):
         """The voice sounds the actor started since voice_mark (the first: the one playing then), and stops watching."""
-        watch = getattr(ctx, "VOICE_WATCH", None)
-        if not watch:
+        result = ctx.voice_unwatch()
+        if result is None:
             raise ctx.failure("voice_lines before voice_mark")
-        watch["stop"].set()
-        return {"sounds": watch["sounds"], "rows": watch["rows"]}
+        return result
 
     def expect_no_line_layered(ctx, seconds=0.0):
         """No voice line the actor started since voice_mark began while the one before still played (Actor::SpeakSound
-        37542 stops nothing: two calls layer, louder). Watches `seconds` more first, then stops watching."""
+        37542 stops nothing: two calls layer, louder). Watches `seconds` more first, then stops watching. Sampled: it
+        can miss two starts between reads (voice_watch.py)."""
         if seconds:
             time.sleep(seconds)
         result = ctx.voice_lines()
-        layered = [row for row in result["rows"][1:] if row.get("before_left", -1) > 0.5]
-        if layered:
-            raise ctx.failure(f"a voice line started over one still playing ({layered[0]['before_left']:.1f} s left): {result['rows']}")
+        if result["rows"][0].get("sound", -1) == -1:
+            raise ctx.failure("no voice line was playing at voice_mark: nothing to watch")
+        if found := layered(result["rows"]):
+            raise ctx.failure(f"a voice line started over one still playing ({found[0]['before_left']:.1f} s left): {result['rows']}")
         return result
 
     def guest_replays_mark(ctx):

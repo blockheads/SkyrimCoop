@@ -102,8 +102,9 @@ void GuestDialogue::OnLineSkipped() noexcept
 void GuestDialogue::OnLeft() noexcept
 {
     // Every NPC a guest talks to is a copy.
+    // A speaker gone already leaves the menu open: cleared all the same, ClearOrphaned runs only online.
     auto& bridge = m_dialogue.Bridge();
-    if (!bridge.GetSpeaker())
+    if (!bridge.GetSpeaker() && !bridge.IsMenuOpen())
         return;
     spdlog::info("Dialogue: leaving the session ends the conversation on copy {:X}", bridge.GetSpeaker());
     bridge.Clear();

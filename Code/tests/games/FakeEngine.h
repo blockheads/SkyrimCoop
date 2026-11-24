@@ -1867,6 +1867,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
     void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept override;
     void DeleteActor(uint32_t aFormId) noexcept override;
+    // A temporary actor deleted this frame: its handle still resolves, with no process, until the frame's end (the
+    // engine frees it later, ProcessLists::UpdateTempChangeList 41294; measured: dialogue.md, A guest leaving mid-line).
+    std::set<uint32_t> Releasing;
+    [[nodiscard]] bool HandleResolves(uint32_t aFormId) const noexcept
+    {
+        return Actors.contains(aFormId) || Releasing.contains(aFormId);
+    }
     bool IsActorTemporary(uint32_t aFormId) const noexcept override { return aFormId >= 0xFF000000; }
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
     bool IsActorLeveled(uint32_t aFormId) const noexcept override;

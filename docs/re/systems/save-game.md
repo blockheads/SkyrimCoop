@@ -112,9 +112,10 @@ IDA 1.7.104, read for the wipe (the host chooses the save, `../../design/death.m
   (35736) allows it: false while the player's `Actor::someRefrHandle` (`+0x1F0`) names a live reference, a
   UI `+0x170` count is nonzero, or 82076 (a UI check, not read) says so. No life-state check in what was read. Quicksave's gate is 35734 (not read further).
 
-- `Save_Impl` (35727) also asks `UI::IsSavingAllowed` (0x141169700, read 2026-11-24): every open menu must have
-  `kAllowSaving` (0x800; `UI::numAllowSaving` +0x16C against the menu stack's size +0x120). The Dialogue Menu has
-  not, so no save while it is open, a join's transfer save included (`dialogue.md`, "A guest leaving mid-line").
+- `Save_Impl` (35727) also asks `UI::IsSavingAllowed` (82077, RVA 0x1169700, called at 0x140622917; read 2026-11-24):
+  every open menu must have `kAllowSaving` (0x800; `UI::numAllowSaving` +0x16C against the menu stack's size +0x120).
+  With the Dialogue Menu open no save happens (measured; its flags not read), a join's transfer save included
+  (`dialogue.md`, "A guest leaving mid-line").
 
 ## Where a save or load can run (2026-10-24)
 
