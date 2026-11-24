@@ -95,6 +95,7 @@ every other section needs the duo.
 **Combat**
 
 - [After the host dies](#after-the-host-dies): small, the lock order inversion left
+- [A guest's horse in a trap](#a-guests-horse-in-a-trap): small, no duo first
 
 **Found by the playthrough flow**
 
@@ -853,6 +854,18 @@ Size: small. Needs: duo.
 - 2026-11-22, measured hook sizes (agent/hook-sizes): passed 1 of 1 without the pair; only the engine's Havok/list pair
   (lock-order.md). If it returns, its report's `ours from` line names the frame that tagged it.
 
+### A guest's horse in a trap
+
+Agent task: route a trap's contact and hit for a guest-owned actor that is not its player (a ridden horse) to its owner's
+game, with a mounted GameTests flow in which the horse loses health once.
+
+Size: small. Needs: no duo first (GameTests), the duo to confirm.
+
+- **A guest's ridden horse takes no trap damage** (review of PR #124, 2026-11-24, read, not measured): on the guest it
+  is `Local`, so `TrapRules::OfContact` drops its contact; on the host it is a `Copy`, so `OfHit` drops the script's
+  hit, and `HostAuthority::OnTrapHit` accepts only player targets. `trap_rules_tests` currently expects the drop.
+  - Start: `TrapRules.h` (`OfContact`, `OfHit`), `HostAuthority::OnTrapContact` / `OnTrapHit` (owner checks).
+
 ## Found by the playthrough flow
 
 From `riverwood-day-one` (`docs/design/playthrough-flows.md`), runs of 2026-11-05: each was seen at every run that
@@ -1099,29 +1112,16 @@ Size: small. Needs: the duo.
 
 ### A rider at a scenario's end
 
-Left of it (2026-11-17, `agent/horse-riding`): the horse-buying scenarios at Whiterun's stables. The rest is fixed:
-the crouched rider ("pelvis 0") was the scenario getting off within ~0.1 s of being seated, which the engine answers
-with no exit clip (vanilla too, `docs/re/systems/mounts.md`); a copy left seated by such a ride's end now gets off.
+Left of it (2026-11-23): the guest's horse menu once lacking the bought horse. The crouched rider ("pelvis 0") was a
+get-off within ~0.1 s of being seated (mounts.md); a get-off that does nothing with the bought horse is it standing in
+its shed, with no room beside it (mounts.md, "No room to get off"): not a bug.
 
-Agent task: Find why the stables' bought horse can't be got off or aimed at, and make `party-buys-horse-host/guest`
-pass.
+Agent task: when the horse menu shows the gap again, find what the guest's menu lists.
 
 Size: small. Needs: the duo.
 
-- **The host can't get off the guest's bought horse** (`party-buys-horse-guest`, 3 of 3 runs 2026-11-17): seated
-  (sit state 3, the horse's pair over), Activate pressed with the crosshair clear: no dismount package, no Detach,
-  still riding 15 s later. The same horse unbought, or given the purchase's owner and faction by console, lets the
-  host off at once. Not read: what the purchase (StablesScript, its packages 98454/3EAB9) leaves on the horse;
-  `Character::ActivateMount` (37864) takes a ClearMountPosition package instead of Dismount when the mount lacks
-  flags2 bit 4.
-- **The guest's crosshair misses the host's bought horse** (`party-buys-horse-host`, 4 of 4): "the crosshair is on
-  nothing, not 429428: 123-138 units off", the aim at its body too. The unbought horse, same stall, is aimed at and
-  ridden.
 - **The guest's horse menu lacks the horse** (2026-11-16, once): not seen again on a clean world.
   - Start: buy through the MCP (`talk`, the topics), then `mount_readout` and the horse's packages before getting on.
-- 2026-11-22, dev `aa723513`: `party-buys-horse-guest` passed 4 of 4 (the full run and 3 reruns), so the first shape
-  did not show; no fast test covers it. `party-buys-horse-host` 2 of 2: "the crosshair is on nothing, not 429428: 230
-  units off" (238 in the rerun).
 
 ### A guest crashed loading a copy's idle clips
 
@@ -1525,6 +1525,9 @@ Size: small. Needs: the duo.
   at `weapon_state` 0 on the host and its copy on the guest at 3 (Drawn). The reverse of
   [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws); not read whether its copy
   missed a sheathe.
+- `guest-mounts-bought-horse` (2026-11-23, every step passed): its end comparison found Ria (`1A6D8`, QASmoke) at
+  `values.stamina_regen.delay` 1.17 on the host and 0.0 on its copy. A new readout (the stamina-regen gates, same
+  day); not read whether a copy's delay should follow its owner's at all.
 
 ## Test tools
 

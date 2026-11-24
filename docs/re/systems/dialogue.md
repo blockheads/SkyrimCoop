@@ -584,3 +584,39 @@ graphs detached too: 18 bodies keyframed (motion 4) within 1.6 units of the host
 games' bodies left the world and both crosshairs still took him, now by his capsule. The harness `controller` readout shows the
 controller's `size`; with the fix both games' crosshairs took the leaning Lucan, both controllers at `size` 0. GameTests "A guest's crosshair takes an NPC copy seated in its furniture" (the fake's `BodiesLayer`, `GraphsStepPhysics`, `BodiesDriven`,
 `CrosshairTakes`), scenario `guest-crosshair-skips-leaning-npc`.
+
+## No talking to players (1.7.104, 2026-11-23)
+
+Each game's crosshair offered "Talk" over the other player's copy (measured on the duo, harness `activate_text`: both
+games read `Talk\nPrisoner`). Read in IDA (journal `agent-no-talk-to-players.tsv`):
+
+```text
+TESNPC::GetActivateText 24716 (npc, ref, text)   the crosshair's prompt, first that applies:
+  a pet/owned name ("%s's %s"), sAttack (40665, not read), sSearch (dead, with items),
+  sRide/sSteal (CanRide 38706), sPickpocket (sneaking, race flag 0x800000),
+  sTalk only if Actor::CanTalkToPlayer 37469; else no prompt (returns 0)
+TESNPC::Activate 24715 (npc, ref, activator)     the player pressing E on an actor:
+  dead -> ContainerMenu (search); sneaking + race flag 0x800000 -> ContainerMenu mode 2 (pickpocket)
+  else talk only if activator is the player and CanTalkToPlayer 37469 -> greeting, SetDialogueWithPlayer 37200
+  CanTalkToPlayer false -> returns 1, nothing done
+Actor::CanTalkToPlayer 37469: ExtraCanTalkToPlayer (Papyrus AllowPCDialogue) wins, else race flag 0x200000
+```
+
+37469's only code callers are 24715 and 24716 (read in IDA; its one data xref is inferred to be its `.pdata` entry).
+So `HookCanTalkToPlayer` (`DialogueBridge.cpp`) answers false for another player's character
+(`IDialogueBridge::Filters::OtherPlayer`, `IActorBridge::IsOtherPlayer`; the rule `DialogueMenuPolicy::TalksToPlayer`
+keeps the engine's own no): pressing E on it starts no conversation. Pressing E to search or pickpocket it was already
+refused where the menu opens (`HookOpenInventory`, `ContainerMenu::OpenMenu` 51140, `ContainerOpens::Refused`).
+
+The prompts: `PlayerCharacter::UpdateCrosshairs` (40621, read) shows nothing for a reference whose base's
+`GetActivateText` returns false (empty text, the HUD message's activate flag +0x40 cleared, handle 0). So
+`HookGetActivateText` (`Actor.cpp`) returns false for another player's character before the engine runs
+(`ActivatePrompts::Offered`): no Talk, Search or Pickpocket over a player, no name either. A player is no horse, so the
+Ride prompt never applied.
+
+Measured on the duo (2026-11-23, QASmoke): before, both games read `Talk\nPrisoner` over the other player, and a sneaking
+guest read `Pickpocket\nPrisoner` over the host's copy; pressing E (standing) opened nothing and sent no ask. After the
+Talk fix alone the Pickpocket prompt stayed (scenario `no-prompt-over-players` failed on it); with the prompt hook it
+passes. The Search prompt over a dead player is not measured (the fake's flow covers it). ClientTests `TalksToPlayer`,
+`ActivatePrompts`; GameTests "A player's character offers no prompt to the other players, on every game" (the fake's
+`CanTalkToPlayer`, `ActivateText`), scenario `no-prompt-over-players` (verb `expect_prompt_lacks`).

@@ -159,6 +159,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         return phase;
     }
     PlayerRecord Player;             // this game's player, as ReadPlayer reads it (but its items and place: the actor's)
+    // What the engine keeps of its player beside the character, saved and loaded with its save (favorites, damage,
+    // timed effects, cooldowns, trainings, view: player-save-state.md); a load brings the save's player's.
+    PlayerOwnState Own;
     bool RefusesSaves = false;       // Save_Impl's own refusals (combat, a menu)
     std::vector<std::string> Loaded; // the saves this game loaded, by name
     bool IsAtMainMenu() const noexcept override { return AtMainMenu; }
@@ -288,6 +291,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t RecordFlags{};
         uint32_t Base = 0; // a created one's (a script's PlaceAtMe)
         bool Disabled = false; // a script's Disable (kEnabled's row)
+        bool Destroyed = false; // its form flag 0x800000 (SetDestroyed 14649, kEnabled's row): a tripwire tripped
         uint32_t Owner = 0; // its ExtraOwnership (an NPC or a faction); none: its cell's (CellOwners)
         bool Plant = false;     // a flora or tree reference: an activation picks it (TESProduceForm::Harvest 14864)
         bool Harvested = false; // its form flag 0x2000
@@ -299,6 +303,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Lever = false;
         bool ActivationBlocked = false; // a script's BlockActivation: ActivateRef 19796 stops before 17420
         std::vector<std::string> GraphEvents; // the events its own graph got
+        // A trap: what its script does with a contact (state CanHit, the damage it resolved); the contacts its scripts got.
+        bool InClip = false; // its graph runs a clip: it refuses the next script's event
+        bool TrapCanHit = false;
+        float TrapDamage = 0.f;
+        std::vector<uint32_t> TrapContacts;
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
@@ -358,6 +367,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetOpen(uint32_t aDoor, bool aOpen);
     // The host's script disables or enables a reference (Disable 19801 / Enable 19800): made and recorded.
     void ScriptSetsEnabled(uint32_t aReference, bool aEnabled);
+    // The host's script marks a reference destroyed (ObjectReference.SetDestroyed 56641 -> 14649): made and recorded.
+    void ScriptSetsDestroyed(uint32_t aReference, bool aDestroyed);
     // Each cell's location (BGSLocation), by cell: the player moved into a cell of another location raises CLOC.
     std::map<uint32_t, uint32_t> Locations;
     // The story event types this game registers, by index (BGSStoryEventManager::registeredEvents).
@@ -680,6 +691,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static constexpr float kCapsuleRadius = 20.f;
     // Havok's character step lands this short of a stepped copy's goal (measured: 0.04 units).
     static constexpr float kStepShort = 0.04f;
+    // A copy's rigid-body controller rests this far below its player owner's proxy (actor-movement.md, "A copy's rest height").
+    static constexpr float kRigidRest = 0.55f;
     // A character's body wakes its island when its step sets a new velocity (62456): the bodies this near its axis.
     static constexpr float kIslandReach = kCapsuleRadius + 40.f;
     static constexpr float kCapsuleTop = 128.f;
@@ -720,6 +733,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // a permanent form; Base is then each game's own temporary NPC.
         uint32_t LeveledBase = 0;
         std::string DisplayName;
+        bool CustomName = false;  // DisplayName is a custom name (ExtraTextDisplayData instance -2), not an alias's message
+        bool NameEmptied = false; // its name's cache cleared with nothing to regenerate it from: reads "" (12769)
         uint32_t Cell = 0;
         uint32_t WorldSpace = 0;
         float Position[3]{};
@@ -785,6 +800,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool ModelReady = false; // its job's model loaded, attached at Finish
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
         float Goal[3]{};      // a stepped copy's owner's place: Havok's step lands kStepShort short of it
+        std::optional<float> ControllerZ; // a stepped copy's capsule's height: kRigidRest under its owner's on a floor
         bool InFurniture = false; // sit/sleep state set: a colliding capsule there is pushed off its goal by its furniture
         bool Collides = true;     // its capsule collides (filter bit 0x8000 clear); the engine clears it in furniture
         uint8_t BodiesLayer = 0;  // the layer its own 3D's bodies are on in the world, 0 out of it: the AI puts an
@@ -1286,6 +1302,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // owner and is not applied here; on our own, applied.
     void SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude,
                    bool aDualCast = false);
+    // An explosion's enchantment on an actor (43849, by its NonActorMagicCaster): the hook sees no caster actor, the
+    // effect's caster is the explosion.
+    void ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
     // A summon effect's actor (SummonCreatureEffect::CreateSummon 34993): one of aBase at its caster, commanded by it;
     // the caster's earlier summon dismissed (AIProcess::AddCommandedActor's limit, 1 without Twin Souls).
     uint32_t MakesSummon(uint32_t aCaster, uint32_t aBase);
@@ -1333,6 +1352,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, std::map<uint32_t, int32_t>> Factions; // by actor: each faction it is in, at its rank
     std::map<uint32_t, std::set<uint32_t>> AddedSpells;       // by actor (Actor::AddSpell)
     std::map<uint32_t, std::map<uint32_t, uint32_t>> QuestAliasReferences;
+    // A reference alias's flags by quest and alias: 0x100 stores text, 0x4000 uses stored text (a display name).
+    std::map<uint32_t, std::map<uint32_t, uint32_t>> AliasFlags;
+    // The reference aliases with a display name message (ALDN), by quest.
+    std::map<uint32_t, std::set<uint32_t>> AliasNameMessages;
+    // TESQuest::ClearAliasNameCaches (after a stores-text alias's fill, 25052): every named alias's reference has its
+    // cached name cleared (12769); a custom name lives only there (docs/re/systems/names.md).
+    void ClearAliasNameCaches(uint32_t aQuest);
     std::set<uint32_t> BodyQuests;                            // started by a player's body here (a beast form's)
     uint32_t WordsLearnedShown = 0; // "Word of power learned" (51648): Game.TeachWord's HUD
     uint32_t SoulsAbsorbedShown = 0; // "Dragon soul absorbed" (51649): the soul sink, this game's player's gains
@@ -1376,6 +1402,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     Perks GetPlayerPerks() const noexcept override;
     void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;
+    // A character's step touches a trap (TESTrapHitEvent, as our hook on its VM sink 53999 takes it): its script's event,
+    // a request to the host, or nothing (TrapRules). The engine itself deals no damage.
+    void TouchesTrap(uint32_t aActor, uint32_t aTrap);
+    // The trap's script on a contact: in CanHit, ProcessTrapHit on the target (Actor::DoTrap1 37509, our hook).
+    void RunsTrapScript(uint32_t aTrap, uint32_t aActor);
+    void TakeTrapHit(uint32_t aFormId, uint32_t aTrapFormId, const Payloads::TrapHit& acHit) noexcept override;
+    // An object's Weapon.Fire (a dart trap): Projectile::Launch with the object as shooter.
+    void ObjectFires(uint32_t aObject, uint32_t aWeapon, const glm::vec3& acOrigin);
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override
     {
         Staggers.emplace_back(aFormId, aHitterId, aMagnitude);

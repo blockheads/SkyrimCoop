@@ -18,7 +18,7 @@ template <class T> struct EventDispatcher
 
     void UnRegisterSink(BSTEventSink<T>* apSink) noexcept { details::InternalUnRegisterSink(reinterpret_cast<void*>(this), reinterpret_cast<void*>(apSink)); }
 
-    void PushEvent(const T* apEvent) noexcept { details::InternalPushEvent(reinterpret_cast<void*>(this), reinterpret_cast<void*>(apEvent)); }
+    void PushEvent(const T* apEvent) noexcept { details::InternalPushEvent(reinterpret_cast<void*>(this), const_cast<T*>(apEvent)); }
 
     uint8_t pad0[0x58];
 };
@@ -331,9 +331,30 @@ struct TESTrackedStatsEvent
 {
 };
 
+// A character's step touched a trap (bhkTrapListener::Step 26053; TrapTargetEntry 26032, 26033, 26068).
 struct TESTrapHitEvent
 {
+    enum Type : uint32_t
+    {
+        kStart = 0,
+        kStop = 1,
+        kHit = 2
+    };
+
+    TESObjectREFR* trap;   // 00 (NiPointer)
+    TESObjectREFR* target; // 08 (NiPointer)
+    Type type;             // 10
+    uint32_t pad14[3];
+    float velocity[4]; // 20, Havok units, the trap's less the target's
+    float position[4]; // 30
+    uint32_t material; // 40
+    uint32_t motion;   // 44, the trap body's motion type
+    bool initial;      // 48
+    uint8_t pad49[7];
 };
+static_assert(offsetof(TESTrapHitEvent, type) == 0x10 && offsetof(TESTrapHitEvent, velocity) == 0x20 &&
+              offsetof(TESTrapHitEvent, position) == 0x30 && offsetof(TESTrapHitEvent, material) == 0x40 &&
+              offsetof(TESTrapHitEvent, motion) == 0x44 && offsetof(TESTrapHitEvent, initial) == 0x48);
 
 struct TESTriggerEvent
 {

@@ -14,6 +14,7 @@
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestEye.h>
 #include <Services/Guest/GuestLeash.h>
+#include <Services/Guest/GuestTraps.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
@@ -47,6 +48,7 @@ struct GuestService::Guest
         , Scene(aWorld, aDispatcher, Engine)
         , Copies(aWorld, aDispatcher, aWorld.ctx().at<IActorBridge&>())
         , Leash(aWorld, aDispatcher, aWorld.ctx().at<IPlayerBridge&>())
+        , Traps(aWorld, aDispatcher)
     {
     }
 
@@ -63,6 +65,7 @@ struct GuestService::Guest
     GuestScene Scene;
     GuestCopies Copies;
     GuestLeash Leash;
+    GuestTraps Traps;
 };
 
 GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept

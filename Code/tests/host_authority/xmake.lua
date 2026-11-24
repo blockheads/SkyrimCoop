@@ -6,7 +6,7 @@ target("HostAuthorityTests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
     -- Conversation and aggro bind the host's game; GameTests covers their engine reads.
-    add_files("*.cpp", "../../client/Services/Host/*.cpp|HostConversation.cpp|HostAggro.cpp|HostTakeBacks.cpp", "../../client/Physics/*.cpp", "../../client/RecipeBook.cpp",
+    add_files("*.cpp", "../../client/Services/Host/*.cpp|HostConversation.cpp|HostAggro.cpp|HostTakeBacks.cpp|HostTraps.cpp", "../../client/Physics/*.cpp", "../../client/RecipeBook.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Counters.cpp", "../../client/Diagnostics/ReportPaths.cpp",
               "../../client/Services/Generic/PartyOptionText.cpp", "../../client/Services/DevCommands.cpp")
     add_includedirs(".", "../../client")

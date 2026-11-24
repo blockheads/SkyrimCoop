@@ -3,7 +3,9 @@
 #include <Events/Listen.h>
 #include <NoCopyMove.h>
 #include <MainLoopTasks.h>
+#include <ObjectAnimations.h>
 #include <Messages/RelayedMessages.h>
+#include <Messages/WorldState.h>
 #include <Structs/ScriptValue.h>
 
 #include <chrono>
@@ -79,6 +81,7 @@ private:
         ScriptValue Result;
         std::chrono::steady_clock::time_point Since;
     };
+    ObjectAnimations<uint64_t, ObjectChange> m_animations; // the host's scripts', each once its graph takes it
     std::vector<WaitingAnswer> m_answers; // the host's answers naming a reference not here yet
 
     MainLoopTasks::Scope m_mainTasks;

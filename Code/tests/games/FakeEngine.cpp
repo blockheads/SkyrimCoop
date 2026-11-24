@@ -1,5 +1,6 @@
 #include <Games/Skyrim/CriticalStageRules.h>
 #include <Games/Animation/DeferredClips.h>
+#include <Games/DisplayNames.h>
 #include <Games/FreedWornList.h>
 #include <Diagnostics/HeadTrackRead.h>
 #include <Games/Skyrim/CopyCombat.h>
@@ -9,6 +10,7 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+#include <Systems/CopyStep.h>
 
 #include <Events/DismountEvent.h>
 #include <Events/BoardEvent.h>
@@ -49,6 +51,8 @@
 #include <Games/NpcSnapshot.h>
 #include <Events/HitEvent.h>
 #include <Events/ProjectileLaunchedEvent.h>
+#include <Events/TrapEvents.h>
+#include <Games/Skyrim/TrapRules.h>
 #include <Events/SpellCastEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/LockChangeEvent.h>
@@ -1535,7 +1539,25 @@ bool FakeEngine::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noex
 void FakeEngine::SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
         it->second.DisplayName = PooledNames.try_emplace(NameKey(acName), acName).first->second;
+        it->second.CustomName = true;
+        it->second.NameEmptied = false;
+    }
+}
+
+void FakeEngine::ClearAliasNameCaches(uint32_t aQuest)
+{
+    for (const auto& [cAlias, cRef] : QuestAliasReferences[aQuest])
+    {
+        const auto cActor = Actors.find(cRef);
+        const bool cNamed = (AliasFlags[aQuest][cAlias] & 0x4000) || AliasNameMessages[aQuest].contains(cAlias);
+        if (!cNamed || cActor == Actors.end() || cActor->second.DisplayName.empty())
+            continue;
+        // A message name regenerates; a custom name has nothing to come back from (our hook on 12769 keeps it).
+        if (cActor->second.CustomName && DisplayNames::CacheClears(false, false, DisplayNames::kCustomInstance))
+            cActor->second.NameEmptied = true;
+    }
 }
 
 std::string FakeEngine::GetFormName(uint32_t aFormId) const noexcept
@@ -1549,6 +1571,8 @@ std::string FakeEngine::GetFormName(uint32_t aFormId) const noexcept
 std::string FakeEngine::GetActorDisplayName(uint32_t aFormId) const noexcept
 {
     const auto actor = Actors.find(aFormId);
+    if (actor != Actors.end() && actor->second.NameEmptied)
+        return {};
     if (actor != Actors.end() && !actor->second.DisplayName.empty())
         return actor->second.DisplayName;
     if (aFormId == kPlayer)
@@ -2355,8 +2379,15 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     {
         std::copy_n(aPosition, 3, it->second.Goal);
         it->second.Position[0] -= kStepShort;
-        it->second.Position[2] = std::min(cHeight, aPosition[2]);
+        // Never up (support and gravity keep its height), resting kRigidRest under its owner; the write-back after
+        // physics (HookSetPosition) gives the reference its owner's height on its owner's place.
+        const float cGround = std::min(it->second.ControllerZ.value_or(cHeight) + kRigidRest, aPosition[2]);
+        it->second.ControllerZ = cGround - kRigidRest;
+        const glm::vec3 cAt(it->second.Position[0], it->second.Position[1], *it->second.ControllerZ);
+        it->second.Position[2] = CopyStep::RestHeight(cAt, {aPosition[0], aPosition[1], aPosition[2]});
     }
+    else
+        it->second.ControllerZ = aPosition[2]; // a warp places its capsule there
     // Its capsule meets its furniture; the write-back after physics moves it where it was pushed (actor-movement.md).
     // Actor::Move clears the no-collision bit out of furniture (37507, 0x14068990A).
     if (it->second.Stepped && !it->second.InFurniture)
@@ -3077,6 +3108,8 @@ void FakeEngine::PlayerNames(const std::string& acName)
 void FakeEngine::AliasNames(uint32_t aFormId, const std::string& acName)
 {
     Actors.at(aFormId).DisplayName = acName;
+    Actors.at(aFormId).CustomName = false;
+    Actors.at(aFormId).NameEmptied = false;
     World::Get().GetRunner().Trigger(ActorRenamedEvent{aFormId, GetActorDisplayName(aFormId)});
 }
 
@@ -3120,6 +3153,7 @@ IJoinBridge::SaveFiles FakeEngine::MakeSave()
         Serialization::WriteVarInt(writer, cFaction);
         Serialization::WriteVarInt(writer, static_cast<uint32_t>(cRank));
     }
+    Own.Serialize(writer);
     return SaveFiles{std::string(reinterpret_cast<const char*>(buffer.GetData()), writer.Size()) + SavePadding, World::Get().ctx().at<SaveService>().WriteCoSave()};
 }
 
@@ -3176,6 +3210,8 @@ void FakeEngine::RunMainLoop() noexcept
         const auto cFaction = static_cast<uint32_t>(Serialization::ReadVarInt(reader));
         factions[cFaction] = static_cast<int32_t>(Serialization::ReadVarInt(reader));
     }
+    // The save's player's own state (save global 109, its stacks' hotkeys, effects, ...): the saving game's player's.
+    Own.Deserialize(reader);
     // The save's player's souls: its value in the save (the record sets the joining character's own).
     Souls[kPlayer] = 0.f;
     for (const PlayerRecord::Value& cValue : saved.Values)
@@ -3194,6 +3230,7 @@ void FakeEngine::RunMainLoop() noexcept
         }
     saved.Extras.erase(SystemQuestState::kExtra);
     Player = saved;
+    Player.Own = {};
     Knowledge = saved.Knowledge;
     Player.Items = {};
     Player.Cell = {};
@@ -3358,6 +3395,24 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
         Effects.push_back({aTarget, aCaster, aSpell, aEffect});
 }
 
+void FakeEngine::ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
+{
+    const auto cTarget = Actors.find(aTarget);
+    if (cTarget == Actors.end())
+        return;
+    if (cTarget->second.Copy)
+        return SpellHits(aTarget, 0, aSpell, aEffect, aMagnitude);
+    // HookAddTarget: a guest's player already under the host's verdict for this explosion
+    const bool cGuest = HoldSession != 0;
+    const bool cActive = std::ranges::any_of(Effects, [&](const Effect& acEffect) {
+        return acEffect.Target == aTarget && acEffect.Spell == aSpell && acEffect.EffectId == aEffect && !acEffect.Caster;
+    });
+    if (cGuest && aTarget == kPlayer && TrapRules::SkipsWorldEffect(true, cActive))
+        return;
+    if (EffectHolds(aEffect, false))
+        Effects.push_back({aTarget, aExplosion, aSpell, aEffect});
+}
+
 bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept
 {
     const auto cCondition = EffectConditions.find(aEffect);
@@ -3448,6 +3503,10 @@ std::vector<IActorBridge::ActiveEffectInfo> FakeEngine::GetActorActiveEffects(ui
     if (const auto it = Actors.find(aFormId); it != Actors.end())
         for (const uint32_t cId : it->second.Visuals)
             effects.push_back({.EffectFormId = cId});
+    for (const auto& cEffect : Effects)
+        if (cEffect.Target == aFormId)
+            effects.push_back({.EffectFormId = cEffect.EffectId, .SpellFormId = cEffect.Spell, .CasterFormId = cEffect.Caster,
+                               .CasterIsActor = Actors.contains(cEffect.Caster)});
     return effects;
 }
 
@@ -3588,6 +3647,50 @@ void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, 
     case HitRules::Route::Mirror:
     case HitRules::Route::Drop: break;
     }
+}
+
+void FakeEngine::TouchesTrap(uint32_t aActor, uint32_t aTrap)
+{
+    World& world = World::Get();
+    switch (TrapRules::OfContact(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor), false))
+    {
+    case TrapRules::Contact::Raise: RunsTrapScript(aTrap, aActor); break;
+    case TrapRules::Contact::AskHost: world.GetRunner().Trigger(TrapContactEvent{aTrap, aActor, {.Velocity = {1.f, 2.f, 3.f}}}); break;
+    case TrapRules::Contact::Drop: break;
+    }
+}
+
+void FakeEngine::RunsTrapScript(uint32_t aTrap, uint32_t aActor)
+{
+    if (!DecidesWorld) // a guest: WorldEvents drops a trap's events
+        return;
+    auto& trap = References.at(aTrap);
+    trap.TrapContacts.push_back(aActor);
+    if (!trap.TrapCanHit)
+        return;
+    World& world = World::Get();
+    switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor)))
+    {
+    case TrapRules::Hit::Apply: TakesDamage(aActor, 0, trap.TrapDamage, false); break;
+    case TrapRules::Hit::AskOwner: world.GetRunner().Trigger(TrapHitEvent{aTrap, aActor, {.Damage = trap.TrapDamage}}); break;
+    case TrapRules::Hit::Drop: break;
+    }
+}
+
+void FakeEngine::TakeTrapHit(uint32_t aFormId, uint32_t, const Payloads::TrapHit& acHit) noexcept
+{
+    TakesDamage(aFormId, 0, acHit.Damage, false);
+}
+
+void FakeEngine::ObjectFires(uint32_t aObject, uint32_t aWeapon, const glm::vec3& acOrigin)
+{
+    ProjectileLaunchedEvent event{};
+    event.Origin = acOrigin;
+    event.ShooterID = aObject;
+    event.ByObject = true;
+    event.WeaponID = aWeapon;
+    event.ParentCellID = References.at(aObject).Cell;
+    World::Get().GetRunner().Trigger(event);
 }
 
 void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)

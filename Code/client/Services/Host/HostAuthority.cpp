@@ -147,6 +147,9 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     On(*this, &HostAuthority::OnActivate);
     On(*this, &HostAuthority::OnSummon);
     On(*this, &HostAuthority::OnMeleeStagger);
+    On(*this, &HostAuthority::OnTrapContact);
+    On(*this, &HostAuthority::OnTrapHit);
+    On(*this, &HostAuthority::OnWorldProjectile);
     On(*this, &HostAuthority::OnLockChange);
     On(*this, &HostAuthority::OnContainerChange);
 
@@ -330,6 +333,34 @@ void HostAuthority::OnRecipes(const RecipesRequest& acRequest, ConnectionId_t) c
     if (RecipeBook* pBook = m_network.GetRecipes())
         for (const Recipe& cRecipe : acRequest.Known)
             pBook->Learn(cRecipe);
+}
+
+void HostAuthority::OnTrapContact(const TrapContactRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    const auto cFinite = [](const std::array<float, 3>& acVector) { return std::ranges::all_of(acVector, [](float a) { return std::isfinite(a); }); };
+    if (aSender == m_players.Host() || m_characters.OwnerOf(acRequest.TargetId) != aSender || !m_characters.IsPlayerCharacter(acRequest.TargetId) ||
+        acRequest.Type > Payloads::TrapContact::kHit || !cFinite(acRequest.Velocity) || !cFinite(acRequest.Position) || !m_game.TouchTrap)
+        return;
+    m_game.TouchTrap(acRequest);
+}
+
+void HostAuthority::OnTrapHit(const TrapHitRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    // Only the host's game runs the traps' scripts.
+    if (aSender != m_players.Host() || !m_characters.IsPlayerCharacter(acRequest.TargetId))
+        return;
+    NotifyTrapHit notify;
+    static_cast<Payloads::TrapHit&>(notify) = acRequest;
+    Deliver(notify, Delivery::ToOwner, acRequest.TargetId, aSender);
+}
+
+void HostAuthority::OnWorldProjectile(const WorldProjectileRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    if (aSender != m_players.Host())
+        return;
+    NotifyWorldProjectile notify;
+    static_cast<Payloads::WorldProjectile&>(notify) = acRequest;
+    m_players.SendToOthers(notify, aSender);
 }
 
 void HostAuthority::OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept

@@ -281,7 +281,8 @@ guest (in its own game, or at the main menu)   host (in game, hosting)
    GuestRecord: PlayerRecordRequest{record} ───► HostRecords: kept under its key (CharacterRecords)
      on joining, on its changes (items,               the host's save (co-save callback): each
      equipment, experience, a menu closing, a         joined player's record, its position and
-     race change; at most once in 5 s), leaving       cell from the host's copy of it
+     race change, its health, its own casts;          cell from the host's copy of it
+     at most once in 5 s), leaving
 ```
 
 Over Steam the same runs through the Steam connection's tunnel: `SteamService` hands the join to `JoinService` with
@@ -316,6 +317,10 @@ regressions: [small-bugs.md](small-bugs.md), Joining beside the host.
   the character comes from another world
 - `Extras`: a named blob per adapter (`racemenu`: RaceMenu's preset of the player), for mods
 - cell, worldspace, position (the host's copy's, at the host's save)
+- `Own`: what its save keeps of it beside the character, the host's otherwise (bug 17,
+  [player-save-state.md](../re/systems/player-save-state.md)): favorited stacks and their keys, save globals 0 (misc
+  stats), 109 (magic favorites) and 110 (player controls) as the engine's bytes, damage, timed effects, power
+  cooldowns, trainings this level, first person. Absent in older records: nothing applied
 
 Stored in the host's SKSE co-save (`SerializationInterface`, unique id `SKCP`, record `CHAR` version 2, the record
 list) when the host saves; read back, into `CharacterRecords`, when any game loads a save.

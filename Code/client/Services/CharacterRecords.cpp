@@ -32,8 +32,36 @@ void CharacterRecords::Put(PlayerRecord aRecord) noexcept
         aRecord.Cell = it->second.Cell;
         aRecord.Position = it->second.Position;
     }
+    if (const auto it = m_received.find(aRecord.Key); it != m_received.end())
+        m_received.erase(it);
     std::string key = aRecord.Key;
     m_records.insert_or_assign(std::move(key), std::move(aRecord));
+}
+
+void CharacterRecords::Put(PlayerRecord aRecord, Clock::time_point aReceived) noexcept
+{
+    std::string key = aRecord.Key;
+    Put(std::move(aRecord));
+    if (!key.empty())
+        m_received.insert_or_assign(std::move(key), aReceived);
+}
+
+namespace
+{
+float SecondsBetween(CharacterRecords::Clock::time_point aFrom, CharacterRecords::Clock::time_point aTo) noexcept
+{
+    return aTo > aFrom ? std::chrono::duration<float>(aTo - aFrom).count() : 0.f;
+}
+} // namespace
+
+void CharacterRecords::Settle(std::string_view aKey, Clock::time_point aNow) noexcept
+{
+    const auto cReceived = m_received.find(aKey);
+    if (cReceived == m_received.end())
+        return;
+    if (const auto it = m_records.find(aKey); it != m_records.end())
+        it->second.Own.Age(SecondsBetween(cReceived->second, aNow));
+    m_received.erase(cReceived);
 }
 
 const PlayerRecord* CharacterRecords::Find(std::string_view aKey) const noexcept
@@ -46,6 +74,8 @@ void CharacterRecords::Remove(std::string_view aKey) noexcept
 {
     if (const auto it = m_records.find(aKey); it != m_records.end())
         m_records.erase(it);
+    if (const auto it = m_received.find(aKey); it != m_received.end())
+        m_received.erase(it);
 }
 
 void CharacterRecords::SetPlace(std::string_view aKey, const GameId& acWorldSpace, const GameId& acCell,
@@ -60,7 +90,7 @@ void CharacterRecords::SetPlace(std::string_view aKey, const GameId& acWorldSpac
 }
 
 // The count, then each record with its size first: a reader skips what it cannot read.
-std::string CharacterRecords::Encode() const noexcept
+std::string CharacterRecords::Encode(Clock::time_point aNow) const noexcept
 {
     Wire::Buffer buffer;
     Wire::Buffer::Writer writer(&buffer);
@@ -69,7 +99,14 @@ std::string CharacterRecords::Encode() const noexcept
     {
         Wire::Buffer one;
         Wire::Buffer::Writer recordWriter(&one);
-        cRecord.Serialize(recordWriter);
+        if (const auto cReceived = m_received.find(cKey); cReceived != m_received.end())
+        {
+            PlayerRecord aged = cRecord;
+            aged.Own.Age(SecondsBetween(cReceived->second, aNow));
+            aged.Serialize(recordWriter);
+        }
+        else
+            cRecord.Serialize(recordWriter);
         Serialization::WriteVarInt(writer, recordWriter.Size());
         writer.WriteBytes(std::span(one.GetData(), recordWriter.Size()));
     }

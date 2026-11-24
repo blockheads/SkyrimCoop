@@ -1,4 +1,5 @@
 #include <Services/CombatService.h>
+#include <Services/ProjectileLaunches.h>
 #include <Services/TransportService.h>
 
 #include <Events/UpdateEvent.h>
@@ -52,6 +53,8 @@ void CombatService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::ent
 void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acEvent) const noexcept
 {
 
+    if (acEvent.ByObject) // the world's: HostTraps
+        return;
     uint32_t shooterFormId = acEvent.ShooterID;
     auto view = m_world.view<FormIdComponent, LocalComponent>();
     const auto shooterEntityIt = std::find_if(std::begin(view), std::end(view), [shooterFormId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == shooterFormId; });
@@ -66,37 +69,8 @@ void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acE
 
     ProjectileLaunchRequest request{};
 
-    request.OriginX = acEvent.Origin.x;
-    request.OriginY = acEvent.Origin.y;
-    request.OriginZ = acEvent.Origin.z;
-
-    request.ProjectileBaseID = ToSession(acEvent.ProjectileBaseID).value_or(GameId{});
-    request.WeaponID = ToSession(acEvent.WeaponID).value_or(GameId{});
-    request.AmmoID = ToSession(acEvent.AmmoID).value_or(GameId{});
-
     request.ShooterID = localComponent.Id;
-
-    request.ZAngle = acEvent.ZAngle;
-    request.XAngle = acEvent.XAngle;
-    request.YAngle = acEvent.YAngle;
-
-    request.ParentCellID = ToSession(acEvent.ParentCellID).value_or(GameId{});
-    request.SpellID = ToSession(acEvent.SpellID).value_or(GameId{});
-
-    request.CastingSource = acEvent.CastingSource;
-
-    request.Area = acEvent.Area;
-    request.Power = acEvent.Power;
-    request.Scale = acEvent.Scale;
-
-    request.AlwaysHit = acEvent.AlwaysHit;
-    request.NoDamageOutsideCombat = acEvent.NoDamageOutsideCombat;
-    request.AutoAim = acEvent.AutoAim;
-    request.DeferInitialization = acEvent.DeferInitialization;
-    request.ForceConeOfFire = acEvent.ForceConeOfFire;
-
-    request.UnkBool1 = acEvent.UnkBool1;
-    request.UnkBool2 = acEvent.UnkBool2;
+    ProjectileLaunches::Fill(request, acEvent);
 
     m_transport.Send(request);
     spdlog::debug("Projectile launched by {:X} (spell {:X}): sent", shooterFormId, acEvent.SpellID);
@@ -117,30 +91,8 @@ void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMes
 
     FormIdComponent formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
 
-    const uint32_t cParentCellId = ToGame(acMessage.ParentCellID);
-    if (!m_formBridge.FormExists(cParentCellId))
-    {
-        spdlog::warn("Cannot launch projectile, invalid parent cell: {:X}", cParentCellId);
-        return;
-    }
-
-    const uint32_t cProjectileBaseId = ToGame(acMessage.ProjectileBaseID);
-    const uint32_t cWeaponId        = ToGame(acMessage.WeaponID);
-    const uint32_t cAmmoId          = ToGame(acMessage.AmmoID);
-    const uint32_t cSpellId         = ToGame(acMessage.SpellID);
-
     spdlog::debug("Projectile from session id {:X}: relaunching", acMessage.ShooterID);
-    m_formBridge.LaunchProjectile(
-        formIdComponent.Id,
-        cParentCellId,
-        acMessage.OriginX, acMessage.OriginY, acMessage.OriginZ,
-        cProjectileBaseId, cWeaponId, cAmmoId,
-        cSpellId, acMessage.CastingSource,
-        acMessage.ZAngle, acMessage.XAngle, acMessage.YAngle,
-        acMessage.Area, acMessage.Power, acMessage.Scale,
-        acMessage.AlwaysHit, acMessage.NoDamageOutsideCombat, acMessage.AutoAim,
-        false /* DeferInitialization */, acMessage.ForceConeOfFire,
-        acMessage.UnkBool1, acMessage.UnkBool2);
+    ProjectileLaunches::Launch(m_formBridge, formIdComponent.Id, acMessage);
 }
 
 void CombatService::OnMeleeStagger(const MeleeStaggerEvent& acEvent) noexcept

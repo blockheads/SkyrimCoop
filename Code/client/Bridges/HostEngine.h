@@ -8,9 +8,16 @@
 #include <Services/Host/HostGame.h>
 #include <Structs/GameId.h>
 
+#include <chrono>
 #include <map>
 #include <optional>
 #include <unordered_set>
+
+namespace Payloads
+{
+struct TrapContact;
+struct TrapHit;
+}
 
 namespace PartyThreat { struct State; }
 struct TESObjectREFR;
@@ -68,6 +75,8 @@ public:
     // A guest's summon on its copy, cast by the copy (HostGame::Summon): the engine's SummonCreatureEffect makes it.
     void Summon(uint32_t aCasterId, const SummonRequest& acSummon) noexcept;
     // A guest's lock change, accepted: the host's object takes it, and the others get it as the host's change.
+    // A trap touched a guest's player in its game (docs/design/traps.md).
+    void TouchTrap(const Payloads::TrapContact& acContact) noexcept;
     void SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept;
     // A guest's container change (kItems), accepted: the host's container holds that many, its stacks with extra data
     // as given, and the others get it.
@@ -121,6 +130,13 @@ private:
     BodyReads m_reads;
     PhysicsBodies m_bodies{m_reads};
     std::vector<std::pair<GameId, glm::vec3>> m_placed;
+    // The last animation sent for each object animated with no 3D here (TrapRules::SendsAnimation).
+    struct UnseenAnimation
+    {
+        std::pair<std::string, std::string> Played;
+        std::chrono::steady_clock::time_point At;
+    };
+    std::unordered_map<uint32_t, UnseenAnimation> m_unseenAnimations;
     std::vector<ObjectChange> m_events; // the scripts' events since the last TakeObjectChanges
     std::unordered_map<uint32_t, uint32_t> m_created; // the created references that went out: id -> base
 };

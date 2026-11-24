@@ -685,6 +685,44 @@ TEST_CASE("Melee staggers come from the attacker's owner and go to the victim al
     CHECK(session.Outbox.empty());
 }
 
+TEST_CASE("A trap's contact comes from the touched guest's game, its hit from the host's alone", "[HostAuthority][traps]")
+{
+    Session session;
+    TrapContactRequest contact;
+    contact.TargetId = session.Character(kPeer);
+    contact.Trap = GameId(0, 0x54B15);
+    session.Receive(kOtherPeer, contact); // not its player
+    session.Receive(kHost, contact);
+    CHECK(session.TrapsTouched.empty());
+    session.Receive(kPeer, contact);
+    REQUIRE(session.TrapsTouched.size() == 1);
+    CHECK(session.TrapsTouched[0] == contact);
+    contact.Velocity[0] = std::numeric_limits<float>::infinity();
+    session.Receive(kPeer, contact);
+    CHECK(session.TrapsTouched.size() == 1);
+
+    TrapHitRequest hit;
+    hit.TargetId = session.Character(kPeer);
+    hit.Damage = 60.f;
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, hit); // a guest hurts nobody with the host's trap
+    CHECK(session.Outbox.empty());
+    session.Receive(kHost, hit);
+    REQUIRE(session.SentTo<NotifyTrapHit>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyTrapHit>(kPeer)[0]->Damage == 60.f);
+    CHECK(session.SentTo<NotifyTrapHit>(kOtherPeer).empty());
+
+    WorldProjectileRequest shot;
+    shot.Shooter = GameId(0, 0x3720F);
+    session.Outbox.clear();
+    session.Receive(kPeer, shot);
+    CHECK(session.Outbox.empty());
+    session.Receive(kHost, shot);
+    CHECK(session.SentTo<NotifyWorldProjectile>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyWorldProjectile>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyWorldProjectile>(kHost).empty());
+}
+
 TEST_CASE("A quest one per player: the game that learned it tells every other", "[HostAuthority][SystemQuests]")
 {
     Session session;

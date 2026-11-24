@@ -2,6 +2,7 @@
 
 #include <Games/Events.h>
 #include <TESObjectREFR.h>
+#include <TrapRules.h>
 
 #include <deque>
 #include <mutex>
@@ -44,6 +45,7 @@ struct Sinks final : BSTEventSink<TESSpellCastEvent>,
                      BSTEventSink<TESMoveAttachDetachEvent>,
                      BSTEventSink<TESObjectLoadedEvent>,
                      BSTEventSink<TESContainerChangedEvent>,
+                     BSTEventSink<TESTrapHitEvent>,
                      BSTEventSink<TESLoadGameEvent>
 {
     BSTEventResult OnEvent(const TESSpellCastEvent* apEvent, const EventDispatcher<TESSpellCastEvent>*) override
@@ -130,6 +132,19 @@ struct Sinks final : BSTEventSink<TESSpellCastEvent>,
         return BSTEventResult::kOk;
     }
 
+    // A trap's contact with an actor, as the engine saw it: 0 starts, 1 ends, 2 goes on.
+    BSTEventResult OnEvent(const TESTrapHitEvent* apEvent, const EventDispatcher<TESTrapHitEvent>*) override
+    {
+        if (apEvent)
+        {
+            const bool cVectors = TrapRules::CarriesVectors(apEvent->type);
+            Record({{"kind", "trap_hit"}, {"trap", IdOf(apEvent->trap)}, {"target", IdOf(apEvent->target)}, {"type", uint32_t(apEvent->type)},
+                    {"velocity", {cVectors ? apEvent->velocity[0] : 0.f, cVectors ? apEvent->velocity[1] : 0.f, cVectors ? apEvent->velocity[2] : 0.f}},
+                    {"motion", apEvent->motion}});
+        }
+        return BSTEventResult::kOk;
+    }
+
     // A save finished loading in this game (the host's load, or a guest reloading with it).
     BSTEventResult OnEvent(const TESLoadGameEvent*, const EventDispatcher<TESLoadGameEvent>*) override
     {
@@ -169,6 +184,7 @@ void ListenAll(EventDispatcherManager& aManager, bool aOn) noexcept
     Listen(aManager.moveAttachDetachEvent, aOn);
     Listen(aManager.objectLoadedEvent, aOn);
     Listen(aManager.containerChangedEvent, aOn);
+    Listen(aManager.trapHitEvent, aOn);
     Listen(aManager.loadGameEvent, aOn);
 }
 } // namespace
