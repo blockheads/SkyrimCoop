@@ -217,7 +217,9 @@ struct FakeDialogue final : IDialogueBridge
         m_greeting = aShowMenu;
         Choices = false;
         LookAtTalker();
-        if (OnGreeting)
+        // A start during the speaker's last line says no greeting (35282; re/systems/dialogue.md, "A start during the
+        // NPC's last line").
+        if (OnGreeting && !std::exchange(m_stillTalking, false))
             OnGreeting();
         Build(Greeting);
         return true;
@@ -253,6 +255,9 @@ struct FakeDialogue final : IDialogueBridge
     {
         if (SpeakerLooks && Speaker)
             SpeakerLooks(Speaker, 0);
+        // EndDialogue (35294) leaves a speaker still talking its line.
+        m_stillTalking = m_next.has_value();
+        m_next.reset();
         Speaker = 0;
         m_pickedShown = false;
         m_greeting = false;
@@ -487,6 +492,7 @@ struct FakeDialogue final : IDialogueBridge
     bool m_heldShow = false;
     bool m_pickedShown = false;
     bool m_greeting = false; // the SWF's SHOW_GREETING: a start's menu before its first list or pick
+    bool m_stillTalking = false; // ended mid-line: the speaker finishes it, the next start says no greeting
     bool m_suspended = false;
     std::vector<Option> m_shownElsewhere;
     std::vector<Option> m_source; // the topics of the last build

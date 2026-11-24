@@ -452,3 +452,43 @@ SCENARIO("A guest that talks again while the NPC answers leaves with Tab, skippi
         CHECK(hostTalk.LinePending());
     }
 }
+
+// The playtest's layered voices (Fabien, the guest, left Lucan's conversation and talked again): its leaving ended the
+// conversation mid-answer, the NPC finished his line, the new start said no greeting, and the opening menu replayed
+// "the last line", the answer, over the copy still saying it. Skyrim: dialogue-guest-talks-again-after-leaving.
+SCENARIO("A guest leaving mid-answer and talking again at once hears the NPC's answer once", "[dialogue][dialogue-race][voice]")
+{
+    Party party(1, SmokeWorld);
+    for (World* pGame : {&party.Host(), &party.Guest()})
+    {
+        Script(Talk(*pGame));
+        Talk(*pGame).GreetingInfo = kGreetingInfo;
+    }
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    hostTalk.LinesTakeTime = true;
+    uint32_t voiced = 0;
+    const auto cVoice = [&](uint32_t aInfo) {
+        party.Host().GetDispatcher().trigger(DialogueEvent(hostTalk.Speaker, std::format("Walk_Topic_00{:06X}_{}.fuz", aInfo, ++voiced)));
+    };
+    hostTalk.OnGreeting = [&] { cVoice(kGreetingInfo); };
+    hostTalk.OnSaid = [&](const IDialogueBridge::Option& acSaid) { cVoice(acSaid.Info); };
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).LoadNpc(kNpc, kCell); });
+    party.Until([&] { return !Party::Engine(party.Guest()).CopiesOf(kNpc).empty(); }, "the guest has the NPC");
+    const uint32_t cCopy = Party::Engine(party.Guest()).CopiesOf(kNpc)[0];
+
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return guestTalk.ListShown; }, "the guest talks to the NPC alone");
+    party.As(party.Guest(), [&] { guestTalk.PlayerPicks(0); });
+    party.Until([&] { return hostTalk.LinePending() && guestTalk.MenuState() == 2; }, "the NPC answers");
+    party.As(party.Guest(), [&] { guestTalk.PlayerLeaves(); });
+    party.Until([&] { return !hostTalk.Speaker; }, "its leaving ends the conversation, the NPC finishing his line");
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return guestTalk.MenuOpen && party.Guest().ctx().at<DialogueService>().Joined(); }, "it talks to him again");
+    Settle(party);
+
+    const auto cTimes = [&](uint32_t aInfo) {
+        return std::ranges::count_if(Party::Engine(party.Guest()).Lines, [&](const auto& acLine) { return VoiceFiles::IsLineOf(acLine.second, aInfo); });
+    };
+    THEN("its copy said the answer once") CHECK(cTimes(kAsk.Info) == 1);
+}

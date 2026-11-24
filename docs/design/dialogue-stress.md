@@ -92,5 +92,8 @@ Each finding goes through the bug-fix flow: a fast case first (a walker seed or 
 - **The soak** (tag `dialogue-stress`): `dialogue-speaker-killed-mid-answer`, `dialogue-speaker-fights-mid-answer`,
   `dialogue-guest-rejoins-quickly` (it found a guest rejoining mid-answer could not leave: fixed,
   `re/systems/dialogue.md`, "A menu joining mid-answer") and `dialogue-lucan-claw-under-stress` (the guest leaves and
-  rejoins Lucan's claw conversation mid-answer, hands the claw in: each line once, MS13 the same on both games) pass.
+  rejoins Lucan's claw conversation mid-answer, hands the claw in: each line once, MS13 the same on both games) pass,
+  and `dialogue-guest-talks-again-after-leaving` (the playtest's layered voices: fails 2 of 2 without the greeting-only
+  replay, passes 2 of 2 with it; GameTests "A guest leaving mid-answer and talking again at once hears the NPC's answer
+  once").
   A double press could not be shown on the duo: its loopback answers within a frame, before a second press.

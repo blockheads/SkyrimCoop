@@ -118,3 +118,29 @@ def lucan_claw_under_stress(ctx):
             if ctx.item_count(name, 0x14, GOLDEN_CLAW):
                 ctx.console_on(name, f"player.removeitem {GOLDEN_CLAW:X} 1")
         ctx.console_on("", "stopquest MS13")
+
+
+def guest_talks_again_after_leaving_mid_answer(ctx):
+    """The guest alone in Andurs's conversation picks his long answer, leaves mid-answer (its leaving ends the
+    conversation; he finishes his line) and talks to him again at once: its menu must not replay his answer over its
+    copy's (the opening's replay is for the greeting, which a start during his line does not say)."""
+    try:
+        ctx.stage({"npcs": [{"name": "andurs", "base": ANDURS, "frozen": False}],
+                   "players": {"host": {"near": "andurs", "gap": 300, "bearing": 90},
+                               "guest": {"near": "andurs", "gap": 110, "bearing": 270}}})
+        ctx.talk("client", "andurs", [])
+        ctx.dialogue_highlight(instance="client", index=LONG_ANSWER)
+        ctx.wait_takes_pick(instance="client")
+        ctx.dialogue_press(instance="client")
+        ctx.wait_for("[host] Andurs answers", lambda: ctx.dialogue("").get("current_info"), 5)
+        host_before, guest_before = ctx.speak_calls(""), ctx.speak_calls("client")
+        ctx.leave_dialogue("client")
+        ctx.talk("client", "andurs", [])
+        ctx.wait_takes_pick(instance="client", seconds=60)  # his answer over, the new conversation's list
+        host_said = ctx.speak_calls("")["engine"] - host_before["engine"]
+        copy_said = ctx.speak_calls("client")["relayed"] - guest_before["relayed"]
+        if copy_said != host_said:
+            raise ctx.failure(f"the host's engine voiced {host_said} line(s), the guest's copy said {copy_said}")
+        ctx.close_dialogues()
+    finally:
+        ctx.unstage()

@@ -52,9 +52,10 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 2026-11-24: **the dialogue stress work's findings fixed** (`agent/rejoin-dialogue-layers`; [dialogue.md](re/systems/dialogue.md),
 "A menu joining mid-answer, and the replayed greeting", "A guest leaving mid-line"). A guest talking to the NPC again
 mid-answer got a menu stuck in the SWF's greeting state, where Tab skipped the NPC's line for everyone: its menu now
-shows the pick as the others do, and Tab leaves (`PickedDisplay::FromGreeting`). A guest's own ask replayed the NPC's
-answer instead of its greeting when the host had clicked early (the walker, seed 1): only the greeting's line is
-replayed (`VoiceFiles::IsLineOf`). A join while the host's dialogue menu is open now waits for the host's save (up to
+shows the pick as the others do, and Tab leaves (`PickedDisplay::FromGreeting`). The playtest's layered voices,
+reproduced on the duo (`dialogue-guest-talks-again-after-leaving`, 2 of 2 without the fix): a guest leaving mid-answer
+and talking again at once got its new menu's greeting replay, which replayed the NPC's answer over its copy's (he says
+no greeting during his line). Only the greeting's line is replayed now (`VoiceFiles::IsLineOf`); 2 of 2 pass. A join while the host's dialogue menu is open now waits for the host's save (up to
 180 s), told why (`NotifySaveWaiting`), instead of failing after 30 s. The walker checks every voiced line reaches each
 copy once; the soak gained Lucan's claw conversation under stress (`dialogue-lucan-claw-under-stress`, MS13 agreeing).
 GameTests flows, ClientTests and HostAuthorityTests for each.

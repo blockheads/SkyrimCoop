@@ -393,10 +393,15 @@ only calls `SkipText` in `SHOW_GREETING` (eMenuState 0) and closes the menu (`St
   holder and its copy visible, as `ShowDialogueList` with its copy), the state every other menu is in while the NPC
   answers; Tab then closes it and the next list shows as after a pick. GameTests "A guest that talks again while the
   NPC answers leaves with Tab..." (the fake's menu has the greeting state, `FakeDialogue::MenuState`).
-- **A guest's own ask replayed the NPC's answer** (the walker, seed 1): the opening menu silences the copy, so a menu
-  the guest's own ask opened says the host's greeting again (`ReplayGreeting`). When the host's player clicked an
-  option before its game knew the conversation (its engine says it as in single player), the last relayed line was
-  that answer, and the replay layered it over the copy's. Only a line of the greeting info the host names is replayed
+- **A guest's own ask replayed the NPC's answer** (the playtest's layered voices, reproduced on the duo): the opening
+  menu silences the copy, so a menu the guest's own ask opened says the host's greeting again (`ReplayGreeting`, the
+  last relayed line within 3 s). A guest alone in the conversation that leaves mid-answer ends it, the NPC finishes his
+  line (`EndDialogue` 35294 keeps a talking speaker's), and its talking again at once starts one in which he says no
+  greeting (35282 during his line: "A start during the NPC's last line"): the last relayed line was his answer, and the
+  replay layered it over the copy still saying it. Measured, `dialogue-guest-talks-again-after-leaving` without the fix
+  2 of 2: Andurs's `..._000D3D5E_1` relayed at :37.7, the guest's new menu at :39.06 replayed it ("the NPC's last line
+  again"); with the fix 2 of 2 pass. The walker found the same through another start (seed 1: the host's player clicked
+  before its game knew the conversation). Only a line of the greeting info the host names is replayed
   now: a voice file's name carries its info (`VoiceFiles::IsLineOf`: the Creation Kit's
   `<quest>_<topic>_<info, plugin index 00>_<response>`, Andurs's greeting `..._000D79A5_1.wav`); the subtitle by its
   info.
