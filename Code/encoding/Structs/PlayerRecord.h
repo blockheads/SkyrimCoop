@@ -3,6 +3,7 @@
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
 #include <Structs/PlayerKnowledge.h>
+#include <Structs/PlayerOwnState.h>
 #include <Structs/Recipe.h>
 #include <Structs/Tints.h>
 #include <Wire/Buffer.h>
@@ -82,6 +83,8 @@ struct PlayerRecord
     PlayerKnowledge Knowledge;
     // The recipes of its player-made potions and poisons (Items' recipe ids), for its game to make them again.
     std::vector<Recipe> Recipes;
+    // What its save would keep of it beside the character: favorites, damage, effects, cooldowns (none: an older record).
+    PlayerOwnState Own;
 
     bool operator==(const PlayerRecord& acRhs) const noexcept;
 

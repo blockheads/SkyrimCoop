@@ -21,6 +21,7 @@
 #include <Interface/UI.h>
 #include <Misc/TintMask.h>
 #include <PlayerCharacter.h>
+#include <PlayerSaveState.h>
 #include <RTTI.h>
 #include <SaveLoadManager.h>
 #include <Utils.h>
@@ -271,6 +272,8 @@ PlayerRecord JoinBridge::ReadPlayer() const noexcept
     // Its own system quests' instances (docs/design/system-quests.md): the save's are the host's player's.
     if (SystemQuests::Any())
         record.Extras[SystemQuestState::kExtra] = SystemQuests::ReadState();
+    // What its save would keep of it beside the character: favorites, damage, effects, cooldowns, trainings, view.
+    record.Own = PlayerSaveState::Read(*pPlayer);
     return record;
 }
 
@@ -385,6 +388,8 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     pPlayer->SetActorInventory(acRecord.Items);
     const auto cQuests = acRecord.Extras.find(SystemQuestState::kExtra);
     SystemQuests::ApplyState(cQuests != acRecord.Extras.end() ? cQuests->second : std::string{});
+    // Its own favorites and the rest over the save's player's (player-save-state.md), after its items are on.
+    PlayerSaveState::Apply(*pPlayer, acRecord.Own);
     // The head again from the base's face and the tints (DoReset3D).
     pPlayer->QueueUpdate();
     // Where the host's save left this character; the save's player stands where the host's did.

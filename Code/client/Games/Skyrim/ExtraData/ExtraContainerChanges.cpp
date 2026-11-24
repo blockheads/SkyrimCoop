@@ -72,3 +72,15 @@ TESObjectARMO* ExtraContainerChanges::Data::GetArmor(uint32_t aSlotId) noexcept
 
     return s_getArmor(this, aSlotId);
 }
+
+ExtraDataList* ExtraContainerChanges::Entry::GetFavoriteList() noexcept
+{
+    POINTER_SKYRIMSE(ExtraDataList*(Entry*), s_favoriteList, 15998);
+    return s_favoriteList(this);
+}
+
+void ExtraContainerChanges::Data::SetFavorite(Entry* apEntry, ExtraDataList* apList) noexcept
+{
+    POINTER_SKYRIMSE(void(Data*, Entry*, ExtraDataList*), s_setFavorite, 16098);
+    s_setFavorite(this, apEntry, apList);
+}

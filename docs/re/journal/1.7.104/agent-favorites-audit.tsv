@@ -1,0 +1,90 @@
+time	op	id	rva	item
+2026-11-24T01:49:07Z	read	16098	0x2374c0	{"name": "InventoryChanges::SetFavorite"}
+2026-11-24T01:49:07Z	read	52004	0x951050	{"name": "MagicFavorites::SetFavorite"}
+2026-11-24T01:49:16Z	read	36717	0x660e50	{"name": "sub_140660E50"}
+2026-11-24T01:49:16Z	read	35642	0x61c2f0	{"name": "sub_14061C2F0"}
+2026-11-24T01:49:28Z	read	52013	0x951650	{"name": "sub_140951650"}
+2026-11-24T01:49:45Z	read	35639	0x61b9a0	{"name": "sub_14061B9A0"}
+2026-11-24T01:50:18Z	read	11664	0x163840	{"name": "sub_140163840"}
+2026-11-24T01:50:19Z	read	52014	0x951830	{"name": "sub_140951830"}
+2026-11-24T01:50:19Z	read	52012	0x951590	{"name": "sub_140951590"}
+2026-11-24T01:50:25Z	name	35642	0x61c2f0	{"addr": "0x14061C2F0", "name": "BGSSaveLoadManager::LoadGlobalData"}
+2026-11-24T01:50:25Z	name	35639	0x61b9a0	{"addr": "0x14061B9A0", "name": "BGSSaveLoadManager::SaveGlobalData"}
+2026-11-24T01:50:25Z	name	35650	0x61cfb0	{"addr": "0x14061CFB0", "name": "BGSSaveLoadManager::RevertGlobalData"}
+2026-11-24T01:50:25Z	name	52013	0x951650	{"addr": "0x140951650", "name": "MagicFavorites::LoadGame"}
+2026-11-24T01:50:25Z	name	52012	0x951590	{"addr": "0x140951590", "name": "MagicFavorites::SaveGame"}
+2026-11-24T01:50:25Z	name	52014	0x951830	{"addr": "0x140951830", "name": "MagicFavorites::Revert"}
+2026-11-24T01:50:25Z	name	11664	0x163840	{"addr": "0x140163840", "name": "ExtraDataList::SetHotkey"}
+2026-11-24T01:50:27Z	name	36717	0x660e50	{"addr": "0x140660E50", "name": "MagicFavorites::dtor_body"}
+2026-11-24T01:50:34Z	comment	52013	0x951650	{"addr": "0x140951650", "comment": "AddressLib ID 52013. Save global 109 (MagicFavorites) load: count + formIDs -> spells (favorited spells/shouts, sorted by pointer), count + formIDs -> hotkeys (forms by hotkey slot). The whole list comes from the loaded save: a co-op guest loading the host's save gets the host's player's spell favorites."}
+2026-11-24T01:50:34Z	comment	52012	0x951590	{"addr": "0x140951590", "comment": "AddressLib ID 52012. Save global 109 (MagicFavorites) save: spells array then hotkeys array, each count + formIDs."}
+2026-11-24T01:50:34Z	comment	52014	0x951830	{"addr": "0x140951830", "comment": "AddressLib ID 52014. Save global 109 revert: frees spells and hotkeys (runs before a load)."}
+2026-11-24T01:50:34Z	comment	36717	0x660e50	{"addr": "0x140660E50", "comment": "AddressLib ID 36717. MagicFavorites destructor body: frees both arrays, clears the singleton."}
+2026-11-24T01:50:34Z	comment	35642	0x61c2f0	{"addr": "0x14061C2F0", "comment": "AddressLib ID 35642. Load global data by type; 0x3EA -> AnimationObjects::LoadGame (43580). 109 -> MagicFavorites::LoadGame (52013), 110 PlayerControls, 113 MenuControls."}
+2026-11-24T01:50:34Z	comment	35639	0x61b9a0	{"addr": "0x14061B9A0", "comment": "AddressLib ID 35639. Save global data by type; 109 -> MagicFavorites::SaveGame (52012)."}
+2026-11-24T01:50:34Z	comment	35650	0x61cfb0	{"addr": "0x14061CFB0", "comment": "AddressLib ID 35650. Revert global data by type; 0x3EA -> AnimationObjects::Revert. 109 -> MagicFavorites::Revert (52014)."}
+2026-11-24T01:50:34Z	comment	11664	0x163840	{"addr": "0x140163840", "comment": "AddressLib ID 11664. Sets the list's ExtraHotkey (type 0x49) to the slot (-1 = favorited, unbound; 0-7 = number key), adding one if absent. Under the list's write lock."}
+2026-11-24T01:50:34Z	comment	16098	0x2374c0	{"addr": "0x1402374c0", "comment": "AddressLib ID 16098. Item favorite: returns if the stack's list already has ExtraHotkey (0x49); else picks a stackable list of the entry (or the given one) and SetHotkey(-1) (11664), splitting a new list off the stack if none. Favorites live on the item's ExtraDataList, saved with the inventory change form."}
+2026-11-24T01:50:40Z	comment	16098	0x2374c0	{"addr": "0x1402374c0", "comment": "[re]\nAddressLib ID 16098\nCommonLibSSE: InventoryChanges::SetFavorite (CommonLibSSE-NG/src/RE/I/InventoryChanges.cpp:125)\nItem favorite: returns if the stack's list already has ExtraHotkey (0x49); else picks a stackable list of the entry (or the given one) and SetHotkey(-1) (11664), splitting a new list off the stack if none. Favorites live on the item's ExtraDataList, saved with the inventory change form."}
+2026-11-24T01:50:42Z	decl			{"decl": "struct MagicFavoritesRE { void* vtable; unsigned char singletonPad[8]; void** spells; unsigned int spellsCapacity; unsigned int spellsPad; unsigned int spellsSize; unsigned int spellsPad2; void** hotkeys; unsigned int hotkeysCapacity; unsigned int hotkeysPad; unsigned int hotkeysSize; unsigned int hotkeysPad2; };"}
+2026-11-24T01:50:47Z	type	52013	0x951650	{"addr": "0x140951650", "kind": "function", "signature": "char __fastcall MagicFavorites::LoadGame(MagicFavoritesRE *this, __int64 aBuffer)"}
+2026-11-24T01:50:47Z	type	52012	0x951590	{"addr": "0x140951590", "kind": "function", "signature": "__int64 __fastcall MagicFavorites::SaveGame(MagicFavoritesRE *this, __int64 aBuffer)"}
+2026-11-24T01:50:47Z	type	11664	0x163840	{"addr": "0x140163840", "kind": "function", "signature": "_QWORD *__fastcall ExtraDataList::SetHotkey(__int64 aList, char aSlot)"}
+2026-11-24T01:53:00Z	read	52008	0x9512c0	{"name": "MagicFavorites::sub_52008"}
+2026-11-24T01:53:01Z	read	52011	0x9513d0	{"name": "sub_1409513D0"}
+2026-11-24T01:53:08Z	name	52008	0x9512c0	{"addr": "0x1409512c0", "name": "MagicFavorites::GetHotkeyForm"}
+2026-11-24T01:53:08Z	name	52011	0x9513d0	{"addr": "0x1409513d0", "name": "MagicFavorites::PruneUnknown"}
+2026-11-24T01:53:08Z	name	52006	0x951230	{"addr": "0x140951230", "name": "MagicFavorites::IsFavorite"}
+2026-11-24T01:53:08Z	name	11666	0x163960	{"addr": "0x140163960", "name": "ExtraDataList::GetHotkey"}
+2026-11-24T01:53:08Z	name	51543	0x92d0d0	{"addr": "0x14092D0D0", "name": "FavoritesHandler::UseHotkey"}
+2026-11-24T01:53:08Z	name	52045	0x954710	{"addr": "0x140954710", "name": "MagicMenu::ToggleFavorite"}
+2026-11-24T01:53:12Z	comment	52008	0x9512c0	{"addr": "0x1409512c0", "comment": "[re]\nAddressLib ID 52008\nhotkeys[slot] (slot 0-7, null when out of range): the spell or shout bound to that number key."}
+2026-11-24T01:53:12Z	comment	52011	0x9513d0	{"addr": "0x1409513d0", "comment": "AddressLib ID 52011. Grows hotkeys to the slot count (dword_1420BB118) with nulls, then drops favorites and nulls hotkeys whose spell/shout the player lacks (Actor::HasSpell / HasShout). After a guest loads the host's save: the host's favorites that this character also knows survive."}
+2026-11-24T01:53:12Z	comment	52006	0x951230	{"addr": "0x140951230", "comment": "AddressLib ID 52006. Is the form in MagicFavorites.spells (sorted search)."}
+2026-11-24T01:53:12Z	comment	11666	0x163960	{"addr": "0x140163960", "comment": "AddressLib ID 11666. The list's ExtraHotkey slot (-1 unbound)."}
+2026-11-24T01:53:12Z	comment	51543	0x92d0d0	{"addr": "0x14092D0D0", "comment": "AddressLib ID 51543. A number key pressed (slot a1): MagicFavorites hotkey first (prune, equip spell/shout), else the inventory item whose favorite list's hotkey is the slot gets equipped."}
+2026-11-24T01:53:12Z	comment	52045	0x954710	{"addr": "0x140954710", "comment": "AddressLib ID 52045. Magic menu's favorite toggle: IsFavorite ? RemoveFavorite : SetFavorite on MagicFavorites, then refresh the list."}
+2026-11-24T02:18:55Z	read	38743	0x6d5380	{"name": "Actor::SavePowerCooldowns"}
+2026-11-24T02:18:56Z	read	38744	0x6d5480	{"name": "Actor::LoadPowerCooldowns"}
+2026-11-24T02:19:05Z	read	38738	0x6d4fa0	{"name": "Actor::SetPowerCooldown"}
+2026-11-24T02:19:31Z	read	38736	0x6d4dd0	{"name": "Actor::AddCastPower"}
+2026-11-24T02:19:38Z	read	34624	0x5d5ba0	{"name": "sub_1405D5BA0"}
+2026-11-24T02:19:55Z	read	38745	0x6d5550	{"name": "PlayerCharacter::sub_38745"}
+2026-11-24T02:19:55Z	read	38746	0x6d5890	{"name": "Actor::Func271_38746"}
+2026-11-24T02:20:36Z	read	38733	0x6d4c80	{"name": "Actor::sub_38733"}
+2026-11-24T02:21:11Z	read		0x6d9f60	{"name": "Actor::sub_38825"}
+2026-11-24T02:21:12Z	read		0x6d9e60	{"name": "Character::sub_38824"}
+2026-11-24T02:21:17Z	name		0x6d9f60	{"addr": "0x1406d9f60", "name": "Actor::ClearPowerCooldowns"}
+2026-11-24T02:21:22Z	comment		0x6d9f60	{"addr": "0x1406d9f60", "comment": "[re]\nAddressLib ID 38825\nFrees every node of the power cooldown list (Actor+0x188, nodes {SpellItem*, float seconds left, next}, 24 bytes). Called from Actor::Revert, so a load replaces the list."}
+2026-11-24T02:21:22Z	comment		0x6d9e60	{"addr": "0x1406d9e60", "comment": "[re]\nAddressLib ID 38824\nPower cooldowns count down in real seconds: each node's seconds -= delta; a node below 0 is unlinked and freed."}
+2026-11-24T02:21:22Z	comment	38738	0x6d4fa0	{"addr": "0x1406d4fa0", "comment": "[re]\nAddressLib ID 38738\nAdds {spell, seconds} at the head of the cooldown list (Actor+0x188) unless the spell is already in it (then nothing, the time is not updated)."}
+2026-11-24T02:21:22Z	comment	38736	0x6d4dd0	{"addr": "0x1406d4dd0", "comment": "[re]\nAddressLib ID 38736\nmeh321: Actor::sub_38736\nCommonLibSSE: Actor::AddCastPower (CommonLibSSE-NG/src/RE/A/Actor.cpp:80)\nA power cast (type 2), or any power by the player: SetPowerCooldown(spell, 0x1405D5BA0(spell)) = one game day in real seconds (86400 / timescale) for powers."}
+2026-11-24T02:21:22Z	comment	38743	0x6d5380	{"addr": "0x1406d5380", "comment": "[re]\nAddressLib ID 38743\nSaves the cooldown list: count, then per node formID + float seconds left."}
+2026-11-24T02:21:22Z	comment	38744	0x6d5480	{"addr": "0x1406d5480", "comment": "[re]\nAddressLib ID 38744\nLoads the cooldown list: count, per entry formID -> SpellItem, float seconds -> SetPowerCooldown (38738)."}
+2026-11-24T02:21:28Z	name	38824	0x6d9e40	{"addr": "0x1406d9e40", "name": "Actor::UpdatePowerCooldowns"}
+2026-11-24T02:21:29Z	comment	38824	0x6d9e40	{"addr": "0x1406d9e40", "comment": "[re]\nAddressLib ID 38824\nPower cooldowns count down in real seconds: each node's seconds -= delta; a node below 0 is unlinked and freed."}
+2026-11-24T02:21:42Z	read	38795	0x6d85b0	{"name": "MagicTarget::GetActiveEffectList_0"}
+2026-11-24T02:22:15Z	read	34076	0x5bc2d0	{"name": "BGSSaveFormBuffer::sub_34076"}
+2026-11-24T02:22:15Z	read	34077	0x5bc3e0	{"name": "BGSLoadFormBuffer::sub_34077"}
+2026-11-24T02:22:30Z	read	50846	0x8fb7d0	{"name": "PlayerCamera::sub_50846"}
+2026-11-24T02:22:36Z	name	34076	0x5bc2d0	{"addr": "0x1405bc2d0", "name": "SaveActiveEffectList"}
+2026-11-24T02:22:36Z	name	34077	0x5bc3e0	{"addr": "0x1405bc3e0", "name": "LoadActiveEffectList"}
+2026-11-24T02:22:36Z	name	50846	0x8fb7d0	{"addr": "0x1408fb7d0", "name": "PlayerCamera::SaveGame"}
+2026-11-24T02:22:36Z	name	39429	0x6f72c0	{"addr": "0x1406F72C0", "name": "AIProcess::SaveGame"}
+2026-11-24T02:22:40Z	comment	34076	0x5bc2d0	{"addr": "0x1405bc2d0", "comment": "[re]\nAddressLib ID 34076\nAn actor's active effects (MiddleHighProcessData+0x1A0, written from AIProcess::SaveGame): count, then per effect the spell formID (+0x40), its effect index in the spell (0x140151C60), the archetype, a size-prefixed blob from ActiveEffect::SaveGame (vfunc 8)."}
+2026-11-24T02:22:40Z	comment	34077	0x5bc3e0	{"addr": "0x1405bc3e0", "comment": "[re]\nAddressLib ID 34077\nLoads the list: reverts and queues deletion of every current effect (vfunc 11), then per entry builds an effect of the archetype (0x1405D0C20), ActiveEffect::LoadGame (vfunc 9), sorted insert. A mismatched archetype is skipped with 'Could not load active effect'."}
+2026-11-24T02:22:40Z	comment	50846	0x8fb7d0	{"addr": "0x1408fb7d0", "comment": "[re]\nAddressLib ID 50846\nPlayerCamera save (from PlayerCharacter::SaveGame): flags +0x160/+0x162, +0x13C/+0x140, each camera state's SaveGame (vfunc 6), the current state's id (+0x28 -> +0x18: 0 first person, 9 third person), the state stack ids, +0x158/+0x15C/+0x164."}
+2026-11-24T02:22:40Z	comment	39429	0x6f72c0	{"addr": "0x1406F72C0", "comment": "AddressLib ID ?: AIProcess save from Actor::SaveGame (37649); the middle-high data's active effects through SaveActiveEffectList (34076)."}
+2026-11-24T02:26:43Z	read	34061	0x5bb3b0	{"name": "ActiveEffect::Dispel"}
+2026-11-24T02:26:54Z	read	52667	0x985a90	{"name": "TrainingMenu::Train"}
+2026-11-24T02:27:01Z	comment	52667	0x985a90	{"addr": "0x140985a90", "comment": "[re]\nAddressLib ID 52667\nTrains once: refuses when PlayerCharacter+0x940 (skillTrainingsThisLevel, saved by PlayerCharacter::SaveGame) >= iTrainingNumAllowedPerLevel; else pays, IncrementSkill, ++player+0x940, TimesTrained event."}
+2026-11-24T02:27:01Z	comment	34061	0x5bb3b0	{"addr": "0x1405bb3b0", "comment": "[re]\nAddressLib ID 34061\nCommonLibSSE: ActiveEffect::Dispel (CommonLibSSE-NG/src/RE/A/ActiveEffect.cpp:12)\nSets kDispelled (flags +0x7C bit 0x40000) once; forced (or menus open, or other cases) it runs ActiveEffect::Update(0) at once, which finishes it."}
+2026-11-24T02:30:11Z	read	36835	0x6654f0	{"name": "BGSLoadGameBuffer::sub_36835"}
+2026-11-24T02:30:12Z	read	36834	0x665490	{"name": "BGSSaveGameBuffer::sub_36834"}
+2026-11-24T02:30:17Z	name	36835	0x6654f0	{"addr": "0x1406654f0", "name": "MiscStatManager::LoadGame"}
+2026-11-24T02:30:17Z	name	36834	0x665490	{"addr": "0x140665490", "name": "MiscStatManager::SaveGame"}
+2026-11-24T02:30:18Z	comment	36835	0x6654f0	{"addr": "0x1406654f0", "comment": "[re]\nAddressLib ID 36835\nSave global 0 (misc stats) load: u32 count, per stat a BSFixedString name, a category byte, a u32 value; sets the stat found by that name."}
+2026-11-24T02:30:18Z	comment	36834	0x665490	{"addr": "0x140665490", "comment": "[re]\nAddressLib ID 36834\nSave global 0 (misc stats) save: u32 count, then each stat through SaveStatVisitor (name, category, value)."}
+2026-11-24T02:54:44Z	name	42363	0x7af9b0	{"addr": "0x1407AF9B0", "name": "PlayerControls::LoadGame"}
+2026-11-24T02:54:45Z	comment	42363	0x7af9b0	{"addr": "0x1407AF9B0", "comment": "AddressLib ID 42364. Save global 110 (PlayerControls) load: three bytes to three handlers' vfunc 8, then data+0x28 (2 bytes) for save version 0x23+, a byte to +0x1A0's handler +0x1B for 0x0F+."}
+2026-11-24T02:54:49Z	comment	42363	0x7af9b0	{"addr": "0x1407AF9B0", "comment": "AddressLib ID 42363. Save global 110 (PlayerControls) load: three bytes to three handlers' vfunc 8, then data+0x28 (2 bytes) for save version 0x23+, a byte to +0x1A0's handler +0x1B for 0x0F+."}

@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **a guest keeps its own favorites, damage, effects and cooldowns over a reload or rejoin**
+(`agent/favorites-audit`, bug 17). A guest loads the host's save and its character record goes on the save's player;
+what the record lacked stayed the host's: the host's spell favorites (save global 109), no item favorites (the
+inventory's `RemoveAllItems` drops every `ExtraHotkey`), no damage, no timed effects (blessings, potions), the host's
+power cooldowns, trainer count, misc stats and camera view. The record now carries them (`PlayerRecord::Own`,
+`PlayerSaveState`): item favorites as stacks with their keys, globals 0, 109 and 110 as the engine's own bytes,
+damage, timed effects recast with their elapsed time, cooldowns, trainings, first person. The guest's record also goes
+after its health changes or it casts. Read in IDA: [player-save-state.md](re/systems/player-save-state.md). Scenario
+`guest_keeps_own_state_on_reload`; GameTests "A guest keeps its own favorites, damage, effects, cooldowns, trainings
+and view over a host load and a rejoin"; ClientTests `[own-state]`.
+
 2026-11-23: **other players' animations move on every frame** (`agent/smooth-animations`): a copy's graph runs its
 owner's updates due by its playback, so with both games' frames jittering apart it ran none in some frames (its pose
 held while its body moved on, read in IDA: 63581) and two in the next, 5-23 % of frames on the duo: "snappy, not

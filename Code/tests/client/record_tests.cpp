@@ -16,6 +16,47 @@ TEST_CASE("A host co-save keeps each guest's ingredient and enchantment knowledg
     CHECK(loaded.Find("guest")->Knowledge == guest.Knowledge);
 }
 
+TEST_CASE("A host co-save keeps each guest's own favorites, effects, cooldowns and view beside its character", "[records][own-state]")
+{
+    CharacterRecords records;
+    PlayerRecord guest;
+    guest.Key = "guest";
+    guest.Own.Present = true;
+    Inventory::Entry sword;
+    sword.BaseId = GameId(0, 0x12EB7);
+    sword.Count = 1;
+    sword.ExtraHealth = 1.1f;
+    guest.Own.FavoriteItems = {{sword, 2}, {Inventory::Entry{.BaseId = GameId(0, 0x3EADE), .Count = 4}, -1}};
+    guest.Own.Globals = {{PlayerOwnState::kMagicFavorites, std::string("\x01\x00\x12\xFC", 4)}, {PlayerOwnState::kMiscStats, std::string(300, 's')}};
+    guest.Own.Damage = {-40.f, -12.5f, 0.f};
+    guest.Own.Effects = {{GameId(0, 0xFB99A), 0, 120.f}, {GameId(0, 0x5AD5C), 3, 2.5f}};
+    guest.Own.Cooldowns = {{GameId(0, 0xE40C8), 1300.f}};
+    guest.Own.Trainings = 3;
+    guest.Own.FirstPerson = true;
+    records.Put(guest);
+    CharacterRecords loaded;
+    REQUIRE(loaded.Decode(records.Encode(), CharacterRecords::kVersion));
+    REQUIRE(loaded.Find("guest"));
+    CHECK(loaded.Find("guest")->Own == guest.Own);
+}
+
+TEST_CASE("A record an older build saved has no own state, so a load applies none of it", "[records][own-state]")
+{
+    PlayerRecord original;
+    original.Name = "Older character";
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    original.Serialize(writer);
+    // The previous layout ended before the own state's 'present' flag.
+    Wire::Buffer::Reader reader(std::span(buffer.GetData(), writer.Size() - 1));
+    PlayerRecord read;
+    read.Own.Present = true;
+    read.Own.Trainings = 4;
+    read.Deserialize(reader);
+    CHECK(read.Own == PlayerOwnState{});
+    CHECK(read.Name == original.Name);
+}
+
 TEST_CASE("An older character record has no knowledge snapshot", "[records][knowledge]")
 {
     PlayerRecord original;

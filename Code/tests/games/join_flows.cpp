@@ -137,7 +137,66 @@ void JoinsWithWorld(Party& aParty, World& aHost, World& aGuest, const char* acpS
     aParty.Until([&] { return aGuest.GetTransport().IsOnline() && !Join(aGuest).IsJoining(); }, acpStep,
                   [&] { return Describe(Join(aGuest).GetStatus()); });
 }
+// What a player's save keeps of it beside the character (player-save-state.md), one player's apart from another's.
+PlayerOwnState OwnState(uint32_t aSpell, int8_t aKey, float aDamage, bool aFirstPerson)
+{
+    PlayerOwnState state{.Present = true};
+    state.FavoriteItems = {{Item(0x12EB7, 1), aKey}};
+    state.Globals[PlayerOwnState::kMagicFavorites] = std::format("{:X} on key {}", aSpell, aKey);
+    state.Damage = {aDamage, 0.f, -5.f};
+    state.Effects = {{GameId(0, 0xFB99A), 0, 30.f + aKey}};
+    state.Cooldowns = {{GameId(0, aSpell), 400.f}};
+    state.Trainings = static_cast<uint32_t>(aKey);
+    state.FirstPerson = aFirstPerson;
+    return state;
+}
+
+// The host's game saves aName now, its file and co-save written.
+void HostSaves(Party& aParty, const std::string& acName)
+{
+    auto& host = Party::Engine(aParty.Host());
+    aParty.As(aParty.Host(), [&] { (void)host.SaveNow(acName); });
+    aParty.Until([&] { return host.MadeSave.has_value(); }, "the host writes the save and co-save");
+    aParty.As(aParty.Host(), [&] { REQUIRE(host.SaveNow(acName).has_value()); });
+}
 } // namespace
+
+SCENARIO("A guest keeps its own favorites, damage, effects, cooldowns, trainings and view over a host load and a rejoin",
+         "[records][load][join]")
+{
+    Party party(1, SmokeWorld, false);
+    World& host = party.Host();
+    World& guest = party.Guest();
+    Plays(host, HostsCharacter());
+    Plays(guest, LydiasCharacter());
+    auto& hostEngine = Party::Engine(host);
+    auto& guestEngine = Party::Engine(guest);
+    const PlayerOwnState cHosts = OwnState(0x12FCC, 1, 0.f, true);
+    const PlayerOwnState cGuests = OwnState(0x12FCD, 2, -40.f, false);
+    hostEngine.Own = cHosts;
+    guestEngine.Own = cGuests;
+    JoinsWithWorld(party, host, guest, "the guest brings its character into the host's world");
+    CHECK(guestEngine.Own == cGuests);
+
+    const auto cKey = KeyOf(guest);
+    party.As(guest, [&] { guest.GetDispatcher().trigger(MenuEvent{"FavoritesMenu", false}); });
+    party.Until([&] { const auto* cpRecord = Records(host).Find(cKey); return cpRecord && cpRecord->Own == cGuests; },
+                "the host keeps the guest's own state for its saves");
+    HostSaves(party, "Chosen");
+    guestEngine.Own.Damage = {-90.f, 0.f, 0.f};
+    party.As(host, [&] { CHECK_FALSE(hostEngine.PlayerLoads("Chosen")); });
+    party.Until([&] { return guestEngine.Loaded.size() == 2 && guest.GetTransport().IsOnline() && !Join(guest).IsJoining(); },
+                "the party loads the chosen save and the guest rejoins", {}, nullptr,
+                std::chrono::seconds{static_cast<int64_t>(JoinService::kLoadSeconds)});
+    CHECK(guestEngine.Own == cGuests);
+    CHECK(hostEngine.Own == cHosts);
+
+    ToMainMenu(party, guest);
+    guestEngine.Own = {};
+    JoinsWithWorld(party, host, guest, "the guest joins again from the main menu");
+    CHECK(guestEngine.Own == cGuests);
+    CHECK(hostEngine.Own == cHosts);
+}
 
 SCENARIO("A guest brings and restores its own learned knowledge instead of the host's", "[records][knowledge]")
 {
