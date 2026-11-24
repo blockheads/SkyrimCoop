@@ -18,6 +18,7 @@ struct TESObjectREFR;
 bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept;
 
 struct TESBoundObject;
+struct ExtraDataList;
 
 // The container's stacks of the item with extra data (an enchantment, tempering, a name...), each its count.
 [[nodiscard]] std::vector<Inventory::Entry> ReadContainerStacks(const TESObjectREFR& acObject, TESBoundObject& aItem) noexcept;
@@ -27,6 +28,8 @@ bool SetContainerStacks(TESObjectREFR& aObject, TESBoundObject& aItem, int32_t a
 // Names up to aCount of the item where they are (an alias's list, else a worn or favorite one, never a quest object's or
 // a named one), keeping their marks; how many it named.
 int32_t TagStackInPlace(TESObjectREFR& aHolder, TESBoundObject& aItem, const char* acpName, int32_t aCount) noexcept;
+// The holder's list of the item named acName (a party copy's "[P] " stack), or none.
+[[nodiscard]] ExtraDataList* FindNamedList(TESObjectREFR& aHolder, TESBoundObject& aItem, const std::string& acName) noexcept;
 // An actor carries aCount of the item, acStacks of them with their extra data (worn flags and charge aside): only the
 // stacks that differ removed (by their own lists) or added, then the plain count; raising nothing.
 bool SetCarriedStacks(TESObjectREFR& aActor, TESBoundObject& aItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept;

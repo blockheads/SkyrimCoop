@@ -73,6 +73,17 @@ uint32_t ModManager::CreateReference(TESBoundObject* apBase, const NiPoint3& acP
     return handle;
 }
 
+uint32_t ModManager::Place(TESBoundObject* apBase, const NiPoint3& acPosition, const NiPoint3& acRotation, TESObjectCELL* apCell,
+                           TESWorldSpace* apWorldSpace) noexcept
+{
+    uint32_t handle = 0;
+    NiPoint3 position = acPosition;
+    NiPoint3 rotation = acRotation;
+    uint32_t noRoom = 0;
+    SpawnNewREFR(this, handle, apBase, &position, &rotation, apCell, apWorldSpace, nullptr, 0, reinterpret_cast<uintptr_t>(&noRoom), static_cast<char>(0), static_cast<char>(1));
+    return handle;
+}
+
 bool ModManager::ExplosionPlaces() noexcept
 {
     return t_explosionPlaces;

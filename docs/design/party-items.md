@@ -147,6 +147,13 @@ party's by its quest flag and shows the quest marker. The ownership-field marker
 - **Skyrim:** `party-buys-house-host` passes its actions. Every player carries `[P] Key to Breezehome` and the guest
   opens the locked front door with its own copy.
 
+- **Clothes the story dresses the player in (2026-11-23):** a quest's script's `EquipItem` of an item the player
+  lacks adds it past our add hooks (54661 → 16053, `re/systems/inventory-changes.md`, "A script's EquipItem"); our
+  hook on 54661 reports it as the story's gift, worn. The host says `Wear` with the party item and every game's
+  player puts its copy on (Alternate Start's start clothing): the tagged stack itself, unforced, so the player can
+  change out of it. A guest joining later carries it unworn. GameTests "A
+  quest's script dresses the player", Skyrim `quest-dresses-every-player`.
+
 ## Still to build
 
 Nothing for v1 (2026-10-30). Done since the first cut: the join, quest items, the upstream quest-item copy removed, a

@@ -155,6 +155,10 @@ void HostService::MakeAuthority() noexcept
     };
     game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
     game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
+    game.SpawnPartyHorses = [this](uint32_t aSessionId, uint32_t aCount) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId ? m_world.ctx().at<IDevToolsBridge&>().SpawnPartyHorses(cFormId, aCount) : 0u;
+    };
     game.ConsoleNameOf = [](uint32_t aSessionId) {
         return DevCommands::ConsoleName(Utils::GetFormIdBySessionId(aSessionId), FakeEngine::kPlayer);
     };

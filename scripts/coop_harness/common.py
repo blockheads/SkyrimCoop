@@ -59,6 +59,25 @@ Max Crash Logs = 50
 """
 DUMMY_XORG_CONFIG = "xorg-coop-dummy.conf"
 BUNDLED_START = "SkyrimCoopStart.esp"
+# Mods the player package bundles (scripts/package_check.py), in the Steam install's Data; a duo loads them only when
+# booted with --plugins (in this order: a master first).
+MOD_PLUGINS = ("unofficial skyrim special edition patch.esp", "alternate start - live another life.esp")
+
+
+def duo_plugins(args):
+    """The --plugins a duo boots with (a comma list, or the boot.json list), in MOD_PLUGINS order; None for a launch
+    that names none (a game restarted alone keeps its load order's mods)."""
+    wanted = getattr(args, "plugins", None)
+    if wanted is None:
+        return None
+    if isinstance(wanted, str):
+        wanted = [name.strip() for name in wanted.split(",") if name.strip()]
+    wanted = {name.lower() for name in wanted}
+    if unknown := wanted - set(MOD_PLUGINS):
+        raise SystemExit(f"--plugins: not a bundled mod: {', '.join(sorted(unknown))} (MOD_PLUGINS: {', '.join(MOD_PLUGINS)})")
+    if MOD_PLUGINS[1] in wanted:  # Alternate Start's TES4 header lists USSEP as a master
+        wanted.add(MOD_PLUGINS[0])
+    return [name for name in MOD_PLUGINS if name in wanted]
 CONSOLE_ERRORS = re.compile(r"not found|Syntax error|Missing parameter|Compiled script not saved|not run|cannot be moved", re.IGNORECASE)
 CONSOLE_ON_REFERENCE = re.compile(r"^([0-9A-Fa-f]{1,8})\.(\S.*)$")
 GAME_MEMORY_LIMIT_MB = 6000
@@ -186,6 +205,9 @@ DIVE_SECONDS = 6
 SURFACE_PACKAGE = 29
 INN_DOOR_INSIDE, INN_DOOR_OUTSIDE = 0x13419, 0x13424
 HORSE = "00109E3D"
+HORSE_RACE = 0x131FD  # HorseRace (Skyrim.esm)
+PLAYER_FACTION = 0xDB1  # PlayerFaction: the party owns what it buys
+PLAYER_HORSE_FACTION = 0x68D78  # a bought horse is a member, rank 1
 ACTIVATE_KEY = 0x12
 COOKING_SPIT = 0x101973
 IN_FURNITURE = 3

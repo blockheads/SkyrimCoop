@@ -49,40 +49,34 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-24: **the dialogue stress work's findings fixed** (`agent/rejoin-dialogue-layers`; [dialogue.md](re/systems/dialogue.md),
-"A menu joining mid-answer, and the replayed greeting", "A guest leaving mid-line"). A guest talking to the NPC again
-mid-answer got a menu stuck in the SWF's greeting state, where Tab skipped the NPC's line for everyone: its menu now
-shows the pick as the others do, and Tab leaves (`PickedDisplay::FromGreeting`). The playtest's layered voices,
-reproduced on the duo (`dialogue-guest-talks-again-after-leaving`, 2 of 2 without the fix): a guest leaving mid-answer
-and talking again at once got its new menu's greeting replay, which replayed the NPC's answer over its copy's (he says
-no greeting during his line). Only the greeting's line is replayed now (`VoiceFiles::IsLineOf`); 2 of 2 pass. A join while the host's dialogue menu is open now waits for the host's save (up to
-180 s), told why (`NotifySaveWaiting`), instead of failing after 30 s. The walker checks every voiced line reaches each
-copy once; the soak gained Lucan's claw conversation under stress (`dialogue-lucan-claw-under-stress`, MS13 agreeing).
-A guest rejoining mid-answer
-now also sees the pick and the answer's text, not the SWF's placeholder rows and its greeting (checked by screenshot).
-GameTests flows, ClientTests and HostAuthorityTests for each.
+2026-11-24: **shared dialogue under stress: a crash, two orphaned conversations, layered voices and a stuck rejoin
+fixed** (`agent/rejoin-dialogue-layers`; [dialogue.md](re/systems/dialogue.md), "A guest leaving mid-line", "A menu
+joining mid-answer, and the replayed greeting", "The speaker dies or fights"; [dialogue-stress.md](design/dialogue-stress.md)).
+- A guest leaving the session mid-conversation crashed its game: the deleted copy's next `UpdateInDialogue` (37541) ran
+  on a freed process. `GuestDialogue::OnLeft` clears the conversation (`MenuTopicManager::Clear` 35274) first.
+- The playtest's layered voices (reproduced on the duo, `dialogue-guest-talks-again-after-leaving`, 2 of 2 without the
+  fix): a guest leaving mid-answer and talking again got its new menu's greeting replay, which replayed the NPC's
+  answer over its copy's. Only the greeting's line is replayed now (`VoiceFiles::IsLineOf`). The older replay on every
+  opening was fixed by 0d64013e (2026-11-17).
+- A guest talking again mid-answer got a menu stuck in the SWF's greeting state (Tab skipped the NPC's line for
+  everyone; no pick, the greeting's text): it now shows the pick and the answer's text, and Tab leaves.
+- A walker (GameTests `[dialogue-walk]`: random talk, leave, pick, skip, kill, fight, delete, drop, rejoin; its rules
+  checked after each settle) found two asks before the open, and an ask crossing the host's own conversation, each
+  leaving the host's NPC talking to nobody for good. `HostDialogue` keeps every asker; `NotifyDialogueOpen::InIt` says
+  who is in it. 300 seeds clean and 100 under `COOP_NET` pass.
+- A join while the host's dialogue menu is open (no save then) waits up to 180 s, told why (`NotifySaveWaiting`).
+- Measured: a speaker killed or starting a fight ends the conversation at once (the fake learned it). Soak scenarios
+  (tag `dialogue-stress`), Lucan's claw conversation among them, pass on the duo. Voice tooling: per-line `Voice:` logs,
+  MCP verbs `voice_mark`, `voice_lines`, `expect_no_line_layered`, `speak_calls`, `talk_twice`.
 
-2026-11-24: **a dialogue walker found two ways a conversation outlived everyone in it** (`agent/rejoin-dialogue-layers`;
-[dialogue-stress.md](design/dialogue-stress.md)). GameTests `[dialogue-walk]` plays random players' and world's actions
-(talk, leave, pick, skip, kill, fight, delete, drop, rejoin) on one conversation and checks its rules after each
-settle. Found: two asks before the open (two guests, or one pressing twice) left the conversation with nobody listed;
-an ask crossing the host's own short conversation was ignored by the guest it listed. Both left the host's NPC talking
-to nobody, for good. Fixed in `HostDialogue` (every asker kept; an ask for the NPC already talking joins it) and
-`NotifyDialogueOpen::InIt` (the host says who is in it); flows and host-rule tests for each. Measured on the duo: a
-speaker killed or starting a fight ends the conversation at once (the fake learned it). Soak scenarios (tag
-`dialogue-stress`); one found a guest rejoining mid-answer could not leave (fixed, next entry).
-
-2026-11-24: **a guest leaving mid-conversation no longer crashes its game** (`agent/rejoin-dialogue-layers`;
-[dialogue.md](re/systems/dialogue.md), "A guest leaving mid-line"). Leaving deleted the copy the guest's menu was
-open on, and the engine's next `MenuTopicManager::Update` (35289) ran `UpdateInDialogue` (37541) on its freed process.
-`GuestDialogue::OnLeft` clears the conversation (`MenuTopicManager::Clear` 35274) as the guest leaves. GameTests "A
-guest leaving the session mid-conversation ends its game's conversation on the copy it loses" and "...right after
-its speaker's copy is freed still closes its menu" (the fake now keeps a deleted temporary actor's handle resolving
-until the frame's end and counts updates of a speaker without a process); scenario `dialogue-guest-leaves-mid-line`. The playtest's layered voices (bug 3: the guest left
-Lucan's conversation and talked again, 2026-10-31) were fixed by 0d64013e (2026-11-17, a guest's menu no longer replays
-the NPC's last line on every opening); per-line voice logs (`Voice:`) and the MCP verbs `voice_mark`, `voice_lines`,
-`expect_no_line_layered`, `speak_calls` show each line once on dev. Found on the way: a join from the main menu failed while the
-host's dialogue menu was open (no save then); fixed, the entry above.
+2026-11-24: **`/spawn horse`: a horse beside you, the party's** (`agent/dev-spawn-horse`;
+[dev-commands.md](design/dev-commands.md), [player-mount.md](re/systems/player-mount.md), "`/spawn horse`"). Any
+player types `/spawn horse [1-20]`; the host places saddled horses (109E3D) beside that player's character, each the
+party's as a stable sells one (`PlayerHorseFaction` rank 1, owned by `PlayerFaction`), with no second command.
+Ownership was already party-wide: `PlayerFaction`, and a player's own base (0x7), mean every game's own player, so
+nothing per player to simplify. The harness verb `spawn_horse` types it. ClientTests `[dev-commands]`,
+HostAuthorityTests `[DevTools]`, GameTests "A guest's /spawn horse...", `test_coop_harness.py`; scenario
+`guest-rides-spawned-horse` (the guest gets on with real input, both games show it ridden).
 
 2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
 the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it
@@ -109,6 +103,19 @@ damage, timed effects recast with their elapsed time, cooldowns, trainings, firs
 after its health changes or it casts. Read in IDA: [player-save-state.md](re/systems/player-save-state.md). Scenario
 `guest_keeps_own_state_on_reload`; GameTests "A guest keeps its own favorites, damage, effects, cooldowns, trainings
 and view over a host load and a rejoin"; ClientTests `[own-state]`.
+
+2026-11-23: **clothes a quest dresses the player in reach every player, worn** (`agent/alternate-start-clothing`).
+With Alternate Start only the host got its start's clothing: the start choices run `Player.EquipItem(...)` from
+`ARTHLALRumorsOfWarQuest`'s fragments, and `Actor.EquipItem` (54661, read in IDA) adds an item the actor lacks
+straight to its inventory changes (16053), past our add hooks, so the story's clothes never became party items.
+A hook on 54661 reports the added item (`ScriptEquips`); from a quest's script it is a party item the story put on
+(`Wear` on `RequestInventoryChanges` and `NotifyPartyItem`), and each game's player wears its copy: that stack, unforced
+(`ActorWearStack`), so it can take it off. Generic: MQ101's
+prisoner clothes and DA15's fine clothes take the same path. A guest joining after it carries the item, unworn
+(the join's list carries no worn state). [inventory-changes.md](re/systems/inventory-changes.md), "A script's
+EquipItem". Scenario `quest-dresses-every-player` (the harness boots the duo with the bundled mods: `duo --plugins`,
+`duo_start plugins=`, `loads_mods`; new expect `wears`); GameTests "A quest's script dresses the player", ClientTests
+`[ScriptEquips]`, HostAuthorityTests, TPTests.
 
 2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
 [actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after

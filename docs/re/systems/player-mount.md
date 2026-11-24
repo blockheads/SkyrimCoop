@@ -26,6 +26,24 @@ own player, so a party horse is "owned" on every game, and each game's engine ke
 - Hearthfire (`BYOHHouseHorseScript`): one horse per house, enabled on cell attach after `bBoughtHorse`.
 - Inferred, not read (the topic conditions are in the ESM): a stable stops offering its horse once sold.
 
+## `/spawn horse`: a party horse (read in IDA, 2026-11-24)
+
+`/spawn horse` (dev-commands.md) makes a horse the party's as the sale above does, in the frame it is placed:
+
+- Placed by `ModManager::Place`: `CreateReferenceAtLocation` (13723) through our hook, so the host's created-reference
+  watcher logs it as the console's would. That is the console's path for a base that is no leveled list: `PlaceAtMe`
+  (22104) calls `coop_PlaceAtMeImpl` (22511, named here), which rolls a leveled list at the target's calc level
+  (`TESLeveledList::CalculateCurrentFormList`) and places each pick through 13723 at a random offset. 109E3D is an
+  `NPC_` (Skyrim.esm record header), so nothing rolls.
+- Owned as the sale: `Actor::SetFactionRank` (37677, what Papyrus `AddToFaction` reaches) `PlayerHorseFaction` 1, and
+  `TESObjectREFR::SetOwner` (20198) `PlayerFaction`: `ExtraDataList::SetOwnerForm` then `AddChange(0x40)`, the
+  ownership change the host sends as a row (`FormChangeRows`). Not done: `PlayersHorse.ForceRefTo`, which only
+  matters when that horse dies.
+- Why not console lines: `placeatme` names no new reference to own. The console's `addtofaction` (22456: on an actor,
+  form type 0x3E, `Actor::AddToFaction`) and `setownership` (22372: its argument, or the player's own NPC base when
+  none, which is not what a sale sets) do the same writes. Hex-Rays drops the calls after `ObScript_ExtractArgs` in
+  22456, 22372 and `SetFactionRank` (22189): read their disassembly.
+
 ## Two riders on one horse (read in IDA and probed on the duo, 2026-11-17)
 
 - A horse holds one interaction. `RefrInteraction::AttachTo` (41532 calls it) replaces only the rider's own

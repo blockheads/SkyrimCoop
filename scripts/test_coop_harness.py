@@ -142,6 +142,43 @@ class Harness(unittest.TestCase):
         with self.assertRaises(ObservedCurrentCopy):
             session.death_spectate_respawn("client", travel_down=True)
 
+    def spawn_horse_session(self):
+        session = self.session
+        session.say = Mock()
+        wolf = {str(0xFF000850): {"identity": {"race": 0x13744}}}
+        horse = {str(0xFF000900): {"identity": {"race": 0x131FD}}}
+        # An unrelated NPC loads first, then the horse.
+        spawned = iter([{"local_actors": {}}, {"local_actors": wolf}, {"local_actors": {**wolf, **horse}}])
+        last = {}
+        session.local_player = Mock(side_effect=lambda game: last.update(next(spawned, last)) or dict(last))
+        def wait_for(description, predicate, *args, **kwargs):
+            while not (value := predicate()):
+                pass
+            return value
+        session.wait_for = Mock(side_effect=wait_for)
+        session.host_npc_state = Mock(return_value={"session_id": 7})
+        session.copy_of = Mock(return_value=0xFF000A00)
+        session.player_command = Mock(return_value={"owner": 0xDB1})
+        session.faction_rank = Mock(return_value=1)
+        session.actor_state = Mock(return_value={"mod": {"fade_state": 0}})
+        return session
+
+    def test_spawn_horse_types_the_dev_command_and_names_the_new_horse(self):
+        session = self.spawn_horse_session()
+        self.assertEqual(session.spawn_horse("client"), "horse")
+        session.say.assert_called_once_with("client", "/spawn horse")
+        self.assertEqual(session.handles()["horse"], {"host": 0xFF000900, "guest": 0xFF000A00})
+        self.assertEqual(session.staged(), [("npc", 0xFF000900)])
+
+    def test_spawn_horse_is_staged_for_cleanup_when_its_copy_never_comes(self):
+        session = self.spawn_horse_session()
+        session.handles()["horse"] = {"host": 0xFF000123}  # an older horse keeps its name
+        session.copy_of = Mock(side_effect=TestFailure("no copy"))
+        with self.assertRaises(TestFailure):
+            session.spawn_horse("")
+        self.assertEqual(session.staged(), [("npc", 0xFF000900)])
+        self.assertEqual(session.handles()["horse"], {"host": 0xFF000123})
+
     def test_registration_is_unique_and_has_a_fixture(self):
         registry = Registry()
         registry.add("ordinary", ["inventory"], lambda session: None)
@@ -227,7 +264,7 @@ class Harness(unittest.TestCase):
             self.session.enable_bundled_start.assert_not_called()
             self.assertIn("bShowTutorials=0", (game.my_games / "Skyrim.ini").read_text())
             self.session.prepare_prefix()
-            self.session.enable_bundled_start.assert_called_once_with(_game=game)
+            self.session.enable_bundled_start.assert_called_once_with(None, _game=game)
 
     def test_fresh_prefix_has_seen_the_anniversary_prompt(self):
         """The main menu queues the AE freebies box while bFreebiesSeen:General is 0; `coc` then takes the empty,
@@ -653,6 +690,42 @@ class Harness(unittest.TestCase):
             result = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(result.stdout.strip())
+
+
+class DuoPlugins(unittest.TestCase):
+    """--plugins: the bundled mods a duo loads, written into each game's load order before the start room."""
+
+    def test_plugins_parse_in_master_order(self):
+        from coop_harness.common import MOD_PLUGINS, duo_plugins
+        self.assertEqual(duo_plugins(argparse.Namespace(plugins=f"{MOD_PLUGINS[1]}, {MOD_PLUGINS[0].upper()}")), list(MOD_PLUGINS))
+        self.assertEqual(duo_plugins(argparse.Namespace(plugins="")), [])
+        self.assertEqual(duo_plugins(argparse.Namespace(plugins=MOD_PLUGINS[1])), list(MOD_PLUGINS))  # its master too
+        self.assertIsNone(duo_plugins(argparse.Namespace()))  # a game restarted alone keeps its mods
+        with self.assertRaises(SystemExit):
+            duo_plugins(argparse.Namespace(plugins="Other.esp"))
+
+    def test_load_order_gets_the_mods_or_drops_them(self):
+        from coop_harness.common import BUNDLED_START, MOD_PLUGINS
+        with tempfile.TemporaryDirectory() as folder:
+            order = Path(folder) / "Plugins.txt"
+            order.write_text(f"*Mine.esp\n*{MOD_PLUGINS[1]}\n")
+            game = Mock(install=Path(folder))
+            (Path(folder) / "Data").mkdir()
+            session = Session()
+            self.addCleanup(session.close)
+            with patch.object(Session, "game", return_value=game), patch.object(Session, "load_order_file", return_value=order), \
+                    patch("coop_harness.runtime.WINDOWS", False):
+                session.enable_bundled_start(list(MOD_PLUGINS))
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", *[f"*{m}" for m in MOD_PLUGINS], f"*{BUNDLED_START}"])
+                session.enable_bundled_start(None)
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", *[f"*{m}" for m in MOD_PLUGINS], f"*{BUNDLED_START}"])
+                session.enable_bundled_start([])
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", f"*{BUNDLED_START}"])
+            order.write_text(f"*Mine.esp\n*{MOD_PLUGINS[1]}\n")
+            with patch.object(Session, "game", return_value=game), patch.object(Session, "load_order_file", return_value=order), \
+                    patch("coop_harness.runtime.WINDOWS", True):  # the player's own file: their mods stay
+                session.enable_bundled_start([])
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", f"*{MOD_PLUGINS[1]}", f"*{BUNDLED_START}"])
 
 
 class LoadMenu(unittest.TestCase):

@@ -368,7 +368,8 @@ record_export ──> scenarios/recorded/<bug>.py   (ctx.* calls, one per record
 coop_mcp.py (Python MCP SDK, FastMCP, stdio; registered in the project's .mcp.json)
   session = Session()                       # the same object coop_test.py builds
   duo_start(cell="QASmoke", save=None)      # hold the duo lock (queue up to `wait` s), boot
-                                            # duo --keep-running, or attach to our own running duo
+                                            # duo --keep-running, or attach to our own running duo;
+                                            # plugins="...": the bundled mods (USSEP, Alternate Start) both load
   duo_stop()                                # coop_test.py stop, check 0 SkyrimSE.exe, release + log line
   every tool: try ctx call -> {ok, result} | {ok: false, failure text (ctx.failure's step + reason)}
 ```
@@ -435,6 +436,7 @@ console(game, line) / script(game, call)        escape hatches, recorded like th
 
 ```
 expect(name, field, value | same_on_both, within)   the correct behaviour: checked now, recorded
+                                                    ("wears": a player wears value's items in its own game)
 record_export(bug, kind="scenario"|"spec")
   scenario: scenarios/recorded/<bug>.py + a registry line; each recorded call -> its ctx.* line
   spec:     Code/tests/specs/<bug>.json if every step maps to a spec verb (specs.py: add_items, kill,
