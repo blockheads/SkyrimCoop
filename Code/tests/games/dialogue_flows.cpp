@@ -809,7 +809,7 @@ SCENARIO("A guest talks to an NPC from behind it: its body turns to the guest, o
     party.Until([&] { return cBehind(guest.Actors.at(cCopy).Rotation[2]); }, "the copy turns with it", cHeadings);
 }
 
-SCENARIO("A player's character offers no Talk to the other players, on every game", "[dialogue][copies][crosshair]")
+SCENARIO("A player's character offers no prompt to the other players, on every game", "[dialogue][copies][crosshair]")
 {
     Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
@@ -826,13 +826,16 @@ SCENARIO("A player's character offers no Talk to the other players, on every gam
     const uint32_t cGuestsCharacter = GameTest::PlayerCopy(host);
     const uint32_t cHostsCharacter = GameTest::PlayerCopy(guest);
 
-    // Duo, 2026-11-23 (players-not-talkable): each game's prompt over the other player read "Talk\nPrisoner".
-    THEN("neither game's prompt over the other player says Talk; an NPC's still does")
+    // Duo, 2026-11-23 (no-prompt-over-players): each game's prompt over the other player read "Talk\nPrisoner".
+    THEN("neither game shows a prompt over the other player, dead or sneaking either; an NPC's still does")
     {
         CHECK(hostTalk.ActivateText(cGuestsCharacter).empty());
         CHECK(guestTalk.ActivateText(cHostsCharacter).empty());
+        CHECK(guestTalk.ActivateText(cHostsCharacter, false, true).empty()); // was Pickpocket (duo, 2026-11-23)
+        CHECK(guestTalk.ActivateText(cHostsCharacter, true).empty());        // was Search
         CHECK(hostTalk.ActivateText(npc) == "Talk");
         CHECK(guestTalk.ActivateText(guest.CopiesOf(kGuard)[0]) == "Talk");
+        CHECK(guestTalk.ActivateText(guest.CopiesOf(kGuard)[0], false, true) == "Pickpocket");
     }
 
     party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(cGuestsCharacter); });

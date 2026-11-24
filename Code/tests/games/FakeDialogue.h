@@ -4,6 +4,7 @@
 // at a time, a menu that may be open or not, the list the engine builds from a small script of topics, and the
 // service's filters where our hooks ask them (DialogueHooks.cpp). Each World has its own.
 #include <Bridges/IDialogueBridge.h>
+#include <Services/ActivatePrompts.h>
 #include <Services/DialogueMenuPolicy.h>
 
 #include <algorithm>
@@ -78,10 +79,17 @@ struct FakeDialogue final : IDialogueBridge
             return;
         Start(aActorFormId, true);
     }
-    // The crosshair's prompt over a living actor that is no horse, not sneaking (GetActivateText 24716): Talk when it
-    // can talk to the player, else none.
-    [[nodiscard]] std::string ActivateText(uint32_t aActorFormId) const
+    // The crosshair's prompt over an actor that is no horse (GetActivateText 24716, in its order): none over another
+    // player's character (our hook), Search when dead, Pickpocket while the player sneaks, Talk when it can talk to
+    // the player, else none.
+    [[nodiscard]] std::string ActivateText(uint32_t aActorFormId, bool aDead = false, bool aSneaking = false) const
     {
+        if (!ActivatePrompts::Offered(m_filters.OtherPlayer && m_filters.OtherPlayer(aActorFormId)))
+            return "";
+        if (aDead)
+            return "Search";
+        if (aSneaking)
+            return "Pickpocket";
         return CanTalkToPlayer(aActorFormId) ? "Talk" : "";
     }
     // Actor::CanTalkToPlayer (37469) as our hook answers it, from the engine's own (race flag, AllowPCDialogue).
