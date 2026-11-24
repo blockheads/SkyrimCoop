@@ -30,6 +30,9 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
     differs in a live place at its end (walking animals, what each game created) is logged, not failed.
   - `stage` spots (`scene_spot`): the home stage while the party is near it, else ahead of the host on a floor it can
     see by rays, refused otherwise.
+  - `stage` NPCs are frozen (no AI, restrained) unless `frozen: false`, a placed one (`ref`) too since 2026-11-23,
+    thawed once on its spot. A frozen NPC that dies is thawed at once: frozen, it never finishes dying
+    (`re/systems/actor-ai-and-copies.md`, "A frozen actor that dies").
 - **play** (`actions/play_verbs.py`): `go_to`, `talk`, `use`, `take`, `fight`. Each returns or fails with one outcome:
   `{done, how, why, seconds, trace}`. `why`: `no_path`, `stalled`, `moved_off`, `timeout`, `menu_blocked`, `no_line`,
   `refused`, `player_down`, `lock_not_built`. `pick_lock` picks a locked door or chest (the menu's 3D must build, the
