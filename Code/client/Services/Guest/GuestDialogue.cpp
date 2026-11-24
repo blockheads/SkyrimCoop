@@ -1,4 +1,5 @@
 #include <Services/Guest/GuestDialogue.h>
+#include <Services/Guest/VoiceFiles.h>
 
 #include <Bridges/IActorBridge.h>
 
@@ -148,11 +149,13 @@ void GuestDialogue::ReplayGreeting() noexcept
     if (!cCopy)
         return;
     auto& actors = m_world.GetActorBridge();
-    if (m_lastLine.SessionId == cNpc && cNow - m_lastLine.At < cRecent)
+    // Only the greeting's line: an answer said before the menu opened (a pick, or the host's own click) is the copy's
+    // still, and a replay would layer it.
+    if (m_lastLine.SessionId == cNpc && cNow - m_lastLine.At < cRecent && VoiceFiles::IsLineOf(m_lastLine.Text, m_greeting))
     {
         spdlog::info("Dialogue: the menu opens: the NPC's last line again on copy {:X}", cCopy);
         actors.ActorSpeakSound(cCopy, m_lastLine.Text);
     }
-    if (m_lastSubtitle.SessionId == cNpc && cNow - m_lastSubtitle.At < cRecent)
+    if (m_lastSubtitle.SessionId == cNpc && cNow - m_lastSubtitle.At < cRecent && m_lastSubtitle.TopicInfo == m_greeting)
         actors.ActorShowSubtitle(cCopy, m_lastSubtitle.Text, m_lastSubtitle.TopicInfo, false);
 }

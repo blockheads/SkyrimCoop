@@ -2,6 +2,8 @@
 talk to Andurs and the host picks his four-part answer; then the world or a player interrupts it."""
 # hand-written: the walker found and the duo measured each case first (re/systems/dialogue.md, "The speaker dies or fights")
 
+from ..common import CLAW_FOUND_LINES, CLAW_TOPIC, GOLDEN_CLAW, GOLDEN_CLAW_QUEST, LUCAN, LUCAN_TROUBLE_TOPIC
+
 ANDURS = "00013BA8"
 LONG_ANSWER = 2  # "I'm not sure. Tell me about him.": four responses
 
@@ -63,3 +65,56 @@ def guest_rejoins_quickly(ctx, times=5):
         ctx.close_dialogues()
     finally:
         ctx.unstage()
+
+
+def lucan_claw_under_stress(ctx):
+    """Both players in Lucan's claw conversation (MS13 at 60), the guest carrying the claw: it asks about the theft
+    and, during his long answer, leaves and talks again twice; then it hands the claw in. Every line the host's engine
+    voices reaches its copy once, the claw leaves the guest's bag alone, and MS13's stage reads the same on both games."""
+    started = not ctx.quest_running("", GOLDEN_CLAW_QUEST)
+    copy = ctx.stage_host_npc(LUCAN)
+    ctx.console_on("", f"{LUCAN:08X}.setrestrained 1")  # his AI runs (a frozen speaker never ends a line), kept home
+    ctx.freeze("", LUCAN, False)
+    try:
+        if started:
+            ctx.console_on("", "resetquest MS13")
+            ctx.console_on("", "startquest MS13")
+            ctx.wait_for("[host] MS13 runs", lambda: ctx.quest_running("", GOLDEN_CLAW_QUEST), 10)
+        ctx.console_on("", "setstage MS13 60")
+        guest_copy = ctx.player_copy("")
+        ctx.console_on("client", f"player.additem {GOLDEN_CLAW:X} 1")
+        ctx.wait_for("[host] the guest's character carries the claw", lambda: ctx.item_count("", guest_copy, GOLDEN_CLAW) == 1, 10)
+        ctx.place_before("", LUCAN, 110)
+        ctx.place_before("client", copy, 110)
+        ctx.activate_on("client", copy)
+        ctx.wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: ctx.talking_to("client", copy), 10)
+        ctx.activate_on("", LUCAN)
+        ctx.wait_for("[host] joins: its menu opens on Lucan", lambda: ctx.talking_to("", LUCAN), 10)
+        ctx.wait_for("[client] its menu offers Lucan's trouble", lambda: ctx.lists_topic("client", LUCAN_TROUBLE_TOPIC), 30)
+        host_before, guest_before = ctx.speak_calls(""), ctx.speak_calls("client")
+        ctx.pick_with_keys("client", LUCAN_TROUBLE_TOPIC)
+        ctx.wait_for("[host] Lucan answers", lambda: ctx.dialogue("").get("current_info"), 10)
+        for _ in range(2):
+            ctx.leave_dialogue("client")
+            ctx.activate_on("client", copy)
+            ctx.wait_for(f"[client] its menu opens on copy {copy:08X} again", lambda: ctx.talking_to("client", copy), 10)
+        ctx.wait_for("[client] its choices offer its claw line", lambda: set(ctx.topic_infos("client", CLAW_TOPIC)) & set(CLAW_FOUND_LINES), 90)
+        host_said = ctx.speak_calls("")["engine"] - host_before["engine"]
+        copy_said = ctx.speak_calls("client")["relayed"] - guest_before["relayed"]
+        if copy_said != host_said:
+            raise ctx.failure(f"the host's engine voiced {host_said} line(s), the guest's copy said {copy_said}")
+        found = next(i for i in ctx.topic_infos("client", CLAW_TOPIC) if i in CLAW_FOUND_LINES)
+        ctx.pick_with_keys("client", CLAW_TOPIC, found)
+        ctx.wait_for("[client] the claw leaves its bag", lambda: not ctx.item_count("client", 0x14, GOLDEN_CLAW), 20)
+        if ctx.item_count("", 0x14, GOLDEN_CLAW):
+            raise ctx.failure("[host] its player was given the claw")
+        ctx.wait_for("MS13's stage reads the same on both games",
+                     lambda: ctx.quest_stage("", GOLDEN_CLAW_QUEST) == ctx.quest_stage("client", GOLDEN_CLAW_QUEST) != 60, 20)
+    finally:
+        ctx.close_dialogues()
+        ctx.console_on("", f"{LUCAN:08X}.setrestrained 0")
+        ctx.release_host_npc(LUCAN)
+        for name in ("", "client"):
+            if ctx.item_count(name, 0x14, GOLDEN_CLAW):
+                ctx.console_on(name, f"player.removeitem {GOLDEN_CLAW:X} 1")
+        ctx.console_on("", "stopquest MS13")

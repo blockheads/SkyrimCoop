@@ -1,6 +1,7 @@
 #include <catch2/catch.hpp>
 #include <Services/ActivatePrompts.h>
 #include <Services/DialogueMenuPolicy.h>
+#include <Services/Guest/VoiceFiles.h>
 
 TEST_CASE("A dialogue refresh restores a hidden list even when its options did not change", "[dialogue]")
 {
@@ -27,7 +28,7 @@ TEST_CASE("The accepted dialogue pick replaces a competing local pick without re
 {
     using DialogueMenuPolicy::DisplayPicked;
     using DialogueMenuPolicy::PickedDisplay;
-    CHECK(DisplayPicked(0) == PickedDisplay::Ignore);
+    CHECK(DisplayPicked(0) == PickedDisplay::FromGreeting); // a menu joining mid-answer: Tab must close it
     CHECK(DisplayPicked(1) == PickedDisplay::Animate);
     CHECK(DisplayPicked(2) == PickedDisplay::ReplaceText);
     CHECK(DisplayPicked(3) == PickedDisplay::Ignore);
@@ -99,4 +100,15 @@ TEST_CASE("No crosshair prompt over another player's character", "[dialogue]")
 {
     CHECK_FALSE(ActivatePrompts::Offered(true));
     CHECK(ActivatePrompts::Offered(false));
+}
+
+TEST_CASE("A voice file is a line of the topic info its name carries", "[dialogue][voice]")
+{
+    using VoiceFiles::IsLineOf;
+    constexpr const char* cpGreeting = "Data\\Sound\\Voice\\Skyrim.esm\\MaleSlyCynical\\DialogueWh_WhiterunAndursF_000D79A5_1.wav";
+    CHECK(IsLineOf(cpGreeting, 0x000D79A5));
+    CHECK(IsLineOf(cpGreeting, 0x020D79A5)); // its plugin's index is 00 in the name
+    CHECK_FALSE(IsLineOf(cpGreeting, 0x000D3D5E)); // an answer
+    CHECK_FALSE(IsLineOf("Data\\Sound\\Voice\\Skyrim.esm\\MaleSlyCynical\\DialogueWh_WhiterunAndursA_000D3D5E_1.wav", 0x000D79A5));
+    CHECK_FALSE(IsLineOf(cpGreeting, 0));
 }

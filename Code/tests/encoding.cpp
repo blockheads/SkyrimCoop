@@ -1523,6 +1523,11 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         roundTrip(chunk, NotifyMessageFactory{});
     }
 
+    SECTION("The host's game waiting to save is a notice with nothing in it")
+    {
+        roundTrip(NotifySaveWaiting{}, NotifyMessageFactory{});
+    }
+
     SECTION("A guest names the saves its store holds")
     {
         SaveHeldRequest held;

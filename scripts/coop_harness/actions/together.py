@@ -232,13 +232,16 @@ class TogetherActions:
             raise ctx.failure(f"the host built {result['host_builds']} options, not the greeting's {len(greeting)} each time")
         return result
 
-    def voice_mark(ctx, name, game="host"):
+    def voice_mark(ctx, name, game="host", wait=5.0):
         """Starts watching the actor's voice line in that game (coop_harness/voice_watch.py): each sound its voice handle
-        takes from now on is a line started, read by voice_lines. A watch already running stops first. Returns the line
-        playing now."""
+        takes from now on is a line started, read by voice_lines. A watch already running stops first. Waits up to `wait`
+        seconds for a line to start (a pick goes through the host first); returns the line playing then."""
         form = ctx.resolve(name, game)
         instance = "client" if game in ("client", "guest") else ""
         ctx.voice_unwatch()
+        deadline = time.monotonic() + wait
+        while ctx.voice(instance, form).get("sound", -1) == -1 and time.monotonic() < deadline:
+            time.sleep(0.05)
         ctx.VOICE_WATCH = VoiceWatch(lambda: ctx.voice(instance, form))
         return {"playing": ctx.VOICE_WATCH.rows[0]}
 

@@ -362,10 +362,11 @@ Read in IDA (named and commented there), measured on the duo (`dialogue-guest-le
   talks to is a copy. GameTests "A guest leaving the session mid-conversation ends its game's conversation..." (the
   fake counts `UpdateInDialogue` on a speaker without a process, `FakeDialogue::EngineFrame`).
 - **The host cannot save with its dialogue menu open** (measured 2 of 2; read: 82077's check; inferred: the Dialogue
-  Menu lacks `kAllowSaving`, its flags not read):
-  a guest joining from the main menu while the host's menu is open waits for the host's save, and its join fails with
-  `transfer_failed` after 30 s (`JoinService::kChunkSeconds`; the host would wait 60 s, `HostSaveTransfer::kSaveSeconds`).
-  A conversation the host's game runs for a guest without its menu does not block it.
+  Menu lacks `kAllowSaving`, its flags not read). A guest joining from the main menu then waits for the host's save:
+  after ten failed tries (a working save takes two) the host tells it (`NotifySaveWaiting`, again every 600 tries), its
+  join panel says why and its own 30 s wait starts over; the host gives up after 180 s (`HostSaveTransfer::kSaveSeconds`).
+  Before (2026-11-24, 2 of 2) the guest gave up after 30 s with `transfer_failed`. GameTests "A join while the host's
+  game cannot save waits...", HostAuthorityTests "A joining game waiting for a save the host's game cannot make yet...".
 - **Closing the host's menu stops the NPC's line** (measured): 35274's path from the menu's close ends it, so no line
   plays on after a close.
 - **The playtest's layered voices were the guest's, and are fixed** (bug 3: Fabien, the guest, left Lucan's
@@ -377,6 +378,28 @@ Read in IDA (named and commented there), measured on the duo (`dialogue-guest-le
   (`SaySelected` 35283 on the copy) until the next one. The host's engine calls `Actor::SpeakSound` twice per response,
   about 20 ms apart (both the host's and the copy's logs), with one sound each (the voice handle's ids rise by one per
   response); each relay stops the copy's line before its own.
+
+## A menu joining mid-answer, and the replayed greeting (2026-11-24)
+
+Read in the SWF's source (`reference/plugins/skyrimui/src/dialoguemenu/DialogueMenu.as`): `onCancelPress` (Tab, Esc)
+only calls `SkipText` in `SHOW_GREETING` (eMenuState 0) and closes the menu (`StartHideMenu`) in every other state;
+`DoShowDialogueList` shows the list from `TOPIC_CLICKED` (2) or a greeting with entries.
+
+- **A guest talking again while the NPC answers** got a menu in `SHOW_GREETING` for the rest of the answer
+  (`dialogue-guest-rejoins-quickly`, 1 of 1): its join starts its engine's conversation on the copy, whose greeting
+  does not end while the copy voices the host's answer (inferred). Tab there skipped the line, and a guest's skip goes
+  to the host, so it skipped the NPC's line for everyone. `DialogueBridge::ShowPicked` now takes a menu in
+  `SHOW_GREETING` to `TOPIC_CLICKED` with the pick shown (`DialogueMenuPolicy::PickedDisplay::FromGreeting`: the list
+  holder and its copy visible, as `ShowDialogueList` with its copy), the state every other menu is in while the NPC
+  answers; Tab then closes it and the next list shows as after a pick. GameTests "A guest that talks again while the
+  NPC answers leaves with Tab..." (the fake's menu has the greeting state, `FakeDialogue::MenuState`).
+- **A guest's own ask replayed the NPC's answer** (the walker, seed 1): the opening menu silences the copy, so a menu
+  the guest's own ask opened says the host's greeting again (`ReplayGreeting`). When the host's player clicked an
+  option before its game knew the conversation (its engine says it as in single player), the last relayed line was
+  that answer, and the replay layered it over the copy's. Only a line of the greeting info the host names is replayed
+  now: a voice file's name carries its info (`VoiceFiles::IsLineOf`: the Creation Kit's
+  `<quest>_<topic>_<info, plugin index 00>_<response>`, Andurs's greeting `..._000D79A5_1.wav`); the subtitle by its
+  info.
 
 ## The speaker dies or fights (1.7.104, 2026-11-24)
 

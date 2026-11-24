@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-24: **the dialogue stress work's findings fixed** (`agent/rejoin-dialogue-layers`; [dialogue.md](re/systems/dialogue.md),
+"A menu joining mid-answer, and the replayed greeting", "A guest leaving mid-line"). A guest talking to the NPC again
+mid-answer got a menu stuck in the SWF's greeting state, where Tab skipped the NPC's line for everyone: its menu now
+shows the pick as the others do, and Tab leaves (`PickedDisplay::FromGreeting`). A guest's own ask replayed the NPC's
+answer instead of its greeting when the host had clicked early (the walker, seed 1): only the greeting's line is
+replayed (`VoiceFiles::IsLineOf`). A join while the host's dialogue menu is open now waits for the host's save (up to
+180 s), told why (`NotifySaveWaiting`), instead of failing after 30 s. The walker checks every voiced line reaches each
+copy once; the soak gained Lucan's claw conversation under stress (`dialogue-lucan-claw-under-stress`, MS13 agreeing).
+GameTests flows, ClientTests and HostAuthorityTests for each.
+
 2026-11-24: **a dialogue walker found two ways a conversation outlived everyone in it** (`agent/rejoin-dialogue-layers`;
 [dialogue-stress.md](design/dialogue-stress.md)). GameTests `[dialogue-walk]` plays random players' and world's actions
 (talk, leave, pick, skip, kill, fight, delete, drop, rejoin) on one conversation and checks its rules after each
@@ -57,7 +67,7 @@ an ask crossing the host's own short conversation was ignored by the guest it li
 to nobody, for good. Fixed in `HostDialogue` (every asker kept; an ask for the NPC already talking joins it) and
 `NotifyDialogueOpen::InIt` (the host says who is in it); flows and host-rule tests for each. Measured on the duo: a
 speaker killed or starting a fight ends the conversation at once (the fake learned it). Soak scenarios (tag
-`dialogue-stress`); one fails on a new open bug, a guest rejoining mid-answer cannot leave (`bugs.md`).
+`dialogue-stress`); one found a guest rejoining mid-answer could not leave (fixed, next entry).
 
 2026-11-24: **a guest leaving mid-conversation no longer crashes its game** (`agent/rejoin-dialogue-layers`;
 [dialogue.md](re/systems/dialogue.md), "A guest leaving mid-line"). Leaving deleted the copy the guest's menu was
@@ -68,8 +78,8 @@ its speaker's copy is freed still closes its menu" (the fake now keeps a deleted
 until the frame's end and counts updates of a speaker without a process); scenario `dialogue-guest-leaves-mid-line`. The playtest's layered voices (bug 3: the guest left
 Lucan's conversation and talked again, 2026-10-31) were fixed by 0d64013e (2026-11-17, a guest's menu no longer replays
 the NPC's last line on every opening); per-line voice logs (`Voice:`) and the MCP verbs `voice_mark`, `voice_lines`,
-`expect_no_line_layered`, `speak_calls` show each line once on dev. Found on the way: a join from the main menu fails while the
-host's dialogue menu is open (no save then), `bugs.md`, "A join while the host talks".
+`expect_no_line_layered`, `speak_calls` show each line once on dev. Found on the way: a join from the main menu failed while the
+host's dialogue menu was open (no save then); fixed, the entry above.
 
 2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
 the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it

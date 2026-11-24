@@ -3153,6 +3153,6 @@ class VoiceWatching(unittest.TestCase):
         session.voice = lambda instance, form: {"sound": -1}
         session.resolve = lambda name, game: 1
         session.failure = TestFailure
-        session.voice_mark("a")
+        session.voice_mark("a", wait=0)
         with self.assertRaises(TestFailure):
             session.expect_no_line_layered()

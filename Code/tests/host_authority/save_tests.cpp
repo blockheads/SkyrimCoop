@@ -3,6 +3,7 @@
 
 #include <Messages/DeathMessages.h>
 #include <Messages/JoinMessages.h>
+#include <Services/Host/HostSaveTransfer.h>
 
 namespace
 {
@@ -201,4 +202,31 @@ TEST_CASE("A game sent a save against a base it lost meanwhile gets it against w
     const auto cPieces = session.SentTo<NotifySaveChunk>(kPeer);
     REQUIRE(cPieces.size() == 2);
     CHECK(cPieces[1]->Base.empty());
+}
+
+TEST_CASE("A joining game waiting for a save the host's game cannot make yet is told, and again while it waits", "[save][join]")
+{
+    Session session;
+    session.SaveImages = {kNew};
+    auto join = JoinRequest("Serana");
+    join.PlayerKey = "id:0123456789abcdef";
+    join.WantsWorld = true;
+    join.HasCharacter = true;
+    session.Receive(4, join);
+
+    // A save that works is made in a try or two: no notice for those.
+    session.Frame(16);
+    session.Frame(32);
+    CHECK(session.SentTo<NotifySaveWaiting>(4).empty());
+    uint64_t tick = 32;
+    for (uint32_t i = 2; i < HostSaveTransfer::kWaitNoticeTries; ++i)
+        session.Frame(tick += 16);
+    CHECK(session.SentTo<NotifySaveWaiting>(4).size() == 1);
+    for (uint32_t i = 0; i < HostSaveTransfer::kWaitNoticeEvery; ++i)
+        session.Frame(tick += 16);
+    CHECK(session.SentTo<NotifySaveWaiting>(4).size() == 2);
+
+    session.WorldSave = kNew; // the conversation ended: the save comes
+    session.Frame(tick += 16);
+    CHECK(session.SentTo<NotifySaveChunk>(4).size() == 1);
 }

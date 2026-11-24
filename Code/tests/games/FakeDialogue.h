@@ -26,6 +26,7 @@ struct FakeDialogue final : IDialogueBridge
     bool RequiresGreeting{}; // native arrest greetings depend on alarm AI absent on copies
     uint32_t StartedGreeting{};
     std::function<void(const Option&)> OnSaid;
+    std::function<void()> OnGreeting; // StartDialogue says the speaker's greeting (35282 -> 35283)
     uint32_t LastLineFor = 0;
     // A line's conditions (by topic and info): the players it is said to (their character's form id here; 0x14 this
     // game's player). A topic's first line that passes is the player's, as TESTopic 25544 picks; none listed: everyone.
@@ -148,10 +149,22 @@ struct FakeDialogue final : IDialogueBridge
     {
         return m_next.has_value();
     }
-    // This game's player leaves the menu.
+    // This game's player leaves the menu (Tab): in the SWF's SHOW_GREETING it only skips the line (onCancelPress).
     void PlayerLeaves()
     {
+        if (MenuState() == 0)
+        {
+            if (AllowProgress && m_filters.Skip)
+                m_filters.Skip();
+            return;
+        }
         CloseMenu();
+    }
+    // The SWF's eMenuState (DialogueMenu.as): a start's menu shows the greeting (0) until its first list (1) or a pick
+    // (2) shows; between, transitioning (3). -1: no menu.
+    [[nodiscard]] int MenuState() const noexcept
+    {
+        return !MenuOpen ? -1 : ListShown ? 1 : m_pickedShown ? 2 : m_greeting ? 0 : 3;
     }
 
     void SetFilters(Filters aFilters) noexcept override
@@ -201,8 +214,11 @@ struct FakeDialogue final : IDialogueBridge
         StartedGreeting = aGreeting;
         Speaker = aActorFormId;
         MenuOpen = aShowMenu;
+        m_greeting = aShowMenu;
         Choices = false;
         LookAtTalker();
+        if (OnGreeting)
+            OnGreeting();
         Build(Greeting);
         return true;
     }
@@ -214,6 +230,7 @@ struct FakeDialogue final : IDialogueBridge
         AllowProgress = !std::exchange(m_suspended, false) && !m_next;
         // The menu opens on the list the engine holds (52857), the last step's while a line is said.
         ListShown = MenuOpen && !Options.empty();
+        m_greeting = m_greeting && !ListShown;
         return MenuOpen;
     }
     void CloseMenu() noexcept override
@@ -238,6 +255,7 @@ struct FakeDialogue final : IDialogueBridge
             SpeakerLooks(Speaker, 0);
         Speaker = 0;
         m_pickedShown = false;
+        m_greeting = false;
         PickedText.clear();
         MenuOpen = false;
         ListShown = false;
@@ -288,6 +306,7 @@ struct FakeDialogue final : IDialogueBridge
             Highlight = 0;
             Centre = 0;
             ListShown = MenuOpen;
+            m_greeting = m_greeting && !ListShown;
             m_pickedShown = false;
             PickedText.clear();
         }
@@ -295,9 +314,9 @@ struct FakeDialogue final : IDialogueBridge
     }
     bool ShowPicked(const std::string& acText) noexcept override
     {
-        const auto cState = !MenuOpen ? 0 : ListShown ? 1 : m_pickedShown ? 2 : 3;
-        if (DialogueMenuPolicy::DisplayPicked(cState) == DialogueMenuPolicy::PickedDisplay::Ignore)
+        if (!MenuOpen || DialogueMenuPolicy::DisplayPicked(MenuState()) == DialogueMenuPolicy::PickedDisplay::Ignore)
             return false;
+        m_greeting = false;
         m_pickedShown = true;
         ListShown = false;
         PickedText = acText;
@@ -452,6 +471,7 @@ struct FakeDialogue final : IDialogueBridge
         else
             m_shownElsewhere.clear();
         ListShown = MenuOpen;
+        m_greeting = m_greeting && !ListShown;
         m_pickedShown = false;
         PickedText.clear();
         // Without its menu, the bridge asks whether anything is left to say (EndWhenDone, HasOptions).
@@ -466,6 +486,7 @@ struct FakeDialogue final : IDialogueBridge
     Filters m_filters;
     bool m_heldShow = false;
     bool m_pickedShown = false;
+    bool m_greeting = false; // the SWF's SHOW_GREETING: a start's menu before its first list or pick
     bool m_suspended = false;
     std::vector<Option> m_shownElsewhere;
     std::vector<Option> m_source; // the topics of the last build

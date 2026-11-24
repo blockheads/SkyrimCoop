@@ -79,11 +79,18 @@ Each finding goes through the bug-fix flow: a fast case first (a walker seed or 
   2. Seed 1016 (`COOP_NET`): a guest's ask crossed the host's own short conversation with the NPC; the guest took that
      open for its answer and ignored the conversation its ask then opened, which listed it. The open now says whether
      each game is in it (`NotifyDialogueOpen::InIt`), and an ask for the NPC already talking joins that conversation.
+  3. Seed 1 (with the voice check): the host's player clicked an option before its game knew the conversation, its
+     engine said the answer, and a guest's own ask then replayed that answer over its copy's (`ReplayGreeting` replays
+     the last relayed line). Only the greeting's line is replayed now (`VoiceFiles::IsLineOf`).
+- **Each line heard once:** the host's engine voices its greeting at each start and every line it says, each a file of
+  its own named as the Creation Kit names voice files; every line reaches each guest's copy once, the greeting at most
+  twice (a guest's own ask replays it once by design).
 - **What the fake learned:** a speaker that dies or starts a fight ends its conversation (measured on the duo,
   `re/systems/dialogue.md`, "The speaker dies or fights"); a deleted temporary actor's handle resolves until the
-  frame's end; `DialogueBridge::Start` refuses a dead or fighting actor.
-- **The soak** (tag `dialogue-stress`): `dialogue-speaker-killed-mid-answer` and `dialogue-speaker-fights-mid-answer`
-  pass; `dialogue-guest-rejoins-quickly` fails on an open bug (`bugs.md`, "A guest rejoining mid-answer cannot
-  leave"). A double press could not be shown on the duo: its loopback answers within a frame, before a second press.
-- **Not yet:** Lucan's claw conversation in the soak (scenario 6 above); "said once" for the copies' voices in the
-  walker (a guest's own ask replays the greeting once by design, which a count must allow).
+  frame's end; `DialogueBridge::Start` refuses a dead or fighting actor; a start's menu sits in the SWF's
+  `SHOW_GREETING` until its first list or pick, where Tab only skips (`FakeDialogue::MenuState`).
+- **The soak** (tag `dialogue-stress`): `dialogue-speaker-killed-mid-answer`, `dialogue-speaker-fights-mid-answer`,
+  `dialogue-guest-rejoins-quickly` (it found a guest rejoining mid-answer could not leave: fixed,
+  `re/systems/dialogue.md`, "A menu joining mid-answer") and `dialogue-lucan-claw-under-stress` (the guest leaves and
+  rejoins Lucan's claw conversation mid-answer, hands the claw in: each line once, MS13 the same on both games) pass.
+  A double press could not be shown on the duo: its loopback answers within a frame, before a second press.

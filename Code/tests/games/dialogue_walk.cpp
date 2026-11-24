@@ -5,10 +5,12 @@
 #include "Fixtures.h"
 #include <Services/DialogueService.h>
 #include <Events/DialogueEvent.h>
+#include <Services/Guest/VoiceFiles.h>
 
 #include <chrono>
 #include <cstdlib>
 #include <format>
+#include <map>
 #include <random>
 #include <string>
 #include <vector>
@@ -17,6 +19,7 @@ namespace
 {
 constexpr uint32_t kCell = 0x31D2E;
 constexpr uint32_t kNpc = 0x1A67C;
+constexpr uint32_t kGreetingInfo = 0x4000; // the NPC's greeting line
 constexpr uint32_t kQuest = 0x36191; // its stage moves on each time the host's engine says More (the info's fragment)
 const IDialogueBridge::Option kAsk{.Topic = 0x3001, .Info = 0x4001, .Text = "Ask"};
 const IDialogueBridge::Option kMore{.Topic = 0x3002, .Info = 0x4002, .Text = "More"};
@@ -199,6 +202,22 @@ struct Walk
                 if (const auto& cGuestQuests = Party::Engine(Game(i)).Quests; !cGuestQuests.contains(kQuest) || !(cGuestQuests.at(kQuest) == cQuest))
                     broken += std::format("{}: the quest is not the host's (stage {} there, {} here); ", Name(i),
                                           cGuestQuests.contains(kQuest) ? cGuestQuests.at(kQuest).CurrentStage : -1, cQuest.CurrentStage);
+        // Each line the host's engine voiced reaches a copy once; a greeting at most twice (a guest's own ask replays it
+        // once: the opening menu silences the copy, GuestDialogue::ReplayGreeting).
+        for (size_t i = 1; i < Games.GameCount(); ++i)
+        {
+            std::map<std::string, int> heard;
+            for (const auto& [cCopy, cFile] : Party::Engine(Game(i)).Lines)
+                ++heard[cFile];
+            for (const auto& [cFile, cTimes] : heard)
+                if (cTimes > (VoiceFiles::IsLineOf(cFile, kGreetingInfo) ? 2 : 1))
+                {
+                    std::string said;
+                    for (const auto& [cCopy, cLine] : Party::Engine(Game(i)).Lines)
+                        said += std::format(" {:X}:{}", cCopy, cLine);
+                    broken += std::format("{}: its copy said {} {} times (said:{}); ", Name(i), cFile, cTimes, said);
+                }
+        }
         // Every menu showing a list at the host's step shows the same one.
         const FakeDialogue* pShown = nullptr;
         size_t shownBy = 0;
@@ -250,8 +269,19 @@ void RunWalk(uint32_t aSeed, int aSteps, size_t aGuests)
     for (size_t i = 0; i < party.GameCount(); ++i)
         Script(Talk(walk.Game(i)));
     Talk(party.Host()).LinesTakeTime = true;
-    // More's fragment, run by the host's engine as it says the line.
+    // The host's engine voices each line (Actor::SpeakSound, our hook's DialogueEvent), each a file of its own; More's
+    // fragment runs as it says the line.
+    // Named as the Creation Kit names them (VoiceFiles), each voicing its own file.
+    uint32_t voiced = 0;
+    const auto cVoice = [&](uint32_t aInfo) {
+        World& host = party.Host();
+        host.GetDispatcher().trigger(DialogueEvent(Talk(host).Speaker, std::format("Walk_Topic_00{:06X}_{}.fuz", aInfo, ++voiced)));
+    };
+    for (size_t i = 0; i < party.GameCount(); ++i)
+        Talk(walk.Game(i)).GreetingInfo = kGreetingInfo;
+    Talk(party.Host()).OnGreeting = [&] { cVoice(kGreetingInfo); };
     Talk(party.Host()).OnSaid = [&](const IDialogueBridge::Option& acSaid) {
+        cVoice(acSaid.Info);
         if (acSaid.Topic != kMore.Topic)
             return;
         FakeEngine& host = Party::Engine(party.Host());
@@ -384,4 +414,41 @@ SCENARIO("A guest's ask that crosses the host's own conversation with the NPC op
                                          party.Host().ctx().at<DialogueService>().Conversation(), hostTalk.Speaker); });
     party.As(party.Guest(), [&] { guestTalk.PlayerLeaves(); });
     party.Until([&] { return !hostTalk.Speaker; }, "its leaving ends it on the host's game");
+}
+
+// dialogue-guest-rejoins-quickly: a guest talking again mid-answer got a menu in the SWF's SHOW_GREETING for the rest
+// of the answer, where Tab only skips the line, and a guest's skip skips the NPC's line for everyone.
+SCENARIO("A guest that talks again while the NPC answers leaves with Tab, skipping nobody's line", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld);
+    for (World* pGame : {&party.Host(), &party.Guest()})
+        Script(Talk(*pGame));
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    hostTalk.LinesTakeTime = true;
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = Party::Engine(party.Host()).LoadNpc(kNpc, kCell); });
+    party.Until([&] { return !Party::Engine(party.Guest()).CopiesOf(kNpc).empty(); }, "the guest has the NPC");
+    const uint32_t cCopy = Party::Engine(party.Guest()).CopiesOf(kNpc)[0];
+    party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(npc); });
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return hostTalk.ListShown && guestTalk.ListShown; }, "both menus show the list");
+    party.As(party.Host(), [&] { hostTalk.PlayerPicks(1); });
+    party.Until([&] { return hostTalk.LinePending() && guestTalk.MenuState() == 2; }, "the NPC answers, every menu shows the pick");
+
+    party.As(party.Guest(), [&] { guestTalk.PlayerLeaves(); });
+    Settle(party);
+    REQUIRE(!guestTalk.MenuOpen);
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    Settle(party);
+    REQUIRE(guestTalk.MenuOpen);
+    THEN("its menu shows the pick, as the others while the NPC answers") CHECK(guestTalk.MenuState() == 2);
+    party.As(party.Guest(), [&] { guestTalk.PlayerLeaves(); });
+    Settle(party);
+    THEN("Tab closes it, and the NPC's line goes on")
+    {
+        CHECK(!guestTalk.MenuOpen);
+        CHECK(hostTalk.Skips == 0);
+        CHECK(hostTalk.LinePending());
+    }
 }

@@ -6,16 +6,20 @@
 
 namespace DialogueMenuPolicy
 {
-// The SWF's eMenuState (DialogueMenu.as): its list shown, or an option clicked while the NPC answers.
+// The SWF's eMenuState (DialogueMenu.as): a start's greeting, its list shown, or an option clicked while the NPC answers.
+constexpr double kShowGreeting = 0;
 constexpr double kTopicListShown = 1;
 constexpr double kTopicClicked = 2;
 
-enum class PickedDisplay { Ignore, Animate, ReplaceText };
+// FromGreeting: a menu that joined while the NPC answers sits in SHOW_GREETING, where Tab only skips the line
+// (onCancelPress): it goes to TOPIC_CLICKED, as every other menu is while the NPC answers.
+enum class PickedDisplay { Ignore, Animate, ReplaceText, FromGreeting };
 
 constexpr PickedDisplay DisplayPicked(double aMenuState) noexcept
 {
     return aMenuState == kTopicListShown ? PickedDisplay::Animate
          : aMenuState == kTopicClicked   ? PickedDisplay::ReplaceText
+         : aMenuState == kShowGreeting   ? PickedDisplay::FromGreeting
                                          : PickedDisplay::Ignore;
 }
 
