@@ -34,7 +34,7 @@ class HostEngine;
 struct HostConversation;
 struct HostAggro;
 struct HostTakeBacks;
-struct HostWorldProjectiles;
+struct HostTraps;
 
 /**
  * @brief Hosting a session: the listener the other players' games join (HostNetwork), the host's
@@ -123,7 +123,7 @@ private:
     std::unique_ptr<HostAggro> m_pAggro;
     // Claimed actors given back, taken by this game (HostClaims).
     std::unique_ptr<HostTakeBacks> m_pTakeBacks;
-    std::unique_ptr<HostWorldProjectiles> m_pWorldProjectiles;
+    std::unique_ptr<HostTraps> m_pTraps;
     std::unique_ptr<HostAuthority> m_pAuthority;
     std::unique_ptr<HostNetwork> m_pNetwork;
     // The host's game in the party's conversation.

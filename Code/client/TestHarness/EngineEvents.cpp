@@ -2,6 +2,7 @@
 
 #include <Games/Events.h>
 #include <TESObjectREFR.h>
+#include <TrapRules.h>
 
 #include <deque>
 #include <mutex>
@@ -135,8 +136,12 @@ struct Sinks final : BSTEventSink<TESSpellCastEvent>,
     BSTEventResult OnEvent(const TESTrapHitEvent* apEvent, const EventDispatcher<TESTrapHitEvent>*) override
     {
         if (apEvent)
+        {
+            const bool cVectors = TrapRules::CarriesVectors(apEvent->type);
             Record({{"kind", "trap_hit"}, {"trap", IdOf(apEvent->trap)}, {"target", IdOf(apEvent->target)}, {"type", uint32_t(apEvent->type)},
-                    {"velocity", {apEvent->velocity[0], apEvent->velocity[1], apEvent->velocity[2]}}, {"motion", apEvent->motion}});
+                    {"velocity", {cVectors ? apEvent->velocity[0] : 0.f, cVectors ? apEvent->velocity[1] : 0.f, cVectors ? apEvent->velocity[2] : 0.f}},
+                    {"motion", apEvent->motion}});
+        }
         return BSTEventResult::kOk;
     }
 

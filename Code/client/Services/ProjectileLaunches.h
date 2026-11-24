@@ -5,7 +5,7 @@
 #include <FormIds.h>
 #include <Messages/Payloads.h>
 
-// A launch on the wire (its shooter aside) and made again here: an actor's (CombatService) and an object's (TrapService).
+// A launch on the wire (its shooter aside) and made again here: an actor's (CombatService) and an object's (HostTraps, GuestTraps).
 namespace ProjectileLaunches
 {
 inline void Fill(Payloads::ProjectileLaunch& aLaunch, const ProjectileLaunchedEvent& acEvent) noexcept

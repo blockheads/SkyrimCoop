@@ -43,8 +43,11 @@ uint32_t HookTrapHitSink(void* apThis, const TESTrapHitEvent* apEvent, void* apS
         return 0;
     TrapContactEvent event{apEvent->trap->formID, pTarget->formID};
     event.Contact.Type = static_cast<Payloads::TrapContact::Kind>(apEvent->type);
-    std::copy_n(apEvent->velocity, 3, event.Contact.Velocity.begin());
-    std::copy_n(apEvent->position, 3, event.Contact.Position.begin());
+    if (TrapRules::CarriesVectors(apEvent->type))
+    {
+        std::copy_n(apEvent->velocity, 3, event.Contact.Velocity.begin());
+        std::copy_n(apEvent->position, 3, event.Contact.Position.begin());
+    }
     event.Contact.Material = apEvent->material;
     event.Contact.Motion = apEvent->motion;
     event.Contact.Initial = apEvent->initial;
@@ -52,17 +55,17 @@ uint32_t HookTrapHitSink(void* apThis, const TESTrapHitEvent* apEvent, void* apS
     return 0;
 }
 
-// Actor::DoTrap1 (37509, TESObjectREFR vfunc 0x58): a script's ProcessTrapHit on the actor.
-using TDoTrap = void*(Actor*, TrapData&);
+// Actor::DoTrap1 (37509, TESObjectREFR vfunc 0x58, void): a script's ProcessTrapHit on the actor.
+using TDoTrap = void(Actor*, TrapData&);
 TDoTrap* RealDoTrap = nullptr;
 
-void* HookDoTrap(Actor* apThis, TrapData& arData)
+void HookDoTrap(Actor* apThis, TrapData& arData)
 {
     World& world = World::Get();
     switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), HitRules::PartyOf(apThis)))
     {
     case TrapRules::Hit::Apply: return RealDoTrap(apThis, arData);
-    case TrapRules::Hit::Drop: return nullptr;
+    case TrapRules::Hit::Drop: return;
     case TrapRules::Hit::AskOwner: break;
     }
     const TESObjectREFR* pTrap = TESObjectREFR::GetByHandle(arData.trapHandle);
@@ -74,7 +77,6 @@ void* HookDoTrap(Actor* apThis, TrapData& arData)
     std::copy_n(arData.position, 3, event.Hit.Position.begin());
     event.Hit.Material = arData.material;
     world.GetRunner().Trigger(event);
-    return nullptr;
 }
 
 Hooks::Initializer s_trapHooks([] {

@@ -179,21 +179,15 @@ EngineLog s_log;
 
 void OnCreated(uint32_t aFormId) noexcept
 {
-    s_log.Created(aFormId);
+    if (!ModManager::ExplosionPlaces()) // its explosion's copy places it on every game
+        s_log.Created(aFormId);
 }
 
 static_assert(FormChangeRows::cReferenceOwnership == TESObjectREFR::CHANGE_REFR_EXTRA_OWNERSHIP);
 
 FormChangeRows::Form FormOf(const TESForm& acForm) noexcept
 {
-    using FormChangeRows::Form;
-    switch (acForm.formType)
-    {
-    case FormType::Reference: return Form::kReference;
-    case FormType::Cell: return Form::kCell;
-    case FormType::Character: return Form::kActor;
-    default: return Form::kOther;
-    }
+    return FormChangeRows::OfFormType(static_cast<uint8_t>(acForm.formType));
 }
 
 // An actor's rows its change record holds (FormChangeRows: its owner).
@@ -227,7 +221,7 @@ void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRe
 }
 
 // A world object the host's game made (not an actor, a projectile or an explosion), as the guests make theirs: an
-// item with its count and extra data (a drop), a script's hazard (an explosion's is each game's: ModManager).
+// item with its count and extra data (a drop), a script's hazard (an explosion's is each game's: OnCreated).
 std::optional<ObjectChange> ReadCreate(TESObjectREFR& aRef) noexcept
 {
     if ((aRef.formType != FormType::Reference && aRef.formType != FormType::PlacedHazard) || aRef.IsDeleted() || !aRef.baseForm || !Cast<TESBoundObject>(aRef.baseForm))

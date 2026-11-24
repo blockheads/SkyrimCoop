@@ -18,7 +18,7 @@ the hit                                                            the touched a
 
 ```
 guest   TESTrapHitEvent on its own player  (hook on the VM's sink 53999, TrapRules::OfContact)
-          -> TrapContactEvent -> TrapService -> TrapContactRequest
+          -> TrapContactEvent -> GuestTraps -> TrapContactRequest
 host    HostAuthority::OnTrapContact: from the touched player's own game, finite
           -> HostGame::TouchTrap -> Traps::RaiseContact: TESTrapHitEvent on the guest's copy
           -> the trap's script (state CanHit, damage) -> ProcessTrapHit(copy)
@@ -125,4 +125,5 @@ host stands at its height" (the fake's copy controller rests `kRigidRest` under 
   first `TRIGGER` and took it on a retry; dropped, the guest's mace never fell. Every refusal waits up to `kWait`.
 - An explosion's placed object (a hazard: `Explosion::Func162` 43830 through `CreateReferenceAtLocation` 13723) is
   not sent as created: each game's explosion places its own (`ModManager.cpp`). A script's `PlaceAtMe` hazard still is.
-- The host's world-projectile send lives in `Services/Host/HostWorldProjectiles`.
+- The host-only trap code lives in `Services/Host/HostTraps` (its hit on a guest's copy, what its objects fire), the
+  guest-only in `Services/Guest/GuestTraps` (its contact, the host's hit, the host's projectiles).

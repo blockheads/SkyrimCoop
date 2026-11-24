@@ -53,7 +53,7 @@ void CombatService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::ent
 void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acEvent) const noexcept
 {
 
-    if (acEvent.ByObject) // the world's: TrapService
+    if (acEvent.ByObject) // the world's: HostTraps
         return;
     uint32_t shooterFormId = acEvent.ShooterID;
     auto view = m_world.view<FormIdComponent, LocalComponent>();

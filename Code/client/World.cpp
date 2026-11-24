@@ -54,7 +54,6 @@
 #include <Services/PlayerService.h>
 #include <Services/DeathService.h>
 #include <Services/CombatService.h>
-#include <Services/TrapService.h>
 #include <Services/GuestService.h>
 #include <Services/MapService.h>
 #include <Services/PartyMarkerService.h>
@@ -151,7 +150,6 @@ World::World()
     ctx().emplace<DeathService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
                                  ctx().at<IPlayerBridge&>());
-    ctx().emplace<TrapService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<PartyMarkerService>(*this, m_dispatcher, ctx().at<IActorBridge&>(), ctx().at<IPlayerBridge&>());
     ctx().emplace<HostService>(*this, m_dispatcher);
@@ -181,7 +179,6 @@ World::~World()
     ctx().erase<HostService>();
     ctx().erase<PartyMarkerService>();
     ctx().erase<MapService>();
-    ctx().erase<TrapService>();
     ctx().erase<CombatService>();
     ctx().erase<DeathService>();
     ctx().erase<PlayerService>();

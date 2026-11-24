@@ -2,6 +2,7 @@
 
 #include <Games/FormState.h>
 #include <Games/EnabledRow.h>
+#include <Games/FormChangeRows.h>
 #include <Events/LidUnposedEvent.h>
 #include <World.h>
 #include <SaveLoad.h>
@@ -307,7 +308,7 @@ uint32_t RecordedRows(const TESObjectREFR& acObject) noexcept
 {
     constexpr uint32_t cHavokMove = TESObjectREFR::CHANGE_REFR_HAVOK_MOVE;
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
-    if (!pSaveLoad || acObject.formType != FormType::Reference)
+    if (!pSaveLoad || FormChangeRows::OfFormType(static_cast<uint8_t>(acObject.formType)) != FormChangeRows::Form::kReference)
         return 0;
     const uint32_t cFlags = pSaveLoad->ChangeFlags(acObject, RowFlags() | cHavokMove);
     return (cFlags & ~cHavokMove) | (cFlags & cHavokMove ? TESObjectREFR::CHANGE_REFR_MOVE : 0);

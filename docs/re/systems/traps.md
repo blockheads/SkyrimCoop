@@ -8,7 +8,7 @@ name it).
 ## A trap that touches (blades, spike walls, bear traps, physics traps, spikes)
 
 ```
-a character steps (the player's proxy 141098C90, an NPC's rigid body 79186)
+a character steps (the player's proxy bhkCharProxyController__StepProxy 79149, an NPC's rigid body 79186)
   bhkCharacterPointCollector::ReportTrapContacts 80510   bodies on layer 14 (trap) or 16 only
     -> the cell world's TESTrapListener (bhkWorld +0xC5C0, made by 19195)
        ContactAdded 26067 (actors only) / ContactRemoved 26068
@@ -86,11 +86,12 @@ stayed on the host, so the guest saw no flames. The addressed vtable's sink also
 Spell.Cast's first argument), so the caster read as the spell. Both fixed (ClientTests `code_reach_tests`); on the duo the
 guest's game then casts the flames from its own jets, its copy of the host burning for nothing (copies mirror).
 
-## Darts carry their damage (measured, 2026-11-23)
+## Darts carry their damage (read in IDA and measured, 2026-11-23)
 
-A relaunched dart is built by `Projectile::Constructor` from the launch data's weapon and ammo (`weaponDamage` +0x1A0 =
-`ActorValueOwner` 26410 over them, temper 1 for an object shooter; `HitData::InitializeArrowData` 44002 reads it), so the
-guest's dart hurts as the host's does: both logged weapon 142E3 with the same damage, about 9 health a hit on either game.
+- Read in IDA: a relaunched dart is built by `Projectile::Constructor` (44100) from the launch data's weapon and ammo
+  (`weaponDamage` +0x1A0 = `ActorValueOwner` 26410 over them, temper 1 for an object shooter), which
+  `HitData::InitializeArrowData` (44002) reads.
+- Measured on the duo: both games logged weapon 142E3 with the same damage, about 9 health a hit on either game.
 
 ## Explosions: their hit, poison and line of sight (read and measured, 2026-11-23)
 

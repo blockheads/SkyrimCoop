@@ -26,6 +26,12 @@ enum class Contact
     return aTarget == LocalPlayer ? Contact::AskHost : Contact::Drop;
 }
 
+// A contact's velocity and position, but not a stop's: ContactRemoved (26068) leaves them stack scratch.
+[[nodiscard]] constexpr bool CarriesVectors(uint32_t aType) noexcept
+{
+    return aType != 1; // TESTrapHitEvent's stop
+}
+
 enum class Hit
 {
     Apply,    // the engine's hit here

@@ -19,6 +19,19 @@ inline constexpr uint32_t cCellOwnership = 1u << 3;
 // TESObjectREFR::CHANGE_REFR_EXTRA_OWNERSHIP: SetActorOwner / SetFactionOwner on a reference (a horse bought).
 inline constexpr uint32_t cReferenceOwnership = 1u << 6;
 
+// A form type's kind (TESForm FormType: Cell 60, Reference 61, Character 62; a script's placed hazard 70 is a reference).
+[[nodiscard]] constexpr Form OfFormType(uint8_t aType) noexcept
+{
+    switch (aType)
+    {
+    case 60: return Form::kCell;
+    case 61:
+    case 70: return Form::kReference;
+    case 62: return Form::kActor;
+    default: return Form::kOther;
+    }
+}
+
 // The flags of aFlags sent as rows; aReferenceFlags: a reference's (ReferenceStates::SentFlags).
 [[nodiscard]] constexpr uint32_t Sent(Form aForm, uint32_t aFlags, uint32_t aReferenceFlags) noexcept
 {

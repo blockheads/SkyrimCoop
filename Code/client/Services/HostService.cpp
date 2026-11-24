@@ -3,7 +3,7 @@
 #include <Events/GameLoadedEvent.h>
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
-#include <Services/Host/HostWorldProjectiles.h>
+#include <Services/Host/HostTraps.h>
 #include <Services/Host/HostTakeBacks.h>
 #include <Bridges/IBodyBridge.h>
 #include <Services/BodyService.h>
@@ -165,7 +165,7 @@ void HostService::MakeAuthority() noexcept
     m_world.ctx().at<CreatedIds>().SetHosting(true);
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(),
         [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); });
-    m_pWorldProjectiles = std::make_unique<HostWorldProjectiles>(m_world, m_dispatcher);
+    m_pTraps = std::make_unique<HostTraps>(m_world, m_dispatcher);
     m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(), [this](uint32_t aId) {
         if (m_pAuthority)
             m_pAuthority->ActorTaken(aId);
@@ -314,7 +314,7 @@ void HostService::StopHosting() noexcept
 {
     m_pAggro.reset();
     m_pTakeBacks.reset();
-    m_pWorldProjectiles.reset();
+    m_pTraps.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();

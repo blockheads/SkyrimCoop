@@ -26,6 +26,7 @@
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestEye.h>
 #include <Services/Guest/GuestLeash.h>
+#include <Services/Guest/GuestTraps.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
@@ -501,7 +502,8 @@ struct GuestSeam::Guest
           Wait(aWorld, aWorld.GetDispatcher(), Engine),
           Scene(aWorld, aWorld.GetDispatcher(), Engine),
           Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>()),
-          Leash(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IPlayerBridge&>())
+          Leash(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IPlayerBridge&>()),
+          Traps(aWorld, aWorld.GetDispatcher())
     {
     }
 
@@ -518,6 +520,7 @@ struct GuestSeam::Guest
     GuestScene Scene;
     GuestCopies Copies;
     GuestLeash Leash;
+    GuestTraps Traps;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)

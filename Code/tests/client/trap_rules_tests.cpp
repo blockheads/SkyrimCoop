@@ -2,6 +2,7 @@
 #include <catch2/catch.hpp>
 
 #include <Games/Skyrim/TrapRules.h>
+#include <Messages/Payloads.h>
 #include <Papyrus/PartyRules.h>
 
 using namespace TrapRules;
@@ -44,6 +45,13 @@ TEST_CASE("A world cast of an effect already on the actor is skipped; a player's
     CHECK(SkipsWorldEffect(true, true));
     CHECK_FALSE(SkipsWorldEffect(true, false));
     CHECK_FALSE(SkipsWorldEffect(false, true));
+}
+
+TEST_CASE("A stop contact carries no vectors: its event leaves them stack scratch", "[TrapRules]")
+{
+    CHECK(CarriesVectors(Payloads::TrapContact::kStart));
+    CHECK(CarriesVectors(Payloads::TrapContact::kHit));
+    CHECK_FALSE(CarriesVectors(Payloads::TrapContact::kStop));
 }
 
 TEST_CASE("An animation repeated at once on an object with no 3D is sent once; a later repeat is sent", "[TrapRules]")
