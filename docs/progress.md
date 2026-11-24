@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-24: **`/spawn horse`: a horse beside you, the party's** (`agent/dev-spawn-horse`;
+[dev-commands.md](design/dev-commands.md), [player-mount.md](re/systems/player-mount.md), "`/spawn horse`"). Any
+player types `/spawn horse [1-20]`; the host places saddled horses (109E3D) beside that player's character, each the
+party's as a stable sells one (`PlayerHorseFaction` rank 1, owned by `PlayerFaction`), with no second command.
+Ownership was already party-wide: `PlayerFaction`, and a player's own base (0x7), mean every game's own player, so
+nothing per player to simplify. The harness verb `spawn_horse` types it. ClientTests `[dev-commands]`,
+HostAuthorityTests `[DevTools]`, GameTests "A guest's /spawn horse...", `test_coop_harness.py`; scenario
+`guest-rides-spawned-horse` (the guest gets on with real input, both games show it ridden).
+
 2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
 the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it
 into `PlayersHorse`, a stores-text alias, whose fill clears every named alias's cached name (read in IDA: 25052 ->

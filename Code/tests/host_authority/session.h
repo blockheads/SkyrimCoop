@@ -229,6 +229,7 @@ struct Session
     std::set<uint32_t> Dead;                                 // the host's actors dead (HostGame::IsDead)
     std::map<uint32_t, std::string> ConsoleNames;            // a character as the host's console names it
     uint32_t HostilesKilled = 0;                             // /killall's kills in the host's game
+    std::vector<std::pair<uint32_t, uint32_t>> PartyHorses;  // /spawn horse: (session id, count) placed
     uint32_t GlobalReads = 0;
     std::vector<HostGlobal> GlobalChanges;
     std::vector<HostGlobal> Globals;                              // the host's global variables
@@ -363,6 +364,10 @@ private:
             return it == ConsoleNames.end() ? std::nullopt : std::optional(it->second);
         };
         game.KillHostiles = [this] { return ++HostilesKilled; };
+        game.SpawnPartyHorses = [this](uint32_t aSessionId, uint32_t aCount) {
+            PartyHorses.emplace_back(aSessionId, aCount);
+            return aCount;
+        };
         game.ReadGlobals = [this] { ++GlobalReads; return Globals; };
         game.TakeGlobalChanges = [this] { return std::exchange(GlobalChanges, {}); };
         game.ReadQuests = [this] { ++QuestReads; return Quests; };

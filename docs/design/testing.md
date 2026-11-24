@@ -284,6 +284,8 @@ needs_save                          a recording on a late save starts by checkin
 counters / network / press_to_motion   readouts (Diagnostics/Counters.h, round trips and clock syncs, press timing)
 vanilla_start / quest_walk / job_wait  the vanilla stand-in; a quest walk on a duo booted from a late save
 harness                             any raw harness command
+verb spawn_horse                    that game's player types /spawn horse; the party's horse is named `horse`
+                                    (dev-commands.md)
 ```
 
 An exported scenario is an ordinary flow (`coop_test.py scenario <name>`): the runner resets the baseline first, and
