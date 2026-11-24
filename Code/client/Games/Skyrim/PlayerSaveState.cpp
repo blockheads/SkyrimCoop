@@ -57,6 +57,27 @@ void ReadFavoriteItems(PlayerCharacter& aPlayer, PlayerOwnState& aState) noexcep
                 }
 }
 
+// The entry's favorited list still unbound that holds the plain stack acStack names (no extra data of its own).
+ExtraDataList* PlainFavorite(ExtraContainerChanges::Entry& aEntry, const Inventory::Entry& acStack) noexcept
+{
+    if (!aEntry.dataList)
+        return nullptr;
+    for (ExtraDataList* pList : *aEntry.dataList)
+        if (const auto* cpHotkey = pList ? static_cast<const ExtraHotkey*>(pList->GetByType(ExtraDataType::Hotkey)) : nullptr;
+            cpHotkey && cpHotkey->hotkey < 0)
+        {
+            Inventory::Entry carried{};
+            carried.BaseId = acStack.BaseId;
+            {
+                ScopedExtraDataOverride _;
+                TESObjectREFR::GetItemFromExtraData(carried, pList);
+            }
+            if (ItemChanges::FindStack({carried}, acStack))
+                return pList;
+        }
+    return nullptr;
+}
+
 // Each favorite on the stack the record names, as the item menus favorite one: a one-list entry for the stack (16098).
 void ApplyFavoriteItems(PlayerCharacter& aPlayer, const PlayerOwnState& acState) noexcept
 {
@@ -77,9 +98,9 @@ void ApplyFavoriteItems(PlayerCharacter& aPlayer, const PlayerOwnState& acState)
         lists.entry.data = pList;
         ExtraContainerChanges::Entry stack{pObject, pList ? &lists : nullptr, pEntry->count};
         pChanges->SetFavorite(&stack, pList);
-        if (cItem.Hotkey >= 0)
-            if (ExtraDataList* pFavorite = pEntry->GetFavoriteList())
-                pFavorite->SetHotkey(cItem.Hotkey);
+        // The key on that stack's list: the one given, else the plain stack's 16098 marked or split off.
+        if (ExtraDataList* pFavorite = pList ? pList : PlainFavorite(*pEntry, cItem.Stack); pFavorite && cItem.Hotkey >= 0)
+            pFavorite->SetHotkey(cItem.Hotkey);
     }
 }
 
@@ -100,12 +121,21 @@ void ApplyEffects(PlayerCharacter& aPlayer, const PlayerOwnState& acState) noexc
         cast.push_back(pSpell);
         pCaster->CastSpellImmediate(pSpell, false, &aPlayer, 1.0f, false, 0.0f);
     }
+    // Each recast effect the record has runs on from its time; one the record lacks had ended (a spell's shorter one).
     if (GameList<ActiveEffect>* pEffects = aPlayer.GetActiveEffects())
         for (ActiveEffect* pEffect : *pEffects)
-            if (pEffect && Timed(*pEffect))
-                for (const PlayerOwnState::Effect& cEffect : acState.Effects)
-                    if (ToSession(pEffect->pSpell->formID) == cEffect.Spell && EffectIndex(*pEffect) == cEffect.Index)
-                        pEffect->fElapsedSeconds = cEffect.Elapsed;
+            if (pEffect && Timed(*pEffect) && std::ranges::find(cast, pEffect->pSpell) != cast.end())
+            {
+                const auto cSpell = ToSession(pEffect->pSpell->formID);
+                const auto cIndex = EffectIndex(*pEffect);
+                const auto cSaved = std::ranges::find_if(acState.Effects, [&](const PlayerOwnState::Effect& acEffect) {
+                    return cSpell == acEffect.Spell && cIndex == acEffect.Index;
+                });
+                if (cSaved != acState.Effects.end())
+                    pEffect->fElapsedSeconds = cSaved->Elapsed;
+                else
+                    pEffect->Dispel(true);
+            }
 }
 } // namespace
 
@@ -126,7 +156,7 @@ PlayerOwnState Read(PlayerCharacter& aPlayer) noexcept
             if (cpEffect && Timed(*cpEffect))
                 if (const auto cSpell = ToSession(cpEffect->pSpell->formID); cSpell) // a player-made potion's: none
                     if (const auto cIndex = EffectIndex(*cpEffect))
-                        state.Effects.push_back({*cSpell, *cIndex, cpEffect->fElapsedSeconds});
+                        state.Effects.push_back({*cSpell, *cIndex, cpEffect->fElapsedSeconds, cpEffect->fDuration});
     for (const auto* cpCooldown = aPlayer.powerCooldowns; cpCooldown; cpCooldown = cpCooldown->pNext)
         if (cpCooldown->pItem)
             if (const auto cSpell = ToSession(cpCooldown->pItem->formID))
@@ -143,7 +173,8 @@ void Apply(PlayerCharacter& aPlayer, const PlayerOwnState& acState) noexcept
         return;
     ApplyFavoriteItems(aPlayer, acState);
     for (const auto& [cType, cData] : acState.Globals)
-        if (!FormState::LoadGlobal(cType, cData))
+        if (std::ranges::find(PlayerOwnState::kGlobals, cType) == PlayerOwnState::kGlobals.end() ||
+            !PlayerOwnState::GlobalReadable(cType, cData) || !FormState::LoadGlobal(cType, cData))
             spdlog::warn("PlayerSaveState: save global {} did not load ({} bytes)", cType, cData.size());
     ApplyEffects(aPlayer, acState);
     // After the effects, whose fortifications set the maximum the damage counts from.

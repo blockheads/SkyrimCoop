@@ -142,13 +142,28 @@ PlayerOwnState OwnState(uint32_t aSpell, int8_t aKey, float aDamage, bool aFirst
 {
     PlayerOwnState state{.Present = true};
     state.FavoriteItems = {{Item(0x12EB7, 1), aKey}};
-    state.Globals[PlayerOwnState::kMagicFavorites] = std::format("{:X} on key {}", aSpell, aKey);
+    // One favorite (a count of 1 << 2, a form id as two varints: aKey stands for the spell), no keys.
+    state.Globals[PlayerOwnState::kMagicFavorites] = std::string{'\x04', '\x00', static_cast<char>(aKey), '\x00'};
     state.Damage = {aDamage, 0.f, -5.f};
-    state.Effects = {{GameId(0, 0xFB99A), 0, 30.f + aKey}};
+    state.Effects = {{GameId(0, 0xFB99A), 0, 30.f + aKey, 1440.f}};
     state.Cooldowns = {{GameId(0, aSpell), 400.f}};
     state.Trainings = static_cast<uint32_t>(aKey);
     state.FirstPerson = aFirstPerson;
     return state;
+}
+
+// The same own state, its effects and cooldowns allowed the few seconds the host's save aged them by.
+bool SameOwn(PlayerOwnState aSeen, const PlayerOwnState& acWanted)
+{
+    if (aSeen.Effects.size() != acWanted.Effects.size() || aSeen.Cooldowns.size() != acWanted.Cooldowns.size())
+        return false;
+    for (size_t i = 0; i < aSeen.Effects.size(); ++i)
+        if (std::abs(aSeen.Effects[i].Elapsed - acWanted.Effects[i].Elapsed) < 10.f)
+            aSeen.Effects[i].Elapsed = acWanted.Effects[i].Elapsed;
+    for (size_t i = 0; i < aSeen.Cooldowns.size(); ++i)
+        if (std::abs(aSeen.Cooldowns[i].Seconds - acWanted.Cooldowns[i].Seconds) < 10.f)
+            aSeen.Cooldowns[i].Seconds = acWanted.Cooldowns[i].Seconds;
+    return aSeen == acWanted;
 }
 
 // The host's game saves aName now, its file and co-save written.
@@ -180,7 +195,7 @@ SCENARIO("A guest keeps its own favorites, damage, effects, cooldowns, trainings
 
     const auto cKey = KeyOf(guest);
     party.As(guest, [&] { guest.GetDispatcher().trigger(MenuEvent{"FavoritesMenu", false}); });
-    party.Until([&] { const auto* cpRecord = Records(host).Find(cKey); return cpRecord && cpRecord->Own == cGuests; },
+    party.Until([&] { const auto* cpRecord = Records(host).Find(cKey); return cpRecord && SameOwn(cpRecord->Own, cGuests); },
                 "the host keeps the guest's own state for its saves");
     HostSaves(party, "Chosen");
     guestEngine.Own.Damage = {-90.f, 0.f, 0.f};
@@ -188,13 +203,13 @@ SCENARIO("A guest keeps its own favorites, damage, effects, cooldowns, trainings
     party.Until([&] { return guestEngine.Loaded.size() == 2 && guest.GetTransport().IsOnline() && !Join(guest).IsJoining(); },
                 "the party loads the chosen save and the guest rejoins", {}, nullptr,
                 std::chrono::seconds{static_cast<int64_t>(JoinService::kLoadSeconds)});
-    CHECK(guestEngine.Own == cGuests);
+    CHECK(SameOwn(guestEngine.Own, cGuests));
     CHECK(hostEngine.Own == cHosts);
 
     ToMainMenu(party, guest);
     guestEngine.Own = {};
     JoinsWithWorld(party, host, guest, "the guest joins again from the main menu");
-    CHECK(guestEngine.Own == cGuests);
+    CHECK(SameOwn(guestEngine.Own, cGuests));
     CHECK(hostEngine.Own == cHosts);
 }
 

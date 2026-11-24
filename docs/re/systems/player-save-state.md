@@ -63,6 +63,19 @@ ApplyPlayer -> after SetActorInventory: SetFavorite + SetHotkey per stack, LoadG
                damage restored to the record's, cooldowns cleared and set, trainings, the view
 ```
 
+Recast effects the record lacks (a spell's shorter effect that had ended) are dispelled again. A favorite's key goes
+on the stack the record names: the given list, or for a plain stack the unbound list 16098 marked or split off
+(15998 returns the entry's first favorite, not the one just set).
+
+Time between a record and a save. A guest's record is sent on its changes; timed state keeps running after. The host's
+`CharacterRecords` keeps when each guest record came and ages its effects and cooldowns by the time since then in what a
+save writes (`PlayerOwnState::Age`); a guest leaving settles it, so time does not run while it is away.
+
+The engine's loaders check no bounds: the count reader 36004 (low 2 bits: 1, 2 or 4 bytes; 3 reads nothing), the
+string reader 36002 (a u16 length copied into a 1024-byte stack buffer: a longer one overflows the stack). A global
+is kept and loaded only for types 0, 109 and 110 and only when its bytes parse in that loader's layout within their
+size (`PlayerOwnState::GlobalReadable`); a record whose global is cut short keeps no own state.
+
 An older record (no `Own`) applies nothing: the save's player's stays, as before. A player-made potion's effect has no
 session id and is left out. Effects are recast by the player on itself, so their magnitude is this character's.
 

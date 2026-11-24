@@ -88,3 +88,10 @@ time	op	id	rva	item
 2026-11-24T02:54:44Z	name	42363	0x7af9b0	{"addr": "0x1407AF9B0", "name": "PlayerControls::LoadGame"}
 2026-11-24T02:54:45Z	comment	42363	0x7af9b0	{"addr": "0x1407AF9B0", "comment": "AddressLib ID 42364. Save global 110 (PlayerControls) load: three bytes to three handlers' vfunc 8, then data+0x28 (2 bytes) for save version 0x23+, a byte to +0x1A0's handler +0x1B for 0x0F+."}
 2026-11-24T02:54:49Z	comment	42363	0x7af9b0	{"addr": "0x1407AF9B0", "comment": "AddressLib ID 42363. Save global 110 (PlayerControls) load: three bytes to three handlers' vfunc 8, then data+0x28 (2 bytes) for save version 0x23+, a byte to +0x1A0's handler +0x1B for 0x0F+."}
+2026-11-24T04:19:19Z	comment	38825	0x6d9f20	{"addr": "0x1406D9F20", "comment": "[re]\nAddressLib ID 38825\nFrees every node of the power cooldown list (Actor+0x188, nodes {SpellItem*, float seconds left, next}, 24 bytes). Called from Actor::Revert, so a load replaces the list."}
+2026-11-24T04:19:24Z	name		0x6d9f60	{"addr": "0x1406D9F60", "name": "ClearPowerCooldowns_loop"}
+2026-11-24T04:19:25Z	name	38825	0x6d9f20	{"addr": "0x1406D9F20", "name": "Actor::ClearPowerCooldowns"}
+2026-11-24T04:20:14Z	read	36004	0x637e10	{"name": "BGSLoadFormBuffer::sub_36004"}
+2026-11-24T04:20:19Z	read	36002	0x637c30	{"name": "BGSLoadGameBuffer::ReadBSFixedString"}
+2026-11-24T04:20:26Z	comment	36004	0x637e10	{"addr": "0x140637e10", "comment": "[re]\nAddressLib ID 36004\nReads a variable-size count: low 2 bits of the first byte 0 -> u8>>2, 1 -> u16>>2, 2 -> u32>>2; 3 -> 0 and nothing read. No bounds check."}
+2026-11-24T04:20:26Z	comment	36002	0x637c30	{"addr": "0x140637c30", "comment": "[re]\nAddressLib ID 36002\nReads a u16 length and that many bytes into a 1024-byte stack buffer with no length check (a length >= 1024 overflows the stack), then a BSFixedString of it."}

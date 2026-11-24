@@ -56,6 +56,8 @@ void HostRecords::OnSaving() const noexcept
 void HostRecords::OnPlayerLeft(ConnectionId_t aPlayer) const noexcept
 {
     StorePlace(aPlayer);
+    if (const auto* cpPlayer = m_players.Find(aPlayer); cpPlayer && !cpPlayer->IsHost && !cpPlayer->Key.empty() && m_game.SettleRecord)
+        m_game.SettleRecord(cpPlayer->Key);
 }
 
 void HostRecords::StorePlace(ConnectionId_t aPlayer) const noexcept

@@ -1,4 +1,5 @@
 #include <Services/CharacterRecords.h>
+#include <Wire/Serialization.h>
 #include <catch2/catch.hpp>
 
 TEST_CASE("A host co-save keeps each guest's ingredient and enchantment knowledge", "[records][knowledge]")
@@ -27,9 +28,9 @@ TEST_CASE("A host co-save keeps each guest's own favorites, effects, cooldowns a
     sword.Count = 1;
     sword.ExtraHealth = 1.1f;
     guest.Own.FavoriteItems = {{sword, 2}, {Inventory::Entry{.BaseId = GameId(0, 0x3EADE), .Count = 4}, -1}};
-    guest.Own.Globals = {{PlayerOwnState::kMagicFavorites, std::string("\x01\x00\x12\xFC", 4)}, {PlayerOwnState::kMiscStats, std::string(300, 's')}};
+    guest.Own.Globals = {{PlayerOwnState::kMagicFavorites, std::string("\x04\x00\xCD\x7F\x00", 5)}, {PlayerOwnState::kPlayerControls, std::string(6, '\x01')}};
     guest.Own.Damage = {-40.f, -12.5f, 0.f};
-    guest.Own.Effects = {{GameId(0, 0xFB99A), 0, 120.f}, {GameId(0, 0x5AD5C), 3, 2.5f}};
+    guest.Own.Effects = {{GameId(0, 0xFB99A), 0, 120.f, 1440.f}, {GameId(0, 0x5AD5C), 3, 2.5f, 60.f}};
     guest.Own.Cooldowns = {{GameId(0, 0xE40C8), 1300.f}};
     guest.Own.Trainings = 3;
     guest.Own.FirstPerson = true;
@@ -55,6 +56,80 @@ TEST_CASE("A record an older build saved has no own state, so a load applies non
     read.Deserialize(reader);
     CHECK(read.Own == PlayerOwnState{});
     CHECK(read.Name == original.Name);
+}
+
+TEST_CASE("A joined guest's timed effects and cooldowns age until a save, and stop when it leaves", "[records][own-state]")
+{
+    using namespace std::chrono_literals;
+    CharacterRecords records;
+    PlayerRecord guest;
+    guest.Key = "guest";
+    guest.Own.Present = true;
+    guest.Own.Effects = {{GameId(0, 0xFB99A), 0, 100.f, 1440.f}, {GameId(0, 0xFB99A), 1, 100.f, 130.f}};
+    guest.Own.Cooldowns = {{GameId(0, 0xE40C8), 50.f}, {GameId(0, 0xE40C9), 500.f}};
+    const auto cReceived = CharacterRecords::Clock::time_point{} + 1000s;
+    records.Put(guest, cReceived);
+    const auto cRead = [&](CharacterRecords::Clock::time_point aNow) {
+        CharacterRecords loaded;
+        REQUIRE(loaded.Decode(records.Encode(aNow), CharacterRecords::kVersion));
+        return loaded.Find("guest")->Own;
+    };
+    // A save 60 s after the record came: the short effect and cooldown ran out, the others ran on.
+    const auto cSaved = cRead(cReceived + 60s);
+    REQUIRE(cSaved.Effects.size() == 1);
+    CHECK(cSaved.Effects[0].Elapsed == Approx(160.f));
+    REQUIRE(cSaved.Cooldowns.size() == 1);
+    CHECK(cSaved.Cooldowns[0].Seconds == Approx(440.f));
+    // Left 100 s after it came: kept as it left, however much later the host saves.
+    records.Settle("guest", cReceived + 100s);
+    const auto cAway = cRead(cReceived + 5000s);
+    REQUIRE(cAway.Effects.size() == 1);
+    CHECK(cAway.Effects[0].Elapsed == Approx(200.f));
+    CHECK(cAway.Cooldowns[0].Seconds == Approx(400.f));
+}
+
+TEST_CASE("Only the player's globals in a layout their engine loader reads within its bytes are kept", "[records][own-state]")
+{
+    // MagicFavorites: a count (36004: 1 << 2) and a form id (two varints), then an empty hotkey list.
+    const std::string cFavorites("\x04\x00\xCD\x7F\x00", 5);
+    CHECK(PlayerOwnState::GlobalReadable(PlayerOwnState::kMagicFavorites, cFavorites));
+    {
+        // As MagicFavorites::SaveGame writes it under our save hook (SaveLoad.cpp, WriteId): Flames, no keys.
+        Wire::Buffer buffer;
+        Wire::Buffer::Writer writer(&buffer);
+        const uint8_t cOne = 1 << 2, cNone = 0;
+        writer.WriteBytes(std::span(&cOne, 1));
+        Wire::Serialization::WriteVarInt(writer, 0);
+        Wire::Serialization::WriteVarInt(writer, 0x12FCD);
+        writer.WriteBytes(std::span(&cNone, 1));
+        CHECK(PlayerOwnState::GlobalReadable(PlayerOwnState::kMagicFavorites,
+                                             std::string(reinterpret_cast<const char*>(buffer.GetData()), writer.Size())));
+    }
+    CHECK_FALSE(PlayerOwnState::GlobalReadable(PlayerOwnState::kMagicFavorites, cFavorites.substr(0, 3)));
+    CHECK_FALSE(PlayerOwnState::GlobalReadable(PlayerOwnState::kMagicFavorites, std::string("\xFC\xFF", 2))); // a count of 63
+    CHECK_FALSE(PlayerOwnState::GlobalReadable(PlayerOwnState::kMagicFavorites, std::string("\x03", 1)));     // kind 3
+    // Misc stats: a u32 count, a u16-length name, a category byte, a u32 value. A name past 1023 overflows 36002's stack.
+    const std::string stat = std::string("\x01\x00\x00\x00\x04\x00", 6) + "Days" + std::string("\x00\x05\x00\x00\x00", 5);
+    CHECK(PlayerOwnState::GlobalReadable(PlayerOwnState::kMiscStats, stat));
+    std::string longName("\x01\x00\x00\x00\x00\x04", 6);
+    longName += std::string(1024 + 5, 'n');
+    CHECK_FALSE(PlayerOwnState::GlobalReadable(PlayerOwnState::kMiscStats, longName));
+    CHECK(PlayerOwnState::GlobalReadable(PlayerOwnState::kPlayerControls, std::string(6, '\0')));
+    CHECK_FALSE(PlayerOwnState::GlobalReadable(102, std::string(6, '\0')));
+
+    // A record holding another type, or a global cut short, keeps none of them.
+    PlayerOwnState state{.Present = true};
+    state.Globals = {{102, std::string(6, '\0')}, {PlayerOwnState::kMagicFavorites, cFavorites}};
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    state.Serialize(writer);
+    Wire::Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    PlayerOwnState read;
+    read.Deserialize(reader);
+    CHECK(read.Globals == std::map<uint32_t, std::string>{{PlayerOwnState::kMagicFavorites, cFavorites}});
+    Wire::Buffer::Reader cut(std::span(buffer.GetData(), 8));
+    read.Deserialize(cut);
+    CHECK(read == PlayerOwnState{});
 }
 
 TEST_CASE("An older character record has no knowledge snapshot", "[records][knowledge]")

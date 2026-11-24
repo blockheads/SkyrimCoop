@@ -1227,7 +1227,7 @@ class ReproActions:
         if check == "stays":
             return ctx.expect_actor(name, field, game, value, seconds, stays=True)
         if check == "player":  # `game`'s (or each) player_state `field` (favorite_spells, damage, ...) equals `value`
-            return ctx.expect_player(field, game, value, seconds)
+            return ctx.expect_player(field, game, value, seconds, within)
         if check == "kept":  # the host's kept record of the guest: `field` (own.favorite_items, ...) equals `value`
             return ctx.expect_kept(field, value, seconds)
         if check == "stream":
@@ -1467,13 +1467,21 @@ class ReproActions:
         return {field: got}
 
 
-    def expect_player(ctx, field, game, value, seconds=0.0):
+    def expect_player(ctx, field, game, value, seconds=0.0, within=0.0):
         """`field` of that game's player_state (its own state its save keeps: favorites, damage, timed effects, power
-        cooldowns, trainings, first person) equals `value` within `seconds`; in both games with no `game`."""
+        cooldowns, trainings, first person) equals `value` within `seconds`; in both games with no `game`. Numbers
+        (and lists of them, as damage) agree within `within`."""
         games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
         read = lambda: {label: ctx.player_command(instance, {"cmd": "player_state"}).get(field) for label, instance in games}
+        number = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
+        def agrees(seen):
+            if number(value) and number(seen):
+                return abs(seen - value) <= within
+            if isinstance(value, list) and isinstance(seen, list) and len(seen) == len(value) and all(map(number, value)):
+                return all(number(a) and abs(a - b) <= within for a, b in zip(seen, value))
+            return seen == value
         ended = time.monotonic() + seconds
-        while (got := read()) and any(seen != value for seen in got.values()):
+        while (got := read()) and not all(agrees(seen) for seen in got.values()):
             if time.monotonic() >= ended:
                 raise ctx.failure(f"player_state {field} is {got}, expected {value!r}")
             time.sleep(0.2)

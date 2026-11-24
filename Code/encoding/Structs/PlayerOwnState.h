@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 /**
@@ -24,12 +25,13 @@ struct PlayerOwnState
         bool operator==(const FavoriteItem&) const = default;
     };
 
-    // A timed effect on the player: its spell, its effect's index in it, the seconds it ran.
+    // A timed effect on the player: its spell, its effect's index in it, the seconds it ran of its duration.
     struct Effect
     {
         GameId Spell{};
         uint8_t Index{};
         float Elapsed{};
+        float Duration{};
         bool operator==(const Effect&) const = default;
     };
 
@@ -58,6 +60,11 @@ struct PlayerOwnState
     bool FirstPerson{};
 
     bool operator==(const PlayerOwnState&) const = default;
+
+    // aSeconds of play later: effects ran longer, cooldowns counted down, the finished ones gone.
+    void Age(float aSeconds) noexcept;
+    // The engine's loader for aType reads acData within its bytes (it checks no bounds: 36004, 36002, 36000 ours).
+    [[nodiscard]] static bool GlobalReadable(uint32_t aType, std::string_view acData) noexcept;
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
