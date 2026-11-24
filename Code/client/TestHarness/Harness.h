@@ -8,6 +8,7 @@
 #include "DialogueTrace.h"
 #include "EngineEvents.h"
 #include "FrameStepper.h"
+#include "FrozenActors.h"
 #include "GaitWatch.h"
 #include "InputTrace.h"
 #include "JitterWatch.h"
@@ -34,6 +35,7 @@ struct Harness
     InputTrace Inputs;
     class Actions Actions;
     FrameStepper Stepper;
+    FrozenActors Frozen;
     TerrainScan Terrain;
     Scheduled Schedule;
     bool CommandsStarted = false;

@@ -993,6 +993,22 @@ that leaves the cell takes the client's copy of it (the client's own persistent 
 (`docs/design/copy-contract.md`, "When the owner's actor goes away"). `release_host_npc` sends the host's home
 while still frozen: thawed and unloaded, its AI walks it on in jumps of ~300 units, which the copy does not follow.
 
+### A frozen actor that dies (2026-11-23)
+
+Read in IDA on 1.7.104 (41466 and 37488, comments in the database) and measured on the duo. Measured: a killed actor
+that updates sends `AddRagdollToWorld` and, about a second on, `Ragdoll`, and its life state goes from 1 (dying) to 2.
+What writes the 2 for a loaded actor is not read: of `SetLifeState`'s callers, 41311 (a calendar-stamped pass over
+the process lists, health at 0) and 41313 (after a pathing submit) are not that path; `KillImmediate` is not reached by
+the console's kill. With `kProcessMe` clear `ProcessLists::CollectAnimatedHighActors` (41466) lists the actor for no
+animation job, and `ProcessLists::UpdateHighActor` (41369) gives it `UpdateNoAI` instead of `Actor::Update`. A frozen
+actor killed by the console sent `DeathAnim` and nothing after: life state 1 for good, its skeleton in the clip's first pose at its reference, and
+its 18 ragdoll bodies keyframed (motion 4) at a constant velocity, drifting 750 units into a hillside in a minute
+(inferred: the last velocity `driveToPose` 58291 gave them; no graph update changes it). So its body never rested,
+no rest reached the guest, and the guest's copy, which updates, ragdolled and lay where its own physics put it, 129 to
+351 units off (`frozen-npc-corpse-rests-as-host`). Not a bug of the games: nobody freezes an NPC in play. Since then the
+harness thaws a frozen actor at its death (`TestHarness/FrozenActors.h`, polled each frame). `SetRestrained(false)`
+(37488) writes life state 0 only while it reads 6, so the thaw leaves a dying actor dying.
+
 
 ### Empty copied packages (2026-11-02 review, Steam 1.7.104)
 

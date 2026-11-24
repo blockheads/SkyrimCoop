@@ -614,5 +614,41 @@ class ClosesIn(unittest.TestCase):
                                                      seconds=3)["target"], "FF000800")
 
 
+class StageFrozen(unittest.TestCase):
+    """stage's `frozen` reaches a placed NPC both ways, and the handle's frozen mark follows it."""
+
+    class Ctx:
+        def __init__(self):
+            self.frozen = {}
+
+        def name_players(self):
+            pass
+
+        def scene_spot(self, index=0):
+            return [0.0, 0.0, 0.0]
+
+        def stage_host_npc(self, npc, goal=None, frozen=True):
+            self.frozen[npc] = frozen
+            return npc + 1
+
+        def freeze(self, instance, actor, frozen=True):
+            self.frozen[actor] = frozen
+
+        def name_handle(self, name, ids):
+            pass
+
+        def handles(self):
+            return {}
+
+    def test_restaged_thawed_speaker_is_not_marked_frozen(self):
+        ctx = self.Ctx()
+        repro.ReproActions.stage(ctx, {"npcs": [{"name": "arvel", "ref": "39655"}]})
+        self.assertEqual(ctx.frozen[0x39655], True)
+        self.assertIn("arvel", ctx.FROZEN_HANDLES)
+        repro.ReproActions.stage(ctx, {"npcs": [{"name": "arvel", "ref": "39655", "frozen": False}]})
+        self.assertEqual(ctx.frozen[0x39655], False)
+        self.assertNotIn("arvel", ctx.FROZEN_HANDLES)
+
+
 if __name__ == "__main__":
     unittest.main()
