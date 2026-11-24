@@ -4,6 +4,7 @@
 #include <Messages/CrimeMessages.h>
 #include <Messages/NotifyTimeScale.h>
 #include <Messages/NotifyWeatherChange.h>
+#include <Messages/WeatherRegionRequest.h>
 #include <Messages/SharedDialogue.h>
 #include <Messages/TimeScaleRequest.h>
 #include <Messages/WorldState.h>
@@ -216,6 +217,7 @@ TEST_CASE("Every store answers a joiner", "[HostAuthority][Join]")
     session.Receive(kHost, ControlsCall(CallControls::kTakes));
     session.Receive(kHost, Waypoint());
     Conversation(session);
+    session.Receive(kPeer, WeatherRegionRequest{}); // its first report: no region
     session.Outbox.clear();
 
     Arrive(session, kPeer);

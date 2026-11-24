@@ -45,15 +45,16 @@ float SteerSeconds(float aLastFrameSeconds) noexcept
     return std::clamp(1.5f * aLastFrameSeconds, kSteerSeconds, 0.5f);
 }
 
-float SteerSeconds(const BodyFrame& acTarget, float aLastFrameSeconds) noexcept
+Velocities Follow(const glm::vec3& acPosition, const glm::quat& acRotation, const BodyFrame& acTarget, float aLastFrameSeconds) noexcept
 {
-    constexpr float cSlowest = 0.5f, cSlow = 10.f, cReach = 50.f; // a spin counts as its speed 50 units out
-    const float cPace = std::max(glm::length(acTarget.LinearVelocity), glm::length(acTarget.AngularVelocity) * cReach);
-    // Never as stiff as a ragdoll's: knocked from rest it starts about 10 units behind its owner's, and made up in 50 ms
-    // it ran 10 to 15% faster than the owner's ever did.
-    constexpr float cStiffest = 0.15f;
-    const float cStiff = std::max(SteerSeconds(aLastFrameSeconds), cStiffest);
-    return cPace <= cSlow ? cSlowest : std::clamp(cSlowest * cSlow / cPace, cStiff, cSlowest);
+    // A free fall's arc is the same in every game: joined with its own speed.
+    if (acTarget.Gravity)
+        return Steer(acPosition, acRotation, acTarget, std::max(SteerSeconds(aLastFrameSeconds), 0.1f));
+    // On the ground it heads for where its authority had it and no further: carried on by the target's own speed, it
+    // ran ahead of a body slowing down and came back (0.3 to 0.5 units at every stop).
+    BodyFrame there = acTarget;
+    there.LinearVelocity = there.AngularVelocity = {};
+    return Steer(acPosition, acRotation, there, SteerSeconds(aLastFrameSeconds));
 }
 
 bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocity, float aSeconds, float aGravity) noexcept

@@ -38,7 +38,9 @@ public:
     void SetPartyThreats(const PartyThreat::State& acState) const noexcept;
 
     // The weather the game shows; none for no sky, or the world map's own.
-    [[nodiscard]] std::optional<GameId> ReadWeather() const noexcept;
+    [[nodiscard]] std::optional<HostSky> ReadWeather() const noexcept;
+    // The region's own weather (TESRegion, weather.md); none for no such region or one without weathers.
+    [[nodiscard]] std::optional<GameId> RegionWeather(const GameId& acRegion) const noexcept;
     // What this game's NPCs see of that character's copy (StealthEye::Read); none when its copy is not loaded.
     [[nodiscard]] std::optional<DetectionRules::EyeReading> ReadEye(uint32_t aSessionId) const noexcept;
     // Every global but the constants; the calendar's are marked.
@@ -55,7 +57,8 @@ public:
     // A world script's event on an object, kept for the others: it activated a door (by a reference) or played an
     // animation on it; or a container's items changed (not an actor's).
     void RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept;
-    void RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent) noexcept;
+    // aPullerFormId: the player whose pull of a lever furniture it was (its own game played it), else 0.
+    void RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent, uint32_t aPullerFormId = 0) noexcept;
     void RecordItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept;
     // A guest's activation, run by its player's copy (TESObjectREFR::ActivateRef 19796, our hook passing it by).
     void Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) noexcept;
@@ -83,13 +86,13 @@ public:
     // Since the last call: each reference the game created, the state of each one the funnel saw change, the
     // physics objects that came to rest, the records that lost rows, then the scripts' events in order.
     [[nodiscard]] std::vector<ObjectChange> TakeObjectChanges() noexcept;
-    // HostGame::FollowBodies.
-    void FollowBodies(const std::vector<BodyKey>& acKeys) noexcept;
+    // HostGame::TakeTouches: the bodies the host's player pushed or hit (PlayerHands).
+    [[nodiscard]] std::vector<BodyKey> TakeTouches() noexcept;
     // The references TakeObjectChanges saw the game itself move (CHANGE_REFR_MOVE: a script, the console) since the last call.
     [[nodiscard]] std::vector<std::pair<GameId, glm::vec3>> TakePlaced() noexcept { return std::exchange(m_placed, {}); }
     // The physics bodies physics moves: the awake ones read now, and those that fell asleep (HostGame::TakeBodies); an
     // actor's ragdoll by its session id (aSessionOf: 0 for an actor the guests do not have).
-    [[nodiscard]] HostBodies TakeBodies(uint64_t aTick, const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept;
+    [[nodiscard]] HostBodyReads TakeBodies(uint64_t aTick, const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept;
     // A created container's contents (HostGame::ReadContents), its leveled entries rolled first.
     [[nodiscard]] std::optional<ObjectChange> ReadContents(const GameId& acObject) const noexcept;
     // Every row of each reference in the cell that this game, or a guest's (acChanged), holds changes for, then each

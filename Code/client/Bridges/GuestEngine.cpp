@@ -195,6 +195,9 @@ GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
     m_bodyBridge.SetReferences([this](const GameId& acId) {
         const TESObjectREFR* pObject = FindReference(acId);
         return pObject ? pObject->formID : 0u;
+    }, [this](uint32_t aFormId) {
+        const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+        return pObject ? HostIdOf(*pObject) : std::nullopt;
     });
     PlayerCharacter::SetPickUpGate([this](TESObjectREFR& aObject) { return IsPartyItem(aObject); });
     ContainerEvents::Start();
@@ -214,7 +217,7 @@ GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
 
 GuestEngine::~GuestEngine() noexcept
 {
-    m_bodyBridge.SetReferences({});
+    m_bodyBridge.SetReferences({}, {});
     PlayerCharacter::SetPickUpGate({});
     // The host's created objects go with the session: a next one makes them again.
     World::Get().ctx().at<CreatedIds>().Clear();
@@ -256,21 +259,33 @@ bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
     Sky* pSky = Sky::Get();
     if (!pWeather || !pSky)
         return pWeather != nullptr;
-    // The game changes its weather in many places (no single SetWeather): put the host's back whenever it did.
+    // The game changes its weather in many places (no single SetWeather): hold it as the forced one, faded into.
     const TESWeather* pShown = pSky->GetWeather();
-    if (pShown != pWeather && !(pShown && pShown->formID == Sky::kWorldMapWeather))
+    if (pSky->pOverrideWeather != pWeather && !(pShown && pShown->formID == Sky::kWorldMapWeather))
     {
         Breadcrumbs::Record("HoldWeather", pWeather->formID);
-        pSky->ForceWeather(pWeather);
+        spdlog::info("HoldWeather: {:X} again (showing {:X}, fading out {:X}, forced {:X})", pWeather->formID,
+                     pShown ? pShown->formID : 0, pSky->pLastWeather ? pSky->pLastWeather->formID : 0,
+                     pSky->pOverrideWeather ? pSky->pOverrideWeather->formID : 0);
+        pSky->FadeTo(pWeather, true);
     }
+    // Held, it never ages out (Sky's UpdateWeather hook; dropped mid-fade, where 26231 starts no change, set again here).
+    Sky::s_pHeldWeather = pWeather;
     return true;
 }
 
 void GuestEngine::ReleaseWeather() noexcept
 {
     Breadcrumbs::Record("ReleaseWeather", 0);
+    Sky::s_pHeldWeather = nullptr;
     if (Sky* pSky = Sky::Get())
         pSky->ReleaseWeatherOverride();
+}
+
+GameId GuestEngine::ReadWeatherRegion() const noexcept
+{
+    const TESRegion* pRegion = Sky::PlayerWeatherRegion();
+    return pRegion ? ToSession(pRegion->formID).value_or(GameId{}) : GameId{};
 }
 
 void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
@@ -582,18 +597,10 @@ void GuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
     pPlayer->AddOrRemoveItem(acGrant.Item);
 }
 
-bool GuestEngine::RestsThere(const ObjectChange& acMove) noexcept
+bool GuestEngine::HasLiveBody(const GameId& acObject) noexcept
 {
-    float pose[6];
-    TESObjectREFR* pObject = acMove.Object.ModId == ObjectChange::kCreatedModId ? nullptr : FindReference(acMove.Object);
-    if (!pObject || acMove.Data.size() != sizeof(pose) || !pObject->GetNiNode() || ReferenceBodies::ReadFrames(*pObject).empty())
-        return false;
-    std::memcpy(pose, acMove.Data.data(), sizeof(pose));
-    for (int axis = 0; axis < 3; ++axis)
-        if (std::abs(pObject->position[axis] - pose[axis]) > ReferenceBodies::kSameDistance ||
-            std::abs(pObject->rotation[axis] - pose[3 + axis]) > ReferenceBodies::kSameAngle)
-            return false;
-    return true;
+    TESObjectREFR* pObject = FindReference(acObject);
+    return pObject && pObject->GetNiNode() && !ReferenceBodies::ReadFrames(*pObject).empty();
 }
 
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept

@@ -1,4 +1,5 @@
 """The duo's comparison must catch state differences without mistaking inventory delta bookkeeping for contents."""
+import math
 import unittest
 import copy
 
@@ -302,6 +303,26 @@ class Smoothness(unittest.TestCase):
     def test_message_bytes_per_second(self):
         perf = {"messages": {"window_s": 2.0, "top": [{"name": "ReferencesMoveRequest", "way": "o", "count": 60, "bytes": 7200}]}}
         self.assertEqual(smoothness.message_bytes(perf)["ReferencesMoveRequest o"], {"bytes_s": 3600, "count_s": 30.0, "bytes_each": 120.0})
+
+    @staticmethod
+    def posed(frames, feet_at, yaw_at=lambda f: 0.0):
+        """A drawn actor running along x, its left foot at feet_at(frame) ahead of its root (its heading's forward)."""
+        rows = []
+        for f in range(frames):
+            x, yaw = 5.0 * f, yaw_at(f)
+            ahead = lambda units: [x + units * math.sin(yaw), units * math.cos(yaw), 0.0]
+            rows.append({"f": f, "time": f / 60, "dt": 16.7, "pos": [x, 0.0, 0.0], "yaw": yaw, "root": [x, 0.0, 0.0],
+                         "cull": [True, 7, True], "feet": [ahead(feet_at(f)), ahead(0.0)]})
+        return rows
+
+    def test_frozen_feet_count_as_held_however_long(self):
+        self.assertEqual(smoothness.pose_steps(self.posed(300, lambda f: 3.0 * f))["held"], 0.0)
+        found = smoothness.pose_steps(self.posed(840, lambda f: 3.0 * min(f, 240)))
+        self.assertGreater(found["held"], 0.7)
+
+    def test_a_turn_alone_moves_no_feet(self):
+        found = smoothness.pose_steps(self.posed(120, lambda f: 20.0, lambda f: 0.1 * f))
+        self.assertEqual(found["held"], 1.0)
 
 
 if __name__ == "__main__":

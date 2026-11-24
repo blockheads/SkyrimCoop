@@ -215,14 +215,24 @@ bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) no
     const auto holds = [&](const GameId& acSpell, uint32_t aSlot) {
         return !cLoaded || EquipmentRepair::HandHolds(ToGame(acSpell), m_actorBridge.GetEquippedWeaponFormId(cActorFormId, aSlot));
     };
-    // A worn weapon or torch in the hand too: 418622 empties the process's hands (39811-39813) and leaves worn flags.
+    // A worn weapon or torch in each hand it is held in (a two-hander both): 418622 empties the hands and leaves worn
+    // flags. docs/re/systems/hand-slots.md.
     const auto cHandsHoldWorn = [&] {
         if (!cLoaded)
             return true;
+        // The left hand held by something else worn: a torch, a left weapon or a left-hand spell.
+        bool leftTaken = static_cast<bool>(cWantedMagic.LeftHandSpell);
         for (const auto& [cId, cLeft] : cWanted)
-            if (const auto cHand = EquipmentRepair::HandOf(m_formBridge.GetFormType(cId), cLeft))
-                if (m_actorBridge.GetEquippedWeaponFormId(cActorFormId, *cHand) != cId)
+            if (!m_formBridge.IsTwoHandedWeapon(cId) &&
+                EquipmentRepair::HandsOf(m_formBridge.GetFormType(cId), cLeft) == EquipmentRepair::kLeftHandBit)
+                leftTaken = true;
+        for (const auto& [cId, cLeft] : cWanted)
+        {
+            const uint8_t cHands = EquipmentRepair::HandsOf(m_formBridge.GetFormType(cId), cLeft, m_formBridge.IsTwoHandedWeapon(cId), leftTaken);
+            for (uint32_t hand = 0; hand < 2; ++hand)
+                if ((cHands & (1u << hand)) && m_actorBridge.GetEquippedWeaponFormId(cActorFormId, hand) != cId)
                     return false;
+        }
         return true;
     };
     const auto cHandsAgree = [&](const Inventory& acNow) {
@@ -231,6 +241,9 @@ bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) no
                holds(cWantedMagic.LeftHandSpell, 0) && holds(cWantedMagic.RightHandSpell, 1) && cHandsHoldWorn();
     };
     const bool cSameHands = cHandsAgree(cEquipment);
+    if (cLoaded && !cHandsHoldWorn())
+        spdlog::info("Equipment reconcile {:X}: hands [{:X}, {:X}] hold less than its worn set", cActorFormId,
+                     m_actorBridge.GetEquippedWeaponFormId(cActorFormId, 0), m_actorBridge.GetEquippedWeaponFormId(cActorFormId, 1));
 
     EquipmentRepair::Apply(cWanted, [&] { return worn(m_formBridge.GetActorEquipment(cActorFormId)); }, cSameHands,
         [&] {
@@ -246,11 +259,13 @@ bool InventoryService::ApplyWorn(uint32_t aFormId, const Inventory& acWanted) no
                     CarryForEquip(cActorFormId, cEntry.BaseId);
                     break;
                 }
-            m_formBridge.ActorEquipItem(cActorFormId, aItemId, EquipmentRepair::EquipSlot(m_formBridge.GetFormType(aItemId), aLeft), 1);
+            m_formBridge.ActorEquipItem(cActorFormId, aItemId,
+                                        EquipmentRepair::EquipSlot(m_formBridge.GetFormType(aItemId), aLeft, m_formBridge.IsTwoHandedWeapon(aItemId)), 1);
         },
         [&](uint32_t aItemId, bool aLeft) {
             if (m_formBridge.FormExists(aItemId))
-                m_formBridge.ActorUnequipItem(cActorFormId, aItemId, EquipmentRepair::EquipSlot(m_formBridge.GetFormType(aItemId), aLeft), 1);
+                m_formBridge.ActorUnequipItem(cActorFormId, aItemId,
+                                              EquipmentRepair::EquipSlot(m_formBridge.GetFormType(aItemId), aLeft, m_formBridge.IsTwoHandedWeapon(aItemId)), 1);
         });
     // The selected shout or power (EquipShout): no worn flag, apart from the worn set.
     const GameId cShout = m_formBridge.GetActorEquipment(cActorFormId).CurrentMagicEquipment.Shout;

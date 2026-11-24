@@ -3,14 +3,18 @@
 
 #include <Bridges/IBodyBridge.h>
 
+#include <Bridges/ReferenceBodies.h>
 #include <FormIds.h>
+#include <Games/Skyrim/PlayerHands.h>
 #include <TESObjectREFR.h>
 
 #include <RTTI.h>
 
-HostBodies HostEngine::TakeBodies(uint64_t aTick, const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept
+#include <algorithm>
+
+HostBodyReads HostEngine::TakeBodies(uint64_t aTick, const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept
 {
-    HostBodies bodies;
+    HostBodyReads bodies;
     const auto cOwner = [&](const PhysicsBodies::Bodies& acBodies) -> std::optional<BodyKey> {
         if (acBodies.Actor)
         {
@@ -44,9 +48,19 @@ HostBodies HostEngine::TakeBodies(uint64_t aTick, const std::function<uint32_t(u
     return bodies;
 }
 
-void HostEngine::FollowBodies(const std::vector<BodyKey>& acKeys) noexcept
+std::vector<BodyKey> HostEngine::TakeTouches() noexcept
 {
-    for (const BodyKey& cKey : acKeys)
-        if (const uint32_t cFormId = cKey.Actor ? 0 : m_bodyBridge.ReferenceFormId(cKey))
-            (void)m_bodies.Follow(cFormId);
+    std::vector<BodyKey> keys;
+    auto pushes = PlayerHands::Take();
+    const auto cHits = PlayerHands::TakeHits();
+    pushes.insert(pushes.end(), cHits.begin(), cHits.end());
+    for (const auto& cPush : pushes)
+    {
+        auto* pObject = cPush.Impulse == glm::vec3(0.f) ? nullptr : Cast<TESObjectREFR>(TESForm::GetById(cPush.Object));
+        const auto cId = pObject && IsShared(pObject->formID) ? ToSessionOrCreated(pObject->formID) : std::nullopt;
+        const auto cIndex = cId ? ReferenceBodies::IndexOf(*pObject, cPush.pBody) : std::nullopt;
+        if (cIndex && std::ranges::find(keys, BodyKey{.Object = *cId, .Index = *cIndex}) == keys.end())
+            keys.push_back({.Object = *cId, .Index = *cIndex});
+    }
+    return keys;
 }

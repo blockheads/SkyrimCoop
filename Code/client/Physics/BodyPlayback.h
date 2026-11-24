@@ -8,20 +8,15 @@
 #include <optional>
 #include <vector>
 
-// A guest's playback of the host's bodies (docs/design/physics-sync.md, "How a guest applies it"), at a time behind
-// the host's. Each body shows the host's guess from its last frame (BodyPrediction), and:
-//
-//   next frame here early   blended into it, arriving on it when it is due (the guest is behind: the usual case)
-//   a frame came late       its correction (where the old guess was) blended out over kBlendMs instead of a jump
-//   first frame             blended from where this game showed it (StartFrom: its own physics moved it first)
-//   rest                    blended into like a frame, then placed exactly, once
-//
+// The target each body another game simulates is steered to, at a time behind the sender's
+// (docs/design/physics-authority-plan.md, piece 4): between the two states around that time, on the curve through
+// both with their speeds, never a guess past them. The next one not here: a free fall's arc is guessed on
+// (BodyPrediction), a body on the ground coasts kCoastMs. A rest is handed over once it is due.
 // No engine: ClientTests.
 class BodyPlayback
 {
 public:
-    // How long a correction takes to blend in, and how long a body without frames or a rest is followed.
-    static constexpr uint64_t kBlendMs = 100;
+    // How long a body without frames or a rest is followed.
     static constexpr uint64_t kLostMs = 2000;
 
     struct Pose
@@ -38,8 +33,6 @@ public:
     };
 
     void Add(uint64_t aTick, const std::vector<BodyFrame>& acFrames) noexcept;
-    // A body not played yet starts from where this game shows it (its own physics moved it), blended out over kBlendMs.
-    void StartFrom(const BodyPose& acShown) noexcept;
     [[nodiscard]] bool Has(const BodyKey& acKey) const noexcept { return m_tracks.contains(acKey); }
     void Rest(uint64_t aTick, const std::vector<BodyPose>& acRests) noexcept;
     // A reference's body has a rest queued, not shown yet: that rest places it, not its move row.
@@ -58,6 +51,8 @@ public:
     void Forget(const BodyKey& acKey) noexcept;
     // A release already applied locally: queued older frames must not restart its playback.
     void ForgetUntil(const BodyKey& acKey, uint64_t aTick) noexcept;
+    // ForgetUntil undone: a state from before it plays.
+    void Reopen(const BodyKey& acKey) noexcept { m_ended.erase(acKey); }
     // The bodies left since the last call: no frame for kLostMs and no rest.
     [[nodiscard]] std::vector<Lost> TakeLost() noexcept;
     [[nodiscard]] size_t Count() const noexcept { return m_tracks.size(); }
@@ -67,19 +62,12 @@ private:
     {
         std::deque<std::pair<uint64_t, BodyFrame>> Frames; // ascending; the first is the one shown
         std::optional<std::pair<uint64_t, BodyPose>> Rest;
-        // The shown frame's start: where the last frame's guess was then, blended out over kBlendMs (a frame that
-        // came too late to blend toward).
-        glm::vec3 Offset{};
-        glm::quat RotationOffset{1.f, 0.f, 0.f, 0.f};
-        bool Started{};
-        uint64_t Toward{}; // since then the next frame (or the rest) is known: shown blending into it, 0 not yet
-        std::optional<BodyPose> From; // where this game showed it before its first frame
         uint32_t Received{}; // frames since the last rest
 
         // Its rest once due (the frames before it dropped), once.
         [[nodiscard]] std::optional<Pose> TakeRest(uint64_t aTick) noexcept;
         // To the newest frame due at aTick.
-        void Advance(uint64_t aTick, float aGravity) noexcept;
+        void Advance(uint64_t aTick) noexcept;
         [[nodiscard]] bool Showing(uint64_t aTick) const noexcept { return !Frames.empty() && Frames.front().first <= aTick; }
         [[nodiscard]] bool IsLost(uint64_t aTick) const noexcept { return Frames.size() == 1 && aTick - Frames.front().first > kLostMs && !Rest; }
         // Where it shows at aTick, from the frame shown.

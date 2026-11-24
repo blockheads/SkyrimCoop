@@ -60,6 +60,26 @@ nlohmann::json EquippedItems(uint32_t aFormId)
     return items;
 }
 
+// Why stamina does or doesn't regenerate (EngineReads::StaminaRegen).
+nlohmann::json StaminaRegen(uint32_t aFormId)
+{
+    const auto cRegen = EngineReads::GetStaminaRegen(aFormId);
+    if (!cRegen)
+        return nullptr;
+    return {{"delay", cRegen->Delay}, {"damaged", cRegen->Damaged}, {"rate", cRegen->Rate},
+            {"sprinting", cRegen->Sprinting}, {"bow_zoomed", cRegen->BowZoomed}};
+}
+
+// The worn stacks marked WornLeft (ExtraWornLeft): 24736 holds a WornLeft torch or weapon left, a Worn one right.
+nlohmann::json WornLeftItems(uint32_t aFormId)
+{
+    auto items = nlohmann::json::array();
+    for (const auto& entry : World::Get().GetFormBridge().GetActorEquipment(aFormId).Entries)
+        if (entry.ExtraWornLeft)
+            items.push_back(ToGame(entry.BaseId));
+    return items;
+}
+
 // Spell being cast per casting source: [left hand, right hand, other, instant].
 nlohmann::json CastingSpells(uint32_t aFormId)
 {
@@ -309,8 +329,9 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
                     {"stamina", actors.GetActorValue(aFormId, 26)},
                     {"max_health", actors.GetActorPermanentValue(aFormId, 24)},
                     {"max_magicka", actors.GetActorPermanentValue(aFormId, 25)},
-                    {"max_stamina", actors.GetActorPermanentValue(aFormId, 26)}}},
+                    {"max_stamina", actors.GetActorPermanentValue(aFormId, 26)}, {"stamina_regen", StaminaRegen(aFormId)}}},
         {"equipment", EquippedItems(aFormId)},
+        {"worn_left", WornLeftItems(aFormId)},
         {"effects", ActiveEffects(aFormId)},
         {"visuals", EngineReads::GetPlayingVisualFormIds(aFormId)},
         {"animation", {{"event", latest.EventName.c_str()}, {"target_event", latest.TargetEventName.c_str()},

@@ -72,12 +72,22 @@ copy's graph update (63587 hook, its animation job):
     write every variable that differs from the op's, and the seed
     event: its clip files first (ActionClips::Request; hold the queue, at most 120 updates), then SendEvent (63591)
     update: the real 63587 with the op's step, interpolation off (not forced: engine LOD and foot IK)
-  behind: several updates in this frame; nothing due: no update (the graph holds its pose)
+  behind: several updates in this frame; nothing due: no update
+  each generate pass's pose kept with its update's tick (PoseTimeline, the last 6); the pose shown is the two kept
+  around playback - 1.5 owner update spacings blended, written into the newer output (2026-11-23)
   kept out: the copy's own SendEvent calls, LoadState calls but its own, its channels (overwritten by the op's words)
 ```
 
 - **Playback, not the graph's own time:** ops are placed by their owner's tick, so a copy runs as far behind its owner
   as its movement does, and its graph's time follows the owner's steps (what action spacing approximated).
+- **A pose every frame (2026-11-23):** owners step once a frame; a copy runs every update due by its playback, which
+  with both games' frames jittering apart (16.5-24 ms on the duo) is none in some frames and two in the next (5-23 %
+  of frames). The graph stays on playback (its actions and body go by it: a graph ahead took a ragdoll input before its
+  body went down), and what is drawn is blended between the two generated poses around a time that moves on
+  with the copy's frames, 1.5 owner frames behind playback (about 25 ms), as the engine blends a far graph's two poses
+  (63581, [actor-movement.md](../re/systems/actor-movement.md#a-copys-pose-between-its-owners-updates-2026-11-23)).
+  It holds at mismatched frame rates too (GameTests: a 60 fps copy of a 50 fps owner). Tried first and dropped: pacing one
+  update a frame, which only helped while both games' frames were steady.
 - **Catch-up cost:** several updates in a frame cost what several frames do; capped (say 4 a frame), with a sync point
   when a copy falls further behind than 0.5 s.
 

@@ -645,6 +645,30 @@ then the narrowphase agent is made in the merged island's track (+0x98)
   out of the world, then `hkpEntity::Activate` (60849) on its body under the world's write lock; nothing writes a
   velocity.
 
+## What a body touches (read in IDA on 1.7.104, 2026-11-23)
+
+`hkpWorldAgentUtil::addAgent` (62193) ends in `hkAgentNnMachine_CreateAgent` (64648, our name from Havok 2010's),
+which makes the pair's agent entry (+0x18 and +0x20 its two collidables) and appends it to both bodies'
+`hkpLinkedCollidable` collision entries: collidable +0x70 data, +0x78 count, 16 bytes each (agent entry, partner
+collidable). From a rigid body that is +0x90 and +0x98 (its collidable sits at +0x20). So a body's entries are the
+bodies whose AABBs overlap it and the filter (78553) let through: the pairs that merged its island, without the
+small islands `cleanupDirtyIslands` (61522) merges that never touch. Not read: where an entry is removed. Used by
+`BodyBridge::ReadTouching` (`TouchingOf`); an overlap is not a touch, so a paired body is taken only once it moves
+(`PairedPoses`; measured on the duo 2026-11-23: a held bottle on Orgnar's bar paired with every bottle beside it).
+
+A rest put awake on a body the game left asleep in a pose it cannot hold awake falls (measured 2026-11-23, the
+Sleeping Giant's rack weapons on the guest). Why is inferred, not read: our island sleep (`DeactivateIsland`) skips the
+body's own stillness, so it reports asleep, and Havok's last test (62264, "When an island sleeps") can wake the island
+again. Such a rest (placed by the host's game: `BodyState::Placed`) is held there instead: keyframed, then 60908 without
+activation (`HoldAt`), each update until read asleep there, since a moving neighbour refuses the island's sleep (ours:
+`DeactivateIsland`; that this is the rack's case is inferred).
+
+A mask on Orgnar's back snapped on the guest (a playtest, 2026-11-23): not reproduced. The scenario that stood for it
+dropped a basket (`601A5`) that slid off him or was put inside his head, and its measurements are dropped. Read: an NPC's
+capsule can be a rigid body (`bhkCharRigidBodyController` 79206), which a turn activates (62458: its angular velocity set when
+it changes). Measured, Orgnar leaning on his bar: his copy's animated
+bodies (motion 4) are 2 to 4 units higher in the chest, its feet and hands 5 to 13 off the host's; not tied to the mask.
+
 ## A body put into a capsule creeps out (read in IDA on 1.7.104, measured 2026-11-22)
 
 `hkpCharacterProxy`'s push of the bodies in its manifold (62648, named `hkpCharacterProxy__updateRigidBodyInteractions`

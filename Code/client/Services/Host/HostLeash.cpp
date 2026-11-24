@@ -23,8 +23,21 @@ void HostLeash::Send(ConnectionId_t aPlayer, NotifyLeash::Kind aState) const noe
     m_network.Send(aPlayer, notify, Net::kReliable);
 }
 
+void HostLeash::SetOn(bool aOn) noexcept
+{
+    m_on = aOn;
+    if (aOn)
+        return;
+    for (const auto& [cPlayer, cLeash] : m_out)
+        if (cLeash.Told && !cLeash.Sent)
+            Send(cPlayer, NotifyLeash::Kind::kOff);
+    m_out.clear();
+}
+
 void HostLeash::Update(double aDelta) noexcept
 {
+    if (!m_on)
+        return;
     const ConnectionId_t cHost = m_players.Host();
     const auto cHostAt = m_characters.OutdoorsAt(cHost);
     for (const ConnectionId_t cPlayer : m_players.Connections())

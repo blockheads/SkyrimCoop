@@ -1014,8 +1014,9 @@ std::vector<CellObject> GetCellObjects() noexcept
     std::vector<CellObject> objects;
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     if (TESObjectCELL* pCell = pPlayer ? pPlayer->GetParentCellEx() : nullptr)
-        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container, FormType::Furniture}))
-            objects.push_back({pRef->formID, {pRef->position.x, pRef->position.y, pRef->position.z}});
+        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container, FormType::Furniture, FormType::Activator}))
+            objects.push_back({pRef->formID, {pRef->position.x, pRef->position.y, pRef->position.z}, pRef->baseForm ? pRef->baseForm->formID : 0,
+                               pRef->baseForm && pRef->baseForm->formType == FormType::Activator, pRef->IsActivatorFurniture()});
     return objects;
 }
 
@@ -1260,6 +1261,15 @@ std::optional<std::vector<uint32_t>> ResetWornToOutfit(uint32_t aFormId) noexcep
     return worn;
 }
 
+bool Reset3D(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    pActor->DoReset3D(false);
+    return true;
+}
+
 void UnequipAllUnsynced(uint32_t aFormId) noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
@@ -1426,12 +1436,12 @@ std::optional<std::vector<Inventory::Entry>> GetItemStacks(uint32_t aObjectFormI
     return stacks;
 }
 
-bool GiveItem(const Inventory::Entry& acItem) noexcept
+bool GiveItem(const Inventory::Entry& acItem, uint32_t aHolderFormId) noexcept
 {
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (!pPlayer || !Cast<TESBoundObject>(TESForm::GetById(ToGame(acItem.BaseId))))
+    auto* pHolder = aHolderFormId ? Cast<TESObjectREFR>(TESForm::GetById(aHolderFormId)) : PlayerCharacter::Get();
+    if (!pHolder || !pHolder->GetContainer() || !Cast<TESBoundObject>(TESForm::GetById(ToGame(acItem.BaseId))))
         return false;
-    pPlayer->AddOrRemoveItem(acItem);
+    pHolder->AddOrRemoveItem(acItem);
     return true;
 }
 
@@ -2504,6 +2514,12 @@ void ForcePlayerFirstPerson() noexcept
     POINTER_SKYRIMSE(TForceFirstPerson, s_forceFirstPerson, 50790); // PlayerCamera::ForceFirstPerson
     if (void* pCamera = *camera.Get())
         s_forceFirstPerson(pCamera);
+}
+
+void ForcePlayerThirdPerson() noexcept
+{
+    if (PlayerCamera* pCamera = PlayerCamera::Get())
+        pCamera->ForceThirdPerson();
 }
 
 std::optional<std::array<float, 3>> ReferencePlace(uint32_t aFormId) noexcept

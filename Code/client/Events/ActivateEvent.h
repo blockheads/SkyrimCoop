@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 /**
  * @brief In-game activation (i.e. interacting with an object), as the hook on TESObjectREFR::Activate read it.
@@ -14,4 +15,6 @@ struct ActivateEvent
     uint32_t ObjectParentCellFormId{0};
     // A door's TESObjectREFR::OpenState before a script's activation (HostService: a guest's door toggles only from it).
     uint8_t PreActivationOpenStateValue{0};
+    // This game's player pulled a lever furniture: the event its graph gets (TESFurniture::Activate 17420).
+    std::string FurnitureEvent;
 };

@@ -1,5 +1,6 @@
 #include <Bridges/PlacedByGame.h>
 #include <Bridges/HostEngine.h>
+#include <Games/Skyrim/PlayerHands.h>
 #include <Games/Skyrim/StealthEye.h>
 #include <Papyrus/SystemQuests.h>
 #include <MainLoopTasks.h>
@@ -257,7 +258,9 @@ HostEngine::HostEngine(IBodyBridge& aBodies) noexcept
     m_bodyBridge.SetReferences([this](const GameId& acId) {
         const uint32_t cFormId = acId.ModId == ObjectChange::kCreatedModId ? 0xFF000000 | acId.BaseId : ToGame(acId);
         return cFormId && IsShared(cFormId) ? cFormId : 0u;
-    });
+    }, [this](uint32_t aFormId) { return IsShared(aFormId) ? ToSessionOrCreated(aFormId) : std::nullopt; });
+    // The host's player's pushes and hits take bodies too (HostBodies).
+    PlayerHands::Watch(true);
     if (!FormChanges::Watch(&OnFormChange))
         spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
     FollowerTargets::Start();
@@ -275,7 +278,8 @@ HostEngine::HostEngine(IBodyBridge& aBodies) noexcept
 
 HostEngine::~HostEngine() noexcept
 {
-    m_bodyBridge.SetReferences({});
+    m_bodyBridge.SetReferences({}, {});
+    PlayerHands::Watch(false);
     m_bodyBridge.ForgetAll();
     ModManager::WatchCreated(nullptr);
     FormChanges::Unwatch(&OnFormChange);
@@ -293,13 +297,32 @@ HostEngine::~HostEngine() noexcept
     GlobalEvents::Stop();
 }
 
-std::optional<GameId> HostEngine::ReadWeather() const noexcept
+std::optional<HostSky> HostEngine::ReadWeather() const noexcept
 {
     const Sky* pSky = Sky::Get();
     const TESWeather* pWeather = pSky ? pSky->GetWeather() : nullptr;
     if (!pWeather || pWeather->formID == Sky::kWorldMapWeather)
         return std::nullopt;
-    return ToSession(pWeather->formID);
+    const auto cWeather = ToSession(pWeather->formID);
+    if (!cWeather)
+        return std::nullopt;
+    const TESRegion* pRegion = Sky::PlayerWeatherRegion();
+    // Forced: a script's or the console's, overriding, or set and the region not read since (weather.md).
+    const bool cForced = pSky->pOverrideWeather || (Sky::s_pSetWeather == pWeather && !pRegion);
+    return HostSky{.Weather = *cWeather, .Forced = cForced,
+                   .Region = pRegion ? ToSession(pRegion->formID).value_or(GameId{}) : GameId{}};
+}
+
+std::optional<GameId> HostEngine::RegionWeather(const GameId& acRegion) const noexcept
+{
+    auto* pRegion = Cast<TESRegion>(TESForm::GetById(ToGame(acRegion)));
+    Sky* pSky = Sky::Get();
+    if (!pRegion || !pSky)
+        return std::nullopt;
+    // Set on each change of the shown weather (26231); none yet since the load: as that change would.
+    if (!pRegion->pCurrentWeather && pSky->GetWeather())
+        pRegion->SetCurrentWeather(pSky->GetWeather());
+    return pRegion->pCurrentWeather ? ToSession(pRegion->pCurrentWeather->formID) : std::nullopt;
 }
 
 std::optional<DetectionRules::EyeReading> HostEngine::ReadEye(uint32_t aSessionId) const noexcept
@@ -393,7 +416,7 @@ void HostEngine::RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFor
     m_events.push_back(std::move(event));
 }
 
-void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent) noexcept
+void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent, uint32_t aPullerFormId) noexcept
 {
     const auto cObject = ToSessionOrCreated(aObjectFormId);
     if (!cObject)
@@ -401,6 +424,7 @@ void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAn
     ObjectChange event{ObjectChange::Kind::kAnimation, *cObject};
     event.Animation = acAnimation;
     event.Event = acEvent;
+    event.Value = aPullerFormId ? Utils::GetSessionIdByFormId(aPullerFormId).value_or(0) : 0;
     m_events.push_back(std::move(event));
 }
 
@@ -445,7 +469,16 @@ void HostEngine::Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aAct
         return;
     }
     Breadcrumbs::Record("HostEngine::Activate", cObjectId, pActor->formID);
+    // A lever furniture moves only for this game's player (TESFurniture::Activate 17420): its pull, picked first.
+    const std::string cPull = pObject->PickActivatorFurnitureEvent(*pActor, false);
     pObject->Activate(pActor, 0, nullptr, 1, 0);
+    if (cPull.empty())
+        return;
+    BSFixedString event(cPull.c_str());
+    pObject->SendAnimationEvent(&event);
+    event.Release();
+    RecordAnimation(cObjectId, {}, cPull, pActor->formID);
+    spdlog::info("HostEngine: {:X} pulled by {:X}'s copy: '{}'", cObjectId, pActor->formID, cPull);
 }
 
 void HostEngine::Summon(uint32_t aCasterId, const SummonRequest& acSummon) noexcept

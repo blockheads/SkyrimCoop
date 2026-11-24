@@ -8,9 +8,10 @@
 #include <Hooks/Initializer.h>
 #include <Physics/BodyGroups.h>
 #include <Physics/BodyPrediction.h>
+#include <Physics/BodyTolerances.h>
 #include <Physics/RagdollPending.h>
-#include <Physics/RagdollRest.h>
 #include <Physics/RagdollStart.h>
+#include <Physics/RestPlacer.h>
 #include <RTTI.h>
 #include <chrono>
 #include <map>
@@ -24,19 +25,24 @@ namespace
 {
 std::mutex s_bodyLock;
 RagdollPending s_bodies;
-// Each copy at its owner's rest: the rest's poses by body, and where it is in RagdollRest.
+// Every body of a copy this near its owner's rest is there: copies reached it within 0.2 to 0.8 units (duo, 2026-11-12).
+constexpr float kNear = 1.f;
+constexpr float kNearAngle = 0.05f;
+
+// Each copy at its owner's rest: the rest's poses by body, and where it is in RestPlacer (a ragdoll's joints settle
+// it where it lands: no hold).
 struct CopyRest
 {
     std::map<uint8_t, std::pair<glm::vec3, glm::quat>> Poses;
-    RagdollRest Rest;
-    std::optional<RagdollRest::Step> Logged; // the last step logged: each change once
+    RestPlacer Rest{0, false};
+    std::optional<RestPlacer::Step> Logged; // the last step logged: each change once
 };
 std::map<uint32_t, CopyRest> s_rests;
 std::map<uint32_t, RagdollStart> s_starts; // each copy's ragdoll taking up its owner's frames
 
-float Seconds() noexcept
+uint64_t NowMs() noexcept
 {
-    return std::chrono::duration<float>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
 }
 
 struct Resting
@@ -46,10 +52,10 @@ struct Resting
     BodyRead Read;
 };
 
-// Its owner's rest, all its bodies together (RagdollRest): glided there, put there once, put to sleep, then left alone.
+// Its owner's rest, all its bodies together (RestPlacer): glided there, put there once, put to sleep, then left alone.
 void RestBodies(Actor& aCopy, std::vector<Resting>& aBodies)
 {
-    bool fresh = false, allNear = true, allStill = true, anyWoken = false;
+    bool fresh = false, allNear = true, anyFar = false, allStill = true, allAsleep = true, anyWoken = false;
     std::unique_lock lock(s_bodyLock);
     CopyRest& rest = s_rests[aCopy.formID];
     for (const auto& cBody : aBodies)
@@ -59,34 +65,37 @@ void RestBodies(Actor& aCopy, std::vector<Resting>& aBodies)
         fresh |= pose != cPose;
         pose = cPose;
         const auto cError = BodyPrediction::Between({.Position = cBody.Read.Position, .Rotation = cBody.Read.Rotation}, cBody.Frame);
-        const bool cNear = cError.Distance <= RagdollRest::kNear && cError.Angle <= RagdollRest::kNearAngle;
+        const bool cNear = cError.Distance <= kNear && cError.Angle <= kNearAngle;
         allNear &= cNear;
+        anyFar |= cError.Distance > BodyTolerances::kPlaceFar;
+        allAsleep &= !cBody.Read.Active;
         allStill &= BodyPrediction::StillToSleep(cBody.Read.Dynamic, glm::length(cBody.Read.LinearVelocity), glm::length(cBody.Read.AngularVelocity));
         anyWoken |= cBody.Read.Active && !cNear;
     }
-    const float cNow = Seconds();
+    const uint64_t cNow = NowMs();
     if (fresh)
-        rest.Rest.Start(cNow);
-    const auto cStep = rest.Rest.Next(allNear, allStill, anyWoken, cNow);
+        rest.Rest = RestPlacer(cNow, false);
+    const auto cStep = rest.Rest.Next(allNear, anyFar, allStill, allAsleep, anyWoken, cNow);
     if (std::exchange(rest.Logged, cStep) != cStep)
-        spdlog::info("CopyRagdollPhysics: {:X} at its owner's rest: step {} ({} bodies, near {}, still {}, woken {}, again {})", aCopy.formID,
-                     static_cast<int>(cStep), aBodies.size(), allNear, allStill, anyWoken, rest.Rest.Again);
+        spdlog::info("CopyRagdollPhysics: {:X} at its owner's rest: step {} ({} bodies, near {}, still {}, woken {})", aCopy.formID,
+                     static_cast<int>(cStep), aBodies.size(), allNear, allStill, anyWoken);
     lock.unlock(); // the engine calls below take the world's lock
     switch (cStep)
     {
-    case RagdollRest::Step::kGlide:
+    case RestPlacer::Step::kGlide:
+    case RestPlacer::Step::kKeep:
         for (const auto& cBody : aBodies)
         {
             const auto cSteer = BodyPrediction::Steer(cBody.Read.Position, cBody.Read.Rotation, cBody.Frame, BodyPrediction::kRestGlideStep);
             SteerBody(*cBody.pBody, cSteer.Linear, cSteer.Angular);
         }
         break;
-    case RagdollRest::Step::kPlace:
+    case RestPlacer::Step::kPlace:
         // All in one step: one at a time, its joints held about three of them off (physics.md, A copy at its owner's rest).
         for (const auto& cBody : aBodies)
             PlaceBody(*cBody.pBody, cBody.Frame.Position, cBody.Frame.Rotation, {}, {}, true);
         break;
-    case RagdollRest::Step::kSleep:
+    case RestPlacer::Step::kSleep:
     {
         // What this game moves keeps the island awake (sleeping it froze a carried wheel: physics.md, A pile sleeps together).
         const auto cMoved = [](const bhkWorldObject* apOther) {
@@ -104,7 +113,8 @@ void RestBodies(Actor& aCopy, std::vector<Resting>& aBodies)
             spdlog::info("CopyRagdollPhysics: {:X} rests {}", aCopy.formID, cAsleep ? "asleep" : "awake: its island would not sleep in 2 s");
         break;
     }
-    case RagdollRest::Step::kLeave: break;
+    case RestPlacer::Step::kHold:
+    case RestPlacer::Step::kLeave: break;
     }
 }
 
@@ -149,7 +159,7 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
     if (!driven.empty())
     {
         std::scoped_lock lock(s_bodyLock);
-        plan = s_starts[aCopy.formID].Next(driven, Seconds());
+        plan = s_starts[aCopy.formID].Next(driven, NowMs());
     }
     for (size_t i = 0; i < driven.size(); ++i)
     {

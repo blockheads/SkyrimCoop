@@ -7,6 +7,7 @@
 #include <Messages/StoryEventRequest.h>
 #include <Messages/WorldState.h>
 #include <Structs/BodyFrame.h>
+#include <Structs/GameId.h>
 #include <Structs/GameVersions.h>
 #include <Structs/PlayerRecord.h>
 #include <Structs/Mods.h>
@@ -25,11 +26,22 @@ struct SummonRequest;
 
 // The host's physics bodies since the last read (docs/design/physics-sync.md): those awake, read now, and those that
 // fell asleep, where they rest.
-struct HostBodies
+struct HostBodyReads
 {
     std::vector<BodyFrame> Awake;
     std::vector<BodyPose> Rested;
-    std::vector<BodyKey> Held; // the host's player holds them: sent as a hold (physics-sync.md, "Exclusive holds")
+    std::vector<BodyKey> Held; // the host's player holds them
+};
+
+// The host's sky (weather.md): the weather shown, whether a script or the console forced it (Sky's override), and the
+// host's player's weather region (none: an interior without a sky, or none known since a set weather).
+struct HostSky
+{
+    GameId Weather;
+    bool Forced{};
+    GameId Region;
+
+    bool operator==(const HostSky&) const noexcept = default;
 };
 
 /**
@@ -66,7 +78,7 @@ struct HostGame
     std::function<std::optional<NotifyCharacterSpawn>(uint32_t aSessionId)> CopySpawn;
     // One of the host's NPCs can take a pair's half: alive, its graph running (kProcessMe; kill-moves.md).
     std::function<bool(uint32_t aSessionId)> CanPair;
-    // One of the host's actors is dead now (a corpse a guest's player may move: HostHands::HostsBody).
+    // One of the host's actors is dead now (a corpse a guest's player may move: HostBodies).
     std::function<bool(uint32_t aSessionId)> IsDead;
     // One of the host's NPCs its game could take back once claimed: no player's summon (TakeOwnership refuses one).
     std::function<bool(uint32_t aSessionId)> Claimable;
@@ -83,7 +95,10 @@ struct HostGame
     // asking as the HUD asks of the host's own player; none when its copy is not loaded.
     std::function<std::optional<DetectionRules::EyeReading>(uint32_t aSessionId)> ReadEye;
     // The host's weather, when it shows one to share (none: no sky, or the map's).
-    std::function<std::optional<GameId>()> ReadWeather;
+    std::function<std::optional<HostSky>()> ReadWeather;
+    // A region's own weather in the host's game (TESRegion's, 16448: the shown one where its list holds it, else its
+    // roll); none for no such region, or one without weathers.
+    std::function<std::optional<GameId>(const GameId& acRegion)> RegionWeather;
     // The host's global variables but the constants.
     std::function<std::vector<HostGlobal>()> ReadGlobals;
     // Global writes since the last call, coalesced to their current values.
@@ -104,15 +119,16 @@ struct HostGame
     // Everything a created container of the host's holds (kContents, its roll made now); none for no container.
     std::function<std::optional<ObjectChange>(const GameId& acObject)> ReadContents;
     // The host's world's physics bodies at aTick (the frame clock): awake ones read now, and those that came to rest.
-    std::function<HostBodies(uint64_t aTick)> TakeBodies;
+    std::function<HostBodyReads(uint64_t aTick)> TakeBodies;
+    // The bodies the host's player pushed, hit or dropped since the last call (PlayerHands).
+    std::function<std::vector<BodyKey>()> TakeTouches;
+    // The reference bodies Havok paired with each of those (IBodyBridge::ReadTouching).
+    std::function<std::vector<std::pair<BodyKey, BodyKey>>(const std::vector<BodyKey>& acKeys)> ReadTouching;
+    // A guest's authority over that body ended here: the host's game simulates it again where it is (its playback
+    // ends, its states up to aUntil too, a hold's keyframe too).
+    std::function<void(const BodyKey& acKey, uint64_t aUntil)> EndPlayback;
     // Where the host's game shows a guest's character (its copy), by player id; none without one.
     std::function<std::optional<glm::vec3>(uint32_t aPlayerId)> ReadPlayerPosition;
-    // A guest let go of the host's body (its holder's frames the host's game played, BodyService): simulated again
-    // from that frame. False: no such body here.
-    std::function<bool(const BodyFrame& acFrame, uint64_t aReleasedAt)> FreeBody;
-    // A guest's own physics moved those: the ones awake here send their frames from now, though they never left
-    // where they woke (one leaning on a character stands here and fell there).
-    std::function<void(const std::vector<BodyKey>& acKeys)> FollowBodies;
     // The host's bodies where they are now; none for one not here.
     std::function<std::vector<BodyPose>(const std::vector<BodyKey>& acKeys)> ReadBodies;
     // A guest's activation of an object (aObject) or an NPC (aNpcId), run by its player's copy (aActivatorId); what

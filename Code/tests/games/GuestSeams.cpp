@@ -22,7 +22,7 @@
 #include <Services/Guest/GuestSaves.h>
 #include <Services/Guest/GuestScene.h>
 #include <Services/Guest/GuestCopies.h>
-#include <Services/Guest/GuestHands.h>
+#include <Services/Guest/GuestBodies.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestEye.h>
 #include <Services/Guest/GuestLeash.h>
@@ -125,14 +125,25 @@ void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
 
 bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
 {
-    FakeEngine::Current().Weather = acWeather;
-    FakeEngine::Current().WeatherHeld = true;
+    // Sky::SetWeather(override) (26241): the forced weather, faded into by the next update; held, kept from aging.
+    FakeEngine& engine = FakeEngine::Current();
+    engine.ForcedWeather = acWeather;
+    engine.WeatherHeld = true;
+    if (!engine.LastWeather)
+        engine.WeatherAge = 0;
     return true;
 }
 
 void GuestEngine::ReleaseWeather() noexcept
 {
+    FakeEngine::Current().ForcedWeather = {};
     FakeEngine::Current().WeatherHeld = false;
+}
+
+GameId GuestEngine::ReadWeatherRegion() const noexcept
+{
+    const uint32_t cRegion = FakeEngine::Current().WeatherRegion;
+    return cRegion ? GameId{0, cRegion} : GameId{};
 }
 
 void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
@@ -199,15 +210,11 @@ void GuestEngine::RetryQuestAliases() noexcept
     }
 }
 
-bool GuestEngine::RestsThere(const ObjectChange& acMove) noexcept
+bool GuestEngine::HasLiveBody(const GameId& acObject) noexcept
 {
     const auto& cBodies = FakeEngine::Current().Bodies;
-    const auto it = cBodies.find(BodyKey{.Object = acMove.Object});
-    float pose[6];
-    if (it == cBodies.end() || acMove.Data.size() != sizeof(pose))
-        return false;
-    std::memcpy(pose, acMove.Data.data(), sizeof(pose));
-    return glm::distance(it->second.NodePosition, glm::vec3(pose[0], pose[1], pose[2])) <= kBodySameDistance;
+    const auto it = cBodies.find(BodyKey{.Object = acObject});
+    return it != cBodies.end() && !it->second.Held;
 }
 
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept
@@ -391,14 +398,26 @@ bool GuestEngine::IsPlacementPending(const GameId& acObject) const noexcept
     return FakeEngine::Current().PendingPlacements.contains(FormIdOf(acObject));
 }
 
-std::vector<BodyPush> GuestEngine::TakePushes() noexcept
+namespace
 {
-    return std::exchange(FakeEngine::Current().PlayerPushes, {});
+std::vector<BodyKey> KeysOf(std::vector<FakeEngine::BodyPush> aPushes)
+{
+    std::vector<BodyKey> keys;
+    for (const auto& cPush : aPushes)
+        if (std::ranges::find(keys, cPush.Key) == keys.end())
+            keys.push_back(cPush.Key);
+    return keys;
+}
+} // namespace
+
+std::vector<BodyKey> GuestEngine::TakePushes() noexcept
+{
+    return KeysOf(std::exchange(FakeEngine::Current().PlayerPushes, {}));
 }
 
-std::vector<BodyPush> GuestEngine::TakeHits() noexcept
+std::vector<BodyKey> GuestEngine::TakeHits() noexcept
 {
-    return std::exchange(FakeEngine::Current().PlayerHits, {});
+    return KeysOf(std::exchange(FakeEngine::Current().PlayerHits, {}));
 }
 
 // The player's ragdoll is keyed by its form id here (0x14), by index alone out of GuestEngine.
@@ -435,14 +454,6 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t, const SessionOf_t&) 
         own.RagdollRested.push_back(rest);
     }
     return own;
-}
-
-std::vector<GuestEngine::IslandBody> GuestEngine::ReadIslands(const std::vector<BodyKey>& acKeys) noexcept
-{
-    std::vector<IslandBody> bodies;
-    for (const auto& [cPose, cIsland] : FakeEngine::Current().AwakeIslands(acKeys))
-        bodies.push_back({cPose, cIsland});
-    return bodies;
 }
 
 // As PhysicsBodies::Follow: read as moved from now, so its rest goes out when it lies still.
@@ -482,11 +493,11 @@ struct GuestSeam::Guest
 {
     explicit Guest(World& aWorld)
         : Engine(aWorld.ctx().at<IBodyBridge&>()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
-          Weather(aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
+          Weather(aWorld, aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
           Saves(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
-          Hands(aWorld, Engine),
+          Bodies(aWorld, Engine),
           Wait(aWorld, aWorld.GetDispatcher(), Engine),
           Scene(aWorld, aWorld.GetDispatcher(), Engine),
           Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>()),
@@ -502,7 +513,7 @@ struct GuestSeam::Guest
     GuestDialogue Dialogue;
     GuestRecord Record;
     GuestSaves Saves;
-    GuestHands Hands;
+    GuestBodies Bodies;
     GuestWait Wait;
     GuestScene Scene;
     GuestCopies Copies;

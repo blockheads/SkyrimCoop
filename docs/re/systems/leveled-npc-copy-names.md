@@ -37,8 +37,9 @@ up an **actor**, so it did nothing. Placed copies now apply the snapshot too.
 
 The first implementation kept plugin records immutable by attaching a private NPC base.
 The lifetime regression below supersedes that implementation: names now belong to the actor reference. This is the same factory/copy operation used by native
-14375; its second argument is a template array, despite the unused inherited hook's guessed
-`TESNPC*` signature. That hook remains disabled. The new `ExtraLeveledCreature` layout is checked
+14375. Its second argument is one `TESNPC*`, the pick (corrected 2026-11-23, read in IDA: 14375 passes it to
+`CopyFromTemplateForms` 24720 at 0x1401DCFCB, which checks its form type 43 at 0x1403C1EC8; an earlier note here called it
+a template array). The inherited hook remains disabled; `TESNPC::BuildLeveled` calls it ([leveled-copy-base.md](leveled-copy-base.md)). The new `ExtraLeveledCreature` layout is checked
 against CommonLibSSE-NG (`originalBase +0x10`, `templateBase +0x18`, size `0x20`).
 
 Fast verification: created and placed name/race checks pass, and each game's shared face record
@@ -133,10 +134,10 @@ holds level 1000 (PC level mult 1.0, stored times 1000), its face record level 1
 A copy of a placed reference was always given the owner's face record (`SetActorBaseFormId`), so it dropped its own
 game's resolved base and read the face's stats. When this game's reference already resolved to the same face (both
 games load one save), the copy keeps that engine-owned base; the engine manages its lifetime as in a vanilla game,
-unlike the private bases above. Only a different face still swaps to the face record. GameTests `[copy-level]`.
+unlike the private bases above. A different face is built again from the owner's pick (14375), never the face record:
+a reset destroys a leveled actor's current base ([leveled-copy-base.md](leveled-copy-base.md), 2026-11-23). GameTests `[copy-level]`.
 
-Open: a copy whose game picked another face, and created copies (`SpawnActorFromNpc` of the face), still take the face
-record's stats; a resolved base for them needs the engine's leveled build (14375) with the owner's pick.
+Open: created copies (`SpawnActorFromNpc` of the face) still take the face record's stats.
 
 ## The name travels by itself now (2026-11-05)
 

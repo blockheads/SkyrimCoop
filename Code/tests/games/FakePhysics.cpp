@@ -91,6 +91,7 @@ void FakeEngine::PlaceByGame(const BodyKey& acKey, const glm::vec3& acPosition)
     body.Flight.Body.LinearVelocity = body.Flight.Body.AngularVelocity = {};
     body.Flight.Resting = true;
     body.Awake = false;
+    body.PlacedByGame = true;
     const float cPose[6]{acPosition.x, acPosition.y, acPosition.z, 0.f, 0.f, 0.f};
     ObjectChange change{.Type = ObjectChange::Kind::kMove, .Object = acKey.Object};
     change.Data.assign(reinterpret_cast<const char*>(cPose), sizeof(cPose));
@@ -103,7 +104,7 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
     constexpr float cStep = 1.f / 60.f;
     constexpr float cSettle = 0.05f;          // units an awake, unsteered body is moved by its joints each frame
     constexpr uint16_t cSettleFrames = 30;     // then Havok sleeps it
-    const float cNow = static_cast<float>(m_frameCount) * cStep;
+    const uint64_t cNow = m_frameCount * 16;
     std::set<BodyKey> driven;
     struct Resting
     {
@@ -155,22 +156,25 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
     if (!rests.empty())
     {
         auto& rest = m_copyRests[aCopy];
-        bool fresh = false, allNear = true, allStill = true, anyWoken = false;
+        bool fresh = false, allNear = true, anyFar = false, allStill = true, allAsleep = true, anyWoken = false;
         for (auto& [cKey, pBody, pRest] : rests)
         {
             fresh |= pBody->RestAt != pRest->Position || pBody->RestTurn != pRest->Rotation;
             pBody->RestAt = pRest->Position;
             pBody->RestTurn = pRest->Rotation;
-            const bool cNear = glm::distance(pBody->Flight.Body.Position, pRest->Position) <= RagdollRest::kNear;
+            const bool cNear = glm::distance(pBody->Flight.Body.Position, pRest->Position) <= kRagdollNear;
             allNear &= cNear;
+            anyFar |= glm::distance(pBody->Flight.Body.Position, pRest->Position) > BodyTolerances::kPlaceFar;
+            allAsleep &= !pBody->Awake;
             allStill &= BodyPrediction::StillToSleep(true, glm::length(pBody->Flight.Body.LinearVelocity), 0.f);
             anyWoken |= pBody->Awake && !cNear;
         }
         if (fresh)
-            rest.Start(cNow);
-        switch (rest.Next(allNear, allStill, anyWoken, cNow))
+            rest = RestPlacer(cNow, false);
+        switch (rest.Next(allNear, anyFar, allStill, allAsleep, anyWoken, cNow))
         {
-        case RagdollRest::Step::kGlide:
+        case RestPlacer::Step::kGlide:
+        case RestPlacer::Step::kKeep:
             for (auto& [cKey, pBody, pRest] : rests)
             {
                 driven.insert(cKey);
@@ -182,7 +186,7 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
                 ++pBody->Drives;
             }
             break;
-        case RagdollRest::Step::kPlace:
+        case RestPlacer::Step::kPlace:
             for (auto& [cKey, pBody, pRest] : rests)
             {
                 driven.insert(cKey);
@@ -193,7 +197,7 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
                 ++pBody->Drives;
             }
             break;
-        case RagdollRest::Step::kSleep:
+        case RestPlacer::Step::kSleep:
         {
             // 60850 sleeps the island (its joints make the ragdoll one); its own bodies' settling does not keep it awake
             // (CopyRagdollPhysics: duo 2026-11-21, they never stood still in 2 s in 1 of 3 runs after the place).
@@ -207,7 +211,8 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
             rest.Slept(cAsleep, cNow);
             break;
         }
-        case RagdollRest::Step::kLeave: break;
+        case RestPlacer::Step::kHold:
+        case RestPlacer::Step::kLeave: break;
         }
     }
     else
@@ -271,12 +276,34 @@ void FakeEngine::Wake(const BodyKey& acKey, uint64_t aMs)
     body.StillUntil = 0;
 }
 
-std::optional<BodyPose> FakeEngine::ReadPose(const BodyKey& acKey) noexcept
+std::optional<BodyPose> FakeEngine::ReadPose(const BodyKey& acKey) const noexcept
 {
     const auto it = acKey.Actor ? Bodies.end() : Bodies.find(acKey);
     if (it == Bodies.end())
         return std::nullopt;
     return BodyPose{.Key = acKey, .Position = it->second.Flight.Body.Position, .Rotation = it->second.Flight.Body.Rotation};
+}
+
+std::optional<BodyRead> FakeEngine::Read(const BodyKey& acKey) noexcept
+{
+    const auto it = acKey.Actor ? Bodies.end() : Bodies.find(acKey);
+    if (it == Bodies.end())
+        return std::nullopt;
+    const Body& cBody = it->second;
+    return BodyRead{.Position = cBody.Flight.Body.Position, .Rotation = cBody.Flight.Body.Rotation, .LinearVelocity = cBody.Flight.Body.LinearVelocity,
+                    .AngularVelocity = cBody.Flight.Body.AngularVelocity, .Dynamic = !cBody.Held, .Active = cBody.Awake};
+}
+
+std::vector<std::pair<BodyKey, BodyKey>> FakeEngine::ReadTouching(const std::vector<BodyKey>& acKeys) noexcept
+{
+    std::vector<std::pair<BodyKey, BodyKey>> pairs;
+    for (const BodyKey& cKey : acKeys)
+        for (const auto& cIsland : Islands)
+            if (cIsland.contains(cKey))
+                for (const BodyKey& cOther : cIsland)
+                    if (cOther != cKey && Bodies.contains(cOther) && !Bodies.at(cOther).Held)
+                        pairs.emplace_back(cKey, cOther);
+    return pairs;
 }
 
 bool FakeEngine::KnockDown(uint32_t aCopyFormId) noexcept
@@ -328,6 +355,9 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHel
         return true;
     }
     Body& body = it->second;
+    // This game just placed it itself: left where that put it until the host has read the place (BodyBridge::Drive).
+    if (body.PlacedByGame)
+        return true;
     // Held in another game: keyframed (massless); else simulated, steered onto the frame (BodyBridge::Drive).
     body.Held = aHeld;
     body.Rested.reset();
@@ -386,93 +416,155 @@ void FakeEngine::HoldTo(const BodyKey& acKey, const glm::vec3& acTo) noexcept
     body.Position = OutsideCapsules(body.Position, acTo);
 }
 
-bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
+bool FakeEngine::RestRagdoll(const BodyPose& acRest, uint32_t aCopyFormId) noexcept
 {
-    const auto it = Bodies.find(RagdollKey(acPose.Key, aCopyFormId));
-    if (it == Bodies.end() || (acPose.Key.Actor && !Actors.contains(aCopyFormId)))
+    const auto it = Bodies.find(RagdollKey(acRest.Key, aCopyFormId));
+    if (it == Bodies.end() || !Actors.contains(aCopyFormId))
         return false;
-    if (!acPose.Key.Actor)
-        Classes.erase(acPose.Key);
     ++it->second.RestAttempts;
     if (it->second.RestBusy)
         return false;
-    if (acPose.Key.Actor)
+    if (IsActorDead(aCopyFormId) || KnockReplay::BodiesSimulated(KnockStateOf(aCopyFormId)))
     {
-        if (IsActorDead(aCopyFormId) || KnockReplay::BodiesSimulated(KnockStateOf(aCopyFormId)))
-        {
-            ++it->second.Rests;
-            m_pendingRagdolls.Put(aCopyFormId, {.Key = acPose.Key, .Position = acPose.Position, .Rotation = acPose.Rotation,
-                                               .Knocked = acPose.Knocked}, true, true);
-        }
+        ++it->second.Rests;
+        m_pendingRagdolls.Put(aCopyFormId, {.Key = acRest.Key, .Position = acRest.Position, .Rotation = acRest.Rotation, .Knocked = acRest.Knocked},
+                              true, true);
+    }
+    return true;
+}
+
+// As BodyBridge's rest steps: a held one (keyframed for a hold) gets its own motion back first; another game's rest
+// being put wakes it for a step (Placing), and a put body has no contact points until a physics step (Contacts).
+bool FakeEngine::Glide(const BodyPose& acRest) noexcept
+{
+    const auto it = acRest.Key.Actor ? Bodies.end() : Bodies.find(acRest.Key);
+    if (it == Bodies.end())
+        return false;
+    Body& body = it->second;
+    ++body.RestAttempts;
+    if (body.RestBusy)
+        return false;
+    Classes.erase(acRest.Key);
+    body.Held = false;
+    body.Placing = true;
+    body.Rested.reset();
+    body.Awake = body.RestStep = true;
+    body.Flight.Resting = false;
+    // Steered a sixth of the way each 16 ms frame (kRestGlideStep).
+    body.Flight.Body.Position += (acRest.Position - body.Flight.Body.Position) * (0.016f / BodyPrediction::kRestGlideStep);
+    body.Flight.Body.Rotation = glm::slerp(body.Flight.Body.Rotation, acRest.Rotation, 0.016f / BodyPrediction::kRestGlideStep);
+    body.Flight.Body.LinearVelocity = (acRest.Position - body.Flight.Body.Position) / BodyPrediction::kRestGlideStep;
+    return true;
+}
+
+bool FakeEngine::Place(const BodyPose& acRest) noexcept
+{
+    const auto it = acRest.Key.Actor ? Bodies.end() : Bodies.find(acRest.Key);
+    if (it == Bodies.end())
+        return false;
+    Body& body = it->second;
+    ++body.RestAttempts;
+    if (body.RestBusy)
+        return false;
+    Classes.erase(acRest.Key);
+    body.Held = false;
+    body.Placing = true;
+    body.Contacts = false;
+    body.Awake = body.RestStep = true;
+    body.Flight.Resting = false;
+    body.Flight.Body.Position = acRest.Position;
+    body.Flight.Body.Rotation = acRest.Rotation;
+    body.Flight.Body.LinearVelocity = body.Flight.Body.AngularVelocity = {};
+    body.SceneWritesDuringJobs += !AtMainLoop;
+    body.NodePosition = acRest.Position;
+    body.NodeRotation = acRest.Rotation;
+    return true;
+}
+
+bool FakeEngine::Sleep(const BodyKey& acKey) noexcept
+{
+    const auto it = acKey.Actor ? Bodies.end() : Bodies.find(acKey);
+    if (it == Bodies.end())
+        return false;
+    Body& body = it->second;
+    ++body.RestAttempts;
+    if (body.RestBusy)
+        return false;
+    // 60850 sleeps the island: refused while another body in it moves, or this game moves, plays or holds it.
+    for (const auto& cIsland : Islands)
+        if (cIsland.contains(acKey))
+            for (const BodyKey& cOther : cIsland)
+            {
+                const auto cBody = Bodies.find(cOther);
+                if (cOther == acKey || cBody == Bodies.end())
+                    continue;
+                const auto cClass = Classes.find(cOther);
+                if ((cBody->second.Awake && !cBody->second.Flight.Resting) || cBody->second.Held || Grabbed == cOther ||
+                    (cClass != Classes.end() && cClass->second != BodyClass::kNone))
+                    return false;
+            }
+    body.Placing = false;
+    if (body.OnlyAsleep)
+    {
+        // Asleep as far as 60850 goes; Havok's own last test wakes it again, and it falls.
+        body.Flight.Resting = false;
+        body.Awake = true;
+        ++body.Rests;
         return true;
     }
-    Body& body = it->second;
-    // As BodyBridge::Rest: off its rest it glides there, then a step awake at it gives it its contacts, then it sleeps;
-    // held asleep at once it has none.
-    {
-        const auto cSame = [](const BodyPose& acA, const glm::vec3& acPosition, const glm::quat& acRotation) {
-            return glm::distance(acA.Position, acPosition) < 0.5f && std::abs(glm::dot(acA.Rotation, acRotation)) > std::cos(0.05f);
-        };
-        if (!body.Placing || !cSame(*body.Placing, acPose.Position, acPose.Rotation))
-        {
-            body.Placing = acPose;
-            body.GlideFrames = 0;
-        }
-        const bool cPlaced = body.Rested && cSame(*body.Rested, acPose.Position, acPose.Rotation);
-        const bool cNear = cSame(acPose, body.Flight.Body.Position, body.Flight.Body.Rotation);
-        const auto cPlacement = body.Held ? (cPlaced ? BodyPrediction::RestPlacement::kHold : BodyPrediction::RestPlacement::kPlace)
-                                          : BodyPrediction::PlaceRest(cNear, body.Awake, cPlaced);
-        const bool cSimulated = !body.Held && !body.RagdollOf;
-        // Off it: steered a sixth of the way each 16 ms frame (kRestGlideStep), for half a second at most.
-        if (cSimulated && cPlacement == BodyPrediction::RestPlacement::kPlace && !cNear &&
-            BodyPrediction::GlidesToRest(glm::distance(body.Flight.Body.Position, acPose.Position), body.GlideFrames++ * 0.016f, 64.f))
-        {
-            body.Rested.reset();
-            body.Awake = body.RestStep = true;
-            body.Flight.Resting = false;
-            body.Flight.Body.Position += (acPose.Position - body.Flight.Body.Position) * (0.016f / BodyPrediction::kRestGlideStep);
-            body.Flight.Body.Rotation = glm::slerp(body.Flight.Body.Rotation, acPose.Rotation, 0.016f / BodyPrediction::kRestGlideStep);
-            return false;
-        }
-        body.Rested = acPose;
-        // Put or held there, it has no contact points until a physics step (TakeBodies, ReadReference) makes them.
-        if (cPlacement == BodyPrediction::RestPlacement::kPlace || cPlacement == BodyPrediction::RestPlacement::kHold)
-            body.Contacts = false;
-        // Put there awake for a step (read awake by this game's physics), asked again the next frame.
-        if (cPlacement == BodyPrediction::RestPlacement::kPlace && cSimulated)
-        {
-            body.Awake = body.RestStep = true;
-            body.Flight.Resting = false;
-            body.Flight.Body.Position = acPose.Position;
-            body.Flight.Body.Rotation = acPose.Rotation;
-            body.Flight.Body.LinearVelocity = {};
-            body.Flight.Body.AngularVelocity = {};
-            body.NodePosition = acPose.Position;
-            body.NodeRotation = acPose.Rotation;
-            return false;
-        }
-        body.Placing.reset();
-    }
-    // FollowBody updates the reference's scene graph after a keyframe or a changed rest.
-    if (body.Held || body.Flight.Body.Position != acPose.Position || body.Flight.Body.Rotation != acPose.Rotation)
-    {
-        body.SceneWritesDuringJobs += !AtMainLoop;
-        body.NodePosition = acPose.Position;
-        body.NodeRotation = acPose.Rotation;
-    }
-    // A reference's body is simulated again at its rest, asleep (BodyBridge::SettleFound); a ragdoll's stays held.
-    body.Held = body.RagdollOf != 0;
-    if (!body.RagdollOf)
-    {
-        body.Awake = false;
-        body.Flight.Resting = true;
-    }
-    body.Flight.Body.Position = acPose.Position;
-    body.Flight.Body.Rotation = acPose.Rotation;
-    body.Flight.Body.LinearVelocity = {};
-    body.Flight.Body.AngularVelocity = {};
+    body.Awake = false;
+    body.Flight.Resting = true;
+    body.Flight.Body.LinearVelocity = body.Flight.Body.AngularVelocity = {};
+    body.Rested = BodyPose{.Key = acKey, .Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation};
     body.RestStep = false;
     ++body.Rests;
+    return true;
+}
+
+bool FakeEngine::HoldAt(const BodyPose& acRest) noexcept
+{
+    const auto it = acRest.Key.Actor ? Bodies.end() : Bodies.find(acRest.Key);
+    if (it == Bodies.end())
+        return false;
+    Body& body = it->second;
+    ++body.RestAttempts;
+    if (body.RestBusy)
+        return false;
+    Classes.erase(acRest.Key);
+    // Keyframed there, then simulated again asleep (SettleFound): no contact points until a step.
+    body.Contacts = false;
+    body.Placing = false;
+    body.Held = false;
+    body.Awake = false;
+    body.Flight.Resting = true;
+    body.Flight.Body.Position = acRest.Position;
+    body.Flight.Body.Rotation = acRest.Rotation;
+    body.Flight.Body.LinearVelocity = body.Flight.Body.AngularVelocity = {};
+    body.SceneWritesDuringJobs += !AtMainLoop;
+    body.NodePosition = acRest.Position;
+    body.NodeRotation = acRest.Rotation;
+    // Its island's sleep is refused while another body in it moves (SettleFound's DeactivateIsland): awake, it falls.
+    for (const auto& cIsland : Islands)
+        if (cIsland.contains(acRest.Key))
+            for (const BodyKey& cOther : cIsland)
+                if (const auto cBody = Bodies.find(cOther); cOther != acRest.Key && cBody != Bodies.end() && cBody->second.Awake && !cBody->second.Flight.Resting)
+                {
+                    body.Awake = true;
+                    body.Flight.Resting = false;
+                }
+    body.Rested = acRest;
+    body.RestStep = false;
+    ++body.Rests;
+    return true;
+}
+
+bool FakeEngine::Release(const BodyKey& acKey) noexcept
+{
+    const auto it = acKey.Actor ? Bodies.end() : Bodies.find(acKey);
+    if (it == Bodies.end())
+        return false;
+    it->second.Held = false;
+    it->second.Placing = false;
     return true;
 }
 
@@ -666,9 +758,9 @@ void FakeEngine::WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept
     }
 }
 
-HostBodies FakeEngine::TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich)
+HostBodyReads FakeEngine::TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich)
 {
-    HostBodies bodies;
+    HostBodyReads bodies;
     for (auto& [cKey, body] : Bodies)
     {
         if (!body.Awake || (acWhich && !acWhich(cKey)))

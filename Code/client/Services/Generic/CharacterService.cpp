@@ -646,9 +646,18 @@ bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterS
     if (acMessage.BaseId == GameId{})
         return true;
     const uint32_t cBaseId = ToGame(acMessage.BaseId);
-    const bool cResolvedAlike = NpcSnapshot::KeepsResolvedBase(
-        m_actorBridge.IsActorNpcTemporary(aFormId), m_actorBridge.GetActorNpcTemplateBaseFormId(aFormId), cBaseId);
-    if (!cBaseId || (!cResolvedAlike && !m_actorBridge.SetActorBaseFormId(aFormId, cBaseId)))
+    bool applied = cBaseId != 0;
+    if (applied)
+    {
+        switch (NpcSnapshot::ChooseBaseApply(m_actorBridge.IsActorLeveled(aFormId), m_actorBridge.IsActorNpcTemporary(aFormId),
+                                             m_actorBridge.GetActorNpcTemplateBaseFormId(aFormId), cBaseId))
+        {
+        case NpcSnapshot::BaseApply::Keep: break;
+        case NpcSnapshot::BaseApply::Relevel: applied = m_actorBridge.RelevelActor(aFormId, cBaseId); break;
+        case NpcSnapshot::BaseApply::Swap: applied = m_actorBridge.SetActorBaseFormId(aFormId, cBaseId); break;
+        }
+    }
+    if (!applied)
     {
         spdlog::error("Failed to apply owner's NPC base {:X}:{:X} to actor {:X}", acMessage.BaseId.ModId,
                       acMessage.BaseId.BaseId, aFormId);

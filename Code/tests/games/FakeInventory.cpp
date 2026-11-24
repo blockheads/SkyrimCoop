@@ -112,6 +112,7 @@ void FakeEngine::ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment
     if (auto actor = Actors.find(aActorFormId); actor != Actors.end())
     {
         actor->second.EquipmentNeedsReset = false;
+        ++actor->second.EquipmentResets;
         actor->second.HeldWeapons[0] = actor->second.HeldWeapons[1] = 0;
         for (auto& item : actor->second.Items.Entries)
             item.ExtraWorn = item.ExtraWornLeft = false;
@@ -125,7 +126,7 @@ void FakeEngine::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uin
     Equip(aActorFormId, aItemFormId, aEquipSlotFormId);
     // Ours forces the equip (abForceEquip): 16066 marks the worn list cannot wear.
     if (const auto actor = Actors.find(aActorFormId); actor != Actors.end() &&
-        std::ranges::any_of(actor->second.Items.Entries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == aItemFormId && acEntry.ExtraWorn; }))
+        std::ranges::any_of(actor->second.Items.Entries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == aItemFormId && acEntry.IsWorn(); }))
         actor->second.ForcedWorn.insert(aItemFormId);
 }
 
@@ -158,7 +159,8 @@ void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
 
     ScopedUnequipOverride _;
     const bool cWeapon = cForm->second.Type == kWeapon;
-    const bool cLeft = cWeapon && aSlot == kLeftHand;
+    // A torch's slot is always LeftHand (17619), so 38001 marks it worn left; a two-hander's BothHands, worn right.
+    const bool cLeft = (cWeapon && aSlot == kLeftHand && !cForm->second.TwoHanded) || cForm->second.Type == kLight;
     std::vector<std::pair<uint32_t, uint32_t>> replaced; // item, slot
     for (const auto& cEntry : cActor->second.Items.Entries)
     {
@@ -181,7 +183,11 @@ void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
     auto& entry = EntryOf(cActor->second, aItem);
     (cLeft ? entry.ExtraWornLeft : entry.ExtraWorn) = true;
     if ((cWeapon || cForm->second.Type == kLight) && ActorHas3D(aActor))
-        cActor->second.HeldWeapons[cLeft || !cWeapon ? 0 : 1] = aItem;
+    {
+        if (cWeapon && cForm->second.TwoHanded)
+            cActor->second.HeldWeapons[0] = aItem; // AddEquippedObject (39192): BothHands covers both hands
+        cActor->second.HeldWeapons[cLeft ? 0 : 1] = aItem;
+    }
 }
 
 // UnEquipHook, then the engine: off that hand (both for no hand's slot).
@@ -334,7 +340,16 @@ void FakeEngine::LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
         item.Count = -aCount;
         World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item));
     }
-    AddItems(aActor, aItem, -aCount);
+    AddItems(aActor, aItem, -aCount); // the engine's own (a script's, the console's): a full menu update, measured
+}
+
+void FakeEngine::LosesItem(uint32_t aActor, const Inventory::Entry& acItem)
+{
+    Inventory::Entry item = acItem;
+    item.Count = -acItem.Count;
+    if (!ScopedInventoryOverride::IsOverriden())
+        World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item));
+    AddOrRemoveStack(aActor, item); // the engine's own: a full menu update, measured
 }
 
 void FakeEngine::Drops(uint32_t aActor, uint32_t aItem, int32_t aCount)
@@ -595,6 +610,13 @@ std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aA
 // in Skyrim, 2026-10-30): the bridge's TESObjectREFR::AddOrRemoveItem finds it.
 void FakeEngine::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
 {
+    if (aItem.Count < 0)
+        return ChangesStacks(aObjectFormId, [&] { AddOrRemoveStack(aObjectFormId, aItem); });
+    AddOrRemoveStack(aObjectFormId, aItem);
+}
+
+void FakeEngine::AddOrRemoveStack(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
+{
     const uint32_t cItem = ::ItemForm(aItem.BaseId);
     if (aItem.Count < 0 && aItem.ContainsExtraData())
     {
@@ -738,6 +760,12 @@ void FakeEngine::SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, i
     const auto cActor = Actors.find(aActorFormId);
     if (cActor == Actors.end())
         return;
+    ChangesStacks(aActorFormId, [&] { SetCarriedStacks(aActorFormId, acItem, aCount, acStacks); });
+}
+
+void FakeEngine::SetCarriedStacks(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept
+{
+    const auto cActor = Actors.find(aActorFormId);
     auto& entries = cActor->second.Items.Entries;
     std::vector<Inventory::Entry> missing;
     for (Inventory::Entry stack : acStacks)

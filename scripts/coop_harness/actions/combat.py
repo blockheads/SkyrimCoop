@@ -789,7 +789,14 @@ class CombatActions:
                  for instance in ("", "client") for word in UNRELENTING_FORCE_WORDS}
         def knock(instance, actor):
             return (ctx.actor_snapshot(instance, actor).get("state") or {}).get("knock", 0)
+        # The disintegrate effect also asks for the Black Book reward (DLC2BlackBookReward3 == 1) and for its caster to
+        # be the Player (GetIsID, judged for the casting player's copy: conditions.md); the guest follows the host's.
+        had_reward = any("= 1" in line for line in ctx.console_on("", "show DLC2BlackBookReward3") or [])
         try:
+            if health > 0:
+                ctx.console_on("", "set DLC2BlackBookReward3 to 1")
+                ctx.wait_for("the guest holds the Black Book reward",
+                             lambda: any("= 1" in line for line in ctx.console_on("client", "show DLC2BlackBookReward3") or []), 5)
             for word in UNRELENTING_FORCE_WORDS:
                 ctx.console_on(attacker, f"player.teachword {word:X}")
                 ctx.console_on(attacker, f"player.unlockword {word:X}")
@@ -845,6 +852,8 @@ class CombatActions:
                 ctx.wait_for(f"[{victim or 'host'}] the victim respawns with its body, opaque, shown as before", respawned, 40,
                              explain=lambda: str(ctx.player_snapshot(victim).get("state")))
         finally:
+            if health > 0 and not had_reward:
+                ctx.console_on("", "set DLC2BlackBookReward3 to 0")
             ctx.console_on(attacker, f"player.setav shoutrecoverymult {recovery:g}")
             for (instance, word), (known, unlocked) in words.items():
                 ctx.player_command(instance, {"cmd": "form_known", "form": word, "known": known, "unlocked": unlocked})
