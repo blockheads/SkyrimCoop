@@ -47,7 +47,8 @@ class MagicActions:
         """That game's player shouts three-word Storm Call outdoors: magicProjectileStormScript strikes from an activator
         in the sky (Spell.RemoteCast, docs/re/systems/projectiles.md), on the caster's game for its own effect and on the
         host's for the NPCs it hit. Fails unless each game shows every bolt the other's engine launched (Diagnostics
-        counters `projectile E4CB5`, its engine's, against `projectile E4CB5 relaunched` on the other)."""
+        counters `projectile E4CB5`, its engine's, against `projectile E4CB5 relaunched` on the other), after stopping
+        every storm."""
         words, shout, spell = (0x6029A, 0x6029B, 0x6029C), 0x7097D, 0x1860D
         own, copied = f"projectile {STORM_CALL_BOLT:X}", f"projectile {STORM_CALL_BOLT:X} relaunched"
         for word in words:
@@ -77,9 +78,13 @@ class MagicActions:
         ctx.wait_for(f"[{instance or 'host'}] the storm strikes {bolts} times", lambda: since()[(instance, own)] >= bolts, 30)
         def summary(counts):
             return {f"{game or 'host'} {'relaunched' if name == copied else 'own'}": n for (game, name), n in counts.items()}
-        struck = since()  # each game's copies of these arrive after them
-        def each_shows_the_others():
+        # Every storm stops casting (its OnUpdate casts and goes on only while MAGProjectileStormVar is 1, Clear Skies'
+        # switch): the counts are final, and each game's relaunches must match the other's own one for one.
+        for game in ("", "client"):
+            ctx.console_on(game, "set MAGProjectileStormVar to 0")
+        def matched():
             now = since()
-            return now[("", copied)] >= struck[("client", own)] and now[("client", copied)] >= struck[("", own)]
-        ctx.wait_for(f"each game shows the bolts the other's engine struck ({summary(struck)})", each_shows_the_others, 5)
+            return now[("", copied)] == now[("client", own)] and now[("client", copied)] == now[("", own)]
+        ctx.wait_for(f"each game shows every bolt the other's engine struck, once ({summary(since())} when the storms "
+                     "were stopped)", matched, 8)
         return summary(since())

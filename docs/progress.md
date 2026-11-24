@@ -55,8 +55,10 @@ casts each bolt with `Spell.RemoteCast` from an activator it placed in the sky, 
 activator (read in IDA: `NonActorMagicCaster` 34699 → `FindTargets` 34410 → `FireProjectile` 34452), and
 `CombatService` sent only launches shot by its game's actors. Now a spell projectile shot by an object (an activator, a
 statue, no shooter) goes out with shooter 0 from whichever game launched it, and the others relaunch it with no shooter:
-it flies and strikes, and with no shooter's caster its spell applies nothing there (44169/44206); its effects still go
-to their targets' owners from the launching game. Scenario `storm-call-bolts-reach-guest` (the host's and the guest's
+it flies and strikes, and with no shooter's caster its spell applies nothing there (44169/44206); its effects stay the
+launching game's. Not relayed: shots with no spell, and those whose base explodes (`BGSProjectile` +0xB0, the Fishing
+catapult): what a shooterless explosion does was not read. Outdoors the message carries the worldspace, so a cell the
+engine made is found from the origin (`TravelService::CellAt`; the wire bytes of `ProjectileLaunch` changed). Scenario `storm-call-bolts-reach-guest` (the host's and the guest's
 shout: before, 3 bolts struck and 0 shown each way; now each game relaunches every bolt the other struck), readout
 `projectile <base>` / `projectile <base> relaunched` counters, MCP verb `storm_call` (a checking verb, kept in exports
 when it fails); GameTests "A storm bolt a script casts from an activator shows on every game", HostAuthorityTests
@@ -2514,6 +2516,10 @@ removed (git history keeps them).
 
 ### World state
 
+- **A guest's Storm Call may not hurt host NPCs** (2026-11-24, [projectiles.md](re/systems/projectiles.md), inferred
+  from our code, not measured): the host runs the NPC's storm script, which blames the guest's copy; if the bolt's
+  `AddTarget` caster is that copy, `HookAddTarget` drops it on the host's own NPC. Needs a scenario reading the
+  NPC's health.
 - **Storm Call's created activators end apart** (2026-11-24, `storm-call-bolts-reach-guest`'s end comparison, logged
   under `own-checks`): its activators (`ACTI B79FF`, placed by `magicProjectileStormScript` and moved by `SetPosition`)
   are on the host only, or in another cell or pose on the guest, after the storm. Invisible markers; whether the

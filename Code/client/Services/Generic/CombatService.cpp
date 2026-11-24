@@ -1,5 +1,6 @@
 #include <Services/CombatService.h>
 #include <Services/TransportService.h>
+#include <Services/TravelService.h>
 
 #include <Events/UpdateEvent.h>
 #include <Games/ActorUpkeep.h>
@@ -52,11 +53,11 @@ void CombatService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::ent
 void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acEvent) const noexcept
 {
     // An object's spell (an activator's Spell.RemoteCast, a statue) goes out with no shooter: the others show it,
-    // and with no shooter's caster it applies nothing there (projectiles.md).
+    // and with no shooter's caster it applies nothing there; one whose base explodes would (projectiles.md).
     uint32_t shooterId = 0;
     if (acEvent.FromObject)
     {
-        if (!m_transport.IsOnline() || !acEvent.SpellID)
+        if (!m_transport.IsOnline() || !acEvent.SpellID || !acEvent.ProjectileBaseID || acEvent.Explodes)
             return;
     }
     else
@@ -90,7 +91,8 @@ void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acE
     request.XAngle = acEvent.XAngle;
     request.YAngle = acEvent.YAngle;
 
-    request.ParentCellID = ToSession(acEvent.ParentCellID).value_or(GameId{});
+    request.ParentCellID = ToSessionCell(acEvent.ParentCellID, acEvent.WorldSpaceID).value_or(GameId{});
+    request.WorldSpaceID = ToSession(acEvent.WorldSpaceID).value_or(GameId{});
     request.SpellID = ToSession(acEvent.SpellID).value_or(GameId{});
 
     request.CastingSource = acEvent.CastingSource;
@@ -131,8 +133,9 @@ void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMes
         shooterFormId = remoteView.get<FormIdComponent>(*remoteIt).Id;
     }
 
-    const uint32_t cParentCellId = ToGame(acMessage.ParentCellID);
-    if (!m_formBridge.FormExists(cParentCellId))
+    const uint32_t cParentCellId = m_world.GetTravelService().CellAt(
+        acMessage.WorldSpaceID, acMessage.ParentCellID, {acMessage.OriginX, acMessage.OriginY, acMessage.OriginZ});
+    if (!cParentCellId || !m_formBridge.FormExists(cParentCellId))
     {
         spdlog::warn("Cannot launch projectile, invalid parent cell: {:X}", cParentCellId);
         return;

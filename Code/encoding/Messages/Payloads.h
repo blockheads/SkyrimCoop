@@ -115,7 +115,8 @@ struct ProjectileLaunch
     float ZAngle{};
     float XAngle{};
     float YAngle{};
-    GameId ParentCellID{};
+    GameId ParentCellID{}; // none outdoors for a cell the engine made (ToSessionCell)
+    GameId WorldSpaceID{};
     GameId SpellID{};
     int32_t CastingSource{};
     int32_t Area{};

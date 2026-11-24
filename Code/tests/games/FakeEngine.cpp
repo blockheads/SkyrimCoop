@@ -3601,25 +3601,29 @@ void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
     TakesDamage(aHittee, aHitter, aDamage, false);
 }
 
-void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin)
+void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile, const glm::vec3& acOrigin)
 {
     ProjectileLaunchedEvent event{};
     event.Origin = acOrigin;
     event.ShooterID = aShooter;
     event.SpellID = aSpell;
+    event.ProjectileBaseID = aProjectile;
     event.ParentCellID = Actors.at(aShooter).Cell;
     World::Get().GetRunner().Trigger(event);
     Shots.push_back({aShooter, aSpell, acOrigin});
 }
 
-void FakeEngine::ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aCell, const glm::vec3& acOrigin)
+void FakeEngine::ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProjectile, uint32_t aCell,
+                              const glm::vec3& acOrigin, bool aExplodes)
 {
     ProjectileLaunchedEvent event{};
     event.Origin = acOrigin;
     event.ShooterID = aObject;
     event.SpellID = aSpell;
+    event.ProjectileBaseID = aProjectile;
     event.ParentCellID = aCell;
     event.FromObject = true;
+    event.Explodes = aExplodes;
     World::Get().GetRunner().Trigger(event);
     Shots.push_back({aObject, aSpell, acOrigin});
 }

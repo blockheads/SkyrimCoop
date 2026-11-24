@@ -1504,9 +1504,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] HitRules::Party PartyOf(uint32_t aFormId) const noexcept;
     // A projectile this game's actor launched (our hook on Projectile::Launch raises it); one another game's actor
     // launched, relaunched here (LaunchProjectile).
-    void Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin);
-    // A projectile an object shot: an activator's Spell.RemoteCast (magicProjectileStormScript), a statue.
-    void ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aCell, const glm::vec3& acOrigin);
+    void Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile, const glm::vec3& acOrigin);
+    // A projectile an object shot: an activator's Spell.RemoteCast (magicProjectileStormScript), a statue. aExplodes:
+    // its base makes an explosion on impact (BGSProjectile +0xB0).
+    void ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProjectile, uint32_t aCell, const glm::vec3& acOrigin,
+                      bool aExplodes = false);
     struct Shot
     {
         uint32_t Shooter = 0;
@@ -1520,7 +1522,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                           float aPower, float aScale, bool aAlwaysHit, bool aNoDamageOutsideCombat, bool aAutoAim,
                           bool aDeferInit, bool aForceConeOfFire, bool aUnkBool1, bool aUnkBool2) noexcept override
     {
-        Shots.push_back({aShooterFormId, aSpellId, {aOriginX, aOriginY, aOriginZ}});
+        // Projectile::Launch (44108) makes nothing without a projectile base.
+        if (aProjectileBaseId)
+            Shots.push_back({aShooterFormId, aSpellId, {aOriginX, aOriginY, aOriginZ}});
     }
     std::vector<uint32_t> HealthBarsShown; // HUD's enemy health (ShowEnemyHealth)
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override { HealthBarsShown.push_back(aActorFormId); }

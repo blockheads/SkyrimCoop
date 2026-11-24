@@ -300,9 +300,15 @@ TEST_CASE("Shots: an object's (no shooter) replayed everywhere else, from whiche
     Session session;
     session.Character(kPeer);
 
-    // A Storm Call bolt from its script's activator (projectiles.md).
+    // An object's shot with no spell (an arrow trap's) goes nowhere.
     ProjectileLaunchRequest shot;
     shot.OriginZ = 3600.f;
+    session.Receive(kPeer, shot);
+    CHECK(session.Outbox.empty());
+
+    // A Storm Call bolt from its script's activator (projectiles.md).
+    shot.SpellID = GameId(0, 0xE4CB7);
+    shot.ProjectileBaseID = GameId(0, 0xE4CB5);
     session.Receive(kPeer, shot);
     REQUIRE(session.SentTo<NotifyProjectileLaunch>(kHost).size() == 1);
     CHECK(session.SentTo<NotifyProjectileLaunch>(kHost)[0]->ShooterID == 0);

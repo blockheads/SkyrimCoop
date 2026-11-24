@@ -309,7 +309,10 @@ void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, Connect
 
 void HostAuthority::OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
-    // An actor's shot from its owner; an object's (shooter 0: a script's activator, a statue) from the game that ran it.
+    // An actor's shot from its owner; an object's spell (shooter 0: a script's activator, a statue) from the game that
+    // ran it. An object's shot with no spell or projectile is never sent: the others would play it with no rule.
+    if (!acRequest.ShooterID && (!acRequest.SpellID || !acRequest.ProjectileBaseID))
+        return;
     Deliver(ToNotify<ProjectileLaunchRequest, NotifyProjectileLaunch>(acRequest), acRequest.ShooterID ? Delivery::FromOwner : Delivery::FromAnyone,
             acRequest.ShooterID, aSender);
 }
