@@ -377,6 +377,8 @@ struct Actor : TESObjectREFR
     enum ActorFlags
     {
         IS_A_MOUNT = 1 << 1,
+        MOUNT_POINT_CLEAR = 1 << 2,    // the rider fits at the dismount point (UpdateMovement 37350); else a get-off
+                                       // takes the mount's ClearMountPosition package (37864, 37907)
         GETTING_ON_OFF_MOUNT = 1 << 3, // from InitiateMountPackage or Dismount until MountDismountEndHandler (42881)
         SHOULD_ANIM_GRAPH_UPDATE = 1 << 8, // its graph runs (holder vfunc 0x0E, 37985); KillImpl clears it
         ANGRY_WITH_PLAYER = 1 << 11,       // kAngryWithPlayer: Actor__SetAngryWithPlayer (37463), read by ShouldAttack (37534)

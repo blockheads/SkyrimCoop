@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
+the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it
+into `PlayersHorse`, a stores-text alias, whose fill clears every named alias's cached name (read in IDA: 25052 ->
+`TESQuest::ClearAliasNameCaches` -> 12769). A message name regenerates; a custom name is only that cache, so the copy
+read "" and the crosshair skips a nameless reference. `HookClearCachedName` keeps a custom name
+(`re/systems/names.md`). GameTests "A bought horse keeps its name...", ClientTests `[names]`; Skyrim
+`guest-mounts-bought-horse` (the guest gets on). New harness readouts `name_data` / probe `set_name`, verb `name_data`.
+Getting off that horse inside its shed does nothing: no room beside it, as in single player (`re/systems/mounts.md`).
+
 2026-11-23: **no crosshair prompt over another player** (`agent/no-talk-to-players`). Each game's crosshair offered
 "Talk" over the other player's character (and Pickpocket while sneaking, Search when dead, all leading nowhere). Our hook
 on `Actor::CanTalkToPlayer` (37469) answers no for another player's copy, so E starts no conversation, and

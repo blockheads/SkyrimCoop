@@ -249,6 +249,12 @@ class MountsActions:
         ctx.wait_for(f"[{instance or 'host'}] the prompt for {target} offers {word}", lambda: word in text(), 5,
                      explain=lambda: f"prompt {text()!r}")
 
+    def name_data(ctx, target):
+        """Each game's display name for `target` and its ExtraTextDisplayData (cached text, message, quest, instance:
+        names.md), the readout behind a crosshair that takes nothing."""
+        return {game or "host": ctx.player_command(game, {"cmd": "name_data", "ref": ctx.resolve(target, game)})
+                for game in ("", "client")}
+
     def expect_prompt_lacks(ctx, instance, target, word="Talk"):
         """That game's crosshair prompt for `target` (24716, through our hooks) does not hold `word`, read now: what
         the player would not see over it. Fails with the prompt it shows."""
@@ -347,8 +353,9 @@ class MountsActions:
             raise TestFailure(f"{step}: " + "; ".join(sorted(set(problems))[:12]))
 
     def mount_readout(ctx, actors):
-        """Each (game, form)'s role, riding/ridden/getting on or off, sit state and process level (a low-process mount
-        gets a higher-process rider off by itself, UpdateLowMountRider 39174)."""
+        """Each (game, form)'s role, riding/ridden/getting on or off, sit state, process level (a low-process mount
+        gets a higher-process rider off by itself, UpdateLowMountRider 39174), running package and, for a mount,
+        kMountPointClear (unset: Activate gives it a ClearMountPosition package instead of a dismount, 37864)."""
         parts = []
         for game, form in actors:
             form = ctx.resolve(form, game)
@@ -357,7 +364,8 @@ class MountsActions:
             place = ctx.player_command(game, {"cmd": "actor_place", "actor": form})
             parts.append(f"[{game or 'host'} {form:X}] {state.get('role')} riding={placement.get('riding')} "
                          f"ridden={placement.get('ridden')} getting_on_off={placement.get('getting_on_off')} "
-                         f"sit={state.get('state', {}).get('sit_sleep')} process={place.get('process_level')}")
+                         f"sit={state.get('state', {}).get('sit_sleep')} process={place.get('process_level')} "
+                         f"package={place.get('package', 0):X} point_clear={place.get('mount_point_clear')}")
         return "; ".join(parts)
 
     def ride_once(ctx, instance, horse, gap=130, settle=0.0):
@@ -378,6 +386,17 @@ class MountsActions:
                                                     "event": (state.get("animation") or {}).get("event"),
                                                     "sit": (state.get("state") or {}).get("sit_sleep")}
         return bodies
+
+    def bought_horse_ride(ctx, instance, seller="skulvar_sable_hilt", horse="horse"):
+        """The host buys the stable's horse from `seller` (the scene's handles), then that game's player gets on and
+        off it (ride_once); returns ride_once's bodies, or fails naming the step, the horse's readout with it."""
+        ctx.set_party_gold(count=ctx.party_gold() + 1000)
+        ctx.talk("", seller, ["Can I buy a horse?", "Here's my offer"])
+        ctx.leave_dialogue(instance="")
+        try:
+            return ctx.ride_once(instance, horse)
+        except TestFailure as failure:
+            raise ctx.failure(f"{failure}; {ctx.mount_readout([[instance, 0x14], [instance, horse]])}") from None
 
     def mount_timeline(ctx, instance, seconds=4.0, horse=None, press=False):
         """Samples that game's player every 0.1 s for `seconds`: riding, getting on/off, sit state and the graph's

@@ -1,0 +1,61 @@
+time	op	id	rva	item
+2026-11-24T02:44:09Z	read	37864	0x6a77c0	{"name": "Character::sub_37864"}
+2026-11-24T02:44:10Z	read	38706	0x6d3720	{"name": "Character::sub_38706"}
+2026-11-24T02:50:10Z	read	21588	0x338570	{"name": "GameFunc::native::IsPlayersLastRiddenMount"}
+2026-11-24T02:50:17Z	comment	21588	0x338570	{"addr": "0x140338570", "comment": "IsPlayersLastRiddenMount (condition 339, AddressLib 21588): 1 when the subject is this game's player's lastRiddenMount (vfunc 0x114, PlayerCharacter+0x924). Gates the Stables horse packages PlayerHorseStayPut 9845C (==1) / PlayerHorseReturnToStable 98454 (==0), both also GetInFaction PlayerHorseFaction 68D78. Each game asks its own player (co-op: horse-mount-guest)."}
+2026-11-24T03:07:17Z	read	12768	0x189740	{"name": "ExtraTextDisplayData::GetDisplayName"}
+2026-11-24T03:07:23Z	read	12775	0x189b40	{"name": "ExtraTextDisplayData::GenerateName"}
+2026-11-24T03:07:27Z	read	12776	0x189df0	{"name": "sub_140189DF0"}
+2026-11-24T03:07:58Z	read	23897	0x399c40	{"name": "sub_140399C40"}
+2026-11-24T03:08:08Z	read		0x3c2600	{"name": "TESNPC::CopyFromTemplateForms"}
+2026-11-24T03:08:12Z	read	25074	0x3d8b10	{"name": "TESQuest::sub_25074"}
+2026-11-24T03:08:16Z	read	23899	0x399d40	{"name": "sub_140399D40"}
+2026-11-24T03:08:24Z	name	12776	0x189df0	{"addr": "0x140189df0", "name": "ExtraTextDisplayData::TrimCustomName"}
+2026-11-24T03:08:24Z	name	23897	0x399c40	{"addr": "0x140399c40", "name": "TextReplace_QuestInstance"}
+2026-11-24T03:08:24Z	name	23899	0x399d40	{"addr": "0x140399d40", "name": "TextReplace_ApplyTokens"}
+2026-11-24T03:08:24Z	name	25074	0x3d8b10	{"addr": "0x1403d8b10", "name": "TESQuest::GetInstanceData"}
+2026-11-24T03:08:24Z	name	21588	0x338570	{"addr": "0x140338570", "name": "GameFunc::native::IsPlayersLastRiddenMount"}
+2026-11-24T03:08:30Z	comment	12776	0x189df0	{"addr": "0x140189df0", "comment": "12776: a custom name (no message, no quest, instance -2) cut back to usCustomNameLength (+0x30), dropping a temper suffix; temper factor reset to 1."}
+2026-11-24T03:08:30Z	comment	23897	0x399c40	{"addr": "0x140399c40", "comment": "23897: replaces a text's alias tokens from quest a2's instance a3 (TESQuest::GetInstanceData 25074: its stored text). Called by GenerateName 12775 for a quest alias name (ExtraTextDisplayData +0x20 quest, +0x28 instance)."}
+2026-11-24T03:08:30Z	comment	23899	0x399d40	{"addr": "0x140399d40", "comment": "23899: the token replacement itself (<Alias=...>, <Global=...>) over a BSString, from the quest instance's stored text. Not read in full (co-op: horse-mount-guest)."}
+2026-11-24T03:08:30Z	comment	25074	0x3d8b10	{"addr": "0x1403d8b10", "comment": "25074: the quest's instance data (TESQuest+0x38 array, count +0x48) whose id (first dword) is a2; null if none. The stored text an alias name replaces tokens from."}
+2026-11-24T03:08:30Z	comment	12768	0x189740	{"addr": "0x140189740", "comment": "12768: the cached name (+0x10) unless empty or the temper factor (+0x2C) differs; else regenerates: a custom name trimmed (12776), then GenerateName 12775 (a message name with its quest instance's text replaced)."}
+2026-11-24T03:08:30Z	comment	12775	0x189b40	{"addr": "0x140189b40", "comment": "12775: the name from a message (+0x18: its FULL, the base's name token, then the quest's (+0x20) instance (+0x28) text replacement, 23897), else the custom name (+0x10), plus a temper suffix. A guest's copy given a host quest's alias name by our alias fill resolves it against the guest's quest instance (co-op: horse-mount-guest)."}
+2026-11-24T03:08:36Z	read	24011	0x39fde0	{"name": "BGSRefAlias::InitializeRefAlias"}
+2026-11-24T03:25:01Z	read	24012	0x3a0210	{"name": "BGSRefAlias::ClearRefAlias"}
+2026-11-24T03:25:02Z	read	11655	0x162f60	{"name": "ExtraDataList::SetQuestDisplayName"}
+2026-11-24T03:25:13Z	read	11656	0x163110	{"name": "ExtraDataList::ClearQuestDisplayName"}
+2026-11-24T03:25:38Z	read	69165	0xeb1120	{"name": "Ref::Set"}
+2026-11-24T03:33:25Z	read	19781	0x2f08d0	{"name": "TESObjectREFR::GetDisplayFullName"}
+2026-11-24T03:34:00Z	read	69201	0xeb2bb0	{"name": "sub_140EB2BB0"}
+2026-11-24T03:34:04Z	name	69201	0xeb2bb0	{"addr": "0x140eb2bb0", "name": "BSStringPool::LookupOrInsert"}
+2026-11-24T03:34:06Z	comment	69201	0xeb2bb0	{"addr": "0x140eb2bb0", "comment": "The string pool's entry for a2 (bucket a3 = case-insensitive CRC, length a4): an existing live one (flags & 0x8000 clear, _stricmp) gets a reference (flags +8, low 15 bits, saturating at 0x7FFF); else a new one (sub_140EB27D0). Entry: +0 next, +8 flags/refcount, text at +0x18 (BSFixedString::data points there). From Ref::Set 69165."}
+2026-11-24T03:39:56Z	read	25052	0x3d4fa0	{"name": "TESQuest::ForceRefIntoAlias"}
+2026-11-24T03:40:36Z	read	12769	0x189840	{"name": "ExtraTextDisplayData::sub_12769"}
+2026-11-24T03:40:40Z	read	25111	0x3db930	{"name": "sub_1403DB930"}
+2026-11-24T03:41:00Z	name	12769	0x189840	{"addr": "0x140189840", "name": "ExtraTextDisplayData::ClearCachedName"}
+2026-11-24T03:41:00Z	name	25111	0x3db930	{"addr": "0x1403db930", "name": "TESQuest::ClearAliasNameCaches"}
+2026-11-24T03:41:00Z	name	23894	0x399ad0	{"addr": "0x140399ad0", "name": "TESQuestInstanceData::StoreAliasText"}
+2026-11-24T03:41:01Z	read	23894	0x399ad0	{"name": "TESQuestInstanceData::StoreAliasText"}
+2026-11-24T03:41:08Z	comment	12769	0x189840	{"addr": "0x140189840", "comment": "12769: empties the cached name (+0x10 := the pool's empty string) so GetDisplayName 12768 regenerates it. Right for a message name; a custom name (no message, no quest, instance -2) lives only in +0x10 and is lost: reads \"\" for good. Only caller TESQuest::ClearAliasNameCaches. Hooked (co-op: horse-mount-guest): a custom name is kept."}
+2026-11-24T03:41:08Z	comment	25111	0x3db930	{"addr": "0x1403db930", "comment": "After a stores-text alias's fill (TESQuest::ForceRefIntoAlias 25052, alias flag 0x100, after StoreAliasText): for each of the quest's ref aliases with a display name (its ALDN message, or flag 0x4000), the aliased reference's cached name cleared (12769), so <Alias> tokens regenerate with the new stored text. Clears whatever ExtraTextDisplayData the reference holds, a custom name too (co-op: horse-mount-guest, the guest's copy of a bought horse)."}
+2026-11-24T03:41:08Z	comment	23894	0x399ad0	{"addr": "0x140399ad0", "comment": "A stores-text alias (flag 0x100): its reference's name stored in the quest instance's text pairs (alias id -> name), for <Alias=...> tokens."}
+2026-11-24T03:41:08Z	comment		0x3d5141	{"addr": "0x1403d5141", "comment": "InitializeRefAlias 24011 on the new ref (names it only if it has no ExtraTextDisplayData of another quest). Then a stores-text alias (0x100) stores its text and clears the quest's named aliases' cached names (ClearAliasNameCaches)."}
+2026-11-24T03:50:39Z	read	40621	0x757a70	{"name": "PlayerCharacter::UpdateCrosshairs"}
+2026-11-24T03:51:00Z	comment	40621	0x757a70	{"addr": "0x140757a70", "comment": "40621 PlayerCharacter::UpdateCrosshairs: the crosshair's prompt for the picked ref (CrosshairPickData +4, else +0xC): the base's GetActivateText (vfunc 0x260, TESNPC 24716), or the display name for a +0xC pick; no filter on the ref itself (CanPickRef 0x14040B1E0 refuses a nameless one, at the pick). Read 2026-11-23 (co-op: horse-mount-guest)."}
+2026-11-24T04:22:43Z	read	37907	0x6ac730	{"name": "Actor::InitiateClearMountPositionPackage"}
+2026-11-24T04:23:39Z	read		0x67bc80	{"name": "Actor::UpdateMovement"}
+2026-11-24T04:23:45Z	read		0x67bd24	{"name": "Actor::UpdateMovement"}
+2026-11-24T04:23:52Z	read		0x6863c9	{"name": "Actor::sub_37461"}
+2026-11-24T04:25:37Z	comment		0x67bd24	{"addr": "0x14067bd24", "comment": "kMountPointClear (flags2 0x4) on this mount: re-checked only while unset. Ridden (GetMountedBy, vfunc 0x70): the rider's controller TryMoveTo the dismount point (rider process, 0x140725BE0), then 25 units further: both fit -> set, else stays clear. Not ridden: set. Read by Character::ActivateMount 37864 (co-op: horse-mount-guest)."}
+2026-11-24T04:25:37Z	comment		0x68627b	{"addr": "0x14068627b", "comment": "37461: the same kMountPointClear check as UpdateMovement 37350's, unconditionally (sets or clears flags2 0x4). No caller found in IDA."}
+2026-11-24T04:25:37Z	comment		0x6a7892	{"addr": "0x1406a7892", "comment": "Riding it: the mount's kMountPointClear (flags2 0x4, UpdateMovement 37350) -> Dismount 37906; unset -> the mount's ClearMountPosition package (37907) and no dismount yet (co-op: horse-mount-guest)."}
+2026-11-24T04:25:37Z	comment	37907	0x6ac730	{"addr": "0x1406ac730", "comment": "37907: a created ClearMountPosition package (type 43) on the mount, at the mount's own place, put on through vfunc 0x37C/8 (1784: PutCreatedPackage). From ActivateMount 37864 when the mount point is not clear."}
+2026-11-24T04:27:55Z	read	37906	0x6ac260	{"name": "Actor::Dismount"}
+2026-11-24T04:29:41Z	read	39933	0x725c00	{"name": "sub_140725C00"}
+2026-11-24T04:44:20Z	name	39933	0x725c00	{"addr": "0x140725c00", "name": "AIProcess::SetDismountPoint"}
+2026-11-24T04:44:20Z	name	39932	0x725be0	{"addr": "0x140725be0", "name": "AIProcess::GetDismountPoint"}
+2026-11-24T04:44:20Z	name	37461	0x686260	{"addr": "0x140686260", "name": "Actor::UpdateMountPointClear"}
+2026-11-24T04:44:24Z	comment	39933	0x725c00	{"addr": "0x140725c00", "comment": "39933: the rider's dismount point: the mount's place plus (a3,a4,a5) rotated by the mount's angle (vfunc 0xA4), with the mount's +0x1F8 record's offset (+0x168..) added; stored in the process's middle-high +0xC8. Dismount 37906 calls it with that record's +0x174/+0x178/+0x17C."}
+2026-11-24T04:44:24Z	comment	39932	0x725be0	{"addr": "0x140725be0", "comment": "39932: the stored dismount point (middle-high +0xC8), set by SetDismountPoint 39933. Read by UpdateMovement 37350 / 37461 (kMountPointClear) and Dismount 37906."}
+2026-11-24T04:44:24Z	comment		0x6ac344	{"addr": "0x1406ac344", "comment": "The player: the dismount point recomputed (39933), the controller's 0x8000 filter bit dropped for the sweep, TryMoveTo (flag 1) there; blocked -> a menu sound and no dismount (returns 0). Measured 2026-11-23: refused this way in the Whiterun stable's stall (the bought horse at 18685,-11150, 274 degrees), in a game with no session too: vanilla (co-op: horse-mount-guest)."}

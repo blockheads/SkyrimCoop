@@ -162,3 +162,28 @@ high-process rider copy would lose its rider this way, a copy standing while its
 Two players getting on one horse within a round trip: `HostCharacters::OnMount` keeps the first rider and sends the
 second game `NotifyMountRefused`; that game's player gets off by `StopRidingQuick` (38705, mode 2, as PayFine).
 Read: mode 2 forces 40352's finish, so the ride ends (Detach) inside the call, whatever the exit action did.
+
+## No room to get off (2026-11-23, `agent/horse-mount-guest`)
+
+Read in IDA unless marked measured; the branch journal `docs/re/journal/1.7.104/agent-horse-mount-guest.tsv`.
+
+```
+Character::ActivateMount (37864), riding it
+  the mount's kMountPointClear (flags2 0x4)?  no -> the mount's ClearMountPosition package (37907), still riding
+  yes -> Actor::Dismount (37906)
+           refuses: not on a mount, kGettingOnOffMount, midair, bInJumpState
+           the player: AIProcess::SetDismountPoint (39933: beside the mount, its record's offset, its facing)
+             controller sweep there (bhkCharacterController::TryMoveTo, flag 1); blocked -> a menu sound, still riding
+kMountPointClear: Actor::UpdateMovement (37350) on the mount, only while unset: set when nobody rides it, or when the
+  rider's controller fits at GetDismountPoint (39932) and 25 units on; Actor::UpdateMountPointClear (37461) the same
+```
+
+- Measured: the Whiterun stable's bought horse walks into its stall (`PlayerHorseReturnToStable` 98454, until a
+  player's game takes it as last ridden: `IsPlayersLastRiddenMount` 21588 on each game's own player). Seated there
+  (18685, -11150, facing 274), Activate refused the dismount with `kMountPointClear` set, so 37906's own sweep was
+  blocked: for the guest (3 of 4 runs), for the host at that pose, and in a game with no session at that pose
+  (`vanilla_start plugin=true`). Ridden forward 150 units, every rider got off. Vanilla, not a sync bug.
+- It looked guest-only: the host's first ride makes the horse its last ridden (`PlayerHorseStayPut` 9845C), so later
+  host rides start outside the stall; a guest's ride leaves the host's horse walking back in.
+- So a get-off inside the shed does nothing, as in single player; ride out first. Harness `actor_place` and verb
+  `mount_readout` show `mount_point_clear`.
