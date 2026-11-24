@@ -159,6 +159,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         return phase;
     }
     PlayerRecord Player;             // this game's player, as ReadPlayer reads it (but its items and place: the actor's)
+    // What the engine keeps of its player beside the character, saved and loaded with its save (favorites, damage,
+    // timed effects, cooldowns, trainings, view: player-save-state.md); a load brings the save's player's.
+    PlayerOwnState Own;
     bool RefusesSaves = false;       // Save_Impl's own refusals (combat, a menu)
     std::vector<std::string> Loaded; // the saves this game loaded, by name
     bool IsAtMainMenu() const noexcept override { return AtMainMenu; }
@@ -720,6 +723,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // a permanent form; Base is then each game's own temporary NPC.
         uint32_t LeveledBase = 0;
         std::string DisplayName;
+        bool CustomName = false;  // DisplayName is a custom name (ExtraTextDisplayData instance -2), not an alias's message
+        bool NameEmptied = false; // its name's cache cleared with nothing to regenerate it from: reads "" (12769)
         uint32_t Cell = 0;
         uint32_t WorldSpace = 0;
         float Position[3]{};
@@ -1333,6 +1338,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, std::map<uint32_t, int32_t>> Factions; // by actor: each faction it is in, at its rank
     std::map<uint32_t, std::set<uint32_t>> AddedSpells;       // by actor (Actor::AddSpell)
     std::map<uint32_t, std::map<uint32_t, uint32_t>> QuestAliasReferences;
+    // A reference alias's flags by quest and alias: 0x100 stores text, 0x4000 uses stored text (a display name).
+    std::map<uint32_t, std::map<uint32_t, uint32_t>> AliasFlags;
+    // The reference aliases with a display name message (ALDN), by quest.
+    std::map<uint32_t, std::set<uint32_t>> AliasNameMessages;
+    // TESQuest::ClearAliasNameCaches (after a stores-text alias's fill, 25052): every named alias's reference has its
+    // cached name cleared (12769); a custom name lives only there (docs/re/systems/names.md).
+    void ClearAliasNameCaches(uint32_t aQuest);
     std::set<uint32_t> BodyQuests;                            // started by a player's body here (a beast form's)
     uint32_t WordsLearnedShown = 0; // "Word of power learned" (51648): Game.TeachWord's HUD
     uint32_t SoulsAbsorbedShown = 0; // "Dragon soul absorbed" (51649): the soul sink, this game's player's gains

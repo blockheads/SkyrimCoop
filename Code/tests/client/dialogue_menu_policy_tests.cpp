@@ -1,4 +1,5 @@
 #include <catch2/catch.hpp>
+#include <Services/ActivatePrompts.h>
 #include <Services/DialogueMenuPolicy.h>
 
 TEST_CASE("A dialogue refresh restores a hidden list even when its options did not change", "[dialogue]")
@@ -83,4 +84,19 @@ TEST_CASE("Asking the first-option cursor leaves the picked option where it was"
     int first = 0;
     CHECK(DialogueMenuPolicy::AskKeepingPicked(pPicked, [&] { pPicked = &first; return true; }));
     CHECK(pPicked == nullptr);
+}
+
+TEST_CASE("Another player's character never talks to this game's player; everyone else as the engine says", "[dialogue]")
+{
+    using DialogueMenuPolicy::TalksToPlayer;
+    CHECK(TalksToPlayer(true, false));
+    CHECK_FALSE(TalksToPlayer(false, false)); // vanilla's no (race flag, AllowPCDialogue) stays
+    CHECK_FALSE(TalksToPlayer(true, true));
+    CHECK_FALSE(TalksToPlayer(false, true));
+}
+
+TEST_CASE("No crosshair prompt over another player's character", "[dialogue]")
+{
+    CHECK_FALSE(ActivatePrompts::Offered(true));
+    CHECK(ActivatePrompts::Offered(false));
 }

@@ -34,7 +34,7 @@ CommandServer::Reply StartCommand(Harness& aHarness, const std::string& acReques
             return cReady(aHarness.Schedule.Take(cRequest.value("id", 0u)));
         if (cRequest.contains("at"))
             return cReady(nlohmann::json{{"ok", true}, {"queued", aHarness.Schedule.Queue(cRequest, cRequest["at"].get<double>())}});
-        for (const auto cCommands : {StagingCommands(), InputCommands(), WorldCommands(), KnowledgeCommands(), CrimeCommands(), SessionCommands(), MemoryCommands(), ChangeLogCommands(), PlayerEventsCommands(), ActivateWatch::Commands(), ClipLoads::Commands(), QuestFragmentsCommands(), SamplerCommands(), ActionCommands()})
+        for (const auto cCommands : {StagingCommands(), InputCommands(), WorldCommands(), KnowledgeCommands(), PlayerStateCommands(), CrimeCommands(), SessionCommands(), MemoryCommands(), ChangeLogCommands(), PlayerEventsCommands(), ActivateWatch::Commands(), ClipLoads::Commands(), QuestFragmentsCommands(), SamplerCommands(), ActionCommands()})
             for (const Command& cCommand : cCommands)
             {
                 if (cCommand.Name != cName)

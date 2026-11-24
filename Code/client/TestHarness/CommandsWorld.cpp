@@ -935,7 +935,8 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
 
 // {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, whether it is a copy here and
 // still loading (kStillLoading: a spawn for it waits), its running package and process level (-1: no process), where the
-// game placed it (home: GetEditorLocation 19514) and whether its parent cell is attached here.
+// game placed it (home: GetEditorLocation 19514), whether its parent cell is attached here and, for a mount, whether a
+// get-off may dismount at once (mount_point_clear).
 nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
 {
     auto& actors = World::Get().GetActorBridge();
@@ -960,7 +961,8 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
             {"still_loading", actors.IsActorStillLoading(cActor)},
             {"copy", actors.IsActorCopy(cActor)},
             {"package", actors.GetActorAiFields(cActor).PackageId},
-            {"process_level", cLevel ? int(*cLevel) : -1}};
+            {"process_level", cLevel ? int(*cLevel) : -1},
+            {"mount_point_clear", EngineCalls::MountPointClear(cActor).value_or(false)}};
 }
 
 // {"cmd": "is_current_package", "actor": id, "package": id}: the condition GetIsCurrentPackage on the actor here.

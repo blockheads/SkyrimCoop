@@ -171,6 +171,8 @@ struct HostGame
     std::function<void(const GameId& acSpell, bool aAdded)> StoreStorySpell;
     std::function<bool(const std::string& acKey)> HasRecord;
     std::function<void(const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell, const std::array<float, 3>& acPosition)> StorePlace;
+    // A guest left: its record's timed state (effects, cooldowns) stops aging (CharacterRecords::Settle).
+    std::function<void(const std::string& acKey)> SettleRecord;
     // The host's difficulty (0 Novice to 5 Legendary): the session's.
     std::function<uint32_t()> ReadDifficulty;
     // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.

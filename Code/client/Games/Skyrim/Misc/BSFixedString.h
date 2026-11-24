@@ -26,3 +26,20 @@ struct BSFixedString
 
     const char* data;
 };
+
+// A pooled string's entry: BSFixedString::data points at its text (BSStringPool::LookupOrInsert 69201).
+struct BSStringPoolEntry
+{
+    BSStringPoolEntry* pNext;
+    uint32_t uiFlags; // the reference count in the low 15 bits; 0x8000 a released entry
+    uint32_t uiLength;
+    uint64_t uiUnk10;
+
+    [[nodiscard]] static const BSStringPoolEntry* Of(const char* acpText) noexcept
+    {
+        return acpText ? reinterpret_cast<const BSStringPoolEntry*>(acpText - sizeof(BSStringPoolEntry)) : nullptr;
+    }
+};
+
+static_assert(sizeof(BSStringPoolEntry) == 0x18);
+static_assert(offsetof(BSStringPoolEntry, uiFlags) == 0x8);

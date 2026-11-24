@@ -38,6 +38,8 @@ struct ExtraDataList
     bool SetCustomName(const char* acpName, bool aOverQuest = false) noexcept;
     // Who owns the item or reference (ExtraOwnership: an NPC or a faction), as ExtraDataList::SetOwnerForm (11609).
     void SetOwner(TESForm* apOwner) noexcept;
+    // A favorite's number key (ExtraHotkey: -1 favorited, unbound; 0-7), added if absent (ExtraDataList::SetHotkey 11664).
+    void SetHotkey(int8_t aHotkey) noexcept;
 
     [[nodiscard]] bool HasQuestObjectAlias() noexcept;
 

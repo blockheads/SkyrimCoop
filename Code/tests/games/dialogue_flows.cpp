@@ -9,6 +9,7 @@
 #include "Fixtures.h"
 #include <Events/SessionNoticeEvent.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
+#include <Messages/SharedDialogue.h>
 #include <SessionIds.h>
 
 namespace
@@ -34,6 +35,14 @@ struct ChatLines
     void On(const NotifyChatMessageBroadcast& acLine) { Lines.push_back(acLine.ChatMessage); }
     [[nodiscard]] bool Has(const std::string& acLine) const { return std::ranges::find(Lines, acLine) != Lines.end(); }
     std::vector<std::string> Lines;
+};
+
+// The conversations the host's rules start on the host's game for a guest's ask (NotifyDialogueStart), by NPC.
+struct Starts
+{
+    explicit Starts(World& aGame) { aGame.GetDispatcher().sink<NotifyDialogueStart>().connect<&Starts::On>(*this); }
+    void On(const NotifyDialogueStart& acStart) { Npcs.push_back(acStart.NpcId); }
+    std::vector<uint32_t> Npcs;
 };
 
 FakeDialogue& Dialogue(World& aGame)
@@ -798,4 +807,45 @@ SCENARIO("A guest talks to an NPC from behind it: its body turns to the guest, o
     party.As(party.Guest(), [&] { talk.PlayerTalksTo(cCopy); });
     party.Until([&] { return cBehind(host.Actors.at(npc).Rotation[2]); }, "the host's NPC turns its body to the guest", cHeadings);
     party.Until([&] { return cBehind(guest.Actors.at(cCopy).Rotation[2]); }, "the copy turns with it", cHeadings);
+}
+
+SCENARIO("A player's character offers no prompt to the other players, on every game", "[dialogue][copies][crosshair]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    Topics(party.Host());
+    Topics(party.Guest());
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1 && GameTest::PlayerCopy(host) && GameTest::PlayerCopy(guest); },
+                "each game has the other player's character and the guest a copy of the NPC");
+    const uint32_t cGuestsCharacter = GameTest::PlayerCopy(host);
+    const uint32_t cHostsCharacter = GameTest::PlayerCopy(guest);
+
+    // Duo, 2026-11-23 (no-prompt-over-players): each game's prompt over the other player read "Talk\nPrisoner".
+    THEN("neither game shows a prompt over the other player, dead or sneaking either; an NPC's still does")
+    {
+        CHECK(hostTalk.ActivateText(cGuestsCharacter).empty());
+        CHECK(guestTalk.ActivateText(cHostsCharacter).empty());
+        CHECK(guestTalk.ActivateText(cHostsCharacter, false, true).empty()); // was Pickpocket (duo, 2026-11-23)
+        CHECK(guestTalk.ActivateText(cHostsCharacter, true).empty());        // was Search
+        CHECK(hostTalk.ActivateText(npc) == "Talk");
+        CHECK(guestTalk.ActivateText(guest.CopiesOf(kGuard)[0]) == "Talk");
+        CHECK(guestTalk.ActivateText(guest.CopiesOf(kGuard)[0], false, true) == "Pickpocket");
+    }
+
+    party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(cGuestsCharacter); });
+    CHECK(!hostTalk.Speaker);
+    // The guest's ask, had it gone, reaches the host's game before the next one (the host's rule refuses it anyway).
+    Starts starts(party.Host());
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cHostsCharacter); });
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return guestTalk.MenuOpen && hostTalk.Speaker == npc; },
+                "the guest's talk to the NPC opens, the one to the host's player having started nothing");
+    CHECK(guestTalk.Speaker == guest.CopiesOf(kGuard)[0]);
+    CHECK(starts.Npcs.size() == 1); // the guard's ask alone
 }

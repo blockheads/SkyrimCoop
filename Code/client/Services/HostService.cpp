@@ -286,7 +286,11 @@ void HostService::MakeAuthority() noexcept
     };
     game.StoreRecord = [cRecords](const PlayerRecord& acRecord) {
         if (auto* pRecords = cRecords())
-            pRecords->Put(acRecord);
+            pRecords->Put(acRecord, CharacterRecords::Clock::now());
+    };
+    game.SettleRecord = [cRecords](const std::string& acKey) {
+        if (auto* pRecords = cRecords())
+            pRecords->Settle(acKey, CharacterRecords::Clock::now());
     };
     game.StoreStorySpell = [cRecords](const GameId& acSpell, bool aAdded) {
         if (auto* pRecords = cRecords())

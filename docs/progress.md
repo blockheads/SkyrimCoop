@@ -49,6 +49,32 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
+the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it
+into `PlayersHorse`, a stores-text alias, whose fill clears every named alias's cached name (read in IDA: 25052 ->
+`TESQuest::ClearAliasNameCaches` -> 12769). A message name regenerates; a custom name is only that cache, so the copy
+read "" and the crosshair skips a nameless reference. `HookClearCachedName` keeps a custom name
+(`re/systems/names.md`). GameTests "A bought horse keeps its name...", ClientTests `[names]`; Skyrim
+`guest-mounts-bought-horse` (the guest gets on). New harness readouts `name_data` / probe `set_name`, verb `name_data`.
+Getting off that horse inside its shed does nothing: no room beside it, as in single player (`re/systems/mounts.md`).
+
+2026-11-23: **no crosshair prompt over another player** (`agent/no-talk-to-players`). Each game's crosshair offered
+"Talk" over the other player's character (and Pickpocket while sneaking, Search when dead, all leading nowhere). Our hook
+on `Actor::CanTalkToPlayer` (37469) answers no for another player's copy, so E starts no conversation, and
+`HookGetActivateText` (24716) gives it no prompt at all (`re/systems/dialogue.md`, "No talking to players"). ClientTests,
+GameTests, scenario `no-prompt-over-players`.
+
+2026-11-23: **a guest keeps its own favorites, damage, effects and cooldowns over a reload or rejoin**
+(`agent/favorites-audit`, bug 17). A guest loads the host's save and its character record goes on the save's player;
+what the record lacked stayed the host's: the host's spell favorites (save global 109), no item favorites (the
+inventory's `RemoveAllItems` drops every `ExtraHotkey`), no damage, no timed effects (blessings, potions), the host's
+power cooldowns, trainer count, misc stats and camera view. The record now carries them (`PlayerRecord::Own`,
+`PlayerSaveState`): item favorites as stacks with their keys, globals 0, 109 and 110 as the engine's own bytes,
+damage, timed effects recast with their elapsed time, cooldowns, trainings, first person. The guest's record also goes
+after its health changes or it casts. Read in IDA: [player-save-state.md](re/systems/player-save-state.md). Scenario
+`guest_keeps_own_state_on_reload`; GameTests "A guest keeps its own favorites, damage, effects, cooldowns, trainings
+and view over a host load and a rejoin"; ClientTests `[own-state]`.
+
 2026-11-23: **clothes a quest dresses the player in reach every player, worn** (`agent/alternate-start-clothing`).
 With Alternate Start only the host got its start's clothing: the start choices run `Player.EquipItem(...)` from
 `ARTHLALRumorsOfWarQuest`'s fragments, and `Actor.EquipItem` (54661, read in IDA) adds an item the actor lacks
