@@ -4,6 +4,7 @@
 #include <Games/Skyrim/Forms/TESObjectWEAP.h>
 #include <Games/Skyrim/Forms/MagicItem.h>
 #include <Games/Skyrim/Forms/TESAmmo.h>
+#include <Games/Skyrim/Forms/BGSProjectile.h>
 #include <Actor.h>
 #include <Games/ActorExtension.h>
 #include <World.h>
@@ -11,6 +12,7 @@
 #include <Combat/HitData.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Games/Skyrim/Forms/TESObjectCELL.h>
+#include <Games/Skyrim/Forms/TESWorldSpace.h>
 #include <Forms/SpellItem.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -97,6 +99,10 @@ BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Pro
     if (arData.pShooter)
         Event.ShooterID = arData.pShooter->formID;
     Event.FromObject = !Cast<Actor>(arData.pShooter);
+    if (const auto* pBase = Cast<BGSProjectile>(arData.pProjectileBase))
+        Event.Explodes = pBase->pExplosion != nullptr;
+    if (arData.pParentCell && arData.pParentCell->worldspace)
+        Event.WorldSpaceID = arData.pParentCell->worldspace->formID;
     if (arData.pFromWeapon)
         Event.WeaponID = arData.pFromWeapon->formID;
     if (arData.pFromAmmo)

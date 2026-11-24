@@ -19,7 +19,8 @@ inline void Fill(Payloads::ProjectileLaunch& aLaunch, const ProjectileLaunchedEv
     aLaunch.ZAngle = acEvent.ZAngle;
     aLaunch.XAngle = acEvent.XAngle;
     aLaunch.YAngle = acEvent.YAngle;
-    aLaunch.ParentCellID = ToSession(acEvent.ParentCellID).value_or(GameId{});
+    aLaunch.ParentCellID = ToSessionCell(acEvent.ParentCellID, acEvent.WorldSpaceID).value_or(GameId{});
+    aLaunch.WorldSpaceID = ToSession(acEvent.WorldSpaceID).value_or(GameId{});
     aLaunch.SpellID = ToSession(acEvent.SpellID).value_or(GameId{});
     aLaunch.CastingSource = acEvent.CastingSource;
     aLaunch.Area = acEvent.Area;
@@ -34,10 +35,11 @@ inline void Fill(Payloads::ProjectileLaunch& aLaunch, const ProjectileLaunchedEv
     aLaunch.UnkBool2 = acEvent.UnkBool2;
 }
 
-inline void Launch(IFormBridge& aForms, uint32_t aShooterFormId, const Payloads::ProjectileLaunch& acLaunch) noexcept
+// aParentCellId: the cell here (TravelService::CellAt: an engine-made outdoor cell by its worldspace and the origin).
+inline void Launch(IFormBridge& aForms, uint32_t aShooterFormId, uint32_t aParentCellId, const Payloads::ProjectileLaunch& acLaunch) noexcept
 {
-    const uint32_t cParentCellId = ToGame(acLaunch.ParentCellID);
-    if (!aForms.FormExists(cParentCellId))
+    const uint32_t cParentCellId = aParentCellId;
+    if (!cParentCellId || !aForms.FormExists(cParentCellId))
     {
         spdlog::warn("Cannot launch projectile, invalid parent cell: {:X}", cParentCellId);
         return;

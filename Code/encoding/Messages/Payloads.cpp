@@ -212,6 +212,7 @@ void ProjectileLaunch::SerializePayload(Wire::Buffer::Writer& aWriter) const noe
     Serialization::WriteFloat(aWriter, YAngle);
 
     ParentCellID.Serialize(aWriter);
+    WorldSpaceID.Serialize(aWriter);
     SpellID.Serialize(aWriter);
 
     Serialization::WriteVarInt(aWriter, CastingSource);
@@ -247,6 +248,7 @@ void ProjectileLaunch::DeserializePayload(Wire::Buffer::Reader& aReader) noexcep
     YAngle = Serialization::ReadFloat(aReader);
 
     ParentCellID.Deserialize(aReader);
+    WorldSpaceID.Deserialize(aReader);
     SpellID.Deserialize(aReader);
 
     CastingSource = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;

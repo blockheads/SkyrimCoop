@@ -9,6 +9,7 @@ constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kWall = 0x00054B15;
 constexpr uint32_t kDarts = 0x0003720F;
 constexpr uint32_t kDart = 0x000236A5;
+constexpr uint32_t kDartProjectile = 0x0003BE11; // a trap dart's projectile base
 constexpr uint32_t kMarker = 0x00037210; // a trap that never hits: what reaches it, came after the rest
 constexpr uint32_t kGuard = 0x0001A67C;
 
@@ -200,7 +201,7 @@ SCENARIO("A dart an object fires flies on every other game, once, with no shoote
     party.Until([&] { return PlayerCopy(host, 1) != 0; }, "the host has both guests");
     WHEN("the host's trap fires")
     {
-        party.As(party.Host(), [&] { host.ObjectShoots(kDarts, 0, kSmoke, {10.f, 20.f, 30.f}, kDart); });
+        party.As(party.Host(), [&] { host.ObjectShoots(kDarts, 0, kDartProjectile, kSmoke, {10.f, 20.f, 30.f}, false, kDart); });
         party.Until([&] { return guest.Shots.size() == 1 && other.Shots.size() == 1; }, "both guests fire it");
         Settle(party, 2);
         CHECK(guest.Shots.size() == 1);
@@ -213,7 +214,7 @@ SCENARIO("A dart an object fires flies on every other game, once, with no shoote
     }
     WHEN("a guest's engine fires one of its own (its player's Storm Call)")
     {
-        party.As(party.Guest(0), [&] { guest.ObjectShoots(kDarts, 0, kSmoke, {10.f, 20.f, 30.f}, kDart); });
+        party.As(party.Guest(0), [&] { guest.ObjectShoots(kDarts, 0, kDartProjectile, kSmoke, {10.f, 20.f, 30.f}, false, kDart); });
         party.Until([&] { return host.Shots.size() == 1 && other.Shots.size() == 1; }, "the host and the other guest fire it");
         CHECK(guest.Shots.size() == 1); // its own
     }

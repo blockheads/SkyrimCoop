@@ -300,9 +300,19 @@ TEST_CASE("Shots: an object's (no shooter) replayed everywhere else, from whiche
     Session session;
     session.Character(kPeer);
 
+    // An object's shot of any kind, one with no spell (an arrow trap's) as a bolt.
+    ProjectileLaunchRequest dart;
+    dart.OriginZ = 30.f;
+    dart.ProjectileBaseID = GameId(0, 0x3BE11);
+    session.Receive(kPeer, dart);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kHost).size() == 1);
+    session.Outbox.clear();
+
     // A Storm Call bolt from its script's activator (projectiles.md).
     ProjectileLaunchRequest shot;
     shot.OriginZ = 3600.f;
+    shot.SpellID = GameId(0, 0xE4CB7);
+    shot.ProjectileBaseID = GameId(0, 0xE4CB5);
     session.Receive(kPeer, shot);
     REQUIRE(session.SentTo<NotifyProjectileLaunch>(kHost).size() == 1);
     CHECK(session.SentTo<NotifyProjectileLaunch>(kHost)[0]->ShooterID == 0);

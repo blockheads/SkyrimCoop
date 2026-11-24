@@ -6,13 +6,15 @@ How a spell's projectile is launched, by an actor or by an object, and what appl
 ## Storm Call (records, Skyrim.esm)
 
 - `StormCallShout` 7097D: words 6029A/B/C, spells `VoiceStormCall1/2/3` (18609, 1860A, 1860D), self-delivered.
-- Each spell: `VoiceStormCallEffectN` (area 100: the actors around, by its conditions), `VoiceStormCallEffectNSelf` (on
-  the caster: `magicSetWeatherScript` and the same storm script) and an empty AI effect, 60 s.
+- Each spell: `VoiceStormCallEffectN` (on the actors around, by its conditions), `VoiceStormCallEffectNSelf` (on the
+  caster: `magicSetWeatherScript` and the same storm script) and an empty AI effect; 60/120/180 s, areas 100/100/150.
 - Both run `magicProjectileStormScript` (vanilla source, `Data/Source/Scripts`): `OnEffectStart` places an activator
-  (`PlaceAtMe`) above the target, then every 1-3 s moves it and calls `SpellRef.RemoteCast(activator, caster, target)`,
-  `StormCallLightningBolt01` (E4CB7: `ShockDamageBoltStormAimed` E4CB6, projectile `ShockBoltAimStorm` E4CB5, a beam;
-  its explosion `StormCallImpactSoundExplosion` EAFE3 is a sound, no damage or enchantment). On the caster itself it
-  misses on purpose (`bDontHitCaster`): bolts around the shouter.
+  (`PlaceAtMe`) above the target, then every 1-3 s moves it and calls `SpellRef.RemoteCast(activator, caster, target)`.
+  `SpellRef`: the self effects and `VoiceStormCallEffect1` cast `StormCallLightningBolt01` (E4CB7),
+  `VoiceStormCallEffect2/3` cast `...02/03` (E98A2, E98A3; 60 and 80 damage against 40). All three are
+  `ShockDamageBoltStormAimed` (E4CB6) with projectile `ShockBoltAimStorm` (E4CB5): a beam whose base has no explosion
+  (flag 2 off). The effect's own explosion field (`StormCallImpactSoundExplosion` EAFE3) is a sound with no damage or
+  enchantment record. On the caster itself it misses on purpose (`bDontHitCaster`): bolts around the shouter.
 - So the script runs where the effect is applied: the NPCs' on the host (their owner), the guest's own on the guest.
 
 ## Spell.RemoteCast to the launch
@@ -38,10 +40,13 @@ blame actor is not in its `LaunchData`.
 | 44205 | `Projectile::HandleRefImpact` | A hit on a reference: with a spell, 44206; with only an enchanted weapon (+0x1B8), the shooter's instant caster casts the enchantment (no shooter: nothing). |
 | 44206 | `Projectile::ApplySpellOnHit` | Takes 44169's caster; with none it does nothing: no death force, no `MagicCaster::ApplyAtImpact`. |
 | 34412 | `MagicCaster::ApplyAtImpact` | The spell's effects on what was hit and, for an area, on the actors `ProcessLists` finds around, each through `AddTarget`. |
-| 43849 | `Explosion` apply to targets | An explosion applies only its own base's damage (HitData) and enchantment, not the spell. |
+| 43849 | `Explosion` apply to targets | An explosion applies only its own base's damage (HitData) and enchantment, not the spell; 43850 and 43854 push bodies. |
+| 44108 | `Projectile::Launch` (at `0x1407F9A4D`; 44120 too) | The projectile's explosion (+0x158) is its base's `explosionType` (`BGSProjectile` +0xB0). |
 
 A projectile's spell lands only through its shooter's caster. An activator's caster blames the blame actor (34698), so
-on the host `AddTarget` sees the shouting player as the caster.
+`GetCasterAsActor` answers the shouting player (or its copy); whether `AddTargetData::caster` is it was not read. The explosion is apart from the caster: what a
+shooterless explosion does (its damage, enchantment and push) was not read, so a projectile whose base explodes is
+not relayed. Not read either: where an effect's own explosion field (EAFE3 here) is played.
 
 ## How we sync it
 
@@ -64,13 +69,21 @@ above zero, which its constructor (44100) works out from the shooter: relaunched
 was dropped. A hit with no actor aggressor is now the host's world hit (`Projectile::WorldHit`, scoped on each run of
 38586, which queues itself off the main thread: `TaskQueueInterface::ShouldUseTaskQueue`): on another player's copy it
 goes to its owner as a health change (`HitRules::Of`, `aWorldHit`). Open: a projectile that explodes on impact also
-explodes on the guest's relaunch; whether that explosion hurts the guest's player there too (twice with the host's
+explodes on the guest's relaunch (the Fishing catapult: force 2300, radius 2000); whether that explosion hurts the guest's player there too (twice with the host's
 verdict) is not measured (traps.md).
+
+Outdoors the message carries the worldspace, and the cell goes as none when the engine made it (no plugin record:
+`ToSessionCell`); the others find the cell from the worldspace and the origin (`TravelService::CellAt`), as for actors.
+
+**A guest's storm on a host NPC (inferred from our code, not measured).** The host runs that NPC's effect script, which
+blames the guest's copy. If `AddTargetData::caster` is that blame actor (not read), the host's `HookAddTarget` drops an effect on the host's own actor whose caster is a copy
+(the copy's owner sent its own request), so the bolt's damage lands nowhere. Filed in progress.md, loose ends.
 
 Measured (2026-11-24, scenario `storm-call-bolts-reach-guest`, counters `projectile E4CB5` and
 `projectile E4CB5 relaunched`): before, the host's shout struck 3 bolts and the guest showed 0; the guest's struck 3
 and the host showed 0. After: the host struck 4 and the guest relaunched 4; the guest struck 3 and the host relaunched
-3 (the host meanwhile struck 9 more for the NPCs both storms hit; the guest relaunched 10).
+3. With every storm stopped before the count (`MAGProjectileStormVar` 0), the match is exact: host 3 own, guest 3
+relaunched; then host 4 own / guest 4 relaunched and guest 3 own / host 3 relaunched.
 
 The guest's own storm (its Self effect) places its activator through the host (`PlaceAtMe` is the host's,
 [summons.md](summons.md)) and casts from its copy of it, so the bolt is the guest's launch.

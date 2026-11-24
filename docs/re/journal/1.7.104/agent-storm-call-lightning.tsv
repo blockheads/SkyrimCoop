@@ -33,3 +33,5 @@ time	op	id	rva	item
 2026-11-24T07:08:21Z	read		0x7e6308	{"name": "Explosion__ApplyToTargets"}
 2026-11-24T07:09:05Z	name	34412	0x5cbd90	{"addr": "0x1405CBD90", "name": "MagicCaster::ApplyAtImpact"}
 2026-11-24T07:09:07Z	comment	34412	0x5cbd90	{"addr": "0x1405CBD90", "comment": "Read while looking for the shout's push (magic caster area). Not on the disintegrate freeze's path.\nMagicCaster::ApplyAtImpact(caster, impact point, projectile, hit ref, ...): the spell's effects on the hit actor and, for an area, every actor ProcessLists finds around (ActorTargetCheck), each through AddTarget with a PostCreationCallback. Called by Projectile::ApplySpellOnHit only when the projectile's shooter has a caster."}
+2026-11-24T07:42:15Z	comment		0x7f9a4d	{"addr": "0x1407f9a4d", "comment": "the projectile's explosion (+0x158) = its base BGSProjectile's explosionType (+0xB0, DATA +0x30); a base with none makes no impact explosion"}
+2026-11-24T07:42:15Z	comment		0x7fa531	{"addr": "0x1407fa531", "comment": "44120: again the projectile's explosion (+0x158) from its base's explosionType (+0xB0)"}

@@ -311,7 +311,8 @@ void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, Connect
 
 void HostAuthority::OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
-    // An actor's shot from its owner; an object's (shooter 0: a script's activator, a statue) from the game that ran it.
+    // An actor's shot from its owner; an object's (shooter 0: a dart port, a script's activator, a statue), of any kind,
+    // from the game that ran it.
     Deliver(ToNotify<ProjectileLaunchRequest, NotifyProjectileLaunch>(acRequest), acRequest.ShooterID ? Delivery::FromOwner : Delivery::FromAnyone,
             acRequest.ShooterID, aSender);
 }

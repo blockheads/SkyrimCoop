@@ -1,6 +1,7 @@
 #include <Services/CombatService.h>
 #include <Services/ProjectileLaunches.h>
 #include <Services/TransportService.h>
+#include <Services/TravelService.h>
 
 #include <Events/UpdateEvent.h>
 #include <Games/ActorUpkeep.h>
@@ -103,8 +104,10 @@ void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMes
         shooterFormId = remoteView.get<FormIdComponent>(*remoteIt).Id;
     }
 
+    const uint32_t cParentCellId = m_world.GetTravelService().CellAt(
+        acMessage.WorldSpaceID, acMessage.ParentCellID, {acMessage.OriginX, acMessage.OriginY, acMessage.OriginZ});
     spdlog::debug("Projectile from session id {:X}: relaunching", acMessage.ShooterID);
-    ProjectileLaunches::Launch(m_formBridge, shooterFormId, acMessage);
+    ProjectileLaunches::Launch(m_formBridge, shooterFormId, cParentCellId, acMessage);
 }
 
 void CombatService::OnMeleeStagger(const MeleeStaggerEvent& acEvent) noexcept
