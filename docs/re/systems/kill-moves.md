@@ -362,14 +362,34 @@ kill): it waits for its owner's death action, about 115 ms later. Traced on `kil
 
 Now it holds that pose: `KillActorHandler` 42838 starts the hold, `HookUpdateAnimationGraphs` gives its graph no update until
 the death action (or 1.5 s, `cPoseHoldMs`). Nothing drives a ragdoll with no graph update, and limbs free-fell 45 units in the
-hold, so its bodies' velocities are zeroed each update (`HoldCopyRagdollStill`). Its first ragdoll frame steers instead of
-teleporting unless 16+ units off (`PlaceDistance`). Before: 0 of 3, up to 81-unit flickers. After: 6 of 6, 0 flickers, no
-bone over 25 units off. This also explains the note in `progress.md` about a wolf's copy holding its pose after its blow:
+hold, so its bodies' velocities are zeroed each update (`HoldCopyRagdollStill`). Before: 0 of 3, up to 81-unit flickers.
+After: 6 of 6, 0 flickers, no bone over 25 units off. Its first frames were then steered body by body unless 16+ units
+off (`PlaceDistance`, replaced 2026-11-23: next section). This also explains the note in `progress.md` about a wolf's copy holding its pose after its blow:
 that hold is now deliberate.
 
 Its ragdoll is its own through the clip (2026-11-18): the victim state's `AddRagdollToWorld` puts it in the world on
 the copy before its owner's stream does, and mirroring the owner's body layer had taken it out again until the death
 (`docs/re/systems/physics.md`, "A kill move's victim copy keeps its ragdoll").
+
+## A copy's ragdoll starts whole (2026-11-23)
+
+The host's battleaxe kill moves seen on the guest (10 falls): up to 32 flickers, 4 to 23 units of pelvis jump (the host's
+own screen 0.4 to 4.6). The log showed the first frames split the ragdoll: limbs 16+ units off were placed (`PlaceDistance`),
+the rest steered, and the joints between them threw the bodies about. That showed in 3 of 6 falls, all HeadButts, each at
+its burst.
+
+`RagdollStart` (`Code/client/Physics/RagdollStart.h`) plans the whole ragdoll at once: each body's gap at its first frame is
+blended out over 0.2 s, and one body 64+ units off (`BodyTolerances::kPlaceFar`) puts them all on their frames. After: 0
+flickers in 9 of 9 falls, and in 16 more on the authority scheme's base. Tests: GameTests and ClientTests `[ragdoll-start]`.
+
+Not fixed by it: the host's HeadButts on the guest still jump about 18 units (4 of 5, 2026-11-23). The trace: every body of
+the copy's ragdoll drops about 22 units in one frame at its death (the host's rises), while its frame is 100 ms behind;
+`RagdollStart` then takes that as its gap and blends it out. Nothing of ours logged a placement there, and `KillImpl` 37896's
+ragdoll part sets no body's position (`SetRagdollMotionType`: 63627 skips the ragdoll's own bodies; vfunc 12, 63631, sets its
+constraints' motors). A probe around 58291 (duo, 2 HeadButt-free rounds of 5 with a death jump) showed the move inside
+the engine's own `hkbRagdollDriver::driveToPose` on the copy's first update after its death: body 0 moved 10 and 9.6 units
+in that one call, our steer after it nothing. Its callees read so far set no position (IDA comments at 58291); whether its
+keyframed-to-dynamic `setMotionType` puts a body back to its swept transform's start is not read yet.
 
 ## `client-kill-move` timing
 
