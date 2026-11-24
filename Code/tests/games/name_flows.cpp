@@ -252,38 +252,58 @@ TEST_CASE("The host's quest names a horse its guest rider owns", "[names][mounts
     party.Until([&] { return cNamed("Horse"); }, "and lose it");
 }
 
-TEST_CASE("A bought horse keeps its name on the guest when the stable's alias takes it", "[names][mounts]")
+namespace
 {
-    // Stables (68D73): the purchase forces the horse into PlayersHorse (alias 40), which stores and uses text (0x4102):
-    // its fill clears the quest's names' caches (25052 -> 12769), the copy's name from its owner among them.
-    constexpr uint32_t cCell = 0x31D2E;
-    constexpr uint32_t cHorseBase = 0x109E3D;
-    constexpr uint32_t cStables = 0x68D73;
-    constexpr uint32_t cPlayersHorse = 40;
+constexpr uint32_t kStablesCell = 0x31D2E;
+constexpr uint32_t kHorseBase = 0x109E3D;
+constexpr uint32_t kStables = 0x68D73;
+constexpr uint32_t kPlayersHorse = 40;
+
+// The host names its horse, then the guest's Stables state forces `aFilled` (a stores-text alias) onto the copy's
+// `aOn` alias; returns the copy's name after (25052 -> 25111 -> 12769 on each named alias's reference).
+std::string NameAfterStablesFill(uint32_t aFilledFlags, bool aOtherAliasNamed)
+{
+    constexpr uint32_t cOther = 7;
     Party party(1, [&](FakeEngine& aEngine) {
-        aEngine.Actors.at(FakeEngine::kPlayer).Cell = cCell;
-        aEngine.LoadCell(cCell);
-        aEngine.Npcs[cHorseBase].Name = "Horse";
-        aEngine.AliasFlags[cStables][cPlayersHorse] = 0x4102;
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = kStablesCell;
+        aEngine.LoadCell(kStablesCell);
+        aEngine.Npcs[kHorseBase].Name = "Horse";
+        aEngine.AliasFlags[kStables][kPlayersHorse] = aFilledFlags;
+        aEngine.AliasNameMessages[kStables].insert(aOtherAliasNamed ? cOther : kPlayersHorse);
     });
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     uint32_t horse = 0;
-    party.As(party.Host(), [&] { horse = host.LoadNpc(cHorseBase, cCell); });
-    party.Until([&] { return guest.CopiesOf(cHorseBase).size() == 1; }, "the guest has the horse");
-    const uint32_t cCopy = guest.CopiesOf(cHorseBase)[0];
-
+    party.As(party.Host(), [&] { horse = host.LoadNpc(kHorseBase, kStablesCell); });
+    party.Until([&] { return guest.CopiesOf(kHorseBase).size() == 1; }, "the guest has the horse");
+    const uint32_t cCopy = guest.CopiesOf(kHorseBase)[0];
     party.As(party.Host(), [&] { host.AliasNames(horse, "Prisoner's Horse"); });
     party.Until([&] { return guest.GetActorDisplayName(cCopy) == "Prisoner's Horse"; }, "the copy takes the bought horse's name");
+
     NotifyQuests update;
     auto& quest = update.Quests.emplace_back();
-    quest.Id = GameId{0, cStables};
+    quest.Id = GameId{0, kStables};
     quest.Flags = 1;
-    quest.Aliases = {{.AliasId = cPlayersHorse, .ActorId = Utils::GetSessionIdByFormId(cCopy).value_or(0)}};
-    REQUIRE(quest.Aliases[0].ActorId);
+    const uint32_t cSession = Utils::GetSessionIdByFormId(cCopy).value_or(0);
+    REQUIRE(cSession);
+    quest.Aliases = {{.AliasId = kPlayersHorse, .ActorId = cSession}};
+    if (aOtherAliasNamed)
+        quest.Aliases.push_back({.AliasId = cOther, .ActorId = cSession});
     party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(update); });
-    party.Until([&] { return guest.QuestAliasReferences[cStables][cPlayersHorse] == cCopy; }, "the guest's stable takes the horse");
-    party.As(party.Guest(), [&] { CHECK(guest.GetActorDisplayName(cCopy) == "Prisoner's Horse"); });
+    party.Until([&] { return guest.QuestAliasReferences[kStables][kPlayersHorse] == cCopy; }, "the guest's stable takes the horse");
+    std::string name;
+    party.As(party.Guest(), [&] { name = guest.GetActorDisplayName(cCopy); });
+    return name;
+}
+} // namespace
+
+TEST_CASE("A bought horse keeps its name on the guest when the stable's alias takes it", "[names][mounts]")
+{
+    // Stables (68D73): the purchase forces the horse into PlayersHorse (alias 40, flags 0x4102: stores and uses text,
+    // an ALDN message); its fill clears the quest's names' caches, the copy's name from its owner among them.
+    CHECK(NameAfterStablesFill(0x4102, false) == "Prisoner's Horse");
+    // Named by another alias's message alone (no 0x4000): cleared too (25111), and kept.
+    CHECK(NameAfterStablesFill(0x0100, true) == "Prisoner's Horse");
 }
 
 SCENARIO("A script's rename with no event reaches the copies and lists: SetDisplayName on an NPC, SetName on a player", "[names][copies][actor-state]")

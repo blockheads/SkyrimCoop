@@ -1337,6 +1337,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, std::map<uint32_t, uint32_t>> QuestAliasReferences;
     // A reference alias's flags by quest and alias: 0x100 stores text, 0x4000 uses stored text (a display name).
     std::map<uint32_t, std::map<uint32_t, uint32_t>> AliasFlags;
+    // The reference aliases with a display name message (ALDN), by quest.
+    std::map<uint32_t, std::set<uint32_t>> AliasNameMessages;
     // TESQuest::ClearAliasNameCaches (after a stores-text alias's fill, 25052): every named alias's reference has its
     // cached name cleared (12769); a custom name lives only there (docs/re/systems/names.md).
     void ClearAliasNameCaches(uint32_t aQuest);

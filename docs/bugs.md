@@ -1107,8 +1107,12 @@ Size: small. Needs: the duo.
   host off at once. Not read: what the purchase (StablesScript, its packages 98454/3EAB9) leaves on the horse;
   `Character::ActivateMount` (37864) takes a ClearMountPosition package instead of Dismount when the mount lacks
   flags2 bit 4.
-- **The guest can't get off the host's bought horse** (`guest-mounts-bought-horse`'s duo run, 2026-11-23, once): seated
-  (sit state 3), `get_off` timed out still riding, as the host's shape above. The guest's crosshair missing that horse
+- **The guest can't get off the host's bought horse** (2026-11-23, `agent/horse-mount-guest`: 2 of 3 runs with a
+  `get_off` after `guest-mounts-bought-horse`'s get-on; `party-buys-horse-host` got off in its one run): seated (sit
+  state 3), Activate with the crosshair clear, still riding 15 s later, as the host's shape above. Start there: 37864
+  (read: riding, it takes `Dismount` only if the mount's flags2 (+0x204) has bit 4, else
+  `InitiateClearMountPositionPackage` on the mount), and what the purchase's packages (98454 `PlayerHorseReturnToStable`
+  runs on the host until a player rides it, gated by `IsPlayersLastRiddenMount` 21588) leave on that bit. The guest's crosshair missing that horse
   (its copy's name emptied) is fixed (names.md, "A stores-text alias's fill empties a custom name").
 - **The guest's horse menu lacks the horse** (2026-11-16, once): not seen again on a clean world.
   - Start: buy through the MCP (`talk`, the topics), then `mount_readout` and the horse's packages before getting on.

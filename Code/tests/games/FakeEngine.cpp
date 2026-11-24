@@ -1548,7 +1548,8 @@ void FakeEngine::ClearAliasNameCaches(uint32_t aQuest)
     for (const auto& [cAlias, cRef] : QuestAliasReferences[aQuest])
     {
         const auto cActor = Actors.find(cRef);
-        if (!(AliasFlags[aQuest][cAlias] & 0x4000) || cActor == Actors.end() || cActor->second.DisplayName.empty())
+        const bool cNamed = (AliasFlags[aQuest][cAlias] & 0x4000) || AliasNameMessages[aQuest].contains(cAlias);
+        if (!cNamed || cActor == Actors.end() || cActor->second.DisplayName.empty())
             continue;
         // A message name regenerates; a custom name has nothing to come back from (our hook on 12769 keeps it).
         if (cActor->second.CustomName && DisplayNames::CacheClears(false, false, DisplayNames::kCustomInstance))

@@ -944,7 +944,7 @@ NameData GetNameData(uint32_t aRefId) noexcept
     if (!pRef)
         return data;
     data.Found = true;
-    data.Name = pRef->GetDisplayFullName();
+    // Its fields before the name: GetDisplayFullName (19781 -> 12768) refills an emptied cache.
     if (const auto* pText = static_cast<const ExtraTextDisplayData*>(pRef->extraData.GetByType(ExtraDataType::TextDisplayData)))
     {
         data.HasText = true;
@@ -955,9 +955,10 @@ NameData GetNameData(uint32_t aRefId) noexcept
         data.Temper = pText->fTemperFactor;
         data.CustomLength = pText->usCustomNameLength;
         data.TextPointer = reinterpret_cast<uintptr_t>(pText->DisplayName.data);
-        if (pText->DisplayName.data)
-            data.EntryFlags = *reinterpret_cast<const uint32_t*>(pText->DisplayName.data - 0x18 + 0x8);
+        if (const BSStringPoolEntry* cpEntry = BSStringPoolEntry::Of(pText->DisplayName.data))
+            data.EntryFlags = cpEntry->uiFlags;
     }
+    data.Name = pRef->GetDisplayFullName();
     return data;
 }
 

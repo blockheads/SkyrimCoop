@@ -84,22 +84,22 @@ Read in IDA (1.7.104) unless marked measured; the branch journal `docs/re/journa
 TESQuest::ForceRefIntoAlias (25052)
   ClearRefAlias on the old ref, then BGSRefAlias::InitializeRefAlias (24011) on the new one
     names it only with no ExtraTextDisplayData (or this quest's at another instance): a copy's custom name stays
-  alias flag 0x100 (stores text): TESQuestInstanceData::StoreAliasText (0x140399AD0)
-    then TESQuest::ClearAliasNameCaches (0x1403DB930): every ref alias with a display name (ALDN, or flag 0x4000)
+  alias flag 0x100 (stores text): TESQuestInstanceData::StoreAliasText (23894)
+    then TESQuest::ClearAliasNameCaches (25111): every ref alias with a display name (ALDN, or flag 0x4000)
       -> its reference's ExtraTextDisplayData::ClearCachedName (12769): +0x10 := the pool's empty string
 ExtraTextDisplayData::GetDisplayName (12768): cache empty -> GenerateName (12775)
   a message name: the message's text, <Alias> tokens from the quest instance (23897, 25074): back as it was
   a custom name (no message, no quest, instance -2): the cache itself, now empty -> ""
 ```
 
-- Stables (68D73): the purchase forces the horse into `PlayersHorse` (alias 40, flags 0x4102: stores and uses text,
-  name message `PlayersHorseName` 9DE90). On the host the horse's name is that message's: cleared and regenerated.
+- Stables (68D73), from Skyrim.esm (its QUST record): the purchase forces the horse into `PlayersHorse` (alias 40,
+  flags 0x4102: stores and uses text, name message `PlayersHorseName` 9DE90). On the host the horse's name is that message's: cleared and regenerated.
 - Measured (duo, `guest-mounts-bought-horse`, harness `name_data`): the guest's copy took its owner's name part first
   ("Prisoner's Horse", our custom name: instance -2, length 16), then the host's Stables state forced `PlayersHorse`
   onto it here (`GuestEngine::ApplyFills`) 30 ms later. Its text pointer then pointed at the empty string's pool entry
-  (reference count saturated, 0x7FFF), message, quest, instance and length unchanged. Its owner declared no new name
+  (reference count saturated, 0x7FFF; the entry's layout read in `BSStringPool::LookupOrInsert` 69201), message, quest, instance and length unchanged. Its owner declared no new name
   (the host's never changed), so it stayed "".
-- `CrosshairPickData::CanPickRef` (0x14040B1E0, read for dialogue.md) refuses a reference with no display name: the
+- `CrosshairPickData::CanPickRef` (26130, read for dialogue.md) refuses a reference with no display name: the
   guest's crosshair ignored the horse (measured: the camera's ray hit it 158 units away) and it could not get on
   (`party-buys-horse-host`'s "the crosshair is on nothing").
 - Built: `HookClearCachedName` (12769, `AliasNames.cpp`) keeps a custom name (`DisplayNames::CacheClears`). Vanilla
