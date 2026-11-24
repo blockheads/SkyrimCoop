@@ -342,6 +342,36 @@ Read in IDA (named and commented there), measured on the duo (`dialogue-guest-re
 - Harness readout: `dialogue` gives `picked` and `last_selected` (info, choices) and `last_speaker`; a debug line names
   each build's source.
 
+## A guest leaving mid-line, and a join while the host talks (1.7.104, 2026-11-24)
+
+Read in IDA (named and commented there), measured on the duo (`dialogue-guest-leaves-mid-line`, MCP `voice_mark`,
+`expect_no_line_layered`):
+
+| ID | RVA | Name (ours) | What |
+|---|---|---|---|
+| 35289 | 0x5f0730 | `MenuTopicManager::Update` | Each frame: the speaker's `UpdateInDialogue` (37541, vtable +0x260) while its handle is valid, no process check |
+| 35274 | 0x5ee910 | `MenuTopicManager::Clear` | Calls the speaker's vfunc 0x270 when +0xB0 is set, sets the speaker handle (+0x68) invalid for an actor, empties the list (+0x20) and the topic arrays (+0x80, +0x98), clears +0xB1. After it 35289 no longer calls the speaker |
+| 0x141169700 | | `UI::IsSavingAllowed` | `numAllowSaving` (UI+0x16C) == the menu stack's size (UI+0x120): every open menu has `kAllowSaving` (0x800). `Save_Impl` (35727) refuses otherwise |
+
+- **A guest leaving with its menu open on a copy crashed** (measured: 2 of 2, leaving to the main menu and a dropped
+  connection). Leaving deletes every copy (the speaker's process freed, its handle still valid for a while), the
+  dialogue service stops at once (`DialogueService::OnUpdate` returns offline, so `ClearOrphaned` never runs), and
+  `SpeakerUpdate::Skipped` skips only in a session: the next 35289 ran 37541 on no process (fault in 39373, printed
+  39372+0x40). `GuestDialogue::OnLeft` now clears the conversation (35274) when the guest leaves: every NPC a guest
+  talks to is a copy. GameTests "A guest leaving the session mid-conversation ends its game's conversation..." (the
+  fake counts `UpdateInDialogue` on a speaker without a process, `FakeDialogue::EngineFrame`).
+- **The host cannot save with its dialogue menu open** (read: the Dialogue Menu lacks `kAllowSaving`; measured 2 of 2):
+  a guest joining from the main menu while the host's menu is open waits for the host's save, and its join fails with
+  `transfer_failed` after 30 s (`JoinService::kChunkSeconds`; the host would wait 60 s, `HostSaveTransfer::kSaveSeconds`).
+  A conversation the host's game runs for a guest without its menu does not block it.
+- **Closing the host's menu stops the NPC's line** (measured): 35274's path from the menu's close ends it, so no line
+  plays on after a close.
+- **No line layered on the host** (measured with the voice handle's sound id, `HighProcessData::soundHandles[0]`,
+  read every 50 ms: a new sound while the last read of the old one still had voice time left is two lines at once):
+  the host's NPC said each response once with a guest leaving and joining again from the main menu (the guest's own
+  conversation, and the host's shared with the guest), and with the guest rejoining in place (`rejoin_client`, the
+  host's conversation and the shared one). The playtest report of a doubled line on the host was not reproduced.
+
 ## Building options (2026-10-18)
 
 For per-player options (`shared-dialogue.md`, "A peer's option on the host"). Found through Dynamic Dialogue

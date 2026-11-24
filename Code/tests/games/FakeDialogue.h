@@ -5,6 +5,7 @@
 // service's filters where our hooks ask them (DialogueHooks.cpp). Each World has its own.
 #include <Bridges/IDialogueBridge.h>
 #include <Services/DialogueMenuPolicy.h>
+#include <Services/SpeakerUpdate.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -218,6 +219,18 @@ struct FakeDialogue final : IDialogueBridge
             return false;
         End();
         return true;
+    }
+    void Clear() noexcept override
+    {
+        End();
+    }
+    // The engine's frame (MenuTopicManager::Update 35289): the speaker's UpdateInDialogue (37541) reads its process
+    // unchecked, so a speaker left without one faults, unless our hook skips it (SpeakerUpdate).
+    uint32_t SpeakerFaults = 0;
+    void EngineFrame(bool aOnline) noexcept
+    {
+        if (Speaker && SpeakerHasProcess && !SpeakerHasProcess(Speaker) && !SpeakerUpdate::Skipped(false, aOnline))
+            ++SpeakerFaults;
     }
     bool PlayerMenuOpen = false;
     bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept override

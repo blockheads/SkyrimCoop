@@ -88,6 +88,9 @@ public:
     /// A conversation whose speaker is gone or has no process (deleted while talking: the engine's end then does
     /// nothing and no conversation starts again) is cleared, as ending one does. True: there was one.
     virtual bool ClearOrphaned() noexcept = 0;
+    /// The conversation is cleared now, whatever its speaker (MenuTopicManager::Clear 35274), and its menu closes: a
+    /// speaker about to be deleted is never updated again.
+    virtual void Clear() noexcept = 0;
 
     // The list and picks.
 

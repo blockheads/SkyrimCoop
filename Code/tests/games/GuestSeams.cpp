@@ -548,6 +548,8 @@ void GuestSeam::OnConnected(const ConnectedEvent&) noexcept
 
 void GuestSeam::OnDisconnected(const DisconnectedEvent&) noexcept
 {
+    if (m_pGuest)
+        m_pGuest->Dialogue.OnLeft(); // as GuestService
     m_pGuest.reset();
 }
 

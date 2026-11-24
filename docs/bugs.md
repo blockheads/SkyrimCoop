@@ -47,6 +47,7 @@ every other section needs the duo.
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
 - [A re-leveled copy leaves its old temporary NPC](#a-re-leveled-copy-leaves-its-old-temporary-npc): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
+- [A join while the host talks](#a-join-while-the-host-talks): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
@@ -209,6 +210,24 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
   off and Olfina on another action. The Skeleton that stayed off its owner (2026-11-09) was in neither run: with the
   run of 2026-11-21 that is the two clean runs its bullet asked for, and GameTests "A guest joining beside a host
   corpse sees it lie as the host's" covers it, so that bullet is gone.
+
+### A join while the host talks
+
+A guest joining from the main menu while the host's dialogue menu is open never gets the host's world: the engine
+saves no game with that menu open (`UI::IsSavingAllowed`, `re/systems/dialogue.md`, "A guest leaving mid-line"), and
+the guest's join fails after 30 s with "The host's world didn't arrive or didn't load. Try joining again." (2 of 2,
+2026-11-24). The host waits 60 s for its save (`HostSaveTransfer::kSaveSeconds`), the guest 30 s for the first piece
+(`JoinService::kChunkSeconds`).
+
+Agent task: decide with the user what a join does while the host is in a conversation (wait with a status line until
+its menu closes, or say why at once), then build it with a GameTests flow (the fake's save refused while the host's
+dialogue menu is open).
+
+Size: small. Needs: the user's call on the behaviour, then GameTests; the duo once.
+
+- Also seen while looking for a doubled voice line on the host after a rejoin (playtest bug 3, not reproduced:
+  `dialogue.md`, same section). Scenario: `dialogue-guest-leaves-mid-line`'s second half leaves the guest out while
+  the host's menu is open and joins only after it closes.
 
 ### A copy's interaction idle
 

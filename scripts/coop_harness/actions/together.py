@@ -231,6 +231,51 @@ class TogetherActions:
             raise ctx.failure(f"the host built {result['host_builds']} options, not the greeting's {len(greeting)} each time")
         return result
 
+    def voice_mark(ctx, name, game="host"):
+        """Starts watching the actor's voice line in that game: each sound its voice handle (mod.voice) takes from now
+        on is a line started, read by voice_lines. Returns the line playing now."""
+        form = ctx.resolve(name, game)
+        instance = "client" if game in ("client", "guest") else ""
+        now = ctx.voice(instance, form)
+        ctx.VOICE_WATCH = {"form": form, "instance": instance, "sounds": [now.get("sound", -1)], "rows": [now], "last": now}
+        stop = threading.Event()
+
+        def watch():
+            while not stop.wait(0.05):
+                try:
+                    row = ctx.voice(instance, form)
+                except Exception:  # a game busy loading or saving answers late: the next read
+                    continue
+                last = ctx.VOICE_WATCH["last"]
+                if row.get("sound", -1) not in (-1, ctx.VOICE_WATCH["sounds"][-1]):
+                    # The voice timer the line before still had at its last read: above a frame or two, it overlaps.
+                    ctx.VOICE_WATCH["sounds"].append(row["sound"])
+                    ctx.VOICE_WATCH["rows"].append({**row, "at": time.monotonic(), "before_left": last.get("seconds", -1)})
+                ctx.VOICE_WATCH["last"] = row
+
+        ctx.VOICE_WATCH["stop"] = stop
+        threading.Thread(target=watch, daemon=True).start()
+        return {"playing": now}
+
+    def voice_lines(ctx):
+        """The voice sounds the actor started since voice_mark (the first: the one playing then), and stops watching."""
+        watch = getattr(ctx, "VOICE_WATCH", None)
+        if not watch:
+            raise ctx.failure("voice_lines before voice_mark")
+        watch["stop"].set()
+        return {"sounds": watch["sounds"], "rows": watch["rows"]}
+
+    def expect_no_line_layered(ctx, seconds=0.0):
+        """No voice line the actor started since voice_mark began while the one before still played (Actor::SpeakSound
+        37542 stops nothing: two calls layer, louder). Watches `seconds` more first, then stops watching."""
+        if seconds:
+            time.sleep(seconds)
+        result = ctx.voice_lines()
+        layered = [row for row in result["rows"][1:] if row.get("before_left", -1) > 0.5]
+        if layered:
+            raise ctx.failure(f"a voice line started over one still playing ({layered[0]['before_left']:.1f} s left): {result['rows']}")
+        return result
+
     def guest_replays_mark(ctx):
         """Where the guest's log is now: expect_no_line_replayed looks at what its menus replayed after it."""
         ctx.REPLAY_MARK = ctx.log_trail("client", 1 << 62)[1]

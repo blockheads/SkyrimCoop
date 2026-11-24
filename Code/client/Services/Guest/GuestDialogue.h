@@ -32,6 +32,8 @@ struct GuestDialogue final : DialogueService::Role
     void OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept override;
     // The host's NPC moved on: its copy's voice stops with it.
     void OnLineSkipped() noexcept override;
+    // Leaving the session deletes the copies: a conversation on one ends now (dialogue.md, A guest leaving mid-line).
+    void OnLeft() noexcept;
 
 private:
     void OnRefused(const NotifyDialogueRefused& acMessage) noexcept;

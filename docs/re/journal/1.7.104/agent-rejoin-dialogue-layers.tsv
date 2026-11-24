@@ -1,0 +1,10 @@
+time	op	id	rva	item
+2026-11-24T05:19:09Z	read	35727	0x6227f0	{"name": "BGSSaveLoadManager::Save_Impl"}
+2026-11-24T05:38:22Z	read	82077	0x1169700	{"name": "sub_141169700"}
+2026-11-24T05:39:24Z	name	82077	0x1169700	{"addr": "0x141169700", "name": "UI__IsSavingAllowed"}
+2026-11-24T05:39:26Z	comment	82077	0x1169700	{"addr": "0x141169700", "comment": "UI::IsSavingAllowed (CommonLibSSE-NG): numAllowSaving (UI+0x16C) == menuStack size (UI+0x120): every open menu has kAllowSaving (0x800). The Dialogue Menu has not: no save while it is open (Save_Impl 35727 refuses, a join's save transfer waits)."}
+2026-11-24T05:39:26Z	comment		0x622938	{"addr": "0x140622938", "comment": "UI::IsSavingAllowed: refused with any menu open that lacks kAllowSaving (the Dialogue Menu): a join's transfer save waits until it closes."}
+2026-11-24T05:52:17Z	read	35289	0x5f0730	{"name": "MenuTopicManager::sub_35289"}
+2026-11-24T05:52:24Z	read	35274	0x5ee910	{"name": "MenuTopicManager::sub_35274"}
+2026-11-24T05:52:30Z	name	35274	0x5ee910	{"addr": "0x1405ee910", "name": "MenuTopicManager::Clear"}
+2026-11-24T05:52:33Z	comment	35274	0x5ee910	{"addr": "0x1405ee910", "comment": "[re]\nAddressLib ID 35274\nSkyrimCoop: data as s_clear (Code/client/Games/Misc/MenuTopicManager.cpp:77)\nMenuTopicManager::Clear (ours; CommonLibSSE-NG has no name). Under the critical section: with +0xB0 set calls the speaker's vfunc 0x270, then sets the speaker handle (+0x68) invalid for an actor, frees the two topic arrays (+0x80, +0x98), clears +0xB0/+0xB2.., the dialogue list (+0x20/+0x28) and +0xB1. After it MenuTopicManager::Update 35289 no longer calls the speaker's UpdateInDialogue 37541: how DialogueBridge::ClearOrphaned and a guest leaving a session end a conversation on a copy about to be deleted."}

@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-24: **a guest leaving mid-conversation no longer crashes its game** (`agent/rejoin-dialogue-layers`;
+[dialogue.md](re/systems/dialogue.md), "A guest leaving mid-line"). Leaving deleted the copy the guest's menu was
+open on, and the engine's next `MenuTopicManager::Update` (35289) ran `UpdateInDialogue` (37541) on its freed process.
+`GuestDialogue::OnLeft` clears the conversation (`MenuTopicManager::Clear` 35274) as the guest leaves. GameTests "A
+guest leaving the session mid-conversation ends its game's conversation on the copy it loses" (the fake now counts
+updates of a speaker without a process); scenario `dialogue-guest-leaves-mid-line`. The playtest's doubled voice line
+on the host after a rejoin (bug 3) was not reproduced in six paths, measured on the host NPC's voice handle (MCP
+`voice_mark`, `voice_lines`, `expect_no_line_layered`). Found on the way: a join from the main menu fails while the
+host's dialogue menu is open (no save then), `bugs.md`, "A join while the host talks".
+
 2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
 [actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after
 `stage` (golden-claw-guest, arvels-journal-guest-loots) lay 83-111 degrees and up to 582 units apart. `stage` freezes

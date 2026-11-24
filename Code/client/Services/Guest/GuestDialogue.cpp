@@ -99,6 +99,16 @@ void GuestDialogue::OnLineSkipped() noexcept
         m_world.GetActorBridge().ActorStopCurrentDialogue(cCopy);
 }
 
+void GuestDialogue::OnLeft() noexcept
+{
+    // Every NPC a guest talks to is a copy.
+    auto& bridge = m_dialogue.Bridge();
+    if (!bridge.GetSpeaker())
+        return;
+    spdlog::info("Dialogue: leaving the session ends the conversation on copy {:X}", bridge.GetSpeaker());
+    bridge.Clear();
+}
+
 void GuestDialogue::OnRefused(const NotifyDialogueRefused& acMessage) noexcept
 {
     if (m_asked == acMessage.NpcId)

@@ -240,6 +240,7 @@ void World::Update() noexcept
     m_graphStreams.SetTick(m_frameClock.Now());
     // A delayed line delivers in wall time: recovery must use that clock too.
     m_dispatcher.trigger(UpdateEvent(std::getenv("COOP_NET") ? cDelta : 1.0 / 60));
+    static_cast<FakeDialogue&>(*m_pDialogueBridge).EngineFrame(m_transport.IsOnline());
     // The real AnimationSystem replays a dying owner's action at its copy's time (CopyPlayback).
     auto& engine = ctx().at<FakeEngine&>();
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())

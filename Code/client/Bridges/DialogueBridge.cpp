@@ -572,6 +572,15 @@ bool DialogueBridge::ClearOrphaned() noexcept
     return true;
 }
 
+void DialogueBridge::Clear() noexcept
+{
+    MenuTopicManager* pManager = MenuTopicManager::Get();
+    if (!pManager || !TESObjectREFR::GetByHandle(pManager->speaker))
+        return;
+    pManager->Clear();
+    CloseMenu();
+}
+
 // ---- The list and picks ----
 
 bool DialogueBridge::ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming) noexcept

@@ -89,6 +89,8 @@ void GuestService::OnConnected(const ConnectedEvent&) noexcept
 void GuestService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     PlayerNatives::SetGuest(false);
+    if (m_pGuest)
+        m_pGuest->Dialogue.OnLeft();
     m_pGuest.reset();
 }
 
