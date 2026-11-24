@@ -23,6 +23,7 @@ enum class ExtraDataType : uint32_t
     LeveledItem = 0x2E,
     CannotWear = 0x3D,
     Poison = 0x3E,
+    Hotkey = 0x49, // a favorited stack and its number key (ExtraHotkey)
     Faction = 0x5B,
     OpenCloseActivateRef = 0x68,
     AliasInstanceArray = 0x88,
