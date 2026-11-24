@@ -78,6 +78,14 @@ damaged flag, rate, sprinting, bow zoom; [actor-values.md](re/systems/actor-valu
 Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) stays open: the regen delay is capped (39536,
 `fStaminaRegenDelayMax`), so it is not a leftover delay; the readout will show which gate holds next time.
 
+2026-11-23: **a copy's regen rate is its owner's in combat** (`agent/stamina-regen-combat`). `GetActorValueRegenRate`
+(38460) applies the combat multipliers only if `IsInCombat` says yes, and a copy answered with its own (no combat
+controller): a fighting NPC's or player's copy showed the out-of-combat rate (stamina 1/0.35 times the owner's). Its
+two call sites now get the owner's answer, as the conditions do (`CopyCombat::cOwnerAnswerSites`;
+[actor-values.md](re/systems/actor-values.md#the-combat-multiplier-and-copies-1.7.104-read-in-ida-2026-11-23)).
+Copies regenerate nothing, so only the readout and plugins saw it. ClientTests `[CopyCombat]`; scenario
+`copy-regen-rate-in-combat`.
+
 2026-11-23: **a guest crash loading a leveled NPC's copy: we destroyed Skyrim's own EncWolf** (`agent/fabien-crash-3`;
 [leveled-copy-base.md](re/systems/leveled-copy-base.md)). The 2026-11-22 playtest's third guest crash (15678, a
 temporary base's faceNPC walk). A placed leveled copy whose game picked another animal was given the owner's face record

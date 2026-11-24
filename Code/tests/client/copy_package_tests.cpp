@@ -1,11 +1,19 @@
 // HookInitFromPackage's rule (actor-ai-and-copies.md): a copy runs its owner's package, never one its own game picks.
 #include <catch2/catch.hpp>
 
+#include <algorithm>
+
 #include <Games/Skyrim/CopyCombat.h>
 #include <Games/Skyrim/CopyPackage.h>
 
 namespace
 {
+bool AnswersOwner(uint32_t aId, uint32_t aReturnOffset)
+{
+    return std::ranges::any_of(CopyCombat::cOwnerAnswerSites,
+                               [&](const auto& acSite) { return acSite.Id == aId && acSite.ReturnOffset == aReturnOffset; });
+}
+
 constexpr uint32_t cFollow = 0x5C84B;         // PlayerFollowerPackage
 constexpr uint32_t cCombatOverride = 0x5C851; // PlayerFollowerCombatOverridePackage
 constexpr uint32_t cDoNothing = 0x100770;
@@ -63,4 +71,17 @@ TEST_CASE("A copy takes no combat controller, this game's own actors do", "[Copy
 {
     CHECK_FALSE(CopyCombat::MayStart(true));
     CHECK(CopyCombat::MayStart(false));
+}
+
+TEST_CASE("A copy's regen rate asks for its owner's combat state", "[CopyCombat]")
+{
+    // Actor::GetActorValueRegenRate (38460): the essential health bonus and the combat multiplier.
+    CHECK(AnswersOwner(38460, 0xC5));
+    CHECK(AnswersOwner(38460, 0x1FC));
+    // The conditions still do; another engine call into 38460 does not.
+    CHECK(AnswersOwner(21576, 0x38));
+    CHECK(AnswersOwner(21740, 0x28));
+    CHECK_FALSE(AnswersOwner(38460, 0x10));
+    // Actor::EngagingInCombat (38563) uses the combat controller after a yes.
+    CHECK_FALSE(AnswersOwner(38563, 0x1A));
 }
