@@ -407,9 +407,14 @@ only calls `SkipText` in `SHOW_GREETING` (eMenuState 0) and closes the menu (`St
   2 of 2: Andurs's `..._000D3D5E_1` relayed at :37.7, the guest's new menu at :39.06 replayed it ("the NPC's last line
   again"); with the fix 2 of 2 pass. The walker found the same through another start (seed 1: the host's player clicked
   before its game knew the conversation). Only a line of the greeting info the host names is replayed
-  now: a voice file's name carries its info (`VoiceFiles::IsLineOf`: the Creation Kit's
-  `<quest>_<topic>_<info, plugin index 00>_<response>`, Andurs's greeting `..._000D79A5_1.wav`); its subtitle goes
-  with it (`SubtitleEvent::TopicFormID` is Fallout 4's, 0 in Skyrim).
+  now, by its voice file (`VoiceFiles::IsLineOf`). Read in IDA, `TESTopicInfo__BuildVoiceFilePath` (25502, ours):
+  the file is the info that owns the audio's (a shared response's `dataInfo` +0x28, else the info), under
+  `Data\Sound\Voice\<that info's plugin file name>\<voice type>\<quest>_<topic>_<id %08X>_<response>`, the id its
+  form id masked 0xFFF for a light plugin (`TESFile::IsESL` 14002), else 0xFFFFFF (Andurs's greeting
+  `Skyrim.esm\...\..._000D79A5_1.wav`). `IDialogueBridge::GetVoiceSource` gives the owner and its plugin
+  (`TESForm::sourceFiles` +0x08, the first file as `TESForm::GetFile` 14621 with 0; `TESFile::fileName` +0x58); a
+  light plugin's forms load at 0xFE. Its subtitle goes with it (`SubtitleEvent::TopicFormID` is Fallout 4's, 0 in
+  Skyrim). The mid-answer subtitle is the NPC's own, relayed after the latest pick.
 
 ## The speaker dies or fights (1.7.104, 2026-11-24)
 

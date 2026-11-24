@@ -115,6 +115,7 @@ void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t
         return;
     }
     spdlog::debug("HostDialogue: {:x} asks to talk to {:x}", aSender, acRequest.NpcId);
+    m_abandoned.reset();
     m_asked = Asked{{aSender}, acRequest.NpcId};
     NotifyDialogueStart start;
     start.NpcId = acRequest.NpcId;
@@ -137,6 +138,12 @@ void HostDialogue::OnOpened(const DialogueOpenedRequest& acRequest, ConnectionId
     m_conversation->Id = ++m_lastId;
     m_conversation->NpcId = acRequest.NpcId;
     m_conversation->Greeting = acRequest.Greeting;
+    if (!acRequest.Everyone && std::exchange(m_abandoned, std::nullopt) == acRequest.NpcId)
+    {
+        spdlog::debug("HostDialogue: conversation {} with {:x} opens with its askers gone: it ends", m_conversation->Id, acRequest.NpcId);
+        End();
+        return;
+    }
     // Asking for it is joining it, and an NPC greeting the party puts every other player in it: each game leaves it
     // if its menu does not open.
     if (acRequest.Everyone)
@@ -166,6 +173,7 @@ void HostDialogue::SendOpen(ConnectionId_t aPlayer) const noexcept
     open.InIt = m_conversation->Has(aPlayer);
     open.Greeting = m_conversation->Greeting;
     open.Step = m_conversation->Step;
+    open.Picked = m_conversation->Picked;
     m_network.Send(aPlayer, open);
 }
 
@@ -175,6 +183,7 @@ void HostDialogue::OnOptions(const DialogueOptionsRequest& acRequest, Connection
     if (!pConversation || aSender != m_players.Host())
         return;
     pConversation->Options = acRequest.Options;
+    pConversation->Picked.clear();
     pConversation->PlayerOptions.clear();
     for (const auto& cPlayer : acRequest.Players)
         pConversation->PlayerOptions[cPlayer.PlayerId] = cPlayer.Options;
@@ -224,6 +233,7 @@ void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t a
 
     // The next step's list is the host's game's once the NPC has answered.
     pConversation->Step = picked.Step;
+    pConversation->Picked = picked.Text;
     pConversation->Facing = aSender;
     pConversation->Options.reset();
     pConversation->PlayerOptions.clear();
@@ -350,7 +360,10 @@ void HostDialogue::SendList(ConnectionId_t aPlayer) noexcept
 void HostDialogue::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
     if (m_asked && std::erase(m_asked->Players, aPlayer) && m_asked->Players.empty())
+    {
+        m_abandoned = m_asked->NpcId;
         m_asked.reset();
+    }
     if (m_conversation)
         Leave(aPlayer);
 }

@@ -83,13 +83,17 @@ Each finding goes through the bug-fix flow: a fast case first (a walker seed or 
      engine said the answer, and a guest's own ask then replayed that answer over its copy's (`ReplayGreeting` replays
      the last relayed line). Only the greeting's line is replayed now (`VoiceFiles::IsLineOf`).
 - **Each line heard once:** the host's engine voices its greeting at each start and every line it says, each a file of
-  its own named as the Creation Kit names voice files; every line reaches each guest's copy once, the greeting at most
-  twice (a guest's own ask replays it once by design).
+  its own named as the engine names voice files (25502); every line reaches each guest's copy at most once (the
+  greeting twice: a guest's own ask replays it once by design), and every line voiced while a guest was in the session
+  with a copy of the speaker reaches it. Each guest at the host's step; a world action's result checked at once. The
+  fake's speaker keeps its line after its conversation ends until the line ends (a start meanwhile says no greeting,
+  only for that speaker).
 - **What the fake learned:** a speaker that dies or starts a fight ends its conversation (measured on the duo,
   `re/systems/dialogue.md`, "The speaker dies or fights"); a deleted temporary actor's handle resolves until the
   frame's end; `DialogueBridge::Start` refuses a dead or fighting actor; a start's menu sits in the SWF's
   `SHOW_GREETING` until its first list or pick, where Tab only skips (`FakeDialogue::MenuState`).
-- **The soak** (tag `dialogue-stress`): `dialogue-speaker-killed-mid-answer`, `dialogue-speaker-fights-mid-answer`,
+- **The soak** (tag `dialogue-stress`) compares the NPC's voice starts by file from the `Voice:` log lines, the host's
+  engine against the guest's copy (`expect_same_voice_starts`: a replay or a missed line each fails): `dialogue-speaker-killed-mid-answer`, `dialogue-speaker-fights-mid-answer`,
   `dialogue-guest-rejoins-quickly` (it found a guest rejoining mid-answer could not leave: fixed,
   `re/systems/dialogue.md`, "A menu joining mid-answer") and `dialogue-lucan-claw-under-stress` (the guest leaves and
   rejoins Lucan's claw conversation mid-answer, hands the claw in: each line once, MS13 the same on both games) pass,

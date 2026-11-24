@@ -49,19 +49,16 @@ def speaker_fights(ctx):
 
 def guest_rejoins_quickly(ctx, times=5):
     """The guest leaves the menu and talks again `times` times mid-answer: every line the host's engine voices reaches
-    its copy once (the voice counts, speak_calls) and the last one out ends it; the menus' agreement is the runner's
+    its copy as often (the `Voice:` log, by actor and file) and the last one out ends it; the menus' agreement is the runner's
     dialogue check after every scenario."""
     try:
         both_talk_and_host_picks(ctx)
-        host_before, guest_before = ctx.speak_calls(""), ctx.speak_calls("client")
+        ctx.voice_log_mark()
         for _ in range(times):
             ctx.leave_dialogue("client")
             ctx.talk("client", "andurs", [])
         ctx.wait_takes_pick(instance="", seconds=60)  # his answer over: the next list
-        host_said = ctx.speak_calls("")["engine"] - host_before["engine"]
-        copy_said = ctx.speak_calls("client")["relayed"] - guest_before["relayed"]
-        if copy_said != host_said:
-            raise ctx.failure(f"the host's engine voiced {host_said} line(s), the guest's copy said {copy_said}")
+        ctx.expect_same_voice_starts("andurs")
         ctx.close_dialogues()
     finally:
         ctx.unstage()
@@ -91,7 +88,7 @@ def lucan_claw_under_stress(ctx):
         ctx.activate_on("", LUCAN)
         ctx.wait_for("[host] joins: its menu opens on Lucan", lambda: ctx.talking_to("", LUCAN), 10)
         ctx.wait_for("[client] its menu offers Lucan's trouble", lambda: ctx.lists_topic("client", LUCAN_TROUBLE_TOPIC), 30)
-        host_before, guest_before = ctx.speak_calls(""), ctx.speak_calls("client")
+        ctx.voice_log_mark()
         ctx.pick_with_keys("client", LUCAN_TROUBLE_TOPIC)
         ctx.wait_for("[host] Lucan answers", lambda: ctx.dialogue("").get("current_info"), 10)
         for _ in range(2):
@@ -99,17 +96,17 @@ def lucan_claw_under_stress(ctx):
             ctx.activate_on("client", copy)
             ctx.wait_for(f"[client] its menu opens on copy {copy:08X} again", lambda: ctx.talking_to("client", copy), 10)
         ctx.wait_for("[client] its choices offer its claw line", lambda: set(ctx.topic_infos("client", CLAW_TOPIC)) & set(CLAW_FOUND_LINES), 90)
-        host_said = ctx.speak_calls("")["engine"] - host_before["engine"]
-        copy_said = ctx.speak_calls("client")["relayed"] - guest_before["relayed"]
-        if copy_said != host_said:
-            raise ctx.failure(f"the host's engine voiced {host_said} line(s), the guest's copy said {copy_said}")
+        ctx.name_handle("lucan", {"host": LUCAN, "guest": copy})
+        ctx.expect_same_voice_starts("lucan")
         found = next(i for i in ctx.topic_infos("client", CLAW_TOPIC) if i in CLAW_FOUND_LINES)
         ctx.pick_with_keys("client", CLAW_TOPIC, found)
         ctx.wait_for("[client] the claw leaves its bag", lambda: not ctx.item_count("client", 0x14, GOLDEN_CLAW), 20)
         if ctx.item_count("", 0x14, GOLDEN_CLAW):
             raise ctx.failure("[host] its player was given the claw")
-        ctx.wait_for("MS13's stage reads the same on both games",
-                     lambda: ctx.quest_stage("", GOLDEN_CLAW_QUEST) == ctx.quest_stage("client", GOLDEN_CLAW_QUEST) != 60, 20)
+        def handed_in():
+            host, guest = ctx.quest_stage("", GOLDEN_CLAW_QUEST), ctx.quest_stage("client", GOLDEN_CLAW_QUEST)
+            return host is not None and host == guest and host > 60
+        ctx.wait_for("MS13 moves past 60, and reads the same on both games", handed_in, 20)
     finally:
         ctx.close_dialogues()
         ctx.console_on("", f"{LUCAN:08X}.setrestrained 0")
@@ -117,7 +114,8 @@ def lucan_claw_under_stress(ctx):
         for name in ("", "client"):
             if ctx.item_count(name, 0x14, GOLDEN_CLAW):
                 ctx.console_on(name, f"player.removeitem {GOLDEN_CLAW:X} 1")
-        ctx.console_on("", "stopquest MS13")
+        if started:  # only the quest this scenario started
+            ctx.console_on("", "stopquest MS13")
 
 
 def guest_talks_again_after_leaving_mid_answer(ctx):
@@ -133,14 +131,11 @@ def guest_talks_again_after_leaving_mid_answer(ctx):
         ctx.wait_takes_pick(instance="client")
         ctx.dialogue_press(instance="client")
         ctx.wait_for("[host] Andurs answers", lambda: ctx.dialogue("").get("current_info"), 5)
-        host_before, guest_before = ctx.speak_calls(""), ctx.speak_calls("client")
+        ctx.voice_log_mark()
         ctx.leave_dialogue("client")
         ctx.talk("client", "andurs", [])
         ctx.wait_takes_pick(instance="client", seconds=60)  # his answer over, the new conversation's list
-        host_said = ctx.speak_calls("")["engine"] - host_before["engine"]
-        copy_said = ctx.speak_calls("client")["relayed"] - guest_before["relayed"]
-        if copy_said != host_said:
-            raise ctx.failure(f"the host's engine voiced {host_said} line(s), the guest's copy said {copy_said}")
+        ctx.expect_same_voice_starts("andurs")
         ctx.close_dialogues()
     finally:
         ctx.unstage()

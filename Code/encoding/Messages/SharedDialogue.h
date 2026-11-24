@@ -136,6 +136,7 @@ struct NotifyDialogueOpen final : NotifyMessage
     bool InIt{}; // this game is in it (it asked, or the NPC greeted everyone): its menu opens
     GameId Greeting{};
     uint32_t Step = 1; // a joiner's: the conversation's step now
+    std::string Picked; // while the NPC answers a pick: its text, as the picker's menu showed it
 };
 
 // A player's list for a step, judged for its character by the host's engine (Choices: a line's choices).

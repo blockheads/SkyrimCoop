@@ -583,6 +583,16 @@ bool DialogueBridge::ClearOrphaned() noexcept
     return true;
 }
 
+std::optional<IDialogueBridge::VoiceSource> DialogueBridge::GetVoiceSource(uint32_t aInfo) const noexcept
+{
+    const auto* pInfo = Cast<TESTopicInfo>(TESForm::GetById(aInfo));
+    if (!pInfo)
+        return std::nullopt;
+    const TESTopicInfo* pOwner = pInfo->dataInfo ? pInfo->dataInfo : pInfo;
+    const TESFile* pFile = pOwner->GetDefiningFile();
+    return VoiceSource{pOwner->formID, pFile ? pFile->fileName : ""};
+}
+
 void DialogueBridge::Clear() noexcept
 {
     MenuTopicManager* pManager = MenuTopicManager::Get();
@@ -715,7 +725,10 @@ bool DialogueBridge::ShowPicked(const std::string& acText) noexcept
     GFxMovie* pMovie = DialogueMovie();
     if (!pMovie)
         return false;
-    const double cState = MenuState(pMovie).value_or(0);
+    const auto cRead = MenuState(pMovie);
+    if (!cRead) // its movie not ready yet: the next frame's try
+        return false;
+    const double cState = *cRead;
     const auto cDisplay = DialogueMenuPolicy::DisplayPicked(cState);
     if (cDisplay == DialogueMenuPolicy::PickedDisplay::Ignore)
     {

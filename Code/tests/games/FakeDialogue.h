@@ -198,6 +198,22 @@ struct FakeDialogue final : IDialogueBridge
     {
         return GreetingInfo;
     }
+    // Lines' voice files (25502): this plugin's, a shared response's audio its owner's (by info).
+    std::string VoicePlugin = "Walk.esp";
+    std::map<uint32_t, uint32_t> SharedResponses;
+    std::optional<VoiceSource> GetVoiceSource(uint32_t aInfo) const noexcept override
+    {
+        if (!aInfo)
+            return std::nullopt;
+        const auto it = SharedResponses.find(aInfo);
+        return VoiceSource{it != SharedResponses.end() ? it->second : aInfo, VoicePlugin};
+    }
+    // The speaker of a conversation ended mid-line, still saying it (0: none); its line ending clears it.
+    uint32_t StillTalking = 0;
+    void RetainedLineEnds() noexcept
+    {
+        StillTalking = 0;
+    }
     bool Start(uint32_t aActorFormId, bool aShowMenu, uint32_t aGreeting = 0) noexcept override
     {
         if (!aActorFormId || !CanTalk(aActorFormId))
@@ -219,7 +235,7 @@ struct FakeDialogue final : IDialogueBridge
         LookAtTalker();
         // A start during the speaker's last line says no greeting (35282; re/systems/dialogue.md, "A start during the
         // NPC's last line").
-        if (OnGreeting && !std::exchange(m_stillTalking, false))
+        if (OnGreeting && StillTalking != aActorFormId)
             OnGreeting();
         Build(Greeting);
         return true;
@@ -256,7 +272,8 @@ struct FakeDialogue final : IDialogueBridge
         if (SpeakerLooks && Speaker)
             SpeakerLooks(Speaker, 0);
         // EndDialogue (35294) leaves a speaker still talking its line.
-        m_stillTalking = m_next.has_value();
+        if (m_next)
+            StillTalking = Speaker;
         m_next.reset();
         Speaker = 0;
         m_pickedShown = false;
@@ -277,9 +294,7 @@ struct FakeDialogue final : IDialogueBridge
     {
         End();
     }
-    // The engine's frame (MenuTopicManager::Update 35289): an actor speaker whose handle resolves, with the menu flag
-    // (+0xB1) set, gets UpdateInDialogue (37541), which reads its process unchecked: none faults, unless our hook skips
-    // it (SpeakerUpdate).
+    // MenuTopicManager::Update (35289) runs UpdateInDialogue (37541) on a resolvable speaker: no process faults.
     uint32_t SpeakerFaults = 0;
     // A speaker that died or started a fight: the engine ends its conversation within the frame (measured,
     // re/systems/dialogue.md, "The speaker dies or fights").
@@ -492,7 +507,6 @@ struct FakeDialogue final : IDialogueBridge
     bool m_heldShow = false;
     bool m_pickedShown = false;
     bool m_greeting = false; // the SWF's SHOW_GREETING: a start's menu before its first list or pick
-    bool m_stillTalking = false; // ended mid-line: the speaker finishes it, the next start says no greeting
     bool m_suspended = false;
     std::vector<Option> m_shownElsewhere;
     std::vector<Option> m_source; // the topics of the last build

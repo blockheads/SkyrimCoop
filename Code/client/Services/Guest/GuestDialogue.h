@@ -4,6 +4,8 @@
 #include <Services/DialogueService.h>
 
 #include <chrono>
+#include <map>
+#include <optional>
 #include <string>
 #include <Messages/RelayedMessages.h>
 
@@ -34,6 +36,7 @@ struct GuestDialogue final : DialogueService::Role
     void OnLineSkipped() noexcept override;
     // Leaving the session deletes the copies: a conversation on one ends now (dialogue.md, A guest leaving mid-line).
     void OnLeft() noexcept;
+    void OnPicked(const NotifyDialoguePicked& acMessage, uint32_t aTopic, uint32_t aInfo, bool aOwnLine) noexcept override;
 
 private:
     void OnRefused(const NotifyDialogueRefused& acMessage) noexcept;
@@ -49,6 +52,7 @@ private:
 
     uint32_t m_asked{}; // the NPC this guest asked the host to talk to (session id), until it opens
     uint32_t m_greeting{};
+    std::optional<IDialogueBridge::VoiceSource> m_greetingVoice; // whose files the greeting's are (25502)
     bool m_menuOpen{};
     bool m_replayGreeting{}; // the opening menu is this game's own start
     struct HeardLine
@@ -58,8 +62,10 @@ private:
         uint32_t TopicInfo{};
         std::chrono::steady_clock::time_point At;
     };
-    HeardLine m_lastLine;
-    HeardLine m_lastSubtitle;
+    // The last line and subtitle relayed for each speaker (by session id), and when this conversation's last pick came.
+    std::map<uint32_t, HeardLine> m_lastLines;
+    std::map<uint32_t, HeardLine> m_lastSubtitles;
+    std::chrono::steady_clock::time_point m_pickedAt;
 
     std::vector<entt::scoped_connection> m_connections;
 };

@@ -196,6 +196,49 @@ TEST_CASE("Dialogue: a start the host's game refuses refuses every player who as
     CHECK(session.SentTo<NotifyDialogueRefused>(kOtherPeer).size() == 1);
 }
 
+TEST_CASE("Dialogue: a start whose every asker left ends as it opens; one asker left keeps it", "[HostAuthority][Dialogue]")
+{
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    session.Receive(kPeer, Start(cNpc));
+    DialogueOpenedRequest opened;
+    opened.NpcId = cNpc;
+
+    SECTION("the only asker leaves before it opens: it ends at once, nobody would")
+    {
+        session.Leave(kPeer);
+        session.Outbox.clear();
+        session.Receive(kHost, opened);
+        CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
+        CHECK(session.SentTo<NotifyDialogueOpen>(kOtherPeer).empty());
+    }
+    SECTION("another asker remains: it opens with that one in it")
+    {
+        session.Receive(kOtherPeer, Start(cNpc));
+        session.Leave(kPeer);
+        session.Outbox.clear();
+        session.Receive(kHost, opened);
+        CHECK(session.SentTo<NotifyDialogueClosed>(kHost).empty());
+        const auto cOpen = session.SentTo<NotifyDialogueOpen>(kOtherPeer);
+        REQUIRE(cOpen.size() == 1);
+        CHECK(cOpen[0]->InIt);
+    }
+}
+
+TEST_CASE("Dialogue: an ask while the NPC answers a pick is told the pick", "[HostAuthority][Dialogue]")
+{
+    Talking talking;
+    auto& session = talking.session;
+    talking.List(kHost, 1);
+    talking.Pick(kHost, 1, 0xA, {}, "Tell me about A.");
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, Start(talking.Npc));
+    const auto cOpen = session.SentTo<NotifyDialogueOpen>(kOtherPeer);
+    REQUIRE(cOpen.size() == 1);
+    CHECK(cOpen[0]->Step == 2);
+    CHECK(cOpen[0]->Picked == "Tell me about A.");
+}
+
 TEST_CASE("Dialogue: the host talking itself puts nobody in it", "[HostAuthority][Dialogue]")
 {
     Session session;

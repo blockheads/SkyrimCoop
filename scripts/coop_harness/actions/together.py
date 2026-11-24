@@ -1,4 +1,5 @@
 """Both players acting at once (docs/design/repro-mcp.md, "together"), and the dialogue verbs its lanes use."""
+import collections
 import re
 import threading
 import time
@@ -372,6 +373,32 @@ class TogetherActions:
         """That game's player presses E once in its dialogue menu, whatever it shows: the highlighted option, a skip."""
         ctx.tap_key(instance, ACTIVATE_KEY)
         return {"pressed": True}
+
+    def voice_log_mark(ctx):
+        """Where each game's plugin log ends now: voice_starts reads the `Voice:` lines after it."""
+        ctx.VOICE_LOG_MARK = {name: ctx.plugin_log(name).stat().st_size for name in ("", "client")}
+        return ctx.VOICE_LOG_MARK
+
+    def voice_starts(ctx, instance, form):
+        """The voice files that game started on the actor since voice_log_mark, counted: its engine's (the host's NPC,
+        "Voice: <form> (local) says") or the lines relayed to its copy ("Voice: copy <form> says its owner's")."""
+        name = "client" if instance in ("client", "guest") else ""
+        with open(ctx.plugin_log(name), "rb") as log:
+            log.seek(getattr(ctx, "VOICE_LOG_MARK", {}).get(name, 0))
+            text = log.read().decode("utf-8", "replace")
+        pattern = (rf"Voice: copy {form:X} says its owner's (.+)$" if name else rf"Voice: {form:X} \(local\) says (.+)$")
+        return collections.Counter(match.group(1).strip() for match in re.finditer(pattern, text, re.M))
+
+    def expect_same_voice_starts(ctx, name):
+        """Every voice file the host's engine started on the NPC since voice_log_mark reached the guest's copy as often,
+        no more and no less (a replay adds one, a missed line drops one), and at least one did."""
+        host = ctx.voice_starts("", ctx.resolve(name, "host"))
+        guest = ctx.voice_starts("client", ctx.resolve(name, "guest"))
+        if not host:
+            raise ctx.failure(f"[host] its engine voiced nothing on {name} since the mark: nothing to compare")
+        if host != guest:
+            raise ctx.failure(f"{name}'s lines: host's engine {dict(host - guest)} more, the guest's copy {dict(guest - host)} more")
+        return {"lines": sum(host.values())}
 
     def speak_calls(ctx, instance=""):
         """That game's voice starts so far: the engine's Actor::SpeakSound calls through our hook (37542,

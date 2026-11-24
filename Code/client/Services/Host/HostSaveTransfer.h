@@ -31,9 +31,11 @@ struct HostSaveTransfer
     // How long a join waits for the host's game to save; a conversation can take minutes (UI::IsSavingAllowed).
     static constexpr uint64_t kSaveSeconds = 180;
     // A save that works is made within two tries (an update each): a join still waiting after this many is told why,
-    // and again every kWaitNoticeEvery tries (it waits as long as the host does).
+    // and again every kWaitNoticeEvery tries or kWaitNoticeSeconds, whichever comes first (its own wait is 30 s, the
+    // host's frame rate any).
     static constexpr uint32_t kWaitNoticeTries = 10;
     static constexpr uint32_t kWaitNoticeEvery = 600;
+    static constexpr uint64_t kWaitNoticeSeconds = 10;
 
     HostSaveTransfer(HostNetwork& aNetwork, const HostGame& acGame) noexcept;
 
@@ -67,6 +69,8 @@ private:
         size_t Next{};                                    // the next piece's offset
         uint64_t Since{};                                 // the tick it started waiting
         uint32_t Tries{};                                 // the host's game's tries to save for it
+        uint32_t ToldAtTry{};                             // the try it was last told the host cannot save yet
+        uint64_t ToldAt{};                                // and the tick
     };
 
     [[nodiscard]] bool Holds(ConnectionId_t aConnection, const std::string& acSave) const noexcept;

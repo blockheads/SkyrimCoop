@@ -136,9 +136,12 @@ void HostSaveTransfer::Update(uint64_t aTick) noexcept
             failed = receiver.Data && receiver.Data->Data.empty();
         }
         if (!failed && receiver.Save.empty() && !receiver.Ahead && ++receiver.Tries >= kWaitNoticeTries &&
-            (receiver.Tries - kWaitNoticeTries) % kWaitNoticeEvery == 0)
+            (!receiver.ToldAtTry || receiver.Tries - receiver.ToldAtTry >= kWaitNoticeEvery ||
+             aTick - receiver.ToldAt >= kWaitNoticeSeconds * 1000))
         {
             spdlog::info("HostSaveTransfer: {:x} waits for the host's game to save ({} ms)", cConnection, aTick - receiver.Since);
+            receiver.ToldAtTry = receiver.Tries;
+            receiver.ToldAt = aTick;
             m_network.Send(cConnection, NotifySaveWaiting{});
         }
         if (failed || (!receiver.Data && aTick - receiver.Since > kSaveSeconds * 1000))

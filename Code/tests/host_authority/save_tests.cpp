@@ -226,6 +226,11 @@ TEST_CASE("A joining game waiting for a save the host's game cannot make yet is 
         session.Frame(tick += 16);
     CHECK(session.SentTo<NotifySaveWaiting>(4).size() == 2);
 
+    // A slow host (a frame a second): told again within kWaitNoticeSeconds, before the guest's own wait runs out.
+    for (uint32_t i = 0; i < HostSaveTransfer::kWaitNoticeSeconds; ++i)
+        session.Frame(tick += 1000);
+    CHECK(session.SentTo<NotifySaveWaiting>(4).size() == 3);
+
     session.WorldSave = kNew; // the conversation ended: the save comes
     session.Frame(tick += 16);
     CHECK(session.SentTo<NotifySaveChunk>(4).size() == 1);

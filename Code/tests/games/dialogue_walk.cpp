@@ -3,6 +3,8 @@
 #include "FakeDialogue.h"
 #include "Party.h"
 #include "Fixtures.h"
+#include <Components.h>
+#include <SessionIds.h>
 #include <Services/DialogueService.h>
 #include <Events/DialogueEvent.h>
 #include <Events/SubtitleEvent.h>
@@ -12,6 +14,7 @@
 #include <cstdlib>
 #include <format>
 #include <map>
+#include <set>
 #include <random>
 #include <string>
 #include <vector>
@@ -21,6 +24,12 @@ namespace
 constexpr uint32_t kCell = 0x31D2E;
 constexpr uint32_t kNpc = 0x1A67C;
 constexpr uint32_t kGreetingInfo = 0x4000; // the NPC's greeting line
+constexpr const char* kVoicePlugin = "Walk.esp";
+// A line's voice file as the engine names it (25502).
+std::string VoiceFile(uint32_t aInfo, uint32_t aResponse)
+{
+    return std::format("Data\\Sound\\Voice\\{}\\MaleCommoner\\Walk_Topic_{:08X}_{}.fuz", kVoicePlugin, aInfo & 0xFFFFFF, aResponse);
+}
 constexpr uint32_t kQuest = 0x36191; // its stage moves on each time the host's engine says More (the info's fragment)
 const IDialogueBridge::Option kAsk{.Topic = 0x3001, .Info = 0x4001, .Text = "Ask"};
 const IDialogueBridge::Option kMore{.Topic = 0x3002, .Info = 0x4002, .Text = "More"};
@@ -52,6 +61,9 @@ struct Walk
     std::vector<std::string> Log;
     uint32_t Npc = 0;
     std::vector<bool> Out; // a guest that dropped, by guest index
+    // The voice files each guest must hear: voiced while it was in the session with a loaded copy of the speaker.
+    std::vector<std::set<std::string>> Expected;
+    std::string BrokenByWorld; // a rule broken right after the world's action
 
     uint32_t Roll(uint32_t aCount) { return std::uniform_int_distribution<uint32_t>(0, aCount - 1)(Rng); }
 
@@ -128,6 +140,11 @@ struct Walk
                 what = "the NPC's line ends";
                 Games.As(Games.Host(), [&] { hostTalk.LineEnds(); });
             }
+            else if (hostTalk.StillTalking)
+            {
+                what = "the NPC finishes the line of a conversation that ended";
+                hostTalk.RetainedLineEnds();
+            }
         }
         else if (cKind < 95)
         {
@@ -145,7 +162,9 @@ struct Walk
             });
             for (uint32_t frames = Roll(3); frames > 0; --frames)
                 Games.Frame();
-            Broken(); // settles: the next NPC is another conversation's
+            BrokenByWorld = Broken(); // settled; checked at once by the walk
+            if (!BrokenByWorld.empty())
+                BrokenByWorld = std::format("right after the world's action ({}): {}", what, BrokenByWorld);
             Games.As(Games.Host(), [&] { Npc = host.LoadNpc(kNpc, kCell); });
             what += ", then another stands in its place";
         }
@@ -154,6 +173,7 @@ struct Walk
             what = "drops out";
             Games.Leave(game);
             Out[cWho - 1] = true;
+            Expected[cWho - 1].clear();
         }
         if (!what.empty())
             Log.push_back(std::format("{} {}", Name(cWho), what));
@@ -191,6 +211,8 @@ struct Walk
                 broken += std::format("{}: its menu open but not in the conversation; ", Name(i));
             if (i != 0 && cDialogue.Joined() && cDialogue.Conversation() != cHostDialogue.Conversation())
                 broken += std::format("{}: in conversation {}, the host's is {}; ", Name(i), cDialogue.Conversation(), cHostDialogue.Conversation());
+            else if (i != 0 && cDialogue.Joined() && cDialogue.Step() != cHostDialogue.Step())
+                broken += std::format("{}: at step {}, the host's is {}; ", Name(i), cDialogue.Step(), cHostDialogue.Step());
         }
         // The quest: More's fragment ran once per More said, and every game in the session holds the host's state.
         const FakeEngine& host = Party::Engine(Games.Host());
@@ -210,8 +232,11 @@ struct Walk
             std::map<std::string, int> heard;
             for (const auto& [cCopy, cFile] : Party::Engine(Game(i)).Lines)
                 ++heard[cFile];
+            for (const auto& cFile : Expected[i - 1])
+                if (!heard.contains(cFile))
+                    broken += std::format("{}: its copy never said {}; ", Name(i), cFile);
             for (const auto& [cFile, cTimes] : heard)
-                if (cTimes > (VoiceFiles::IsLineOf(cFile, kGreetingInfo) ? 2 : 1))
+                if (cTimes > (VoiceFiles::IsLineOf(cFile, kGreetingInfo, kVoicePlugin) ? 2 : 1))
                 {
                     std::string said;
                     for (const auto& [cCopy, cLine] : Party::Engine(Game(i)).Lines)
@@ -267,6 +292,7 @@ void RunWalk(uint32_t aSeed, int aSteps, size_t aGuests)
     });
     Walk walk{party, std::mt19937(aSeed)};
     walk.Out.assign(aGuests, false);
+    walk.Expected.assign(aGuests, {});
     for (size_t i = 0; i < party.GameCount(); ++i)
         Script(Talk(walk.Game(i)));
     Talk(party.Host()).LinesTakeTime = true;
@@ -276,7 +302,18 @@ void RunWalk(uint32_t aSeed, int aSteps, size_t aGuests)
     uint32_t voiced = 0;
     const auto cVoice = [&](uint32_t aInfo) {
         World& host = party.Host();
-        host.GetDispatcher().trigger(DialogueEvent(Talk(host).Speaker, std::format("Walk_Topic_00{:06X}_{}.fuz", aInfo, ++voiced)));
+        const std::string cFile = VoiceFile(aInfo, ++voiced);
+        // The speaker's own copy, loaded: one not loaded yet is voiced nothing (CharacterService::OnNotifyDialogue:
+        // SpeakSound needs its process).
+        const auto cSession = Utils::GetSessionIdByFormId(Talk(host).Speaker);
+        for (size_t i = 1; i < party.GameCount(); ++i)
+        {
+            World& guest = walk.Game(i);
+            for (auto&& [cEntity, cRemote, cForm] : guest.view<RemoteComponent, FormIdComponent>().each())
+                if (walk.Online(i) && cSession && cRemote.Id == *cSession && Party::Engine(guest).ActorHas3D(cForm.Id))
+                    walk.Expected[i - 1].insert(cFile);
+        }
+        host.GetDispatcher().trigger(DialogueEvent(Talk(host).Speaker, cFile));
     };
     for (size_t i = 0; i < party.GameCount(); ++i)
         Talk(walk.Game(i)).GreetingInfo = kGreetingInfo;
@@ -302,6 +339,8 @@ void RunWalk(uint32_t aSeed, int aSteps, size_t aGuests)
     for (int step = 0; step < aSteps; ++step)
     {
         walk.Step();
+        if (!walk.BrokenByWorld.empty())
+            FAIL("seed " << aSeed << ", at step " << step + 1 << ": " << walk.BrokenByWorld << walk.Actions());
         if (step % 10 == 9)
             if (const std::string cBroken = walk.Broken(); !cBroken.empty())
                 FAIL("seed " << aSeed << ", after step " << step + 1 << ": " << cBroken << walk.Actions());
@@ -479,7 +518,7 @@ SCENARIO("A guest leaving mid-answer and talking again at once hears the NPC's a
     hostTalk.LinesTakeTime = true;
     uint32_t voiced = 0;
     const auto cVoice = [&](uint32_t aInfo) {
-        party.Host().GetDispatcher().trigger(DialogueEvent(hostTalk.Speaker, std::format("Walk_Topic_00{:06X}_{}.fuz", aInfo, ++voiced)));
+        party.Host().GetDispatcher().trigger(DialogueEvent(hostTalk.Speaker, VoiceFile(aInfo, ++voiced)));
     };
     hostTalk.OnGreeting = [&] { cVoice(kGreetingInfo); };
     hostTalk.OnSaid = [&](const IDialogueBridge::Option& acSaid) { cVoice(acSaid.Info); };
@@ -498,7 +537,40 @@ SCENARIO("A guest leaving mid-answer and talking again at once hears the NPC's a
     Settle(party);
 
     const auto cTimes = [&](uint32_t aInfo) {
-        return std::ranges::count_if(Party::Engine(party.Guest()).Lines, [&](const auto& acLine) { return VoiceFiles::IsLineOf(acLine.second, aInfo); });
+        return std::ranges::count_if(Party::Engine(party.Guest()).Lines, [&](const auto& acLine) { return VoiceFiles::IsLineOf(acLine.second, aInfo, kVoicePlugin); });
     };
     THEN("its copy said the answer once") CHECK(cTimes(kAsk.Info) == 1);
+}
+
+// Review of #126: an ask that crosses the host's pick gets the conversation's open again, mid-answer: the guest's menu
+// shows the pick (the open carries it) and Tab leaves it, skipping nobody's line.
+SCENARIO("A guest's ask crossing the host's pick opens its menu on the pick, and Tab leaves", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld, true, NetConditions{.DelayMs = 60});
+    for (World* pGame : {&party.Host(), &party.Guest()})
+        Script(Talk(*pGame));
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    hostTalk.LinesTakeTime = true;
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = Party::Engine(party.Host()).LoadNpc(kNpc, kCell); });
+    party.Until([&] { return !Party::Engine(party.Guest()).CopiesOf(kNpc).empty(); }, "the guest has the NPC");
+    const uint32_t cCopy = Party::Engine(party.Guest()).CopiesOf(kNpc)[0];
+
+    // The guest asks before it hears of the host's conversation; the host picks before the ask arrives.
+    party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(npc); });
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return hostTalk.ListShown && party.Host().ctx().at<DialogueService>().Joined(); }, "the host's menu shows the party's list",
+                {}, &party.Host());
+    party.As(party.Host(), [&] { hostTalk.PlayerPicks(1); });
+    party.Until([&] { return guestTalk.MenuOpen && party.Guest().ctx().at<DialogueService>().Joined(); }, "the guest's menu opens on it");
+    Settle(party);
+    THEN("it shows the pick, as every menu while the NPC answers") CHECK(guestTalk.MenuState() == 2);
+    party.As(party.Guest(), [&] { guestTalk.PlayerLeaves(); });
+    Settle(party);
+    THEN("Tab closes it, and the NPC's line goes on")
+    {
+        CHECK(!guestTalk.MenuOpen);
+        CHECK(hostTalk.Skips == 0);
+    }
 }

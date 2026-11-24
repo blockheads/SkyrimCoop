@@ -79,6 +79,7 @@ private:
         GameId Greeting{};
         uint32_t Step = 1;
         bool Everyone{}; // the NPC greeted the party
+        std::string Picked; // the pick the NPC answers, until the step's list
         // The games in it, in the order they joined: whose menu is open on it, and the peer who asked for it.
         std::vector<ConnectionId_t> Players;
         // The host's game's list for this step; none yet after a pick.
@@ -132,4 +133,6 @@ private:
     std::optional<Conversation> m_conversation;
     uint32_t m_lastId = 0;
     std::optional<Asked> m_asked;
+    // A start on its way whose askers all left: its opening ends at once (nobody would end it).
+    std::optional<uint32_t> m_abandoned;
 };

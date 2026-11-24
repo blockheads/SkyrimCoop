@@ -837,6 +837,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendOpen.InIt = true;
         sendOpen.Greeting = GameId(2, 0x803);
         sendOpen.Step = 3; // a joiner's open, mid-conversation
+        sendOpen.Picked = "I'm not sure. Tell me about him.";
 
         Buffer::Writer writer(&buff);
         sendRequest.Serialize(writer);
@@ -858,6 +859,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone && recvOpen.InIt));
         CHECK(recvOpen.Greeting == sendOpen.Greeting);
         CHECK(recvOpen.Step == 3);
+        CHECK(recvOpen.Picked == sendOpen.Picked);
         DialogueOpenedRequest sendOpened, recvOpened;
         sendOpened.NpcId = 0x21;
         sendOpened.Everyone = true;

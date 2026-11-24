@@ -119,6 +119,7 @@ void NotifyDialogueOpen::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexc
     Serialization::WriteBool(aWriter, InIt);
     Greeting.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Step);
+    Serialization::WriteString(aWriter, Picked);
 }
 
 void NotifyDialogueOpen::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -130,6 +131,7 @@ void NotifyDialogueOpen::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     InIt = Serialization::ReadBool(aReader);
     Greeting.Deserialize(aReader);
     Step = ReadId(aReader);
+    Picked = Serialization::ReadString(aReader);
 }
 
 void NotifyDialogueList::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
