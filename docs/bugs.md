@@ -48,6 +48,7 @@ every other section needs the duo.
 - [A re-leveled copy leaves its old temporary NPC](#a-re-leveled-copy-leaves-its-old-temporary-npc): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A join while the host talks](#a-join-while-the-host-talks): small
+- [A guest rejoining mid-answer cannot leave](#a-guest-rejoining-mid-answer-cannot-leave): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
@@ -229,6 +230,26 @@ Size: small. Needs: the user's call on the behaviour, then GameTests; the duo on
 - Found while looking into the playtest's layered voices after a rejoin (bug 3, fixed by 0d64013e: `dialogue.md`,
   same section). Scenario: `dialogue-guest-leaves-mid-line`'s second half leaves the guest out while
   the host's menu is open and joins only after it closes.
+
+### A guest rejoining mid-answer cannot leave
+
+A guest that leaves the conversation and talks to the NPC again while it answers gets a menu stuck in the greeting
+state (the SWF's `eMenuState` 0, SHOW_GREETING) until the answer ends: Tab there only skips the line
+(`DialogueMenu.as` onCancelPress), and a guest's skip goes to the host (`DialogueSkipRequest`), so its Tab skips the
+NPC's line for everyone instead of leaving. Seen 2026-11-24, scenario `dialogue-guest-rejoins-quickly` (tag
+`dialogue-stress`), 1 of 1: "[client] its menu is past the greeting" timed out at the first rejoin; the guest's log
+repeats "the pick not shown yet: the menu's state is 0" through the answer.
+
+Inferred, not read: the guest's join starts its engine's conversation on the copy with the greeting
+(`GuestDialogue::OnTalk`, `DialogueBridge::Start`), and `SaySelected` (35283) on a speaker still talking (the copy
+voices the host's relayed line) stops the line and does not advance, so the greeting never ends while the copy keeps
+getting the answer's lines.
+
+Agent task: read what moves the dialogue menu's SWF out of SHOW_GREETING for a menu opened on a speaker mid-line, and
+make a joining menu show the pick (as `DialogueService` does once its menu shows a list), so Tab leaves; GameTests
+flow first (the fake's SWF state).
+
+Size: small. Needs: IDA, then GameTests, then the duo for the scenario.
 
 ### A copy's interaction idle
 

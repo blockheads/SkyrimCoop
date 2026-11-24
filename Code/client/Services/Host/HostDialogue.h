@@ -78,6 +78,7 @@ private:
         uint32_t NpcId{};
         GameId Greeting{};
         uint32_t Step = 1;
+        bool Everyone{}; // the NPC greeted the party
         // The games in it, in the order they joined: whose menu is open on it, and the peer who asked for it.
         std::vector<ConnectionId_t> Players;
         // The host's game's list for this step; none yet after a pick.
@@ -96,10 +97,10 @@ private:
         }
     };
 
-    // A start the host's game was asked for: that player is in the conversation it opens.
+    // A start the host's game was asked for: the players who asked for it before it opened are in it.
     struct Asked
     {
-        ConnectionId_t Player{};
+        std::vector<ConnectionId_t> Players;
         uint32_t NpcId{};
     };
 
@@ -114,6 +115,8 @@ private:
     [[nodiscard]] std::vector<PartyDialogueList> Members() const noexcept;
     // The party's list again, after a new list or a player joining or leaving, to every game in it.
     void Merge() noexcept;
+    // The conversation to that game: its id, NPC and step, and whether that game is in it.
+    void SendOpen(ConnectionId_t aPlayer) const noexcept;
     // The step's party list to that game, once the host's game has shown it.
     void SendList(ConnectionId_t aPlayer) noexcept;
     // Ends it, telling every game but aExcept (0: all of them).

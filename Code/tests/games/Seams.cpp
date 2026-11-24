@@ -156,6 +156,17 @@ World::World()
         const auto it = engine.Actors.find(aSpeaker);
         return it != engine.Actors.end() && !it->second.NoProcess;
     };
+    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerDeadOrFighting = [](uint32_t aSpeaker) {
+        const FakeEngine& engine = FakeEngine::Current();
+        const auto it = engine.Actors.find(aSpeaker);
+        return it != engine.Actors.end() && (it->second.Dead || it->second.OwnCombatTarget);
+    };
+    // DialogueBridge::Start refuses a dead or fighting actor.
+    static_cast<FakeDialogue&>(*m_pDialogueBridge).CanTalk = [](uint32_t aActor) {
+        const FakeEngine& engine = FakeEngine::Current();
+        const auto it = engine.Actors.find(aActor);
+        return it == engine.Actors.end() || (!it->second.Dead && !it->second.OwnCombatTarget);
+    };
     static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerResolves = [](uint32_t aSpeaker) {
         return FakeEngine::Current().HandleResolves(aSpeaker);
     };

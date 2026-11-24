@@ -87,16 +87,35 @@ void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t
         Refuse(aSender, acRequest.NpcId, nullptr);
         return;
     }
-    // Talking to the NPC of the conversation under way joins it (its game opens its menu itself).
+    // Talking to the NPC of the conversation under way joins it: the asker is told, at its step.
     if (m_conversation)
     {
         if (m_conversation->NpcId != acRequest.NpcId)
+        {
             Refuse(aSender, acRequest.NpcId, "Someone else is in a conversation already.");
+            return;
+        }
+        if (!m_conversation->Has(aSender))
+            m_conversation->Players.push_back(aSender);
+        spdlog::debug("HostDialogue: {:x} asks for {:x}, already in conversation {}: it joins", aSender, acRequest.NpcId, m_conversation->Id);
+        SendOpen(aSender);
+        Merge();
         return;
     }
 
     // The host's game starts it; its conversation opening opens it for everyone, the asker in it (OnOpened).
-    m_asked = Asked{aSender, acRequest.NpcId};
+    // One start at a time: another ask for the same NPC joins it, one for another NPC is refused.
+    if (m_asked)
+    {
+        if (m_asked->NpcId != acRequest.NpcId)
+            Refuse(aSender, acRequest.NpcId, "Someone else is in a conversation already.");
+        else if (std::ranges::find(m_asked->Players, aSender) == m_asked->Players.end())
+            m_asked->Players.push_back(aSender);
+        spdlog::debug("HostDialogue: {:x} asks to talk to {:x} while {:x} is being started", aSender, acRequest.NpcId, m_asked->NpcId);
+        return;
+    }
+    spdlog::debug("HostDialogue: {:x} asks to talk to {:x}", aSender, acRequest.NpcId);
+    m_asked = Asked{{aSender}, acRequest.NpcId};
     NotifyDialogueStart start;
     start.NpcId = acRequest.NpcId;
     start.PlayerId = m_players.PlayerIdOf(aSender);
@@ -127,16 +146,27 @@ void HostDialogue::OnOpened(const DialogueOpenedRequest& acRequest, ConnectionId
                 m_conversation->Players.push_back(cPlayer);
     }
     else if (m_asked && m_asked->NpcId == acRequest.NpcId)
-        m_conversation->Players.push_back(m_asked->Player);
-    m_conversation->Facing = m_asked && m_asked->NpcId == acRequest.NpcId ? m_asked->Player : aSender;
+        m_conversation->Players = m_asked->Players;
+    m_conversation->Facing = m_asked && m_asked->NpcId == acRequest.NpcId ? m_asked->Players.front() : aSender;
+    spdlog::debug("HostDialogue: conversation {} with {:x} opens, {} player(s) in it", m_conversation->Id, acRequest.NpcId,
+                  m_conversation->Players.size());
     m_asked.reset();
 
+    m_conversation->Everyone = acRequest.Everyone;
+    for (const ConnectionId_t cPlayer : m_players.Connections())
+        SendOpen(cPlayer);
+}
+
+void HostDialogue::SendOpen(ConnectionId_t aPlayer) const noexcept
+{
     NotifyDialogueOpen open;
     open.Conversation = m_conversation->Id;
-    open.NpcId = acRequest.NpcId;
-    open.Everyone = acRequest.Everyone;
-    open.Greeting = acRequest.Greeting;
-    m_players.SendToAll(open);
+    open.NpcId = m_conversation->NpcId;
+    open.Everyone = m_conversation->Everyone;
+    open.InIt = m_conversation->Has(aPlayer);
+    open.Greeting = m_conversation->Greeting;
+    open.Step = m_conversation->Step;
+    m_network.Send(aPlayer, open);
 }
 
 void HostDialogue::OnOptions(const DialogueOptionsRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -227,6 +257,7 @@ void HostDialogue::OnJoin(const DialogueJoinRequest& acRequest, ConnectionId_t a
     if (Conversation* pConversation = Current(acRequest.Conversation); pConversation && !pConversation->Has(aSender))
     {
         pConversation->Players.push_back(aSender);
+        spdlog::debug("HostDialogue: {:x} joins conversation {} ({} in it)", aSender, pConversation->Id, pConversation->Players.size());
         Merge();
     }
 }
@@ -259,7 +290,9 @@ void HostDialogue::OnStartFailed(const DialogueStartFailedRequest& acRequest, Co
 {
     if (aSender != m_players.Host() || !m_asked || m_asked->NpcId != acRequest.NpcId)
         return;
-    Refuse(m_asked->Player, acRequest.NpcId, acRequest.NothingToSay ? "They have nothing to say." : "The host can't talk to them right now.");
+    spdlog::debug("HostDialogue: the host's game did not start {:x}: {} ask(s) refused", acRequest.NpcId, m_asked->Players.size());
+    for (const ConnectionId_t cPlayer : m_asked->Players)
+        Refuse(cPlayer, acRequest.NpcId, acRequest.NothingToSay ? "They have nothing to say." : "The host can't talk to them right now.");
     m_asked.reset();
 }
 
@@ -316,7 +349,7 @@ void HostDialogue::SendList(ConnectionId_t aPlayer) noexcept
 
 void HostDialogue::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
-    if (m_asked && m_asked->Player == aPlayer)
+    if (m_asked && std::erase(m_asked->Players, aPlayer) && m_asked->Players.empty())
         m_asked.reset();
     if (m_conversation)
         Leave(aPlayer);
@@ -324,20 +357,16 @@ void HostDialogue::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 
 void HostDialogue::SendCurrent(ConnectionId_t aJoiner) const noexcept
 {
-    if (!m_conversation)
-        return;
-    NotifyDialogueOpen open;
-    open.Conversation = m_conversation->Id;
-    open.NpcId = m_conversation->NpcId;
-    open.Greeting = m_conversation->Greeting;
-    open.Step = m_conversation->Step;
-    m_network.Send(aJoiner, open);
+    if (m_conversation)
+        SendOpen(aJoiner);
 }
 
 void HostDialogue::Leave(ConnectionId_t aPlayer) noexcept
 {
     // The host's game is in it without being listed: its player leaving ends nothing.
     const bool cListed = std::erase(m_conversation->Players, aPlayer) != 0;
+    spdlog::debug("HostDialogue: {:x} leaves conversation {} ({}, {} left in it)", aPlayer, m_conversation->Id, cListed ? "listed" : "not listed",
+                  m_conversation->Players.size());
     if (cListed && m_conversation->Players.empty())
     {
         End();

@@ -143,6 +143,11 @@ struct FakeDialogue final : IDialogueBridge
             m_filters.Skip();
         SkipLine();
     }
+    // A said line still voiced: its list comes at LineEnds.
+    [[nodiscard]] bool LinePending() const noexcept
+    {
+        return m_next.has_value();
+    }
     // This game's player leaves the menu.
     void PlayerLeaves()
     {
@@ -253,8 +258,13 @@ struct FakeDialogue final : IDialogueBridge
     // (+0xB1) set, gets UpdateInDialogue (37541), which reads its process unchecked: none faults, unless our hook skips
     // it (SpeakerUpdate).
     uint32_t SpeakerFaults = 0;
+    // A speaker that died or started a fight: the engine ends its conversation within the frame (measured,
+    // re/systems/dialogue.md, "The speaker dies or fights").
+    std::function<bool(uint32_t aSpeaker)> SpeakerDeadOrFighting;
     void EngineFrame(bool aOnline) noexcept
     {
+        if (Speaker && SpeakerDeadOrFighting && SpeakerDeadOrFighting(Speaker))
+            End();
         if (Speaker && MenuOpen && SpeakerResolves && SpeakerResolves(Speaker) && SpeakerHasProcess &&
             !SpeakerHasProcess(Speaker) && !SpeakerUpdate::Skipped(false, aOnline))
             ++SpeakerFaults;

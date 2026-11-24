@@ -597,6 +597,16 @@ class PlayerVerbs:
             log(f"[{instance or 'host'}] Activate found {target} {apart():.0f} units off (it walks on); closer again")
         return ctx.wait_for(f"[{instance or 'host'}] the menu lists options", lambda: ctx.dialogue(instance).get("options"), 10)
 
+    def talk_twice(ctx, instance, target):
+        """The player presses Activate on `target` twice in a row, the second before the host can answer the first (an
+        impatient double press; under line_delay on the duo's loopback). Returns its options once the menu shows them."""
+        ref = ctx.resolve(target, "guest" if instance else "host")
+        ctx.activate_ref(instance, ref, target)
+        ctx.act(instance, {"name": "presses Activate again", "ready": ["takes_input"], "buttons": ["activate"],
+                           "until": [{"for": 0.15}], "seconds": 1, "allow_menus": True})
+        ctx.wait_for(f"[{instance or 'host'}] the conversation with {target} opens", lambda: ctx.talking_to(instance, ref), 10)
+        return ctx.wait_for(f"[{instance or 'host'}] the menu lists options", lambda: ctx.dialogue(instance).get("options"), 10)
+
     def pick(ctx, instance, line):
         """Picks a line in that game's open conversation: its index, or (a string) the first whose text contains it."""
         options = ctx.dialogue(instance).get("options") or []

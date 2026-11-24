@@ -834,6 +834,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendOpen.Conversation = 4;
         sendOpen.NpcId = 0x21;
         sendOpen.Everyone = true;
+        sendOpen.InIt = true;
         sendOpen.Greeting = GameId(2, 0x803);
         sendOpen.Step = 3; // a joiner's open, mid-conversation
 
@@ -854,7 +855,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK((recvRequest.Conversation == 3 && recvRequest.Step == 7 && recvRequest.Choices && recvRequest.Options == sendRequest.Options));
         CHECK(recvRequest.Players == sendRequest.Players);
         CHECK((recvList.Step == 8 && !recvList.Choices && recvList.Options == sendList.Options));
-        CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone));
+        CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone && recvOpen.InIt));
         CHECK(recvOpen.Greeting == sendOpen.Greeting);
         CHECK(recvOpen.Step == 3);
         DialogueOpenedRequest sendOpened, recvOpened;

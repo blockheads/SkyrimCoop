@@ -130,6 +130,72 @@ TEST_CASE("Dialogue: the peer who asked is in the conversation from the start", 
     CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
 }
 
+// dialogue-walk seed 198: a second ask replaced the first, the host's game refused it, and the conversation opened
+// with nobody listed while the first asker's menu opened: nothing ended it.
+TEST_CASE("Dialogue: players asking for the same NPC before it opens are all in it, with one start", "[HostAuthority][Dialogue]")
+{
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    session.Receive(kPeer, Start(cNpc));
+    session.Receive(kOtherPeer, Start(cNpc));
+    CHECK(session.SentTo<NotifyDialogueStart>(kHost).size() == 1);
+    DialogueOpenedRequest opened;
+    opened.NpcId = cNpc;
+    session.Receive(kHost, opened);
+    const auto cOpen = session.SentTo<NotifyDialogueOpen>(kPeer);
+    REQUIRE(cOpen.size() == 1);
+    const uint32_t cId = cOpen[0]->Conversation;
+
+    session.Receive(kPeer, Close(cId));
+    CHECK(session.SentTo<NotifyDialogueClosed>(kHost).empty());
+    session.Receive(kOtherPeer, Close(cId));
+    CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
+}
+
+TEST_CASE("Dialogue: asking twice before it opens is one ask", "[HostAuthority][Dialogue]")
+{
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    session.Receive(kPeer, Start(cNpc));
+    session.Receive(kPeer, Start(cNpc));
+    CHECK(session.SentTo<NotifyDialogueStart>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyDialogueRefused>(kPeer).empty());
+    DialogueOpenedRequest opened;
+    opened.NpcId = cNpc;
+    session.Receive(kHost, opened);
+    const auto cOpen = session.SentTo<NotifyDialogueOpen>(kPeer);
+    REQUIRE(cOpen.size() == 1);
+    session.Receive(kPeer, Close(cOpen[0]->Conversation));
+    CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
+}
+
+TEST_CASE("Dialogue: an ask for another NPC while one is being started is refused", "[HostAuthority][Dialogue]")
+{
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    const uint32_t cOtherNpc = session.Character(kHost);
+    session.Receive(kPeer, Start(cNpc));
+    session.Receive(kOtherPeer, Start(cOtherNpc));
+    const auto cStarts = session.SentTo<NotifyDialogueStart>(kHost);
+    REQUIRE(cStarts.size() == 1);
+    CHECK(cStarts[0]->NpcId == cNpc);
+    CHECK(session.SentTo<NotifyDialogueRefused>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyDialogueRefused>(kPeer).empty());
+}
+
+TEST_CASE("Dialogue: a start the host's game refuses refuses every player who asked", "[HostAuthority][Dialogue]")
+{
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    session.Receive(kPeer, Start(cNpc));
+    session.Receive(kOtherPeer, Start(cNpc));
+    DialogueStartFailedRequest failed;
+    failed.NpcId = cNpc;
+    session.Receive(kHost, failed);
+    CHECK(session.SentTo<NotifyDialogueRefused>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyDialogueRefused>(kOtherPeer).size() == 1);
+}
+
 TEST_CASE("Dialogue: the host talking itself puts nobody in it", "[HostAuthority][Dialogue]")
 {
     Session session;
@@ -232,6 +298,31 @@ TEST_CASE("Dialogue: talking to the NPC of the conversation joins it, no new sta
     session.Receive(kOtherPeer, Start(talking.Npc));
     CHECK(session.SentTo<NotifyDialogueStart>(kHost).empty());
     CHECK(session.SentTo<NotifyChatMessageBroadcast>(kOtherPeer).empty());
+    // The asker is told it is in it (dialogue-walk seed 1016: it took another's open for its own and ignored its own).
+    const auto cOpen = session.SentTo<NotifyDialogueOpen>(kOtherPeer);
+    REQUIRE(cOpen.size() == 1);
+    CHECK(cOpen[0]->Conversation == talking.Id);
+    CHECK(cOpen[0]->InIt);
+    const uint32_t cId = talking.Id;
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, Close(cId));
+    CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1); // it was the one in it: its leaving ends it
+}
+
+TEST_CASE("Dialogue: the open tells each game whether it is in it", "[HostAuthority][Dialogue]")
+{
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    session.Receive(kPeer, Start(cNpc));
+    DialogueOpenedRequest opened;
+    opened.NpcId = cNpc;
+    session.Receive(kHost, opened);
+    const auto cAsker = session.SentTo<NotifyDialogueOpen>(kPeer);
+    const auto cOther = session.SentTo<NotifyDialogueOpen>(kOtherPeer);
+    REQUIRE(cAsker.size() == 1);
+    REQUIRE(cOther.size() == 1);
+    CHECK(cAsker[0]->InIt);
+    CHECK_FALSE(cOther[0]->InIt);
 }
 
 TEST_CASE("Dialogue: a player leaving leaves it on for the others; the last one out ends it", "[HostAuthority][Dialogue]")

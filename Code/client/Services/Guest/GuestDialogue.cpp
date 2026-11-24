@@ -54,16 +54,17 @@ bool GuestDialogue::OnTalk(uint32_t aActorFormId) noexcept
 void GuestDialogue::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
 {
     m_greeting = ToGame(acMessage.Greeting);
-    // The player who asked for it is in it, every player when the NPC greeted the party: its menu opens on its copy,
-    // or it leaves.
-    if (std::exchange(m_asked, 0) != acMessage.NpcId && !acMessage.Everyone)
+    // The host says who is in it (who asked, everyone when the NPC greeted the party): its menu opens on its copy, or
+    // it leaves. Another's conversation with the NPC it asked for is not the answer to its ask.
+    if (!acMessage.InIt)
         return;
+    const bool cOwnStart = std::exchange(m_asked, 0) == acMessage.NpcId || acMessage.Everyone;
     auto& bridge = m_dialogue.Bridge();
     const uint32_t cCopy = Utils::GetFormIdBySessionId(acMessage.NpcId);
     if (cCopy && bridge.Start(cCopy, true, m_greeting))
     {
         spdlog::info("Dialogue: conversation {} opens on copy {:X}", acMessage.Conversation, cCopy);
-        m_replayGreeting = true;
+        m_replayGreeting = cOwnStart && acMessage.Step == 1; // joined later, the copy's line is not the greeting
         m_dialogue.Opening();
         return;
     }

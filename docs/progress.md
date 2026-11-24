@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-24: **a dialogue walker found two ways a conversation outlived everyone in it** (`agent/rejoin-dialogue-layers`;
+[dialogue-stress.md](design/dialogue-stress.md)). GameTests `[dialogue-walk]` plays random players' and world's actions
+(talk, leave, pick, skip, kill, fight, delete, drop, rejoin) on one conversation and checks its rules after each
+settle. Found: two asks before the open (two guests, or one pressing twice) left the conversation with nobody listed;
+an ask crossing the host's own short conversation was ignored by the guest it listed. Both left the host's NPC talking
+to nobody, for good. Fixed in `HostDialogue` (every asker kept; an ask for the NPC already talking joins it) and
+`NotifyDialogueOpen::InIt` (the host says who is in it); flows and host-rule tests for each. Measured on the duo: a
+speaker killed or starting a fight ends the conversation at once (the fake learned it). Soak scenarios (tag
+`dialogue-stress`); one fails on a new open bug, a guest rejoining mid-answer cannot leave (`bugs.md`).
+
 2026-11-24: **a guest leaving mid-conversation no longer crashes its game** (`agent/rejoin-dialogue-layers`;
 [dialogue.md](re/systems/dialogue.md), "A guest leaving mid-line"). Leaving deleted the copy the guest's menu was
 open on, and the engine's next `MenuTopicManager::Update` (35289) ran `UpdateInDialogue` (37541) on its freed process.

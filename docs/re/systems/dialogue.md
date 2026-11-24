@@ -378,6 +378,25 @@ Read in IDA (named and commented there), measured on the duo (`dialogue-guest-le
   about 20 ms apart (both the host's and the copy's logs), with one sound each (the voice handle's ids rise by one per
   response); each relay stops the copy's line before its own.
 
+## The speaker dies or fights (1.7.104, 2026-11-24)
+
+Read in IDA: `Actor::UpdateInDialogue` (37541) ends the conversation each frame (0x14068d39a, `EndDialogue` 35294)
+when the speaker has no process, its process byte +0x137 is set, `MenuTopicManager` +0xB3 is set, or the process
+float `AIProcess__GetMiddleHighFloat340` (ours, 0x1406F35B0: middle-high data +0x340) is below 0 without +0xB5. `EndDialogue`'s other callers: `UpdateSoundCallBack`, the manager's
+`PositionPlayerEvent` sink (the player teleported), `StartDialogue`, `Actor::EndInterruptPackage`, and
+`AIProcess::ConfrontAlarmTarget`. No caller is a death or combat path itself.
+
+Measured on the duo (Andurs, both players in the conversation, the host's console):
+
+- **Killed mid-answer** (`kill`): the host's engine ended the conversation 50 ms later ("the host's engine ended
+  conversation"), after a last line of his; every menu closed.
+- **A fight started** (`startcombat` on the guest's character): the conversation ended in the frame his combat state
+  turned on; every menu closed.
+
+Which of the end conditions death and combat set is not read (inferred: through the process). `DialogueBridge::Start`
+already refuses a dead or fighting actor. The fake engine ends its conversation on a dead or fighting speaker
+(`FakeDialogue::EngineFrame`), the dialogue walker kills or provokes the NPC mid-conversation.
+
 ## Building options (2026-10-18)
 
 For per-player options (`shared-dialogue.md`, "A peer's option on the host"). Found through Dynamic Dialogue
