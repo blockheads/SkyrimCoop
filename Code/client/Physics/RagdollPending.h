@@ -12,7 +12,7 @@ class RagdollPending
     {
         BodyFrame Frame;
         bool Place{};
-        bool Rest{}; // its owner's rest: glided, put there once, put to sleep, then left (RagdollRest)
+        bool Rest{}; // its owner's rest: glided, put there once, put to sleep, then left (RestPlacer)
     };
 
     void Put(uint32_t aCopy, const BodyFrame& acFrame, bool aPlace, bool aRest = false)

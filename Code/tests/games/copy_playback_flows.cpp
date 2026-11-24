@@ -8,6 +8,9 @@
 #include <Services/CharacterService.h>
 #include <Messages/NotifyCharacterSpawn.h>
 
+#include <format>
+#include <map>
+#include <random>
 #include <set>
 #include <thread>
 
@@ -587,4 +590,60 @@ SCENARIO("A jumping player's copy rises and falls with it, never stuck on the gr
                                                   << " units off its playback's height");
     CHECK(peak > 60.f);
     CHECK(worst < 1.f);
+}
+
+SCENARIO("A walking player's copy shows a pose that moves on every frame, however both games' frames fall", "[copies][copy-clock][animation][graph-pace]")
+{
+    // Skyrim: a copy's pose held in a frame without an update, then jumped two (actor-movement.md, "A copy's pose between its owner's updates").
+    const auto cRun = [](double aHostFrom, double aHostTo, double aGuestFrom, double aGuestTo) {
+        Party party(1, SmokeWorld, true);
+        auto& host = Party::Engine(party.Host());
+        auto& guest = Party::Engine(party.Guest());
+        for (auto* engine : {&host, &guest})
+        {
+            engine->Graph = FakeGraphRules{.Clips = {{.State = "Swing", .Ms = 300, .Starts = {"Standing"}}}};
+            engine->Actors.at(FakeEngine::kPlayer).GraphState = "Standing";
+        }
+        party.Until([&] { return HostPlayerCopy(guest) != 0; }, "the guest's game makes a copy of the host's player");
+        const uint32_t cCopy = HostPlayerCopy(guest);
+        party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy) && party.Guest().GetGraphStreams().UpdateIndex(cCopy); },
+                    "the copy starts on its owner's stream");
+        // Each game's frames drawn apart (one seed: the same run each time).
+        std::mt19937 random(23);
+        std::uniform_real_distribution<double> hostLength(aHostFrom, aHostTo), guestLength(aGuestFrom, aGuestTo);
+        const auto cStart = std::chrono::steady_clock::now();
+        double hostAt = 0.0, guestAt = 0.0, hostMs = hostLength(random), guestMs = guestLength(random);
+        std::vector<double> off; // each of the guest's frames: how far its copy's shown pose moved off the frame's length
+        std::optional<float> last;
+        const auto& cPose = guest.Actors.at(cCopy).Graph.Pose;
+        while (guestAt < 6000.0)
+        {
+            const bool cHost = hostAt + hostMs <= guestAt + guestMs;
+            double& at = cHost ? hostAt : guestAt;
+            double& ms = cHost ? hostMs : guestMs;
+            at += ms;
+            std::this_thread::sleep_until(cStart + std::chrono::duration<double, std::milli>(at));
+            (cHost ? host : guest).FrameMs = ms;
+            party.Step(cHost ? party.Host() : party.Guest());
+            if (cHost)
+            {
+                hostMs = hostLength(random);
+                continue;
+            }
+            if (!cPose.empty() && last && guestAt > 1000.0) // a second to settle
+                off.push_back(std::abs((cPose[0].Translation[0] - *last) - ms) / ms);
+            if (!cPose.empty())
+                last = cPose[0].Translation[0];
+            guestMs = guestLength(random);
+        }
+        return off;
+    };
+    const auto cCheck = [](const std::vector<double>& acOff) {
+        const auto cUneven = std::ranges::count_if(acOff, [](double aOff) { return aOff > 0.5; });
+        INFO(cUneven << " of " << acOff.size() << " frames' shown pose moved over half a frame more or less than the frame");
+        REQUIRE(acOff.size() > 150);
+        CHECK(cUneven <= std::ssize(acOff) / 50); // at most 2 %
+    };
+    WHEN("both games' frames jitter 16.5-24 ms") { cCheck(cRun(16.5, 24.0, 16.5, 24.0)); }
+    WHEN("the guest runs at 60 frames a second and the host at 50") { cCheck(cRun(19.9, 20.1, 16.6, 16.8)); }
 }

@@ -82,8 +82,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_eye(m_players, m_characters, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
     , m_items(*this, aNetwork, m_players, m_characters, m_purse, m_partyItems, m_game)
-    , m_hands(*this, m_players, m_characters, m_game)
-    , m_physics(*this, aNetwork, m_players, m_hands, m_game)
+    , m_bodies(*this, aNetwork, m_players, m_characters, m_game)
     , m_timeScale(*this, aNetwork, m_players)
     , m_dialogue(*this, aNetwork, m_players, m_characters)
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
@@ -201,8 +200,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_dialogue.OnPlayerLeft(aConnection);
         m_worldState.OnPlayerLeft(aConnection);
         m_items.OnPlayerLeft(aConnection);
-        m_physics.OnPlayerLeft(aConnection);
-        m_hands.OnPlayerLeft(aConnection);
+        m_bodies.OnPlayerLeft(aConnection);
         m_death.Left(aConnection);
         m_eye.OnPlayerLeft(aConnection);
         m_weather.OnPlayerLeft(aConnection);
@@ -229,11 +227,10 @@ void HostAuthority::Update(uint64_t aTick, double aDelta, uint64_t aFrameTick) n
     m_eye.Update();
     m_worldState.Update(aTick);
     m_items.Update();
-    m_hands.Update(aTick);
     if (m_game.TakePlaced)
         for (const auto& [cObject, cWhere] : m_game.TakePlaced())
-            m_hands.OnHostPlaced(cObject, cWhere);
-    m_physics.Update(aFrameTick ? aFrameTick : aTick);
+            m_bodies.OnHostPlaced(cObject, cWhere);
+    m_bodies.Update(aFrameTick ? aFrameTick : aTick);
 }
 
 void HostAuthority::DifficultyChanged(uint32_t aDifficulty) const noexcept

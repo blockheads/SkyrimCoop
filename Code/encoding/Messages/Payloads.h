@@ -415,34 +415,17 @@ struct PlayerNativeResult
     uint32_t SessionId{}; // from the host's game: the asking guest's character; 0: for the host's game
 };
 
-// Physics bodies moving on the host's game (docs/design/physics-sync.md): the frames a guest would guess wrong
-// without, at the host's tick (unreliable). From a guest: the bodies its player holds or moved until they rest there
-// and its player's ragdoll (unreliable), or the last of what it held as its player lets go (reliable).
-struct BodyFrames
+// Bodies' states on the stream (docs/design/physics-authority-plan.md), unreliable both ways: a guest's of the bodies
+// it has authority over, to the host; the host's of every other body near a game, each as that game hears it.
+struct BodyStates
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
-    bool operator==(const BodyFrames&) const noexcept = default;
+    bool operator==(const BodyStates&) const noexcept = default;
 
     uint64_t Tick{};
-    std::vector<BodyFrame> Frames;
-    bool Held{}; // a player's hold: every other game keyframes it; else played steered
-};
-
-// Bodies that fell asleep on their owner's game, where they stay (reliable). Asked by a guest (BodyPoseRequest):
-// bodies its own physics moved that the host's did not, where they went; the host answers with its own.
-struct BodyRests
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const BodyRests&) const noexcept = default;
-
-    uint64_t Tick{};
-    std::vector<BodyPose> Rests;
-    // The host's game put them there itself (a script's or the console's move): a mover's claim on them ends.
-    bool Placed{};
+    std::vector<BodyState> States;
 };
 
 // The party's gold (docs/design/party-purse.md): every player carries this many of Gold001 (0xF).

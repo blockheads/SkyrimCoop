@@ -65,9 +65,9 @@ std::optional<GameId> GuestEngine::HostIdOf(const TESObjectREFR& acObject) const
     return std::nullopt;
 }
 
-std::vector<BodyPush> GuestEngine::Keyed(const std::vector<PlayerHands::Push>& acPushes) const noexcept
+std::vector<BodyKey> GuestEngine::Keyed(const std::vector<PlayerHands::Push>& acPushes) const noexcept
 {
-    std::vector<BodyPush> pushes;
+    std::vector<BodyKey> keys;
     for (const auto& cPush : acPushes)
     {
         if (cPush.Impulse == glm::vec3(0.f))
@@ -75,27 +75,18 @@ std::vector<BodyPush> GuestEngine::Keyed(const std::vector<PlayerHands::Push>& a
         auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cPush.Object));
         const auto cId = pObject ? HostIdOf(*pObject) : std::nullopt;
         const auto cIndex = cId ? ReferenceBodies::IndexOf(*pObject, cPush.pBody) : std::nullopt;
-        if (!cIndex)
-            continue;
-        const BodyKey cKey{.Object = *cId, .Index = *cIndex};
-        // One per body: the frame's impulses summed, at the last one's point.
-        if (auto it = std::ranges::find(pushes, cKey, &BodyPush::Key); it != pushes.end())
-        {
-            it->Impulse += cPush.Impulse;
-            it->Point = cPush.Point;
-        }
-        else
-            pushes.push_back({cKey, cPush.Impulse, cPush.Point});
+        if (cIndex && std::ranges::find(keys, BodyKey{.Object = *cId, .Index = *cIndex}) == keys.end())
+            keys.push_back({.Object = *cId, .Index = *cIndex});
     }
-    return pushes;
+    return keys;
 }
 
-std::vector<BodyPush> GuestEngine::TakePushes() noexcept
+std::vector<BodyKey> GuestEngine::TakePushes() noexcept
 {
     return Keyed(PlayerHands::Take());
 }
 
-std::vector<BodyPush> GuestEngine::TakeHits() noexcept
+std::vector<BodyKey> GuestEngine::TakeHits() noexcept
 {
     return Keyed(PlayerHands::TakeHits());
 }
@@ -155,41 +146,6 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t aTick, const SessionO
     }
     (void)m_moving.TakeRested();
     return own;
-}
-
-std::vector<GuestEngine::IslandBody> GuestEngine::ReadIslands(const std::vector<BodyKey>& acKeys) noexcept
-{
-    std::vector<IslandBody> bodies;
-    std::map<const hkpRigidBody*, uint32_t> islandOf;
-    const auto cAdd = [&](hkpRigidBody& aBody, uint32_t aIsland) {
-        TESObjectREFR* pObject = ReferenceOf(aBody);
-        if (!pObject || Cast<Actor>(pObject) || !aBody.userData)
-            return;
-        const auto cId = HostIdOf(*pObject);
-        const auto cIndex = cId ? ReferenceBodies::IndexOf(*pObject, &aBody) : std::nullopt;
-        if (BodyRead read; cIndex && ReadBody(*aBody.userData, read) && read.Dynamic)
-            bodies.push_back({{.Key = {.Object = *cId, .Index = *cIndex}, .Position = read.Position, .Rotation = read.Rotation}, aIsland});
-    };
-    for (const BodyKey& cKey : acKeys)
-    {
-        const uint32_t cFormId = cKey.Actor ? 0 : m_bodyBridge.ReferenceFormId(cKey);
-        const auto cOwn = ReferenceBodies::At(cFormId ? Cast<TESObjectREFR>(TESForm::GetById(cFormId)) : nullptr, cKey.Index);
-        hkpRigidBody* pOwn = cOwn.pBody ? cOwn.pBody->referencedObject : nullptr;
-        // One island's bodies once, whichever of its own bodies named it.
-        if (!pOwn || islandOf.contains(pOwn))
-            continue;
-        // Awake and dynamic, read under the world's lock; none: its island sleeps (alone in one: itself only).
-        const auto cMates = IslandMatesOf(*cOwn.pBody);
-        if (!cMates)
-            continue;
-        const auto cIsland = static_cast<uint32_t>(islandOf.size());
-        islandOf[pOwn] = cIsland;
-        cAdd(*pOwn, cIsland);
-        for (hkpRigidBody* pMate : *cMates)
-            if (islandOf.try_emplace(pMate, cIsland).second)
-                cAdd(*pMate, cIsland);
-    }
-    return bodies;
 }
 
 void GuestEngine::FollowOwn(const BodyKey& acKey) noexcept

@@ -45,6 +45,7 @@ every other section needs the duo.
 **Copy-desync follow-ups**
 
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
+- [A re-leveled copy leaves its old temporary NPC](#a-re-leveled-copy-leaves-its-old-temporary-npc): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
@@ -59,6 +60,7 @@ every other section needs the duo.
 
 **Ragdolls and death poses**
 
+- [A ragdolled copy holds its pose between updates](#a-ragdolled-copy-holds-its-pose-between-updates): small
 - [Revive leaves the body wrong](#revive-leaves-the-body-wrong): medium
 
 **Physics**
@@ -145,10 +147,6 @@ every other section needs the duo.
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
 - [Seen once in the run of 2026-11-22](#seen-once-in-the-run-of-2026-11-22): small
 
-**From the 2026-11-22 playtest**
-
-- [A guest crash loading a leveled NPC's copy](#a-guest-crash-loading-a-leveled-npcs-copy): medium
-
 **Test tools**
 
 - [The gate fails on GameTests now and then](#the-gate-fails-on-gametests-now-and-then): small
@@ -156,6 +154,18 @@ every other section needs the duo.
 - [A staging spot 1500 units off with no floor](#a-staging-spot-1500-units-off-with-no-floor): small
 
 ## Copy-desync follow-ups
+
+### A re-leveled copy leaves its old temporary NPC
+
+PR #114 review, 2026-11-23 ([leveled-copy-base.md](re/systems/leveled-copy-base.md)): `RelevelActor` builds a new
+temporary NPC (14375) and sets it; the displaced temporary is not collected, so each correction after a guest re-roll
+leaves one NPC form behind. It is left on purpose: a queued 3D load may still read it, unread when its last reader ends.
+
+Agent task: read when the background loader (QueuedCharacter 13108 -> 37177) lets go of an actor's base, then hand the
+displaced temporary to the collector (36460) after that; GameTests `[copy-level]` checks it is retired.
+
+Size: small. Needs: IDA, then GameTests.
+
 
 ### A seated owner's copy keeps an old action
 
@@ -397,6 +407,8 @@ Size: medium. Needs: duo.
   `LateAfterDragonslayerBackinSkyrim` boot `faendal-letter` passed whole (once), and
   `copy-keeps-spell-after-party-travel` ended on 12 references (weapon racks, ACTI `8AF59`
   `WeaponRackMidACTIVATOR`, with `0x8000000` on one game: not read, an activator has no container).
+  2026-11-23: the Sleeping Giant's rack weapons ended apart too; `HoldAt` each update until asleep passes
+  `guest-grabs-orgnar-bottle` (1 run), `docs/re/systems/physics.md`.
 
 ### A strafing copy catches for a frame
 
@@ -456,6 +468,18 @@ Size: small. Needs: the duo with the late save.
 - 2026-11-22, dev `aa723513` (`duo --save LateAfterDragonRising`): 1 of 1 again, the same step.
 
 ## Ragdolls and death poses
+
+### A ragdolled copy holds its pose between updates
+
+Read, not measured (2026-11-23, `re/systems/actor-movement.md`, "A copy's pose between its owner's updates"): in a frame
+where none of its owner's updates are due, the real 63587 does not run on a copy, so it is not registered for the
+ragdoll passes (63761), and with its ragdoll in the world 63589 writes no skeleton either. A copy knocked down or
+getting up holds its pose for that frame; the blend (`PoseTimeline`) reaches it only in the frames with an update.
+
+Agent task: measure it (held frames of a copy getting up), then register the graph in frames without an update as 63587
+does when a far graph's countdown has not run out, without stepping it; teach the fake the ragdoll passes first.
+
+Size: small. Needs: duo (knockdown scenarios), IDA (63587's countdown path).
 
 ### Revive leaves the body wrong
 
@@ -534,6 +558,23 @@ Size: medium. Needs: the duo, then GameTests.
   bad read, 28 minutes up; `kept/host-crash-2026-11-15-20-48-12.log`).
 - **The harness's `world_state` crashed the host once** (access violation in `EngineCalls.cpp` `ReadPose`, walking an
   object's 3D), on the first call after staging; not seen again (nor in the 2026-11-18 reruns).
+- **GameTests "A host NPC gets up from a knockdown: its copy's ragdoll follows its owner's until both stand" fails 1
+  run in 13 to 20** (the copy's head ends 25 to 32 units from its owner's, 0 while both rose): measured 2026-11-23, 3
+  of 40 runs on dev `4dc32008` and 2 of 40 on `agent/physics-audit`, so not from the authority change. With dev `38e7098d`
+  (pose blending) merged and the touch fix: 8 of 30 alone; which of the two raised it was not measured. Not traced:
+  the copy stands a playback delay before its owner's last frames are due, by wall-clock frame timing.
+- **`guest_drops_wheel_on_wheels_like_vanilla` not rerun** since its cause was fixed (2026-11-23, a guest's touch overrode
+  a host's placement 2300 units away; GameTests `[placed]`): passing in the fast tests only.
+- **Physics scenarios of the authority change, not passing or not rerun** (`agent/physics-audit`): on an earlier build
+  `guest-grabs-orgnar-bottle`, `guest-push-like-vanilla` and
+  `host-push-mixed-like-vanilla` passed once each. On an earlier build failed and not rerun: `guest-drags-host-corpse`
+  (the grab broke at its first frame, so the corpse echo's fix is unproven in Skyrim; it has no fast test),
+  `guest_drops_on_bottles_like_vanilla` (108.5 units, vanilla from 109.2), `host-tavern-like-vanilla` (9 turns, vanilla up
+  to 8). None compared with dev.
+- **A mask set on Orgnar's back snapped on the guest** (the 2026-11-23 playtest), not reproduced: `RestPlacer::kKeep`
+  (`physics-sync.md`) is shown by fast tests only. Start: a real placement by a player's grab, both games traced.
+- **Orgnar's copy leaning on his bar is posed 2 to 4 units higher, hands and feet 5 to 13 off** (measured 2026-11-23,
+  before dev's pose blending, `physics.md`). Not read why.
 - **2026-11-22, a guest's drop onto a pile** (`agent/physics-piles-drop`, final build; `physics-sync.md`, "A drop onto
   a pile"). Guest walker, 3 rounds a run: `drop_wheel_on_wheels` 3 runs of 3 as vanilla, `drop_on_bottles` 1 of 1,
   `pile_carry_release`, `tavern`, `push_mixed` 1 of 1, `carry_into_pile` 1 of 2 (the other a staging timeout, below).
@@ -1447,26 +1488,6 @@ Size: small. Needs: the duo.
   [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws); not read whether its copy
   missed a sheathe.
 
-## From the 2026-11-22 playtest
-
-### A guest crash loading a leveled NPC's copy
-
-The guest (Fabien, Windows, `v1.6.7-1419-g206a7c42-dirty`) crashed at 03:40:26 his time
-(`/home/bighass/playtests/2026-11-22/raw/friend-player-2026-11-23-0340-5c8`, dump `crash_UTC_2026-11-23_02-40-26.dmp`).
-Access violation in 15678 at 0x1402195F3 on the background loader (`QueuedCharacter` 13108 -> 13019 -> `Actor::Load3D`
-37177 -> our `HookLoad3D` (pass-through) -> 19727 -> 20103 -> 19743 -> `TESNPC` 24740 -> 15678). Read in IDA: 15678
-walks the actor's base NPC's `faceNPC` chain (+0x1F0) to its root; one link held `0x3F1416AA0000086D`, not a pointer.
-The actor: copy `DC8E2` on temporary leveled base `FF0010BD`, as cell 9199 loaded. 3 s before, the guest logged
-"Failed to apply owner's NPC base 0:23ABE" for it and three other copies (`DC8E3`, `DC591`, `DC8DE`), and
-`ResetWornToOutfit` ran on that base on another thread 94 ms before. The dump has no heap: which link was bad, and
-who wrote or freed it, is unread.
-
-Agent task: read 24740 and the temporary base's life in IDA ([leveled-npc-copy-names.md](re/systems/leveled-npc-copy-names.md),
-[copy-face-tints.md](re/systems/copy-face-tints.md)); find why base `23ABE` fails to apply to a placed leveled copy;
-reproduce at cell 9199's leveled NPCs with the heap history on.
-
-Size: medium. Needs: IDA, the duo.
-
 ## Test tools
 
 ### The gate fails on GameTests now and then
@@ -1475,6 +1496,12 @@ Size: medium. Needs: IDA, the duo.
 about twelve runs, passing on the next run with nothing changed. `GameTests` run alone passed 10 of 10 after the second one
 (its assertion count differs run to run, 5627 to 5650: some flow is timing-dependent). The gate now keeps each shard's
 log and prints the failed case (`check.sh`, `build/check/`), so the next one names its case.
+2026-11-23 on `agent/fabien-crash-3` (pre-push): "A host NPC gets up from a knockdown: its copy's ragdoll follows its
+owner's until both stand" (`physics_flows.cpp:887`): the copy's head ended 27.8 units from its owner's (limit 15); 10 of
+10 passed alone right after.
+2026-11-23 on `agent/kill-moves-every`: the same case, 15.7; looped alone with `RagdollStart`'s blend on and off it was
+15.7 and 16.4 in 1 of 12 runs each, 5.5 to 11.4 in the rest: not the blend.
+Looped alone again: 1 of 20 over 15 (42.4) with the blend, 8 of 30 (up to 16.4) with it off.
 
 Agent task: loop `GameTests` until it fails and fix that case's timing.
 

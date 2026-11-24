@@ -844,6 +844,14 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    bool IsActorLeveled(uint32_t aFormId) const noexcept override
+    {
+        return {};
+    }
+    bool RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept override
+    {
+        return false;
+    }
     Tints GetActorFaceTints(uint32_t aFormId) const noexcept override
     {
         return {};

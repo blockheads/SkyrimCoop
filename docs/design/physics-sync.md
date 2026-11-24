@@ -1,10 +1,122 @@
 # Physics sync
 
-Status: **held to a vanilla baseline since 2026-11-15 ("One simulator per pile"); steps 1 to 6 built 2026-10-24; owners (every game streams its own bodies) built 2026-10-26** (below, "As built" and "A guest's hand, as built"): objects and ragdolls
-from the host, live; a guest's bumps, casts, grabs and drops reach the host. Design approved 2026-10-24 (the guest
-holds what it grabs; only the host's loaded cells; frames sent on prediction error, not at a rate). v1.0.0 feature 5
-(`docs/progress.md`, "v1.0.0 features"). Replaced the rest detection of `docs/design/world-state-sync.md`, "Physics
-objects' rest" (`Bridges/PhysicsRests`, now `PhysicsBodies`), keeps its move rows.
+Status: **Fiedler's authority scheme, built 2026-11-23** (`docs/design/physics-authority-plan.md`: the plan, why each
+piece, where it is not Fiedler and the engine fact for each). Everything below "History" is how it got here; the
+pieces it names (`GuestHands`, `HostHands`, `HostPhysics`, the six body messages, the ask loop) are gone.
+
+## As built (2026-11-23)
+
+```text
+every body (a reference's, or a ragdoll's): a claim (BodyAuthority)
+  Player     nobody (the host's game simulates it) or a player
+  AuthSeq    +1 at each take and at each rest;  HoldSeq +1 at each grab (beats any AuthSeq)
+  Held, AtRest
+
+takes
+  a player's push, hit, drop or grab                         that player (a held body: nobody else)
+  one of its moving bodies paired with one nobody has, and   that player too, recursively
+    the paired one left where it lay (PairedPoses, 0.5 u)
+  its pile, every body still, nobody leaning on it           rests together; its rest goes to the host
+  the host's game places it (script, console)                nobody, a newer number, Placed
+  its authority silent 2 s and 30 updates, or gone           nobody
+
+one message both ways, unreliable: BodyStatesRequest (a guest's bodies) / NotifyBodyStates (the host's verdict)
+  BodyState = key, who (none / you / another), AuthSeq, HoldSeq, Held, AtRest, Placed, frame (exact at rest)
+
+host (HostBodies)          a row a body; a guest's state stands by its numbers (Accept); its rest gives the body
+                           back to nobody and the stream confirms it; the host's own reads fill nobody's rows and
+                           its player's; each game gets, through BodyStream, the rows it does not simulate
+                           (moving: near its character; resting: every game, refreshed every 5 s)
+guest (GuestBodies)        its takes and rests (BodyAuthority); its bodies' states to the host, the still ones
+                           too; Hear: the host's state is shown unless its numbers keep this game's claim; its
+                           own confirmed rest coming back is not replayed; a body its physics moved alone that the
+                           host never sent: one hint, the host's state comes back
+every game (BodyService)   moving: 100 ms behind (BodyPlayback), steered, held ones keyframed; at rest: RestPlacer
+                           (glide, a step awake, its island asleep; Placed: held there asleep, never woken); on a
+                           guest a rest its own physics knocks off is taken back twice; on the host a done rest is
+                           the host's body again
+```
+
+- Engine facts it rests on (`docs/re/systems/physics.md`): Havok pairs bodies whose AABBs overlap (64648, "What a
+  body touches"), so a pair is a candidate and only a move takes it; placing a body (60898) drops its contacts, so
+  a played body is steered; a rest needs a step awake for its contacts (61518); 60850 sleeps a whole island, and
+  our island sleep skips the body's own stillness, which Havok's last test (62264) can undo: a body the game left
+  asleep in a pose it cannot hold awake (a rack's weapon) is held there asleep (`HoldAt`, 60908 without activation).
+- The live move row moves no loaded dynamic body (`GuestWorldState`, `GuestEngine::HasLiveBody`): the body's state
+  places it; a cell's load and a reference with no body here still take the row.
+- Tests: ClientTests `[authority]`, `[stream]`, `[rest-placer]` (body_authority_tests.cpp); HostAuthorityTests
+  `[Physics]`; GameTests `[physics]` (the fake learned `ReadTouching` from its islands, the rest steps,
+  `PlacedByGame`, `OnlyAsleep`); TPTests `[encoding.physics]`.
+- Duo (2026-11-23): `guest-push-like-vanilla`, `host-push-like-vanilla`, `host-cannot-take-guest-hold`,
+  `guest-cannot-take-host-hold` pass; the rack weapons (`guest-grabs-orgnar-bottle`, `object-rests-beside-orgnar`)
+  led to `Placed`; the rest of the like-vanilla suite is not rerun yet.
+- Removed 2026-11-23 (the user): `physics-push-reaches-guest` and `guest-cast-moves-host`, a fireball at the
+  table's ladles, which seldom staged cleanly; the collision trials (`collisions.py`) test the same paths better.
+
+## A watcher's object stops where its owner's does (2026-11-23, built)
+
+The playtest: another player's push slid on past its stop and was smoothed back, every time. Measured with the pure
+classes (ClientTests `[watcher]`): 1.5 to 2.6 units past, 1.1 to 2.2 back, settled 0.5 s late.
+
+```text
+before                                            now
+a state when the guess is 2 units wrong           on the ground: a state every 45 ms while it moves, its stop too
+the guess has no friction: it runs on             (BodyStream, kMovingMs); in free fall: when the arc's guess is
+  past a body slowing down                          0.5 units off
+playback shows the guess, blended into            playback shows it between the two states around its time, on the
+  a correction                                      curve through both with their speeds; the next one lost: 100 ms on
+steered with the target's speed fed forward       on the ground it chases the target, no speed fed forward
+  (it ran 0.3 to 0.5 units ahead at a stop)         (BodyPrediction::Follow); in free fall it joins the arc
+the rest glided to, 0.3 to 0.5 s after            the rest is where it already lies: put, no glide
+```
+
+- On the ground the playback goes along the line between two states; in free fall on the arc through both with
+  their speeds (a cubic Hermite). A curve through a hand's states, whose speeds jump, looped past the next: the
+  host's copy of a carried object turned back 97 times (`guest-carries-into-pile-like-vanilla`, vanilla up to 19).
+- A knock or a bounce (a speed change of 30 units/s) goes at once, not 45 ms after the last state: the guest's push
+  peaked low on the host otherwise (`guest-push-mixed-like-vanilla`).
+- A moving row nobody has spoken for since 2 s is read again (at rest where the host has it, or forgotten): streamed
+  stale, every game dropped it as lost on arrival, every update.
+- A guest's own body takes no other game's rest (`Keeper::Simulates`): the host, playing a corpse a guest drags,
+  declared its rest as the record part, and the guest steered its corpse to that echo every update; it never slept
+  (`guest-drags-host-corpse`). No GameTests case yet: in the fake the guest's own rest replaces the echo first.
+
+After: 0.01 units past, none back, 112 ms behind (the playback's delay). Cost: about 0.8 KB/s a moving body within
+the 8 KB/s a guest; more bodies than that share it by priority (the furthest moved first). Not measured on the duo
+yet: a ragdoll's 18 bodies share the same budget.
+
+- A guest's rest reaches the host's game whatever it read meanwhile (`Row::Given`), and the host's game placing the
+  body, or its player touching it, ends that rest being put (`Unclaim`, `TakeHands`: `FromGuest`). Before, a read of it
+  still in the same update dropped the rest: the host played the last state on for 2 s and steered back what `setpos`
+  moved (`guest-push-like-vanilla`'s "rests on the lane" timeout; its log showed the rest taken, then `lost`, between
+  them the body pulled back). GameTests `[placed]`, HostAuthorityTests `[guest-rest]`.
+
+- A guest's touch counts only where the host's newest state can be steered to (`GuestBodies::Elsewhere`, `kPlaceFar`); the
+  host's first placement of a body raises its number; a body a guest yields hears the host's older states (`Reopen`).
+
+### RestPlacer's steps
+
+```text
+  kGlide  steered onto it, kGlideMs at most (put there at once it snapped up to 16 units)
+  kPlace  put there awake and still: the next physics step finds its contacts (61518, 61321)
+  kSleep  its island put to sleep once all of it is still (60850 sleeps the island), kSleepMs at most
+  kHold   a reference that left in that step does not stay there by itself: held there until asleep, kSleepMs at most
+  kLeave  there
+  kKeep   done, then awake off it (nothing holds it up here): steered back each
+           update, never put (glided and put again it jumped 3.7 units a second, then was left where it fell)
+```
+
+Each update calls Next once, after a physics step: a place is never slept in the same update.
+
+## A rest nothing holds up here is kept by steering (2026-11-23, built)
+
+A playtest saw a mask set on Orgnar's back snap about once a second on the guest. Not reproduced in Skyrim, and why it
+left its rest is not known. Read in our code: a rest woken off was glided 0.5 s, put, slept, twice, then left where it
+fell. `RestPlacer::kKeep`: done, then awake off it -> steered toward the rest every update (`BodyBridge::Glide`), never
+put; back and still, put to sleep again. The put-back count (`kAgainAtMost`) is gone. Tests: GameTests `[kept-rest]` (a
+floor only the host's game has; before: a 3.5 unit step, left 40 units off); ClientTests `[rest-placer]`.
+
+# History (replaced 2026-11-23)
 
 ## A drop onto a pile (2026-11-22, built)
 

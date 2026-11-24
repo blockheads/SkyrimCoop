@@ -24,7 +24,8 @@
 #include <Games/KnockReplay.h>
 #include <Games/ItemMenuRebuild.h>
 #include <Physics/RagdollPending.h>
-#include <Physics/RagdollRest.h>
+#include <Physics/RagdollStart.h>
+#include <Physics/RestPlacer.h>
 
 #include <Games/QuestChanges.h>
 #include <Games/HitVisualsRules.h>
@@ -488,9 +489,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // (physics.md, "A rest needs its contacts"); a capsule's first push then throws it up (Thrown).
         bool Contacts = true;
         std::optional<BodyPose> Rested; // the owner's rest it was last put at
-        std::optional<BodyPose> Placing; // an owner's rest being put here, not done (BodyBridge's Rested, not Done)
-        uint16_t GlideFrames = 0;        // frames it has glided onto Placing (BodyPrediction::GlidesToRest)
-        bool RestStep = false;  // awake at or onto its rest this frame: read awake, not stepped (BodyBridge::Rest)
+        // Nothing holds it awake (a rack's weapon): put to sleep there by us, Havok's last test (62264) wakes it and it
+        // falls; held there asleep and never woken (HoldAt) it stays.
+        bool OnlyAsleep = false;
+        bool PlacedByGame = false; // this game placed it, not yet read (Bridges/PlacedByGame): another game's states leave it
+        bool Placing = false;   // another game's rest being put here (BodyBridge's m_placing): its wakes are not this game's moves
+        bool RestStep = false;  // awake at or onto its rest this frame: read awake, not stepped (BodyBridge::Glide, Place)
         size_t Thrown = 0;
         size_t MoveRows = 0;  // world state move rows written into its 3D (GuestEngine::PlaceAtHostRest)
         uint64_t Tick = 0;    // the host's: where its flight is
@@ -508,6 +512,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // "Woken still").
         bool KeptAwake = false;
     };
+    float RagdollJump = 0.f;   // the furthest a steer took one of its bodies in a frame
     // How long an actor takes to get up (knock states 5 and 6), and how fast its get-up moves its ragdoll's bodies.
     static constexpr uint32_t kRisingFrames = 60;
     static constexpr float kRisingSpeed = 120.f;
@@ -533,7 +538,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void Wake(const BodyKey& acKey, uint64_t aMs);
     // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
     // bodies, and those that fell asleep; acWhich: only those (a guest's player's ragdoll).
-    HostBodies TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich = {});
+    HostBodyReads TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich = {});
     // IBodyReads: this game's physics as PhysicsBodies reads it (the host's, in its network's time: PhysicsTick).
     uint64_t PhysicsTick = 0;
     std::vector<uint32_t> TakeMovedReferences() noexcept override;
@@ -546,6 +551,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // This game's player's hand (a guest's: GuestEngine::TakePushes, ReadHeld): what its character pushed since the
     // last read (every body a mass of 1), and what it holds. Another game's hand on this game's bodies comes through
     // IBodyBridge (a push, a held body played keyframed, so not awake, then let go).
+    struct BodyPush
+    {
+        BodyKey Key{};
+        glm::vec3 Impulse{};
+        glm::vec3 Point{};
+    };
     std::vector<BodyPush> PlayerPushes;
     // Its weapon's swings (Actor::CalculateCurrentHitTargetForWeaponSwing 38628): the impulse each gave a body, which
     // its own physics moves too (OwnMoves). Swing() makes one.
@@ -555,8 +566,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A guest's own physics moved these (GuestEngine::TakeOwnBodies): its own blast, not the host's.
     std::vector<BodyPose> OwnMoves;
     // IBodyBridge: the bodies other games own, played here as Skyrim's would be (BodyBridge).
-    void SetReferences(std::function<uint32_t(const GameId& acId)>) noexcept override {}
-    std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
+    void SetReferences(std::function<uint32_t(const GameId& acId)>, std::function<std::optional<GameId>(uint32_t)>) noexcept override {}
+    std::optional<BodyRead> Read(const BodyKey& acKey) noexcept override;
+    // Havok's pairs (its collision entries): the bodies that share one of Islands with each of acKeys.
+    std::vector<std::pair<BodyKey, BodyKey>> ReadTouching(const std::vector<BodyKey>& acKeys) noexcept override;
+    // Its pose now (a test's read).
+    [[nodiscard]] std::optional<BodyPose> ReadPose(const BodyKey& acKey) const noexcept;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept override;
     bool KnockDown(uint32_t aCopyFormId) noexcept override;
     // What a body meets here (Physics/BodyGroups.h): played while another game's frames drive it, moving while this
@@ -573,7 +588,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         }
         if (const auto it = Classes.find(acKey); it != Classes.end() && it->second == BodyClass::kPlayed)
             return;
-        // As BodyBridge::SetMoving: its owner's rest being put here wakes it, which is not this game moving it.
+        // As BodyBridge::SetMoving: another game's rest being put here wakes it, which is not this game moving it.
         if (const auto cBody = Bodies.find(acKey); aMoving && cBody != Bodies.end())
         {
             if (cBody->second.Placing)
@@ -586,6 +601,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         if (!acKey.Actor) // a ragdoll keeps its group (BodyBridge::Forget)
             Classes.erase(acKey);
+        if (const auto it = Bodies.find(acKey); it != Bodies.end())
+            it->second.Placing = false;
     }
     void ForgetAll() noexcept override { Classes.clear(); }
     // Body acKey runs into acInto in this game: knocked at that velocity, unless acKey is played and nobody moves
@@ -633,7 +650,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         body.Thrown += cThrown;
         Knock(acKey, cThrown ? acVelocity * 0.75f + glm::vec3(0.f, 0.f, glm::length(acVelocity) * 0.25f) : acVelocity);
     }
-    bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
+    bool Glide(const BodyPose& acRest) noexcept override;
+    bool Place(const BodyPose& acRest) noexcept override;
+    bool Sleep(const BodyKey& acKey) noexcept override;
+    bool HoldAt(const BodyPose& acRest) noexcept override;
+    bool RestRagdoll(const BodyPose& acRest, uint32_t aCopyFormId) noexcept override;
+    bool Release(const BodyKey& acKey) noexcept override;
+    // A copy's ragdoll body this near its owner's rest is there (CopyRagdollPhysics).
+    static constexpr float kRagdollNear = 1.f;
     // An actor's character controller keeps simulated bodies out of its capsule as it integrates (its proxy's
     // object interactions); a keyframed body passes through, and so does a placed copy's capsule (a warp steps
     // nothing: guest-holds-into-npc, its bucket 2 units off the copy's axis, 19.7 off an owner's). The duo's probe:
@@ -651,7 +675,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool TryGrab(const BodyKey& acKey) noexcept;
     // This game's player holds a body toward acTo (the grab's spring): it stops outside every capsule that pushes.
     void HoldTo(const BodyKey& acKey, const glm::vec3& acTo) noexcept;
-    bool Free(const BodyFrame& acFrame) noexcept override;
+    // A hold here let go (the host's game's, its holder's last frame): simulated from there (a test's).
+    bool Free(const BodyFrame& acFrame) noexcept;
     [[nodiscard]] uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept override { return acKey.Actor ? 0 : ReferenceOf(acKey); }
     bool KeepMotion(const BodyKey&) noexcept override { return false; }
     bool Settle(const BodyKey&) noexcept override { return false; }
@@ -1840,6 +1865,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void DeleteActor(uint32_t aFormId) noexcept override;
     bool IsActorTemporary(uint32_t aFormId) const noexcept override { return aFormId >= 0xFF000000; }
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
+    bool IsActorLeveled(uint32_t aFormId) const noexcept override;
+    bool RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept override;
+    // A leveled actor's re-roll (37323/37292): its current base destroyed (36460, temporary or not), rolled to aPick.
+    void ResetLeveledActor(uint32_t aFormId, uint32_t aPick);
+    std::set<uint32_t> DestroyedNpcs; // NPC forms the collector destroyed: no longer found by id
     Inventory GetActorInventory(uint32_t aFormId) const noexcept override;
     void SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept override;
     void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept override;
@@ -2091,7 +2121,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A copy's ragdoll's frames from its owner, after its graph's driveToPose (as CopyRagdollPhysics).
     void DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPending::Drive>& acDrives) noexcept;
     [[nodiscard]] BodyKey RagdollKey(const BodyKey& acKey, uint32_t aActor) const noexcept;
-    std::map<uint32_t, RagdollRest> m_copyRests;
+    std::map<uint32_t, RestPlacer> m_copyRests;
+    std::map<uint32_t, RagdollStart> m_ragdollStarts;
     uint64_t m_frameCount = 0; // frames run: the fake's 60 a second
     bool m_inSystemQuest = false; // a system quest's function runs (CallsQuest): its natives are its instance's
     std::chrono::steady_clock::time_point m_lastFrame;

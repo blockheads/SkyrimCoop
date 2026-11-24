@@ -10,7 +10,7 @@
 #include <Bridges/IActorBridge.h>
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestCopies.h>
-#include <Services/Guest/GuestHands.h>
+#include <Services/Guest/GuestBodies.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestEye.h>
 #include <Services/Guest/GuestLeash.h>
@@ -42,7 +42,7 @@ struct GuestService::Guest
         , Dialogue(aWorld, aDispatcher, aWorld.ctx().at<DialogueService>())
         , Record(aWorld, aDispatcher, aWorld.ctx().at<IJoinBridge&>())
         , Saves(aWorld, aDispatcher, aWorld.ctx().at<IJoinBridge&>())
-        , Hands(aWorld, Engine)
+        , Bodies(aWorld, Engine)
         , Wait(aWorld, aDispatcher, Engine)
         , Scene(aWorld, aDispatcher, Engine)
         , Copies(aWorld, aDispatcher, aWorld.ctx().at<IActorBridge&>())
@@ -58,7 +58,7 @@ struct GuestService::Guest
     GuestDialogue Dialogue;
     GuestRecord Record;
     GuestSaves Saves;
-    GuestHands Hands;
+    GuestBodies Bodies;
     GuestWait Wait;
     GuestScene Scene;
     GuestCopies Copies;

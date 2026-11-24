@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **other players' animations move on every frame** (`agent/smooth-animations`): a copy's graph runs its
+owner's updates due by its playback, so with both games' frames jittering apart it ran none in some frames (its pose
+held while its body moved on, read in IDA: 63581) and two in the next, 5-23 % of frames on the duo: "snappy, not
+interpolated". Now each generate pass's pose is kept and the pose shown is blended between the two kept around a
+time 1.5 owner frames behind playback (`PoseTimeline`, graph-input-stream.md, "A pose every frame"), as the engine does
+for a far graph. On the duo a copy's feet move as evenly as its owner's: standing still while its body moves in 0-0.3 % of
+frames (owners 0; 6.6-8.6 % with only the blend switched off), over 50 % off their neighbours' speed in 0.8-3.6 % (owners
+0.4-2.6 %; 20-22 % off). Measured with `smoothness`, which now has the watcher face the
+copy and the mover in third person. Scenarios `copy-poses-every-frame-host` / `-guest`; GameTests "A walking player's copy
+shows a pose that moves on every frame..." (jittered frames, and 60 against 50 fps); ClientTests `[pose-blend]`.
+
 2026-11-23: **a trap's disease no longer stops a guest's stamina regeneration** (`agent/stamina-drained`). Playtest
 2026-11-22 item 12: the guest's stamina sat at 0 and never came back (reports 2015-7c1/cc7). Its player held both
 of Rattles' effects (`TrapDiseaseRattles` 10A24E): Survival Mode's override adds a second `StaminaRate -2.5` for
@@ -66,6 +77,17 @@ damaged flag, rate, sprinting, bow zoom; [actor-values.md](re/systems/actor-valu
 `trap_disease_guest_stamina`.
 Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) stays open: the regen delay is capped (39536,
 `fStaminaRegenDelayMax`), so it is not a leftover delay; the readout will show which gate holds next time.
+
+2026-11-23: **a guest crash loading a leveled NPC's copy: we destroyed Skyrim's own EncWolf** (`agent/fabien-crash-3`;
+[leveled-copy-base.md](re/systems/leveled-copy-base.md)). The 2026-11-22 playtest's third guest crash (15678, a
+temporary base's faceNPC walk). A placed leveled copy whose game picked another animal was given the owner's face record
+(EncWolf 23ABE) as its base; the engine's re-roll of a leveled actor (37323, 37292: cell reset, respawn, `RecycleActor`)
+hands the current base to the garbage collector (36460) with no temporary check (read in IDA), which destroys such a
+record; that this destroyed EncWolf in Fabien's game, leaving every base and list pointing at it dangling, is inferred
+from the log's order of events (the dump holds no heap). Such a copy is now built again from the owner's pick with the engine's
+leveled build (14375, `RelevelActor`), a temporary base the engine may destroy. Checked: scenario
+`guest-releveled-copy-keeps-pick` (MCP, heap history on), GameTests `[copy-level]` (fails four checks without the fix),
+ClientTests `[npc-snapshot]`. The fake learned that a leveled actor's reset destroys its current base, whatever it is.
 
 2026-11-23: **a guest's open loot menu read a stack our reconcile had freed** (`agent/fabien-crashes`;
 [item-menus.md](re/systems/item-menus.md)). Two of the guest's three crashes in the 2026-11-22 playtest (Windows,
@@ -160,6 +182,16 @@ effect; on another player its ash pile script set critical stage `DisintegrateEn
 Scenario `shout-kills-lying-guest` (MCP verb `shout_at_lying_player`), GameTests `[friendly-fire]`, ClientTests
 `[CriticalStage]`.
 
+2026-11-23: **kill moves: every one listed, a copy's ragdoll starts whole** (`agent/kill-moves-every`;
+[kill-moves.md](re/systems/kill-moves.md), "Every kill move", "A copy's ragdoll starts whole", "Slopes"). The ESM's
+kill move idles per victim, weapon and side (`scripts/re/kill_moves.py` -> `kill_moves.json`, 112 rows) and an MCP verb
+that swings through them (`kill_move_table`, scenario `kill_moves_every`); `kill_move_ragdoll` measures a victim's fall
+on each game. The host's kill moves seen on the guest flickered (up to 32): a copy's first ragdoll frames placed its far
+limbs and steered the rest. `RagdollStart` now plans the whole ragdoll, its gap blended out over 0.2 s: 0 flickers in
+25 falls. The engine's own drop of a copy's ragdoll at its death (58291, probed) is left as it is: played, it looks
+right (the user). GameTests and ClientTests `[ragdoll-start]`. Open: fighting victims, creatures and the host's swings
+through the table; why slopes refuse kill moves (an attacker 18 or 35+ units off the victim's height got none).
+
 2026-11-22: **kill moves: the frozen victim, and every weapon tried** (`agent/kill-moves-polish`;
 [kill-moves.md](re/systems/kill-moves.md), "A blow and its clip's end in one update"). A guest's kill move on a person
 left its victim standing in the clip's last pose for 1.5 s after the blow on every game, and a second swing then
@@ -233,6 +265,13 @@ the frame that tagged it. On the duo the alias/list pair now reads engine-only (
 Havok/list pairs left were read in IDA (engine-only: they warn, not added to the reviewed list). Closed: "A pass-through hook counted as ours", "The AI/quest lock
 pair". ClientTests `[locks]`, a harness unit. `party-buys-house-host` failed on its staging (`place`: no clear spot),
 not a lock.
+
+2026-11-23: **physics sync is Fiedler's authority scheme** (`agent/physics-audit`; `docs/design/physics-sync.md`, top;
+plan `docs/design/physics-authority-plan.md`): a claim and two sequence numbers per body (`BodyAuthority`), one state
+message both ways on a priority stream that also refreshes resting bodies (`BodyStream`), the host arbitrating
+(`HostBodies`, for `HostHands` and `HostPhysics`), a guest's authority (`GuestBodies`, for `GuestHands`), one rest
+placer for objects and ragdolls (`RestPlacer`), and the live move row moving no loaded body. Fast tiers pass; on the
+duo the push trials and both hold scenarios pass, the rest of the like-vanilla suite is not rerun yet.
 
 2026-11-22: **a guest's drop onto a pile lies as it fell** (`agent/physics-piles-drop`; `docs/design/physics-sync.md`,
 "A drop onto a pile"; `docs/re/systems/physics.md`, "A body landing on a sleeping pile", "A body put into a capsule
@@ -1848,7 +1887,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |
 | Mounts | covered; ownership returns after dismount/travel/leave | `guest-rides-host-horse`, `host-rides-horse`, `guest-rides-across-border`, `mounted-guest-leaves`, `party-travel-mounted-guest` |
 | AI package, dialogue, factions | relayed; individual coverage documented | `docs/design/copy-contract.md`, `docs/design/shared-dialogue.md` |
-| Physics: objects and ragdolls | **2026-11-15: held to a vanilla baseline** (four collision trials, 40 vanilla rounds: 20 with no session, 20 with the plugin's physics hooks off; `physics-sync.md`, "One simulator per pile"): one game simulates each object (the mover's, what its objects knock too; copies push nothing; no relayed push; the host's own placement wins), others steer theirs onto it. A guest's push no longer jumps to the host's result (300 units to under 2 on the ladle line); 2026-11-16: the last two full runs pass 6 and 7 of the 8 `*-like-vanilla` trials (40 vanilla rounds each; in the second every trial that ran matched vanilla, the eighth timed out in staging): pushes and carries match from both walkers, the tavern pile in most runs; its misses are rests a few units apart and a snap now and then (`bugs.md`, "Physics against vanilla"). A rest gets its contacts before it sleeps, glides on, sleeps a still pile as one (Havok sleeps islands, not bodies), a rest being put is not the host's own move (the hopping ladle), the host's own placement drops a guest's rest, and moved bodies are asked about together. Before that: the host simulates, guests show it live (keyframed by its frames, sent when the guess goes wrong) and rest at the host's spots; a dead NPC's copy lies as the host's bone by bone. A guest's push goes to the host as its character's impulse, and its weapon's hit as the swing's (2026-11-13: the hit had snapped back; one at a body the host's frames move does nothing yet; a still copy no longer keeps the clutter beside it awake), its casts through its copy's, what it grabs follows its hands on the host and falls from where it let go; the guest shows its own until the host's rest, and gets the host's pose back for what its own physics moved alone. A guest gets frames only of bodies within 4096 units of its copy, rests of all (2026-10-25). A guest's playback is placed at its pose each frame and blends into frames it has early: no flicker, 0.1 units typical off the host's (2026-10-25, `FlightTrace` in the fireball scenarios). Since 2026-10-26 every game streams its own bodies (a guest's player's ragdoll, what it holds), and a living actor's copy is knocked down with it and lies as its ragdoll does. Not yet: a refused second grab, a dead body's pose at a cell load (`docs/design/physics-sync.md`) | `physics-push-reaches-guest`, `ragdoll-lies-as-host`, `knockdown-lies-as-host`, `guest-knockdown-lies-on-host`, `guest-bump-moves-host`, `guest-swing-moves-host`, `guest-cast-moves-host`, `guest-throw-lands-on-host` |
+| Physics: objects and ragdolls | **2026-11-15: held to a vanilla baseline** (four collision trials, 40 vanilla rounds: 20 with no session, 20 with the plugin's physics hooks off; `physics-sync.md`, "One simulator per pile"): one game simulates each object (the mover's, what its objects knock too; copies push nothing; no relayed push; the host's own placement wins), others steer theirs onto it. A guest's push no longer jumps to the host's result (300 units to under 2 on the ladle line); 2026-11-16: the last two full runs pass 6 and 7 of the 8 `*-like-vanilla` trials (40 vanilla rounds each; in the second every trial that ran matched vanilla, the eighth timed out in staging): pushes and carries match from both walkers, the tavern pile in most runs; its misses are rests a few units apart and a snap now and then (`bugs.md`, "Physics against vanilla"). A rest gets its contacts before it sleeps, glides on, sleeps a still pile as one (Havok sleeps islands, not bodies), a rest being put is not the host's own move (the hopping ladle), the host's own placement drops a guest's rest, and moved bodies are asked about together. Before that: the host simulates, guests show it live (keyframed by its frames, sent when the guess goes wrong) and rest at the host's spots; a dead NPC's copy lies as the host's bone by bone. A guest's push goes to the host as its character's impulse, and its weapon's hit as the swing's (2026-11-13: the hit had snapped back; one at a body the host's frames move does nothing yet; a still copy no longer keeps the clutter beside it awake), its casts through its copy's, what it grabs follows its hands on the host and falls from where it let go; the guest shows its own until the host's rest, and gets the host's pose back for what its own physics moved alone. A guest gets frames only of bodies within 4096 units of its copy, rests of all (2026-10-25). A guest's playback is placed at its pose each frame and blends into frames it has early: no flicker, 0.1 units typical off the host's (2026-10-25, `FlightTrace` in the fireball scenarios). Since 2026-10-26 every game streams its own bodies (a guest's player's ragdoll, what it holds), and a living actor's copy is knocked down with it and lies as its ragdoll does. Not yet: a refused second grab, a dead body's pose at a cell load (`docs/design/physics-sync.md`) | `ragdoll-lies-as-host`, `knockdown-lies-as-host`, `guest-knockdown-lies-on-host`, `guest-bump-moves-host`, `guest-swing-moves-host`, `guest-throw-lands-on-host` |
 | Crime / party bounty | host-authoritative | shared totals, guest alarms and fines from the party's purse; native coverage and jail/trespass-AI limits: `docs/design/shared-party-bounty.md` |
 | Dropped items | one in the host's world with their extra data; pickups granted by the host (feature 6, 2026-10-26); a dead player keeps what it held, out of reach, and holds it again on respawn (2026-11-06, `re/systems/death-drops.md`) | `docs/design/dropped-items.md` |
 | Followers | on dev: shared vanilla slots, member anchors, fallback and picker inventory; native coverage/limits in design | `docs/design/followers.md`, `follower-*` |

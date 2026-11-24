@@ -17,7 +17,6 @@ from ..common import (
     DOOR_CLOSING,
     DOOR_OPENING,
     DYNAMIC_MOTIONS,
-    FIREBALL,
     FORM_DISABLED,
     FORM_TYPE_NAMES,
     IDLE_INTERVAL,
@@ -283,31 +282,6 @@ class PhysicsActions:
         return resting
 
 
-    def guest_follows_and_lies(ctx, target, start):
-        """After the host's `target` moved off `start`: the client's 3D follows it, kept simulated with its mass (steered,
-        physics-sync.md "One rule"), and it lies where the host's lies."""
-        seen = []
-        def follows():
-            # What the player sees: its 3D with its body (a keyframed body leaves its node behind, physics-sync.md).
-            ref = ctx.world_state("client", [target]).get(target)
-            body = first_body(ref)
-            seen.append(f"motion {body['motion']}, 3D {math.dist(ref['position_3d'], start):.0f} off its start and "
-                        f"{math.dist(ref['position_3d'], body['position']):.1f} from its body")
-            return (body["motion"] != KEYFRAMED_MOTION and not near(ref["position_3d"], start, 5)
-                    and near(ref["position_3d"], body["position"], 3))
-        try:
-            ctx.wait_for(f"[client] {target:X} and its 3D follow the host's, with its mass", follows, 5)
-        except TestFailure as failure:
-            changes = [s for i, s in enumerate(seen) if i == 0 or s != seen[i - 1]]
-            raise ctx.failure(f"{failure}: the client's was " + "; then ".join(changes[-6:])) from None
-        ctx.wait_for(f"[host] {target:X} comes to rest", lambda: not ctx.body_of("", target)["awake"], 30)
-        rest = ctx.body_of("", target)
-        def lies_as_host():
-            body = ctx.body_of("client", target)
-            return near(body["position"], rest["position"], 1.0) and same_turn(body["rotation"], rest["rotation"])
-        ctx.wait_for(f"[client] {target:X} lies where the host's does, at {show_value('position', rest['position'])}", lies_as_host, 5)
-
-
     def guest_own_lies_as_host(ctx, target, start, how, moved=5):
         """After the client's player moved `target` (`how`): the client's moved `moved` units off `start` by its own
         physics, which decides where it lands (physics-sync.md, "The mover's until its rest"): once the client's rests,
@@ -413,53 +387,6 @@ class PhysicsActions:
             return all(i in guest and near(first_body(guest[i])["position"], first_body(host[i])["position"], 1.0)
                        and same_turn(first_body(guest[i])["rotation"], first_body(host[i])["rotation"], BODY_TURN_TOLERANCE) for i in host)
         ctx.wait_for(f"[client] shows them back", client_too, 5)
-
-
-    def all_rest(ctx, ids):
-        """Every one of `ids` the host has comes to rest: a slow roll on the floor can take half a minute, and the guest
-        is 100 ms behind until its rest arrives, so the world is compared only after."""
-        ctx.wait_for(f"[host] all {len(ids)} rest", lambda: not any(
-            first_body(r)["awake"] for r in ctx.world_state("", list(ids)).values()), 60)
-
-
-    def knock_clutter_with_fireball(ctx, caster):
-        """The caster's player knocks clutter with a fireball; the object the blast throws furthest follows on the client
-        and lies as the host's. A client's cast reaches the host's world through its copy's replayed cast."""
-        refs, guest_refs = ctx.world_state(""), ctx.world_state("client")
-        resting = ctx.resting_clutter_on_both(refs, guest_refs)
-        clutter = {i: first_body(refs[i])["position"] for i in refs
-                   if refs[i]["type"] == refs[ctx.pick_reference(refs, "MISC", 0, resting)]["type"] and resting(refs[i])}
-        def around(spot):
-            return {i: p for i, p in clutter.items() if math.dist(p, spot) < 200}
-        # The blast throws whichever of the clutter around the aim it reaches best: aimed at the most of it (a table's,
-        # not one an earlier scenario left alone on the floor).
-        aim = max(sorted(clutter), key=lambda i: len(around(clutter[i])))
-        nearby = around(clutter[aim])
-        starts = ctx.where_now(nearby)
-        ctx.give_spell(caster, FIREBALL)
-        ctx.place_before(caster, aim, 300)
-        trace = FlightTrace(ctx, f"fireball-{caster or 'host'}", nearby)
-        try:
-            trace.__enter__()
-            ctx.draw(caster)
-            ctx.cast_spell(caster, aim, FIREBALL)
-            knocked = {}
-            def flies_off():
-                now = ctx.world_state("", list(nearby))
-                moved = {i: math.dist(first_body(now[i])["position"], start) for i, start in nearby.items() if i in now}
-                knocked["target"], distance = max(moved.items(), key=lambda m: m[1])
-                return distance > 5
-            ctx.wait_for(f"[host] the {caster or 'host'}'s blast throws one of {len(nearby)} clutter objects around {aim:X}", flies_off, 10)
-            ctx.guest_follows_and_lies(knocked["target"], nearby[knocked["target"]])
-            ctx.all_rest(nearby)
-        finally:
-            trace.__exit__(None, None, None)
-            ctx.sheathe(caster)
-        for ref in sorted(nearby, key=lambda i: i != knocked.get("target")):
-            log("flight: " + trace.report(ref))
-        ctx.put_back(starts)
-        for ref in nearby:
-            trace.check(ref)
 
 
     def stage_on_floor_before(ctx, instance, target, ahead=150):

@@ -4,6 +4,7 @@
 #include <MainLoopTasks.h>
 #include <Messages/RelayedMessages.h>
 #include <Physics/BodyPlayback.h>
+#include <Physics/RestPlacer.h>
 
 #include <NoCopyMove.h>
 
@@ -17,45 +18,31 @@ struct DisconnectedEvent;
 class IBodyBridge;
 
 /**
- * @brief Every game plays the bodies other games own (docs/design/physics-sync.md, "Owners"):
+ * @brief Every game shows the bodies it does not simulate (docs/design/physics-authority-plan.md, piece 4):
  *
- *   frames   played kDelayMs behind the frame clock, or the line's lateness if more (BodyPlayback): each body put at the pose each update, held
- *            keyframed, its node with it; a body this game's own physics moved first is blended from there. A copy's
- *            ragdoll plays at its copy's time (CopyPlayback, with its movement), steered
- *   rest     placed exactly; a reference's simulated again (asleep) so this game's player can push and grab it
+ *   moving   played kDelayMs behind the frame clock (BodyPlayback): steered onto each state; held in another game:
+ *            keyframed (this game's grab refuses it). A copy's ragdoll plays at its copy's time
+ *   at rest  put there by RestPlacer's steps (glide, a step awake, its island asleep), once; woken off it by this game's
+ *            own physics, again twice at most
  *
- * A guest gets the host's bodies; the host a guest's held ones (Held), steered instead (IBodyBridge::Steer): its physics,
- * its actors included, has the last word, and it sends its result on. The bodies this game owns
- * for now (a guest's player pushed or holds them) are its Keeper's: their frames wait.
+ * A guest's Keeper (GuestBodies) has authority over some bodies: their states are not shown here.
  */
 struct BodyService
 {
-    // A reference's frames, behind the owner's time: a frame due now has arrived (half a round trip and a step's
-    // jitter). A copy's ragdoll's: its copy's time (CopyClock.h).
+    // A body's states, behind the sender's time: a state due now has arrived (half a round trip and a step's jitter).
     static constexpr uint64_t kDelayMs = 100;
 
-    // This game's own bodies among the session's (a guest's hands, GuestHands): none of them is played here.
+    // This game's authority over the session's bodies (a guest's: GuestBodies).
     struct Keeper
     {
         virtual ~Keeper() = default;
-        // Each update, before the played bodies move: the bodies that became this game's own (their playback ends);
-        // acPlayed: the bodies the owners' frames move here now.
-        [[nodiscard]] virtual std::vector<BodyKey> Update(uint64_t aTick, const std::set<BodyKey>& acPlayed) noexcept = 0;
-        // An owner's frame of that body: false while it is this game's own (the frame waits).
-        [[nodiscard]] virtual bool TakesFrame(const BodyKey& acKey) noexcept = 0;
-        // An owner's rest this game does not place (its own body, or its own rest come back).
-        [[nodiscard]] virtual bool KeepsRest(const BodyPose& acRest) const noexcept = 0;
-        // An owner's rest of that body waits: this game simulates the pile it lies in (put once that ends, unless the
-        // body became this game's own meanwhile).
-        [[nodiscard]] virtual bool HoldsRest(const BodyKey& acKey) const noexcept = 0;
-        // A body of that reference is this game's player's now (its move row is not the host's to apply).
-        [[nodiscard]] virtual bool Moves(const GameId& acObject) const noexcept = 0;
-        // This game's own rest of that reference's body lies there (the host's move row of it only echoes it back).
-        [[nodiscard]] virtual bool RestedHere(const GameId& acObject, const glm::vec3& acPosition) const noexcept = 0;
-        // The host's game placed that body itself: no longer this game's own, the host's pose is taken.
-        virtual void GiveBack(const BodyKey& acKey) noexcept = 0;
-        // Its owner's rest placed here: the owner's again.
-        virtual void OnRest(const BodyPose& acRest) noexcept = 0;
+        // Each update, before states are shown: the bodies this game took (their playback ends here).
+        [[nodiscard]] virtual std::vector<BodyKey> Update(uint64_t aTick) noexcept = 0;
+        // The host's state of a body: false while this game simulates it (not shown).
+        [[nodiscard]] virtual bool Hears(const BodyState& acState) noexcept = 0;
+        // This game has authority over that body now: no other game's rest of it is put here (a ragdoll's record part
+        // the host declared from playing this game's states, an echo).
+        [[nodiscard]] virtual bool Simulates(const BodyKey& acKey) const noexcept = 0;
     };
 
     BodyService(World& aWorld, entt::dispatcher& aDispatcher, IBodyBridge& aBridge) noexcept;
@@ -63,52 +50,52 @@ struct BodyService
     NO_COPY_MOVE(BodyService);
 
     void SetKeeper(Keeper* apKeeper) noexcept { m_pKeeper = apKeeper; }
-    // This game's player moves a body of that reference: where it goes is this game's (Keeper::Moves).
-    [[nodiscard]] bool MovedHere(const GameId& acObject) const noexcept { return m_pKeeper && m_pKeeper->Moves(acObject); }
-    // This game's player's body rested there and its rest went out (Keeper::RestedHere): the host's move row of it is
-    // that rest come back (physics-sync.md, "A rest's move row comes back").
-    [[nodiscard]] bool RestedHere(const GameId& acObject, const glm::vec3& acPosition) const noexcept
-    {
-        return m_pKeeper && m_pKeeper->RestedHere(acObject, acPosition);
-    }
-    // The owner's rest of this reference's body is on its way here (played behind the frame clock, or waiting on its
-    // body): it puts the body there, a step awake; the move row would keyframe it there at once (a 6 unit snap).
-    [[nodiscard]] bool RestComing(const GameId& acObject) const noexcept
-    {
-        return m_playback.RestComing(acObject) ||
-               std::ranges::any_of(m_pendingRests, [&](const auto& acRest) { return acRest.first.Object == acObject; });
-    }
     // This game's actors' ragdolls came to rest (its own physics read them, keyed by session id): each one's rest is its
     // record part (RecordKind::kRagdoll), which every other game gets and every later spawn of it carries; one awake
     // again (acAwake) clears it. Rests taken out of aRests.
     void DeclareRagdolls(uint64_t aTick, std::vector<BodyPose>& aRests, const std::vector<BodyFrame>& acAwake) noexcept;
-    // This game's own physics has the body again (a guest let go of the host's): its playback ends.
-    void Forget(const BodyKey& acKey, uint64_t aReleasedAt = 0) noexcept;
-    // A reference another game's player holds (its frames come as a hold): its holder's alone, so this game's player
-    // may not activate it (pick it up) meanwhile (physics-sync.md, "Exclusive holds").
+    // This game simulates the body now (it took it): its playback ends, its older states too.
+    void Forget(const BodyKey& acKey, uint64_t aUntil = 0) noexcept;
+    // This game gives the body back: the host's states of it stand, from before the taking too.
+    void Reopen(const BodyKey& acKey) noexcept { PlaybackOf(acKey).Reopen(acKey); }
+    // A reference another game's player holds (its states come held): its holder's alone, so this game's player
+    // may not activate it (pick it up) meanwhile.
     [[nodiscard]] bool HeldElsewhere(uint32_t aFormId) const noexcept { return aFormId && m_heldElsewhere.contains(aFormId); }
+    // A reference whose body this game shows from another game's states (moving or resting): its move row is not the
+    // host's to apply.
+    [[nodiscard]] bool Shows(const GameId& acObject) const noexcept;
     // An owner leaves its ragdoll on the delayed movement timeline: stop steering its resting bones.
     void EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept;
     // A copy goes down with its owner's ragdoll action, before its owner's first body frame.
     void KnockDown(uint32_t aCopyFormId) noexcept;
 
 private:
-    void OnFrames(const NotifyBodyFrames& acMessage) noexcept;
-    // Held in another game or not (a hold's frames, or any other's, a rest, a forget).
+    // Another game's rest on this game's body, put there by its steps.
+    struct Resting
+    {
+        BodyPose Pose{};
+        uint64_t Tick{}; // its state's time: an older moving state does not end it
+        RestPlacer Placer{};
+        bool Placed{};     // the host's game put it there: held there asleep, never woken (HoldAt)
+        uint32_t Frames{}; // the states played since the last rest (logged)
+        bool Logged{};
+    };
+
+    void OnStates(const NotifyBodyStates& acMessage) noexcept;
     void Hold(const BodyKey& acKey, bool aHeld) noexcept;
-    void OnRests(const NotifyBodyRests& acMessage) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
     void Apply() noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
-    void Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTickOf) noexcept;
+    void Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTickOf, uint64_t aNow) noexcept;
+    void PlaceRests(uint64_t aNow) noexcept;
     // A reference's playback time at aNow (the frame clock).
     [[nodiscard]] uint64_t PlaybackTick(uint64_t aNow) const noexcept;
     // A copy's ragdoll's time: its copy's (InterpolationSystem::PlaybackTick), 0 without one.
     [[nodiscard]] uint64_t CopyTickOf(uint32_t aSessionId) noexcept;
     [[nodiscard]] BodyPlayback& PlaybackOf(const BodyKey& acKey) noexcept { return acKey.Actor ? m_ragdolls : m_playback; }
-    // This game's copy of that character (its form id), 0 for none.
     // This game's entity for a copy, entt::null without one.
     [[nodiscard]] entt::entity CopyEntity(uint32_t aSessionId) const noexcept;
+    // This game's copy of that character (its form id), 0 for none.
     [[nodiscard]] uint32_t CopyOf(uint32_t aSessionId) const noexcept;
     // This game's own actor of that session id (its corpse another game's player moves), or none.
     [[nodiscard]] uint32_t OwnActorOf(uint32_t aSessionId) const noexcept;
@@ -120,15 +107,14 @@ private:
     Keeper* m_pKeeper{};
     BodyPlayback m_playback; // references
     BodyPlayback m_ragdolls; // copies' ragdolls
-    std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_ragdollRests;
+    std::map<BodyKey, Resting> m_rests;                               // references at another game's rest
+    std::set<BodyKey> m_placed; // their newest rest is where the host's game put it (BodyState::Placed)
+    std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_ragdollRests; // a corpse another game's player moved, at its rest
     std::set<uint32_t> m_declaredRests; // this game's actors whose ragdoll rest is declared (cleared as one wakes)
     // Apply's copies by session id: a lookup per body and bone each frame, not a scan of the copies.
     std::unordered_map<uint32_t, entt::entity> m_copyIndex;
     bool m_copiesIndexed{};
-    std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_pendingRests;
-    std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_heldRests; // waiting for the keeper's pile to end (HoldsRest)
-    std::set<BodyKey> m_restsTried; // rests put this frame: asked again only after a physics step (their contacts)
-    std::set<BodyKey> m_following; // played from an owner's frames (logged once)
+    std::set<BodyKey> m_following; // played from another game's states (logged once)
     std::map<BodyKey, uint32_t> m_held; // held in another game: its form id here
     std::set<BodyKey> m_missing;   // not in this game (logged once)
     std::set<uint32_t> m_heldElsewhere;

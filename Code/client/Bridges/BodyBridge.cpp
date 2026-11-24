@@ -12,6 +12,7 @@
 #include <Games/KnockReplay.h>
 #include <Messages/WorldState.h>
 #include <Physics/BodyPrediction.h>
+#include <Physics/BodyTolerances.h>
 #include <Games/Skyrim/PlayerHands.h>
 #include <TESObjectREFR.h>
 
@@ -20,9 +21,10 @@
 #include <algorithm>
 #include <cmath>
 
-void BodyBridge::SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf) noexcept
+void BodyBridge::SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf, std::function<std::optional<GameId>(uint32_t aFormId)> aIdOf) noexcept
 {
     m_formIdOf = std::move(aFormIdOf);
+    m_idOf = std::move(aIdOf);
 }
 
 uint32_t BodyBridge::ReferenceFormId(const BodyKey& acKey) const noexcept
@@ -131,19 +133,15 @@ void BodyBridge::SetMoving(const BodyKey& acKey, bool aMoving) noexcept
     // Played: its owner's frames decide until they end. Already so: nothing to look up.
     if (acKey.Actor || (it == m_classes.end() ? !aMoving : it->second.Is == BodyClass::kPlayed || aMoving))
         return;
-    if (aMoving)
-    {
-        // Its owner's rest being put here wakes it for a step: that is not this game moving it (it began the rest again).
-        if (const auto cRested = m_rested.find(acKey); cRested != m_rested.end() && !cRested->second.Done)
-            return;
-        m_rested.erase(acKey);
-    }
+    // Another game's rest being put here wakes it for a step: that is not this game moving it.
+    if (aMoving && m_placing.contains(acKey))
+        return;
     SetClass(acKey, Find(acKey, 0, false).pBody, aMoving ? BodyClass::kMoving : BodyClass::kNone);
 }
 
 void BodyBridge::Forget(const BodyKey& acKey) noexcept
 {
-    m_rested.erase(acKey);
+    m_placing.erase(acKey);
     if (!acKey.Actor && m_classes.contains(acKey))
         SetClass(acKey, Find(acKey, 0, false).pBody, BodyClass::kNone);
 }
@@ -156,7 +154,7 @@ void BodyBridge::ForgetAll() noexcept
         SetClass(cKey, Find(cKey, 0, false).pBody, BodyClass::kNone);
         m_classes.erase(cKey); // its body in another world now: kept as it is
     }
-    m_rested.clear();
+    m_placing.clear();
 }
 
 bool BodyBridge::KnockDown(uint32_t aCopyFormId) noexcept
@@ -241,12 +239,31 @@ void BodyBridge::RememberMotion(const BodyKey& acKey, const Found& acBody) noexc
         m_motions.try_emplace(acKey, acBody.pBody->referencedObject->motionType);
 }
 
-std::optional<BodyPose> BodyBridge::ReadPose(const BodyKey& acKey) noexcept
+std::optional<BodyRead> BodyBridge::Read(const BodyKey& acKey) noexcept
 {
     BodyRead read;
     if (const Found cFound = acKey.Actor ? Found{} : Find(acKey, 0, false); cFound.pBody && ReadBody(*cFound.pBody, read))
-        return BodyPose{.Key = acKey, .Position = read.Position, .Rotation = read.Rotation};
+        return read;
     return std::nullopt;
+}
+
+std::vector<std::pair<BodyKey, BodyKey>> BodyBridge::ReadTouching(const std::vector<BodyKey>& acKeys) noexcept
+{
+    std::vector<std::pair<BodyKey, BodyKey>> pairs;
+    for (const BodyKey& cKey : acKeys)
+    {
+        const Found cFound = cKey.Actor ? Found{} : Find(cKey, 0, false);
+        if (!cFound.pBody)
+            continue;
+        for (const hkpRigidBody* pOther : TouchingOf(*cFound.pBody))
+        {
+            TESObjectREFR* pObject = ReferenceOf(*pOther);
+            const auto cId = pObject && m_idOf && !Cast<Actor>(pObject) ? m_idOf(pObject->formID) : std::nullopt;
+            if (const auto cIndex = cId ? ReferenceBodies::IndexOf(*pObject, pOther) : std::nullopt)
+                pairs.emplace_back(cKey, BodyKey{.Object = *cId, .Index = *cIndex});
+        }
+    }
+    return pairs;
 }
 
 bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHeld) noexcept
@@ -262,7 +279,7 @@ bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHel
         return true;
     }
     SetClass(acFrame.Key, cFound.pBody, BodyClass::kPlayed);
-    m_rested.erase(acFrame.Key);
+    m_placing.erase(acFrame.Key);
     // The host's game just placed it itself: left where that put it until the host has read the place.
     if (PlacedByGame::Is(ReferenceFormId(acFrame.Key)))
         return true;
@@ -283,9 +300,9 @@ bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHel
     }
     if (BodyRead read; !aHeld && cFound.pCollision && !m_motions.contains(acFrame.Key) && ReadBody(*cFound.pBody, read) && read.Dynamic)
     {
-        if (glm::distance(read.Position, acFrame.Position) <= kPlaceFar)
+        if (glm::distance(read.Position, acFrame.Position) <= BodyTolerances::kPlaceFar)
         {
-            const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, acFrame, BodyPrediction::SteerSeconds(acFrame, m_frameSeconds));
+            const auto cSteer = BodyPrediction::Follow(read.Position, read.Rotation, acFrame, m_frameSeconds);
             return SteerBody(*cFound.pBody, cSteer.Linear, cSteer.Angular);
         }
         if (!PlaceBody(*cFound.pBody, acFrame.Position, acFrame.Rotation, acFrame.LinearVelocity, acFrame.AngularVelocity, true))
@@ -295,7 +312,7 @@ bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHel
     }
     RememberMotion(acFrame.Key, cFound);
     // Held in another game: keyframed, carried onto the frame by its velocity; put there only when far off.
-    if (BodyRead read; cFound.pCollision && ReadBody(*cFound.pBody, read) && glm::distance(read.Position, acFrame.Position) <= kPlaceFar)
+    if (BodyRead read; cFound.pCollision && ReadBody(*cFound.pBody, read) && glm::distance(read.Position, acFrame.Position) <= BodyTolerances::kPlaceFar)
     {
         const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, acFrame, BodyPrediction::SteerSeconds(m_frameSeconds));
         if (!SteerKeyframed(*cFound.pBody, cSteer.Linear, cSteer.Angular))
@@ -311,118 +328,98 @@ bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHel
     return true;
 }
 
-bool BodyBridge::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
+bool BodyBridge::Unhold(const BodyKey& acKey, const Found& acBody) noexcept
 {
-    const Found cFound = Find(acPose.Key, aCopyFormId, false);
+    const auto it = m_motions.find(acKey);
+    if (it == m_motions.end() || !acBody.pCollision)
+        return true;
+    const auto cMotion = static_cast<hkpRigidBody::MotionType>(it->second);
+    if (!::FreeBody(*acBody.pCollision, cMotion, {}, {}))
+        return false;
+    m_motions.erase(it);
+    return true;
+}
+
+bool BodyBridge::Release(const BodyKey& acKey) noexcept
+{
+    const Found cFound = Find(acKey, 0, false);
+    m_placing.erase(acKey);
+    return cFound.pBody && Unhold(acKey, cFound);
+}
+
+bool BodyBridge::Glide(const BodyPose& acRest) noexcept
+{
+    const Found cFound = Find(acRest.Key, 0, false);
+    BodyRead read;
+    if (!cFound.pBody || !Unhold(acRest.Key, cFound) || !ReadBody(*cFound.pBody, read))
+        return false;
+    m_placing.insert(acRest.Key);
+    SetClass(acRest.Key, cFound.pBody, BodyClass::kNone);
+    const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, {.Position = acRest.Position, .Rotation = acRest.Rotation},
+                                              BodyPrediction::kRestGlideStep);
+    return SteerBody(*cFound.pBody, cSteer.Linear, cSteer.Angular);
+}
+
+bool BodyBridge::Place(const BodyPose& acRest) noexcept
+{
+    const Found cFound = Find(acRest.Key, 0, false);
+    if (!cFound.pBody || !cFound.pCollision || !Unhold(acRest.Key, cFound))
+        return false;
+    m_placing.insert(acRest.Key);
+    SetClass(acRest.Key, cFound.pBody, BodyClass::kNone);
+    // Awake and still for a step: the collide step finds its contacts (physics.md, "A rest needs its contacts").
+    if (!PlaceBody(*cFound.pBody, acRest.Position, acRest.Rotation, {}, {}, true))
+        return false;
+    FollowBody(*cFound.pCollision);
+    return true;
+}
+
+bool BodyBridge::Sleep(const BodyKey& acKey) noexcept
+{
+    const Found cFound = Find(acKey, 0, false);
+    if (!cFound.pBody)
+        return false;
+    // What this game moves, plays or holds keeps a pile awake (sleeping it froze the guest's carried object).
+    std::set<const bhkWorldObject*> awake;
+    for (const auto& [cKey, cClass] : m_classes)
+        if (cClass.Is != BodyClass::kNone)
+            if (const Found cOther = Find(cKey, 0, false); cOther.pBody)
+                awake.insert(cOther.pBody);
+    for (const auto& [cKey, cMotion] : m_motions)
+        if (const Found cOther = Find(cKey, 0, false); cOther.pBody)
+            awake.insert(cOther.pBody);
+    const bool cAsleep = SleepBody(*cFound.pBody, [&awake](const bhkWorldObject* apOther) { return awake.contains(apOther); });
+    if (cAsleep)
+        m_placing.erase(acKey);
+    return cAsleep;
+}
+
+bool BodyBridge::HoldAt(const BodyPose& acRest) noexcept
+{
+    const Found cFound = Find(acRest.Key, 0, false);
+    if (!cFound.pBody || !cFound.pCollision)
+        return false;
+    SetClass(acRest.Key, cFound.pBody, BodyClass::kNone);
+    RememberMotion(acRest.Key, cFound);
+    // Keyframed there (its node with it), then simulated again asleep: it does not stay there by itself.
+    if (!PlaceBody(*cFound.pBody, acRest.Position, acRest.Rotation))
+        return false;
+    FollowBody(*cFound.pCollision);
+    m_placing.erase(acRest.Key);
+    return !m_motions.contains(acRest.Key) || SettleFound(acRest.Key, cFound);
+}
+
+bool BodyBridge::RestRagdoll(const BodyPose& acRest, uint32_t aCopyFormId) noexcept
+{
+    const Found cFound = Find(acRest.Key, aCopyFormId, false);
     if (cFound.Waiting)
         return true;
     if (!cFound.pBody)
         return false;
-    // Keep the exact rest without keyframing: the ragdoll driver's bone mapping needs its dynamic bodies.
-    if (acPose.Key.Actor)
-    {
-        QueueCopyBodyFrame(aCopyFormId, {.Key = acPose.Key, .Position = acPose.Position, .Rotation = acPose.Rotation,
-                                      .Knocked = acPose.Knocked}, true, true);
-        return true;
-    }
-    const auto cSame = [](const BodyPose& acA, const BodyPose& acB) {
-        return glm::distance(acA.Position, acB.Position) < ReferenceBodies::kSameDistance &&
-               std::abs(glm::dot(acA.Rotation, acB.Rotation)) > std::cos(ReferenceBodies::kSameAngle);
-    };
-    const auto cNow = std::chrono::steady_clock::now();
-    auto rested = m_rested.find(acPose.Key);
-    if (rested == m_rested.end() || !cSame(rested->second.Pose, acPose))
-        rested = m_rested.insert_or_assign(acPose.Key, Rested{.Pose = acPose, .Since = cNow}).first;
-    const bool cHeld = m_motions.contains(acPose.Key);
-    BodyRead read;
-    const bool cSimulated = cFound.pCollision && !cHeld && ReadBody(*cFound.pBody, read) && read.Dynamic;
-    const bool cNear = cSimulated && cSame({.Position = read.Position, .Rotation = read.Rotation}, acPose);
-    const bool cPlaced = std::exchange(rested->second.Placed, true);
-    // Simulated here (played, or never moved): a step awake at its rest gives Havok its contacts, then it sleeps
-    // (BodyPrediction::PlaceRest); moving one already there would record a move the owner's game has not.
-    if (cSimulated)
-    {
-        const auto cPlacement = BodyPrediction::PlaceRest(cNear, read.Active, cPlaced);
-        // Off its rest: steered onto it first, for half a second at most (put there at once it snapped up to 16 units).
-        if (cPlacement == BodyPrediction::RestPlacement::kPlace && !cNear &&
-            BodyPrediction::GlidesToRest(glm::distance(read.Position, acPose.Position), std::chrono::duration<float>(cNow - rested->second.Since).count(), kPlaceFar))
-        {
-            rested->second.Placed = false;
-            const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, {.Position = acPose.Position, .Rotation = acPose.Rotation},
-                                                      BodyPrediction::kRestGlideStep);
-            SteerBody(*cFound.pBody, cSteer.Linear, cSteer.Angular);
-            return false;
-        }
-        SetClass(acPose.Key, cFound.pBody, BodyClass::kNone);
-        switch (cPlacement)
-        {
-        case BodyPrediction::RestPlacement::kLeave: return rested->second.Done = true;
-        case BodyPrediction::RestPlacement::kPlace:
-            if (PlaceBody(*cFound.pBody, acPose.Position, acPose.Rotation, {}, {}, true))
-                FollowBody(*cFound.pCollision);
-            return false; // asked again the next frame
-        case BodyPrediction::RestPlacement::kSleep:
-        {
-            const auto cSince = rested->second.Sleeping.value_or(cNow);
-            rested->second.Sleeping = cSince;
-            // What this game moves, plays or holds keeps a pile awake (sleeping it froze the guest's carried object).
-            std::set<const bhkWorldObject*> awake;
-            for (const auto& [cKey, cClass] : m_classes)
-                if (cClass.Is != BodyClass::kNone)
-                    if (const Found cOther = Find(cKey, 0, false); cOther.pBody)
-                        awake.insert(cOther.pBody);
-            for (const auto& [cKey, cMotion] : m_motions)
-                if (const Found cOther = Find(cKey, 0, false); cOther.pBody)
-                    awake.insert(cOther.pBody);
-            const bool cAsleep = SleepBody(*cFound.pBody, [&awake](const bhkWorldObject* apOther) { return awake.contains(apOther); });
-            return rested->second.Done = BodyPrediction::RestSlept(cAsleep, std::chrono::duration<float>(cNow - cSince).count());
-        }
-        case BodyPrediction::RestPlacement::kHold: break;
-        }
-    }
-    SetClass(acPose.Key, cFound.pBody, BodyClass::kNone);
-    RememberMotion(acPose.Key, cFound);
-    if (!PlaceBody(*cFound.pBody, acPose.Position, acPose.Rotation))
-        return false;
-    if (cFound.pCollision)
-    {
-        FollowBody(*cFound.pCollision);
-        const auto it = m_motions.find(acPose.Key);
-        if (it == m_motions.end())
-            return rested->second.Done = true;
-        // Keyframed for a hold: freed awake and still at its rest, then as a simulated one's the next frame.
-        if (cHeld && !cPlaced)
-        {
-            const auto cMotion = static_cast<hkpRigidBody::MotionType>(it->second);
-            m_motions.erase(it);
-            ::FreeBody(*cFound.pCollision, cMotion, {}, {});
-            return false;
-        }
-        if (!SettleFound(acPose.Key, cFound))
-            return false;
-    }
-    return rested->second.Done = true;
-}
-
-bool BodyBridge::Free(const BodyFrame& acFrame) noexcept
-{
-    const Found cFound = Find(acFrame.Key, 0, false);
-    // The reliable release may be the first frame heard of this hold.
-    RememberMotion(acFrame.Key, cFound);
-    const auto it = m_motions.find(acFrame.Key);
-    if (!cFound.pCollision || it == m_motions.end())
-        return false;
-    const auto cMotion = static_cast<hkpRigidBody::MotionType>(it->second);
-    m_motions.erase(it);
-    // Its holder's frames show here kDelayMs behind, the let go at once: put at the let go's place only when far off
-    // (near, that was a skip of up to 16 units); the mover's frames after it steer it on.
-    if (BodyRead read; !ReadBody(*cFound.pBody, read) || glm::distance(read.Position, acFrame.Position) > kPlaceFar)
-    {
-        if (!PlaceBody(*cFound.pBody, acFrame.Position, acFrame.Rotation))
-            return false;
-        FollowBody(*cFound.pCollision);
-    }
-    return ::FreeBody(*cFound.pCollision, cMotion, acFrame.LinearVelocity, acFrame.AngularVelocity);
+    // Its exact rest, simulated: the ragdoll driver's bone mapping needs its dynamic bodies.
+    QueueCopyBodyFrame(aCopyFormId, {.Key = acRest.Key, .Position = acRest.Position, .Rotation = acRest.Rotation, .Knocked = acRest.Knocked}, true,
+                       true);
+    return true;
 }
 
 bool BodyBridge::KeepMotion(const BodyKey& acKey) noexcept

@@ -389,6 +389,8 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
 void FakeEngine::GenerateGraph(Actor& aActor) const
 {
     auto& graph = aActor.Graph;
+    graph.Pose.assign(1, PoseBone{});
+    graph.Pose[0].Translation[0] = static_cast<float>(graph.Timeline);
     if (const auto* pBlend = Graph->BlendOf(aActor.GraphState); pBlend && pBlend->Generated && graph.BlendState == aActor.GraphState)
     {
         const auto& cIntegers = aActor.GraphVariables.Integers;
@@ -476,6 +478,8 @@ struct FakeGraphTarget final : IGraphTarget
     void Picks(std::span<const GraphPick> aPicks) override { Actor.Graph.OwnersPicks.assign(aPicks.begin(), aPicks.end()); }
     void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
     void Generate() override { Engine.GenerateGraph(Actor); }
+    std::span<const PoseBone> GeneratedPose() override { return Actor.Graph.Pose; }
+    void ShowPose(std::span<const PoseBone> aPose) override { Actor.Graph.Pose.assign(aPose.begin(), aPose.end()); }
     void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) override { FakeEngine::HoldAnimObjects(Actor, aObjects); }
     std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) override
     {
@@ -1524,7 +1528,7 @@ uint32_t FakeEngine::GetActorBaseFormId(uint32_t aFormId) const noexcept
 bool FakeEngine::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept
 {
     const auto it = Actors.find(aFormId);
-    if (it == Actors.end() || !aBaseFormId)
+    if (it == Actors.end() || !aBaseFormId || DestroyedNpcs.contains(aBaseFormId))
         return false;
     it->second.Base = aBaseFormId;
     return true;
@@ -2797,6 +2801,38 @@ void FakeEngine::DeleteActor(uint32_t aFormId) noexcept
 bool FakeEngine::IsActorNpcTemporary(uint32_t aFormId) const noexcept
 {
     return GetActorBaseFormId(aFormId) >= 0xFF000000;
+}
+
+bool FakeEngine::IsActorLeveled(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && it->second.LeveledBase;
+}
+
+// 14375: a new temporary NPC from the pick (its face the pick's).
+bool FakeEngine::RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    const auto cPick = Npcs.find(aPickId);
+    if (it == Actors.end() || !it->second.LeveledBase || cPick == Npcs.end() || DestroyedNpcs.contains(aPickId))
+        return false;
+    const uint32_t cBuilt = NewTemporary();
+    Npcs[cBuilt] = cPick->second;
+    Npcs[cBuilt].FaceBase = aPickId;
+    Npcs[cBuilt].ChangeFlags = 0;
+    it->second.Base = cBuilt;
+    return true;
+}
+
+void FakeEngine::ResetLeveledActor(uint32_t aFormId, uint32_t aPick)
+{
+    auto& actor = Actors.at(aFormId);
+    if (!actor.LeveledBase || actor.Base == actor.LeveledBase)
+        return;
+    Npcs.erase(actor.Base);
+    DestroyedNpcs.insert(actor.Base);
+    actor.Base = actor.LeveledBase;
+    RelevelActor(aFormId, aPick);
 }
 
 Inventory FakeEngine::GetActorInventory(uint32_t aFormId) const noexcept

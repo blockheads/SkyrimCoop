@@ -202,6 +202,7 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
         }
         aTarget.WriteWords(cPoint.Words);
         aTarget.HoldAnimObjects(cPoint.AnimObjects);
+        m_poses.Clear(); // the poses before its point are another timeline's
         m_words = aTarget.Words();
         // Its point is its owner's graph as update cPoint.Update began: what came before, the events and loads just
         // before that update too, is in it.
@@ -232,6 +233,7 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
         if (cOp.Op.Generate)
         {
             aTarget.Generate();
+            m_poses.Add(cOp.Tick, aTarget.GeneratedPose()); // its update's tick: the pose its owner showed then
             m_words = aTarget.Words();
             continue;
         }
@@ -260,6 +262,8 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
         }
         m_words = aTarget.Words();
     }
+    if (m_poses.Shown(aPlaybackTick, m_shown))
+        aTarget.ShowPose(m_shown);
     return updates;
 }
 

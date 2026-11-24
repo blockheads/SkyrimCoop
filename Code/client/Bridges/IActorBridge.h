@@ -346,6 +346,11 @@ public:
     virtual uint32_t GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept = 0;
     /// Returns true if the actor's NPC base is a temporary form.
     virtual bool IsActorNpcTemporary(uint32_t aFormId) const noexcept = 0;
+    // A leveled reference (ExtraLeveledCreature): its base is a temporary the engine built from a pick.
+    virtual bool IsActorLeveled(uint32_t aFormId) const noexcept = 0;
+    // Builds a leveled reference's base again from aPickId as the engine's leveled build does (14375); false if not
+    // leveled or the pick is no NPC. Never a permanent record as its base: a reset destroys that (leveled-copy-base.md).
+    virtual bool RelevelActor(uint32_t aFormId, uint32_t aPickId) noexcept = 0;
 
     // --- FaceTints ---
     virtual Tints GetActorFaceTints(uint32_t aFormId) const noexcept = 0;

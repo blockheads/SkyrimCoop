@@ -790,7 +790,7 @@ bool BoneOf(const bhkWorldObject& acBody, float aPosition[3]) noexcept
 {
     using TFindCollidableObject = NiAVObject*(const void*);
     POINTER_SKYRIMSE(TFindCollidableObject, s_findCollidableObject, 15870);
-    const NiAVObject* pNode = acBody.referencedObject ? s_findCollidableObject(acBody.referencedObject->collidable) : nullptr;
+    const NiAVObject* pNode = acBody.referencedObject ? s_findCollidableObject(&acBody.referencedObject->collidable) : nullptr;
     if (!pNode)
         return false;
     aPosition[0] = pNode->world.translate.x;

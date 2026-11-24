@@ -5,6 +5,7 @@ import math
 import time
 
 MOVING = 40.0  # units/s: slower is standing, not measured
+HELD = 10.0    # units/s: feet slower against a moving body's root hold their pose
 WINDOW = 4     # frames either side for a frame's typical speed
 
 
@@ -36,7 +37,7 @@ def frame_speeds(path, lag=1):
 
 def roughness(speeds, start=None, end=None):
     """How unevenly it moves: each moving frame's speed against its neighbours' (WINDOW either side, less the fastest
-    and slowest), as a fraction. {frames, median, p95, over20 (share of frames off by more than 20 %), speed (median)}."""
+    and slowest), as a fraction. {frames, median, p95, over20 and over50 (share of frames off by more than 20 and 50 %), speed (median)}."""
     values = [s for _, s, _ in speeds]
     errors, typical = [], []
     for i, (t, s, _) in enumerate(speeds):
@@ -56,7 +57,8 @@ def roughness(speeds, start=None, end=None):
     errors.sort()
     return {"frames": len(errors), "median": round(errors[len(errors) // 2], 3),
             "p95": round(errors[min(len(errors) - 1, int(len(errors) * 0.95))], 3),
-            "over20": round(sum(e > 0.2 for e in errors) / len(errors), 3), "speed": round(sorted(typical)[len(typical) // 2])}
+            "over20": round(sum(e > 0.2 for e in errors) / len(errors), 3),
+            "over50": round(sum(e > 0.5 for e in errors) / len(errors), 3), "speed": round(sorted(typical)[len(typical) // 2])}
 
 
 def reversals(path, start=None, end=None, move=0.5):
@@ -100,6 +102,41 @@ def tracking(owner, copy, start=None, end=None):
     return {"delay_ms": round(best * 1000), "mean": round(sum(found) / len(found), 1), "worst": round(max(found), 1)}
 
 
+def frames(entries, game, who):
+    """That actor's position entries in that game, one per frame, in frame order."""
+    found = {e["f"]: e for e in entries if e.get("kind") == "pos" and e.get("game") == game and e.get("who") == who and "f" in e}
+    return [found[f] for f in sorted(found)]
+
+
+def _feet_local(entry):
+    """Its feet against its drawn root, in its own frame (turning and moving taken out): what its pose alone moves."""
+    c, s = math.cos(entry["yaw"]), math.sin(entry["yaw"])  # a heading turns clockwise, as CopyStep::Local
+    out = []
+    for foot in entry["feet"]:
+        dx, dy, dz = foot[0] - entry["root"][0], foot[1] - entry["root"][1], foot[2] - entry["root"][2]
+        out.append((dx * c - dy * s, dx * s + dy * c, dz))
+    return out
+
+
+def pose_steps(rows):
+    """How its pose advances while drawn and moving: how many of its frames ran 0, 1, 2... graph updates, the share of
+    frames its feet stood still against its root (`held`), and how unevenly they move (as `roughness`)."""
+    updates, speeds = {}, []
+    for a, b in zip(rows, rows[1:]):
+        dt = (a.get("dt") or 0.0) / 1000.0
+        if b["f"] != a["f"] + 1 or dt <= 0.0 or math.dist(a["pos"][:2], b["pos"][:2]) / dt < MOVING:
+            continue
+        if not (b.get("cull") or [0, 0, False])[2]:
+            continue  # culled: its bones keep their last pose (actor-movement.md, "A culled actor keeps its pose")
+        if "graph_update" in a and "graph_update" in b:
+            ran = str(b["graph_update"] - a["graph_update"])
+            updates[ran] = updates.get(ran, 0) + 1
+        if len(a.get("feet") or []) == 2 and len(b.get("feet") or []) == 2:
+            speeds.append((b["time"], sum(map(math.dist, _feet_local(a), _feet_local(b))) / dt, 0.0))
+    held = sum(speed < HELD for _, speed, _ in speeds) / len(speeds) if speeds else 0.0
+    return {"frames": len(speeds), "updates": updates, "held": round(held, 3), "feet": roughness(speeds)}
+
+
 def measure(entries, owner_game, copy_game, segments):
     """Per segment (name, start, end): the owner's and the copy's roughness, reversals and the copy's tracking."""
     owner, copy = series(entries, owner_game, "owner"), series(entries, copy_game, "copy")
@@ -112,10 +149,11 @@ def measure(entries, owner_game, copy_game, segments):
         out[name] = {"owner": roughness(owner_speeds, start, end), "copy": roughness(copy_speeds, start + delay, end + delay),
                      "owner_reversals": reversals(owner, start, end), "copy_reversals": reversals(copy, start + delay, end + delay),
                      "tracking": tracking(owner, copy, start, end)}
+    out["pose"] = {"owner": pose_steps(frames(entries, owner_game, "owner")), "copy": pose_steps(frames(entries, copy_game, "copy"))}
     return out
 
 
-def message_bytes(perf, names=("ReferencesMoveRequest", "NotifyReferencesMove", "NotifyBodyFrames", "GraphOpsRequest", "NotifyGraphOps",
+def message_bytes(perf, names=("ReferencesMoveRequest", "NotifyReferencesMove", "NotifyBodyStates", "BodyStatesRequest", "GraphOpsRequest", "NotifyGraphOps",
                                 "GraphSyncPointRequest", "NotifyGraphSyncPoint")):
     """Bytes/s and messages/s per message name from a perf readout's top rows (both ways summed)."""
     messages = (perf or {}).get("messages") or {}
@@ -167,7 +205,8 @@ def run_fight(ctx, wolves, seconds):
 
 
 def run_course(ctx, mover, trace_type):
-    """Drives the mover's player through the course by real input while both games trace; returns the measures."""
+    """Drives the mover's player through the course by real input while both games trace; returns the measures.
+    The mover is in third person and the watcher faces its copy throughout, so both bodies are drawn and posed."""
     watcher = "client" if mover == "" else ""
     copy = ctx.player_copy(watcher)
     if copy is None:
@@ -184,17 +223,23 @@ def run_course(ctx, mover, trace_type):
         ctx.act(mover, {"name": "runs in a curve", "ready": ["takes_input"], "buttons": ["forward"],
                         "turn": {"yaw": (yaw + 170) % 360, "rate": 90}, "seconds": 3}, expect=None)
 
-    with trace_type(ctx, f"smoothness-{mover or 'host'}", {mover: {0x14: "owner"}, watcher: {copy: "copy"}}, video=False) as trace:
-        begun = time.time()
-        wire_before = {game: wire_sample(ctx, game) for game in ("", "client")}
-        segment("walk", lambda: ctx.hold_key(mover, "shift+w", 2.5))
-        segment("run", lambda: ctx.hold_key(mover, "w", 2.5))
-        segment("strafe", lambda: [ctx.hold_key(mover, key, 0.6) for key in ("d", "a", "d", "a")])
-        segment("curve", curve)
-        frame = ctx.game_frame(watcher)
-        ctx.wait_for("the copy has a second to finish", lambda: ctx.game_frame(watcher) > frame + 30, 5)
-        window = int((time.time() - begun) * 1000)
-        wire_after = {game: wire_sample(ctx, game) for game in ("", "client")}
+    try:
+        ctx.player_command(mover, {"cmd": "third_person"})
+        ctx.act_start(watcher, {"name": "faces the copy", "turn": {"face": copy, "rate": 720}, "seconds": 60})
+        with trace_type(ctx, f"smoothness-{mover or 'host'}", {mover: {0x14: "owner"}, watcher: {copy: "copy"}}, video=False) as trace:
+            begun = time.time()
+            wire_before = {game: wire_sample(ctx, game) for game in ("", "client")}
+            segment("walk", lambda: ctx.hold_key(mover, "shift+w", 2.5))
+            segment("run", lambda: ctx.hold_key(mover, "w", 2.5))
+            segment("strafe", lambda: [ctx.hold_key(mover, key, 0.6) for key in ("d", "a", "d", "a")])
+            segment("curve", curve)
+            frame = ctx.game_frame(watcher)
+            ctx.wait_for("the copy has a second to finish", lambda: ctx.game_frame(watcher) > frame + 30, 5)
+            window = int((time.time() - begun) * 1000)
+            wire_after = {game: wire_sample(ctx, game) for game in ("", "client")}
+    finally:
+        ctx.player_command(watcher, {"cmd": "act_cancel"})
+        ctx.player_command(mover, {"cmd": "first_person"})
     perf = {game or "host": {**message_bytes((ctx.game(game).rpc({"cmd": "perf", "window_ms": window}, timeout=10) or {}).get("perf")),
                              "on the wire": wire_rate(wire_before[game], wire_after[game])} for game in ("", "client")}
     return {"trace": str(trace.dir), "measures": measure(trace.entries, mover, watcher, segments), "wire": perf}
