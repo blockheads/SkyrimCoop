@@ -48,6 +48,17 @@ std::vector<uint32_t> EffectVisualsService::ReadEffectForms(uint32_t aFormId) co
     return ids;
 }
 
+std::vector<uint32_t> EffectVisualsService::ReadHeldForms(uint32_t aFormId) const noexcept
+{
+    std::vector<uint32_t> ids;
+    for (const auto& cEffect : m_actorBridge.GetActorActiveEffects(aFormId))
+        if (!(cEffect.Flags & (cInactive | cRemoved)) && cEffect.EffectFormId)
+            ids.push_back(cEffect.EffectFormId);
+    std::ranges::sort(ids);
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    return ids;
+}
+
 std::vector<GameId> EffectVisualsService::ReadEffects(uint32_t aFormId) const noexcept
 {
     std::vector<GameId> effects;
@@ -107,27 +118,35 @@ void EffectVisualsService::SendOwned(uint32_t aFormId, uint32_t aSessionId) noex
 {
     if (!m_actorBridge.ActorExists(aFormId))
         return;
-    auto ids = ReadEffectForms(aFormId);
+    auto sent = std::pair{ReadEffectForms(aFormId), ReadHeldForms(aFormId)};
     const auto cSent = m_sent.find(aSessionId);
-    if (cSent != m_sent.end() && cSent->second == ids)
+    if (cSent != m_sent.end() && cSent->second == sent)
         return;
 
     RequestActiveEffects request;
     request.SessionId = aSessionId;
-    for (const uint32_t cId : ids)
+    for (const uint32_t cId : sent.first)
         if (const auto cEffect = ToSession(cId))
             request.EffectIds.push_back(*cEffect);
-    spdlog::debug("Active effects of {:X} (session id {:X}): {} with visuals", aFormId, aSessionId, request.EffectIds.size());
+    for (const uint32_t cId : sent.second)
+        if (const auto cEffect = ToSession(cId))
+            request.HeldIds.push_back(*cEffect);
+    spdlog::debug("Active effects of {:X} (session id {:X}): {} with visuals, {} held", aFormId, aSessionId, request.EffectIds.size(),
+                  request.HeldIds.size());
     m_transport.Send(request);
-    m_sent[aSessionId] = std::move(ids);
+    m_sent[aSessionId] = std::move(sent);
 }
 
 void EffectVisualsService::OnNotifyActiveEffects(const NotifyActiveEffects& acMessage) noexcept
 {
-    std::vector<uint32_t> wanted;
+    std::vector<uint32_t> wanted, held;
     for (const auto& cEffectId : acMessage.EffectIds)
         if (const uint32_t cId = ToGame(cEffectId))
             wanted.push_back(cId);
+    for (const auto& cEffectId : acMessage.HeldIds)
+        if (const uint32_t cId = ToGame(cEffectId))
+            held.push_back(cId);
+    m_shown[acMessage.SessionId].HeldIds = std::move(held);
     Show(acMessage.SessionId, std::move(wanted));
 }
 
@@ -183,6 +202,7 @@ void EffectVisualsService::PlayMissing(uint32_t aSessionId) noexcept
     if (cShown == m_shown.end() || !cFormId || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId))
         return;
     cShown->second.FormId = cFormId;
+    m_actorBridge.SetCopyEffects(cFormId, cShown->second.HeldIds);
     for (const uint32_t cId : cShown->second.EffectIds)
         if (!m_actorBridge.IsPlayingEffectHitVisuals(cFormId, cId))
             m_actorBridge.PlayEffectHitVisuals(cFormId, cId);

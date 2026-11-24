@@ -675,10 +675,7 @@ std::vector<IActorBridge::ActiveEffectInfo> SkyrimBridge::GetActorActiveEffects(
         info.EffectFormId = pEffectItem && pEffectItem->pEffectSetting ? pEffectItem->pEffectSetting->formID : 0;
         info.SpellFormId = pEffect->pSpell ? pEffect->pSpell->formID : 0;
         if (TESObjectREFR* pCaster = TESObjectREFR::GetByHandle(pEffect->hCaster))
-        {
             info.CasterFormId = pCaster->formID;
-            info.CasterIsActor = Cast<Actor>(pCaster) != nullptr;
-        }
         info.Magnitude = pEffect->fMagnitude;
         info.Duration = pEffect->fDuration;
         info.Elapsed = pEffect->fElapsedSeconds;
@@ -2575,6 +2572,15 @@ bool SkyrimBridge::IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectF
         return !apForm || std::binary_search(cPlaying.begin(), cPlaying.end(), apForm->formID);
     };
     return (cVisuals.pShader || cVisuals.pArt) && cIsPlaying(cVisuals.pShader) && cIsPlaying(cVisuals.pArt);
+}
+
+void SkyrimBridge::SetCopyEffects(uint32_t aFormId, std::vector<uint32_t> aEffectIds) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    std::ranges::sort(aEffectIds);
+    pActor->GetExtension()->OwnerEffects.store(std::make_shared<const std::vector<uint32_t>>(std::move(aEffectIds)));
 }
 
 void SkyrimBridge::StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept

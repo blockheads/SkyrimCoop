@@ -70,6 +70,8 @@ private:
     void OnCallResult(const NotifyPlayerNativeResult& acMessage) noexcept;
     // Each waiting answer whose reference is here now; true: answered.
     bool AnswerCall(uint32_t aReplyId, const ScriptValue& acResult) noexcept;
+    // An animation is taken once its graph takes it; any other change once, when its turn comes.
+    bool ApplyInOrder(const ObjectChange& acChange) noexcept;
 
     World& m_world;
     GuestEngine& m_engine;

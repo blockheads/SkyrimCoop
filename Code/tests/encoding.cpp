@@ -2151,6 +2151,12 @@ TEST_CASE("Trap contacts, hits and the world's projectiles round trip", "[encodi
     shot.Launch.OriginX = 10.f;
     shot.Launch.XAngle = 0.25f;
     cRequest(shot);
+    // An owner's effects: those with visuals, and every one it holds (a copy's answer to "has this effect").
+    RequestActiveEffects effects;
+    effects.SessionId = 9;
+    effects.EffectIds = {GameId(0, 0x13CA9)};
+    effects.HeldIds = {GameId(0, 0x13CA9), GameId(0, 0x9F28F)};
+    cRequest(effects);
 }
 
 TEST_CASE("A guest's summon reaches the host with its spell, effect and magnitude", "[encoding.summon]")

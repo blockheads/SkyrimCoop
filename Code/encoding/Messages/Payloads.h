@@ -345,8 +345,8 @@ struct Subtitle
     bool Force{}; // shown at any distance (the engine's forceDisplay, as for a line said to the player)
 };
 
-// An actor's active magic effects that show on it (a hit shader or hit art: burning, frost,
-// a healing glow), from its owner. Copies play only those visuals; the owner applies the effects.
+// An actor's active magic effects, from its owner: those that show on it (a hit shader or hit art: burning, frost, a
+// healing glow), whose visuals copies play, and every one it holds, which copies answer to "has this effect".
 struct ActiveEffects
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
@@ -356,6 +356,7 @@ struct ActiveEffects
 
     uint32_t SessionId{};
     std::vector<GameId> EffectIds{};
+    std::vector<GameId> HeldIds{};
 };
 
 // An effect's visuals that play once (no FX Persist) just started on one of the owner's actors: its copies play them.

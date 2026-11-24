@@ -11,6 +11,7 @@
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 #include <Systems/CopyStep.h>
+#include <Games/OwnerEffects.h>
 
 #include <Events/DismountEvent.h>
 #include <Events/BoardEvent.h>
@@ -3376,13 +3377,14 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
     }
     if (cTarget->second.Copy)
     {
-        // A world cast (a trap, no actor) on another player's copy goes to that player's game (IsWorldCast).
-        const bool cWorldCast = !aCaster && IsOtherPlayer(aTarget) && World::Get().GetHostService().IsHosting();
+        // An object's cast (a trap's, not an actor's) on another player's copy goes to that player's game (IsWorldCast);
+        // one with no caster at all (a hazard's, an explosion's: aCaster 0) is judged by its own copy of it there.
+        const bool cWorldCast = aCaster && !Actors.contains(aCaster) && IsOtherPlayer(aTarget) && World::Get().GetHostService().IsHosting();
         if (!cOurCast && !cWorldCast)
             return;
         AddTargetEvent event;
         event.TargetID = aTarget;
-        event.CasterID = aCaster;
+        event.CasterID = Actors.contains(aCaster) ? aCaster : 0; // an actor's only (HookAddTarget)
         event.SpellID = aSpell;
         event.EffectID = aEffect;
         event.Magnitude = aMagnitude;
@@ -3391,7 +3393,7 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
         return;
     }
     if (EffectHolds(aEffect, aDualCast))
-        Effects.push_back({aTarget, aCaster, aSpell, aEffect});
+        StartsEffect({aTarget, aCaster, aSpell, aEffect});
 }
 
 void FakeEngine::ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
@@ -3401,15 +3403,22 @@ void FakeEngine::ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t a
         return;
     if (cTarget->second.Copy)
         return SpellHits(aTarget, 0, aSpell, aEffect, aMagnitude);
-    // HookAddTarget: a guest's player already under the host's verdict for this explosion
-    const bool cGuest = HoldSession != 0;
-    const bool cActive = std::ranges::any_of(Effects, [&](const Effect& acEffect) {
-        return acEffect.Target == aTarget && acEffect.Spell == aSpell && acEffect.EffectId == aEffect && !acEffect.Caster;
-    });
-    if (cGuest && aTarget == kPlayer && TrapRules::SkipsWorldEffect(true, cActive))
-        return;
     if (EffectHolds(aEffect, false))
-        Effects.push_back({aTarget, aExplosion, aSpell, aEffect});
+        StartsEffect({aTarget, aExplosion, aSpell, aEffect});
+}
+
+void FakeEngine::StartsEffect(const Effect& acEffect)
+{
+    Effects.push_back(acEffect);
+    World::Get().GetRunner().Trigger(EffectVisualsChangeEvent{acEffect.Target, 0});
+}
+
+bool FakeEngine::ActorHasEffect(uint32_t aActor, uint32_t aEffect) const
+{
+    const auto cActor = Actors.find(aActor);
+    if (cActor != Actors.end() && cActor->second.Copy)
+        return OwnerEffects::Has(cActor->second.OwnerEffects, aEffect);
+    return std::ranges::any_of(Effects, [&](const Effect& acEffect) { return acEffect.Target == aActor && acEffect.EffectId == aEffect; });
 }
 
 bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept
@@ -3504,8 +3513,7 @@ std::vector<IActorBridge::ActiveEffectInfo> FakeEngine::GetActorActiveEffects(ui
             effects.push_back({.EffectFormId = cId});
     for (const auto& cEffect : Effects)
         if (cEffect.Target == aFormId)
-            effects.push_back({.EffectFormId = cEffect.EffectId, .SpellFormId = cEffect.Spell, .CasterFormId = cEffect.Caster,
-                               .CasterIsActor = Actors.contains(cEffect.Caster)});
+            effects.push_back({.EffectFormId = cEffect.EffectId, .SpellFormId = cEffect.Spell, .CasterFormId = cEffect.Caster});
     return effects;
 }
 

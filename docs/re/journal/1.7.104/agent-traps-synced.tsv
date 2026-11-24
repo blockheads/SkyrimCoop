@@ -133,3 +133,5 @@ time	op	id	rva	item
 2026-11-24T02:05:49Z	comment		0x6f3600	{"addr": "0x1406f3600", "comment": "not on the path: read while tracing traps' casts, unrelated"}
 2026-11-24T05:15:33Z	read		0x7e4600	{"name": "Explosion::Func162_43830"}
 2026-11-24T05:16:17Z	comment		0x7e4600	{"addr": "0x1407e4600", "comment": "43830 (Explosion vfunc 162). Places the explosion's placed object (BGSExplosion +0xB8, often a hazard) at the explosion through TESDataHandler::CreateReferenceAtLocation (13723); its handle kept at +0x100. Hooked by ModManager.cpp so the host does not send it as created: each game's explosion places its own."}
+2026-11-24T06:53:42Z	read	54650	0x9ff920	{"name": "papyrus::Actor::HasMagicEffectWithKeyword"}
+2026-11-24T06:53:45Z	read		0xa06340	{"name": "papyrus__Actor__RegisterFuncs"}

@@ -56,18 +56,22 @@ private:
     // A copy's owner lists these: the visuals of those that left it stop, the missing play.
     void Show(uint32_t aSessionId, std::vector<uint32_t> aEffectIds) noexcept;
     void PlayMissing(uint32_t aSessionId) noexcept;
+    // Every active effect it holds (not inactive or finished), sorted.
+    [[nodiscard]] std::vector<uint32_t> ReadHeldForms(uint32_t aFormId) const noexcept;
     void StopShown(uint32_t aSessionId) noexcept;
 
     World& m_world;
     TransportService& m_transport;
     IActorBridge& m_actorBridge;
 
-    // Per owned actor (session id): the effect form ids last sent.
-    std::unordered_map<uint32_t, std::vector<uint32_t>> m_sent;
-    // Per copy (session id): the effects its owner lists, and the reference they were last played on.
+    // Per owned actor (session id): the effect form ids last sent, with visuals and all it holds.
+    std::unordered_map<uint32_t, std::pair<std::vector<uint32_t>, std::vector<uint32_t>>> m_sent;
+    // Per copy (session id): the effects its owner lists (with visuals; all it holds), and the reference they were last
+    // played on.
     struct Shown
     {
         std::vector<uint32_t> EffectIds;
+        std::vector<uint32_t> HeldIds;
         uint32_t FormId{};
     };
     std::unordered_map<uint32_t, Shown> m_shown;

@@ -167,7 +167,7 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
     // {request, notification} payloads, recorded from the messages before they shared payload
     // structs. The opcode byte is left out: opcodes number the messages in Opcodes.h's order.
     const std::map<std::string, std::pair<std::string, std::string>> cRecorded{
-        {"ActiveEffects", {"c5460283de040192e40602", "c5460283de040192e40602"}},
+        {"ActiveEffects", {"c5460283de040192e4060200", "c5460283de040192e4060200"}}, // the held list (2026-11-24)
         {"EffectFlash", {"c54683de0401", "c54683de0401"}}, // new 2026-10-22
         {"ActorMaxValues", {"e78a01011a00007a43", "e78a01011a00007a43"}},
         {"ActorValues", {"d668021800004d4219000060c001190000f041", "d668021800004d4219000060c001190000f041"}}, // temporary pool modifiers (2026-10-30)

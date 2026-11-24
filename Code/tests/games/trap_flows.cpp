@@ -114,37 +114,69 @@ SCENARIO("A trap's animations play on a guest in order, each once its clip has e
                 "the guest's wall goes back and arms");
 }
 
-// WarehouseTraps' fire plate (2026-11-23): its hazard cast at each tick on the host's copy of the guest, whose
-// game stacked a burn each time (0.7 rising to 7 a tick, the host's own player 0.6).
-SCENARIO("A hazard's burn on a guest's player is applied once while it lasts", "[traps]")
+// warehouse_traps_hurt_both (2026-11-24): the host's TRIGGER on the mace's tripwire waited for the guest's graph, but
+// its destroyed flag right after it did not; the tripwire, destroyed first, never took TRIGGER and the mace never fell.
+SCENARIO("A trap's change after its animation waits behind it on a guest", "[traps]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    guest.References.at(kWall).InClip = true;
+    party.As(party.Host(), [&] {
+        host.ScriptPlaysAnimation(kWall, "TRIGGER");
+        host.ScriptSetsDestroyed(kWall, true);
+    });
+    Settle(party, 1);
+    CHECK_FALSE(guest.References.at(kWall).Destroyed);
+    guest.References.at(kWall).InClip = false;
+    party.Until([&] { return guest.References.at(kWall).Destroyed; }, "the guest's tripwire breaks");
+    CHECK(guest.References.at(kWall).GraphEvents == std::vector<std::string>{"TRIGGER"});
+}
+
+// WarehouseTraps' fire plate and poison gas (2026-11-23): the host's hazard and explosion cast on its copy of the guest
+// (no caster at all) while the guest's own copies of them cast on its player; both applied, the burns and poisons
+// stacked. A cast with no caster is its target's own game's: the host's on the copy is not sent.
+SCENARIO("A hazard's or explosion's effect on a guest's player is its own game's", "[traps]")
 {
     static constexpr uint32_t kFireHazardSpell = 0x0005A1A5;
     constexpr uint32_t kFireDamage = 0x0005A1A6;
+    static constexpr uint32_t kPoisonSpell = 0x000A0370;
+    constexpr uint32_t kPoison = 0x0009F28F;
     Party party(1, [](FakeEngine& aEngine) {
         Plugins(aEngine);
         aEngine.SpellForms[kFireHazardSpell] = {};
+        aEngine.SpellForms[kPoisonSpell] = {};
     });
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
-    const auto cBurns = [&] {
-        return std::ranges::count_if(guest.Effects, [&](const auto& acEffect) { return acEffect.Target == FakeEngine::kPlayer && acEffect.Spell == kFireHazardSpell; });
+    const auto cOn = [&](uint32_t aSpell) {
+        return std::ranges::count_if(guest.Effects, [&](const auto& acEffect) { return acEffect.Target == FakeEngine::kPlayer && acEffect.Spell == aSpell; });
     };
-    for (int i = 0; i < 4; ++i)
-        party.As(party.Host(), [&] { host.SpellHits(PlayerCopy(host), 0, kFireHazardSpell, kFireDamage, 5.f); });
-    party.Until([&] { return cBurns() >= 1; }, "the guest's player burns");
+    party.As(party.Host(), [&] {
+        for (int i = 0; i < 4; ++i)
+            host.SpellHits(PlayerCopy(host), 0, kFireHazardSpell, kFireDamage, 5.f);
+        host.ExplosionHits(PlayerCopy(host), 0xFF000901, kPoisonSpell, kPoison, 2.f);
+    });
     Settle(party, 1);
-    CHECK(cBurns() == 1);
+    CHECK(cOn(kFireHazardSpell) == 0);
+    CHECK(cOn(kPoisonSpell) == 0);
+    party.As(party.Guest(), [&] {
+        guest.SpellHits(FakeEngine::kPlayer, 0, kFireHazardSpell, kFireDamage, 5.f);
+        guest.ExplosionHits(FakeEngine::kPlayer, 0xFF000900, kPoisonSpell, kPoison, 2.f);
+    });
+    Settle(party, 1);
+    CHECK(cOn(kFireHazardSpell) == 1);
+    CHECK(cOn(kPoisonSpell) == 1);
 }
 
-// WarehouseTraps' poison gas (2026-11-23): an explosion each half second, its poison cast by the explosion. The host's
-// on the guest's copy reached the guest first, then the guest's copy of the explosion poisoned it again (1.3 a tick,
-// the host 0.6; up to 7 as they stacked).
-SCENARIO("An explosion's poison on a guest's player is applied once", "[traps]")
+// WarehouseTraps' gas (TrapPoisonGas, 2026-11-24): its script places an explosion on whoever stands in it unless they
+// already have its effect (HasMagicEffectWithKeyword). The guest's copy never had: every trigger fired on it, and its
+// poison stacked on the guest. A copy answers with its owner's effects.
+SCENARIO("A script asking a guest's copy for an effect gets its player's answer", "[traps][effects]")
 {
     static constexpr uint32_t kPoisonSpell = 0x000A0370;
     constexpr uint32_t kPoison = 0x0009F28F;
-    constexpr uint32_t kGuestsExplosion = 0xFF000900;
     Party party(1, [](FakeEngine& aEngine) {
         Plugins(aEngine);
         aEngine.SpellForms[kPoisonSpell] = {};
@@ -152,26 +184,9 @@ SCENARIO("An explosion's poison on a guest's player is applied once", "[traps]")
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
-    const auto cPoisons = [&] {
-        return std::ranges::count_if(guest.Effects, [&](const auto& acEffect) { return acEffect.Target == FakeEngine::kPlayer && acEffect.Spell == kPoisonSpell; });
-    };
-    const auto cGuests = [&] { party.As(party.Guest(), [&] { guest.ExplosionHits(FakeEngine::kPlayer, kGuestsExplosion, kPoisonSpell, kPoison, 2.f); }); };
-    const auto cHosts = [&] { party.As(party.Host(), [&] { host.ExplosionHits(PlayerCopy(host), 0xFF000901, kPoisonSpell, kPoison, 2.f); }); };
-    WHEN("the host's reaches the guest first (its copy of the explosion is made from the host's message)")
-    {
-        cHosts();
-        party.Until([&] { return cPoisons() == 1; }, "the host's poison reaches the guest");
-        cGuests();
-        Settle(party, 1);
-        CHECK(cPoisons() == 1);
-    }
-    WHEN("the guest's own copy of the explosion casts first")
-    {
-        cGuests();
-        cHosts();
-        Settle(party, 1);
-        CHECK(cPoisons() == 1);
-    }
+    CHECK_FALSE(host.ActorHasEffect(PlayerCopy(host), kPoison));
+    party.As(party.Guest(), [&] { guest.ExplosionHits(FakeEngine::kPlayer, 0xFF000900, kPoisonSpell, kPoison, 2.f); });
+    party.Until([&] { return host.ActorHasEffect(PlayerCopy(host), kPoison); }, "the host's copy has the guest's poison");
 }
 
 SCENARIO("A dart an object of the host's world fires flies on every guest, once", "[traps]")

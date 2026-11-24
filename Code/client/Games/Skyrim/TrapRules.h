@@ -53,12 +53,6 @@ enum class Hit
     return !aIsGuest || aTarget != HitRules::Party::LocalPlayer || !aCastByObject || aOwnScript;
 }
 
-// A world cast (no caster) of an effect this game's actor already has: skipped, as a hazard's IsSpellTarget (43987) does.
-[[nodiscard]] constexpr bool SkipsWorldEffect(bool aNoCaster, bool aAlreadyActive) noexcept
-{
-    return aNoCaster && aAlreadyActive;
-}
-
 // A script looping on an object with no 3D here (its graph takes no event) repeats at once: a repeat this soon is not sent.
 inline constexpr std::chrono::milliseconds cAnimationRepeat{1000};
 

@@ -31,6 +31,8 @@ template <class TObject, class TAnimation> class ObjectAnimations
 
     void Clear() noexcept { m_waiting.clear(); }
     [[nodiscard]] bool Empty() const noexcept { return m_waiting.empty(); }
+    // Something of this object's waits: a later change of it goes behind (Play), in the host's order.
+    [[nodiscard]] bool Waiting(const TObject& acObject) const noexcept { return m_waiting.contains(acObject); }
 
   private:
     using Queue = std::deque<std::pair<TAnimation, TimePoint>>;

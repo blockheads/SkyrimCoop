@@ -466,6 +466,9 @@ void ActiveEffects::SerializePayload(Wire::Buffer::Writer& aWriter) const noexce
     Serialization::WriteVarInt(aWriter, EffectIds.size());
     for (const auto& cEffectId : EffectIds)
         cEffectId.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, HeldIds.size());
+    for (const auto& cEffectId : HeldIds)
+        cEffectId.Serialize(aWriter);
 }
 
 void ActiveEffects::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -478,6 +481,14 @@ void ActiveEffects::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
         GameId effectId;
         effectId.Deserialize(aReader);
         EffectIds.push_back(effectId);
+    }
+    const auto cHeld = Serialization::ReadVarInt(aReader);
+    HeldIds.clear();
+    for (uint64_t i = 0; i < cHeld && i < 256; ++i)
+    {
+        GameId effectId;
+        effectId.Deserialize(aReader);
+        HeldIds.push_back(effectId);
     }
 }
 

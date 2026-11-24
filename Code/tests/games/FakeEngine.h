@@ -836,6 +836,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t ExtraPackageFallback{};
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
         std::set<uint32_t> ShownVisuals;  // a copy's visuals played for its owner's
+        std::vector<uint32_t> OwnerEffects; // a copy's owner's active effects (SetCopyEffects), sorted
         ActorValues Values = FullValues();
         std::map<uint32_t, float> Bases = FullValues().ActorMaxValuesList;
         std::map<uint32_t, float> TemporaryValues;
@@ -1305,6 +1306,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // An explosion's enchantment on an actor (43849, by its NonActorMagicCaster): the hook sees no caster actor, the
     // effect's caster is the explosion.
     void ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
+    // An effect starts on this game's actor: its start raises the visuals' change (34094, EffectEvents).
+    void StartsEffect(const Effect& acEffect);
+    // A script or condition asks whether the actor has that effect (MagicTarget::HasMagicEffect 34517): a copy answers
+    // with its owner's (MagicTarget's hook).
+    [[nodiscard]] bool ActorHasEffect(uint32_t aActor, uint32_t aEffect) const;
     // A summon effect's actor (SummonCreatureEffect::CreateSummon 34993): one of aBase at its caster, commanded by it;
     // the caster's earlier summon dismissed (AIProcess::AddCommandedActor's limit, 1 without Twin Souls).
     uint32_t MakesSummon(uint32_t aCaster, uint32_t aBase);
@@ -1327,7 +1333,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // The engine's own add check (34525) runs for a relayed effect too: its conditions decide.
         if (!EffectHolds(aEffectFormId, aIsDualCasting))
             return;
-        Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
+        StartsEffect({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
         StartsAshPileEffect(aTargetFormId, aEffectFormId);
         if (Spell(aSpellFormId).Summons && !HoldSession) // a guest's CreateSummon (34993) makes nothing
             MakesSummon(aCasterFormId, Spell(aSpellFormId).Summons);
@@ -1686,6 +1692,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         if (const auto it = Actors.find(aFormId); it != Actors.end())
             it->second.ShownVisuals.erase(aEffectFormId);
+    }
+    void SetCopyEffects(uint32_t aFormId, std::vector<uint32_t> aEffectIds) noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end() && it->second.Copy)
+        {
+            std::ranges::sort(aEffectIds);
+            it->second.OwnerEffects = std::move(aEffectIds);
+        }
     }
     bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override
     {
