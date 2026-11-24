@@ -84,3 +84,12 @@ TEST_CASE("Asking the first-option cursor leaves the picked option where it was"
     CHECK(DialogueMenuPolicy::AskKeepingPicked(pPicked, [&] { pPicked = &first; return true; }));
     CHECK(pPicked == nullptr);
 }
+
+TEST_CASE("Another player's character never talks to this game's player; everyone else as the engine says", "[dialogue]")
+{
+    using DialogueMenuPolicy::TalksToPlayer;
+    CHECK(TalksToPlayer(true, false));
+    CHECK_FALSE(TalksToPlayer(false, false)); // vanilla's no (race flag, AllowPCDialogue) stays
+    CHECK_FALSE(TalksToPlayer(true, true));
+    CHECK_FALSE(TalksToPlayer(false, true));
+}

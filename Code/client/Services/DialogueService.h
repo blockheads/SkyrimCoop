@@ -81,8 +81,6 @@ struct DialogueService
     void CloseMenu() noexcept;
     // The copy with this form id's session id (none: not a copy).
     [[nodiscard]] std::optional<uint32_t> CopySessionId(uint32_t aFormId) const noexcept;
-    // Another player's character here (players do not talk to each other through the game's dialogue).
-    [[nodiscard]] bool IsOtherPlayer(uint32_t aFormId) const noexcept;
     // The party's list for the current step (none: not here yet).
     [[nodiscard]] std::optional<std::vector<IDialogueBridge::Option>> PartyList() const noexcept;
 

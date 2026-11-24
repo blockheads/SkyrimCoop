@@ -30,9 +30,9 @@ public:
         std::function<bool(uint32_t aActorFormId, bool aForceGreet)> Start;
         /// The player talks to (activates) an actor. True: handled, the engine's activation is skipped.
         std::function<bool(uint32_t aActorFormId)> Talk;
-        /// Whether an actor can talk to this game's player at all (CanTalkToPlayer 37469: the Talk prompt and talking
-        /// by activation). False: neither.
-        std::function<bool(uint32_t aActorFormId)> Talkable;
+        /// Whether an actor is another player's character, which never talks to this game's player (CanTalkToPlayer
+        /// 37469: the Talk prompt and talking by activation).
+        std::function<bool(uint32_t aActorFormId)> OtherPlayer;
         /// The player clicks an option in the menu (its index). True: handled, the menu's pick is skipped.
         std::function<bool(uint32_t aIndex)> Pick;
         /// The player presses through the line being said (the menu's SkipText); the engine moves on all the same.

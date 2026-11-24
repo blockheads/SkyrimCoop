@@ -234,17 +234,25 @@ class MountsActions:
         ctx.wait_for(f"[{instance or 'host'}] its player rides along, seated on both games", seated, 10,
                      explain=lambda: ctx.mount_readout([(instance, 0x14), (other, ctx.player_copy(other) or 0), (instance, horse), (other, horse)]))
 
+    def prompt_text(ctx, instance, target):
+        """That game's crosshair prompt for `target` (TESNPC::GetActivateText 24716, through our hooks); fails when
+        `target` is no actor with an NPC base there (a stale handle reads no prompt too)."""
+        reply = ctx.player_command(instance, {"cmd": "activate_text", "ref": ctx.resolve(target, instance)}) or {}
+        if not reply.get("ok"):
+            raise ctx.failure(f"[{instance or 'host'}] no prompt to read for {target}: {reply}")
+        return reply.get("text") or ""
+
     def prompt_offers(ctx, instance, target, word="Ride"):
         """That game's crosshair prompt for `target` (TESNPC::GetActivateText 24716) holds `word`: what the player
         reads before pressing E, else fails with the prompt it shows."""
-        text = lambda: ctx.player_command(instance, {"cmd": "activate_text", "ref": ctx.resolve(target, instance)}).get("text") or ""
+        text = lambda: ctx.prompt_text(instance, target)
         ctx.wait_for(f"[{instance or 'host'}] the prompt for {target} offers {word}", lambda: word in text(), 5,
                      explain=lambda: f"prompt {text()!r}")
 
     def expect_prompt_lacks(ctx, instance, target, word="Talk"):
         """That game's crosshair prompt for `target` (24716, through our hooks) does not hold `word`, read now: what
         the player would not see over it. Fails with the prompt it shows."""
-        shown = ctx.player_command(instance, {"cmd": "activate_text", "ref": ctx.resolve(target, instance)}).get("text") or ""
+        shown = ctx.prompt_text(instance, target)
         if word in shown:
             raise ctx.failure(f"[{instance or 'host'}] the prompt for {target} offers {word}: {shown!r}")
         return {"prompt": shown}

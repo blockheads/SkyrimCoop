@@ -568,8 +568,10 @@ Actor::CanTalkToPlayer 37469: ExtraCanTalkToPlayer (Papyrus AllowPCDialogue) win
 
 37469's only code callers are 24715 and 24716 (read in IDA; its one data xref is inferred to be its `.pdata` entry).
 So `HookCanTalkToPlayer` (`DialogueBridge.cpp`) answers false for another player's character
-(`IDialogueBridge::Filters::Talkable`, `DialogueService::IsOtherPlayer`: a `RemoteComponent` + `PlayerComponent` entity):
-no prompt and no talk, while search, pickpocket and ride keep their own branches, which come before the talk.
+(`IDialogueBridge::Filters::OtherPlayer`, `IActorBridge::IsOtherPlayer`; the rule `DialogueMenuPolicy::TalksToPlayer`
+keeps the engine's own no): no prompt and no talk. Search, pickpocket and ride keep their own branches, which come
+before the talk; the search and pickpocket menus on another player's character are already refused where they open
+(`HookOpenInventory`, `ContainerMenu::OpenMenu` 51140, `ContainerOpens::Refused`), so those prompts stay and lead nowhere.
 Pressing E on the copy before the fix opened nothing and sent no ask (measured, the prisoner's copy in QASmoke); the
-prompt was the bug. Measured after the fix: no prompt either way, and a sneaking guest still reads Pickpocket over the host's copy. GameTests "A player's character offers no Talk to the other players, on every game" (the fake's
+prompt was the bug. Measured after the fix: no prompt either way, and a sneaking guest still reads the Pickpocket prompt over the host's copy (the prompt only: pressing E is refused at 51140). ClientTests `TalksToPlayer`; GameTests "A player's character offers no Talk to the other players, on every game" (the fake's
 `CanTalkToPlayer`, `ActivateText`), scenario `players-not-talkable` (verb `expect_prompt_lacks`).

@@ -9,6 +9,7 @@
 #include "Fixtures.h"
 #include <Events/SessionNoticeEvent.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
+#include <Messages/SharedDialogue.h>
 #include <SessionIds.h>
 
 namespace
@@ -34,6 +35,14 @@ struct ChatLines
     void On(const NotifyChatMessageBroadcast& acLine) { Lines.push_back(acLine.ChatMessage); }
     [[nodiscard]] bool Has(const std::string& acLine) const { return std::ranges::find(Lines, acLine) != Lines.end(); }
     std::vector<std::string> Lines;
+};
+
+// The conversations the host's rules start on the host's game for a guest's ask (NotifyDialogueStart), by NPC.
+struct Starts
+{
+    explicit Starts(World& aGame) { aGame.GetDispatcher().sink<NotifyDialogueStart>().connect<&Starts::On>(*this); }
+    void On(const NotifyDialogueStart& acStart) { Npcs.push_back(acStart.NpcId); }
+    std::vector<uint32_t> Npcs;
 };
 
 FakeDialogue& Dialogue(World& aGame)
@@ -828,10 +837,12 @@ SCENARIO("A player's character offers no Talk to the other players, on every gam
 
     party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(cGuestsCharacter); });
     CHECK(!hostTalk.Speaker);
-    // The guest's ask, had it gone, reaches the host's game before the next one.
+    // The guest's ask, had it gone, reaches the host's game before the next one (the host's rule refuses it anyway).
+    Starts starts(party.Host());
     party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cHostsCharacter); });
     party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
     party.Until([&] { return guestTalk.MenuOpen && hostTalk.Speaker == npc; },
                 "the guest's talk to the NPC opens, the one to the host's player having started nothing");
     CHECK(guestTalk.Speaker == guest.CopiesOf(kGuard)[0]);
+    CHECK(starts.Npcs.size() == 1); // the guard's ask alone
 }

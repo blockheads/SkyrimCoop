@@ -229,9 +229,8 @@ TCanTalkToPlayer* RealCanTalkToPlayer = nullptr;
 
 bool HookCanTalkToPlayer(Actor* apThis)
 {
-    if (s_filters.Talkable && apThis && !s_filters.Talkable(apThis->formID))
-        return false;
-    return RealCanTalkToPlayer(apThis);
+    const bool cOtherPlayer = s_filters.OtherPlayer && apThis && s_filters.OtherPlayer(apThis->formID);
+    return DialogueMenuPolicy::TalksToPlayer(RealCanTalkToPlayer(apThis), cOtherPlayer);
 }
 
 // DialogueMenu's TopicClicked (51509): the SWF's click on an option, its index in the list; the original selects

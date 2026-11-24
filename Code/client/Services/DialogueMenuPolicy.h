@@ -81,6 +81,13 @@ template <class TPicked, class TAsk> bool AskKeepingPicked(TPicked& aPicked, TAs
     return cAnswer;
 }
 
+// Actor::CanTalkToPlayer (37469), the Talk prompt and talking by activation: the engine's answer, but never to another
+// player's character.
+constexpr bool TalksToPlayer(bool aEngineSays, bool aOtherPlayer) noexcept
+{
+    return aEngineSays && !aOtherPlayer;
+}
+
 constexpr bool CloseEndsConversation(bool aRunsWithoutMenu, bool aBartering, bool aConversation) noexcept
 {
     return !aBartering && (!aRunsWithoutMenu || !aConversation);

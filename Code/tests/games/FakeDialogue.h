@@ -84,10 +84,11 @@ struct FakeDialogue final : IDialogueBridge
     {
         return CanTalkToPlayer(aActorFormId) ? "Talk" : "";
     }
-    // Actor::CanTalkToPlayer (37469) as our hook answers it; the engine's own (race flag, AllowPCDialogue) is yes here.
+    // Actor::CanTalkToPlayer (37469) as our hook answers it, from the engine's own (race flag, AllowPCDialogue).
+    std::function<bool(uint32_t aActorFormId)> EngineCanTalk = [](uint32_t) { return true; };
     [[nodiscard]] bool CanTalkToPlayer(uint32_t aActorFormId) const
     {
-        return !m_filters.Talkable || m_filters.Talkable(aActorFormId);
+        return DialogueMenuPolicy::TalksToPlayer(EngineCanTalk(aActorFormId), m_filters.OtherPlayer && m_filters.OtherPlayer(aActorFormId));
     }
     void NpcGreets(uint32_t aActorFormId)
     {
