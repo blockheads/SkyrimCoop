@@ -99,6 +99,8 @@ struct HostGame
     std::function<void(const std::string& acLine)> RunConsole;
     std::function<std::optional<std::string>(uint32_t aSessionId)> ConsoleNameOf;
     std::function<uint32_t()> KillHostiles;
+    // /spawn horse: that many party horses beside a session's character in the host's game; how many were placed.
+    std::function<uint32_t(uint32_t aSessionId, uint32_t aCount)> SpawnPartyHorses;
     // What the host's NPCs see of that character's copy now (41408, 46877; stealth.md "The eye is the host's"),
     // asking as the HUD asks of the host's own player; none when its copy is not loaded.
     std::function<std::optional<DetectionRules::EyeReading>(uint32_t aSessionId)> ReadEye;

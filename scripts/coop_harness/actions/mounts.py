@@ -13,7 +13,10 @@ from ..common import (
     ACTIVATE_KEY,
     HOME_CELL,
     HORSE,
+    HORSE_RACE,
     OUTDOOR_CELL,
+    PLAYER_FACTION,
+    PLAYER_HORSE_FACTION,
     RIVER_CELL,
 )
 from ..errors import TestFailure
@@ -43,6 +46,35 @@ class MountsActions:
         _game = ctx.game(instance)
         world = (_game.read_status() or {}).get("world") or {}
         return next((int(k) for k, v in world.items() if v.get("player") and k != "20"), None)
+
+    def spawn_horse(ctx, instance="", handle="horse"):
+        """That game's player types /spawn horse: the host places a saddled horse beside it, the party's as a stable
+        sells one (PlayerHorseFaction rank 1, owned by PlayerFaction). Names it `handle` in both games once it is
+        ready to mount; returns the handle (dev-commands.md)."""
+        before = set(ctx.local_player("").get("local_actors", {}))
+        ctx.say(instance, "/spawn horse")
+
+        def placed_horses():  # new placed references (FF...) of HorseRace: another NPC loading meanwhile is not it
+            actors = ctx.local_player("").get("local_actors", {})
+            return [int(k) for k, v in actors.items() if k not in before and int(k) >= 0xFF000000
+                    and (v.get("identity") or {}).get("race") == HORSE_RACE]
+        found = ctx.wait_for("[host] the horse spawns", placed_horses, 15)
+        if len(found) != 1:
+            raise ctx.failure(f"[host] {len(found)} new horses appeared, not one: {[f'{f:X}' for f in found]}")
+        horse = found[0]
+        ctx.staged().append(("npc", horse))  # unstage deletes it, whatever fails below
+        ctx.wait_for(f"[host] the horse {horse:X} is the party's",
+                     lambda: ctx.player_command("", {"cmd": "form", "form": horse}).get("owner") == PLAYER_FACTION
+                     and ctx.faction_rank("", horse, PLAYER_HORSE_FACTION) >= 1, 10)
+        sid = ctx.wait_for("[host] the horse has a session id",
+                           lambda: (s := ctx.host_npc_state(horse).get("session_id")) is not None and s >= 0 and (s,), 10)[0]
+        copy = ctx.copy_of("client", sid)
+        # Inferred, not read: Activate on an actor still fading in did nothing (mount_roundtrip waits too).
+        for game, form in (("", horse), ("client", copy)):
+            ctx.wait_for(f"[{game or 'host'}] the horse has faded in",
+                         lambda game=game, form=form: ctx.actor_state(game, form).get("mod", {}).get("fade_state") == 0, 10)
+        ctx.name_handle(handle, {"host": horse, "guest": copy})
+        return handle
 
 
     def mount_roundtrip(ctx, riding_game="client", cross_border=False, leave=False, follow=False):
