@@ -497,8 +497,10 @@ class PlayerVerbs:
     def arrives_with_party(ctx, instance, within=3000.0):
         """That game's player arrives near the other player (the party tether after the other's trip), its fade over."""
         other = "" if instance else "client"
-        ctx.wait_for(f"[{instance or 'host'}] arrives with the other player (the party tether)",
-                     lambda: math.dist(ctx.my_position(instance)[:2], ctx.my_position(other)[:2]) <= within, 90)
+        def near():  # a game loading has no position yet
+            mine, theirs = ctx.my_position(instance), ctx.my_position(other)
+            return bool(mine and theirs) and math.dist(mine[:2], theirs[:2]) <= within
+        ctx.wait_for(f"[{instance or 'host'}] arrives with the other player (the party tether)", near, 90)
         ctx.wait_for(f"[{instance or 'host'}] the arrival's fade is over", lambda: ctx.takes_input(instance), 15)
         return {"apart": round(math.dist(ctx.my_position(instance)[:2], ctx.my_position(other)[:2]))}
 
