@@ -223,6 +223,17 @@ bool HookNpcActivate(TESForm* apThis, TESObjectREFR* apTarget, TESObjectREFR* ap
     return RealNpcActivate(apThis, apTarget, apActivator, aUnk1, apObject, aCount);
 }
 
+// Actor::CanTalkToPlayer (37469): asked only by TESNPC::Activate (24715) and TESNPC::GetActivateText (24716).
+using TCanTalkToPlayer = bool(Actor*);
+TCanTalkToPlayer* RealCanTalkToPlayer = nullptr;
+
+bool HookCanTalkToPlayer(Actor* apThis)
+{
+    if (s_filters.Talkable && apThis && !s_filters.Talkable(apThis->formID))
+        return false;
+    return RealCanTalkToPlayer(apThis);
+}
+
 // DialogueMenu's TopicClicked (51509): the SWF's click on an option, its index in the list; the original selects
 // and says it (35269, 35283).
 using TTopicClicked = void(const FxDelegateArgs* apArgs);
@@ -428,6 +439,7 @@ Hooks::Initializer s_dialogueHooks(
         HOOK_ID(39465, &RealSetDialogueHeadtrack, HookSetDialogueHeadtrack);
         HOOK_ID(38011, &RealShouldRotateToTrack, HookShouldRotateToTrack);
         HOOK_ID(24715, &RealNpcActivate, HookNpcActivate);
+        HOOK_ID(37469, &RealCanTalkToPlayer, HookCanTalkToPlayer);
         HOOK_ID(51509, &RealTopicClicked, HookTopicClicked);
         HOOK_ID(51508, &RealSkipText, HookSkipText);
         HOOK_ID(52853, &RealShowMenu, HookShowMenu);

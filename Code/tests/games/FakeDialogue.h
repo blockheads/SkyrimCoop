@@ -66,14 +66,28 @@ struct FakeDialogue final : IDialogueBridge
     std::vector<Option> Said; // every option said here, in order
     uint32_t Skips = 0;       // lines this game's engine was told to move past (35290)
 
-    // This game's player talks to an actor (activates it), as the engine with our hooks: Talk first, then Start.
+    // This game's player talks to an actor (activates it), as the engine with our hooks: Talk first (24715), then
+    // CanTalkToPlayer (37469), then Start.
     void PlayerTalksTo(uint32_t aActorFormId)
     {
         if (m_filters.Talk && m_filters.Talk(aActorFormId))
             return;
+        if (!CanTalkToPlayer(aActorFormId))
+            return;
         if (m_filters.Start && !m_filters.Start(aActorFormId, false))
             return;
         Start(aActorFormId, true);
+    }
+    // The crosshair's prompt over a living actor that is no horse, not sneaking (GetActivateText 24716): Talk when it
+    // can talk to the player, else none.
+    [[nodiscard]] std::string ActivateText(uint32_t aActorFormId) const
+    {
+        return CanTalkToPlayer(aActorFormId) ? "Talk" : "";
+    }
+    // Actor::CanTalkToPlayer (37469) as our hook answers it; the engine's own (race flag, AllowPCDialogue) is yes here.
+    [[nodiscard]] bool CanTalkToPlayer(uint32_t aActorFormId) const
+    {
+        return !m_filters.Talkable || m_filters.Talkable(aActorFormId);
     }
     void NpcGreets(uint32_t aActorFormId)
     {

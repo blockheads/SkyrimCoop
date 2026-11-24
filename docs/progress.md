@@ -49,6 +49,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **no Talk prompt over another player** (`agent/no-talk-to-players`). Each game's crosshair offered "Talk"
+over the other player's character. Our hook on `Actor::CanTalkToPlayer` (37469, asked only by the prompt 24716 and the
+activation 24715) answers no for another player's copy; search, pickpocket and ride are untouched
+(`re/systems/dialogue.md`, "No talking to players"). GameTests, scenario `players-not-talkable`.
+
 2026-11-23: **a quest item a guest loots from a body or chest moves the host's quest on** (`agent/golden-claw-quest`).
 Playtest 2026-11-22, item 15: the guest looted the Golden Claw from Arvel and MS13 stayed on "retrieve the claw". The
 host's take for a guest removed the item to nowhere, which unbinds the item's quest alias script (read in IDA:

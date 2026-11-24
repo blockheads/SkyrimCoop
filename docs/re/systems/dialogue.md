@@ -548,3 +548,28 @@ graphs detached too: 18 bodies keyframed (motion 4) within 1.6 units of the host
 games' bodies left the world and both crosshairs still took him, now by his capsule. The harness `controller` readout shows the
 controller's `size`; with the fix both games' crosshairs took the leaning Lucan, both controllers at `size` 0. GameTests "A guest's crosshair takes an NPC copy seated in its furniture" (the fake's `BodiesLayer`, `GraphsStepPhysics`, `BodiesDriven`,
 `CrosshairTakes`), scenario `guest-crosshair-skips-leaning-npc`.
+
+## No talking to players (1.7.104, 2026-11-23)
+
+Each game's crosshair offered "Talk" over the other player's copy (measured on the duo, harness `activate_text`: both
+games read `Talk\nPrisoner`). Read in IDA (journal `agent-no-talk-to-players.tsv`):
+
+```text
+TESNPC::GetActivateText 24716 (npc, ref, text)   the crosshair's prompt, first that applies:
+  a pet/owned name ("%s's %s"), sAttack (40665, not read), sSearch (dead, with items),
+  sRide/sSteal (CanRide 38706), sPickpocket (sneaking, race flag 0x800000),
+  sTalk only if Actor::CanTalkToPlayer 37469; else no prompt (returns 0)
+TESNPC::Activate 24715 (npc, ref, activator)     the player pressing E on an actor:
+  dead -> ContainerMenu (search); sneaking + race flag 0x800000 -> ContainerMenu mode 2 (pickpocket)
+  else talk only if activator is the player and CanTalkToPlayer 37469 -> greeting, SetDialogueWithPlayer 37200
+  CanTalkToPlayer false -> returns 1, nothing done
+Actor::CanTalkToPlayer 37469: ExtraCanTalkToPlayer (Papyrus AllowPCDialogue) wins, else race flag 0x200000
+```
+
+37469's only code callers are 24715 and 24716 (read in IDA; its one data xref is inferred to be its `.pdata` entry).
+So `HookCanTalkToPlayer` (`DialogueBridge.cpp`) answers false for another player's character
+(`IDialogueBridge::Filters::Talkable`, `DialogueService::IsOtherPlayer`: a `RemoteComponent` + `PlayerComponent` entity):
+no prompt and no talk, while search, pickpocket and ride keep their own branches, which come before the talk.
+Pressing E on the copy before the fix opened nothing and sent no ask (measured, the prisoner's copy in QASmoke); the
+prompt was the bug. GameTests "A player's character offers no Talk to the other players, on every game" (the fake's
+`CanTalkToPlayer`, `ActivateText`), scenario `players-not-talkable` (verb `expect_prompt_lacks`).

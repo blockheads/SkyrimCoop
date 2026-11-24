@@ -241,6 +241,14 @@ class MountsActions:
         ctx.wait_for(f"[{instance or 'host'}] the prompt for {target} offers {word}", lambda: word in text(), 5,
                      explain=lambda: f"prompt {text()!r}")
 
+    def expect_prompt_lacks(ctx, instance, target, word="Talk"):
+        """That game's crosshair prompt for `target` (24716, through our hooks) does not hold `word`, read now: what
+        the player would not see over it. Fails with the prompt it shows."""
+        shown = ctx.player_command(instance, {"cmd": "activate_text", "ref": ctx.resolve(target, instance)}).get("text") or ""
+        if word in shown:
+            raise ctx.failure(f"[{instance or 'host'}] the prompt for {target} offers {word}: {shown!r}")
+        return {"prompt": shown}
+
     def drives(ctx, instance, horse, seconds=2.5, least=300):
         """That game's player holds forward: the horse goes at least `least` units on both games and every rider
         stays on it (a horse nobody steers stays put)."""

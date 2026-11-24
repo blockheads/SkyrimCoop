@@ -50,6 +50,7 @@ void DialogueService::SetRole(Role* apRole) noexcept
     m_bridge.SetFilters({
         .Start = [this](uint32_t aActorFormId, bool aForceGreet) { return !m_pRole || m_pRole->OnStartAsked(aActorFormId, aForceGreet); },
         .Talk = [this](uint32_t aActorFormId) { return m_pRole && m_transport.IsOnline() && m_pRole->OnTalk(aActorFormId); },
+        .Talkable = [this](uint32_t aActorFormId) { return !IsOtherPlayer(aActorFormId); },
         .Pick = [this](uint32_t aIndex) { return OnPickAsked(aIndex); },
         .Skip = [this]() { OnSkipAsked(); },
         .List = [this]() { return m_pRole ? m_pRole->OnListBuilt() : std::nullopt; },
@@ -88,6 +89,15 @@ std::optional<uint32_t> DialogueService::CopySessionId(uint32_t aFormId) const n
         if (view.get<FormIdComponent>(cEntity).Id == aFormId)
             return view.get<RemoteComponent>(cEntity).Id;
     return std::nullopt;
+}
+
+bool DialogueService::IsOtherPlayer(uint32_t aFormId) const noexcept
+{
+    auto view = m_world.view<FormIdComponent, RemoteComponent, PlayerComponent>();
+    for (const entt::entity cEntity : view)
+        if (view.get<FormIdComponent>(cEntity).Id == aFormId)
+            return true;
+    return false;
 }
 
 std::optional<std::vector<IDialogueBridge::Option>> DialogueService::PartyList() const noexcept
