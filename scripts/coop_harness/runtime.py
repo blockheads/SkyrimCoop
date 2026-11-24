@@ -568,7 +568,8 @@ class Runtime:
             shutil.copyfile(source, target)
         order = ctx.load_order_file(_game=_game)
         lines = order.read_text().splitlines() if order.exists() else []
-        mods = MOD_PLUGINS if plugins is not None else ()
+        # The player's own Plugins.txt on Windows: the mods are only added, never taken out.
+        mods = MOD_PLUGINS if plugins is not None and not WINDOWS else ()
         plugins = plugins or ()
         managed = {name.lower() for name in (BUNDLED_START, "Quick Start - SE.esp", *mods)}
         lines = [line for line in lines if line.lstrip("*").lower() not in managed]

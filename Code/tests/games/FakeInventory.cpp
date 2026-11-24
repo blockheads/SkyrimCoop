@@ -131,6 +131,20 @@ void FakeEngine::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uin
         actor->second.ForcedWorn.insert(aItemFormId);
 }
 
+void FakeEngine::ActorWearStack(uint32_t aActorFormId, const Inventory::Entry& acStack) noexcept
+{
+    const uint32_t cItem = ::ItemForm(acStack.BaseId);
+    const auto cActor = Actors.find(aActorFormId);
+    if (cActor == Actors.end() || std::ranges::none_of(cActor->second.Items.Entries, [&](const auto& acEntry) {
+            return acEntry.BaseId == acStack.BaseId && acEntry.ExtraName == acStack.ExtraName && acEntry.Count > 0; }))
+        return;
+    ScopedEquipOverride _;
+    Equip(aActorFormId, cItem, 0);
+    for (auto& entry : cActor->second.Items.Entries)
+        if (entry.BaseId == acStack.BaseId)
+            entry.ExtraWorn = entry.ExtraName == acStack.ExtraName;
+}
+
 void FakeEngine::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t) noexcept
 {
     ScopedEquipOverride _;

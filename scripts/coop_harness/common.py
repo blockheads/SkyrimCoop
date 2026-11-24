@@ -75,6 +75,8 @@ def duo_plugins(args):
     wanted = {name.lower() for name in wanted}
     if unknown := wanted - set(MOD_PLUGINS):
         raise SystemExit(f"--plugins: not a bundled mod: {', '.join(sorted(unknown))} (MOD_PLUGINS: {', '.join(MOD_PLUGINS)})")
+    if MOD_PLUGINS[1] in wanted:  # Alternate Start's TES4 header lists USSEP as a master
+        wanted.add(MOD_PLUGINS[0])
     return [name for name in MOD_PLUGINS if name in wanted]
 CONSOLE_ERRORS = re.compile(r"not found|Syntax error|Missing parameter|Compiled script not saved|not run|cannot be moved", re.IGNORECASE)
 CONSOLE_ON_REFERENCE = re.compile(r"^([0-9A-Fa-f]{1,8})\.(\S.*)$")

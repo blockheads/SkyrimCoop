@@ -54,7 +54,8 @@ With Alternate Start only the host got its start's clothing: the start choices r
 `ARTHLALRumorsOfWarQuest`'s fragments, and `Actor.EquipItem` (54661, read in IDA) adds an item the actor lacks
 straight to its inventory changes (16053), past our add hooks, so the story's clothes never became party items.
 A hook on 54661 reports the added item (`ScriptEquips`); from a quest's script it is a party item the story put on
-(`Wear` on `RequestInventoryChanges` and `NotifyPartyItem`), and each game's player wears its copy. Generic: MQ101's
+(`Wear` on `RequestInventoryChanges` and `NotifyPartyItem`), and each game's player wears its copy: that stack, unforced
+(`ActorWearStack`), so it can take it off. Generic: MQ101's
 prisoner clothes and DA15's fine clothes take the same path. A guest joining after it carries the item, unworn
 (the join's list carries no worn state). [inventory-changes.md](re/systems/inventory-changes.md), "A script's
 EquipItem". Scenario `quest-dresses-every-player` (the harness boots the duo with the bundled mods: `duo --plugins`,

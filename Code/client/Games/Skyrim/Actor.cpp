@@ -1596,14 +1596,22 @@ static void ReportAdd(const Actor& acActor, const TESBoundObject& acItem, ExtraD
 using TScriptEquipItem = void(void*, uint32_t, Actor*, TESForm*, bool, bool);
 static TScriptEquipItem* RealScriptEquipItem = nullptr;
 
+// The count 54661's own test (16133) sees, read without creating the changes (16039): with none it adds nothing.
+static std::optional<int64_t> HeldCount(const Actor& acActor, const TESForm& acItem) noexcept
+{
+    if (!acActor.FindContainerChanges())
+        return std::nullopt;
+    return acActor.GetItemCountInInventory(const_cast<TESForm*>(&acItem));
+}
+
 static void HookScriptEquipItem(void* apVm, uint32_t aStackId, Actor* apThis, TESForm* apItem, bool aPreventRemoval, bool aSilent)
 {
-    const int64_t cBefore = apThis && apItem ? apThis->GetItemCountInInventory(apItem) : 1;
+    const auto cBefore = apThis && apItem ? HeldCount(*apThis, *apItem) : std::nullopt;
     RealScriptEquipItem(apVm, aStackId, apThis, apItem, aPreventRemoval, aSilent);
-    if (cBefore > 0 || ScopedInventoryOverride::IsOverriden())
+    if (!cBefore || *cBefore > 0 || ScopedInventoryOverride::IsOverriden())
         return;
-    const int64_t cAfter = apThis->GetItemCountInInventory(apItem);
-    if (auto event = ScriptEquips::Arrival(apThis->formID, ItemId(apItem->formID).value_or(GameId{}), static_cast<int32_t>(cBefore),
+    const int64_t cAfter = HeldCount(*apThis, *apItem).value_or(0);
+    if (auto event = ScriptEquips::Arrival(apThis->formID, ItemId(apItem->formID).value_or(GameId{}), static_cast<int32_t>(*cBefore),
                                            static_cast<int32_t>(cAfter), GuestScripts::StoryCalling()))
         World::Get().GetRunner().Trigger(std::move(*event));
 }

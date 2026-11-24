@@ -323,10 +323,17 @@ the prisoner clothes and DA15 with Pelagius's fine clothes.
 | 16133 | `InventoryChanges__MakeEntryFor` | `(changes, object, ...)`: a fresh entry of the changes' stacks merged with the base container's count; null when neither holds it. The caller frees it |
 | 16053 | `InventoryChanges__AddListFrom` | the add itself: never through `AddObjectToContainer` (19708) or `Actor`'s add, so our add hooks never see it |
 
+Two branches matter (read): an actor with no inventory changes yet (16039 finds none) skips 16133 and the add and goes
+straight to the equip, so our count reads the changes without creating them (not 16040, which would send the native
+down the add branch). And the equip is queued (`bQueueEquip` 1 at `0x140A0016F`; queued equips: "Queued equips"),
+so the arrival is reported unworn and the worn state reaches copies through the equip when it lands.
+
 So an item a script equips into being raised no `InventoryChangeEvent`: the story's clothes stayed the host's own,
 never a party item. Our hook on 54661 compares the actor's count before and after the native and reports an added
 item (`ScriptEquips::Arrival`): the story's when the native's caller is a quest's script (`GuestScripts::StoryCalling`,
 the caller frame's handle as for `AddItem`), and then worn by the story (`RequestInventoryChanges::Wear`,
-`NotifyPartyItem::Wear`): every game's player puts its party copy on (`InventoryService::WearPartyItem`).
+`NotifyPartyItem::Wear`): every game's player puts its party copy on (`InventoryService::WearPartyItem`): that
+stack's own list through 38894 with `abForceEquip` off (`IFormBridge::ActorWearStack`), as the script's default
+`abPreventRemoval`, so no `ExtraCannotWear` keeps the player in it ("Worn on add").
 Measured on the duo with USSEP and Alternate Start (`quest-dresses-every-player`): before, the host wore 86991,
 86993 and CEE84 and the guest's own player none of them.

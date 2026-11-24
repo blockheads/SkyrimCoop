@@ -14,7 +14,7 @@ TEST_CASE("A script's EquipItem reports the item it added, the story's when a qu
         CHECK(cEvent->FormId == 0x14);
         CHECK(cEvent->Item.BaseId == cClothes);
         CHECK(cEvent->Item.Count == 1);
-        CHECK(cEvent->Item.ExtraWorn);
+        CHECK_FALSE(cEvent->Item.ExtraWorn); // 54661 queues the equip
         CHECK(cEvent->StoryGiven);
         CHECK(cEvent->StoryWorn);
     }

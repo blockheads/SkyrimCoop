@@ -133,15 +133,16 @@ class SessionActions:
     @contextlib.contextmanager
     def loads_mods(ctx):
         """Both games load the bundled mods (USSEP, Alternate Start) for the block: the duo boots again with them if it
-        has not, and again without them after."""
-        booted = ctx.mods_loaded() != list(MOD_PLUGINS)
+        has not, and again with the mods it had after."""
+        had = ctx.mods_loaded()
+        booted = had != list(MOD_PLUGINS)
         if booted:
             ctx.restart_duo(MOD_PLUGINS)
         try:
             yield
         finally:
             if booted:
-                ctx.restart_duo([])
+                ctx.restart_duo(had)
 
 
     def restart_client(ctx, plugins, dropped=True):

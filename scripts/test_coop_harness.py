@@ -662,6 +662,7 @@ class DuoPlugins(unittest.TestCase):
         from coop_harness.common import MOD_PLUGINS, duo_plugins
         self.assertEqual(duo_plugins(argparse.Namespace(plugins=f"{MOD_PLUGINS[1]}, {MOD_PLUGINS[0].upper()}")), list(MOD_PLUGINS))
         self.assertEqual(duo_plugins(argparse.Namespace(plugins="")), [])
+        self.assertEqual(duo_plugins(argparse.Namespace(plugins=MOD_PLUGINS[1])), list(MOD_PLUGINS))  # its master too
         self.assertIsNone(duo_plugins(argparse.Namespace()))  # a game restarted alone keeps its mods
         with self.assertRaises(SystemExit):
             duo_plugins(argparse.Namespace(plugins="Other.esp"))
@@ -675,13 +676,19 @@ class DuoPlugins(unittest.TestCase):
             (Path(folder) / "Data").mkdir()
             session = Session()
             self.addCleanup(session.close)
-            with patch.object(Session, "game", return_value=game), patch.object(Session, "load_order_file", return_value=order):
+            with patch.object(Session, "game", return_value=game), patch.object(Session, "load_order_file", return_value=order), \
+                    patch("coop_harness.runtime.WINDOWS", False):
                 session.enable_bundled_start(list(MOD_PLUGINS))
                 self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", *[f"*{m}" for m in MOD_PLUGINS], f"*{BUNDLED_START}"])
                 session.enable_bundled_start(None)
                 self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", *[f"*{m}" for m in MOD_PLUGINS], f"*{BUNDLED_START}"])
                 session.enable_bundled_start([])
                 self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", f"*{BUNDLED_START}"])
+            order.write_text(f"*Mine.esp\n*{MOD_PLUGINS[1]}\n")
+            with patch.object(Session, "game", return_value=game), patch.object(Session, "load_order_file", return_value=order), \
+                    patch("coop_harness.runtime.WINDOWS", True):  # the player's own file: their mods stay
+                session.enable_bundled_start([])
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", f"*{MOD_PLUGINS[1]}", f"*{BUNDLED_START}"])
 
 
 class LoadMenu(unittest.TestCase):

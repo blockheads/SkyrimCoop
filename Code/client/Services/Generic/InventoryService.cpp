@@ -482,11 +482,10 @@ void InventoryService::OnNotifyPartyItem(const NotifyPartyItem& acMessage) noexc
 
 void InventoryService::WearPartyItem(const Inventory::Entry& acItem) noexcept
 {
-    const uint32_t cItemId = ToGame(acItem.BaseId);
-    const auto cWorn = m_formBridge.GetActorEquipment(0x14);
-    if (!cItemId || std::ranges::any_of(cWorn.Entries, [&](const Inventory::Entry& acEntry) { return acEntry.BaseId == acItem.BaseId && acEntry.IsWorn(); }))
+    const auto cCarried = m_actorBridge.GetActorInventory(0x14);
+    if (std::ranges::any_of(cCarried.Entries, [&](const Inventory::Entry& acEntry) { return acEntry.IsWorn() && PartyItems::SameStack(acItem, acEntry); }))
         return;
-    m_formBridge.ActorEquipItem(0x14, cItemId, 0, 1);
+    m_formBridge.ActorWearStack(0x14, acItem);
 }
 
 // That stack (its base and name) set to the party's count, silently.
