@@ -3142,6 +3142,7 @@ IJoinBridge::SaveFiles FakeEngine::MakeSave()
         Serialization::WriteVarInt(writer, cFaction);
         Serialization::WriteVarInt(writer, static_cast<uint32_t>(cRank));
     }
+    Own.Serialize(writer);
     return SaveFiles{std::string(reinterpret_cast<const char*>(buffer.GetData()), writer.Size()) + SavePadding, World::Get().ctx().at<SaveService>().WriteCoSave()};
 }
 
@@ -3198,6 +3199,8 @@ void FakeEngine::RunMainLoop() noexcept
         const auto cFaction = static_cast<uint32_t>(Serialization::ReadVarInt(reader));
         factions[cFaction] = static_cast<int32_t>(Serialization::ReadVarInt(reader));
     }
+    // The save's player's own state (save global 109, its stacks' hotkeys, effects, ...): the saving game's player's.
+    Own.Deserialize(reader);
     // The save's player's souls: its value in the save (the record sets the joining character's own).
     Souls[kPlayer] = 0.f;
     for (const PlayerRecord::Value& cValue : saved.Values)
@@ -3216,6 +3219,7 @@ void FakeEngine::RunMainLoop() noexcept
         }
     saved.Extras.erase(SystemQuestState::kExtra);
     Player = saved;
+    Player.Own = {};
     Knowledge = saved.Knowledge;
     Player.Items = {};
     Player.Cell = {};

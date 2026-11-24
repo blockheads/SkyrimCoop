@@ -155,6 +155,24 @@ nlohmann::json Describe(const PlayerRecord& acRecord)
                     timers.push_back(cTimer.Native);
                 systemQuests[std::format("{:X}:{:X}", cQuest.Id.ModId, cQuest.Id.BaseId)] = {{"variables", variables}, {"timers", timers}};
             }
+    // What its save keeps of it beside the character (player-save-state.md): the globals by their sizes.
+    const auto cId = [](const GameId& acId) { return std::format("{:X}:{:X}", acId.ModId, acId.BaseId); };
+    nlohmann::json favoriteItems = nlohmann::json::array(), globals = nlohmann::json::object();
+    for (const auto& cItem : acRecord.Own.FavoriteItems)
+        favoriteItems.push_back({{"item", cId(cItem.Stack.BaseId)}, {"hotkey", cItem.Hotkey}});
+    for (const auto& [cType, cData] : acRecord.Own.Globals)
+        globals[std::to_string(cType)] = cData.size();
+    std::vector<std::string> effectSpells, cooldownSpells;
+    for (const auto& cEffect : acRecord.Own.Effects)
+        effectSpells.push_back(cId(cEffect.Spell));
+    for (const auto& cCooldown : acRecord.Own.Cooldowns)
+        cooldownSpells.push_back(cId(cCooldown.Spell));
+    std::ranges::sort(effectSpells);
+    effectSpells.erase(std::unique(effectSpells.begin(), effectSpells.end()), effectSpells.end());
+    std::ranges::sort(cooldownSpells);
+    const nlohmann::json own = {{"present", acRecord.Own.Present}, {"favorite_items", favoriteItems}, {"globals", globals},
+                                {"damage", acRecord.Own.Damage}, {"effect_spells", effectSpells}, {"cooldown_spells", cooldownSpells},
+                                {"trainings", acRecord.Own.Trainings}, {"first_person", acRecord.Own.FirstPerson}};
     // Its player-made potions' recipes, by their session ids (crafted-potions.md).
     nlohmann::json recipes = nlohmann::json::array();
     for (const Recipe& cRecipe : acRecord.Recipes)
@@ -163,7 +181,7 @@ nlohmann::json Describe(const PlayerRecord& acRecord)
             {"perk_points", acRecord.PerkPoints}, {"perks", perks}, {"spells", spells}, {"skills", skills}, {"values", values},
             {"permanent_values", permanent}, {"items", items}, {"tints", tints}, {"weight", acRecord.Weight}, {"words", words},
             {"ingredient_effects", ingredients}, {"enchantments", enchantments}, {"knowledge_present", acRecord.Knowledge.Present},
-            {"system_quests", systemQuests}, {"recipes", recipes},
+            {"system_quests", systemQuests}, {"recipes", recipes}, {"own", own},
             // Where a kept character arrives (JoinBridge::ApplyPlayer; none: the save's player spot).
             {"cell", std::format("{:X}:{:X}", acRecord.Cell.ModId, acRecord.Cell.BaseId)},
             {"worldspace", std::format("{:X}:{:X}", acRecord.WorldSpace.ModId, acRecord.WorldSpace.BaseId)},

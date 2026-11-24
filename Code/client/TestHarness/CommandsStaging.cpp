@@ -1,6 +1,7 @@
 #include "Commands.h"
 #include "ConsoleOutput.h"
 #include "EngineCalls.h"
+#include "Harness.h"
 #include "RagdollWatch.h"
 #include "SwingWatch.h"
 
@@ -96,9 +97,14 @@ nlohmann::json Reset3DCommand(Harness&, const nlohmann::json& acRequest)
 
 // {"cmd": "freeze", "actor": id, "frozen": true}: freezes the actor in this game (EngineCalls::FreezeActor): a
 // scenario's target stands still, does not fight back and lets players pass through; false thaws it.
-nlohmann::json Freeze(Harness&, const nlohmann::json& acRequest)
+nlohmann::json Freeze(Harness& aHarness, const nlohmann::json& acRequest)
 {
-    return EngineCalls::FreezeActor(acRequest.value("actor", 0u), acRequest.value("frozen", true)) ? Ok() : Error("no such actor");
+    const uint32_t cActor = acRequest.value("actor", 0u);
+    const bool cFrozen = acRequest.value("frozen", true);
+    if (!EngineCalls::FreezeActor(cActor, cFrozen))
+        return Error("no such actor");
+    aHarness.Frozen.Set(cActor, cFrozen);
+    return Ok();
 }
 
 // {"cmd": "move_actor", "actor": id, "position": [x, y, z]}: brings the actor (loaded or not) to that spot in the
@@ -135,7 +141,10 @@ nlohmann::json BoardRidden(Harness&, const nlohmann::json& acRequest)
 // {"cmd": "activate_text", "ref": id}: the prompt the crosshair shows for it (EngineCalls::GetActivateText).
 nlohmann::json ActivateTextCommand(Harness&, const nlohmann::json& acRequest)
 {
-    return {{"ok", true}, {"text", EngineCalls::GetActivateText(acRequest.value("ref", 0u))}};
+    const auto cText = EngineCalls::GetActivateText(acRequest.value("ref", 0u));
+    if (!cText)
+        return {{"ok", false}, {"error", "not an actor with an NPC base here"}};
+    return {{"ok", true}, {"text", *cText}};
 }
 
 // {"cmd": "name_data", "ref": id}: its display name and ExtraTextDisplayData (EngineCalls::GetNameData).

@@ -58,6 +58,32 @@ read "" and the crosshair skips a nameless reference. `HookClearCachedName` keep
 `guest-mounts-bought-horse` (the guest gets on). New harness readouts `name_data` / probe `set_name`, verb `name_data`.
 Getting off that horse inside its shed does nothing: no room beside it, as in single player (`re/systems/mounts.md`).
 
+2026-11-23: **no crosshair prompt over another player** (`agent/no-talk-to-players`). Each game's crosshair offered
+"Talk" over the other player's character (and Pickpocket while sneaking, Search when dead, all leading nowhere). Our hook
+on `Actor::CanTalkToPlayer` (37469) answers no for another player's copy, so E starts no conversation, and
+`HookGetActivateText` (24716) gives it no prompt at all (`re/systems/dialogue.md`, "No talking to players"). ClientTests,
+GameTests, scenario `no-prompt-over-players`.
+
+2026-11-23: **a guest keeps its own favorites, damage, effects and cooldowns over a reload or rejoin**
+(`agent/favorites-audit`, bug 17). A guest loads the host's save and its character record goes on the save's player;
+what the record lacked stayed the host's: the host's spell favorites (save global 109), no item favorites (the
+inventory's `RemoveAllItems` drops every `ExtraHotkey`), no damage, no timed effects (blessings, potions), the host's
+power cooldowns, trainer count, misc stats and camera view. The record now carries them (`PlayerRecord::Own`,
+`PlayerSaveState`): item favorites as stacks with their keys, globals 0, 109 and 110 as the engine's own bytes,
+damage, timed effects recast with their elapsed time, cooldowns, trainings, first person. The guest's record also goes
+after its health changes or it casts. Read in IDA: [player-save-state.md](re/systems/player-save-state.md). Scenario
+`guest_keeps_own_state_on_reload`; GameTests "A guest keeps its own favorites, damage, effects, cooldowns, trainings
+and view over a host load and a rejoin"; ClientTests `[own-state]`.
+
+2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
+[actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after
+`stage` (golden-claw-guest, arvels-journal-guest-loots) lay 83-111 degrees and up to 582 units apart. `stage` freezes
+an NPC (kProcessMe off), and a frozen actor gets no graph update (41466): its death never got past `DeathAnim` on the
+host, its ragdoll drifted keyframed into the hill and never rested, so the guest's copy kept its own fall. On flat
+ground and thawed, the copy lies as the host's. The harness now thaws a frozen actor at its death (`FrozenActors`,
+ClientTests `[frozen-actors]`), and `stage` honors `frozen: false` for a placed NPC (`ref`). Scenario
+`frozen-npc-corpse-rests-as-host`. No GameTests flow: the fake engine has no harness freeze and no game code changed.
+
 2026-11-23: **a quest item a guest loots from a body or chest moves the host's quest on** (`agent/golden-claw-quest`).
 Playtest 2026-11-22, item 15: the guest looted the Golden Claw from Arvel and MS13 stayed on "retrieve the claw". The
 host's take for a guest removed the item to nowhere, which unbinds the item's quest alias script (read in IDA:

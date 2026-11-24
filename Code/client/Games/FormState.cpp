@@ -54,4 +54,39 @@ bool Load(TESForm& aForm, uint32_t aChangeFlags, const std::string& acData) noex
     pSaveLoad->EndLoading(cWasClear);
     return true;
 }
+
+bool SaveGlobal(uint32_t aType, std::string& aData) noexcept
+{
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    if (!pSaveLoad || pSaveLoad->IsSavingOrLoading())
+        return false;
+
+    using TSaveGlobal = bool(uint32_t, BGSSaveFormBuffer*);
+    POINTER_SKYRIMSE(TSaveGlobal, s_saveGlobal, 35639);
+    ScopedSaveLoadOverride networkIds;
+    BGSSaveFormBuffer buffer;
+    if (!s_saveGlobal(aType, &buffer))
+        return false;
+    aData.assign(buffer.buffer ? buffer.buffer : "", buffer.position);
+    return true;
+}
+
+bool LoadGlobal(uint32_t aType, const std::string& acData) noexcept
+{
+    BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    if (!pSaveLoad || pSaveLoad->IsSavingOrLoading())
+        return false;
+
+    using TLoadGlobal = bool(uint32_t, BGSLoadFormBuffer*);
+    POINTER_SKYRIMSE(TLoadGlobal, s_loadGlobal, 35642);
+    ScopedSaveLoadOverride networkIds;
+    BGSLoadFormBuffer buffer;
+    buffer.SetData(acData.data(), static_cast<uint32_t>(acData.size()));
+    buffer.version = BGSSaveLoadGame::CurrentVersion();
+    const bool cWasClear = pSaveLoad->BeginLoading();
+    const bool cLoaded = s_loadGlobal(aType, &buffer);
+    buffer.SetData(nullptr, 0);
+    pSaveLoad->EndLoading(cWasClear);
+    return cLoaded;
+}
 } // namespace FormState

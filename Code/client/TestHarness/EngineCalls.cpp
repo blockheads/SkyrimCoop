@@ -840,6 +840,14 @@ bool MoveActorHome(uint32_t aFormId) noexcept
     return (s_moveToMyEditorLocation.Get())(pActor, nullptr, false);
 }
 
+FrozenActors::Life ActorLife(uint32_t aFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor || pActor->IsDeleted())
+        return FrozenActors::Life::kGone;
+    return pActor->IsDead() ? FrozenActors::Life::kDead : FrozenActors::Life::kAlive;
+}
+
 bool CopyHoldsDoNothing(uint32_t aFormId) noexcept
 {
     Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
@@ -914,14 +922,14 @@ bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept
     return true;
 }
 
-std::string GetActivateText(uint32_t aRefId) noexcept
+std::optional<std::string> GetActivateText(uint32_t aRefId) noexcept
 {
     using TGetActivateText = bool(TESNPC*, TESObjectREFR*, BSString*);
     POINTER_SKYRIMSE(TGetActivateText, s_getActivateText, 24716); // TESNPC::GetActivateText, through our hook
     auto* pRef = Cast<Actor>(TESForm::GetById(aRefId));
     auto* pBase = pRef ? Cast<TESNPC>(pRef->baseForm) : nullptr;
     if (!pBase)
-        return {};
+        return std::nullopt;
     struct Text // BSString's layout, freed here: its own destructor is the engine's
     {
         char* data = nullptr;
@@ -981,16 +989,26 @@ bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept
     return pActor && pActor->SendAnimationEvent(&event);
 }
 
+namespace
+{
+// What freezing changed, to put back on thawing. Freezing again (once the actor has its 3D) adds the
+// controller it did not have yet.
+struct FrozenBefore
+{
+    bool Restrained;
+    std::optional<uint32_t> ControllerFlags;
+};
+std::unordered_map<uint32_t, FrozenBefore> s_frozen;
+} // namespace
+
+void ForgetFrozen(uint32_t aFormId) noexcept
+{
+    s_frozen.erase(aFormId);
+}
+
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
 {
-    // What freezing changed, to put back on thawing. Freezing again (once the actor has its 3D) adds the
-    // controller it did not have yet.
-    struct Before
-    {
-        bool Restrained;
-        std::optional<uint32_t> ControllerFlags;
-    };
-    static std::unordered_map<uint32_t, Before> s_frozen;
+    using Before = FrozenBefore;
     constexpr uint32_t cFrozen = bhkCharacterController::kNotPushable | bhkCharacterController::kNoCharacterCollisions;
     constexpr uint32_t cHits = bhkCharacterController::kRecordHits | bhkCharacterController::kHitDamage;
     using TActorCall = void(Actor*);

@@ -62,7 +62,6 @@ every other section needs the duo.
 
 - [A ragdolled copy holds its pose between updates](#a-ragdolled-copy-holds-its-pose-between-updates): small
 - [A script's reference added to a body is not on the guest's copy](#a-scripts-reference-added-to-a-body-is-not-on-the-guests-copy): small
-- [A killed NPC's body lies differently on the guest](#a-killed-npcs-body-lies-differently-on-the-guest): small
 - [Revive leaves the body wrong](#revive-leaves-the-body-wrong): medium
 
 **Physics**
@@ -480,18 +479,6 @@ All found nothing. Not traced: whether the guest's copy lacked the item, or the 
 Agent task: read the guest's copy's items after the call, then what raises an NPC's items part for it.
 
 Size: small. Needs: duo, then GameTests.
-
-### A killed NPC's body lies differently on the guest
-
-Arvel the Swift, killed on the host by the console (`39655.kill`) moments after `stage` placed him beside the
-players, came to rest facing 111 degrees apart on the two games, his head 113 units and pelvis 74 units apart, and
-stayed so (`golden-claw-guest`, 2026-11-23, 1 of 1: the run's end comparison, after its quest check passed). Seen
-again the same day: 582 units apart. The spot is a hillside and the bodies tumble down it, so check flat ground first.
-
-Agent task: find why a host NPC's death ragdoll rests elsewhere on the guest's copy: compare both games' ragdoll
-traces from the kill to the rest.
-
-Size: small. Needs: duo (`golden-claw-guest`), then GameTests.
 
 ### A ragdolled copy holds its pose between updates
 

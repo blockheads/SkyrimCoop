@@ -159,6 +159,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         return phase;
     }
     PlayerRecord Player;             // this game's player, as ReadPlayer reads it (but its items and place: the actor's)
+    // What the engine keeps of its player beside the character, saved and loaded with its save (favorites, damage,
+    // timed effects, cooldowns, trainings, view: player-save-state.md); a load brings the save's player's.
+    PlayerOwnState Own;
     bool RefusesSaves = false;       // Save_Impl's own refusals (combat, a menu)
     std::vector<std::string> Loaded; // the saves this game loaded, by name
     bool IsAtMainMenu() const noexcept override { return AtMainMenu; }

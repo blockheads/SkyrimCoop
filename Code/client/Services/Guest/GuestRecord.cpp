@@ -4,6 +4,8 @@
 #include <Events/PlayerProgressEvent.h>
 #include <Events/PlayerRenamedEvent.h>
 #include <Events/EquipmentChangeEvent.h>
+#include <Events/HealthChangeEvent.h>
+#include <Events/SpellCastEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/MenuEvent.h>
 #include <Events/SessionLeavingEvent.h>
@@ -24,6 +26,8 @@ GuestRecord::GuestRecord(World& aWorld, entt::dispatcher& aDispatcher, IJoinBrid
     Listen<PlayerProgressEvent, &GuestRecord::OnProgress>(m_connections, aDispatcher, this);
     Listen<NotifyPartyGold, &GuestRecord::OnPartyGold>(m_connections, aDispatcher, this);
     Listen<MenuEvent, &GuestRecord::OnMenu>(m_connections, aDispatcher, this);
+    Listen<HealthChangeEvent, &GuestRecord::OnHealth>(m_connections, aDispatcher, this);
+    Listen<SpellCastEvent, &GuestRecord::OnCast>(m_connections, aDispatcher, this);
     Listen<PlayerRenamedEvent, &GuestRecord::OnRenamed>(m_connections, aDispatcher, this);
     Listen<SessionLeavingEvent, &GuestRecord::OnLeaving>(m_connections, aDispatcher, this);
 }
@@ -32,6 +36,16 @@ void GuestRecord::OnLeaving(const SessionLeavingEvent&) noexcept
 {
     if (m_changed && !m_bridge.IsAtMainMenu())
         Send();
+}
+
+void GuestRecord::OnHealth(const HealthChangeEvent& acEvent) noexcept
+{
+    m_changed |= acEvent.HitteeId == kPlayerForm;
+}
+
+void GuestRecord::OnCast(const SpellCastEvent& acEvent) noexcept
+{
+    m_changed |= acEvent.CasterFormId == kPlayerForm;
 }
 
 // Perks, spells, training and books change through menus.

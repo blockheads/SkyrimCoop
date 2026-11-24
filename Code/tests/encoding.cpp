@@ -1454,6 +1454,13 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         record.Cell = GameId(0, 0x31D2E);
         record.WorldSpace = GameId(0, 0x3C);
         record.Position = {1024.5f, -2048.25f, 64.f};
+        record.Own.Present = true;
+        record.Own.FavoriteItems = {{sword, 3}};
+        record.Own.Globals[PlayerOwnState::kMagicFavorites] = std::string("\x04\x00\xCD\x7F\x00", 5);
+        record.Own.Damage = {-40.f, 0.f, -7.5f};
+        record.Own.Effects = {{GameId(0, 0xFB99A), 0, 30.f, 1440.f}};
+        record.Own.Cooldowns = {{GameId(0, 0xE40C8), 900.f}};
+        record.Own.Trainings = 2;
         roundTrip(request, RequestMessageFactory{});
     }
 

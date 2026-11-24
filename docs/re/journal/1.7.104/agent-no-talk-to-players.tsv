@@ -1,0 +1,26 @@
+time	op	id	rva	item
+2026-11-24T02:39:51Z	read	24716	0x3c1000	{"name": "TESNPC::GetActivateText"}
+2026-11-24T02:40:07Z	read	24715	0x3c05c0	{"name": "TESNPC::Activate"}
+2026-11-24T02:40:33Z	read	37469	0x686770	{"name": "Actor::CanTalkToPlayer"}
+2026-11-24T02:41:47Z	local	24716	0x3c1000	{"func_addr": "0x1403c1000", "old": "a2", "new": "target"}
+2026-11-24T02:41:47Z	local	24716	0x3c1000	{"func_addr": "0x1403c1000", "old": "a3", "new": "text"}
+2026-11-24T02:41:47Z	local	24716	0x3c1000	{"func_addr": "0x1403c1000", "old": "v5", "new": "hasText"}
+2026-11-24T02:41:47Z	local	24716	0x3c1000	{"func_addr": "0x1403c1000", "old": "v6", "new": "actor"}
+2026-11-24T02:41:47Z	local	24716	0x3c1000	{"func_addr": "0x1403c1000", "old": "v16", "new": "isDead"}
+2026-11-24T02:41:47Z	local	24716	0x3c1000	{"func_addr": "0x1403c1000", "old": "v17", "new": "deadAndEmpty"}
+2026-11-24T02:41:47Z	local	24716	0x3c1000	{"func_addr": "0x1403c1000", "old": "v18", "new": "offersAttack"}
+2026-11-24T02:41:47Z	local	24716	0x3c1000	{"func_addr": "0x1403c1000", "old": "v20", "new": "verb"}
+2026-11-24T02:41:47Z	local	24715	0x3c05c0	{"func_addr": "0x1403c05c0", "old": "a2", "new": "target"}
+2026-11-24T02:41:47Z	local	24715	0x3c05c0	{"func_addr": "0x1403c05c0", "old": "a3", "new": "activator"}
+2026-11-24T02:41:47Z	local	24715	0x3c05c0	{"func_addr": "0x1403c05c0", "old": "v8", "new": "activatorActor"}
+2026-11-24T02:41:47Z	local	24715	0x3c05c0	{"func_addr": "0x1403c05c0", "old": "v9", "new": "actor"}
+2026-11-24T02:41:57Z	comment		0x3c0d09	{"addr": "0x1403c0d09", "comment": "Talk branch: only for this game's player and Actor::CanTalkToPlayer (37469); false -> returns 1 with nothing done. Co-op: HookCanTalkToPlayer answers false for another player's copy (no talking to players)."}
+2026-11-24T02:41:57Z	comment		0x3c120e	{"addr": "0x1403c120e", "comment": "sAttack: the player has a (combat) target (40665) other than this live actor"}
+2026-11-24T02:41:57Z	comment		0x3c126b	{"addr": "0x1403c126b", "comment": "sSearch: a dead actor (vfunc 0x4C8 IsDead) with items"}
+2026-11-24T02:41:57Z	comment		0x3c12b1	{"addr": "0x1403c12b1", "comment": "sRide (sSteal if a crime) when Character::CanRide (38706) passes"}
+2026-11-24T02:41:57Z	comment		0x3c12fe	{"addr": "0x1403c12fe", "comment": "sPickpocket: player sneaking, race flag 0x800000 (allows pickpocket), not in Actor+0xE8 0x4000000; checked before Talk, independent of CanTalkToPlayer"}
+2026-11-24T02:41:57Z	comment		0x3c1330	{"addr": "0x1403c1330", "comment": "sTalk: the last choice; with CanTalkToPlayer false the actor gets no prompt at all (returns 0)"}
+2026-11-24T02:42:01Z	comment		0x3c120e	{"addr": "0x1403c120e", "comment": "sAttack: PlayerCharacter 40665 returns a ref other than this live actor (40665 not read)"}
+2026-11-24T04:12:22Z	read	40621	0x757a70	{"name": "PlayerCharacter::UpdateCrosshairs"}
+2026-11-24T04:12:32Z	comment		0x757cb0	{"addr": "0x140757cb0", "comment": "No prompt: GetActivateText false (or perk entry 74 set): empty text, HUD message +0x40 = 0, handle 0; the crosshair shows nothing for the ref. Co-op: HookGetActivateText returns false for another player's character."}
+2026-11-24T04:12:32Z	comment	24716	0x3c1000	{"addr": "0x1403c1000", "comment": "AddressLib ID 24716 TESNPC::GetActivateText(npc, ref, text) -> bool: false = no crosshair text (UpdateCrosshairs 40621). Order: commanded-by name, sAttack, sSearch (dead), sRide/sSteal (CanRide 38706), sPickpocket (sneaking, race 0x800000), sTalk (CanTalkToPlayer 37469). Co-op: HookGetActivateText (Actor.cpp) refuses another player's character, then offers Ride over a horse a party player drives."}
