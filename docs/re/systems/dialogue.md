@@ -571,5 +571,5 @@ So `HookCanTalkToPlayer` (`DialogueBridge.cpp`) answers false for another player
 (`IDialogueBridge::Filters::Talkable`, `DialogueService::IsOtherPlayer`: a `RemoteComponent` + `PlayerComponent` entity):
 no prompt and no talk, while search, pickpocket and ride keep their own branches, which come before the talk.
 Pressing E on the copy before the fix opened nothing and sent no ask (measured, the prisoner's copy in QASmoke); the
-prompt was the bug. GameTests "A player's character offers no Talk to the other players, on every game" (the fake's
+prompt was the bug. Measured after the fix: no prompt either way, and a sneaking guest still reads Pickpocket over the host's copy. GameTests "A player's character offers no Talk to the other players, on every game" (the fake's
 `CanTalkToPlayer`, `ActivateText`), scenario `players-not-talkable` (verb `expect_prompt_lacks`).
