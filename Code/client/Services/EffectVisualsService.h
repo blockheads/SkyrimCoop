@@ -5,6 +5,7 @@
 #include <Events/Listen.h>
 #include <NoCopyMove.h>
 #include <Structs/GameId.h>
+#include <Messages/Payloads.h>
 #include <Messages/RelayedMessages.h>
 
 class IActorBridge;
@@ -37,8 +38,12 @@ struct EffectVisualsService
 
     // The effects with visuals active on an actor of this game: what its copies show.
     [[nodiscard]] std::vector<GameId> ReadEffects(uint32_t aFormId) const noexcept;
+    // Its held (spell, effect) pairs as session ids, for its announcement.
+    [[nodiscard]] std::vector<struct Payloads::ActiveEffects::Held> ReadHeldIds(uint32_t aFormId) const noexcept;
 
 protected:
+    [[nodiscard]] std::vector<struct Payloads::ActiveEffects::Held> ToSessionHeld(const std::vector<OwnerEffects::Held>& acHeld) const noexcept;
+    [[nodiscard]] std::vector<OwnerEffects::Held> ToGameHeld(const std::vector<struct Payloads::ActiveEffects::Held>& acHeld) const noexcept;
     void OnEffectVisualsChange(const EffectVisualsChangeEvent& acEvent) noexcept;
     void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
     // A copy spawned here has its 3D: the visuals it was told to show before play now.

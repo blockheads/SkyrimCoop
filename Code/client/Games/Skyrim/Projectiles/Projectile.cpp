@@ -8,6 +8,7 @@
 #include <Actor.h>
 #include <Games/ActorExtension.h>
 #include <World.h>
+#include <TrapRules.h>
 #include <Combat/HitData.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Games/Skyrim/Forms/TESObjectCELL.h>
@@ -66,17 +67,11 @@ BSPointerHandle<Projectile>* Projectile::Launch(BSPointerHandle<Projectile>* apR
 
 BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Projectile::LaunchData& arData)
 {
-    // sync concentration spells through spell cast sync, the rest through projectile sync
-    if (arData.pSpell)
-    {
-        if (auto* pSpell = Cast<SpellItem>(arData.pSpell))
-        {
-            if (pSpell->eCastingType == MagicSystem::CastingType::CONCENTRATION)
-            {
-                return RealLaunch(apThis, arData);
-            }
-        }
-    }
+    // An actor's concentration spell goes by the cast sync (its copy casts it); the rest, an object's stream of flames
+    // included, by the launch.
+    const auto* pSpell = Cast<SpellItem>(arData.pSpell);
+    if (!TrapRules::SendsLaunch(pSpell && pSpell->eCastingType == MagicSystem::CastingType::CONCENTRATION, Cast<Actor>(arData.pShooter)))
+        return RealLaunch(apThis, arData);
 
     if (arData.pShooter)
     {
@@ -139,6 +134,22 @@ namespace
 {
 thread_local bool t_worldHit = false;
 
+thread_local bool t_worldImpact = false;
+
+// Projectile::Func190 (44204): a projectile hits a reference; its weapon's enchantment is cast in HandleRefImpact (44205)
+// by the hit actor's own instant caster. Shot by no actor, that effect is the world's.
+using TImpact = bool(Projectile*, void*);
+TImpact* RealImpact = nullptr;
+
+bool HookImpact(Projectile* apThis, void* apHit)
+{
+    const bool cBefore = t_worldImpact;
+    t_worldImpact = !Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hShooter));
+    const bool cResult = RealImpact(apThis, apHit);
+    t_worldImpact = cBefore;
+    return cResult;
+}
+
 std::atomic<uint32_t> s_relayedTarget{0}; // the actor the host's relayed hit is for (ProcessHit may run it later, queued)
 
 // TESObjectREFR::ProcessHit (38586): a hit with no actor aggressor is the world's, scoped around its DoDamage (37335).
@@ -159,6 +170,11 @@ bool Projectile::WorldHit() noexcept
     return t_worldHit;
 }
 
+bool Projectile::WorldImpact() noexcept
+{
+    return t_worldImpact;
+}
+
 void Projectile::RelayedHit(uint32_t aTargetFormId) noexcept
 {
     s_relayedTarget = aTargetFormId;
@@ -176,6 +192,7 @@ static Hooks::Initializer s_projectileHooks(
         const HookGate cGate(__FILE__);
         HOOK_ID(44108, &RealLaunch, HookLaunch);
         HOOK_ID(38586, &RealProcessHit, HookProcessHit);
+        HOOK_ID(44204, &RealImpact, HookImpact);
 
         VersionDbPtr<uint8_t> hookLoc(34452);
 

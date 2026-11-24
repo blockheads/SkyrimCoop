@@ -26,6 +26,13 @@ enum class Contact
     return aTarget == LocalPlayer ? Contact::AskHost : Contact::Drop;
 }
 
+// A launch raised for the others: all but an actor's concentration spell, which its copy casts (the cast sync). An
+// object's stream of flames goes by the launch, each puff its own (44108; flames_hurt_both: 117 a 7 s round).
+[[nodiscard]] constexpr bool SendsLaunch(bool aConcentration, bool aActorShooter) noexcept
+{
+    return !(aConcentration && aActorShooter);
+}
+
 // A contact's velocity and position, but not a stop's: ContactRemoved (26068) leaves them stack scratch.
 [[nodiscard]] constexpr bool CarriesVectors(uint32_t aType) noexcept
 {

@@ -54,6 +54,14 @@ TEST_CASE("A stop contact carries no vectors: its event leaves them stack scratc
     CHECK_FALSE(CarriesVectors(Payloads::TrapContact::kStop));
 }
 
+TEST_CASE("An actor's concentration spell is left to its copy's cast; an object's is sent like any shot", "[TrapRules]")
+{
+    CHECK_FALSE(SendsLaunch(true, true));
+    CHECK(SendsLaunch(true, false));
+    CHECK(SendsLaunch(false, true));
+    CHECK(SendsLaunch(false, false));
+}
+
 TEST_CASE("An animation repeated at once on an object with no 3D is sent once; a later repeat is sent", "[TrapRules]")
 {
     using namespace std::chrono_literals;

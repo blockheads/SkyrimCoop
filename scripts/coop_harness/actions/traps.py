@@ -72,7 +72,7 @@ class TrapActions:
         return {"contacts": seen, "health": {g: [round(v[0], 1), round(min(v), 1), round(v[-1], 1)] for g, v in health.items()}}
 
     def trap_rounds(ctx, who, at, away, rounds=4, seconds=6.0, health=1000, holder_at=None, gap=0.0, use=None, pull=None, walk_on=None):
-        """`walk_on` (a plate, hex): `who` runs onto it from `away` by real input instead of being put on `at`. `pull` (a lever, hex): the other player walks up and pulls it once `who` stands at `at`. `who` (host or guest) put on `at` (a trap's plate) and back to `away`, `rounds` times, with `health` points: the
+        """`walk_on` (a plate, hex): `who` walks onto it from `away` along the navmesh instead of being put on `at`. `pull` (a lever, hex): the other player walks up and pulls it once `who` stands at `at`. `who` (host or guest) put on `at` (a trap's plate) and back to `away`, `rounds` times, with `health` points: the
         hits it took each time (each loss of health between two looks)."""
         instance = "" if who == "host" else "client"
         other = "client" if instance == "" else ""
@@ -88,14 +88,15 @@ class TrapActions:
                 time.sleep(3.0)
                 ctx.console_on(instance, f"player.restoreav health {health}")
                 time.sleep(0.5)
-                if walk_on:
-                    ctx.steer_to(instance, walk_on, 15.0, sprint=False)
+                if walk_on:  # along the navmesh, as go_to: a line by input caught on the room (191-615 units short)
+                    ctx.reach(instance, walk_on, 60.0, False)  # on the plate, not at its centre
                 else:
                     ctx.put_player(instance, at, gap)
                 if holder_at:  # the other player holds the trap's trigger
                     ctx.put_player(other, holder_at)
                 since = {g: ctx.engine_events(g)[1] for g in ("", "client")}
                 last, hits = ctx.player_health(instance), []
+                samples = [last]  # health before, after the pull, and the lowest: a miss explains itself
                 if use:  # a lever: `who` walks up and pulls it, by real input
                     ctx.name_handle("trap_lever", {"host": int(use, 16), "guest": int(use, 16)})
                     ctx.use(instance, "trap_lever")
@@ -106,6 +107,7 @@ class TrapActions:
                 end = time.monotonic() + seconds
                 if use or pull:  # what landed meanwhile
                     now = ctx.player_health(instance)
+                    samples.append(now)
                     if now < last - 0.5:
                         hits.append(round(last - now, 1))
                     last = now
@@ -122,7 +124,8 @@ class TrapActions:
                 kinds = lambda g: [f"{e['target']:X}:{('start', 'stop', 'hit')[e['type']]}" for e in ctx.engine_events(g, since[g])[0]
                                    if e["kind"] == "trap_hit"]
                 place = (ctx.actor_place(instance, 0x14) or {}).get("position")
-                results.append({"hits": hits, "host": kinds("")[:12], "guest": kinds("client")[:12], "ended": place, "struck": {"host": struck(""), "guest": struck("client")}})
+                samples.append(min(samples + [ctx.player_health(instance)]))
+                results.append({"samples": samples, "hits": hits, "host": kinds("")[:12], "guest": kinds("client")[:12], "ended": place, "struck": {"host": struck(""), "guest": struck("client")}})
             ctx.put_player(instance, away)
         finally:
             ctx.console_on(instance, "player.modav healrate 0.7")

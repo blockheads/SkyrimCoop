@@ -74,6 +74,15 @@ explosion 43849 hits through 38586) is dropped: the host's verdict counts, once.
 through `DoTrap1` (37509 -> 38586) with no aggressor too, is exempt (`Projectile::RelayedHit`). Not measured on the
 catapult.
 
+A concentration spell an object casts (Morvunskar's flame jets, Flames 12FCD) is a stream of short projectiles
+(12FCF), each its own launch through 44108: 117 in a 7 s round, measured 2026-11-24. `HookLaunch` left every
+concentration launch to the cast sync, which only an actor's copy runs, so the guest saw none. Now only an actor's is left
+(`TrapRules::SendsLaunch`); an object's go out like any shot, and the guest relaunched all 117.
+
+Its weapon's enchantment is cast in `HandleRefImpact` (44205) by the hit actor's own instant caster on itself. With
+no actor shooter (`Projectile::WorldImpact`, scoped on 44204) that cast on a copy is the world's, sent to the owner
+with the copy as its caster, as the engine had it: a dart's poison is conditioned on its caster (traps.md).
+
 Outdoors the message carries the worldspace, and the cell goes as none when the engine made it (no plugin record:
 `ToSessionCell`); the others find the cell from the worldspace and the origin (`TravelService::CellAt`), as for actors.
 

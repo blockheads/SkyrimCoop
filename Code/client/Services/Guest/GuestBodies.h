@@ -34,6 +34,8 @@ struct GuestBodies final : BodyService::Keeper
     [[nodiscard]] bool Simulates(const BodyKey& acKey) const noexcept override { return m_authority.Is(acKey, kMe); }
 
 private:
+    // A trap's body: the host's game simulates it, this game never takes it (BodyGroups::IsTrapLayer).
+    [[nodiscard]] bool HostsOnly(const BodyKey& acKey) const noexcept;
     // This game's player's touches, grabs and lets go; the bodies taken into aTaken.
     void TakeHands(uint64_t aTick, std::map<BodyKey, BodyFrame>& aHeld, std::vector<BodyKey>& aTaken) noexcept;
     // Its player's ragdoll: its frames into aStates while it moves, its rest declared.

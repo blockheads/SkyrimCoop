@@ -25,6 +25,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
     spawn.Record = acAnnouncement.Record;
     spawn.PerksContent = acAnnouncement.PerksContent;
     spawn.EffectIds = acAnnouncement.EffectIds;
+    spawn.HeldEffects = acAnnouncement.HeldEffects;
     spawn.FaceTints = acAnnouncement.FaceTints;
     spawn.Weight = acAnnouncement.Weight;
     spawn.InitialActorValues = acAnnouncement.CurrentActorData.InitialActorValues;
@@ -56,9 +57,8 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Serialization::WriteString(aWriter, GraphState);
     Record.Serialize(aWriter);
     PerksContent.Serialize(aWriter);
-    Serialization::WriteVarInt(aWriter, EffectIds.size());
-    for (const auto& cEffectId : EffectIds)
-        cEffectId.Serialize(aWriter);
+    Payloads::ActiveEffects::WriteIds(aWriter, EffectIds);
+    Payloads::ActiveEffects::WriteHeld(aWriter, HeldEffects);
 }
 
 void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -93,8 +93,6 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     GraphState = Serialization::ReadString(aReader);
     Record.Deserialize(aReader);
     PerksContent.Deserialize(aReader);
-    EffectIds.clear();
-    const auto cEffects = Serialization::ReadVarInt(aReader);
-    for (uint64_t i = 0; i < cEffects && i < 256; ++i)
-        EffectIds.emplace_back().Deserialize(aReader);
+    Payloads::ActiveEffects::ReadIds(aReader, EffectIds);
+    Payloads::ActiveEffects::ReadHeld(aReader, HeldEffects);
 }

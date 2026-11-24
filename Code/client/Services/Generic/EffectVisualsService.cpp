@@ -68,6 +68,30 @@ std::vector<GameId> EffectVisualsService::ReadEffects(uint32_t aFormId) const no
     return effects;
 }
 
+std::vector<struct Payloads::ActiveEffects::Held> EffectVisualsService::ToSessionHeld(const std::vector<OwnerEffects::Held>& acHeld) const noexcept
+{
+    std::vector<struct Payloads::ActiveEffects::Held> held;
+    for (const auto& cHeld : acHeld)
+        if (const auto cEffect = ToSession(cHeld.Effect))
+            held.push_back({ToSession(cHeld.Spell).value_or(GameId{}), *cEffect});
+    return held;
+}
+
+std::vector<OwnerEffects::Held> EffectVisualsService::ToGameHeld(const std::vector<struct Payloads::ActiveEffects::Held>& acHeld) const noexcept
+{
+    std::vector<OwnerEffects::Held> held;
+    for (const auto& cHeld : acHeld)
+        if (const uint32_t cId = ToGame(cHeld.Effect))
+            held.push_back({ToGame(cHeld.Spell), cId});
+    std::ranges::sort(held);
+    return held;
+}
+
+std::vector<struct Payloads::ActiveEffects::Held> EffectVisualsService::ReadHeldIds(uint32_t aFormId) const noexcept
+{
+    return ToSessionHeld(ReadHeld(aFormId));
+}
+
 void EffectVisualsService::OnEffectVisualsChange(const EffectVisualsChangeEvent& acEvent) noexcept
 {
     if (!m_transport.IsConnected())
@@ -128,9 +152,7 @@ void EffectVisualsService::SendOwned(uint32_t aFormId, uint32_t aSessionId) noex
     for (const uint32_t cId : sent.first)
         if (const auto cEffect = ToSession(cId))
             request.EffectIds.push_back(*cEffect);
-    for (const auto& cHeld : sent.second)
-        if (const auto cEffect = ToSession(cHeld.Effect))
-            request.Held.push_back({ToSession(cHeld.Spell).value_or(GameId{}), *cEffect});
+    request.Held = ToSessionHeld(sent.second);
     spdlog::debug("Active effects of {:X} (session id {:X}): {} with visuals, {} held", aFormId, aSessionId, request.EffectIds.size(),
                   request.Held.size());
     m_transport.Send(request);
@@ -140,15 +162,10 @@ void EffectVisualsService::SendOwned(uint32_t aFormId, uint32_t aSessionId) noex
 void EffectVisualsService::OnNotifyActiveEffects(const NotifyActiveEffects& acMessage) noexcept
 {
     std::vector<uint32_t> wanted;
-    std::vector<OwnerEffects::Held> held;
     for (const auto& cEffectId : acMessage.EffectIds)
         if (const uint32_t cId = ToGame(cEffectId))
             wanted.push_back(cId);
-    for (const auto& cHeld : acMessage.Held)
-        if (const uint32_t cId = ToGame(cHeld.Effect))
-            held.push_back({ToGame(cHeld.Spell), cId});
-    std::ranges::sort(held);
-    m_shown[acMessage.SessionId].Held = std::move(held);
+    m_shown[acMessage.SessionId].Held = ToGameHeld(acMessage.Held);
     Show(acMessage.SessionId, std::move(wanted));
 }
 
@@ -164,9 +181,11 @@ void EffectVisualsService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessag
     for (const auto& cEffectId : acMessage.EffectIds)
         if (const uint32_t cId = ToGame(cEffectId))
             wanted.push_back(cId);
-    if (wanted.empty())
+    auto held = ToGameHeld(acMessage.HeldEffects);
+    if (wanted.empty() && held.empty())
         return;
     m_shown[acMessage.SessionId].EffectIds = std::move(wanted);
+    m_shown[acMessage.SessionId].Held = std::move(held);
     // After every handler of the spawn: CharacterService makes the copy in its own.
     m_world.GetRunner().Queue([this, cSessionId = acMessage.SessionId]() { PlayMissing(cSessionId); });
 }

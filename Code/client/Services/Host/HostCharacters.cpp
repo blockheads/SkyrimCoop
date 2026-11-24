@@ -341,7 +341,10 @@ void HostCharacters::OnActiveEffects(const RequestActiveEffects& acRequest, Conn
     if (it == m_characters.end() || it->second.Owner != aSender)
         return;
     if (auto& record = it->second.PlayerRecord)
+    {
         record->EffectIds = acRequest.EffectIds;
+        record->HeldEffects = acRequest.Held;
+    }
     NotifyActiveEffects notify;
     static_cast<Payloads::ActiveEffects&>(notify) = acRequest;
     m_players.SendToOthers(notify, aSender);

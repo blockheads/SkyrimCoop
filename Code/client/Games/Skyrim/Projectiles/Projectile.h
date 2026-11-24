@@ -62,6 +62,8 @@ struct Projectile : TESObjectREFR
     static BSPointerHandle<Projectile>* Launch(BSPointerHandle<Projectile>* apResult, LaunchData& arData) noexcept;
     // A hit with no actor aggressor (an object's projectile, a causeless explosion) on this thread (38586).
     [[nodiscard]] static bool WorldHit() noexcept;
+    // An object's projectile (no actor shooter) hitting a reference on this thread (44204): its enchantment's cast.
+    [[nodiscard]] static bool WorldImpact() noexcept;
     // The next hit on this actor is the host's verdict applied here (a relayed trap hit): not this game's own world hit.
     static void RelayedHit(uint32_t aTargetFormId) noexcept;
     // Its damage lands (DoDamage 37335, after ProcessHit's queued run): true once, for that actor.

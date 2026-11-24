@@ -86,12 +86,26 @@ stayed on the host, so the guest saw no flames. The addressed vtable's sink also
 Spell.Cast's first argument), so the caster read as the spell. Both fixed (ClientTests `code_reach_tests`); on the duo the
 guest's game then casts the flames from its own jets, its copy of the host burning for nothing (copies mirror).
 
+## A trap's bodies stay the host's (measured, 2026-11-24)
+
+WarehouseTraps' mace 2464D: 14 bodies, its base, pin and 11 links on layer 10 (props), its head `Mace01` on 14; the
+falling rocks one body on 14. By the physics authority's touch rule the guest's player took the swinging mace, and the
+host's only followed it: contacts with the copy at no speed, no hit (`warehouse_traps_hurt_both` failed four runs). A
+reference with any body on a trap's layer is now the host's, all of it: the guest never takes one (`GuestBodies`), the
+host refuses a claim (`HostBodies::MayClaim`). Then the host judged the hit in four of four tries and the scenario's
+trap steps passed. Its rests on the guest still show small pose drift (a rock's node turned, rope links up to 20 units).
+
 ## Darts carry their damage (read in IDA and measured, 2026-11-23)
 
 - Read in IDA: a relaunched dart is built by `Projectile::Constructor` (44100) from the launch data's weapon and ammo
   (`weaponDamage` +0x1A0 = `ActorValueOwner` 26410 over them, temper 1 for an object shooter), which
   `HitData::InitializeArrowData` (44002) reads.
 - Measured on the duo: both games logged weapon 142E3 with the same damage, about 9 health a hit on either game.
+- Corrected 2026-11-24: the strike itself is 0.8 (the host's own player too); the 10-13 a round is the dart's poison,
+  enchantment 101932 / effect 101931 (−3 health a second for 8 s). `HandleRefImpact` (44205) casts it by the hit
+  actor's own instant caster on itself. Sent to a guest with no caster, the guest's engine refused it (its add check
+  34525 judges the effect's conditions with the caster as reference); sent with its caster, the hit copy, which is the
+  guest's own player there, it lands as on the host (`Projectile::WorldImpact`, GameTests "A dart an object fires").
 
 ## Explosions: their hit, poison and line of sight (read and measured, 2026-11-23)
 

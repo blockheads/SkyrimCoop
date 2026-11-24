@@ -199,6 +199,7 @@ bool ReadBody(const bhkWorldObject& acBody, BodyRead& aRead) noexcept
     aRead.AngularVelocity = cVector(pBody->angularVelocity);
     aRead.Dynamic = pBody->IsDynamic();
     aRead.Active = pBody->IsActive();
+    aRead.Layer = pBody->CollisionFilterInfo() & 0x7F;
     return true;
 }
 

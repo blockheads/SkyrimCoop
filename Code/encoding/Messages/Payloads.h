@@ -356,6 +356,12 @@ struct ActiveEffects
     std::vector<GameId> EffectIds{}; // at most kMaxEffects each
     std::vector<Held> Held{};
     static constexpr size_t kMaxEffects = 256;
+
+    // The two lists, also carried by a character's announcement and spawn.
+    static void WriteIds(Wire::Buffer::Writer& aWriter, const std::vector<GameId>& acIds) noexcept;
+    static void ReadIds(Wire::Buffer::Reader& aReader, std::vector<GameId>& aIds) noexcept;
+    static void WriteHeld(Wire::Buffer::Writer& aWriter, const std::vector<struct Held>& acHeld) noexcept;
+    static void ReadHeld(Wire::Buffer::Reader& aReader, std::vector<struct Held>& aHeld) noexcept;
 };
 
 // An effect's visuals that play once (no FX Persist) just started on one of the owner's actors: its copies play them.

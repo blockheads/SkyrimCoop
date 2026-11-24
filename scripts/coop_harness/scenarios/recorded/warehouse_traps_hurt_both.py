@@ -18,8 +18,8 @@ def run(ctx):
         ctx.expect_trap_hurts(who='guest', at=[1536, -1472, -128], away=[1536, -1250, -128], rounds=1, seconds=6, health=100)
         ctx.expect_trap_hurts(who='host', at=[3328, -480, -128], away=[3100, -380, -128], rounds=1, seconds=5, health=100)
         ctx.expect_trap_hurts(who='guest', at=[5500, -650, -128], away=[5300, -700, -128], rounds=1, seconds=6, health=100, pull='78EE0')
-        # The poison gas (plate FDA6B): its explosion went off under a guest's copy's feet (2026-11-23).
-        ctx.expect_trap_hurts(who='guest', at=[-1121, -2566, 266], away=[-1121, -2420, 266], rounds=2, seconds=5, health=300)
-        ctx.expect_trap_hurts(who='host', at=[-1121, -2566, 266], away=[-1121, -2420, 266], rounds=2, seconds=5, health=300)
+        # The poison gas (plate FDA6B), walked onto: its explosion went off under a guest's copy's feet (2026-11-23).
+        ctx.expect_trap_hurts(who='guest', at=[-1121, -2566, 266], away=[-1121, -2420, 266], rounds=2, seconds=5, health=300, walk_on='FDA6B')
+        ctx.expect_trap_hurts(who='host', at=[-1121, -2566, 266], away=[-1121, -2420, 266], rounds=2, seconds=5, health=300, walk_on='FDA6B')
     finally:
         ctx.unstage()

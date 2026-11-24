@@ -2240,3 +2240,31 @@ SCENARIO("The host's bucket lies on what holds it only there: the guest's, woken
     CHECK(furthestOff < 5.f);
     CHECK(glm::distance(guestBucket.Flight.Body.Position, cOn) < 2.f);
 }
+
+// WarehouseTraps' mace (2026-11-24): its chain is props (layer 10), its head a trap's (14). A guest's player it swung
+// into took it by Fiedler's touch rule, so the host's trap only followed the guest's and judged no hit. A trap's
+// bodies are the host's (BodyGroups::IsTrapLayer), all of them.
+SCENARIO("A guest's player hits a swinging trap: it stays the host's to simulate", "[physics][traps]")
+{
+    const BodyKey cChain{.Object = GameId(0, 0x0002464D), .Index = 0};
+    const BodyKey cHead{.Object = GameId(0, 0x0002464D), .Index = 1};
+    Party party(1, [&](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        FakeEngine::Body chain;
+        chain.Layer = 10;
+        chain.Flight.Body.Position = {200.f, 200.f, kTable};
+        aEngine.Bodies[cChain] = chain;
+        FakeEngine::Body head;
+        head.Layer = 14;
+        head.Flight.Body.Position = {200.f, 230.f, kTable};
+        aEngine.Bodies[cHead] = head;
+    });
+    auto& guestChain = BodyOf(party, party.Guest(), cChain);
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(cChain, {0.f, 120.f, 0.f}); });
+    party.Until([&] { return guestChain.Drives > 2; }, "the guest's chain follows the host's swing");
+    const size_t cDrives = guestChain.Drives;
+    party.As(party.Guest(), [&] { Party::Engine(party.Guest()).Swing(cChain, {160.f, 0.f, 0.f}); });
+    party.Until([&] { return guestChain.Drives > cDrives + 5; }, "the guest's chain still follows the host's");
+    CHECK_FALSE(Moves(party.Guest(), cChain));
+    CHECK_FALSE(Moves(party.Guest(), cHead));
+}

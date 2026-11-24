@@ -469,7 +469,7 @@ nlohmann::json WorldStateReply(const std::vector<EngineCalls::ReferenceState>& a
             for (const auto& cBody : cRef.Collision)
                 bodies.push_back({{"node", cBody.Node}, {"in_world", cBody.InWorld}, {"position", cBody.Position}, {"motion", cBody.Motion},
                                   {"awake", cBody.Awake}, {"rotation", cBody.Rotation}, {"velocity", cBody.Velocity},
-                                  {"flags", cBody.Flags}, {"offset", cBody.Offset}});
+                                  {"flags", cBody.Flags}, {"offset", cBody.Offset}, {"layer", cBody.Layer}});
             ref["collision"] = bodies;
         }
         if (!cRef.Graph.empty())

@@ -30,6 +30,7 @@ struct RagdollBody
     float Velocity[3]{};
     uint16_t Flags{};   // its bhkNiCollisionObject's
     bool Offset{};      // a bhkRigidBodyT: placed apart from its node
+    uint32_t Layer{};   // its collision layer (14 trap, 16 cloud trap)
     bool HasBone{};     // the node it moves (TESHavokUtilities::FindCollidableObject 15870): what a person sees
     float Bone[3]{};
 };

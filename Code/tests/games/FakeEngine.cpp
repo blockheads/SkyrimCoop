@@ -3379,7 +3379,7 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
     {
         // A world cast (no actor casts it: a trap's object, a hazard's or explosion's 0) on another player's copy goes to
         // that player's game (IsWorldCast).
-        const bool cWorldCast = !Actors.contains(aCaster) && IsOtherPlayer(aTarget) && World::Get().GetHostService().IsHosting();
+        const bool cWorldCast = (!Actors.contains(aCaster) || InWorldImpact) && IsOtherPlayer(aTarget) && World::Get().GetHostService().IsHosting();
         if (!cOurCast && !cWorldCast)
             return;
         AddTargetEvent event;
@@ -3394,9 +3394,9 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
     }
     // A guest's own copy of a world cast on its player applies nothing: the host's verdict does (AppliesWorldEffect).
     if (!TrapRules::AppliesWorldEffect(HoldSession != 0, aTarget == kPlayer ? HitRules::Party::LocalPlayer : HitRules::Party::Local,
-                                       !Actors.contains(aCaster), false))
+                                       !Actors.contains(aCaster) || InWorldImpact, false))
         return;
-    if (EffectHolds(aEffect, aDualCast))
+    if (EffectHolds(aEffect, aDualCast, aCaster))
         StartsEffect({aTarget, aCaster, aSpell, aEffect});
 }
 
@@ -3428,11 +3428,13 @@ bool FakeEngine::ActorHasEffect(uint32_t aActor, uint32_t aEffect) const
     return std::ranges::any_of(Effects, [&](const Effect& acEffect) { return acEffect.Target == aActor && acEffect.EffectId == aEffect; });
 }
 
-bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept
+bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast, uint32_t aCaster) const noexcept
 {
     const auto cCondition = EffectConditions.find(aEffect);
     if (cCondition == EffectConditions.end())
         return true;
+    if (cCondition->second.OnCaster)
+        return aCaster != 0;
     if (cCondition->second.DualCast)
         return aDualCast;
     const auto cGlobal = Globals.find(cCondition->second.Global);
@@ -3717,14 +3719,20 @@ void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile
     event.SpellID = aSpell;
     event.ProjectileBaseID = aProjectile;
     event.ParentCellID = Actors.at(aShooter).Cell;
-    World::Get().GetRunner().Trigger(event);
+    if (TrapRules::SendsLaunch(Spell(aSpell).Concentration, true)) // HookLaunch (44108)
+        World::Get().GetRunner().Trigger(event);
     Shots.push_back({aShooter, aSpell, acOrigin});
 }
 
-void FakeEngine::ObjectProjectileHits(uint32_t aTarget, float aDamage)
+void FakeEngine::ObjectProjectileHits(uint32_t aTarget, float aDamage, uint32_t aEnchantment, uint32_t aEffect, float aMagnitude)
 {
     // Projectile::Func190 (44204) with no actor shooter: a HitData with no aggressor (ProcessHit 38586), a world hit.
     TakesDamage(aTarget, 0, aDamage, false, true);
+    if (!aEnchantment)
+        return;
+    InWorldImpact = true;
+    SpellHits(aTarget, aTarget, aEnchantment, aEffect, aMagnitude);
+    InWorldImpact = false;
 }
 
 void FakeEngine::ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProjectile, uint32_t aCell,
@@ -3739,7 +3747,8 @@ void FakeEngine::ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProje
     event.ParentCellID = aCell;
     event.FromObject = true;
     event.Explodes = aExplodes;
-    World::Get().GetRunner().Trigger(event);
+    if (TrapRules::SendsLaunch(Spell(aSpell).Concentration, false)) // HookLaunch (44108)
+        World::Get().GetRunner().Trigger(event);
     Shots.push_back({aObject, aSpell, acOrigin});
 }
 

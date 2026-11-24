@@ -495,6 +495,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // and so does a host body far from the host's player, so PhysicsBodies writes it too (guest-cast-moves-host).
     struct Body
     {
+        uint32_t Layer = 4; // COL_LAYER: clutter; a trap's 14 (IsTrap)
         bool NeedsKnock{};
         bool RestBusy{};
         size_t RestAttempts{};
@@ -595,6 +596,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // IBodyBridge: the bodies other games own, played here as Skyrim's would be (BodyBridge).
     void SetReferences(std::function<uint32_t(const GameId& acId)>, std::function<std::optional<GameId>(uint32_t)>) noexcept override {}
     std::optional<BodyRead> Read(const BodyKey& acKey) noexcept override;
+    // One of its reference's bodies is on a trap's layer (BodyBridge, ReferenceBodies::IsTrap).
+    bool IsTrap(const BodyKey& acKey) noexcept override;
     // Havok's pairs (its collision entries): the bodies that share one of Islands with each of acKeys.
     std::vector<std::pair<BodyKey, BodyKey>> ReadTouching(const std::vector<BodyKey>& acKeys) noexcept override;
     // Its pose now (a test's read).
@@ -1255,7 +1258,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                              {0x0001C789, {.Damage = true}},                         // Firebolt
                                              {kUnrelentingForce3, {.Damage = true}},
                                              {kConjureFamiliar, {.Summons = kFamiliar}},
-                                             {kRattles, {}}};
+                                             {kRattles, {}},
+                                             {kDartPoison, {}}};
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
     struct Cast
     {
@@ -1280,23 +1284,28 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     };
     std::vector<Effect> Effects;
     // A magic effect's own conditions (EffectSetting +0x190), checked when the engine adds it (34525, through 11085):
-    // here one global equal to a value, or a dual cast (the caster's kCheckAddEffectDualCast, set by 34525 meanwhile).
+    // here one global equal to a value, a dual cast (the caster's kCheckAddEffectDualCast, set by 34525 meanwhile), or a
+    // condition run on the caster (11085's reference), which fails with none.
     // Rattles under Survival Mode's override: one effect for each mode.
     struct EffectCondition
     {
         uint32_t Global = 0;
         float Equals = 0.f;
         bool DualCast = false;
+        bool OnCaster = false;
     };
     static constexpr uint32_t kDualCastEffect = 0x00099999; // stands for an effect whose conditions ask for a dual cast
+    static constexpr uint32_t kDartPoison = 0x00101932;       // a dart trap's weapon enchantment
+    static constexpr uint32_t kDartPoisonEffect = 0x00101931; // its damage-health effect, conditioned on its caster
     static constexpr uint32_t kRattles = 0x0010A24E;            // TrapDiseaseRattles
     static constexpr uint32_t kRattlesEffect = 0x0010A255;      // TrapDisDamageStaminaRegen, StaminaRate -2.5
     static constexpr uint32_t kSurvivalRattlesEffect = 0xFE001981; // Survival_TrapDisDamageStaminaRegen, -2.5 more
     static constexpr uint32_t kSurvivalModeEnabled = 0xFE001826;  // the global Survival_ModeEnabled
     std::map<uint32_t, EffectCondition> EffectConditions{{kRattlesEffect, {kSurvivalModeEnabled, 0.f}},
                                                          {kSurvivalRattlesEffect, {kSurvivalModeEnabled, 1.f}},
-                                                         {kDualCastEffect, {.DualCast = true}}};
-    bool EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept;
+                                                         {kDualCastEffect, {.DualCast = true}},
+                                                         {kDartPoisonEffect, {.OnCaster = true}}};
+    bool EffectHolds(uint32_t aEffect, bool aDualCast, uint32_t aCaster) const noexcept;
     std::vector<std::pair<uint32_t, uint32_t>> Reactions; // victim, attacker (Actor::ReactToAttack)
     // The actor casts by itself: our hook raises it unless the caster is a copy (HookSpellCast).
     void CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget = 0);
@@ -1334,7 +1343,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                               bool aApplyStaminaPerkBonus) noexcept override
     {
         // The engine's own add check (34525) runs for a relayed effect too: its conditions decide.
-        if (!EffectHolds(aEffectFormId, aIsDualCasting))
+        if (!EffectHolds(aEffectFormId, aIsDualCasting, aCasterFormId))
             return;
         StartsEffect({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
         StartsAshPileEffect(aTargetFormId, aEffectFormId);
@@ -1550,8 +1559,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // a dart port's Weapon.Fire (aWeapon). aExplodes: its base makes an explosion on impact (BGSProjectile +0xB0).
     void ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProjectile, uint32_t aCell, const glm::vec3& acOrigin,
                       bool aExplodes = false, uint32_t aWeapon = 0);
-    // That projectile hits an actor here (44204): its HitData has no aggressor.
-    void ObjectProjectileHits(uint32_t aTarget, float aDamage);
+    // That projectile hits an actor here (44204): its HitData has no aggressor. Its weapon's enchantment (aEnchantment,
+    // aEffect) is cast by the hit actor's own caster on itself (HandleRefImpact 44205).
+    void ObjectProjectileHits(uint32_t aTarget, float aDamage, uint32_t aEnchantment = 0, uint32_t aEffect = 0,
+                              float aMagnitude = 0.f);
+    bool InWorldImpact = false; // within that impact (Projectile::WorldImpact)
     struct Shot
     {
         uint32_t Shooter = 0;

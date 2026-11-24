@@ -717,3 +717,11 @@ TEST_CASE("A lying copy's ragdoll, played, meets the world and what this game mo
     CHECK(Decide(cCopy, cInfo(13, 0)) == Meet::kEngine);                  // terrain
     CHECK(Decide(cCopy, cInfo(32, 9)) == Meet::kEngine);                  // this game's own corpse: the layers say
 }
+
+TEST_CASE("A trap's layers are the trap's and the cloud trap's, nothing loose", "[physics][traps]")
+{
+    CHECK(BodyGroups::IsTrapLayer(14));
+    CHECK(BodyGroups::IsTrapLayer(16));
+    CHECK_FALSE(BodyGroups::IsTrapLayer(10)); // a mace's chain: props
+    CHECK_FALSE(BodyGroups::IsTrapLayer(4));
+}

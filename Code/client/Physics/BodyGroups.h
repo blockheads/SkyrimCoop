@@ -22,6 +22,13 @@ constexpr bool IsLoose(uint32_t aLayer) noexcept
     return aLayer == 4 || aLayer == 5 || aLayer == 10 || aLayer == 19 || aLayer == 20 || aLayer == 29;
 }
 
+// A trap's layers (COL_LAYER 14 trap, 16 cloud trap): the only bodies whose contacts make trap hits (80510). A
+// reference with one is a trap's, all its bodies the host's (its hits are judged where its script runs; traps.md).
+constexpr bool IsTrapLayer(uint32_t aLayer) noexcept
+{
+    return aLayer == 14 || aLayer == 16;
+}
+
 // Whether a body this game starts to move gets the moving group now: it changes what the body meets only against a
 // played one (Decide), and writing it makes Havok redo the body's agents (77794), dropping its contacts for a step.
 constexpr bool WritesMoving(bool aAnyPlayed) noexcept

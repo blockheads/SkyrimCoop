@@ -215,11 +215,23 @@ SCENARIO("A dart an object fires flies on every other game, once, with no shoote
         const float cBefore = Health(guest, FakeEngine::kPlayer);
         party.As(party.Host(), [&] { host.ObjectProjectileHits(PlayerCopy(host, 0), 9.f); });
         party.Until([&] { return Health(guest, FakeEngine::kPlayer) <= cBefore - 9.f; }, "the guest's player takes the dart's hit");
+        // Its poison, cast by the hit copy on itself (44205), runs on the guest's player with that player as its caster:
+        // its conditions read the caster (darts_hurt_puller: sent with none, the guest's engine refused it).
+        party.As(party.Host(), [&] {
+            host.ObjectProjectileHits(PlayerCopy(host, 0), 0.8f, FakeEngine::kDartPoison, FakeEngine::kDartPoisonEffect, 3.f);
+        });
+        party.Until([&] { return guest.ActorHasEffect(FakeEngine::kPlayer, FakeEngine::kDartPoisonEffect); }, "the guest's player is poisoned");
         // The guest's own relaunch of an exploding shot (a catapult's) hits its player too: dropped, the host's counts.
         const float cAfter = Health(guest, FakeEngine::kPlayer);
         party.As(party.Guest(0), [&] { guest.ObjectProjectileHits(FakeEngine::kPlayer, 30.f); });
         Settle(party, 2);
         CHECK(Health(guest, FakeEngine::kPlayer) == Approx(cAfter));
+    }
+    WHEN("the host's flame jet streams a concentration spell (Morvunskar's, Flames)")
+    {
+        for (int i = 0; i < 3; ++i)
+            party.As(party.Host(), [&] { host.ObjectShoots(kDarts, 0x00012FCD, 0x00012FCF, kSmoke, {10.f, 20.f, 30.f}); });
+        party.Until([&] { return guest.Shots.size() == 3 && other.Shots.size() == 3; }, "every puff flies on both guests");
     }
     WHEN("a guest's engine fires one of its own (its player's Storm Call)")
     {
@@ -227,4 +239,31 @@ SCENARIO("A dart an object fires flies on every other game, once, with no shoote
         party.Until([&] { return host.Shots.size() == 1 && other.Shots.size() == 1; }, "the host and the other guest fire it");
         CHECK(guest.Shots.size() == 1); // its own
     }
+}
+
+// A copy made after its owner's effect started (review of #129): the effect predates the join, and only a change would
+// have sent it. The spawn carries the held effects, and the host's record keeps them for later joiners.
+SCENARIO("A copy made after its owner's effect started answers with it", "[traps][effects]")
+{
+    static constexpr uint32_t kPoisonSpell = 0x000A0370;
+    constexpr uint32_t kPoison = 0x0009F28F;
+    Party party(2, [](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        aEngine.SpellForms[kPoisonSpell] = {};
+    }, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& first = Party::Engine(party.Guest(0));
+    FakeEngine& second = Party::Engine(party.Guest(1));
+    party.As(party.Host(), [&] { host.StartsEffect({FakeEngine::kPlayer, 0, kPoisonSpell, kPoison}); });
+
+    party.Join(party.Guest(0));
+    party.Until([&] { return PlayerCopy(first) != 0; }, "the first guest has the host's player");
+    party.Until([&] { return first.ActorHasEffect(PlayerCopy(first), kPoison); }, "its copy of the host's player is poisoned");
+    party.As(party.Guest(0), [&] { first.StartsEffect({FakeEngine::kPlayer, 0, kPoisonSpell, kPoison}); });
+    party.Until([&] { return PlayerCopy(host) && host.ActorHasEffect(PlayerCopy(host), kPoison); }, "the host's copy of the first guest is poisoned");
+
+    party.Join(party.Guest(1));
+    party.Until([&] { return PlayerCopies(second).size() == 2; }, "the second guest has both other players");
+    for (const uint32_t cCopy : PlayerCopies(second))
+        CHECK(second.ActorHasEffect(cCopy, kPoison));
 }

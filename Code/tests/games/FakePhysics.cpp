@@ -2,6 +2,7 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+#include <Physics/BodyGroups.h>
 #include <Physics/BodyPrediction.h>
 #include <Systems/CopyStep.h>
 #include "FakeDialogue.h"
@@ -619,6 +620,13 @@ void StepBody(FakeEngine::Body& aBody, uint64_t aTick, bool aByFrame = false)
     }
 }
 } // namespace
+
+bool FakeEngine::IsTrap(const BodyKey& acKey) noexcept
+{
+    return !acKey.Actor && std::ranges::any_of(Bodies, [&](const auto& acBody) {
+        return !acBody.first.Actor && acBody.first.Object == acKey.Object && BodyGroups::IsTrapLayer(acBody.second.Layer);
+    });
+}
 
 uint32_t FakeEngine::ReferenceOf(const BodyKey& acKey) noexcept
 {

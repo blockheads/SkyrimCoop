@@ -54,7 +54,7 @@ bool HostBodies::IsGuest(uint32_t aPlayer) const noexcept
 bool HostBodies::MayClaim(const BodyKey& acKey, ConnectionId_t aSender) const noexcept
 {
     if (!acKey.Actor)
-        return true;
+        return !(m_game.IsTrapBody && m_game.IsTrapBody(acKey));
     const ConnectionId_t cOwner = m_characters.OwnerOf(acKey.Actor);
     return cOwner == aSender || (cOwner == m_players.Host() && m_game.IsDead && m_game.IsDead(acKey.Actor));
 }

@@ -95,7 +95,6 @@ every other section needs the duo.
 
 - [After the host dies](#after-the-host-dies): small, the lock order inversion left
 - [A guest's horse in a trap](#a-guests-horse-in-a-trap): small, no duo first
-- [A late copy answers no effects](#a-late-copy-answers-no-effects): small, no duo first
 
 **Found by the playthrough flow**
 
@@ -847,22 +846,6 @@ Size: small. Needs: no duo first (GameTests), the duo to confirm.
   is `Local`, so `TrapRules::OfContact` drops its contact; on the host it is a `Copy`, so `OfHit` drops the script's
   hit, and `HostAuthority::OnTrapHit` accepts only player targets. `trap_rules_tests` currently expects the drop.
   - Start: `TrapRules.h` (`OfContact`, `OfHit`), `HostAuthority::OnTrapContact` / `OnTrapHit` (owner checks).
-
-### A late copy answers no effects
-
-Agent task: carry the owner's held effects in a copy's spawn and the host's cached record, as the visuals already are.
-
-Size: small. Needs: no duo first (GameTests: an effect that predates the copy), the duo to confirm.
-
-- **A copy made after its owner's effect started answers "no" to it** (review of PR #129, 2026-11-24, read): only
-  `NotifyActiveEffects` carries `Held`; the spawn (`NotifyCharacterSpawn::EffectIds`) and the host's record carry the
-  visuals only, so a guest joining already poisoned, or a copy spawned later, answers no until the owner's effects change.
-
-## Found by the playthrough flow
-
-From `riverwood-day-one` (`docs/design/playthrough-flows.md`), runs of 2026-11-05: each was seen at every run that
-reached it. Its summaries are in `build/coop-test/flows/<time>-riverwood-day-one/summary.md`; `--from` a step's
-checkpoint replays it in under a minute.
 
 ### The host's copy after a door
 

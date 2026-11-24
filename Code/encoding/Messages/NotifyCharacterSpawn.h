@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Message.h"
+#include "Payloads.h"
 #include <Structs/Perks.h>
 #include <Structs/RecordPart.h>
 #include <Structs/GameId.h>
@@ -34,7 +35,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     {
         return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
                FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer &&
-               CommanderId == acRhs.CommanderId && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
+               CommanderId == acRhs.CommanderId && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && HeldEffects == acRhs.HeldEffects && GetOpcode() == acRhs.GetOpcode();
     }
 
     uint32_t SessionId{};
@@ -53,6 +54,8 @@ struct NotifyCharacterSpawn final : NotifyMessage
     Perks PerksContent;
     // The effects showing on it, for the copy to play from the start (EffectVisualsService).
     std::vector<GameId> EffectIds{};
+    // The effects it holds, (spell, effect): the copy answers scripts and conditions with them (OwnerEffects).
+    std::vector<struct Payloads::ActiveEffects::Held> HeldEffects{};
     Tints FaceTints{};
     float Weight{50.f}; // the base's (TESNPC weight): the engine saves it with the actor, not in AppearanceBuffer
     ActorValues InitialActorValues{};

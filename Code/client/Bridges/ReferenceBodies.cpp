@@ -1,6 +1,7 @@
 #include <Bridges/ReferenceBodies.h>
 
 #include <Actor.h>
+#include <Physics/BodyGroups.h>
 #include <NetImmerse/NiNode.h>
 #include <TESObjectREFR.h>
 
@@ -35,6 +36,14 @@ BodyFrame FrameOf(const BodyRead& acRead, uint8_t aIndex) noexcept
 {
     return {.Key = {.Index = aIndex}, .Position = acRead.Position, .Rotation = acRead.Rotation, .LinearVelocity = acRead.LinearVelocity,
             .AngularVelocity = acRead.AngularVelocity};
+}
+
+bool IsTrap(TESObjectREFR& aObject) noexcept
+{
+    return std::ranges::any_of(Of(aObject), [](const bhkNiCollisionObject* apCollision) {
+        BodyRead read;
+        return apCollision->body && ReadBody(*apCollision->body, read) && BodyGroups::IsTrapLayer(read.Layer);
+    });
 }
 
 std::vector<BodyFrame> ReadFrames(TESObjectREFR& aObject) noexcept

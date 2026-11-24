@@ -189,7 +189,7 @@ crash (an NPC's face template walk on the background loader, 15678) is open in [
 `docs/design/traps.md`, `docs/re/systems/traps.md`). The host runs a trap's script; a guest's player's touch goes to it
 (`TrapContactRequest`), its hit back to that guest (`NotifyTrapHit`, `DoTrap1` there); the host's far traps keep their
 graphs running (their scripts waited on clips); a guest plays the host's animations in order once its graph takes them;
-darts an object fires reach every guest; an object's `Spell.Cast` shows on every game. Scenarios `spike_wall_hurts_both`,
+darts an object fires reach every guest, their poison on the guest's player as the host's (its caster kept); an object's `Spell.Cast` shows on every game, a concentration stream (flame jets) included; a copy made later answers with its owner's held effects. Scenarios `spike_wall_hurts_both`,
 `scythes_hurt_both`, `darts_hurt_puller`, `flames_hurt_both`, `warehouse_traps_hurt_both` (fire plate, rocks, mace, logs). A tripped tripwire is broken on the guest too (its destroyed flag in the `kEnabled` row).
 The world's harm is the host's verdict, shown on every game: everything an object shoots goes out with no shooter, of
 any kind (one path with Storm Call's bolts), a world cast or world hit (no actor) on a guest's copy goes to its game,

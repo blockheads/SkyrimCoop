@@ -17,6 +17,7 @@ class BodyBridge final : public IBodyBridge
 public:
     void SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf, std::function<std::optional<GameId>(uint32_t aFormId)> aIdOf) noexcept override;
     [[nodiscard]] std::optional<BodyRead> Read(const BodyKey& acKey) noexcept override;
+    [[nodiscard]] bool IsTrap(const BodyKey& acKey) noexcept override;
     [[nodiscard]] std::vector<std::pair<BodyKey, BodyKey>> ReadTouching(const std::vector<BodyKey>& acKeys) noexcept override;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept override;
     bool Glide(const BodyPose& acRest) noexcept override;

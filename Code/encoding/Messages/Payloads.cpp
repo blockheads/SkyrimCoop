@@ -452,36 +452,54 @@ void Subtitle::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Force = Serialization::ReadBool(aReader);
 }
 
+void ActiveEffects::WriteIds(Wire::Buffer::Writer& aWriter, const std::vector<GameId>& acIds) noexcept
+{
+    const size_t cCount = std::min(acIds.size(), kMaxEffects);
+    Serialization::WriteVarInt(aWriter, cCount);
+    for (size_t i = 0; i < cCount; ++i)
+        acIds[i].Serialize(aWriter);
+}
+
+void ActiveEffects::ReadIds(Wire::Buffer::Reader& aReader, std::vector<GameId>& aIds) noexcept
+{
+    aIds.assign(std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects), GameId{});
+    for (auto& id : aIds)
+        id.Deserialize(aReader);
+}
+
+void ActiveEffects::WriteHeld(Wire::Buffer::Writer& aWriter, const std::vector<struct Held>& acHeld) noexcept
+{
+    const size_t cCount = std::min(acHeld.size(), kMaxEffects);
+    Serialization::WriteVarInt(aWriter, cCount);
+    for (size_t i = 0; i < cCount; ++i)
+    {
+        acHeld[i].Spell.Serialize(aWriter);
+        acHeld[i].Effect.Serialize(aWriter);
+    }
+}
+
+void ActiveEffects::ReadHeld(Wire::Buffer::Reader& aReader, std::vector<struct Held>& aHeld) noexcept
+{
+    aHeld.assign(std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects), {});
+    for (auto& held : aHeld)
+    {
+        held.Spell.Deserialize(aReader);
+        held.Effect.Deserialize(aReader);
+    }
+}
+
 void ActiveEffects::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
-    const size_t cEffects = std::min(EffectIds.size(), kMaxEffects);
-    Serialization::WriteVarInt(aWriter, cEffects);
-    for (size_t i = 0; i < cEffects; ++i)
-        EffectIds[i].Serialize(aWriter);
-    const size_t cHeld = std::min(Held.size(), kMaxEffects);
-    Serialization::WriteVarInt(aWriter, cHeld);
-    for (size_t i = 0; i < cHeld; ++i)
-    {
-        Held[i].Spell.Serialize(aWriter);
-        Held[i].Effect.Serialize(aWriter);
-    }
+    WriteIds(aWriter, EffectIds);
+    WriteHeld(aWriter, Held);
 }
 
 void ActiveEffects::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    const auto cCount = std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects);
-    EffectIds.assign(cCount, GameId{});
-    for (auto& effectId : EffectIds)
-        effectId.Deserialize(aReader);
-    const auto cHeld = std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects);
-    Held.assign(cHeld, {});
-    for (auto& held : Held)
-    {
-        held.Spell.Deserialize(aReader);
-        held.Effect.Deserialize(aReader);
-    }
+    ReadIds(aReader, EffectIds);
+    ReadHeld(aReader, Held);
 }
 
 void EffectFlash::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

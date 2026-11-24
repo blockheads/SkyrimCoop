@@ -165,6 +165,7 @@ RestPlacer (pure, tick in; one for references and ragdolls):
 | a rest is a flag | glide, one awake step, island sleep | 61518, 60850: no contacts until a step; a pile sleeps whole |
 | every cube streamed | bodies seen awake, plus hints | a cell holds thousands that never move |
 | all bodies collide everywhere | played bodies pass loose ones nobody moves (`BodyGroups`) | correcting a wrong knock costs a rest placement |
+| any cube a player touches is theirs | a trap's bodies are the host's, every one of its reference's (`BodyGroups::IsTrapLayer`: a body on layer 14 or 16) | trap hits come from those layers' contacts only (80510), judged where the trap's script runs: a guest that took WarehouseTraps' mace (head 14, chain 10) left the host's following, its hit never judged (2026-11-24) |
 
 Kept as they are: `BodyGroups` and the filter hook (78553), a copy's capsule pushing nothing (79133), the node repair,
 `HavokStepFix`, the saved move row for cell loads, a ragdoll's rest as its record part for later spawns.

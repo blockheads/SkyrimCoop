@@ -239,6 +239,15 @@ void BodyBridge::RememberMotion(const BodyKey& acKey, const Found& acBody) noexc
         m_motions.try_emplace(acKey, acBody.pBody->referencedObject->motionType);
 }
 
+bool BodyBridge::IsTrap(const BodyKey& acKey) noexcept
+{
+    if (acKey.Actor)
+        return false;
+    const uint32_t cFormId = m_formIdOf ? m_formIdOf(acKey.Object) : (acKey.Object.ModId == ObjectChange::kCreatedModId ? 0 : ToGame(acKey.Object));
+    auto* pObject = cFormId ? Cast<TESObjectREFR>(TESForm::GetById(cFormId)) : nullptr;
+    return pObject && ReferenceBodies::IsTrap(*pObject);
+}
+
 std::optional<BodyRead> BodyBridge::Read(const BodyKey& acKey) noexcept
 {
     BodyRead read;

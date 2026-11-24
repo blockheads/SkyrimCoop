@@ -24,6 +24,7 @@
 #include <Combat/HitOwnership.h>
 #include <TrapRules.h>
 #include <Games/OwnerEffects.h>
+#include <Projectiles/Projectile.h>
 #include <Utils.h>
 #include <Forms/EffectSetting.h>
 #include <Services/HostService.h>
@@ -178,7 +179,9 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
     // this hook). Copies never apply effects themselves; they show the owner's resulting state.
     if (pTargetActorEx->IsCopy())
     {
-        const bool cWorldCast = IsWorldCast(pTargetActor, pCasterActor);
+        // An object's projectile's enchantment: the hit actor casts it on itself (44205), the world's all the same.
+        const bool cImpact = Projectile::WorldImpact();
+        const bool cWorldCast = IsWorldCast(pTargetActor, cImpact ? nullptr : pCasterActor);
 
         // Someone else's actor hit by someone else's spell, or by nothing of ours: their games
         // handle it.
@@ -196,13 +199,14 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
         // attacker's feedback (CombatService shows the target's health bar).
         if (arData.ShouldSync())
             World::Get().GetRunner().Trigger(addTargetEvent);
-        if (pCasterActor && !IsFriendly(arData.pSpell))
+        if (pCasterActor && !cImpact && !IsFriendly(arData.pSpell))
             World::Get().GetRunner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
         return false;
     }
 
     // On a guest, its own copy of a world cast (no actor casts it): the host's game decides and asks.
-    if (!TrapRules::AppliesWorldEffect(GuestNpcs::Session() != 0, HitRules::PartyOf(pTargetActor), pCasterActor == nullptr, GuestScripts::NativeGuest() == 0x14))
+    if (!TrapRules::AppliesWorldEffect(GuestNpcs::Session() != 0, HitRules::PartyOf(pTargetActor), pCasterActor == nullptr || Projectile::WorldImpact(),
+                                       GuestScripts::NativeGuest() == 0x14))
         return false;
 
     // Our actor. A replayed spell from someone else's character also lands here, but its caster's
