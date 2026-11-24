@@ -211,6 +211,10 @@ struct Session
     std::map<std::pair<GameId, std::string>, int32_t> PartyItems;
     std::vector<std::pair<uint32_t, CrimeRequest>> Crimes;
     std::function<void(uint32_t, const CrimeRequest&)> CrimeJudge;
+    // What the host's game moved for a guest's container transfer (HostGame::TransferContainer); none: what was asked.
+    std::function<Inventory::Entry(const ContainerTransferRequest&)> Transferred;
+    // Items' form types for the host's game (any other: a weapon, 41).
+    std::unordered_map<GameId, uint8_t> FormTypes;
 
     std::vector<NotifyCharacterSpawn> Spawns;                // the host's own actors in its game
     std::unordered_map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
@@ -324,8 +328,11 @@ private:
             return items;
         };
         game.ItemName = [](const GameId&) { return std::string("Iron Sword"); };
-        // A host chest gives or takes what was asked.
-        game.TransferContainer = [](const ContainerTransferRequest& acRequest, uint32_t) { return acRequest.Item; };
+        game.ItemFormType = [this](const GameId& acItem) { const auto it = FormTypes.find(acItem); return it != FormTypes.end() ? it->second : uint8_t(41); };
+        // A host chest gives or takes what was asked, unless a test says what moved.
+        game.TransferContainer = [this](const ContainerTransferRequest& acRequest, uint32_t) {
+            return Transferred ? Transferred(acRequest) : acRequest.Item;
+        };
         game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) {
             Crimes.emplace_back(aActor, aCrime);
             if (CrimeJudge) CrimeJudge(aActor, aCrime);

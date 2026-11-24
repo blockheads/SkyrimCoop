@@ -519,12 +519,14 @@ void Payloads::PartyItem::SerializePayload(Wire::Buffer::Writer& aWriter) const 
 {
     Item.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, static_cast<uint32_t>(Shown));
+    Serialization::WriteVarInt(aWriter, static_cast<uint32_t>(Converted));
 }
 
 void Payloads::PartyItem::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Item.Deserialize(aReader);
     Shown = static_cast<int32_t>(static_cast<uint32_t>(Serialization::ReadVarInt(aReader)));
+    Converted = static_cast<int32_t>(static_cast<uint32_t>(Serialization::ReadVarInt(aReader)));
 }
 
 void Payloads::PartyItems::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
