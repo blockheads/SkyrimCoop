@@ -1239,6 +1239,7 @@ void HookAddInventoryItem(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDa
 
         InventoryChangeEvent event(apThis->formID, std::move(item));
         event.StoryGiven = GuestScripts::StoryGiving();
+        event.AliasHeld = apExtraData && apExtraData->Contains(ExtraDataType::AliasInstanceArray);
         World::Get().GetRunner().Trigger(std::move(event));
     }
 

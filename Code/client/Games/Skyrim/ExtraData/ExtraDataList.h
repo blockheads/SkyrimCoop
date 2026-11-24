@@ -34,7 +34,8 @@ struct ExtraDataList
     void SetCount(uint16_t aCount) noexcept;
     // A player's name for the item (ExtraTextDisplayData, custom), as CommonLib's SetOverrideName; none over a quest's
     // or a message's name.
-    void SetCustomName(const char* acpName, bool aOverQuest = false) noexcept;
+    // False when a quest's or message's name keeps it.
+    bool SetCustomName(const char* acpName, bool aOverQuest = false) noexcept;
     // Who owns the item or reference (ExtraOwnership: an NPC or a faction), as ExtraDataList::SetOwnerForm (11609).
     void SetOwner(TESForm* apOwner) noexcept;
 
@@ -52,3 +53,5 @@ struct ExtraDataList
     // A reader/writer lock in 1.6.1170 (it was handled as a spin lock, which strands the engine).
     mutable BSReadWriteLock lock{};
 };
+
+static_assert(offsetof(ExtraDataList, lock) == 0x18); // BSReadWriteLock at +0x18 (11590, 11591)

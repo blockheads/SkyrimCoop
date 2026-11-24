@@ -10,7 +10,7 @@ quest's reward, the console), the purse changes by that much and every player ca
 ```text
 any game: a player's gold changes (our AddInventoryItem / RemoveItem hooks: InventoryChangeEvent)
   -> RequestInventoryChanges (InventoryService, as for any item) -> the host
-the host (HostPurse, before HostAuthority's item relay):
+the host (HostPartyItems, before HostAuthority's item relay):
   Gold001 on a player's character? (else: an item, relayed as before)
     a guest may change only its own player's (the host any: its scripts on a guest's copy, rule 2)
     the host's own player's change: already in its gold
@@ -51,8 +51,8 @@ for a purse sent with no change; a host script's change on a guest's character n
 ## Spending in chat
 
 The user, 2026-10-30: everyone hears when the party's gold goes. When a player's gold drops, the host's
-`HostPurse` sends every game a system chat line naming that player, with a phrase picked at random from the user's
-list (`HostPurse::cSpendWords`): "Lydia tax-evaded 40 gold". A gain says nothing. Chat shows system lines (any line
+`HostPartyItems` sends every game a system chat line naming that player, with a phrase picked at random from the user's
+list (`HostPartyItems::cSpendWords`): "Lydia tax-evaded 40 gold". A gain says nothing. Chat shows system lines (any line
 the game writes, not one a player typed) in light gold (`chat.rcss`).
 
 ## Tests

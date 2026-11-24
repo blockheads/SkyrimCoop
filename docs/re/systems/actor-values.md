@@ -24,6 +24,23 @@ Rate (38460): `max × StaminaRate% × fCombatStaminaRegenRateMult (in combat) ×
 38603 quotient is +inf, but 39536 caps it (`fStaminaRegenDelayMax`): a zero rate stops regeneration
 only while it lasts. `Actor::Resurrect` (37321) restores only health.
 
+### The combat multiplier and copies (1.7.104, read in IDA 2026-11-23)
+
+38460 multiplies by the combat setting (`fCombatStaminaRegenRateMult` 0.35, `fCombatMagickaRegenRateMult`, actor
+value 134 `CombatHealthRegenMultiply` for health) only when `IsInCombat` (vfunc 0xE3: `Actor::IsInCombat` 38562, a
+combat controller; `PlayerCharacter::IsInCombat` 41024, its own flag) says yes, at call `+0x1F6`; for health not when the race has `kRegenHPInCombat` (RACE_DATA
+flags 1<<19, CommonLib's name). Health asks it once
+more at `+0xBF`: an essential (`Actor::IsEssential` 37228, boolFlags 1<<18, or protected 1<<19) non-player not in
+combat adds `fEssentialNonCombatHealRateBonus`.
+
+A copy has no combat controller, and `HookIsInCombat` answered its owner's state only to conditions and plugins
+([actor-ai-and-copies.md](actor-ai-and-copies.md#combat-state-and-its-readers-2026-10-20)): a copy of a fighting
+NPC or player showed the out-of-combat rate (draugr 4.0 against 1.4, the host's player 5.0 against 1.75, measured at
+the end of `scythes_hurt_both`). Since 2026-11-23 both call sites get the owner's answer (`CopyCombat`'s site table).
+38460 never touches the controller. A copy regenerates nothing (below), so only readers of the rate saw it: the
+snapshot, a plugin, and 38603's delay. 38460's other engine caller, 44908 (combat AI, read in IDA), is reached only
+from `Actor::UpdateCombat` (38565), which needs a combat controller: a copy never runs it.
+
 The snapshot's `values.stamina_regen` reads all five (delay, damaged, rate, sprinting, bow_zoomed:
 `Diagnostics::EngineReads::GetStaminaRegen`), in bug reports and the harness.
 

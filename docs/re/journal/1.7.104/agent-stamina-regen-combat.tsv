@@ -1,0 +1,24 @@
+time	op	id	rva	item
+2026-11-24T01:45:46Z	read	38460	0x6c4960	{"name": "Actor::GetActorValueRegenRate"}
+2026-11-24T01:45:55Z	read	38562	0x6c9850	{"name": "Actor::IsInCombat"}
+2026-11-24T01:46:01Z	read	41024	0x76b0c0	{"name": "PlayerCharacter::IsInCombat"}
+2026-11-24T01:46:16Z	read		0x6c4a10	{"name": "Actor::GetActorValueRegenRate"}
+2026-11-24T01:46:16Z	read		0x6c4b60	{"name": "Actor::GetActorValueRegenRate"}
+2026-11-24T01:46:20Z	read		0x6c4b40	{"name": "Actor::GetActorValueRegenRate"}
+2026-11-24T01:46:22Z	read	44908	0x829f30	{"name": "sub_140829F30"}
+2026-11-24T01:46:22Z	read	38452	0x6c4620	{"name": "Actor::UpdateStaminaRegen"}
+2026-11-24T01:46:50Z	read	38556	0x6c90b0	{"name": "Actor::GetCombatState"}
+2026-11-24T01:47:05Z	read	37228	0x674000	{"name": "Character::sub_37228"}
+2026-11-24T01:47:11Z	name	37228	0x674000	{"addr": "0x140674000", "name": "Actor::IsEssential"}
+2026-11-24T01:47:11Z	data			{"old": "dword_1420A1348", "new": "fCombatStaminaRegenRateMult_value"}
+2026-11-24T01:47:11Z	data			{"old": "dword_1420A1330", "new": "fCombatMagickaRegenRateMult_value"}
+2026-11-24T01:47:11Z	data			{"old": "dword_1420A1000", "new": "fEssentialNonCombatHealRateBonus_value"}
+2026-11-24T01:47:11Z	data			{"old": "dword_1420A1360", "new": "fEssentialDownCombatHealthRegenMult_value"}
+2026-11-24T01:47:11Z	data			{"old": "dword_1420A13C0", "new": "fBleedoutRate_value"}
+2026-11-24T01:47:16Z	comment	37228	0x674000	{"addr": "0x140674000", "comment": "AddressLib ID 37228\n(actor, orProtected): boolFlags kEssential (1<<18), or kProtected (1<<19) when the argument is true."}
+2026-11-24T01:47:16Z	comment	38460	0x6c4960	{"addr": "0x1406c4960", "comment": "AddressLib ID 38460\nFrom 1.6.1170 (instruction offsets require review): (actor, avId) -> per-second regen for health 24 (HealRate, combat mult 134, fCombatHealthRegenRateMult...), magicka 25, stamina 26\nRead 1.7.104 (stamina-regen-combat): rate = max x Rate% (29 stamina, 28 magicka, 27 health), times the combat mult (fCombatStaminaRegenRateMult / fCombatMagickaRegenRateMult / AV 134 CombatHealthRegenMultiply) only if IsInCombat (vfunc 0xE3, 38562) says yes, perk entries, then x RateMult% (157/156). Essential non-player NPCs not in combat add fEssentialNonCombatHealRateBonus to health. Two IsInCombat calls: +0xBF (health bonus), +0x1F6 (the combat mult)."}
+2026-11-24T01:47:16Z	comment		0x6c4a1f	{"addr": "0x1406c4a1f", "comment": "IsInCombat (38562): not in combat, essential, not the player -> fEssentialNonCombatHealRateBonus. Copies get their owner's answer here (CopyAiState)."}
+2026-11-24T01:47:16Z	comment		0x6c4b56	{"addr": "0x1406c4b56", "comment": "IsInCombat (38562): in combat -> times the combat regen mult. Copies get their owner's answer here (CopyAiState)."}
+2026-11-24T02:18:17Z	read	38563	0x6c9870	{"name": "Actor::EngagingInCombat"}
+2026-11-24T02:18:38Z	comment	44908	0x829f30	{"addr": "0x140829F30", "comment": "AddressLib ID 44908\nCombat AI (stamina-regen-combat, read 1.7.104): reached only from Actor::UpdateCombat (38565) through 0x140560820 -> 0x140824260 -> 0x1408283A0; for av 64/82 or others, looks up a per-av entry and, when missing, reads GetActorValueRegenRate (38460) of the actor at +0x20. Needs a combat controller, so a copy never runs it."}
+2026-11-24T02:18:38Z	comment		0x6c4b66	{"addr": "0x1406c4b66", "comment": "Health: skip the combat mult when the race's kRegenHPInCombat (RACE_DATA flags 1<<19, race +0x108; CommonLib name) is set."}

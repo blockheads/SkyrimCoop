@@ -755,6 +755,10 @@ meh321 where they have one, ours otherwise.
     state only to the condition functions (21576 and 21740, by return address: Address Library ID plus offset) and to
     plugins (callers outside the game's image); every engine caller gets the copy's own answer (no controller: no).
     Papyrus `IsInCombat` (54945) and `GetCombatState` (54679) tail-jump from the VM's call and get the copy's own.
+  - **The regen rate (2026-11-23, read in IDA 1.7.104):** `Actor::GetActorValueRegenRate` (38460) asks `IsInCombat`
+    twice and never reads `+0x160`: so it gets the owner's answer too. Before, a copy of an NPC or player in combat
+    showed the out-of-combat rate (stamina 5.0 against the owner's 1.75: `fCombatStaminaRegenRateMult` 0.35).
+    Details: [actor-values.md](actor-values.md#the-combat-multiplier-and-copies-1.7.104-read-in-ida-2026-11-23).
 - **A player's own combat flag:** `PlayerCharacter::IsInCombat` (41024) reads `+0xBE3` bit 0x20.
   `PlayerCharacter::UpdateInCombat` (41238, ours) sets it each update when 41261 (ours,
   `CombatManager::CountGroupsTargetingPlayer`) counts a combat group targeting the player (the members in

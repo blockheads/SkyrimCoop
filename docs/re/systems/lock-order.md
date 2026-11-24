@@ -22,6 +22,26 @@ into another's entry) is a critical log and `lock_order.unmeasured_hooks`, which
 `[ours]` names the frame that tagged it (`ours from backtrace #NN`): a hook missing from the list shows there, which
 measuring cannot catch (`HookNativeCalled`, 2026-11-20).
 
+## A lock freed and used again (2026-11-23)
+
+Pairs are kept by the two locks' addresses. An extra data list is freed and allocated again all the time, so a pair seen
+on a dead list read as the pair of the new list at its address: `alias-item-guest-drops` and `party-item-moves-host`
+reported the boot's quest alias fill (`TESQuest` 25083 under `coc`, a created reference's list copied into a container's)
+against a drop much later (a new reference's list), both the engine's copies of extra data, which lock source then
+destination (`ExtraDataList__MoveExtrasFrom` 11591 `0x14015A2F0`, `ExtraDataList__CopyExtrasFrom` 11590 `0x14015A0B0`, read in IDA).
+Each lock now has a generation in the pair's key (`LockOrderHistory::Key`), bumped after `ExtraDataList__Destroy`
+(11572, which the thunk 11584 and the deleting destructor 418612 call): a list at a reused address starts with no pairs.
+Generations are kept by the lock's own address (`LockGenerations`), so destroying one list never moves another live
+lock's (review of PR #118: a shared slot had erased a live lock's history).
+Other objects holding locks are not tracked (none seen this way). ClientTests `[locks]`.
+
+What that left (measured the same day, the report now naming each side's stretches): a quest's own reference (never
+freed) picked up and later dropped copies its list into the inventory's and back, both in our update but on different
+worker threads (436 and 440). Our update is one job a frame, finished before the next starts (above), so two of its
+orders never overlap: `KeptApartByFrame` now keeps our update against our update apart too, and `StretchOverlap` checks
+the claim each run (a second thread entering our update while one is inside turns `stretches_overlapped` true, and
+nothing is kept apart for the rest of the run). `alias-item-guest-drops` and `party-item-moves-host` pass.
+
 ## Orders the frame keeps apart
 
 A report needs two threads, not two threads at once. `BSReadWriteLock` spins with no timeout, so a real overlap of an inversion would hang for good; whether one
