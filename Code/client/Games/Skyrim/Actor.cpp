@@ -86,6 +86,7 @@
 #include <Havok/hkbStateMachine.h>
 #include <Havok/hkbBehaviorGraph.h>
 #include <Forms/BGSOutfit.h>
+#include <Games/ScriptEquips.h>
 #include <Forms/TESObjectARMO.h>
 
 #include <ModCompat/BehaviorVar.h>
@@ -1591,6 +1592,22 @@ static void ReportAdd(const Actor& acActor, const TESBoundObject& acItem, ExtraD
     World::Get().GetRunner().Trigger(std::move(event));
 }
 
+// Papyrus Actor.EquipItem (54661): an item the actor lacks is added past AddInventoryItem (16053), reported here.
+using TScriptEquipItem = void(void*, uint32_t, Actor*, TESForm*, bool, bool);
+static TScriptEquipItem* RealScriptEquipItem = nullptr;
+
+static void HookScriptEquipItem(void* apVm, uint32_t aStackId, Actor* apThis, TESForm* apItem, bool aPreventRemoval, bool aSilent)
+{
+    const int64_t cBefore = apThis && apItem ? apThis->GetItemCountInInventory(apItem) : 1;
+    RealScriptEquipItem(apVm, aStackId, apThis, apItem, aPreventRemoval, aSilent);
+    if (cBefore > 0 || ScopedInventoryOverride::IsOverriden())
+        return;
+    const int64_t cAfter = apThis->GetItemCountInInventory(apItem);
+    if (auto event = ScriptEquips::Arrival(apThis->formID, ItemId(apItem->formID).value_or(GameId{}), static_cast<int32_t>(cBefore),
+                                           static_cast<int32_t>(cAfter), GuestScripts::StoryCalling()))
+        World::Get().GetRunner().Trigger(std::move(*event));
+}
+
 void HookAddInventoryItem(Actor* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
 {
     ReportAdd(*apThis, *apItem, apExtraData, aCount);
@@ -2120,6 +2137,7 @@ static Hooks::Initializer s_actorHooks(
 
         HOOK_ID(37356, &RealApplyMovement, HookApplyMovement);
         HOOK_ID(37322, &RealResetInventory, HookResetInventory);
+        HOOK_ID(54661, &RealScriptEquipItem, HookScriptEquipItem);
         HOOK_ID(37347, &RealUpdateAI, HookUpdateAI);
         // Every actor's AI runs through it: a lock order there is the engine's unless a copy's runs (UpdateCopyAI).
         LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookUpdateAI));

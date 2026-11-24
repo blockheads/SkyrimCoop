@@ -95,6 +95,28 @@ TEST_CASE("The host's own change of a party stack is in its inventory already, i
     CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).at(0)->ChatMessage == "The party received Iron Sword");
 }
 
+TEST_CASE("The story dressing the host's player: every game's player wears its copy", "[HostAuthority][PartyItems]")
+{
+    Session session;
+    const auto cPlayers = Players(session);
+    auto dressed = Sword(cPlayers.at(kHost), 1, true);
+    dressed.StoryGiven = dressed.Wear = true;
+    session.PartyItems[{kSword, "[P] Iron Sword"}] = 1;
+    session.Receive(kHost, dressed);
+    for (const ConnectionId_t cGame : {kHost, kPeer, kOtherPeer})
+    {
+        REQUIRE(Heard(session, cGame));
+        CHECK(Heard(session, cGame)->Wear);
+    }
+
+    SECTION("a later change of it is no new dressing")
+    {
+        session.Outbox.clear();
+        session.Receive(kHost, Sword(cPlayers.at(kHost), -1));
+        CHECK_FALSE(Heard(session, kPeer)->Wear);
+    }
+}
+
 TEST_CASE("A guest cannot change another player's party items; loot is no party item", "[HostAuthority][PartyItems]")
 {
     Session session;

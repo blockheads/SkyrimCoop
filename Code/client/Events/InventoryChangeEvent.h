@@ -38,4 +38,6 @@ struct InventoryChangeEvent
     bool StoryGiven = false;
     // Its stack a quest alias holds (ExtraAliasInstanceArray): the party's, a quest object or not (shared-items.md).
     bool AliasHeld = false;
+    // A quest's script's EquipItem added and put it on (ScriptEquips): every player wears its party copy.
+    bool StoryWorn = false;
 };

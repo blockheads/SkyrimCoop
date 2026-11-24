@@ -18,7 +18,7 @@ struct RequestInventoryChanges final : RequestMessage
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const RequestInventoryChanges& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && Item == acRhs.Item && Drop == acRhs.Drop && UpdateClients == acRhs.UpdateClients && NewPartyItem == acRhs.NewPartyItem && StoryGiven == acRhs.StoryGiven && AliasHeld == acRhs.AliasHeld; }
+    bool operator==(const RequestInventoryChanges& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && Item == acRhs.Item && Drop == acRhs.Drop && UpdateClients == acRhs.UpdateClients && NewPartyItem == acRhs.NewPartyItem && StoryGiven == acRhs.StoryGiven && AliasHeld == acRhs.AliasHeld && Wear == acRhs.Wear; }
 
     uint32_t SessionId{};
     Inventory::Entry Item{};
@@ -29,4 +29,6 @@ struct RequestInventoryChanges final : RequestMessage
     bool StoryGiven = false;
     // A guest's arrival: its stack a quest alias holds (the host decides whether it is the party's).
     bool AliasHeld = false;
+    // The story put it on (a quest's script's EquipItem): every player wears its party copy.
+    bool Wear = false;
 };

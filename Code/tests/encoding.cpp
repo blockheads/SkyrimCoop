@@ -1828,6 +1828,7 @@ TEST_CASE("A party item goes to every game with its extra data, count and HUD ch
     sent.Item.ExtraHealth = 1.2f;
     sent.Shown = -1;
     sent.Converted = 2;
+    sent.Wear = true;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     sent.Serialize(writer);
@@ -2642,6 +2643,7 @@ TEST_CASE("A player's item change carries what the host decides a party item by"
     sent.Item.Count = 1;
     sent.StoryGiven = true;
     sent.AliasHeld = true;
+    sent.Wear = true;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     sent.Serialize(writer);

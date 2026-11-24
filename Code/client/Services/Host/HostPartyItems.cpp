@@ -119,6 +119,7 @@ bool HostPartyItems::Change(const RequestInventoryChanges& acFound, ConnectionId
         notify.Item.ExtraName = PartyItems::Tagged("", m_game.ItemName(notify.Item.BaseId));
     notify.Item.Count = m_game.ReadPartyItem(notify.Item);
     notify.Item.ExtraWorn = notify.Item.ExtraWornLeft = false;
+    notify.Wear = acRequest.Wear && acRequest.NewPartyItem && acRequest.Item.Count > 0;
     if (cShownThere)
     {
         notify.Converted = converted;

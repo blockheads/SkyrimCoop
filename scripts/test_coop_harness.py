@@ -227,7 +227,7 @@ class Harness(unittest.TestCase):
             self.session.enable_bundled_start.assert_not_called()
             self.assertIn("bShowTutorials=0", (game.my_games / "Skyrim.ini").read_text())
             self.session.prepare_prefix()
-            self.session.enable_bundled_start.assert_called_once_with(_game=game)
+            self.session.enable_bundled_start.assert_called_once_with(None, _game=game)
 
     def test_fresh_prefix_has_seen_the_anniversary_prompt(self):
         """The main menu queues the AE freebies box while bFreebiesSeen:General is 0; `coc` then takes the empty,
@@ -653,6 +653,35 @@ class Harness(unittest.TestCase):
             result = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(result.stdout.strip())
+
+
+class DuoPlugins(unittest.TestCase):
+    """--plugins: the bundled mods a duo loads, written into each game's load order before the start room."""
+
+    def test_plugins_parse_in_master_order(self):
+        from coop_harness.common import MOD_PLUGINS, duo_plugins
+        self.assertEqual(duo_plugins(argparse.Namespace(plugins=f"{MOD_PLUGINS[1]}, {MOD_PLUGINS[0].upper()}")), list(MOD_PLUGINS))
+        self.assertEqual(duo_plugins(argparse.Namespace(plugins="")), [])
+        self.assertIsNone(duo_plugins(argparse.Namespace()))  # a game restarted alone keeps its mods
+        with self.assertRaises(SystemExit):
+            duo_plugins(argparse.Namespace(plugins="Other.esp"))
+
+    def test_load_order_gets_the_mods_or_drops_them(self):
+        from coop_harness.common import BUNDLED_START, MOD_PLUGINS
+        with tempfile.TemporaryDirectory() as folder:
+            order = Path(folder) / "Plugins.txt"
+            order.write_text(f"*Mine.esp\n*{MOD_PLUGINS[1]}\n")
+            game = Mock(install=Path(folder))
+            (Path(folder) / "Data").mkdir()
+            session = Session()
+            self.addCleanup(session.close)
+            with patch.object(Session, "game", return_value=game), patch.object(Session, "load_order_file", return_value=order):
+                session.enable_bundled_start(list(MOD_PLUGINS))
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", *[f"*{m}" for m in MOD_PLUGINS], f"*{BUNDLED_START}"])
+                session.enable_bundled_start(None)
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", *[f"*{m}" for m in MOD_PLUGINS], f"*{BUNDLED_START}"])
+                session.enable_bundled_start([])
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", f"*{BUNDLED_START}"])
 
 
 class LoadMenu(unittest.TestCase):

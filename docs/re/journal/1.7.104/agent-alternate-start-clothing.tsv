@@ -1,0 +1,15 @@
+time	op	id	rva	item
+2026-11-24T05:18:16Z	read		0xa04aa0	{"name": "sub_140A03C00"}
+2026-11-24T05:18:24Z	read		0xa04ab3	{"name": "sub_140A03C00"}
+2026-11-24T05:18:39Z	read	54661	0xa00040	{"name": "papyrus::Actor::EquipItem"}
+2026-11-24T05:20:03Z	read	16133	0x23cb30	{"name": "sub_14023CB30"}
+2026-11-24T05:20:09Z	name	16133	0x23cb30	{"addr": "0x14023cb30", "name": "InventoryChanges__MakeEntryFor"}
+2026-11-24T05:20:09Z	name	54784	0xa03c00	{"addr": "0x140a03c00", "name": "papyrus__Actor__RegisterFuncs"}
+2026-11-24T05:20:09Z	local	54661	0xa00040	{"func_addr": "0x140a00040", "old": "v15", "new": "pHeldEntry"}
+2026-11-24T05:20:09Z	local	54661	0xa00040	{"func_addr": "0x140a00040", "old": "v11", "new": "pChanges"}
+2026-11-24T05:20:09Z	local	54661	0xa00040	{"func_addr": "0x140a00040", "old": "v12", "new": "needsEquip"}
+2026-11-24T05:20:13Z	comment	54661	0xa00040	{"addr": "0x140a00040", "comment": "[re]\nAddressLib ID 54661\nActor.EquipItem(item, abPreventRemoval, abSilent), read 2026-11-23: synchronous, not queued (unlike AddItem's AddItemFunctor). An item the actor lacks (16133 finds no entry) is added straight to its InventoryChanges with 16053 (count 1, no extra list), bypassing AddObjectToContainer 19708 and our add hook; then ActorEquipManager::EquipObject 37938. The player gets the HUD 'X equipped.' unless abSilent. A held, already worn stack only gets its cannot-wear flag set. Alternate Start's start gear and MQ101's prisoner clothes arrive this way."}
+2026-11-24T05:20:13Z	comment	16133	0x23cb30	{"addr": "0x14023cb30", "comment": "16133: a fresh InventoryEntryData for the object: the changes' entry merged with the base container's count, or the container's count alone; null when neither holds it. Caller frees it (EquipItem 54661)."}
+2026-11-24T05:20:13Z	comment	54784	0xa03c00	{"addr": "0x140a03c00", "comment": "Registers the Papyrus Actor class's natives (EquipItem 54661 among them); not on any path, only the binding table."}
+2026-11-24T05:20:36Z	comment	54661	0xa00040	{"addr": "0x140a00040", "comment": "[re]\nAddressLib ID 54661\nActor.EquipItem(item, abPreventRemoval, abSilent), read 2026-11-23: synchronous, not queued (unlike AddItem's AddItemFunctor). An item the actor lacks (16133 finds no entry) is added straight to its InventoryChanges with 16053 (count 1, no extra list), bypassing AddObjectToContainer 19708 and our add hook; then ActorEquipManager::EquipObject (38894). The player gets the HUD 'X equipped.' unless abSilent. A held, already worn stack only gets its cannot-wear flag set. Alternate Start's start gear and MQ101's prisoner clothes arrive this way."}
+2026-11-24T05:47:44Z	type	54661	0xa00040	{"addr": "0x140a00040", "kind": "function", "signature": "void __fastcall papyrus__Actor__EquipItem(__int64 vm, unsigned int stackId, __int64 actor, _BYTE *item, char abPreventRemoval, char abSilent)"}

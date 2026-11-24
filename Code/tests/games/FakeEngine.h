@@ -2040,6 +2040,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void Improves(uint32_t aActor, const Inventory::Entry& acStack, const std::function<void(Inventory::Entry&)>& acChange);
     // A quest's script gives it (AddItem from a quest, alias, dialogue line or scene): raised as the story's.
     void QuestGivesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // A quest's script's Actor.EquipItem (54661): an item it lacks added with no InventoryChangeEvent (16053, past our
+    // add hooks), then equipped; our hook on the native reports the arrival (ScriptEquips).
+    void QuestEquipsItem(uint32_t aActor, uint32_t aItem);
     // The engine puts an NPC's outfit item back on after removeallitems: added with no InventoryChangeEvent (our item
     // hooks never see it), then equipped as Equips does (save-load-gate, 2026-10-30: Lydia's copy lost her armor).
     void OutfitPutsOn(uint32_t aActor, uint32_t aItem);

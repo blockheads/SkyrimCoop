@@ -20,6 +20,8 @@ from .common import (
     SKYRIM_VERSION,
     ADDRESS_LIBRARY,
     BUNDLED_START,
+    MOD_PLUGINS,
+    duo_plugins,
     CLIENT_ADDRESS,
     CLIENT_NETNS,
     CLIENT_USER,
@@ -556,7 +558,9 @@ class Runtime:
         subprocess.run(["sudo", "cp", str(ROOT / "scripts/coop" / DUMMY_XORG_CONFIG), "/etc/X11/"], check=True)
         log(f"Installed /etc/X11/{DUMMY_XORG_CONFIG}")
 
-    def enable_bundled_start(ctx, *, _game=None):
+    def enable_bundled_start(ctx, plugins=None, *, _game=None):
+        """The bundled start active last; `plugins` (mods in the game's Data, MOD_PLUGINS) active before it and the other
+        MOD_PLUGINS left out (a duo booted without them loads none); None keeps the load order's mods."""
         _game = ctx.game(_game)
         source = ROOT / "GameFiles/Skyrim" / BUNDLED_START
         target = _game.install / "Data" / BUNDLED_START
@@ -564,11 +568,14 @@ class Runtime:
             shutil.copyfile(source, target)
         order = ctx.load_order_file(_game=_game)
         lines = order.read_text().splitlines() if order.exists() else []
-        lines = [line for line in lines if line.lstrip("*") not in (BUNDLED_START, "Quick Start - SE.esp")]
+        mods = MOD_PLUGINS if plugins is not None else ()
+        plugins = plugins or ()
+        managed = {name.lower() for name in (BUNDLED_START, "Quick Start - SE.esp", *mods)}
+        lines = [line for line in lines if line.lstrip("*").lower() not in managed]
         order.parent.mkdir(parents=True, exist_ok=True)
-        order.write_text("\n".join(lines + [f"*{BUNDLED_START}"]) + "\n")
+        order.write_text("\n".join(lines + [f"*{name}" for name in plugins] + [f"*{BUNDLED_START}"]) + "\n")
 
-    def prepare_prefix(ctx, bundled_start=True, *, _game=None):
+    def prepare_prefix(ctx, bundled_start=True, plugins=None, *, _game=None):
         _game = ctx.game(_game)
         _game.prefix.mkdir(parents=True, exist_ok=True)  # first: a fresh worktree's prefix is the game's user's too
         ctx.own_prefix(_game=_game)
@@ -605,7 +612,7 @@ class Runtime:
                                 # Subtitles on, as players have them (Low.ini turns them off).
                                 "Interface": {"bDialogueSubtitles": "1", "bGeneralSubtitles": "1"}})
         if bundled_start:
-            ctx.enable_bundled_start(_game=_game)
+            ctx.enable_bundled_start(plugins, _game=_game)
 
     def wait_for(ctx, description, predicate, timeout, launcher=None, *, explain=None, _game=None):
         """Polls predicate until truthy. explain(): what was seen, added to a timeout's message only (a crash stays
@@ -658,7 +665,7 @@ class Runtime:
         ctx.deploy_crash_logger()
         main_menu = getattr(args, "main_menu", False)
         command = None if main_menu else f"load {args.save}" if args.save else f"coc {args.cell}"
-        ctx.prepare_prefix(_game=_game)
+        ctx.prepare_prefix(plugins=duo_plugins(args), _game=_game)
         if args.save and not main_menu:
             ctx.bring_late_save(args.save, _game=_game)
         _game.control.mkdir(parents=True, exist_ok=True)

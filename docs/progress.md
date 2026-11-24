@@ -49,6 +49,18 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-23: **clothes a quest dresses the player in reach every player, worn** (`agent/alternate-start-clothing`).
+With Alternate Start only the host got its start's clothing: the start choices run `Player.EquipItem(...)` from
+`ARTHLALRumorsOfWarQuest`'s fragments, and `Actor.EquipItem` (54661, read in IDA) adds an item the actor lacks
+straight to its inventory changes (16053), past our add hooks, so the story's clothes never became party items.
+A hook on 54661 reports the added item (`ScriptEquips`); from a quest's script it is a party item the story put on
+(`Wear` on `RequestInventoryChanges` and `NotifyPartyItem`), and each game's player wears its copy. Generic: MQ101's
+prisoner clothes and DA15's fine clothes take the same path. A guest joining after it carries the item, unworn
+(the join's list carries no worn state). [inventory-changes.md](re/systems/inventory-changes.md), "A script's
+EquipItem". Scenario `quest-dresses-every-player` (the harness boots the duo with the bundled mods: `duo --plugins`,
+`duo_start plugins=`, `loads_mods`; new expect `wears`); GameTests "A quest's script dresses the player", ClientTests
+`[ScriptEquips]`, HostAuthorityTests, TPTests.
+
 2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
 [actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after
 `stage` (golden-claw-guest, arvels-journal-guest-loots) lay 83-111 degrees and up to 582 units apart. `stage` freezes

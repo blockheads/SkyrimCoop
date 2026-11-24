@@ -9,7 +9,7 @@ import socket
 import subprocess
 import time
 import uuid
-from ..common import PEER, WINDOWS
+from ..common import MOD_PLUGINS, PEER, WINDOWS
 from ..game import LOCAL_APP_DATA, known_folder
 from ..utilities import atomic_write
 
@@ -121,6 +121,27 @@ class SessionActions:
         if WINDOWS:  # the user's own, shared by both games
             return known_folder(LOCAL_APP_DATA) / "Skyrim Special Edition/Plugins.txt"
         return _game.prefix / "pfx/drive_c/users/steamuser/AppData/Local/Skyrim Special Edition/Plugins.txt"
+
+
+    def mods_loaded(ctx):
+        """The bundled mods (MOD_PLUGINS) both games' load orders have active."""
+        active = [{line[1:].strip().lower() for line in ctx.load_order_file(_game=ctx.game(name)).read_text().splitlines()
+                   if line.startswith("*")} for name in ("", "client")]
+        return [name for name in MOD_PLUGINS if all(name in each for each in active)]
+
+
+    @contextlib.contextmanager
+    def loads_mods(ctx):
+        """Both games load the bundled mods (USSEP, Alternate Start) for the block: the duo boots again with them if it
+        has not, and again without them after."""
+        booted = ctx.mods_loaded() != list(MOD_PLUGINS)
+        if booted:
+            ctx.restart_duo(MOD_PLUGINS)
+        try:
+            yield
+        finally:
+            if booted:
+                ctx.restart_duo([])
 
 
     def restart_client(ctx, plugins, dropped=True):

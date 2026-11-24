@@ -310,3 +310,23 @@ the position given, always in the dropper's parent cell and worldspace.
 A script's removal: papyrus RemoveItem 56218 queues `RemoveItemFunctor`, run at `0x140A418E0` (vtable slot 1; 56095
 is the AddItem functor's). A base item goes through 56647, which clamps an actor's count with
 `GetItemCountImpl` `0x140A56FA0`: the party's count must hook only the Papyrus entry 56173, never that body.
+
+## A script's EquipItem (2026-11-23, IDA 1.7.104, read)
+
+Found by Alternate Start's start choices, which dress the player with `Player.EquipItem(ClothesFine...)` from the
+quest `ARTHLALRumorsOfWarQuest`'s stage fragments (its Papyrus sources, in the mod's BSA), as vanilla MQ101 does with
+the prisoner clothes and DA15 with Pelagius's fine clothes.
+
+| ID | Name | What |
+|---|---|---|
+| 54661 | `papyrus::Actor::EquipItem` | `(vm, stackId, actor, item, abPreventRemoval, abSilent)`. Not queued: unlike `AddItem` (56349) it runs in the native. An item the actor holds (16133 builds its entry) is equipped, or only marked cannot-wear when already worn. One it lacks is added with 16053 (count 1, no extra list), then equipped by `ActorEquipManager` (38894); the player gets "X equipped." unless `abSilent` |
+| 16133 | `InventoryChanges__MakeEntryFor` | `(changes, object, ...)`: a fresh entry of the changes' stacks merged with the base container's count; null when neither holds it. The caller frees it |
+| 16053 | `InventoryChanges__AddListFrom` | the add itself: never through `AddObjectToContainer` (19708) or `Actor`'s add, so our add hooks never see it |
+
+So an item a script equips into being raised no `InventoryChangeEvent`: the story's clothes stayed the host's own,
+never a party item. Our hook on 54661 compares the actor's count before and after the native and reports an added
+item (`ScriptEquips::Arrival`): the story's when the native's caller is a quest's script (`GuestScripts::StoryCalling`,
+the caller frame's handle as for `AddItem`), and then worn by the story (`RequestInventoryChanges::Wear`,
+`NotifyPartyItem::Wear`): every game's player puts its party copy on (`InventoryService::WearPartyItem`).
+Measured on the duo with USSEP and Alternate Start (`quest-dresses-every-player`): before, the host wore 86991,
+86993 and CEE84 and the guest's own player none of them.

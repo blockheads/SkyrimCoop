@@ -94,7 +94,8 @@ def forget_old_crashes():
 
 
 @tool
-def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hooks: str = "", heap_history: int = 0) -> dict:
+def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hooks: str = "", heap_history: int = 0,
+              plugins: str = "") -> dict:
     """Holds the shared duo (coop_harness/duo_lock.py) and boots both games in the background; then call duo_wait.
     Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again within 5
     minutes or the place lapses (duo_stop gives it up). This server holds the duo until duo_stop or until it exits,
@@ -102,7 +103,8 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hoo
     again). Hold it only while driving the games, never while reading code or IDA. disable_hooks: both games boot with
     SKYRIMCOOP_DISABLE_HOOKS, the hook files left out (HookSwitch.h): what one hook changes in a session. heap_history:
     both games record the engine's last N million allocations and frees and count double frees (HeapHistory.h; the
-    verb expect_no_double_free)."""
+    verb expect_no_double_free). plugins: bundled mods both games load (common.MOD_PLUGINS, comma separated: USSEP and
+    Alternate Start); without it they load none."""
     held = (lock := session.duo_lock(OWNER)) is not None and lock.role in ("holder", "joined")
     session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True, capped=True)
     if not held:  # a new hold: crash logs from before it are other runs'; a repeated call keeps this run's
@@ -117,13 +119,15 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hoo
     command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "duo", "--keep-running", "--cell", cell]
     if save:
         command += ["--save", save]
+    command += ["--plugins", plugins]
     env = dict(os.environ)
     if disable_hooks:
         env["SKYRIMCOOP_DISABLE_HOOKS"] = disable_hooks
     if heap_history:
         env["SKYRIMCOOP_HEAP_HISTORY"] = str(heap_history)
     duo["process"] = subprocess.Popen(command, cwd=ROOT, env=env, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
-    return {"ok": True, "booting": True, "log": str(duo["log"]), "disabled_hooks": disable_hooks, "heap_history": heap_history}
+    return {"ok": True, "booting": True, "log": str(duo["log"]), "disabled_hooks": disable_hooks, "heap_history": heap_history,
+            "plugins": plugins}
 
 
 def gated_hook_files() -> str:
@@ -293,7 +297,7 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
     takes it, as for its name and Activate prompt), "bounty" (crime faction `name`, hex: at least value [n] on the host
     and the same on the guest), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
     `seconds`; "set": not nothing; a handle: that handle in each game, for targets; no value: equal in both), "stands" (player `name`
-    stands on its feet in `game` or both within `seconds`: standing, not floating, sunk, lifted or lying, its ragdoll out of the physics world), "faces" (actor `name`'s body faces handle `of` within `within` degrees, in `game` or both, within `seconds`), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "graph" (owner's and copy's graphs read live for `seconds`, never apart for `within` s or more nor unread as long, the owner entering a state named like `field` at least `value` times (no `field`: its graph changing that often)), "stream" (the graph input stream's live check for `seconds`: every streamed copy's graph equal to its owner's at each update; with `name`, its copy compared on at least `value` updates), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`), "props" (every copy holds its owner's props, state.anim_objects, within `seconds`; at least `value` owners holding one, default 1), "stolen" (item `name`, hex: `game`'s player holds at least value [n] of it owned by `of`, hex: ExtraOwnership, the engine's stolen mark), "object" (reference `name`'s graph variable `field` reads `value` in both games within `seconds`; no `field`: all its variables agree), "eye" (player `name`'s stealth eye shows the same in its own game and on its copy in the other, `value` if given, within `seconds`), "weather" (the guest holds the weather the host gives its region: the host's when forced or in the host's region, else that region's own; value true: and shows it once the engine's fades ran, its region's list holding it; within `seconds`), "weather_fading" (the guest's weather is fading now into the one the host gives it, not cut; out of value [hex id] if given), "weather_fade" (`game`'s weather changes value [n] times in `seconds`, each a fade from the one before, no cut; a guest's each to the weather it holds, never its own roll)."""
+    stands on its feet in `game` or both within `seconds`: standing, not floating, sunk, lifted or lying, its ragdoll out of the physics world), "faces" (actor `name`'s body faces handle `of` within `within` degrees, in `game` or both, within `seconds`), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "graph" (owner's and copy's graphs read live for `seconds`, never apart for `within` s or more nor unread as long, the owner entering a state named like `field` at least `value` times (no `field`: its graph changing that often)), "stream" (the graph input stream's live check for `seconds`: every streamed copy's graph equal to its owner's at each update; with `name`, its copy compared on at least `value` updates), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`), "props" (every copy holds its owner's props, state.anim_objects, within `seconds`; at least `value` owners holding one, default 1), "stolen" (item `name`, hex: `game`'s player holds at least value [n] of it owned by `of`, hex: ExtraOwnership, the engine's stolen mark), "wears" (player `name`, host or guest, wears in its own game every item value [hex ids] lists, within `seconds`), "object" (reference `name`'s graph variable `field` reads `value` in both games within `seconds`; no `field`: all its variables agree), "eye" (player `name`'s stealth eye shows the same in its own game and on its copy in the other, `value` if given, within `seconds`), "weather" (the guest holds the weather the host gives its region: the host's when forced or in the host's region, else that region's own; value true: and shows it once the engine's fades ran, its region's list holding it; within `seconds`), "weather_fading" (the guest's weather is fading now into the one the host gives it, not cut; out of value [hex id] if given), "weather_fade" (`game`'s weather changes value [n] times in `seconds`, each a fade from the one before, no cut; a guest's each to the weather it holds, never its own roll)."""
     return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
 
