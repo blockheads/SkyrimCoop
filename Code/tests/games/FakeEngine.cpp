@@ -3447,13 +3447,13 @@ void FakeEngine::Fights(uint32_t aActor, uint32_t aTarget)
     auto& ai = Actors.at(aActor).Ai;
     ai.CombatState = aTarget ? 1 : 0;
     ai.CombatTargetId = aTarget;
-    ai.GroupTargetIds = aTarget ? std::vector{aTarget} : std::vector<uint32_t>{};
+    Actors.at(aActor).GroupTargets = aTarget ? std::vector{aTarget} : std::vector<uint32_t>{};
     World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
 }
 
 void FakeEngine::GroupTargets(uint32_t aActor, std::vector<uint32_t> aTargets)
 {
-    Actors.at(aActor).Ai.GroupTargetIds = std::move(aTargets);
+    Actors.at(aActor).GroupTargets = std::move(aTargets);
     World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
 }
 
@@ -3461,10 +3461,10 @@ std::vector<uint32_t> FakeEngine::CompassEnemies() const
 {
     std::vector<uint32_t> enemies;
     for (const auto& [cId, cActor] : Actors)
-        if (cActor.Ai.CombatState && std::ranges::contains(cActor.Ai.GroupTargetIds, kPlayer) && !IsActorCopy(cId))
+        if (std::ranges::contains(cActor.GroupTargets, kPlayer) && !IsActorCopy(cId))
             enemies.push_back(cId);
     for (const uint32_t cId : CompassCopies)
-        if (Actors.contains(cId) && std::ranges::find(enemies, cId) == enemies.end())
+        if (Actors.contains(cId) && IsActorCopy(cId) && std::ranges::find(enemies, cId) == enemies.end())
             enemies.push_back(cId);
     return enemies;
 }

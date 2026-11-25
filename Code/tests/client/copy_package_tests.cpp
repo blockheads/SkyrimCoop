@@ -2,6 +2,7 @@
 #include <catch2/catch.hpp>
 
 #include <algorithm>
+#include <vector>
 
 #include <Games/Skyrim/CopyCombat.h>
 #include <Games/Skyrim/CopyPackage.h>
@@ -84,4 +85,15 @@ TEST_CASE("A copy's regen rate asks for its owner's combat state", "[CopyCombat]
     CHECK_FALSE(AnswersOwner(38460, 0x10));
     // Actor::EngagingInCombat (38563, its call returns at +0x12) uses the combat controller after a yes.
     CHECK_FALSE(AnswersOwner(38563, 0x12));
+}
+
+TEST_CASE("A copy is on the compass when its owner's combat group targets this game's player", "[CopyCombat]")
+{
+    constexpr uint32_t cPlayer = 0x14;
+    const std::vector<uint32_t> cTargets{0xFF000822, cPlayer};
+    CHECK(CopyCombat::OnCompass(true, cTargets, cPlayer));
+    CHECK_FALSE(CopyCombat::OnCompass(true, std::vector<uint32_t>{0xFF000822}, cPlayer)); // only another player
+    CHECK_FALSE(CopyCombat::OnCompass(true, std::vector<uint32_t>{}, cPlayer));
+    // One of this game's own actors is in a group: 41240 lists it itself.
+    CHECK_FALSE(CopyCombat::OnCompass(false, cTargets, cPlayer));
 }

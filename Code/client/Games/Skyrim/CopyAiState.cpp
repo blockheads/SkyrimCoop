@@ -144,7 +144,7 @@ static void HookUpdateActorsToDisplayOnHUD(PlayerCharacter* apPlayer)
     for (const uint32_t cFormId : s_compassEnemies)
     {
         auto* pActor = Cast<Actor>(TESForm::GetById(cFormId));
-        if (!pActor)
+        if (!pActor || !pActor->GetExtension()->IsCopy()) // taken over since (a kill move): 41240 has it
             continue;
         const uint32_t cHandle = pActor->GetHandle().handle.iBits;
         if (!cHandle || std::find(actors.data, actors.data + actors.length, cHandle) != actors.data + actors.length)

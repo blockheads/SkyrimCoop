@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 
 // The copy contract for combat, without the engine (docs/re/systems/combat-targets.md).
@@ -9,6 +10,14 @@ namespace CopyCombat
 [[nodiscard]] constexpr bool MayStart(bool aCopy) noexcept
 {
     return !aCopy;
+}
+
+// 41240 for a copy, which has no group: its owner's combat group targets this game's player (form ids). Like 41240
+// it asks no combat state.
+template <class TTargets>
+[[nodiscard]] constexpr bool OnCompass(bool aCopy, const TTargets& acGroupTargets, uint32_t aPlayer) noexcept
+{
+    return aCopy && std::ranges::find(acGroupTargets, aPlayer) != std::ranges::end(acGroupTargets);
 }
 
 // The engine's callers of IsInCombat (38562) / GetCombatState (38556) that get a copy's owner's combat state: none use

@@ -137,6 +137,7 @@ public:
     void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept override;
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override;
     void SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept override;
+    std::vector<uint32_t> GetCombatGroupTargets(uint32_t aFormId) const noexcept override;
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override;
     void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept override;
     std::string SaveActorGraphState(uint32_t aFormId) const noexcept override;

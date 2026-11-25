@@ -16,6 +16,7 @@
 #include <RTTI.h>
 #include <VersionDb.h>
 #include <World.h>
+#include <WorldGate.h>
 
 #include <atomic>
 
@@ -116,12 +117,13 @@ void HookUpdatePlayerInCombat(PlayerCharacter* apPlayer, float aDelta)
 using TUpdateCombatGroup = void(CombatGroup*);
 TUpdateCombatGroup* RealUpdateCombatGroup = nullptr;
 
-// CombatGroup's update (44703) adds and drops its targets with no event: a change marks each member changed, as its
-// state carries the players its group targets (the compass, compass.md).
+// CombatGroup's update (44703, on the combat manager's job) adds and drops its targets with no event: a change marks
+// each member changed, as its state carries the players its group targets (the compass, compass.md).
 void HookUpdateCombatGroup(CombatGroup* apGroup)
 {
     RealUpdateCombatGroup(apGroup);
-    if (!s_users.load(std::memory_order_relaxed))
+    const WorldGate::Reader cWorld;
+    if (!cWorld || !s_users.load(std::memory_order_relaxed))
         return;
     BSReadLockGuard lock(apGroup->lock);
     uint64_t hash = 0xCBF29CE484222325ull;

@@ -27,8 +27,9 @@ A copy has no combat group (`Actor::StartCombat` 38561 is refused for copies, co
 group targets the player and the array stays empty: the bug. The host's NPCs are in groups on the host only.
 
 Measured (duo, 2026-11-24, scenario `compass-enemies-on-guest`): a wolf the host hit showed on the host's compass and
-not the guest's. Before the hit, the wolf's own target was Lydia while the host's compass showed it: its group
-targeted the host. A copy's own combat target is not the test; the group's targets are.
+not the guest's. Before the hit, the wolf's own target was Lydia while the host's compass showed it. That its group
+targeted the host is inferred from 41240/44706 (the group's targets were not read). A copy's own combat target is not
+the test; the group's targets are.
 
 ## The fix
 
@@ -44,8 +45,13 @@ AI state read: GroupTargetPlayers =             (41240) hooked: the list appende
 
 - The owner's AI state carries the players its combat group targets (`ActorAiState::GroupTargetPlayers`, session
   ids; `IActorBridge::GetActorAiFields` reads the group's targets under its lock).
-- Read in IDA: 44703 runs on the main thread, once a frame per group, from `CombatManager__UpdateGroups` (46869); it
-  adds and drops targets with no event, so its hook compares the targets with what each member last sent.
-- Each game: `AiStateService` lists the copies in combat whose group targets this game's player
-  (`IActorBridge::SetCompassEnemies`), and the 41240 hook (`Games/Skyrim/CopyAiState.cpp`) appends them, as 41240
-  appends a group's members. A player the host's group has not detected gets no dot, as in vanilla.
+- Read in IDA: 44703 runs once a frame per group from `CombatManager__UpdateGroups` (46869), which the combat
+  manager's job calls (`Job_Combat_manager` 39044 +0xD), not the main loop. It adds and drops targets with no event,
+  so its hook compares the targets with what each member last sent, behind `WorldGate::Reader` (a cog swap may have
+  closed the World on that thread).
+- Each game: `AiStateService` lists the copies whose group targets this game's player (`CopyCombat::OnCompass`;
+  like 41240, no combat state asked; `IActorBridge::SetCompassEnemies`), and the 41240 hook
+  (`Games/Skyrim/CopyAiState.cpp`) appends those still copies (a kill move's takeover is 41240's own). A player the
+  host's group has not detected gets no dot, as in vanilla.
+- The group's targets are read only for the AI state record (`IActorBridge::GetCombatGroupTargets`), not with the
+  AI fields the host's per-frame paths read.

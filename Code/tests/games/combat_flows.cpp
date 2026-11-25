@@ -89,7 +89,16 @@ SCENARIO("A host NPC whose combat group targets a player is an enemy on that pla
     party.Until([&] { return guest.CompassEnemies() == std::vector{cCopy()}; },
                 "the guest's compass shows the wolf once its group targets the guest");
 
-    party.As(party.Host(), [&] { host.Fights(wolf, 0); });
+    // 41240 asks no combat state: a member whose own state reads 0 stays while its group targets the player.
+    party.As(party.Host(), [&] {
+        host.Fights(wolf, 0);
+        host.GroupTargets(wolf, {FakeEngine::kPlayer, PlayerCopy(host)});
+    });
+    CHECK(host.GetActorAiFields(wolf).CombatState == 0);
+    party.Until([&] { return host.CompassEnemies() == std::vector{wolf} && guest.CompassEnemies() == std::vector{cCopy()}; },
+                "both compasses keep the wolf its group still sets on the players");
+
+    party.As(party.Host(), [&] { host.GroupTargets(wolf, {}); });
     party.Until([&] { return host.CompassEnemies().empty() && guest.CompassEnemies().empty(); },
                 "the fight ends on both compasses");
 }

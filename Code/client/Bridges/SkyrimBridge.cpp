@@ -2073,13 +2073,6 @@ ActorAiFields SkyrimBridge::GetActorAiFields(uint32_t aFormId) const noexcept
         fields.HeadTrackIds = pHigh->GetHeadTrackTargets();
     if (const TESObjectREFR* pFurniture = pActor->GetSeatFurniture())
         fields.FurnitureId = pFurniture->formID;
-    if (CombatGroup* pGroup = pActor->pCombatController ? pActor->pCombatController->pCombatGroup : nullptr)
-    {
-        BSReadLockGuard lock(pGroup->lock);
-        for (const CombatTarget& cTarget : pGroup->targets)
-            if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(cTarget.targetHandle))
-                fields.GroupTargetIds.push_back(pTarget->formID);
-    }
     return fields;
 }
 
@@ -2189,6 +2182,20 @@ void SkyrimBridge::SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFiel
 void SkyrimBridge::SetCopiesFightingPlayer(uint32_t aCount) noexcept
 {
     CopyAiState::SetCopiesFightingPlayer(aCount);
+}
+
+std::vector<uint32_t> SkyrimBridge::GetCombatGroupTargets(uint32_t aFormId) const noexcept
+{
+    std::vector<uint32_t> targets;
+    const Actor* pActor = GetActor(aFormId);
+    CombatGroup* pGroup = pActor && pActor->pCombatController ? pActor->pCombatController->pCombatGroup : nullptr;
+    if (!pGroup)
+        return targets;
+    BSReadLockGuard lock(pGroup->lock);
+    for (const CombatTarget& cTarget : pGroup->targets)
+        if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(cTarget.targetHandle))
+            targets.push_back(pTarget->formID);
+    return targets;
 }
 
 void SkyrimBridge::SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept

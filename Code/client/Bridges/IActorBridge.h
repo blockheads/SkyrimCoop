@@ -40,8 +40,6 @@ struct ActorAiFields
     std::array<uint32_t, 6> HeadTrackIds{};
     // The furniture it sits or sleeps in (38708), 0 none. A copy's has its graph linked as 39912 links an owner's.
     uint32_t FurnitureId{};
-    // Its combat group's targets (CombatGroup targets, 44706): the compass shows it to a player among them (41240).
-    std::vector<uint32_t> GroupTargetIds{};
 };
 
 // An actor's state beside its graph (one-simulator.md, piece 2): this game's form ids, 0 for none.
@@ -283,6 +281,8 @@ public:
     // --- AI state ---
     // One of this game's own actors, as its AI runs it.
     virtual ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept = 0;
+    // One of this game's actors: its combat group's targets (CombatGroup targets, 44706), for its AI state record.
+    virtual std::vector<uint32_t> GetCombatGroupTargets(uint32_t aFormId) const noexcept = 0;
     // A copy: holds its owner's AI state.
     /// This game's actor takes a trap's hit the host's script gave its copy there.
     virtual void TakeTrapHit(uint32_t aFormId, uint32_t aTrapFormId, const Payloads::TrapHit& acHit) noexcept = 0;

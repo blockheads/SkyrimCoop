@@ -776,6 +776,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept override
     {
     }
+    std::vector<uint32_t> GetCombatGroupTargets(uint32_t aFormId) const noexcept override
+    {
+        return {};
+    }
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override
     {
     }

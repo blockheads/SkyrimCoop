@@ -794,6 +794,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool NoProcess = false;   // its process freed, its handle still valid (marked deleted, MarkForDelete)
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
+        std::vector<uint32_t> GroupTargets; // its combat group's targets (44706)
         uint32_t ClaimedIn = 0; // the guest session SetActorCopy(false) made it this game's in (GuestNpcs::Held)
         bool Refused3D = false; // held on a guest: its Load3D refused (HookLoad3D), loaded once it is not
         bool LoadQueued = false; // its load job out (TESQueuedHandles' handle), until QueuedReference::Finish
@@ -1585,6 +1586,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // furniture's graphs linked to its own (63364), TESFurnitureEvent.
     void SitsIn(uint32_t aActor, uint32_t aFurniture);
     void EndScene(uint32_t aActor);
+    std::vector<uint32_t> GetCombatGroupTargets(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() ? it->second.GroupTargets : std::vector<uint32_t>{};
+    }
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
@@ -1666,8 +1672,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
     std::vector<uint32_t> CompassCopies; // the copies the 41240 hook adds
     void SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept override { CompassCopies = std::move(aFormIds); }
-    // The compass's enemies (41240): this game's actors in combat whose group targets its player, then the hook's
-    // copies, which have no groups.
+    // The compass's enemies (41240): this game's actors whose group targets its player, then the hook's copies,
+    // which have no groups.
     [[nodiscard]] std::vector<uint32_t> CompassEnemies() const;
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).
     void Burns(uint32_t aActor, uint32_t aEffect, bool aOn);
