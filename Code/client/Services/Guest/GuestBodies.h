@@ -34,6 +34,9 @@ struct GuestBodies final : BodyService::Keeper
     [[nodiscard]] bool Simulates(const BodyKey& acKey) const noexcept override { return m_authority.Is(acKey, kMe); }
 
 private:
+    // A body no physics simulates here and not this game's (a script holds it keyframed, or another game's hand): not
+    // taken by a touch.
+    [[nodiscard]] bool ScriptKeyframed(const BodyKey& acKey) const noexcept;
     // This game's player's touches, grabs and lets go; the bodies taken into aTaken.
     void TakeHands(uint64_t aTick, std::map<BodyKey, BodyFrame>& aHeld, std::vector<BodyKey>& aTaken) noexcept;
     // Its player's ragdoll: its frames into aStates while it moves, its rest declared.

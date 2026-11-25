@@ -13,6 +13,7 @@
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 #include <TrapRules.h>
+#include <Combat/WorldHits.h>
 #include <VersionDb.h>
 #include <World.h>
 
@@ -96,6 +97,7 @@ void Traps::TakeHit(Actor& aActor, const TESObjectREFR* apTrap, const Payloads::
     std::ranges::copy(acHit.Velocity, data.velocity);
     std::ranges::copy(acHit.Position, data.position);
     data.material = acHit.Material;
+    const WorldHits::JudgedHere cJudged;
     RealDoTrap(&aActor, data);
 }
 

@@ -65,9 +65,10 @@ Routing RouteOf(const CallFacts& acFacts) noexcept
     // Where the player is, with no player's action behind it: the party's (rule 3). Only the host's scripts.
     if (cKind == Call::kQuestion && acFacts.Hosting && acFacts.PlayerInCall && !acFacts.Cause)
         return {.Ask = true};
-    // A trap casts or stops: every game shows it; what it does to a player is the host's to decide (traps.md).
+    // A cast runs where its script does: its projectile reaches the others (CombatService), its effect on a guest's
+    // character is the host's verdict (MagicTarget's world cast; traps.md). Never the screen's.
     if (cKind == Call::kCast)
-        return acFacts.Hosting && acFacts.ObjectCaster ? Routing{.To = Destination::kEveryGame} : Routing{};
+        return {};
     // A player's progression: any script's but a body's, or only the story's (dragonborn.md). Only the host's scripts.
     const Progress& cProgress = acFacts.Reach.Progress;
     if (cKind == Call::kProgress && acFacts.Hosting && acFacts.Target != Target::kNone && !acFacts.Body &&

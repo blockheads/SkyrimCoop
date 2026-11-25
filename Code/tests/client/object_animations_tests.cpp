@@ -42,3 +42,26 @@ TEST_CASE("An animation its graph never takes is given up", "[ObjectAnimations]"
     animations.Update(cStart + std::chrono::seconds(3), cNever);
     CHECK(animations.Empty());
 }
+
+TEST_CASE("A change behind a waiting animation of its object waits behind it, in the host's order", "[ObjectAnimations]")
+{
+    // A tripwire: the host's TRIGGER, then its destroyed flag (warehouse_traps_hurt_both, 2026-11-24).
+    ObjectAnimations<int, std::string> animations;
+    const std::chrono::steady_clock::time_point cStart{};
+    bool busy = true;
+    std::vector<std::string> applied;
+    const auto cSend = [&](const std::string& acChange) {
+        if (acChange == "TRIGGER" && busy)
+            return false;
+        applied.push_back(acChange);
+        return true;
+    };
+    animations.Play(1, "TRIGGER", cStart, cSend);
+    REQUIRE(animations.Waiting(1));
+    animations.Play(1, "destroyed", cStart, cSend);
+    CHECK(applied.empty());
+    busy = false;
+    animations.Update(cStart + std::chrono::milliseconds(100), cSend);
+    CHECK(applied == std::vector<std::string>{"TRIGGER", "destroyed"});
+    CHECK_FALSE(animations.Waiting(1));
+}

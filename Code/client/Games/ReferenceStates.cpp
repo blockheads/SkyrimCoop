@@ -2,6 +2,7 @@
 
 #include <Games/FormState.h>
 #include <Games/EnabledRow.h>
+#include <Games/ScriptMotion.h>
 #include <Games/FormChangeRows.h>
 #include <Events/LidUnposedEvent.h>
 #include <World.h>
@@ -255,6 +256,31 @@ bool ApplyGraph(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
     return true;
 }
 
+bool ReadMotion(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
+{
+    const auto cValue = ScriptMotion::Get().Of(acObject.formID);
+    if (!cValue)
+        return false;
+    aChange.Value = *cValue;
+    return true;
+}
+
+// As the script's SetMotionTypeFunctor::Run (56332) does it: every body under its 3D, the fixed ones left (77866).
+// With no 3D yet, when it loads (ApplyDeferredMotion).
+bool ApplyMotion(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
+{
+    NiNode* p3D = aObject.GetNiNode();
+    if (!p3D)
+    {
+        ScriptMotion::Get().Defer(aObject.formID, acChange.Value);
+        return true;
+    }
+    using TSetMotionType = bool(NiAVObject*, uint32_t, bool aRecurse, bool aForce, bool aAllowActivate);
+    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 77866);
+    s_setMotionType.Get()(p3D, ScriptMotion::TypeOf(acChange.Value), true, false, ScriptMotion::AllowsActivate(acChange.Value));
+    return true;
+}
+
 struct ReferenceState
 {
     ObjectChange::Kind Kind;
@@ -274,6 +300,8 @@ constexpr ReferenceState cStates[] = {
     {ObjectChange::Kind::kOwner, TESObjectREFR::CHANGE_REFR_EXTRA_OWNERSHIP, &ReadOwner, &ApplyOwner},
     {ObjectChange::Kind::kBase, TESObjectREFR::CHANGE_REFR_BASEOBJECT, &ReadBase, &ApplyBase},
     {ObjectChange::Kind::kGraph, TESObjectREFR::CHANGE_REFR_ANIMATION, &ReadGraph, &ApplyGraph},
+    // No flag of its own: its SetMotionType's havok change (4) has the reference read, the store says what it was.
+    {ObjectChange::Kind::kMotion, 0, &ReadMotion, &ApplyMotion},
     {ObjectChange::Kind::kSaveData, ~0u, &ReadSaveData, &ApplySaveData},
 };
 
@@ -352,7 +380,7 @@ void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept
 }
 
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
-          std::vector<ObjectChange>& aChanges) noexcept
+          std::vector<ObjectChange>& aChanges, bool aWhole) noexcept
 {
     uint32_t left = aFlags & SentFlags();
     for (const auto& cState : cStates)
@@ -367,6 +395,9 @@ void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
         if (cState.Read(acObject, cTaken, change))
             aChanges.push_back(std::move(change));
     }
+    // A cell's state carries it; live, each script call once.
+    if (const auto cMotion = aWhole ? ScriptMotion::Get().Of(acObject.formID) : ScriptMotion::Get().TakeUnsent(acObject.formID))
+        aChanges.push_back({.Type = ObjectChange::Kind::kMotion, .Object = acId, .Value = *cMotion});
     // A flag no row takes, the first time: what vanilla still needs a row for. The game's thread only.
     static uint32_t s_logged = 0;
     if (const uint32_t cNew = left & ~s_logged)
@@ -386,6 +417,12 @@ bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange) noexce
                    here.Data == acChange.Data;
         }
     return false;
+}
+
+void ApplyDeferredMotion(TESObjectREFR& aObject) noexcept
+{
+    if (const auto cValue = ScriptMotion::Get().TakeDeferred(aObject.formID))
+        (void)ApplyMotion(aObject, {.Type = ObjectChange::Kind::kMotion, .Value = *cValue});
 }
 
 bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept

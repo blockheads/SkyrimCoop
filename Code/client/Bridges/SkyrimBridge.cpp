@@ -2587,6 +2587,14 @@ bool SkyrimBridge::IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectF
     return (cVisuals.pShader || cVisuals.pArt) && cIsPlaying(cVisuals.pShader) && cIsPlaying(cVisuals.pArt);
 }
 
+void SkyrimBridge::SetCopyEffects(uint32_t aFormId, std::vector<OwnerEffects::Held> aHeld) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    pActor->GetExtension()->OwnerEffects.store(std::make_shared<const std::vector<OwnerEffects::Held>>(std::move(aHeld)));
+}
+
 void SkyrimBridge::StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept
 {
     Breadcrumbs::Record("StopEffectHitVisuals", aFormId, aEffectFormId);

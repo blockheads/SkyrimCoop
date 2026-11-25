@@ -1649,7 +1649,10 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     message.LatestAction = cState.LatestAction;
     message.GraphState = cState.GraphState;
     if (const auto* pEffects = m_world.ctx().find<EffectVisualsService>())
+    {
         message.EffectIds = pEffects->ReadEffects(formIdComponent.Id);
+        message.HeldEffects = pEffects->ReadHeldIds(formIdComponent.Id);
+    }
 
     // Serialize the base form
     const auto isPlayer = (formIdComponent.Id == 0x14);

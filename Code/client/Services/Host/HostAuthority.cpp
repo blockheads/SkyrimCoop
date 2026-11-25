@@ -132,7 +132,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
     // Magic and combat: an effect landing works like a hit.
     Relay<InterruptCastRequest, NotifyInterruptCast>(FromOwner, &InterruptCastRequest::CasterId);
-    Relay<ProjectileLaunchRequest, NotifyProjectileLaunch>(FromOwner, &ProjectileLaunchRequest::ShooterID);
+    On(*this, &HostAuthority::OnProjectileLaunch);
     Relay<AddTargetRequest, NotifyAddTarget>(ToOwner, &AddTargetRequest::TargetId);
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
     // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
@@ -149,7 +149,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     On(*this, &HostAuthority::OnMeleeStagger);
     On(*this, &HostAuthority::OnTrapContact);
     On(*this, &HostAuthority::OnTrapHit);
-    On(*this, &HostAuthority::OnWorldProjectile);
     On(*this, &HostAuthority::OnLockChange);
     On(*this, &HostAuthority::OnContainerChange);
 
@@ -310,6 +309,14 @@ void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, Connect
     Deliver(notify, Delivery::ToOwner, acRequest.HitteeId, aSender);
 }
 
+void HostAuthority::OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    // An actor's shot from its owner; an object's (shooter 0: a dart port, a script's activator, a statue), of any kind,
+    // from the game that ran it.
+    Deliver(ToNotify<ProjectileLaunchRequest, NotifyProjectileLaunch>(acRequest), acRequest.ShooterID ? Delivery::FromOwner : Delivery::FromAnyone,
+            acRequest.ShooterID, aSender);
+}
+
 void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
     // The host's game runs a guest's activation with its copy; the others get what changed as its rows.
@@ -352,15 +359,6 @@ void HostAuthority::OnTrapHit(const TrapHitRequest& acRequest, ConnectionId_t aS
     NotifyTrapHit notify;
     static_cast<Payloads::TrapHit&>(notify) = acRequest;
     Deliver(notify, Delivery::ToOwner, acRequest.TargetId, aSender);
-}
-
-void HostAuthority::OnWorldProjectile(const WorldProjectileRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    if (aSender != m_players.Host())
-        return;
-    NotifyWorldProjectile notify;
-    static_cast<Payloads::WorldProjectile&>(notify) = acRequest;
-    m_players.SendToOthers(notify, aSender);
 }
 
 void HostAuthority::OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept

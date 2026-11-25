@@ -11,6 +11,7 @@
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 #include <Systems/CopyStep.h>
+#include <Games/OwnerEffects.h>
 
 #include <Events/DismountEvent.h>
 #include <Events/BoardEvent.h>
@@ -3377,13 +3378,14 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
     }
     if (cTarget->second.Copy)
     {
-        // A world cast (a trap, no actor) on another player's copy goes to that player's game (IsWorldCast).
-        const bool cWorldCast = !aCaster && IsOtherPlayer(aTarget) && World::Get().GetHostService().IsHosting();
+        // A world cast (no actor casts it: a trap's object, a hazard's or explosion's 0) on another player's copy goes to
+        // that player's game (IsWorldCast).
+        const bool cWorldCast = (!Actors.contains(aCaster) || InWorldImpact) && IsOtherPlayer(aTarget) && World::Get().GetHostService().IsHosting();
         if (!cOurCast && !cWorldCast)
             return;
         AddTargetEvent event;
         event.TargetID = aTarget;
-        event.CasterID = aCaster;
+        event.CasterID = Actors.contains(aCaster) ? aCaster : 0; // an actor's only (HookAddTarget)
         event.SpellID = aSpell;
         event.EffectID = aEffect;
         event.Magnitude = aMagnitude;
@@ -3391,33 +3393,49 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
         World::Get().GetRunner().Trigger(event);
         return;
     }
-    if (EffectHolds(aEffect, aDualCast))
-        Effects.push_back({aTarget, aCaster, aSpell, aEffect});
+    // A guest's own copy of a world cast on its player applies nothing: the host's verdict does (AppliesWorldEffect).
+    if (!TrapRules::AppliesWorldEffect(HoldSession != 0, aTarget == kPlayer ? HitRules::Party::LocalPlayer : HitRules::Party::Local,
+                                       !Actors.contains(aCaster) || InWorldImpact, false))
+        return;
+    if (EffectHolds(aEffect, aDualCast, aCaster))
+        StartsEffect({aTarget, aCaster, aSpell, aEffect});
 }
 
 void FakeEngine::ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
 {
-    const auto cTarget = Actors.find(aTarget);
-    if (cTarget == Actors.end())
-        return;
-    if (cTarget->second.Copy)
-        return SpellHits(aTarget, 0, aSpell, aEffect, aMagnitude);
-    // HookAddTarget: a guest's player already under the host's verdict for this explosion
-    const bool cGuest = HoldSession != 0;
-    const bool cActive = std::ranges::any_of(Effects, [&](const Effect& acEffect) {
-        return acEffect.Target == aTarget && acEffect.Spell == aSpell && acEffect.EffectId == aEffect && !acEffect.Caster;
-    });
-    if (cGuest && aTarget == kPlayer && TrapRules::SkipsWorldEffect(true, cActive))
-        return;
-    if (EffectHolds(aEffect, false))
-        Effects.push_back({aTarget, aExplosion, aSpell, aEffect});
+    // Its enchantment's AddTarget sees no caster actor (43849, by its NonActorMagicCaster): a world cast.
+    SpellHits(aTarget, 0, aSpell, aEffect, aMagnitude);
+    (void)aExplosion;
 }
 
-bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept
+void FakeEngine::HazardHits(uint32_t aTarget, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
+{
+    // HazardTargets__CheckActor (43987): only an actor not under its spell (IsSpellTarget; a copy answers its owner's).
+    if (!ActorHasEffect(aTarget, aEffect))
+        SpellHits(aTarget, 0, aSpell, aEffect, aMagnitude);
+}
+
+void FakeEngine::StartsEffect(const Effect& acEffect)
+{
+    Effects.push_back(acEffect);
+    World::Get().GetRunner().Trigger(EffectVisualsChangeEvent{acEffect.Target, 0});
+}
+
+bool FakeEngine::ActorHasEffect(uint32_t aActor, uint32_t aEffect) const
+{
+    const auto cActor = Actors.find(aActor);
+    if (cActor != Actors.end() && cActor->second.Copy)
+        return OwnerEffects::Has(cActor->second.OwnerEffects, aEffect);
+    return std::ranges::any_of(Effects, [&](const Effect& acEffect) { return acEffect.Target == aActor && acEffect.EffectId == aEffect; });
+}
+
+bool FakeEngine::EffectHolds(uint32_t aEffect, bool aDualCast, uint32_t aCaster) const noexcept
 {
     const auto cCondition = EffectConditions.find(aEffect);
     if (cCondition == EffectConditions.end())
         return true;
+    if (cCondition->second.OnCaster)
+        return aCaster != 0;
     if (cCondition->second.DualCast)
         return aDualCast;
     const auto cGlobal = Globals.find(cCondition->second.Global);
@@ -3633,9 +3651,9 @@ HitRules::Party FakeEngine::PartyOf(uint32_t aFormId) const noexcept
     return Local;
 }
 
-void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect)
+void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit)
 {
-    switch (HitRules::Of(PartyOf(aHittee), PartyOf(aHitter), aApplyingEffect))
+    switch (HitRules::Of(PartyOf(aHittee), PartyOf(aHitter), aApplyingEffect, aWorldHit, aWorldHit && HoldSession != 0))
     {
     case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage));
@@ -3682,17 +3700,6 @@ void FakeEngine::TakeTrapHit(uint32_t aFormId, uint32_t, const Payloads::TrapHit
     TakesDamage(aFormId, 0, acHit.Damage, false);
 }
 
-void FakeEngine::ObjectFires(uint32_t aObject, uint32_t aWeapon, const glm::vec3& acOrigin)
-{
-    ProjectileLaunchedEvent event{};
-    event.Origin = acOrigin;
-    event.ShooterID = aObject;
-    event.ByObject = true;
-    event.WeaponID = aWeapon;
-    event.ParentCellID = References.at(aObject).Cell;
-    World::Get().GetRunner().Trigger(event);
-}
-
 void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
 {
     // HookDamageActor's check.
@@ -3705,15 +3712,50 @@ void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
     TakesDamage(aHittee, aHitter, aDamage, false);
 }
 
-void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin)
+void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile, const glm::vec3& acOrigin)
 {
     ProjectileLaunchedEvent event{};
     event.Origin = acOrigin;
     event.ShooterID = aShooter;
     event.SpellID = aSpell;
+    event.ProjectileBaseID = aProjectile;
     event.ParentCellID = Actors.at(aShooter).Cell;
-    World::Get().GetRunner().Trigger(event);
+    if (TrapRules::SendsLaunch(Spell(aSpell).Concentration, true)) // HookLaunch (44108)
+        World::Get().GetRunner().Trigger(event);
     Shots.push_back({aShooter, aSpell, acOrigin});
+}
+
+void FakeEngine::BodyImpacts(uint32_t aTarget, float aDamage)
+{
+    if (HitRules::JudgesImpact(PartyOf(aTarget)))
+        TakesDamage(aTarget, 0, aDamage, false, false);
+}
+
+void FakeEngine::ObjectProjectileHits(uint32_t aTarget, float aDamage, uint32_t aEnchantment, uint32_t aEffect, float aMagnitude)
+{
+    // Projectile::Func190 (44204) with no actor shooter: a HitData with no aggressor (ProcessHit 38586), a world hit.
+    TakesDamage(aTarget, 0, aDamage, false, true);
+    if (!aEnchantment)
+        return;
+    InWorldImpact = true;
+    SpellHits(aTarget, aTarget, aEnchantment, aEffect, aMagnitude);
+    InWorldImpact = false;
+}
+
+void FakeEngine::ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProjectile, uint32_t aCell,
+                              const glm::vec3& acOrigin, uint32_t aWeapon)
+{
+    ProjectileLaunchedEvent event{};
+    event.Origin = acOrigin;
+    event.ShooterID = aObject;
+    event.SpellID = aSpell;
+    event.ProjectileBaseID = aProjectile;
+    event.WeaponID = aWeapon;
+    event.ParentCellID = aCell;
+    event.FromObject = true;
+    if (TrapRules::SendsLaunch(Spell(aSpell).Concentration, false)) // HookLaunch (44108)
+        World::Get().GetRunner().Trigger(event);
+    Shots.push_back({aObject, aSpell, acOrigin});
 }
 
 void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)

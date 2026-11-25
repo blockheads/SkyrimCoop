@@ -277,6 +277,8 @@ CRAFT_KEY = 0x13
 POISON_YES = 0
 REFR_LOCK = 1 << 12
 BEAST_FORM, WEREWOLF_CHANGE_EFFECT, WEREWOLF_BEAST_RACE, PLAYER_WEREWOLF_QUEST = 0x92C48, 0x92C45, 0xCDD84, 0x2BA16
+# Storm Call's bolt (PROJ ShockBoltAimStorm): StormCallLightningBolt0N, cast by magicProjectileStormScript from an activator.
+STORM_CALL_BOLT = 0xE4CB5
 WORLD_FIELDS = ("base", "cell", "flags", "position", "rotation", "scale", "has_3d", "hidden", "position_3d",
                 "lock", "open_state", "owner", "items", "changes", "pose", "collision", "graph", "effects")
 WORLD_TOLERANCES = {"position": 1.0, "position_3d": 1.0, "rotation": 0.01, "scale": 0.001}

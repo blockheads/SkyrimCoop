@@ -425,6 +425,10 @@ void HostService::MakeAuthority() noexcept
         return keys;
     };
     game.ReadTouching = [&engine](const std::vector<BodyKey>& acKeys) { return engine.ReadTouching(acKeys); };
+    game.IsKeyframed = [&engine](const BodyKey& acKey) {
+        const auto cRead = engine.Read(acKey);
+        return cRead && !cRead->Dynamic;
+    };
     game.EndPlayback = [&engine, this](const BodyKey& acKey, uint64_t aUntil) {
         m_world.ctx().at<BodyService>().Forget(acKey, std::max(aUntil, m_world.GetFrameTick()));
         engine.Release(acKey);

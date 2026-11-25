@@ -84,12 +84,14 @@ PhysicsBodies::Update PhysicsBodies::Take(uint64_t aTick) noexcept
         const bool cUp = cReference->Up;
         Bodies awake{it->first, cActor};
         Bodies all{it->first, cActor};
+        bool islandAwake = false;
         for (size_t i = 0; i < cReference->Bodies.size(); ++i)
         {
             const auto& cBody = cReference->Bodies[i];
             if (!cBody || (!cBody->Read.Dynamic && !cUp))
                 continue;
             const BodyRead& cRead = cBody->Read;
+            islandAwake |= cRead.Active;
             // Up again: where its bodies are is its rest (read once, below).
             if (cUp)
             {
@@ -173,6 +175,13 @@ PhysicsBodies::Update PhysicsBodies::Take(uint64_t aTick) noexcept
                 frame.Knocked = false;
                 all.Read.push_back(frame);
             }
+        // A reference still in an island kept awake (a rope beside it) stays watched, as woken where it rests: a nudge
+        // then moves it with no wake reported (physics.md, "Still in an awake island").
+        const bool cStillAwake = !cActor && islandAwake;
+        const auto cRewatch = [&] {
+            it->second = Moving{Pose::Of(*cReference)};
+            ++it;
+        };
         // Asleep, or an actor up again from lying (an actor standing never lay): where it rests is the owner's.
         if (!all.Read.empty() && (!cUp || it->second.Ragdoll))
         {
@@ -181,7 +190,10 @@ PhysicsBodies::Update PhysicsBodies::Take(uint64_t aTick) noexcept
             if (const auto& cLast = m_lastRests[it->first];
                 !cActor && !it->second.Moved && aTick - cLast.Tick < kRestAgainMs && SameRest(cLast.Rest, all.Read))
             {
-                it = m_awake.erase(it);
+                if (cStillAwake)
+                    cRewatch();
+                else
+                    it = m_awake.erase(it);
                 continue;
             }
             if (!cActor)
@@ -190,6 +202,11 @@ PhysicsBodies::Update PhysicsBodies::Take(uint64_t aTick) noexcept
                 m_lastRests[it->first] = {all.Read, aTick};
             }
             update.Rested.push_back(std::move(all));
+            if (cStillAwake)
+            {
+                cRewatch();
+                continue;
+            }
         }
         it = m_awake.erase(it);
     }

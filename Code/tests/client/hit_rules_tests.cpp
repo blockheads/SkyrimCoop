@@ -36,3 +36,24 @@ TEST_CASE("Our own actors take what the world does to them", "[HitRules]")
     CHECK(Of(Local, LocalPlayer, false) == Route::Apply);
     CHECK(Of(Local, Copy, false) == Route::Apply);
 }
+
+TEST_CASE("The host's world hit on another player's copy (an object's projectile) asks that player's game", "[HitRules]")
+{
+    using namespace HitRules;
+    CHECK(Of(Party::OtherPlayer, Party::None, false, true) == Route::AskOwner);
+    CHECK(Of(Party::OtherPlayer, Party::None, false, false) == Route::Mirror); // a copy's own fall
+    CHECK(Of(Party::Copy, Party::None, false, true) == Route::Mirror);
+    CHECK(Of(Party::LocalPlayer, Party::None, false, true) == Route::Apply);
+    // A guest's own copy of the world's hit on its player (its relaunch of a catapult's shot): the host's verdict counts.
+    CHECK(Of(Party::LocalPlayer, Party::None, false, true, true) == Route::Drop);
+    CHECK(Of(Party::LocalPlayer, Party::None, false, false, true) == Route::Apply); // its own fall
+    CHECK(Of(Party::Local, Party::None, false, true, true) == Route::Apply);
+}
+
+TEST_CASE("An object's impact is judged in the hit actor's own game, not on another player's copy", "[HitRules]")
+{
+    using enum HitRules::Party;
+    CHECK(HitRules::JudgesImpact(LocalPlayer));
+    CHECK(HitRules::JudgesImpact(Local));
+    CHECK_FALSE(HitRules::JudgesImpact(OtherPlayer)); // the host's followed rocks struck a copy 7 times in 90 ms
+}

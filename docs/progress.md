@@ -103,6 +103,20 @@ damage, timed effects recast with their elapsed time, cooldowns, trainings, firs
 after its health changes or it casts. Read in IDA: [player-save-state.md](re/systems/player-save-state.md). Scenario
 `guest_keeps_own_state_on_reload`; GameTests "A guest keeps its own favorites, damage, effects, cooldowns, trainings
 and view over a host load and a rejoin"; ClientTests `[own-state]`.
+2026-11-24: **a spell an object casts shows on every game: Storm Call's lightning** (`agent/storm-call-lightning`,
+[projectiles.md](re/systems/projectiles.md)). Bug 18: only the shouting game saw the bolts. `magicProjectileStormScript`
+casts each bolt with `Spell.RemoteCast` from an activator it placed in the sky, so the projectile's shooter is that
+activator (read in IDA: `NonActorMagicCaster` 34699 → `FindTargets` 34410 → `FireProjectile` 34452), and
+`CombatService` sent only launches shot by its game's actors. Now a spell projectile shot by an object (an activator, a
+statue, no shooter) goes out with shooter 0 from whichever game launched it, and the others relaunch it with no shooter:
+it flies and strikes, and with no shooter's caster its spell applies nothing there (44169/44206); its effects stay the
+launching game's. Not relayed: shots with no spell, and those whose base explodes (`BGSProjectile` +0xB0, the Fishing
+catapult): what a shooterless explosion does was not read. Outdoors the message carries the worldspace, so a cell the
+engine made is found from the origin (`TravelService::CellAt`; the wire bytes of `ProjectileLaunch` changed). Scenario `storm-call-bolts-reach-guest` (the host's and the guest's
+shout: before, 3 bolts struck and 0 shown each way; now each game relaunches every bolt the other struck), readout
+`projectile <base>` / `projectile <base> relaunched` counters, MCP verb `storm_call` (a checking verb, kept in exports
+when it fails); GameTests "A storm bolt a script casts from an activator shows on every game", HostAuthorityTests
+"Shots: an object's...".
 
 2026-11-23: **clothes a quest dresses the player in reach every player, worn** (`agent/alternate-start-clothing`).
 With Alternate Start only the host got its start's clothing: the start choices run `Player.EquipItem(...)` from
@@ -208,9 +222,13 @@ crash (an NPC's face template walk on the background loader, 15678) is open in [
 `docs/design/traps.md`, `docs/re/systems/traps.md`). The host runs a trap's script; a guest's player's touch goes to it
 (`TrapContactRequest`), its hit back to that guest (`NotifyTrapHit`, `DoTrap1` there); the host's far traps keep their
 graphs running (their scripts waited on clips); a guest plays the host's animations in order once its graph takes them;
-darts an object fires reach every guest; an object's `Spell.Cast` shows on every game. Scenarios `spike_wall_hurts_both`,
+darts an object fires reach every guest, their poison on the guest's player as the host's (its caster kept); an object's `Spell.Cast` shows on every game, a concentration stream (flame jets) included; a copy made later answers with its owner's held effects. Scenarios `spike_wall_hurts_both`,
 `scythes_hurt_both`, `darts_hurt_puller`, `flames_hurt_both`, `warehouse_traps_hurt_both` (fire plate, rocks, mace, logs). A tripped tripwire is broken on the guest too (its destroyed flag in the `kEnabled` row).
-An explosion's poison reaches a guest once (its copy's cast or the host's). A guest's copy stands at its owner's height, so the gas poisons a guest walking onto its plate.
+The world's harm is the host's verdict, shown on every game: everything an object shoots goes out with no shooter, of
+any kind (one path with Storm Call's bolts), a world cast or world hit (no actor) on a guest's copy goes to its game,
+and a guest's own copies apply nothing. Copies answer effect questions with their owner's effects
+(`HasMagicEffect`, `HasMagicEffectWithKeyword`, `IsSpellTarget`), so the host's gas and hazards stop at a guest already
+under them. A guest's copy stands at its owner's height.
 
 2026-11-23: **a lever furniture one player pulls moves on every game** (`agent/levers-synced`; playtest 2026-11-22 item
 11; `docs/re/systems/activation.md`, "Lever furniture"). Bleak Falls Temple's pillar lever is a furniture with
@@ -2577,6 +2595,14 @@ removed (git history keeps them).
 
 ### World state
 
+- **A guest's Storm Call may not hurt host NPCs** (2026-11-24, [projectiles.md](re/systems/projectiles.md), inferred
+  from our code, not measured): the host runs the NPC's storm script, which blames the guest's copy; if the bolt's
+  `AddTarget` caster is that copy, `HookAddTarget` drops it on the host's own NPC. Needs a scenario reading the
+  NPC's health.
+- **Storm Call's created activators end apart** (2026-11-24, `storm-call-bolts-reach-guest`'s end comparison, logged
+  under `own-checks`): its activators (`ACTI B79FF`, placed by `magicProjectileStormScript` and moved by `SetPosition`)
+  are on the host only, or in another cell or pose on the guest, after the storm. Invisible markers; whether the
+  script's moves and its `Delete` at the effect's end reach the guest's copies was not read.
 - **Why a lid flipped without 3D comes back part open is unread** (2026-11-18, `docs/re/systems/guest-world-events.md`,
   "A lid after a disable"): `InitNonNPCAnimation` (19757) already calls `SetOpenState` with snap at a 3D load, yet the
   new 3D shows 0.116 of the open 0.128 rad. The fix poses it afterwards (`ObjectService`, measured to agree); what

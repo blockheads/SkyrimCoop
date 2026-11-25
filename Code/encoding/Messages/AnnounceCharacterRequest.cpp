@@ -21,9 +21,8 @@ void AnnounceCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const
     Serialization::WriteString(aWriter, GraphState);
     Record.Serialize(aWriter);
     PerksContent.Serialize(aWriter);
-    Serialization::WriteVarInt(aWriter, EffectIds.size());
-    for (const auto& cEffectId : EffectIds)
-        cEffectId.Serialize(aWriter);
+    Payloads::ActiveEffects::WriteIds(aWriter, EffectIds);
+    Payloads::ActiveEffects::WriteHeld(aWriter, HeldEffects);
 }
 
 void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -59,8 +58,6 @@ void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noe
     GraphState = Serialization::ReadString(aReader);
     Record.Deserialize(aReader);
     PerksContent.Deserialize(aReader);
-    EffectIds.clear();
-    const auto cEffects = Serialization::ReadVarInt(aReader);
-    for (uint64_t i = 0; i < cEffects && i < 256; ++i)
-        EffectIds.emplace_back().Deserialize(aReader);
+    Payloads::ActiveEffects::ReadIds(aReader, EffectIds);
+    Payloads::ActiveEffects::ReadHeld(aReader, HeldEffects);
 }

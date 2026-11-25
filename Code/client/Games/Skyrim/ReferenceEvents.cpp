@@ -3,6 +3,9 @@
 #include <Events/EventDispatcher.h>
 #include <Events/ReferenceLoadedEvent.h>
 #include <Games/Events.h>
+#include <Games/ReferenceStates.h>
+#include <RTTI.h>
+#include <TESObjectREFR.h>
 #include <World.h>
 
 namespace ReferenceEvents
@@ -14,7 +17,11 @@ struct LoadedSink final : BSTEventSink<TESObjectLoadedEvent>
     BSTEventResult OnEvent(const TESObjectLoadedEvent* apEvent, const EventDispatcher<TESObjectLoadedEvent>*) override
     {
         if (apEvent && apEvent->loaded)
+        {
+            if (auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(apEvent->formID)))
+                ReferenceStates::ApplyDeferredMotion(*pObject);
             World::Get().GetRunner().Trigger(ReferenceLoadedEvent{apEvent->formID});
+        }
         return BSTEventResult::kOk;
     }
 };

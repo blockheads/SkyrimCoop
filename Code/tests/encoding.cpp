@@ -1131,6 +1131,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendMessage.Rotation.x = -1.87f;
         sendMessage.Rotation.y = 45.35f;
         sendMessage.EffectIds = {GameId(0, 0x4B2D9), GameId(2, 0x803)};
+        sendMessage.HeldEffects = {{GameId(0, 0xA0370), GameId(0, 0x9F28F)}, {GameId(0, 0xA0371), GameId(0, 0x9F28F), false}};
 
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
@@ -1147,6 +1148,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         // The spawn others get carries the same.
         NotifyCharacterSpawn sendSpawn = NotifyCharacterSpawn::FromAnnouncement(sendMessage, 7, 0), recvSpawn;
         CHECK(sendSpawn.EffectIds == sendMessage.EffectIds);
+        CHECK(sendSpawn.HeldEffects == sendMessage.HeldEffects);
         CHECK(sendSpawn.Weight == 87.5f);
         Buffer spawnBuff(1000);
         Buffer::Writer spawnWriter(&spawnBuff);
@@ -1276,6 +1278,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         ObjectChange owner{ObjectChange::Kind::kOwner, GameId(0, 0xC2CE5)};
         owner.Item = GameId(0, 0x7);
         sendMessage.Changes.push_back(owner);
+        ObjectChange motion{ObjectChange::Kind::kMotion, GameId(0, 0x7998B)};
+        motion.Value = 0x104; // keyframed, allowActivate
+        sendMessage.Changes.push_back(motion);
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);
@@ -2154,12 +2159,26 @@ TEST_CASE("Trap contacts, hits and the world's projectiles round trip", "[encodi
     hit.Position = {4.f, 5.f, 6.f};
     hit.Material = 7;
     cRequest(hit);
-    WorldProjectileRequest shot;
-    shot.Shooter = GameId(0, 0x3720F);
-    shot.Launch.WeaponID = GameId(0, 0x236A5);
-    shot.Launch.OriginX = 10.f;
-    shot.Launch.XAngle = 0.25f;
-    cRequest(shot);
+    // An owner's effects: those with visuals, and every one it holds (a copy's answer to "has this effect").
+    RequestActiveEffects effects;
+    effects.SessionId = 9;
+    effects.EffectIds = {GameId(0, 0x13CA9)};
+    effects.Held = {{GameId(0, 0x12FCD), GameId(0, 0x13CA9)}, {GameId(0, 0xA0370), GameId(0, 0x9F28F)}};
+    cRequest(effects);
+    // Each list holds at most kMaxEffects: a longer one goes out cut, the next field still read in its place.
+    RequestActiveEffects many;
+    many.SessionId = 9;
+    many.EffectIds.assign(257, GameId(0, 0x13CA9));
+    many.Held.assign(257, {GameId(0, 0x12FCD), GameId(0, 0x13CA9)});
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    many.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    const auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    const auto& cDecoded = static_cast<const RequestActiveEffects&>(*decoded);
+    CHECK(cDecoded.EffectIds.size() == Payloads::ActiveEffects::kMaxEffects);
+    CHECK(cDecoded.Held.size() == Payloads::ActiveEffects::kMaxEffects);
 }
 
 TEST_CASE("A guest's summon reaches the host with its spell, effect and magnitude", "[encoding.summon]")
