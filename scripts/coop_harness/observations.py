@@ -200,6 +200,11 @@ class Observations:
                                 f"package {mod.get('package_type')})")
         return problems
 
+    def gait(ctx, instance="client", seconds=4.0):
+        """That game's gait readout (GaitWatch) of the last `seconds`: per actor, units travelled, the feet's movement,
+        drawn and culled frames. What check_gait judges: travel with still feet while drawn is a slide."""
+        return ctx.player_command(instance, {"cmd": "gait", "seconds": seconds})["actors"]
+
     def gait_after_arrival(ctx, cell, seconds=12.0, walked=None):
         """The party arrives in `cell`, then for `seconds` every 2 s check_gait on both games: the first problem of
         each actor seen (empty if every actor that moved walked). Without `walked`, a game where no actor walked in

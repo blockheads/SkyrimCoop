@@ -128,6 +128,8 @@ every other section needs the duo.
 - [A guest's console kill that never downs it](#a-guests-console-kill-that-never-downs-it): small, not read
 - [A kill move that never pairs](#a-kill-move-that-never-pairs): small
 - [A host's swing aims at an earlier victim: no kill move on a giant or sabre cat](#a-hosts-swing-aims-at-an-earlier-victim-no-kill-move-on-a-giant-or-sabre-cat): small
+- [A victim the host removes while the guest holds it stays on the guest](#a-victim-the-host-removes-while-the-guest-holds-it-stays-on-the-guest): small
+- [A player's copy slides once after a boot](#a-players-copy-slides-once-after-a-boot): small
 - [A guest crash in the garbage collector's job](#a-guest-crash-in-the-garbage-collectors-job): medium
 - [A respawned player's draw that does nothing](#a-respawned-players-draw-that-does-nothing): small
 - [The attacker's copy not in its kill move](#the-attackers-copy-not-in-its-kill-move): small
@@ -1281,6 +1283,30 @@ target (38603 -> 38608 -> 47272, actor-state.md) is not the staged victim; why i
 Agent task: `kill_move_on` a giant after a troll and read 47272's pick and the attacker's `+0x104` at the swing.
 
 Size: small. Needs: the duo, IDA.
+
+### A victim the host removes while the guest holds it stays on the guest
+
+`kill-moves-every` (2026-11-25, the guest attacking): the guest took a bear for a kill move (its own AI state records for
+session 0x5F from 12:19:52), and the host's stage removed the bear while the guest still held it. On the host it was a
+copy then, so no removal reached the guest (none in its log for 0x5F): the guest's bear went back to a copy with no
+owner (`desync`: "copy in client with no owner"), and the guest's next swings aimed at it (damage to 0x5F, a refused kill
+move on it) instead of the new victim. Likely the same as the stale `attack_target` above. Not reproduced alone (the bear
+rows never paired, so nothing was taken). The claim and give-back path (`ClaimService`, `KillMoveService`) is not the
+copy combat groups' change.
+
+Agent task: take a host NPC for a guest kill move, remove it on the host before the give-back, and read whether the
+host's removal of a copy it lends out reaches the holder.
+
+Size: small. Needs: the duo.
+
+### A player's copy slides once after a boot
+
+On `agent/compass-enemy-dots` (2026-11-25): the first fight after a fresh boot, the host's copy on the guest moved 197 units
+in 5 s with its feet 13 (`gait`); four more fights walked normally, and dev walked normally in two. Too few to say whose.
+
+Agent task: `rounds` of a fresh boot plus one `fight` and `gait`, on dev and on the branch.
+
+Size: small. Needs: the duo.
 
 ### A guest crash in the garbage collector's job
 
