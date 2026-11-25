@@ -1,30 +1,33 @@
 # Installing SkyrimCoop (playtest)
 
-You need Skyrim Special Edition on Steam, game version **1.7.104**, on Windows or on Linux through Proton,
-and the same edition as everyone else (all with the Anniversary content, or all without). On Linux, start
-Skyrim once from Steam first.
+You need Skyrim Special Edition on Steam, game version **1.7.104**, on Windows or on Linux through Proton.
+Everyone in a session needs the same mods in the same load order (the host refuses anyone else and says what
+differs), and the same edition (all with the Anniversary content, or all without).
 
-## Everyone
+## What to install
 
-1. Download **SkyrimModSync** (`sms`) from its
-   [latest release](https://github.com/blockheads/SkyrimModSync/releases/latest): `sms-windows-x86_64.exe` on
-   Windows, `sms-linux-x86_64` on Linux (`chmod +x` it).
-2. Once: `sms setup`. It finds Skyrim, asks where to keep the mods, and asks for your Nexus API key
-   (nexusmods.com > Site preferences > API keys). With a Premium key, the mods download from Nexus.
-3. To play:
+The SkyrimCoop archive from this repo's [releases](https://github.com/blockheads/SkyrimCoop/releases) is an
+ordinary mod archive: its root is the game's `Data/` folder. It needs:
 
-   ```
-   sms play github:blockheads/SkyrimCoop
-   ```
+- [SKSE64](https://www.nexusmods.com/skyrimspecialedition/mods/30379) 2.3.1 (Steam 1.7.104)
+- [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) v13 (1.7.104)
+- [Unofficial Skyrim Special Edition Patch](https://www.nexusmods.com/skyrimspecialedition/mods/266) 4.3.9c
+- [Alternate Start - Live Another Life](https://www.nexusmods.com/skyrimspecialedition/mods/272) 4.2.6a
 
-   It installs the newest playtest build with SKSE, Address Library, USSEP and Alternate Start
-   (`playtest/modlist.json`), and starts Skyrim. Next time `sms play` is enough; it picks up new builds.
-4. After playing: `sms unload` puts your game back as it was.
+Install them with any mod manager, or by hand: SKSE's `skse64_loader.exe` and `skse64_1_7_104.dll` next to
+`SkyrimSE.exe` and its `Data/` contents into `Data/`; the other archives into `Data/`. Enable the plugins in this
+order:
 
-Without a Premium Nexus key, the mods come from the person who made the release, who must be running
-`sms host serve` while you sync.
+```
+unofficial skyrim special edition patch.esp
+alternate start - live another life.esp
+SkyrimCoopStart.esp
+```
 
-## In game
+Start the game through SKSE (`skse64_loader.exe`, or your mod manager's launch). On Linux, start it once from
+Steam first so Proton creates the game's settings.
+
+## Playing
 
 - The host loads a save (one used only for multiplayer) and invites friends from the Steam overlay
   (Shift+Tab). Friends accept from the main menu. Someone the host's save has not met makes a character first;
@@ -33,8 +36,7 @@ Without a Premium Nexus key, the mods come from the person who made the release,
   how your life begins at the statue of Mara.
 - Bugs and crashes: see `playtest.md` (in `Data/SKSE/Plugins/SkyrimCoop`): `/bug`, `/export` in the chat.
 
-## Making a playtest release (developers)
+## Releasing (developers)
 
-`scripts/release.sh <tag>` builds the mod, publishes the GitHub prerelease and attaches `pack.json`. It needs
-`sms` on `PATH` (or `SKYRIM_MOD_SYNC`) set up with `sms setup`. Without Nexus Premium it first lists the four
-archives to download by hand into `playtest/downloads/` (once).
+`scripts/release.sh <tag>` builds the archive and publishes it as a GitHub prerelease of a clean, pushed commit;
+the DLL's symbols stay in `build/package/<zip stem>-symbols/` for `scripts/re/symbolize_crash.py --build`.

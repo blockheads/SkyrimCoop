@@ -475,12 +475,12 @@ kicked, lost; the host's network closing is code 1, a kick 2). Re-joining by han
 Steam's invite again, or a restart. Tests: GameTests `[session]` (drops and comes back, drops for
 good, kick), `[steam]` (the connection drops, the lobby stays); scenario `host-rejoins`.
 
-## Mod sync: SkyrimModSync (decided 2026-11-25)
+## Mod sync: out of scope (decided 2026-11-25)
 
-A separate tool, [launcher.md](launcher.md): the host's MO2 profile is published as a pack (files by hash, load
-order, shared INI settings); friends sync it (Nexus archives through their own Premium API key, the rest from the
-host over P2P), load it into their game and unload it afterwards. The join gate stays the backstop: it checks what
-actually loaded. The research brief that preceded it: `docs/research/mod-sync-spike.md`.
+SkyrimCoop ships one mod archive and checks, at the join gate, that both games loaded the same plugins in the same
+order ([launcher.md](launcher.md)). How players get identical installs is up to them and their tools (a mod manager,
+a shared mod list); nothing in this repo depends on one. The research brief from before:
+`docs/research/mod-sync-spike.md`.
 
 ## Steam
 
@@ -541,7 +541,7 @@ loaded save, which stays as test scaffolding until save transfer replaces it.
 5. Characters in the host's save, character creation (stage 4).
 6. Blocking saves on the friend's side; leaving and kicks back to the main menu.
 7. Steam invites (after the two-account test).
-8. Layer 2 of the manifest; updating our plugin through SkyrimModSync ([launcher.md](launcher.md)).
+8. Layer 2 of the manifest (file hashes).
 9. The AOL-style buddy list and chats.
 
 The launch-lobby reader checks Skyrim's OS command line, then Steam's

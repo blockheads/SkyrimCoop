@@ -49,22 +49,12 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-25: **friends get the host's mod setup through SkyrimModSync; our launcher and bundled zip are gone**
-(`agent/launcher-modpack`; [launcher.md](design/launcher.md)). A separate Rust CLI (`sms`, the SkyrimModSync project,
-branch `main`) publishes the host's MO2 profile as a signed pack (files by hash, load order, shared INI settings).
-A file found in the Nexus archive its mod was installed from downloads from Nexus with the friend's own Premium API key;
-everything else comes from the host over P2P. `sms play <code>` syncs, loads the pack into the game folder (journaled,
-the friend's own files set aside, SKSE's loader in Steam's launcher slot) and starts Skyrim through Steam; `sms unload`
-restores the folder. Here: `Code/launcher/` and the `SKYRIMCOOP_LAUNCH_ARGS` carrier deleted (invites to a closed game
-dropped), `scripts/package.sh` makes one MO2-installable mod archive (no vendor files), `scripts/package_check.py`
-goes through `sms` (publish, sync, load, boot, unload), [install.md](install.md) rewritten. The host plays the same
-way: `sms play` with no code syncs its own pack from its own MO2 files (nothing downloaded) and loads it. Releases:
-SkyrimModSync is public (`blockheads/SkyrimModSync`, binaries per OS on `v*` tags); `scripts/release.sh TAG` publishes
-our archive as a prerelease here. SkyrimModSync v0.5/v0.6 (same day): rewritten simpler and faster (BLAKE3 in parallel,
-no signing layer, the host serves files from where they are), then MO2 support replaced by its own JSON mod list:
-`playtest/modlist.json` (SKSE, Address Library, USSEP, Alternate Start from Nexus; SkyrimCoop from our releases).
-`scripts/release.sh` attaches the resolved `pack.json` to each release, so players run `sms play
-github:blockheads/SkyrimCoop` with no host online when they have Nexus Premium.
+2026-11-25: **one mod archive; our launcher and bundled zip are gone** (`agent/launcher-modpack`;
+[launcher.md](design/launcher.md)). `scripts/package.sh` makes an ordinary mod archive (no SKSE, Address Library, USSEP or
+Alternate Start inside); `scripts/release.sh` publishes it as a GitHub prerelease. `Code/launcher/` and the
+`SKYRIMCOOP_LAUNCH_ARGS` carrier are deleted (invites to a closed game dropped). Installing and syncing mods is out of
+scope here: players use any mod manager or tool. `scripts/package_check.py` installs the archive and its requirements into a clean game and boots it;
+[install.md](install.md) is tool-neutral.
 
 2026-11-24: **shared dialogue under stress: a crash, two orphaned conversations, layered voices and a stuck rejoin
 fixed** (`agent/rejoin-dialogue-layers`; [dialogue.md](re/systems/dialogue.md), "A guest leaving mid-line", "A menu

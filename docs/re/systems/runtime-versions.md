@@ -22,7 +22,7 @@ COOP_SKYRIM_VERSION=1.6.1170 python3 scripts/re/build_re_data.py
 The normal output is `build/windows/x64/dev`; legacy output is `build/skyrim-1.6.1170/windows/x64/dev`.
 Native tests remain under `build/linux`. `COOP_SKYRIM_VERSION=1.6.1170` also selects the legacy Windows configuration
 in the build wrapper. Packages include `-skyrim-<version>` in their names and use separate build directories. They hold only our mod;
-SKSE and the other vendor mods reach players through SkyrimModSync ([launcher.md](../../design/launcher.md)).
+SKSE and the other vendor mods are installed separately ([install.md](../../install.md)).
 
 ## Staging
 
