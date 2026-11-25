@@ -25,6 +25,8 @@ Paths to your Steam library and game go in environment variables or `~/.config/s
 
 ## Docs
 
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to make a change, and the rules the code follows
+- [docs/architecture.md](docs/architecture.md): how the code is organised, on one page
 - [docs/progress.md](docs/progress.md): where things stand
 - [docs/design/](docs/design/): how it works, starting with [the glossary](docs/design/glossary.md)
 - [docs/design/testing.md](docs/design/testing.md): the tests, and running two games side by side
