@@ -373,3 +373,48 @@ write-back after physics (`TESObjectREFR::SetPosition` 19790, `HookSetPosition`)
 place (within `kStill` across, `CopyStep::kRestBand` 4 units up or down) its owner's height; the capsule is not warped.
 Walking counts: the step lands 0.04 short. Left out: a copy its capsule's collision holds off its owner's place
 (furniture, an NPC) or a ledge apart, whose own height is the true one until it catches up.
+
+## A goal outlives its place (2026-11-24)
+
+On arriving somewhere, copies crossed the screen in a few frames (88 to 160 units each; what caps the
+step was not read). A copy steps in the movement job
+(`HookApplyMovement` 37356 -> `StepCopy` -> `Actor::Move` 37507) to `ActorExtension::CopyGoal`, which only
+`ApplyRemoteMovement` writes. `RunRemoteUpdates` left a copy alone until it had two snapshots, and an arrival leaves it
+with none (`InterpolationSystem::Restart`, a spawn: `Setup`). So the job kept stepping the moved copy to the goal of
+the cell it had left, and `HookSetPosition` (19790) let that be written back because `HasCopyGoal` was set.
+
+```
+guest arrives          copy moved to its owner's new place (MoveActorTo)
+movement job           Actor::Move toward the OLD goal, 88 to 160 units a frame
+second snapshot        goal new: more than CopyStep::kSnap off, so placed back
+```
+
+- **Measured** (the duo, `races`: frames around a race with the goal and the owner's snapshots): guest, coc Riverwood,
+  host's player's copy at (17171, -47068), 147 units off its spot, goal (-1377, -490, 321), the Bannered Mare's, with
+  one snapshot. After the fix: on its spot in that frame, no goal. With the hold switched
+  off again (2026-11-25): NPC `1066DE`'s copy stepped 162 then 77 units on one snapshot, its goal still live.
+- **The fix:** with fewer than two snapshots a copy is held where it is (`CharacterService::HoldCopy`, `Place`: it drops
+  the goal and zeroes the controller's velocity, 37309), not on a mount or lying. Tests: GameTests "A copy that
+  travels stands at its owner's new place", scenario `copies_keep_place_on_arrival`.
+- **Late snapshots (2026-11-25).** Movement goes on ENet channel 1, jumps and spawns reliably on channel 0: one stamped
+  before a jump can arrive after it, and old -> new then interpolates as a sweep (or an old cell moves `OwnerPlaceComponent`
+  back). GameTests "A snapshot older than a copy's jump never takes it back" (injected; not seen on a line).
+  - `Restart` and a spawn keep their tick (`NotifyCharacterSpawn::Tick`) as a cutoff (`SnapshotAge`): older places are
+    dropped, their actions kept; the host's record of a player too. However late; never ahead of this game's clock;
+    0 again when the owner changes (`ClaimService`, `GiveUpOwnership`).
+  - The other way round, an older jump or spawn keeps newer points and their cell.
+  - A spawn built from a copy carries its owner's newest place, cell and tick together (`PlaceFromOwner`).
+  - Left: an owner's clock snapping back (`FrameClock`, over 250 ms) right after its own jump holds its copy until the
+    clock is past the jump again.
+- **The goal dropped at its cause:** `MoveActorTo` clears a copy's goal before the move (`MoveTo` can delete the actor),
+  and the hold places a copy at its owner's last place once in its cell. Read in IDA: `BuildJobListFromTable` (35419)
+  puts a full barrier (entry 11) between the movement job (10, 39053, which waits for its own list, 69377) and our update
+  (23, 39074), so the write never meets the job. `Actor::Disable` (37267) queues; once its task has run 19801 the process is gone and
+  41444 skips the actor, so a hidden copy is not stepped from then on. 37313 may queue the controller's warp (36949,
+  task 32). `CharacterStep` (78275, read) clamps no velocity; what caps the step is not found.
+- **Read, not seen:** the engine itself warps actors near a load, unlike `MoveTo_Impl` with no teleport flag from us:
+  37313 (door followers 37648, followers 37434, package locations 37472, sandbox 29002, fast travel 40445) and
+  37618 (placing an actor for its package, from `MoveToHigh` 37621). A host NPC warped so after its first snapshot
+  would sweep to its new place on guests in one send interval. In the watched arrivals no host NPC jumped in
+  one frame (one, `D7505`, was flung 80 units a frame on the host itself), so it has no fix.
+  `OnReferenceJump` is where it would go.

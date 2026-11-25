@@ -18,6 +18,12 @@ struct CopyStep
     // Farther off than this it is placed, not stepped (TES3MP snaps past 40 to 80 units).
     static constexpr float kSnap = 64.f;
 
+    // With no two snapshots yet: where it is, unless its ragdoll or its mount carries it.
+    [[nodiscard]] static CopyMove Hold(bool aLies, bool aMounted) noexcept
+    {
+        return aLies || aMounted ? CopyMove::Leave : CopyMove::Place;
+    }
+
     // Stepped only while its owner's controller is on the ground and its capsule collides, where its engine's step follows
     // faithfully; otherwise placed: a step can't jump, and Actor::Move turns collision back on (actor-movement.md).
     [[nodiscard]] static CopyMove Choose(bool aLies, bool aOwnerOnGround, bool aOwnerCollides, const glm::vec3& acAt, const glm::vec3& acGoal) noexcept

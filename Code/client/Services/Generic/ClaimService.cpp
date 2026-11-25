@@ -2,6 +2,7 @@
 
 #include <Bridges/IActorBridge.h>
 #include <Components/FormIdComponent.h>
+#include <Components/InterpolationComponent.h>
 #include <Components/LocalComponent.h>
 #include <Components/RemoteComponent.h>
 #include <Events/DisconnectedEvent.h>
@@ -78,6 +79,8 @@ void ClaimService::OnClaim(const NotifyClaim& acMessage) noexcept
         const entt::entity cEntity = EntityOf(cMember.ActorId);
         if (cMember.Take && cEntity != entt::null && m_world.all_of<LocalComponent>(cEntity))
             m_world.GetCharacterService().GiveUpOwnership(cEntity, cMember.ActorId, m_world.get<FormIdComponent>(cEntity).Id);
+        else if (auto* pInterpolation = cEntity != entt::null && cMember.Take ? m_world.try_get<InterpolationComponent>(cEntity) : nullptr)
+            pInterpolation->RestartTick = 0; // another owner's clock from here
     }
 }
 
@@ -189,8 +192,13 @@ void ClaimService::OnGiveBack(const NotifyActorGiveBack& acMessage) noexcept
         if (cTook)
             m_world.GetCharacterService().GiveUpOwnership(cEntity, acMessage.ActorId, cFormId);
     }
-    else if (acMessage.Taken && acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
-        m_world.GetCharacterService().FollowOwner(cEntity, cFormId, acMessage.Whereabouts, false);
+    else if (acMessage.Taken)
+    {
+        if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(cEntity))
+            pInterpolation->RestartTick = 0; // another owner's clock from here
+        if (acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
+            m_world.GetCharacterService().FollowOwner(cEntity, cFormId, acMessage.Whereabouts, false);
+    }
 }
 
 void ClaimService::OnUpdate(const UpdateEvent&) noexcept

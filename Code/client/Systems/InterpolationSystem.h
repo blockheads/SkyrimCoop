@@ -15,7 +15,8 @@ struct InterpolationSystem
     static bool Interpolate(const InterpolationComponent::TimePoint& acFirst, const InterpolationComponent::TimePoint& acSecond, uint64_t aTick, glm::vec3& aPosition, glm::vec3& aRotation, uint64_t aAheadMs = 0) noexcept;
     static void AddPoint(InterpolationComponent& aInterpolationComponent, const InterpolationComponent::TimePoint& acPoint) noexcept;
     // Its points dropped and its owner at acPosition (a teleport, a refreshed spawn): no guess or correction carries over.
-    static void Restart(InterpolationComponent& aInterpolationComponent, const glm::vec3& acPosition) noexcept;
+    // Its owner jumped or spawned there at aTick: older points go. False when a newer one is here, whose place stands.
+    static bool Restart(InterpolationComponent& aInterpolationComponent, const glm::vec3& acPosition, uint64_t aTick, uint64_t aNow) noexcept;
     // A copy's owner time shown this frame (CopyPlayback on the game's CopyClock).
     static uint64_t PlaybackTick(World& aWorld, entt::entity aEntity) noexcept;
     static InterpolationComponent& Setup(World& aWorld, entt::entity aEntity) noexcept;

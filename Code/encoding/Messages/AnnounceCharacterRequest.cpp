@@ -2,6 +2,7 @@
 
 void AnnounceCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
+    Serialization::WriteVarInt(aWriter, Tick);
     Serialization::WriteVarInt(aWriter, SessionId);
     ReferenceId.Serialize(aWriter);
     FormId.Serialize(aWriter);
@@ -29,6 +30,7 @@ void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noe
 {
     RequestMessage::DeserializeRaw(aReader);
 
+    Tick = Serialization::ReadVarInt(aReader);
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     ReferenceId.Deserialize(aReader);
     FormId.Deserialize(aReader);

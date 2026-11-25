@@ -44,6 +44,40 @@ class TravelActions:
             ctx.wait_for(f"[{name or 'host'}] the arrival's fade is over", lambda name=name: ctx.takes_input(name), 10)
 
 
+    def watch_races(ctx):
+        """Both games watch, frame by frame, for actors that race (TestHarness/JitterWatch): read with races."""
+        for name in ("", "client"):
+            ctx.player_command(name, {"cmd": "jitter", "start": True})
+
+
+    def _raced(ctx, instance, stop=False):
+        return (ctx.player_command(instance, {"cmd": "jitter", "stop": stop}) or {}).get("actors") or {}
+
+
+    def races(ctx, seconds=10.0):
+        """Watched for `seconds` more, then each game's actors that raced standing since watch_races: `warps` (times one
+        began), `sweep` (the most frames in a row past any run). A jump is 1 frame; more crosses the screen."""
+        time.sleep(seconds)
+        return {name or "host": [{"id": f"{int(form_id):X}", **{k: a[k] for k in ("copy", "warps", "sweep", "race")}}
+                                 for form_id, a in ctx._raced(name, stop=True).items() if a["warps"]]
+                for name in ("", "client")}
+
+
+    def expect_no_copy_races(ctx, seconds=10.0, frames=2, sampled=60):
+        """After a trip: each game has watched the other player's copy for `sampled` frames in its new cell (past its
+        second snapshot), then `seconds` more; no standing copy raced more than `frames` frames in a row."""
+        for name in ("", "client"):
+            ctx.wait_for(f"[{name or 'host'}] the other player's copy is watched in its new cell",
+                         lambda name=name: any(a["player"] and a["cell_changes"] and a["cell_frames"] >= sampled
+                                               for a in ctx._raced(name).values()), 30)
+        found = ctx.races(seconds)
+        bad = {game: [a for a in actors if a["copy"] and a["sweep"] > frames] for game, actors in found.items()}
+        if any(bad.values()):
+            for actor in (a for actors in bad.values() for a in actors):
+                actor["race"] = [{k: e[k] for k in ("frame", "step", "at", "goal", "points") if k in e} for e in actor["race"] if e["step"] > 1]
+            raise ctx.failure(f"copies raced across the screen: {bad}")
+
+
     def solo_move(ctx, instance, x, y):
         """That game's player alone goes to (x, y) in its worldspace: placed (SetPosition, no queued travel, so no party
         travel) high above the spot, then on the floor a downward ray finds once the cells there are loaded. God mode

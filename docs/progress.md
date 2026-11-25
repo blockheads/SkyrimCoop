@@ -73,6 +73,13 @@ way: `sms play` with no code syncs its own pack from its own MO2 files (nothing 
 SkyrimModSync is public (`blockheads/SkyrimModSync`, binaries per OS on `v*` tags); `scripts/release.sh TAG` publishes
 our archive as a prerelease here, which hosts use as the mod's source (`sms host source SkyrimCoop github ...`).
 
+- **2026-11-24, copies no longer race across the screen on arrival:** a copy with fewer than two snapshots stays where
+  it is, not stepped on to its place in the cell it left (`actor-movement.md`, "A goal outlives its place"). GameTests
+  "A copy that travels stands at its owner's new place", scenarios `copies_keep_place_on_arrival`,
+  `copies_keep_place_through_door`. A snapshot stamped before a jump or spawn and arriving after it is dropped
+  (`SnapshotAge`; GameTests "A snapshot older than a copy's jump never takes it back"). Harness verbs
+  `watch_races`, `races`, `expect_no_copy_races`.
+
 2026-11-24: **shared dialogue under stress: a crash, two orphaned conversations, layered voices and a stuck rejoin
 fixed** (`agent/rejoin-dialogue-layers`; [dialogue.md](re/systems/dialogue.md), "A guest leaving mid-line", "A menu
 joining mid-answer, and the replayed greeting", "The speaker dies or fights"; [dialogue-stress.md](design/dialogue-stress.md)).

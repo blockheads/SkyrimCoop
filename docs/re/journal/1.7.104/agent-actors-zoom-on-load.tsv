@@ -1,0 +1,74 @@
+time	op	id	rva	item
+2026-11-25T04:48:13Z	read	37309	0x6770a0	{"name": "Actor::SetPosition"}
+2026-11-25T04:48:14Z	read	56626	0xa5d370	{"name": "TESObjectREFR::MoveTo_Impl"}
+2026-11-25T04:48:17Z	read	37313	0x677370	{"name": "TESObjectREFR::sub_37313"}
+2026-11-25T04:48:37Z	read		0x47f0ab	{"name": "BGSProcedureSandboxExecState::sub_29002"}
+2026-11-25T04:48:37Z	read		0x684e16	{"name": "Character::sub_37434"}
+2026-11-25T04:48:38Z	read		0x686bf6	{"name": "Character::sub_37472"}
+2026-11-25T04:48:38Z	read		0x2840da	{"name": "TESObjectDOOR__OnPlayerTeleportDone"}
+2026-11-25T04:48:39Z	read		0x68464a	{"name": "TESObjectREFR::sub_37432"}
+2026-11-25T04:48:40Z	read		0x6991b9	{"name": "sub_1406990F0"}
+2026-11-25T04:48:40Z	read		0x6a8085	{"name": "sub_1406A7FB0"}
+2026-11-25T04:48:41Z	read		0x6ac8af	{"name": "TESObjectREFR::sub_37908"}
+2026-11-25T04:48:42Z	read		0x6ac973	{"name": "TESObjectREFR::sub_37909"}
+2026-11-25T04:48:42Z	read		0x6ee2f4	{"name": "sub_1406EE150"}
+2026-11-25T04:48:43Z	read		0x69462a	{"name": "Actor::sub_37618"}
+2026-11-25T04:48:44Z	read	37621	0x694850	{"name": "Actor::MoveToHigh"}
+2026-11-25T04:49:05Z	read	37438	0x685360	{"name": "Character::sub_37438"}
+2026-11-25T04:49:32Z	name	37313	0x677370	{"addr": "0x140677370", "name": "Actor::WarpTo_37313"}
+2026-11-25T04:49:32Z	name	37618	0x693c70	{"addr": "0x140693c70", "name": "Actor::PlaceForPackageAndFit_37618"}
+2026-11-25T04:49:32Z	name	37648	0x6990f0	{"addr": "0x1406990f0", "name": "Actor::FollowPlayerThroughDoor"}
+2026-11-25T04:49:32Z	name	41346	0x781620	{"addr": "0x140781620", "name": "ProcessLists::MoveFollowersThroughDoor"}
+2026-11-25T04:49:32Z	name	37877	0x6a7fb0	{"addr": "0x1406a7fb0", "name": "Actor::WarpToPathingLocation"}
+2026-11-25T04:49:32Z	name	39220	0x6ee150	{"addr": "0x1406ee150", "name": "AIProcess::UpdateFollowProcedureWarp"}
+2026-11-25T04:49:42Z	name		0x686bf6	{"addr": "0x140686bf6", "name": "Character::WarpToPackageLocation_37472"}
+2026-11-25T04:49:42Z	name		0x684e16	{"addr": "0x140684e16", "name": "Character::WarpFollowersAlong_37434"}
+2026-11-25T04:49:42Z	name		0x68464a	{"addr": "0x14068464a", "name": "Actor::WarpWithFollowers_37432"}
+2026-11-25T04:49:44Z	comment	37313	0x677370	{"addr": "0x140677370", "comment": "[re]\nAddressLib ID 37313\nSkyrimCoop: hooked by HookForceState as RealForceState (Code/client/Games/Skyrim/Actor.cpp)\nWarp an actor: (actor, pos, angleX, angleZ, cell, worldspace, resetAI). SetPosition 19790, rotation, parent cell 19799; its cell attached: Actor::SetPosition 37309 with the controller (vfunc +0x548), now or through the task queue (140668BD0). Every caller is an engine warp: MoveTo_Impl 56626, doors 17927, followers 37434, door followers 1406990F0, package location 37472, sandbox 29002, follow 1406EE150, fast travel 40445, mount riders. Read 2026-11-24."}
+2026-11-25T04:49:44Z	comment	37618	0x693c70	{"addr": "0x140693c70", "comment": "[re]\nAddressLib ID 37618\nOur name. Puts an actor where its package has it (BGSVisitProceduresInitActorLocation, closest navmesh point), then fits it among the high actors and the player (sphere search), and SetPosition + queued warp, or 37309 with warp. Does not go through 37313. Callers: MoveToHigh 37621 (an actor entering high process as its cell loads), UpdateHighProcessAI 1407051C7, door followers 1406990F0, 140781980, SwitchToLoadedSetController 36520. A2: skip the early-out state tests. Returns 1 when it placed. Read 2026-11-24."}
+2026-11-25T04:49:44Z	comment		0x686bf6	{"addr": "0x140686bf6", "comment": "[re]\nAddressLib ID 37472\nOur name. Warps an actor to its package's location (37313, with its followers 37434/37432) when its package changes out of sight. Read 2026-11-24."}
+2026-11-25T04:49:44Z	comment		0x684e16	{"addr": "0x140684e16", "comment": "[re]\nAddressLib ID 37434\nOur name. Warps the actors following this one to behind it, each with 37313. Read 2026-11-24."}
+2026-11-25T04:49:44Z	comment	37648	0x6990f0	{"addr": "0x1406990f0", "comment": "Our name. A follower through the player's load door: 37313 to the door's teleport data, then 37618. Called by 140781620 for each actor that follows the player (40493). Read 2026-11-24."}
+2026-11-25T05:56:39Z	name	37472	0x6867e0	{"addr": "0x1406867e0", "name": "Character::WarpToPackageLocation"}
+2026-11-25T05:56:39Z	name	37434	0x684740	{"addr": "0x140684740", "name": "Character::WarpFollowersAlong"}
+2026-11-25T05:56:39Z	name	37432	0x6845f0	{"addr": "0x1406845f0", "name": "Actor::WarpWithFollowers"}
+2026-11-25T05:56:41Z	comment	37472	0x6867e0	{"addr": "0x1406867e0", "comment": "[re]\nAddressLib ID 37472\nOur name. Warps an actor to its package's location (37313, with its followers 37434/37432) when its package changes out of sight. Read 2026-11-24."}
+2026-11-25T05:56:41Z	comment	37434	0x684740	{"addr": "0x140684740", "comment": "[re]\nAddressLib ID 37434\nOur name. Warps the actors following this one to behind it, each with 37313. Read 2026-11-24."}
+2026-11-25T05:56:41Z	comment	37432	0x6845f0	{"addr": "0x1406845f0", "comment": "[re]\nAddressLib ID 37432\nOur name. 37313 for the actor, then 37434 for its followers. Read 2026-11-24."}
+2026-11-25T05:56:41Z	comment		0x686bf6	{"addr": "0x140686bf6", "comment": ""}
+2026-11-25T05:56:41Z	comment		0x684e16	{"addr": "0x140684e16", "comment": ""}
+2026-11-25T14:51:09Z	read	37356	0x67c380	{"name": "Actor::ApplyMovement"}
+2026-11-25T14:51:10Z	read	37507	0x689370	{"name": "Actor::Move"}
+2026-11-25T14:51:19Z	read		0x67bbbb	{"name": "Actor::UpdateMovement"}
+2026-11-25T14:51:45Z	read	36949	0x668bd0	{"name": "sub_140668BD0"}
+2026-11-25T14:51:55Z	read	39033	0x6e49e0	{"name": "TaskQueueInterface::ShouldUseTaskQueue"}
+2026-11-25T14:51:56Z	read	37314	0x6776e0	{"name": "Character::sub_37314"}
+2026-11-25T14:51:56Z	name	36949	0x668bd0	{"addr": "0x140668BD0", "name": "TaskQueueInterface::QueueActorSetPosition"}
+2026-11-25T14:51:58Z	comment	36949	0x668bd0	{"addr": "0x140668BD0", "comment": "Our name. Queues task 32 (actor, a copy of its position, angle, bool): 37313's deferred form of Actor::SetPosition 37309 with the controller. Pushes TaskQueueInterface; the actor's reference position is already written when it is queued. Read 2026-11-25."}
+2026-11-25T14:53:02Z	read	41306	0x77c950	{"name": "ProcessLists::QueueHighActorMovement"}
+2026-11-25T14:53:02Z	read	41444	0x789320	{"name": "UpdateActorMovementJob"}
+2026-11-25T14:55:10Z	read	39053	0x6e5100	{"name": "Job_Actor_movement"}
+2026-11-25T14:55:25Z	read	37267	0x6754e0	{"name": "Actor::Disable"}
+2026-11-25T14:55:26Z	read	19801	0x2f2d70	{"name": ""}
+2026-11-25T14:55:26Z	read	69353	0xebb1d0	{"name": "JobList::Finish"}
+2026-11-25T14:55:27Z	read	39074	0x6e57d0	{"name": "Job_VM_update"}
+2026-11-25T14:55:48Z	read	62456	0xb99710	{"name": "ahkpCharacterRigidBody::sub_62456"}
+2026-11-25T14:55:48Z	read	79201	0x109b3d0	{"name": "bhkCharRigidBodyController::Func11_79201"}
+2026-11-25T14:55:49Z	read	69377	0xebc070	{"name": "sub_140EBC070"}
+2026-11-25T14:55:56Z	read	35419	0x60ef30	{"name": "sub_14060EF30"}
+2026-11-25T14:55:57Z	read		0xb99690	{"name": "hkpCharacterRigidBody::Func5_62454"}
+2026-11-25T14:56:04Z	read	69350	0xebb120	{"name": "sub_140EBB120"}
+2026-11-25T14:56:06Z	read	62455	0xb99700	{"name": "ahkpCharacterRigidBody::sub_62455"}
+2026-11-25T14:56:07Z	read	62449	0xb98880	{"name": "ahkpCharacterRigidBody::sub_62449"}
+2026-11-25T14:56:11Z	read	69375	0xebbc60	{"name": "sub_140EBBC60"}
+2026-11-25T14:56:12Z	name	69377	0xebc070	{"addr": "0x140EBC070", "name": "BSJobList::FinishAndWait"}
+2026-11-25T14:56:12Z	name	35419	0x60ef30	{"addr": "0x14060EF30", "name": "BuildJobListFromTable"}
+2026-11-25T14:56:12Z	name	69350	0xebb120	{"addr": "0x140EBB120", "name": "JobList::QueueSync"}
+2026-11-25T14:56:16Z	comment	69377	0xebc070	{"addr": "0x140EBC070", "comment": "Our name. Waits until a job list is done: helps with or yields to its jobs while the last group's count is above 0, then waits its event. Actor_movement's own list (39053) is finished here before that job returns. Read 2026-11-25."}
+2026-11-25T14:56:16Z	comment	35419	0x60ef30	{"addr": "0x14060EF30", "comment": "Our name. Builds a BSJobList from the frame job table (0x1420B4D00): nullsub_206 = sync 1 (..Signal), nullsub_207 = sync 2 (..Sync), nullsub_208 = both, a full barrier. Actor_movement is entry 10, barrier 11, VM_update 23, barrier 24. Read 2026-11-25."}
+2026-11-25T14:56:16Z	comment	69350	0xebb120	{"addr": "0x140EBB120", "comment": "Our name. Queues a sync entry into a job list (1 signal, 2 wait). Thunk to 140EBBC60. Read 2026-11-25."}
+2026-11-25T14:56:16Z	comment	37648	0x6990f0	{"addr": "0x1406990F0", "comment": "Actor::FollowPlayerThroughDoor: named earlier on this branch."}
+2026-11-25T14:56:16Z	comment	37877	0x6a7fb0	{"addr": "0x1406A7FB0", "comment": "Actor::WarpToPathingLocation: named earlier on this branch."}
+2026-11-25T14:56:16Z	comment	39220	0x6ee150	{"addr": "0x1406EE150", "comment": "AIProcess::UpdateFollowProcedureWarp: named earlier on this branch."}
+2026-11-25T15:24:58Z	comment	37648	0x6990f0	{"addr": "0x1406990F0", "comment": "Our name. A follower through the player's load door: 37313 to the door's teleport data, then 37618. Called by 140781620 (41346) for each actor that follows the player (40493). Read 2026-11-24."}
+2026-11-25T15:24:58Z	comment	78275	0x1064d20	{"addr": "0x141064D20", "comment": "78275. Read 2026-11-25: the wanted velocity (+0xB0) is delta * (1/dt) with no clamp in this function (z zeroed on the ground unless state 5 or flag 0x800); the state manager and the controller's ApplyVelocity (79201, 62456) were not read to the end for a limit. Steps of at most 2 substeps."}

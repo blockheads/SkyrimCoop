@@ -1,5 +1,6 @@
 #include <Systems/InterpolationSystem.h>
 #include <Components.h>
+#include <Systems/SnapshotAge.h>
 
 #include <algorithm>
 #include <cmath>
@@ -69,12 +70,16 @@ void InterpolationSystem::AddPoint(InterpolationComponent& aInterpolationCompone
     aInterpolationComponent.TimePoints.push_back(acPoint);
 }
 
-void InterpolationSystem::Restart(InterpolationComponent& aInterpolationComponent, const glm::vec3& acPosition) noexcept
+bool InterpolationSystem::Restart(InterpolationComponent& aInterpolationComponent, const glm::vec3& acPosition, uint64_t aTick, uint64_t aNow) noexcept
 {
-    aInterpolationComponent.TimePoints.clear();
-    aInterpolationComponent.Position = acPosition;
+    auto& points = aInterpolationComponent.TimePoints;
+    std::erase_if(points, [&](const auto& acPoint) { return acPoint.Tick <= aTick; });
+    if (points.empty())
+        aInterpolationComponent.Position = acPosition;
+    aInterpolationComponent.RestartTick = SnapshotAge::Cutoff(aTick, aNow, aInterpolationComponent.RestartTick);
     aInterpolationComponent.Guess.reset();
     aInterpolationComponent.Correction = {};
+    return points.empty();
 }
 
 uint64_t InterpolationSystem::PlaybackTick(World& aWorld, entt::entity aEntity) noexcept

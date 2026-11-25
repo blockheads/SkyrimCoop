@@ -21,6 +21,7 @@
 #include <Messages/NotifyReferencesMove.h>
 #include <Structs/GridCellCoords.h>
 #include <Structs/RidePart.h>
+#include <Systems/SnapshotAge.h>
 
 
 namespace
@@ -95,9 +96,14 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
         notify.Updates[cSessionId] = cUpdate;
         if (auto& record = it->second.PlayerRecord)
         {
-            record->CellId = cUpdate.UpdatedMovement.CellId;
-            record->Position = cUpdate.UpdatedMovement.Position;
-            record->Rotation = cUpdate.UpdatedMovement.Rotation;
+            // Sent before its arrival but after it here: an old place.
+            if (!SnapshotAge::IsStale(acRequest.Tick, record->Tick))
+            {
+                record->Tick = SnapshotAge::Cutoff(acRequest.Tick, m_network.GetTick(), record->Tick);
+                record->CellId = cUpdate.UpdatedMovement.CellId;
+                record->Position = cUpdate.UpdatedMovement.Position;
+                record->Rotation = cUpdate.UpdatedMovement.Rotation;
+            }
             if (!cUpdate.ActionEvents.empty())
                 record->LatestAction = cUpdate.ActionEvents.back();
         }
@@ -420,8 +426,13 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
         auto& record = it->second.PlayerRecord;
         if (it->second.Owner == aSender && record)
         {
-            record->CellId = acRequest.CellId;
-            record->Position = acRequest.Position;
+            // Newer movement here already: its place stands.
+            if (!SnapshotAge::IsStale(acRequest.Tick, record->Tick))
+            {
+                record->Tick = SnapshotAge::Cutoff(acRequest.Tick, m_network.GetTick(), record->Tick);
+                record->CellId = acRequest.CellId;
+                record->Position = acRequest.Position;
+            }
             record->LatestAction = acRequest.LatestAction;
             record->GraphState = acRequest.GraphState;
             record->InitialActorValues = acRequest.Data.InitialActorValues;

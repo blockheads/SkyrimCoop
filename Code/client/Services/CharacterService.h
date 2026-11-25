@@ -155,6 +155,10 @@ struct CharacterService
     void FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts, bool aOwnerGone) const noexcept;
     // Our actor taken back from a claim: exactly where its last holder left it, its heading too.
     void PlaceAt(uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept;
+    // A copy's spawn: its owner's newest place, cell and tick, not where playback shows it.
+    void PlaceFromOwner(entt::entity aEntity, NotifyCharacterSpawn& aSpawn) const noexcept;
+    // A copy with no two snapshots yet: at its owner's last place, not its last goal.
+    void HoldCopy(entt::entity aEntity, uint32_t aFormId) const noexcept;
 
 private:
     void MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;

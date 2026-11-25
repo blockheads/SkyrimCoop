@@ -2,6 +2,7 @@
 
 void EnterCellRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
+    Serialization::WriteVarInt(aWriter, Tick);
     CellId.Serialize(aWriter);
     WorldSpaceId.Serialize(aWriter);
     Position.Serialize(aWriter);
@@ -16,6 +17,7 @@ void EnterCellRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 
+    Tick = Serialization::ReadVarInt(aReader);
     CellId.Deserialize(aReader);
     WorldSpaceId.Deserialize(aReader);
     Position.Deserialize(aReader);

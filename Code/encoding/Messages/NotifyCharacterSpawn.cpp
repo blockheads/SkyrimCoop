@@ -10,6 +10,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
 
     NotifyCharacterSpawn spawn;
     spawn.SessionId = aSessionId;
+    spawn.Tick = acAnnouncement.Tick;
     // A game reference everyone has is found by its id; the player and temporary references are
     // created from their base and appearance instead.
     if (!cIsPlayer && !cIsTemporary)
@@ -38,6 +39,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
 
 void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
+    Serialization::WriteVarInt(aWriter, Tick);
     Serialization::WriteVarInt(aWriter, SessionId);
     FormId.Serialize(aWriter);
     BaseId.Serialize(aWriter);
@@ -65,6 +67,7 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
 {
     NotifyMessage::DeserializeRaw(aReader);
 
+    Tick = Serialization::ReadVarInt(aReader);
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     FormId.Deserialize(aReader);
     BaseId.Deserialize(aReader);

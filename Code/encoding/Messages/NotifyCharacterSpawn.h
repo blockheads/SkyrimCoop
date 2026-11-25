@@ -33,11 +33,12 @@ struct NotifyCharacterSpawn final : NotifyMessage
 
     bool operator==(const NotifyCharacterSpawn& acRhs) const noexcept
     {
-        return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
+        return SessionId == acRhs.SessionId && Tick == acRhs.Tick && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
                FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer &&
                CommanderId == acRhs.CommanderId && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && HeldEffects == acRhs.HeldEffects && GetOpcode() == acRhs.GetOpcode();
     }
 
+    uint64_t Tick{}; // the session's time its place was read: movement stamped before it is older
     uint32_t SessionId{};
     GameId FormId{};
     GameId BaseId{};

@@ -1,5 +1,6 @@
 // Physics sync's pure halves (docs/design/physics-sync.md): the guess every game makes, the host's send rule, the
 // guest's playback.
+#include <Systems/SnapshotAge.h>
 #include <catch2/catch.hpp>
 #include <Games/KnockReplay.h>
 #include <Games/Animation/PoseMatch.h>
@@ -728,6 +729,13 @@ TEST_CASE("A lying copy's ragdoll, played, meets the world and what this game mo
     CHECK(Decide(cCopy, cInfo(32, 9)) == Meet::kEngine);                  // this game's own corpse: the layers say
 }
 
+TEST_CASE("A copy with no two snapshots is held where it is, unless its ragdoll or mount carries it", "[copy-step]")
+{
+    CHECK(CopyStep::Hold(false, false) == CopyMove::Place);
+    CHECK(CopyStep::Hold(true, false) == CopyMove::Leave);
+    CHECK(CopyStep::Hold(false, true) == CopyMove::Leave);
+}
+
 TEST_CASE("A script's motion type packs with its allowActivate and the last one stands", "[physics][motion]")
 {
     CHECK(ScriptMotion::TypeOf(ScriptMotion::Pack(4, true)) == 4);
@@ -758,4 +766,16 @@ TEST_CASE("Moving groups never wrap onto one in use; a freed one is taken again"
     groups.Give(cFirst);
     groups.Give(cFirst);              // both of group 12's bodies stopped
     CHECK(groups.Take(13) == cFirst); // free again, taken by another object
+}
+
+TEST_CASE("A snapshot stamped before its owner's jump is stale; the cutoff never goes back or past this game's clock", "[copy-step]")
+{
+    CHECK(SnapshotAge::IsStale(960, 1000));
+    CHECK(SnapshotAge::IsStale(7999, 10000)); // however late
+    CHECK_FALSE(SnapshotAge::IsStale(1000, 1000));
+    CHECK_FALSE(SnapshotAge::IsStale(1040, 1000));
+    CHECK(SnapshotAge::Cutoff(1000, 1010, 0) == 1000);
+    CHECK(SnapshotAge::Cutoff(900000, 1010, 0) == 1010);
+    CHECK(SnapshotAge::Cutoff(960, 1010, 1000) == 1000);
+    CHECK(SnapshotAge::Cutoff(1000, 0, 0) == 1000); // no clock yet
 }

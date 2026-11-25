@@ -41,6 +41,16 @@ private:
         uint32_t Furniture = 0;    // frames with its sit/sleep state set
         float FurniturePath = 0.f; // how far its place went in them
         uint32_t FurnitureReversals = 0; // its place turning back in them
+        uint32_t Warps = 0;              // times its place began to race or jump
+        uint32_t Sweep = 0;              // the most frames in a row it raced in, standing (cRace each)
+        uint32_t Racing = 0;             // those running now
+        uint32_t LastFrame = 0;          // the last it was seen in
+        bool Copy = false, Player = false; // as last seen: a copy, another player's
+        uint32_t Cell = 0;
+        uint32_t CellChanges = 0;
+        uint32_t CellFrames = 0; // since its cell last changed
+        nlohmann::json Path = nlohmann::json::array(); // the frames around its first race: place, its copy's goal if stepped, its owner's snapshots
+        uint32_t After = 0;
     };
 
     bool m_running = false;
