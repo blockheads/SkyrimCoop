@@ -54,7 +54,8 @@ game     = gamePath (@ByteArray(...), Z: = / under Wine) or Stock Game; --game o
 profile  = profiles/<name>/: modlist.txt (+enabled, top = highest), plugins.txt,
            loadorder.txt, Skyrim*.ini (local INIs)
 effective files:
-  game folder, then each enabled mod lowest priority first, then overwrite/
+  game folder: only licensed files (matched, never sent) and skse64_* root files;
+  then each enabled mod lowest priority first, then overwrite/
   a mod's Root/ lands in the game root; meta.ini, *.mohidden, logs, saves skipped
 each mod's origin: meta.ini installationFile → downloads/<archive> + its .meta
                    (modID, fileID, gameName → Nexus slug)
@@ -71,7 +72,8 @@ per mod: override url → download it once (host cache by URL); github → the n
 per file: protected game file (Skyrim.esm, BSAs, cc*)   → base
           its mod's archive has a member with this hash   → archive{sha, member}
           otherwise                                       → host{blake3}
-          SkyrimSELauncher.exe is never packed (load puts SKSE's loader there)
+          SkyrimSE*.exe, logs, dumps, saves are never packed, and a pack naming them
+          (or our journal) is refused by the friend
 ```
 
 A wrong or stale MO2 record costs a host fallback, never a broken install: every hash is checked.
@@ -134,7 +136,8 @@ play:  version check (pack runtime) → sync → load → steam://run/489830
 - SkyrimModSync: public, [blockheads/SkyrimModSync](https://github.com/blockheads/SkyrimModSync); a `v*` tag builds
   `sms` for Linux, Windows and macOS (Apple Silicon, Intel) into a GitHub release with `SHA256SUMS`.
 - SkyrimCoop: `scripts/release.sh TAG` publishes `scripts/package.sh`'s archive as a prerelease of this repo from a
-  clean, pushed commit. Hosts point the mod at it: `sms host source SkyrimCoop github blockheads/SkyrimCoop`.
+  clean, pushed commit; a tag naming another commit, or a DLL holding a home path, is refused. Symbols stay local
+  (`<zip stem>-symbols/`, with BUILD and RUNTIME, for `scripts/re/symbolize_crash.py --build`). Hosts point the mod at it: `sms host source SkyrimCoop github blockheads/SkyrimCoop`.
 
 ## What changed in this repo
 

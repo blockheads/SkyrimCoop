@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
-# The mod as one archive MO2 installs (its root is Data/): the plugin without the test harness, its UI, the bundled
-# start and licenses. Friends get it through SkyrimModSync (docs/design/launcher.md): the host installs this zip as a
-# mod in MO2 and publishes the profile; SKSE, Address Library, USSEP and Alternate Start come from their own sources.
-# build/package/SkyrimCoop-<git describe>-skyrim-<runtime>.zip; the DLL and PDB stay beside it in <zip stem>-symbols/
-# (BUILD: the commit a crash report names; RUNTIME: the matching Skyrim), for scripts/re/symbolize_crash.py --build:
-# players' crash logs carry module offsets, never symbols.
-# Its own xmake configuration (build/package-config, build/package-build): the test build's is untouched. Dev mode,
-# the optimization every test runs, with the PDB for crash logs.
-#   scripts/package.sh
+# One MO2-installable archive of the mod in build/package, its symbols beside it (docs/design/launcher.md, Releases).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 T="$ROOT/build/toolchains"
@@ -29,6 +21,8 @@ built = root / f"build/package-build/{runtime}/windows/x64/dev"
 dll = built / "SkyrimTogetherClient.dll"
 if b"SkyrimCoopHotReload" in dll.read_bytes():
     sys.exit(f"{dll} has the test harness: the package needs --test_harness=n")
+if str(Path.home()).encode() in dll.read_bytes():
+    sys.exit(f"{dll} names this machine's home folder: not for a public release")
 ui = root / "Code/client/Ui/assets"
 # Paths relative to Data/ (MO2's mod root); the documents live in the plugin's own folder, not loose in Data.
 docs = "SKSE/Plugins/SkyrimCoop"

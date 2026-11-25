@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
-"""The player path end to end, the way docs/install.md says: the mod zip (scripts/package.sh) and the vendor mods
-(SKSE, Address Library, USSEP, Alternate Start from build/runtime-vendor) installed as mods of an MO2 instance,
-published with SkyrimModSync (`sms`), synced by a friend over a local P2P connection, loaded into a clean game folder
-with a new Proton prefix, and booted through Steam's launcher slot (SKSE's loader while loaded). Then `sms unload`
-must give the clean folder back unchanged. A player build has no test harness, so this is a boot check read from the
-plugin's log, not a joined session.
-
-The clean game folder (build/clean-install/game) hardlinks the Steam install's files, without SKSE, its plugins or
-anything of ours. `sms` is SKYRIM_MOD_SYNC (local_paths), else on PATH, else ../SkyrimModSync/target/release/sms.
-Uses the shared duo display (:99): run it as `scripts/duo.py run -- python3 scripts/package_check.py`.
-  scripts/package_check.py [ZIP]   (default: the newest package)
-"""
+"""Publish, sync, load, boot and unload the package through sms (docs/design/launcher.md). Run it with
+`scripts/duo.py run -- python3 scripts/package_check.py [ZIP]`; SKYRIM_MOD_SYNC names the sms binary."""
+import hashlib
 import json
 import os
 import shutil
@@ -105,8 +96,20 @@ def sms(*args):
 
 
 def tree(root):
-    """Every file under root: (size, inode), so a restored folder is the same files, not copies."""
-    return {str(p.relative_to(root)): (p.stat().st_size, p.stat().st_ino) for p in root.rglob("*") if p.is_file()}
+    """Every file under root: size, inode and content (a same-size rewrite in place must show)."""
+    def digest(path):
+        value = hashlib.sha256()
+        with open(path, "rb") as file:
+            while block := file.read(1 << 20):
+                value.update(block)
+        return value.hexdigest()
+    return {str(p.relative_to(root)): (p.stat().st_size, p.stat().st_ino, digest(p)) for p in root.rglob("*") if p.is_file()}
+
+
+def settings():
+    """The settings files load rewrites: their bytes, None for one that does not exist."""
+    files = [ct.load_order_file(), ct.load_order_file().with_name("loadorder.txt")]
+    return {str(path): path.read_bytes() if path.exists() else None for path in files}
 
 
 def main():
@@ -143,7 +146,7 @@ def main():
         serve.terminate()
         serve.wait()
     before = tree(GAME)
-    order_before = ct.load_order_file().read_bytes() if ct.load_order_file().exists() else None
+    settings_before = settings()
     loaded = sms("load")
     if not loaded["skse_launcher"]:
         raise TestFailure("the pack has no skse64_loader.exe for Steam's launcher slot")
@@ -183,8 +186,8 @@ def main():
     if after != before:
         changed = sorted(set(after.items()) ^ set(before.items()))[:10]
         raise TestFailure(f"unload left the game folder changed: {changed}")
-    if order_before is not None and ct.load_order_file().read_bytes() != order_before:
-        raise TestFailure("unload did not restore Plugins.txt")
+    if settings() != settings_before:
+        raise TestFailure("unload did not restore Plugins.txt and loadorder.txt")
     print(f"PASS: published, synced, loaded, booted (UI from the package), unloaded to the clean folder; "
           f"{len(problems)} error lines; screenshot {shot}")
     for line in problems[:20]:

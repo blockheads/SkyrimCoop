@@ -10,15 +10,15 @@ Unofficial Skyrim Special Edition Patch and Alternate Start - Live Another Life,
 ## The host
 
 1. Install the mods in Mod Organizer 2, as usual: the SkyrimCoop zip (`SkyrimCoop-<version>-skyrim-1.7.104.zip`,
-   from this repo's [releases](https://github.com/blockheads/SkyrimCoop/releases)) is an ordinary mod archive. SKSE (with MO2's Root Builder or its files in the game folder), Address Library, USSEP
+   from this repo's [releases](https://github.com/blockheads/SkyrimCoop/releases)) is an ordinary mod archive. SKSE **2.3.1** as an MO2 mod (its loader and DLL in the mod's `Root/` folder), Address Library, USSEP
    and Alternate Start from Nexus. Enable the plugins; the load order is MO2's.
+   Anything to share must be an MO2 mod: from the game folder itself only SKSE's root files are published.
 2. Publish the profile:
 
    ```
    sms host init --mo2 <MO2 folder> --profile <profile>
    sms host status        # every mod, where friends get it, what you'd send
    sms host source SkyrimCoop github blockheads/SkyrimCoop   # friends download it from our releases
-   sms host source "SKSE" url https://skse.silverlock.org/beta/skse64_2_02_06.7z   # mods without a Nexus record
    sms host publish       # prints the code for friends
    sms host serve         # keep running while friends sync (files only you have)
    ```

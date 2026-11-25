@@ -81,6 +81,10 @@ build_client("SkyrimTogetherClient")
 -- SKSE plugin DLL: links every client object and exports the SKSE entry points
 -- (SKSEPlugin_Version, SKSEPlugin_Load, DllMain).
 target("SkyrimTogetherClientDLL")
+    -- The PDB by name only: no build machine path in a released DLL.
+    if is_plat("windows") then
+        add_shflags("/PDBALTPATH:%_PDB%", {force = true})
+    end
     set_kind("shared")
     set_group("Client")
     set_basename("SkyrimTogetherClient")
