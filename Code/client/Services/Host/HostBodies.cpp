@@ -308,26 +308,45 @@ void HostBodies::Update(uint64_t aTick) noexcept
     for (auto& [cKey, row] : m_rows)
         if (row.FromGuest && row.Given && aTick > row.Heard + BodyTolerances::kSilentMs)
             row.FromGuest = false;
-    TrapBound();
+    TrapBound(aTick);
     Read(aTick);
     Stream(aTick);
 }
 
-void HostBodies::TrapBound() noexcept
+void HostBodies::TrapBound(uint64_t aTick) noexcept
 {
     m_trapBound.clear();
     if (!m_game.ReadTouching || !m_game.IsTrapBody)
         return;
-    std::vector<BodyKey> moved;
+    const uint32_t cHost = NumberOf(m_players.Host());
+    // A guest's moving bodies, and those the host holds for touching a trap's.
+    std::vector<BodyKey> asked(m_trapHeld.begin(), m_trapHeld.end());
     for (const auto& [cKey, cRow] : m_rows)
         if (const auto cClaim = m_authority.Of(cKey); !cKey.Actor && IsGuest(cClaim.Player) && !cClaim.AtRest)
-            moved.push_back(cKey);
-    if (moved.empty())
+            asked.push_back(cKey);
+    if (asked.empty())
         return;
-    m_trapBound = BodyAuthority::TouchingHostOnly(m_game.ReadTouching(moved), m_game.IsTrapBody);
+    m_trapBound = BodyAuthority::TouchingHostOnly(m_game.ReadTouching(asked), m_game.IsTrapBody);
+    // Held by the host while it touches one: a guest's touch loses to a hold (BodyAuthority::Touch).
     for (const BodyKey& cKey : m_trapBound)
+    {
         if (IsGuest(m_authority.Of(cKey).Player))
             Unclaim(cKey, "it touches a trap's body");
+        if (m_trapHeld.insert(cKey).second)
+            (void)m_authority.Grab(cKey, cHost, aTick);
+    }
+    for (auto it = m_trapHeld.begin(); it != m_trapHeld.end();)
+    {
+        const auto cClaim = m_authority.Of(*it);
+        if (m_trapBound.contains(*it) && cClaim.Held && cClaim.Player == cHost)
+        {
+            ++it;
+            continue;
+        }
+        if (cClaim.Player == cHost)
+            m_authority.Release(*it, cHost);
+        it = m_trapHeld.erase(it);
+    }
 }
 
 void HostBodies::OnPlayerLeft(ConnectionId_t aPlayer) noexcept

@@ -358,6 +358,15 @@ SCENARIO("A guest's player pushes a bucket a trap's rock rests on: the host's ga
         party.Until([&] { return !Moves(party.Guest(), kBucket) || guestBucket.Flight.Resting; }, "the bucket goes back or stops");
         CHECK_FALSE(Moves(party.Guest(), kBucket));
         CHECK_FALSE(guestBucket.Flight.Resting);
+        // Held by the host while it touches the rock: the guest's next push takes nothing, its bucket keyframed on the
+        // host's frames (a tripwire's rope its player stands in, pushed each step).
+        party.Until([&] { return guestBucket.Held; }, "the guest shows the host's hold");
+        party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
+        for (int i = 0; i < 10; ++i)
+        {
+            party.Frame();
+            CHECK_FALSE(Moves(party.Guest(), kBucket));
+        }
     }
 }
 

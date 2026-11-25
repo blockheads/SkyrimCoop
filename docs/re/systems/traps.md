@@ -95,6 +95,19 @@ reference with any body on a trap's layer is now the host's, all of it: the gues
 host refuses a claim (`HostBodies::MayClaim`). Then the host judged the hit in four of four tries and the scenario's
 trap steps passed. Its rests on the guest still show small pose drift (a rock's node turned, rope links up to 20 units).
 
+## A physics trap's hit is the contact's speed (read and measured, 2026-11-24)
+
+`PhysicsTrapHit` hits on a new contact (`OnTrapHitStart`) whose event velocity squared is at least 6
+(`damageVelocityThreshold`), and is not hit-once: a return swing hits again. A character's trap contacts come only from
+its own proxy step (`bhkCharProxyController::StepProxy` -> 80510; a still copy steps by nothing and reports them too).
+The event's velocity (`TrapTargetEntry::GetVelocityAndPosition` 26034) is the trap body's, less its projection of the
+character controller's velocity: a target moving with the trap is hit softer, one walking into it harder.
+WarehouseTraps' mace, someone standing on its tripwire: the swing is spent there, first contacts squared 3.4 to 14 on the
+guest's copy and on the host's own player alike, each missed some runs. Walked into across the wire
+(`warehouse_traps_hurt_both`), the mace meets the guest near the bottom of its arc and hit in both runs. A copy hit
+twice where the host's own player is hit once: the hit's push moves the host's player at once, the copy only when the
+guest's movement arrives, so the return swing meets it still standing (not fixed).
+
 ## Darts carry their damage (read in IDA and measured, 2026-11-23)
 
 - Read in IDA: a relaunched dart is built by `Projectile::Constructor` (44100) from the launch data's weapon and ammo

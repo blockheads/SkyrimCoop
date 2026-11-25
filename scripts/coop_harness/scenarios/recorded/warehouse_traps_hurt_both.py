@@ -15,7 +15,9 @@ def run(ctx):
         ctx.expect_trap_hurts(who='guest', at=[3328, -480, -128], away=[3100, -480, -128], rounds=1, seconds=5, health=100)
         ctx.expect_trap_hurts(who='guest', at=[5120, -2491, -121], away=[5110, -2280, -121], rounds=1, seconds=6, health=100)
         ctx.expect_trap_hurts(who='host', at=[5115, -3048, -121], away=[5110, -2800, -121], rounds=1, seconds=6, health=100)
-        ctx.expect_trap_hurts(who='guest', at=[1536, -1472, -128], away=[1536, -1250, -128], rounds=1, seconds=6, health=100)
+        # The mace (2464D), walked into across its tripwire: standing on the wire the swing is spent (squared 3.4 to 14 at
+        # first contact against PhysicsTrapHit's 6, the host's own player missed too), walking in it comes at speed.
+        ctx.expect_trap_hurts(who='guest', at=[1536, -1472, -128], away=[1536, -1250, -128], rounds=1, seconds=6, health=100, walk_on='2464D')
         ctx.expect_trap_hurts(who='host', at=[3328, -480, -128], away=[3100, -380, -128], rounds=1, seconds=5, health=100)
         ctx.expect_trap_hurts(who='guest', at=[5500, -650, -128], away=[5300, -700, -128], rounds=1, seconds=6, health=100, pull='78EE0')
         # The poison gas (plate FDA6B), walked onto: its explosion went off under a guest's copy's feet (2026-11-23).

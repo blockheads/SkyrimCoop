@@ -127,7 +127,10 @@ The rope moved at 2 to 30 units/s past 15 s on both games, where a game without 
 host tripping it (one simulator) in 3 s. A body touching a trap's body (Havok's pairs, `BodyAuthority::TouchingHostOnly`)
 is now the host's too: the host gives back a guest's moving body that touches one and refuses its claim meanwhile, and
 a guest does not take one. Measured: the host's rope still in 5 s and asleep by 8 s, the guest's still by 14 s (its
-player, standing in it, still claims it: its touches number past the host's until it steps off).
+player, standing in it, still claimed it: its touches numbered past the host's). The host now holds such a body
+(`BodyAuthority::Grab`, released when it no longer touches one, ended by its rest): a hold outranks any touch, so the
+guest yields it within a second and follows the host's frames. Left: most of the rope's links get no rest on the guest
+(the host declared rests for 3 of 11 in one run; the guest's frames stop when its player walks away).
 
 ## Motion type and kSetLocal
 
