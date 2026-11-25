@@ -1603,6 +1603,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
             ++SpokeWithout3D;
         Lines.emplace_back(aFormId, acFilename);
     }
+    // Subtitles shown over actors (SubtitleManager::ShowSubtitle; an open dialogue menu shows its speaker's).
+    std::vector<std::pair<uint32_t, std::string>> Subtitles;
+    void ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t, bool) noexcept override
+    {
+        Subtitles.emplace_back(aFormId, acText);
+    }
     // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
     void Fights(uint32_t aActor, uint32_t aTarget);
     // Actor::StartCombat (38561) as an attack runs it on its victim (AIProcess::StartAssault): the victim takes a combat
@@ -1939,6 +1945,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
     void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept override;
     void DeleteActor(uint32_t aFormId) noexcept override;
+    // A temporary actor deleted this frame: its handle still resolves, with no process, until the frame's end (the
+    // engine frees it later, ProcessLists::UpdateTempChangeList 41294; measured: dialogue.md, A guest leaving mid-line).
+    std::set<uint32_t> Releasing;
+    [[nodiscard]] bool HandleResolves(uint32_t aFormId) const noexcept
+    {
+        return Actors.contains(aFormId) || Releasing.contains(aFormId);
+    }
     bool IsActorTemporary(uint32_t aFormId) const noexcept override { return aFormId >= 0xFF000000; }
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
     bool IsActorLeveled(uint32_t aFormId) const noexcept override;
@@ -2112,6 +2125,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void Improves(uint32_t aActor, const Inventory::Entry& acStack, const std::function<void(Inventory::Entry&)>& acChange);
     // A quest's script gives it (AddItem from a quest, alias, dialogue line or scene): raised as the story's.
     void QuestGivesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // A quest's script's Actor.EquipItem (54661): an item it lacks added with no InventoryChangeEvent (16053, past our
+    // add hooks), then equipped; our hook on the native reports the arrival (ScriptEquips).
+    void QuestEquipsItem(uint32_t aActor, uint32_t aItem);
     // The engine puts an NPC's outfit item back on after removeallitems: added with no InventoryChangeEvent (our item
     // hooks never see it), then equipped as Equips does (save-load-gate, 2026-10-30: Lydia's copy lost her armor).
     void OutfitPutsOn(uint32_t aActor, uint32_t aItem);
@@ -2140,6 +2156,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // EquipManager's, ours: under ScopedEquipOverride, as EquipManager::Equip and UnEquip set it.
     void ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept override;
     void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    // 38894 with that stack's own list, unforced (no ForcedWorn): only that stack of the base is worn.
+    void ActorWearStack(uint32_t aActorFormId, const Inventory::Entry& acStack) noexcept override;
     void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;

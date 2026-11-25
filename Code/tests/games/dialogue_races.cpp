@@ -171,6 +171,60 @@ SCENARIO("A quest deletes a placed NPC a guest talks to: the conversation ends o
                 [&] { return std::format("speakers: host {:X}, guest {:X}; guest's menu {}", hostTalk.Speaker, guestTalk.Speaker, guestTalk.MenuOpen); });
 }
 
+// dialogue-guest-leaves-mid-line: leaving deletes the copies, the speaker among them, and its menu was still open on it.
+SCENARIO("A guest leaving the session mid-conversation ends its game's conversation on the copy it loses", "[dialogue][dialogue-race][join]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    hostTalk.Greeting = guestTalk.Greeting = {kFirst, kSecond};
+    party.As(party.Host(), [&] { host.LoadNpc(kNpc, kCell); });
+    party.Until([&] { return guest.CopiesOf(kNpc).size() == 1; }, "the guest's game has a copy of the NPC");
+    const uint32_t cCopy = guest.CopiesOf(kNpc)[0];
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return guestTalk.MenuOpen && hostTalk.Speaker; }, "the guest talks to the NPC");
+
+    party.Leave(party.Guest());
+    party.Until([&] { return !party.Guest().GetTransport().IsOnline() && !guest.ActorExists(cCopy); }, "the guest is out, its copies gone");
+    for (int i = 0; i < 5; ++i)
+        party.Frame();
+    THEN("its engine never updates a speaker without a process, and its menu is closed")
+    {
+        CHECK(guestTalk.SpeakerFaults == 0);
+        CHECK(!guestTalk.Speaker);
+        CHECK(!guestTalk.MenuOpen);
+    }
+}
+
+// The copy freed (its handle gone) just before the guest leaves: offline, ClearOrphaned no longer runs.
+SCENARIO("A guest leaving right after its speaker's copy is freed still closes its menu", "[dialogue][dialogue-race][join]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    hostTalk.Greeting = guestTalk.Greeting = {kFirst, kSecond};
+    party.As(party.Host(), [&] { host.LoadNpc(kNpc, kCell); });
+    party.Until([&] { return guest.CopiesOf(kNpc).size() == 1; }, "the guest's game has a copy of the NPC");
+    const uint32_t cCopy = guest.CopiesOf(kNpc)[0];
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return guestTalk.MenuOpen && hostTalk.Speaker; }, "the guest talks to the NPC");
+
+    party.As(party.Guest(), [&] {
+        guest.DeleteActor(cCopy);
+        guest.Releasing.clear(); // freed: its handle no longer resolves
+    });
+    REQUIRE(!guestTalk.GetSpeaker());
+    party.Leave(party.Guest());
+    party.Until([&] { return !party.Guest().GetTransport().IsOnline(); }, "the guest is out");
+    for (int i = 0; i < 5; ++i)
+        party.Frame();
+    THEN("its menu is closed") CHECK(!guestTalk.MenuOpen);
+}
+
 namespace
 {
 const IDialogueBridge::Option kThird{.Topic = 0x1003, .Info = 0x2003, .Text = "Third"};

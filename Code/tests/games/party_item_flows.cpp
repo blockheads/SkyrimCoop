@@ -307,3 +307,48 @@ SCENARIO("A guest's story gift it wears before the host's answer is renamed worn
     });
     party.Until([&] { return PartyCopies(host, FakeEngine::kPlayer) == 1; }, "the host's player holds the real one");
 }
+
+SCENARIO("A quest's script dresses the player: every player gets the clothes and wears them", "[party-items]")
+{
+    // Alternate Start's start choice: Player.EquipItem(ClothesFineClothes01) on the host's player (playtest 2026-11-23).
+    constexpr uint32_t kClothes = 0x000CEE80;
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    for (FakeEngine* pEngine : {&host, &guest})
+    {
+        pEngine->FormNames[kClothes] = "Fine Clothes";
+        pEngine->ItemForms[kClothes] = {FakeEngine::kArmor, 0x4}; // body
+    }
+    party.Until([&] { return PlayerCopies(host).size() == 1 && PlayerCopies(guest).size() == 1; }, "each game has the other's player");
+    // The guest wears its own Fine Clothes already: the party's copy goes on in their place.
+    party.As(party.Guest(), [&] {
+        guest.GetsItem(FakeEngine::kPlayer, kClothes, 1);
+        guest.Equips(FakeEngine::kPlayer, kClothes, 0);
+    });
+    party.As(party.Host(), [&] { host.QuestEquipsItem(FakeEngine::kPlayer, kClothes); });
+    const auto cWears = [&](const FakeEngine& acEngine, uint32_t aActor = FakeEngine::kPlayer) {
+        return std::ranges::any_of(acEngine.Worn(aActor), [](const auto& acWorn) { return std::get<1>(acWorn) == kClothes; });
+    };
+    // The worn stack is the party's copy, and the player can take it off (no forced equip).
+    const auto cWearsTagged = [&](const FakeEngine& acEngine) {
+        return std::ranges::any_of(acEngine.EntriesOf(FakeEngine::kPlayer, kClothes), [](const auto& acEntry) {
+                   return acEntry.ExtraWorn && acEntry.ExtraName == "[P] Fine Clothes"; }) &&
+               !acEngine.Actors.at(FakeEngine::kPlayer).ForcedWorn.contains(kClothes);
+    };
+    const auto cTagged = [&](const FakeEngine& acEngine) {
+        int32_t count = 0;
+        for (const auto& cEntry : acEngine.EntriesOf(FakeEngine::kPlayer, kClothes))
+            count += cEntry.ExtraName == "[P] Fine Clothes" ? cEntry.Count : 0;
+        return count;
+    };
+    party.Until([&] { return cTagged(host) == 1 && cTagged(guest) == 1 && cWears(host) && cWearsTagged(guest) && cWears(host, PlayerCopies(host)[0]) &&
+                             cWears(guest, PlayerCopies(guest)[0]); },
+                "both players carry \"[P] Fine Clothes\" and wear it, and so do their copies",
+                [&] {
+                    return std::format("host carries {} tagged of {}, wears {}; guest carries {} tagged of {}, wears {}; copies wear {} {}",
+                                       cTagged(host), host.CountOf(FakeEngine::kPlayer, kClothes), cWears(host), cTagged(guest),
+                                       guest.CountOf(FakeEngine::kPlayer, kClothes), cWearsTagged(guest), cWears(host, PlayerCopies(host)[0]),
+                                       cWears(guest, PlayerCopies(guest)[0]));
+                });
+}

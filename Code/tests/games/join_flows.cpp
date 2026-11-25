@@ -974,3 +974,24 @@ SCENARIO("A guest's join while joined keeps its session, and it rejoins after le
     party.Until([&] { return guest.GetTransport().IsOnline() && cClients() == 1; }, "the guest rejoins");
     party.Agree("after the rejoin each game agrees again");
 }
+
+// A join while the host's dialogue menu is open (no save then: UI::IsSavingAllowed, re/systems/dialogue.md): the guest
+// gave up after 30 s with "the host's world didn't arrive".
+SCENARIO("A join while the host's game cannot save waits as long as the host does, says why, and goes on once it can", "[join]")
+{
+    Party party(1, SmokeWorld, false);
+    World& host = party.Host();
+    World& guest = party.Guest();
+    Party::Engine(host).RefusesSaves = true; // Save_Impl refuses: a conversation's menu is open
+    party.As(guest, [&] { Join(guest).Join(HostEndpoint(host)); });
+    party.Until([&] { return Join(guest).GetStatus().Message == JoinService::kWaitingForSave; }, "the guest is told the host can't save yet",
+                [&] { return Describe(Join(guest).GetStatus()); });
+    // Past the guest's own wait for the first piece (kChunkSeconds, its frames at 1/60 s).
+    for (int frame = 0; frame < static_cast<int>(JoinService::kChunkSeconds * 60) + 600; ++frame)
+        party.Frame();
+    THEN("it still waits") CHECK(Join(guest).GetStatus().Current == JoinStatus::State::kReceivingWorld);
+
+    Party::Engine(host).RefusesSaves = false; // the conversation ends
+    party.Until([&] { return !Join(guest).IsJoining() && guest.GetTransport().IsOnline(); }, "the guest joins with the host's world",
+                [&] { return Describe(Join(guest).GetStatus()); }, nullptr, std::chrono::seconds(20));
+}

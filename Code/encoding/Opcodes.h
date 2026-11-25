@@ -166,7 +166,8 @@
     X(NotifyStealthEye) \
     X(NotifyLeash)                 \
     X(NotifyBodyStates) \
-    X(NotifyTrapHit)
+    X(NotifyTrapHit) \
+    X(NotifySaveWaiting)
 
 #define COOP_OPCODE(aName) k##aName,
 

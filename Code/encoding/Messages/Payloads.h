@@ -465,6 +465,8 @@ struct PartyItem
     int32_t Shown{};
     // To the player who found it: how many of its own plain stack to rename to the tag (the host decided it is the party's).
     int32_t Converted{};
+    // The story put it on its player (RequestInventoryChanges::Wear): each game's player wears its copy.
+    bool Wear{};
 };
 
 // Every party item (a join): every player carries these stacks, and no other "[P] " stack.

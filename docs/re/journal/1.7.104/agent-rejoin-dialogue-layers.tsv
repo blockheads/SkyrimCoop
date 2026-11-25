@@ -1,0 +1,21 @@
+time	op	id	rva	item
+2026-11-24T05:19:09Z	read	35727	0x6227f0	{"name": "BGSSaveLoadManager::Save_Impl"}
+2026-11-24T05:38:22Z	read	82077	0x1169700	{"name": "sub_141169700"}
+2026-11-24T05:39:24Z	name	82077	0x1169700	{"addr": "0x141169700", "name": "UI__IsSavingAllowed"}
+2026-11-24T05:39:26Z	comment	82077	0x1169700	{"addr": "0x141169700", "comment": "UI::IsSavingAllowed (CommonLibSSE-NG): numAllowSaving (UI+0x16C) == menuStack size (UI+0x120): every open menu has kAllowSaving (0x800). The Dialogue Menu has not: no save while it is open (Save_Impl 35727 refuses, a join's save transfer waits)."}
+2026-11-24T05:39:26Z	comment		0x622938	{"addr": "0x140622938", "comment": "UI::IsSavingAllowed: refused with any menu open that lacks kAllowSaving (the Dialogue Menu): a join's transfer save waits until it closes."}
+2026-11-24T05:52:17Z	read	35289	0x5f0730	{"name": "MenuTopicManager::sub_35289"}
+2026-11-24T05:52:24Z	read	35274	0x5ee910	{"name": "MenuTopicManager::sub_35274"}
+2026-11-24T05:52:30Z	name	35274	0x5ee910	{"addr": "0x1405ee910", "name": "MenuTopicManager::Clear"}
+2026-11-24T05:52:33Z	comment	35274	0x5ee910	{"addr": "0x1405ee910", "comment": "[re]\nAddressLib ID 35274\nSkyrimCoop: data as s_clear (Code/client/Games/Misc/MenuTopicManager.cpp:77)\nMenuTopicManager::Clear (ours; CommonLibSSE-NG has no name). Under the critical section: with +0xB0 set calls the speaker's vfunc 0x270, then sets the speaker handle (+0x68) invalid for an actor, frees the two topic arrays (+0x80, +0x98), clears +0xB0/+0xB2.., the dialogue list (+0x20/+0x28) and +0xB1. After it MenuTopicManager::Update 35289 no longer calls the speaker's UpdateInDialogue 37541: how DialogueBridge::ClearOrphaned and a guest leaving a session end a conversation on a copy about to be deleted."}
+2026-11-24T06:12:50Z	comment	82077	0x1169700	{"addr": "0x141169700", "comment": "UI::IsSavingAllowed (82077; CommonLibSSE-NG): numAllowSaving (UI+0x16C) == menuStack size (UI+0x120): every open menu has kAllowSaving (0x800). That the Dialogue Menu lacks the flag is inferred from its saves refused (measured 2 of 2), its flags not read: a join's save transfer waits while it is open."}
+2026-11-24T06:12:50Z	comment		0x622917	{"addr": "0x140622917", "comment": "UI::IsSavingAllowed (82077): refused (0x14062291e) with any open menu lacking kAllowSaving; measured with the Dialogue Menu open."}
+2026-11-24T06:12:54Z	comment		0x622938	{"addr": "0x140622938", "comment": ""}
+2026-11-24T17:34:30Z	comment		0x68d39a	{"addr": "0x14068d39a", "comment": "The conversation's end check, each frame: no process, process byte +0x137, MenuTopicManager +0xB3, or the process timer (sub_1406F35B0) below 0 without +0xB5 -> EndDialogue 35294. Measured 2026-11-24 (duo): the speaker killed, or starting a fight, ends the conversation within the frame; which of these its death or combat sets is not read."}
+2026-11-24T18:29:27Z	read	39301	0x6f35b0	{"name": "sub_1406F35B0"}
+2026-11-24T18:29:35Z	name	39301	0x6f35b0	{"addr": "0x1406F35B0", "name": "AIProcess__GetMiddleHighFloat340"}
+2026-11-24T18:29:36Z	comment	39301	0x6f35b0	{"addr": "0x1406F35B0", "comment": "Ours: the middle-high process data's (+0x10) float at +0x340, 0 without middle-high data. Actor::UpdateInDialogue 37541 ends the conversation when it is below 0 (0x14068d3f0) and reads it above 1.0 before a line; its meaning (a dialogue timer) is not read."}
+2026-11-24T21:43:36Z	read	25502	0x3ed0b0	{"name": "sub_1403ED0B0"}
+2026-11-24T21:43:50Z	name	25502	0x3ed0b0	{"addr": "0x1403ed0b0", "name": "TESTopicInfo__BuildVoiceFilePath"}
+2026-11-24T21:43:52Z	comment	25502	0x3ed0b0	{"addr": "0x1403ed0b0", "comment": "Ours (25502): a response's voice file path. The info that owns the audio is dataInfo (+0x28) when the response is shared, else the info (a5); its quest/topic editor ids name the stem; Data\\\\Sound\\\\Voice\\\\<that info's plugin file name>\\\\<voice type>\\\\<quest>_<topic>_%08X_%u, the id its form id masked 0xFFF for a light plugin (TESFile::IsESL 14002), else 0xFFFFFF; %u the response number. GuestDialogue's greeting replay matches files by it (VoiceFiles)."}
+2026-11-24T21:44:21Z	read	14621	0x1e5ae0	{"name": "TESForm::sub_14621"}

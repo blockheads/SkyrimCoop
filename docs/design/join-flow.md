@@ -332,7 +332,7 @@ list) when the host saves; read back, into `CharacterRecords`, when any game loa
 | can't reach the host, or no answer in 20 s | `unreachable` |
 | the gate | `wrong_build`, `wrong_game`, `mods_differ`, `full` (as today) |
 | at the main menu, and the host's save has no character for it | `no_character` |
-| the host's game cannot save within 60 s, or the transfer breaks | `transfer_failed` |
+| the host's game cannot save within 180 s (meanwhile the guest is told why: `NotifySaveWaiting`, a conversation's menu allows no save), or the transfer breaks | `transfer_failed` |
 | the connection drops before joining | `lost_connection` |
 | the save does not load | `transfer_failed` |
 | no checked spot beside the host within 20 s | `placement_failed`: the host should move to an open spot |

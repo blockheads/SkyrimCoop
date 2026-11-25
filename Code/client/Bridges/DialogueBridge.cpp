@@ -583,6 +583,25 @@ bool DialogueBridge::ClearOrphaned() noexcept
     return true;
 }
 
+std::optional<IDialogueBridge::VoiceSource> DialogueBridge::GetVoiceSource(uint32_t aInfo) const noexcept
+{
+    const auto* pInfo = Cast<TESTopicInfo>(TESForm::GetById(aInfo));
+    if (!pInfo)
+        return std::nullopt;
+    const TESTopicInfo* pOwner = pInfo->dataInfo ? pInfo->dataInfo : pInfo;
+    const TESFile* pFile = pOwner->GetDefiningFile();
+    return VoiceSource{pOwner->formID, pFile ? pFile->fileName : ""};
+}
+
+void DialogueBridge::Clear() noexcept
+{
+    MenuTopicManager* pManager = MenuTopicManager::Get();
+    if (!pManager || (!pManager->menuOpen && !TESObjectREFR::GetByHandle(pManager->speaker)))
+        return;
+    pManager->Clear();
+    CloseMenu();
+}
+
 // ---- The list and picks ----
 
 bool DialogueBridge::ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming) noexcept
@@ -706,7 +725,10 @@ bool DialogueBridge::ShowPicked(const std::string& acText) noexcept
     GFxMovie* pMovie = DialogueMovie();
     if (!pMovie)
         return false;
-    const double cState = MenuState(pMovie).value_or(0);
+    const auto cRead = MenuState(pMovie);
+    if (!cRead) // its movie not ready yet: the next frame's try
+        return false;
+    const double cState = *cRead;
     const auto cDisplay = DialogueMenuPolicy::DisplayPicked(cState);
     if (cDisplay == DialogueMenuPolicy::PickedDisplay::Ignore)
     {
@@ -721,10 +743,22 @@ bool DialogueBridge::ShowPicked(const std::string& acText) noexcept
         argument.value.string = "topicClicked";
         pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.gotoAndPlay", nullptr, &argument, 1);
     }
-    // TOPIC_CLICKED may already display a losing local choice; replace it with the host's accepted text.
     GFxValue visible{};
     visible.type = GFxValue::kBoolean;
     visible.value.boolean = true;
+    if (cDisplay == DialogueMenuPolicy::PickedDisplay::FromGreeting)
+    {
+        // As ShowDialogueList with its copy visible, then a click's frame (its rows hidden, the pick shown), in
+        // TOPIC_CLICKED: Tab then closes it (StartHideMenu).
+        pMovie->SetVariable("_root.DialogueMenu_mc.eMenuState", Number(DialogueMenuPolicy::kTopicClicked), 0);
+        pMovie->SetVariable("_root.DialogueMenu_mc.TopicListHolder._visible", visible, 0);
+        pMovie->SetVariable("_root.DialogueMenu_mc.TopicListHolder.PanelCopy_mc._visible", visible, 0);
+        argument.value.string = "topicClicked";
+        pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.gotoAndPlay", nullptr, &argument, 1);
+        // Its list was never filled: drawn empty, its rows lose their authored "Topic" text.
+        pMovie->Invoke("_root.DialogueMenu_mc.TopicList.InvalidateData", nullptr, nullptr, 0);
+    }
+    // TOPIC_CLICKED may already display a losing local choice; replace it with the host's accepted text.
     pMovie->SetVariable("_root.DialogueMenu_mc.TopicListHolder.TextCopy_mc._visible", visible, 0);
     argument.value.string = acText.c_str();
     pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.TextCopy_mc.textField.SetText", nullptr, &argument, 1);

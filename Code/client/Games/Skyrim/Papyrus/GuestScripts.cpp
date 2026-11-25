@@ -612,6 +612,11 @@ bool StoryGiving() noexcept
     return StoryGifts::Giving();
 }
 
+bool StoryCalling() noexcept
+{
+    return t_nativeDepth != 0 && IsStoryScript(t_nativeScript);
+}
+
 uint64_t NativeScript() noexcept
 {
     return t_nativeScript;

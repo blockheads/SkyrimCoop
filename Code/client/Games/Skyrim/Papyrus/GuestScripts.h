@@ -23,6 +23,8 @@ bool InNative() noexcept;
 uint64_t NativeScript() noexcept;
 // Whether a quest's script's AddItem is adding now (party-items.md: the story gave it). Game thread.
 bool StoryGiving() noexcept;
+// Whether the running native's caller is a quest's script (a quest, alias, dialogue line or scene): the story's.
+bool StoryCalling() noexcept;
 // On the host, whether aFormId is a guest's character (the copy its scripts treat as the player).
 bool IsGuestCharacter(uint32_t aFormId) noexcept;
 // On the host, every guest's character. Script threads only.

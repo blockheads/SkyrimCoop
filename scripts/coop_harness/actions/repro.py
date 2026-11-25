@@ -821,6 +821,7 @@ class ReproActions:
 
     def unstage(ctx):
         """Removes what stage made (objects, spawned NPCs) in both games and thaws the world."""
+        ctx.voice_unwatch()
         with contextlib.suppress(TestFailure):
             ctx.freeze_world(False)
         if getattr(ctx, "LINE_DELAY", 0):
@@ -1152,6 +1153,19 @@ class ReproActions:
             except TestFailure:
                 raise ctx.failure(f"[{game or 'host'}] the player holds {stolen()} of {name} owned by {of}, not {want}") from None
             return {"stolen": stolen()}
+        if check == "wears":  # player `name` (host/guest) wears what the `of` player wears in its own game (armor and
+            # clothing), each in its own game, within `seconds`; value [hex ids]: only those
+            def worn(who):
+                instance = "client" if who in ("guest", "client") else ""
+                stacks = ctx.game(instance).rpc({"cmd": "item_stacks", "object": 0x14}).get("stacks") or []
+                return {s["item"] for s in stacks if s.get("worn") or s.get("worn_left")}
+            wanted = {int(v, 16) if isinstance(v, str) else int(v) for v in value} if value else worn(of)
+            try:
+                ctx.wait_for(f"[{name}] its player wears {', '.join(f'{i:X}' for i in sorted(wanted))}", lambda: wanted <= worn(name), seconds or 5)
+            except TestFailure:
+                raise ctx.failure(f"[{name}] its player wears {', '.join(f'{i:X}' for i in sorted(worn(name)))}, lacking "
+                                  f"{', '.join(f'{i:X}' for i in sorted(wanted - worn(name)))}") from None
+            return {"wears": sorted(f"{i:X}" for i in wanted)}
         if check == "eye":  # `name` a player: the eye its own game shows is the one the other game's NPCs give its copy
             def agree():  # and shows `value` when given
                 seen = ctx.eyes(name)

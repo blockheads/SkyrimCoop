@@ -69,3 +69,19 @@ struct NotifySaveChunk final : NotifyMessage
     bool Ahead{};      // sent while playing, for a later load; false: this game loads it now
     std::string Data;  // at most kMaxData bytes
 };
+
+// The host's game cannot save yet (a menu that allows no save, such as a conversation, is open): the join waits for it.
+struct NotifySaveWaiting final : NotifyMessage
+{
+    static constexpr NotifyOpcode Opcode = kNotifySaveWaiting;
+
+    NotifySaveWaiting()
+        : NotifyMessage(Opcode)
+    {
+    }
+
+    void SerializeRaw(Wire::Buffer::Writer&) const noexcept override {}
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override { NotifyMessage::DeserializeRaw(aReader); }
+
+    bool operator==(const NotifySaveWaiting& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode(); }
+};

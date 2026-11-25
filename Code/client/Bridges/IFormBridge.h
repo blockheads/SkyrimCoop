@@ -161,6 +161,8 @@ public:
     /// Full equip via EquipManager (item, no extra data, count, equip slot).
     virtual void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId,
                                   int32_t aCount) noexcept = 0;
+    // Equips the carried stack of acStack's base named as it is (its own list), unforced: the player can take it off.
+    virtual void ActorWearStack(uint32_t aActorFormId, const Inventory::Entry& acStack) noexcept = 0;
     /// Full unequip via EquipManager (item, no extra data, count, equip slot).
     virtual void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId,
                                     int32_t aCount) noexcept = 0;

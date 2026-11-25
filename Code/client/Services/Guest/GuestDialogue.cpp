@@ -1,4 +1,5 @@
 #include <Services/Guest/GuestDialogue.h>
+#include <Services/Guest/VoiceFiles.h>
 
 #include <Bridges/IActorBridge.h>
 
@@ -54,16 +55,21 @@ bool GuestDialogue::OnTalk(uint32_t aActorFormId) noexcept
 void GuestDialogue::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
 {
     m_greeting = ToGame(acMessage.Greeting);
-    // The player who asked for it is in it, every player when the NPC greeted the party: its menu opens on its copy,
-    // or it leaves.
-    if (std::exchange(m_asked, 0) != acMessage.NpcId && !acMessage.Everyone)
+    m_greetingVoice = m_dialogue.Bridge().GetVoiceSource(m_greeting);
+    // The host says who is in it (who asked, everyone when the NPC greeted the party): its menu opens on its copy, or
+    // it leaves. Another's conversation with the NPC it asked for is not the answer to its ask.
+    if (!acMessage.InIt)
         return;
+    const bool cOwnStart = std::exchange(m_asked, 0) == acMessage.NpcId || acMessage.Everyone;
     auto& bridge = m_dialogue.Bridge();
     const uint32_t cCopy = Utils::GetFormIdBySessionId(acMessage.NpcId);
+    // The same conversation again (its ask crossed the open): the menu already on it stays.
+    if (cCopy && bridge.IsMenuOpen() && bridge.GetSpeaker() == cCopy)
+        return;
     if (cCopy && bridge.Start(cCopy, true, m_greeting))
     {
         spdlog::info("Dialogue: conversation {} opens on copy {:X}", acMessage.Conversation, cCopy);
-        m_replayGreeting = true;
+        m_replayGreeting = cOwnStart && acMessage.Step == 1; // joined later, the copy's line is not the greeting
         m_dialogue.Opening();
         return;
     }
@@ -99,6 +105,17 @@ void GuestDialogue::OnLineSkipped() noexcept
         m_world.GetActorBridge().ActorStopCurrentDialogue(cCopy);
 }
 
+void GuestDialogue::OnLeft() noexcept
+{
+    // Every NPC a guest talks to is a copy.
+    // A speaker gone already leaves the menu open: cleared all the same, ClearOrphaned runs only online.
+    auto& bridge = m_dialogue.Bridge();
+    if (!bridge.GetSpeaker() && !bridge.IsMenuOpen())
+        return;
+    spdlog::info("Dialogue: leaving the session ends the conversation on copy {:X}", bridge.GetSpeaker());
+    bridge.Clear();
+}
+
 void GuestDialogue::OnRefused(const NotifyDialogueRefused& acMessage) noexcept
 {
     if (m_asked == acMessage.NpcId)
@@ -112,19 +129,32 @@ void GuestDialogue::OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept
         m_dialogue.CloseMenu();
     else if (aMenuOpen && !m_menuOpen && m_dialogue.Conversation() && m_replayGreeting)
         ReplayGreeting();
+    // Joined while the NPC answers: its menu shows the answer's line, not its own engine's greeting text.
+    else if (aMenuOpen && !m_menuOpen && m_dialogue.Conversation() && m_dialogue.Step() > 1 && !m_dialogue.PartyList())
+    {
+        const auto cSubtitle = m_lastSubtitles.find(m_dialogue.NpcSessionId());
+        const uint32_t cCopy = Utils::GetFormIdBySessionId(m_dialogue.NpcSessionId());
+        if (cSubtitle != m_lastSubtitles.end() && cSubtitle->second.At >= m_pickedAt && cCopy) // the answer's, not an older line
+            m_world.GetActorBridge().ActorShowSubtitle(cCopy, cSubtitle->second.Text, cSubtitle->second.TopicInfo, false);
+    }
     if (aMenuOpen)
         m_replayGreeting = false;
     m_menuOpen = aMenuOpen;
 }
 
+void GuestDialogue::OnPicked(const NotifyDialoguePicked&, uint32_t, uint32_t, bool) noexcept
+{
+    m_pickedAt = std::chrono::steady_clock::now();
+}
+
 void GuestDialogue::OnLine(const NotifyDialogue& acMessage) noexcept
 {
-    m_lastLine = {acMessage.SessionId, acMessage.SoundFilename, 0, std::chrono::steady_clock::now()};
+    m_lastLines[acMessage.SessionId] = {acMessage.SessionId, acMessage.SoundFilename, 0, std::chrono::steady_clock::now()};
 }
 
 void GuestDialogue::OnSubtitle(const NotifySubtitle& acMessage) noexcept
 {
-    m_lastSubtitle = {acMessage.SessionId, acMessage.Text, acMessage.TopicFormId, std::chrono::steady_clock::now()};
+    m_lastSubtitles[acMessage.SessionId] = {acMessage.SessionId, acMessage.Text, acMessage.TopicFormId, std::chrono::steady_clock::now()};
 }
 
 void GuestDialogue::ReplayGreeting() noexcept
@@ -136,11 +166,14 @@ void GuestDialogue::ReplayGreeting() noexcept
     if (!cCopy)
         return;
     auto& actors = m_world.GetActorBridge();
-    if (m_lastLine.SessionId == cNpc && cNow - m_lastLine.At < cRecent)
-    {
-        spdlog::info("Dialogue: the menu opens: the NPC's last line again on copy {:X}", cCopy);
-        actors.ActorSpeakSound(cCopy, m_lastLine.Text);
-    }
-    if (m_lastSubtitle.SessionId == cNpc && cNow - m_lastSubtitle.At < cRecent)
-        actors.ActorShowSubtitle(cCopy, m_lastSubtitle.Text, m_lastSubtitle.TopicInfo, false);
+    // Only the greeting's line: an answer said before the menu opened (a pick, or the host's own click) is the copy's
+    // still, and a replay would layer it. Its subtitle goes with it (a subtitle names no info in Skyrim).
+    const auto cLine = m_lastLines.find(cNpc);
+    if (cLine == m_lastLines.end() || cNow - cLine->second.At >= cRecent || !m_greetingVoice ||
+        !VoiceFiles::IsLineOf(cLine->second.Text, m_greetingVoice->Info, m_greetingVoice->Plugin))
+        return;
+    spdlog::info("Dialogue: the menu opens: the NPC's last line again on copy {:X}", cCopy);
+    actors.ActorSpeakSound(cCopy, cLine->second.Text);
+    if (const auto cSubtitle = m_lastSubtitles.find(cNpc); cSubtitle != m_lastSubtitles.end() && cNow - cSubtitle->second.At < cRecent)
+        actors.ActorShowSubtitle(cCopy, cSubtitle->second.Text, cSubtitle->second.TopicInfo, false);
 }

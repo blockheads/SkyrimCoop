@@ -264,7 +264,7 @@ class Harness(unittest.TestCase):
             self.session.enable_bundled_start.assert_not_called()
             self.assertIn("bShowTutorials=0", (game.my_games / "Skyrim.ini").read_text())
             self.session.prepare_prefix()
-            self.session.enable_bundled_start.assert_called_once_with(_game=game)
+            self.session.enable_bundled_start.assert_called_once_with(None, _game=game)
 
     def test_fresh_prefix_has_seen_the_anniversary_prompt(self):
         """The main menu queues the AE freebies box while bFreebiesSeen:General is 0; `coc` then takes the empty,
@@ -690,6 +690,42 @@ class Harness(unittest.TestCase):
             result = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(result.stdout.strip())
+
+
+class DuoPlugins(unittest.TestCase):
+    """--plugins: the bundled mods a duo loads, written into each game's load order before the start room."""
+
+    def test_plugins_parse_in_master_order(self):
+        from coop_harness.common import MOD_PLUGINS, duo_plugins
+        self.assertEqual(duo_plugins(argparse.Namespace(plugins=f"{MOD_PLUGINS[1]}, {MOD_PLUGINS[0].upper()}")), list(MOD_PLUGINS))
+        self.assertEqual(duo_plugins(argparse.Namespace(plugins="")), [])
+        self.assertEqual(duo_plugins(argparse.Namespace(plugins=MOD_PLUGINS[1])), list(MOD_PLUGINS))  # its master too
+        self.assertIsNone(duo_plugins(argparse.Namespace()))  # a game restarted alone keeps its mods
+        with self.assertRaises(SystemExit):
+            duo_plugins(argparse.Namespace(plugins="Other.esp"))
+
+    def test_load_order_gets_the_mods_or_drops_them(self):
+        from coop_harness.common import BUNDLED_START, MOD_PLUGINS
+        with tempfile.TemporaryDirectory() as folder:
+            order = Path(folder) / "Plugins.txt"
+            order.write_text(f"*Mine.esp\n*{MOD_PLUGINS[1]}\n")
+            game = Mock(install=Path(folder))
+            (Path(folder) / "Data").mkdir()
+            session = Session()
+            self.addCleanup(session.close)
+            with patch.object(Session, "game", return_value=game), patch.object(Session, "load_order_file", return_value=order), \
+                    patch("coop_harness.runtime.WINDOWS", False):
+                session.enable_bundled_start(list(MOD_PLUGINS))
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", *[f"*{m}" for m in MOD_PLUGINS], f"*{BUNDLED_START}"])
+                session.enable_bundled_start(None)
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", *[f"*{m}" for m in MOD_PLUGINS], f"*{BUNDLED_START}"])
+                session.enable_bundled_start([])
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", f"*{BUNDLED_START}"])
+            order.write_text(f"*Mine.esp\n*{MOD_PLUGINS[1]}\n")
+            with patch.object(Session, "game", return_value=game), patch.object(Session, "load_order_file", return_value=order), \
+                    patch("coop_harness.runtime.WINDOWS", True):  # the player's own file: their mods stay
+                session.enable_bundled_start([])
+                self.assertEqual(order.read_text().splitlines(), ["*Mine.esp", f"*{MOD_PLUGINS[1]}", f"*{BUNDLED_START}"])
 
 
 class LoadMenu(unittest.TestCase):
@@ -3148,3 +3184,48 @@ class LocalPaths(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VoiceWatching(unittest.TestCase):
+    """coop_harness/voice_watch.py and the voice verbs: one watch's samples, layered lines, cleanup."""
+
+    def test_a_line_started_over_one_still_playing_is_layered(self):
+        from coop_harness.voice_watch import layered
+        rows = [{"sound": 1, "seconds": 8.0}, {"sound": 2, "before_left": 0.03}, {"sound": 3, "before_left": 4.2}]
+        self.assertEqual([row["sound"] for row in layered(rows)], [3])
+
+    def test_a_watch_records_each_new_sound_once(self):
+        from coop_harness.voice_watch import VoiceWatch
+        reads = iter([{"sound": 5, "seconds": 2.0}] * 3 + [{"sound": -1}] + [{"sound": 6, "seconds": 3.0}] * 50)
+        watch = VoiceWatch(lambda: next(reads, {"sound": 6, "seconds": 3.0}), interval=0.001)
+        deadline = time.monotonic() + 2
+        while watch.sounds[-1] != 6 and time.monotonic() < deadline:
+            time.sleep(0.005)
+        result = watch.stop()
+        self.assertEqual(result["sounds"], [5, 6])
+        self.assertEqual(result["rows"][1]["before_left"], -1)  # the line before had ended (-1: no sound read last)
+
+    def test_marking_again_stops_the_first_watch_and_unstage_stops_the_last(self):
+        session = Session.__new__(Session)
+        session.voice = lambda instance, form: {"sound": form, "seconds": 1.0}
+        session.resolve = lambda name, game: {"a": 11, "b": 22}[name]
+        session.voice_mark("a")
+        first = session.VOICE_WATCH
+        session.voice_mark("b")
+        self.assertFalse(first._thread.is_alive())
+        time.sleep(0.15)
+        self.assertEqual(session.voice_lines()["sounds"], [22])
+        session.voice_mark("a")
+        last = session.VOICE_WATCH
+        self.assertEqual(session.voice_unwatch()["sounds"], [11])
+        self.assertFalse(last._thread.is_alive())
+        self.assertIsNone(session.voice_unwatch())
+
+    def test_expecting_needs_a_line_at_the_mark(self):
+        session = Session.__new__(Session)
+        session.voice = lambda instance, form: {"sound": -1}
+        session.resolve = lambda name, game: 1
+        session.failure = TestFailure
+        session.voice_mark("a", wait=0)
+        with self.assertRaises(TestFailure):
+            session.expect_no_line_layered()

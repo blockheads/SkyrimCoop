@@ -14,6 +14,7 @@
 #include <Papyrus/StoryGifts.h>
 #include <Services/ContainerTransfers.h>
 #include <Games/ItemChanges.h>
+#include <Games/ScriptEquips.h>
 #include <Structs/ItemsPart.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
@@ -128,6 +129,20 @@ void FakeEngine::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uin
     if (const auto actor = Actors.find(aActorFormId); actor != Actors.end() &&
         std::ranges::any_of(actor->second.Items.Entries, [&](const auto& acEntry) { return ::ItemForm(acEntry.BaseId) == aItemFormId && acEntry.IsWorn(); }))
         actor->second.ForcedWorn.insert(aItemFormId);
+}
+
+void FakeEngine::ActorWearStack(uint32_t aActorFormId, const Inventory::Entry& acStack) noexcept
+{
+    const uint32_t cItem = ::ItemForm(acStack.BaseId);
+    const auto cActor = Actors.find(aActorFormId);
+    if (cActor == Actors.end() || std::ranges::none_of(cActor->second.Items.Entries, [&](const auto& acEntry) {
+            return acEntry.BaseId == acStack.BaseId && acEntry.ExtraName == acStack.ExtraName && acEntry.Count > 0; }))
+        return;
+    ScopedEquipOverride _;
+    Equip(aActorFormId, cItem, 0);
+    for (auto& entry : cActor->second.Items.Entries)
+        if (entry.BaseId == acStack.BaseId)
+            entry.ExtraWorn = entry.ExtraName == acStack.ExtraName;
 }
 
 void FakeEngine::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t) noexcept
@@ -316,6 +331,16 @@ void FakeEngine::QuestGivesItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
     event.StoryGiven = StoryGifts::Giving(); // as our add hooks read it
     World::Get().GetRunner().Trigger(std::move(event));
     AddItems(aActor, aItem, aCount);
+}
+
+void FakeEngine::QuestEquipsItem(uint32_t aActor, uint32_t aItem)
+{
+    const int32_t cBefore = CountOf(aActor, aItem);
+    if (cBefore == 0)
+        AddItems(aActor, aItem, 1);
+    Equips(aActor, aItem, 0);
+    if (auto event = ScriptEquips::Arrival(aActor, ServerId(aItem), cBefore, CountOf(aActor, aItem), true))
+        World::Get().GetRunner().Trigger(std::move(*event));
 }
 
 void FakeEngine::OutfitPutsOn(uint32_t aActor, uint32_t aItem)

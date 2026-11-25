@@ -197,6 +197,17 @@ bool ApplyContainerItems(TESObjectREFR& aObject, const ObjectChange& acChange) n
     return true;
 }
 
+ExtraDataList* FindNamedList(TESObjectREFR& aHolder, TESBoundObject& aItem, const std::string& acName) noexcept
+{
+    auto* pEntry = FindEntry(aHolder, aItem);
+    if (!pEntry || !pEntry->dataList || acName.empty())
+        return nullptr;
+    for (ExtraDataList* pList : *pEntry->dataList)
+        if (const auto cStack = pList ? ReadStack(aItem, pList) : std::nullopt; cStack && cStack->ExtraName == acName)
+            return pList;
+    return nullptr;
+}
+
 int32_t TagStackInPlace(TESObjectREFR& aHolder, TESBoundObject& aItem, const char* acpName, int32_t aCount) noexcept
 {
     auto* pEntry = FindEntry(aHolder, aItem);
