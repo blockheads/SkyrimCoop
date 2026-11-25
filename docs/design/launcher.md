@@ -134,7 +134,7 @@ play:  version check (pack runtime) → sync → load → steam://run/489830
 ## Releases
 
 - SkyrimModSync: public, [blockheads/SkyrimModSync](https://github.com/blockheads/SkyrimModSync); a `v*` tag builds
-  `sms` for Linux, Windows and macOS (Apple Silicon, Intel) into a GitHub release with `SHA256SUMS`.
+  `sms` for Linux and Windows into a GitHub release with `SHA256SUMS`.
 - SkyrimCoop: `scripts/release.sh TAG` publishes `scripts/package.sh`'s archive as a prerelease of this repo from a
   clean, pushed commit; a tag naming another commit, or a DLL holding a home path, is refused. Symbols stay local
   (`<zip stem>-symbols/`, with BUILD and RUNTIME, for `scripts/re/symbolize_crash.py --build`). Hosts point the mod at it: `sms host source SkyrimCoop github blockheads/SkyrimCoop`.
@@ -172,4 +172,7 @@ can say "update first", file-hash layer 2 in the gate, a GUI on `--json`, RAR ar
 
 - Wabbajack instances: confirm meta.ini/.meta ids on a real installed list (the SME copy on disk is SkyrimModSync's
   own reconstruction, which drops meta.ini).
-- Windows: built and clippy-clean for `x86_64-pc-windows-gnu`, not yet run on Windows.
+- Windows: the tests pass in CI; not yet played on. Untested: `steam://run` itself, a joined session set up by `sms`,
+  P2P over the internet, a Nexus Premium download.
+- A failed Nexus download stops the sync; the host must set that mod to `host` and publish again.
+- Files the game creates while a pack is loaded (logs) stay after `unload`.
