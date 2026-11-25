@@ -95,7 +95,8 @@ The deciders, each read and gated for copies:
 - Its tail, `Actor::UpdateCombatSearchState` (37273), is bookkeeping and still runs for a copy (read): `+0x104` := the
   controller's target, boolBits (`+0xE8`) `kSearchingInCombat` := the group searching (0x140561310). Measured
   (duo, 2026-11-25, `kill-moves-by-weapon`, fresh boots, builds checked by hash): with the tail 56 kill moves of 56
-  swings, without it 42 of 42, dev 42 of 42; so kill moves do not need it. Earlier that day none played in some boots and
+  swings, without it 42 of 42, dev 42 of 42 (four boots planned each; one of the latter two's refused at the baseline by a
+  false alarm in a check since removed); so kill moves do not need it. Earlier that day none played in some boots and
   all in others on one build; not seen since, not explained.
 - `CombatGroup__Update` (44703, on the combat job through 46869): detection of the targets, and
   `CombatGroup__RemoveStaleTargets` (44803) drops a target LOST past its timeouts on this game's detection. Not run
