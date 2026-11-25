@@ -133,7 +133,7 @@ def main():
     published = sms("host", "publish")
     log(f"Published {package.name}: {published['host_files']} host files")
     env = dict(os.environ, SMS_CONFIG_DIR=str(HOME / "sms"))
-    serve = subprocess.Popen([str(SMS), "--json", "host", "serve", "--no-relay", "--bind", "127.0.0.1:41894"], env=env,
+    serve = subprocess.Popen([str(SMS), "--json", "host", "serve", "--bind", "127.0.0.1:41894"], env=env,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         serving = json.loads(serve.stdout.readline())
@@ -148,8 +148,9 @@ def main():
     before = tree(GAME)
     settings_before = settings()
     loaded = sms("load")
-    if not loaded["skse_launcher"]:
-        raise TestFailure("the pack has no skse64_loader.exe for Steam's launcher slot")
+    log(f"Loaded: {loaded['placed']} files placed, {loaded['set_aside']} set aside")
+    if (GAME / "SkyrimSELauncher.exe").read_bytes() != (RUNTIME_VENDOR / "skse64_loader.exe").read_bytes():
+        raise TestFailure("Steam's launcher slot does not hold SKSE's loader")
 
     ct.ensure_virtual_display()
     env = {key: value for key, value in ct.game_env().items()

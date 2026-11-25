@@ -20,7 +20,7 @@ Unofficial Skyrim Special Edition Patch and Alternate Start - Live Another Life,
    sms host status        # every mod, where friends get it, what you'd send
    sms host source SkyrimCoop github blockheads/SkyrimCoop   # friends download it from our releases
    sms host publish       # prints the code for friends
-   sms host serve         # keep running while friends sync (files only you have)
+   sms host serve         # keep running while friends sync (restart it after publishing again)
    ```
 
 3. Play: `sms setup` once, then `sms play` (no code: your own pack, from your own MO2 files; nothing downloads).
@@ -31,7 +31,7 @@ Unofficial Skyrim Special Edition Patch and Alternate Start - Live Another Life,
 
 ```
 sms setup              # finds Skyrim, asks for a store folder (same drive as Skyrim: no copies)
-sms nexus-login        # your Nexus API key (Premium: Nexus mods download automatically)
+sms nexus-login        # optional: a Premium Nexus key downloads Nexus mods from Nexus, sparing the host
 sms play <code>        # syncs the mods, loads them into the game, starts Skyrim through Steam
 ```
 
@@ -39,10 +39,9 @@ Accept the host's invite from the main menu (Shift+Tab). Someone the host's save
 first; naming it joins. Only the host saves.
 
 After playing, `sms unload` puts your game back exactly as it was (your own mods, settings and Bethesda's launcher).
-While the pack is loaded, Steam's Play starts SKSE; after an update from the host, `sms play <code>` again.
+While the pack is loaded, Steam's Play starts SKSE; after an update from the host, `sms play` again (the code is remembered).
 
-Without a Premium key, Nexus mods can't be downloaded by the tool (Nexus's terms): ask the host to send them
-(`sms host source <mod> host`).
+Without a Premium key the host sends every mod (the tool never automates Nexus's website).
 
 ## Playing
 
