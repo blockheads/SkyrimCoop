@@ -552,8 +552,8 @@ void FakeEngine::SetRegionWeather(uint32_t aRegion) noexcept
         RegionWeather[aRegion] = std::ranges::contains(cList->second, Weather) ? Weather : cList->second.front();
 }
 
-// The movement job (HookApplyMovement) steps a copy to its last goal until it is given another, at Havok's top speed
-// (Skyrim 2026-11-24: 147 units in a frame toward the cell it had left). Small steps: ApplyRemoteMovement's own.
+// The movement job (HookApplyMovement) steps a copy to its last goal until it is given another, at up to kTopStep a frame
+// (Skyrim 2026-11-24: 147 units in a frame toward the cell it had left).
 void FakeEngine::StepCopiesToGoals() noexcept
 {
     for (auto& [cId, actor] : Actors)
@@ -562,9 +562,10 @@ void FakeEngine::StepCopiesToGoals() noexcept
             continue;
         const glm::vec3 cAt(actor.Position[0], actor.Position[1], actor.Position[2]);
         const glm::vec3 cOff = glm::vec3(actor.Goal[0], actor.Goal[1], actor.Goal[2]) - cAt;
-        if (glm::length(cOff) <= CopyStep::kSnap)
+        const float cLeft = glm::length(glm::vec2(cOff));
+        if (cLeft <= CopyStep::kStill)
             continue;
-        const glm::vec3 cTo = cAt + glm::normalize(cOff) * kTopStep;
+        const glm::vec3 cTo = cAt + cOff * (std::min(cLeft, kTopStep) / cLeft);
         actor.Position[0] = cTo.x;
         actor.Position[1] = cTo.y;
     }

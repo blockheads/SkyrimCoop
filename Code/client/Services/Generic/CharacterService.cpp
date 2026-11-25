@@ -1929,8 +1929,8 @@ void CharacterService::HoldCopy(uint32_t aFormId) const noexcept
     const float cAt[3]{at.x, at.y, at.z};
     const float cRotation[3]{rotation.x, rotation.y, rotation.z};
     static const AnimationVariables s_none;
-    const bool cCarried = m_actorBridge.GetActorMount(aFormId) || m_actorBridge.IsLyingInRagdoll(aFormId);
-    m_actorBridge.ApplyRemoteMovement(aFormId, cAt, cRotation, 0.f, s_none, cCarried ? CopyMove::Leave : CopyMove::Place);
+    const CopyMove cMove = CopyStep::Hold(m_actorBridge.IsLyingInRagdoll(aFormId), m_actorBridge.GetActorMount(aFormId) != 0);
+    m_actorBridge.ApplyRemoteMovement(aFormId, cAt, cRotation, 0.f, s_none, cMove);
 }
 
 void CharacterService::RunRemoteUpdates() noexcept

@@ -4,6 +4,7 @@
 
 #include <Actor.h>
 #include <Components.h>
+#include <Forms/TESObjectCELL.h>
 #include <Games/ActorExtension.h>
 #include <Misc/BSFixedString.h>
 #include <NetImmerse/NiCamera.h>
@@ -145,11 +146,21 @@ void JitterWatch::Poll()
         const float cX = cPlace[0] - watched.Place.Last[0], cY = cPlace[1] - watched.Place.Last[1], cZ = cPlace[2] - watched.Place.Last[2];
         const float cStep = cMoved ? std::sqrt(cX * cX + cY * cY + cZ * cZ) : 0.f;
         watched.Place.Add(cPlace);
-        watched.Racing = cStep > cRace ? watched.Racing + 1 : 0;
+        const bool cUnbroken = watched.LastFrame + 1 == m_frames;
+        const bool cStanding = !pActor->LiesInRagdoll() && !pActor->IsDead();
+        watched.Racing = cStep > cRace && cStanding ? (cUnbroken ? watched.Racing : 0) + 1 : 0;
+        watched.LastFrame = m_frames;
+        const auto* pCopy = pActor->GetExtension();
+        watched.Copy = pCopy && pCopy->IsCopy();
+        watched.Player = pCopy && pCopy->IsOtherPlayer();
+        const uint32_t cCell = pActor->parentCell ? pActor->parentCell->formID : 0;
+        if (watched.Cell && cCell != watched.Cell)
+            ++watched.CellChanges, watched.CellFrames = 0;
+        watched.Cell = cCell;
+        ++watched.CellFrames;
         watched.Sweep = std::max(watched.Sweep, watched.Racing);
-        if (cStep > cRace && watched.Racing == 1)
+        if (watched.Racing == 1)
             ++watched.Warps;
-        watched.Lies |= cStep > cRace && (pActor->LiesInRagdoll() || pActor->IsDead());
         if (watched.After < cAfter)
         {
             auto entry = FrameOf(*pActor);
@@ -191,8 +202,7 @@ nlohmann::json JitterWatch::Read() const
     nlohmann::json actors = nlohmann::json::object();
     for (const auto& [cFormId, cWatched] : m_actors)
     {
-        auto* pActor = Cast<Actor>(TESForm::GetById(cFormId));
-        actors[std::to_string(cFormId)] = {{"copy", pActor && pActor->GetExtension() && pActor->GetExtension()->IsCopy()},
+        actors[std::to_string(cFormId)] = {{"copy", cWatched.Copy},
                                            {"frames", cWatched.Frames},
                                            {"place", cWatched.Place.Json()},
                                            {"root", cWatched.Root.Json()},
@@ -201,7 +211,9 @@ nlohmann::json JitterWatch::Read() const
                                            {"stepped", cWatched.Stepped},
                                            {"warps", cWatched.Warps},
                                            {"sweep", cWatched.Sweep},
-                                           {"lies", cWatched.Lies},
+                                           {"player", cWatched.Player},
+                                           {"cell_changes", cWatched.CellChanges},
+                                           {"cell_frames", cWatched.CellFrames},
                                            {"race", cWatched.Path},
                                            {"furniture", cWatched.Furniture},
                                            {"furniture_path", cWatched.FurniturePath},

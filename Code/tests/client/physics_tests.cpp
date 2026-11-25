@@ -717,3 +717,10 @@ TEST_CASE("A lying copy's ragdoll, played, meets the world and what this game mo
     CHECK(Decide(cCopy, cInfo(13, 0)) == Meet::kEngine);                  // terrain
     CHECK(Decide(cCopy, cInfo(32, 9)) == Meet::kEngine);                  // this game's own corpse: the layers say
 }
+
+TEST_CASE("A copy with no two snapshots is held where it is, unless its ragdoll or mount carries it", "[copy-step]")
+{
+    CHECK(CopyStep::Hold(false, false) == CopyMove::Place);
+    CHECK(CopyStep::Hold(true, false) == CopyMove::Leave);
+    CHECK(CopyStep::Hold(false, true) == CopyMove::Leave);
+}

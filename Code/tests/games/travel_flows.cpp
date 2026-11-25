@@ -229,8 +229,11 @@ SCENARIO("A copy that travels stands at its owner's new place, never racing towa
         return 0u;
     };
     // Stepped to where the host stands, far from where it goes (copies-keep-place-on-arrival).
-    host.Actors.at(FakeEngine::kPlayer).Position[0] = 3000.f;
-    party.Until([&] { return guest.Actors.at(cCopyOf()).Stepped && std::abs(guest.Actors.at(cCopyOf()).Position[0] - 3000.f) < 5.f; },
+    // Far, and nearer than one frame's fastest step.
+    const glm::vec2 cFrom = GENERATE(glm::vec2(3000.f, 0.f), glm::vec2(-930.f, 500.f));
+    host.Actors.at(FakeEngine::kPlayer).Position[0] = cFrom.x;
+    host.Actors.at(FakeEngine::kPlayer).Position[1] = cFrom.y;
+    party.Until([&] { return guest.Actors.at(cCopyOf()).Stepped && std::abs(guest.Actors.at(cCopyOf()).Position[0] - cFrom.x) < 5.f; },
                 "the guest's copy is stepped where the host stands");
 
     const glm::vec3 cSpot{-1000.f, 500.f, 0.f};
@@ -241,7 +244,6 @@ SCENARIO("A copy that travels stands at its owner's new place, never racing towa
         const auto& cCopy = guest.Actors.at(cCopyOf());
         if (cCopy.Cell != kSinkhole)
             return;
-        ++seen;
         worst = std::max(worst, glm::distance(glm::vec2(cCopy.Position[0], cCopy.Position[1]), glm::vec2(cSpot)));
         ++seen;
     };

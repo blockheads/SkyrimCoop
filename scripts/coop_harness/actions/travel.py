@@ -50,23 +50,28 @@ class TravelActions:
             ctx.player_command(name, {"cmd": "jitter", "start": True})
 
 
+    def _raced(ctx, instance, stop=False):
+        return (ctx.player_command(instance, {"cmd": "jitter", "stop": stop}) or {}).get("actors") or {}
+
+
     def races(ctx, seconds=10.0):
-        """Watched for `seconds` more, then each game's actors that jumped or raced since watch_races: `warps` (times it
-        began to), `sweep` (the most frames in a row past any run). A jump is 1 frame; more is seen crossing the screen."""
+        """Watched for `seconds` more, then each game's actors that raced standing since watch_races: `warps` (times one
+        began), `sweep` (the most frames in a row past any run). A jump is 1 frame; more crosses the screen."""
         time.sleep(seconds)
-        found = {}
+        return {name or "host": [{"id": f"{int(form_id):X}", **{k: a[k] for k in ("copy", "warps", "sweep", "race")}}
+                                 for form_id, a in ctx._raced(name, stop=True).items() if a["warps"]]
+                for name in ("", "client")}
+
+
+    def expect_no_copy_races(ctx, seconds=10.0, frames=2, sampled=60):
+        """After a trip: each game has watched the other player's copy for `sampled` frames in its new cell (past its
+        second snapshot), then `seconds` more; no standing copy raced more than `frames` frames in a row."""
         for name in ("", "client"):
-            actors = (ctx.player_command(name, {"cmd": "jitter", "stop": True}) or {}).get("actors") or {}
-            found[name or "host"] = [{"id": f"{int(form_id):X}", "copy": a["copy"], "warps": a["warps"], "sweep": a["sweep"],
-                                      "net": round(a["place"]["net"]), "lies": a["lies"], "race": a["race"]}
-                                     for form_id, a in actors.items() if a["warps"]]
-        return found
-
-
-    def expect_no_copy_races(ctx, seconds=10.0, frames=2):
-        """No standing copy in either game raced for more than `frames` frames in a row since watch_races (a jump is one)."""
+            ctx.wait_for(f"[{name or 'host'}] the other player's copy is watched in its new cell",
+                         lambda name=name: any(a["player"] and a["cell_changes"] and a["cell_frames"] >= sampled
+                                               for a in ctx._raced(name).values()), 30)
         found = ctx.races(seconds)
-        bad = {game: [a for a in actors if a["copy"] and not a["lies"] and a["sweep"] > frames] for game, actors in found.items()}
+        bad = {game: [a for a in actors if a["copy"] and a["sweep"] > frames] for game, actors in found.items()}
         if any(bad.values()):
             for actor in (a for actors in bad.values() for a in actors):
                 actor["race"] = [{k: e[k] for k in ("frame", "step", "at", "goal", "points") if k in e} for e in actor["race"] if e["step"] > 1]

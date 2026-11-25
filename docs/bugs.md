@@ -524,6 +524,9 @@ flow.
   arrival, so not the arrival's own race): its owner's snapshot turned on the ground, so it went from placed to stepped;
   the next frames it was at z -224 and (11175, -51018), then back near its goal (11187, -51037, -269). Seen once
   (`races`); the engine path is not read. Start: its controller's state as it is stepped the first time after `Place`.
+- **`copies_keep_place_on_arrival` fails its end comparison** (2026-11-25, every race step passing): back in Riverwood
+  seated NPCs' copies (Embry, Hilde) read `sit_sleep` 0 against 3, rabbits' `weapon_drawn`/`weapon_state` true/3 against
+  false/0-1. Embry and a fox read so in `scene`'s own list before the fix. The seats: as Olava's above, not traced here.
 
 ### Physics against vanilla
 

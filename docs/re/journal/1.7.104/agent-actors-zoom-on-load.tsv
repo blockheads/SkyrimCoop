@@ -29,3 +29,11 @@ time	op	id	rva	item
 2026-11-25T04:49:44Z	comment		0x686bf6	{"addr": "0x140686bf6", "comment": "[re]\nAddressLib ID 37472\nOur name. Warps an actor to its package's location (37313, with its followers 37434/37432) when its package changes out of sight. Read 2026-11-24."}
 2026-11-25T04:49:44Z	comment		0x684e16	{"addr": "0x140684e16", "comment": "[re]\nAddressLib ID 37434\nOur name. Warps the actors following this one to behind it, each with 37313. Read 2026-11-24."}
 2026-11-25T04:49:44Z	comment	37648	0x6990f0	{"addr": "0x1406990f0", "comment": "Our name. A follower through the player's load door: 37313 to the door's teleport data, then 37618. Called by 140781620 for each actor that follows the player (40493). Read 2026-11-24."}
+2026-11-25T05:56:39Z	name	37472	0x6867e0	{"addr": "0x1406867e0", "name": "Character::WarpToPackageLocation"}
+2026-11-25T05:56:39Z	name	37434	0x684740	{"addr": "0x140684740", "name": "Character::WarpFollowersAlong"}
+2026-11-25T05:56:39Z	name	37432	0x6845f0	{"addr": "0x1406845f0", "name": "Actor::WarpWithFollowers"}
+2026-11-25T05:56:41Z	comment	37472	0x6867e0	{"addr": "0x1406867e0", "comment": "[re]\nAddressLib ID 37472\nOur name. Warps an actor to its package's location (37313, with its followers 37434/37432) when its package changes out of sight. Read 2026-11-24."}
+2026-11-25T05:56:41Z	comment	37434	0x684740	{"addr": "0x140684740", "comment": "[re]\nAddressLib ID 37434\nOur name. Warps the actors following this one to behind it, each with 37313. Read 2026-11-24."}
+2026-11-25T05:56:41Z	comment	37432	0x6845f0	{"addr": "0x1406845f0", "comment": "[re]\nAddressLib ID 37432\nOur name. 37313 for the actor, then 37434 for its followers. Read 2026-11-24."}
+2026-11-25T05:56:41Z	comment		0x686bf6	{"addr": "0x140686bf6", "comment": ""}
+2026-11-25T05:56:41Z	comment		0x684e16	{"addr": "0x140684e16", "comment": ""}
