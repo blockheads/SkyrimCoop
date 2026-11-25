@@ -475,6 +475,7 @@ void ActiveEffects::WriteHeld(Wire::Buffer::Writer& aWriter, const std::vector<s
     {
         acHeld[i].Spell.Serialize(aWriter);
         acHeld[i].Effect.Serialize(aWriter);
+        Serialization::WriteBool(aWriter, acHeld[i].SpellTarget);
     }
 }
 
@@ -485,6 +486,7 @@ void ActiveEffects::ReadHeld(Wire::Buffer::Reader& aReader, std::vector<struct H
     {
         held.Spell.Deserialize(aReader);
         held.Effect.Deserialize(aReader);
+        held.SpellTarget = Serialization::ReadBool(aReader);
     }
 }
 

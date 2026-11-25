@@ -152,7 +152,7 @@ bool HookImpact(Projectile* apThis, void* apHit)
     return cResult;
 }
 
-std::atomic<uint32_t> s_relayedTarget{0}; // the actor the host's relayed hit is for (ProcessHit may run it later, queued)
+thread_local bool t_judgedHere = false; // a relayed trap hit being applied (Traps::TakeHit)
 
 // TESObjectREFR::ProcessHit (38586): a hit with no actor aggressor is the world's, scoped around its DoDamage (37335).
 using TProcessHit = uint64_t(TESObjectREFR*, HitData*);
@@ -177,10 +177,10 @@ uint64_t HookImpactFromBody(Actor** appThis, uint64_t a2, void* apContact)
 
 uint64_t HookProcessHit(TESObjectREFR* apTarget, HitData* apHit)
 {
-    // Its own impact stands, on a guest too: marked here, before ProcessHit queues itself.
-    if (t_ownImpact && apTarget)
-        s_relayedTarget = apTarget->formID;
-    t_worldHit = apHit && !Cast<Actor>(TESObjectREFR::GetByHandle(apHit->aggressor));
+    // Marked in the hit itself, which a queued run copies (ProcessHit_QueueTask): its own to judge.
+    if (apHit && (t_ownImpact || t_judgedHere))
+        apHit->flags |= HitData::kJudgedHere;
+    t_worldHit = apHit && !(apHit->flags & HitData::kJudgedHere) && !Cast<Actor>(TESObjectREFR::GetByHandle(apHit->aggressor));
     const uint64_t cResult = RealProcessHit(apTarget, apHit);
     t_worldHit = false;
     return cResult;
@@ -197,15 +197,14 @@ bool Projectile::WorldImpact() noexcept
     return t_worldImpact;
 }
 
-void Projectile::RelayedHit(uint32_t aTargetFormId) noexcept
+Projectile::JudgedHere::JudgedHere() noexcept
+    : m_before(std::exchange(t_judgedHere, true))
 {
-    s_relayedTarget = aTargetFormId;
 }
 
-bool Projectile::TakeRelayedHit(uint32_t aTargetFormId) noexcept
+Projectile::JudgedHere::~JudgedHere() noexcept
 {
-    uint32_t cExpected = aTargetFormId;
-    return aTargetFormId && s_relayedTarget.compare_exchange_strong(cExpected, 0);
+    t_judgedHere = m_before;
 }
 
 static Hooks::Initializer s_projectileHooks(

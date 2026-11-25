@@ -64,10 +64,17 @@ struct Projectile : TESObjectREFR
     [[nodiscard]] static bool WorldHit() noexcept;
     // An object's projectile (no actor shooter) hitting a reference on this thread (44204): its enchantment's cast.
     [[nodiscard]] static bool WorldImpact() noexcept;
-    // The next hit on this actor is the host's verdict applied here (a relayed trap hit): not this game's own world hit.
-    static void RelayedHit(uint32_t aTargetFormId) noexcept;
-    // Its damage lands (DoDamage 37335, after ProcessHit's queued run): true once, for that actor.
-    [[nodiscard]] static bool TakeRelayedHit(uint32_t aTargetFormId) noexcept;
+    // Hits made in its scope are this game's own to judge (the host's relayed trap hit), marked in the hit (38586).
+    struct JudgedHere
+    {
+        JudgedHere() noexcept;
+        ~JudgedHere() noexcept;
+        JudgedHere(const JudgedHere&) = delete;
+        JudgedHere& operator=(const JudgedHere&) = delete;
+
+    private:
+        bool m_before;
+    };
 };
 
 static_assert(sizeof(Projectile::LaunchData) == 0xA8);

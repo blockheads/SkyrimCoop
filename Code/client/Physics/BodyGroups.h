@@ -18,29 +18,63 @@ constexpr bool IsMoving(uint32_t aGroup) noexcept
     return aGroup >= kMovingFirst && aGroup <= kMovingLast;
 }
 
-// The moving group for a body by the group it had: bodies of one group get one, a body with none its own.
+// The moving group for a body by the group it had: bodies of one group share one, a body with none its own. A group
+// is free again once its last body stops moving (Give): the range never wraps onto one in use.
 class MovingGroups
 {
 public:
-    [[nodiscard]] uint16_t Of(uint16_t aOwn) noexcept
+    [[nodiscard]] uint16_t Take(uint16_t aOwn) noexcept
     {
         if (aOwn)
             if (const auto it = m_groups.find(aOwn); it != m_groups.end())
+            {
+                ++m_users[it->second];
                 return it->second;
-        const uint16_t cGroup = m_next;
-        m_next = m_next == kMovingLast ? kMovingFirst : static_cast<uint16_t>(m_next + 1);
-        if (aOwn)
-            m_groups[aOwn] = cGroup;
-        return cGroup;
+            }
+        for (uint32_t i = 0; i <= kMovingLast - kMovingFirst; ++i)
+        {
+            const uint16_t cGroup = m_next;
+            m_next = m_next == kMovingLast ? kMovingFirst : static_cast<uint16_t>(m_next + 1);
+            if (m_users.contains(cGroup))
+                continue;
+            m_users[cGroup] = 1;
+            if (aOwn)
+            {
+                m_groups[aOwn] = cGroup;
+                m_owners[cGroup] = aOwn;
+            }
+            return cGroup;
+        }
+        return aOwn; // every one in use: its own group, the engine's rules
+    }
+    void Give(uint16_t aMoving) noexcept
+    {
+        const auto it = m_users.find(aMoving);
+        if (it == m_users.end() || --it->second > 0)
+            return;
+        m_users.erase(it);
+        if (const auto cOwner = m_owners.find(aMoving); cOwner != m_owners.end())
+        {
+            m_groups.erase(cOwner->second);
+            m_owners.erase(cOwner);
+        }
+    }
+    [[nodiscard]] size_t InUse() const noexcept
+    {
+        return m_users.size();
     }
     void Clear() noexcept
     {
         m_groups.clear();
+        m_owners.clear();
+        m_users.clear();
         m_next = kMovingFirst;
     }
 
 private:
-    std::map<uint16_t, uint16_t> m_groups;
+    std::map<uint16_t, uint16_t> m_groups; // own -> moving
+    std::map<uint16_t, uint16_t> m_owners; // moving -> own
+    std::map<uint16_t, uint32_t> m_users;  // moving -> bodies in it
     uint16_t m_next = kMovingFirst;
 };
 

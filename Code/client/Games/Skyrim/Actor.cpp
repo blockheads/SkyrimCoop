@@ -1539,7 +1539,7 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
 
     // Direct authority: the hittee's owner applies a hit; our player's hit on another game's actor (a host NPC, another
     // player) is a request to that owner, and the copy mirrors the owner's health instead.
-    const bool cWorldHit = Projectile::WorldHit() && !Projectile::TakeRelayedHit(apThis->formID);
+    const bool cWorldHit = Projectile::WorldHit();
     const auto cRoute = HitRules::Of(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), s_applyingEffect, cWorldHit,
                                      cWorldHit && GuestNpcs::Session() != 0);
     switch (cRoute)

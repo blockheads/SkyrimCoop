@@ -349,6 +349,7 @@ struct ActiveEffects
     {
         GameId Spell{};
         GameId Effect{};
+        bool SpellTarget = true; // counts for IsSpellTarget (OwnerEffects)
         bool operator==(const Held&) const noexcept = default;
     };
 

@@ -34,7 +34,8 @@ TRun* RealRun = nullptr;
 // SetMotionTypeFunctor::Run (56332): the script's motion type, remembered for the host's world row.
 void* HookRun(SetMotionTypeFunctor* apThis, void* apResult)
 {
-    if (const TESObjectREFR* pObject = TESObjectREFR::GetByHandle(apThis->reference))
+    // Only a call that changes it: with no 3D, 56332 reports the error and changes nothing.
+    if (TESObjectREFR* pObject = TESObjectREFR::GetByHandle(apThis->reference); pObject && pObject->GetNiNode())
         ScriptMotion::Get().Remember(pObject->formID, ScriptMotion::Pack(apThis->motionType, apThis->allowActivate));
     return RealRun(apThis, apResult);
 }

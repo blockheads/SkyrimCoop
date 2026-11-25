@@ -105,7 +105,9 @@ the actor's own move step met: unless the player holds it, `GetDamageForImpact`,
 `ProcessHit` (38586) when it damages. Copies step, so the host judged impacts on a guest's copy from the rocks it
 only follows: 7 impacts of 4.3 in 90 ms in one round (30 of the guest's 46 damage), where the host's own player takes
 about one a round, while the guest's own impacts fell to its world-hit drop. Now the host skips 38185 for another
-player's copy (`HitRules::JudgesImpact`) and a guest's own stands (marked past the drop as the relayed trap hit is).
+player's copy (`HitRules::JudgesImpact`) and a guest's own stands: it and the host's relayed trap hit are marked in the hit's own flags (`HitData +0x80`, our
+bit 31, past the engine's 0-20), which ProcessHit's queue copies with it (1407EF890, read): two queued hits on one
+player keep their own marks (review of #129: one shared slot let the second fall to the drop).
 Measured after: no relayed impacts. A guest's contact to its hit takes about 110 ms (the host's script). Rounds repeated
 from a loaded save are no measure for a guest (its rocks stay where the last round left them: bugs.md, "After the host
 loads a save"): low rounds read there as contacts at speed 0 were that. From fresh scenes the guest's rock round gave

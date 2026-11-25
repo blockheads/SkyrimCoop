@@ -67,9 +67,13 @@ void BodyBridge::SetClass(const BodyKey& acKey, bhkWorldObject* apBody, BodyClas
         return;
     if (!apBody)
     {
-        // Not here any more: nothing to give its group back to.
-        if (aClass == BodyClass::kNone)
-            m_classes.erase(acKey);
+        // Not here any more: nothing to give its group back to, its moving group freed.
+        if (aClass == BodyClass::kNone && it != m_classes.end())
+        {
+            if (it->second.Moving)
+                m_movingGroups.Give(it->second.Moving);
+            m_classes.erase(it);
+        }
         return;
     }
     // This game's, and nothing played to meet: its group is left as it is until something is.
@@ -86,21 +90,29 @@ void BodyBridge::SetClass(const BodyKey& acKey, bhkWorldObject* apBody, BodyClas
     }
     const uint16_t cOwn = it != m_classes.end() ? it->second.Group
                           : apBody->referencedObject ? static_cast<uint16_t>(apBody->referencedObject->CollisionFilterInfo() >> 16) : uint16_t{};
+    const uint16_t cTaken = aClass == BodyClass::kMoving ? m_movingGroups.Take(cOwn) : uint16_t{};
     const uint16_t cGroup = aClass == BodyClass::kPlayed ? BodyGroups::kPlayed
-                            : aClass == BodyClass::kMoving ? m_movingGroups.Of(cOwn)
+                            : aClass == BodyClass::kMoving ? cTaken
                             : it->second.Group;
     const auto cWas = SetBodyGroup(*apBody, cGroup);
     if (!cWas)
+    {
+        if (cTaken)
+            m_movingGroups.Give(cTaken);
         return;
+    }
+    if (it != m_classes.end() && it->second.Moving)
+        m_movingGroups.Give(std::exchange(it->second.Moving, uint16_t{}));
     const bool cFirstPlayed = aClass == BodyClass::kPlayed && !AnyPlayed();
     if (aClass == BodyClass::kNone)
         m_classes.erase(it);
     else if (it == m_classes.end())
-        m_classes[acKey] = {aClass, *cWas};
+        m_classes[acKey] = {.Is = aClass, .Group = *cWas, .Moving = cTaken};
     else
     {
         it->second.Is = aClass;
         it->second.Applied = true;
+        it->second.Moving = cTaken;
     }
     if (cFirstPlayed)
         WriteMoving();
@@ -115,8 +127,17 @@ void BodyBridge::WriteMoving() noexcept
 {
     for (auto& [cKey, moving] : m_classes)
         if (moving.Is == BodyClass::kMoving && !moving.Applied)
-            if (const Found cOther = Find(cKey, 0, false); cOther.pBody && SetBodyGroup(*cOther.pBody, m_movingGroups.Of(moving.Group)))
-                moving.Applied = true;
+            if (const Found cOther = Find(cKey, 0, false); cOther.pBody)
+            {
+                const uint16_t cTaken = m_movingGroups.Take(moving.Group);
+                if (SetBodyGroup(*cOther.pBody, cTaken))
+                {
+                    moving.Applied = true;
+                    moving.Moving = cTaken;
+                }
+                else
+                    m_movingGroups.Give(cTaken);
+            }
 }
 
 void BodyBridge::SetMoving(const BodyKey& acKey, bool aMoving) noexcept
@@ -128,7 +149,17 @@ void BodyBridge::SetMoving(const BodyKey& acKey, bool aMoving) noexcept
         auto* pCopy = cRagdoll != m_ragdolls.end() ? Cast<Actor>(TESForm::GetById(cRagdoll->second.first)) : nullptr;
         if (const auto cBodies = pCopy && m_ragdollGroups.contains(acKey) ? RagdollBodiesOf(*pCopy) : std::vector<bhkWorldObject*>{};
             acKey.Index < cBodies.size() && cBodies[acKey.Index])
-            SetBodyGroup(*cBodies[acKey.Index], aMoving ? m_movingGroups.Of(m_ragdollGroups.at(acKey)) : BodyGroups::kPlayed);
+        {
+            if (const auto cHeld = m_ragdollMoving.find(acKey); cHeld != m_ragdollMoving.end())
+            {
+                m_movingGroups.Give(cHeld->second);
+                m_ragdollMoving.erase(cHeld);
+            }
+            const uint16_t cTaken = aMoving ? m_movingGroups.Take(m_ragdollGroups.at(acKey)) : uint16_t{};
+            if (cTaken)
+                m_ragdollMoving[acKey] = cTaken;
+            SetBodyGroup(*cBodies[acKey.Index], aMoving ? cTaken : BodyGroups::kPlayed);
+        }
         return;
     }
     const auto it = m_classes.find(acKey);
@@ -157,6 +188,7 @@ void BodyBridge::ForgetAll() noexcept
         m_classes.erase(cKey); // its body in another world now: kept as it is
     }
     m_placing.clear();
+    m_ragdollMoving.clear();
     m_movingGroups.Clear();
 }
 
@@ -177,6 +209,11 @@ void BodyBridge::StandRagdoll(Actor& aCopy, const BodyKey& acKey) noexcept
     if (const auto cBodies = RagdollBodiesOf(aCopy); acKey.Index < cBodies.size() && cBodies[acKey.Index])
         SetBodyGroup(*cBodies[acKey.Index], it->second);
     m_ragdollGroups.erase(it);
+    if (const auto cHeld = m_ragdollMoving.find(acKey); cHeld != m_ragdollMoving.end())
+    {
+        m_movingGroups.Give(cHeld->second);
+        m_ragdollMoving.erase(cHeld);
+    }
 }
 
 BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, bool aKnock) noexcept

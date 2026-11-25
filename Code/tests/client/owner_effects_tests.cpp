@@ -19,3 +19,19 @@ TEST_CASE("A copy has an effect, a spell, or one with a keyword, when its owner 
     CHECK(pFound->Spell == 0xA0370);
     CHECK_FALSE(OwnerEffects::WithKeyword(cHeld, [](uint32_t) { return false; }));
 }
+
+TEST_CASE("A copy answers each effect query as the engine's visitors read the owner's list", "[OwnerEffects]")
+{
+    // 34578 skips a dispelled entry and the Usage Monitor effect; 34576 returns the first keyword match in list order.
+    using OwnerEffects::Held;
+    CHECK_FALSE(OwnerEffects::CountsAsSpellTarget(0x40000, 0x9F28F));
+    CHECK_FALSE(OwnerEffects::CountsAsSpellTarget(0, 0x14B));
+    CHECK(OwnerEffects::CountsAsSpellTarget(0, 0x9F28F));
+    const std::vector<Held> cDispelled{{0xA0370, 0x9F28F, false}};
+    CHECK(OwnerEffects::Has(cDispelled, 0x9F28F)); // HasMagicEffect counts it
+    CHECK_FALSE(OwnerEffects::HasSpell(cDispelled, 0xA0370));
+    const std::vector<Held> cReversed{{0xB0002, 0x9F28F}, {0xA0001, 0x9F290}}; // the owner's order, higher id first
+    const Held* pFirst = OwnerEffects::WithKeyword(cReversed, [](uint32_t) { return true; });
+    REQUIRE(pFirst);
+    CHECK(pFirst->Spell == 0xB0002);
+}

@@ -53,9 +53,7 @@ std::vector<OwnerEffects::Held> EffectVisualsService::ReadHeld(uint32_t aFormId)
     std::vector<OwnerEffects::Held> held;
     for (const auto& cEffect : m_actorBridge.GetActorActiveEffects(aFormId))
         if (cEffect.EffectFormId)
-            held.push_back({cEffect.SpellFormId, cEffect.EffectFormId});
-    std::ranges::sort(held);
-    held.erase(std::unique(held.begin(), held.end()), held.end());
+            held.push_back({cEffect.SpellFormId, cEffect.EffectFormId, OwnerEffects::CountsAsSpellTarget(cEffect.Flags, cEffect.EffectFormId)});
     return held;
 }
 
@@ -73,7 +71,7 @@ std::vector<struct Payloads::ActiveEffects::Held> EffectVisualsService::ToSessio
     std::vector<struct Payloads::ActiveEffects::Held> held;
     for (const auto& cHeld : acHeld)
         if (const auto cEffect = ToSession(cHeld.Effect))
-            held.push_back({ToSession(cHeld.Spell).value_or(GameId{}), *cEffect});
+            held.push_back({ToSession(cHeld.Spell).value_or(GameId{}), *cEffect, cHeld.SpellTarget});
     return held;
 }
 
@@ -82,8 +80,7 @@ std::vector<OwnerEffects::Held> EffectVisualsService::ToGameHeld(const std::vect
     std::vector<OwnerEffects::Held> held;
     for (const auto& cHeld : acHeld)
         if (const uint32_t cId = ToGame(cHeld.Effect))
-            held.push_back({ToGame(cHeld.Spell), cId});
-    std::ranges::sort(held);
+            held.push_back({ToGame(cHeld.Spell), cId, cHeld.SpellTarget});
     return held;
 }
 

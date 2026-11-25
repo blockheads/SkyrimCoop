@@ -266,11 +266,15 @@ bool ReadMotion(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) 
 }
 
 // As the script's SetMotionTypeFunctor::Run (56332) does it: every body under its 3D, the fixed ones left (77866).
+// With no 3D yet, when it loads (ApplyDeferredMotion).
 bool ApplyMotion(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     NiNode* p3D = aObject.GetNiNode();
     if (!p3D)
-        return false;
+    {
+        ScriptMotion::Get().Defer(aObject.formID, acChange.Value);
+        return true;
+    }
     using TSetMotionType = bool(NiAVObject*, uint32_t, bool aRecurse, bool aForce, bool aAllowActivate);
     POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 77866);
     s_setMotionType.Get()(p3D, ScriptMotion::TypeOf(acChange.Value), true, false, ScriptMotion::AllowsActivate(acChange.Value));
@@ -413,6 +417,12 @@ bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange) noexce
                    here.Data == acChange.Data;
         }
     return false;
+}
+
+void ApplyDeferredMotion(TESObjectREFR& aObject) noexcept
+{
+    if (const auto cValue = ScriptMotion::Get().TakeDeferred(aObject.formID))
+        (void)ApplyMotion(aObject, {.Type = ObjectChange::Kind::kMotion, .Value = *cValue});
 }
 
 bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept

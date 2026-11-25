@@ -678,11 +678,11 @@ TEST_CASE("What a body meets: a played one passes loose objects nobody moves, an
     // 2026-11-24: a tripwire's rope a guest took spun at 30 rad/s for good, its links colliding with each other.
     CHECK(Decide(cMoving, cMoving) == Meet::kEngine);
     BodyGroups::MovingGroups groups;
-    const uint16_t cRope = groups.Of(12);
+    const uint16_t cRope = groups.Take(12);
     CHECK(BodyGroups::IsMoving(cRope));
-    CHECK(groups.Of(12) == cRope);   // its next link
-    CHECK(groups.Of(13) != cRope);   // another object
-    CHECK(groups.Of(0) != groups.Of(0)); // no group of its own: nothing shared
+    CHECK(groups.Take(12) == cRope);   // its next link
+    CHECK(groups.Take(13) != cRope);   // another object
+    CHECK(groups.Take(0) != groups.Take(0)); // no group of its own: nothing shared
     CHECK(Decide(cMoving, cResting) == Meet::kEngine);
     CHECK(Decide(cResting, cResting) == Meet::kEngine);
     // The world (static, layer 1) and a character's capsule (layer 30, its own group) are the engine's to say.
@@ -742,4 +742,20 @@ TEST_CASE("A script's motion type packs with its allowActivate and the last one 
     CHECK(store.TakeUnsent(0x7998B) == ScriptMotion::Pack(1, false));
     CHECK_FALSE(store.TakeUnsent(0x7998B));
     CHECK(store.Of(0x7998B) == ScriptMotion::Pack(1, false)); // a cell's state still has it
+}
+
+TEST_CASE("Moving groups never wrap onto one in use; a freed one is taken again", "[physics]")
+{
+    // Review of #129: past the range's 4076 values one was handed out again while still live, and two objects passed
+    // through each other.
+    BodyGroups::MovingGroups groups;
+    const uint16_t cFirst = groups.Take(12);
+    for (uint16_t i = 0; i < BodyGroups::kMovingLast - BodyGroups::kMovingFirst; ++i)
+        (void)groups.Take(0);
+    CHECK(groups.InUse() == size_t(BodyGroups::kMovingLast - BodyGroups::kMovingFirst + 1));
+    CHECK(groups.Take(0) == 0);       // all in use: no moving group, never cFirst again
+    CHECK(groups.Take(12) == cFirst); // its own group's still
+    groups.Give(cFirst);
+    groups.Give(cFirst);              // both of group 12's bodies stopped
+    CHECK(groups.Take(13) == cFirst); // free again, taken by another object
 }

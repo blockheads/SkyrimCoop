@@ -45,8 +45,8 @@ blame actor is not in its `LaunchData`.
 
 A projectile's spell lands only through its shooter's caster. An activator's caster blames the blame actor (34698), so
 `GetCasterAsActor` answers the shouting player (or its copy); whether `AddTargetData::caster` is it was not read. The explosion is apart from the caster: what a
-shooterless explosion does (its damage, enchantment and push) was not read, so a projectile whose base explodes is
-not relayed. Not read either: where an effect's own explosion field (EAFE3 here) is played.
+shooterless explosion does (its damage, enchantment and push) was not read when this was written; one whose base
+explodes is now relayed like any other (below, "How we sync it"), its hit on a guest the host's. Not read either: where an effect's own explosion field (EAFE3 here) is played.
 
 ## How we sync it
 

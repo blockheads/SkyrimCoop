@@ -47,6 +47,30 @@ struct Store
         return it->second.Value;
     }
 
+    // A save is loading: its scripts set their types again (OnCellAttach); a type from another save must not stand.
+    void Clear() noexcept
+    {
+        std::scoped_lock _(m_lock);
+        m_values.clear();
+        m_deferred.clear();
+    }
+    // A guest's row for a reference with no 3D yet: applied when its 3D loads (TESObjectLoadedEvent).
+    void Defer(uint32_t aFormId, uint32_t aValue) noexcept
+    {
+        std::scoped_lock _(m_lock);
+        m_deferred[aFormId] = aValue;
+    }
+    [[nodiscard]] std::optional<uint32_t> TakeDeferred(uint32_t aFormId) noexcept
+    {
+        std::scoped_lock _(m_lock);
+        const auto it = m_deferred.find(aFormId);
+        if (it == m_deferred.end())
+            return std::nullopt;
+        const uint32_t cValue = it->second;
+        m_deferred.erase(it);
+        return cValue;
+    }
+
 private:
     struct Entry
     {
@@ -55,6 +79,7 @@ private:
     };
     mutable std::mutex m_lock;
     std::unordered_map<uint32_t, Entry> m_values;
+    std::unordered_map<uint32_t, uint32_t> m_deferred;
 };
 
 // This game's.

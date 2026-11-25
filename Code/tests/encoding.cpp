@@ -1128,7 +1128,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendMessage.Rotation.x = -1.87f;
         sendMessage.Rotation.y = 45.35f;
         sendMessage.EffectIds = {GameId(0, 0x4B2D9), GameId(2, 0x803)};
-        sendMessage.HeldEffects = {{GameId(0, 0xA0370), GameId(0, 0x9F28F)}};
+        sendMessage.HeldEffects = {{GameId(0, 0xA0370), GameId(0, 0x9F28F)}, {GameId(0, 0xA0371), GameId(0, 0x9F28F), false}};
 
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);

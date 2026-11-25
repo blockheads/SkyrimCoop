@@ -283,6 +283,8 @@ void FakeEngine::Finishes3D(uint32_t aReference)
 {
     auto& reference = References.at(aReference);
     reference.Has3D = true;
+    if (reference.DeferredMotion) // ApplyDeferredMotion, on TESObjectLoadedEvent
+        reference.Motion = std::exchange(reference.DeferredMotion, 0u);
     if (reference.Chest)
         reference.Lid = reference.Unposed ? kPartOpen : reference.Open ? 1.f : 0.f;
 }
@@ -334,6 +336,8 @@ void FakeEngine::Harvest(uint32_t aObject)
 void FakeEngine::ScriptSetsMotionType(uint32_t aObject, uint32_t aType)
 {
     auto& reference = References.at(aObject);
+    if (!reference.Has3D) // 56332: "has no 3d", nothing changed
+        return;
     reference.Motion = ScriptMotion::Pack(aType, false);
     if (IsGuest)
         return;
@@ -472,10 +476,11 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         }
         break;
     case ObjectChange::Kind::kHarvested: reference.Harvested = acChange.Value != 0; break;
-    case ObjectChange::Kind::kMotion: // ApplyMotion: on its 3D's bodies
+    case ObjectChange::Kind::kMotion: // ApplyMotion: on its 3D's bodies; with none yet, when it loads
         if (!reference.Has3D)
-            return false;
-        reference.Motion = acChange.Value;
+            reference.DeferredMotion = acChange.Value;
+        else
+            reference.Motion = acChange.Value;
         break;
     case ObjectChange::Kind::kAnimation: // the graph refuses an event while its own clip runs (measured on the spike wall)
         if (reference.InClip)

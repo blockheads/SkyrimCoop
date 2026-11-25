@@ -299,9 +299,7 @@ SCENARIO("A knocked bucket stops where an animated body keeps its island awake: 
     }
 }
 
-// WarehouseTraps' rocks (2026-11-24): they share an island with ropes that never sleep. A rock rested by its own
-// stillness, then a rope nudged it: no wake reported it (its island never slept), so the host sent nothing more and
-// its node stayed at the old rest while its body slid 17 units. A still body in an awake island stays watched.
+// A still body in an island kept awake stays watched (physics.md, "Still in an awake island").
 SCENARIO("A bucket at rest in an island kept awake is nudged again: its new rest reaches the guest", "[physics][still]")
 {
     Party party(1, Plugins);
@@ -2267,9 +2265,7 @@ SCENARIO("The host's bucket lies on what holds it only there: the guest's, woken
     CHECK(glm::distance(guestBucket.Flight.Body.Position, cOn) < 2.f);
 }
 
-// WarehouseTraps' tripwire (2026-11-24): its script holds its rope keyframed until it trips. A guest's player
-// touching it took it (a touch took any body), the host played the guest's frames on it, and the trap never fired.
-// Only a body physics simulates is taken; tripped (dynamic), it is anyone's like any other.
+// A body a script holds keyframed (an untripped tripwire) is taken by no touch (traps.md, "Who simulates a trap's bodies").
 SCENARIO("A guest's player pushes a body a script holds keyframed: it is not taken until the script frees it", "[physics][traps]")
 {
     Party party(1, [](FakeEngine& aEngine) {

@@ -97,7 +97,7 @@ void Traps::TakeHit(Actor& aActor, const TESObjectREFR* apTrap, const Payloads::
     std::ranges::copy(acHit.Velocity, data.velocity);
     std::ranges::copy(acHit.Position, data.position);
     data.material = acHit.Material;
-    Projectile::RelayedHit(aActor.formID);
+    const Projectile::JudgedHere cJudged;
     RealDoTrap(&aActor, data);
 }
 

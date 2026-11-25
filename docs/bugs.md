@@ -1519,6 +1519,7 @@ owner's until both stand" (`physics_flows.cpp:887`): the copy's head ended 27.8 
 2026-11-23 on `agent/kill-moves-every`: the same case, 15.7; looped alone with `RagdollStart`'s blend on and off it was
 15.7 and 16.4 in 1 of 12 runs each, 5.5 to 11.4 in the rest: not the blend.
 Looped alone again: 1 of 20 over 15 (42.4) with the blend, 8 of 30 (up to 16.4) with it off.
+2026-11-24 on `agent/traps-synced`: the same case, 29.8 (`physics_flows.cpp:996`); 1 of 6 alone.
 
 Agent task: loop `GameTests` until it fails and fix that case's timing.
 

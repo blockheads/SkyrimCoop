@@ -345,6 +345,8 @@ void HostCharacters::OnActiveEffects(const RequestActiveEffects& acRequest, Conn
         record->EffectIds = acRequest.EffectIds;
         record->HeldEffects = acRequest.Held;
     }
+    else
+        it->second.Effects = acRequest; // a guest's horse: its owner's word, not the host's copy's list
     NotifyActiveEffects notify;
     static_cast<Payloads::ActiveEffects&>(notify) = acRequest;
     m_players.SendToOthers(notify, aSender);
@@ -616,7 +618,15 @@ std::optional<NotifyCharacterSpawn> HostCharacters::ReadSpawn(uint32_t aSessionI
     }
     // A horse a guest rides, or one on its way back to the host's game: the host's copy of it.
     if (!it->second.PlayerRecord && (it->second.Owner != m_players.Host() || m_claims.Returning(aSessionId)))
-        return m_game.CopySpawn ? m_game.CopySpawn(aSessionId) : std::nullopt;
+    {
+        auto spawn = m_game.CopySpawn ? m_game.CopySpawn(aSessionId) : std::nullopt;
+        if (spawn && it->second.Effects)
+        {
+            spawn->EffectIds = it->second.Effects->EffectIds;
+            spawn->HeldEffects = it->second.Effects->Held;
+        }
+        return spawn;
+    }
 
     for (auto& spawn : m_game.OwnSpawns(cNoCharacter))
         if (spawn.SessionId == aSessionId)

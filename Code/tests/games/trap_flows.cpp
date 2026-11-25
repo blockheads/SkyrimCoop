@@ -294,8 +294,7 @@ SCENARIO("A script's motion type on the host's object reaches every guest, joine
                 "a later guest's tripwire is as the host's is now");
 }
 
-// WarehouseTraps' falling rocks (2026-11-24): an object's impact damage was the host's to judge against the guest's
-// copy (7 impacts of 4.3 in 90 ms from followed rocks, the host's own player one a round), the guest's own dropped.
+// An object's impact is judged in the hit player's own game (traps.md, "An object's impact damage").
 SCENARIO("A falling body's impact on a guest's player is its own game's to judge", "[traps][impact]")
 {
     Party party(1, Plugins);
@@ -312,4 +311,27 @@ SCENARIO("A falling body's impact on a guest's player is its own game's to judge
     party.As(party.Guest(), [&] { guest.BodyImpacts(FakeEngine::kPlayer, 4.3f); });
     CHECK(Health(guest) == Approx(cBefore - 4.3f));
     party.Until([&] { return Health(host, PlayerCopy(host)) <= cBefore - 4.f; }, "the host's copy shows the guest's health");
+}
+
+// Review of #129: 56332 changes nothing for a reference with no 3D, and a guest's row can come before its 3D loads.
+SCENARIO("A script's motion type with no 3D is no row; a row before a guest's 3D waits for it", "[traps][motion]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
+    constexpr uint32_t kKeyframed = 4;
+    host.References.at(kTripwire).Has3D = false;
+    party.As(party.Host(), [&] { host.ScriptSetsMotionType(kTripwire, kKeyframed); });
+    Settle(party, 1);
+    CHECK(host.References.at(kTripwire).Motion == 0);
+    CHECK(guest.References.at(kTripwire).Motion == 0);
+
+    host.References.at(kTripwire).Has3D = true;
+    guest.References.at(kTripwire).Has3D = false;
+    party.As(party.Host(), [&] { host.ScriptSetsMotionType(kTripwire, kKeyframed); });
+    Settle(party, 1);
+    CHECK(guest.References.at(kTripwire).Motion == 0);
+    party.As(party.Guest(), [&] { guest.Finishes3D(kTripwire); });
+    CHECK(guest.References.at(kTripwire).Motion == ScriptMotion::Pack(kKeyframed, false));
 }
