@@ -1,6 +1,7 @@
 #include <Services/CombatService.h>
 #include <Services/ProjectileLaunches.h>
 #include <Services/TransportService.h>
+#include <Services/TravelService.h>
 
 #include <Events/UpdateEvent.h>
 #include <Games/ActorUpkeep.h>
@@ -52,47 +53,61 @@ void CombatService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::ent
 
 void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acEvent) const noexcept
 {
-
-    if (acEvent.ByObject) // the world's: HostTraps
-        return;
-    uint32_t shooterFormId = acEvent.ShooterID;
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    const auto shooterEntityIt = std::find_if(std::begin(view), std::end(view), [shooterFormId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == shooterFormId; });
-
-    if (shooterEntityIt == std::end(view))
+    // What an object shoots (a dart port, a catapult, an activator's or a statue's spell) goes out with no shooter, of
+    // any kind: the others show it with no shooter, which applies nothing there; its hits are the host's (projectiles.md).
+    uint32_t shooterId = 0;
+    if (acEvent.FromObject)
     {
-        spdlog::debug("Projectile launched by {:X}: not ours, not sent", shooterFormId);
-        return;
+        if (!m_transport.IsOnline())
+            return;
     }
-
-    LocalComponent& localComponent = view.get<LocalComponent>(*shooterEntityIt);
+    else
+    {
+        const uint32_t cShooterFormId = acEvent.ShooterID;
+        auto view = m_world.view<FormIdComponent, LocalComponent>();
+        const auto cShooter = std::find_if(view.begin(), view.end(), [&](entt::entity aEntity) {
+            return view.get<FormIdComponent>(aEntity).Id == cShooterFormId;
+        });
+        if (cShooter == view.end())
+        {
+            spdlog::debug("Projectile launched by {:X}: not ours, not sent", cShooterFormId);
+            return;
+        }
+        shooterId = view.get<LocalComponent>(*cShooter).Id;
+    }
 
     ProjectileLaunchRequest request{};
 
-    request.ShooterID = localComponent.Id;
+    request.ShooterID = shooterId;
     ProjectileLaunches::Fill(request, acEvent);
 
     m_transport.Send(request);
-    spdlog::debug("Projectile launched by {:X} (spell {:X}): sent", shooterFormId, acEvent.SpellID);
+    spdlog::debug("Projectile launched by {:X} (spell {:X}): sent", acEvent.ShooterID, acEvent.SpellID);
 }
 
 void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMessage) const noexcept
 {
     spdlog::debug("Projectile from session id {:X} received", acMessage.ShooterID);
 
-    auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
-    const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.ShooterID](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
-
-    if (remoteIt == std::end(remoteView))
+    // Shooter 0: what an object shot, relaunched with no shooter (OnProjectileLaunchedEvent).
+    uint32_t shooterFormId = 0;
+    if (acMessage.ShooterID)
     {
-        spdlog::warn("Shooter with remote id {:X} not found.", acMessage.ShooterID);
-        return;
+        auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
+        const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.ShooterID](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
+
+        if (remoteIt == std::end(remoteView))
+        {
+            spdlog::warn("Shooter with remote id {:X} not found.", acMessage.ShooterID);
+            return;
+        }
+        shooterFormId = remoteView.get<FormIdComponent>(*remoteIt).Id;
     }
 
-    FormIdComponent formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
-
+    const uint32_t cParentCellId = m_world.GetTravelService().CellAt(
+        acMessage.WorldSpaceID, acMessage.ParentCellID, {acMessage.OriginX, acMessage.OriginY, acMessage.OriginZ});
     spdlog::debug("Projectile from session id {:X}: relaunching", acMessage.ShooterID);
-    ProjectileLaunches::Launch(m_formBridge, formIdComponent.Id, acMessage);
+    ProjectileLaunches::Launch(m_formBridge, shooterFormId, cParentCellId, acMessage);
 }
 
 void CombatService::OnMeleeStagger(const MeleeStaggerEvent& acEvent) noexcept

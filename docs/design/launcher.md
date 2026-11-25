@@ -1,6 +1,6 @@
 # Mod sync and launch: SkyrimModSync (2026-11-25)
 
-A separate Rust CLI, `sms` (the `SkyrimModSync` project, branch `file-sync`), replaces our packaged launcher and
+A separate Rust CLI, `sms` (the `SkyrimModSync` project), replaces our packaged launcher and
 `-full` zip. The host's MO2 profile is the pack; friends sync it, load it into their game, play, and unload it.
 This repo builds only the mod's archive (`scripts/package.sh`).
 

@@ -1,12 +1,16 @@
 #include <Bridges/DevToolsBridge.h>
 
 #include <Actor.h>
+#include <Forms/TESFaction.h>
 #include <Games/ActorExtension.h>
 #include <Games/TES.h>
 #include <Interface/ConsoleLines.h>
 #include <Misc/KillMoveOdds.h>
 #include <PlayerCharacter.h>
+#include <Services/DevCommands.h>
 #include <VersionDb.h>
+
+#include <cmath>
 
 void DevToolsBridge::RunConsole(const std::string& acLine) noexcept
 {
@@ -41,6 +45,36 @@ uint32_t DevToolsBridge::KillHostiles() noexcept
         if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
             pActor->Kill();
     return static_cast<uint32_t>(hostile.size());
+}
+
+uint32_t DevToolsBridge::SpawnPartyHorses(uint32_t aAtFormId, uint32_t aCount) noexcept
+{
+    const auto* pAt = Cast<TESObjectREFR>(TESForm::GetById(aAtFormId));
+    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(DevCommands::cHorse));
+    auto* pHorseFaction = Cast<TESFaction>(TESForm::GetById(DevCommands::cPlayerHorseFaction));
+    auto* pPlayerFaction = TESForm::GetById(DevCommands::cPlayerFaction);
+    ModManager* pManager = ModManager::Get();
+    if (!pAt || !pBase || !pHorseFaction || !pPlayerFaction || !pManager)
+        return 0;
+    uint32_t placed = 0;
+    for (uint32_t i = 0; i < aCount; ++i)
+    {
+        // In a row beside the actor, 200 units out to its right, 150 apart (heading: rotation z).
+        const float cHeading = pAt->rotation.z;
+        const float cOut = 200.f + 150.f * static_cast<float>(i);
+        const NiPoint3 cPosition(glm::vec3(pAt->position.x + std::cos(cHeading) * cOut,
+                                           pAt->position.y - std::sin(cHeading) * cOut, pAt->position.z));
+        auto* pHorse = Cast<Actor>(TESObjectREFR::GetByHandle(
+            pManager->Place(pBase, cPosition, pAt->rotation, pAt->GetParentCellEx(), pAt->GetWorldSpace())));
+        if (!pHorse)
+            continue;
+        // As the stable's sale (TIF__00068CF4): AddToFaction is SetFactionRank 37677, SetFactionOwner SetOwner 20198.
+        pHorse->SetFactionRank(pHorseFaction, 1);
+        pHorse->SetOwner(pPlayerFaction);
+        ++placed;
+    }
+    spdlog::info("DevToolsBridge: {} party horses placed at {:X}", placed, aAtFormId);
+    return placed;
 }
 
 bool DevToolsBridge::IsGodMode() noexcept

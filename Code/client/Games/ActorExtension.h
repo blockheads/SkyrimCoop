@@ -5,6 +5,9 @@
 
 #include <array>
 #include <atomic>
+#include <Games/OwnerEffects.h>
+#include <memory>
+#include <vector>
 
 // Words: docs/design/glossary.md.
 struct ActorExtension
@@ -36,6 +39,7 @@ struct ActorExtension
     // A copy: its owner's AI state (SkyrimBridge::SetCopyAiFields). The package (0: none or engine-made) is put back
     // in its running slot when the engine asks for a new one; scene and combat state are answered (CopyAiState.cpp).
     std::atomic<uint32_t> OwnerPackageId{0};
+    std::atomic<std::shared_ptr<const std::vector<OwnerEffects::Held>>> OwnerEffects; // a copy: its owner's (OwnerEffects.h)
     uint32_t OwnerSceneId = 0;
     uint8_t OwnerCombatState = 0;
     std::atomic<uint32_t> OwnerCombatTargetHandle{0};

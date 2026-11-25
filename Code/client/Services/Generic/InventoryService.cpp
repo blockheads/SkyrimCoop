@@ -142,6 +142,7 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
     const bool cArrival = !acEvent.Drop && acEvent.Item.Count > 0 && !acEvent.Item.ExtraName.starts_with(PartyItems::cTag);
     request.StoryGiven = acEvent.StoryGiven;
     request.AliasHeld = acEvent.AliasHeld;
+    request.Wear = cArrival && acEvent.StoryWorn;
     if (cArrival && m_decidesArrival &&
         m_decidesArrival(cItemId, m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven, acEvent.AliasHeld))
     {
@@ -472,8 +473,19 @@ void InventoryService::OnNotifyPartyItem(const NotifyPartyItem& acMessage) noexc
     for (const auto cEntity : m_world.view<FormIdComponent>())
         if (const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id; m_actorBridge.IsOtherPlayer(cFormId))
             SetPartyItem(cFormId, acMessage.Item);
+    // The story dressed the player: this game's own player puts its copy on; its copies follow its equipment.
+    if (acMessage.Wear && acMessage.Item.Count > 0)
+        WearPartyItem(acMessage.Item);
     if (acMessage.Shown)
         m_world.ctx().at<IPlayerBridge&>().ShowItemChangeMessage(ToGame(acMessage.Item.BaseId), acMessage.Shown);
+}
+
+void InventoryService::WearPartyItem(const Inventory::Entry& acItem) noexcept
+{
+    const auto cCarried = m_actorBridge.GetActorInventory(0x14);
+    if (std::ranges::any_of(cCarried.Entries, [&](const Inventory::Entry& acEntry) { return acEntry.IsWorn() && PartyItems::SameStack(acItem, acEntry); }))
+        return;
+    m_formBridge.ActorWearStack(0x14, acItem);
 }
 
 // That stack (its base and name) set to the party's count, silently.

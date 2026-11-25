@@ -53,8 +53,14 @@ bool HostBodies::IsGuest(uint32_t aPlayer) const noexcept
 
 bool HostBodies::MayClaim(const BodyKey& acKey, ConnectionId_t aSender) const noexcept
 {
+    // A guest's own (the host plays it, keyframed if held) stays its; else only what the host's physics simulates.
     if (!acKey.Actor)
-        return true;
+    {
+        const auto cRow = m_rows.find(acKey);
+        if (IsGuest(m_authority.Of(acKey).Player) || (cRow != m_rows.end() && cRow->second.FromGuest))
+            return true;
+        return !(m_game.IsKeyframed && m_game.IsKeyframed(acKey));
+    }
     const ConnectionId_t cOwner = m_characters.OwnerOf(acKey.Actor);
     return cOwner == aSender || (cOwner == m_players.Host() && m_game.IsDead && m_game.IsDead(acKey.Actor));
 }

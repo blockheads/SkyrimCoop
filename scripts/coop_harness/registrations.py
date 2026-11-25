@@ -1,5 +1,5 @@
 """One registration per canonical Skyrim flow."""
-from .scenarios import arrest_repro, combat, crime, dialogue_regression, dialogue_repro, followers, menus, rewards, specs, v1
+from .scenarios import arrest_repro, combat, crime, dialogue_regression, dialogue_repro, dialogue_stress, followers, menus, rewards, specs, v1
 from .scenarios import (
     ai,
     combat,
@@ -49,6 +49,11 @@ def register_flows(registry):
     registry.add('dialogue-guest-s9-exits', ['restart', 'dialogue'], lambda ctx: dialogue_repro.guest_exits(ctx, placed=0x19DF0, walking=True), doc='The guest talks to Wylandriah, the S9 candidate, exits alone with Tab around greeting and movement input, then walks normally.')
     registry.add('dialogue-guest-picks-at-greeting-end', ['restart', 'dialogue'], dialogue_repro.greeting_end, doc='The guest presses as the host greeting ends, while its menu takes input, without waiting for its copy\'s voice to end.')
     registry.add('dialogue-refused-pick-restores-list', ['restart', 'dialogue'], dialogue_repro.refused_pick, doc='Choosing another player\'s option is refused and restores the local list without another player intervening.')
+    registry.add('dialogue-speaker-killed-mid-answer', ['dialogue', 'dialogue-stress'], dialogue_stress.speaker_killed, doc='Andurs is killed mid-answer with both players in his conversation: it ends on both games.')  # hand-written: measured first (re/systems/dialogue.md)
+    registry.add('dialogue-speaker-fights-mid-answer', ['dialogue', 'dialogue-stress'], dialogue_stress.speaker_fights, doc='Andurs starts a fight mid-answer with both players in his conversation: it ends on both games.')  # hand-written: measured first (re/systems/dialogue.md)
+    registry.add('dialogue-lucan-claw-under-stress', ['dialogue', 'dialogue-stress', 'quests'], dialogue_stress.lucan_claw_under_stress, doc='The guest leaves and rejoins Lucan\'s claw conversation mid-answer, then hands the claw in: every line reaches its copy once, MS13 agrees on both games.')  # hand-written: the walker's quest check on Skyrim's real quest
+    registry.add('dialogue-guest-talks-again-after-leaving', ['dialogue', 'dialogue-stress'], dialogue_stress.guest_talks_again_after_leaving_mid_answer, doc='The guest alone leaves Andurs mid-answer and talks again at once: its menu does not replay his answer over its copy\'s.')  # hand-written: the playtest's layered voices, the path read in code
+    registry.add('dialogue-guest-rejoins-quickly', ['dialogue', 'dialogue-stress'], dialogue_stress.guest_rejoins_quickly, doc='The guest leaves and talks again five times mid-answer: every line the host voices reaches its copy once.')  # hand-written: the walker's rapid enter/exit on Skyrim
     registry.add('dialogue-guest-exits-alone', ['restart', 'dialogue'], dialogue_repro.guest_exits, doc='A guest exits alone by Tab, Escape and Tab during an answer, then can talk again without host intervention.')
     registry.add('dialogue-mouse-highlight-stays-shared', ['restart', 'dialogue'], dialogue_repro.mouse_highlights, doc='Real mouse hovers update both menus and the final shared choice stays stable under a stationary mouse.')
     registry.add('dialogue-fast-mouse-pick', ['restart', 'dialogue'], lambda ctx: dialogue_repro.mouse_highlights(ctx, fast_pick=True), doc='Several un-settled mouse highlights followed by a click say the intended topic on the host; record its actual line.')

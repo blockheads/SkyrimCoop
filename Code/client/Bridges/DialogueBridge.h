@@ -25,6 +25,8 @@ public:
     void End() noexcept override;
     void FaceTalker() noexcept override;
     bool ClearOrphaned() noexcept override;
+    std::optional<VoiceSource> GetVoiceSource(uint32_t aInfo) const noexcept override;
+    void Clear() noexcept override;
 
     bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept override;
     bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept override;

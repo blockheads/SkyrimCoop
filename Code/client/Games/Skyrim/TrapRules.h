@@ -26,10 +26,24 @@ enum class Contact
     return aTarget == LocalPlayer ? Contact::AskHost : Contact::Drop;
 }
 
+// A launch raised for the others: all but an actor's concentration spell, which its copy casts (the cast sync). An
+// object's stream of flames goes by the launch, each puff its own (44108; flames_hurt_both: 117 a 7 s round).
+[[nodiscard]] constexpr bool SendsLaunch(bool aConcentration, bool aActorShooter) noexcept
+{
+    return !(aConcentration && aActorShooter);
+}
+
 // A contact's velocity and position, but not a stop's: ContactRemoved (26068) leaves them stack scratch.
 [[nodiscard]] constexpr bool CarriesVectors(uint32_t aType) noexcept
 {
     return aType != 1; // TESTrapHitEvent's stop
+}
+
+// The host's world cast of an effect this actor already has from no actor: skipped. Two of its hazard's ticks can go
+// out before its copy answers with the effect (IsSpellTarget, 43987).
+[[nodiscard]] constexpr bool SkipsWorldEffect(bool aWorldCast, bool aAlreadyActive) noexcept
+{
+    return aWorldCast && aAlreadyActive;
 }
 
 enum class Hit
@@ -47,16 +61,11 @@ enum class Hit
     return aHosting && aTarget == OtherPlayer ? Hit::AskOwner : Hit::Drop;
 }
 
-// A guest's own copy of an object's cast on its player (a trap's Spell.Cast) applies nothing: the host's asks for it.
-[[nodiscard]] constexpr bool AppliesWorldEffect(bool aIsGuest, HitRules::Party aTarget, bool aCastByObject, bool aOwnScript) noexcept
+// A guest's own copy of a world cast on its player (no actor casts it: a trap's spell, a hazard, an explosion, a
+// projectile an object shot) applies nothing: the host's verdict asks for it. Its own script's does.
+[[nodiscard]] constexpr bool AppliesWorldEffect(bool aIsGuest, HitRules::Party aTarget, bool aNoActorCaster, bool aOwnScript) noexcept
 {
-    return !aIsGuest || aTarget != HitRules::Party::LocalPlayer || !aCastByObject || aOwnScript;
-}
-
-// A world cast (no caster) of an effect this game's actor already has: skipped, as a hazard's IsSpellTarget (43987) does.
-[[nodiscard]] constexpr bool SkipsWorldEffect(bool aNoCaster, bool aAlreadyActive) noexcept
-{
-    return aNoCaster && aAlreadyActive;
+    return !aIsGuest || aTarget != HitRules::Party::LocalPlayer || !aNoActorCaster || aOwnScript;
 }
 
 // A script looping on an object with no 3D here (its graph takes no event) repeats at once: a repeat this soon is not sent.

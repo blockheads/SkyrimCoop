@@ -1,8 +1,11 @@
 #pragma once
 
+#include <Games/OwnerEffects.h>
+
 #include <Events/Listen.h>
 #include <NoCopyMove.h>
 #include <Structs/GameId.h>
+#include <Messages/Payloads.h>
 #include <Messages/RelayedMessages.h>
 
 class IActorBridge;
@@ -35,8 +38,12 @@ struct EffectVisualsService
 
     // The effects with visuals active on an actor of this game: what its copies show.
     [[nodiscard]] std::vector<GameId> ReadEffects(uint32_t aFormId) const noexcept;
+    // Its held (spell, effect) pairs as session ids, for its announcement.
+    [[nodiscard]] std::vector<struct Payloads::ActiveEffects::Held> ReadHeldIds(uint32_t aFormId) const noexcept;
 
 protected:
+    [[nodiscard]] std::vector<struct Payloads::ActiveEffects::Held> ToSessionHeld(const std::vector<OwnerEffects::Held>& acHeld) const noexcept;
+    [[nodiscard]] std::vector<OwnerEffects::Held> ToGameHeld(const std::vector<struct Payloads::ActiveEffects::Held>& acHeld) const noexcept;
     void OnEffectVisualsChange(const EffectVisualsChangeEvent& acEvent) noexcept;
     void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
     // A copy spawned here has its 3D: the visuals it was told to show before play now.
@@ -56,18 +63,22 @@ private:
     // A copy's owner lists these: the visuals of those that left it stop, the missing play.
     void Show(uint32_t aSessionId, std::vector<uint32_t> aEffectIds) noexcept;
     void PlayMissing(uint32_t aSessionId) noexcept;
+    // Every active effect on its list in its order, as the engine's queries read it (OwnerEffects).
+    [[nodiscard]] std::vector<OwnerEffects::Held> ReadHeld(uint32_t aFormId) const noexcept;
     void StopShown(uint32_t aSessionId) noexcept;
 
     World& m_world;
     TransportService& m_transport;
     IActorBridge& m_actorBridge;
 
-    // Per owned actor (session id): the effect form ids last sent.
-    std::unordered_map<uint32_t, std::vector<uint32_t>> m_sent;
-    // Per copy (session id): the effects its owner lists, and the reference they were last played on.
+    // Per owned actor (session id): the effect form ids last sent, with visuals and all it holds.
+    std::unordered_map<uint32_t, std::pair<std::vector<uint32_t>, std::vector<OwnerEffects::Held>>> m_sent;
+    // Per copy (session id): the effects its owner lists (with visuals; all it holds), and the reference they were last
+    // played on.
     struct Shown
     {
         std::vector<uint32_t> EffectIds;
+        std::vector<OwnerEffects::Held> Held;
         uint32_t FormId{};
     };
     std::unordered_map<uint32_t, Shown> m_shown;

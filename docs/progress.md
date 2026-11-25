@@ -51,7 +51,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 2026-11-25: **friends get the host's mod setup through SkyrimModSync; our launcher and bundled zip are gone**
 (`agent/launcher-modpack`; [launcher.md](design/launcher.md)). A separate Rust CLI (`sms`, the SkyrimModSync project,
-branch `file-sync`) publishes the host's MO2 profile as a signed pack (files by hash, load order, shared INI settings).
+branch `main`) publishes the host's MO2 profile as a signed pack (files by hash, load order, shared INI settings).
 A file found in the Nexus archive its mod was installed from downloads from Nexus with the friend's own Premium API key;
 everything else comes from the host over P2P. `sms play <code>` syncs, loads the pack into the game folder (journaled,
 the friend's own files set aside, SKSE's loader in Steam's launcher slot) and starts Skyrim through Steam; `sms unload`
@@ -61,6 +61,35 @@ goes through `sms` (publish, sync, load, boot, unload), [install.md](install.md)
 way: `sms play` with no code syncs its own pack from its own MO2 files (nothing downloaded) and loads it. Releases:
 SkyrimModSync is public (`blockheads/SkyrimModSync`, binaries per OS on `v*` tags); `scripts/release.sh TAG` publishes
 our archive as a prerelease here, which hosts use as the mod's source (`sms host source SkyrimCoop github ...`).
+
+2026-11-24: **shared dialogue under stress: a crash, two orphaned conversations, layered voices and a stuck rejoin
+fixed** (`agent/rejoin-dialogue-layers`; [dialogue.md](re/systems/dialogue.md), "A guest leaving mid-line", "A menu
+joining mid-answer, and the replayed greeting", "The speaker dies or fights"; [dialogue-stress.md](design/dialogue-stress.md)).
+- A guest leaving the session mid-conversation crashed its game: the deleted copy's next `UpdateInDialogue` (37541) ran
+  on a freed process. `GuestDialogue::OnLeft` clears the conversation (`MenuTopicManager::Clear` 35274) first.
+- The playtest's layered voices (reproduced on the duo, `dialogue-guest-talks-again-after-leaving`, 2 of 2 without the
+  fix): a guest leaving mid-answer and talking again got its new menu's greeting replay, which replayed the NPC's
+  answer over its copy's. Only the greeting's line is replayed now (`VoiceFiles::IsLineOf`). The older replay on every
+  opening was fixed by 0d64013e (2026-11-17).
+- A guest talking again mid-answer got a menu stuck in the SWF's greeting state (Tab skipped the NPC's line for
+  everyone; no pick, the greeting's text): it now shows the pick and the answer's text, and Tab leaves.
+- A walker (GameTests `[dialogue-walk]`: random talk, leave, pick, skip, kill, fight, delete, drop, rejoin; its rules
+  checked after each settle) found two asks before the open, and an ask crossing the host's own conversation, each
+  leaving the host's NPC talking to nobody for good. `HostDialogue` keeps every asker; `NotifyDialogueOpen::InIt` says
+  who is in it. 300 seeds clean and 100 under `COOP_NET` pass.
+- A join while the host's dialogue menu is open (no save then) waits up to 180 s, told why (`NotifySaveWaiting`).
+- Measured: a speaker killed or starting a fight ends the conversation at once (the fake learned it). Soak scenarios
+  (tag `dialogue-stress`), Lucan's claw conversation among them, pass on the duo. Voice tooling: per-line `Voice:` logs,
+  MCP verbs `voice_mark`, `voice_lines`, `expect_no_line_layered`, `speak_calls`, `talk_twice`.
+
+2026-11-24: **`/spawn horse`: a horse beside you, the party's** (`agent/dev-spawn-horse`;
+[dev-commands.md](design/dev-commands.md), [player-mount.md](re/systems/player-mount.md), "`/spawn horse`"). Any
+player types `/spawn horse [1-20]`; the host places saddled horses (109E3D) beside that player's character, each the
+party's as a stable sells one (`PlayerHorseFaction` rank 1, owned by `PlayerFaction`), with no second command.
+Ownership was already party-wide: `PlayerFaction`, and a player's own base (0x7), mean every game's own player, so
+nothing per player to simplify. The harness verb `spawn_horse` types it. ClientTests `[dev-commands]`,
+HostAuthorityTests `[DevTools]`, GameTests "A guest's /spawn horse...", `test_coop_harness.py`; scenario
+`guest-rides-spawned-horse` (the guest gets on with real input, both games show it ridden).
 
 2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
 the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it
@@ -87,6 +116,33 @@ damage, timed effects recast with their elapsed time, cooldowns, trainings, firs
 after its health changes or it casts. Read in IDA: [player-save-state.md](re/systems/player-save-state.md). Scenario
 `guest_keeps_own_state_on_reload`; GameTests "A guest keeps its own favorites, damage, effects, cooldowns, trainings
 and view over a host load and a rejoin"; ClientTests `[own-state]`.
+2026-11-24: **a spell an object casts shows on every game: Storm Call's lightning** (`agent/storm-call-lightning`,
+[projectiles.md](re/systems/projectiles.md)). Bug 18: only the shouting game saw the bolts. `magicProjectileStormScript`
+casts each bolt with `Spell.RemoteCast` from an activator it placed in the sky, so the projectile's shooter is that
+activator (read in IDA: `NonActorMagicCaster` 34699 → `FindTargets` 34410 → `FireProjectile` 34452), and
+`CombatService` sent only launches shot by its game's actors. Now a spell projectile shot by an object (an activator, a
+statue, no shooter) goes out with shooter 0 from whichever game launched it, and the others relaunch it with no shooter:
+it flies and strikes, and with no shooter's caster its spell applies nothing there (44169/44206); its effects stay the
+launching game's. Not relayed: shots with no spell, and those whose base explodes (`BGSProjectile` +0xB0, the Fishing
+catapult): what a shooterless explosion does was not read. Outdoors the message carries the worldspace, so a cell the
+engine made is found from the origin (`TravelService::CellAt`; the wire bytes of `ProjectileLaunch` changed). Scenario `storm-call-bolts-reach-guest` (the host's and the guest's
+shout: before, 3 bolts struck and 0 shown each way; now each game relaunches every bolt the other struck), readout
+`projectile <base>` / `projectile <base> relaunched` counters, MCP verb `storm_call` (a checking verb, kept in exports
+when it fails); GameTests "A storm bolt a script casts from an activator shows on every game", HostAuthorityTests
+"Shots: an object's...".
+
+2026-11-23: **clothes a quest dresses the player in reach every player, worn** (`agent/alternate-start-clothing`).
+With Alternate Start only the host got its start's clothing: the start choices run `Player.EquipItem(...)` from
+`ARTHLALRumorsOfWarQuest`'s fragments, and `Actor.EquipItem` (54661, read in IDA) adds an item the actor lacks
+straight to its inventory changes (16053), past our add hooks, so the story's clothes never became party items.
+A hook on 54661 reports the added item (`ScriptEquips`); from a quest's script it is a party item the story put on
+(`Wear` on `RequestInventoryChanges` and `NotifyPartyItem`), and each game's player wears its copy: that stack, unforced
+(`ActorWearStack`), so it can take it off. Generic: MQ101's
+prisoner clothes and DA15's fine clothes take the same path. A guest joining after it carries the item, unworn
+(the join's list carries no worn state). [inventory-changes.md](re/systems/inventory-changes.md), "A script's
+EquipItem". Scenario `quest-dresses-every-player` (the harness boots the duo with the bundled mods: `duo --plugins`,
+`duo_start plugins=`, `loads_mods`; new expect `wears`); GameTests "A quest's script dresses the player", ClientTests
+`[ScriptEquips]`, HostAuthorityTests, TPTests.
 
 2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
 [actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A frozen actor that dies"). Arvel killed right after
@@ -179,9 +235,13 @@ crash (an NPC's face template walk on the background loader, 15678) is open in [
 `docs/design/traps.md`, `docs/re/systems/traps.md`). The host runs a trap's script; a guest's player's touch goes to it
 (`TrapContactRequest`), its hit back to that guest (`NotifyTrapHit`, `DoTrap1` there); the host's far traps keep their
 graphs running (their scripts waited on clips); a guest plays the host's animations in order once its graph takes them;
-darts an object fires reach every guest; an object's `Spell.Cast` shows on every game. Scenarios `spike_wall_hurts_both`,
+darts an object fires reach every guest, their poison on the guest's player as the host's (its caster kept); an object's `Spell.Cast` shows on every game, a concentration stream (flame jets) included; a copy made later answers with its owner's held effects. Scenarios `spike_wall_hurts_both`,
 `scythes_hurt_both`, `darts_hurt_puller`, `flames_hurt_both`, `warehouse_traps_hurt_both` (fire plate, rocks, mace, logs). A tripped tripwire is broken on the guest too (its destroyed flag in the `kEnabled` row).
-An explosion's poison reaches a guest once (its copy's cast or the host's). A guest's copy stands at its owner's height, so the gas poisons a guest walking onto its plate.
+The world's harm is the host's verdict, shown on every game: everything an object shoots goes out with no shooter, of
+any kind (one path with Storm Call's bolts), a world cast or world hit (no actor) on a guest's copy goes to its game,
+and a guest's own copies apply nothing. Copies answer effect questions with their owner's effects
+(`HasMagicEffect`, `HasMagicEffectWithKeyword`, `IsSpellTarget`), so the host's gas and hazards stop at a guest already
+under them. A guest's copy stands at its owner's height.
 
 2026-11-23: **a lever furniture one player pulls moves on every game** (`agent/levers-synced`; playtest 2026-11-22 item
 11; `docs/re/systems/activation.md`, "Lever furniture"). Bleak Falls Temple's pillar lever is a furniture with
@@ -2548,6 +2608,14 @@ removed (git history keeps them).
 
 ### World state
 
+- **A guest's Storm Call may not hurt host NPCs** (2026-11-24, [projectiles.md](re/systems/projectiles.md), inferred
+  from our code, not measured): the host runs the NPC's storm script, which blames the guest's copy; if the bolt's
+  `AddTarget` caster is that copy, `HookAddTarget` drops it on the host's own NPC. Needs a scenario reading the
+  NPC's health.
+- **Storm Call's created activators end apart** (2026-11-24, `storm-call-bolts-reach-guest`'s end comparison, logged
+  under `own-checks`): its activators (`ACTI B79FF`, placed by `magicProjectileStormScript` and moved by `SetPosition`)
+  are on the host only, or in another cell or pose on the guest, after the storm. Invisible markers; whether the
+  script's moves and its `Delete` at the effect's end reach the guest's copies was not read.
 - **Why a lid flipped without 3D comes back part open is unread** (2026-11-18, `docs/re/systems/guest-world-events.md`,
   "A lid after a disable"): `InitNonNPCAnimation` (19757) already calls `SetOpenState` with snap at a 3D load, yet the
   new 3D shows 0.116 of the open 0.128 rad. The fix poses it afterwards (`ObjectService`, measured to agree); what

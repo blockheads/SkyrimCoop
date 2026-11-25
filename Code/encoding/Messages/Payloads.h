@@ -154,7 +154,8 @@ struct ProjectileLaunch
     float ZAngle{};
     float XAngle{};
     float YAngle{};
-    GameId ParentCellID{};
+    GameId ParentCellID{}; // none outdoors for a cell the engine made (ToSessionCell)
+    GameId WorldSpaceID{};
     GameId SpellID{};
     int32_t CastingSource{};
     int32_t Area{};
@@ -167,16 +168,6 @@ struct ProjectileLaunch
     bool ForceConeOfFire{};
     bool UnkBool1{};
     bool UnkBool2{};
-};
-
-// A projectile whose shooter is an object of the world; Launch.ShooterID is not used.
-struct WorldProjectile
-{
-    GameId Shooter{};
-    ProjectileLaunch Launch{};
-    bool operator==(const WorldProjectile&) const noexcept = default;
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 };
 
 struct AddTarget
@@ -345,8 +336,8 @@ struct Subtitle
     bool Force{}; // shown at any distance (the engine's forceDisplay, as for a line said to the player)
 };
 
-// An actor's active magic effects that show on it (a hit shader or hit art: burning, frost,
-// a healing glow), from its owner. Copies play only those visuals; the owner applies the effects.
+// An actor's active magic effects, from its owner: those that show on it (a hit shader or hit art: burning, frost, a
+// healing glow), whose visuals copies play, and every one it holds, which copies answer to "has this effect".
 struct ActiveEffects
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
@@ -354,8 +345,24 @@ struct ActiveEffects
 
     bool operator==(const ActiveEffects&) const noexcept = default;
 
+    struct Held
+    {
+        GameId Spell{};
+        GameId Effect{};
+        bool SpellTarget = true; // counts for IsSpellTarget (OwnerEffects)
+        bool operator==(const Held&) const noexcept = default;
+    };
+
     uint32_t SessionId{};
-    std::vector<GameId> EffectIds{};
+    std::vector<GameId> EffectIds{}; // at most kMaxEffects each
+    std::vector<Held> Held{};
+    static constexpr size_t kMaxEffects = 256;
+
+    // The two lists, also carried by a character's announcement and spawn.
+    static void WriteIds(Wire::Buffer::Writer& aWriter, const std::vector<GameId>& acIds) noexcept;
+    static void ReadIds(Wire::Buffer::Reader& aReader, std::vector<GameId>& aIds) noexcept;
+    static void WriteHeld(Wire::Buffer::Writer& aWriter, const std::vector<struct Held>& acHeld) noexcept;
+    static void ReadHeld(Wire::Buffer::Reader& aReader, std::vector<struct Held>& aHeld) noexcept;
 };
 
 // An effect's visuals that play once (no FX Persist) just started on one of the owner's actors: its copies play them.
@@ -458,6 +465,8 @@ struct PartyItem
     int32_t Shown{};
     // To the player who found it: how many of its own plain stack to rename to the tag (the host decided it is the party's).
     int32_t Converted{};
+    // The story put it on its player (RequestInventoryChanges::Wear): each game's player wears its copy.
+    bool Wear{};
 };
 
 // Every party item (a join): every player carries these stacks, and no other "[P] " stack.

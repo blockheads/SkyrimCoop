@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Message.h"
+#include "Payloads.h"
 #include <Structs/Perks.h>
 #include <Structs/RecordPart.h>
 #include <Structs/GameId.h>
@@ -30,7 +31,7 @@ struct AnnounceCharacterRequest final : RequestMessage
     bool operator==(const AnnounceCharacterRequest& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
-               AppearanceBuffer == acRhs.AppearanceBuffer && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && CommanderId == acRhs.CommanderId;
+               AppearanceBuffer == acRhs.AppearanceBuffer && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && HeldEffects == acRhs.HeldEffects && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && CommanderId == acRhs.CommanderId;
     }
 
     // The id the host gave it: the player's from the join answer, the host's actors' from HostCharacters.
@@ -52,6 +53,8 @@ struct AnnounceCharacterRequest final : RequestMessage
     Perks PerksContent;
     // The effects showing on it, for the copy to play from the start (EffectVisualsService).
     std::vector<GameId> EffectIds{};
+    // The effects it holds, (spell, effect): the copy answers scripts and conditions with them (OwnerEffects).
+    std::vector<struct Payloads::ActiveEffects::Held> HeldEffects{};
     Tints FaceTints{};
     float Weight{50.f}; // the base's (TESNPC weight): the engine saves it with the actor, not in AppearanceBuffer
     bool IsDragon{};

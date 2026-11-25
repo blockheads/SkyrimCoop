@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <Messages/Payloads.h>
 #include <Wire/Serialization.h>
 
@@ -76,17 +77,6 @@ void TrapHit::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     ReadVector(aReader, Velocity);
     ReadVector(aReader, Position);
     Material = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-}
-
-void WorldProjectile::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Shooter.Serialize(aWriter);
-    Launch.SerializePayload(aWriter);
-}
-void WorldProjectile::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    Shooter.Deserialize(aReader);
-    Launch.DeserializePayload(aReader);
 }
 
 void ActorPerks::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
@@ -223,6 +213,7 @@ void ProjectileLaunch::SerializePayload(Wire::Buffer::Writer& aWriter) const noe
     Serialization::WriteFloat(aWriter, YAngle);
 
     ParentCellID.Serialize(aWriter);
+    WorldSpaceID.Serialize(aWriter);
     SpellID.Serialize(aWriter);
 
     Serialization::WriteVarInt(aWriter, CastingSource);
@@ -258,6 +249,7 @@ void ProjectileLaunch::DeserializePayload(Wire::Buffer::Reader& aReader) noexcep
     YAngle = Serialization::ReadFloat(aReader);
 
     ParentCellID.Deserialize(aReader);
+    WorldSpaceID.Deserialize(aReader);
     SpellID.Deserialize(aReader);
 
     CastingSource = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
@@ -460,25 +452,56 @@ void Subtitle::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Force = Serialization::ReadBool(aReader);
 }
 
+void ActiveEffects::WriteIds(Wire::Buffer::Writer& aWriter, const std::vector<GameId>& acIds) noexcept
+{
+    const size_t cCount = std::min(acIds.size(), kMaxEffects);
+    Serialization::WriteVarInt(aWriter, cCount);
+    for (size_t i = 0; i < cCount; ++i)
+        acIds[i].Serialize(aWriter);
+}
+
+void ActiveEffects::ReadIds(Wire::Buffer::Reader& aReader, std::vector<GameId>& aIds) noexcept
+{
+    aIds.assign(std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects), GameId{});
+    for (auto& id : aIds)
+        id.Deserialize(aReader);
+}
+
+void ActiveEffects::WriteHeld(Wire::Buffer::Writer& aWriter, const std::vector<struct Held>& acHeld) noexcept
+{
+    const size_t cCount = std::min(acHeld.size(), kMaxEffects);
+    Serialization::WriteVarInt(aWriter, cCount);
+    for (size_t i = 0; i < cCount; ++i)
+    {
+        acHeld[i].Spell.Serialize(aWriter);
+        acHeld[i].Effect.Serialize(aWriter);
+        Serialization::WriteBool(aWriter, acHeld[i].SpellTarget);
+    }
+}
+
+void ActiveEffects::ReadHeld(Wire::Buffer::Reader& aReader, std::vector<struct Held>& aHeld) noexcept
+{
+    aHeld.assign(std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects), {});
+    for (auto& held : aHeld)
+    {
+        held.Spell.Deserialize(aReader);
+        held.Effect.Deserialize(aReader);
+        held.SpellTarget = Serialization::ReadBool(aReader);
+    }
+}
+
 void ActiveEffects::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
-    Serialization::WriteVarInt(aWriter, EffectIds.size());
-    for (const auto& cEffectId : EffectIds)
-        cEffectId.Serialize(aWriter);
+    WriteIds(aWriter, EffectIds);
+    WriteHeld(aWriter, Held);
 }
 
 void ActiveEffects::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    const auto cCount = Serialization::ReadVarInt(aReader);
-    EffectIds.clear();
-    for (uint64_t i = 0; i < cCount && i < 256; ++i)
-    {
-        GameId effectId;
-        effectId.Deserialize(aReader);
-        EffectIds.push_back(effectId);
-    }
+    ReadIds(aReader, EffectIds);
+    ReadHeld(aReader, Held);
 }
 
 void EffectFlash::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
@@ -591,6 +614,7 @@ void Payloads::PartyItem::SerializePayload(Wire::Buffer::Writer& aWriter) const 
     Item.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, static_cast<uint32_t>(Shown));
     Serialization::WriteVarInt(aWriter, static_cast<uint32_t>(Converted));
+    Serialization::WriteBool(aWriter, Wear);
 }
 
 void Payloads::PartyItem::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -598,6 +622,7 @@ void Payloads::PartyItem::DeserializePayload(Wire::Buffer::Reader& aReader) noex
     Item.Deserialize(aReader);
     Shown = static_cast<int32_t>(static_cast<uint32_t>(Serialization::ReadVarInt(aReader)));
     Converted = static_cast<int32_t>(static_cast<uint32_t>(Serialization::ReadVarInt(aReader)));
+    Wear = Serialization::ReadBool(aReader);
 }
 
 void Payloads::PartyItems::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

@@ -99,7 +99,8 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         m.ZAngle = 0.5f;
         m.XAngle = -0.25f;
         m.YAngle = 0.125f;
-        m.ParentCellID = GameId(0, 0x3C);
+        m.ParentCellID = GameId(0, 0x9732);
+        m.WorldSpaceID = GameId(0, 0x3C);
         m.SpellID = GameId(0, 0x12FCD);
         m.CastingSource = 1;
         m.Area = 4;
@@ -167,7 +168,7 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
     // {request, notification} payloads, recorded from the messages before they shared payload
     // structs. The opcode byte is left out: opcodes number the messages in Opcodes.h's order.
     const std::map<std::string, std::pair<std::string, std::string>> cRecorded{
-        {"ActiveEffects", {"c5460283de040192e40602", "c5460283de040192e40602"}},
+        {"ActiveEffects", {"c5460283de040192e4060200", "c5460283de040192e4060200"}}, // the held list (2026-11-24)
         {"EffectFlash", {"c54683de0401", "c54683de0401"}}, // new 2026-10-22
         {"ActorMaxValues", {"e78a01011a00007a43", "e78a01011a00007a43"}},
         {"ActorValues", {"d668021800004d4219000060c001190000f041", "d668021800004d4219000060c001190000f041"}}, // temporary pool modifiers (2026-10-30)
@@ -178,7 +179,7 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
         {"HealthChange", {"89cf0100004cc135e30300", "89cf0100004cc135e30300"}},
         {"InterruptCast", {"cdd70203", "cdd70203"}},
         {"Mount", {"92e003a302", "92e003a302"}},
-        {"ProjectileLaunch", {"def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55", "def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55"}},
+        {"ProjectileLaunch", {"def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003eb2ae02003c00cddf040001040000403f0000c03f55", "def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003eb2ae02003c00cddf040001040000403f0000c03f55"}},
         {"RemoveSpell", {"81de03cddf0402", "81de03cddf0402"}},
         {"Subtitle", {"d6680f4c6574206d652067756573732e2e2ee78a0101", "d6680f4c6574206d652067756573732e2e2ee78a0101"}},
     };

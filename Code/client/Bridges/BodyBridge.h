@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bridges/IBodyBridge.h>
+#include <Physics/BodyGroups.h>
 
 #include <Physics/BodyPrediction.h>
 
@@ -66,8 +67,11 @@ private:
         // Our group written on its body. A moving body's waits for the first played one: only that pair needs it, and
         // each write makes Havok redo the body's agents (77794), which drops its contacts for a step.
         bool Applied = true;
+        uint16_t Moving{}; // the moving group it holds (MovingGroups::Take), given back when it stops moving
     };
     std::map<BodyKey, Class> m_classes;
+    BodyGroups::MovingGroups m_movingGroups;
+    std::map<BodyKey, uint16_t> m_ragdollMoving; // a copy's corpse this game's player took: its moving group
     std::function<uint32_t(const GameId& acId)> m_formIdOf;
     std::function<std::optional<GameId>(uint32_t aFormId)> m_idOf;
     std::map<BodyKey, uint8_t> m_motions; // the reference bodies held here: their own motion type

@@ -100,10 +100,11 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
             // This game's player's own pull of a lever furniture: its engine played it (TESFurniture::Activate 17420).
             if (cChange.Type == ObjectChange::Kind::kAnimation && cChange.Value && cChange.Value == Utils::GetSessionIdByFormId(0x14))
                 continue;
-            if (cChange.Type == ObjectChange::Kind::kAnimation)
+            // An animation, or a live change behind one of its object's still waiting: in the host's order.
+            const uint64_t cObject = uint64_t{cChange.Object.ModId} << 32 | cChange.Object.BaseId;
+            if (cChange.Type == ObjectChange::Kind::kAnimation || (message.Cell == GameId{} && m_animations.Waiting(cObject)))
             {
-                m_animations.Play(uint64_t{cChange.Object.ModId} << 32 | cChange.Object.BaseId, cChange, std::chrono::steady_clock::now(),
-                                  [this](const ObjectChange& acChange) { return m_engine.ApplyObjectChange(acChange, false); });
+                m_animations.Play(cObject, cChange, std::chrono::steady_clock::now(), [this](const ObjectChange& acChange) { return ApplyInOrder(acChange); });
                 continue;
             }
             if (m_engine.ApplyObjectChange(cChange, message.Cell != GameId{}))
@@ -117,6 +118,14 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
         else if (!applied.empty())
             spdlog::info("GuestWorldState: applied {} of the host's object changes: {}", applied.size(), WorldStateLog::List(applied, &WorldStateLog::Describe, 16));
     });
+}
+
+bool GuestWorldState::ApplyInOrder(const ObjectChange& acChange) noexcept
+{
+    const bool cTaken = m_engine.ApplyObjectChange(acChange, false);
+    if (!cTaken && acChange.Type != ObjectChange::Kind::kAnimation)
+        spdlog::warn("GuestWorldState: could not apply the host's {}: its object, activator or item is not in this game", WorldStateLog::Describe(acChange));
+    return cTaken || acChange.Type != ObjectChange::Kind::kAnimation;
 }
 
 void GuestWorldState::AskCellState(uint32_t aCellFormId) noexcept
@@ -262,7 +271,7 @@ void GuestWorldState::OnUpdate(const UpdateEvent&) noexcept
     });
     m_mainTasks.Queue([this] {
         m_engine.RetryQuestAliases();
-        m_animations.Update(std::chrono::steady_clock::now(), [this](const ObjectChange& acChange) { return m_engine.ApplyObjectChange(acChange, false); });
+        m_animations.Update(std::chrono::steady_clock::now(), [this](const ObjectChange& acChange) { return ApplyInOrder(acChange); });
     });
     auto cells = m_engine.AttachedCells();
     for (const uint32_t cCell : cells)

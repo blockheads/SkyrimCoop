@@ -1504,6 +1504,7 @@ void CharacterService::OnNotifyDialogue(const NotifyDialogue& acMessage) noexcep
     if (!m_actorBridge.ActorHas3D(formIdComponent.Id))
         return;
 
+    spdlog::debug("Voice: copy {:X} says its owner's {}", formIdComponent.Id, acMessage.SoundFilename.c_str());
     m_actorBridge.ActorStopCurrentDialogue(formIdComponent.Id);
     m_actorBridge.ActorSpeakSound(formIdComponent.Id, std::string(acMessage.SoundFilename.c_str()));
 }
@@ -1648,7 +1649,10 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     message.LatestAction = cState.LatestAction;
     message.GraphState = cState.GraphState;
     if (const auto* pEffects = m_world.ctx().find<EffectVisualsService>())
+    {
         message.EffectIds = pEffects->ReadEffects(formIdComponent.Id);
+        message.HeldEffects = pEffects->ReadHeldIds(formIdComponent.Id);
+    }
 
     // Serialize the base form
     const auto isPlayer = (formIdComponent.Id == 0x14);

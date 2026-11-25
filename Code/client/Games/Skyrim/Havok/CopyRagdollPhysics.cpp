@@ -99,7 +99,7 @@ void RestBodies(Actor& aCopy, std::vector<Resting>& aBodies)
     {
         // What this game moves keeps the island awake (sleeping it froze a carried wheel: physics.md, A pile sleeps together).
         const auto cMoved = [](const bhkWorldObject* apOther) {
-            return apOther && apOther->referencedObject && (apOther->referencedObject->CollisionFilterInfo() >> 16) == BodyGroups::kMoving;
+            return apOther && apOther->referencedObject && BodyGroups::IsMoving(apOther->referencedObject->CollisionFilterInfo() >> 16);
         };
         // Its own bodies settle against their joints after the place: their motion does not keep it awake.
         std::set<const bhkWorldObject*> own;

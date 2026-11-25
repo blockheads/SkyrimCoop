@@ -151,6 +151,9 @@ struct ModManager
     // A new reference of apBase there (CreateReferenceAtLocation 13723), its handle; no watcher hears of it.
     uint32_t CreateReference(TESBoundObject* apBase, const NiPoint3& acPosition, const NiPoint3& acRotation, TESObjectCELL* apCell,
                              TESWorldSpace* apWorldSpace) noexcept;
+    // The same, as PlaceAtMe places a base that is no leveled list (22511): the watcher below hears of it.
+    uint32_t Place(TESBoundObject* apBase, const NiPoint3& acPosition, const NiPoint3& acRotation, TESObjectCELL* apCell,
+                   TESWorldSpace* apWorldSpace) noexcept;
     // Told the form id of each reference the game creates (13723: PlaceAtMe, drops, quests', ash piles), on the
     // engine's threads; none while a save loads. One watcher; null stops.
     static void WatchCreated(void (*apWatcher)(uint32_t aFormId)) noexcept;
