@@ -3,7 +3,7 @@
 #include <FormIds.h>
 #include <Messages/FollowerMessages.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostDeath.h>
 #include <Services/Host/HostGame.h>
@@ -11,12 +11,12 @@
 #include <Services/Host/HostPlayers.h>
 #include <algorithm>
 
-HostFollowers::HostFollowers(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
+HostFollowers::HostFollowers(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                              const HostCharacters& acCharacters, const HostDeath& acDeath,
                              const HostGame& acGame) noexcept
     : m_network(aNetwork), m_players(acPlayers), m_characters(acCharacters), m_death(acDeath), m_game(acGame)
 {
-    aAuthority.On(*this, &HostFollowers::OnTradeClosed);
+    aRouter.On(*this, &HostFollowers::OnTradeClosed);
 }
 
 void HostFollowers::Update(uint64_t aTick) noexcept

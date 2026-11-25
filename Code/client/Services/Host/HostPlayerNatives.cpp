@@ -1,6 +1,6 @@
 #include <Services/Host/HostPlayerNatives.h>
 
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
@@ -11,13 +11,15 @@
 
 #include <vector>
 
-HostPlayerNatives::HostPlayerNatives(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
+HostPlayerNatives::HostPlayerNatives(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                                      const HostCharacters& acCharacters) noexcept
     : m_network(aNetwork), m_players(acPlayers), m_characters(acCharacters)
 {
-    aAuthority.On(*this, &HostPlayerNatives::OnCall);
-    aAuthority.On(*this, &HostPlayerNatives::OnPlayerNativeResult);
-    aAuthority.On(*this, &HostPlayerNatives::OnCallEnded);
+    // A quest one per player, learned by one game (system-quests.md): every other learns it.
+    aRouter.Relay<SystemQuestsRequest, NotifySystemQuests>(HostRouter::Delivery::FromAnyone);
+    aRouter.On(*this, &HostPlayerNatives::OnCall);
+    aRouter.On(*this, &HostPlayerNatives::OnPlayerNativeResult);
+    aRouter.On(*this, &HostPlayerNatives::OnCallEnded);
 }
 
 void HostPlayerNatives::OnCall(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept

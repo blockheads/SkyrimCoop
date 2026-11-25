@@ -1,18 +1,18 @@
 #include <Services/Host/HostWeather.h>
 
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/WeatherRegionRequest.h>
 
-HostWeather::HostWeather(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostWeather::HostWeather(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)
 {
-    aAuthority.On(*this, &HostWeather::OnRegion);
+    aRouter.On(*this, &HostWeather::OnRegion);
 }
 
 void HostWeather::Update() noexcept

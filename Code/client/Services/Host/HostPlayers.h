@@ -6,6 +6,8 @@
 struct NotifyMessage;
 
 struct HostNetwork;
+struct HostRouter;
+struct PlayerLevelRequest;
 
 /**
  * @brief The session's players, by their game's connection: who is in, who hosts, and sending to
@@ -54,6 +56,12 @@ struct HostPlayers
 
     // The player's character level, as the player list shows it.
     void SetLevel(ConnectionId_t aConnection, uint16_t aLevel) noexcept;
+    // Registers its rule with aRouter, which is built after it.
+    void Listen(HostRouter& aRouter) noexcept;
+    // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
+    void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // A player's character's name part changed: the party's lists take it (printable text only).
+    void Rename(ConnectionId_t aPlayer, const std::string& acName) noexcept;
     void SetName(ConnectionId_t aConnection, std::string aName) noexcept;
     void SendToOthers(const NotifyMessage& acMessage, ConnectionId_t aExcluded, Net::EPacketFlags aFlags = Net::kReliable) const noexcept;
     void SendToAll(const NotifyMessage& acMessage) const noexcept { SendToOthers(acMessage, 0); }

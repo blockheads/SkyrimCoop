@@ -10,7 +10,7 @@
 #include <optional>
 #include <NoCopyMove.h>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostCharacters;
 struct HostPlayers;
 struct DialogueStartRequest;
@@ -52,7 +52,7 @@ struct HostDialogue
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostDialogue(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
+    HostDialogue(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                  const HostCharacters& acCharacters) noexcept;
 
     NO_COPY_MOVE(HostDialogue);

@@ -67,7 +67,7 @@ back would have looped between the games (the guest's proposal, the host's chang
 - **Locks** (step 6): every lock change ends in `TESObjectREFR::AddLockChange` (19512, CommonLibSSE-NG), which
   records `CHANGE_OBJECT_EXTRA_LOCK` (`AddChange(0x1000)`; for a load door, on the door it leads to). On the host
   the funnel's change goes out as a `kLock` object change; on a guest its hook's `LockChangeEvent` is a proposal
-  (`GuestWorldState` sends `LockChangeRequest`), which `HostAuthority::OnLockChange` gives the host's game
+  (`GuestWorldState` sends `LockChangeRequest`), which `HostObjects::OnLockChange` gives the host's game
   (`HostGame::SetLock`, `HostEngine::SetLock`): the host's object takes it and every game gets it as the host's
   change. Applying calls `TESObjectREFR::SetLockState`, which records the change past our hook; on the host the funnel sees it. The
   old relay (`NotifyLockChange`, `ObjectService`'s lock handlers) is deleted.
@@ -90,7 +90,7 @@ back would have looped between the games (the guest's proposal, the host's chang
 
 A container's items are world state like a lock: the host's change goes out as a `kItems` object change
 {container, base item, count now}, a guest's own change (its player took or stored something) is a
-`ContainerChangeRequest` with the same three, which `HostAuthority::OnContainerChange` gives the host's game
+`ContainerChangeRequest` with the same three, which `HostObjects::OnContainerChange` gives the host's game
 (`HostEngine::SetItems`): the host's container is set to that count and the change goes to every game as the
 host's. Counts, not deltas: the guest's container changed before it proposed, so replaying a delta would
 count it twice. Applying adds or removes the difference (`TESObjectREFR::SetContainerCount`) under

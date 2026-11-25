@@ -1,6 +1,13 @@
 #include <Services/Host/HostPlayers.h>
 
+#include <Services/Host/HostChat.h>
 #include <Services/Host/HostNetwork.h>
+#include <Services/Host/HostRouter.h>
+
+#include <Messages/NotifyPlayerLevel.h>
+#include <Messages/PlayerLevelRequest.h>
+#include <Messages/RelayedMessages.h>
+#include <Messages/Relayed.h>
 
 HostPlayers::HostPlayers(HostNetwork& aNetwork) noexcept
     : m_network(aNetwork)
@@ -90,4 +97,36 @@ void HostPlayers::Kick(uint32_t aPlayerId) noexcept
         m_network.Kick(cConnection);
         return;
     }
+}
+
+void HostPlayers::Listen(HostRouter& aRouter) noexcept
+{
+    aRouter.On(*this, &HostPlayers::OnPlayerLevel);
+}
+
+void HostPlayers::OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    if (acRequest.NewLevel == 0)
+    {
+        spdlog::warn("HostPlayers: {:x} sent level 0", aSender);
+        return;
+    }
+    SetLevel(aSender, acRequest.NewLevel);
+    NotifyPlayerLevel notify;
+    notify.PlayerId = PlayerIdOf(aSender);
+    notify.NewLevel = acRequest.NewLevel;
+    SendToOthers(notify, aSender, Net::kReliable);
+}
+
+void HostPlayers::Rename(ConnectionId_t aPlayer, const std::string& acName) noexcept
+{
+    const std::string cName = ChatText(acName);
+    if (cName.empty() || cName == PlayerNameOf(aPlayer))
+        return;
+    SetName(aPlayer, cName);
+    m_network.NameConnection(aPlayer, cName);
+    NotifyPlayerName notify;
+    notify.PlayerId = PlayerIdOf(aPlayer);
+    notify.Name = cName;
+    SendToOthers(notify, aPlayer, Net::kReliable);
 }

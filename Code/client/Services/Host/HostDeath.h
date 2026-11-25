@@ -10,7 +10,7 @@
 #include <set>
 #include <string>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostNetwork;
 struct HostPlayers;
 struct HostCharacters;
@@ -36,7 +36,7 @@ struct HostDeath
     static constexpr float kRespawnDistance = 100.f;
     static constexpr float kRespawnTurn = 1.04719755f; // 60 degrees
 
-    HostDeath(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters) noexcept;
+    HostDeath(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters) noexcept;
 
     // Every frame: the game time it took (seconds), so the recovery timer stands still while the game is paused.
     void Update(double aDelta) noexcept;

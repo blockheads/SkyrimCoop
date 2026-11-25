@@ -1,6 +1,6 @@
 #include <Services/Host/HostWait.h>
 
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
@@ -13,12 +13,12 @@ namespace
 constexpr uint64_t kStallTicks = 15000;
 } // namespace
 
-HostWait::HostWait(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
+HostWait::HostWait(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                    const HostGame& acGame) noexcept
     : m_network(aNetwork), m_players(acPlayers), m_game(acGame)
 {
-    aAuthority.On(*this, &HostWait::OnRequest);
-    aAuthority.On(*this, &HostWait::OnWorldRequest);
+    aRouter.On(*this, &HostWait::OnRequest);
+    aRouter.On(*this, &HostWait::OnWorldRequest);
 }
 
 void HostWait::OnRequest(const WaitRequest& acRequest, ConnectionId_t aSender) noexcept

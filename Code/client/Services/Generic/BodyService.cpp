@@ -10,7 +10,7 @@
 #include <Services/CopyRecords.h>
 #include <Services/TransportService.h>
 #include <Structs/RagdollPart.h>
-#include <Services/WorldStateLog.h>
+#include <Physics/BodyLog.h>
 #include <Systems/InterpolationSystem.h>
 #include <World.h>
 #include <Diagnostics/Profile.h>
@@ -303,18 +303,18 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
             // Not loaded here (its cell, or its 3D): nothing to show; its cell's load gets the record's rest.
             aPlayback.Forget(cKey);
             if (m_missing.insert(cKey).second)
-                spdlog::warn("BodyService: {} is not in this game", WorldStateLog::DescribeBody(cKey));
+                spdlog::warn("BodyService: {} is not in this game", BodyLog::Describe(cKey));
             continue;
         }
         m_missing.erase(cKey);
         if (m_following.insert(cKey).second)
-            spdlog::info("BodyService: follows the owner's {}", WorldStateLog::DescribeBody(cKey));
+            spdlog::info("BodyService: follows the owner's {}", BodyLog::Describe(cKey));
     }
     for (const auto& cLost : aPlayback.TakeLost())
     {
         m_following.erase(cLost.Key);
         m_bridge.Forget(cLost.Key);
-        spdlog::warn("BodyService: lost {}: no frame for {} ms and no rest, after {} frames", WorldStateLog::DescribeBody(cLost.Key),
+        spdlog::warn("BodyService: lost {}: no frame for {} ms and no rest, after {} frames", BodyLog::Describe(cLost.Key),
                      BodyPlayback::kLostMs, cLost.Frames);
     }
 }
@@ -330,7 +330,7 @@ void BodyService::PlaceRests(uint64_t aNow) noexcept
         if (!cRead)
         {
             if (m_missing.insert(cKey).second)
-                spdlog::warn("BodyService: {} is not in this game", WorldStateLog::DescribeBody(cKey));
+                spdlog::warn("BodyService: {} is not in this game", BodyLog::Describe(cKey));
             // A guest's: put once its body is here (the stream's repeats are no newer than it).
             it = m_pKeeper ? std::next(it) : m_rests.erase(it);
             continue;
@@ -358,7 +358,7 @@ void BodyService::PlaceRests(uint64_t aNow) noexcept
         case Step::kLeave: break;
         }
         if (resting.Placer.Done && !std::exchange(resting.Logged, true))
-            spdlog::info("BodyService: placed the owner's rest of {} at ({:.0f}, {:.0f}, {:.0f}) after {} frames", WorldStateLog::DescribeBody(cKey),
+            spdlog::info("BodyService: placed the owner's rest of {} at ({:.0f}, {:.0f}, {:.0f}) after {} frames", BodyLog::Describe(cKey),
                          resting.Pose.Position.x, resting.Pose.Position.y, resting.Pose.Position.z, resting.Frames);
         // Put: on the host's game (no keeper) the body is its own again, whatever moves it next; a guest's keeps the
         // rest to keep it there against its own physics' drift (RestPlacer::kKeep).

@@ -7,7 +7,7 @@
 #include <Components.h>
 #include <Messages/Relayed.h>
 #include <Services/TransportService.h>
-#include <Services/WorldStateLog.h>
+#include <Physics/BodyLog.h>
 #include <World.h>
 
 #include <algorithm>
@@ -37,7 +37,7 @@ void GuestBodies::Took(const BodyKey& acKey, const char* acpHow, std::vector<Bod
     if (std::ranges::find(aTaken, acKey) == aTaken.end())
         aTaken.push_back(acKey);
     m_engine.FollowOwn(acKey);
-    spdlog::info("GuestBodies: this game's player {} the host's {}", acpHow, WorldStateLog::DescribeBody(acKey));
+    spdlog::info("GuestBodies: this game's player {} the host's {}", acpHow, BodyLog::Describe(acKey));
 }
 
 void GuestBodies::Drop(const BodyKey& acKey) noexcept
@@ -93,7 +93,7 @@ void GuestBodies::TakeHands(uint64_t aTick, std::map<BodyKey, BodyFrame>& aHeld,
             ++it;
             continue;
         }
-        spdlog::info("GuestBodies: this game's player let go of the host's {}", WorldStateLog::DescribeBody(*it));
+        spdlog::info("GuestBodies: this game's player let go of the host's {}", BodyLog::Describe(*it));
         m_authority.Release(*it, kMe);
         it = m_held.erase(it);
     }
@@ -157,7 +157,7 @@ std::vector<BodyKey> GuestBodies::Update(uint64_t aTick) noexcept
         BodyPose rest = cRead ? BodyPose{.Key = cKey, .Position = cRead->Position, .Rotation = cRead->Rotation} : cLast->second;
         m_rests[cKey] = rest;
         bridge.SetMoving(cKey, false);
-        spdlog::info("GuestBodies: the host's {} rests where this game's player put it, at ({:.0f}, {:.0f}, {:.0f})", WorldStateLog::DescribeBody(cKey),
+        spdlog::info("GuestBodies: the host's {} rests where this game's player put it, at ({:.0f}, {:.0f}, {:.0f})", BodyLog::Describe(cKey),
                      rest.Position.x, rest.Position.y, rest.Position.z);
     }
 
@@ -196,7 +196,7 @@ std::vector<BodyKey> GuestBodies::Update(uint64_t aTick) noexcept
     // What this game's physics moved alone that the host never sent: the host is told, its state comes back.
     for (const BodyPose& cMoved : own.Moved)
         if (!m_authority.Is(cMoved.Key, kMe) && !m_heard.contains(cMoved.Key) && m_hinted.try_emplace(cMoved.Key, 0, cMoved).second)
-            spdlog::info("GuestBodies: this game moved the host's {} by itself", WorldStateLog::DescribeBody(cMoved.Key));
+            spdlog::info("GuestBodies: this game moved the host's {} by itself", BodyLog::Describe(cMoved.Key));
     // Unreliable: again until the host's state comes.
     for (auto& [cKey, hint] : m_hinted)
         if (!hint.first || aTick >= hint.first + kHintMs)
@@ -242,7 +242,7 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
             const bool cOwn = cRest != m_rests.end() &&
                               BodyPrediction::Between({.Position = cRest->second.Position, .Rotation = cRest->second.Rotation}, acState.Frame).Distance <
                                   BodyTolerances::kSameDistance;
-            spdlog::info("GuestBodies: the host {} this game's rest of {}", cOwn ? "confirmed" : "took back", WorldStateLog::DescribeBody(cKey));
+            spdlog::info("GuestBodies: the host {} this game's rest of {}", cOwn ? "confirmed" : "took back", BodyLog::Describe(cKey));
             Drop(cKey);
             if (!cOwn)
             {
@@ -253,7 +253,7 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
         }
         else
         {
-            spdlog::info("GuestBodies: the host's {} is another's: this game yields it", WorldStateLog::DescribeBody(cKey));
+            spdlog::info("GuestBodies: the host's {} is another's: this game yields it", BodyLog::Describe(cKey));
             Drop(cKey);
             m_world.ctx().at<BodyService>().Reopen(cKey);
         }

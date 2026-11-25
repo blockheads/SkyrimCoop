@@ -5,23 +5,50 @@
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
 
-#include <Services/Host/HostAuthority.h>
+#include <RecipeBook.h>
+#include <Services/Host/HostRouter.h>
+#include <Messages/Relayed.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <algorithm>
 
-HostItems::HostItems(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, HostPartyItems& aPartyItems, const HostGame& acGame) noexcept
-    : m_network(aNetwork)
+HostItems::HostItems(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, HostPartyItems& aPartyItems, const HostGame& acGame) noexcept
+    : m_router(aRouter)
+    , m_network(aNetwork)
     , m_players(acPlayers)
     , m_characters(acCharacters)
     , m_partyItems(aPartyItems)
     , m_game(acGame)
 {
-    aAuthority.On(*this, &HostItems::OnContainerTransfer);
-    aAuthority.On(*this, &HostItems::OnDrop);
-    aAuthority.On(*this, &HostItems::OnPickUp);
+    aRouter.On(*this, &HostItems::OnContainerTransfer);
+    aRouter.On(*this, &HostItems::OnDrop);
+    aRouter.On(*this, &HostItems::OnPickUp);
+    aRouter.On(*this, &HostItems::OnInventoryChanges);
+    aRouter.On(*this, &HostItems::OnRecipes);
+}
+
+void HostItems::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) noexcept
+{
+    // An actor's items reach its copies as its owner's part (HostRecords, kItems); the party's gold and items here.
+    if (m_partyItems.Change(acRequest, aSender))
+        return;
+    // The host's script changed another game's actor (a quest taking a guest's claw): its owner runs it, and its part follows.
+    if (aSender == m_players.Host() && acRequest.UpdateClients && m_characters.OwnerOf(acRequest.SessionId) != aSender)
+    {
+        NotifyInventoryChanges notify;
+        notify.SessionId = acRequest.SessionId;
+        notify.Item = acRequest.Item;
+        m_router.Deliver(notify, HostRouter::Delivery::ToOwner, acRequest.SessionId, aSender);
+    }
+}
+
+void HostItems::OnRecipes(const RecipesRequest& acRequest, ConnectionId_t) const noexcept
+{
+    if (RecipeBook* pBook = m_network.GetRecipes())
+        for (const Recipe& cRecipe : acRequest.Known)
+            pBook->Learn(cRecipe);
 }
 
 void HostItems::Update() noexcept

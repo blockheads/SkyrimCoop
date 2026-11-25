@@ -1,0 +1,225 @@
+# Where each file under Code/client is going (docs/architecture.md). One rule a line: target, then a pattern
+# matched against the path under Code/client; the first match wins. scripts/check_layout.py reads it.
+harness	TestHarness/*
+harness	HotReload/*
+engine	Games/Skyrim/*
+engine	Hooks/*
+plugin	Ui/*
+plugin	Diagnostics/*
+plugin	Services/Debug/*
+plugin	Services/DebugService.h
+plugin	Services/*/ImguiService.*
+plugin	Services/ImguiService.h
+plugin	Systems/RenderSystemD3D11.*
+
+# core: what three or more features use
+sync/core	World.h
+sync/core	WorldGate.h
+sync/core	FormIds.h
+sync/core	SessionIds.*
+sync/core	CreatedIds.*
+sync/core	TaskQueue.*
+sync/core	MainLoopTasks.*
+sync/core	ScriptValues.*
+sync/core	Events/Listen.h
+sync/core	Events/UpdateEvent.h
+sync/core	Events/ConnectedEvent.h
+sync/core	Events/DisconnectedEvent.h
+sync/core	Events/SessionLeavingEvent.h
+sync/core	Events/SessionNoticeEvent.h
+sync/core	Events/Player*Event.h
+sync/core	Events/DifficultyChangeEvent.h
+sync/core	Events/MenuEvent.h
+sync/core	Components/*
+sync/core	Services/*TransportService.*
+sync/core	Services/*SessionService.*
+sync/core	Services/*PlayerService.*
+sync/core	Services/*RunnerService.*
+sync/core	Services/*CommandService.*
+sync/core	Services/CopyRecords*
+sync/core	Services/Generic/CopyRecordsService.cpp
+sync/core	Services/CharacterRecords.*
+sync/core	Services/CopyClock.*
+sync/core	Services/Host/HostRouter.*
+sync/core	Services/Host/HostNetwork.*
+sync/core	Services/Host/HostPlayers.*
+sync/core	Services/Host/HostSession.*
+sync/core	Services/Host/HostRecords.*
+sync/core	Services/Host/HostChat.*
+sync/core	Services/Host/JoinRefusal.*
+
+# game: wires the features into a host's or a guest's game
+sync/game	World.cpp
+sync/game	RunningGame.*
+sync/game	Services/HostService*
+sync/game	Services/HostWorldCalls.cpp
+sync/game	Services/GuestService.*
+sync/game	Services/Host/HostAuthority.*
+sync/core	Services/Host/HostGame.h
+
+sync/join	Services/*Join*
+sync/join	Services/*Save*
+sync/join	Services/*Steam*
+sync/join	Services/Guest/GuestRecord.*
+sync/join	Bridges/IJoinBridge.h
+sync/join	Bridges/ISteamBridge.h
+sync/join	Bridges/SteamPacing.h
+sync/join	Events/Game*Event.h
+sync/join	Events/NewGameEvent.h
+sync/join	Events/SaveWrittenEvent.h
+
+sync/travel	Services/*TravelService.*
+sync/travel	Services/ArrivalStack.h
+sync/travel	Services/*Leash.*
+sync/travel	Services/*MapService.*
+sync/travel	Services/*PartyMarker*
+sync/travel	Services/Host/HostMap.*
+sync/travel	Events/FastTravelEvent.h
+sync/travel	Events/*WaypointEvent.h
+sync/travel	Events/PartySummonCommandEvent.h
+
+sync/characters	Services/*CharacterService.*
+sync/characters	Services/Host/HostCharacters.*
+sync/characters	Services/*ClaimService.*
+sync/characters	Services/Host/HostClaims.*
+sync/characters	Services/Guest/GuestCopies.*
+sync/characters	Games/GuestNpcs.*
+sync/characters	Games/HiddenCopies.*
+sync/characters	Systems/FaceGenSystem.*
+sync/characters	Events/Actor*Event.h
+sync/characters	Events/Copy*Event.h
+sync/characters	Events/NpcHeldEvent.h
+sync/characters	Events/Reference*Event.h
+sync/characters	Events/MountEvent.h
+sync/characters	Events/DismountEvent.h
+sync/characters	Events/BoardEvent.h
+
+sync/movement	Systems/InterpolationSystem.*
+sync/movement	Systems/Copy*.h
+sync/movement	Systems/SnapshotAge.h
+sync/movement	Events/MoveActorEvent.h
+
+sync/animation	Systems/AnimationSystem.*
+sync/animation	Games/Animation/*
+sync/animation	ModCompat/*
+sync/animation	ObjectAnimations.h
+sync/animation	Services/Host/HostGraph.*
+sync/animation	Events/ScriptAnimationEvent.h
+
+sync/actorstate	Services/*ActorValueService.*
+sync/actorstate	Services/*ActorStateService.*
+sync/actorstate	Services/*AiStateService.*
+sync/actorstate	Services/*PerkService.*
+sync/actorstate	Services/Host/HostValues.*
+sync/actorstate	Games/CopyAiState.h
+sync/actorstate	Events/AiStateChangeEvent.h
+sync/actorstate	Events/HealthChangeEvent.h
+sync/actorstate	Events/FactionsChangeEvent.h
+
+sync/followers	Services/*Follower*
+sync/followers	Followers/*
+
+sync/combat	Services/*CombatService.*
+sync/combat	Services/Host/HostAggro.*
+sync/combat	Services/Host/HostCombat.*
+sync/combat	Services/Host/PartyThreat.*
+sync/combat	Services/*KillMoveService.*
+sync/combat	Services/Host/HostTakeBacks.*
+sync/combat	Services/*Traps.*
+sync/combat	Bridges/PartyAggro.cpp
+sync/combat	Events/HitEvent.h
+sync/combat	Events/MeleeStaggerEvent.h
+sync/combat	Events/TrapEvents.h
+sync/combat	Events/AddTargetEvent.h
+
+sync/magic	Services/*MagicService.*
+sync/magic	Services/*EffectVisualsService.*
+sync/magic	Services/ProjectileLaunches.h
+sync/magic	Services/Host/HostMagic.*
+sync/magic	Games/Magic/*
+sync/magic	Events/SpellCastEvent.h
+sync/magic	Events/InterruptCastEvent.h
+sync/magic	Events/RemoveSpellEvent.h
+sync/magic	Events/SummonEvent.h
+sync/magic	Events/ProjectileLaunchedEvent.h
+sync/magic	Events/EffectVisualsChangeEvent.h
+
+sync/death	Services/*Death*
+
+sync/items	Services/*InventoryService.*
+sync/items	Services/Host/HostItems.*
+sync/items	Services/Host/HostPartyItems.*
+sync/items	Services/Container*
+sync/items	RecipeBook.*
+sync/items	ItemIds.*
+sync/items	Bridges/LooseItems.*
+sync/items	Bridges/ContainerItems.*
+sync/items	Events/InventoryChangeEvent.h
+sync/items	Events/ItemsChangedEvent.h
+sync/items	Events/EquipmentChangeEvent.h
+sync/items	Events/ContainerChangeEvent.h
+sync/items	Events/LooseItemEvents.h
+sync/items	Events/WornResetEvent.h
+
+sync/world	Services/*WorldState*
+sync/world	Services/*ObjectService.*
+sync/world	Services/ActivatePrompts.h
+sync/world	Services/Host/HostObjects.*
+sync/world	Events/ActivateEvent.h
+sync/world	Events/LockChangeEvent.h
+sync/world	Events/LidUnposedEvent.h
+
+sync/physics	Physics/*
+sync/physics	Services/*BodyService.*
+sync/physics	Services/*Bodies.*
+sync/physics	Bridges/IBody*.h
+sync/physics	Bridges/PhysicsBodies.*
+
+sync/time	Services/*Clock.*
+sync/time	Services/*Weather.*
+sync/time	Services/*TimeScale*
+sync/time	Services/*Wait*
+sync/time	Bridges/IWaitBridge.h
+sync/time	Events/TimeScaleEvent.h
+sync/time	Events/SetTimeCommandEvent.h
+
+sync/dialogue	Services/*Dialogue*
+sync/dialogue	Services/Host/HostConversation.*
+sync/dialogue	Services/SpeakerUpdate.h
+sync/dialogue	Services/*PartyOptionText.*
+sync/dialogue	Services/Guest/VoiceFiles.*
+sync/dialogue	Bridges/IDialogueBridge.h
+sync/dialogue	Games/Misc/*
+sync/dialogue	Events/DialogueEvent.h
+sync/dialogue	Events/SubtitleEvent.h
+
+sync/scripts	Services/*PapyrusService.*
+sync/scripts	Services/*SystemQuestService.*
+sync/scripts	Services/Host/HostPlayerNatives.*
+sync/scripts	Services/Host/HostStory.*
+sync/scripts	Services/*CutsceneService.*
+sync/scripts	Services/Guest/GuestScene.*
+sync/scripts	Services/SceneRefresh.h
+sync/scripts	Events/StoryEvents.h
+sync/scripts	Events/RoutedCallEvent.h
+sync/scripts	Events/CallEndedEvent.h
+sync/scripts	Events/SystemQuestLearnedEvent.h
+sync/scripts	Events/PapyrusFunctionRegisterEvent.h
+
+sync/crime	Services/*Crime*
+sync/crime	Services/*Eye.*
+sync/crime	Bridges/ICrimeBridge.h
+
+sync/tools	Services/*DevTools*
+sync/tools	Services/DevCommands.*
+sync/tools	Services/*BugReportService.*
+sync/tools	Bridges/IDevToolsBridge.h
+sync/tools	Bridges/IBugReportBridge.h
+
+# The shared ports, split by feature later
+ports	Bridges/I*Bridge.h
+engine	Bridges/*
+
+# The plugin's own files
+plugin	*.cpp
+plugin	*.h

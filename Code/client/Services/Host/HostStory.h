@@ -5,7 +5,7 @@
 #include <Structs/GameId.h>
 #include <NoCopyMove.h>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostCharacters;
 struct HostGame;
 struct HostPlayers;
@@ -19,7 +19,7 @@ struct HostStory
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostStory(HostAuthority& aAuthority, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
+    HostStory(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostStory);
 

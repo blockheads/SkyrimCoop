@@ -1,19 +1,27 @@
 #include <Services/Host/HostClaims.h>
 
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/Relayed.h>
 
-HostClaims::HostClaims(HostAuthority& aAuthority, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostGame& acGame) noexcept
+#include <algorithm>
+
+HostClaims::HostClaims(HostRouter& aRouter, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostGame& acGame) noexcept
     : m_players(acPlayers)
     , m_characters(aCharacters)
     , m_game(acGame)
 {
-    aAuthority.On(*this, &HostClaims::OnClaim);
-    aAuthority.On(*this, &HostClaims::OnGiveBack);
+    aRouter.On(*this, &HostClaims::OnClaim);
+    aRouter.On(*this, &HostClaims::OnGiveBack);
+    // A kill move's claim (kill-moves.md, "Claimed pairs"): its NPC victim alive, its graph running (kProcessMe).
+    SetRule(Payloads::Claim::kKillMove, {.Allows = [this](const Payloads::Claim& acClaim) {
+        return std::ranges::all_of(acClaim.Members, [&](const Payloads::ClaimMember& acMember) {
+            return !acMember.Take || !m_game.CanPair || m_game.CanPair(acMember.ActorId);
+        });
+    }});
 }
 
 HostClaims::ConnectionId_t HostClaims::HolderOf(uint32_t aActorId) const noexcept

@@ -57,7 +57,7 @@ any spell an object casts (a statue, `Spell.Cast` from an activator, the random 
 
 Now `ProjectileLaunchedEvent::FromObject` marks a shooter that is no actor. A projectile so marked, of any kind (a
 spell's, a dart trap's, one that explodes on impact), goes out with shooter 0 (`ProjectileLaunchRequest`), from whichever game launched it (the host relays it to the others:
-`HostAuthority::OnProjectileLaunch`). The others relaunch it from the same origin and angles with no shooter
+`HostMagic::OnProjectileLaunch`). The others relaunch it from the same origin and angles with no shooter
 (`SkyrimBridge::LaunchProjectile`, which calls the engine's launch past our hook): it flies and strikes, and 44169
 gives it no caster, so it applies nothing there. The effects arrive as for any other spell: the launching game's
 `AddTarget` on a copy goes to the target's owner.

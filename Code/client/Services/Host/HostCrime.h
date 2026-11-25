@@ -4,7 +4,7 @@
 #include <network/ENetInterface.h>
 #include <unordered_map>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostNetwork;
 struct HostPlayers;
 struct HostCharacters;
@@ -13,7 +13,7 @@ struct HostGame;
 struct HostCrime
 {
     using ConnectionId_t = Net::ConnectionId_t;
-    HostCrime(HostAuthority&, HostNetwork&, const HostPlayers&, const HostCharacters&, const HostGame&) noexcept;
+    HostCrime(HostRouter&, HostNetwork&, const HostPlayers&, const HostCharacters&, const HostGame&) noexcept;
     void Update() noexcept;
     void Entered(ConnectionId_t) noexcept;
     void Left(ConnectionId_t aPlayer) noexcept

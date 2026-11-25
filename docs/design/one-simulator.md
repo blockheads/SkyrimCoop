@@ -280,7 +280,7 @@ Tests: HostAuthorityTests "an item change from a game that does not own the acto
 looted corpse's copy is as empty as the corpse" (either looter), "An equip sent after the spawn was read
 survives it", "A copy spawned again wears what its owner wears".
 
-Deletes: `HostAuthority::OnInventoryChanges`'s relay from anyone, `RequestEquipmentChanges`/`Snapshot` and
+Deletes: `HostItems::OnInventoryChanges`'s relay from anyone, `RequestEquipmentChanges`/`Snapshot` and
 `EquipmentSnapshots` (one part instead), `CharacterService`'s `WaitingFor3D` inventory.
 To check when building: whether `RunNakedNPCBugChecks` (a 1 s poll) still has anything to catch.
 
@@ -296,7 +296,7 @@ InventoryService (every game), RecordKind::kItems = ItemsPart {Full, Inventory: 
          only the pieces that differ off and on, each hand holding its worn weapon or torch and its spell; the full
          reset (EquipmentRepair) when one is refused; not settled: tried again every 0.25 s for 5 s
 CopyRecords / HostRecords: MergedPart  a change merges onto the version just before; else the owner is asked (R3)
-HostAuthority::OnInventoryChanges      the party's gold and items; a host script's change of another game's actor to its
+HostItems::OnInventoryChanges      the party's gold and items; a host script's change of another game's actor to its
                                        owner alone (a quest taking a guest's claw), whose part follows
 HostItems::OnContainerTransfer         the loot to the looter alone; the NPC's change goes out as its part (ItemsChangedEvent)
 ```

@@ -2,17 +2,21 @@
 
 #include <Messages/Relayed.h>
 #include <Services/DevCommands.h>
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostChat.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostLeash.h>
+#include <Services/Host/HostNetwork.h>
+#include <Diagnostics/ReportPaths.h>
 #include <Services/Host/HostPlayers.h>
 
-HostDevTools::HostDevTools(HostAuthority& aAuthority, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
+HostDevTools::HostDevTools(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
                            const HostGame& acGame, HostLeash& aLeash) noexcept
-    : m_players(acPlayers), m_characters(acCharacters), m_game(acGame), m_leash(aLeash)
+    : m_network(aNetwork), m_players(acPlayers), m_characters(acCharacters), m_game(acGame), m_leash(aLeash)
 {
-    aAuthority.On(*this, &HostDevTools::OnDevCommand);
+    aRouter.On(*this, &HostDevTools::OnDevCommand);
+    aRouter.On(*this, &HostDevTools::OnBugReport);
 }
 
 void HostDevTools::OnDevCommand(const DevCommandRequest& acRequest, ConnectionId_t aSender) const noexcept
@@ -57,4 +61,16 @@ void HostDevTools::OnDevCommand(const DevCommandRequest& acRequest, ConnectionId
     notify.Line = cCommand.Text;
     notify.By = ChatText(m_players.PlayerNameOf(aSender));
     m_players.SendToAll(notify);
+}
+
+void HostDevTools::OnBugReport(const BugReportRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    NotifyBugReport notify;
+    notify.Text = ChatText(acRequest.Text);
+    notify.Id = Diagnostics::NewReportId();
+    notify.By = ChatText(m_players.PlayerNameOf(aSender));
+    notify.SessionTick = m_network.GetTick();
+    spdlog::info("Bug report {} from {}: {}", notify.Id, notify.By, notify.Text);
+    for (const ConnectionId_t cPlayer : m_players.Connections())
+        m_network.Send(cPlayer, notify);
 }

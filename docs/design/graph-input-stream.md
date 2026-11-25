@@ -220,7 +220,7 @@ graph event weaponSheathe           42825 -> 37169: weapons to their sheaths, st
 ## Players (phase 4, 2026-11-10)
 
 Each game records its own player as it does its NPCs, and the host passes a guest's ops and sync points on by the
-actor's owner (`HostAuthority::OnGraphOps`, the `FromOwner` and `ToOwner` relays): nothing in the messages is the
+actor's owner (`HostGraph::OnGraphOps`, the `FromOwner` and `ToOwner` relays): nothing in the messages is the
 host's alone.
 
 - **Only the third-person graph.** A player's manager holds two graphs under one holder, third person at index 0 and

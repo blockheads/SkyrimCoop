@@ -160,7 +160,8 @@ the host's own game: the same, over an in-process route instead of enet
    `RequestMessage` or `NotifyMessage` with `SerializeRaw`/`DeserializeRaw`), included in `RequestMessageFactory.h` /
    `NotifyMessageFactory.h`
 2. Its name at the end of its list in `Code/encoding/Opcodes.h`: that makes its opcode and its factory entry
-3. The host's rule: a part in `Services/Host/` registered with `HostAuthority::On` (or a `Relay`), with a `HostAuthorityTests` case
+3. The host's rule: in its feature's `Host*` part in `Services/Host/`, registered with `HostRouter::On` (or a `Relay`) in that part's
+   constructor, with a `HostAuthorityTests` case. A new part is built in `HostAuthority`, which holds no rules itself
 4. Each game's handler: a client service's `m_messageHandlers` entry or dispatcher sink
 5. A round trip in `Code/tests/encoding.cpp`
 

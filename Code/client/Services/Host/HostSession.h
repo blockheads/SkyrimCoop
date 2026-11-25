@@ -7,7 +7,7 @@
 #include <NoCopyMove.h>
 
 struct AuthenticationRequest;
-struct HostAuthority;
+struct HostRouter;
 struct HostGame;
 struct HostPlayers;
 struct HostCharacters;
@@ -24,8 +24,8 @@ struct HostSession
 
     static constexpr uint32_t cMaxPlayers = kMaxPartyPlayers;
 
-    // Registers its rules with aAuthority.
-    HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
+    // Registers its rules with aRouter.
+    HostSession(HostRouter& aRouter, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
                 HostSaveTransfer& aTransfer, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostSession);

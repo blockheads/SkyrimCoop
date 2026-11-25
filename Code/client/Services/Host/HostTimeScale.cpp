@@ -1,7 +1,7 @@
 #include <Services/Host/HostTimeScale.h>
 
 #include <Services/Host/HostNetwork.h>
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/NotifyTimeScale.h>
@@ -9,11 +9,11 @@
 
 #include <algorithm>
 
-HostTimeScale::HostTimeScale(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers) noexcept
+HostTimeScale::HostTimeScale(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
 {
-    aAuthority.On(*this, &HostTimeScale::OnTimeScale);
+    aRouter.On(*this, &HostTimeScale::OnTimeScale);
 }
 
 void HostTimeScale::OnTimeScale(const TimeScaleRequest& acRequest, ConnectionId_t aSender) noexcept

@@ -4,10 +4,11 @@
 #include <NoCopyMove.h>
 #include <network/ENetInterface.h>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostCharacters;
 struct HostGame;
 struct HostLeash;
+struct HostNetwork;
 struct HostPlayers;
 
 /**
@@ -18,13 +19,16 @@ struct HostDevTools
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostDevTools(HostAuthority& aAuthority, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
+    HostDevTools(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
                  const HostGame& acGame, HostLeash& aLeash) noexcept;
     NO_COPY_MOVE(HostDevTools);
 
   private:
     void OnDevCommand(const DevCommandRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    // A player's /bug: named here, so every game writes its part under the same report.
+    void OnBugReport(const BugReportRequest& acRequest, ConnectionId_t aSender) const noexcept;
 
+    HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
     const HostGame& m_game;

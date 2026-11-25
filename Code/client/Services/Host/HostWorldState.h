@@ -15,7 +15,7 @@
 #include <vector>
 #include <NoCopyMove.h>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostGame;
 struct HostPlayers;
 
@@ -34,7 +34,7 @@ struct HostWorldState
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostWorldState(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostWorldState(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostWorldState);
 

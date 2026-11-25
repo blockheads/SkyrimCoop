@@ -5,7 +5,9 @@
 #include <Messages/TravelMessages.h>
 
 #include <Services/Host/HostNetwork.h>
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostGame.h>
+#include <Services/Host/HostPlayers.h>
+#include <Services/Host/HostRouter.h>
 
 #include <Messages/AnnounceCharacterRequest.h>
 #include <Messages/ReferencesMoveRequest.h>
@@ -30,27 +32,26 @@ namespace
 constexpr uint32_t cNoCharacter = 0;
 } // namespace
 
-HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
-    : m_authority(aAuthority)
-    , m_network(aNetwork)
+HostCharacters::HostCharacters(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+    : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)
-    , m_claims(aAuthority, acPlayers, *this, acGame)
+    , m_claims(aRouter, acPlayers, *this, acGame)
 {
-    aAuthority.On(*this, &HostCharacters::OnAnnounceCharacter);
-    aAuthority.On(*this, &HostCharacters::OnRemoveCharacter);
-    aAuthority.On(*this, &HostCharacters::OnRespawn);
-    aAuthority.On(*this, &HostCharacters::OnDismount);
-    aAuthority.On(*this, &HostCharacters::OnBoard);
-    aAuthority.On(*this, &HostCharacters::OnUnboard);
-    aAuthority.On(*this, &HostCharacters::OnActiveEffects);
-    aAuthority.On(*this, &HostCharacters::OnPerks);
-    aAuthority.Watch(*this, &HostCharacters::OnValues);
-    aAuthority.Watch(*this, &HostCharacters::OnMaxValues);
-    aAuthority.On(*this, &HostCharacters::OnMovement);
-    aAuthority.On(*this, &HostCharacters::OnEnterCell);
-    aAuthority.On(*this, &HostCharacters::OnTravelQueued);
-    aAuthority.On(*this, &HostCharacters::OnPartySummon);
+    aRouter.On(*this, &HostCharacters::OnAnnounceCharacter);
+    aRouter.On(*this, &HostCharacters::OnRemoveCharacter);
+    aRouter.On(*this, &HostCharacters::OnRespawn);
+    aRouter.On(*this, &HostCharacters::OnDismount);
+    aRouter.On(*this, &HostCharacters::OnBoard);
+    aRouter.On(*this, &HostCharacters::OnUnboard);
+    aRouter.On(*this, &HostCharacters::OnActiveEffects);
+    aRouter.On(*this, &HostCharacters::OnPerks);
+    aRouter.Watch(*this, &HostCharacters::OnValues);
+    aRouter.Watch(*this, &HostCharacters::OnMaxValues);
+    aRouter.On(*this, &HostCharacters::OnMovement);
+    aRouter.On(*this, &HostCharacters::OnEnterCell);
+    aRouter.On(*this, &HostCharacters::OnTravelQueued);
+    aRouter.On(*this, &HostCharacters::OnPartySummon);
     // A ride is a claim on its horse (its rider's game simulates it, its movement the rider's input); every game hears
     // who rides it. A claim that ends with its rider still marked (its game could not take the horse) ends the ride.
     m_claims.SetRule(Payloads::Claim::kRide, {
@@ -155,16 +156,16 @@ void HostCharacters::OnAnnounceCharacter(const AnnounceCharacterRequest& acReque
     {
         m_places[aSender] = PlaceOf(acRequest.CellId, acRequest.WorldSpaceId);
         character.PlayerRecord = cSpawn;
-        m_authority.PlayerBodyEntered(aSender, cSessionId);
+        m_listeners.PlayerBodyEntered(aSender, cSessionId);
         if (aSender != m_players.Host())
         {
-            m_authority.PlayerEntered(aSender, cSessionId);
+            m_listeners.PlayerEntered(aSender, cSessionId);
             if (!WithHost(aSender) || !InHostGrid(acRequest.Position))
                 BringToParty(aSender);
         }
     }
 
-    m_authority.ActorAnnounced(cSessionId, cSpawn.Record);
+    m_listeners.ActorAnnounced(cSessionId, cSpawn.Record);
     SendToOthersWithHost(cSpawn, aSender);
     spdlog::info("HostCharacters: {:x} announced {:x}:{:x} as {:x}", aSender, acRequest.ReferenceId.ModId, acRequest.ReferenceId.BaseId, cSessionId);
 }
@@ -551,7 +552,7 @@ size_t HostCharacters::SendHostSpawns(ConnectionId_t aPlayer, uint32_t aExcluded
     auto spawns = m_game.OwnSpawns(aExcludedSessionId);
     for (auto& spawn : spawns)
     {
-        spawn.Record = m_authority.RecordOf(spawn.SessionId);
+        spawn.Record = m_listeners.RecordOf(spawn.SessionId);
         m_network.Send(aPlayer, spawn);
     }
     return spawns.size();
@@ -611,7 +612,7 @@ std::optional<NotifyCharacterSpawn> HostCharacters::BuildSpawn(uint32_t aSession
     auto spawn = ReadSpawn(aSessionId);
     // Its record as its owner last declared it: a spawn read before a change never brings an older part.
     if (spawn)
-        spawn->Record = m_authority.RecordOf(aSessionId);
+        spawn->Record = m_listeners.RecordOf(aSessionId);
     return spawn;
 }
 
@@ -680,7 +681,7 @@ void HostCharacters::RemoveCharacter(uint32_t aSessionId, const ActorWhereabouts
 
     m_characters.erase(it);
     m_claims.Forget(aSessionId);
-    m_authority.ActorRemoved(aSessionId);
+    m_listeners.ActorRemoved(aSessionId);
     // A rider gone: its first passenger drives, else the mount is the host's again. A passenger gone: off the list.
     std::vector<uint32_t> ridden;
     for (auto& [cSessionId, character] : m_characters)
@@ -771,4 +772,15 @@ void HostCharacters::OnPartySummon(const PartySummonRequest& acRequest, Connecti
     m_players.SendToOthers(summon, aSender, Net::kReliableNoNagle);
     spdlog::info("HostCharacters: {:x} brought the party to cell {:x}:{:x}", aSender, summon.Destination.CellId.ModId,
                  summon.Destination.CellId.BaseId);
+}
+
+void HostCharacters::NameActor(uint32_t aSessionId, const std::string& acName) const noexcept
+{
+    const ConnectionId_t cOwner = OwnerOf(aSessionId);
+    if (cOwner == m_players.Host())
+        return;
+    NotifyActorName notify;
+    notify.ActorId = aSessionId;
+    notify.Name = acName;
+    m_network.Send(cOwner, notify);
 }

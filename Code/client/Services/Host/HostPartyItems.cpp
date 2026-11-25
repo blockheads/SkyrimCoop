@@ -2,7 +2,8 @@
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPartyItems.h>
 #include <Services/Host/HostPlayers.h>
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostChat.h>
+#include <Services/Host/HostRouter.h>
 
 #include <Games/PartyItems.h>
 #include <Messages/NotifyChatMessageBroadcast.h>

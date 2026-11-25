@@ -1,6 +1,6 @@
 #include <Services/Host/HostBodies.h>
 
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostNetwork.h>
@@ -11,7 +11,7 @@
 #include <Physics/BodyPrediction.h>
 #include <Physics/BodyRelevance.h>
 #include <Physics/BodyTolerances.h>
-#include <Services/WorldStateLog.h>
+#include <Physics/BodyLog.h>
 
 #include <algorithm>
 
@@ -27,14 +27,14 @@ bool Apart(const BodyFrame& acA, const BodyFrame& acB) noexcept
 }
 } // namespace
 
-HostBodies::HostBodies(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
+HostBodies::HostBodies(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
                        const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_characters(acCharacters)
     , m_game(acGame)
 {
-    aAuthority.On(*this, &HostBodies::OnStates);
+    aRouter.On(*this, &HostBodies::OnStates);
 }
 
 uint32_t HostBodies::NumberOf(ConnectionId_t aPlayer) noexcept
@@ -80,20 +80,20 @@ void HostBodies::OnStates(const BodyStatesRequest& acMessage, ConnectionId_t aSe
                 {
                     m_rows[cKey] = {.Frame = {.Key = cKey, .Position = cPoses[0].Position, .Rotation = cPoses[0].Rotation}, .Tick = m_tick};
                     m_authority.Rested(cKey);
-                    spdlog::info("HostBodies: {:x} moved {} by itself, gets the host's", aSender, WorldStateLog::DescribeBody(cKey));
+                    spdlog::info("HostBodies: {:x} moved {} by itself, gets the host's", aSender, BodyLog::Describe(cKey));
                 }
             continue;
         }
         const uint32_t cWas = m_authority.Of(cKey).Player;
         const uint32_t cSender = NumberOf(aSender);
         const bool cAccepted = m_authority.Accept(cSender, cState);
-        spdlog::debug("HostBodies: {:x}'s state of {}: auth {} hold {} held {} rest {} at ({:.1f}, {:.1f}) {}", aSender, WorldStateLog::DescribeBody(cKey),
+        spdlog::debug("HostBodies: {:x}'s state of {}: auth {} hold {} held {} rest {} at ({:.1f}, {:.1f}) {}", aSender, BodyLog::Describe(cKey),
                       cState.AuthSeq, cState.HoldSeq, cState.Held, cState.AtRest, cState.Frame.Position.x, cState.Frame.Position.y,
                       cAccepted ? "taken" : "refused");
         if (!cAccepted)
             continue;
         if (cWas != cSender && !cState.AtRest)
-            spdlog::info("HostBodies: {:x} {} {}", aSender, cState.Held ? "holds" : "moves", WorldStateLog::DescribeBody(cKey));
+            spdlog::info("HostBodies: {:x} {} {}", aSender, cState.Held ? "holds" : "moves", BodyLog::Describe(cKey));
         Row& row = m_rows[cKey];
         row.Frame = cState.Frame;
         row.Placed = false;
@@ -104,7 +104,7 @@ void HostBodies::OnStates(const BodyStatesRequest& acMessage, ConnectionId_t aSe
         row.FromGuest = cState.AtRest;
         row.Given = false;
         if (cState.AtRest)
-            spdlog::info("HostBodies: {:x}'s {} rests at ({:.0f}, {:.0f}, {:.0f})", aSender, WorldStateLog::DescribeBody(cKey),
+            spdlog::info("HostBodies: {:x}'s {} rests at ({:.0f}, {:.0f}, {:.0f})", aSender, BodyLog::Describe(cKey),
                          cState.Frame.Position.x, cState.Frame.Position.y, cState.Frame.Position.z);
     }
 }
@@ -121,7 +121,7 @@ void HostBodies::Unclaim(const BodyKey& acKey, const char* acpWhy) noexcept
         it->second.FromGuest = false;
         it->second.Tick = m_tick; // the host's word on it now: every game hears it is nobody's
     }
-    spdlog::info("HostBodies: {} is nobody's again: {}", WorldStateLog::DescribeBody(acKey), acpWhy);
+    spdlog::info("HostBodies: {} is nobody's again: {}", BodyLog::Describe(acKey), acpWhy);
 }
 
 void HostBodies::TakeHands(uint64_t aTick, const std::vector<BodyKey>& acHeld) noexcept
@@ -138,7 +138,7 @@ void HostBodies::TakeHands(uint64_t aTick, const std::vector<BodyKey>& acHeld) n
         if (cPutting)
             it->second.FromGuest = false;
         if (cWas != cHost)
-            spdlog::info("HostBodies: the host's player {} {}", aGrab ? "holds" : "moves", WorldStateLog::DescribeBody(acKey));
+            spdlog::info("HostBodies: the host's player {} {}", aGrab ? "holds" : "moves", BodyLog::Describe(acKey));
     };
     if (m_game.TakeTouches)
         for (const BodyKey& cKey : m_game.TakeTouches())

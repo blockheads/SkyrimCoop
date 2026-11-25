@@ -11,7 +11,7 @@
 #include <Messages/Relayed.h>
 #include <Messages/RelayedMessages.h>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostCharacters;
 struct HostNetwork;
 struct HostPlayers;
@@ -27,7 +27,7 @@ struct HostPlayerNatives
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostPlayerNatives(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
+    HostPlayerNatives(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                       const HostCharacters& acCharacters) noexcept;
 
     NO_COPY_MOVE(HostPlayerNatives);

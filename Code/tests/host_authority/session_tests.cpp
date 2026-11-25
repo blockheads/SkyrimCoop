@@ -33,7 +33,7 @@ JoinRefusal::Install Ours(Mods aPlugins = HostPlugins())
 }
 
 // The system lines the host's chat got.
-std::vector<std::string> HostChat(const Session& acSession)
+std::vector<std::string> HostsChat(const Session& acSession)
 {
     std::vector<std::string> lines;
     for (const auto* cpLine : acSession.SentTo<NotifyChatMessageBroadcast>(kHost))
@@ -83,7 +83,7 @@ TEST_CASE("Join: accepted with a player id and the host's difficulty", "[HostAut
 
     // The others learn the newcomer.
     CHECK(session.SentTo<NotifyPlayerJoined>(kHost).size() == 1);
-    CHECK(HostChat(session).empty());
+    CHECK(HostsChat(session).empty());
 }
 
 TEST_CASE("Join: a game on another build is refused, told the host's build, and is not a player", "[HostAuthority][Session]")
@@ -100,7 +100,7 @@ TEST_CASE("Join: a game on another build is refused, told the host's build, and 
     CHECK(session.SentTo<NotifyPlayerJoined>(kHost).empty());
 
     // The host's chat says who could not join and why; nobody else hears of it.
-    CHECK(HostChat(session) == std::vector<std::string>{std::format("Serana couldn't join: they run SkyrimCoop v1.0.0-0-gdeadbeef, you run {}.", BuildCommit())});
+    CHECK(HostsChat(session) == std::vector<std::string>{std::format("Serana couldn't join: they run SkyrimCoop v1.0.0-0-gdeadbeef, you run {}.", BuildCommit())});
     CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).empty());
 }
 
@@ -116,8 +116,8 @@ TEST_CASE("Join: a game on another Skyrim or SKSE version is refused and told th
     CHECK(cResponse.Type == AuthenticationResponse::ResponseType::kWrongGame);
     CHECK(cResponse.Game == kHostGame);
     CHECK_FALSE(IsPlayer(session, kNewcomer));
-    REQUIRE(HostChat(session).size() == 1);
-    CHECK(HostChat(session)[0].starts_with("Serana couldn't join: they run Skyrim 1.6."));
+    REQUIRE(HostsChat(session).size() == 1);
+    CHECK(HostsChat(session)[0].starts_with("Serana couldn't join: they run Skyrim 1.6."));
 }
 
 TEST_CASE("Join: the build is checked before the game", "[HostAuthority][Session]")
@@ -141,7 +141,7 @@ TEST_CASE("Join: a game with other plugins is refused and sent the host's", "[Ho
     CHECK(cResponse.Type == AuthenticationResponse::ResponseType::kModsMismatch);
     CHECK(cResponse.UserMods == HostPlugins());
     CHECK_FALSE(IsPlayer(session, kNewcomer));
-    CHECK(HostChat(session) == std::vector<std::string>{"Serana couldn't join: their plugins differ from yours (1 difference)."});
+    CHECK(HostsChat(session) == std::vector<std::string>{"Serana couldn't join: their plugins differ from yours (1 difference)."});
 }
 
 TEST_CASE("Load order: what differs between the host's plugins and a player's", "[HostAuthority][Session]")

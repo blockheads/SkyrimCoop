@@ -6,7 +6,7 @@
 #include <optional>
 #include <set>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostNetwork;
 struct HostPlayers;
 struct HostGame;
@@ -15,7 +15,7 @@ struct HostGame;
 struct HostWait
 {
     using ConnectionId_t = Net::ConnectionId_t;
-    HostWait(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
+    HostWait(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers,
              const HostGame& acGame) noexcept;
     NO_COPY_MOVE(HostWait);
 

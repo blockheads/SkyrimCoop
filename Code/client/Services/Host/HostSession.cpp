@@ -1,7 +1,7 @@
 #include <Services/Host/HostSession.h>
 
 #include <Services/Host/HostNetwork.h>
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
@@ -17,7 +17,7 @@
 #include <Messages/NotifySettingsChange.h>
 #include <Structs/LoadOrder.h>
 
-HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
+HostSession::HostSession(HostRouter& aRouter, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
                          HostSaveTransfer& aTransfer, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(aPlayers)
@@ -25,7 +25,7 @@ HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostP
     , m_transfer(aTransfer)
     , m_game(acGame)
 {
-    aAuthority.On(*this, &HostSession::OnAuthentication);
+    aRouter.On(*this, &HostSession::OnAuthentication);
 }
 
 void HostSession::OnDifficultyChange(uint32_t aDifficulty) const noexcept

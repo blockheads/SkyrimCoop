@@ -1,6 +1,6 @@
 #include <Services/Host/HostDeath.h>
 
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
@@ -10,12 +10,12 @@
 #include <algorithm>
 #include <cmath>
 
-HostDeath::HostDeath(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters) noexcept
+HostDeath::HostDeath(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_characters(acCharacters)
 {
-    aAuthority.On(*this, &HostDeath::OnDeath);
+    aRouter.On(*this, &HostDeath::OnDeath);
 }
 
 void HostDeath::Entered(ConnectionId_t aPlayer, uint32_t aCharacterId) noexcept

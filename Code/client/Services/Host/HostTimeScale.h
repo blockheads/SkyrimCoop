@@ -3,7 +3,7 @@
 #include <network/ENetInterface.h>
 #include <NoCopyMove.h>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostPlayers;
 struct TimeScaleRequest;
 
@@ -18,7 +18,7 @@ struct HostTimeScale
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostTimeScale(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers) noexcept;
+    HostTimeScale(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers) noexcept;
 
     NO_COPY_MOVE(HostTimeScale);
 

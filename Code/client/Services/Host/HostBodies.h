@@ -11,7 +11,7 @@
 #include <map>
 #include <NoCopyMove.h>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostCharacters;
 struct HostGame;
 struct HostNetwork;
@@ -25,7 +25,7 @@ struct HostBodies
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostBodies(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
+    HostBodies(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
                const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostBodies);

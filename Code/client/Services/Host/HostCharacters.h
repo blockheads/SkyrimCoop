@@ -7,10 +7,11 @@
 #include <Messages/RelayedMessages.h>
 #include <Services/Host/HostClaims.h>
 
+#include <functional>
 #include <optional>
 #include <NoCopyMove.h>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostGame;
 struct HostPlayers;
 struct ReferencesMoveRequest;
@@ -39,10 +40,26 @@ struct HostCharacters
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    // Registers its rules with aAuthority.
-    HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    // Registers its rules with aRouter.
+    HostCharacters(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostCharacters);
+
+    // What the rest of the host's rules hear from here and answer, set by HostAuthority.
+    struct Listeners
+    {
+        // A player's character is in the host's world; then, once, everything a joiner must know.
+        std::function<void(ConnectionId_t aPlayer, uint32_t aId)> PlayerBodyEntered;
+        std::function<void(ConnectionId_t aPlayer, uint32_t aId)> PlayerEntered;
+        std::function<void(uint32_t aId, const RecordParts& acRecord)> ActorAnnounced;
+        std::function<void(uint32_t aId)> ActorRemoved;
+        // A character's record as its owner last declared it.
+        std::function<RecordParts(uint32_t aId)> RecordOf;
+    };
+    // The host's engine renamed an actor another game owns: its owner names its actor, and its name part carries
+    // that on.
+    void NameActor(uint32_t aSessionId, const std::string& acName) const noexcept;
+    void SetListeners(Listeners aListeners) noexcept { m_listeners = std::move(aListeners); }
 
     // The owner's connection (0: no such character).
     [[nodiscard]] ConnectionId_t OwnerOf(uint32_t aSessionId) const noexcept;
@@ -152,7 +169,7 @@ private:
         std::optional<Payloads::ActiveEffects> Effects;
     };
 
-    HostAuthority& m_authority;
+    Listeners m_listeners;
     HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostGame& m_game;

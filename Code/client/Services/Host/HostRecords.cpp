@@ -1,6 +1,6 @@
 #include <Services/Host/HostRecords.h>
 
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
@@ -8,15 +8,15 @@
 #include <Messages/JoinMessages.h>
 #include <Messages/Relayed.h>
 
-HostRecords::HostRecords(HostAuthority& aAuthority, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
+HostRecords::HostRecords(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
     : m_players(acPlayers)
     , m_characters(acCharacters)
     , m_game(acGame)
 {
-    aAuthority.On(*this, &HostRecords::OnPlayerRecord);
-    aAuthority.On(*this, &HostRecords::OnRecord);
-    aAuthority.On(*this, &HostRecords::OnRecordAsk);
-    aAuthority.Watch(*this, &HostRecords::OnPartyCall);
+    aRouter.On(*this, &HostRecords::OnPlayerRecord);
+    aRouter.On(*this, &HostRecords::OnRecord);
+    aRouter.On(*this, &HostRecords::OnRecordAsk);
+    aRouter.Watch(*this, &HostRecords::OnPartyCall);
 }
 
 void HostRecords::OnPartyCall(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept

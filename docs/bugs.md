@@ -855,8 +855,8 @@ Size: small. Needs: no duo first (GameTests), the duo to confirm.
 
 - **A guest's ridden horse takes no trap damage** (review of PR #124, 2026-11-24, read, not measured): on the guest it
   is `Local`, so `TrapRules::OfContact` drops its contact; on the host it is a `Copy`, so `OfHit` drops the script's
-  hit, and `HostAuthority::OnTrapHit` accepts only player targets. `trap_rules_tests` currently expects the drop.
-  - Start: `TrapRules.h` (`OfContact`, `OfHit`), `HostAuthority::OnTrapContact` / `OnTrapHit` (owner checks).
+  hit, and `HostCombat::OnTrapHit` accepts only player targets. `trap_rules_tests` currently expects the drop.
+  - Start: `TrapRules.h` (`OfContact`, `OfHit`), `HostCombat::OnTrapContact` / `OnTrapHit` (owner checks).
 
 ### The host's copy after a door
 

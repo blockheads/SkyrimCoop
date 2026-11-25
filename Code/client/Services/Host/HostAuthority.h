@@ -4,18 +4,25 @@
 #include <Messages/Message.h>
 #include <Opcodes.h>
 #include <Services/Host/HostCharacters.h>
+#include <Services/Host/HostChat.h>
 #include <Services/Host/HostLeash.h>
 #include <Services/Host/HostClock.h>
+#include <Services/Host/HostCombat.h>
 #include <Services/Host/HostDevTools.h>
 #include <Services/Host/HostDeath.h>
 #include <Services/Host/HostDialogue.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostGraph.h>
 #include <Services/Host/HostFollowers.h>
 #include <Services/Host/HostBodies.h>
 #include <Services/Host/HostItems.h>
+#include <Services/Host/HostMagic.h>
+#include <Services/Host/HostMap.h>
+#include <Services/Host/HostObjects.h>
 #include <Services/Host/HostPlayerNatives.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostRecords.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostSaveTransfer.h>
 #include <Services/Host/HostSession.h>
 #include <Services/Host/HostStory.h>
@@ -27,45 +34,27 @@
 #include <Services/Host/HostEye.h>
 #include <Services/Host/HostWorldState.h>
 
-#include <array>
 #include <optional>
 #include <vector>
 #include <functional>
 #include <string_view>
 
-#include <ChatMessageTypes.h>
 #include <NoCopyMove.h>
 #include <Messages/RelayedMessages.h>
-#include <Messages/NotifySetWaypoint.h>
 
-struct LockChangeRequest;
-struct RequestSetWaypoint;
-struct RequestRemoveWaypoint;
-struct ContainerChangeRequest;
-struct RequestInventoryChanges;
-struct SendChatMessageRequest;
-struct PlayerLevelRequest;
 
 struct HostNetwork;
-struct ActivateRequest;
-struct SummonRequest;
 
 /**
- * @brief The host's side of the session: handles what players send (docs/design/host-authority-migration.md).
+ * @brief The host's side of the session: builds the host's parts and decides who may send at all
+ * (docs/design/host-authority-migration.md).
  *
  * Every message the host's network (HostNetwork) receives comes here; one with no rule is dropped. The host is a
- * player like the others: what it sends comes through here in-process, and what is forwarded to it reaches its
- * copies through the in-process route.
+ * player like the others: what it sends comes through here in-process.
  *
- * HostAuthority is the front door and the plain relays: most rules pass a request on as its
- * notification, which carries the same payload (Messages/Payloads.h), and differ only in who
- * receives it (Delivery). The parts that keep state register their own rules: HostSession (who
- * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time), HostTimeScale
- * (how fast everyone's clock runs), HostDialogue (the party's conversation), HostWorldState (a guest's cell
- * loading), HostItems (a guest's drops and pickups), HostPlayerNatives (the script calls one game sends to others),
- * HostStory (a guest's story events),
- * HostBodies (who simulates each physics body, and the states each game gets); HostWeather and HostEye (a guest's
- * stealth eye) have no rules, and HostPartyItems (the party's gold) takes a player's gold out of the item relay.
+ * It holds no rule of its own. Each part (a Host* file) registers its rules with the router (HostRouter) and keeps
+ * its own state. What stays here is what needs every part at once: the order a joiner is told things, the order
+ * the parts hear a player left, and each frame's update.
  */
 struct HostAuthority
 {
@@ -93,27 +82,6 @@ struct HostAuthority
     // This game's engine renamed an actor another game owns (HostService): its owner names its actor, and its name part
     // carries that on.
     void NameActor(uint32_t aSessionId, const std::string& acName) const noexcept;
-
-    // For the parts: TRequest is handled by aOwner's member function.
-    template <class TOwner, class TRequest> void On(TOwner& aOwner, void (TOwner::*apRule)(const TRequest&, ConnectionId_t) noexcept) noexcept
-    {
-        m_rules[TRequest::Opcode] = [&aOwner, apRule](const RequestMessage& acMessage, ConnectionId_t aSender) {
-            (aOwner.*apRule)(static_cast<const TRequest&>(acMessage), aSender);
-        };
-    }
-    template <class TOwner, class TRequest> void On(TOwner& aOwner, void (TOwner::*apRule)(const TRequest&, ConnectionId_t) const noexcept) noexcept
-    {
-        m_rules[TRequest::Opcode] = [&aOwner, apRule](const RequestMessage& acMessage, ConnectionId_t aSender) {
-            (aOwner.*apRule)(static_cast<const TRequest&>(acMessage), aSender);
-        };
-    }
-    // For the parts: also told of TRequest before its rule runs (another part's, or a relay).
-    template <class TOwner, class TRequest> void Watch(TOwner& aOwner, void (TOwner::*apWatcher)(const TRequest&, ConnectionId_t) noexcept) noexcept
-    {
-        m_watchers[TRequest::Opcode].push_back([&aOwner, apWatcher](const RequestMessage& acMessage, ConnectionId_t aSender) {
-            (aOwner.*apWatcher)(static_cast<const TRequest&>(acMessage), aSender);
-        });
-    }
 
     // A player's own character is in the world: everything it must know about the session, from every store.
     void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept;
@@ -144,57 +112,16 @@ struct HostAuthority
     [[nodiscard]] uint32_t NewCharacterId() noexcept { return m_characters.NewCharacterId(); }
 
 private:
-    enum class Delivery
-    {
-        FromOwner,  // the actor's owner says it; everyone else replays it
-        FromAnyone, // whoever saw it happen; everyone else replays it
-        ToOwner,    // something done to another's actor: its owner alone applies it
-    };
+    using Delivery = HostRouter::Delivery;
 
-    using Rule = std::function<void(const RequestMessage&, ConnectionId_t aSender)>;
-
-    // TRequest passed on as TNotify (the same payload); apActor names the actor Delivery checks.
-    template <class TRequest, class TNotify> void Relay(Delivery aDelivery, uint32_t TRequest::*apActor = nullptr) noexcept;
     [[nodiscard]] std::vector<ConnectionId_t> Guests() const noexcept;
-
-    // Anyone may change an actor's items (a peer handing its follower a sword); the owner's game
-    // applies it like every other copy.
-    void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) noexcept;
-    void OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // A guest's player cast a summon on itself: the host's game puts it on that player's copy (the host creates).
-    void OnSummon(const SummonRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // An owner game's graph ops (docs/design/graph-input-stream.md): each actor's run goes to the others if the sender
-    // owns that actor.
-    void OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // A guest's lock change (its player picked it, or a key): a proposal the host's world takes (step 6).
-    // A trap touched a guest's player, from its own game; a trap's hit on a guest's player, from the host's.
-    void OnTrapContact(const TrapContactRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnTrapHit(const TrapHitRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnRecipes(const RecipesRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // A guest's container change (its player took or stored an item): a proposal the host's world takes (step 6).
-    void OnContainerChange(const ContainerChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // A chat line goes to everyone, the sender too (its chat shows what it sent), under its name.
-    void OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnBugReport(const BugReportRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
-    void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
-    // The party's map marker (every game shows the last one set), kept for a joiner.
-    void OnSetWaypoint(const RequestSetWaypoint& acRequest, ConnectionId_t aSender) noexcept;
-    void OnRemoveWaypoint(const RequestRemoveWaypoint& acRequest, ConnectionId_t aSender) noexcept;
-    // A player's character's name part changed: the party's lists take it (printable text only).
-    void NamePlayer(ConnectionId_t aPlayer, const std::string& acName) noexcept;
-
-    void Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
 
     HostNetwork& m_network;
     HostGame m_game;
-    std::array<Rule, kRequestOpcodeMax> m_rules{};
-    std::array<std::vector<Rule>, kRequestOpcodeMax> m_watchers{};
     // The parts, after the rules they register into, and the players first: the others read them.
     HostPlayers m_players;
+    HostRouter m_router;
+    HostChat m_chat;
     HostSaveTransfer m_transfer;
     HostSession m_session;
     HostCharacters m_characters;
@@ -216,10 +143,11 @@ private:
     HostLeash m_leash;
     HostFollowers m_followers;
     HostDevTools m_devTools;
+    HostObjects m_objects;
+    HostCombat m_combat;
+    HostMagic m_magic;
+    HostGraph m_graph;
+    HostMap m_map;
     std::vector<JoinerStore> m_joinerStores;
-    std::optional<NotifySetWaypoint> m_waypoint;
     bool m_reloading{};
 };
-
-// A player's text as chat shows it: at most kChatMaxLength bytes (whole characters), no control characters.
-[[nodiscard]] std::string ChatText(std::string_view aText) noexcept;

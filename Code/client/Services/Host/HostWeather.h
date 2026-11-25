@@ -8,7 +8,7 @@
 #include <optional>
 #include <unordered_map>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostPlayers;
 struct HostNetwork;
 struct WeatherRegionRequest;
@@ -21,7 +21,7 @@ struct HostWeather
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostWeather(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostWeather(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostWeather);
 

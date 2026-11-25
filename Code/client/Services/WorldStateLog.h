@@ -2,7 +2,6 @@
 
 #include <Messages/WorldState.h>
 #include <Games/EnabledRow.h>
-#include <Structs/BodyFrame.h>
 
 #include <format>
 
@@ -12,12 +11,6 @@
 // digest shows of them.
 namespace WorldStateLog
 {
-// A physics body: its reference's id (or actor's session id) and its index there.
-inline std::string DescribeBody(const BodyKey& acKey)
-{
-    return acKey.Actor ? std::format("actor {:X} body {}", acKey.Actor, acKey.Index) : std::format("{:X} body {}", acKey.Object.LogFormat(), acKey.Index);
-}
-
 inline std::string Describe(const ObjectChange& acChange)
 {
     const auto cObject = acChange.Object.LogFormat();

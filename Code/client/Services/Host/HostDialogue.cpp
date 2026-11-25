@@ -1,7 +1,8 @@
 #include <Services/Host/HostDialogue.h>
 
 #include <Services/Host/HostNetwork.h>
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostChat.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostPlayers.h>
 
@@ -12,21 +13,23 @@
 
 #include <algorithm>
 
-HostDialogue::HostDialogue(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
+HostDialogue::HostDialogue(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                            const HostCharacters& acCharacters) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_characters(acCharacters)
 {
-    aAuthority.On(*this, &HostDialogue::OnStart);
-    aAuthority.On(*this, &HostDialogue::OnOpened);
-    aAuthority.On(*this, &HostDialogue::OnOptions);
-    aAuthority.On(*this, &HostDialogue::OnPick);
-    aAuthority.On(*this, &HostDialogue::OnClose);
-    aAuthority.On(*this, &HostDialogue::OnJoin);
-    aAuthority.On(*this, &HostDialogue::OnStartFailed);
-    aAuthority.On(*this, &HostDialogue::OnHighlight);
-    aAuthority.On(*this, &HostDialogue::OnSkip);
+    aRouter.Relay<DialogueRequest, NotifyDialogue>(HostRouter::Delivery::FromAnyone);
+    aRouter.Relay<SubtitleRequest, NotifySubtitle>(HostRouter::Delivery::FromAnyone);
+    aRouter.On(*this, &HostDialogue::OnStart);
+    aRouter.On(*this, &HostDialogue::OnOpened);
+    aRouter.On(*this, &HostDialogue::OnOptions);
+    aRouter.On(*this, &HostDialogue::OnPick);
+    aRouter.On(*this, &HostDialogue::OnClose);
+    aRouter.On(*this, &HostDialogue::OnJoin);
+    aRouter.On(*this, &HostDialogue::OnStartFailed);
+    aRouter.On(*this, &HostDialogue::OnHighlight);
+    aRouter.On(*this, &HostDialogue::OnSkip);
 }
 
 DialogueOptions MergeDialogueLists(const DialogueOptions& acBase, const std::vector<PartyDialogueList>& acMembers)

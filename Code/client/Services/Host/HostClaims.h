@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostCharacters;
 struct HostGame;
 struct HostPlayers;
@@ -29,8 +29,8 @@ struct HostClaims
         std::function<void(const Payloads::Claim&)> Ended;
     };
 
-    // Registers its rules with aAuthority.
-    HostClaims(HostAuthority& aAuthority, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostGame& acGame) noexcept;
+    // Registers its rules with aRouter.
+    HostClaims(HostRouter& aRouter, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostClaims);
 

@@ -9,7 +9,7 @@
 #include <map>
 #include <unordered_map>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostCharacters;
 struct HostGame;
 struct HostPlayers;
@@ -26,8 +26,8 @@ struct HostRecords
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    // Registers its rule with aAuthority.
-    HostRecords(HostAuthority& aAuthority, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
+    // Registers its rule with aRouter.
+    HostRecords(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostRecords);
 

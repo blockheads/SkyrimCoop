@@ -1,7 +1,7 @@
 #include <Services/Host/HostWorldState.h>
 
 #include <Services/Host/HostNetwork.h>
-#include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostRouter.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
 
@@ -33,12 +33,12 @@ void AddCreatedContents(const HostGame& acGame, std::vector<ObjectChange>& aChan
                 aChanges.insert(aChanges.begin() + ++i, std::move(*contents));
 }
 
-HostWorldState::HostWorldState(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostWorldState::HostWorldState(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)
 {
-    aAuthority.On(*this, &HostWorldState::OnCellState);
+    aRouter.On(*this, &HostWorldState::OnCellState);
 }
 
 void HostWorldState::Update(uint64_t) noexcept

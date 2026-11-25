@@ -19,7 +19,7 @@ send the newest SkyrimCoop-*.zip from My Games/Skyrim Special Edition/SkyrimCoop
 ```
 a game: /bug <text>  -> BugReportRequest{Text}               (BugReportService::Report)
 host's rules         -> Id = "2026-10-29-2214-a3f", By, SessionTick
-                     -> NotifyBugReport to every game, the host's own too   (HostAuthority::OnBugReport)
+                     -> NotifyBugReport to every game, the host's own too   (HostDevTools::OnBugReport)
 every game           -> IBugReportBridge::Write(part)                        (BugReportBridge)
     reports/<id>/<host|guest>-<player>/
       note.txt       id, who typed it, the text, this game, build, unix_ms, session tick
@@ -82,4 +82,4 @@ scripts/coop_test.py report friend1.zip --id ID --boot
   - `ReportPaths`, `Zip`, `Export`, `CrashReports`: no engine; tested in `UnitTests`.
   - `Folders`.
 - `Services/BugReportService` (every game) and `Bridges/BugReportBridge`. GameTests uses `FakeBugReports`.
-- `HostAuthority::OnBugReport`.
+- `HostDevTools::OnBugReport`.

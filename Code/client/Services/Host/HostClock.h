@@ -6,7 +6,7 @@
 #include <optional>
 #include <NoCopyMove.h>
 
-struct HostAuthority;
+struct HostRouter;
 struct HostGame;
 struct HostPlayers;
 struct SetTimeCommandRequest;
@@ -22,8 +22,8 @@ struct HostClock
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    // Registers its rules with aAuthority.
-    HostClock(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    // Registers its rules with aRouter.
+    HostClock(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostClock);
 
