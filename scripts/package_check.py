@@ -24,7 +24,7 @@ ct = Session()
 
 HOME = ROOT / "build/clean-install"
 GAME = HOME / "game"
-MO2 = HOME / "mo2"
+LIST = HOME / "list"
 SMS = Path(setting("SKYRIM_MOD_SYNC", shutil.which("sms") or ROOT.parent / "SkyrimModSync/target/release/sms"))
 # What a clean game must not have: SKSE, its plugins, ours, the vendor mods, our old launcher.
 OURS = ("Debug.log", "Logs", "SKSE", "Scripts", "SkyrimCoop", "SkyrimCoopStart.esp", "SkyrimCoopLauncher.exe",
@@ -62,28 +62,27 @@ def clean_game():
             link_tree(source, GAME / "Data" / source.name)
 
 
-def mo2_instance(package):
-    """An MO2 instance whose profile is the playtest pack: our zip and the vendor files as two mods."""
-    if MO2.exists():
-        shutil.rmtree(MO2)
-    (MO2 / "profiles/Default").mkdir(parents=True)
-    (MO2 / "ModOrganizer.ini").write_text(f"[General]\ngameName=SkyrimSE\ngamePath=@ByteArray({GAME})\n")
+def mod_list(package):
+    """A mod list whose two mods are local folders: the vendor files (SKSE at the root, Data/) and our zip."""
+    if LIST.exists():
+        shutil.rmtree(LIST)
     with zipfile.ZipFile(package) as archive:
-        archive.extractall(MO2 / "mods/SkyrimCoop")
-    vendor = MO2 / "mods/Vendor"
+        archive.extractall(LIST / "SkyrimCoop")
+    vendor = LIST / "Vendor"
     vendor.mkdir(parents=True)
+    root = []
     for source in RUNTIME_VENDOR.iterdir():
         if source.name == "Data":
-            for data in source.iterdir():
-                link_tree(data, vendor / data.name)
+            link_tree(source, vendor / "Data")
         elif source.name.startswith("skse64_") and source.suffix in (".dll", ".exe"):
-            (vendor / "Root").mkdir(parents=True, exist_ok=True)
-            hardlink(source, vendor / "Root" / source.name)
-    profile = MO2 / "profiles/Default"
-    (profile / "modlist.txt").write_text("+SkyrimCoop\n+Vendor\n")
-    (profile / "plugins.txt").write_text("\n".join(PLUGINS) + "\n")
-    masters = ["Skyrim.esm", "Update.esm", "Dawnguard.esm", "HearthFires.esm", "Dragonborn.esm"]
-    (profile / "loadorder.txt").write_text("\n".join(masters + [p.lstrip("*") for p in PLUGINS]) + "\n")
+            hardlink(source, vendor / source.name)
+            root.append(source.name)
+    (LIST / "modlist.json").write_text(json.dumps({
+        "name": "SkyrimCoop playtest",
+        "mods": [{"name": "Vendor", "local": "Vendor", "root": root},
+                 {"name": "SkyrimCoop", "local": "SkyrimCoop"}],
+        "plugins": [p.lstrip("*") for p in PLUGINS],
+    }, indent=1))
 
 
 def sms(*args):
@@ -127,19 +126,18 @@ def main():
     shutil.rmtree(HOME / "store", ignore_errors=True)
     clean_game()
     ct.prepare_prefix(bundled_start=False)
-    mo2_instance(package)
+    mod_list(package)
 
-    sms("host", "init", "--mo2", str(MO2), "--profile", "Default", "--name", "SkyrimCoop playtest")
-    published = sms("host", "publish")
-    log(f"Published {package.name}: {published['host_files']} host files")
+    local = ct.load_order_file().parent
+    sms("setup", "--game", str(GAME), "--store", str(HOME / "store"), "--local", str(local),
+        "--documents", str(ct.host.my_games))
+    published = sms("host", "publish", str(LIST / "modlist.json"))
+    log(f"Published {package.name}: {published['files']} files, {published['from_host']} from the host")
     env = dict(os.environ, SMS_CONFIG_DIR=str(HOME / "sms"))
     serve = subprocess.Popen([str(SMS), "--json", "host", "serve", "--bind", "127.0.0.1:41894"], env=env,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         serving = json.loads(serve.stdout.readline())
-        local = ct.load_order_file().parent
-        sms("setup", "--game", str(GAME), "--store", str(HOME / "store"), "--local", str(local),
-            "--documents", str(ct.host.my_games))
         synced = sms("sync", serving["code"], "--peer-address", "127.0.0.1:41894")
         log(f"Synced: {synced['files_fetched']} files")
     finally:
