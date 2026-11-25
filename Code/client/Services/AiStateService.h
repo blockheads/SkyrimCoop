@@ -8,6 +8,7 @@
 
 class IActorBridge;
 struct ActorAiFields;
+struct CopyCombatFields;
 
 struct World;
 struct TransportService;
@@ -16,7 +17,6 @@ struct DisconnectedEvent;
 struct ReferenceLoadedEvent;
 struct Copy3DEvent;
 struct UpdateEvent;
-struct NotifyRemoveCharacter;
 struct CopyRecords;
 
 /**
@@ -37,7 +37,6 @@ struct AiStateService
 
 protected:
     void OnAiStateChange(const AiStateChangeEvent& acEvent) noexcept;
-    void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
     void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
     void OnCopy3D(const Copy3DEvent& acEvent) noexcept;
@@ -52,7 +51,8 @@ private:
     // The copy of that session id, if this game has it, takes its owner's state (the record's part). Returns the
     // actors the state names that are not here yet.
     [[nodiscard]] std::vector<uint32_t> ApplyToCopy(uint32_t aSessionId, const std::string& acBytes) noexcept;
-    void CountCopiesFightingPlayer() noexcept;
+    // A copy's owner's fight, in this game's ids.
+    [[nodiscard]] static CopyCombatFields ToCombat(const ActorAiState& acState) noexcept;
     // A furniture's 3D, or a copy's own, loaded: each copy sitting in it takes its seat again, its graphs linked now
     // that both exist (Actor::LinkFurnitureGraphs; furniture-graphs.md).
     void RelinkSeats(uint32_t aFormId) noexcept;

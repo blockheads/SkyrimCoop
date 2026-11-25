@@ -1,6 +1,8 @@
 #include <Structs/ActorAiState.h>
 #include <Wire/Serialization.h>
 
+#include <algorithm>
+
 using Wire::Serialization;
 
 void AiTarget::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
@@ -33,6 +35,10 @@ void ActorAiState::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     aWriter.WriteBits(cSits, 1);
     if (cSits)
         Furniture.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, CombatGroup);
+    Serialization::WriteVarInt(aWriter, GroupTargets.size());
+    for (const uint32_t cSessionId : GroupTargets)
+        Serialization::WriteVarInt(aWriter, cSessionId);
 }
 
 void ActorAiState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -55,4 +61,10 @@ void ActorAiState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Furniture = AiTarget{};
     if (sits)
         Furniture.Deserialize(aReader);
+    CombatGroup = Serialization::ReadVarInt(aReader);
+    // A group's targets: bounded as a fight is, by the actors one game holds near its players.
+    const auto cTargets = std::min<uint64_t>(Serialization::ReadVarInt(aReader), 1024);
+    GroupTargets.resize(cTargets);
+    for (uint32_t& sessionId : GroupTargets)
+        sessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

@@ -1,0 +1,7 @@
+time	op	id	rva	item
+2026-11-25T14:33:27Z	read		0x691390	{"name": "Actor::InitiateGetUpPackage"}
+2026-11-25T14:33:31Z	read	37532	0x68c060	{"name": "Actor::CanAttackActor"}
+2026-11-25T14:36:49Z	comment		0x6c9755	{"addr": "0x1406c9755", "comment": "The new controller from 46873/46874 stored in Actor::combatController (+0x160): 46873 does not set it itself. Then, in combat, the actor leaves its scene (0x1403A7DE0) and 0x1406FE8B0(process, 0)."}
+2026-11-25T14:38:40Z	read	33271	0x563850	{"name": "sub_140563850"}
+2026-11-25T14:38:49Z	name	33271	0x563850	{"addr": "0x140563850", "name": "CombatController__StartBehaviorTree"}
+2026-11-25T14:38:50Z	comment	33271	0x563850	{"addr": "0x140563850", "comment": "Unless +0x42 is set: finds the \"Combat\" (or \"LowCombat\" for a low-process actor, 37965) tree and CombatBehaviorController::Start on it: builds its threads once. Stepping is CombatBehaviorController::Update, reached only from UpdateCombat (38565) through 0x1405609E0 / 0x140560820."}

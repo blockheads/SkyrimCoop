@@ -265,10 +265,10 @@ SCENARIO("A host NPC fighting the guest's player fights it on the guest's game t
     const auto cCopy = [&] { return guest.CopiesOf(kGuard)[0]; };
     party.Until([&] { return guest.GetActorAiFields(cCopy()).CombatTargetId == FakeEngine::kPlayer; },
                 "the guard's copy fights the guest's own player");
-    THEN("the guest's player is in combat with it") CHECK(guest.CopiesFightingPlayer == 1);
+    THEN("the guest's player is in combat with it") CHECK(guest.PlayerFlaggedInCombat());
 
     party.As(party.Host(), [&] { host.Fights(guard, 0); });
-    party.Until([&] { return guest.GetActorAiFields(cCopy()).CombatState == 0 && guest.CopiesFightingPlayer == 0; },
+    party.Until([&] { return guest.GetActorAiFields(cCopy()).CombatState == 0 && !guest.PlayerFlaggedInCombat(); },
                 "the fight ends on both");
 }
 

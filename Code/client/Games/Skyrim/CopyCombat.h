@@ -1,29 +1,78 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
+#include <vector>
 
-// The copy contract for combat, without the engine (docs/re/systems/combat-targets.md).
+// The copy contract for combat, without the engine (docs/re/systems/combat-targets.md, "A copy's combat"): a copy holds
+// a real controller and group filled from its owner's fight; nothing on its own game decides one.
 namespace CopyCombat
 {
-// Actor::StartCombat (38561): a copy never takes a controller or group, CombatUpdateJob (46902) would run its combat AI.
-[[nodiscard]] constexpr bool MayStart(bool aCopy) noexcept
+// Actor::StartCombat (38561) and the group primitives (46873 / 46874): a copy only through Hold, putting its owner's
+// fight on it.
+[[nodiscard]] constexpr bool MayStart(bool aCopy, bool aHolding) noexcept
 {
-    return !aCopy;
+    return !aCopy || aHolding;
 }
 
-// The engine's callers of IsInCombat (38562) / GetCombatState (38556) that get a copy's owner's combat state: none use
-// the combat controller after a yes (docs/re/systems/actor-ai-and-copies.md, "Combat state and its readers").
-// Address Library ID and the offset after the call.
-struct OwnerAnswerSite
+// What a copy's controller needs to match its owner's fight.
+enum class Step : uint8_t
 {
-    uint32_t Id;
-    uint32_t ReturnOffset;
+    kNone,
+    kStart, // a new group and controller (46873), the owner's group not here yet
+    kJoin,  // the group another copy of the owner's group holds (46874)
+    kStop,  // its owner left its group, or the controller holds another key (StopCombat 38566)
 };
 
-inline constexpr OwnerAnswerSite cOwnerAnswerSites[] = {
-    {21576, 0x38},  // GameFunc::native::IsInCombat
-    {21740, 0x28},  // GameFunc::native::GetCombatState
-    {38460, 0xC5},  // Actor::GetActorValueRegenRate: the essential health bonus
-    {38460, 0x1FC}, // Actor::GetActorValueRegenRate: the combat multiplier
+// Membership follows the owner's group (`aOwnerKey`, 0 none), not its combat state: 41240 lists a member out of
+// combat too. A controller holding another key (a fight it had while this game's, a key change) is stopped first.
+// A player's copy too: its controller holds its player's own group (the player has no controller of its own).
+[[nodiscard]] constexpr Step Next(uint64_t aOwnerKey, uint64_t aHeldKey, bool aHasController, bool aOwnerGroupHere,
+                                  bool aHasTarget) noexcept
+{
+    if (aHasController)
+        return aOwnerKey && aHeldKey == aOwnerKey ? Step::kNone : Step::kStop;
+    if (!aOwnerKey)
+        return Step::kNone;
+    if (aOwnerGroupHere)
+        return Step::kJoin;
+    return aHasTarget ? Step::kStart : Step::kNone;
+}
+
+// IsInCombat (38562) is a controller whose +0x43 is clear: set while its owner is out of combat, still in its group.
+[[nodiscard]] constexpr bool Inactive(uint8_t aOwnerState) noexcept
+{
+    return aOwnerState == 0;
+}
+
+// UpdateCombat (38565) returns at once for a form flagged 0x200000 (0x1406C990F), before its 37273 tail.
+[[nodiscard]] constexpr bool SkipsUpdate(uint32_t aFormFlags) noexcept
+{
+    return (aFormFlags & 0x200000) != 0;
+}
+
+// The owner's group's targets the copy's group lacks, and those it holds that the owner's group dropped.
+struct TargetChanges
+{
+    std::vector<uint32_t> Add;
+    std::vector<uint32_t> Remove;
 };
+
+[[nodiscard]] inline TargetChanges Diff(const std::vector<uint32_t>& acHeld, const std::vector<uint32_t>& acOwner)
+{
+    TargetChanges changes;
+    for (const uint32_t cTarget : acOwner)
+        if (cTarget && std::ranges::find(acHeld, cTarget) == acHeld.end())
+            changes.Add.push_back(cTarget);
+    for (const uint32_t cTarget : acHeld)
+        if (std::ranges::find(acOwner, cTarget) == acOwner.end())
+            changes.Remove.push_back(cTarget);
+    return changes;
+}
+
+// GetCombatState (38556) reads 2 while the group's searchState (+0xD8) is set.
+[[nodiscard]] constexpr uint32_t SearchState(uint8_t aOwnerState) noexcept
+{
+    return aOwnerState == 2 ? 1 : 0;
+}
 } // namespace CopyCombat

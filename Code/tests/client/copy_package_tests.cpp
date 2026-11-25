@@ -8,12 +8,6 @@
 
 namespace
 {
-bool AnswersOwner(uint32_t aId, uint32_t aReturnOffset)
-{
-    return std::ranges::any_of(CopyCombat::cOwnerAnswerSites,
-                               [&](const auto& acSite) { return acSite.Id == aId && acSite.ReturnOffset == aReturnOffset; });
-}
-
 constexpr uint32_t cFollow = 0x5C84B;         // PlayerFollowerPackage
 constexpr uint32_t cCombatOverride = 0x5C851; // PlayerFollowerCombatOverridePackage
 constexpr uint32_t cDoNothing = 0x100770;
@@ -67,21 +61,56 @@ TEST_CASE("An owner's empty package does not expose a copy's stale extra package
     CHECK(CopyPackage::Read(false, 0, cFollow) == cFollow);
 }
 
-TEST_CASE("A copy takes no combat controller, this game's own actors do", "[CopyCombat]")
+TEST_CASE("A copy's fight starts only through its owner's, this game's own actors start their own", "[CopyCombat]")
 {
-    CHECK_FALSE(CopyCombat::MayStart(true));
-    CHECK(CopyCombat::MayStart(false));
+    CHECK_FALSE(CopyCombat::MayStart(true, false)); // StartCombat, an ally joining: this game deciding
+    CHECK(CopyCombat::MayStart(true, true));        // CopyCombatGroups::Hold putting its owner's fight on it
+    CHECK(CopyCombat::MayStart(false, false));
 }
 
-TEST_CASE("A copy's regen rate asks for its owner's combat state", "[CopyCombat]")
+TEST_CASE("A copy's controller follows its owner's group", "[CopyCombat]")
 {
-    // Actor::GetActorValueRegenRate (38460): the essential health bonus and the combat multiplier.
-    CHECK(AnswersOwner(38460, 0xC5));
-    CHECK(AnswersOwner(38460, 0x1FC));
-    // The conditions still do; another engine call into 38460 does not.
-    CHECK(AnswersOwner(21576, 0x38));
-    CHECK(AnswersOwner(21740, 0x28));
-    CHECK_FALSE(AnswersOwner(38460, 0x10));
-    // Actor::EngagingInCombat (38563, its call returns at +0x12) uses the combat controller after a yes.
-    CHECK_FALSE(AnswersOwner(38563, 0x12));
+    using enum CopyCombat::Step;
+    constexpr uint64_t cKey = (uint64_t{1} << 32) | 0; // the host's first group: id 0
+    constexpr uint64_t cOther = (uint64_t{2} << 32) | 3;
+    // The owner joins a group: the first copy of it starts it here, the next ones join it.
+    CHECK(CopyCombat::Next(cKey, 0, false, false, true) == kStart);
+    CHECK(CopyCombat::Next(cKey, 0, false, true, true) == kJoin);
+    CHECK(CopyCombat::Next(cKey, cKey, true, true, true) == kNone);
+    // No target here yet: nothing to start a group on.
+    CHECK(CopyCombat::Next(cKey, 0, false, false, false) == kNone);
+    // The owner leaves its group.
+    CHECK(CopyCombat::Next(0, cKey, true, true, true) == kStop);
+    CHECK(CopyCombat::Next(0, 0, false, false, false) == kNone);
+    // A controller from another key: a fight it had while this game's (handed to its owner), or a new group.
+    CHECK(CopyCombat::Next(cKey, 0, true, true, true) == kStop);
+    CHECK(CopyCombat::Next(cKey, cOther, true, false, true) == kStop);
+}
+
+TEST_CASE("A copy out of combat stays in its owner's group, not in combat", "[CopyCombat]")
+{
+    CHECK(CopyCombat::Inactive(0));
+    CHECK_FALSE(CopyCombat::Inactive(1));
+    CHECK_FALSE(CopyCombat::Inactive(2));
+}
+
+TEST_CASE("A copy flagged 0x200000 skips UpdateCombat's tail as the engine does", "[CopyCombat]")
+{
+    CHECK(CopyCombat::SkipsUpdate(0x200000));
+    CHECK_FALSE(CopyCombat::SkipsUpdate(0x400));
+}
+
+TEST_CASE("A copy's group holds its owner's group's targets", "[CopyCombat]")
+{
+    const auto cChanges = CopyCombat::Diff({0x14, 0xFF000822}, {0x14, 0xFF000830, 0});
+    CHECK(cChanges.Add == std::vector<uint32_t>{0xFF000830});
+    CHECK(cChanges.Remove == std::vector<uint32_t>{0xFF000822});
+    CHECK(CopyCombat::Diff({0x14}, {0x14}).Add.empty());
+}
+
+TEST_CASE("A copy searches while its owner searches", "[CopyCombat]")
+{
+    CHECK(CopyCombat::SearchState(2) != 0); // GetCombatState (38556) reads 2
+    CHECK(CopyCombat::SearchState(1) == 0);
+    CHECK(CopyCombat::SearchState(0) == 0);
 }

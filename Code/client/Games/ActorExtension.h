@@ -37,15 +37,17 @@ struct ActorExtension
     size_t GraphDescriptorHash = 0;
     uint64_t GraphDescriptorProjectKey = 0;
     // A copy: its owner's AI state (SkyrimBridge::SetCopyAiFields). The package (0: none or engine-made) is put back
-    // in its running slot when the engine asks for a new one; scene and combat state are answered (CopyAiState.cpp).
+    // in its running slot when the engine asks for a new one; its scene is answered (CopyAiState.cpp). Its fight is a
+    // real controller and group (CopyCombatGroups).
     std::atomic<uint32_t> OwnerPackageId{0};
     std::atomic<std::shared_ptr<const std::vector<OwnerEffects::Held>>> OwnerEffects; // a copy: its owner's (OwnerEffects.h)
     uint32_t OwnerSceneId = 0;
-    uint8_t OwnerCombatState = 0;
-    std::atomic<uint32_t> OwnerCombatTargetHandle{0};
+    uint64_t OwnerCombatGroup = 0; // the owner's group key its controller's group holds (CopyCombatGroups)
     // Its headtrack slots (HighProcessData::headTrackTarget, form ids): a copy's owner's, put in before the engine
     // reads them; an owner's last sent (AiStateEvents' ProcessTracking hook).
     std::array<std::atomic<uint32_t>, 6> HeadTrack{};
+    // An owner's combat group's targets as last sent (a hash; AiStateEvents' CombatGroup update hook).
+    std::atomic<uint64_t> GroupTargetsSent{0};
     // A copy: the furniture its graphs are linked to (Actor::LinkFurnitureGraphs), 0 none, and the two graph managers
     // linked: a new manager on either side (a reload) is linked again.
     uint32_t LinkedFurniture = 0;
@@ -71,7 +73,7 @@ struct ActorExtension
     void EnsureCurrent() noexcept;
 
   private:
-    uint32_t onlineFlags{0};
+    std::atomic<uint32_t> onlineFlags{0}; // read on the combat job (CopyCombatGroups::HeldByOwners)
     // Last: written after everything else when an extension is (re)made.
     uint32_t m_generation{CurrentGeneration()};
 };

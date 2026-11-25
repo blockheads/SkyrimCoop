@@ -21,7 +21,10 @@
 #include <Games/IFormFactory.h>
 
 // SKSE / game headers (allowed only here)
+#include <Combat/CombatController.h>
+#include <Combat/CombatGroup.h>
 #include <Combat/Traps.h>
+#include <Games/CopyCombatGroups.h>
 #include <Actor.h>
 #include <Havok/Ragdoll.h>
 #include <Havok/bhkCharacterController.h>
@@ -39,7 +42,6 @@
 #include <Forms/ActorValueInfo.h>
 #include <Forms/SpellItem.h>
 #include <Games/ActorExtension.h>
-#include <Games/CopyAiState.h>
 #include <Games/EngineNames.h>
 #include <Games/HitVisualsRules.h>
 #include <Games/FormState.h>
@@ -2074,7 +2076,7 @@ ActorAiFields SkyrimBridge::GetActorAiFields(uint32_t aFormId) const noexcept
         fields.PackageId = pPackage->formID;
     if (const BGSScene* pScene = pActor->GetOwnCurrentScene())
         fields.SceneId = pScene->formID;
-    fields.CombatState = pActor->GetOwnCombatState();
+    fields.CombatState = pActor->GetCombatState();
     if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(pActor->combatHandle))
         fields.CombatTargetId = pTarget->formID;
     if (const HighProcessData* pHigh = pActor->currentProcess->highProcess)
@@ -2161,16 +2163,9 @@ void SkyrimBridge::SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFiel
         return;
     pActor->GetExtension()->OwnerPackageId = acFields.PackageId;
     pActor->GetExtension()->OwnerSceneId = acFields.SceneId;
-    pActor->GetExtension()->OwnerCombatState = acFields.CombatState;
     // Put in its slots before the engine reads them (AiStateEvents' ProcessTracking hook): a copy runs no AI to set them.
     for (size_t i = 0; i < acFields.HeadTrackIds.size(); ++i)
         pActor->GetExtension()->HeadTrack[i].store(acFields.HeadTrackIds[i], std::memory_order_relaxed);
-    // Actor::currentCombatTarget: written only by a combat controller, which a copy never has.
-    auto* pTarget = acFields.CombatTargetId ? Cast<TESObjectREFR>(TESForm::GetById(acFields.CombatTargetId)) : nullptr;
-    const uint32_t cTargetHandle = pTarget ? pTarget->GetHandle().handle.iBits : *TESObjectREFR::GetNullHandle();
-    pActor->GetExtension()->OwnerCombatTargetHandle.store(cTargetHandle, std::memory_order_relaxed);
-    if (pActor->combatHandle != cTargetHandle)
-        pActor->combatHandle = cTargetHandle;
     pActor->LinkFurnitureGraphs(acFields.FurnitureId ? Cast<TESObjectREFR>(TESForm::GetById(acFields.FurnitureId)) : nullptr);
     if (!pActor->currentProcess)
         return;
@@ -2187,9 +2182,31 @@ void SkyrimBridge::SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFiel
         pActor->InitiateDoNothingPackage();
 }
 
-void SkyrimBridge::SetCopiesFightingPlayer(uint32_t aCount) noexcept
+void SkyrimBridge::SetCopyCombat(uint32_t aFormId, const CopyCombatFields& acFields) noexcept
 {
-    CopyAiState::SetCopiesFightingPlayer(aCount);
+    if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy())
+        CopyCombatGroups::Hold(*pActor, acFields);
+}
+
+CombatGroupRead SkyrimBridge::GetCombatGroup(uint32_t aFormId) const noexcept
+{
+    CombatGroupRead read;
+    const Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return read;
+    // The player fights with no controller: its own group holds its enemies (41261).
+    CombatGroup* pGroup = pActor == PlayerCharacter::Get() ? PlayerCharacter::Get()->combatGroup
+                          : pActor->pCombatController ? pActor->pCombatController->pCombatGroup
+                                                      : nullptr;
+    if (!pGroup)
+        return read;
+    BSReadLockGuard lock(pGroup->lock);
+    read.Exists = true;
+    read.Id = pGroup->groupID;
+    for (const CombatTarget& cTarget : pGroup->targets)
+        if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(cTarget.targetHandle))
+            read.Targets.push_back(pTarget->formID);
+    return read;
 }
 
 void SkyrimBridge::ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept

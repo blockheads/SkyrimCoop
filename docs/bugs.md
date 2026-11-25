@@ -128,6 +128,8 @@ every other section needs the duo.
 
 - [A guest's console kill that never downs it](#a-guests-console-kill-that-never-downs-it): small, not read
 - [A kill move that never pairs](#a-kill-move-that-never-pairs): small
+- [No kill move on a giant, sabre cat or bear](#no-kill-move-on-a-giant-sabre-cat-or-bear): small
+- [A victim the host removes while the guest holds it stays on the guest](#a-victim-the-host-removes-while-the-guest-holds-it-stays-on-the-guest): small
 - [A guest crash in the garbage collector's job](#a-guest-crash-in-the-garbage-collectors-job): medium
 - [A respawned player's draw that does nothing](#a-respawned-players-draw-that-does-nothing): small
 - [The attacker's copy not in its kill move](#the-attackers-copy-not-in-its-kill-move): small
@@ -1264,6 +1266,35 @@ Size: small. Needs: the duo, IDA.
 - 2026-11-22, dev `aa723513`: `kill-move-kills-guest` passed 1 of 1. Too few runs to close.
 - 2026-11-22, `agent/kill-moves-polish`: passed 1 of 1 again; `kill_move_on` paired 35 of 35 (a bandit or a wolf, eight
   weapon classes, either player). Still too few of this scenario to close.
+
+### No kill move on a giant, sabre cat or bear
+
+`kill_move_table` (host attacker, 2026-11-25): trolls pair, but every giant, sabre cat and bear row swings plainly. The
+swing's target is the victim (the harness's `kill_move_check`: `should_attack_kill` and `killable` true, `attack_target`
+the victim; a reused form id made it look like an earlier victim at first). Same on dev `c5265779` (A/B on the duo).
+Draugr too: 7 of 7 rows on `agent/compass-enemy-dots` (2026-11-25), not compared with dev.
+Which of the kill move idles' conditions refuses (the race roots, `GetTargetHeight`, `GetRelativeAngle`, the attack
+data) is not read (kill-moves.md, "Every kill move").
+
+Agent task: the same swing in the stand-in (`vanilla_start`): if vanilla plays it, read the idle tree's pick (24570)
+for a giant in our game.
+
+Size: small. Needs: the duo, IDA.
+
+### A victim the host removes while the guest holds it stays on the guest
+
+`kill-moves-every` (2026-11-25, the guest attacking): the guest took a bear for a kill move (its own AI state records for
+session 0x5F from 12:19:52), and the host's stage removed the bear while the guest still held it. Inferred, from one log: on the host it was a
+copy then, so no removal reached the guest (a search of its log found none for 0x5F): the guest's bear went back to a copy with no
+owner (`desync`: "copy in client with no owner"), and the guest's next swings aimed at it (damage to 0x5F, a refused kill
+move on it) instead of the new victim. Not reproduced alone (the bear
+rows never paired, so nothing was taken). The claim and give-back path (`ClaimService`, `KillMoveService`) is
+suspected; never A/B'd against dev, so the copy combat groups' change is not ruled out.
+
+Agent task: take a host NPC for a guest kill move, remove it on the host before the give-back, and read whether the
+host's removal of a copy it lends out reaches the holder.
+
+Size: small. Needs: the duo.
 
 ### A guest crash in the garbage collector's job
 

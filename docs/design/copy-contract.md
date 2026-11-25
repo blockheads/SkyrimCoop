@@ -170,16 +170,16 @@ get the copy's own answer.
   their readers. Writing them is safe only while nothing a copy runs acts on them; `UpdateAI`, which acts on
   them, is cut. To check field by field before writing it.
 - **Combat state is an object.** `Actor::IsInCombat` (38562) is "has a combat controller that has not
-  stopped", `GetCombatState` (38556) adds the combat group's search state. Combat controllers are updated
-  by `CombatUpdateJob` (46902) for every combat group member, outside `UpdateAI`: a copy given a real
-  controller or group would run combat AI. So a copy never gets one; `IsInCombat` and `GetCombatState` are
-  hooked for copies. Before the hook: 22 of the 100 engine functions calling `IsInCombat` also touch the
+  stopped", `GetCombatState` (38556) adds the combat group's search state. Since 2026-11-25 a copy holds a real
+  controller and group filled from its owner's fight, and the deciders (`UpdateCombat` 38565, the group's update
+  44703, the group primitives) are off for it (combat-targets.md, "A copy's combat"). Until then a copy had
+  none and `IsInCombat` / `GetCombatState` were hooked for copies. Before the hook: 22 of the 100 engine functions calling `IsInCombat` also touch the
   controller field, and each must be checked not to use it after a "yes" (actor-ai-and-copies.md,
   "Combat state and its readers").
 - **The host's AI aimed at a guest's player.** A guest's own player counts as in combat from the combat groups
   targeting it (41238, from 41261). On a guest those are copies with no groups, so the guest's player was never
-  in combat. Built 2026-10-22, not as first planned (a count sent by the host): each combatant's AI state already
-  says it fights that guest's character, so the guest counts its copies in combat with its player.
+  in combat. 2026-10-22 to 2026-11-25 the guest counted its copies in combat with its player (41261 hooked); since,
+  the copies' real groups target it and 41261 counts them natively.
 - **Forms go by id** (packages, furniture, scenes), so a mod's package travels as a vanilla one does.
 
 **As built (2026-10-22).** `AiStateService` (every game), event-driven: the engine's package, combat, death and
@@ -199,8 +199,7 @@ TESDeathEvent / TESSceneEvent,              -> SetCopyAiFields:
 SetTarget, the player's flag (any
   thread) -> AiStateChangeEvent (queued)       package  -> running slot
   -> read (main thread), send if changed      scene, combat -> ActorExtension, answered
-                                              combat target -> combatHandle
-                                            -> SetCopiesFightingPlayer(count)
+                                            -> SetCopyCombat: a real controller and group
 ```
 
 
@@ -208,11 +207,10 @@ SetTarget, the player's flag (any
 package          the owner's form package in the running slot (InitFromPackage 38959), no target;
                  nothing runs it (UpdateAI is cut). Every reader sees it, inline ones too (OAR)
 scene            Actor::GetCurrentScene (37247) hooked: the owner's
-combat state     IsInCombat (38562) and GetCombatState (38556) hooked: the owner's to the condition
-                 functions and plugins; the engine's own callers (which use the controller after a yes,
-                 often through EngagingInCombat 38563) get the copy's own
-combat target    Actor::currentCombatTarget (+0x104) written; the engine clears it again (open)
-player in combat 41261 hooked: copies fighting this game's player count as combat-group members
+combat           a real controller and group (CopyCombatGroups::Hold): the owner's group (shared by its copies),
+                 targets, controller target and search state; UpdateCombat (38565) and the group's update
+                 (44703) not run. Every reader (IsInCombat, GetCombatState, the player's in-combat flag, the
+                 compass, +0x104, plugins) reads it natively (combat-targets.md, "A copy's combat")
 furniture, follow target   not sent (no vanilla reader found); shown in the status's `ai`
 sit/sleep, talking         the owner's already, by replay
 alarmed          not carried (an engine-made package)

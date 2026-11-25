@@ -2,7 +2,7 @@
 
 bool ActorExtension::IsCopy() const noexcept
 {
-    return onlineFlags & kCopy;
+    return onlineFlags.load(std::memory_order_acquire) & kCopy;
 }
 
 bool ActorExtension::IsLocal() const noexcept
@@ -12,7 +12,7 @@ bool ActorExtension::IsLocal() const noexcept
 
 bool ActorExtension::IsPlayer() const noexcept
 {
-    return onlineFlags & kPlayer;
+    return onlineFlags.load(std::memory_order_acquire) & kPlayer;
 }
 
 bool ActorExtension::IsOtherPlayer() const noexcept
@@ -28,20 +28,17 @@ bool ActorExtension::IsLocalPlayer() const noexcept
 void ActorExtension::SetCopy(bool aSet) noexcept
 {
     if (aSet)
-        onlineFlags |= kCopy;
+        onlineFlags.fetch_or(kCopy, std::memory_order_release);
     else
-    {
-        onlineFlags &= ~kCopy;
-        OwnerCombatTargetHandle.store(0, std::memory_order_relaxed);
-    }
+        onlineFlags.fetch_and(~kCopy, std::memory_order_release);
 }
 
 void ActorExtension::SetPlayer(bool aSet) noexcept
 {
     if (aSet)
-        onlineFlags |= kPlayer;
+        onlineFlags.fetch_or(kPlayer, std::memory_order_release);
     else
-        onlineFlags &= ~kPlayer;
+        onlineFlags.fetch_and(~kPlayer, std::memory_order_release);
 }
 
 uint32_t ActorExtension::CurrentGeneration() noexcept

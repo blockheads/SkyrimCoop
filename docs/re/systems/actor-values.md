@@ -33,7 +33,10 @@ flags 1<<19, CommonLib's name). Health asks it once
 more at `+0xBF`: an essential (`Actor::IsEssential` 37228, boolFlags 1<<18, or protected 1<<19) non-player not in
 combat adds `fEssentialNonCombatHealRateBonus`.
 
-A copy has no combat controller, and `HookIsInCombat` answered its owner's state only to conditions and plugins
+Since 2026-11-25 a copy holds a real controller (combat-targets.md, "A copy's combat"), so 38460 reads its owner's
+fight natively, a player's copy through its player's own group. Before:
+
+A copy had no combat controller, and `HookIsInCombat` answered its owner's state only to conditions and plugins
 ([actor-ai-and-copies.md](actor-ai-and-copies.md#combat-state-and-its-readers-2026-10-20)): a copy of a fighting
 NPC or player showed the out-of-combat rate (draugr 4.0 against 1.4, the host's player 5.0 against 1.75, measured at
 the end of `scythes_hurt_both`). Since 2026-11-23 both call sites get the owner's answer (`CopyCombat`'s site table).

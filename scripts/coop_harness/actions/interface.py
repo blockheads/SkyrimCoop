@@ -163,3 +163,32 @@ class InterfaceActions:
     def same_marker(ctx, marker, placed):
         return bool(marker) and marker["world"] == placed["world"] and distance(marker["position"], placed["position"]) < 2
 
+
+
+    def compass_enemies(ctx, instance="client"):
+        """The red enemy markers a game's compass draws: its CompassMarkerList entries on the HUD's enemy frame
+        (HUDMenu.as CompassMarkerEnemy; the engine's list is PlayerCharacter 41240, docs/re/systems/compass.md).
+        {enemies, markers}, or None while the HUD's compass is not readable."""
+        root = "_root.HUDMovieBaseInstance"
+        enemy = ctx.menu_var(instance, "HUD Menu", root + ".CompassMarkerEnemy")
+        markers = ctx.menu_var(instance, "HUD Menu", root + ".CompassMarkerList.length")
+        if not enemy or markers is None:
+            return None
+        frames = [ctx.menu_var(instance, "HUD Menu", f"{root}.CompassMarkerList.{i}.movie._currentframe")
+                  for i in range(int(markers))]
+        if any(frame is None for frame in frames):
+            return None
+        return {"enemies": sum(1 for frame in frames if frame == enemy), "markers": int(markers)}
+
+    def expect_compass_enemies(ctx, count=1, instance="client", seconds=10.0):
+        """A game's compass draws `count` enemy markers within `seconds` (compass_enemies); an unreadable HUD fails."""
+        tag = instance or "host"
+        seen = {}
+        def read():
+            seen["sample"] = ctx.compass_enemies(instance)
+            return seen["sample"] is not None and seen["sample"]["enemies"] == count
+        try:
+            ctx.wait_for(f"[{tag}] the compass shows {count} enemies", read, seconds)
+        except Exception:
+            raise ctx.failure(f"[{tag}] the compass shows {seen.get('sample')}, expected {count} enemies") from None
+        return seen["sample"]

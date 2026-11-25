@@ -206,7 +206,10 @@ struct PlayerCharacter : Actor
     uint32_t skillTrainingsThisLevel; // TrainingMenu::Train counts each training here
     uint8_t pad93C[0x9B8 - 0x93C];
     Skills** pSkills;
-    uint8_t pad9B8[0xAC8 - 0x9B8];
+    uint8_t pad9C0[0x9D8 - 0x9C0];
+    // CommonLib combatGroup: the player's own group, its targets every enemy it detects (41261 adds them)
+    struct CombatGroup* combatGroup;
+    uint8_t pad9E0[0xAC8 - 0x9D8];
     TESForm* locationForm;
     uint8_t padAC8[0x28];
     int32_t difficulty;
@@ -238,6 +241,7 @@ static_assert(offsetof(PlayerCharacter, firstPerson3D) == 0x8F0 + SkyrimRuntime:
 static_assert(offsetof(PlayerCharacter, playerMapMarker) == 0x92C + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, skillTrainingsThisLevel) == 0x938 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, pSkills) == 0x9B8 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, combatGroup) == 0x9D8 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, locationForm) == 0xAD0 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, baseTints) == 0xB18 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, overlayTints) == 0xB30 + SkyrimRuntime::PlayerShift);

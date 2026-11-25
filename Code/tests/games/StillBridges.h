@@ -773,8 +773,12 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept override
     {
     }
-    void SetCopiesFightingPlayer(uint32_t aCount) noexcept override
+    void SetCopyCombat(uint32_t aFormId, const CopyCombatFields& acFields) noexcept override
     {
+    }
+    CombatGroupRead GetCombatGroup(uint32_t aFormId) const noexcept override
+    {
+        return {};
     }
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override
     {

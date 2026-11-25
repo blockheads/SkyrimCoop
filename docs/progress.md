@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-25: **copies hold real combat controllers and groups** (`agent/compass-enemy-dots`, PR #130). A guest's
+compass showed no red enemy dots: the compass lists the members of combat groups targeting the player (41240), and a
+copy had none. Instead of another per-reader hook, a copy now holds a real controller and group filled from its
+owner's fight (the owner's AI state carries its group key and the session actors it targets; copies of one group
+share one), and the deciders are off for it (`UpdateCombat` 38565, the group's update 44703, the group primitives
+46873/46874 outside `Hold`). Deleted: the `IsInCombat` / `GetCombatState` hooks and their call-site list, the 41261
+fighting-player count, the 37273 target keeper. Every reader (compass, in-combat flag, regen rate, conditions,
+plugins) reads it natively (`docs/re/systems/combat-targets.md`, "A copy's combat"). GameTests `[compass]`,
+`[copy-combat]`, ClientTests `[CopyCombat]`; MCP verbs `compass_enemies`, `expect_compass_enemies`,
+`combat_targets_of`.
+
 2026-11-25: **friends get the host's mod setup through SkyrimModSync; our launcher and bundled zip are gone**
 (`agent/launcher-modpack`; [launcher.md](design/launcher.md)). A separate Rust CLI (`sms`, the SkyrimModSync project,
 branch `main`) publishes the host's MO2 profile as a signed pack (files by hash, load order, shared INI settings).
