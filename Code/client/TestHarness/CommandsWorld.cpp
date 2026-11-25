@@ -1,3 +1,4 @@
+#include "SkinReads.h"
 #include "HudMessages.h"
 #include "GraphStreamCheck.h"
 #include <map>
@@ -235,6 +236,13 @@ nlohmann::json BodyTraceCommand(Harness& aHarness, const nlohmann::json& acReque
 nlohmann::json Gait(Harness& aHarness, const nlohmann::json& acRequest)
 {
     return {{"ok", true}, {"actors", aHarness.Gait.Read(acRequest.value("seconds", 2.0))}};
+}
+
+// {"cmd": "skins", "actor": id}: how its skinned geometry is drawn (SkinReads), apart from its nodes.
+nlohmann::json Skins(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cRead = ReadSkins(acRequest.value("actor", 0u));
+    return {{"ok", !cRead.is_null()}, {"read", cRead}};
 }
 
 // {"cmd": "jitter", "start": true}, then {"cmd": "jitter"}, {"stop": true}: what turned back on itself frame by frame.
@@ -1327,6 +1335,7 @@ constexpr Command cCommands[] = {
     {"anim_trace", true, &AnimTrace},
     {"body_trace", true, &BodyTraceCommand},
     {"gait", true, &Gait},
+    {"skins", true, &Skins},
     {"jitter", true, &Jitter},
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},

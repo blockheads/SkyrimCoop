@@ -19,7 +19,7 @@ from .common import (
     SYNCED_QUEST_FLAGS,
 )
 from .errors import TestFailure
-from .comparisons import (GRAPH_PAIRS_REFRESH, GraphApart, SLIDE_DISTANCE, choose_pairs, active_states, compare_actors, graph_apart_line, head_track_one_sided, dialogue_differences, drawn_walks, refused_replays,
+from .comparisons import (skin_problems, GRAPH_PAIRS_REFRESH, GraphApart, SLIDE_DISTANCE, choose_pairs, active_states, compare_actors, graph_apart_line, head_track_one_sided, dialogue_differences, drawn_walks, refused_replays,
                           sliding_actors, unwatched_games)
 from .utilities import log
 
@@ -199,6 +199,16 @@ class Observations:
                                 f"{steps.get('hidden_frames', 0)}, process level {mod.get('process_level')}, "
                                 f"package {mod.get('package_type')})")
         return problems
+
+    def skins(ctx, name, instance="client", seconds=1.0):
+        """How `name`'s skinned geometry is drawn in one game, read twice `seconds` apart: {problems (skin_problems),
+        skins}. What a person sees, apart from the nodes every pose check reads."""
+        ref = ctx.resolve(name, "guest" if instance in ("client", "guest") else "host")
+        read = lambda: (ctx.player_command(instance, {"cmd": "skins", "actor": ref}) or {}).get("read")
+        before = read()
+        time.sleep(seconds)
+        now = read()
+        return {"problems": skin_problems(before, now), "skins": (now or {}).get("skins"), "was": (before or {}).get("skins")}
 
     def gait(ctx, instance="client", seconds=4.0):
         """That game's gait readout (GaitWatch) of the last `seconds`: per actor, units travelled, the feet's movement,

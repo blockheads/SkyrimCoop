@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
-from ..comparisons import drawn, frozen, looks_problems
+from ..comparisons import drawn, frozen, looks_problems, skin_problems
 from ..comparisons import body_problems, describe_world_differences, flatten
 from ..duo_lock import IDLE_MINUTES
 from ..errors import TestFailure
@@ -402,7 +402,7 @@ class ReproActions:
         other = "guest" if owner == "host" else "host"
         instance = {"host": "", "guest": "client"}
         watch = {"name": name, "owner": owner, "stop": threading.Event(), "samples": 0, "apart": [], "start": time.monotonic(),
-                 "lost": None}
+                 "lost": None, "shots": []}
 
         def arms(row):
             looks = row.get("looks") or {}
@@ -412,7 +412,7 @@ class ReproActions:
             return math.degrees(((row.get("placement") or {}).get("rotation") or [0, 0, 0])[2])
 
         def sample():
-            previous, missing = None, 0
+            previous, missing, skins_before = None, 0, None
             while not watch["stop"].is_set():
                 try:
                     mine = ctx.actor_row(instance[owner], ids[owner])
@@ -432,6 +432,16 @@ class ReproActions:
                     looks = looks_problems(theirs, mine)
                     if previous:
                         looks += frozen(previous[1], theirs, previous[0], mine)
+                    skins = (ctx.player_command(instance[other], {"cmd": "skins", "actor": ids[other]}) or {}).get("read")
+                    unmoved = skin_problems(skins_before, skins, drawn(theirs))
+                    looks += unmoved
+                    # Pieces are culled one by one: the screen says whether the actor was in frame.
+                    if len(unmoved) >= 3 and len(watch["shots"]) < 12:
+                        shot = ROOT / f"build/coop-test/mcp/skin-{ids[other]:08X}-{len(watch['shots']):02d}.png"
+                        subprocess.run(["import", "-display", ctx.game(instance[other]).display, "-window", "root",
+                                        "-crop", "1280x720+4+30", "+repage", str(shot)], timeout=10, check=False)
+                        watch["shots"].append([round(time.monotonic() - watch["start"], 2), str(shot)])
+                    skins_before = skins
                     if (apart or 0) > gap or turned > turn or looks:
                         watch["apart"].append({
                             "t": round(time.monotonic() - watch["start"], 2), "gap": round(apart or 0, 1),
@@ -459,7 +469,7 @@ class ReproActions:
         watch["thread"].join(5)
         ctx.copy_watch = None
         return {"name": watch["name"], "samples": watch["samples"], "seconds": round(time.monotonic() - watch["start"], 1),
-                "lost_at": watch["lost"], "count": len(watch["apart"]), "apart": watch["apart"][:limit]}
+                "lost_at": watch["lost"], "shots": watch["shots"], "count": len(watch["apart"]), "apart": watch["apart"][:limit]}
 
     def resolve(ctx, value, game):
         """A form id in that game for a handle name, "player", or a number (or hex string) as given."""

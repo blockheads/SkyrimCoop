@@ -6,7 +6,7 @@ import copy
 from coop_harness.common import log_time
 from coop_harness import smoothness
 from coop_harness.common import FORM_TYPE_NAMES
-from coop_harness.comparisons import compare_actors, dialogue_differences, reference_differences, refused_replays, world_differences
+from coop_harness.comparisons import skin_problems, compare_actors, dialogue_differences, reference_differences, refused_replays, world_differences
 
 
 EXPL_TYPE = next(k for k, v in FORM_TYPE_NAMES.items() if v == "EXPL")
@@ -419,3 +419,24 @@ class CopyLooks(unittest.TestCase):
     def test_the_looks_fields_are_never_compared_one_by_one(self):
         moved = dict(self.HANGING, motion=[0.0] * 6, fade=0.5)
         self.assertEqual(compare_actors(self.worlds(copy_looks=moved)), [])
+
+
+class SkinProblems(unittest.TestCase):
+    """A mesh frozen on a moving skeleton: nodes, pose and looks all agree (seen 2026-11-25)."""
+
+    def read(self, nodes="1", drawn="1", foreign=0):
+        return {"skins": [{"geometry": "Body", "bones": 40, "foreign_bones": foreign, "own_transforms": 40 - foreign,
+                           "transforms_here": 40 - foreign, "frames_behind": 0, "nodes": nodes, "drawn": drawn}]}
+
+    def test_a_skin_following_its_bones_is_fine(self):
+        self.assertEqual(skin_problems(self.read(), self.read("2", "2")), [])
+
+    def test_a_still_body_is_fine(self):
+        self.assertEqual(skin_problems(self.read(), self.read()), [])
+
+    def test_bones_moving_under_a_frozen_mesh_is_a_problem_only_on_screen(self):
+        self.assertEqual(len(skin_problems(self.read(), self.read("2", "1"))), 1)
+        self.assertEqual(skin_problems(self.read(), self.read("2", "1"), visible=False), [])
+
+    def test_bones_of_another_skeleton_are_a_problem_on_or_off_screen(self):
+        self.assertEqual(len(skin_problems(None, self.read(foreign=3), visible=False)), 1)

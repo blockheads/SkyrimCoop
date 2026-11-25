@@ -597,6 +597,21 @@ def frozen(copy_before, copy_now, owned_before, owned_now):
     return []
 
 
+def skin_problems(before, now, visible=True):
+    """Two reads of one actor's skins (harness `skins`) a moment apart: what is drawn not following the skeleton.
+    Nodes healthy and a mesh frozen agree in every other check (a skin draws from its own transform pointers, 77461).
+    `visible` False: off screen nothing rebuilds its matrices, only its binding is judged."""
+    problems, earlier = [], {s["geometry"]: s for s in (before or {}).get("skins", [])}
+    for skin in (now or {}).get("skins", []):
+        name, was = skin["geometry"] or "(unnamed)", earlier.get(skin["geometry"])
+        if skin["foreign_bones"]:
+            problems.append(f"skin {name}: {skin['foreign_bones']} of {skin['bones']} bones are another skeleton's")
+        if visible and was and was["nodes"] != skin["nodes"] and was["drawn"] == skin["drawn"]:
+            problems.append(f"skin {name}: its bones moved, what is drawn did not ({skin['frames_behind']} frames behind, "
+                            f"{skin['own_transforms']}/{skin['bones']} transforms its bones' own)")
+    return problems
+
+
 def player_distance(world, snapshot):
     """How far `snapshot` is from the player of the game `world` was read in: None when unknown or in another space
     (another interior cell, another worldspace: equal coordinates mean nothing there)."""
