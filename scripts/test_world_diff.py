@@ -350,13 +350,13 @@ class CopyLooks(unittest.TestCase):
     T_POSE = {"hidden": False, "fade": 1.0, "hand_span": 140.0, "shoulder_span": 30.0, "hand_drop": 2.0,
               "motion": [70.0, 0.0, 110.0, -70.0, 0.0, 110.0]}
 
-    def worlds(self, owner_looks=None, copy_looks=None, drawn=True, distance=300.0):
+    def worlds(self, owner_looks=None, copy_looks=None, drawn=True, distance=300.0, on_screen=None):
         actor = {"role": "own", "player": True, "identity": {"name": "Prisoner"}, "placement": {"position": [0, 0, 0]},
                  "looks": dict(owner_looks or self.HANGING),
                  "mod": {"session_id": 3, "components": ["Local"], "pose_visibility": {"drawn": True}}}
         duplicate = copy.deepcopy(actor)
         duplicate.update(role="copy", looks=dict(copy_looks or self.HANGING))
-        duplicate["mod"].update(components=["Remote", "Interpolation"], pose_visibility={"drawn": drawn})
+        duplicate["mod"].update(components=["Remote", "Interpolation"], pose_visibility={"drawn": drawn, "on_screen": drawn if on_screen is None else on_screen})
         player = {"role": "own", "player": True, "identity": {"name": "Guest"}, "placement": {"position": [distance, 0, 0]},
                   "mod": {"session_id": 4, "components": ["Local"]}}
         player_copy = copy.deepcopy(player)
@@ -416,6 +416,13 @@ class CopyLooks(unittest.TestCase):
         # Both still (a frozen staged NPC): nothing to tell.
         self.assertEqual(self.looks_keys(self.worlds(), before), [])
 
+    def test_off_screen_nothing_is_judged_by_bones_though_flagged_drawn(self):
+        # Seen 2026-11-25: kNotVisible stayed clear with the actor in none of nine frames.
+        self.assertEqual(self.looks_keys(self.worlds(copy_looks=self.T_POSE, on_screen=False)), [])
+        before = self.worlds(on_screen=False)
+        now = self.worlds(owner_looks=dict(self.HANGING, motion=[11.0, 5.0, 61.0, -10.0, 5.0, 60.0]), on_screen=False)
+        self.assertEqual(self.looks_keys(now, before), [])
+
     def test_the_looks_fields_are_never_compared_one_by_one(self):
         moved = dict(self.HANGING, motion=[0.0] * 6, fade=0.5)
         self.assertEqual(compare_actors(self.worlds(copy_looks=moved)), [])
@@ -424,19 +431,27 @@ class CopyLooks(unittest.TestCase):
 class SkinProblems(unittest.TestCase):
     """A mesh frozen on a moving skeleton: nodes, pose and looks all agree (seen 2026-11-25)."""
 
-    def read(self, nodes="1", drawn="1", foreign=0):
-        return {"skins": [{"geometry": "Body", "bones": 40, "foreign_bones": foreign, "own_transforms": 40 - foreign,
-                           "transforms_here": 40 - foreign, "frames_behind": 0, "nodes": nodes, "drawn": drawn}]}
+    def read(self, nodes=(1, 1, 1), drawn=(1, 1, 1), foreign=0, on_screen=True):
+        return {"skins": [{"geometry": "Body", "bones": len(nodes), "foreign_bones": foreign, "frames_behind": 0,
+                           "on_screen": on_screen, "bone_nodes": list(nodes), "bone_drawn": list(drawn)}]}
 
     def test_a_skin_following_its_bones_is_fine(self):
-        self.assertEqual(skin_problems(self.read(), self.read("2", "2")), [])
+        self.assertEqual(skin_problems(self.read(), self.read((2, 2, 2), (2, 2, 2))), [])
 
     def test_a_still_body_is_fine(self):
         self.assertEqual(skin_problems(self.read(), self.read()), [])
 
-    def test_bones_moving_under_a_frozen_mesh_is_a_problem_only_on_screen(self):
-        self.assertEqual(len(skin_problems(self.read(), self.read("2", "1"))), 1)
-        self.assertEqual(skin_problems(self.read(), self.read("2", "1"), visible=False), [])
+    def test_bones_moving_under_a_frozen_mesh_are_a_problem_only_on_screen(self):
+        self.assertEqual(len(skin_problems(self.read(), self.read((2, 2, 2)))), 1)
+        self.assertEqual(skin_problems(self.read(on_screen=False), self.read((2, 2, 2))), [])
+        self.assertEqual(skin_problems(self.read(), self.read((2, 2, 2), on_screen=False)), [])
+
+    def test_one_shoulder_drawn_moving_does_not_hide_the_frozen_rest(self):
+        found = skin_problems(self.read(), self.read((2, 2, 2), (2, 1, 1)))
+        self.assertIn("2 of its 3 moving bones", found[0])
+
+    def test_bones_not_of_this_skeleton_or_unmoved_are_not_judged(self):
+        self.assertEqual(skin_problems(self.read((1, 0, 1)), self.read((2, 0, 1), (2, 1, 1))), [])
 
     def test_bones_of_another_skeleton_are_a_problem_on_or_off_screen(self):
-        self.assertEqual(len(skin_problems(None, self.read(foreign=3), visible=False)), 1)
+        self.assertEqual(len(skin_problems(None, self.read(foreign=3, on_screen=False))), 1)

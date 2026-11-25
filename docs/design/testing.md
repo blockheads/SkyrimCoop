@@ -153,10 +153,12 @@ the desktop. `watch --instance both`, `screenshot`, `look`, `status`, `desync` a
 
 **How a copy looks** (2026-11-25): every desync check (`desync`, `expect agree`, each scenario's end) also judges a copy
 as its game's player would see it, from the snapshot's `looks` (`EngineReads::GetLooks`): hidden (its 3D's kHidden)
-while its owner is drawn; faded out (`BSFadeNode` fade 0) within 1,500 units of its game's player; a T-pose while drawn
-(hands held out at the upper arms' height, over 4x the shoulder width apart; standing idle reads hands 45-60 apart, 35-40
-below the upper arms, a kill move's stab about 3x. No real T-pose was measured: it may miss one); and, between two samples, a drawn copy whose
-hands hold still while its owner's move (its graph is not running). Data alone missed it: a host's copy stood in
+while its owner is drawn; faded out (`BSFadeNode` fade 0) within 1,500 units of its game's player; a T-pose while on screen (hands held out
+at the upper arms' height, over 4x the shoulder width apart; no real T-pose was measured: it may miss one); and, between
+two samples, hands that hold still while the owner's move. On screen is `pose_visibility.on_screen` (the bound's centre
+projected through the HUD's camera), checked against screenshots facing, away and at the frame's edge: `drawn`
+(kNotVisible) stays set off screen. None of these sees a mesh frozen on healthy nodes: the verb `skins` and `copy_watch`
+read what is drawn, bone by bone (`NiSkinInstance`, 77461). Data alone missed it: a host's copy stood in
 place, invisible and T-posed, with every field agreeing (`comparisons.looks_problems`, `frozen`).
 
 To play by hand, `play [--control host|guest] [--cell CELL]` (default the Sleeping Giant Inn) boots the duo with only

@@ -1,4 +1,5 @@
 #include "SkinReads.h"
+#include "EngineCalls.h"
 
 #include <Actor.h>
 #include <NetImmerse/BSGeometry.h>
@@ -51,7 +52,8 @@ nlohmann::json ReadSkins(uint32_t aFormId)
         EnterCriticalSection(&pSkin->lock);
         const uint32_t cCount = pSkin->skinData->boneCount;
         uint32_t foreignBones = 0, ownTransforms = 0, transformsOfHere = 0, noTransform = 0;
-        uint64_t nodes = cHashSeed;
+        const bool cMatrices = pSkin->boneMatrices && pSkin->matrixCount * 48 <= pSkin->allocatedSize;
+        std::vector<uint32_t> boneNodes, boneDrawn; // 0: not this 3D's, no matrix
         for (uint32_t i = 0; i < cCount; ++i)
         {
             // Read only when it is a node of this actor's 3D: a stale one may be freed.
@@ -62,11 +64,9 @@ nlohmann::json ReadSkins(uint32_t aFormId)
             noTransform += !pTransform;
             ownTransforms += cHere && pTransform == &pBone->world;
             transformsOfHere += pTransform && transformsHere.contains(pTransform);
-            if (cHere)
-                nodes = Hash(nodes, &pBone->world, sizeof(pBone->world));
+            boneNodes.push_back(cHere ? uint32_t(Hash(cHashSeed, &pBone->world, sizeof(pBone->world))) | 1u : 0u);
+            boneDrawn.push_back(cMatrices && i < pSkin->matrixCount ? uint32_t(Hash(cHashSeed, pSkin->boneMatrices + i * 12, 48)) | 1u : 0u);
         }
-        const bool cMatrices = pSkin->boneMatrices && pSkin->matrixCount * 48 <= pSkin->allocatedSize;
-        const uint64_t cDrawn = cMatrices ? Hash(cHashSeed, pSkin->boneMatrices, pSkin->matrixCount * 48) : 0;
         skins.push_back({{"geometry", pObject->name ? pObject->name : ""},
                          {"bones", cCount},
                          {"foreign_bones", foreignBones},
@@ -75,8 +75,9 @@ nlohmann::json ReadSkins(uint32_t aFormId)
                          {"no_transform", noTransform},
                          {"root_here", nodesHere.contains(pSkin->rootParent)},
                          {"frames_behind", *s_frame.Get() - pSkin->frameId},
-                         {"nodes", std::to_string(nodes)},
-                         {"drawn", std::to_string(cDrawn)},
+                         {"on_screen", EngineCalls::IsOnScreen(*pObject)},
+                         {"bone_nodes", boneNodes},
+                         {"bone_drawn", boneDrawn},
                          {"flags", pObject->flags}});
         LeaveCriticalSection(&pSkin->lock);
     }

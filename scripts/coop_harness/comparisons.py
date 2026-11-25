@@ -577,7 +577,7 @@ def looks_problems(copy_snapshot, owned, near=None):
         problems.append("looks: hidden (its 3D's kHidden) while its owner is drawn")
     if near is not None and near < FADE_NEAR and theirs.get("fade") == 0 and mine.get("fade", 1) != 0:
         problems.append(f"looks: faded out (fade 0) {near:.0f} units from its game's player")
-    if drawn(copy_snapshot) and t_posed(theirs) and not t_posed(mine):
+    if on_screen(copy_snapshot) and t_posed(theirs) and not t_posed(mine):
         problems.append(f"looks: holds a T-pose (hands {theirs['hand_span']:.0f} apart at the upper arms' height, "
                         f"{theirs['shoulder_span']:.0f} across the shoulders)")
     return problems
@@ -588,7 +588,7 @@ def frozen(copy_before, copy_now, owned_before, owned_now):
     def motion(snapshot):
         return (snapshot.get("looks") or {}).get("motion")
     moves = [motion(s) for s in (copy_before, copy_now, owned_before, owned_now)]
-    if None in moves or not (drawn(copy_before) and drawn(copy_now)):
+    if None in moves or not (on_screen(copy_before) and on_screen(copy_now)):
         return []
     copy_moved = max(abs(a - b) for a, b in zip(moves[0], moves[1]))
     owner_moved = max(abs(a - b) for a, b in zip(moves[2], moves[3]))
@@ -597,18 +597,22 @@ def frozen(copy_before, copy_now, owned_before, owned_now):
     return []
 
 
-def skin_problems(before, now, visible=True):
-    """Two reads of one actor's skins (harness `skins`) a moment apart: what is drawn not following the skeleton.
-    Nodes healthy and a mesh frozen agree in every other check (a skin draws from its own transform pointers, 77461).
-    `visible` False: off screen nothing rebuilds its matrices, only its binding is judged."""
+def skin_problems(before, now):
+    """Two reads of one actor's skins (harness `skins`) a moment apart: what is drawn not following the skeleton, bone
+    by bone, for pieces on screen in both (off screen nothing rebuilds their matrices). A skin draws from its own
+    transform pointers (77461), so nodes and pose can agree while the mesh stands still."""
     problems, earlier = [], {s["geometry"]: s for s in (before or {}).get("skins", [])}
     for skin in (now or {}).get("skins", []):
         name, was = skin["geometry"] or "(unnamed)", earlier.get(skin["geometry"])
         if skin["foreign_bones"]:
             problems.append(f"skin {name}: {skin['foreign_bones']} of {skin['bones']} bones are another skeleton's")
-        if visible and was and was["nodes"] != skin["nodes"] and was["drawn"] == skin["drawn"]:
-            problems.append(f"skin {name}: its bones moved, what is drawn did not ({skin['frames_behind']} frames behind, "
-                            f"{skin['own_transforms']}/{skin['bones']} transforms its bones' own)")
+        if not was or not (was["on_screen"] and skin["on_screen"]) or was["bones"] != skin["bones"]:
+            continue
+        moved = [i for i, (a, b) in enumerate(zip(was["bone_nodes"], skin["bone_nodes"])) if a and b and a != b]
+        still = [i for i in moved if was["bone_drawn"][i] and was["bone_drawn"][i] == skin["bone_drawn"][i]]
+        if still:
+            problems.append(f"skin {name}: {len(still)} of its {len(moved)} moving bones are drawn still "
+                            f"({skin['frames_behind']} frames behind)")
     return problems
 
 
@@ -739,6 +743,11 @@ def drawn(actor):
     (pose_visibility.drawn); kWasInFrustum (was_in_frustum) goes stale for an actor ProcessTracking skips."""
     seen = actor.get("mod", {}).get("pose_visibility", {})
     return seen.get("drawn", seen.get("was_in_frustum", True))
+
+
+def on_screen(actor):
+    """Whether the actor is in its game's frame (pose_visibility.on_screen). `drawn` stays set off screen."""
+    return bool(actor.get("mod", {}).get("pose_visibility", {}).get("on_screen"))
 
 
 def drawn_walks(gait):

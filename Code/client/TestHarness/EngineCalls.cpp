@@ -2780,6 +2780,14 @@ uint8_t GetReplayPhase(uint32_t aFormId) noexcept
     return pActor ? pActor->GetExtension()->Replay.Phase.load(std::memory_order_acquire) : 0;
 }
 
+bool IsOnScreen(const NiAVObject& acObject) noexcept
+{
+    constexpr float cEdge = 0.02f;
+    NiPoint3 screen;
+    return HUDMenuUtils::WorldPtToScreenPt3(acObject.worldBound.center, screen) && screen.z > 0.f && screen.x > cEdge &&
+           screen.x < 1.f - cEdge && screen.y > cEdge && screen.y < 1.f - cEdge;
+}
+
 std::optional<PoseVisibility> GetPoseVisibility(uint32_t aFormId) noexcept
 {
     auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
@@ -2788,7 +2796,7 @@ std::optional<PoseVisibility> GetPoseVisibility(uint32_t aFormId) noexcept
     // The 3D's kNotVisible is what Actor::ModifyAnimationUpdateData (38054) tests. CommonLib BOOL_BITS::kWasInFrustum
     // and HighActorCuller's low nibble (40335) are shown too.
     const NiAVObject* p3D = pActor->GetNiNode();
-    return PoseVisibility{p3D && !(p3D->flags & NiAVObject::kNotVisible), (pActor->flags1 & (1u << 21)) != 0,
+    return PoseVisibility{p3D && !(p3D->flags & NiAVObject::kNotVisible), (pActor->flags1 & (1u << 21)) != 0, p3D && IsOnScreen(*p3D),
                           pActor->cullingState & 0xFu, pActor->iLastSeenTime};
 }
 
