@@ -212,6 +212,8 @@ combat state     IsInCombat (38562) and GetCombatState (38556) hooked: the owner
                  often through EngagingInCombat 38563) get the copy's own
 combat target    Actor::currentCombatTarget (+0x104) written; the engine clears it again (open)
 player in combat 41261 hooked: copies fighting this game's player count as combat-group members
+compass enemies  41240 hooked: copies whose owner's combat group targets this game's player are added to its HUD
+                 enemy list (the state's GroupTargetPlayers, compass.md)
 furniture, follow target   not sent (no vanilla reader found); shown in the status's `ai`
 sit/sleep, talking         the owner's already, by replay
 alarmed          not carried (an engine-made package)

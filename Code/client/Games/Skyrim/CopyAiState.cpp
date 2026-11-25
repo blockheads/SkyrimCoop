@@ -10,10 +10,12 @@
 #include <CopyPackage.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
+#include <PlayerCharacter.h>
 #include <RTTI.h>
 #include <VersionDb.h>
 
 #include <intrin.h>
+#include <mutex>
 
 // The AI state a copy answers from its owner's where the engine asks an object, not a field
 // (docs/design/copy-contract.md, "AI state"; the fields are written by IActorBridge::SetCopyAiFields).
@@ -120,6 +122,39 @@ static void HookCountCombatTargetingPlayer(void* apCombatManager, uint32_t aCoun
     aCount[1] += s_copiesFightingPlayer.load(std::memory_order_relaxed);
 }
 
+static std::mutex s_compassEnemiesLock;
+static std::vector<uint32_t> s_compassEnemies;
+
+void CopyAiState::SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept
+{
+    std::scoped_lock lock(s_compassEnemiesLock);
+    s_compassEnemies = std::move(aFormIds);
+}
+
+using TUpdateActorsToDisplayOnHUD = void(PlayerCharacter*);
+static TUpdateActorsToDisplayOnHUD* RealUpdateActorsToDisplayOnHUD = nullptr;
+
+// 41240 lists the members of every combat group targeting the player, the compass's enemies (compass.md). Copies
+// have no groups: those fighting the party are added.
+static void HookUpdateActorsToDisplayOnHUD(PlayerCharacter* apPlayer)
+{
+    RealUpdateActorsToDisplayOnHUD(apPlayer);
+    std::scoped_lock lock(s_compassEnemiesLock);
+    auto& actors = apPlayer->actorsToDisplayOnTheHUD;
+    for (const uint32_t cFormId : s_compassEnemies)
+    {
+        auto* pActor = Cast<Actor>(TESForm::GetById(cFormId));
+        if (!pActor)
+            continue;
+        const uint32_t cHandle = pActor->GetHandle().handle.iBits;
+        if (!cHandle || std::find(actors.data, actors.data + actors.length, cHandle) != actors.data + actors.length)
+            continue;
+        const uint32_t cIndex = actors.length;
+        actors.Resize(cIndex + 1);
+        actors[cIndex] = cHandle;
+    }
+}
+
 uint8_t Actor::GetOwnCombatState() const noexcept
 {
     return RealGetCombatState ? static_cast<uint8_t>(RealGetCombatState(const_cast<Actor*>(this))) : 0;
@@ -162,4 +197,5 @@ static Hooks::Initializer s_copyAiStateHooks(
         HOOK_ID(38562, &RealIsInCombat, HookIsInCombat);
         HOOK_ID(38556, &RealGetCombatState, HookGetCombatState);
         HOOK_ID(41261, &RealCountCombatTargetingPlayer, HookCountCombatTargetingPlayer);
+        HOOK_ID(41240, &RealUpdateActorsToDisplayOnHUD, HookUpdateActorsToDisplayOnHUD);
     });

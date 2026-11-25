@@ -2365,6 +2365,18 @@ TEST_CASE("An actor's AI state carries the furniture it sits in", "[encoding.ai_
     CHECK(read.Furniture == AiTarget{});
 }
 
+TEST_CASE("An actor's AI state carries the players its combat group targets", "[encoding.ai_state]")
+{
+    ActorAiState state;
+    state.Combat = 1;
+    state.GroupTargetPlayers = {1, 300};
+    ActorAiState read;
+    REQUIRE(FromPartBytes(ToPartBytes(state), read));
+    CHECK(read == state);
+    REQUIRE(FromPartBytes(ToPartBytes(ActorAiState{}), read));
+    CHECK(read.GroupTargetPlayers.empty());
+}
+
 TEST_CASE("A spawn carries its actor's record and an ask names one part", "[encoding.record]")
 {
     NotifyCharacterSpawn spawn;

@@ -52,10 +52,13 @@ private:
     // The copy of that session id, if this game has it, takes its owner's state (the record's part). Returns the
     // actors the state names that are not here yet.
     [[nodiscard]] std::vector<uint32_t> ApplyToCopy(uint32_t aSessionId, const std::string& acBytes) noexcept;
+    // The copies fighting this game's player (its in-combat flag) and those whose group targets it (its compass).
     void CountCopiesFightingPlayer() noexcept;
     // A furniture's 3D, or a copy's own, loaded: each copy sitting in it takes its seat again, its graphs linked now
     // that both exist (Actor::LinkFurnitureGraphs; furniture-graphs.md).
     void RelinkSeats(uint32_t aFormId) noexcept;
+    // This game's player, or another player's copy.
+    [[nodiscard]] bool IsPlayer(uint32_t aFormId) const noexcept;
     // This game's fields as the session's state, and back.
     [[nodiscard]] ActorAiState ToState(const ActorAiFields& acFields) const noexcept;
     [[nodiscard]] ActorAiFields ToFields(const ActorAiState& acState) const noexcept;

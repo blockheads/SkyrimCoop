@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-24: **enemies are red dots on a guest's compass** (`agent/compass-enemy-dots`). The compass draws the members of
+every combat group targeting the player (41240); a guest's copies have no groups, so its compass showed none. The
+owner's AI state now carries the players an NPC's combat group targets (a hook on the group's update, 44703, marks
+the change), and each game adds the copies whose group targets its player (`docs/re/systems/compass.md`). Scenario
+`compass-enemies-on-guest`, GameTests `[compass]`, encoding round trip; MCP verbs `compass_enemies`,
+`expect_compass_enemies`.
+
 2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
 the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it
 into `PlayersHorse`, a stores-text alias, whose fill clears every named alias's cached name (read in IDA: 25052 ->

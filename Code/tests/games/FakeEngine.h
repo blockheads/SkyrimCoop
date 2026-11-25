@@ -1572,6 +1572,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
     void Fights(uint32_t aActor, uint32_t aTarget);
+    // Its combat group's targets change (44703, whose hook marks its members changed).
+    void GroupTargets(uint32_t aActor, std::vector<uint32_t> aTargets);
     // Actor::StartCombat (38561) as an attack runs it on its victim (AIProcess::StartAssault): the victim takes a combat
     // controller of its own, whose tree CombatUpdateJob (46902) runs. A copy refuses (HookStartCombat).
     void AttackedBy(uint32_t aVictim, uint32_t aAttacker);
@@ -1662,6 +1664,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ProcessTracking();
     uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
+    std::vector<uint32_t> CompassCopies; // the copies the 41240 hook adds
+    void SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept override { CompassCopies = std::move(aFormIds); }
+    // The compass's enemies (41240): this game's actors in combat whose group targets its player, then the hook's
+    // copies, which have no groups.
+    [[nodiscard]] std::vector<uint32_t> CompassEnemies() const;
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).
     void Burns(uint32_t aActor, uint32_t aEffect, bool aOn);
     std::map<uint32_t, uint32_t> EffectVisualFlags;

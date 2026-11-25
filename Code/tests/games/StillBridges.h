@@ -773,6 +773,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override
     {
     }
+    void SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept override
+    {
+    }
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override
     {
     }

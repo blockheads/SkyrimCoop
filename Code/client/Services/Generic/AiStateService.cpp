@@ -6,6 +6,7 @@
 #include <Bridges/IActorBridge.h>
 #include <Components/FormIdComponent.h>
 #include <Components/LocalComponent.h>
+#include <Components/PlayerComponent.h>
 #include <Components/RemoteComponent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/CopyAiStateEvent.h>
@@ -147,6 +148,7 @@ void AiStateService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_sent.clear();
     m_actorBridge.SetCopiesFightingPlayer(0);
+    m_actorBridge.SetCompassEnemies({});
 }
 
 std::vector<uint32_t> AiStateService::ApplyToCopy(uint32_t aSessionId, const std::string& acBytes) noexcept
@@ -169,6 +171,8 @@ std::vector<uint32_t> AiStateService::NotHere(const ActorAiState& acState) noexc
             missing.push_back(acTarget.SessionId);
     };
     cCheck(acState.CombatTarget);
+    for (const uint32_t cSessionId : acState.GroupTargetPlayers)
+        cCheck(AiTarget{cSessionId});
     std::ranges::for_each(acState.HeadTrack, cCheck);
     return missing;
 }
@@ -176,14 +180,31 @@ std::vector<uint32_t> AiStateService::NotHere(const ActorAiState& acState) noexc
 void AiStateService::CountCopiesFightingPlayer() noexcept
 {
     uint32_t count = 0;
+    std::vector<uint32_t> enemies;
     m_records.ForEach(RecordKind::kAiState, [&](uint32_t aSessionId, const std::string& acBytes) {
         const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
         ActorAiState state;
-        if (cFormId && m_actorBridge.IsActorCopy(cFormId) && FromPartBytes(acBytes, state) && state.Combat &&
-            ToFormId(state.CombatTarget) == cPlayerFormId)
+        if (!cFormId || !m_actorBridge.IsActorCopy(cFormId) || !FromPartBytes(acBytes, state) || !state.Combat)
+            return;
+        if (ToFormId(state.CombatTarget) == cPlayerFormId)
             ++count;
+        // 41240's test, its owner's group for its own: the group targets this game's player.
+        if (std::ranges::any_of(state.GroupTargetPlayers,
+                                [](uint32_t aPlayer) { return Utils::GetFormIdBySessionId(aPlayer) == cPlayerFormId; }))
+            enemies.push_back(cFormId);
     });
     m_actorBridge.SetCopiesFightingPlayer(count);
+    m_actorBridge.SetCompassEnemies(std::move(enemies));
+}
+
+bool AiStateService::IsPlayer(uint32_t aFormId) const noexcept
+{
+    if (aFormId == cPlayerFormId)
+        return true;
+    for (auto [cEntity, cPlayer, cForm] : m_world.view<PlayerComponent, FormIdComponent>().each())
+        if (cForm.Id == aFormId)
+            return true;
+    return false;
 }
 
 ActorAiState AiStateService::ToState(const ActorAiFields& acFields) const noexcept
@@ -196,6 +217,10 @@ ActorAiState AiStateService::ToState(const ActorAiFields& acFields) const noexce
     state.CombatTarget = ToTarget(acFields.CombatTargetId);
     std::ranges::transform(acFields.HeadTrackIds, state.HeadTrack.begin(), &AiStateService::ToTarget);
     state.Furniture = ToTarget(acFields.FurnitureId);
+    // Only the players: each game's compass asks whether its own player is among them.
+    for (const uint32_t cFormId : acFields.GroupTargetIds)
+        if (const auto cSessionId = Utils::GetSessionIdByFormId(cFormId); cSessionId && IsPlayer(cFormId))
+            state.GroupTargetPlayers.push_back(*cSessionId);
     return state;
 }
 
@@ -210,6 +235,9 @@ ActorAiFields AiStateService::ToFields(const ActorAiState& acState) const noexce
     fields.CombatTargetId = ToFormId(acState.CombatTarget);
     std::ranges::transform(acState.HeadTrack, fields.HeadTrackIds.begin(), &AiStateService::ToFormId);
     fields.FurnitureId = ToFormId(acState.Furniture);
+    for (const uint32_t cSessionId : acState.GroupTargetPlayers)
+        if (const uint32_t cFormId = Utils::GetFormIdBySessionId(cSessionId))
+            fields.GroupTargetIds.push_back(cFormId);
     return fields;
 }
 

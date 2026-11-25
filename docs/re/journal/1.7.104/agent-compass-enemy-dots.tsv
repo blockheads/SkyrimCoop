@@ -1,0 +1,31 @@
+time	op	id	rva	item
+2026-11-25T04:46:43Z	read	51668	0x9385b0	{"name": "Compass::Update"}
+2026-11-25T04:47:06Z	read		0x934997	{"name": "HUDMenu::sub_51612"}
+2026-11-25T04:48:08Z	read	41240	0x776a80	{"name": "sub_140776A80"}
+2026-11-25T04:49:09Z	read	51728	0x93c540	{"name": "sub_14093C540"}
+2026-11-25T04:49:14Z	read		0x65b2f1	{"name": "Main::sub_36592"}
+2026-11-25T04:49:15Z	read	44706	0x818c50	{"name": "CombatGroup__HasTarget"}
+2026-11-25T04:49:23Z	name	41240	0x776a80	{"addr": "0x140776a80", "name": "PlayerCharacter__UpdateActorsToDisplayOnHUD"}
+2026-11-25T04:49:23Z	name	51728	0x93c540	{"addr": "0x14093c540", "name": "HUDMarkerManager__AddMarker"}
+2026-11-25T04:49:23Z	name	51612	0x933180	{"addr": "0x140933180", "name": "HUDMenu__ProcessMessage"}
+2026-11-25T04:49:23Z	local	41240	0x776a80	{"func_addr": "0x140776a80", "old": "a1", "new": "player"}
+2026-11-25T04:49:23Z	local	41240	0x776a80	{"func_addr": "0x140776a80", "old": "v5", "new": "group"}
+2026-11-25T04:49:23Z	local	41240	0x776a80	{"func_addr": "0x140776a80", "old": "v1", "new": "hudActors"}
+2026-11-25T04:49:23Z	local	41240	0x776a80	{"func_addr": "0x140776a80", "old": "v13", "new": "memberHandle"}
+2026-11-25T04:49:23Z	local	51728	0x93c540	{"func_addr": "0x14093c540", "old": "a1", "new": "manager"}
+2026-11-25T04:49:23Z	local	51728	0x93c540	{"func_addr": "0x14093c540", "old": "a4", "new": "refHandle"}
+2026-11-25T04:49:23Z	local	51728	0x93c540	{"func_addr": "0x14093c540", "old": "a3", "new": "positions"}
+2026-11-25T04:49:33Z	comment	41240	0x776a80	{"addr": "0x140776a80", "comment": "41240. Rebuilds PlayerCharacter::actorsToDisplayOnTheHUDArray (+0x9E8, count +0x9F8): clears it, then every member (group+0x20, 12 bytes each, count +0x30) of every CombatManager group that has the player among its targets (CombatGroup__HasTarget 44706). Called once a frame by 36592 after the CombatManager update. The compass's enemy markers. SkyrimCoop: hooked, copies fighting the party appended (copies have no combat groups)."}
+2026-11-25T04:49:33Z	comment		0x65b2f1	{"addr": "0x14065b2f1", "comment": "Player's HUD enemy list (41240), after the CombatManager update (sub_140851A00)"}
+2026-11-25T04:49:33Z	comment	51728	0x93c540	{"addr": "0x14093c540", "comment": "51728 (CNO's HUDMarkerManager::AddMarker). Adds one compass marker for a ref handle: refuses past 48 markers (+0x14BC) and the player itself; no other filter (no detection, hostility or distance test)."}
+2026-11-25T04:49:33Z	comment		0x93484c	{"addr": "0x14093484c", "comment": "Compass enemy markers: the first 16 of the player's actorsToDisplayOnTheHUDArray (+0x9E8), each through AddMarker 51728 (CNO UpdateEnemies hook at +0x1735)"}
+2026-11-25T04:49:33Z	comment	44706	0x818c50	{"addr": "0x140818c50", "comment": "44706. Whether the group's targets (group+0x08, CombatTarget 0xA8 each, count +0x18; first field the handle) hold the actor, under the group's lock (+0x160)."}
+2026-11-25T04:50:18Z	read		0x91a600	{"name": "sub_1409194A0"}
+2026-11-25T05:11:13Z	read	44703	0x818570	{"name": "sub_140818570"}
+2026-11-25T05:13:00Z	read	46869	0x851910	{"name": "NiTPrimitiveArray_CombatGroup__::sub_46869"}
+2026-11-25T05:13:06Z	name	46869	0x851910	{"addr": "0x140851910", "name": "CombatManager__UpdateGroups"}
+2026-11-25T05:13:06Z	name	44703	0x818570	{"addr": "0x140818570", "name": "CombatGroup__Update"}
+2026-11-25T05:13:06Z	local	44703	0x818570	{"func_addr": "0x140818570", "old": "a1", "new": "group"}
+2026-11-25T05:13:08Z	comment	44703	0x818570	{"addr": "0x140818570", "comment": "44703. A combat group's update, under its write lock (+0x160): its targets' detection, adding and dropping targets (sub_140821830/930/A60/CE0), stealth points decay, search state. No event says its targets changed. SkyrimCoop: hooked (AiStateEvents), a change in its targets marks its members' AI state changed (compass.md)."}
+2026-11-25T05:13:08Z	comment	46869	0x851910	{"addr": "0x140851910", "comment": "46869. Main thread (from 36592 through sub_140851A00): each CombatManager group's update (44703), then PlayerCharacter::UpdateInCombat (41238)."}
+2026-11-25T05:23:09Z	comment	41240	0x776a80	{"addr": "0x140776a80", "comment": "41240. Rebuilds PlayerCharacter::actorsToDisplayOnTheHUDArray (+0x9E8, count +0x9F8): clears it, then every member (group+0x20, 12 bytes each, count +0x30) of every CombatManager group that has the player among its targets (CombatGroup__HasTarget 44706). Called once a frame by 36592 after the CombatManager update. The compass's enemy markers. SkyrimCoop: hooked, copies whose owner's group targets this game's player appended (copies have no combat groups; compass.md)."}

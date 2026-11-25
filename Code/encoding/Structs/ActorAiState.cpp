@@ -1,5 +1,8 @@
 #include <Structs/ActorAiState.h>
 #include <Wire/Serialization.h>
+#include <PartySize.h>
+
+#include <algorithm>
 
 using Wire::Serialization;
 
@@ -33,6 +36,9 @@ void ActorAiState::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     aWriter.WriteBits(cSits, 1);
     if (cSits)
         Furniture.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, GroupTargetPlayers.size());
+    for (const uint32_t cSessionId : GroupTargetPlayers)
+        Serialization::WriteVarInt(aWriter, cSessionId);
 }
 
 void ActorAiState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -55,4 +61,8 @@ void ActorAiState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Furniture = AiTarget{};
     if (sits)
         Furniture.Deserialize(aReader);
+    const auto cPlayers = std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxPartyPlayers);
+    GroupTargetPlayers.resize(cPlayers);
+    for (uint32_t& sessionId : GroupTargetPlayers)
+        sessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

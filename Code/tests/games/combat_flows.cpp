@@ -8,6 +8,7 @@ namespace
 constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kGuard = 0x0001A67C;
 constexpr uint32_t kFirebolt = 0x0001C789;
+constexpr uint32_t kFollower = 0x000A2C8E; // Lydia
 
 } // namespace
 
@@ -57,4 +58,38 @@ SCENARIO("A guest's fire bolt flies on the host's game", "[combat]")
         },
         "the host's copy of the guest launches the same bolt from the same place");
     THEN("the guest's own bolt is not sent back to it") CHECK(guest.Shots.size() == 1);
+}
+
+SCENARIO("A host NPC whose combat group targets a player is an enemy on that player's compass", "[combat][compass]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+
+    uint32_t wolf = 0, follower = 0;
+    party.As(party.Host(), [&] {
+        wolf = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f});
+        follower = host.LoadNpc(kFollower, kSmoke, {60.f, 40.f, 0.f});
+    });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1 && PlayerCopy(host) != 0; },
+                "each game has the other's actors");
+    const auto cCopy = [&] { return guest.CopiesOf(kGuard)[0]; };
+
+    // Skyrim (compass-enemies-on-guest): the wolf bit the follower while its group targeted the host.
+    party.As(party.Host(), [&] {
+        host.Fights(wolf, follower);
+        host.GroupTargets(wolf, {follower, FakeEngine::kPlayer});
+    });
+    party.Until([&] { return host.CompassEnemies() == std::vector{wolf}; }, "the host's compass shows the wolf");
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    CHECK(guest.CompassEnemies().empty()); // its group has not seen the guest
+
+    party.As(party.Host(), [&] { host.GroupTargets(wolf, {follower, FakeEngine::kPlayer, PlayerCopy(host)}); });
+    party.Until([&] { return guest.CompassEnemies() == std::vector{cCopy()}; },
+                "the guest's compass shows the wolf once its group targets the guest");
+
+    party.As(party.Host(), [&] { host.Fights(wolf, 0); });
+    party.Until([&] { return host.CompassEnemies().empty() && guest.CompassEnemies().empty(); },
+                "the fight ends on both compasses");
 }

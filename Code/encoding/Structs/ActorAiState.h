@@ -2,6 +2,7 @@
 
 #include <Structs/GameId.h>
 #include <array>
+#include <vector>
 #include <Wire/Buffer.h>
 
 // An actor in the session (its session id) or a reference from the game's data; both empty: none.
@@ -36,4 +37,6 @@ struct ActorAiState
     std::array<AiTarget, 6> HeadTrack{};
     // The furniture it sits or sleeps in (Actor::GetOccupiedFurniture 38708); empty: none.
     AiTarget Furniture{};
+    // The players (session ids) its combat group targets (CombatGroup targets, 44706): it is on their compass.
+    std::vector<uint32_t> GroupTargetPlayers{};
 };

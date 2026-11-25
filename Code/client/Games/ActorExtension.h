@@ -42,6 +42,8 @@ struct ActorExtension
     // Its headtrack slots (HighProcessData::headTrackTarget, form ids): a copy's owner's, put in before the engine
     // reads them; an owner's last sent (AiStateEvents' ProcessTracking hook).
     std::array<std::atomic<uint32_t>, 6> HeadTrack{};
+    // An owner's combat group's targets as last sent (a hash; AiStateEvents' CombatGroup update hook).
+    std::atomic<uint64_t> GroupTargetsSent{0};
     // A copy: the furniture its graphs are linked to (Actor::LinkFurnitureGraphs), 0 none, and the two graph managers
     // linked: a new manager on either side (a reload) is linked again.
     uint32_t LinkedFurniture = 0;

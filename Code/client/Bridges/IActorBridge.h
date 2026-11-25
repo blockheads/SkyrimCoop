@@ -40,6 +40,8 @@ struct ActorAiFields
     std::array<uint32_t, 6> HeadTrackIds{};
     // The furniture it sits or sleeps in (38708), 0 none. A copy's has its graph linked as 39912 links an owner's.
     uint32_t FurnitureId{};
+    // Its combat group's targets (CombatGroup targets, 44706): the compass shows it to a player among them (41240).
+    std::vector<uint32_t> GroupTargetIds{};
 };
 
 // An actor's state beside its graph (one-simulator.md, piece 2): this game's form ids, 0 for none.
@@ -290,6 +292,8 @@ public:
     virtual void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept = 0;
     // The copies fighting this game's player: it counts as in combat from them.
     virtual void SetCopiesFightingPlayer(uint32_t aCount) noexcept = 0;
+    // The copies fighting the party: this game's compass shows them as enemies.
+    virtual void SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept = 0;
 
     // --- Animation variables ---
     virtual void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept = 0;
