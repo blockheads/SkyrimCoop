@@ -69,7 +69,7 @@ struct ActorExtension
     void EnsureCurrent() noexcept;
 
   private:
-    uint32_t onlineFlags{0};
+    std::atomic<uint32_t> onlineFlags{0}; // read on the combat job (CopyCombatGroups::HeldByOwners)
     // Last: written after everything else when an extension is (re)made.
     uint32_t m_generation{CurrentGeneration()};
 };

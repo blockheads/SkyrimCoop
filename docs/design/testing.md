@@ -154,8 +154,8 @@ the desktop. `watch --instance both`, `screenshot`, `look`, `status`, `desync` a
 **How a copy looks** (2026-11-25): every desync check (`desync`, `expect agree`, each scenario's end) also judges a copy
 as its game's player would see it, from the snapshot's `looks` (`EngineReads::GetLooks`): hidden (its 3D's kHidden)
 while its owner is drawn; faded out (`BSFadeNode` fade 0) within 1,500 units of its game's player; a T-pose while drawn
-(hands held out at the upper arms' height, over 3x the shoulder width apart: a graph that does not run leaves the bind
-pose; standing idle reads hands 45-60 apart, 35-40 below the upper arms); and, between two samples, a drawn copy whose
+(hands held out at the upper arms' height, over 4x the shoulder width apart; standing idle reads hands 45-60 apart, 35-40
+below the upper arms, a kill move's stab about 3x. No real T-pose was measured: it may miss one); and, between two samples, a drawn copy whose
 hands hold still while its owner's move (its graph is not running). Data alone missed it: a host's copy stood in
 place, invisible and T-posed, with every field agreeing (`comparisons.looks_problems`, `frozen`).
 

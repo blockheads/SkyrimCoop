@@ -15,6 +15,7 @@
 #include <VersionDb.h>
 
 #include <unordered_map>
+#include <vector>
 
 // A copy holds a real controller and group filled from its owner's fight; nothing on this game decides for it
 // (docs/re/systems/combat-targets.md, "A copy's combat").
@@ -25,50 +26,37 @@ CombatManager* CombatManager::Get() noexcept
     return *s_manager.Get();
 }
 
-CombatGroup* CombatManager::GetGroup(uint32_t aGroupId) const noexcept
-{
-    BSReadLockGuard guard(const_cast<BSReadWriteLock&>(lock)); // the combat job adds and frees groups
-    for (uint16_t i = 0; i < usedCount; ++i)
-        if (groups[i] && groups[i]->groupID == aGroupId)
-            return groups[i];
-    return nullptr;
-}
-
 namespace
 {
 thread_local bool s_holding = false;
-// The owner's group key -> this game's group its copies hold (main thread: SetCopyCombat). A group id is the slot it
-// took (46899) and is reused: OwnersGroup checks its members still hold the key.
-std::unordered_map<uint64_t, uint32_t> s_groups;
+// The owner's group key -> the copies holding it (main thread: SetCopyCombat). Their controllers lead to the group:
+// the manager's array is not read (the combat job grows it without a lock, 46899).
+std::unordered_map<uint64_t, std::vector<uint32_t>> s_holders;
 
 using TStartCombatGroup = CombatController*(CombatManager*, Actor*, Actor* apTarget);
 using TJoinCombatGroup = CombatController*(CombatManager*, Actor*, CombatGroup*);
 TStartCombatGroup* RealStartCombatGroup = nullptr;
 TJoinCombatGroup* RealJoinCombatGroup = nullptr;
 
-CombatGroup* OwnersGroup(CombatManager& aManager, uint64_t aKey) noexcept
+// StartCombat's spinlock (403935) around the group primitives and storing the controller, taken as it does.
+struct StartLock
 {
-    const auto cIt = aKey ? s_groups.find(aKey) : s_groups.end();
-    CombatGroup* pGroup = cIt != s_groups.end() ? aManager.GetGroup(cIt->second) : nullptr;
-    if (!pGroup)
-        return nullptr;
-    BSReadLockGuard lock(pGroup->lock);
-    for (const CombatMember& cMember : pGroup->members)
-        if (auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(cMember.hMember.handle.iBits)))
-            return pActor->GetExtension()->IsCopy() && pActor->GetExtension()->OwnerCombatGroup == aKey ? pGroup : nullptr;
-    return nullptr;
-}
-
-struct HoldScope
-{
-    HoldScope() noexcept
+    StartLock() noexcept
     {
+        POINTER_SKYRIMSE(volatile long, s_lock, 403935);
+        m_pLock = s_lock.Get();
+        while (_InterlockedCompareExchange(m_pLock, 1, 0) != 0)
+            Sleep(0);
         s_holding = true;
     }
-    ~HoldScope()
+    ~StartLock()
     {
         s_holding = false;
+        _InterlockedExchange(m_pLock, 0);
     }
+
+private:
+    volatile long* m_pLock;
 };
 
 Actor* ActorById(uint32_t aFormId) noexcept
@@ -76,11 +64,32 @@ Actor* ActorById(uint32_t aFormId) noexcept
     return aFormId ? Cast<Actor>(TESForm::GetById(aFormId)) : nullptr;
 }
 
-// 46873 / 46874 return the controller; StartCombat stores it (0x1406C9755), so Hold does too.
-void Take(Actor& aCopy, CombatController* apController) noexcept
+CombatGroup* GroupOf(const Actor& acActor) noexcept
 {
-    if (apController && !aCopy.pCombatController)
-        aCopy.pCombatController = apController;
+    return acActor.pCombatController ? acActor.pCombatController->pCombatGroup : nullptr;
+}
+
+// A copy still holding the key leads to its group.
+CombatGroup* OwnersGroup(uint64_t aKey) noexcept
+{
+    const auto cIt = aKey ? s_holders.find(aKey) : s_holders.end();
+    if (cIt == s_holders.end())
+        return nullptr;
+    auto& holders = cIt->second;
+    std::erase_if(holders, [aKey](uint32_t aFormId) {
+        Actor* pActor = ActorById(aFormId);
+        return !pActor || !pActor->GetExtension()->IsCopy() || pActor->GetExtension()->OwnerCombatGroup != aKey ||
+               !GroupOf(*pActor);
+    });
+    return holders.empty() ? nullptr : GroupOf(*ActorById(holders.front()));
+}
+
+void Stop(Actor& aCopy) noexcept
+{
+    using TStopCombat = void(Actor*);
+    POINTER_SKYRIMSE(TStopCombat, s_stopCombat, 38566);
+    s_stopCombat(&aCopy);
+    aCopy.GetExtension()->OwnerCombatGroup = 0;
 }
 
 std::vector<uint32_t> TargetsOf(CombatGroup& aGroup) noexcept
@@ -127,8 +136,10 @@ bool HeldByOwners(const CombatGroup& acGroup) noexcept
         return false;
     for (const CombatMember& cMember : acGroup.members)
     {
+        // A member taken for a kill move stays its owner's fight's (KillHeld): the rest are not pruned meanwhile.
         auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(cMember.hMember.handle.iBits));
-        if (!pActor || !pActor->GetExtension()->IsCopy())
+        const auto* pExtension = pActor ? pActor->GetExtension() : nullptr;
+        if (!pExtension || !(pExtension->IsCopy() || pExtension->KillHeld.load(std::memory_order_acquire)))
             return false;
     }
     return true;
@@ -139,44 +150,45 @@ void Hold(Actor& aCopy, const CopyCombatFields& acFields) noexcept
     CombatManager* pManager = CombatManager::Get();
     if (!pManager)
         return;
-    CombatGroup* pOwnerGroup = OwnersGroup(*pManager, acFields.GroupKey);
+    auto* pExtension = aCopy.GetExtension();
     Actor* pFirstTarget = ActorById(acFields.TargetId);
     for (size_t i = 0; !pFirstTarget && i < acFields.GroupTargetIds.size(); ++i)
         pFirstTarget = ActorById(acFields.GroupTargetIds[i]);
 
-    const HoldScope cHolding;
-    switch (CopyCombat::Next(acFields.State, aCopy.pCombatController != nullptr, pOwnerGroup != nullptr,
-                             pFirstTarget != nullptr))
     {
-    case CopyCombat::Step::kStop: {
-        using TStopCombat = void(Actor*);
-        POINTER_SKYRIMSE(TStopCombat, s_stopCombat, 38566);
-        s_stopCombat(&aCopy);
-        aCopy.GetExtension()->OwnerCombatGroup = 0;
-        return;
-    }
-    case CopyCombat::Step::kStart:
-        Take(aCopy, RealStartCombatGroup(pManager, &aCopy, pFirstTarget));
-        break;
-    case CopyCombat::Step::kJoin:
-        Take(aCopy, RealJoinCombatGroup(pManager, &aCopy, pOwnerGroup));
-        break;
-    case CopyCombat::Step::kNone:
-        break;
-    }
+        const StartLock cLock;
+        CombatGroup* pOwnerGroup = OwnersGroup(acFields.GroupKey);
+        auto step = CopyCombat::Next(acFields.GroupKey, pExtension->OwnerCombatGroup, aCopy.pCombatController != nullptr,
+                                     pOwnerGroup != nullptr, pFirstTarget != nullptr);
+        if (step == CopyCombat::Step::kStop)
+        {
+            // Its owner left the group, or a controller from another key (a fight it had while this game's).
+            Stop(aCopy);
+            step = CopyCombat::Next(acFields.GroupKey, 0, false, pOwnerGroup != nullptr, pFirstTarget != nullptr);
+        }
+        // 46873 / 46874 return the controller; StartCombat stores it (0x1406C9755).
+        CombatController* pNew = nullptr;
+        if (step == CopyCombat::Step::kStart)
+            pNew = RealStartCombatGroup(pManager, &aCopy, pFirstTarget);
+        else if (step == CopyCombat::Step::kJoin)
+            pNew = RealJoinCombatGroup(pManager, &aCopy, pOwnerGroup);
+        if (pNew && !aCopy.pCombatController)
+            aCopy.pCombatController = pNew;
 
-    CombatController* pController = aCopy.pCombatController;
-    if (!pController || !pController->pCombatGroup)
-        return;
-    CombatGroup& group = *pController->pCombatGroup;
-    aCopy.GetExtension()->OwnerCombatGroup = acFields.GroupKey;
-    if (acFields.GroupKey)
-        s_groups[acFields.GroupKey] = group.groupID;
-    MatchTargets(aCopy, group, acFields.GroupTargetIds);
-    {
-        BSWriteLockGuard lock(group.lock);
-        group.searchState = CopyCombat::SearchState(acFields.State);
+        CombatGroup* pGroup = GroupOf(aCopy);
+        if (!pGroup)
+            return;
+        pExtension->OwnerCombatGroup = acFields.GroupKey;
+        auto& holders = s_holders[acFields.GroupKey];
+        if (std::ranges::find(holders, aCopy.formID) == holders.end())
+            holders.push_back(aCopy.formID);
+        MatchTargets(aCopy, *pGroup, acFields.GroupTargetIds);
+        BSWriteLockGuard lock(pGroup->lock);
+        pGroup->searchState = CopyCombat::SearchState(acFields.State);
     }
+    CombatController* pController = aCopy.pCombatController;
+    // A member out of combat stays in its group, as its owner does (41240 lists it): IsInCombat reads +0x43.
+    pController->inactive = CopyCombat::Inactive(acFields.State);
     Actor* pTarget = ActorById(acFields.TargetId);
     if (pController->targetHandle != (pTarget ? pTarget->GetHandle().handle.iBits : 0))
         pController->SetTarget(pTarget); // 33235, writes Actor::currentCombatTarget too
@@ -207,18 +219,20 @@ CombatController* HookJoinCombatGroup(CombatManager* apManager, Actor* apActor, 
     return RealJoinCombatGroup(apManager, apActor, apGroup);
 }
 
-using TUpdateCombat = uintptr_t(Actor*, uintptr_t);
+using TUpdateCombat = void(Actor*);
 TUpdateCombat* RealUpdateCombat = nullptr;
 
-// Actor::UpdateCombat (38565, CombatUpdateJob 46902): the target pick, the stop check and the behaviour tree; all
-// deciders, none for a copy. Its tail, UpdateCombatSearchState (37273), is bookkeeping (+0x104, flags2 0x4000): kept.
-uintptr_t HookUpdateCombat(Actor* apActor, uintptr_t aArg)
+// Actor::UpdateCombat (38565, CommonLib void UpdateCombat()): the deciders are not run for a copy; its guard and its
+// tail, UpdateCombatSearchState (37273: +0x104, kSearchingInCombat), are.
+void HookUpdateCombat(Actor* apActor)
 {
     if (!apActor->GetExtension()->IsCopy())
-        return RealUpdateCombat(apActor, aArg);
-    using TUpdateSearchState = uintptr_t(Actor*);
+        return RealUpdateCombat(apActor);
+    if (CopyCombat::SkipsUpdate(apActor->flags))
+        return;
+    using TUpdateSearchState = void(Actor*);
     POINTER_SKYRIMSE(TUpdateSearchState, s_updateSearchState, 37273);
-    return s_updateSearchState(apActor);
+    s_updateSearchState(apActor);
 }
 
 Hooks::Initializer s_copyCombatGroupHooks([]() {

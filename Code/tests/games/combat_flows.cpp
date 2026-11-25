@@ -95,8 +95,12 @@ SCENARIO("A host NPC whose combat group targets a player is an enemy on that pla
         host.GroupTargets(wolf, {FakeEngine::kPlayer, PlayerCopy(host)});
     });
     CHECK(host.GetActorAiFields(wolf).CombatState == 0);
-    party.Until([&] { return host.CompassEnemies() == std::vector{wolf} && guest.CompassEnemies() == std::vector{cCopy()}; },
-                "both compasses keep the wolf its group still sets on the players");
+    party.Until([&] { return guest.GetActorAiFields(cCopy()).CombatState == 0; }, "the guest has the wolf's state 0");
+    THEN("both compasses keep the wolf its group still sets on the players")
+    {
+        CHECK(host.CompassEnemies() == std::vector{wolf});
+        CHECK(guest.CompassEnemies() == std::vector{cCopy()});
+    }
 
     party.As(party.Host(), [&] { host.GroupTargets(wolf, {}); });
     party.Until([&] { return host.CompassEnemies().empty() && guest.CompassEnemies().empty(); },

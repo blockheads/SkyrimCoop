@@ -36,7 +36,7 @@ struct CombatController
     bool stoppedCombat;
     bool unk41;
     bool ignoringCombat;
-    bool inactive;
+    bool inactive; // IsInCombat (38562): in combat while clear
     float unk44;
     float unk4C;
     GameArray<void*> aimControllers;
@@ -57,6 +57,7 @@ struct CombatController
 static_assert(offsetof(CombatController, attackerHandle) == 0x28);
 static_assert(offsetof(CombatController, targetHandle) == 0x2C);
 static_assert(offsetof(CombatController, startedCombat) == 0x35);
+static_assert(offsetof(CombatController, inactive) == 0x43); // IsInCombat (38562) reads it
 static_assert(offsetof(CombatController, targetSelectors) == 0xA0);
 static_assert(offsetof(CombatController, pActiveTargetSelector) == 0xB8);
 static_assert(offsetof(CombatController, handleCount) == 0xC8);

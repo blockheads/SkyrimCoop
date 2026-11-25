@@ -598,10 +598,18 @@ def frozen(copy_before, copy_now, owned_before, owned_now):
 
 
 def player_distance(world, snapshot):
-    """How far `snapshot` is from the player of the game `world` was read in, None unknown."""
-    player = world.get("20") or {}
-    here, there = (player.get("placement") or {}).get("position"), (snapshot.get("placement") or {}).get("position")
-    return math.dist(here, there) if here and there else None
+    """How far `snapshot` is from the player of the game `world` was read in: None when unknown or in another space
+    (another interior cell, another worldspace: equal coordinates mean nothing there)."""
+    player = (world.get("20") or {}).get("placement") or {}
+    actor = snapshot.get("placement") or {}
+    here, there = player.get("position"), actor.get("position")
+    if not here or not there:
+        return None
+    if (player.get("worldspace") or actor.get("worldspace")) and player.get("worldspace") != actor.get("worldspace"):
+        return None
+    if not player.get("worldspace") and player.get("cell") != actor.get("cell"):
+        return None
+    return math.dist(here, there)
 
 
 def describe_actor(snapshot, form_id, game):

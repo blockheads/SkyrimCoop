@@ -401,7 +401,8 @@ class ReproActions:
             raise ctx.failure(f"copy_watch: no game owns {name} ({ids})")
         other = "guest" if owner == "host" else "host"
         instance = {"host": "", "guest": "client"}
-        watch = {"name": name, "owner": owner, "stop": threading.Event(), "samples": 0, "apart": [], "start": time.monotonic()}
+        watch = {"name": name, "owner": owner, "stop": threading.Event(), "samples": 0, "apart": [], "start": time.monotonic(),
+                 "lost": None}
 
         def arms(row):
             looks = row.get("looks") or {}
@@ -411,10 +412,18 @@ class ReproActions:
             return math.degrees(((row.get("placement") or {}).get("rotation") or [0, 0, 0])[2])
 
         def sample():
-            previous = None
+            previous, missing = None, 0
             while not watch["stop"].is_set():
-                mine = ctx.actor_row(instance[owner], ids[owner])
-                theirs = ctx.actor_row(instance[other], ids[other])
+                try:
+                    mine = ctx.actor_row(instance[owner], ids[owner])
+                    theirs = ctx.actor_row(instance[other], ids[other])
+                except Exception:  # a game gone
+                    mine = theirs = None
+                # The actor gone from either game, or the games: the watch ends and says when.
+                missing = 0 if mine and theirs else missing + 1
+                if missing >= 20:
+                    watch["lost"] = round(time.monotonic() - watch["start"], 2)
+                    return
                 if mine and theirs:
                     watch["samples"] += 1
                     here, there = (mine.get("placement") or {}).get("position"), (theirs.get("placement") or {}).get("position")
@@ -441,7 +450,8 @@ class ReproActions:
         return {"watching": name, "owner": owner, "ids": ids}
 
     def copy_watch_read(ctx, limit=40):
-        """Stops copy_watch_start's watch: {samples, seconds, apart: the first `limit` moments apart, count}."""
+        """Stops copy_watch_start's watch: {samples, seconds, lost_at (the actor or a game gone, None), apart: the first
+        `limit` moments apart, count}."""
         watch = getattr(ctx, "copy_watch", None)
         if not watch:
             return None
@@ -449,7 +459,7 @@ class ReproActions:
         watch["thread"].join(5)
         ctx.copy_watch = None
         return {"name": watch["name"], "samples": watch["samples"], "seconds": round(time.monotonic() - watch["start"], 1),
-                "count": len(watch["apart"]), "apart": watch["apart"][:limit]}
+                "lost_at": watch["lost"], "count": len(watch["apart"]), "apart": watch["apart"][:limit]}
 
     def resolve(ctx, value, game):
         """A form id in that game for a handle name, "player", or a number (or hex string) as given."""

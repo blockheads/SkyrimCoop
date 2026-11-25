@@ -384,6 +384,14 @@ class CopyLooks(unittest.TestCase):
         # Far off, the distance fade is the engine's.
         self.assertEqual(self.looks_keys(self.worlds(copy_looks=dict(self.HANGING, fade=0.0), drawn=False, distance=5000)), [])
 
+    def test_a_fade_in_another_interior_is_not_judged(self):
+        worlds = self.worlds(copy_looks=dict(self.HANGING, fade=0.0), drawn=False, distance=0.0)
+        worlds["client"]["20"]["placement"]["cell"] = 0x31D2E
+        worlds["client"]["200"]["placement"]["cell"] = 0x3D4A1
+        self.assertEqual(self.looks_keys(worlds), [])
+        worlds["client"]["200"]["placement"]["cell"] = 0x31D2E
+        self.assertEqual(len(self.looks_keys(worlds)), 1)
+
     def test_a_drawn_t_pose_is_a_desync_and_a_culled_one_is_not_judged(self):
         found = self.looks_keys(self.worlds(copy_looks=self.T_POSE))
         self.assertEqual(len(found), 1)

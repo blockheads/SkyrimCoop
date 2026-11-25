@@ -92,12 +92,10 @@ The deciders, each read and gated for copies:
   combat head-track slot, and the only route to `CombatBehaviorController::Update` (through 0x1405609E0 /
   0x140560820). Skipped for a copy. The tree is built once by `CombatController__StartBehaviorTree` (0x140563850) and
   never stepped: measured, no equip attempt or path from a fighting copy.
-- Its tail, `Actor::UpdateCombatSearchState` (37273), is bookkeeping and still runs for a copy: `+0x104` := the
-  controller's target, boolBits (`+0xE8`) `kSearchingInCombat` := the group searching (0x140561310). Measured
-  (duo, 2026-11-25, `kill_move_on` A/B against dev's build and with hook files off): skipping it too stopped every
-  player's kill moves on both games (`kill-moves-every` 242 wrong); running it restored them. Which reader of the
-  two fields the kill move pick needs is not yet read: on the host no copy held a controller at the swing, so the
-  consumer is not the obvious one (open).
+- Its tail, `Actor::UpdateCombatSearchState` (37273), is bookkeeping and still runs for a copy (read): `+0x104` := the
+  controller's target, boolBits (`+0xE8`) `kSearchingInCombat` := the group searching (0x140561310). **Not shown:** that
+  it matters to kill moves. An A/B said so on 2026-11-25 and was void (the edit never applied and nothing was built: the
+  kill move failed and then played on one DLL). Kill moves failed in some boots and played in others; cause open.
 - `CombatGroup__Update` (44703, on the combat job through 46869): detection of the targets, and
   `CombatGroup__RemoveStaleTargets` (44803) drops a target LOST past its timeouts on this game's detection. Not run
   for a group whose members are all copies (`HeldByOwners`): its targets stay its owners'.
@@ -107,6 +105,21 @@ The deciders, each read and gated for copies:
 - `Actor::StartCombat` (38561) stays refused for a copy: it also ends packages, equips and leaves the scene.
 - `CanAttackActor` (37532) reads the actor's cached knowledge (`ShouldAttack` 37534), which a copy (no AI) lacks:
   measured, 46873 refused every copy. Inside `Hold` it answers yes; the owner's fight decided it.
+
+Rules from the PR #130 review (read in IDA 1.7.104):
+
+- **The engine's lock.** `StartCombat` holds a spinlock (403935, cmpxchg 0 -> 1 at 0x1406C9505, released at 0x1406C9808)
+  around 46873/46874 and storing the controller. `Hold` takes it the same way. A copy group is found through a member
+  copy's controller, never the manager's array: the combat job grows that without its +0x18 lock (46899 -> 0x140854A60),
+  and a group's id is the slot it took, reused.
+- **Membership follows the owner's group, not its combat state.** 41240 lists a member out of combat too. A copy stays
+  in its owner's group while it has one; its controller's `inactive` byte (+0x43, what `IsInCombat` 38562 reads)
+  mirrors the owner's state 0.
+- **Ownership changes.** A copy whose controller holds another key (a fight it had while this game's, a key change) is
+  stopped and rejoins its owner's group. A member taken for a kill move (`KillHeld`) still counts as its owners', so
+  44703 does not prune the rest of the group meanwhile.
+- **38565's guard.** CommonLib's `void UpdateCombat()`; for a form flagged 0x200000 it returns before its 37273 tail
+  (0x1406C990F), and so does a copy's.
 
 A player's copy holds its player's own group (`PlayerCharacter::combatGroup`, +0x9E0 on 1.7.104, the enemies 41261
 adds): the player has no controller, so its copy reads in combat as its player does (the regen rate, conditions).

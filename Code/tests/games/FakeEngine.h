@@ -1590,10 +1590,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void EndScene(uint32_t aActor);
     CombatGroupRead GetCombatGroup(uint32_t aFormId) const noexcept override
     {
+        // Its group, whatever its own combat state (a member out of combat stays in it, 41240 lists it); an actor in
+        // combat is always in one (StartCombat 38561 makes it).
         const auto it = Actors.find(aFormId);
-        if (it == Actors.end() || !it->second.Ai.CombatState)
+        if (it == Actors.end() || (!it->second.GroupId && !it->second.Ai.CombatState))
             return {};
-        return {it->second.GroupId.has_value(), it->second.GroupId.value_or(0), it->second.GroupTargets};
+        auto targets = it->second.GroupTargets;
+        if (targets.empty() && it->second.Ai.CombatTargetId)
+            targets.push_back(it->second.Ai.CombatTargetId);
+        return {true, it->second.GroupId.value_or(aFormId), targets};
     }
     // CopyCombatGroups::Hold: a copy's real controller and group hold its owner's fight (a player's: its own group).
     void SetCopyCombat(uint32_t aFormId, const CopyCombatFields& acFields) noexcept override
@@ -1601,11 +1606,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         const auto it = Actors.find(aFormId);
         if (it == Actors.end() || !it->second.Copy)
             return;
-        const bool cFights = acFields.State != 0;
-        it->second.Ai.CombatState = acFields.State;
-        it->second.Ai.CombatTargetId = cFights ? acFields.TargetId : 0;
-        it->second.GroupTargets = cFights ? acFields.GroupTargetIds : std::vector<uint32_t>{};
-        it->second.CopyGroupKey = cFights ? acFields.GroupKey : 0;
+        // Membership follows the owner's group, the combat state its IsInCombat (CopyCombat::Next, Inactive).
+        const bool cMember = acFields.GroupKey != 0;
+        it->second.Ai.CombatState = cMember ? acFields.State : 0;
+        it->second.Ai.CombatTargetId = cMember ? acFields.TargetId : 0;
+        it->second.GroupTargets = cMember ? acFields.GroupTargetIds : std::vector<uint32_t>{};
+        it->second.CopyGroupKey = acFields.GroupKey;
     }
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override
     {
@@ -1688,7 +1694,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Actor::ProcessTracking (38009), each frame: an actor whose look is this game's player asks its own detection of
     // that player (37758) and, with a state of level 0 or less, drops its default slot (slot 0).
     void ProcessTracking();
-    // PlayerCharacter::UpdateInCombat (41238 through 41261): in combat while any group in combat targets the player.
+    // PlayerCharacter::UpdateInCombat (41238 through 41261): in combat while any group targets the player.
     [[nodiscard]] bool PlayerFlaggedInCombat() const;
     // The compass's enemies (41240): the actors whose combat group targets this game's player.
     [[nodiscard]] std::vector<uint32_t> CompassEnemies() const;

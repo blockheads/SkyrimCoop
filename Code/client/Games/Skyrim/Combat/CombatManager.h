@@ -12,8 +12,6 @@ struct CombatManager
 {
     [[nodiscard]] static CombatManager* Get() noexcept; // 405246
 
-    [[nodiscard]] CombatGroup* GetGroup(uint32_t aGroupId) const noexcept;
-
     void* vtbl;           // NiTPrimitiveArray<CombatGroup*>
     CombatGroup** groups; // null entries possible
     uint16_t capacity;

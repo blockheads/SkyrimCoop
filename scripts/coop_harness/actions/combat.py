@@ -240,6 +240,7 @@ class CombatActions:
             except TestFailure:
                 pass
             report["check"] = {key: check.get(key) for key in ("should_attack_kill", "killable", "attack_target")}
+            report["check"]["victim"] = victim[attacker]
             trace = AnimTrace(ctx, "kill-move-on", {game: {killer[game]: "attacker", victim[game]: "victim"} for game in games}, video=False)
             with trace:
                 ctx.press(attacker, "right")

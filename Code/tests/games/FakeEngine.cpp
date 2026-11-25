@@ -3455,15 +3455,18 @@ void FakeEngine::Fights(uint32_t aActor, uint32_t aTarget)
 
 void FakeEngine::GroupTargets(uint32_t aActor, std::vector<uint32_t> aTargets)
 {
-    Actors.at(aActor).GroupTargets = std::move(aTargets);
+    auto& actor = Actors.at(aActor);
+    if (aTargets.empty())
+        actor.GroupId.reset();
+    else if (!actor.GroupId)
+        actor.GroupId = NextGroupId++;
+    actor.GroupTargets = std::move(aTargets);
     World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
 }
 
 bool FakeEngine::PlayerFlaggedInCombat() const
 {
-    return std::ranges::any_of(Actors, [](const auto& acEntry) {
-        return acEntry.second.Ai.CombatState && std::ranges::contains(acEntry.second.GroupTargets, kPlayer);
-    });
+    return std::ranges::any_of(Actors, [](const auto& acEntry) { return std::ranges::contains(acEntry.second.GroupTargets, kPlayer); });
 }
 
 std::vector<uint32_t> FakeEngine::CompassEnemies() const

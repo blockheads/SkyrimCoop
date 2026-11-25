@@ -21,19 +21,34 @@ enum class Step : uint8_t
     kNone,
     kStart, // a new group and controller (46873), the owner's group not here yet
     kJoin,  // the group another copy of the owner's group holds (46874)
-    kStop,  // its owner's fight ended (StopCombat 38566)
+    kStop,  // its owner left its group, or the controller holds another key (StopCombat 38566)
 };
 
+// Membership follows the owner's group (`aOwnerKey`, 0 none), not its combat state: 41240 lists a member out of
+// combat too. A controller holding another key (a fight it had while this game's, a key change) is stopped first.
 // A player's copy too: its controller holds its player's own group (the player has no controller of its own).
-[[nodiscard]] constexpr Step Next(uint8_t aOwnerState, bool aHasController, bool aOwnerGroupHere, bool aHasTarget) noexcept
+[[nodiscard]] constexpr Step Next(uint64_t aOwnerKey, uint64_t aHeldKey, bool aHasController, bool aOwnerGroupHere,
+                                  bool aHasTarget) noexcept
 {
-    if (aOwnerState == 0)
-        return aHasController ? Step::kStop : Step::kNone;
     if (aHasController)
+        return aOwnerKey && aHeldKey == aOwnerKey ? Step::kNone : Step::kStop;
+    if (!aOwnerKey)
         return Step::kNone;
     if (aOwnerGroupHere)
         return Step::kJoin;
     return aHasTarget ? Step::kStart : Step::kNone;
+}
+
+// IsInCombat (38562) is a controller whose +0x43 is clear: set while its owner is out of combat, still in its group.
+[[nodiscard]] constexpr bool Inactive(uint8_t aOwnerState) noexcept
+{
+    return aOwnerState == 0;
+}
+
+// UpdateCombat (38565) returns at once for a form flagged 0x200000 (0x1406C990F), before its 37273 tail.
+[[nodiscard]] constexpr bool SkipsUpdate(uint32_t aFormFlags) noexcept
+{
+    return (aFormFlags & 0x200000) != 0;
 }
 
 // The owner's group's targets the copy's group lacks, and those it holds that the owner's group dropped.

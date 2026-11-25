@@ -68,18 +68,36 @@ TEST_CASE("A copy's fight starts only through its owner's, this game's own actor
     CHECK(CopyCombat::MayStart(false, false));
 }
 
-TEST_CASE("A copy's controller follows its owner's fight", "[CopyCombat]")
+TEST_CASE("A copy's controller follows its owner's group", "[CopyCombat]")
 {
     using enum CopyCombat::Step;
-    // The owner fights: the first copy of its group starts it here, the next ones join it.
-    CHECK(CopyCombat::Next(1, false, false, true) == kStart);
-    CHECK(CopyCombat::Next(1, false, true, true) == kJoin);
-    CHECK(CopyCombat::Next(2, true, true, true) == kNone);
+    constexpr uint64_t cKey = (uint64_t{1} << 32) | 0; // the host's first group: id 0
+    constexpr uint64_t cOther = (uint64_t{2} << 32) | 3;
+    // The owner joins a group: the first copy of it starts it here, the next ones join it.
+    CHECK(CopyCombat::Next(cKey, 0, false, false, true) == kStart);
+    CHECK(CopyCombat::Next(cKey, 0, false, true, true) == kJoin);
+    CHECK(CopyCombat::Next(cKey, cKey, true, true, true) == kNone);
     // No target here yet: nothing to start a group on.
-    CHECK(CopyCombat::Next(1, false, false, false) == kNone);
-    // The fight ends.
-    CHECK(CopyCombat::Next(0, true, true, true) == kStop);
-    CHECK(CopyCombat::Next(0, false, false, false) == kNone);
+    CHECK(CopyCombat::Next(cKey, 0, false, false, false) == kNone);
+    // The owner leaves its group.
+    CHECK(CopyCombat::Next(0, cKey, true, true, true) == kStop);
+    CHECK(CopyCombat::Next(0, 0, false, false, false) == kNone);
+    // A controller from another key: a fight it had while this game's (handed to its owner), or a new group.
+    CHECK(CopyCombat::Next(cKey, 0, true, true, true) == kStop);
+    CHECK(CopyCombat::Next(cKey, cOther, true, false, true) == kStop);
+}
+
+TEST_CASE("A copy out of combat stays in its owner's group, not in combat", "[CopyCombat]")
+{
+    CHECK(CopyCombat::Inactive(0));
+    CHECK_FALSE(CopyCombat::Inactive(1));
+    CHECK_FALSE(CopyCombat::Inactive(2));
+}
+
+TEST_CASE("A copy flagged 0x200000 skips UpdateCombat's tail as the engine does", "[CopyCombat]")
+{
+    CHECK(CopyCombat::SkipsUpdate(0x200000));
+    CHECK_FALSE(CopyCombat::SkipsUpdate(0x400));
 }
 
 TEST_CASE("A copy's group holds its owner's group's targets", "[CopyCombat]")
