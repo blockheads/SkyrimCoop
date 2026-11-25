@@ -60,6 +60,19 @@ plugins) reads it natively (`docs/re/systems/combat-targets.md`, "A copy's comba
 `[copy-combat]`, ClientTests `[CopyCombat]`; MCP verbs `compass_enemies`, `expect_compass_enemies`,
 `combat_targets_of`.
 
+2026-11-25: **friends get the host's mod setup through SkyrimModSync; our launcher and bundled zip are gone**
+(`agent/launcher-modpack`; [launcher.md](design/launcher.md)). A separate Rust CLI (`sms`, the SkyrimModSync project,
+branch `main`) publishes the host's MO2 profile as a signed pack (files by hash, load order, shared INI settings).
+A file found in the Nexus archive its mod was installed from downloads from Nexus with the friend's own Premium API key;
+everything else comes from the host over P2P. `sms play <code>` syncs, loads the pack into the game folder (journaled,
+the friend's own files set aside, SKSE's loader in Steam's launcher slot) and starts Skyrim through Steam; `sms unload`
+restores the folder. Here: `Code/launcher/` and the `SKYRIMCOOP_LAUNCH_ARGS` carrier deleted (invites to a closed game
+dropped), `scripts/package.sh` makes one MO2-installable mod archive (no vendor files), `scripts/package_check.py`
+goes through `sms` (publish, sync, load, boot, unload), [install.md](install.md) rewritten. The host plays the same
+way: `sms play` with no code syncs its own pack from its own MO2 files (nothing downloaded) and loads it. Releases:
+SkyrimModSync is public (`blockheads/SkyrimModSync`, binaries per OS on `v*` tags); `scripts/release.sh TAG` publishes
+our archive as a prerelease here, which hosts use as the mod's source (`sms host source SkyrimCoop github ...`).
+
 2026-11-24: **shared dialogue under stress: a crash, two orphaned conversations, layered voices and a stuck rejoin
 fixed** (`agent/rejoin-dialogue-layers`; [dialogue.md](re/systems/dialogue.md), "A guest leaving mid-line", "A menu
 joining mid-answer, and the replayed greeting", "The speaker dies or fights"; [dialogue-stress.md](design/dialogue-stress.md)).

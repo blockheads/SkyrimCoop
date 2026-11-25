@@ -4,7 +4,6 @@ includes("components")
 includes("base")
 includes("encoding")
 includes("hotreload")
-includes("launcher")
 includes("vanilla_harness")
 
 -- The SKSE plugin: clang-cl targeting Windows (scripts/xmake-msvc.sh).

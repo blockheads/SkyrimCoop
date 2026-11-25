@@ -62,12 +62,7 @@ Real Skyrim scenarios remain separate evidence from the fake Steam implementatio
 
 The real two-account closed-game test found that the standard SKSE loader loses `+connect_lobby`: its
 `CreateProcess` has a null command line. Although the installed Steam DLL provides the Apps launch API,
-Skyrim's `joinlobby` URL parameters did not appear there. `Code/launcher/Main.cpp` therefore preserves Steam's
-original command line in the process-local `SKYRIMCOOP_LAUNCH_ARGS` environment variable, then starts SKSE.
-Skyrim inherits that variable across SKSE's argument-free child creation. `SteamBridge::GetLaunchLobby` reads
-it before trying the optional Apps API. No lobby is inferred from the test transport or injected by the harness.
-
-Build the production launcher with `scripts/xmake-msvc.sh build SkyrimCoopLauncher`; it is independent of the
-test-harness option. Install it beside SKSE and configure Steam's launcher entry to run it. The real test uses
-a temporary Steam LaunchOptions wrapper only to redirect Skyrim's launcher to this compiled production binary
-and keep the account in its isolated prefix. The wrapper preserves the actual Steam arguments unchanged.
+Skyrim's `joinlobby` URL parameters did not appear there. Our launcher (`Code/launcher/`) carried Steam's original
+command line to the game in `SKYRIMCOOP_LAUNCH_ARGS` until 2026-11-25; it is deleted with invites to a closed game
+([launcher.md](../../design/launcher.md)). `SteamBridge::GetLaunchLobby` still reads the game's own command line
+and the optional Apps API.
