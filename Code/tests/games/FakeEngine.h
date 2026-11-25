@@ -272,6 +272,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // One frame: the shake wears off, knocked-down ragdolls come to rest, heads are built, the VM runs what is queued;
     // copies are drawn, then their graphs update (one lying in its ragdoll put on its root body, as the engine keeps any actor).
     void Frame();
+    void StepCopiesToGoals() noexcept;
 
     // A world reference (every game has the same load order: a form id is the same everywhere).
     struct Reference
@@ -691,6 +692,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static constexpr float kCapsuleRadius = 20.f;
     // Havok's character step lands this short of a stepped copy's goal (measured: 0.04 units).
     static constexpr float kStepShort = 0.04f;
+    static constexpr float kTopStep = 90.f; // a frame of Havok's character step at its fastest (measured 88 to 147)
     // A copy's rigid-body controller rests this far below its player owner's proxy (actor-movement.md, "A copy's rest height").
     static constexpr float kRigidRest = 0.55f;
     // A character's body wakes its island when its step sets a new velocity (62456): the bodies this near its axis.

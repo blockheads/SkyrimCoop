@@ -216,6 +216,46 @@ SCENARIO("An NPC the host's game loads as a following guest's arrival reaches it
     }
 }
 
+SCENARIO("A copy that travels stands at its owner's new place, never racing toward its old one", "[travel][copy-step]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Agree("the games agree on the players");
+    const auto cCopyOf = [&] {
+        for (const uint32_t cId : guest.CopiesOf())
+            if (guest.Actors.at(cId).Player)
+                return cId;
+        return 0u;
+    };
+    // Stepped to where the host stands, far from where it goes (copies-keep-place-on-arrival).
+    host.Actors.at(FakeEngine::kPlayer).Position[0] = 3000.f;
+    party.Until([&] { return guest.Actors.at(cCopyOf()).Stepped && std::abs(guest.Actors.at(cCopyOf()).Position[0] - 3000.f) < 5.f; },
+                "the guest's copy is stepped where the host stands");
+
+    const glm::vec3 cSpot{-1000.f, 500.f, 0.f};
+    party.As(party.Host(), [&] { host.PlayerTravels(kSinkhole, cSpot); });
+    float worst = 0.f;
+    size_t seen = 0;
+    const auto cWatch = [&] {
+        const auto& cCopy = guest.Actors.at(cCopyOf());
+        if (cCopy.Cell != kSinkhole)
+            return;
+        ++seen;
+        worst = std::max(worst, glm::distance(glm::vec2(cCopy.Position[0], cCopy.Position[1]), glm::vec2(cSpot)));
+        ++seen;
+    };
+    party.Until([&] { cWatch(); return Together(party, 2, kSinkhole); }, "the party is in the sinkhole");
+    for (int i = 0; i < 60; ++i)
+    {
+        party.Frame();
+        cWatch();
+    }
+    INFO(seen << " frames in the new cell, at worst " << worst << " units off");
+    CHECK(seen > 0);
+    CHECK(worst < 5.f);
+}
+
 SCENARIO("A follower landing on a guest's arrival spot does not shove the guest", "[travel]")
 {
     Party party(1, SmokeWorld);

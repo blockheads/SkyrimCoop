@@ -44,6 +44,35 @@ class TravelActions:
             ctx.wait_for(f"[{name or 'host'}] the arrival's fade is over", lambda name=name: ctx.takes_input(name), 10)
 
 
+    def watch_races(ctx):
+        """Both games watch, frame by frame, for actors that race (TestHarness/JitterWatch): read with races."""
+        for name in ("", "client"):
+            ctx.player_command(name, {"cmd": "jitter", "start": True})
+
+
+    def races(ctx, seconds=10.0):
+        """Watched for `seconds` more, then each game's actors that jumped or raced since watch_races: `warps` (times it
+        began to), `sweep` (the most frames in a row past any run). A jump is 1 frame; more is seen crossing the screen."""
+        time.sleep(seconds)
+        found = {}
+        for name in ("", "client"):
+            actors = (ctx.player_command(name, {"cmd": "jitter", "stop": True}) or {}).get("actors") or {}
+            found[name or "host"] = [{"id": f"{int(form_id):X}", "copy": a["copy"], "warps": a["warps"], "sweep": a["sweep"],
+                                      "net": round(a["place"]["net"]), "lies": a["lies"], "race": a["race"]}
+                                     for form_id, a in actors.items() if a["warps"]]
+        return found
+
+
+    def expect_no_copy_races(ctx, seconds=10.0, frames=2):
+        """No standing copy in either game raced for more than `frames` frames in a row since watch_races (a jump is one)."""
+        found = ctx.races(seconds)
+        bad = {game: [a for a in actors if a["copy"] and not a["lies"] and a["sweep"] > frames] for game, actors in found.items()}
+        if any(bad.values()):
+            for actor in (a for actors in bad.values() for a in actors):
+                actor["race"] = [{k: e[k] for k in ("frame", "step", "at", "goal", "points") if k in e} for e in actor["race"] if e["step"] > 1]
+            raise ctx.failure(f"copies raced across the screen: {bad}")
+
+
     def solo_move(ctx, instance, x, y):
         """That game's player alone goes to (x, y) in its worldspace: placed (SetPosition, no queued travel, so no party
         travel) high above the spot, then on the floor a downward ray finds once the cells there are loaded. God mode

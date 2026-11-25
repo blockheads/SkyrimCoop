@@ -41,6 +41,12 @@ private:
         uint32_t Furniture = 0;    // frames with its sit/sleep state set
         float FurniturePath = 0.f; // how far its place went in them
         uint32_t FurnitureReversals = 0; // its place turning back in them
+        uint32_t Warps = 0;              // times its place began to race or jump
+        uint32_t Sweep = 0;              // the most frames in a row it raced in (cRace each)
+        uint32_t Racing = 0;             // those running now
+        bool Lies = false;               // in its ragdoll (or dead) in a racing frame
+        nlohmann::json Path = nlohmann::json::array(); // the frames around its first race: place, its copy's goal if stepped, its owner's snapshots
+        uint32_t After = 0;
     };
 
     bool m_running = false;

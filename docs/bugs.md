@@ -520,6 +520,11 @@ flow.
 
 ## Physics
 
+- **A copy leaving water jumps 47 units in a frame and back** (2026-11-24, deer `6E297` in Riverwood, 7.5 s after an
+  arrival, so not the arrival's own race): its owner's snapshot turned on the ground, so it went from placed to stepped;
+  the next frames it was at z -224 and (11175, -51018), then back near its goal (11187, -51037, -269). Seen once
+  (`races`); the engine path is not read. Start: its controller's state as it is stepped the first time after `Place`.
+
 ### Physics against vanilla
 
 What the vanilla baseline still fails on (2026-11-15, `docs/design/physics-sync.md`, "One simulator per pile"). Still
@@ -1511,6 +1516,10 @@ Size: small. Needs: the duo.
   day); not read whether a copy's delay should follow its owner's at all.
 
 ## Test tools
+
+- **GameTests "A host NPC gets up from a knockdown" fails about 3 in 100** (2026-11-24): the copy's head ends 15 to 19
+  units from its owner's (limit 15). Interleaved runs under one load: 13 of 440 on dev `c5265779`, 16 of 440 with
+  `agent/actors-zoom-on-load`. Not traced.
 
 ### The gate fails on GameTests now and then
 

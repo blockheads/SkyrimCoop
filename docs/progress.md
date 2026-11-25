@@ -49,6 +49,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+- **2026-11-24, copies no longer race across the screen on arrival:** a copy with fewer than two snapshots stays where
+  it is, not stepped on to its place in the cell it left (`actor-movement.md`, "A goal outlives its place"). GameTests
+  "A copy that travels stands at its owner's new place", scenario `copies_keep_place_on_arrival`; harness verbs
+  `watch_races`, `races`, `expect_no_copy_races`.
+
 2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
 the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it
 into `PlayersHorse`, a stores-text alias, whose fill clears every named alias's cached name (read in IDA: 25052 ->

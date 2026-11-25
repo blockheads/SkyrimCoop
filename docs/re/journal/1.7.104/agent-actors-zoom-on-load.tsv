@@ -1,0 +1,31 @@
+time	op	id	rva	item
+2026-11-25T04:48:13Z	read	37309	0x6770a0	{"name": "Actor::SetPosition"}
+2026-11-25T04:48:14Z	read	56626	0xa5d370	{"name": "TESObjectREFR::MoveTo_Impl"}
+2026-11-25T04:48:17Z	read	37313	0x677370	{"name": "TESObjectREFR::sub_37313"}
+2026-11-25T04:48:37Z	read		0x47f0ab	{"name": "BGSProcedureSandboxExecState::sub_29002"}
+2026-11-25T04:48:37Z	read		0x684e16	{"name": "Character::sub_37434"}
+2026-11-25T04:48:38Z	read		0x686bf6	{"name": "Character::sub_37472"}
+2026-11-25T04:48:38Z	read		0x2840da	{"name": "TESObjectDOOR__OnPlayerTeleportDone"}
+2026-11-25T04:48:39Z	read		0x68464a	{"name": "TESObjectREFR::sub_37432"}
+2026-11-25T04:48:40Z	read		0x6991b9	{"name": "sub_1406990F0"}
+2026-11-25T04:48:40Z	read		0x6a8085	{"name": "sub_1406A7FB0"}
+2026-11-25T04:48:41Z	read		0x6ac8af	{"name": "TESObjectREFR::sub_37908"}
+2026-11-25T04:48:42Z	read		0x6ac973	{"name": "TESObjectREFR::sub_37909"}
+2026-11-25T04:48:42Z	read		0x6ee2f4	{"name": "sub_1406EE150"}
+2026-11-25T04:48:43Z	read		0x69462a	{"name": "Actor::sub_37618"}
+2026-11-25T04:48:44Z	read	37621	0x694850	{"name": "Actor::MoveToHigh"}
+2026-11-25T04:49:05Z	read	37438	0x685360	{"name": "Character::sub_37438"}
+2026-11-25T04:49:32Z	name	37313	0x677370	{"addr": "0x140677370", "name": "Actor::WarpTo_37313"}
+2026-11-25T04:49:32Z	name	37618	0x693c70	{"addr": "0x140693c70", "name": "Actor::PlaceForPackageAndFit_37618"}
+2026-11-25T04:49:32Z	name	37648	0x6990f0	{"addr": "0x1406990f0", "name": "Actor::FollowPlayerThroughDoor"}
+2026-11-25T04:49:32Z	name	41346	0x781620	{"addr": "0x140781620", "name": "ProcessLists::MoveFollowersThroughDoor"}
+2026-11-25T04:49:32Z	name	37877	0x6a7fb0	{"addr": "0x1406a7fb0", "name": "Actor::WarpToPathingLocation"}
+2026-11-25T04:49:32Z	name	39220	0x6ee150	{"addr": "0x1406ee150", "name": "AIProcess::UpdateFollowProcedureWarp"}
+2026-11-25T04:49:42Z	name		0x686bf6	{"addr": "0x140686bf6", "name": "Character::WarpToPackageLocation_37472"}
+2026-11-25T04:49:42Z	name		0x684e16	{"addr": "0x140684e16", "name": "Character::WarpFollowersAlong_37434"}
+2026-11-25T04:49:42Z	name		0x68464a	{"addr": "0x14068464a", "name": "Actor::WarpWithFollowers_37432"}
+2026-11-25T04:49:44Z	comment	37313	0x677370	{"addr": "0x140677370", "comment": "[re]\nAddressLib ID 37313\nSkyrimCoop: hooked by HookForceState as RealForceState (Code/client/Games/Skyrim/Actor.cpp)\nWarp an actor: (actor, pos, angleX, angleZ, cell, worldspace, resetAI). SetPosition 19790, rotation, parent cell 19799; its cell attached: Actor::SetPosition 37309 with the controller (vfunc +0x548), now or through the task queue (140668BD0). Every caller is an engine warp: MoveTo_Impl 56626, doors 17927, followers 37434, door followers 1406990F0, package location 37472, sandbox 29002, follow 1406EE150, fast travel 40445, mount riders. Read 2026-11-24."}
+2026-11-25T04:49:44Z	comment	37618	0x693c70	{"addr": "0x140693c70", "comment": "[re]\nAddressLib ID 37618\nOur name. Puts an actor where its package has it (BGSVisitProceduresInitActorLocation, closest navmesh point), then fits it among the high actors and the player (sphere search), and SetPosition + queued warp, or 37309 with warp. Does not go through 37313. Callers: MoveToHigh 37621 (an actor entering high process as its cell loads), UpdateHighProcessAI 1407051C7, door followers 1406990F0, 140781980, SwitchToLoadedSetController 36520. A2: skip the early-out state tests. Returns 1 when it placed. Read 2026-11-24."}
+2026-11-25T04:49:44Z	comment		0x686bf6	{"addr": "0x140686bf6", "comment": "[re]\nAddressLib ID 37472\nOur name. Warps an actor to its package's location (37313, with its followers 37434/37432) when its package changes out of sight. Read 2026-11-24."}
+2026-11-25T04:49:44Z	comment		0x684e16	{"addr": "0x140684e16", "comment": "[re]\nAddressLib ID 37434\nOur name. Warps the actors following this one to behind it, each with 37313. Read 2026-11-24."}
+2026-11-25T04:49:44Z	comment	37648	0x6990f0	{"addr": "0x1406990f0", "comment": "Our name. A follower through the player's load door: 37313 to the door's teleport data, then 37618. Called by 140781620 for each actor that follows the player (40493). Read 2026-11-24."}

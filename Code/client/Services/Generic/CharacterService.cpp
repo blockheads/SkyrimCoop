@@ -1919,6 +1919,20 @@ void CharacterService::RunLocalUpdates() noexcept
     SendGraphStream();
 }
 
+// Until its owner's snapshots say where it goes: where it is, its step's last goal dropped (the movement job keeps
+// stepping it there, an earlier cell's place included: actor-movement.md, "A goal outlives its place").
+void CharacterService::HoldCopy(uint32_t aFormId) const noexcept
+{
+    glm::vec3 at{}, rotation{};
+    m_actorBridge.GetActorPosition(aFormId, at.x, at.y, at.z);
+    m_actorBridge.GetActorRotation(aFormId, rotation.x, rotation.y, rotation.z);
+    const float cAt[3]{at.x, at.y, at.z};
+    const float cRotation[3]{rotation.x, rotation.y, rotation.z};
+    static const AnimationVariables s_none;
+    const bool cCarried = m_actorBridge.GetActorMount(aFormId) || m_actorBridge.IsLyingInRagdoll(aFormId);
+    m_actorBridge.ApplyRemoteMovement(aFormId, cAt, cRotation, 0.f, s_none, cCarried ? CopyMove::Leave : CopyMove::Place);
+}
+
 void CharacterService::RunRemoteUpdates() noexcept
 {
     // The frame clock (S10): a copy's ease out of its ragdoll steps steadily.
@@ -1934,7 +1948,12 @@ void CharacterService::RunRemoteUpdates() noexcept
         const uint64_t tick = InterpolationSystem::PlaybackTick(m_world, entity);
 
         auto& points = interpolationComponent.TimePoints;
-        if (points.size() < 2) continue;
+        if (points.size() < 2)
+        {
+            if (pFormIdComponent)
+                HoldCopy(pFormIdComponent->Id);
+            continue;
+        }
         while (points.size() > 2 && tick > std::next(points.begin())->Tick)
             points.pop_front();
         const auto& first = points.front();

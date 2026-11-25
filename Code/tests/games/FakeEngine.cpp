@@ -552,6 +552,24 @@ void FakeEngine::SetRegionWeather(uint32_t aRegion) noexcept
         RegionWeather[aRegion] = std::ranges::contains(cList->second, Weather) ? Weather : cList->second.front();
 }
 
+// The movement job (HookApplyMovement) steps a copy to its last goal until it is given another, at Havok's top speed
+// (Skyrim 2026-11-24: 147 units in a frame toward the cell it had left). Small steps: ApplyRemoteMovement's own.
+void FakeEngine::StepCopiesToGoals() noexcept
+{
+    for (auto& [cId, actor] : Actors)
+    {
+        if (!actor.Copy || !actor.Stepped || actor.Dead || actor.Disabled || !actor.Loaded)
+            continue;
+        const glm::vec3 cAt(actor.Position[0], actor.Position[1], actor.Position[2]);
+        const glm::vec3 cOff = glm::vec3(actor.Goal[0], actor.Goal[1], actor.Goal[2]) - cAt;
+        if (glm::length(cOff) <= CopyStep::kSnap)
+            continue;
+        const glm::vec3 cTo = cAt + glm::normalize(cOff) * kTopStep;
+        actor.Position[0] = cTo.x;
+        actor.Position[1] = cTo.y;
+    }
+}
+
 void FakeEngine::Frame()
 {
     ++m_frameCount;
@@ -563,6 +581,7 @@ void FakeEngine::Frame()
         if (std::exchange(actor.KillQueued, false) && (actor.Copy || actor.KillHeld))
             actor.KillCounted = true;
     StepDeathRagdolls();
+    StepCopiesToGoals();
     for (const auto [cRider, cMount] : std::map(std::exchange(MountRetryOf, {})))
         ActivateMount(cRider, cMount);
     for (auto it = DismountIn.begin(); it != DismountIn.end();)
@@ -2369,9 +2388,9 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     // VariableSync::Write writes the variables it is given: none, the graph keeps its own.
     if (!acVariables.Booleans.empty() || !acVariables.Integers.empty() || !acVariables.Floats.empty())
         it->second.GraphVariables = acVariables;
+    it->second.Stepped = aMove == CopyMove::Step && !RagdollPosed(aFormId);
     if (aMove == CopyMove::Leave || RagdollPosed(aFormId))
         return true;
-    it->second.Stepped = aMove == CopyMove::Step;
     ++it->second.Movements;
     const float cHeight = it->second.Position[2];
     std::copy_n(aPosition, 3, it->second.Position);

@@ -1244,7 +1244,7 @@ SCENARIO("A guest's player presses a held plate against a host NPC's copy: her c
     Party party(1, PluginsWithLydia);
     auto& guest = Party::Engine(party.Guest());
     const auto& cHerCopy = guest.Actors.at(kLydia);
-    party.Until([&] { return cHerCopy.Copy && cHerCopy.Movements > 0; },
+    party.Until([&] { return cHerCopy.Copy && cHerCopy.Stepped; },
                 "the guest's game moves her copy by its owner's movement");
     guest.Grabbed = kPlate;
     // The guest's hands at her chest, on her axis: the grab's spring pulls the plate into her.
