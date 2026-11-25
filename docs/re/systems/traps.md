@@ -106,9 +106,10 @@ the actor's own move step met: unless the player holds it, `GetDamageForImpact`,
 only follows: 7 impacts of 4.3 in 90 ms in one round (30 of the guest's 46 damage), where the host's own player takes
 about one a round, while the guest's own impacts fell to its world-hit drop. Now the host skips 38185 for another
 player's copy (`HitRules::JudgesImpact`) and a guest's own stands (marked past the drop as the relayed trap hit is).
-Measured after: no relayed impacts; the guest's rock rounds 8, 16 and 32, the host's 32. Left: in the two low rounds
-the guest's game read two of three rock contacts at speed 0 (the host's read 24 to 26 for the same rocks on its own
-player), so their scripted hits never counted; the rocks it follows do fall at 400 to 600 units/s there. Not explained.
+Measured after: no relayed impacts. A guest's contact to its hit takes about 110 ms (the host's script). Rounds repeated
+from a loaded save are no measure for a guest (its rocks stay where the last round left them: bugs.md, "After the host
+loads a save"): low rounds read there as contacts at speed 0 were that. From fresh scenes the guest's rock round gave
+8 once and 16, 8, 4 or more otherwise; not enough rounds to compare with the host's 32 to 75.
 
 ## A physics trap's hit is the contact's speed (read and measured, 2026-11-24)
 

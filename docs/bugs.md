@@ -95,6 +95,7 @@ every other section needs the duo.
 
 - [After the host dies](#after-the-host-dies): small, the lock order inversion left
 - [A guest's horse in a trap](#a-guests-horse-in-a-trap): small, no duo first
+- [After the host loads a save, a guest's moved objects stay](#after-the-host-loads-a-save-a-guests-moved-objects-stay): medium
 
 **Found by the playthrough flow**
 
@@ -1552,3 +1553,17 @@ Agent task: stage the host where `place` finds a clear spot (a shorter distance,
 see what the scenario then shows.
 
 Size: small. Needs: the duo.
+
+### After the host loads a save, a guest's moved objects stay
+
+Measured 2026-11-24 (WarehouseTraps, the MCP's `retry`): the host tripped a rock trap, then loaded a save from before
+it. On the host the rocks hang again (79974 at z 132, keyframed); on the guest they still lay on the floor where the
+last round left them (z -100, dynamic, awake), unchanged 12 s later. The save holds no change for them, so the host
+sends no row, and nothing resets the guest's own. Anything measured for a guest after a reload starts from that state:
+a guest's player stepped on a stale rock, took it, and its trap round then went differently (one hit where a fresh
+scene gives three or four).
+
+Agent task: read what a guest's load of the host's save resets (references the save does not list keep the guest's
+state); a GameTests flow first (the host moves a body, loads a save from before, the guest's lies where the save has it).
+
+Size: medium. Needs: no duo first.
