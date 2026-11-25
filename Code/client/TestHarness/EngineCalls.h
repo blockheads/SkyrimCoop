@@ -106,14 +106,10 @@ struct PoseVisibility
     // Its 3D drawn this frame (not kNotVisible): only then does the engine pose its skeleton.
     bool Drawn;
     bool WasInFrustum; // stale for an actor ProcessTracking skips
-    // Its bound's centre projects into the frame, ahead of the camera. Drawn stays set off screen (seen 2026-11-25).
-    bool OnScreen;
     uint32_t CullingState;
     uint32_t LastSeen;
 };
 std::optional<PoseVisibility> GetPoseVisibility(uint32_t aFormId) noexcept;
-// The centre of its bound is in the frame, ahead of the camera the HUD projects with.
-bool IsOnScreen(const NiAVObject& acObject) noexcept;
 
 struct ActorPoolReadout
 {

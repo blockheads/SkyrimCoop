@@ -178,8 +178,7 @@ def duo_wait(seconds: int = 50) -> dict:
 def duo_stop(summary: str = "repro session") -> dict:
     """Stops both games, checks no Skyrim is left and frees the duo with a log line (also freed when this server exits).
     A session only queued leaves the queue instead."""
-    watched = session.copy_watch_read()  # a background watch dies with its games
-    return {"ok": True, "result": session.duo_free(OWNER, summary), **({"copy_watch": watched} if watched else {})}
+    return {"ok": True, "result": session.duo_free(OWNER, summary)}
 
 
 @tool

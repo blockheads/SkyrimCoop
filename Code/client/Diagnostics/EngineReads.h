@@ -61,20 +61,6 @@ struct BaseLooks
     uint16_t Level{};
 };
 
-// How an actor looks to the player of its game, beside where it is: drawn at all, and its arms (a body whose graph does
-// not run holds its skeleton's bind pose, a T-pose).
-struct Looks
-{
-    bool Hidden{};       // its 3D's kHidden (app culled): not drawn, whatever the camera
-    float Fade{-1.f};    // its fade node's current fade (0 invisible, 1 drawn), -1 none
-    bool Arms{};         // a humanoid skeleton: the arm fields read
-    float HandSpan{};    // between its hands (NPC L/R Hand)
-    float ShoulderSpan{}; // between its upper arms (NPC L/R UpperArm)
-    float HandDrop{};    // its upper arms' height above its hands: ~50 hanging, ~0 held out
-    float Motion[6]{};   // its hands relative to its root: a running graph moves them between two reads
-};
-[[nodiscard]] std::optional<Looks> GetLooks(uint32_t aFormId) noexcept;
-
 // How an actor's body stands, as a person sees it: its feet's height above the floor under it (a ray down past its
 // own collision), and its pelvis and head nodes' (NPC Pelvis [Pelv], NPC Head [Head]) above that floor. Standing:
 // feet ~0, pelvis ~70, head ~120; lying: pelvis and head near the floor. None: no 3D, no floor found within 2000

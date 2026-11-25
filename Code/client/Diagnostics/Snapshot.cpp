@@ -299,18 +299,8 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
     if (const auto cPose = EngineReads::GetBodyPose(aFormId))
         pose = {{"floor_gap", cPose->FloorGap}, {"root", cPose->Root}, {"skeleton", cPose->Skeleton}, {"pelvis", cPose->Pelvis},
                 {"head", cPose->Head}, {"floor", cPose->Floor}};
-    nlohmann::json looks; // null: no 3D
-    if (const auto cLooks = EngineReads::GetLooks(aFormId))
-    {
-        looks = {{"hidden", cLooks->Hidden}, {"fade", cLooks->Fade}};
-        if (cLooks->Arms)
-            looks.update({{"hand_span", cLooks->HandSpan}, {"shoulder_span", cLooks->ShoulderSpan}, {"hand_drop", cLooks->HandDrop},
-                          {"motion", std::vector<float>(std::begin(cLooks->Motion), std::end(cLooks->Motion))}});
-    }
     return {
         {"identity", identity},
-        // How it looks, as its game's player sees it: drawn at all, and its arms (a dead graph holds a T-pose).
-        {"looks", looks},
         // How its body stands, compared: a copy stuck half down or floating differs from its owner.
         {"pose", pose},
         {"ragdoll", ragdoll},

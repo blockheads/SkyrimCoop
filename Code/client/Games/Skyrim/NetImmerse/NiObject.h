@@ -4,7 +4,6 @@
 
 struct NiRTTI;
 struct NiTriBasedGeom;
-struct BSFadeNode;
 
 struct NiObject : NiRefObject
 {
@@ -14,7 +13,7 @@ struct NiObject : NiRefObject
 
     virtual void sub_3();
     virtual void sub_4();
-    virtual BSFadeNode* AsFadeNode(); // 05, null unless a fade node (BSFadeNode__IsFadedIn 19384 calls it)
+    virtual void sub_5();
     virtual void sub_6();
     virtual void sub_7();
     virtual void sub_8();

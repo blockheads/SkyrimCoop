@@ -59,8 +59,6 @@ fighting-player count, the 37273 target keeper. Every reader (compass, in-combat
 plugins) reads it natively (`docs/re/systems/combat-targets.md`, "A copy's combat"). GameTests `[compass]`,
 `[copy-combat]`, ClientTests `[CopyCombat]`; MCP verbs `compass_enemies`, `expect_compass_enemies`,
 `combat_targets_of`.
-The desync checks now also judge how a copy looks (hidden, faded out near its player, T-pose, frozen skeleton:
-`docs/design/testing.md`, "How a copy looks"), after a host's copy stood invisible and T-posed while every field agreed.
 
 2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
 the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it

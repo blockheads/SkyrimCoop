@@ -129,7 +129,6 @@ every other section needs the duo.
 - [A kill move that never pairs](#a-kill-move-that-never-pairs): small
 - [No kill move on a giant, sabre cat or bear](#no-kill-move-on-a-giant-sabre-cat-or-bear): small
 - [A victim the host removes while the guest holds it stays on the guest](#a-victim-the-host-removes-while-the-guest-holds-it-stays-on-the-guest): small
-- [A player's copy slides once after a boot](#a-players-copy-slides-once-after-a-boot): small
 - [A guest crash in the garbage collector's job](#a-guest-crash-in-the-garbage-collectors-job): medium
 - [A respawned player's draw that does nothing](#a-respawned-players-draw-that-does-nothing): small
 - [The attacker's copy not in its kill move](#the-attackers-copy-not-in-its-kill-move): small
@@ -1298,15 +1297,6 @@ suspected; never A/B'd against dev, so the copy combat groups' change is not rul
 
 Agent task: take a host NPC for a guest kill move, remove it on the host before the give-back, and read whether the
 host's removal of a copy it lends out reaches the holder.
-
-Size: small. Needs: the duo.
-
-### A player's copy slides once after a boot
-
-On `agent/compass-enemy-dots` (2026-11-25): the first fight after a fresh boot, the host's copy on the guest moved 197 units
-in 5 s with its feet 13 (`gait`); four more fights walked normally, and dev walked normally in two. Too few to say whose.
-
-Agent task: `rounds` of a fresh boot plus one `fight` and `gait`, on dev and on the branch.
 
 Size: small. Needs: the duo.
 

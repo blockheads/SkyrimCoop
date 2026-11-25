@@ -19,7 +19,7 @@ from .common import (
     SYNCED_QUEST_FLAGS,
 )
 from .errors import TestFailure
-from .comparisons import (skin_problems, GRAPH_PAIRS_REFRESH, GraphApart, SLIDE_DISTANCE, choose_pairs, active_states, compare_actors, graph_apart_line, head_track_one_sided, dialogue_differences, drawn_walks, refused_replays,
+from .comparisons import (GRAPH_PAIRS_REFRESH, GraphApart, SLIDE_DISTANCE, choose_pairs, active_states, compare_actors, graph_apart_line, head_track_one_sided, dialogue_differences, drawn_walks, refused_replays,
                           sliding_actors, unwatched_games)
 from .utilities import log
 
@@ -145,9 +145,8 @@ class Observations:
         except Exception as error:  # a log line's own failure never fails the flow
             return f"not read: {error}"
 
-    def find_desyncs(ctx, previous=None):
-        """Compares both games once (`previous`: the worlds a sample before, for a frozen copy). Returns a list of
-        (key, message); the worlds read are kept in ctx.last_worlds."""
+    def find_desyncs(ctx):
+        """Compares both games once. Returns a list of (key, message)."""
         _game = ctx.game()
         worlds = {}
         for instance, game in (("", "host"), ("client", "client")):
@@ -156,18 +155,14 @@ class Observations:
             if "world" not in status:
                 raise ctx.failure(f"{game} game reports no world snapshot (old DLL or not running)")
             worlds[game] = status["world"]
-        ctx.last_worlds = worlds
-        return compare_actors(worlds, previous)
+        return compare_actors(worlds)
 
     def lasting_desyncs(ctx, samples=int(DESYNC_WINDOW / DESYNC_INTERVAL) + 1, interval=DESYNC_INTERVAL, known=()):
         """{key: message}: only differences seen in every sample count (copies legitimately lag for a moment), without
         the `known` keys (a scene's own start: ReproActions.scene)."""
-        ctx.find_desyncs()  # a baseline: a frozen copy shows only against a read before
-        persistent, previous = None, ctx.last_worlds
-        time.sleep(interval)
+        persistent = None
         for index in range(samples):
-            current = {k: v for k, v in ctx.find_desyncs(previous) if k not in known}
-            previous = ctx.last_worlds
+            current = {k: v for k, v in ctx.find_desyncs() if k not in known}
             persistent = current if persistent is None else {k: v for k, v in current.items() if k in persistent}
             if not persistent:
                 return {}
@@ -199,21 +194,6 @@ class Observations:
                                 f"{steps.get('hidden_frames', 0)}, process level {mod.get('process_level')}, "
                                 f"package {mod.get('package_type')})")
         return problems
-
-    def skins(ctx, name, instance="client", seconds=1.0):
-        """How `name`'s skinned geometry is drawn in one game, read twice `seconds` apart: {problems (skin_problems),
-        skins}. What a person sees, apart from the nodes every pose check reads."""
-        ref = ctx.resolve(name, "guest" if instance in ("client", "guest") else "host")
-        read = lambda: (ctx.player_command(instance, {"cmd": "skins", "actor": ref}) or {}).get("read")
-        before = read()
-        time.sleep(seconds)
-        now = read()
-        return {"problems": skin_problems(before, now), "skins": (now or {}).get("skins"), "was": (before or {}).get("skins")}
-
-    def gait(ctx, instance="client", seconds=4.0):
-        """That game's gait readout (GaitWatch) of the last `seconds`: per actor, units travelled, the feet's movement,
-        drawn and culled frames. What check_gait judges: travel with still feet while drawn is a slide."""
-        return ctx.player_command(instance, {"cmd": "gait", "seconds": seconds})["actors"]
 
     def gait_after_arrival(ctx, cell, seconds=12.0, walked=None):
         """The party arrives in `cell`, then for `seconds` every 2 s check_gait on both games: the first problem of

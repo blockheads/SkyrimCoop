@@ -5,7 +5,6 @@
 
 #include <AI/AIProcess.h>
 #include <Actor.h>
-#include <NetImmerse/BSFadeNode.h>
 #include <Forms/TESNPC.h>
 #include <Forms/TESRace.h>
 #include <BSAnimationGraphManager.h>
@@ -252,39 +251,6 @@ std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept
     return BodyPose{.FloorGap = cFeet.z - cFloorZ, .Root = cRootZ - cFloorZ,
                     .Skeleton = NodePosition(pActor, s_skeleton, true).value_or(glm::vec3(cFeet.x, cFeet.y, cRootZ)).z - cFloorZ,
                     .Pelvis = cPelvis->z - cFloorZ, .Head = cHead->z - cFloorZ, .Floor = cFloor->Reference};
-}
-
-std::optional<Looks> GetLooks(uint32_t aFormId) noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    NiAVObject* p3D = pActor ? pActor->GetNiNode() : nullptr;
-    if (!p3D)
-        return std::nullopt;
-    Looks looks{.Hidden = (p3D->flags & NiAVObject::kHidden) != 0};
-    if (const BSFadeNode* pFade = p3D->AsFadeNode())
-        looks.Fade = pFade->currentFade;
-    static const BSFixedString s_leftHand("NPC L Hand [LHnd]");
-    static const BSFixedString s_rightHand("NPC R Hand [RHnd]");
-    static const BSFixedString s_leftArm("NPC L UpperArm [LUar]");
-    static const BSFixedString s_rightArm("NPC R UpperArm [RUar]");
-    const auto cLeftHand = NodePosition(pActor, s_leftHand, true);
-    const auto cRightHand = NodePosition(pActor, s_rightHand, true);
-    const auto cLeftArm = NodePosition(pActor, s_leftArm, true);
-    const auto cRightArm = NodePosition(pActor, s_rightArm, true);
-    if (!cLeftHand || !cRightHand || !cLeftArm || !cRightArm)
-        return looks;
-    looks.Arms = true;
-    looks.HandSpan = glm::distance(*cLeftHand, *cRightHand);
-    looks.ShoulderSpan = glm::distance(*cLeftArm, *cRightArm);
-    looks.HandDrop = (cLeftArm->z + cRightArm->z - cLeftHand->z - cRightHand->z) / 2.f;
-    const glm::vec3 cRoot(p3D->world.translate.x, p3D->world.translate.y, p3D->world.translate.z);
-    const glm::vec3 cLeft = *cLeftHand - cRoot, cRight = *cRightHand - cRoot;
-    for (int i = 0; i < 3; ++i)
-    {
-        looks.Motion[i] = cLeft[i];
-        looks.Motion[3 + i] = cRight[i];
-    }
-    return looks;
 }
 
 std::vector<std::pair<uint32_t, bool>> GetAnimObjects(uint32_t aFormId) noexcept
