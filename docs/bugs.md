@@ -1272,6 +1272,7 @@ Size: small. Needs: the duo, IDA.
 `kill_move_table` (host attacker, 2026-11-25): trolls pair, but every giant, sabre cat and bear row swings plainly. The
 swing's target is the victim (the harness's `kill_move_check`: `should_attack_kill` and `killable` true, `attack_target`
 the victim; a reused form id made it look like an earlier victim at first). Same on dev `c5265779` (A/B on the duo).
+Draugr too: 7 of 7 rows on `agent/compass-enemy-dots` (2026-11-25), not compared with dev.
 Which of the kill move idles' conditions refuses (the race roots, `GetTargetHeight`, `GetRelativeAngle`, the attack
 data) is not read (kill-moves.md, "Every kill move").
 
