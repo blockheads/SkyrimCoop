@@ -551,13 +551,67 @@ def body_report(snapshot):
     return line + ("; " + "; ".join(p.removeprefix("body: ") for p in problems).upper() if problems else "")
 
 
+# How a copy looks (Snapshot's `looks`, EngineReads::GetLooks): a copy its game's player stands this near is drawn by
+# distance (fade); a T-pose holds the hands out at the upper arms' height, far apart (a graph that does not run leaves
+# the skeleton's bind pose); a running graph moves the hands between two reads.
+FADE_NEAR = 1500.0
+T_POSE_DROP = 15.0
+T_POSE_SPREAD = 4.0  # a kill move's stab holds the hands out ~3x the shoulders apart (measured 2026-11-25)
+STILL_HANDS = 0.05
+MOVING_HANDS = 0.5
+
+
+def t_posed(looks):
+    return bool(looks.get("hand_span")) and looks["hand_drop"] < T_POSE_DROP \
+        and looks["hand_span"] > T_POSE_SPREAD * looks["shoulder_span"]
+
+
+def looks_problems(copy_snapshot, owned, near=None):
+    """What makes a copy look wrong where its owner looks right: hidden, faded out within `near` (its distance from
+    its game's player, None: unknown), or holding a T-pose while drawn."""
+    mine, theirs = owned.get("looks") or {}, copy_snapshot.get("looks") or {}
+    if not theirs:
+        return []
+    problems = []
+    if theirs.get("hidden") and not mine.get("hidden"):
+        problems.append("looks: hidden (its 3D's kHidden) while its owner is drawn")
+    if near is not None and near < FADE_NEAR and theirs.get("fade") == 0 and mine.get("fade", 1) != 0:
+        problems.append(f"looks: faded out (fade 0) {near:.0f} units from its game's player")
+    if drawn(copy_snapshot) and t_posed(theirs) and not t_posed(mine):
+        problems.append(f"looks: holds a T-pose (hands {theirs['hand_span']:.0f} apart at the upper arms' height, "
+                        f"{theirs['shoulder_span']:.0f} across the shoulders)")
+    return problems
+
+
+def frozen(copy_before, copy_now, owned_before, owned_now):
+    """A drawn copy whose hands held still between two reads while its owner's moved: its graph is not running."""
+    def motion(snapshot):
+        return (snapshot.get("looks") or {}).get("motion")
+    moves = [motion(s) for s in (copy_before, copy_now, owned_before, owned_now)]
+    if None in moves or not (drawn(copy_before) and drawn(copy_now)):
+        return []
+    copy_moved = max(abs(a - b) for a, b in zip(moves[0], moves[1]))
+    owner_moved = max(abs(a - b) for a, b in zip(moves[2], moves[3]))
+    if copy_moved < STILL_HANDS and owner_moved > MOVING_HANDS:
+        return [f"looks: its skeleton holds still while its owner's moves (hands {owner_moved:.1f}): its graph is not running"]
+    return []
+
+
+def player_distance(world, snapshot):
+    """How far `snapshot` is from the player of the game `world` was read in, None unknown."""
+    player = world.get("20") or {}
+    here, there = (player.get("placement") or {}).get("position"), (snapshot.get("placement") or {}).get("position")
+    return math.dist(here, there) if here and there else None
+
+
 def describe_actor(snapshot, form_id, game):
     name = snapshot["identity"].get("name") or ("player" if snapshot["player"] else "?")
     return f"{name} [{game} {int(form_id):08X}, sid {snapshot['mod']['session_id']}]"
 
 
-def compare_actors(worlds):
-    """Compare already sampled actor worlds, without I/O or waits."""
+def compare_actors(worlds, previous=None):
+    """Compare already sampled actor worlds, without I/O or waits. `previous`: the worlds read a moment before, for
+    what only two reads show (a copy's frozen skeleton)."""
     problems = []
     copies = {game: {s["mod"]["session_id"]: (fid, s) for fid, s in world.items() if s["role"] == "copy"}
               for game, world in worlds.items()}
@@ -579,7 +633,11 @@ def compare_actors(worlds):
                 continue
             copy_id, copy = copies[other][sid]
             paired[other].add(sid)
-            for problem in mod_problems(copy, "copy") + body_problems(copy, bones=drawn(copy)):
+            looks = looks_problems(copy, owned, player_distance(worlds[other], copy))
+            before = (previous or {}).get(other, {}).get(copy_id), (previous or {}).get(game, {}).get(form_id)
+            if None not in before:
+                looks += frozen(before[0], copy, before[1], owned)
+            for problem in mod_problems(copy, "copy") + body_problems(copy, bones=drawn(copy)) + looks:
                 problems.append((f"{who} copy {problem_kind(problem)}", f"{who}: {other}'s copy {int(copy_id):08X} {problem}"))
             mine, theirs = flatten(owned), flatten(copy)
             for field in sorted(set(mine) | set(theirs)):
@@ -588,6 +646,8 @@ def compare_actors(worlds):
                 # cache to diagnose replay. Visible poses and every other actor field still compare.
                 # A player's own game reads its body as it stands; its copy is culled like any actor.
                 if field.startswith("pose.") and not (drawn(copy) and (owned["player"] or drawn(owned))):
+                    continue
+                if field.startswith("looks."):  # judged above, as a person sees it
                     continue
                 reason = compare_field(field, mine.get(field), theirs.get(field), owned)
                 if reason:

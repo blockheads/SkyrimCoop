@@ -4,13 +4,6 @@
 
 void FakeEngine::RunNativeCombat() noexcept
 {
-    // Actor::UpdateCombatSearchState (37273) clears the target on copies with no native combat controller.
-    for (auto& [id, actor] : Actors)
-        if (actor.Copy)
-        {
-            actor.Ai.CombatTargetId = 0;
-            actor.Ai.CombatTargetId = actor.OwnerCombatTarget;
-        }
     for (const auto& [cActor, cCandidates] : CombatCandidates)
     {
         for (uint32_t selection = 0; selection < CombatSelectionsPerFrame; ++selection)

@@ -266,9 +266,8 @@ struct Actor : TESObjectREFR
     void PutOwnerPackage(TESPackage* apPackage) noexcept;
     // The scene it plays a part in, as this game runs it (Actor::GetCurrentScene 37247, not a copy's owner's).
     [[nodiscard]] struct BGSScene* GetOwnCurrentScene() const noexcept;
-    // Its combat state as this game runs it (Actor::GetCombatState 38556: 0 none, 1 fighting, 2 searching), not a
-    // copy's owner's.
-    [[nodiscard]] uint8_t GetOwnCombatState() const noexcept;
+    // Actor::GetCombatState (38556): 0 none, 1 fighting, 2 searching (its group's search state).
+    [[nodiscard]] uint8_t GetCombatState() const noexcept;
     void SetActorInventory(const Inventory& aInventory) noexcept;
     void SetMagicEquipment(const MagicEquipment& acEquipment) noexcept;
     // Its own flag and its base's.

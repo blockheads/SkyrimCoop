@@ -1498,10 +1498,7 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
             it->second.KillHeld = true; // UpdateCopyAI's StartDeferredKill, each frame
         it->second.Copy = aCopy;
         if (!aCopy)
-        {
-            it->second.OwnerCombatTarget = 0;
             it->second.ClaimedIn = HoldSession;
-        }
         ApplyHeld3D(aFormId); // SkyrimBridge::SetActorCopy
         // Skyrim: only Actor::EndInterruptPackage (37474) ends it; the engine then picks the actor's own package.
         if (cReleased && CopyPackage::EndsOnRelease(it->second.RunningPackageType, it->second.DoNothing.packFlags))
@@ -3447,7 +3444,12 @@ void FakeEngine::Fights(uint32_t aActor, uint32_t aTarget)
     auto& ai = Actors.at(aActor).Ai;
     ai.CombatState = aTarget ? 1 : 0;
     ai.CombatTargetId = aTarget;
-    Actors.at(aActor).GroupTargets = aTarget ? std::vector{aTarget} : std::vector<uint32_t>{};
+    auto& actor = Actors.at(aActor);
+    actor.GroupTargets = aTarget ? std::vector{aTarget} : std::vector<uint32_t>{};
+    if (aTarget && !actor.GroupId)
+        actor.GroupId = NextGroupId++;
+    else if (!aTarget)
+        actor.GroupId.reset();
     World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
 }
 
@@ -3457,14 +3459,18 @@ void FakeEngine::GroupTargets(uint32_t aActor, std::vector<uint32_t> aTargets)
     World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
 }
 
+bool FakeEngine::PlayerFlaggedInCombat() const
+{
+    return std::ranges::any_of(Actors, [](const auto& acEntry) {
+        return acEntry.second.Ai.CombatState && std::ranges::contains(acEntry.second.GroupTargets, kPlayer);
+    });
+}
+
 std::vector<uint32_t> FakeEngine::CompassEnemies() const
 {
     std::vector<uint32_t> enemies;
     for (const auto& [cId, cActor] : Actors)
-        if (std::ranges::contains(cActor.GroupTargets, kPlayer) && !IsActorCopy(cId))
-            enemies.push_back(cId);
-    for (const uint32_t cId : CompassCopies)
-        if (Actors.contains(cId) && IsActorCopy(cId) && std::ranges::find(enemies, cId) == enemies.end())
+        if (std::ranges::contains(cActor.GroupTargets, kPlayer))
             enemies.push_back(cId);
     return enemies;
 }
@@ -3473,7 +3479,7 @@ void FakeEngine::AttackedBy(uint32_t aVictim, uint32_t aAttacker)
 {
     // HookStartCombat's check (38561); its wiring is checked in Skyrim (scenario host-dies-guest-still-fought).
     auto& victim = Actors.at(aVictim);
-    if (CopyCombat::MayStart(victim.Copy))
+    if (CopyCombat::MayStart(victim.Copy, false))
         victim.OwnCombatTarget = aAttacker;
 }
 

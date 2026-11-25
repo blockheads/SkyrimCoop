@@ -94,8 +94,10 @@ Their own parts (rare changes; one part would resend them with every crouch).
 - 38603's second chance (`CalculateCurrentHitTargetForWeaponSwing` 38628) keeps a target for an NPC only if it is its
   `+0x104`.
 
-A copy's `+0x104` is its owner's combat target (`SkyrimBridge::SetCopyAiFields`, kept past 37273 by
-`HookUpdateCombatSearchState` since 2026-11-02). So by the code, an NPC copy's swing lands only on its owner's
+A copy's `+0x104` is its owner's combat target: since 2026-11-25 its own controller's target, set from the owner's
+(`CopyCombatGroups::Hold`, `SetTarget` 33235), which 37273 keeps; before, written directly and kept past 37273 by a
+hook. A fighting copy's `IsInCombat` is now true, so a forced target no longer wins over its combat target, as for
+any NPC. So by the code, an NPC copy's swing lands only on its owner's
 target, within reach on the game where it lands. Measured on the duo (2026-11-18): the host's wolf fighting the guest's
 copy, the host's player staged in front of it and nearer (gap -37 against the guest's farther place): on the guest the
 wolf copy's `+0x104` read the guest's player and 47272 picked the guest. The 2026-11-06 reading of the nearest

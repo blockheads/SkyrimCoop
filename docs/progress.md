@@ -49,12 +49,18 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-24: **enemies are red dots on a guest's compass** (`agent/compass-enemy-dots`). The compass draws the members of
-every combat group targeting the player (41240); a guest's copies have no groups, so its compass showed none. The
-owner's AI state now carries the players an NPC's combat group targets (a hook on the group's update, 44703, marks
-the change), and each game adds the copies whose group targets its player (`docs/re/systems/compass.md`). Scenario
-`compass-enemies-on-guest`, GameTests `[compass]`, encoding round trip; MCP verbs `compass_enemies`,
-`expect_compass_enemies`.
+2026-11-25: **copies hold real combat controllers and groups** (`agent/compass-enemy-dots`, PR #130). A guest's
+compass showed no red enemy dots: the compass lists the members of combat groups targeting the player (41240), and a
+copy had none. Instead of another per-reader hook, a copy now holds a real controller and group filled from its
+owner's fight (the owner's AI state carries its group key and the session actors it targets; copies of one group
+share one), and the deciders are off for it (`UpdateCombat` 38565, the group's update 44703, the group primitives
+46873/46874 outside `Hold`). Deleted: the `IsInCombat` / `GetCombatState` hooks and their call-site list, the 41261
+fighting-player count, the 37273 target keeper. Every reader (compass, in-combat flag, regen rate, conditions,
+plugins) reads it natively (`docs/re/systems/combat-targets.md`, "A copy's combat"). GameTests `[compass]`,
+`[copy-combat]`, ClientTests `[CopyCombat]`; MCP verbs `compass_enemies`, `expect_compass_enemies`,
+`combat_targets_of`.
+The desync checks now also judge how a copy looks (hidden, faded out near its player, T-pose, frozen skeleton:
+`docs/design/testing.md`, "How a copy looks"), after a host's copy stood invisible and T-posed while every field agreed.
 
 2026-11-23: **the guest can get on a horse the host bought** (bug 21, `agent/horse-mount-guest`). The guest's copy of
 the bought horse took the host's name ("Prisoner's Horse") as our custom name, then the host's Stables state forced it

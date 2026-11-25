@@ -31,3 +31,30 @@ time	op	id	rva	item
 2026-11-25T05:23:09Z	comment	41240	0x776a80	{"addr": "0x140776a80", "comment": "41240. Rebuilds PlayerCharacter::actorsToDisplayOnTheHUDArray (+0x9E8, count +0x9F8): clears it, then every member (group+0x20, 12 bytes each, count +0x30) of every CombatManager group that has the player among its targets (CombatGroup__HasTarget 44706). Called once a frame by 36592 after the CombatManager update. The compass's enemy markers. SkyrimCoop: hooked, copies whose owner's group targets this game's player appended (copies have no combat groups; compass.md)."}
 2026-11-25T05:34:10Z	comment	44703	0x818570	{"addr": "0x140818570", "comment": "44703. A combat group's update, under its write lock (+0x160): its targets' detection, adding and dropping targets (sub_140821830/930/A60/CE0), stealth points decay, search state. No event says its targets changed. Runs on the combat manager's job (Job_Combat_manager 39044 -> 46869), not the main thread. SkyrimCoop: hooked (AiStateEvents), a change in its targets marks its members' AI state changed (compass.md)."}
 2026-11-25T05:34:10Z	comment	46869	0x851910	{"addr": "0x140851910", "comment": "46869. Called by Job_Combat_manager (39044 +0xD): each CombatManager group's update (44703), then PlayerCharacter::UpdateInCombat (41238). The main loop's 36592 calls 46870 (0x140851A00) instead."}
+2026-11-25T14:51:15Z	read	44799	0x821560	{"name": "sub_140821560"}
+2026-11-25T14:51:39Z	name	44803	0x821a60	{"addr": "0x140821a60", "name": "CombatGroup__RemoveStaleTargets"}
+2026-11-25T14:51:39Z	name	44799	0x821560	{"addr": "0x140821560", "name": "CombatGroup__IsTargetStale"}
+2026-11-25T14:51:39Z	name	44704	0x818870	{"addr": "0x140818870", "name": "CombatGroup__AddTarget"}
+2026-11-25T14:51:39Z	name	44719	0x8197f0	{"addr": "0x1408197f0", "name": "CombatGroup__IsEmpty"}
+2026-11-25T14:51:42Z	comment	44803	0x821a60	{"addr": "0x140821a60", "comment": "44803 (po3-Tweaks CombatDialogue hooks it). Each target IsTargetStale (0x140821560) is removed (0x140821480); the last one leaving fires combat dialogue (0x140817110, topic 60/63) and a script event. Run from CombatGroup__Update (44703) on its timer."}
+2026-11-25T14:51:42Z	comment	44799	0x821560	{"addr": "0x140821560", "comment": "Stale: the target is gone; or LOST (+0xA6 bit 2) and unseen past fCombat timeouts (since +0x90/+0x94) with no member engaging near it; or dead, disabled or deleted. Uses the detection 44703 computes on this game."}
+2026-11-25T14:51:42Z	comment	44704	0x818870	{"addr": "0x140818870", "comment": "44704. Adds a target (CombatTarget, 0xA8) under the write lock, unless refused (0x140818D90 every member CanAttackActor it, 44708; 0x1408192F0 already a target); then the CombatManager is told (0x140852960) and each non-low-process member's detection asked (37759)."}
+2026-11-25T14:52:49Z	read	44705	0x818bd0	{"name": "sub_140818BD0"}
+2026-11-25T14:53:03Z	name	44705	0x818bd0	{"addr": "0x140818bd0", "name": "CombatGroup__RemoveTarget"}
+2026-11-25T14:53:03Z	name	44798	0x821480	{"addr": "0x140821480", "name": "CombatGroup__RemoveTargetAt"}
+2026-11-25T14:53:04Z	comment	44705	0x818bd0	{"addr": "0x140818bd0", "comment": "44705. Removes an actor from the group's targets (by its handle; RemoveTargetAt 0x140821480). No lock taken here."}
+2026-11-25T14:56:43Z	read	44798	0x821480	{"name": "CombatGroup__RemoveTargetAt"}
+2026-11-25T15:07:35Z	read	41261	0x779090	{"name": "CombatManager::CountGroupsTargetingPlayer"}
+2026-11-25T15:21:24Z	read	46899	0x854230	{"name": "NiTPrimitiveArray_CombatGroup__::sub_46899"}
+2026-11-25T15:21:37Z	comment	46899	0x854230	{"addr": "0x140854230", "comment": "46899. A new CombatGroup (360 bytes, ctor 0x1408180A0), counted (+0x60), put in the manager's array (0x140854A60): its groupID (+0x00) is the slot it took, so ids start at 0 and a freed slot's id is reused."}
+2026-11-25T15:47:41Z	read	19384	0x2d64b0	{"name": "BSFadeNode__IsFadedIn"}
+2026-11-25T16:09:21Z	read	37340	0x679bc0	{"name": "Actor::ResetHealthAndLimbs"}
+2026-11-25T16:09:22Z	read	37592	0x692580	{"name": "Actor::sub_37592"}
+2026-11-25T16:55:59Z	read	21743	0x33e840	{"name": "GameFunc::native::IsLastHostileActor"}
+2026-11-25T16:56:08Z	read	41402	0x785b30	{"name": "ProcessLists::AreHostileActorsNear"}
+2026-11-25T16:56:23Z	read	38571	0x6c9f60	{"name": "Actor::IsCombatTarget"}
+2026-11-25T17:05:12Z	read	46902	0x8544e0	{"name": "CombatUpdateJob"}
+2026-11-25T17:05:13Z	read	37273	0x675600	{"name": "Actor::UpdateCombatSearchState"}
+2026-11-25T17:07:54Z	read	33233	0x561310	{"name": "sub_140561310"}
+2026-11-25T17:14:57Z	comment	37273	0x675600	{"addr": "0x140675600", "comment": "37273. Actor::UpdateCombatSearchState: in combat with a controller, +0x104 (currentCombatTarget) := the controller's target (+0x2C) and boolBits (+0xE8 on 1.7.104) kSearchingInCombat (0x4000) := its group searching (0x140561310: group +0xD8); not in combat, both cleared. Called from Actor::Update, FinishLoadGame and UpdateCombat's tail (38565). SkyrimCoop: a copy's UpdateCombat is skipped but this tail still runs (CopyCombatGroups); measured 2026-11-25: skipping it too stopped every player's kill moves on both games (consumer not yet read)."}
+2026-11-25T17:14:57Z	comment	33233	0x561310	{"addr": "0x140561310", "comment": "The controller's group searching: group+0xD8 (searchState) != 0."}

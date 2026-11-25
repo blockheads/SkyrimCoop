@@ -770,13 +770,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept override
     {
     }
-    void SetCopiesFightingPlayer(uint32_t aCount) noexcept override
+    void SetCopyCombat(uint32_t aFormId, const CopyCombatFields& acFields) noexcept override
     {
     }
-    void SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept override
-    {
-    }
-    std::vector<uint32_t> GetCombatGroupTargets(uint32_t aFormId) const noexcept override
+    CombatGroupRead GetCombatGroup(uint32_t aFormId) const noexcept override
     {
         return {};
     }

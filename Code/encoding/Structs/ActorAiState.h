@@ -37,6 +37,9 @@ struct ActorAiState
     std::array<AiTarget, 6> HeadTrack{};
     // The furniture it sits or sleeps in (Actor::GetOccupiedFurniture 38708); empty: none.
     AiTarget Furniture{};
-    // The players (session ids) its combat group targets (CombatGroup targets, 44706): it is on their compass.
-    std::vector<uint32_t> GroupTargetPlayers{};
+    // Its combat group, unique across games (the owner's player session id << 32 | its group id; group ids start at
+    // 0, session ids at 1), 0 none; and the
+    // session actors among the group's targets (44706). Its copies hold the same in a real group.
+    uint64_t CombatGroup{};
+    std::vector<uint32_t> GroupTargets{};
 };

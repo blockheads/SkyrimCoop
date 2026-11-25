@@ -151,6 +151,14 @@ Games use their own Proton prefixes under `build/coop-test`, never ordinary play
 `SKYRIM_PROTON_DIR`, `SKYRIM_RUNTIME_DIR` and `COOP_DLL` override installation paths. `--visible` shows the games on
 the desktop. `watch --instance both`, `screenshot`, `look`, `status`, `desync` and `world-diff` inspect a live duo.
 
+**How a copy looks** (2026-11-25): every desync check (`desync`, `expect agree`, each scenario's end) also judges a copy
+as its game's player would see it, from the snapshot's `looks` (`EngineReads::GetLooks`): hidden (its 3D's kHidden)
+while its owner is drawn; faded out (`BSFadeNode` fade 0) within 1,500 units of its game's player; a T-pose while drawn
+(hands held out at the upper arms' height, over 3x the shoulder width apart: a graph that does not run leaves the bind
+pose; standing idle reads hands 45-60 apart, 35-40 below the upper arms); and, between two samples, a drawn copy whose
+hands hold still while its owner's move (its graph is not running). Data alone missed it: a host's copy stood in
+place, invisible and T-posed, with every field agreeing (`comparisons.looks_problems`, `frozen`).
+
 To play by hand, `play [--control host|guest] [--cell CELL]` (default the Sleeping Giant Inn) boots the duo with only
 the controlled game on the desktop, in a window on the primary monitor, and the other off-screen with a live `watch`
 view on the second monitor. The other game's player follows yours and faces it, so the view shows your player as the

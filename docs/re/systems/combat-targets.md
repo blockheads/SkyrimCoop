@@ -68,7 +68,59 @@ Measured: R is 174 for Orgnar, 121 for Delphine with a blade, and they stop insi
 `Close Movement Idle` for some seconds in a normal chase. With a ranged weapon the tree is `Ranged Movement`, and
 Delphine's R read 4,123: standing 970 units off and shooting is the engine's fight, not the half-stop.
 
-## A copy's own combat: closed
+## A copy's combat (2026-11-25)
+
+Supersedes the refusal below: a copy holds a **real** controller and group, filled from its owner's fight, and nothing
+on its own game decides for it (the copy pattern: state mirrored, deciders off, as for packages). Read in IDA 1.7.104
+and measured on the duo (spike, 2026-11-25).
+
+```
+owner's game                                  copy's game: CopyCombatGroups::Hold (SetCopyCombat)
+AI state: Combat, CombatTarget,               fights, no controller:
+  CombatGroup (player session << 32 | id),      owner's group here? JoinCombatGroup (46874) : StartCombatGroup (46873)
+  GroupTargets (session actors)                 the controller stored on the actor, as StartCombat does (0x1406C9755)
+CombatGroup__Update (44703) hooked:           group targets := the owner's (AddTarget 44704, RemoveTarget 44705)
+  targets changed -> members' state sent      controller target := the owner's (SetTarget 33235)
+                                              group searchState := set while the owner searches (GetCombatState 2)
+                                              fight over: StopCombat (38566)
+```
+
+The deciders, each read and gated for copies:
+
+- `Actor::UpdateCombat` (38565, per member from `CombatUpdateJob` 46902): `CombatController__UpdateTarget`
+  (0x1405617A0, picks and sets the target), `CombatController__ShouldStop` (0x140561330, queues `StopCombat`), the
+  combat head-track slot, and the only route to `CombatBehaviorController::Update` (through 0x1405609E0 /
+  0x140560820). Skipped for a copy. The tree is built once by `CombatController__StartBehaviorTree` (0x140563850) and
+  never stepped: measured, no equip attempt or path from a fighting copy.
+- Its tail, `Actor::UpdateCombatSearchState` (37273), is bookkeeping and still runs for a copy: `+0x104` := the
+  controller's target, boolBits (`+0xE8`) `kSearchingInCombat` := the group searching (0x140561310). Measured
+  (duo, 2026-11-25, `kill_move_on` A/B against dev's build and with hook files off): skipping it too stopped every
+  player's kill moves on both games (`kill-moves-every` 242 wrong); running it restored them. Which reader of the
+  two fields the kill move pick needs is not yet read: on the host no copy held a controller at the swing, so the
+  consumer is not the obvious one (open).
+- `CombatGroup__Update` (44703, on the combat job through 46869): detection of the targets, and
+  `CombatGroup__RemoveStaleTargets` (44803) drops a target LOST past its timeouts on this game's detection. Not run
+  for a group whose members are all copies (`HeldByOwners`): its targets stay its owners'.
+- `CombatManager__StartCombatGroup` (46873) / `__JoinCombatGroup` (46874): refused for a copy unless `Hold` calls
+  them. Measured: with only `StartCombat` refused, a player's copy got a controller another way (the allies-join
+  path, 46878, is the inferred route).
+- `Actor::StartCombat` (38561) stays refused for a copy: it also ends packages, equips and leaves the scene.
+- `CanAttackActor` (37532) reads the actor's cached knowledge (`ShouldAttack` 37534), which a copy (no AI) lacks:
+  measured, 46873 refused every copy. Inside `Hold` it answers yes; the owner's fight decided it.
+
+A player's copy holds its player's own group (`PlayerCharacter::combatGroup`, +0x9E0 on 1.7.104, the enemies 41261
+adds): the player has no controller, so its copy reads in combat as its player does (the regen rate, conditions).
+
+Copies of one owner group share one group (the key), so readers counting members see the owner's numbers.
+
+Kept: the stealth eye's hooks (41408, 46877, stealth.md) answer the host's detection of a guest, which a guest's
+own game does not compute; they never stood in for a missing controller.
+
+What reads the real state now, with no hook of ours: `IsInCombat` (38562) and `GetCombatState` (38556) for every
+caller, the player's in-combat flag (41238 through 41261), the compass (41240, compass.md), the regen rate (38460),
+the swing target (`+0x104`, actor-state.md), Papyrus, conditions and plugins (PapyrusExtender, Acheron read groups).
+
+## A copy's own combat: closed (2026-11-05, superseded 2026-11-25)
 
 An attack on an actor runs `ActorProcess::unk_Assault_39359` then `AIProcess__StartAssault` (0x14072EB90), which calls
 `Actor::StartCombat(victim, attacker)` (38561). 38561 refuses the real player at its top and nothing else, so a copy took a

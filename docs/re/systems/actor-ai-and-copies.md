@@ -719,6 +719,9 @@ override it fails at that step). Copies' equips log one line each ("Copy X equip
 
 ## Combat state and its readers (2026-10-20)
 
+Since 2026-11-25 a copy holds a real controller and group and these hooks are gone (combat-targets.md, "A copy's
+combat"): every reader below gets the copy's own answer, which is now its owner's fight. Kept as the history of why.
+
 Read in IDA for AI state on copies (`docs/design/copy-contract.md`, "AI state"). Names: CommonLibSSE-NG and
 meh321 where they have one, ours otherwise.
 

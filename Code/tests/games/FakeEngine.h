@@ -832,7 +832,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         FakePackage DoNothing;            // the do-nothing package a copy holds with no owner's to show
         int32_t ProcedureType = 0;        // the running package's: the engine indexes a table with it unchecked
         uint8_t RunningPackageType = 0;   // TESPackage::packType of the package in its running slot
-        uint32_t OwnerCombatTarget{};
+        std::optional<uint32_t> GroupId;  // its combat group's id (CombatGroup +0x00): the engine's count from 0
+        uint64_t CopyGroupKey{};          // a copy: its owner's group (CopyCombatGroups keeps one group per key)
         uint32_t OwnCombatTarget{};       // what its own combat controller fights (AttackedBy)
         uint32_t ExtraPackageFallback{};
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
@@ -1573,6 +1574,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
     void Fights(uint32_t aActor, uint32_t aTarget);
+    uint32_t NextGroupId = 0; // the first combat group is 0 (46899)
     // Its combat group's targets change (44703, whose hook marks its members changed).
     void GroupTargets(uint32_t aActor, std::vector<uint32_t> aTargets);
     // Actor::StartCombat (38561) as an attack runs it on its victim (AIProcess::StartAssault): the victim takes a combat
@@ -1586,10 +1588,24 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // furniture's graphs linked to its own (63364), TESFurnitureEvent.
     void SitsIn(uint32_t aActor, uint32_t aFurniture);
     void EndScene(uint32_t aActor);
-    std::vector<uint32_t> GetCombatGroupTargets(uint32_t aFormId) const noexcept override
+    CombatGroupRead GetCombatGroup(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
-        return it != Actors.end() ? it->second.GroupTargets : std::vector<uint32_t>{};
+        if (it == Actors.end() || !it->second.Ai.CombatState)
+            return {};
+        return {it->second.GroupId.has_value(), it->second.GroupId.value_or(0), it->second.GroupTargets};
+    }
+    // CopyCombatGroups::Hold: a copy's real controller and group hold its owner's fight (a player's: its own group).
+    void SetCopyCombat(uint32_t aFormId, const CopyCombatFields& acFields) noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        if (it == Actors.end() || !it->second.Copy)
+            return;
+        const bool cFights = acFields.State != 0;
+        it->second.Ai.CombatState = acFields.State;
+        it->second.Ai.CombatTargetId = cFights ? acFields.TargetId : 0;
+        it->second.GroupTargets = cFights ? acFields.GroupTargetIds : std::vector<uint32_t>{};
+        it->second.CopyGroupKey = cFights ? acFields.GroupKey : 0;
     }
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override
     {
@@ -1610,8 +1626,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         if (const auto it = Actors.find(aFormId); it != Actors.end())
         {
+            // Its fight is SetCopyCombat's (a real controller), not these fields.
+            const uint8_t cState = it->second.Ai.CombatState;
+            const uint32_t cTarget = it->second.Ai.CombatTargetId;
             it->second.Ai = acFields;
-            it->second.OwnerCombatTarget = acFields.CombatTargetId;
+            it->second.Ai.CombatState = cState;
+            it->second.Ai.CombatTargetId = cTarget;
             // Actor::LinkFurnitureGraphs: only with the furniture's graph here.
             it->second.LinkedFurniture = FurnitureUnloaded.contains(acFields.FurnitureId) ? 0 : acFields.FurnitureId;
             if (!acFields.PackageId)
@@ -1668,12 +1688,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Actor::ProcessTracking (38009), each frame: an actor whose look is this game's player asks its own detection of
     // that player (37758) and, with a state of level 0 or less, drops its default slot (slot 0).
     void ProcessTracking();
-    uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
-    void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
-    std::vector<uint32_t> CompassCopies; // the copies the 41240 hook adds
-    void SetCompassEnemies(std::vector<uint32_t> aFormIds) noexcept override { CompassCopies = std::move(aFormIds); }
-    // The compass's enemies (41240): this game's actors whose group targets its player, then the hook's copies,
-    // which have no groups.
+    // PlayerCharacter::UpdateInCombat (41238 through 41261): in combat while any group in combat targets the player.
+    [[nodiscard]] bool PlayerFlaggedInCombat() const;
+    // The compass's enemies (41240): the actors whose combat group targets this game's player.
     [[nodiscard]] std::vector<uint32_t> CompassEnemies() const;
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).
     void Burns(uint32_t aActor, uint32_t aEffect, bool aOn);

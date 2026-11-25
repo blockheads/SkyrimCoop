@@ -6,6 +6,7 @@
 #include <Games/ActorExtension.h>
 #include <Combat/CombatController.h>
 #include <Combat/CombatGroup.h>
+#include <Games/CopyCombatGroups.h>
 #include <DetectionRules.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EventDispatcher.h>
@@ -118,11 +119,14 @@ using TUpdateCombatGroup = void(CombatGroup*);
 TUpdateCombatGroup* RealUpdateCombatGroup = nullptr;
 
 // CombatGroup's update (44703, on the combat manager's job) adds and drops its targets with no event: a change marks
-// each member changed, as its state carries the players its group targets (the compass, compass.md).
+// each member changed, as its state carries its group (combat-targets.md, "A copy's combat"). A group of copies only
+// holds its owners' fight: its update, which would drop targets on this game's detection, is not run.
 void HookUpdateCombatGroup(CombatGroup* apGroup)
 {
-    RealUpdateCombatGroup(apGroup);
     const WorldGate::Reader cWorld;
+    if (cWorld && CopyCombatGroups::HeldByOwners(*apGroup))
+        return;
+    RealUpdateCombatGroup(apGroup);
     if (!cWorld || !s_users.load(std::memory_order_relaxed))
         return;
     BSReadLockGuard lock(apGroup->lock);

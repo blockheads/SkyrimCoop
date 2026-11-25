@@ -34,7 +34,7 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
     if (!pActor)
         return {};
     CombatRead read;
-    read.State = pActor->GetOwnCombatState();
+    read.State = pActor->GetCombatState();
     const auto form = [](uint32_t aHandle) {
         const auto* pRef = TESObjectREFR::GetByHandle(aHandle);
         return pRef ? pRef->formID : 0;

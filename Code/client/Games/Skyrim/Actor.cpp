@@ -1,3 +1,4 @@
+#include <Games/CopyCombatGroups.h>
 #include <Forms/BGSAction.h>
 #include <Interface/ItemMenuWatch.h>
 #include <Games/Animation/ActorMediator.h>
@@ -2104,6 +2105,13 @@ int32_t HookGetFactionReaction(Actor* apThis, Actor* apOther)
     return RealGetFactionReaction(apThis, apOther);
 }
 
+uint8_t Actor::GetCombatState() const noexcept
+{
+    using TGetCombatState = uint32_t(Actor*);
+    POINTER_SKYRIMSE(TGetCombatState, s_getCombatState, 38556);
+    return static_cast<uint8_t>(s_getCombatState(const_cast<Actor*>(this)));
+}
+
 // The core "may this actor attack that one" check (CanAttackActor, IsHostileToActor and combat
 // use it). It reads the relationship cached in the actor's knowledge of the other directly, which
 // still says ally right after the actor got angry, so answer it here too.
@@ -2112,7 +2120,8 @@ static TShouldAttack* RealShouldAttack = nullptr;
 
 bool HookShouldAttack(Actor* apThis, Actor* apOther, int32_t aAggression, uint8_t aFlags)
 {
-    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
+    // Inside CopyCombatGroups::Hold the copy's owner's fight already answered it; a copy has no knowledge of its own.
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther) || CopyCombatGroups::Holding())
         return true;
     return RealShouldAttack(apThis, apOther, aAggression, aFlags);
 }

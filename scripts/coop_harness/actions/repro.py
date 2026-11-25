@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
+from ..comparisons import drawn, frozen, looks_problems
 from ..comparisons import body_problems, describe_world_differences, flatten
 from ..duo_lock import IDLE_MINUTES
 from ..errors import TestFailure
@@ -385,6 +386,70 @@ class ReproActions:
         if copy_form is None:
             raise ctx.failure(f"{owner:X} has no owner on the host with a copy on the guest, both in 3D")
         return ctx.name_handle(name, {"host": owner, "guest": copy_form})
+
+    def copy_watch_start(ctx, name="host_player", every=0.1, gap=40.0, turn=45.0):
+        """Watches one actor's copy against its owner in the background, `every` seconds, until copy_watch_read: the
+        moments they look apart to a player (place more than `gap` units, facing more than `turn` degrees, the copy's
+        looks: hidden, T-pose, frozen while drawn). For a fault that comes and goes too fast for a desync check."""
+        import threading
+        ctx.copy_watch_read()  # one watch at a time
+        ctx.refresh_handles()
+        ids = {game: ctx.resolve(name, game) for game in ("host", "guest")}
+        rows = {game: ctx.actor_row("" if game == "host" else "client", ids[game]) for game in ids}
+        owner = next((game for game, row in rows.items() if row.get("role") == "own"), None)
+        if owner is None:
+            raise ctx.failure(f"copy_watch: no game owns {name} ({ids})")
+        other = "guest" if owner == "host" else "host"
+        instance = {"host": "", "guest": "client"}
+        watch = {"name": name, "owner": owner, "stop": threading.Event(), "samples": 0, "apart": [], "start": time.monotonic()}
+
+        def arms(row):
+            looks = row.get("looks") or {}
+            return [round(looks.get(k, 0)) for k in ("hand_span", "hand_drop", "shoulder_span")] if looks.get("hand_span") else None
+
+        def heading(row):
+            return math.degrees(((row.get("placement") or {}).get("rotation") or [0, 0, 0])[2])
+
+        def sample():
+            previous = None
+            while not watch["stop"].is_set():
+                mine = ctx.actor_row(instance[owner], ids[owner])
+                theirs = ctx.actor_row(instance[other], ids[other])
+                if mine and theirs:
+                    watch["samples"] += 1
+                    here, there = (mine.get("placement") or {}).get("position"), (theirs.get("placement") or {}).get("position")
+                    apart = math.dist(here, there) if here and there else None
+                    turned = abs((heading(mine) - heading(theirs) + 180) % 360 - 180)
+                    looks = looks_problems(theirs, mine)
+                    if previous:
+                        looks += frozen(previous[1], theirs, previous[0], mine)
+                    if (apart or 0) > gap or turned > turn or looks:
+                        watch["apart"].append({
+                            "t": round(time.monotonic() - watch["start"], 2), "gap": round(apart or 0, 1),
+                            "turn": round(turned, 1), "looks": looks, "drawn": drawn(theirs),
+                            "owner_event": (mine.get("animation") or {}).get("event"),
+                            "copy_event": (theirs.get("animation") or {}).get("event"),
+                            "owner_look": (mine.get("ai_state") or {}).get("head_track"),
+                            "copy_look": (theirs.get("ai_state") or {}).get("head_track"),
+                            "owner_arms": arms(mine), "copy_arms": arms(theirs)})
+                    previous = (mine, theirs)
+                watch["stop"].wait(every)
+
+        watch["thread"] = threading.Thread(target=sample, daemon=True)
+        watch["thread"].start()
+        ctx.copy_watch = watch
+        return {"watching": name, "owner": owner, "ids": ids}
+
+    def copy_watch_read(ctx, limit=40):
+        """Stops copy_watch_start's watch: {samples, seconds, apart: the first `limit` moments apart, count}."""
+        watch = getattr(ctx, "copy_watch", None)
+        if not watch:
+            return None
+        watch["stop"].set()
+        watch["thread"].join(5)
+        ctx.copy_watch = None
+        return {"name": watch["name"], "samples": watch["samples"], "seconds": round(time.monotonic() - watch["start"], 1),
+                "count": len(watch["apart"]), "apart": watch["apart"][:limit]}
 
     def resolve(ctx, value, game):
         """A form id in that game for a handle name, "player", or a number (or hex string) as given."""

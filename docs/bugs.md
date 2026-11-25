@@ -127,6 +127,7 @@ every other section needs the duo.
 
 - [A guest's console kill that never downs it](#a-guests-console-kill-that-never-downs-it): small, not read
 - [A kill move that never pairs](#a-kill-move-that-never-pairs): small
+- [A host's swing aims at an earlier victim: no kill move on a giant or sabre cat](#a-hosts-swing-aims-at-an-earlier-victim-no-kill-move-on-a-giant-or-sabre-cat): small
 - [A guest crash in the garbage collector's job](#a-guest-crash-in-the-garbage-collectors-job): medium
 - [A respawned player's draw that does nothing](#a-respawned-players-draw-that-does-nothing): small
 - [The attacker's copy not in its kill move](#the-attackers-copy-not-in-its-kill-move): small
@@ -1269,6 +1270,17 @@ Size: small. Needs: the duo, IDA.
 - 2026-11-22, dev `aa723513`: `kill-move-kills-guest` passed 1 of 1. Too few runs to close.
 - 2026-11-22, `agent/kill-moves-polish`: passed 1 of 1 again; `kill_move_on` paired 35 of 35 (a bandit or a wolf, eight
   weapon classes, either player). Still too few of this scenario to close.
+
+### A host's swing aims at an earlier victim: no kill move on a giant or sabre cat
+
+`kill_move_table` (the `kill-moves-every` slice giant, troll, sabre cat; host attacker, one try per kill move): trolls
+pair, but every giant and sabre cat row is unpaired, and all 14 report the same `attack_target`, an earlier victim
+already gone (2026-11-25). Same on dev `c5265779` (A/B on the duo), so not the copy combat groups' change. The swing's
+target (38603 -> 38608 -> 47272, actor-state.md) is not the staged victim; why it stays on the old one is not read.
+
+Agent task: `kill_move_on` a giant after a troll and read 47272's pick and the attacker's `+0x104` at the swing.
+
+Size: small. Needs: the duo, IDA.
 
 ### A guest crash in the garbage collector's job
 

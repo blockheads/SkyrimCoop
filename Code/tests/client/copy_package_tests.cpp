@@ -2,19 +2,12 @@
 #include <catch2/catch.hpp>
 
 #include <algorithm>
-#include <vector>
 
 #include <Games/Skyrim/CopyCombat.h>
 #include <Games/Skyrim/CopyPackage.h>
 
 namespace
 {
-bool AnswersOwner(uint32_t aId, uint32_t aReturnOffset)
-{
-    return std::ranges::any_of(CopyCombat::cOwnerAnswerSites,
-                               [&](const auto& acSite) { return acSite.Id == aId && acSite.ReturnOffset == aReturnOffset; });
-}
-
 constexpr uint32_t cFollow = 0x5C84B;         // PlayerFollowerPackage
 constexpr uint32_t cCombatOverride = 0x5C851; // PlayerFollowerCombatOverridePackage
 constexpr uint32_t cDoNothing = 0x100770;
@@ -68,32 +61,38 @@ TEST_CASE("An owner's empty package does not expose a copy's stale extra package
     CHECK(CopyPackage::Read(false, 0, cFollow) == cFollow);
 }
 
-TEST_CASE("A copy takes no combat controller, this game's own actors do", "[CopyCombat]")
+TEST_CASE("A copy's fight starts only through its owner's, this game's own actors start their own", "[CopyCombat]")
 {
-    CHECK_FALSE(CopyCombat::MayStart(true));
-    CHECK(CopyCombat::MayStart(false));
+    CHECK_FALSE(CopyCombat::MayStart(true, false)); // StartCombat, an ally joining: this game deciding
+    CHECK(CopyCombat::MayStart(true, true));        // CopyCombatGroups::Hold putting its owner's fight on it
+    CHECK(CopyCombat::MayStart(false, false));
 }
 
-TEST_CASE("A copy's regen rate asks for its owner's combat state", "[CopyCombat]")
+TEST_CASE("A copy's controller follows its owner's fight", "[CopyCombat]")
 {
-    // Actor::GetActorValueRegenRate (38460): the essential health bonus and the combat multiplier.
-    CHECK(AnswersOwner(38460, 0xC5));
-    CHECK(AnswersOwner(38460, 0x1FC));
-    // The conditions still do; another engine call into 38460 does not.
-    CHECK(AnswersOwner(21576, 0x38));
-    CHECK(AnswersOwner(21740, 0x28));
-    CHECK_FALSE(AnswersOwner(38460, 0x10));
-    // Actor::EngagingInCombat (38563, its call returns at +0x12) uses the combat controller after a yes.
-    CHECK_FALSE(AnswersOwner(38563, 0x12));
+    using enum CopyCombat::Step;
+    // The owner fights: the first copy of its group starts it here, the next ones join it.
+    CHECK(CopyCombat::Next(1, false, false, true) == kStart);
+    CHECK(CopyCombat::Next(1, false, true, true) == kJoin);
+    CHECK(CopyCombat::Next(2, true, true, true) == kNone);
+    // No target here yet: nothing to start a group on.
+    CHECK(CopyCombat::Next(1, false, false, false) == kNone);
+    // The fight ends.
+    CHECK(CopyCombat::Next(0, true, true, true) == kStop);
+    CHECK(CopyCombat::Next(0, false, false, false) == kNone);
 }
 
-TEST_CASE("A copy is on the compass when its owner's combat group targets this game's player", "[CopyCombat]")
+TEST_CASE("A copy's group holds its owner's group's targets", "[CopyCombat]")
 {
-    constexpr uint32_t cPlayer = 0x14;
-    const std::vector<uint32_t> cTargets{0xFF000822, cPlayer};
-    CHECK(CopyCombat::OnCompass(true, cTargets, cPlayer));
-    CHECK_FALSE(CopyCombat::OnCompass(true, std::vector<uint32_t>{0xFF000822}, cPlayer)); // only another player
-    CHECK_FALSE(CopyCombat::OnCompass(true, std::vector<uint32_t>{}, cPlayer));
-    // One of this game's own actors is in a group: 41240 lists it itself.
-    CHECK_FALSE(CopyCombat::OnCompass(false, cTargets, cPlayer));
+    const auto cChanges = CopyCombat::Diff({0x14, 0xFF000822}, {0x14, 0xFF000830, 0});
+    CHECK(cChanges.Add == std::vector<uint32_t>{0xFF000830});
+    CHECK(cChanges.Remove == std::vector<uint32_t>{0xFF000822});
+    CHECK(CopyCombat::Diff({0x14}, {0x14}).Add.empty());
+}
+
+TEST_CASE("A copy searches while its owner searches", "[CopyCombat]")
+{
+    CHECK(CopyCombat::SearchState(2) != 0); // GetCombatState (38556) reads 2
+    CHECK(CopyCombat::SearchState(1) == 0);
+    CHECK(CopyCombat::SearchState(0) == 0);
 }

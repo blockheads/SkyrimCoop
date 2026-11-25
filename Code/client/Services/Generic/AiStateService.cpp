@@ -6,15 +6,12 @@
 #include <Bridges/IActorBridge.h>
 #include <Components/FormIdComponent.h>
 #include <Components/LocalComponent.h>
-#include <Components/PlayerComponent.h>
-#include <Games/Skyrim/CopyCombat.h>
 #include <Components/RemoteComponent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/CopyAiStateEvent.h>
 #include <Services/CopyRecords.h>
 #include <Events/DisconnectedEvent.h>
 #include <Messages/Relayed.h>
-#include <Messages/NotifyRemoveCharacter.h>
 #include <SessionIds.h>
 #include <World.h>
 #include <FormIds.h>
@@ -40,7 +37,6 @@ AiStateService::AiStateService(World& aWorld, entt::dispatcher& aDispatcher, Tra
         [this](uint32_t aFormId) -> std::optional<std::string> { return ToPartBytes(ReadState(aFormId)); });
     Listen<UpdateEvent, &AiStateService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<AiStateChangeEvent, &AiStateService::OnAiStateChange>(m_connections, aDispatcher, this);
-    Listen<NotifyRemoveCharacter, &AiStateService::OnRemoveCharacter>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &AiStateService::OnDisconnected>(m_connections, aDispatcher, this);
     Listen<ReferenceLoadedEvent, &AiStateService::OnReferenceLoaded>(m_connections, aDispatcher, this);
     Listen<Copy3DEvent, &AiStateService::OnCopy3D>(m_connections, aDispatcher, this);
@@ -108,10 +104,15 @@ void AiStateService::OnLocalRemoved(entt::registry& aRegistry, entt::entity aEnt
 ActorAiState AiStateService::ReadState(uint32_t aFormId) const noexcept
 {
     ActorAiState state = ToState(m_actorBridge.GetActorAiFields(aFormId));
-    // Only the players: each game's compass asks whether its own player is among them.
-    for (const uint32_t cTarget : m_actorBridge.GetCombatGroupTargets(aFormId))
-        if (const auto cSessionId = Utils::GetSessionIdByFormId(cTarget); cSessionId && IsPlayer(cTarget))
-            state.GroupTargetPlayers.push_back(*cSessionId);
+    const CombatGroupRead cGroup = m_actorBridge.GetCombatGroup(aFormId);
+    const auto cOwnPlayer = Utils::GetSessionIdByFormId(cPlayerFormId);
+    if (!cGroup.Exists || !cOwnPlayer)
+        return state;
+    state.CombatGroup = (uint64_t{*cOwnPlayer} << 32) | cGroup.Id;
+    // The session's actors: an NPC only this game holds is no target its copies' games could name.
+    for (const uint32_t cTarget : cGroup.Targets)
+        if (const auto cSessionId = Utils::GetSessionIdByFormId(cTarget))
+            state.GroupTargets.push_back(*cSessionId);
     return state;
 }
 
@@ -139,22 +140,14 @@ void AiStateService::SendOwned(uint32_t aFormId, uint32_t aSessionId) noexcept
     m_sent[aSessionId] = cState;
 
     m_records.Declare(aSessionId, RecordKind::kAiState, ToPartBytes(cState));
-    spdlog::debug("AI state of {:X} (session {}): package {:X}:{:X}, scene {:X}:{:X}, combat {} on {}", aFormId, aSessionId,
-                  cState.Package.ModId, cState.Package.BaseId, cState.Scene.ModId, cState.Scene.BaseId, cState.Combat,
-                  cState.CombatTarget.SessionId);
-}
-
-void AiStateService::OnRemoveCharacter(const NotifyRemoveCharacter&) noexcept
-{
-    // After every handler of it: the record and the copy go in theirs.
-    m_world.GetRunner().Queue([this]() { CountCopiesFightingPlayer(); });
+    spdlog::debug("AI state of {:X} (session {}): package {:X}:{:X}, scene {:X}:{:X}, combat {} on {}, group {:X} of {}",
+                  aFormId, aSessionId, cState.Package.ModId, cState.Package.BaseId, cState.Scene.ModId, cState.Scene.BaseId,
+                  cState.Combat, cState.CombatTarget.SessionId, cState.CombatGroup, cState.GroupTargets.size());
 }
 
 void AiStateService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_sent.clear();
-    m_actorBridge.SetCopiesFightingPlayer(0);
-    m_actorBridge.SetCompassEnemies({});
 }
 
 std::vector<uint32_t> AiStateService::ApplyToCopy(uint32_t aSessionId, const std::string& acBytes) noexcept
@@ -164,7 +157,7 @@ std::vector<uint32_t> AiStateService::ApplyToCopy(uint32_t aSessionId, const std
     if (!cFormId || !m_actorBridge.IsActorCopy(cFormId) || !FromPartBytes(acBytes, state))
         return {};
     m_actorBridge.SetCopyAiFields(cFormId, ToFields(state));
-    CountCopiesFightingPlayer();
+    m_actorBridge.SetCopyCombat(cFormId, ToCombat(state));
     m_world.GetDispatcher().trigger(CopyAiStateEvent{aSessionId, state});
     return NotHere(state);
 }
@@ -177,41 +170,22 @@ std::vector<uint32_t> AiStateService::NotHere(const ActorAiState& acState) noexc
             missing.push_back(acTarget.SessionId);
     };
     cCheck(acState.CombatTarget);
-    for (const uint32_t cSessionId : acState.GroupTargetPlayers)
+    for (const uint32_t cSessionId : acState.GroupTargets)
         cCheck(AiTarget{cSessionId});
     std::ranges::for_each(acState.HeadTrack, cCheck);
     return missing;
 }
 
-void AiStateService::CountCopiesFightingPlayer() noexcept
+CopyCombatFields AiStateService::ToCombat(const ActorAiState& acState) noexcept
 {
-    uint32_t count = 0;
-    std::vector<uint32_t> enemies;
-    m_records.ForEach(RecordKind::kAiState, [&](uint32_t aSessionId, const std::string& acBytes) {
-        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
-        ActorAiState state;
-        if (!cFormId || !FromPartBytes(acBytes, state))
-            return;
-        const bool cCopy = m_actorBridge.IsActorCopy(cFormId);
-        if (cCopy && state.Combat && ToFormId(state.CombatTarget) == cPlayerFormId)
-            ++count;
-        std::vector<uint32_t> groupTargets;
-        std::ranges::transform(state.GroupTargetPlayers, std::back_inserter(groupTargets), &Utils::GetFormIdBySessionId);
-        if (CopyCombat::OnCompass(cCopy, groupTargets, cPlayerFormId))
-            enemies.push_back(cFormId);
-    });
-    m_actorBridge.SetCopiesFightingPlayer(count);
-    m_actorBridge.SetCompassEnemies(std::move(enemies));
-}
-
-bool AiStateService::IsPlayer(uint32_t aFormId) const noexcept
-{
-    if (aFormId == cPlayerFormId)
-        return true;
-    for (auto [cEntity, cPlayer, cForm] : m_world.view<PlayerComponent, FormIdComponent>().each())
-        if (cForm.Id == aFormId)
-            return true;
-    return false;
+    CopyCombatFields fields;
+    fields.State = acState.Combat;
+    fields.TargetId = ToFormId(acState.CombatTarget);
+    fields.GroupKey = acState.CombatGroup;
+    for (const uint32_t cSessionId : acState.GroupTargets)
+        if (const uint32_t cFormId = Utils::GetFormIdBySessionId(cSessionId))
+            fields.GroupTargetIds.push_back(cFormId);
+    return fields;
 }
 
 ActorAiState AiStateService::ToState(const ActorAiFields& acFields) const noexcept

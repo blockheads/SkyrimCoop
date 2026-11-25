@@ -340,3 +340,74 @@ class Smoothness(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CopyLooks(unittest.TestCase):
+    """A copy that looks wrong where its owner looks right (Snapshot's `looks`): what data alone hid (2026-11-25: the
+    host's copy stood in place, invisible and T-posed, and every field agreed)."""
+    HANGING = {"hidden": False, "fade": 1.0, "hand_span": 45.0, "shoulder_span": 30.0, "hand_drop": 52.0,
+               "motion": [10.0, 5.0, 60.0, -10.0, 5.0, 60.0]}
+    T_POSE = {"hidden": False, "fade": 1.0, "hand_span": 140.0, "shoulder_span": 30.0, "hand_drop": 2.0,
+              "motion": [70.0, 0.0, 110.0, -70.0, 0.0, 110.0]}
+
+    def worlds(self, owner_looks=None, copy_looks=None, drawn=True, distance=300.0):
+        actor = {"role": "own", "player": True, "identity": {"name": "Prisoner"}, "placement": {"position": [0, 0, 0]},
+                 "looks": dict(owner_looks or self.HANGING),
+                 "mod": {"session_id": 3, "components": ["Local"], "pose_visibility": {"drawn": True}}}
+        duplicate = copy.deepcopy(actor)
+        duplicate.update(role="copy", looks=dict(copy_looks or self.HANGING))
+        duplicate["mod"].update(components=["Remote", "Interpolation"], pose_visibility={"drawn": drawn})
+        player = {"role": "own", "player": True, "identity": {"name": "Guest"}, "placement": {"position": [distance, 0, 0]},
+                  "mod": {"session_id": 4, "components": ["Local"]}}
+        player_copy = copy.deepcopy(player)
+        player_copy.update(role="copy")
+        player_copy["mod"]["components"] = ["Remote", "Interpolation"]
+        return {"host": {"20": actor, "300": player_copy}, "client": {"200": duplicate, "20": player}}
+
+    def looks_keys(self, worlds, previous=None):
+        return [message for key, message in compare_actors(worlds, previous) if "looks:" in message]
+
+    def test_a_copy_that_looks_like_its_owner_agrees(self):
+        self.assertEqual(self.looks_keys(self.worlds()), [])
+
+    def test_a_hidden_copy_of_a_drawn_owner_is_a_desync(self):
+        found = self.looks_keys(self.worlds(copy_looks=dict(self.HANGING, hidden=True), drawn=False))
+        self.assertEqual(len(found), 1)
+        self.assertIn("hidden", found[0])
+
+    def test_a_copy_hidden_as_its_owner_is_agrees(self):
+        hidden = dict(self.HANGING, hidden=True)
+        self.assertEqual(self.looks_keys(self.worlds(owner_looks=hidden, copy_looks=hidden, drawn=False)), [])
+
+    def test_a_copy_faded_out_near_its_games_player_is_a_desync(self):
+        self.assertEqual(len(self.looks_keys(self.worlds(copy_looks=dict(self.HANGING, fade=0.0), drawn=False))), 1)
+        # Far off, the distance fade is the engine's.
+        self.assertEqual(self.looks_keys(self.worlds(copy_looks=dict(self.HANGING, fade=0.0), drawn=False, distance=5000)), [])
+
+    def test_a_drawn_t_pose_is_a_desync_and_a_culled_one_is_not_judged(self):
+        found = self.looks_keys(self.worlds(copy_looks=self.T_POSE))
+        self.assertEqual(len(found), 1)
+        self.assertIn("T-pose", found[0])
+        self.assertEqual(self.looks_keys(self.worlds(copy_looks=self.T_POSE, drawn=False)), [])
+
+    def test_a_kill_moves_stab_holding_the_hands_out_is_no_t_pose(self):
+        # Measured on the duo (pa_KillMove1HMRepeatStabDown): owner 81 apart, copy 84, both at the upper arms.
+        stab = dict(self.HANGING, hand_span=94.0, hand_drop=2.0, shoulder_span=27.0)
+        self.assertEqual(self.looks_keys(self.worlds(copy_looks=stab)), [])
+
+    def test_arms_held_out_close_together_are_no_t_pose(self):
+        casting = dict(self.HANGING, hand_span=50.0, hand_drop=0.0)
+        self.assertEqual(self.looks_keys(self.worlds(copy_looks=casting)), [])
+
+    def test_a_copy_whose_skeleton_holds_still_while_its_owners_moves_is_a_desync(self):
+        before = self.worlds()
+        now = self.worlds(owner_looks=dict(self.HANGING, motion=[11.0, 5.0, 61.0, -10.0, 5.0, 60.0]))
+        found = self.looks_keys(now, before)
+        self.assertEqual(len(found), 1)
+        self.assertIn("not running", found[0])
+        # Both still (a frozen staged NPC): nothing to tell.
+        self.assertEqual(self.looks_keys(self.worlds(), before), [])
+
+    def test_the_looks_fields_are_never_compared_one_by_one(self):
+        moved = dict(self.HANGING, motion=[0.0] * 6, fade=0.5)
+        self.assertEqual(compare_actors(self.worlds(copy_looks=moved)), [])

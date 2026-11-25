@@ -154,6 +154,36 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         return {{"ok", true}, {"faction", state->JailFaction ? state->JailFaction->formID : 0},
                 {"sentence", state->JailSentence}};
     }
+    else if (action == "hostile_near")
+    {
+        // ProcessLists::AreHostileActorsNear (41402): what IsLastHostileActor (21743) counts for the kill moves: each
+        // near actor whose combat group targets the player (IsCombatTarget 38571) or that would attack it.
+        struct ScrapArray // CommonLib BSScrapArray<ActorHandle>
+        {
+            void* allocator{};
+            uint32_t* data{};
+            uint32_t capacity{};
+            uint32_t pad{};
+            uint32_t size{};
+            uint32_t pad2{};
+        };
+        using TNear = bool(ProcessLists*, ScrapArray*);
+        using TFree = void(ScrapArray*);
+        using TIsCombatTarget = bool(Actor*, Actor*);
+        static VersionDbPtr<TNear> hostileNear(41402);
+        static VersionDbPtr<TFree> release(68175);
+        static VersionDbPtr<TIsCombatTarget> isCombatTarget(38571);
+        ScrapArray hostile;
+        const bool cAny = hostileNear(ProcessLists::Get(), &hostile);
+        nlohmann::json actors = nlohmann::json::array();
+        for (uint32_t i = 0; i < hostile.size; ++i)
+            if (auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(hostile.data[i])))
+                actors.push_back({{"actor", pActor->formID}, {"copy", pActor->GetExtension()->IsCopy()},
+                                  {"group_targets_player", isCombatTarget(pActor, player)}});
+        if (hostile.data)
+            release(&hostile);
+        return {{"ok", true}, {"any", cAny}, {"actors", actors}};
+    }
     else if (action == "reaction")
     {
         auto* other = Cast<Actor>(target);

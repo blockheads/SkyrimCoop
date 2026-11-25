@@ -145,8 +145,9 @@ class Observations:
         except Exception as error:  # a log line's own failure never fails the flow
             return f"not read: {error}"
 
-    def find_desyncs(ctx):
-        """Compares both games once. Returns a list of (key, message)."""
+    def find_desyncs(ctx, previous=None):
+        """Compares both games once (`previous`: the worlds a sample before, for a frozen copy). Returns a list of
+        (key, message); the worlds read are kept in ctx.last_worlds."""
         _game = ctx.game()
         worlds = {}
         for instance, game in (("", "host"), ("client", "client")):
@@ -155,14 +156,18 @@ class Observations:
             if "world" not in status:
                 raise ctx.failure(f"{game} game reports no world snapshot (old DLL or not running)")
             worlds[game] = status["world"]
-        return compare_actors(worlds)
+        ctx.last_worlds = worlds
+        return compare_actors(worlds, previous)
 
     def lasting_desyncs(ctx, samples=int(DESYNC_WINDOW / DESYNC_INTERVAL) + 1, interval=DESYNC_INTERVAL, known=()):
         """{key: message}: only differences seen in every sample count (copies legitimately lag for a moment), without
         the `known` keys (a scene's own start: ReproActions.scene)."""
-        persistent = None
+        ctx.find_desyncs()  # a baseline: a frozen copy shows only against a read before
+        persistent, previous = None, ctx.last_worlds
+        time.sleep(interval)
         for index in range(samples):
-            current = {k: v for k, v in ctx.find_desyncs() if k not in known}
+            current = {k: v for k, v in ctx.find_desyncs(previous) if k not in known}
+            previous = ctx.last_worlds
             persistent = current if persistent is None else {k: v for k, v in current.items() if k in persistent}
             if not persistent:
                 return {}

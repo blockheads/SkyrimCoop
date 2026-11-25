@@ -31,27 +31,16 @@ not the guest's. Before the hit, the wolf's own target was Lydia while the host'
 targeted the host is inferred from 41240/44706 (the group's targets were not read). A copy's own combat target is not
 the test; the group's targets are.
 
-## The fix
+## The fix (2026-11-25)
 
-```
-owner's game                                  each game
-CombatGroup__Update (44703) hooked:           AI state record arrives
-  targets changed (a hash per member,           copy in combat, GroupTargetPlayers holds
-  ActorExtension::GroupTargetsSent)             this game's player -> compass list
-  -> AiStateChangeEvent per member            PlayerCharacter__UpdateActorsToDisplayOnHUD
-AI state read: GroupTargetPlayers =             (41240) hooked: the list appended
-  the players among the group's targets
-```
+A copy holds a real controller and group filled from its owner's fight (combat-targets.md, "A copy's combat"): the
+owner's AI state carries its group (a key unique across games) and the session actors among its targets, and the
+copy's group holds the same targets. 41240 then lists the copy natively when its group targets this game's player.
+No hook on 41240.
 
-- The owner's AI state carries the players its combat group targets (`ActorAiState::GroupTargetPlayers`, session
-  ids; `IActorBridge::GetActorAiFields` reads the group's targets under its lock).
-- Read in IDA: 44703 runs once a frame per group from `CombatManager__UpdateGroups` (46869), which the combat
-  manager's job calls (`Job_Combat_manager` 39044 +0xD), not the main loop. It adds and drops targets with no event,
-  so its hook compares the targets with what each member last sent, behind `WorldGate::Reader` (a cog swap may have
-  closed the World on that thread).
-- Each game: `AiStateService` lists the copies whose group targets this game's player (`CopyCombat::OnCompass`;
-  like 41240, no combat state asked; `IActorBridge::SetCompassEnemies`), and the 41240 hook
-  (`Games/Skyrim/CopyAiState.cpp`) appends those still copies (a kill move's takeover is 41240's own). A player the
-  host's group has not detected gets no dot, as in vanilla.
-- The group's targets are read only for the AI state record (`IActorBridge::GetCombatGroupTargets`), not with the
-  AI fields the host's per-frame paths read.
+- Read in IDA: 44703 adds and drops targets with no event; its hook (`AiStateEvents`, behind `WorldGate::Reader`,
+  since it runs on the combat job: `Job_Combat_manager` 39044 -> 46869) compares each group's targets with what its
+  members last sent and marks them changed.
+- Measured on the duo (spike, 2026-11-25): with the 41240 bridge off, the guest's compass showed the wolf once the
+  copy's group held the guest's player; before the copy had a group, it showed none.
+- A player the host's group has not detected gets no dot, as in vanilla.

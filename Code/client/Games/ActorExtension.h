@@ -34,11 +34,11 @@ struct ActorExtension
     size_t GraphDescriptorHash = 0;
     uint64_t GraphDescriptorProjectKey = 0;
     // A copy: its owner's AI state (SkyrimBridge::SetCopyAiFields). The package (0: none or engine-made) is put back
-    // in its running slot when the engine asks for a new one; scene and combat state are answered (CopyAiState.cpp).
+    // in its running slot when the engine asks for a new one; its scene is answered (CopyAiState.cpp). Its fight is a
+    // real controller and group (CopyCombatGroups).
     std::atomic<uint32_t> OwnerPackageId{0};
     uint32_t OwnerSceneId = 0;
-    uint8_t OwnerCombatState = 0;
-    std::atomic<uint32_t> OwnerCombatTargetHandle{0};
+    uint64_t OwnerCombatGroup = 0; // the owner's group key its controller's group holds (CopyCombatGroups)
     // Its headtrack slots (HighProcessData::headTrackTarget, form ids): a copy's owner's, put in before the engine
     // reads them; an owner's last sent (AiStateEvents' ProcessTracking hook).
     std::array<std::atomic<uint32_t>, 6> HeadTrack{};

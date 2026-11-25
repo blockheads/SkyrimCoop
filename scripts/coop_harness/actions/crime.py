@@ -9,6 +9,12 @@ class CrimeActions:
     def crime_command(ctx, instance, action, **values):
         return ctx.player_command(instance, {"cmd": "crime", "action": action, **values})
 
+    def hostile_near(ctx, instance=""):
+        """What that game's IsLastHostileActor counts against its player (ProcessLists::AreHostileActorsNear 41402):
+        each near actor whose combat group targets the player, or that would attack it. A player's kill moves need
+        the victim alone in it (kill-moves.md). {any, actors: [{actor, copy, group_targets_player}]}."""
+        return ctx.crime_command(instance, "hostile_near")
+
     def eyes(ctx, player="guest_player"):
         """The stealth eye of a player in each game (crime stealth_meter, stealth.md): its own game's, and the other's of
         its copy. {game: {level, seeing, stealth, in_combat, shows}}; shows is what the eye shows (40593: in combat 100
