@@ -31,6 +31,7 @@ struct InterpolationComponent
 
     std::list<TimePoint> TimePoints;
     glm::vec3 Position;
+    uint64_t RestartTick{}; // its owner's last jump or spawn: snapshots stamped before it are older (they can arrive after)
     CopyEase Ease;
     CopyCorrection Correction;
     std::optional<std::pair<TimePoint, TimePoint>> Guess; // the snapshots it was carried on from, past the newest

@@ -2709,6 +2709,7 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     // Outdoors the cell at the position, as MoveTo picks it.
     const uint32_t cAt = it->second.WorldSpace ? CellAt(it->second.WorldSpace, {aX, aY, aZ}) : 0;
     it->second.Cell = cAt ? cAt : aCellId;
+    it->second.Stepped = false; // a moved copy's goal goes with the place it left
     it->second.Position[0] = aX;
     it->second.Position[1] = aY;
     it->second.Position[2] = aZ;

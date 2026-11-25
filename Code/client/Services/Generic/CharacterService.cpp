@@ -57,6 +57,7 @@
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
 
+#include <Systems/SnapshotAge.h>
 #include <Systems/CopyStep.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
@@ -590,6 +591,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
 
     auto& interpolationComponent = InterpolationSystem::Setup(m_world, *entity);
     interpolationComponent.Position = acMessage.Position;
+    interpolationComponent.RestartTick = acMessage.Tick;
     m_world.emplace_or_replace<OwnerPlaceComponent>(*entity, acMessage.CellId, GameId{}, std::chrono::steady_clock::now());
 
     AnimationSystem::Setup(m_world, *entity);
@@ -686,7 +688,7 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
 
     // The owner's arrival: it is there now (RunPresence moves the copy), as the spawn would have it.
     if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity))
-        InterpolationSystem::Restart(*pInterpolation, acMessage.Position);
+        InterpolationSystem::Restart(*pInterpolation, acMessage.Position, acMessage.Tick);
     auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(aEntity);
     place.CellId = acMessage.CellId;
     place.LastMove = {};
@@ -714,6 +716,11 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         auto& interpolationComponent = view.get<InterpolationComponent>(*itor);
         auto& animationComponent = view.get<RemoteAnimationComponent>(*itor);
         const auto& movement = update.UpdatedMovement;
+        for (const auto& action : update.ActionEvents)
+            animationComponent.TimePoints.push_back(action);
+        // Sent before its owner's last jump, arrived after it: an old place (actor-movement.md, "A goal outlives its place").
+        if (SnapshotAge::IsStale(acMessage.Tick, interpolationComponent.RestartTick))
+            continue;
 
         InterpolationComponent::TimePoint point;
         point.Tick = acMessage.Tick;
@@ -740,13 +747,10 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         interpolationComponent.Playback.OnPoint(point.Tick);
         if (teleported)
         {
-            InterpolationSystem::Restart(interpolationComponent, movement.Position);
+            InterpolationSystem::Restart(interpolationComponent, movement.Position, acMessage.Tick);
             interpolationComponent.Playback.Snap(clock);
         }
         InterpolationSystem::AddPoint(interpolationComponent, point);
-
-        for (const auto& action : update.ActionEvents)
-            animationComponent.TimePoints.push_back(action);
     }
 }
 
@@ -1610,6 +1614,7 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     }
 
     AnnounceCharacterRequest message{};
+    message.Tick = m_world.any_of<RemoteComponent>(aEntity) ? InterpolationSystem::PlaybackTick(m_world, aEntity) : m_world.GetFrameTick();
 
     // A created actor goes by its created id: the spawn rebuilds it from its base (NotifyCharacterSpawn).
     const auto cReference = ToSessionOrCreated(formIdComponent.Id);
@@ -1772,6 +1777,7 @@ bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpaw
         if (!m_actorBridge.ActorExists(cFormId))
             return false;
         const auto cState = ReadLiveState(cFormId);
+        aSpawn.Tick = InterpolationSystem::PlaybackTick(m_world, cEntity);
         aSpawn.Position = cState.Position;
         aSpawn.Rotation = cState.Rotation;
         aSpawn.IsDead = cState.Data.IsDead;
@@ -1923,12 +1929,16 @@ void CharacterService::RunLocalUpdates() noexcept
     SendGraphStream();
 }
 
-// Until its owner's snapshots say where it goes: where it is, its step's last goal dropped (the movement job keeps
-// stepping it there, an earlier cell's place included: actor-movement.md, "A goal outlives its place").
-void CharacterService::HoldCopy(uint32_t aFormId) const noexcept
+// Until its owner's snapshots say where it goes: at its owner's last place once in its cell, else where it is
+// (RunPresence moves it), no goal to step to (actor-movement.md, "A goal outlives its place").
+void CharacterService::HoldCopy(entt::entity aEntity, uint32_t aFormId) const noexcept
 {
     glm::vec3 at{}, rotation{};
     m_actorBridge.GetActorPosition(aFormId, at.x, at.y, at.z);
+    // By the cell alone: a spawn says no worldspace (RefreshCopy keeps the last one's).
+    const auto* pPlace = m_world.try_get<OwnerPlaceComponent>(aEntity);
+    if (pPlace && pPlace->CellId && m_actorBridge.GetActorParentCellFormId(aFormId) == ToGame(pPlace->CellId))
+        at = m_world.get<InterpolationComponent>(aEntity).Position;
     m_actorBridge.GetActorRotation(aFormId, rotation.x, rotation.y, rotation.z);
     const float cAt[3]{at.x, at.y, at.z};
     const float cRotation[3]{rotation.x, rotation.y, rotation.z};
@@ -1955,7 +1965,7 @@ void CharacterService::RunRemoteUpdates() noexcept
         if (points.size() < 2)
         {
             if (pFormIdComponent)
-                HoldCopy(pFormIdComponent->Id);
+                HoldCopy(entity, pFormIdComponent->Id);
             continue;
         }
         while (points.size() > 2 && tick > std::next(points.begin())->Tick)
@@ -2153,6 +2163,7 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
     const auto cWorldSpace = cWorldSpaceId ? ToSession(cWorldSpaceId) : std::optional(GameId{});
     if (!cCell || !cWorldSpace)
         return;
+    request.Tick = m_world.GetFrameTick();
     request.CellId = *cCell;
     request.WorldSpaceId = *cWorldSpace;
     float x, y, z;

@@ -9,8 +9,13 @@
 #include <Events/FastTravelEvent.h>
 #include <Events/PlayerTravelQueuedEvent.h>
 #include <Events/PartySummonCommandEvent.h>
+#include <Messages/NotifyCharacterSpawn.h>
+#include <Messages/NotifyReferencesMove.h>
+#include <Services/CharacterService.h>
 
+#include <chrono>
 #include <format>
+#include <thread>
 
 namespace
 {
@@ -256,6 +261,87 @@ SCENARIO("A copy that travels stands at its owner's new place, never racing towa
     INFO(seen << " frames in the new cell, at worst " << worst << " units off");
     CHECK(seen > 0);
     CHECK(worst < 5.f);
+}
+
+SCENARIO("A snapshot older than a copy's jump never takes it back", "[travel][copy-step]")
+{
+    // Movement goes unreliably on its own channel, a jump or a spawn reliably: one sent before can arrive after.
+    enum class Late { kNone, kSameCell, kTwo, kOldCell, kAfterSpawn };
+    const Late cLate = GENERATE(Late::kNone, Late::kSameCell, Late::kTwo, Late::kOldCell, Late::kAfterSpawn);
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Agree("the games agree on the players");
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke, {0.f, 0.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1 && guest.Actors.at(guest.CopiesOf(kGuard)[0]).Stepped; },
+                "the guest steps the guard's copy");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    uint32_t id = 0;
+    for (auto&& [cEntity, cForm, cLocal] : party.Host().view<FormIdComponent, LocalComponent>().each())
+        if (cForm.Id == npc)
+            id = cLocal.Id;
+    REQUIRE(id != 0);
+    entt::entity entity = entt::null;
+    for (auto&& [cEntity, cRemote] : party.Guest().view<RemoteComponent>().each())
+        if (cRemote.Id == id)
+            entity = cEntity;
+    const GameId cCell = party.Guest().get<OwnerPlaceComponent>(entity).CellId;
+    GameId oldCell = cCell;
+    oldCell.BaseId = kSinkhole;
+
+    constexpr float cSpot = 1500.f;
+    host.Actors.at(npc).Position[0] = cSpot;
+    const uint64_t cNow = party.Host().GetFrameTick();
+    ActionEvent gesture;
+    gesture.Tick = cNow - 40;
+    gesture.ActionId = 0x489F1;
+    gesture.IdleId = 0xF779D;
+    gesture.EventName = "MotionDrivenIdle";
+    const auto cArrives = [&](uint64_t aTick, float aX, bool aTeleported, const GameId& acCell, bool aActs) {
+        NotifyReferencesMove message;
+        message.Tick = aTick;
+        auto& update = message.Updates[id];
+        update.UpdatedMovement.Position = glm::vec3(aX, 0.f, 0.f);
+        update.UpdatedMovement.Teleported = aTeleported;
+        update.UpdatedMovement.OnGround = true;
+        update.UpdatedMovement.CellId = acCell;
+        if (aActs)
+            update.ActionEvents.push_back(gesture);
+        party.As(party.Guest(), [&] { party.Guest().GetCharacterService().OnReferencesMoveRequest(message); });
+    };
+    if (cLate == Late::kAfterSpawn)
+    {
+        std::vector<NotifyCharacterSpawn> spawns;
+        party.As(party.Host(), [&] { spawns = party.Host().GetCharacterService().BuildSpawnRequests(0); });
+        const auto cSpawn = std::find_if(spawns.begin(), spawns.end(), [&](const auto& acSpawn) { return acSpawn.SessionId == id; });
+        REQUIRE(cSpawn != spawns.end());
+        party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(*cSpawn); });
+    }
+    else
+        cArrives(cNow, cSpot, true, cCell, false);
+    const auto cState = [&] { return party.Guest().get<OwnerPlaceComponent>(entity).CellId; };
+    if (cLate == Late::kTwo)
+        cArrives(cNow - 80, -30.f, false, cCell, false);
+    if (cLate != Late::kNone)
+        cArrives(cNow - 40, 0.f, false, cLate == Late::kOldCell ? oldCell : cCell, true);
+    CHECK(cState() == cCell);
+
+    size_t between = 0, moved = 0;
+    const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(600);
+    while (std::chrono::steady_clock::now() < cUntil)
+    {
+        party.Frame();
+        std::this_thread::sleep_for(std::chrono::milliseconds(4));
+        const float cX = guest.Actors.at(cCopy).Position[0];
+        moved += cX > cSpot - 5.f;
+        between += cX < -5.f || (cX > 5.f && cX < cSpot - 5.f);
+    }
+    INFO(between << " frames between its places, " << moved << " on its spot");
+    CHECK(between == 0);
+    CHECK(moved > 0);
+    if (cLate != Late::kNone)
+        CHECK(guest.GetActorLatestAnimation(cCopy).IdleId == gesture.IdleId);
 }
 
 SCENARIO("A follower landing on a guest's arrival spot does not shove the guest", "[travel]")

@@ -24,11 +24,12 @@ struct EnterCellRequest final : RequestMessage
 
     bool operator==(const EnterCellRequest& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId &&
+        return GetOpcode() == acRhs.GetOpcode() && Tick == acRhs.Tick && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId &&
                Position == acRhs.Position && Heading == acRhs.Heading && How == acRhs.How && LatestAction == acRhs.LatestAction &&
                GraphState == acRhs.GraphState && Data == acRhs.Data;
     }
 
+    uint64_t Tick{}; // NotifyCharacterSpawn::Tick
     GameId CellId{};
     GameId WorldSpaceId{}; // empty: an interior
     Vector3_NetQuantize Position{};

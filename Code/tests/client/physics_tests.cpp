@@ -1,5 +1,6 @@
 // Physics sync's pure halves (docs/design/physics-sync.md): the guess every game makes, the host's send rule, the
 // guest's playback.
+#include <Systems/SnapshotAge.h>
 #include <catch2/catch.hpp>
 #include <Games/KnockReplay.h>
 #include <Games/Animation/PoseMatch.h>
@@ -765,4 +766,12 @@ TEST_CASE("Moving groups never wrap onto one in use; a freed one is taken again"
     groups.Give(cFirst);
     groups.Give(cFirst);              // both of group 12's bodies stopped
     CHECK(groups.Take(13) == cFirst); // free again, taken by another object
+}
+
+TEST_CASE("A snapshot stamped before its owner's jump is stale, one far older is a clock's change", "[copy-step]")
+{
+    CHECK(SnapshotAge::IsStale(960, 1000));
+    CHECK_FALSE(SnapshotAge::IsStale(1000, 1000));
+    CHECK_FALSE(SnapshotAge::IsStale(1040, 1000));
+    CHECK_FALSE(SnapshotAge::IsStale(1000, 1000 + SnapshotAge::kLatestMs + 1));
 }

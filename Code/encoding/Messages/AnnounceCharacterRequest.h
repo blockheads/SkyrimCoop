@@ -30,11 +30,12 @@ struct AnnounceCharacterRequest final : RequestMessage
 
     bool operator==(const AnnounceCharacterRequest& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
+        return GetOpcode() == acRhs.GetOpcode() && Tick == acRhs.Tick && SessionId == acRhs.SessionId && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
                AppearanceBuffer == acRhs.AppearanceBuffer && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && Record == acRhs.Record && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && HeldEffects == acRhs.HeldEffects && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && CommanderId == acRhs.CommanderId;
     }
 
     // The id the host gave it: the player's from the join answer, the host's actors' from HostCharacters.
+    uint64_t Tick{}; // NotifyCharacterSpawn::Tick
     uint32_t SessionId{};
     GameId ReferenceId{};
     GameId FormId{};

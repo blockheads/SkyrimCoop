@@ -1118,6 +1118,7 @@ TEST_CASE("Packets", "[encoding.packets]")
 
         AnnounceCharacterRequest sendMessage, recvMessage;
         sendMessage.SessionId = 14523698;
+        sendMessage.Tick = 123456789;
         sendMessage.AppearanceBuffer = "toto";
         sendMessage.Weight = 87.5f;
         sendMessage.CellId.BaseId = 45;

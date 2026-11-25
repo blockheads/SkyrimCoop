@@ -192,6 +192,38 @@ TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn
     CHECK(cSpawns[0]->Position == movement.Updates[cPeerPlayer].UpdatedMovement.Position);
 }
 
+TEST_CASE("A player's movement sent before its arrival leaves its record where it arrived", "[HostAuthority][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    EnterCellRequest arrival;
+    arrival.Tick = 1000;
+    arrival.CellId = GameId{0, 0x9C5E1};
+    arrival.Position = glm::vec3(10.f, 20.f, 30.f);
+    arrival.How = EnterCellRequest::Travel::kBeforeJoining;
+    session.Receive(kPeer, arrival);
+    const auto cRecorded = [&] {
+        session.Outbox.clear();
+        RequestRespawn again;
+        again.ActorId = cPeerPlayer;
+        session.Receive(kHost, again);
+        const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(kHost);
+        REQUIRE(cSpawns.size() == 1);
+        return *cSpawns[0];
+    };
+    ReferencesMoveRequest moved;
+    moved.Tick = 960;
+    moved.Updates[cPeerPlayer].UpdatedMovement.Position = glm::vec3(900.f, 0.f, 0.f);
+    session.Receive(kPeer, moved);
+    CHECK(cRecorded().Position == arrival.Position);
+    CHECK(cRecorded().CellId == arrival.CellId);
+    CHECK(cRecorded().Tick == 1000);
+    moved.Tick = 1040;
+    session.Receive(kPeer, moved);
+    CHECK(cRecorded().Position == moved.Updates[cPeerPlayer].UpdatedMovement.Position);
+    CHECK(cRecorded().Tick == 1040);
+}
+
 TEST_CASE("Respawn: the fresh spawn starts from the owner's state at its respawn, else the host's copy's", "[HostAuthority][Characters]")
 {
     Session session;

@@ -69,10 +69,11 @@ void InterpolationSystem::AddPoint(InterpolationComponent& aInterpolationCompone
     aInterpolationComponent.TimePoints.push_back(acPoint);
 }
 
-void InterpolationSystem::Restart(InterpolationComponent& aInterpolationComponent, const glm::vec3& acPosition) noexcept
+void InterpolationSystem::Restart(InterpolationComponent& aInterpolationComponent, const glm::vec3& acPosition, uint64_t aTick) noexcept
 {
     aInterpolationComponent.TimePoints.clear();
     aInterpolationComponent.Position = acPosition;
+    aInterpolationComponent.RestartTick = aTick;
     aInterpolationComponent.Guess.reset();
     aInterpolationComponent.Correction = {};
 }

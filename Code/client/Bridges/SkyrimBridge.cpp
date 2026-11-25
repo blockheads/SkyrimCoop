@@ -280,6 +280,9 @@ void SkyrimBridge::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, flo
         pos.y = aY;
         pos.z = aZ;
         pActor->MoveTo(pCell, pos);
+        // The goal is the place it left: the movement job would step it back there (37356).
+        if (auto* pExtension = pActor->GetExtension(); pExtension && pExtension->IsCopy())
+            pExtension->HasCopyGoal = false;
     }
 }
 
