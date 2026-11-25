@@ -114,7 +114,7 @@ start/stop event is injected alongside the native one. A cancelled preparation e
 
 Party-event follow-up: host-rule tests cover a guest's sleep through preparation, running, completion
 and cancellation, other guests still waiting, and a subsequent guest wait resetting the host's rest
-type. ClientTests cover a sleep listener registered by a guest still running on the host player,
+type. UnitTests cover a sleep listener registered by a guest still running on the host player,
 including its follow-up timer; ordinary registrations, solo behavior and explicit native calls retain
 their existing causes. The existing end-to-end rest flows now expect the host to sleep for a guest's
 sleep too.
@@ -124,7 +124,7 @@ Skyrim. It removes/restores the host's prior rested abilities and the inn bed's 
 guest wait grants none, then checks that a guest sleep grants a new Rested/Well Rested/Lover's Comfort
 ability on the host. The fixture requires a host without beast blood or the Lover Stone (both block
 those bonuses in the vanilla script), uses the ordinary quest registration, and does not inject an
-event or call the handler. The full native/UI/DLL gate passes (40 ClientTests, 143 HostAuthorityTests,
+event or call the handler. The full native/UI/DLL gate passes (40 UnitTests, 143 HostAuthorityTests,
 10 encoding tests, 99 GameTests); the two new targeted cases cover 132 assertions. Logs:
 `build/party-rest-check.log`, `build/party-rest-tags-tests.log`, `build/party-rest-host-tests.log`.
 Both delayed/lossy profiles pass all 8 wait flows / 414 assertions (50 ±30 ms / 5% loss and

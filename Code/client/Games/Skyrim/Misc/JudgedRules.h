@@ -6,7 +6,7 @@
 
 // What a condition about the player becomes when it is judged for a guest's character (JudgedFor): the engine reads
 // the player outside its subject and target in these ways (docs/re/systems/conditions.md, "Judged for a character").
-// Checked by ClientTests.
+// Checked by UnitTests.
 namespace JudgedRules
 {
 // Condition functions (CommonLibSSE-NG FUNCTION_DATA::FunctionID).

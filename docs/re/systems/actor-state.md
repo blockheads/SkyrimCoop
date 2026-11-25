@@ -49,7 +49,7 @@ the copy's own body              knock state, weapon transition (kept from snaps
 Only the bits read here moved to the part. The others still come with their owner's flags as they always did: who
 writes them on a copy is not read (an audit on 2026-11-18 caught a first version that dropped them from actions).
 
-`Games/Animation/ActorStateRules.h` holds the masks; ClientTests `[actor-state]` checks they never overlap.
+`Games/Animation/ActorStateRules.h` holds the masks; UnitTests `[actor-state]` checks they never overlap.
 
 - A part is applied when the copy's stream playback reaches the owner's frame it was read at, so it never runs ahead
   of the graph it goes with. Off its stream, at once.

@@ -76,21 +76,21 @@ target(name)
 end
 
 
-build_client("SkyrimTogetherClient")
+build_client("SkyrimCoopObjects")
 
 -- SKSE plugin DLL: links every client object and exports the SKSE entry points
 -- (SKSEPlugin_Version, SKSEPlugin_Load, DllMain).
-target("SkyrimTogetherClientDLL")
+target("SkyrimCoopPlugin")
     -- The PDB by name only: no build machine path in a released DLL.
     if is_plat("windows") then
         add_shflags("/PDBALTPATH:%_PDB%", {force = true})
     end
     set_kind("shared")
     set_group("Client")
-    set_basename("SkyrimTogetherClient")
+    set_basename("SkyrimCoop")
     add_files("skse_entry.cpp")
     add_test_harness_define()
-    add_deps("SkyrimTogetherClient")
+    add_deps("SkyrimCoopObjects")
     add_syslinks("gdi32", "dwmapi")
     add_includedirs(".", "../external/", "..", "Games/Skyrim")
     add_includedirs("../external/mem", {public = false})

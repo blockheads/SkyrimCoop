@@ -69,7 +69,7 @@ Every type travels the same way, read from the engine's own type table rather th
   4 keyword (CommonLibSSE-NG `BGSStoryEventMember::DATA_TYPE`).
 - 32330 walks those members over the raw event: a reference or integer takes 4 bytes, any other an 8-byte pointer,
   the raw pointer first moved to its next 8-byte boundary (`test dil, 7`). Each lands in a 64-bit member. So a raw
-  event can be rebuilt from the member types alone (`StoryEventRules::Layout`, ClientTests).
+  event can be rebuilt from the member types alone (`StoryEventRules::Layout`, UnitTests).
 - 32330's only caller is `AddEvent_Impl` (0x52BD31, a byte scan of `.text`): hooking it sees each event once, as it
   is queued. `AddEvent_Impl` holds the manager's `eventArrayLock` (+0x60) around it, so the hook only copies the
   members and queues an `OwnStoryEvent`; handles are read on the next update.

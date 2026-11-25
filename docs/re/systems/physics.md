@@ -305,7 +305,7 @@ more objects in the Sleeping Giant Inn stayed awake, one moved 114 units in a mi
 The community fix (HIGGS `UpdatePhysicsTimesHook`, HavokFix, SSE Display Tweaks' Havok option): before that call, set
 `fMaxTime` to the frame, split into equal steps no longer than 1/60 when the frame is long. Ours is
 `Fixes/HavokStepFix.cpp` (`Physics::HavokStep`), keeping the INI's complex-to-simple ratio. It writes the same values
-those mods would, so running with them is harmless. Scenario `clutter-rests-at-any-frame-rate`; `ClientTests`
+those mods would, so running with them is harmless. Scenario `clutter-rests-at-any-frame-rate`; `UnitTests`
 `[havok-step]`; no GameTests flow (the fake has no physics).
 
 ## Grabbing

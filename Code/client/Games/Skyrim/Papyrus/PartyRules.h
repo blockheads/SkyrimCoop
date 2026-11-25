@@ -11,7 +11,7 @@
 
 // PartyNatives' rules with no engine: where a native's call runs (RouteOf: here, on the host's game, on the game of the
 // player whose action ran it, on every game; docs/design/party-calls.md), whose a controls or screen call is, and who
-// holds which controls. Checked by ClientTests on Linux; PartyNatives.cpp gathers the inputs and acts.
+// holds which controls. Checked by UnitTests on Linux; PartyNatives.cpp gathers the inputs and acts.
 namespace PartyRules
 {
 // ControlMap's user event flags used here (BSInputEnableManager::UserEvent; PartyNatives.cpp asserts they agree).

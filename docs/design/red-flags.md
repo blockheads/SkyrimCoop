@@ -35,7 +35,7 @@ copy's game: InterpolationSystem plays both on one timeline (CopyClock); an acti
 - **`CopyEase`:** `CharacterService.cpp:1452` (`currentTick = m_transport.GetTick()`) only has to be consistent with
   itself. Leave it, or move it to the copy clock if the change is trivial.
 - **Test:**
-  - ClientTests if a pure helper takes the tick;
+  - UnitTests if a pure helper takes the tick;
   - otherwise a GameTests flow: an owner's action and its movement in one frame replay together on the copy. The
     fake's session time can be made to jump the way Skyrim's does (S10).
 - **Duo:** `copy-jumps-with-owner`, `copy-strafes-with-host`, `copy-strafes-with-guest`, `host-kill-move`.
@@ -167,7 +167,7 @@ network: Net::Server and Client, 2 ENet channels: 0 reliable, 1 unreliable (Serv
 - **Ordering:** copies replay movement and actions by tick, not by arrival, so splitting channels is safe. Check that
   an unreliable snapshot older than the newest is dropped (`InterpolationSystem`) rather than played back.
 - **Tests:**
-  - TPTests or ClientTests for the flag choice;
+  - TPTests or UnitTests for the flag choice;
   - GameTests through `UdpRelay` (it can drop packets): with 5% loss, a guest's copy on the host moves without the
     stalls the reliable path shows.
 - **Duo:** the movement and copy scenarios. **`scripts/net_check.sh` only with the user's OK** (memory

@@ -21,7 +21,7 @@ TestHarness/Actions.{h,cpp}   act / act_state / act_cancel; ticked in Poll once 
   conditions  on_ground, takes_input, holding id (0: nothing), aimed, for s, near/far(_xy) [a, b, d], moved_less [a, d]
 TestHarness/ActionSteer.h     pure: AngleError, Axis (probes 1, 2, 4... counts until a turn shows, then measures
                               the sensitivity each frame; never past the goal; capped per frame), Extremes
-                              ClientTests [action-steer]
+                              UnitTests [action-steer]
 actions/play.py              ctx.act, ctx.act_both (several games at once, series lined up by ctx.series_at),
                               turn_to, grab, carry
 scenarios/physics.py         drags_into_npc (guest/host-drags-into-npc, guest/host-holds-into-npc) on them: no
@@ -61,7 +61,7 @@ plugin, each running frame:
   past `seconds` (from the distance)         -> timeout
 ```
 
-The stall ring is pure, in `ActionSteer.h`, with ClientTests `[action-steer]`. `steer_to`/`run_straight` become one
+The stall ring is pure, in `ActionSteer.h`, with UnitTests `[action-steer]`. `steer_to`/`run_straight` become one
 `ctx.act`, the Python loop goes.
 
 **B. `push_toward`**
@@ -106,7 +106,7 @@ end (offered, not the full suite).
 
 **Files:** `TestHarness/Actions.{h,cpp}` (move, freeze, act_wait), `ActionSteer.h` (the stall ring),
 `CommandServer` (a deferred reply), `actions/play.py`, `actions/play_verbs.py`, the scenarios in E. **Tests:**
-ClientTests (stalls); `test_coop_harness` (spec building, outcome to failure); duo: `move` ends at a wall "blocked",
+UnitTests (stalls); `test_coop_harness` (spec building, outcome to failure); duo: `move` ends at a wall "blocked",
 not a timeout; `push_toward` with a bucket held; the physics scenarios; the carry step of `guest-holds-into-npc` 10 of
 10. **Order:** C, A, B, D on the fake and units, one duo session; then E, physics first.
 
@@ -266,7 +266,7 @@ guest's bucket never fell below the host's held one".
 
 | Step | What | Size |
 |---|---|---|
-| 1 | `TestHarness/Actions.{h,cpp}`: the runner, conditions, watches, the `act`/`act_wait`/`act_cancel` commands. Its pure halves (steering error to mouse delta, the condition tree, clocks) in a header with ClientTests. | new, ~600 lines |
+| 1 | `TestHarness/Actions.{h,cpp}`: the runner, conditions, watches, the `act`/`act_wait`/`act_cancel` commands. Its pure halves (steering error to mouse delta, the condition tree, clocks) in a header with UnitTests. | new, ~600 lines |
 | 2 | Steering: `turn_to`, `walk_to`, `push_toward` through `PlayerInput` and the mouse path. | ~200 lines |
 | 3 | Python `ctx.act` / `ctx.act_both`, with `walk_to`, `turn_to`, `grab`, `carry`, `hold_against` built on it; failures through `ctx.failure`, with the action's reason and frame. | ~250 lines |
 | 4 | **Migrate the open-loop sites**: the 30 `time.sleep`, the `setangle` turns in scenarios (22) and actions (12), and the timed `press`/`release` pairs. The physics scenarios first (`drags_into_npc`, `bucket_on_npc_head`, `sets_down_and_watches`), then movement and combat. Other `console_on` staging stays: it's setup, not play. | ~60 sites |
@@ -284,7 +284,7 @@ session becomes scenario code one to one.
 
 ## 6. Tests for the tooling itself
 
-- ClientTests: the steering math (angle wrap, a gain that doesn't overshoot), the condition tree, the
+- UnitTests: the steering math (angle wrap, a gain that doesn't overshoot), the condition tree, the
   simulation-time clock while paused.
 - `scripts/test_coop_harness.py`: name resolution, building outcomes into failures, and the recorder later.
 - In the duo:

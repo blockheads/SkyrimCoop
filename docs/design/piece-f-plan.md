@@ -92,7 +92,7 @@ the copy's events still go nowhere, and each furniture with moving parts would n
 link, for every furniture.
 
 Bug-fix flow: scenario through the MCP (Riverwood: wait for Hod's load, `expect` the mill's `IsLoaded` agrees);
-GameTests flow (the fake learns: a sitter's events reach its furniture's graph only through a dependent); ClientTests
+GameTests flow (the fake learns: a sitter's events reach its furniture's graph only through a dependent); UnitTests
 for the rule; then the fix.
 
 ## F4 The cover plates: investigation only

@@ -109,7 +109,7 @@ fi
 # An unconfigured build would wait minutes on its packages and then fail.
 (( ${#FAILED[@]} )) && finish
 
-for target in ClientTests HostAuthorityTests TPTests GameTests; do
+for target in UnitTests HostAuthorityTests TPTests GameTests; do
     step "build $target" scripts/xmake-linux.sh build -j8 "$target"
     [[ " ${FAILED[*]-} " == *" build $target "* ]] && continue
     if [[ $target == GameTests ]]; then
@@ -135,7 +135,7 @@ if [[ " ${FAILED[*]-} " != *" build UiWorkbench "* ]]; then
     step "check UI fixtures" build/linux/x86_64/debug/UiWorkbench --check
 fi
 if (( DLL )); then
-    step "build plugin" scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
+    step "build plugin" scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin
 fi
 
 finish

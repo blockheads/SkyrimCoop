@@ -114,7 +114,7 @@ the clip-load and graph hooks   a WorldGate::Reader, else the engine's own: the 
 ```
 
 - Tests: the scenario `held_copy_shown_again_frees_no_list_twice` (the hook off: the guest crashed 1 of 1, a vtable in
-  a constructor's `this`); ClientTests `[freed-worn-list]`; GameTests "A held copy wearing its outfit beside a twin is shown again: no
+  a constructor's `this`); UnitTests `[freed-worn-list]`; GameTests "A held copy wearing its outfit beside a twin is shown again: no
   worn list is freed twice" (the fake's `EnableActor` learned the reset and counts the second free); the harness's
   `heap` readout (`double_frees`, with heap history on) and the verb `expect_no_double_free`.
 - Dropped: the copy teardown between frames. No step 0 run showed a copy freed mid-frame.
@@ -189,7 +189,7 @@ bool ApplyStart(Actor& aCopy, const StartPart& acPart)    // only at a start: af
 }
 ```
 
-One writer per field stays the rule (ClientTests `[actor-state]`): `StartPart` writes only at a start; between
+One writer per field stays the rule (UnitTests `[actor-state]`): `StartPart` writes only at a start; between
 starts the stream's handlers do. The ask is the R3 half: a copy off its owner for 2 s takes a new start.
 
 Step 0 (to read in IDA before the build):

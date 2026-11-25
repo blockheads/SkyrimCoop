@@ -24,7 +24,7 @@ private:
 };
 
 // The game's playback time for copies (docs/design/copy-clock.md): the owners' time minus the line's lateness,
-// steered toward it a little each frame, never back and never ahead. No engine: ClientTests.
+// steered toward it a little each frame, never back and never ahead. No engine: UnitTests.
 class CopyClock
 {
 public:
@@ -61,7 +61,7 @@ private:
 };
 
 // One copy's playback time: the game's (CopyClock) minus its owner's send interval for it, which changes with its
-// rate (30/s for players and fights, 10/s otherwise) and is steered too, never jumped. No engine: ClientTests.
+// rate (30/s for players and fights, 10/s otherwise) and is steered too, never jumped. No engine: UnitTests.
 class CopyPlayback
 {
 public:

@@ -10,7 +10,7 @@
 // NativeReach's reading of code with no engine or Windows: what a function's instructions address and call, which of
 // the party's engine calls a native makes, and whether its calls reach this game's player
 // (docs/re/systems/papyrus-guest-scripts.md, "Natives on the player"; docs/design/cutscenes.md). The process is asked
-// through Code: NativeReach.cpp answers from the running game, ClientTests from bytes.
+// through Code: NativeReach.cpp answers from the running game, UnitTests from bytes.
 namespace NativeReach
 {
 // What a native's own code calls: the controls (ControlMap::ToggleControls) or the screen (fades, camera, shakes,

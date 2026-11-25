@@ -349,7 +349,7 @@ a guest takes ownership (a ridden      SetActorCopy(false) stamps the session id
 the session's end                      nothing to undo; a refused NPC loads with its cell next time
 ```
 
-- The rule is `GuestNpcs::Held` (ClientTests `[GuestNpcs]`). An actor's flags live in its `ActorExtension`
+- The rule is `GuestNpcs::Held` (UnitTests `[GuestNpcs]`). An actor's flags live in its `ActorExtension`
   (`ClaimedIn`, `Refused3D`), read from the loader threads.
 - A guest's temporary NPCs are held too. Discovery deletes only actors with 3D, so these stay until their cell
   unloads.

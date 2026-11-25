@@ -6,7 +6,7 @@ Checked in IDA 2026-10-30 for party items ([party-items.md](../../design/party-i
 |---|---|---|---|
 | 56349 | 0xa36f40 | `ConcreteDelayFunctorFactory<AddItemFunctor>` | `ObjectReference.AddItem` does not add inside the native: it queues `SkyrimScript::AddItemFunctor` (a `DelayFunctor` carrying the calling stack's id at +0x0C), as `MoveTo` does |
 | 56095 | 0xa28b40 | `SkyrimScript::AddItemFunctor::Run` (vfunc 1) | The add itself, later on the game thread. The calling script's context (`GuestScripts::NativeScript()`) is gone by then: tag the functor when it is queued, read the tag in the run (the `HookCastRun` pattern) |
-| — | 0xa2c110 | the `ObjectReference.AddItem` native | Builds the `AddItemFunctor` and queues it with `SkyrimVM::QueuePostRenderCall` (53955), as `MoveTo` does, not `QueueDelayFunctor` (53954). Corrected 2026-10-30: the story mark was first only in the 53954 hook and never fired in Skyrim. The bookkeeping is now `Papyrus/StoryGifts` (engine-free): both queue hooks and the fake engine's script `AddItem` (post-render queue) call it. GameTests `[party-items]` went red on the old rule; ClientTests `[StoryGifts]` |
+| — | 0xa2c110 | the `ObjectReference.AddItem` native | Builds the `AddItemFunctor` and queues it with `SkyrimVM::QueuePostRenderCall` (53955), as `MoveTo` does, not `QueueDelayFunctor` (53954). Corrected 2026-10-30: the story mark was first only in the 53954 hook and never fired in Skyrim. The bookkeeping is now `Papyrus/StoryGifts` (engine-free): both queue hooks and the fake engine's script `AddItem` (post-render queue) call it. GameTests `[party-items]` went red on the old rule; UnitTests `[StoryGifts]` |
 | 56355 | 0xa37110 | `ConcreteDelayFunctorFactory<RemoveItemFunctor>` | `RemoveItem` is queued the same way |
 | 16145 | 0x2395e0 | `InventoryChanges` temper (ours) | `(changes, object, extraList, health)`: splits one off a counted stack (new `ExtraDataList`, count 1) and sets its health (tempering). From `SmithingMenu` 51291 → `sub_14090C850`. In place: no remove/add, so our inventory hooks do not see it |
 | 16146 | 0x2398a0 | `InventoryChanges::EnchantObject` | `(object, extraList, enchantment, charge)`: the enchanter's craft, in place in the same way |
@@ -82,7 +82,7 @@ item's entry went from 1 to 0 and its roll list stayed, now with `ExtraCount` (t
   take reads right. That would be why the run on the first run's leftovers passed (its take was logged "1 moved").
 
 `TESObjectREFR::GetContainerCount` now counts as CommonLibSSE-NG's `GetInventory` does (what the menus show): the base
-count unless the entry is a roll's, plus the entry's, with no special case (`Games/ContainerCount.h`, ClientTests
+count unless the entry is a roll's, plus the entry's, with no special case (`Games/ContainerCount.h`, UnitTests
 "A roll's item taken from a chest counts none, not one"). `guest-loots-hosts-roll` 3 of 3, 3 different fresh chests.
 GameTests "A guest takes a fresh roll's item: it gets it and the chest is empty on every game": the fake's chest keeps
 a roll's entry at 0 and counts through the same `ContainerCount` (control: with 16214's rule it never gets the item).
@@ -224,7 +224,7 @@ disabled (19801 frees it).
 **The fix** (`Games/FreedWornList.h`, `TESObjectREFR.cpp`): `HookUnequipForRemove` (19694) looks, after the engine's
 call, whether the item's entry still holds the list, and remembers one that is gone (per thread) until the
 `RemoveItem` it ran in returns; `HookRemoveFromInventory` (16059) passes no list in its place to each nested call
-(16059 makes up to two with the same list: `0x14022f51d`, `0x1402305e0`). Tests: ClientTests
+(16059 makes up to two with the same list: `0x14022f51d`, `0x1402305e0`). Tests: UnitTests
 `[freed-worn-list]`; GameTests "A held copy wearing its outfit beside a twin is shown again: no worn list is freed
 twice" (the fake's `EnableActor` counts the second free); the duo: `held_copy_shown_again_frees_no_list_twice` (it
 boots the games with the heap history itself: `count_double_frees`, then `expect_no_double_free`).

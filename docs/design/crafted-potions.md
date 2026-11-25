@@ -84,7 +84,7 @@ restarted game (no created forms, an empty book) makes its potions again.
 
 ## Tests
 
-- ClientTests `recipe_tests.cpp`: the id is order- and cost-independent, a poison or a stronger potion is another;
+- UnitTests `recipe_tests.cpp`: the id is order- and cost-independent, a poison or a stronger potion is another;
   the book keeps each once, gives a game what it has not had, an inventory's recipes; a form is made once and again
   when the engine let it go or reused its id.
 - HostAuthorityTests `recipe_tests.cpp`: a guest's recipes are the host's and reach another game before the next

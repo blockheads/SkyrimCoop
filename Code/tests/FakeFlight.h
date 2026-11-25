@@ -1,6 +1,6 @@
 #pragma once
 
-// A body's flight as Havok roughly flies it, for the physics tests (ClientTests, GameTests): free fall, a bounce
+// A body's flight as Havok roughly flies it, for the physics tests (UnitTests, GameTests): free fall, a bounce
 // off the floor at z = 0 losing half its speed and spin, then sliding with friction until it stops.
 #include <Physics/BodyPrediction.h>
 

@@ -23,7 +23,7 @@ class RuntimeTests(unittest.TestCase):
             root = Path(folder)
             source, plugins = root / "legacy-build", root / "Plugins"
             source.mkdir()
-            dll, loader = source / "SkyrimTogetherClient.dll", source / "SkyrimCoopLoader.dll"
+            dll, loader = source / "SkyrimCoop.dll", source / "SkyrimCoopLoader.dll"
             for path in (dll, loader):
                 path.write_bytes(b"old")
                 os.utime(path, (1000, 1000))

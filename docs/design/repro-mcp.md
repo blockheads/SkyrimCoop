@@ -266,7 +266,7 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
 
 - **Counters** (`Diagnostics/Counters.h`): `COUNT(name, value)` and `COUNT_TIME(name)`, atomic, fine in hooks. They
   show in `status` (`counters`), the harness `counters` command (with `reset`), `coop_test.py profile` (reset at the
-  window's start, a table per game) and the MCP `counters` tool. ClientTests `[counters]`. First uses:
+  window's start, a table per game) and the MCP `counters` tool. UnitTests `[counters]`. First uses:
   `graph state save us` and `graph state bytes` (`Animation.cpp`), `movement messages` and
   `movement stamp ahead ms` (`HostCharacters::OnMovement`).
 - **Network** (`status.network`, MCP `network`, a line in `profile`): the session time, the host's round trip per
@@ -479,7 +479,7 @@ record_export(bug, kind="scenario"|"spec")
 
 - **Python units** (`scripts/test_coop_harness.py`): the recorder turns a recorded call list into scenario code
   and spec JSON; handle resolution; refusal when the duo is held by someone else.
-- **ClientTests:** the pure half of the frame step (counting requested against advanced frames), if any logic
+- **UnitTests:** the pure half of the frame step (counting requested against advanced frames), if any logic
   ends up outside the engine call.
 - **Duo acceptance, end to end through the MCP:**
   1. `duo_start`, `scene_reset`, `world_freeze`: both games' frame counters stop; `step(10)` moves both by 10.

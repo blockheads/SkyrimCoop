@@ -178,7 +178,7 @@ the story manager processes an event (ProcessEvent 32372, hooked; StoryEvents::J
 ```
 
 The host's own player's arrival is processed the same way, so whichever player the story manager sees first in a
-location starts its quests, judged for that player. Tests: HostAuthorityTests `story_tests.cpp`, ClientTests
+location starts its quests, judged for that player. Tests: HostAuthorityTests `story_tests.cpp`, UnitTests
 `party_arrivals_tests.cpp` and `story_event_rules_tests.cpp`, GameTests `story_flows.cpp`; Skyrim `guest-story-starts-no-quest`,
 `guest-location-change-starts-story`, `guest-craft-raises-story`.
 
@@ -232,7 +232,7 @@ own.
 
 ## Tests
 
-- Tier 1 (`ClientTests`):
+- Tier 1 (`UnitTests`):
   - `party_tests.cpp`: "Where a native's call runs", every destination; the progression routes.
   - `quest_reward_tests.cpp`.
   - `code_reach_tests.cpp`: the real natives' bytes from 1.6.1170 (`AddPerk`, `ModActorValue`, `ForceActorValue`,

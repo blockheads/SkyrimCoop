@@ -79,7 +79,7 @@ scripts/coop_test.py report friend1.zip --id ID --boot
   - `EngineReads`: the engine reads both use.
   - `Snapshot`: the status readouts.
   - `LogRing`, `MessageTrail`.
-  - `ReportPaths`, `Zip`, `Export`, `CrashReports`: no engine; tested in `ClientTests`.
+  - `ReportPaths`, `Zip`, `Export`, `CrashReports`: no engine; tested in `UnitTests`.
   - `Folders`.
 - `Services/BugReportService` (every game) and `Bridges/BugReportBridge`. GameTests uses `FakeBugReports`.
 - `HostAuthority::OnBugReport`.

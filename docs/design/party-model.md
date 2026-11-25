@@ -133,7 +133,7 @@ and conditions would have been right whoever acted; with each player's own, thre
     syncs). Pending a decision.
   - A horse's owner (`SetFactionOwner(PlayerFaction)` on the actor): fixed 2026-10-31. An actor's ownership change
     is the one actor change the host sends as a row (`FormChangeRows`, `Form::kActor`), live and in a cell's state,
-    with none as base id 0; its other states stay its owner game's. GameTests `[world][ownership]`, ClientTests
+    with none as base id 0; its other states stay its owner game's. GameTests `[world][ownership]`, UnitTests
     `[FormChangeRows]`; `party-buys-horse-*` pass their ownership steps in Skyrim both ways (2026-10-31).
   - Fixed: a guest's house line from Proventus did not show. The line asks for the Jarl's friendship
     (`GetRelationshipRank` >= 2 on the HousePurchase Jarl alias). It was judged for the guest's copy, which no Jarl

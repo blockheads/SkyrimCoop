@@ -9,7 +9,7 @@
 namespace TestHarness
 {
 // One socket client's replies in request order: most ready at once, a large one finished off the game thread (its
-// JSON built and written there, docs/re/systems/harness-cost.md). Pure: ClientTests.
+// JSON built and written there, docs/re/systems/harness-cost.md). Pure: UnitTests.
 class ReplyQueue
 {
 public:

@@ -10,7 +10,7 @@
 #include <string>
 
 // A story event of any registered type, between its engine form and the session's (docs/re/systems/story-manager.md,
-// "A guest's story events"). Checked by ClientTests.
+// "A guest's story events"). Checked by UnitTests.
 namespace StoryEventRules
 {
 // A member's type (CommonLibSSE-NG BGSStoryEventMember::DATA_TYPE).

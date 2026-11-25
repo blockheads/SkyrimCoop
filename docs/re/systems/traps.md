@@ -83,7 +83,7 @@ of phase with the host's. Fixed by `ObjectAnimations` (docs/design/traps.md).
 `Spell.Cast` (55747, its `CastFunctor` vtable 218111 addressed) fell into the screen's. `InterruptCast` reached every game
 by that accident; `Spell.Cast` from a stack a guest's step caused (its copy on the plate) was that guest's "moment" and
 stayed on the host, so the guest saw no flames. The addressed vtable's sink also lost its `Argument` (the caster is
-Spell.Cast's first argument), so the caster read as the spell. Both fixed (ClientTests `code_reach_tests`); on the duo the
+Spell.Cast's first argument), so the caster read as the spell. Both fixed (UnitTests `code_reach_tests`); on the duo the
 guest's game then casts the flames from its own jets, its copy of the host burning for nothing (copies mirror).
 
 ## Who simulates a trap's bodies (audited 2026-11-24)

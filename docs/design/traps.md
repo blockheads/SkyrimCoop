@@ -60,7 +60,7 @@ One rule for everything the world does to a player: **the host's game decides, e
 
 ## Tests
 
-- ClientTests `[TrapRules]`, `[ObjectAnimations]`, `[ClipHolds]`; TPTests `[encoding.traps]`; HostAuthorityTests `[traps]`.
+- UnitTests `[TrapRules]`, `[ObjectAnimations]`, `[ClipHolds]`; TPTests `[encoding.traps]`; HostAuthorityTests `[traps]`.
 - GameTests `trap_flows.cpp`: a guest's touch hurts it once on its own game (fails with the contact or the hit routing
   off, or with the host judging its copy too), CannotHit hurts nobody, the host and an NPC take theirs on the host, the
   animations wait for the guest's clip, a dart flies on every guest once.
@@ -103,7 +103,7 @@ verdict, once", "A script asking a guest's copy for an effect gets its player's 
 A tripwire's script marks it destroyed when tripped (`ObjectReference.SetDestroyed` 56641 -> `TESForm__SetDestroyed`
 14649: form flag 0x800000 and a form-flags change). World state's `kEnabled` row took that change but sent only
 disabled and deleted, so the guest's tripwires stayed whole (the end comparison, on all three in WarehouseTraps). The row
-now packs destroyed too (`Games/EnabledRow.h`, ClientTests `enabled_row_tests`), applied by 14649 on the guest; GameTests
+now packs destroyed too (`Games/EnabledRow.h`, UnitTests `enabled_row_tests`), applied by 14649 on the guest; GameTests
 "A reference the host's script marks destroyed is destroyed on the guest".
 
 The scenarios' hits: a burn drains a little each frame, under the 0.5 a readout step counted, so `trap_rounds` adds the
@@ -120,7 +120,7 @@ nothing. The explosion placed at its feet was under the plate's surface, faced d
 the guest's copy of the explosion, placed where the host's went off, the same. Now a stepped copy on its owner's place
 (standing or walking: its step lands 0.04 short; not one pushed off it or a ledge apart) takes its owner's height at the
 write-back after physics (`HookSetPosition`, `CopyStep::RestHeight`; the reference
-only, its capsule rests where it does): the copy 0.2 off its owner, the guest poisoned in 4 rounds of 4. ClientTests
+only, its capsule rests where it does): the copy 0.2 off its owner, the guest poisoned in 4 rounds of 4. UnitTests
 "A copy on its owner's place stands at its owner's height", GameTests "A guest's player standing still: its copy on the
 host stands at its height" (the fake's copy controller rests `kRigidRest` under its owner); the gas steps in
 `warehouse_traps_hurt_both`.

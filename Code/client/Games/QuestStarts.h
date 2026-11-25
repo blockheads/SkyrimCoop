@@ -3,7 +3,7 @@
 #include <cstdint>
 
 // A guest's quest is started by the host's state (GuestEngine::ApplyQuest), not by the engine's start, which reads the
-// quest's dialogue lines (TESQuest 25086; docs/re/systems/dialogue.md). Checked by ClientTests.
+// quest's dialogue lines (TESQuest 25086; docs/re/systems/dialogue.md). Checked by UnitTests.
 namespace QuestStarts
 {
 // TESQuest flags: running, or waiting to start (StageWait).

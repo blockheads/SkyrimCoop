@@ -1,6 +1,6 @@
 -- Every game's client logic with no engine (tier 1, docs/design/testing.md): the pure halves of the client's
--- hooks, listed one by one; a file that needs the engine does not build here. Run: build/linux/x86_64/<mode>/ClientTests
-target("ClientTests")
+-- hooks, listed one by one; a file that needs the engine does not build here. Run: build/linux/x86_64/<mode>/UnitTests
+target("UnitTests")
     set_kind("binary")
     set_group("Tests")
     set_languages("cxx23")

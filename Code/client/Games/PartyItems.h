@@ -7,7 +7,7 @@
 #include <string_view>
 
 // Party items (docs/design/party-items.md): keys, quest items and the story's rewards, every player carrying a copy
-// named "[P] <name>". Pure rules, checked by ClientTests.
+// named "[P] <name>". Pure rules, checked by UnitTests.
 namespace PartyItems
 {
 inline constexpr std::string_view cTag = "[P] ";

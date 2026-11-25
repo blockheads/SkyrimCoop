@@ -4,7 +4,7 @@
 #include <string_view>
 
 // When a live menu on something closes because the world changed under it (a container's, a merchant's barter):
-// Skyrim Souls RE's AutoCloseManager, with its defaults. No engine: ClientTests.
+// Skyrim Souls RE's AutoCloseManager, with its defaults. No engine: UnitTests.
 namespace MenuAutoClose
 {
 constexpr float kDistance = 400.f;  // units: further than this from its target, the menu closes

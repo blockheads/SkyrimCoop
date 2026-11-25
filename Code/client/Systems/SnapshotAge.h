@@ -4,7 +4,7 @@
 #include <cstdint>
 
 // Movement goes unreliably, jumps and spawns reliably, with no order between them: one sent before a jump can arrive
-// after it (actor-movement.md, "Late snapshots"). No engine: ClientTests, HostAuthorityTests.
+// after it (actor-movement.md, "Late snapshots"). No engine: UnitTests, HostAuthorityTests.
 struct SnapshotAge
 {
     [[nodiscard]] static bool IsStale(uint64_t aTick, uint64_t aCutoff) noexcept { return aTick < aCutoff; }

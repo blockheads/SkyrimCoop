@@ -33,7 +33,7 @@ Each lock now has a generation in the pair's key (`LockOrderHistory::Key`), bump
 (11572, which the thunk 11584 and the deleting destructor 418612 call): a list at a reused address starts with no pairs.
 Generations are kept by the lock's own address (`LockGenerations`), so destroying one list never moves another live
 lock's (review of PR #118: a shared slot had erased a live lock's history).
-Other objects holding locks are not tracked (none seen this way). ClientTests `[locks]`.
+Other objects holding locks are not tracked (none seen this way). UnitTests `[locks]`.
 
 What that left (measured the same day, the report now naming each side's stretches): a quest's own reference (never
 freed) picked up and later dropped copies its list into the inventory's and back, both in our update but on different
@@ -62,7 +62,7 @@ update was running 0 times in 32,700 frames (16,500 host, 16,200 guest). Not rea
 Each thread carries the stretch of the frame it is in (`LockOrder::FrameStretch`): main loop tasks while `HookMainLoop` drains
 `MainLoopTasks` (`RunTasksInStretch`), our update while `HookVMUpdate` runs `World::Update` (`UpdateInStretch`), elsewhere otherwise.
 Every observed order (an edge, per pair of locks) keeps the set of stretches it was ever taken in, not only the first stack's.
-An inversion is "kept apart by the frame" (`LockOrderAttribution::KeptApartByFrame`, ClientTests `[locks]`) only when this side's stretch is
+An inversion is "kept apart by the frame" (`LockOrderAttribution::KeptApartByFrame`, UnitTests `[locks]`) only when this side's stretch is
 one of the two and the reverse order was seen in the other one alone; elsewhere on either side, or the reverse also seen elsewhere, is a risk.
 
 - The report is still logged, with `kept apart by the frame:` before the kind. The harness logs it and does not fail on it.

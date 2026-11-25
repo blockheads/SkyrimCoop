@@ -94,7 +94,7 @@ if (first) m_ragdollGroups[acKey] = SetBodyGroup(*pBody, BodyGroups::kPlayed);  
 // where m_ragdolls drops a standing copy's bodies: SetBodyGroup(body, its own)
 ```
 
-Tests: ClientTests `BodyGroups::Decide` for a layer 32 played body (loose: pass; static: engine; moving: collide;
+Tests: UnitTests `BodyGroups::Decide` for a layer 32 played body (loose: pass; static: engine; moving: collide;
 two played: pass). GameTests "A host NPC dies onto a ladle: the guest's ladle stays where the host's does" (the fake
 learns layer 32 pushes loose bodies unless played) and "Two host NPCs die in a heap: each copy lies as its owner".
 Duo: `ragdoll-lies-as-host`, `knockdown-lies-as-host`, and one new recorded scenario for open question 8, a corpse
@@ -133,7 +133,7 @@ constexpr RagdollRestStep RagdollRest(bool aAllNear, bool aAllStill, bool aPlace
   hypothesis, judged on the duo by `RagdollTrace`'s turn-backs, kept only if they drop.
 
 Files: `Physics/BodyPrediction.h`, `Games/Skyrim/Havok/CopyRagdollPhysics.cpp`, `Physics/RagdollPending.h`.
-Tests: ClientTests `[ragdoll-rest]` (each row above; nothing steers once done). GameTests "A dead copy at its
+Tests: UnitTests `[ragdoll-rest]` (each row above; nothing steers once done). GameTests "A dead copy at its
 owner's rest sleeps and stays asleep": the fake learns that a steer wakes a body and that a ragdoll left awake at
 a placed pose settles off it; fails today. `[corpse-rest]`, `[death]`, `[held-knock-rest]`, `[rising]` keep passing.
 Duo: `death-spectate-host`, `kill-move-kills-guest` (no wake after the first sleep; the lie check passes).

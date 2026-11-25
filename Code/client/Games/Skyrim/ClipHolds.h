@@ -6,7 +6,7 @@
 #include <unordered_map>
 
 // The objects whose graphs the host keeps updating while out of its camera's sight: a script animated them lately and
-// may wait for the clip's end. Any thread; its lock is a leaf. Checked by ClientTests.
+// may wait for the clip's end. Any thread; its lock is a leaf. Checked by UnitTests.
 template <class TKey> class ClipHolds
 {
   public:

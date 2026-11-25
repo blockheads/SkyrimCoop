@@ -11,7 +11,7 @@
 #include <vector>
 
 // Where each body Havok pairs with one of this game's own lay when first paired (an AABB overlap, 64648): it is
-// knocked once it leaves that pose by a settle (kSameDistance, kSameAngle). No engine: ClientTests.
+// knocked once it leaves that pose by a settle (kSameDistance, kSameAngle). No engine: UnitTests.
 class PairedPoses
 {
 public:

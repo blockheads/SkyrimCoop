@@ -6,7 +6,7 @@
 namespace TestHarness
 {
 // The actors the harness froze (EngineCalls::FreezeActor). A frozen actor gets no graph update (kProcessMe, 41466), so
-// one that dies never finishes dying: it is thawed at its death (docs/re/systems/actor-ai-and-copies.md). Pure: ClientTests.
+// one that dies never finishes dying: it is thawed at its death (docs/re/systems/actor-ai-and-copies.md). Pure: UnitTests.
 class FrozenActors
 {
 public:

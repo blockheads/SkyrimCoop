@@ -133,5 +133,5 @@ state 2 to 3) with `MountDismountEndHandler` (42881) clearing the flag. Anything
 before the exit event (a graph stream sync point) leaves it riding: `ReplayState::CopyOwnBody`.
 
 Tests: GameTests `[copies]` (the three flows at the end of `copy_flows.cpp`) and "A quest deletes a placed NPC a guest
-talks to" (`dialogue_races.cpp`); ClientTests `SpeakerUpdate::Skipped`; the two scenarios named above and
+talks to" (`dialogue_races.cpp`); UnitTests `SpeakerUpdate::Skipped`; the two scenarios named above and
 `leveled-placed-npc-is-hosts`. The fake cannot fault: the dialogue hook itself is proven only by the scenario.

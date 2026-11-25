@@ -6,7 +6,7 @@
 #include <cstdint>
 
 // A copy carried past its newest snapshot (InterpolationSystem's short guess) and put right by the late one: the
-// difference is blended out over kMs, never jumped (docs/design/copy-clock.md, "A late snapshot"). No engine: ClientTests.
+// difference is blended out over kMs, never jumped (docs/design/copy-clock.md, "A late snapshot"). No engine: UnitTests.
 struct CopyCorrection
 {
     static constexpr uint64_t kMs = 100;

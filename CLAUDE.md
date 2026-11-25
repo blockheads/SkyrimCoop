@@ -21,7 +21,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
   Keep the existing optional 1.6 build configuration; its artifacts remain isolated under
   `build/skyrim-1.6.1170` / `build/msvc-config-1.6.1170`.
 
-- **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL`. Details: `docs/re/systems/compiler-abi.md`
+- **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin`. Details: `docs/re/systems/compiler-abi.md`
 - **Testing**: four tiers, `docs/design/testing.md` (unit and in-process games gate every change: `scripts/check.sh`, also the pre-push hook; the duo for what's affected). `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the testing guide
 - **Test harness**: the command socket, control files, status and harness engine calls live in `Code/client/TestHarness/`, the DLL swap in `Code/client/HotReload/` and `Code/hotreload/Loader.cpp`. Both build only with the xmake option `test_harness` (`COOP_TEST_HARNESS`), which `scripts/xmake-msvc.sh f` turns on; a player build (`--test_harness=n`, the default elsewhere) contains neither. Production code reaches the harness only through `TestHarness::Configure/Poll/Shutdown`, each behind `#if COOP_TEST_HARNESS`
 - **Profiling**: `scripts/coop_test.py profile [--load wolves=N] [--stacks]` reports fps, CPU, memory, messages, hook call rates, our zones and call stacks per game (`docs/design/testing.md`, Profiling). Tracy builds in with the xmake option `profiler` (`COOP_PROFILER`, on in `scripts/xmake-msvc.sh f`, off in player packages); code uses it only through `Diagnostics/Profile.h`
@@ -55,7 +55,7 @@ Every bug, in this order:
    **Then free the duo** (`scripts/coop_test.py stop` or the MCP's `duo_stop`; the lock frees itself, nobody edits
    `build/coop-test/DUO.md` or asks the user): steps 2-4 need no Skyrim. If the smoke test cannot show the bug yet,
    queue for the duo again only to learn the engine fact the fake lacks.
-3. **Unit tests** for the logic (`ClientTests`, `HostAuthorityTests`), then the fix.
+3. **Unit tests** for the logic (`UnitTests`, `HostAuthorityTests`), then the fix.
 4. **The smoke test passes**, with `scripts/check.sh`.
 
 Iterate in tiers 1-2, not in Skyrim: the duo is shared and slow (one pair of games, minutes a run). So the duo is queued
@@ -85,13 +85,13 @@ XMake 2.8.5+, C++23 (the Linux build needs `libstdc++-13-dev`, from the `ubuntu-
 ```bash
 # The SKSE plugin: clang-cl targeting Windows (first time: scripts/xmake-msvc.sh f -m dev). Also runs natively on
 # Windows from Git Bash: LLVM unpacked in build/toolchains/LLVM, Visual Studio's SDK (docs/design/testing.md, On Windows)
-scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
+scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin
 scripts/xmake-msvc.sh build -j8 SkyrimCoopLoader          # hot reload's resident loader
 
 # Native Linux: clang 18 (first time: scripts/xmake-linux.sh f)
 scripts/xmake-linux.sh build -j8 HostAuthorityTests && build/linux/x86_64/debug/HostAuthorityTests
 scripts/xmake-linux.sh build -j8 TPTests && build/linux/x86_64/debug/TPTests
-scripts/xmake-linux.sh build -j8 ClientTests && build/linux/x86_64/debug/ClientTests
+scripts/xmake-linux.sh build -j8 UnitTests && build/linux/x86_64/debug/UnitTests
 scripts/xmake-linux.sh build -j8 GameTests && build/linux/x86_64/debug/GameTests
 scripts/xmake-linux.sh build -j8 coop_peer
 
@@ -107,12 +107,12 @@ scripts/compile_commands.sh
 
 Targets:
 
-- `SkyrimTogetherClientDLL` - the SKSE plugin (`SkyrimTogetherClient.dll`), every game's code, the host's rules included
+- `SkyrimCoopPlugin` - the SKSE plugin (`SkyrimCoop.dll`), every game's code, the host's rules included
 - `SkyrimCoopLoader` - hot reload's loader (`Code/hotreload`), test builds only
 - `SkyrimCoopVanillaHarness` - a stand-in plugin running the harness commands without ours (`coop_test.py repro --vanilla`)
 - `HostAuthorityTests` - the host's rules (`HostAuthority`, `Services/Host/`) with in-process games and no Skyrim (Catch2)
 - `TPTests` - message encoding, quantization, differentials (Catch2)
-- `ClientTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2)
+- `UnitTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2)
 - `GameTests` - whole games in-process: real services and the host's rules on a fake engine (Catch2)
 - `coop_peer` - a game stand-in on the network for scenarios (a host refusing joins, a game asking to join)
 
@@ -139,7 +139,7 @@ Code/
 ├── components/imgui/    # The debug views' renderer
 ├── hotreload/           # Hot reload's loader
 ├── vanilla_harness/     # The harness without our plugin
-└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (ClientTests), games/ (GameTests),
+└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests), games/ (GameTests),
                          # specs/ (shared specs: GameTests and scripts/coop_specs.py), peer/ (coop_peer)
 ```
 

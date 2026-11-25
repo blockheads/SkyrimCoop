@@ -77,13 +77,13 @@ Final `scripts/check.sh` passes (`build/dev-review-final-check.log`):
 
 | Check | Result |
 | --- | --- |
-| ClientTests | 93 cases, 819 assertions |
+| UnitTests | 93 cases, 819 assertions |
 | HostAuthorityTests | 182 cases, 1,944 assertions |
 | Encoding / TPTests | 26 cases, 302 assertions |
 | GameTests | 201 cases, 2,071 assertions, eight shards |
 | Harness and ragdoll comparison tests | pass |
 | UI workbench fixtures | pass |
-| Windows SkyrimTogetherClientDLL build | pass |
+| Windows SkyrimCoopPlugin build | pass |
 
 The scene regression failed before the filter fix and passes after it. Python compilation of `coop_test.py` and
 `coop_v1.py` passes. Diff whitespace checks pass. `scripts/net_check.sh` was not run.

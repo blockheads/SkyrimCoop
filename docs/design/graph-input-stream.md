@@ -148,7 +148,7 @@ exception but how it begins.
     once ended with the host's player's copy naming the other half as its last action: bugs.md).
     `host-rides-horse` and `guest-rides-host-horse` 4 of 4.
   - Tests: GameTests `[pair-stream]` (the fake's synchronized clip waits `PairMarkMs` in an instance and not outside
-    one); ClientTests `[pair-stream]`.
+    one); UnitTests `[pair-stream]`.
 - **Knock-downs: on the stream since 2026-11-11** (A node's pick, below). Before, a knocked-down copy was held off
   its stream until it stood (built 2026-11-09). A death ended the stream until 2026-11-12 (A death on the stream, below).
 
@@ -191,7 +191,7 @@ copy, replaying that update: the pick written into its node (the first takes its
   The rest: a snap the owner does not have (smoke, 2 of 7), ragdoll flicker
   while lying (1 of 7), and once the host's own Lydia 172 units above the floor at the end (not looked into).
 - **Tests:** GameTests `[pick]` (the fake's match node reads its game's own `LyingPose`, forgets its match as it
-  activates, and plays no child without one); ClientTests `[graph-stream][pick]`, `[knock-replay]`; TPTests'
+  activates, and plays no child without one); UnitTests `[graph-stream][pick]`, `[knock-replay]`; TPTests'
   round trip.
 - Not done: the ragdoll contact event (63091), the paired clip's scene answers (63050), the dragon's trigger: the
   same op fits each.
@@ -273,7 +273,7 @@ A point cannot carry a cross-blend: its second blender is a clone with the first
 active node. So an owner takes no point while one of its cyclic generators is in mode 2 or 3
 (`GraphState::CarriesCyclicMode`, `GraphInternalState::Take`); the point is wanted again at its next update, a
 fraction of a second later. GameTests "A copy asking while its owner's walk blend cross-blends gets its point after
-the blend" (the fake's `Blend::CrossBlendOn`), ClientTests `[graph-state]`. The wait never showed in about 70 duo runs
+the blend" (the fake's `Blend::CrossBlendOn`), UnitTests `[graph-state]`. The wait never showed in about 70 duo runs
 after the fix. Forced on the duo (2026-11-10): in Whiterun every copy's stream restarted over and over for 150 s (the
 harness's `graph_stream restart`), 8,013 restarts of 36 copies and 7,754 sync points; the wait held a point back 71
 times and neither game crashed.
@@ -372,7 +372,7 @@ variables; those go.
 ## Testing (the bug-fix flow's tiers)
 
 - **TPTests:** `GraphOpsRequest` / notify and sync point round trips.
-- **ClientTests:** the pure rules: ops due at a playback tick, catch-up cap, gap detection, pause and resume.
+- **UnitTests:** the pure rules: ops due at a playback tick, catch-up cap, gap detection, pause and resume.
 - **GameTests:** the fake's graph made op-driven (its owner records `GraphVariables`, events and steps; its copy
   replays them): a copy matches through loss, late spawn, a gap, a ragdoll pause, a catch-up. The wolf flows'
   expectations stay.
@@ -382,7 +382,7 @@ variables; those go.
 
 ## Phase 1's seam: one recorder and replayer, two engines
 
-The stream's logic is pure and shared (`Games/Animation/GraphStream.h`, built, ClientTests `[graph-stream]`). Skyrim's
+The stream's logic is pure and shared (`Games/Animation/GraphStream.h`, built, UnitTests `[graph-stream]`). Skyrim's
 hooks (step 4) and the fake engine call the same entry points on `World::GetGraphStreams()`, so GameTests run the code
 that ships.
 
@@ -463,7 +463,7 @@ The live check (`graph_stream_check`, 120 s, every streamed copy in Riverwood), 
 
 | run | first difference | cause | now |
 |---|---|---|---|
-| 1 | Faendal, update 182 of 177 equal: chair entry with its clips "(no file)" | the replayer sent an event before its clip files were in (the proof waited for them) | an event waits for its files, up to 120 runs (`IGraphTarget::RequestClips`, ClientTests) |
+| 1 | Faendal, update 182 of 177 equal: chair entry with its clips "(no file)" | the replayer sent an event before its clip files were in (the proof waited for them) | an event waits for its files, up to 120 runs (`IGraphTarget::RequestClips`, UnitTests) |
 | 2 | 13484, update 77 of 35 equal: the copy in its chair, its owner standing | its spawn's graph state loaded after its stream had started, over the stream's (`AnimationSystem` loaded it first) | a copy on the stream drops its spawn's state (GameTests flow) |
 | 3 | wolf 9B0DD, update 36 of 31 equal: `CannedTurnState` against standing | soon after its sync point, the same events on both | phase 2, below |
 | 4-6 | a hare, a chicken, Faendal at updates 20-90: a turn's state against standing | both in a turn clip from the sync point on, its end trigger (`TurnInPlaceEnd`, `cannedTurnStop`) came on the owner's first: the point held no clip's progress (`hkbClipGeneratorInternalState.localTime`), nor a modifier's memory | phase 2 |
@@ -493,7 +493,7 @@ copy: the clip sets its owner's process held, loaded first (a clip binds its fil
   then each BS node's runtime members onto its new clone
 ```
 
-- **One reader for every class** (`Games/Animation/NodeMemory.h`, ClientTests `[node-memory]`): plain values, enums,
+- **One reader for every class** (`Games/Animation/NodeMemory.h`, UnitTests `[node-memory]`): plain values, enums,
   inline arrays, structs and `hkArray`s of them; a new state's arrays are sized in Havok's heap (57048). A running
   transition's effect (`hkbStateMachineActiveTransitionInfo`) is remade by its machine (59343); its effect's own state
   travels inside the machine's and is restored onto the new clone.
@@ -502,7 +502,7 @@ copy: the clip sets its owner's process held, loaded first (a clip binds its fil
 - **BS nodes** have no internal state: their runtime members (`SERIALIZE_IGNORED`, 0x400: a timer's elapsed time, an
   every-N modifier's counts, a tweener's start) are carried by reflection. Skyrim's own restore (65149's functor) cannot
   follow Havok's: it ends every running transition and restarts it approximately (65164).
-- **The codec** (`Games/Animation/GraphState.h`, ClientTests `[graph-state]`): sync info as its used points and times.
+- **The codec** (`Games/Animation/GraphState.h`, UnitTests `[graph-state]`): sync info as its used points and times.
 - **Clip files:** the owner's clip loads are ops in its stream (`GraphOp::ClipSet`: set 3 an action's, 4 an instant
   interaction's, 47 a movement idle's, from `coop_LoadEventClips` 43621, its queued twin 43622 and a save's reload
   43624), replayed in their place and holding what follows until the files are in; the point names each set held, and
@@ -517,7 +517,7 @@ copy: the clip sets its owner's process held, loaded first (a clip binds its fil
 
 | run | first difference | cause | now |
 |---|---|---|---|
-| wolf scenario | a mudcrab's copy, 3 updates in: no state at all | its graph replaced after its stream started (its 3D) | a new graph on either side restarts the stream from a new sync point (GameTests flows, ClientTests) |
+| wolf scenario | a mudcrab's copy, 3 updates in: no state at all | its graph replaced after its stream started (its 3D) | a new graph on either side restarts the stream from a new sync point (GameTests flows, UnitTests) |
 | wolf scenario | the guest crashed in a blender's generate (60039) | another graph's blender state (which children are active) applied | superseded: Havok's restore activates each generator's children from its own restored state |
 | both | humanoid copies in a turn their owners had left, from their start | the save leaves out machines at their start state (65148); the guest's AI ran the NPC before it became a copy, so its graph was not fresh | the copy's behaviour graph is deactivated, then restored whole (A graph's whole state) |
 | town | 1A684 at 386, then 441 updates: a counter clip "(no file)" | its owner's process held its last action's clip set, loaded before the copy's start; the point named its graph's last event | the point names the event its owner's process loaded clips for (43621, set 3) (GameTests flow) |

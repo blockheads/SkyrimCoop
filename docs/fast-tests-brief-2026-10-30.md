@@ -1,7 +1,7 @@
 # Brief: fast tests that stand in for Skyrim (2026-10-30)
 
 Goal: Skyrim (tier 3) runs only for a new feature or a new engine fact. Everything a scenario checks today is also
-checked by a fast test (`ClientTests`, `HostAuthorityTests`, `GameTests`) on a fake engine faithful enough that a
+checked by a fast test (`UnitTests`, `HostAuthorityTests`, `GameTests`) on a fake engine faithful enough that a
 fast pass predicts a Skyrim pass. Read first: `CLAUDE.md`, `docs/design/testing.md`,
 `docs/design/test-coverage.md` (the scenario → fast twin map, 138 rows).
 

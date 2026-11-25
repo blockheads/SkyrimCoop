@@ -69,7 +69,7 @@ extern "C" __declspec(dllexport)
 const SKSEPluginVersionData SKSEPlugin_Version = {
     SKSEPluginVersionData::kVersion,
     1,
-    "SkyrimTogether",
+    "SkyrimCoop",
     "SkyrimCoop",
     "",
     1 << 1, // SKSE AddressLibraryV5 capability; compatibility is an exact runtime below.
@@ -143,7 +143,7 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
         return false;
     }
 
-    // Data/SKSE/Plugins/SkyrimTogetherClient.dll -> Skyrim root
+    // Data/SKSE/Plugins/SkyrimCoop.dll -> Skyrim root
     std::filesystem::path pluginDirectory = s_pluginDirectory;
     if (pluginDirectory.empty())
     {

@@ -113,7 +113,7 @@ if is_plat("linux") then
     add_requires("rmlui 6.2", {configs = {freetype = true}})
     add_requires("glfw 3.4", {configs = {wayland = false}})
     add_requires("stb 2024.06.01")
-    -- ClientTests: NativeReach's reading of code (CodeReach)
+    -- UnitTests: NativeReach's reading of code (CodeReach)
     add_requires("zydis v4.1.0")
 end
 

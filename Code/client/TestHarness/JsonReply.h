@@ -7,7 +7,7 @@
 
 namespace TestHarness
 {
-// A reply built and written off the game thread; a JSON error (a non-UTF-8 name) answers as a refusal. Pure: ClientTests.
+// A reply built and written off the game thread; a JSON error (a non-UTF-8 name) answers as a refusal. Pure: UnitTests.
 inline std::string DumpReply(const std::function<nlohmann::json()>& acBuild)
 {
     try

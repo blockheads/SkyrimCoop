@@ -204,7 +204,7 @@ Initial `scripts/check.sh`: **PASS** in 11 seconds.
 
 | Suite | Cases | Assertions |
 |---|---:|---:|
-| ClientTests | 80 | 732 |
+| UnitTests | 80 | 732 |
 | HostAuthorityTests | 178 | 1902 |
 | Encoding / TPTests | 22 | 281 |
 | GameTests | 179 | 1937 |

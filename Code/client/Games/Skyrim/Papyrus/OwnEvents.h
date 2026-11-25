@@ -13,7 +13,7 @@
 
 // Which engine events are this game's own player's (WorldEvents' hook on SendEvent, 104800), and the quests a guest's
 // own scripts started (PlayerNatives), with no engine (docs/design/world-state-sync.md, "A guest's own quests";
-// docs/design/cutscenes.md, "Whose moment"). Checked by ClientTests on Linux.
+// docs/design/cutscenes.md, "Whose moment"). Checked by UnitTests on Linux.
 namespace OwnEvents
 {
 inline constexpr uint32_t kThisPlayer = 0x14;

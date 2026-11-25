@@ -4,7 +4,7 @@
 #include <optional>
 
 // Puts another game's rest on a body this game simulates, a step an update (docs/design/physics-sync.md, "RestPlacer's
-// steps"). No engine: ClientTests.
+// steps"). No engine: UnitTests.
 struct RestPlacer
 {
     static constexpr uint64_t kGlideMs = 500;

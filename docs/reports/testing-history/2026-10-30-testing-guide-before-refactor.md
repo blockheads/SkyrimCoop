@@ -27,7 +27,7 @@ scripts/check.sh            # tiers 1-2 and the plugin's build; before every pus
 scripts/check.sh --no-dll   # without the Windows toolchain
 ```
 
-It builds and runs `ClientTests`, `HostAuthorityTests`, `TPTests` and `GameTests`, then builds the plugin, one target per
+It builds and runs `UnitTests`, `HostAuthorityTests`, `TPTests` and `GameTests`, then builds the plugin, one target per
 build at `-j8`. Each step's output is in `build/check/`, and a failure shows its failed checks or compiler errors.
 `GameTests` runs in 8 shards at once (`build/check/GameTests/`), each with its own ports (`GAMETESTS_PORT`): its
 games wait on real timers, not the CPU. The step fails if any case did not run (Catch2 reads a comma in a name as
@@ -39,7 +39,7 @@ Skyrim's scenarios are not in it.
 
 - DLL, one `.cpp` touched (`PartyNatives.cpp`, `CutsceneService.cpp`, `World.cpp`): 1.8-2.4 s
 - DLL, `World.h` touched (most of the plugin): 12.9 s
-- `ClientTests`: rule edit, build and run 0.4 s; test edit, build and run 1.1 s
+- `UnitTests`: rule edit, build and run 0.4 s; test edit, build and run 1.1 s
 - `HostAuthorityTests`: build 2.4-3.8 s (one rule or test file); run 0.04 s (118 cases)
 - `TPTests`: build 1.9 s; run under 0.01 s
 - `GameTests` (tier 2): build 2.5-4.5 s (one service), 14.5 s from clean; run 14 s (28 flows and spec runs, 2-3 games each;
@@ -61,7 +61,7 @@ Scripts that edit and build in a loop wait a second first.
 - **For:** pure client and host logic, no engine: whose a call is, who holds what, the host's rules, message
   encoding.
 - **Where:**
-  - `Code/tests/client/` (`ClientTests`): every game's logic. The pure files are listed one by one in its
+  - `Code/tests/client/` (`UnitTests`): every game's logic. The pure files are listed one by one in its
     `xmake.lua` (`PartyRules`, `ScriptTags`, `OwnEvents`, and `Games/EngineNames.h`); a file that needs the engine
     doesn't build there, so the Linux build is the purity check.
   - `Code/tests/host_authority/` (`HostAuthorityTests`): the host's rules (`HostAuthority`, `Services/Host/`) against in-process
@@ -69,7 +69,7 @@ Scripts that edit and build in a loop wait a second first.
   - `Code/tests/encoding.cpp` (`TPTests`): messages on the wire.
 - **Run:**
   ```bash
-  scripts/xmake-linux.sh build -j8 ClientTests && build/linux/x86_64/debug/ClientTests
+  scripts/xmake-linux.sh build -j8 UnitTests && build/linux/x86_64/debug/UnitTests
   scripts/xmake-linux.sh build -j8 HostAuthorityTests && build/linux/x86_64/debug/HostAuthorityTests
   scripts/xmake-linux.sh build -j8 TPTests && build/linux/x86_64/debug/TPTests
   ```
@@ -626,7 +626,7 @@ Skyrim (tier 3) now and then. When they disagree, Skyrim is right and the fake i
 
 ## Trickiest first
 
-Done (`ClientTests`, 173 assertions):
+Done (`UnitTests`, 173 assertions):
 
 - `PartyRules` (`party_tests.cpp`): the cutscene share rule and the control holds.
 - `ScriptTags` (`script_tags_tests.cpp`): GuestScripts' tag table (calls, stacks, timers, delayed natives) and the

@@ -1,7 +1,7 @@
 #pragma once
 
 // HookDamageActor's rule with no engine (docs/design/friendly-fire.md): what this game does with a hit it saw.
-// Checked by ClientTests; the hook and GameTests' fake engine both follow it.
+// Checked by UnitTests; the hook and GameTests' fake engine both follow it.
 namespace HitRules
 {
 // Whose an actor in a hit is, on this game.

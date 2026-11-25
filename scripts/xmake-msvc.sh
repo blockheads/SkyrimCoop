@@ -2,7 +2,7 @@
 # xmake for the clang-cl (MSVC ABI) SKSE plugin build. Same arguments as xmake;
 # keeps its own configuration so the MinGW/native configs are untouched.
 #   scripts/xmake-msvc.sh f -m dev        # configure (first time)
-#   scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL
+#   scripts/xmake-msvc.sh build -j16 SkyrimCoopPlugin
 # Configures with the test harness, hot reload and Tracy (scripts/coop_test.py needs them); a player build
 # turns them off: scripts/xmake-msvc.sh f -m release --test_harness=n --profiler=n
 set -euo pipefail

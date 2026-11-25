@@ -7,7 +7,7 @@
 
 // A copy's answers about its effects (MagicTarget::HasMagicEffect 34517, HasMagicEffectWithKeyword 34518,
 // MagicItem::IsSpellTarget 34513): its owner's active effects, as (spell, effect) pairs in the owner's list order (the
-// keyword query's first match is its spell). Checked by ClientTests.
+// keyword query's first match is its spell). Checked by UnitTests.
 namespace OwnerEffects
 {
 struct Held

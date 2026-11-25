@@ -1,7 +1,7 @@
 #pragma once
 
 // CrimeBridge::Judge's checks with no engine (docs/re/systems/crime.md, "A created item's theft names its owner"):
-// ClientTests check them; the bridge and GameTests' fake follow them.
+// UnitTests check them; the bridge and GameTests' fake follow them.
 #include <Messages/CrimeMessages.h>
 #include <cstdint>
 #include <map>

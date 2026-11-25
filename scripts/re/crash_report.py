@@ -171,7 +171,7 @@ def report(crash_log, plugin_log=None):
     for header in SECTIONS:
         body = section(lines, header)
         if header == "CALL STACK":
-            body = name_frames([frame for frame in body if "[P]" in frame or "SkyrimTogether" in frame], names)
+            body = name_frames([frame for frame in body if "[P]" in frame or "SkyrimCoop" in frame], names)
         if body:
             out += ["", header.rstrip(":")] + body
     if plugin_log:

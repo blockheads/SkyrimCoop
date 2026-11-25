@@ -161,7 +161,7 @@ player).
 
 ## Verification
 
-- `scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL`, then `scripts/coop_test.py reload`
+- `scripts/xmake-msvc.sh build -j16 SkyrimCoopPlugin`, then `scripts/coop_test.py reload`
   into a running duo (or `stop` + `duo --keep-running`).
 - While iterating, run the affected scenarios: `scenario --tag hands,magic,combat --repeat 2`, plus
   `party-changes-cells` and `load-door-not-replayed` (cell changes, respawns).

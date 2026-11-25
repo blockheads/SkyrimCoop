@@ -329,11 +329,11 @@ playback...").
 - GameTests `[replay-start]`: with `Turn()` stepping both games (it stepped only the host while the owner turned, which
   hid the copy's timing), the slow line and the turn after a fight fail on playback spacing; the far owner's turn
   (`FarOwnerChunkMs` 250, the fake's 63587) fails without the owner's force. The fake's owner AI performs its refused
-  turnStop 40 ms before its clip's end (measured 30-45 ms). ClientTests `[action-spacing]` went with the spacing.
+  turnStop 40 ms before its clip's end (measured 30-45 ms). UnitTests `[action-spacing]` went with the spacing.
 - **GameTests `[replay-start]`:** the fake runs 39004's writes (`ActionWrites`) for PerformAction and ForceAction, taken
   or refused. The owner's AI performs a refused `turnStop` (and `moveStop` for the exit condition) just before its canned
   turn's clip ends, on the main thread before the graph update. Without the send, two turns over a slow line leave the
-  copy in its canned turn. On a clean line the snapshot still comes in time in the fake. ClientTests
+  copy in its canned turn. On a clean line the snapshot still comes in time in the fake. UnitTests
   `[refused-writes]` went with the send; the flows run on the stream.
 
 ### Tried and parked: reading the owner's integers ahead

@@ -27,7 +27,7 @@ How to work (repo rules, CLAUDE.md):
   Library IDs to addresses. Then the short version in docs/re/systems/. Use the duo to test what the code told you, not
   instead of reading it. A fix you can't explain is not done; the PR's Engine path says what you learned.
 - A bug follows the bug-fix flow (CLAUDE.md): first a scenario recreating it, played through the skyrim-coop MCP and
-  record_export'ed; then a failing GameTests flow (or ClientTests/HostAuthorityTests case), the fix, and it passes.
+  record_export'ed; then a failing GameTests flow (or UnitTests/HostAuthorityTests case), the fix, and it passes.
   New behaviour gets one fast test.
 - If the MCP lacks something or is awkward, extend it (a verb or tool, then mcp_reload) and use it; never script
   around it. Say in the PR which MCP tools you added or changed.

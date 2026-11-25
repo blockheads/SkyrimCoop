@@ -2,7 +2,7 @@
 // client can be swapped into a running game (scripts/coop_test.py reload).
 //
 //   Data/SKSE/Plugins/SkyrimCoopLoader.dll                    this plugin (SKSE loads it)
-//   Data/SKSE/Plugins/SkyrimCoop/SkyrimTogetherClient.dll     the client, replaced by each build
+//   Data/SKSE/Plugins/SkyrimCoop/SkyrimCoop.dll     the client, replaced by each build
 //   Data/SKSE/Plugins/SkyrimCoop/loaded/<name>.<pid>.<n>.dll  the copy actually loaded
 //
 // The loader hooks the engine's main loop on top of the client's hook, so it runs before any client
@@ -125,7 +125,7 @@ std::string InstanceSuffix()
 
 std::filesystem::path ClientSource()
 {
-    return s_pluginDirectory / "SkyrimCoop" / "SkyrimTogetherClient.dll";
+    return s_pluginDirectory / "SkyrimCoop" / "SkyrimCoop.dll";
 }
 
 // This instance's copies from earlier runs.
@@ -145,7 +145,7 @@ bool LoadCopy(Client& aClient)
     std::filesystem::create_directories(cDirectory, error);
     // Per instance: two test games share the install, and their Wine prefixes can hand out the
     // same process ids.
-    const std::string cPrefix = "SkyrimTogetherClient" + InstanceSuffix() + ".";
+    const std::string cPrefix = "SkyrimCoop" + InstanceSuffix() + ".";
     if (s_generation == 0)
         RemoveOldCopies(cDirectory, cPrefix);
 

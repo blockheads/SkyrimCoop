@@ -104,7 +104,7 @@ advance (crash 2, 82083). Every caller of 82083 runs 82082 just before it (Job_U
 `ItemMenuGate` (Games/ItemMenuGate.h) keeps a listed change and the UI's calls apart without an engine lock: each side
 sets its flag, then waits for the other's to clear, at most 5 ms; a change that finds the UI reading steps back
 (uncounts itself) while it waits, so the two never wait on each other. On a timeout the side goes on (logged): the
-crash risk returns for that one overlap instead of a freeze. ClientTests `[item-menu-gate]`: each interleaving, both
+crash risk returns for that one overlap instead of a freeze. UnitTests `[item-menu-gate]`: each interleaving, both
 timeouts, and two threads 20,000 rounds each with no overlap. Not measured on the duo: how often a listed change and a
 UI call overlap at all (only our update and engine paths through these hooks can).
 

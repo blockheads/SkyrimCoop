@@ -9,7 +9,7 @@
 #include <vector>
 
 // Which moving bodies' states a guest gets (docs/design/physics-authority-plan.md, piece 3): those near its copy.
-// Resting ones go to every guest. No engine: ClientTests.
+// Resting ones go to every guest. No engine: UnitTests.
 namespace BodyRelevance
 {
 // Around a guest's copy: one exterior cell.

@@ -5,7 +5,7 @@
 #include <chrono>
 
 // Whose a trap's contact and hit are, with no engine (docs/design/traps.md): the host runs the trap's script, each
-// game judges what touched its own player. Checked by ClientTests; the hooks and GameTests' fake engine follow it.
+// game judges what touched its own player. Checked by UnitTests; the hooks and GameTests' fake engine follow it.
 namespace TrapRules
 {
 enum class Contact

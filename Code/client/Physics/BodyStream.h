@@ -14,7 +14,7 @@
 //             awake and unmoved: every kRefreshMs
 //   at rest   priority grows over kRestRefreshMs: every resting body comes round
 //
-// The highest first within the receiver's budget. No engine: ClientTests.
+// The highest first within the receiver's budget. No engine: UnitTests.
 struct BodyStreamLimits
 {
     float BytesPerSecond = 8192.f; // the receiver's budget

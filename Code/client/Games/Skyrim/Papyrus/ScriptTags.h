@@ -10,7 +10,7 @@
 #include <string_view>
 
 // GuestScripts' bookkeeping with no engine: which player each queued call, stack, timer and delayed native runs for,
-// and the rules that give a call its cause (docs/design/cutscenes.md, "Whose moment"). Checked by ClientTests on
+// and the rules that give a call its cause (docs/design/cutscenes.md, "Whose moment"). Checked by UnitTests on
 // Linux; GuestScripts.cpp's hooks gather the inputs.
 namespace GuestScripts
 {

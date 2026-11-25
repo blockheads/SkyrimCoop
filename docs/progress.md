@@ -57,7 +57,7 @@ share one), and the deciders are off for it (`UpdateCombat` 38565, the group's u
 46873/46874 outside `Hold`). Deleted: the `IsInCombat` / `GetCombatState` hooks and their call-site list, the 41261
 fighting-player count, the 37273 target keeper. Every reader (compass, in-combat flag, regen rate, conditions,
 plugins) reads it natively (`docs/re/systems/combat-targets.md`, "A copy's combat"). GameTests `[compass]`,
-`[copy-combat]`, ClientTests `[CopyCombat]`; MCP verbs `compass_enemies`, `expect_compass_enemies`,
+`[copy-combat]`, UnitTests `[CopyCombat]`; MCP verbs `compass_enemies`, `expect_compass_enemies`,
 `combat_targets_of`.
 
 2026-11-25: **friends get the host's mod setup through SkyrimModSync; our launcher and bundled zip are gone**
@@ -105,7 +105,7 @@ joining mid-answer, and the replayed greeting", "The speaker dies or fights"; [d
 player types `/spawn horse [1-20]`; the host places saddled horses (109E3D) beside that player's character, each the
 party's as a stable sells one (`PlayerHorseFaction` rank 1, owned by `PlayerFaction`), with no second command.
 Ownership was already party-wide: `PlayerFaction`, and a player's own base (0x7), mean every game's own player, so
-nothing per player to simplify. The harness verb `spawn_horse` types it. ClientTests `[dev-commands]`,
+nothing per player to simplify. The harness verb `spawn_horse` types it. UnitTests `[dev-commands]`,
 HostAuthorityTests `[DevTools]`, GameTests "A guest's /spawn horse...", `test_coop_harness.py`; scenario
 `guest-rides-spawned-horse` (the guest gets on with real input, both games show it ridden).
 
@@ -114,14 +114,14 @@ the bought horse took the host's name ("Prisoner's Horse") as our custom name, t
 into `PlayersHorse`, a stores-text alias, whose fill clears every named alias's cached name (read in IDA: 25052 ->
 `TESQuest::ClearAliasNameCaches` -> 12769). A message name regenerates; a custom name is only that cache, so the copy
 read "" and the crosshair skips a nameless reference. `HookClearCachedName` keeps a custom name
-(`re/systems/names.md`). GameTests "A bought horse keeps its name...", ClientTests `[names]`; Skyrim
+(`re/systems/names.md`). GameTests "A bought horse keeps its name...", UnitTests `[names]`; Skyrim
 `guest-mounts-bought-horse` (the guest gets on). New harness readouts `name_data` / probe `set_name`, verb `name_data`.
 Getting off that horse inside its shed does nothing: no room beside it, as in single player (`re/systems/mounts.md`).
 
 2026-11-23: **no crosshair prompt over another player** (`agent/no-talk-to-players`). Each game's crosshair offered
 "Talk" over the other player's character (and Pickpocket while sneaking, Search when dead, all leading nowhere). Our hook
 on `Actor::CanTalkToPlayer` (37469) answers no for another player's copy, so E starts no conversation, and
-`HookGetActivateText` (24716) gives it no prompt at all (`re/systems/dialogue.md`, "No talking to players"). ClientTests,
+`HookGetActivateText` (24716) gives it no prompt at all (`re/systems/dialogue.md`, "No talking to players"). UnitTests,
 GameTests, scenario `no-prompt-over-players`.
 
 2026-11-23: **a guest keeps its own favorites, damage, effects and cooldowns over a reload or rejoin**
@@ -133,7 +133,7 @@ power cooldowns, trainer count, misc stats and camera view. The record now carri
 damage, timed effects recast with their elapsed time, cooldowns, trainings, first person. The guest's record also goes
 after its health changes or it casts. Read in IDA: [player-save-state.md](re/systems/player-save-state.md). Scenario
 `guest_keeps_own_state_on_reload`; GameTests "A guest keeps its own favorites, damage, effects, cooldowns, trainings
-and view over a host load and a rejoin"; ClientTests `[own-state]`.
+and view over a host load and a rejoin"; UnitTests `[own-state]`.
 2026-11-24: **a spell an object casts shows on every game: Storm Call's lightning** (`agent/storm-call-lightning`,
 [projectiles.md](re/systems/projectiles.md)). Bug 18: only the shouting game saw the bolts. `magicProjectileStormScript`
 casts each bolt with `Spell.RemoteCast` from an activator it placed in the sky, so the projectile's shooter is that
@@ -159,7 +159,7 @@ A hook on 54661 reports the added item (`ScriptEquips`); from a quest's script i
 prisoner clothes and DA15's fine clothes take the same path. A guest joining after it carries the item, unworn
 (the join's list carries no worn state). [inventory-changes.md](re/systems/inventory-changes.md), "A script's
 EquipItem". Scenario `quest-dresses-every-player` (the harness boots the duo with the bundled mods: `duo --plugins`,
-`duo_start plugins=`, `loads_mods`; new expect `wears`); GameTests "A quest's script dresses the player", ClientTests
+`duo_start plugins=`, `loads_mods`; new expect `wears`); GameTests "A quest's script dresses the player", UnitTests
 `[ScriptEquips]`, HostAuthorityTests, TPTests.
 
 2026-11-23: **a corpse that lay elsewhere on the guest was the harness's frozen NPC** (`agent/body-rests-differently`;
@@ -168,7 +168,7 @@ EquipItem". Scenario `quest-dresses-every-player` (the harness boots the duo wit
 an NPC (kProcessMe off), and a frozen actor gets no graph update (41466): its death never got past `DeathAnim` on the
 host, its ragdoll drifted keyframed into the hill and never rested, so the guest's copy kept its own fall. On flat
 ground and thawed, the copy lies as the host's. The harness now thaws a frozen actor at its death (`FrozenActors`,
-ClientTests `[frozen-actors]`), and `stage` honors `frozen: false` for a placed NPC (`ref`). Scenario
+UnitTests `[frozen-actors]`), and `stage` honors `frozen: false` for a placed NPC (`ref`). Scenario
 `frozen-npc-corpse-rests-as-host`. No GameTests flow: the fake engine has no harness freeze and no game code changed.
 
 2026-11-23: **a quest item a guest loots from a body or chest moves the host's quest on** (`agent/golden-claw-quest`).
@@ -193,7 +193,7 @@ for a far graph. On the duo a copy's feet move as evenly as its owner's: standin
 frames (owners 0; 6.6-8.6 % with only the blend switched off), over 50 % off their neighbours' speed in 0.8-3.6 % (owners
 0.4-2.6 %; 20-22 % off). Measured with `smoothness`, which now has the watcher face the
 copy and the mover in third person. Scenarios `copy-poses-every-frame-host` / `-guest`; GameTests "A walking player's copy
-shows a pose that moves on every frame..." (jittered frames, and 60 against 50 fps); ClientTests `[pose-blend]`.
+shows a pose that moves on every frame..." (jittered frames, and 60 against 50 fps); UnitTests `[pose-blend]`.
 
 2026-11-23: **a trap's disease no longer stops a guest's stamina regeneration** (`agent/stamina-drained`). Playtest
 2026-11-22 item 12: the guest's stamina sat at 0 and never came back (reports 2015-7c1/cc7). Its player held both
@@ -218,7 +218,7 @@ Report 2008-6e5 (stamina 0 after a death and respawn, no disease left) stays ope
 controller): a fighting NPC's or player's copy showed the out-of-combat rate (stamina 1/0.35 times the owner's). Its
 two call sites now get the owner's answer, as the conditions do (`CopyCombat::cOwnerAnswerSites`;
 [actor-values.md](re/systems/actor-values.md#the-combat-multiplier-and-copies-1.7.104-read-in-ida-2026-11-23)).
-Copies regenerate nothing, so only the readout and plugins saw it. ClientTests `[CopyCombat]`; scenario
+Copies regenerate nothing, so only the readout and plugins saw it. UnitTests `[CopyCombat]`; scenario
 `copy-regen-rate-in-combat`.
 
 2026-11-23: **a guest crash loading a leveled NPC's copy: we destroyed Skyrim's own EncWolf** (`agent/fabien-crash-3`;
@@ -230,7 +230,7 @@ record; that this destroyed EncWolf in Fabien's game, leaving every base and lis
 from the log's order of events (the dump holds no heap). Such a copy is now built again from the owner's pick with the engine's
 leveled build (14375, `RelevelActor`), a temporary base the engine may destroy. Checked: scenario
 `guest-releveled-copy-keeps-pick` (MCP, heap history on), GameTests `[copy-level]` (fails four checks without the fix),
-ClientTests `[npc-snapshot]`. The fake learned that a leveled actor's reset destroys its current base, whatever it is.
+UnitTests `[npc-snapshot]`. The fake learned that a leveled actor's reset destroys its current base, whatever it is.
 
 2026-11-23: **a guest's open loot menu read a stack our reconcile had freed** (`agent/fabien-crashes`;
 [item-menus.md](re/systems/item-menus.md)). Two of the guest's three crashes in the 2026-11-22 playtest (Windows,
@@ -245,8 +245,8 @@ hook (`ItemMenuWatch`); a change to a holder one lists (`ContainerItems`, the ho
 each noted menu to rebuild its whole list (`ItemList::Update_Impl` 51031) before a callback reads it. `ItemMenuGate`
 keeps a listed change and those UI calls apart across threads (bounded waits, no engine lock). Scenarios
 `guest-loot-menu-follows-corpse`, `guest-barter-follows-merchant-stock` (MCP verbs `loot`, `barter_open`,
-`open_inventory`, `expect_menu_lists`; `give_item` takes a holder), GameTests and ClientTests `[item-menu]`,
-ClientTests `[item-menu-gate]`. The third
+`open_inventory`, `expect_menu_lists`; `give_item` takes a holder), GameTests and UnitTests `[item-menu]`,
+UnitTests `[item-menu-gate]`. The third
 crash (an NPC's face template walk on the background loader, 15678) is open in [bugs.md](bugs.md).
 
 2026-11-23: **traps hurt every player on its own game** (`agent/traps-synced`; playtest 2026-11-22 items 13, 14;
@@ -290,7 +290,7 @@ load soon after it sent it again). `SteamBridge` sets the send rate to 4 MB/s (m
 between them) and a 2 MB send buffer. Slower rates also stalled a transfer: ENet resent packets only queued in
 Steam and cut its throttle to zero (counted at each hop: none lost). Two-account duo, a whole 1.38 MB save, direct
 and relayed: 7.3-10.2 s before, 1.35-1.59 s after
-([network-performance.md](design/network-performance.md#steams-send-rate-2026-11-23)). ClientTests `[steam-pacing]`;
+([network-performance.md](design/network-performance.md#steams-send-rate-2026-11-23)). UnitTests `[steam-pacing]`;
 scenario `steam-join-sends-save-fast` (two accounts). Not yet measured on a home line.
 
 2026-11-22: **a guest behind the host sees the host's NPCs once its grid reaches them; a soft leash keeps guests
@@ -311,7 +311,7 @@ attached (`actor-ai-and-copies.md`, "A copy in a detached cell"). Tests: `HostAu
 nothing drawn on the host and guests: `LockpickingMenu::ProcessMessage` (51950) builds the lock only on the main thread,
 and an unpaused game's UI runs in `Job_UI` (39042). One kUpdate between frames on the main thread builds it. Scenarios
 `host-`/`guest-lockpick-menu-builds-lock` (MCP verb `pick_lock`: the lock built, the pick, both games read it open);
-ClientTests `NeedsMainThreadBuild`.
+UnitTests `NeedsMainThreadBuild`.
 
 2026-11-22: **a disintegrated player's body is gone on every game until it respawns** (`agent/disintegrate-body`;
 [death-disintegrate.md](re/systems/death-disintegrate.md), "What we do"). After the freeze fix the victim's own body
@@ -325,7 +325,7 @@ effect; on another player its ash pile script set critical stage `DisintegrateEn
 (37616 -> `Set3D` 12358), and the frame never ended: `Main::Update` waited for its jobs (35409) and a job in
 `WaitForJobTask` (69516), both measured; that the job waited on the player's update is inferred. `Actor::SetCriticalStage` (37615) and
 `Actor.AttachAshPile` (54655) now refuse this game's player: it dies the normal way, with its body and no pile.
-Scenario `shout-kills-lying-guest` (MCP verb `shout_at_lying_player`), GameTests `[friendly-fire]`, ClientTests
+Scenario `shout-kills-lying-guest` (MCP verb `shout_at_lying_player`), GameTests `[friendly-fire]`, UnitTests
 `[CriticalStage]`.
 
 2026-11-23: **kill moves: every one listed, a copy's ragdoll starts whole** (`agent/kill-moves-every`;
@@ -335,7 +335,7 @@ that swings through them (`kill_move_table`, scenario `kill_moves_every`); `kill
 on each game. The host's kill moves seen on the guest flickered (up to 32): a copy's first ragdoll frames placed its far
 limbs and steered the rest. `RagdollStart` now plans the whole ragdoll, its gap blended out over 0.2 s: 0 flickers in
 25 falls. The engine's own drop of a copy's ragdoll at its death (58291, probed) is left as it is: played, it looks
-right (the user). GameTests and ClientTests `[ragdoll-start]`. Open: fighting victims, creatures and the host's swings
+right (the user). GameTests and UnitTests `[ragdoll-start]`. Open: fighting victims, creatures and the host's swings
 through the table; why slopes refuse kill moves (an attacker 18 or 35+ units off the victim's height got none).
 
 2026-11-22: **kill moves: the frozen victim, and every weapon tried** (`agent/kill-moves-polish`;
@@ -351,7 +351,7 @@ host's victim dies 0.01 to 0.07 s after its clip's blow (21 of 21), the guest at
 1.5 s and more before). New: the MCP verb `kill_move_on` (any weapon, either player, front or behind, with what a
 player would see wrong after), scenarios `kill-move-drops-at-blow` (recorded) and `kill-moves-by-weapon` (14 rows:
 sword, dagger, greatsword, battleaxe, warhammer, mace, war axe, unarmed, a wolf, both players), GameTests for both
-fixes and a table of nine kill moves by either player, ClientTests for the two rules. The fake learned: a clip's
+fixes and a table of nine kill moves by either player, UnitTests for the two rules. The fake learned: a clip's
 kill is counted a frame after its `KillActor`, a held pose's graph records no update, a dead actor is in no kill move
 (37896 clears flags2 `0x4000`, read). On the duo the eight older kill-move scenarios and `kill-move-drops-at-blow`
 pass; `kill-moves-by-weapon` paired and dropped 14 of 14 and fails on a dead copy's rest (awake, or 6 to 10 units
@@ -409,7 +409,7 @@ unwind entry; the written sizes had drifted both ways (`HookUpdateAI` 0x5F again
 function). A hook without an entry fails every lock audit (`lock_order.unmeasured_hooks`), and an `[ours]` report names
 the frame that tagged it. On the duo the alias/list pair now reads engine-only (`party-buys-house-guest` passed); the
 Havok/list pairs left were read in IDA (engine-only: they warn, not added to the reviewed list). Closed: "A pass-through hook counted as ours", "The AI/quest lock
-pair". ClientTests `[locks]`, a harness unit. `party-buys-house-host` failed on its staging (`place`: no clear spot),
+pair". UnitTests `[locks]`, a harness unit. `party-buys-house-host` failed on its staging (`place`: no clear spot),
 not a lock.
 
 2026-11-23: **physics sync is Fiedler's authority scheme** (`agent/physics-audit`; `docs/design/physics-sync.md`, top;
@@ -502,12 +502,12 @@ fixed**: a call the host's script routes to a guest's game (`NotifyRoutedCall`) 
 screen or controls call read as the story's and went back to every game; the host showed the mirrored box. The guest
 now queues it as its own player's (`GuestEngine::RunPlayerNative`, cause 0x14). Tests: GameTests "A guest's action's
 message box shows on its game only" (the fake's guest seam had queued it as the player's all along: now it follows
-production), ClientTests; `relief-takes-client-relics` 4 of 4 (0 of 4 before), the guest-moment and story-box
+production), UnitTests; `relief-takes-client-relics` 4 of 4 (0 of 4 before), the guest-moment and story-box
 scenarios pass.
 Third, **"The host's roll for a guest's loot" fixed**: the roll already agreed (the cell state sends contents); a
 guest's Take All of a fresh roll moved nothing because a chest keeps a taken roll item's entry at 0 (16059) and
 16108/16214 reads that as one. `GetContainerCount` now counts as CommonLibSSE-NG does (`Games/ContainerCount.h`,
-ClientTests); `guest-loots-hosts-roll` 3 of 3 (1 of 3 before), the container scenarios pass
+UnitTests); `guest-loots-hosts-roll` 3 of 3 (1 of 3 before), the container scenarios pass
 (inventory-changes.md, "A roll's taken item").
 Review of PR #87: a picked plant goes out as the host's row (`kHarvested`: `SetHarvestedFlag` 14647 and
 `UpdateHarvestModel` 14865); a guest's own linked-lock change is named in its cell request; the own-lock check reads
@@ -566,7 +566,7 @@ Gone: the equipment messages and their 3 s snapshot, the spawn's inventory (`Wai
 IDA: 16059's removals, 24725/24384/418622/16100 on a 3D load, the queued-equip drain (inventory-changes.md, "1.7.104").
 Closes "A looted corpse keeps items on the guest": the spawn put the bandit's base leveled lists on its copy as items
 (measured, `inventory_entry`); `looted_corpse_empty_on_both` (MCP) fails 3 of 3 on dev, passes 4 of 4. Tests: GameTests
-`[items-part]` (5), ClientTests `[items-part]`, `[equipment-repair]`, HostAuthorityTests (4). Open with leads: "A copy
+`[items-part]` (5), UnitTests `[items-part]`, `[equipment-repair]`, HostAuthorityTests (4). Open with leads: "A copy
 without its weapon" (418622 empties a copy's hands, measured), "A spawn's inventory over a newer equip" (no MCP
 scenario), "The guest player's copy wears nothing" (trigger unread), new "A party item removed without its tag". A guest's
 loot no longer passes through the host's copy of the looter, and a stack carries its owner (`Inventory::Entry::ExtraOwner`):
@@ -588,14 +588,14 @@ lists follow the player character's name part, `PlayerNameRequest` gone). An act
 gives its owner's flags but the part's bits, as before for every bit not read yet. Gone: `DrawWeaponRequest`/
 `NotifyDrawWeapon` and the 0.25 s hands poll, `CacheComponent`. The design's `ExtraForcedTarget` for a copy's swing was
 dropped: it skips reach (38608); the copy's `+0x104` already limits its swing to its owner's target (read in IDA, measured on the duo; closes "An NPC copy's swing picks the nearest")
-([actor-state.md](re/systems/actor-state.md)). Tests: GameTests `[actor-state]` (9), two name flows, ClientTests `[actor-state]` (5), HostAuthorityTests;
+([actor-state.md](re/systems/actor-state.md)). Tests: GameTests `[actor-state]` (9), two name flows, UnitTests `[actor-state]` (5), HostAuthorityTests;
 scenario `script-renames-reach-party` (fails on dev); closes "A mod's rename at run time".
 
 2026-11-18: the duo's ~400 ms stalls about once a second at a repro scene's start were the test harness's own
 (`agent/duo-stall-profile`, [harness-cost.md](re/systems/harness-cost.md)). The command server built and wrote every
 reply's JSON on the game's main thread, and the scene's world baseline asks for the whole town's `world_state` back
 to back (in Riverwood up to 451 ms a call). `world_state` now copies the references out on the main thread and
-builds its JSON on a worker (`Command::Gather`; replies still go out in order, `ReplyQueue`, ClientTests), and so does
+builds its JSON on a worker (`Command::Gather`; replies still go out in order, `ReplyQueue`, UnitTests), and so does
 the status file; other replies stay in their frame (a `console_result` held a frame got lost behind a load): `world_state`
 went to 21 ms on the main thread, and the scene's settle window has no stall left. `profile` lists each command's
 main-thread time (`harness <cmd> us`) and builds Tracy's Linux tools from any worktree. Players' builds are unchanged
@@ -617,7 +617,7 @@ spawn (`HostRecords`), a part waits for its copy and for an actor it names, and 
 moved onto it, AI state: `AiStateRequest`/`NotifyAiState` and the spawn's `AiState` are gone; a look or combat target
 named before its copy exists is applied when it appears ("A copy that looks at nobody": closed by the rejoin entry above, whose duo scenario
 shows the player path). The other caches move in later PRs.
-Tests: GameTests `[copy-records]` (3), ClientTests `[copy-records]` (6), HostAuthorityTests `[records]` (4).
+Tests: GameTests `[copy-records]` (3), UnitTests `[copy-records]` (6), HostAuthorityTests `[records]` (4).
 
 2026-11-18: a horse ridden by the host, then a guest, then the host again shows the host riding on the guest's game
 (`agent/horse-riding-copy`, `docs/re/systems/mounts.md`, "A horse taken back mid-pair"). The host took the horse back
@@ -678,7 +678,7 @@ ride can end with no exit clip. A refused get-on gives the driver back its slot.
 holds it again. Passengers arrive on foot after a party travel. Scenario `party-shares-a-horse` checks boarding, both
 seated, driving, the handover, every get-on and get-off for jumps on both games and each riding copy at its horse; it
 passes its steps, its end check failing on the plains' critters (`bugs.md`). Tests: GameTests `[passengers]` (the
-fake's `MountSlots`, `Reins`, `SyncedMounts`), HostAuthorityTests `[passengers]`, ClientTests `ReplayState` rules,
+fake's `MountSlots`, `Reins`, `SyncedMounts`), HostAuthorityTests `[passengers]`, UnitTests `ReplayState` rules,
 encoding round trip.
 
 2026-11-17: a guest no longer freezes when the host's temporary NPCs go. The playtest's "coc whiterun crashed the
@@ -687,7 +687,7 @@ A copy's movement idle load (kind 47, a turn-to-walk) named the copy's process l
 hold those sets with their own lock and callback, kept until none of their loads is queued (no cancel: 63997 takes a
 finished load's lock before it reads a cancel)
 ([animation-file-loads.md](re/systems/animation-file-loads.md)). Tests: GameTests "A copy deleted while its movement
-idle's clips load...", ClientTests `[held-clip-loads]`, scenario `copy_deleted_while_clips_load` (harness `clip_loads`
+idle's clips load...", UnitTests `[held-clip-loads]`, scenario `copy_deleted_while_clips_load` (harness `clip_loads`
 holds the guest's file job and lists each load's lock owner).
 
 2026-11-17: a fight with one player is the party's (Solitude playtest, 2026-11-16: the platform guards killed Josh, a
@@ -699,7 +699,7 @@ combat group can take them ([combat-targets.md](re/systems/combat-targets.md), A
 A guest's friendly-hit anger is the party's as well (`PartyThreat::AngerCovers`; scenario `guest-angers-ally-party-enemy`;
 MCP: `fight(until_dead=False)`, verb `expect_enemy`, a new duo forgets the last games' scene and staging).
 Tests: GameTests "A guard a script set on the guest turns on the host beside it" (the fake's group takes only targets
-its members can attack, `CombatFriendly`), ClientTests `[party-aggro]`, scenario `guest-trips-platform-guard` (its steps
+its members can attack, `CombatFriendly`), UnitTests `[party-aggro]`, scenario `guest-trips-platform-guard` (its steps
 pass; its end comparison finds the town's scattering crowd apart, bugs.md "End comparisons in towns").
 
 2026-11-16: save sync. A guest waited 5-10 s at a host load where the host waited none: the save (3 MB) travelling,
@@ -710,7 +710,7 @@ On that session's saves: 3.05 MB before, 0.16-1.07 MB against a held save, 1.55 
 reuse of 2026-11-03 is removed (3-23% of blocks matched). Engine facts read in IDA
 ([save-game.md](re/systems/save-game.md), "The file's compression"): a type 0 save with a raw body loads (109334), and
 a quicksave's file is written by the save thread after `Save_Impl` returned (109353 hooked, `SaveWrittenEvent`).
-ClientTests `[save-transfer]`, HostAuthorityTests `[save]`, GameTests `[save-sync]` (a quicksave held then loaded with
+UnitTests `[save-transfer]`, HostAuthorityTests `[save]`, GameTests `[save-sync]` (a quicksave held then loaded with
 nothing sent, a save never sent, a store that lost one, a newer save replacing one on its way, a rejoin); the fake
 engine learned the save thread's late write. In Skyrim (QASmoke, one machine): `guest-reuses-world-cache`
 passes (a first join 1.41 MB for a 7.8 MB image, the next 0.18 MB against the held one: the engine loads the type 0
@@ -731,7 +731,7 @@ joins go on). GameTests "A party wipe loads nothing until the host loads the sav
 2026-11-22: `/killmove 100` makes every swing a kill move. The odds kept the engine's fatal test, so at 100 a kill
 move still came only on the killing blow, which the game's own rule mostly gives already: the rate looked unchanged.
 Now with odds set `ShouldAttackKill` answers `Actor::WouldAttackKill`'s (38559) checks before its hit probe (a living
-victim the attacker may kill, 37229) and the roll ([dev-commands.md](re/systems/dev-commands.md)). ClientTests
+victim the attacker may kill, 37229) and the roll ([dev-commands.md](re/systems/dev-commands.md)). UnitTests
 `[dev-commands]`; scenario `killmove-odds-every-swing` (one swing at a 1000-health wolf, guest and host).
 
 2026-11-16: dev chat commands for playtests (`/dev` lists them): `/heal`, `/god`, `/speed`, `/gravity`, `/shouts`,
@@ -739,14 +739,14 @@ victim the attacker may kill, 37229) and the roll ([dev-commands.md](re/systems/
 game at the typer's character. Anyone types them; the host runs world commands and sends the line to every game, which
 runs console lines on its own player ([dev-commands.md](design/dev-commands.md)). Kill moves have no chance in vanilla
 (the root idles need a fatal swing on the last enemy, 21744/21743): `/killmove` hooks those two conditions
-([dev-commands.md](re/systems/dev-commands.md)). Tests: ClientTests `[dev-commands]`, HostAuthorityTests `[DevTools]`,
+([dev-commands.md](re/systems/dev-commands.md)). Tests: UnitTests `[dev-commands]`, HostAuthorityTests `[DevTools]`,
 GameTests `[dev-commands]`; checked by hand in Skyrim.
 
 2026-11-16: copies hold their owners' furniture props. Alvor hammered at the forge with no hammer on the guest: a prop
 is an animation object (ANIO) the idle's first clip loads and draws (AnimObjLoad/AnimObjDraw, 42888/42889), and a copy
 starting from a later sync point (its 3D reloaded, a guest arriving) skipped them. The sync point now carries the
 owner's props and the copy holds them as a save's load does (43580: Load 43571, Draw 43572)
-([animation-objects.md](re/systems/animation-objects.md)). Tests: GameTests `[props]`, ClientTests `[graph-stream]`,
+([animation-objects.md](re/systems/animation-objects.md)). Tests: GameTests `[props]`, UnitTests `[graph-stream]`,
 scenario `copy_holds_furniture_prop`; snapshot readout `state.anim_objects`, MCP `expect(check="props")`.
 
 2026-11-16: a wheel let go beside a pile keeps falling (the playtest's cheese wheel stopped in the air). Our island
@@ -765,7 +765,7 @@ destination), where the item's ownership is. Also found: our `Confiscate` hook (
 32 bits, so a warning never took anything back, the host's own included. Measured: an NPC in a scene (Orgnar's bar
 scene) drops the warning before its first step, for both players, and the theft is reported. Scenario
 `guest-theft-warned` (MCP: `stop_scene`, `expect_given_back`, `expect_warnings` waits); GameTests "A guest's seen theft
-is warned", ClientTests `[CrimeRules]`, encoding round trip. `guest-theft-at-bar-bounty` now spends the warnings first.
+is warned", UnitTests `[CrimeRules]`, encoding round trip. `guest-theft-at-bar-bounty` now spends the warnings first.
 
 2026-11-16: dialogue polish, the mouse and joins. The mouse moved everyone's option: on PC the dialogue menu has a cursor
 and a hover selects (vanilla, `DialogueMenu` flags read in IDA, 82310), and every highlight change was sent to the party.
@@ -783,7 +783,7 @@ the build after the NPC's last line listed that option's choices; `MenuTopicMana
 was (6 of 6 kept; [dialogue.md](re/systems/dialogue.md), "A start during the NPC's last line"). GameTests
 "A player's mouse moves only its own menu's highlight...", "A list sliding under a still cursor...", "A hover kept
 through a list refresh...", "A player joining while the NPC answers hears its line once", "A guest's ask run without the
-host's menu keeps the greeting's choices..." (each fails with its fix taken out); ClientTests `OnHighlightMoved`,
+host's menu keeps the greeting's choices..." (each fails with its fix taken out); UnitTests `OnHighlightMoved`,
 `OnFirstHighlight`, `RolloverHold`, `AskKeepingPicked`; scenarios `dialogue-resting-cursor-keeps-party-highlight`,
 `dialogue-guest-joins-mid-line`, `dialogue-guest-reasks-after-close` (MCP: `guest_replays_mark`, `expect_no_line_replayed`,
 `talk_again_as_menu_closes`, `reask_after_close`, `expect_reask_keeps_choices`; harness `dialogue`: `picked`, `last_selected`,
@@ -798,7 +798,7 @@ so every game's NPC looks at that player ([dialogue.md](re/systems/dialogue.md),
 player it faces leaves while others stay, it turns to the first player still in it (`NotifyDialogueFace`, from the host's
 rules). Its body turns to that player too: the engine turns the body only to its own player in a conversation
 (`Character::ShouldRotateToTrack` 38011), now also to the named talker (`HookShouldRotateToTrack`). GameTests `[headtrack]`
-(each fails without it), ClientTests, HostAuthorityTests, the scenarios `npc-looks-at-guest-talker`,
+(each fails without it), UnitTests, HostAuthorityTests, the scenarios `npc-looks-at-guest-talker`,
 `npc-turns-when-talker-leaves` and `npc-turns-body-to-guest-talker`.
 
 2026-11-13: a guest's held E on a bottle on Orgnar's bar grabs it again. Skyrim wakes resting clutter it never
@@ -920,7 +920,7 @@ Jorrvaskr. Each game's engine walks a non-copy NPC's schedule on its own clock (
 Decided: the host ignores them, and the guest gives them no AI (`HookUpdateAI`) and no 3D (`HookLoad3D` on 19727, the
 disabled path), until the host's spawn makes them copies and queues their 3D (`QueueReference` 13057). A horse the
 guest rides is its own. Tests: GameTests `[guest-own-npc]`, and an actor checksum that fails any guest showing an actor
-of its own; ClientTests `[GuestNpcs]`; scenario `guest_shows_only_hosts_npcs` with the MCP's new `expect guest_npcs`
+of its own; UnitTests `[GuestNpcs]`; scenario `guest_shows_only_hosts_npcs` with the MCP's new `expect guest_npcs`
 (`actor_place` also reports the package and process level). On the duo its steps pass; its end comparison in Whiterun
 fails on the town differences in bugs.md ("End comparisons in towns", "Doors the host's NPCs unlock").
 From the PR's review: NPCs already shown when holding starts (the host's save loads before the guest connects; a
@@ -976,7 +976,7 @@ their fights kept the host as target; now they are crime fights and go for the n
 <hold>" line (37679) showed on the host only; the host now relays each report (`NotifyCrimeState.Reports`) and guests
 show the engine's line. Scenario `guest-theft-bounty-message` (failed before), flows "A theft's witness, only angry",
 "A guard answering a party crime", "A guest's witnessed theft shows the bounty line in every game", HostAuthorityTests
-and ClientTests `[CrimeRules]`. MCP: `expect_bounty_message`.
+and UnitTests `[CrimeRules]`. MCP: `expect_bounty_message`.
 
 2026-11-08: copies move toward the graph input stream ([graph-input-stream.md](design/graph-input-stream.md)): a copy's
 graph fed its owner's inputs matched it on every update over the network (Faendal 17009/17009). The ops' encoding
@@ -1015,7 +1015,7 @@ actor, not the item, and the host's permission recheck (`IsAnOwner` 20210, which
 it silently. A theft now carries the item's owner (`CrimeRequest::Owner`); `Judge` skips that recheck and its same-cell
 check for an actor target (`CrimeRules`) and alarms with the owner. The bugs-map guess (created forms' session ids) was not the cause:
 the item is not on the wire. Scenario `guest-steals-created-item`, flow "A guest steals an item the host's game made",
-ClientTests `[CrimeRules]`.
+UnitTests `[CrimeRules]`.
 
 2026-11-07: a copy's lifecycle is the host's events alone ([copy-contract.md](design/copy-contract.md), "A copy's
 lifecycle"; engine path [copy-lifecycle.md](re/systems/copy-lifecycle.md)). A guest hides a held copy once, as the host's
@@ -1032,7 +1032,7 @@ Vilkas scenarios run after it in the same session fail at their start (it ran la
 checker tells them apart"). Each thread carries its stretch of the frame (main loop tasks, our update), each order every stretch
 it was seen in; an inversion between main loop tasks and our update alone is logged as kept apart and fails no flow, anything
 else still fails, and the live overlap check is as it was. `guest-rides-host-horse` failed on one after a respawn (bugs.md).
-ClientTests `[locks]`, a harness unit.
+UnitTests `[locks]`, a harness unit.
 
 2026-11-07: the stray empty box in fresh worktrees' test games is the main menu's Anniversary Edition box (52156),
 queued while SkyrimPrefs.ini has no `bFreebiesSeen=1`: the harness's `coc` took it into QASmoke, empty (its body key
@@ -1052,7 +1052,7 @@ container when it is made, not when it is opened ([guest-world-events.md](re/sys
 reconcile compared only selected spells; it now also reads a loaded copy's hands
 ([copy-hand-spells.md](re/systems/copy-hand-spells.md), "Selected, not held"; scenario `copy-holds-spell-after-trip`,
 its hand checks failing then passing on the duo, its end comparison failing on bugs.md's "End comparisons in towns";
-GameTests and ClientTests `[hand-spell]`). Level: two placed Whiterun Guards read 1000 on
+GameTests and UnitTests `[hand-spell]`). Level: two placed Whiterun Guards read 1000 on
 both games (the 2026-11-04 fix, default boot). The late-save cases (the Riverwood guard, Odahviing) are not rechecked:
 booting the duo from `LateAfterDragonslayerBackinSkyrim` froze the host twice then (it boots in 36 s since, 2026-11-16).
 
@@ -1080,7 +1080,7 @@ combined batch is left to the next combined run. Filed: the MCP's crash check re
     (`CopyPackage::CreateDoNothing`, `copy-answers-its-ai-procedure`, GameTests `[copy-package]`). That left a released copy
     standing frozen on the package; a release now ends it (`released-copy-takes-up-its-ai`).
   - **The lock checker's list** held 8 of 10 pass-through hooks, so the engine's own orders failed flows as ours. Now 32, with a
-    critical log and a harness unit (lock-order.md). ClientTests and GameTests `[headtrack]`, harness units.
+    critical log and a harness unit (lock-order.md). UnitTests and GameTests `[headtrack]`, harness units.
 
 2026-11-06: the bugs mapped ([bugs-map.md](bugs-map.md)): shared causes, wrong checks and an order. Most of the drift
 detector's "lasting" reports are its frozen snapshot, not drift (new verbs `graph_watch`, `hands_compared`). New entry: a
@@ -1094,7 +1094,7 @@ copy without its weapon, the user's report, not reproduced.
   `pose_visibility.drawn`: the scenario passes 3 of 3. Read on the way: how the movement controller switches to the
   Virtual Path Follower for middle-high actors (`actor-movement.md`, both new sections). New: the `ref_steps` verb (with
   the vanilla stand-in's `ref_trace`), `gait_after_arrival`, and root, feet, cull, process level and movement state in
-  the animation trace. Tests: ClientTests `[gait]`, `test_world_diff` (a stale `was_in_frustum`).
+  the animation trace. Tests: UnitTests `[gait]`, `test_world_diff` (a stale `was_in_frustum`).
 
 - **Names (2026-11-05):** names go through the host and each game applies them one way. Spawns carry `DisplayName`, a player's too
   (the host's copy showed ""); a rename or a host's load of another character sends `PlayerNameRequest`; the host's game
@@ -1144,7 +1144,7 @@ players stacked by a door's tether arrival. Open: the player's paths refused ins
   matched, transient or lasting (open past 2 s), players' copies and paired actions left out; a `copies' graph drift:`
   line per flow in `coop_test.py scenario`. A 12-flow animation batch: 283 NPC replays, 261 matched, 12 transient, 4
   lasting (animation-replay-recovery.md, "Drift detector"). Each lasting one is a missing input, listed in bugs.md; no snapshot loading over it.
-  ClientTests and GameTests `[graph-drift]`. Replaced 2026-11-06 by a live read: those lasting counts were not drift.
+  UnitTests and GameTests `[graph-drift]`. Replaced 2026-11-06 by a live read: those lasting counts were not drift.
 
 2026-11-05: `bugs.md` audited and split into sections an agent can take whole, each with its task, size and what it
 waits for. Closed: the three risks of 2026-10-31 ([report](reports/2026-10-31-v1-three-risks.md); its two unrelated
@@ -1198,12 +1198,12 @@ games stopped at a CrashLogger dialog (the game's user couldn't write `My Games`
 1; Odahviing's 20 against 1 the same kind) was given the owner's face record, dropping its own game's resolved base and
 its stats; it now keeps that engine-made base when its face matches the owner's (both games load one save), and reads
 the same level on the duo ([leveled-npc-copy-names.md](re/systems/leveled-npc-copy-names.md), "A copy keeps its game's
-resolved base"; GameTests and ClientTests `[copy-level]`; `leveled-placed-npc-is-hosts` now compares level, and passes
+resolved base"; GameTests and UnitTests `[copy-level]`; `leveled-placed-npc-is-hosts` now compares level, and passes
 it, then fails its cleanup: the guest loses its own guard reference once the host sends it home, on its unchanged
 permanent-base path). Open: a different face, and created copies, still take the face record's
 stats. Hands: a copy's move to another cell drops its hand spells, and the equipment snapshot compared only worn items;
 it now compares the hand spells too ([copy-hand-spells.md](re/systems/copy-hand-spells.md); scenario
-`copy-keeps-spell-after-party-travel`, GameTests and ClientTests `[hand-spell]`).
+`copy-keeps-spell-after-party-travel`, GameTests and UnitTests `[hand-spell]`).
 
 2026-11-04: a container the host creates reaches a guest with what it holds (`bugs.md`, Containers, deleted). Each
 create row of a container is followed by its contents, rolled on the host first (`AddCreatedContents` in
@@ -1269,12 +1269,12 @@ only then: placed on its path from take-off to landing and in any other state (s
 met yet), its height held when a snapshot is late
 ([actor-movement.md](re/systems/actor-movement.md#a-copy-in-the-air-2026-11-03)). Scenarios
 `copy-jumps-smoothly-host` / `-guest` (failed both ways, pass); GameTests "A jumping player's copy rises and falls
-with it, never stuck on the ground"; ClientTests `[copy-step]`.
+with it, never stuck on the ground"; UnitTests `[copy-step]`.
 
 2026-11-03: an actor landing on the party's arrival spot passes through the players. Stepped copies never yield, so
 Lydia's copy landing on a guest shoved the guest through a table beside the door; any NPC's copy put on the spot now
 joins the arrival stack for its first 5 s, until it walks off ([actor-movement.md](re/systems/actor-movement.md),
-"A stepped copy shoves a player it lands on"). Scenario `follower-lands-on-guest`; GameTests travel flow; ClientTests
+"A stepped copy shoves a player it lands on"). Scenario `follower-lands-on-guest`; GameTests travel flow; UnitTests
 for `ArrivalStack` and the collision groups.
 
 2026-11-02: smarter enemy aggro is reviewed and merged into `dev`: recent applied damage and
@@ -1302,7 +1302,7 @@ held still is not at rest (`physics-sync.md`, "Held still is not at rest").
 session open over the duo, so a bug is staged step by step: a frozen world stepped a frame at a time (`Main::freezeTime`,
 `TestHarness/FrameStepper.h`), `stage`/`drop` with handles per game, `observe` both games, `expect`, and
 `record_export` writing the session as a scenario (`scenarios/recorded/`) or a shared spec. Python units
-(`test_coop_harness.Repro`), ClientTests `[frame-stepper]`. Phase 2: named counters (`Diagnostics/Counters.h`, in
+(`test_coop_harness.Repro`), UnitTests `[frame-stepper]`. Phase 2: named counters (`Diagnostics/Counters.h`, in
 status and `profile`), round trips and clock syncs in status, press timing against the vanilla stand-in. Phase 3:
 `walk_to` along the navmesh (AI-driven player, `PathToReference` in legs), `talk_to`, `pick`, `menu`, `travel`,
 `quest_walk` (the late-save duo boots and connects again). A quest played by the verbs on a late save ("A Lovely
@@ -1312,7 +1312,7 @@ then); on `LateAfterDragonslayerBackinSkyrim` the summit's dragons (Paarthurnax,
 neither game (session id -1 in both): they stand in an exterior cell the engine made at load (`FF000A15`, no plugin
 record), and `BuildAnnouncement` (and `ReadWhereabouts`) dropped an actor whose cell has no session id. Fixed
 (2026-11-03): outdoors such a cell goes as none (`ToSessionCell`, FormIds.h) and the copy is placed by worldspace and
-position (`TravelService::CellAt`); ClientTests `[FormIds]`, GameTests "The host's NPC in an exterior cell the engine
+position (`TravelService::CellAt`); UnitTests `[FormIds]`, GameTests "The host's NPC in an exterior cell the engine
 made gets a copy on the guest" (failed before). On the duo the dragons now have session ids and copies. The runner's
 baseline check there then stops on two newer differences: Odahviing's copy was level 1 against the host's 20
 (a copy took the face record's stats; fixed 2026-11-04, above), and, open, his copy trails him in flight by ~300 units
@@ -1358,13 +1358,13 @@ with the engine (16108) and takes from the matching list ([inventory-changes.md]
 session's time as read once a frame, which jumps (27 then 6 ms) while frames are steady, so copies stuttered. Both now
 step by the engine's frame (`FrameClock`, [copy-clock.md](design/copy-clock.md)); players and fights are sent every second
 frame at 60 fps (were every third), and a copy's strafe animation turns with its movement (was a snapshot late). Scenarios `copy-strafes-with-host`,
-`copy-strafes-with-guest`; ClientTests `[copy-clock]`. The vanilla stand-in records the player's path
+`copy-strafes-with-guest`; UnitTests `[copy-clock]`. The vanilla stand-in records the player's path
 (`player_trace.on`) to compare a player's own movement.
 
 2026-11-01: clutter no longer creeps above 60 fps (S4): vanilla Havok steps by `fMaxTime` (1/60)
 whatever the frame rate, and a step longer than the frame wakes resting objects. Each frame's step is now the frame,
 as HIGGS and HavokFix do ([physics.md](re/systems/physics.md), "Havok's step"). Scenario
-`clutter-rests-at-any-frame-rate`; `ClientTests` `[havok-step]`.
+`clutter-rests-at-any-frame-rate`; `UnitTests` `[havok-step]`.
 
 2026-11-01: a joined player can change its armor again (S7): the join put the kept character's worn set
 back on force-equipped (`abForceEquip`, Papyrus `EquipItem`'s prevent removal), so the inventory menu could not take
@@ -1418,7 +1418,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Host/guest code split, the world (2026-10-20) | done: `Services/Guest/` (`GuestClock`, `GuestWeather`, `GuestWorldState`) exist only while joined (`GuestService`); `Bridges/HostEngine` (the host's reads, set hour) and `Bridges/GuestEngine` (applying the host's calendar, weather, globals, quests) replace those `IWorldBridge` calls; `CalendarService` is `TimeScaleService`; `WeatherService`, `WorldStateService` deleted; `HostBridge` renamed `HostAuthority`. Actors next, by owner/copy (`docs/ideas.md`, "Client services by role") |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
 | Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
-| Arriving together: the party stacks on the arrival spot, passing through each other until each walks off; followers face the leader's way, so every game shows the same view; an NPC follower or copy landing on the spot joins the stack (2026-11-03: her copy shoved the guest through a table) | done (replaces the step-aside of `83178416`), `party-stacks-on-arrival`, `party-uses-door`, `follower-lands-on-guest`, GameTests "A follower landing on a guest's arrival spot...", ClientTests `[arrival-stack]` |
+| Arriving together: the party stacks on the arrival spot, passing through each other until each walks off; followers face the leader's way, so every game shows the same view; an NPC follower or copy landing on the spot joins the stack (2026-11-03: her copy shoved the guest through a table) | done (replaces the step-aside of `83178416`), `party-stacks-on-arrival`, `party-uses-door`, `follower-lands-on-guest`, GameTests "A follower landing on a guest's arrival spot...", UnitTests `[arrival-stack]` |
 | Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (`87972601`), `party-fast-travels` |
 | Players' copies travel with the party: persistent, moved with their owner, never respawned on travel | done (`df9af2ff`), the travel scenarios |
 | Experience: personal, earned by whoever did it; party rewards to everyone (`docs/design/party-model.md`, "Experience") | rule decided 2026-10-19; wiring below. quest rewards built 2026-10-27 (`design/quest-rewards.md`); measured combat XP sharing removed |
@@ -2068,7 +2068,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   - Why: a held bucket pressed against a copy sank into it (2026-11-02 playtest).
   - Result: the bucket now stops 18 to 21 units from her axis, as against an owner (`guest-holds-into-npc`).
   - Details: `docs/re/systems/actor-movement.md`, "Copies step".
-  - Tests: GameTests "A guest's player presses a held plate against a host NPC's copy"; ClientTests
+  - Tests: GameTests "A guest's player presses a held plate against a host NPC's copy"; UnitTests
     `[copy-step]`.
   - Found while checking it, failing the same with the old placement:
     - `actors-walk-after-arrival`: the host's own Riverwood NPCs jump 125 to 573 units in 2 s;
@@ -2083,7 +2083,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
     - Fix: a body this game's player holds is never at rest (`IBodyReads::PlayerHolds`).
     - Measured: 26 falls in 30 s before, 0 after.
     - Tests: the scenario now checks the other game's bucket; GameTests "The host's player holds a bucket still";
-      ClientTests "A body this game's player holds still is not at rest".
+      UnitTests "A body this game's player holds still is not at rest".
     - `host-sets-down-item` and `host-drops-item-stays` pass 2 of 2.
 
 ## Test suite
@@ -2167,13 +2167,13 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   (`session_settings_flows.cpp`). Merged with the character assignment: the join answer carries both.
   `ChatMessageTypes.h` is included by the chat broadcast's header, no longer by every message (`Message.h`).
 - Four tiers (2026-10-23, `docs/design/testing.md`, Factorio's model): unit, integration against a fake engine,
-  the duo, soak. Tier 1 `ClientTests` (new, `Code/tests/client/`): `PartyRules` (the cutscene share rule and the
+  the duo, soak. Tier 1 `UnitTests` (new, `Code/tests/client/`): `PartyRules` (the cutscene share rule and the
   control holds, split out of `PartyNatives`), 45 assertions, rule edit to result 0.4 s. Tier 2 `GameTests` (new
   prototype, `Code/tests/games/`): two games in-process, real `TransportService`/`CutsceneService` and the host's
   rules on a fake engine; 4 cutscene flows in 1.0 s. Skyrim showed the fake's first guess wrong (movement takes
   jumping too, `0x401`). Then GuestScripts' tags and cause rules (`ScriptTags`), WorldEvents' own-event rule and
   a guest's own quests (`OwnEvents`) split out the same way, then NativeReach's code reading (`CodeReach`, Zydis on
-  Linux): `ClientTests` 173 assertions. `GameTests` 11 flows: world-state sync between games on a fake world
+  Linux): `UnitTests` 173 assertions. `GameTests` 11 flows: world-state sync between games on a fake world
   (locks, containers, cell state, rejoining, two guests), real `GuestWorldState` and `HostWorldState`, checked by
   `Party::Differences()`. `scripts/xmake-linux.sh` passes clang's flags through config files (CMake packages
   could not build on Linux). `guest-spawns-no-critters` fails when the host's weather drifted to rain (0x4D7FB):
@@ -2409,7 +2409,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   action's target. The 87 `GetServerModId` calls and every `World::Get().GetModSystem()` chain are plain calls; no
   `ModSystem&` goes through the bridges. Handling that changed: a created poison goes without an id (its receiver
   asserted against one); sends that ignored the result carry no id for a created form; guarded ones drop instead
-  of sending an id no game finds (a guest's activation, lock or equip of a created form). `ClientTests`
+  of sending an id no game finds (a guest's activation, lock or equip of a created form). `UnitTests`
   "[FormIds]". `Inventory.h` includes `<optional>`.
 - One line per hook (2026-10-23, ideas.md "Code cleanup"): `HOOK_ID(ID, &Real, HookFn)` (and
   `HOOK_ID_IMMEDIATE`, `Hooks/FunctionHook.h`) replaces the `POINTER_SKYRIMSE` / `Real = .Get()` / `HOOK` triple at
@@ -2907,7 +2907,7 @@ What the first playtest build has besides what works today (the table above):
    A host pick is tagged before its begin fragment runs. Native quest stage/completion events reach guests without
    their reward fragments. No catch-up ledger; earned permanent stat totals are kept in character records.
    Calibration exposed the old combat XP relay double-applying rewards; removed, and 40488's ABI fixed.
-   Validation: full gate PASS (142 GameTests, 57 ClientTests, 164 authority cases, encoding/UI/DLL);
+   Validation: full gate PASS (142 GameTests, 57 UnitTests, 164 authority cases, encoding/UI/DLL);
    both lossy reward/record profiles PASS; six real turn-ins plus two native checks 3/3 shuffled (24/24), full
    character rejoin PASS; Speech/training/shrine/beast/dragon/personal-XP regressions 6/6 PASS. Duo stopped/freed.
    The known plate-carry flake failed earlier and passed the final gate. Owners receive shared perks, but a
@@ -2955,7 +2955,7 @@ What the first playtest build has besides what works today (the table above):
    guest's player plays the host's player's part in an engine scene (`GuestScene`). Tiers 1-2 pass; Skyrim scenarios
    from late saves: [cutscenes.md](design/cutscenes.md), "Step 2". `Debug.SendAnimationEvent` read 2026-11-07: the
    code reader follows a native's first argument (r9) and resolves its graph holder's slot 1 (38048), so a story's
-   event on a player plays on each game's own player, on any other reference on the host only (ClientTests
+   event on a player plays on each game's own player, on any other reference on the host only (UnitTests
    `code_reach_tests.cpp`, GameTests `cutscene_flows.cpp`; [party-calls.md](design/party-calls.md)). Checked in Skyrim:
    spec `story-animation-event-reaches-guest` (recorded through the MCP; a host script's event on the guest's
    character bleeds out the guest's own player).
@@ -2989,7 +2989,7 @@ What the first playtest build has besides what works today (the table above):
     skills, levels, script events) is sent to the host and raised there for its character, its members read from the
     engine's type table (generic since 2026-10-28, `.worktrees/story-events`; one naming another game's actor, a kill
     or an assault, is the host's own), and the story manager's visitors judge the guest's character while one of its
-    events runs (a copy's kill too); a party arriving together is one arrival. HostAuthorityTests, ClientTests, GameTests; Skyrim
+    events runs (a copy's kill too); a party arriving together is one arrival. HostAuthorityTests, UnitTests, GameTests; Skyrim
     `guest-story-starts-no-quest`, `guest-location-change-starts-story`, `guest-craft-raises-story` pass. A copy left getting up after its guest leaves the
     crafting menu (2026-10-27) was not seen again (2026-11-18, `guest-leaves-crafting-mid-craft`).
 13. **Party travel gaps:** ready for v1.0.0 testing (user accepted 2026-10-27); on dev: guest fast-travel time advances HostClock; native guest MoveTo leads the party; queued destinations are announced before loading. Menu, dialogue, dead/mounted follower and three-player coverage added. Full gate and both scoped non-death travel/mount network profiles pass; remaining jail cleanup, intermittent lock reports and death/physics failures under packet loss are open bugs in `docs/bugs.md`. Native measurements, validation and remaining limits: [party-travel.md](design/party-travel.md).
@@ -3061,20 +3061,20 @@ What the first playtest build has besides what works today (the table above):
     `HostNetwork` send the book's new entries first) and are kept in the character record. Brewed potions reach the
     brewer's copies, chests, drops and the host's pickup; a coated weapon keeps its poison. Found on the way: the alchemy
     menu adds its potion with `TESObjectREFR::sub_19688`, which no hook saw (no copy got a brewed potion); hooked for
-    actors. Tiers 1-2 (ClientTests, HostAuthorityTests, TPTests, GameTests `crafted_potion_flows.cpp`); Skyrim
+    actors. Tiers 1-2 (UnitTests, HostAuthorityTests, TPTests, GameTests `crafted_potion_flows.cpp`); Skyrim
     `guest-brewed-potion-reaches-host`, `guest-poison-coating-reaches-host` and ten item regressions pass;
     `crafted-potion-kept-across-rejoin` passes its potion steps and fails the known cover-plate difference after a rejoin.
 20. **Adaptive copy playback** (built 2026-10-28 on dev; [copy-clock.md](design/copy-clock.md)): copies
     trail their owner by what the line needs instead of a fixed 300 ms (one game-wide clock steered toward the worst
     lateness of the last 3 s, plus each copy's own send interval), movement, actions and ragdoll on that one time;
     late snapshots carry a copy on for up to one interval. Players, mounts and fights are sent 30/s, other actors 10/s.
-    Tiers 1-2 (ClientTests `copy_clock_tests.cpp`, GameTests `copy_playback_flows.cpp`); Skyrim: 16 of 19
+    Tiers 1-2 (UnitTests `copy_clock_tests.cpp`, GameTests `copy_playback_flows.cpp`); Skyrim: 16 of 19
     movement/combat/knockdown/death/travel scenarios pass, the other three known and in `docs/bugs.md`; the guest's copy
     of the host's player shows about 140 ms behind (was 300).
 21. **v1 checks: permanent abilities and live menus** (2026-10-28). An ability's values reach a rejoined
     player's copy (the spawn carries values held off their base; non-pool values are set as the base, not capped by
     damage). Live chest and barter menus close when their target goes, dies or leaves (`MenuAutoClose`, Skyrim Souls'
-    rule), and an open chest's list follows another game's change (`SendInventoryUpdateMessage`). ClientTests
+    rule), and an open chest's list follows another game's change (`SendInventoryUpdateMessage`). UnitTests
     `menu_auto_close_tests.cpp`, GameTests `perk_flows.cpp` (rejoin); Skyrim `ability-stays-on-copy` and the
     `coop_menus.py` live-menu checks pass; a chest lid's pose after an interrupted open is fixed (News, 2026-11-18).
 

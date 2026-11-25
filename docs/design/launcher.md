@@ -94,7 +94,7 @@ speed (size-optimized build, hashing/unpacking/crypto at full optimization).
 - Deleted: `Code/launcher/` (SkyrimCoopLauncher, LaunchChoice.h), `Code/tests/client/launcher_tests.cpp`, the
   `SKYRIMCOOP_LAUNCH_ARGS` carrier in `SteamBridge::GetLaunchLobby`, `scripts/package-vendor*.sha256`, the `-full`
   zip, check.sh's launcher build.
-- `scripts/package.sh`: one MO2-installable archive (Data/ root: `SKSE/Plugins/SkyrimTogetherClient.dll`, the UI,
+- `scripts/package.sh`: one MO2-installable archive (Data/ root: `SKSE/Plugins/SkyrimCoop.dll`, the UI,
   `SkyrimCoopStart.esp`, docs and licenses under `SKSE/Plugins/SkyrimCoop/`), plus the symbols folder.
 - `scripts/package_check.py`: the zip and `build/runtime-vendor` as two MO2 mods, published with `sms`, synced over a
   local P2P connection, loaded into a clean hardlinked game folder, booted through SKSE in Steam's launcher slot,

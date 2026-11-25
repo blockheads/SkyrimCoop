@@ -18,7 +18,7 @@
 //   a player's pile, every body still, rests together                       AuthSeq + 1, AtRest
 //
 // The host arbitrates with Accept; a guest hears the host's verdict with Hear. Players are numbers, 0 nobody (the
-// host's game simulates it). No engine: ClientTests.
+// host's game simulates it). No engine: UnitTests.
 class BodyAuthority
 {
 public:

@@ -3,7 +3,7 @@
 #include <Structs/BodyFrame.h>
 
 // What every game guesses a body does after a frame (docs/design/physics-sync.md, "Sent when the guess goes
-// wrong"): the host sends a body again only where the guests' guess would be wrong. No engine: ClientTests.
+// wrong"): the host sends a body again only where the guests' guess would be wrong. No engine: UnitTests.
 namespace BodyPrediction
 {
 // Vanilla Havok's gravity (bhkWorld's hkpWorld::gravity, -9.8 m/s²) in game units/s².

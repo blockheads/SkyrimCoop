@@ -11,7 +11,7 @@
 /// Real SKSE implementation of all five bridge interfaces.
 /// This is the ONLY file (along with SkyrimBridge.cpp) that is allowed to
 /// include SKSE headers (Actor.h, PlayerCharacter.h, Sky.h, etc.).
-/// Compiled only as part of SkyrimTogetherClient — never into test targets.
+/// Compiled only as part of SkyrimCoop — never into test targets.
 class SkyrimBridge
     : public IActorBridge
     , public IFormBridge

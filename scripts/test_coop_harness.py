@@ -2440,7 +2440,7 @@ class DuoHookTests(unittest.TestCase):
             self.assertIn("You hold the shared duo", message)
             self.assertIn("1 waiting", message)
             self.assertIn("the 15-minute cap", message)
-        self.assertIn("Free it", self.warn("Bash", command="scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL"))
+        self.assertIn("Free it", self.warn("Bash", command="scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin"))
 
     def test_no_warning_while_driving_the_games_alone_or_for_another_checkout(self):
         self.held()

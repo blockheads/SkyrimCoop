@@ -3,7 +3,7 @@
 /// SkyrimBridge.cpp — Real SKSE-backed implementation.
 ///
 /// With HostEngine.cpp and GuestEngine.cpp, the only places in the bridge layer that include SKSE headers.
-/// It is compiled as part of SkyrimTogetherClient only, never into headless
+/// It is compiled as part of SkyrimCoop only, never into headless
 /// test targets.
 
 #include <Bridges/SkyrimBridge.h>

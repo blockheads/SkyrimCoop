@@ -59,7 +59,7 @@ held forever. The engine's own cancels share this window. We stay out of it by n
   under its lock, and the sweep takes that lock after 63997's unlock, so the job no longer points at it.
 
 `GameTests`: "A copy deleted while its movement idle's clips load leaves no load on its lock" (the fake's loads check
-their lock, `FakeLoadLock`). `ClientTests`: `[held-clip-loads]`.
+their lock, `FakeLoadLock`). `UnitTests`: `[held-clip-loads]`.
 
 Duo: `copy_deleted_while_clips_load`. The harness's `clip_loads` holds the guest's 63980, so the copy's turn load
 stays queued while the copy is deleted. It then lists each queued load with the actor whose process lock it holds.

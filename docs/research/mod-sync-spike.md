@@ -7,7 +7,7 @@ changes except throwaway prototypes under `tools/spikes/mod-sync/` (see "Rules")
 ## The project in five lines
 
 SkyrimCoop is a co-op mod for Skyrim Special Edition (runtime 1.6.1170), forked from Skyrim Together.
-It is an SKSE plugin (a Windows DLL, `SkyrimTogetherClient.dll`, cross-built on Linux) that lets one
+It is an SKSE plugin (a Windows DLL, `SkyrimCoop.dll`, cross-built on Linux) that lets one
 player host from inside their game and friends join; the host's game is the only authority. Players
 are on Windows, and on Linux through Steam's Proton. The target experience: the host clicks Host and
 invites a friend through Steam; the friend accepts and, without loading a save of their own, is in the

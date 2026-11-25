@@ -90,7 +90,7 @@ of installed-mod compatibility.
 
 ## Current validation
 
-The final full gate passes (`evidence-audit/final-gate.log`): ClientTests 732 assertions / 80 cases,
+The final full gate passes (`evidence-audit/final-gate.log`): UnitTests 732 assertions / 80 cases,
 HostAuthorityTests 1902 / 178, encoding 281 / 22, GameTests 1937 / 179 in eight shards; seven Python
 comparisons, UI fixtures and the Windows DLL. Python compilation and `git diff --check` pass.
 

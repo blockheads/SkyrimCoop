@@ -325,7 +325,7 @@ std::string FormatAddress(uint64_t aAddress)
     if (aAddress >= s_engineBase && aAddress < s_engineEnd)
         return std::format("SkyrimSE.exe+{:#x}", aAddress - s_engineBase);
     if (aAddress >= s_ourBase && aAddress < s_ourEnd)
-        return std::format("SkyrimTogetherClient.dll+{:#x}", aAddress - s_ourBase);
+        return std::format("SkyrimCoop.dll+{:#x}", aAddress - s_ourBase);
     return std::format("{:#x}", aAddress);
 }
 
@@ -708,7 +708,7 @@ void IgnoreFrames(const void* apFunction) noexcept
     if (!cRange)
     {
         s_unmeasured.fetch_add(1, std::memory_order_relaxed);
-        spdlog::critical("LockOrder: pass-through hook SkyrimTogetherClient.dll+{:#x} has no unwind entry of its own: its frames read as ours",
+        spdlog::critical("LockOrder: pass-through hook SkyrimCoop.dll+{:#x} has no unwind entry of its own: its frames read as ours",
                          cStart - reinterpret_cast<uintptr_t>(&__ImageBase));
         return;
     }

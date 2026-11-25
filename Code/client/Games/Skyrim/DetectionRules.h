@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-// HookUpdateDetectionState's rule with no engine (docs/re/systems/stealth.md). Checked by ClientTests; the hook and
+// HookUpdateDetectionState's rule with no engine (docs/re/systems/stealth.md). Checked by UnitTests; the hook and
 // GameTests' fake engine both follow it.
 namespace DetectionRules
 {

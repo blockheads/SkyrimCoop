@@ -2,7 +2,7 @@
 
 The client DLL is built from Linux with **clang-cl + lld-link** against the Windows SDK and
 MSVC CRT fetched by xwin (`scripts/toolchain/setup_msvc_toolchain.sh`, then
-`scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL`).
+`scripts/xmake-msvc.sh build -j16 SkyrimCoopPlugin`).
 
 ## Why not MinGW (GCC)
 

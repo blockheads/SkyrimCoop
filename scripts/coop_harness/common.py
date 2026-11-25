@@ -38,7 +38,7 @@ TEST_HOME = (ROOT / "build/coop-test").resolve()
 # The duo's game folder: STEAM_GAME's files linked, its own SKSE plugins (runtime.ensure_duo_game).
 GAME = Path(os.environ.get("SKYRIM_GAME_DIR", TEST_HOME / "game"))
 BUILD_HOME = ROOT / ("build/skyrim-1.6.1170" if SKYRIM_VERSION == "1.6.1170.0" else "build")
-DLL = Path(os.environ.get("COOP_DLL", BUILD_HOME / "windows/x64/dev/SkyrimTogetherClient.dll"))
+DLL = Path(os.environ.get("COOP_DLL", BUILD_HOME / "windows/x64/dev/SkyrimCoop.dll"))
 LOADER = DLL.with_name("SkyrimCoopLoader.dll")
 VANILLA_HARNESS = DLL.with_name("SkyrimCoopVanillaHarness.dll")
 PEER = ROOT / "build/linux/x86_64/debug/coop_peer"

@@ -16,7 +16,7 @@ Development is Linux only for now; Windows is not supported yet. You need xmake,
 ```bash
 scripts/xmake-linux.sh f                 # configure the native tests (once)
 scripts/xmake-msvc.sh f -m dev           # configure the plugin; downloads LLVM and the Windows SDK (once)
-scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
+scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin
 scripts/check.sh                         # builds and runs the tests; run it before a pull request
 ```
 

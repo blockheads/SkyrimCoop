@@ -4,7 +4,7 @@
 
 namespace TestHarness
 {
-// The world frozen for a repro, stepped a frame at a time (docs/design/repro-mcp.md). Pure: ClientTests.
+// The world frozen for a repro, stepped a frame at a time (docs/design/repro-mcp.md). Pure: UnitTests.
 // Polled once a frame from our update, which runs after the frame's world update (Main::Update 36564).
 class FrameStepper
 {
