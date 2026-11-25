@@ -18,10 +18,11 @@ struct Named
 };
 
 // Skyrim.esm: leveled NPC lists (LCharWolf, LCharBanditMeleeAny, LCharDraugrMeleeAllMale, LCharSabrecat, LCharGiant,
-// LCharDragonAny) and EncTroll; the console's placeatme picks from a list at the player's level.
+// LCharDragonAny) and EncTroll; the console's placeatme picks from a list at the player's level. A horse is placed
+// by the bridge instead (IsPartyHorse).
 constexpr std::array cSpawns{Named{"wolf", 0xB83C2},  Named{"bandit", 0x3DECD},   Named{"draugr", 0x55955},
                              Named{"troll", 0x23ABA}, Named{"sabrecat", 0xFE2D5}, Named{"giant", 0x30529},
-                             Named{"dragon", 0x5EACF}};
+                             Named{"dragon", 0x5EACF}, Named{"horse", cHorse}};
 // Skyrim.esm weathers: SkyrimClear, SkyrimOvercastRain, SkyrimOvercastSnow, SkyrimStormRain, SkyrimStormSnow,
 // SkyrimFog.
 constexpr std::array cWeathers{Named{"clear", 0x81A},   Named{"rain", 0xC821F},     Named{"snow", 0x4D7FB},
@@ -72,7 +73,7 @@ constexpr std::array cSpecs{
     Spec{"lootbox", Kind::LootBox, "/lootbox [1-10]"},
     Spec{"killmove", Kind::KillMove, "/killmove <0-100|default>"},
     Spec{"reset", Kind::Reset, "/reset"},
-    Spec{"spawn", Kind::Spawn, "/spawn <wolf|bandit|draugr|troll|sabrecat|giant|dragon> [1-20]"},
+    Spec{"spawn", Kind::Spawn, "/spawn <wolf|bandit|draugr|troll|sabrecat|giant|dragon|horse> [1-20]"},
     Spec{"killall", Kind::KillAll, "/killall"},
     Spec{"weather", Kind::Weather, "/weather <clear|rain|snow|storm|blizzard|fog>"},
     Spec{"leash", Kind::Leash, "/leash [on|off]"},
@@ -227,6 +228,11 @@ bool IsWorld(Kind aKind) noexcept
     return aKind == Kind::Spawn || aKind == Kind::KillAll || aKind == Kind::Weather || aKind == Kind::Leash;
 }
 
+bool IsPartyHorse(const Command& acCommand) noexcept
+{
+    return acCommand.What == Kind::Spawn && acCommand.FormId == cHorse;
+}
+
 std::optional<std::string> ConsoleName(uint32_t aFormId, uint32_t aPlayerFormId) noexcept
 {
     if (!aFormId)
@@ -310,6 +316,8 @@ std::vector<std::string> WorldLines(const Command& acCommand, std::string_view a
     switch (acCommand.What)
     {
     case Kind::Spawn:
+        if (IsPartyHorse(acCommand))
+            return {};
         return {std::format("{}.placeatme {:X} {}", aAt, acCommand.FormId, acCommand.Count)};
     case Kind::Weather:
         return {std::format("fw {:X}", acCommand.FormId)};

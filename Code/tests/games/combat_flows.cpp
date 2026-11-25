@@ -9,6 +9,10 @@ constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kGuard = 0x0001A67C;
 constexpr uint32_t kFirebolt = 0x0001C789;
 constexpr uint32_t kFollower = 0x000A2C8E; // Lydia
+constexpr uint32_t kFireboltProjectile = 0x0010FBED;
+constexpr uint32_t kStormBolt = 0x000E4CB7;  // StormCallLightningBolt01, cast by magicProjectileStormScript
+constexpr uint32_t kStormBoltProjectile = 0x000E4CB5; // ShockBoltAimStorm, a beam that makes no explosion
+constexpr uint32_t kStormActivator = 0xFF000900; // the script's PlaceAtMe'd activator in the sky
 
 } // namespace
 
@@ -48,7 +52,7 @@ SCENARIO("A guest's fire bolt flies on the host's game", "[combat]")
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
 
-    party.As(party.Guest(), [&] { guest.Shoots(FakeEngine::kPlayer, kFirebolt, {10.f, 20.f, 120.f}); });
+    party.As(party.Guest(), [&] { guest.Shoots(FakeEngine::kPlayer, kFirebolt, kFireboltProjectile, {10.f, 20.f, 120.f}); });
     party.Until(
         [&] {
             return std::ranges::any_of(host.Shots, [&](const auto& acShot) {
@@ -58,6 +62,43 @@ SCENARIO("A guest's fire bolt flies on the host's game", "[combat]")
         },
         "the host's copy of the guest launches the same bolt from the same place");
     THEN("the guest's own bolt is not sent back to it") CHECK(guest.Shots.size() == 1);
+}
+
+SCENARIO("A storm bolt a script casts from an activator shows on every game", "[combat]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0 && PlayerCopy(guest) != 0; }, "each game has the other's player");
+    const auto cShows = [](const FakeEngine& acEngine, const glm::vec3& acOrigin) {
+        return std::ranges::any_of(acEngine.Shots, [&](const auto& acShot) {
+            return acShot.Shooter == 0 && acShot.Spell == kStormBolt && glm::distance(acShot.Origin, acOrigin) < 1.f;
+        });
+    };
+
+    // Storm Call on an NPC: the host's game runs the effect's script.
+    party.As(party.Host(), [&] { host.ObjectShoots(kStormActivator, kStormBolt, kStormBoltProjectile, kSmoke, {10.f, 20.f, 3600.f}); });
+    party.Until([&] { return cShows(guest, {10.f, 20.f, 3600.f}); },
+                "the guest's game launches the host's bolt from the same place, with no shooter to apply it");
+    CHECK(host.Shots.size() == 1);
+
+    // Storm Call on the guest's own player: the guest's game runs it.
+    party.As(party.Guest(), [&] { guest.ObjectShoots(kStormActivator + 1, kStormBolt, kStormBoltProjectile, kSmoke, {-30.f, 5.f, 3600.f}); });
+    party.Until([&] { return cShows(host, {-30.f, 5.f, 3600.f}); }, "the host's game launches the guest's bolt");
+    CHECK(guest.Shots.size() == 2);
+
+    // An object's shot of any kind goes too: one with no spell (an arrow trap's dart), a firebolt from an object.
+    party.As(party.Host(), [&] {
+        host.ObjectShoots(kStormActivator + 2, 0, kFireboltProjectile, kSmoke, {0.f, 0.f, 0.f});
+        host.ObjectShoots(kStormActivator + 3, kFirebolt, kFireboltProjectile, kSmoke, {0.f, 0.f, 0.f});
+        host.ObjectShoots(kStormActivator, kStormBolt, kStormBoltProjectile, kSmoke, {50.f, 50.f, 3600.f});
+    });
+    party.Until([&] { return cShows(guest, {50.f, 50.f, 3600.f}); }, "the guest's game launches the next bolt");
+    THEN("the arrow and the exploding shot were sent too, with no shooter")
+    {
+        CHECK(std::ranges::any_of(guest.Shots, [](const auto& acShot) { return acShot.Spell == 0 && acShot.Shooter == 0; }));
+        CHECK(guest.Shots.size() == 5);
+    }
 }
 
 SCENARIO("A host NPC whose combat group targets a player is an enemy on that player's compass", "[combat][compass]")

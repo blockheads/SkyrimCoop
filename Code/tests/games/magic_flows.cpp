@@ -308,11 +308,13 @@ SCENARIO("A trap's disease on the guest's character applies only the effects its
     host.Globals[FakeEngine::kSurvivalModeEnabled] = cSurvival;
     guest.Globals[FakeEngine::kSurvivalModeEnabled] = cSurvival;
 
-    // The trap (no actor) casts every effect of the spell, the picked one last; the engine's add check picks.
+    // The trap's script casts every effect of the spell, the picked one last (a world cast: here by the trap object);
+    // the engine's add check picks.
+    constexpr uint32_t kTrap = 0x0010A250;
     party.As(party.Host(), [&] {
         for (const uint32_t cTarget : {PlayerCopy(host), FakeEngine::kPlayer})
             for (const uint32_t cEffect : {cOther, cPicked})
-                host.SpellHits(cTarget, 0, FakeEngine::kRattles, cEffect, 2.5f);
+                host.SpellHits(cTarget, kTrap, FakeEngine::kRattles, cEffect, 2.5f);
     });
     const auto cHas = [](const FakeEngine& acEngine, uint32_t aEffect) {
         return std::ranges::any_of(acEngine.Effects, [&](const auto& acEffect) {

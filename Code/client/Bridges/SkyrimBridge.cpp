@@ -1318,6 +1318,16 @@ void SkyrimBridge::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId,
         EquipManager::Get()->Equip(pActor, pItem, nullptr, aCount, pSlot, false, true, false, false);
 }
 
+void SkyrimBridge::ActorWearStack(uint32_t aActorFormId, const Inventory::Entry& acStack) noexcept
+{
+    Actor* pActor = GetActor(aActorFormId);
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(acStack.BaseId)));
+    if (!pActor || !pItem)
+        return;
+    // 38894 with abForceEquip off: no ExtraCannotWear (16066), as Actor.EquipItem's default.
+    EquipManager::Get()->Equip(pActor, pItem, FindNamedList(*pActor, *pItem, acStack.ExtraName), 1, nullptr, false, false, true, false);
+}
+
 void SkyrimBridge::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId,
                                       uint32_t aEquipSlotFormId, int32_t aCount) noexcept
 {
@@ -2592,6 +2602,14 @@ bool SkyrimBridge::IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectF
         return !apForm || std::binary_search(cPlaying.begin(), cPlaying.end(), apForm->formID);
     };
     return (cVisuals.pShader || cVisuals.pArt) && cIsPlaying(cVisuals.pShader) && cIsPlaying(cVisuals.pArt);
+}
+
+void SkyrimBridge::SetCopyEffects(uint32_t aFormId, std::vector<OwnerEffects::Held> aHeld) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    pActor->GetExtension()->OwnerEffects.store(std::make_shared<const std::vector<OwnerEffects::Held>>(std::move(aHeld)));
 }
 
 void SkyrimBridge::StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept

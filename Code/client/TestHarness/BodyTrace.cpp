@@ -110,6 +110,8 @@ void BodyTrace::Poll()
             }
             nlohmann::json body = {{"position", {read.Position.x, read.Position.y, read.Position.z}},
                                    {"velocity", {read.LinearVelocity.x, read.LinearVelocity.y, read.LinearVelocity.z}},
+                                   {"rotation", {read.Rotation.x, read.Rotation.y, read.Rotation.z, read.Rotation.w}},
+                                   {"spin", {read.AngularVelocity.x, read.AngularVelocity.y, read.AngularVelocity.z}},
                                    {"motion", pBody->referencedObject->motionType},
                                    {"awake", read.Active}};
             // Havok's sleep test (physics.md, "When an island sleeps"): each reference's stillness count, the

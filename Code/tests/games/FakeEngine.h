@@ -51,6 +51,7 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <Games/OwnerEffects.h>
 #include <set>
 #include <string_view>
 #include <tuple>
@@ -295,6 +296,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Owner = 0; // its ExtraOwnership (an NPC or a faction); none: its cell's (CellOwners)
         bool Plant = false;     // a flora or tree reference: an activation picks it (TESProduceForm::Harvest 14864)
         bool Harvested = false; // its form flag 0x2000
+        uint32_t Motion = 0;    // the motion type a script last gave it (kMotion's row, ScriptMotion::Pack); 0 its model's
+        uint32_t DeferredMotion = 0; // a guest's motion row that came before its 3D
         std::set<uint32_t> Rolled; // items a leveled roll put in (their changes entry a roll's: ExtraLeveledItem lists)
         uint32_t LinkedDoor = 0; // a load door with no lock of its own: it uses this door's (GetLock 20223)
         bool Persistent = false; // in memory with its cell unloaded (a load door's other side)
@@ -494,6 +497,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // and so does a host body far from the host's player, so PhysicsBodies writes it too (guest-cast-moves-host).
     struct Body
     {
+        bool ScriptKeyframed = false; // a script holds it keyframed (an untripped tripwire): read not dynamic
+        bool ReportedAwake = false; // its island's wake was reported (TakeMovedReferences)
         bool NeedsKnock{};
         bool RestBusy{};
         size_t RestAttempts{};
@@ -838,6 +843,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t ExtraPackageFallback{};
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
         std::set<uint32_t> ShownVisuals;  // a copy's visuals played for its owner's
+        std::vector<OwnerEffects::Held> OwnerEffects; // a copy's owner's active effects (SetCopyEffects)
         ActorValues Values = FullValues();
         std::map<uint32_t, float> Bases = FullValues().ActorMaxValuesList;
         std::map<uint32_t, float> TemporaryValues;
@@ -1255,7 +1261,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                              {0x0001C789, {.Damage = true}},                         // Firebolt
                                              {kUnrelentingForce3, {.Damage = true}},
                                              {kConjureFamiliar, {.Summons = kFamiliar}},
-                                             {kRattles, {}}};
+                                             {kRattles, {}},
+                                             {kDartPoison, {}}};
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
     struct Cast
     {
@@ -1280,23 +1287,28 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     };
     std::vector<Effect> Effects;
     // A magic effect's own conditions (EffectSetting +0x190), checked when the engine adds it (34525, through 11085):
-    // here one global equal to a value, or a dual cast (the caster's kCheckAddEffectDualCast, set by 34525 meanwhile).
+    // here one global equal to a value, a dual cast (the caster's kCheckAddEffectDualCast, set by 34525 meanwhile), or a
+    // condition run on the caster (11085's reference), which fails with none.
     // Rattles under Survival Mode's override: one effect for each mode.
     struct EffectCondition
     {
         uint32_t Global = 0;
         float Equals = 0.f;
         bool DualCast = false;
+        bool OnCaster = false;
     };
     static constexpr uint32_t kDualCastEffect = 0x00099999; // stands for an effect whose conditions ask for a dual cast
+    static constexpr uint32_t kDartPoison = 0x00101932;       // a dart trap's weapon enchantment
+    static constexpr uint32_t kDartPoisonEffect = 0x00101931; // its damage-health effect, conditioned on its caster
     static constexpr uint32_t kRattles = 0x0010A24E;            // TrapDiseaseRattles
     static constexpr uint32_t kRattlesEffect = 0x0010A255;      // TrapDisDamageStaminaRegen, StaminaRate -2.5
     static constexpr uint32_t kSurvivalRattlesEffect = 0xFE001981; // Survival_TrapDisDamageStaminaRegen, -2.5 more
     static constexpr uint32_t kSurvivalModeEnabled = 0xFE001826;  // the global Survival_ModeEnabled
     std::map<uint32_t, EffectCondition> EffectConditions{{kRattlesEffect, {kSurvivalModeEnabled, 0.f}},
                                                          {kSurvivalRattlesEffect, {kSurvivalModeEnabled, 1.f}},
-                                                         {kDualCastEffect, {.DualCast = true}}};
-    bool EffectHolds(uint32_t aEffect, bool aDualCast) const noexcept;
+                                                         {kDualCastEffect, {.DualCast = true}},
+                                                         {kDartPoisonEffect, {.OnCaster = true}}};
+    bool EffectHolds(uint32_t aEffect, bool aDualCast, uint32_t aCaster) const noexcept;
     std::vector<std::pair<uint32_t, uint32_t>> Reactions; // victim, attacker (Actor::ReactToAttack)
     // The actor casts by itself: our hook raises it unless the caster is a copy (HookSpellCast).
     void CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget = 0);
@@ -1307,6 +1319,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // An explosion's enchantment on an actor (43849, by its NonActorMagicCaster): the hook sees no caster actor, the
     // effect's caster is the explosion.
     void ExplosionHits(uint32_t aTarget, uint32_t aExplosion, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
+    // A placed hazard's tick on an actor in it (43987): cast with no caster, unless the actor is under its spell.
+    void HazardHits(uint32_t aTarget, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
+    // An effect starts on this game's actor: its start raises the visuals' change (34094, EffectEvents).
+    void StartsEffect(const Effect& acEffect);
+    // A script or condition asks whether the actor has that effect (MagicTarget::HasMagicEffect 34517): a copy answers
+    // with its owner's (MagicTarget's hook).
+    [[nodiscard]] bool ActorHasEffect(uint32_t aActor, uint32_t aEffect) const;
     // A summon effect's actor (SummonCreatureEffect::CreateSummon 34993): one of aBase at its caster, commanded by it;
     // the caster's earlier summon dismissed (AIProcess::AddCommandedActor's limit, 1 without Twin Souls).
     uint32_t MakesSummon(uint32_t aCaster, uint32_t aBase);
@@ -1327,9 +1346,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                               bool aApplyStaminaPerkBonus) noexcept override
     {
         // The engine's own add check (34525) runs for a relayed effect too: its conditions decide.
-        if (!EffectHolds(aEffectFormId, aIsDualCasting))
+        if (!EffectHolds(aEffectFormId, aIsDualCasting, aCasterFormId))
             return;
-        Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
+        StartsEffect({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
         StartsAshPileEffect(aTargetFormId, aEffectFormId);
         if (Spell(aSpellFormId).Summons && !HoldSession) // a guest's CreateSummon (34993) makes nothing
             MakesSummon(aCasterFormId, Spell(aSpellFormId).Summons);
@@ -1410,8 +1429,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The trap's script on a contact: in CanHit, ProcessTrapHit on the target (Actor::DoTrap1 37509, our hook).
     void RunsTrapScript(uint32_t aTrap, uint32_t aActor);
     void TakeTrapHit(uint32_t aFormId, uint32_t aTrapFormId, const Payloads::TrapHit& acHit) noexcept override;
-    // An object's Weapon.Fire (a dart trap): Projectile::Launch with the object as shooter.
-    void ObjectFires(uint32_t aObject, uint32_t aWeapon, const glm::vec3& acOrigin);
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override
     {
         Staggers.emplace_back(aFormId, aHitterId, aMagnitude);
@@ -1527,6 +1544,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ToggleDoor(uint32_t aObject);
     // An activated plant is picked (for any actor, 14864): the host's records it (CHANGE_OBJECT_EMPTY), a guest's here only.
     void Harvest(uint32_t aObject);
+    // The host's script sets its motion type (ObjectReference.SetMotionType 56232 -> 56332: a havok change, its row).
+    void ScriptSetsMotionType(uint32_t aObject, uint32_t aType);
     // This game's player pulls a lever furniture (17420): its graph gets the pull; the host's records it as a row.
     void PullsLever(uint32_t aObject);
     // The host's script plays an animation on a reference (PlayAnimation 56205: HookPlayAnimation records it).
@@ -1536,11 +1555,23 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // game's player on another's actor raised as a health change and not applied here (its owner applies it).
     void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);
     // Damage reaching an actor as HookDamageActor takes it (HitRules), from a swing or an effect being applied.
-    void TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect);
+    void TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit = false);
     [[nodiscard]] HitRules::Party PartyOf(uint32_t aFormId) const noexcept;
     // A projectile this game's actor launched (our hook on Projectile::Launch raises it); one another game's actor
     // launched, relaunched here (LaunchProjectile).
-    void Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin);
+    void Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile, const glm::vec3& acOrigin);
+    // A projectile an object shot, of any kind: an activator's Spell.RemoteCast (magicProjectileStormScript), a statue,
+    // a dart port's Weapon.Fire (aWeapon).
+    void ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProjectile, uint32_t aCell, const glm::vec3& acOrigin,
+                      uint32_t aWeapon = 0);
+    // That projectile hits an actor here (44204): its HitData has no aggressor. Its weapon's enchantment (aEnchantment,
+    // aEffect) is cast by the hit actor's own caster on itself (HandleRefImpact 44205).
+    void ObjectProjectileHits(uint32_t aTarget, float aDamage, uint32_t aEnchantment = 0, uint32_t aEffect = 0,
+                              float aMagnitude = 0.f);
+    // A body its own move step met hits the actor (Actor::TakeImpactFromBody 38185): no aggressor, and its own game's
+    // to judge (HitRules::JudgesImpact; a guest's own stands past its world-hit drop).
+    void BodyImpacts(uint32_t aTarget, float aDamage);
+    bool InWorldImpact = false; // within that impact (Projectile::WorldImpact)
     struct Shot
     {
         uint32_t Shooter = 0;
@@ -1554,7 +1585,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                           float aPower, float aScale, bool aAlwaysHit, bool aNoDamageOutsideCombat, bool aAutoAim,
                           bool aDeferInit, bool aForceConeOfFire, bool aUnkBool1, bool aUnkBool2) noexcept override
     {
-        Shots.push_back({aShooterFormId, aSpellId, {aOriginX, aOriginY, aOriginZ}});
+        // Projectile::Launch (44108) makes nothing without a projectile base.
+        if (aProjectileBaseId)
+            Shots.push_back({aShooterFormId, aSpellId, {aOriginX, aOriginY, aOriginZ}});
     }
     std::vector<uint32_t> HealthBarsShown; // HUD's enemy health (ShowEnemyHealth)
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override { HealthBarsShown.push_back(aActorFormId); }
@@ -1571,6 +1604,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         if (!ActorHas3D(aFormId))
             ++SpokeWithout3D;
         Lines.emplace_back(aFormId, acFilename);
+    }
+    // Subtitles shown over actors (SubtitleManager::ShowSubtitle; an open dialogue menu shows its speaker's).
+    std::vector<std::pair<uint32_t, std::string>> Subtitles;
+    void ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t, bool) noexcept override
+    {
+        Subtitles.emplace_back(aFormId, acText);
     }
     // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
     void Fights(uint32_t aActor, uint32_t aTarget);
@@ -1722,6 +1761,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         if (const auto it = Actors.find(aFormId); it != Actors.end())
             it->second.ShownVisuals.erase(aEffectFormId);
+    }
+    void SetCopyEffects(uint32_t aFormId, std::vector<OwnerEffects::Held> aHeld) noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end() && it->second.Copy)
+            it->second.OwnerEffects = std::move(aHeld);
     }
     bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override
     {
@@ -1937,6 +1981,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
     void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept override;
     void DeleteActor(uint32_t aFormId) noexcept override;
+    // A temporary actor deleted this frame: its handle still resolves, with no process, until the frame's end (the
+    // engine frees it later, ProcessLists::UpdateTempChangeList 41294; measured: dialogue.md, A guest leaving mid-line).
+    std::set<uint32_t> Releasing;
+    [[nodiscard]] bool HandleResolves(uint32_t aFormId) const noexcept
+    {
+        return Actors.contains(aFormId) || Releasing.contains(aFormId);
+    }
     bool IsActorTemporary(uint32_t aFormId) const noexcept override { return aFormId >= 0xFF000000; }
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
     bool IsActorLeveled(uint32_t aFormId) const noexcept override;
@@ -2110,6 +2161,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void Improves(uint32_t aActor, const Inventory::Entry& acStack, const std::function<void(Inventory::Entry&)>& acChange);
     // A quest's script gives it (AddItem from a quest, alias, dialogue line or scene): raised as the story's.
     void QuestGivesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // A quest's script's Actor.EquipItem (54661): an item it lacks added with no InventoryChangeEvent (16053, past our
+    // add hooks), then equipped; our hook on the native reports the arrival (ScriptEquips).
+    void QuestEquipsItem(uint32_t aActor, uint32_t aItem);
     // The engine puts an NPC's outfit item back on after removeallitems: added with no InventoryChangeEvent (our item
     // hooks never see it), then equipped as Equips does (save-load-gate, 2026-10-30: Lydia's copy lost her armor).
     void OutfitPutsOn(uint32_t aActor, uint32_t aItem);
@@ -2138,6 +2192,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // EquipManager's, ours: under ScopedEquipOverride, as EquipManager::Equip and UnEquip set it.
     void ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept override;
     void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    // 38894 with that stack's own list, unforced (no ForcedWorn): only that stack of the base is worn.
+    void ActorWearStack(uint32_t aActorFormId, const Inventory::Entry& acStack) noexcept override;
     void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;

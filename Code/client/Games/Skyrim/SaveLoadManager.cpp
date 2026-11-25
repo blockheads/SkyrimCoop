@@ -1,5 +1,6 @@
 #include <SaveLoadManager.h>
 
+#include <Games/ScriptMotion.h>
 #include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -27,6 +28,7 @@ bool HookLoadImpl(BGSSaveLoadManager* apManager, const char* apName, int32_t aDe
         }
         return false;
     }
+    ScriptMotion::Get().Clear();
     return RealLoadImpl(apManager, apName, aDevice, aOutputStats, aCheckForMods);
 }
 
@@ -41,6 +43,7 @@ void HookQueueSaveLoad(BGSSaveLoadManager* apManager, uint32_t aEvent)
         auto* pSaves = entt::locator<World>::has_value() ? World::Get().ctx().find<SaveService>() : nullptr;
         if (pSaves && !pSaves->OnLoadRequested(apManager->QuickSaveName()))
             return;
+        ScriptMotion::Get().Clear();
     }
     RealQueueSaveLoad(apManager, aEvent);
 }

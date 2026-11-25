@@ -291,7 +291,7 @@ std::optional<BodyRead> FakeEngine::Read(const BodyKey& acKey) noexcept
         return std::nullopt;
     const Body& cBody = it->second;
     return BodyRead{.Position = cBody.Flight.Body.Position, .Rotation = cBody.Flight.Body.Rotation, .LinearVelocity = cBody.Flight.Body.LinearVelocity,
-                    .AngularVelocity = cBody.Flight.Body.AngularVelocity, .Dynamic = !cBody.Held, .Active = cBody.Awake};
+                    .AngularVelocity = cBody.Flight.Body.AngularVelocity, .Dynamic = !cBody.Held && !cBody.ScriptKeyframed, .Active = cBody.Awake};
 }
 
 std::vector<std::pair<BodyKey, BodyKey>> FakeEngine::ReadTouching(const std::vector<BodyKey>& acKeys) noexcept
@@ -647,10 +647,16 @@ std::vector<uint32_t> FakeEngine::TakeMovedReferences() noexcept
                 Wake(cKey, kStepMs);
         }
     }
+    // Reported as its island wakes (the change funnel, 25857): in an island something keeps awake (KeptAwake), a later
+    // nudge reports nothing (WarehouseTraps' rocks beside their ropes, 2026-11-24).
     std::vector<uint32_t> moved;
-    for (const auto& [cKey, cBody] : Bodies)
-        if (cBody.Awake && !cBody.Held && std::ranges::find(moved, ReferenceOf(cKey)) == moved.end())
+    for (auto& [cKey, body] : Bodies)
+    {
+        const bool cWoke = body.Awake && !body.Held && !(body.KeptAwake && body.ReportedAwake);
+        body.ReportedAwake = body.Awake && !body.Held;
+        if (cWoke && std::ranges::find(moved, ReferenceOf(cKey)) == moved.end())
             moved.push_back(ReferenceOf(cKey));
+    }
     return moved;
 }
 
@@ -731,7 +737,7 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
             reference.Bodies.resize(cKey.Index + 1);
         BodyRead read{.Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation,
                       .LinearVelocity = body.Flight.Body.LinearVelocity, .AngularVelocity = body.Flight.Body.AngularVelocity,
-                      .Dynamic = !body.Held, .Active = body.Awake && (cRising || !body.Flight.Resting || body.KeptAwake || cRestStep)};
+                      .Dynamic = !body.Held && !body.ScriptKeyframed, .Active = body.Awake && (cRising || !body.Flight.Resting || body.KeptAwake || cRestStep)};
         reference.Bodies[cKey.Index] = IBodyReads::Body{.Read = read};
         if (!reference.Actor)
             reference.Bodies[cKey.Index]->Node = std::pair(body.NodePosition, body.NodeRotation);

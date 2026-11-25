@@ -5,6 +5,9 @@
 
 #include <array>
 #include <atomic>
+#include <Games/OwnerEffects.h>
+#include <memory>
+#include <vector>
 
 // Words: docs/design/glossary.md.
 struct ActorExtension
@@ -37,6 +40,7 @@ struct ActorExtension
     // in its running slot when the engine asks for a new one; its scene is answered (CopyAiState.cpp). Its fight is a
     // real controller and group (CopyCombatGroups).
     std::atomic<uint32_t> OwnerPackageId{0};
+    std::atomic<std::shared_ptr<const std::vector<OwnerEffects::Held>>> OwnerEffects; // a copy: its owner's (OwnerEffects.h)
     uint32_t OwnerSceneId = 0;
     uint64_t OwnerCombatGroup = 0; // the owner's group key its controller's group holds (CopyCombatGroups)
     // Its headtrack slots (HighProcessData::headTrackTarget, form ids): a copy's owner's, put in before the engine

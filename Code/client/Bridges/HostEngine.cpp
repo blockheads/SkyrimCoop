@@ -717,7 +717,7 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
         {
             const GameId cId = create->Object;
             changes.push_back(std::move(*create));
-            ReferenceStates::Read(*pRef, cId, ReferenceStates::RecordedRows(*pRef), changes);
+            ReferenceStates::Read(*pRef, cId, ReferenceStates::RecordedRows(*pRef), changes, true);
         }
     }
     // Then the rows this game or the guest changed, and the host's record of them.
@@ -730,7 +730,7 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
         const auto cId = cRows ? ToSessionOrCreated(pRef->formID) : std::nullopt;
         if (!cId)
             continue;
-        ReferenceStates::Read(*pRef, *cId, cRows, changes);
+        ReferenceStates::Read(*pRef, *cId, cRows, changes, true);
         changes.push_back(ReadRecord(*pRef, *cId));
     }
     // An actor's owner (the party's horse): its other states are its owner's game's.

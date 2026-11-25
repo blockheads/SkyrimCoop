@@ -86,12 +86,57 @@ stayed on the host, so the guest saw no flames. The addressed vtable's sink also
 Spell.Cast's first argument), so the caster read as the spell. Both fixed (ClientTests `code_reach_tests`); on the duo the
 guest's game then casts the flames from its own jets, its copy of the host burning for nothing (copies mirror).
 
+## Who simulates a trap's bodies (audited 2026-11-24)
+
+A guest's hit by a touching trap is judged on the guest's game: its own copy of the trap's body touches its own player,
+the contact goes to the host, the host's script decides, the hit comes back (`TrapRules::OfContact`; the host drops its
+own engine's contacts with the copy). So nothing needs the host to simulate a trap's bodies, and a rule that kept them
+the host's (by collision layer 14/16, then by contact, then a host hold; built and removed the same day) rested on
+misreading the host's dropped contacts as the ones that count. What stands is not about traps: a body a script holds
+keyframed (an untripped tripwire's rope, a trap not yet fired; layers for the record: the mace's head 14, its chain 10,
+a rock 14) is taken by nobody's touch (`GuestBodies::ScriptKeyframed`, `HostBodies::MayClaim`): a guest that took the
+untripped rope had the host play its frames on it, and the trap never fired. Fired and dynamic, it is the toucher's
+like any body. GameTests "A guest's player pushes a body a script holds keyframed".
+
+## An object's impact damage is the hit actor's own game's (read and measured, 2026-11-24)
+
+`Actor::TakeImpactFromBody` (38185, our name; from `Actor::Move` 37507 and the player's 37692) takes each rigid body
+the actor's own move step met: unless the player holds it, `GetDamageForImpact`, a `HitData` with no aggressor and
+`ProcessHit` (38586) when it damages. Copies step, so the host judged impacts on a guest's copy from the rocks it
+only follows: 7 impacts of 4.3 in 90 ms in one round (30 of the guest's 46 damage), where the host's own player takes
+about one a round, while the guest's own impacts fell to its world-hit drop. Now the host skips 38185 for another
+player's copy (`HitRules::JudgesImpact`) and a guest's own stands: it and the host's relayed trap hit are marked in the hit's own flags (`HitData +0x80`, our
+bit 31, past the engine's 0-20), which ProcessHit's queue copies with it (1407EF890, read): two queued hits on one
+player keep their own marks (review of #129: one shared slot let the second fall to the drop).
+Measured after: no relayed impacts. A guest's contact to its hit takes about 110 ms (the host's script). Rounds repeated
+from a loaded save are no measure for a guest (its rocks stay where the last round left them: bugs.md, "After the host
+loads a save"): low rounds read there as contacts at speed 0 were that. From fresh scenes the guest's rock round gave
+8 once and 16, 8, 4 or more otherwise; not enough rounds to compare with the host's 32 to 75.
+
+## A physics trap's hit is the contact's speed (read and measured, 2026-11-24)
+
+`PhysicsTrapHit` hits on a new contact (`OnTrapHitStart`) whose event velocity squared is at least 6
+(`damageVelocityThreshold`), and is not hit-once: a return swing hits again. A character's trap contacts come only from
+its own proxy step (`bhkCharProxyController::StepProxy` -> 80510; a still copy steps by nothing and reports them too).
+The event's velocity (`TrapTargetEntry::GetVelocityAndPosition` 26034) is the trap body's, less its projection of the
+character controller's velocity: a target moving with the trap is hit softer, one walking into it harder.
+WarehouseTraps' mace, someone standing on its tripwire: the swing is spent there, first contacts squared 3.4 to 14 on the
+guest's copy and on the host's own player alike, each missed some runs. Walked into across the wire
+(`warehouse_traps_hurt_both`), the mace meets the guest near the bottom of its arc and hit in both runs. A guest hit
+twice where the host's own player is hit once (inferred, not traced): its contacts are its own game's, and the hit's
+push reaches its player a round trip late, so the return swing meets it still standing.
+
 ## Darts carry their damage (read in IDA and measured, 2026-11-23)
 
 - Read in IDA: a relaunched dart is built by `Projectile::Constructor` (44100) from the launch data's weapon and ammo
   (`weaponDamage` +0x1A0 = `ActorValueOwner` 26410 over them, temper 1 for an object shooter), which
   `HitData::InitializeArrowData` (44002) reads.
 - Measured on the duo: both games logged weapon 142E3 with the same damage, about 9 health a hit on either game.
+- Corrected 2026-11-24: the strike itself is 0.8 (the host's own player too); the 10-13 a round is the dart's poison,
+  enchantment 101932 / effect 101931 (−3 health a second for 8 s). `HandleRefImpact` (44205) casts it by the hit
+  actor's own instant caster on itself. Sent to a guest with no caster, the guest's engine refused it (its add check
+  34525 judges the effect's conditions with the caster as reference); sent with its caster, the hit copy, which is the
+  guest's own player there, it lands as on the host (`Projectile::WorldImpact`, GameTests "A dart an object fires").
 
 ## Explosions: their hit, poison and line of sight (read and measured, 2026-11-23)
 

@@ -210,6 +210,10 @@ void HostService::MakeAuthority() noexcept
     };
     game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
     game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
+    game.SpawnPartyHorses = [this](uint32_t aSessionId, uint32_t aCount) {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        return cFormId ? m_world.ctx().at<IDevToolsBridge&>().SpawnPartyHorses(cFormId, aCount) : 0u;
+    };
     game.ConsoleNameOf = [this](uint32_t aSessionId) {
         return DevCommands::ConsoleName(Utils::GetFormIdBySessionId(aSessionId), m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId());
     };
@@ -251,6 +255,10 @@ void HostService::MakeAuthority() noexcept
         return std::nullopt;
     };
     game.TakeTouches = [this] { return m_pEngine->TakeTouches(); };
+    game.IsKeyframed = [this](const BodyKey& acKey) {
+        const auto cRead = m_world.ctx().at<IBodyBridge&>().Read(acKey);
+        return cRead && !cRead->Dynamic;
+    };
     game.ReadTouching = [this](const std::vector<BodyKey>& acKeys) { return m_world.ctx().at<IBodyBridge&>().ReadTouching(acKeys); };
     game.EndPlayback = [this](const BodyKey& acKey, uint64_t aUntil) {
         // A guest's states this game played end here; its own physics has the body again, where it is.

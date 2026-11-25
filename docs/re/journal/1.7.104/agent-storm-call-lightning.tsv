@@ -1,0 +1,37 @@
+time	op	id	rva	item
+2026-11-24T07:03:23Z	read	44108	0x7f9300	{"name": "Projectile::Launch"}
+2026-11-24T07:03:43Z	read	55744	0xa329d0	{"name": "SkyrimScript::CastFunctor::operator"}
+2026-11-24T07:03:44Z	read	55748	0xa32fd0	{"name": "papyrus::SPELL::RemoteCast"}
+2026-11-24T07:03:51Z	comment	55748	0xa32fd0	{"addr": "0x140a32fd0", "comment": "papyrus Spell.RemoteCast(source, blameActor, target): the same CastFunctor as Spell.Cast (55747), blame actor handle at +0x20, queued through 53954. magicProjectileStormScript (Storm Call, projectile storms) casts its bolt this way from a placed activator."}
+2026-11-24T07:03:51Z	comment		0xa32b4b	{"addr": "0x140a32b4b", "comment": "source's MagicCaster (GetMagicCaster(kInstant), vfunc 0x2E0) CastSpellImmediate(spell, false, target, 1.0, false, 0, blame): an activator's NonActorMagicCaster, which launches the spell's projectile with the activator as shooter"}
+2026-11-24T07:04:00Z	read	34697	0x5d8e80	{"name": "MagicCaster::Func1_34697"}
+2026-11-24T07:04:00Z	read	34698	0x5d8fa0	{"name": "MagicCaster::GetOwner2_0"}
+2026-11-24T07:04:01Z	read	34699	0x5d9010	{"name": "MagicCaster::Func13_34699"}
+2026-11-24T07:04:06Z	read	34710	0x5d9780	{"name": "MagicCaster::GetOwner_0"}
+2026-11-24T07:04:06Z	read	34404	0x5ca500	{"name": "MagicCaster__CastSpellImmediateBase"}
+2026-11-24T07:04:13Z	read		0x5cec04	{"name": "coop_hookLoc"}
+2026-11-24T07:04:25Z	read		0x5cbb80	{"name": "MagicCaster::FindTargets"}
+2026-11-24T07:04:46Z	name	34452	0x5ce8b0	{"addr": "0x1405ce8b0", "name": "MagicCaster::FireProjectile"}
+2026-11-24T07:04:46Z	name	34698	0x5d8fa0	{"addr": "0x1405d8fa0", "name": "NonActorMagicCaster::GetCasterAsActor"}
+2026-11-24T07:04:46Z	name	34699	0x5d9010	{"addr": "0x1405d9010", "name": "NonActorMagicCaster::GetCasterObjectReference"}
+2026-11-24T07:04:46Z	name	34710	0x5d9780	{"addr": "0x1405d9780", "name": "NonActorMagicCaster::GetCasterStatsObject"}
+2026-11-24T07:04:46Z	name	34697	0x5d8e80	{"addr": "0x1405d8e80", "name": "NonActorMagicCaster::CastSpellImmediate"}
+2026-11-24T07:04:51Z	comment	34452	0x5ce8b0	{"addr": "0x1405ce8b0", "comment": "34452 MagicCaster::FireProjectile(caster, spell, shooter, ...): fills Projectile::LaunchData (shooter = a3, the caster's GetCasterObjectReference) and calls Projectile::Launch (44108). Callers: FindTargets (34410), 34450, ActorMagicCaster 34451. SkyrimCoop patches +0x374 (null handle)."}
+2026-11-24T07:04:51Z	comment	34698	0x5d8fa0	{"addr": "0x1405d8fa0", "comment": "NonActorMagicCaster vfunc 0x0C GetCasterAsActor: the blame actor handle (MagicCaster +0x50, the extra data's +0x60) set by CastSpellImmediate; CommonLibSSE-NG says it returns 0, it does not."}
+2026-11-24T07:04:51Z	comment	34699	0x5d9010	{"addr": "0x1405d9010", "comment": "NonActorMagicCaster vfunc 0x0D: returns GetCasterStatsObject (the activator/statue reference itself), never sets the out actor. FindTargets uses it as the projectile's shooter."}
+2026-11-24T07:04:51Z	comment	34697	0x5d8e80	{"addr": "0x1405d8e80", "comment": "NonActorMagicCaster vfunc 1 CastSpellImmediate: stores the blame actor's handle (+0x50), then MagicCaster's base (34404) -> FindTargets (34410) -> FireProjectile (34452) with the reference as shooter. Spell.Cast/RemoteCast from an activator lands here."}
+2026-11-24T07:04:51Z	comment		0x5cbc33	{"addr": "0x1405cbc33", "comment": "shooter r15 = GetCasterObjectReference (vfunc 0x0D): an actor for ActorMagicCaster, the reference itself for NonActorMagicCaster"}
+2026-11-24T07:05:05Z	read	44168	0x7fe1f0	{"name": "Projectile::GetMagicCaster"}
+2026-11-24T07:05:58Z	name	44169	0x7fe200	{"addr": "0x1407fe200", "name": "Projectile::GetMagicCasterImpl"}
+2026-11-24T07:06:00Z	comment	44169	0x7fe200	{"addr": "0x1407fe200", "comment": "44169, Projectile vfunc 0x5C GetMagicCaster's body: when the projectile has a spell (+0x160), the shooter's (+0x128 handle) GetMagicCaster(castingSource +0x168); null without a shooter. A projectile's spell lands through its shooter's caster: an activator's NonActorMagicCaster blames its blame actor."}
+2026-11-24T07:06:19Z	read	44206	0x8010c0	{"name": "sub_1408010C0"}
+2026-11-24T07:06:27Z	name	44206	0x8010c0	{"addr": "0x1408010C0", "name": "Projectile::ApplySpellOnHit"}
+2026-11-24T07:06:27Z	name	44205	0x800e00	{"addr": "0x140800e00", "name": "Projectile::HandleRefImpact"}
+2026-11-24T07:06:30Z	comment	44206	0x8010c0	{"addr": "0x1408010C0", "comment": "Applies the projectile's spell to what it hit: Projectile::GetMagicCasterImpl (44169, the shooter's caster); with no caster (no shooter) nothing is applied, no death force, no 0x5CBD90 hit. SkyrimCoop launches relayed non-actor projectiles with no shooter for this (projectiles.md)."}
+2026-11-24T07:06:30Z	comment	44205	0x800e00	{"addr": "0x140800e00", "comment": "44205: a projectile hit a reference: with a spell (+0x160) ApplySpellOnHit; with only an enchanted weapon (+0x1B8) the shooter's instant caster casts the enchantment. Returns early on flag 0x20000 at +0x1D4."}
+2026-11-24T07:07:57Z	read	43864	0x7e8b50	{"name": "Explosion::GetMagicCaster"}
+2026-11-24T07:08:21Z	read		0x7e6308	{"name": "Explosion__ApplyToTargets"}
+2026-11-24T07:09:05Z	name	34412	0x5cbd90	{"addr": "0x1405CBD90", "name": "MagicCaster::ApplyAtImpact"}
+2026-11-24T07:09:07Z	comment	34412	0x5cbd90	{"addr": "0x1405CBD90", "comment": "Read while looking for the shout's push (magic caster area). Not on the disintegrate freeze's path.\nMagicCaster::ApplyAtImpact(caster, impact point, projectile, hit ref, ...): the spell's effects on the hit actor and, for an area, every actor ProcessLists finds around (ActorTargetCheck), each through AddTarget with a PostCreationCallback. Called by Projectile::ApplySpellOnHit only when the projectile's shooter has a caster."}
+2026-11-24T07:42:15Z	comment		0x7f9a4d	{"addr": "0x1407f9a4d", "comment": "the projectile's explosion (+0x158) = its base BGSProjectile's explosionType (+0xB0, DATA +0x30); a base with none makes no impact explosion"}
+2026-11-24T07:42:15Z	comment		0x7fa531	{"addr": "0x1407fa531", "comment": "44120: again the projectile's explosion (+0x158) from its base's explosionType (+0xB0)"}

@@ -3,6 +3,7 @@
 #include "FakeEngine.h"
 
 #include <Bridges/IDevToolsBridge.h>
+#include <Services/DevCommands.h>
 
 #include <sstream>
 #include <vector>
@@ -44,6 +45,22 @@ struct FakeDevTools final : IDevToolsBridge
         }
     }
 
+    // Placed as DevToolsBridge places them, each sold to the party as the stable's script sells one.
+    uint32_t SpawnPartyHorses(uint32_t aAtFormId, uint32_t aCount) noexcept override
+    {
+        const auto& cAt = Engine.Actors.at(aAtFormId);
+        for (uint32_t i = 0; i < aCount; ++i)
+        {
+            const uint32_t cHorse = Engine.LoadNpc(
+                DevCommands::cHorse, cAt.Cell,
+                {cAt.Position[0] + 200.f + 150.f * static_cast<float>(i), cAt.Position[1], cAt.Position[2]});
+            Engine.Factions[cHorse][DevCommands::cPlayerHorseFaction] = 1;
+            Engine.ScriptSetsActorOwner(cHorse, DevCommands::cPlayerFaction);
+            Horses.push_back(cHorse);
+        }
+        return aCount;
+    }
+
     // The fake knows no factions: every living NPC this game owns is an enemy.
     uint32_t KillHostiles() noexcept override
     {
@@ -71,6 +88,7 @@ struct FakeDevTools final : IDevToolsBridge
 
     FakeEngine& Engine;
     std::vector<std::string> Lines;
+    std::vector<uint32_t> Horses; // the party horses placed here
     std::optional<uint8_t> KillMoveOdds;
     bool God = false; // the engine's god mode byte (40501)
 };

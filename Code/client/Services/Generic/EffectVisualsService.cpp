@@ -48,6 +48,15 @@ std::vector<uint32_t> EffectVisualsService::ReadEffectForms(uint32_t aFormId) co
     return ids;
 }
 
+std::vector<OwnerEffects::Held> EffectVisualsService::ReadHeld(uint32_t aFormId) const noexcept
+{
+    std::vector<OwnerEffects::Held> held;
+    for (const auto& cEffect : m_actorBridge.GetActorActiveEffects(aFormId))
+        if (cEffect.EffectFormId)
+            held.push_back({cEffect.SpellFormId, cEffect.EffectFormId, OwnerEffects::CountsAsSpellTarget(cEffect.Flags, cEffect.EffectFormId)});
+    return held;
+}
+
 std::vector<GameId> EffectVisualsService::ReadEffects(uint32_t aFormId) const noexcept
 {
     std::vector<GameId> effects;
@@ -55,6 +64,29 @@ std::vector<GameId> EffectVisualsService::ReadEffects(uint32_t aFormId) const no
         if (const auto cEffect = ToSession(cId))
             effects.push_back(*cEffect);
     return effects;
+}
+
+std::vector<struct Payloads::ActiveEffects::Held> EffectVisualsService::ToSessionHeld(const std::vector<OwnerEffects::Held>& acHeld) const noexcept
+{
+    std::vector<struct Payloads::ActiveEffects::Held> held;
+    for (const auto& cHeld : acHeld)
+        if (const auto cEffect = ToSession(cHeld.Effect))
+            held.push_back({ToSession(cHeld.Spell).value_or(GameId{}), *cEffect, cHeld.SpellTarget});
+    return held;
+}
+
+std::vector<OwnerEffects::Held> EffectVisualsService::ToGameHeld(const std::vector<struct Payloads::ActiveEffects::Held>& acHeld) const noexcept
+{
+    std::vector<OwnerEffects::Held> held;
+    for (const auto& cHeld : acHeld)
+        if (const uint32_t cId = ToGame(cHeld.Effect))
+            held.push_back({ToGame(cHeld.Spell), cId, cHeld.SpellTarget});
+    return held;
+}
+
+std::vector<struct Payloads::ActiveEffects::Held> EffectVisualsService::ReadHeldIds(uint32_t aFormId) const noexcept
+{
+    return ToSessionHeld(ReadHeld(aFormId));
 }
 
 void EffectVisualsService::OnEffectVisualsChange(const EffectVisualsChangeEvent& acEvent) noexcept
@@ -107,19 +139,21 @@ void EffectVisualsService::SendOwned(uint32_t aFormId, uint32_t aSessionId) noex
 {
     if (!m_actorBridge.ActorExists(aFormId))
         return;
-    auto ids = ReadEffectForms(aFormId);
+    auto sent = std::pair{ReadEffectForms(aFormId), ReadHeld(aFormId)};
     const auto cSent = m_sent.find(aSessionId);
-    if (cSent != m_sent.end() && cSent->second == ids)
+    if (cSent != m_sent.end() && cSent->second == sent)
         return;
 
     RequestActiveEffects request;
     request.SessionId = aSessionId;
-    for (const uint32_t cId : ids)
+    for (const uint32_t cId : sent.first)
         if (const auto cEffect = ToSession(cId))
             request.EffectIds.push_back(*cEffect);
-    spdlog::debug("Active effects of {:X} (session id {:X}): {} with visuals", aFormId, aSessionId, request.EffectIds.size());
+    request.Held = ToSessionHeld(sent.second);
+    spdlog::debug("Active effects of {:X} (session id {:X}): {} with visuals, {} held", aFormId, aSessionId, request.EffectIds.size(),
+                  request.Held.size());
     m_transport.Send(request);
-    m_sent[aSessionId] = std::move(ids);
+    m_sent[aSessionId] = std::move(sent);
 }
 
 void EffectVisualsService::OnNotifyActiveEffects(const NotifyActiveEffects& acMessage) noexcept
@@ -128,6 +162,7 @@ void EffectVisualsService::OnNotifyActiveEffects(const NotifyActiveEffects& acMe
     for (const auto& cEffectId : acMessage.EffectIds)
         if (const uint32_t cId = ToGame(cEffectId))
             wanted.push_back(cId);
+    m_shown[acMessage.SessionId].Held = ToGameHeld(acMessage.Held);
     Show(acMessage.SessionId, std::move(wanted));
 }
 
@@ -143,9 +178,11 @@ void EffectVisualsService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessag
     for (const auto& cEffectId : acMessage.EffectIds)
         if (const uint32_t cId = ToGame(cEffectId))
             wanted.push_back(cId);
-    if (wanted.empty())
+    auto held = ToGameHeld(acMessage.HeldEffects);
+    if (wanted.empty() && held.empty())
         return;
     m_shown[acMessage.SessionId].EffectIds = std::move(wanted);
+    m_shown[acMessage.SessionId].Held = std::move(held);
     // After every handler of the spawn: CharacterService makes the copy in its own.
     m_world.GetRunner().Queue([this, cSessionId = acMessage.SessionId]() { PlayMissing(cSessionId); });
 }
@@ -183,6 +220,7 @@ void EffectVisualsService::PlayMissing(uint32_t aSessionId) noexcept
     if (cShown == m_shown.end() || !cFormId || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId))
         return;
     cShown->second.FormId = cFormId;
+    m_actorBridge.SetCopyEffects(cFormId, cShown->second.Held);
     for (const uint32_t cId : cShown->second.EffectIds)
         if (!m_actorBridge.IsPlayingEffectHitVisuals(cFormId, cId))
             m_actorBridge.PlayEffectHitVisuals(cFormId, cId);

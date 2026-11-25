@@ -61,13 +61,11 @@ void HookStartHitEffects(ActiveEffect* apEffect)
 }
 
 // ActiveEffect::StopHitEffects (34050): the effect ended, went inactive or was dispelled. Only scripted effects send
-// TESActiveEffectApplyRemove (ActiveEffect::Update 34092).
+// TESActiveEffectApplyRemove (ActiveEffect::Update 34092). Raised for every effect: copies answer what their owner holds.
 void HookStopHitEffects(ActiveEffect* apEffect)
 {
-    const bool cHadVisuals = apEffect->pHitEffects != nullptr;
     RealStopHitEffects(apEffect);
-    if (cHadVisuals)
-        Raise(apEffect, false);
+    Raise(apEffect, false);
 }
 
 Hooks::Initializer s_effectHooks(

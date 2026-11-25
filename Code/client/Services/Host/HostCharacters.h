@@ -148,6 +148,8 @@ private:
         uint32_t Rider{};
         // Its passengers, in boarding order: the first drives next.
         std::vector<uint32_t> Passengers;
+        // Not a player's: the effects its owner last declared (a guest's horse), for a later spawn.
+        std::optional<Payloads::ActiveEffects> Effects;
     };
 
     HostAuthority& m_authority;

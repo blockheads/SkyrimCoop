@@ -173,6 +173,7 @@ public:
     bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept override;
     bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
+    void SetCopyEffects(uint32_t aFormId, std::vector<OwnerEffects::Held> aHeld) noexcept override;
     bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override;
     bool FlashEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
 
@@ -256,6 +257,7 @@ public:
     void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept override;
     void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    void ActorWearStack(uint32_t aActorFormId, const Inventory::Entry& acStack) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
 
     // -----------------------------------------------------------------

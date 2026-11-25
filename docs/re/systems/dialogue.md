@@ -342,6 +342,99 @@ Read in IDA (named and commented there), measured on the duo (`dialogue-guest-re
 - Harness readout: `dialogue` gives `picked` and `last_selected` (info, choices) and `last_speaker`; a debug line names
   each build's source.
 
+## A guest leaving mid-line, and a join while the host talks (1.7.104, 2026-11-24)
+
+Read in IDA (named and commented there), measured on the duo (`dialogue-guest-leaves-mid-line`, MCP `voice_mark`,
+`expect_no_line_layered`):
+
+| ID | RVA | Name (ours) | What |
+|---|---|---|---|
+| 35289 | 0x5f0730 | `MenuTopicManager::Update` | Each frame: the speaker's `UpdateInDialogue` (37541, vtable +0x260) while its handle is valid, no process check |
+| 35274 | 0x5ee910 | `MenuTopicManager::Clear` | Calls the speaker's vfunc 0x270 when +0xB0 is set, sets the speaker handle (+0x68) invalid for an actor, empties the list (+0x20) and the topic arrays (+0x80, +0x98), clears +0xB1. After it 35289 no longer calls the speaker |
+| 82077 | 0x1169700 | `UI::IsSavingAllowed` | `numAllowSaving` (UI+0x16C) == the menu stack's size (UI+0x120): every open menu has `kAllowSaving` (0x800). `Save_Impl` (35727) calls it at 0x140622917 and refuses otherwise |
+
+- **A guest leaving with its menu open on a copy crashed** (measured: 2 of 2, leaving to the main menu and a dropped
+  connection). Leaving deletes the temporary copies (`ReleaseCharacter`; the staged and placed-by-host NPCs here: the
+  speaker's process freed, its handle still valid for a while), the
+  dialogue service stops at once (`DialogueService::OnUpdate` returns offline, so `ClearOrphaned` never runs), and
+  `SpeakerUpdate::Skipped` skips only in a session: the next 35289 ran 37541 on no process (fault in 39373, printed
+  39372+0x40). `GuestDialogue::OnLeft` now clears the conversation (35274) when the guest leaves: every NPC a guest
+  talks to is a copy. GameTests "A guest leaving the session mid-conversation ends its game's conversation..." (the
+  fake counts `UpdateInDialogue` on a speaker without a process, `FakeDialogue::EngineFrame`).
+- **The host cannot save with its dialogue menu open** (measured 2 of 2; read: 82077's check; inferred: the Dialogue
+  Menu lacks `kAllowSaving`, its flags not read). A guest joining from the main menu then waits for the host's save:
+  after ten failed tries (a working save takes two) the host tells it (`NotifySaveWaiting`, again every 600 tries), its
+  join panel says why and its own 30 s wait starts over; the host gives up after 180 s (`HostSaveTransfer::kSaveSeconds`).
+  Before (2026-11-24, 2 of 2) the guest gave up after 30 s with `transfer_failed`. GameTests "A join while the host's
+  game cannot save waits...", HostAuthorityTests "A joining game waiting for a save the host's game cannot make yet...".
+- **Closing the host's menu stops the NPC's line** (measured): 35274's path from the menu's close ends it, so no line
+  plays on after a close.
+- **The playtest's layered voices were the guest's, and are fixed** (bug 3: Fabien, the guest, left Lucan's
+  conversation during the claw quest and talked to him again, 2026-10-31). That build replayed the NPC's last line on
+  every menu opening (`ReplayGreeting`), over the copy's line; since 0d64013e (2026-11-17) only a menu the guest's own
+  ask opened replays it ("The copy's voice", above; scenario `dialogue-guest-joins-mid-line`). Measured again on dev
+  with a log line per voice start (actor and file, `Voice:`): a guest leaving the menu mid-answer and talking again,
+  near and after moving 1,500 units off, gets each of the host's lines once; its rejoin stops the copy's current line
+  (`SaySelected` 35283 on the copy) until the next one. The host's engine calls `Actor::SpeakSound` twice per response,
+  about 20 ms apart (both the host's and the copy's logs), with one sound each (the voice handle's ids rise by one per
+  response); each relay stops the copy's line before its own.
+
+## A menu joining mid-answer, and the replayed greeting (2026-11-24)
+
+Read in the SWF's source (`reference/plugins/skyrimui/src/dialoguemenu/DialogueMenu.as`): `onCancelPress` (Tab, Esc)
+only calls `SkipText` in `SHOW_GREETING` (eMenuState 0) and closes the menu (`StartHideMenu`) in every other state;
+`DoShowDialogueList` shows the list from `TOPIC_CLICKED` (2) or a greeting with entries.
+
+- **A guest talking again while the NPC answers** got a menu in `SHOW_GREETING` for the rest of the answer
+  (`dialogue-guest-rejoins-quickly`, 1 of 1): its join starts its engine's conversation on the copy, whose greeting
+  does not end while the copy voices the host's answer (inferred). Tab there skipped the line, and a guest's skip goes
+  to the host, so it skipped the NPC's line for everyone. `DialogueBridge::ShowPicked` now takes a menu in
+  `SHOW_GREETING` to `TOPIC_CLICKED` with the pick shown (`DialogueMenuPolicy::PickedDisplay::FromGreeting`: the list
+  holder and its copy visible, as `ShowDialogueList` with its copy), the state every other menu is in while the NPC
+  answers; Tab then closes it and the next list shows as after a pick. It also plays the holder's `topicClicked` frame
+  and draws the never-filled list empty (`TopicList.InvalidateData`): without them the menu showed the SWF's
+  placeholder rows ("Topic", "Selected Topic") over the pick (duo screenshot). Its subtitle was its own engine's
+  greeting text: the menu now shows the answer's last relayed subtitle on the copy (`GuestDialogue::OnUpdate`, no
+  voice). Checked by screenshot on the duo: the rejoined menu matches a menu that stayed (the pick, the answer's text).
+  GameTests "A guest that talks again while the NPC answers leaves with Tab..." (the fake's menu has the greeting
+  state, `FakeDialogue::MenuState`; the fake records subtitles).
+- **A guest's own ask replayed the NPC's answer** (the playtest's layered voices, reproduced on the duo): the opening
+  menu silences the copy, so a menu the guest's own ask opened says the host's greeting again (`ReplayGreeting`, the
+  last relayed line within 3 s). A guest alone in the conversation that leaves mid-answer ends it, the NPC finishes his
+  line (`EndDialogue` 35294 keeps a talking speaker's), and its talking again at once starts one in which he says no
+  greeting (35282 during his line: "A start during the NPC's last line"): the last relayed line was his answer, and the
+  replay layered it over the copy still saying it. Measured, `dialogue-guest-talks-again-after-leaving` without the fix
+  2 of 2: Andurs's `..._000D3D5E_1` relayed at :37.7, the guest's new menu at :39.06 replayed it ("the NPC's last line
+  again"); with the fix 2 of 2 pass. The walker found the same through another start (seed 1: the host's player clicked
+  before its game knew the conversation). Only a line of the greeting info the host names is replayed
+  now, by its voice file (`VoiceFiles::IsLineOf`). Read in IDA, `TESTopicInfo__BuildVoiceFilePath` (25502, ours):
+  the file is the info that owns the audio's (a shared response's `dataInfo` +0x28, else the info), under
+  `Data\Sound\Voice\<that info's plugin file name>\<voice type>\<quest>_<topic>_<id %08X>_<response>`, the id its
+  form id masked 0xFFF for a light plugin (`TESFile::IsESL` 14002), else 0xFFFFFF (Andurs's greeting
+  `Skyrim.esm\...\..._000D79A5_1.wav`). `IDialogueBridge::GetVoiceSource` gives the owner and its plugin
+  (`TESForm::sourceFiles` +0x08, the first file as `TESForm::GetFile` 14621 with 0; `TESFile::fileName` +0x58); a
+  light plugin's forms load at 0xFE. Its subtitle goes with it (`SubtitleEvent::TopicFormID` is Fallout 4's, 0 in
+  Skyrim). The mid-answer subtitle is the NPC's own, relayed after the latest pick.
+
+## The speaker dies or fights (1.7.104, 2026-11-24)
+
+Read in IDA: `Actor::UpdateInDialogue` (37541) ends the conversation each frame (0x14068d39a, `EndDialogue` 35294)
+when the speaker has no process, its process byte +0x137 is set, `MenuTopicManager` +0xB3 is set, or the process
+float `AIProcess__GetMiddleHighFloat340` (ours, 0x1406F35B0: middle-high data +0x340) is below 0 without +0xB5. `EndDialogue`'s other callers: `UpdateSoundCallBack`, the manager's
+`PositionPlayerEvent` sink (the player teleported), `StartDialogue`, `Actor::EndInterruptPackage`, and
+`AIProcess::ConfrontAlarmTarget`. No caller is a death or combat path itself.
+
+Measured on the duo (Andurs, both players in the conversation, the host's console):
+
+- **Killed mid-answer** (`kill`): the host's engine ended the conversation 50 ms later ("the host's engine ended
+  conversation"), after a last line of his; every menu closed.
+- **A fight started** (`startcombat` on the guest's character): the conversation ended in the frame his combat state
+  turned on; every menu closed.
+
+Which of the end conditions death and combat set is not read (inferred: through the process). `DialogueBridge::Start`
+already refuses a dead or fighting actor. The fake engine ends its conversation on a dead or fighting speaker
+(`FakeDialogue::EngineFrame`), the dialogue walker kills or provokes the NPC mid-conversation.
+
 ## Building options (2026-10-18)
 
 For per-player options (`shared-dialogue.md`, "A peer's option on the host"). Found through Dynamic Dialogue

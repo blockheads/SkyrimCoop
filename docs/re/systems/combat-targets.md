@@ -93,9 +93,10 @@ The deciders, each read and gated for copies:
   0x140560820). Skipped for a copy. The tree is built once by `CombatController__StartBehaviorTree` (0x140563850) and
   never stepped: measured, no equip attempt or path from a fighting copy.
 - Its tail, `Actor::UpdateCombatSearchState` (37273), is bookkeeping and still runs for a copy (read): `+0x104` := the
-  controller's target, boolBits (`+0xE8`) `kSearchingInCombat` := the group searching (0x140561310). **Not shown:** that
-  it matters to kill moves. An A/B said so on 2026-11-25 and was void (the edit never applied and nothing was built: the
-  kill move failed and then played on one DLL). Kill moves failed in some boots and played in others; cause open.
+  controller's target, boolBits (`+0xE8`) `kSearchingInCombat` := the group searching (0x140561310). Measured
+  (duo, 2026-11-25, `kill-moves-by-weapon`, fresh boots, builds checked by hash): with the tail 56 kill moves of 56
+  swings, without it 42 of 42, dev 42 of 42; so kill moves do not need it. Earlier that day none played in some boots and
+  all in others on one build; not seen since, not explained.
 - `CombatGroup__Update` (44703, on the combat job through 46869): detection of the targets, and
   `CombatGroup__RemoveStaleTargets` (44803) drops a target LOST past its timeouts on this game's detection. Not run
   for a group whose members are all copies (`HeldByOwners`): its targets stay its owners'.

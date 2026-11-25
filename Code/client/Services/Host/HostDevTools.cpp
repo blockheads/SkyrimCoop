@@ -45,6 +45,9 @@ void HostDevTools::OnDevCommand(const DevCommandRequest& acRequest, ConnectionId
                          acRequest.Line);
             return;
         }
+        if (DevCommands::IsPartyHorse(cCommand) && m_game.SpawnPartyHorses)
+            spdlog::info("HostDevTools: {} party horses for {:x}", m_game.SpawnPartyHorses(cCharacter, cCommand.Count),
+                         aSender);
         for (const auto& cLine : DevCommands::WorldLines(cCommand, cAt.value_or("player")))
             if (m_game.RunConsole)
                 m_game.RunConsole(cLine);
