@@ -3330,11 +3330,10 @@ void FakeEngine::RemovesMarker()
 }
 
 // HookSetGlobalTimeMultiplier: a change of this game's own, raised while connected.
-void FakeEngine::SlowsTime(float aMultiplier)
+void FakeEngine::SlowsTime(float aMultiplier, bool aDownCamera)
 {
-    if (aMultiplier != WantedTimeScale && World::Get().GetTransport().IsConnected())
+    if (Clock.Ask(aMultiplier, aDownCamera) && World::Get().GetTransport().IsConnected())
         World::Get().GetRunner().Trigger(TimeScaleEvent{aMultiplier});
-    WantedTimeScale = aMultiplier;
 }
 
 void FakeEngine::CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget)

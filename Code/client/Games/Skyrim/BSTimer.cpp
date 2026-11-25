@@ -1,5 +1,7 @@
 #include <BSTimer.h>
+#include <Camera/PlayerCamera.h>
 #include <Events/TimeScaleEvent.h>
+#include <Games/ClockWishes.h>
 #include <HookSwitch.h>
 #include <World.h>
 #include <Hooks/FunctionHook.h>
@@ -11,8 +13,7 @@ static TSetGlobalTimeMultiplier* RealSetGlobalTimeMultiplier = nullptr;
 
 namespace
 {
-float s_wanted = 1.f; // what this game's engine last asked for
-float s_shared = 1.f; // the other players' slowest
+ClockWishes s_wishes;
 } // namespace
 
 BSTimer* BSTimer::Get() noexcept
@@ -23,20 +24,18 @@ BSTimer* BSTimer::Get() noexcept
 
 void BSTimer::SetSharedMultiplier(float aMultiplier) noexcept
 {
-    s_shared = aMultiplier;
-    RealSetGlobalTimeMultiplier(Get(), std::min(s_wanted, s_shared), false);
+    s_wishes.Shared = aMultiplier;
+    RealSetGlobalTimeMultiplier(Get(), s_wishes.Clock(), false);
 }
 
-// A kill cam (its camera shot's globalTimeMult), Slow Time, a bow zoom, `sgtm`: every game slows with it.
+// A kill cam (its camera shot's globalTimeMult), Slow Time, a bow zoom, `sgtm`: every game slows with it. The down
+// camera's 0.8 (50714, its exit 50715, BeginGetUp 40150) is asked with the camera down: this game's alone.
 void HookSetGlobalTimeMultiplier(BSTimer* apThis, float aMultiplier, bool aArg2)
 {
-    if (aMultiplier != s_wanted)
-    {
-        s_wanted = aMultiplier;
-        if (World::Get().GetTransport().IsConnected())
-            World::Get().GetRunner().Trigger(TimeScaleEvent{aMultiplier});
-    }
-    RealSetGlobalTimeMultiplier(apThis, std::min(s_wanted, s_shared), aArg2);
+    const PlayerCamera* pCamera = PlayerCamera::Get();
+    if (s_wishes.Ask(aMultiplier, pCamera && pCamera->IsDown()) && World::Get().GetTransport().IsConnected())
+        World::Get().GetRunner().Trigger(TimeScaleEvent{aMultiplier});
+    RealSetGlobalTimeMultiplier(apThis, s_wishes.Clock(), aArg2);
 }
 
 static Hooks::Initializer s_timerHooks(

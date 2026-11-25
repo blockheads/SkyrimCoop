@@ -24,6 +24,8 @@ struct PlayerCamera : public TESCamera
     void KeepSpectating() noexcept;
     // Out of the bleedout state (a dying player's death camera) into the one under it (50824).
     void LeaveBleedout(bool aInstant) noexcept;
+    // In the bleedout state: the player down, paralysed or dead (entered by 50823).
+    [[nodiscard]] bool IsDown() const noexcept { return state && state == cameraStates[TESCameraState::kBleedout]; }
 
     bool IsFirstPerson() noexcept;
 

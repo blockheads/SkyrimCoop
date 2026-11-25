@@ -1,0 +1,41 @@
+time	op	id	rva	item
+2026-11-25T04:47:07Z	read	68245	0xce3970	{"name": "BSTimer::SetGlobalTimeMultiplier"}
+2026-11-25T04:47:12Z	read	44314	0x809100	{"name": "sub_140809100"}
+2026-11-25T04:47:15Z	read		0x5e8a60	{"name": "fUnkSoundUpdate"}
+2026-11-25T04:47:16Z	read	35126	0x5e8af0	{"name": "sub_1405E8AF0"}
+2026-11-25T04:47:16Z	read		0x808380	{"name": "GetPlayerTimeMult"}
+2026-11-25T04:47:23Z	read	67846	0xcd4b00	{"name": "sub_140CD4B00"}
+2026-11-25T04:47:32Z	read	44302	0x8083d0	{"name": "GetGlobalTimeMultiplier"}
+2026-11-25T04:47:40Z	read	44300	0x808210	{"name": "VATS::SetMagicTimeSlowdown"}
+2026-11-25T04:47:40Z	read		0x736068	{"name": "coop_beginGetUp"}
+2026-11-25T04:48:13Z	name		0x5e8a60	{"addr": "0x1405e8a60", "name": "UpdateTimeSensitiveSoundFrequency"}
+2026-11-25T04:48:13Z	name	35126	0x5e8af0	{"addr": "0x1405E8AF0", "name": "UpdateTimeSensitiveSoundFrequency_NoMusic"}
+2026-11-25T04:48:13Z	name	67846	0xcd4b00	{"addr": "0x140CD4B00", "name": "BGSSoundCategory_ApplyFrequencyToAudio"}
+2026-11-25T04:48:13Z	name	44314	0x809100	{"addr": "0x140809100", "name": "VATS_LoadMagicTimeSlowdown"}
+2026-11-25T04:48:13Z	data			{"old": "dword_1420B4C40", "new": "g_lastTimeSensitiveSoundMult"}
+2026-11-25T04:48:19Z	comment		0x5e8a60	{"addr": "0x1405e8a60", "comment": "[re]\nAddressLib ID 35125\nPer frame: sound speed = BSTimer::value * GetGlobalTimeMultiplier (kill cam shot). When it moves >0.05 from the last applied, re-applies default object 146 (kTimeSensitiveSoundCategory) frequency to BSAudioManager. Every clock change (Slow Time, kill cam, our shared multiplier) re-pitches these sounds."}
+2026-11-25T04:48:19Z	comment	35126	0x5e8af0	{"addr": "0x1405E8AF0", "comment": "[re]\nAddressLib ID 35126\nSame as UpdateTimeSensitiveSoundFrequency (35125) without the follow-up calls; vtable-only caller."}
+2026-11-25T04:48:19Z	comment	67846	0xcd4b00	{"addr": "0x140CD4B00", "comment": "[re]\nAddressLib ID 67846\nBGSSoundCategory: recompute its frequency (vfunc +0x28), send it (x1000) to BSAudioManager as message 51/14."}
+2026-11-25T04:48:19Z	comment	44314	0x809100	{"addr": "0x140809100", "comment": "[re]\nAddressLib ID 44314\nVATS load: reads magic time slowdown (+0x80) and its second float (+0x84) from the save; restores the timer multiplier. Not on the freeze path."}
+2026-11-25T04:48:19Z	comment	68245	0xce3970	{"addr": "0x140ce3970", "comment": "[re]\nAddressLib ID 68245\nmeh321: TimeManager::SetGlobalTimeMultiplier\nCommonLibSSE: BSTimer::SetGlobalTimeMultiplier (CommonLibSSE-NG/include/RE/B/BSTimer.h:29)\nSkyrimCoop: hooked by HookSetGlobalTimeMultiplier as RealSetGlobalTimeMultiplier (Code/client/Games/Skyrim/BSTimer.cpp:46)\nWrites the requested multiplier (388441 value_0) always; the current one (388442) unless paused (+0x3A), rescaling Delta. Sound follows it through 35125."}
+2026-11-25T04:52:19Z	read		0x8f3c47	{"name": "BleedoutCameraState::OnEnterState"}
+2026-11-25T04:52:19Z	read		0x8f3d17	{"name": "BleedoutCameraState::OnExitState"}
+2026-11-25T04:52:33Z	read	51620	0x935090	{"name": "sub_140935090"}
+2026-11-25T04:54:54Z	comment		0x8f3bae	{"addr": "0x1408f3bae", "comment": "[re]\nAddressLib ID 50714\nThe player's down camera (bleedout, also a paralysed/ragdolled player): HUD 'VATSPlayback', VATS::SetMagicTimeSlowdown(0.8, 0.8) (clock to 0.8, which re-pitches kTimeSensitiveSoundCategory via 35125) and loops MAGShoutSlowTimeActiveLP. Vanilla: the 'frozen' audio."}
+2026-11-25T04:54:54Z	comment		0x8f3cd9	{"addr": "0x1408f3cd9", "comment": "[re]\nAddressLib ID 50715\nLeaving the down camera: SetMagicTimeSlowdown(0, 0) puts the clock back to 1.0, stops the loop and the HUD effect."}
+2026-11-25T04:54:54Z	comment	44300	0x808210	{"addr": "0x140808210", "comment": "[re]\nAddressLib ID 44300\nCommonLibSSE: VATS::SetMagicTimeSlowdown (CommonLibSSE-NG/include/RE/V/VATS.h:64)\na2 > 0: clock to a2; a2 <= 0 with a slowdown active (+0x80 > 0): clock back to 1.0. Stores a2/a3 at +0x80/+0x84 (GetPlayerTimeMult 44301 reads them)."}
+2026-11-25T05:08:05Z	read		0x8fa0ed	{"name": "PlayerCamera::sub_50825"}
+2026-11-25T05:08:05Z	read		0x8f9f39	{"name": "PlayerCamera::LeaveBleedout"}
+2026-11-25T05:08:12Z	read		0x8f9b81	{"name": "PlayerCamera::sub_50821"}
+2026-11-25T05:08:16Z	read		0x8f8712	{"name": "PlayerCamera::Update"}
+2026-11-25T05:08:19Z	read		0x8f95f8	{"name": "PlayerCamera::sub_50813"}
+2026-11-25T05:08:22Z	read		0x8f9c8b	{"name": "TESCamera::sub_50822"}
+2026-11-25T05:08:26Z	read		0x8f9e95	{"name": "TESCamera::sub_50823"}
+2026-11-25T05:08:33Z	read	40151	0x7360d0	{"name": "sub_1407360D0"}
+2026-11-25T05:08:41Z	name	50823	0x8f9e40	{"addr": "0x1408f9e40", "name": "PlayerCamera::EnterBleedout"}
+2026-11-25T05:08:41Z	name	40151	0x7360d0	{"addr": "0x1407360D0", "name": "Actor::BeginKnockDown"}
+2026-11-25T05:08:45Z	comment	50823	0x8f9e40	{"addr": "0x1408f9e40", "comment": "[re]\nAddressLib ID 50823\nOur name. Not in third-person transition (+0xE8) or already bleedout (cameraStates[11], +0x110): pushes the current state and sets the bleedout camera (whose OnEnterState 50714 slows the clock to 0.8). Callers: Actor::SetLifeState (bleedout), Actor::KillImpl, Actor::BeginKnockDown (paralysis, explosion knock)."}
+2026-11-25T05:08:45Z	comment	40151	0x7360d0	{"addr": "0x1407360D0", "comment": "[re]\nAddressLib ID 40151\nOur name. Performs the knock-down action (default object at +0x378) on the actor; for the player also enters the bleedout camera (50823), so a paralysed or knocked-down player gets the 0.8 clock and the Slow Time loop. Callers: AIProcess::KnockParalyze, AIProcess::KnockExplosion. Paired with BeginGetUp (40150), which clears the slowdown."}
+2026-11-25T05:08:45Z	comment		0x735c23	{"addr": "0x140735c23", "comment": "[re]\nAddressLib ID 40150\nSkyrimCoop: call as s_beginGetUp (Code/client/Games/Skyrim/AI/KnockState.cpp:26)\nBeginGetUp: ragdoll back to the graph, the get-up action; for the player in the bleedout camera (+0x110) clears the magic time slowdown (clock back to 1)."}
+2026-11-25T05:17:46Z	read	39896	0x723b60	{"name": "ActorProcess::UpdateKnockState"}
+2026-11-25T05:18:27Z	read	33026	0x558f90	{"name": "TESCamera::SetState"}

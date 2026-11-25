@@ -593,6 +593,23 @@ runs the clock at the slower of it and the other players' slowest (`NotifyTimeSc
 `sgtm` use the same call, so they slow everyone too. The engine's own per-actor multipliers
 (`playerTimeMult`, Slow Time's faster player) stay local.
 
+## A player's down camera (2026-11-24)
+
+Read in IDA unless marked. A player knocked down or paralysed (Ice Form, a paralysis spell) goes through
+`Actor::BeginKnockDown` (40151, from `AIProcess::KnockParalyze` and `KnockExplosion`), which plays the knock action and,
+for the player, `PlayerCamera::EnterBleedout` (50823; also from `Actor::SetLifeState` and `Actor::KillImpl`). The
+bleedout state's `OnEnterState` (50714) calls `VATS::SetMagicTimeSlowdown(0.8, 0.8)` (44300 -> 68245) and loops
+`MAGShoutSlowTimeActiveLP`; its `OnExitState` (50715) and `BeginGetUp` (40150) call `SetMagicTimeSlowdown(0, 0)`,
+which puts the clock back to 1. Each frame `UpdateTimeSensitiveSoundFrequency` (35125) re-applies the
+`kTimeSensitiveSoundCategory` (default object 146) frequency when the clock moved by more than 0.05: the frozen
+player's sound slows with its clock. Measured: on a game with no session, 0.8 while down, 1 at the get-up.
+
+`TESCamera::SetState` (33026) runs the old state's End and the new one's Begin with the camera's current state the
+bleedout one in both, and `BeginGetUp` asks only in it, so a request made with `state == cameraStates[kBleedout]` is the
+down camera's. The shared clock ("Kill cams slow the clock") sent that 0.8 to every game for as long as the player lay
+(measured: the host at 0.8 while the guest was down). Now `ClockWishes` keeps it this game's own; leaving the
+down camera asks 1 of everyone, as vanilla's ends a Slow Time it cut short; a request with the camera up drops it.
+
 ## Kill moves by the client (2026-10-13)
 
 A kill move is one action on the attacker (`pa_KillMove…`) that the engine also performs on the victim

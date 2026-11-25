@@ -156,6 +156,27 @@ class WorldActions:
         return (_game.read_status() or {}).get("clock_speed")
 
 
+    def down_camera_clock_stays_own(ctx, instance):
+        """That game's player is pushed down (pushactoraway on itself): its down camera slows its own clock to 0.8 as
+        vanilla's does (BleedoutCameraState 50714) and the other game's stays at 1 all the while; both at 1 once up."""
+        other = "" if instance else "client"
+        who, where = instance or "host", other or "host"
+        def knock():
+            return (ctx.actor_snapshot(instance, 0x14).get("state") or {}).get("knock", 0)
+        seen = {"own": [], "other": []}
+        def sample():
+            seen["own"].append(ctx.clock_speed(instance) or 0)
+            seen["other"].append(ctx.clock_speed(other) or 0)
+        ctx.console_on(instance, "player.pushactoraway player 5")
+        ctx.wait_for(f"[{who}] its player is knocked down", lambda: (sample(), knock())[1], 3)
+        ctx.wait_for(f"[{who}] its player is up again", lambda: (sample(), not knock())[1], 20)
+        if min(seen["own"]) > 0.81:
+            raise ctx.failure(f"[{who}] its clock never slowed while down (vanilla's 0.8): {sorted(set(seen['own']))}")
+        if min(seen["other"]) < 0.99:
+            raise ctx.failure(f"[{where}] its clock slowed to {min(seen['other']):.2f} while the {who}'s player was down")
+        ctx.clocks_run_at(1.0, "both players up")
+
+
     def clocks_run_at(ctx, speed, why):
         for name in ("", "client"):
             ctx.wait_for(f"[{name or 'host'}] its clock runs at {speed} ({why})",

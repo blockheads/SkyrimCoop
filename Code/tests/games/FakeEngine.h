@@ -21,6 +21,7 @@
 #include <Bridges/IJoinBridge.h>
 #include <Bridges/IBodyBridge.h>
 #include <Bridges/IBodyReads.h>
+#include <Games/ClockWishes.h>
 #include <Games/KnockReplay.h>
 #include <Games/ItemMenuRebuild.h>
 #include <Physics/RagdollPending.h>
@@ -1708,13 +1709,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void RemovePlayerWaypoint() noexcept override { Waypoint.reset(); }
     PartyMarkerSet PartyMarkers;
     void SetPartyMarkers(const PartyMarkerSet& acMarkers) noexcept override { PartyMarkers = acMarkers; }
-    // The clock's speed: this game's own wish (a kill cam, raised by our BSTimer hook) and the party's, the slower
-    // running (BSTimer::SetSharedMultiplier).
-    float WantedTimeScale = 1.f;
-    float SharedTimeScale = 1.f;
-    void SlowsTime(float aMultiplier);
-    [[nodiscard]] float TimeMultiplier() const noexcept { return std::min(WantedTimeScale, SharedTimeScale); }
-    void SetSharedTimeScale(float aMultiplier) noexcept override { SharedTimeScale = aMultiplier; }
+    // The clock's speed as our BSTimer hook runs it: this game's own wishes and the party's.
+    ClockWishes Clock;
+    void SlowsTime(float aMultiplier, bool aDownCamera = false);
+    // The player's down camera (BleedoutCameraState 50714/50715, entered by a knock or paralysis, 40151): the clock
+    // to 0.8 while down, back to 1 on leaving, both asked with the camera down.
+    void EntersDownCamera() { SlowsTime(0.8f, true); }
+    void LeavesDownCamera() { SlowsTime(1.f, true); }
+    [[nodiscard]] float TimeMultiplier() const noexcept { return Clock.Clock(); }
+    void SetSharedTimeScale(float aMultiplier) noexcept override { Clock.Shared = aMultiplier; }
     // NPC bases that go down instead of dying, even at the console's kill (measured: Lydia, owner and copy).
     std::set<uint32_t> EssentialBases{0x000A2C8E};
 

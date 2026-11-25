@@ -62,3 +62,35 @@ SCENARIO("A player's slowed clock slows everyone's", "[shared]")
     party.Until([&] { return host.TimeMultiplier() == 1.f && guest.TimeMultiplier() == 1.f; },
                 "both run at full speed when it ends");
 }
+
+SCENARIO("A guest's down camera slows its own clock alone", "[shared]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+
+    // Knocked down or frozen (Ice Form's paralysis): vanilla's down camera runs its clock at 0.8.
+    party.As(party.Guest(), [&] { guest.EntersDownCamera(); });
+    // A marker the guest places after it: once the host has it, it heard all the guest said before.
+    party.As(party.Guest(), [&] { guest.PlacesMarker({1000.f, 2000.f, 30.f}, kTamriel); });
+    party.Until([&] { return host.Waypoint.has_value(); }, "the host hears the guest's marker");
+    CHECK(guest.TimeMultiplier() == 0.8f);
+    CHECK(host.TimeMultiplier() == 1.f);
+
+    INFO("a kill cam on the host's game meanwhile still slows both");
+    {
+        party.As(party.Host(), [&] { host.SlowsTime(0.25f); });
+        party.Until([&] { return guest.TimeMultiplier() == 0.25f; }, "the guest's clock runs at the kill cam's speed");
+        party.As(party.Host(), [&] { host.SlowsTime(1.f); });
+        party.Until([&] { return guest.TimeMultiplier() == 0.8f; }, "the guest's back at its down camera's speed");
+    }
+
+    INFO("it gets up");
+    {
+        party.As(party.Guest(), [&] { guest.LeavesDownCamera(); });
+        party.As(party.Guest(), [&] { guest.RemovesMarker(); });
+        party.Until([&] { return !host.Waypoint; }, "the host hears the marker go");
+        CHECK(guest.TimeMultiplier() == 1.f);
+        CHECK(host.TimeMultiplier() == 1.f);
+    }
+}
