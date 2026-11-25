@@ -131,9 +131,8 @@ next invite -> load the kept character, without creation
 - Cancellation or losing the host clears automatic joining while leaving an open creator usable. Failed final
   joining keeps the completed character available for retry. Missing bundled data leaves the player at the
   main menu with an actionable explanation; it never falls through to the vanilla intro.
-- Steam launching a closed game uses the bundled `SkyrimCoopLauncher.exe` to preserve Steam's original
-  invite arguments through SKSE in the child's environment. The plugin reads that carrier at the main menu.
-  This is also required for returning-character launch invites; the standard SKSE loader drops OS arguments.
+- Steam launching a closed game for an invite is not supported (dropped 2026-11-25 with our launcher,
+  [launcher.md](launcher.md)): friends start the game, then accept the invite at the main menu.
 - No network-message or character-save format changes. Reuse the `creating_character` presentation.
 - Acceptance: fast creation/timeout/cancel/compatibility/returning-character/Steam-launch tests; native
   `guest-makes-character-then-joins` begins with joining and never manually starts New Game, answers start
@@ -476,23 +475,12 @@ kicked, lost; the host's network closing is code 1, a kick 2). Re-joining by han
 Steam's invite again, or a restart. Tests: GameTests `[session]` (drops and comes back, drops for
 good, kick), `[steam]` (the connection drops, the lobby stays); scenario `host-rejoins`.
 
-## Mod sync: open, under investigation
+## Mod sync: SkyrimModSync (decided 2026-11-25)
 
-Factorio downloads and syncs a server's mods in game. Skyrim makes that harder: mods come mostly from
-Nexus (automated downloads need Nexus Premium; free users click per file), they are archives with
-installers whose choices matter, loose files override each other by priority, players manage them with
-MO2 or Vortex, some files are generated on each machine (Nemesis/Pandora, BodySlide, LOD, Synthesis),
-most mods forbid redistribution, and new plugins need a restart. So automatic sync works, if at all,
-for a mod set our plugin manages, not for any MO2 setup; and installing anything must never happen
-silently on accepting an invite (many mods are native code): the player sees what would be installed
-and from where, and confirms.
-
-- **Settled:** 1.0 detects and lists the differences (stage 3), with links to the source where it is
-  known, and a copy of the list.
-- **Open:** whether and how the friend's game gets the host's mods automatically, where such mods
-  live and how Skyrim loads them on the next start, and with that **whether a launcher is needed at
-  all**. Nothing built so far depends on the answer. Research brief: `docs/research/mod-sync-spike.md`;
-  findings go to `docs/research/mod-sync.md`.
+A separate tool, [launcher.md](launcher.md): the host's MO2 profile is published as a pack (files by hash, load
+order, shared INI settings); friends sync it (Nexus archives through their own Premium API key, the rest from the
+host over P2P), load it into their game and unload it afterwards. The join gate stays the backstop: it checks what
+actually loaded. The research brief that preceded it: `docs/research/mod-sync-spike.md`.
 
 ## Steam
 
@@ -553,13 +541,12 @@ loaded save, which stays as test scaffolding until save transfer replaces it.
 5. Characters in the host's save, character creation (stage 4).
 6. Blocking saves on the friend's side; leaving and kicks back to the main menu.
 7. Steam invites (after the two-account test).
-8. Layer 2 of the manifest; updating our plugin; mod sync as the spike decides.
+8. Layer 2 of the manifest; updating our plugin through SkyrimModSync ([launcher.md](launcher.md)).
 9. The AOL-style buddy list and chats.
 
 The launch-lobby reader checks Skyrim's OS command line, then Steam's
 [GetLaunchCommandLine](https://partner.steamgames.com/doc/api/ISteamApps#GetLaunchCommandLine).
-SKSE 2.2.6's `skse64_loader/main.cpp` calls `CreateProcess` with a null command line.
-For Steam `joinlobby` launches, Skyrim's Apps API did not return those OS parameters in the real test, so the
-bundled production launcher preserves them in `SKYRIMCOOP_LAUNCH_ARGS` before starting SKSE.
-The plugin checks its OS arguments, that inherited carrier, then the optional Steam Apps API.
-The installed Steam API exports `SteamAPI_SteamApps_v008` and `SteamAPI_ISteamApps_GetLaunchCommandLine`.
+SKSE 2.2.6's `skse64_loader/main.cpp` calls `CreateProcess` with a null command line, and Skyrim's Apps API did not
+return the `joinlobby` parameters in the real test, so a game Steam starts for an invite does not see it. Our launcher
+carried them in `SKYRIMCOOP_LAUNCH_ARGS` until 2026-11-25; invites with the game closed are dropped
+([launcher.md](launcher.md)).

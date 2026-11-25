@@ -22,7 +22,6 @@ SOURCE_TAGS = [
     ('Code/encoding/Structs/Perks.h', {'scripts', 'rewards', 'values', 'magic'}),
     ('Code/encoding/Structs/Recipe.*', {'potions', 'inventory'}),
     ('Code/encoding/Structs/SystemQuestState.*', {'scripts', 'save', 'join', 'magic'}),
-    ('Code/launcher/*', {'join', 'steam'}),
 
     ("Code/client/Followers/*", {"followers"}),
     ("Code/client/Diagnostics/*", {'reports'}),

@@ -259,16 +259,6 @@ ISteamBridge::SteamId SteamBridge::GetLaunchLobby() noexcept
         if (const auto cLobby = ParseConnectLobby(line))
             return cLobby;
     }
-    // The bundled launcher preserves Steam's original arguments across SKSE's argument-free launch.
-    constexpr const char* cCarrier = "SKYRIMCOOP_LAUNCH_ARGS";
-    if (const DWORD cSize = GetEnvironmentVariableA(cCarrier, nullptr, 0); cSize > 1 && cSize <= 32768)
-    {
-        std::string line(cSize, '\0');
-        const DWORD cRead = GetEnvironmentVariableA(cCarrier, line.data(), cSize);
-        if (cRead && cRead < cSize)
-            if (const auto cLobby = ParseConnectLobby(std::string_view(line.data(), cRead)))
-                return cLobby;
-    }
     // Some Steam URL configurations provide their parameters through the Apps API instead.
     if (m_pImpl->Ready() && m_pImpl->Apps && m_pImpl->GetLaunchCommandLine)
         if (void* pApps = m_pImpl->Apps())
