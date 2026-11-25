@@ -266,8 +266,8 @@ SCENARIO("A copy that travels stands at its owner's new place, never racing towa
 SCENARIO("A snapshot older than a copy's jump never takes it back", "[travel][copy-step]")
 {
     // Movement goes unreliably on its own channel, a jump or a spawn reliably: one sent before can arrive after.
-    enum class Late { kNone, kSameCell, kTwo, kOldCell, kAfterSpawn };
-    const Late cLate = GENERATE(Late::kNone, Late::kSameCell, Late::kTwo, Late::kOldCell, Late::kAfterSpawn);
+    enum class Late { kNone, kSameCell, kTwo, kOldCell, kAfterSpawn, kOlderSpawn };
+    const Late cLate = GENERATE(Late::kNone, Late::kSameCell, Late::kTwo, Late::kOldCell, Late::kAfterSpawn, Late::kOlderSpawn);
     Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
@@ -290,9 +290,22 @@ SCENARIO("A snapshot older than a copy's jump never takes it back", "[travel][co
     GameId oldCell = cCell;
     oldCell.BaseId = kSinkhole;
 
+    const auto cSpawnNow = [&] {
+        std::vector<NotifyCharacterSpawn> spawns;
+        party.As(party.Host(), [&] { spawns = party.Host().GetCharacterService().BuildSpawnRequests(0); });
+        const auto cSpawn = std::find_if(spawns.begin(), spawns.end(), [&](const auto& acSpawn) { return acSpawn.SessionId == id; });
+        REQUIRE(cSpawn != spawns.end());
+        return *cSpawn;
+    };
+    const auto cGets = [&](const NotifyCharacterSpawn& acSpawn) {
+        party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(acSpawn); });
+    };
+    NotifyCharacterSpawn older = cSpawnNow();
+    party.Frame();
     constexpr float cSpot = 1500.f;
     host.Actors.at(npc).Position[0] = cSpot;
     const uint64_t cNow = party.Host().GetFrameTick();
+    older.Tick = cNow - 20; // frames can share a tick
     ActionEvent gesture;
     gesture.Tick = cNow - 40;
     gesture.ActionId = 0x489F1;
@@ -311,37 +324,91 @@ SCENARIO("A snapshot older than a copy's jump never takes it back", "[travel][co
         party.As(party.Guest(), [&] { party.Guest().GetCharacterService().OnReferencesMoveRequest(message); });
     };
     if (cLate == Late::kAfterSpawn)
-    {
-        std::vector<NotifyCharacterSpawn> spawns;
-        party.As(party.Host(), [&] { spawns = party.Host().GetCharacterService().BuildSpawnRequests(0); });
-        const auto cSpawn = std::find_if(spawns.begin(), spawns.end(), [&](const auto& acSpawn) { return acSpawn.SessionId == id; });
-        REQUIRE(cSpawn != spawns.end());
-        party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(*cSpawn); });
-    }
+        cGets(cSpawnNow());
     else
         cArrives(cNow, cSpot, true, cCell, false);
+    party.Frame();
+    size_t back = 0;
+    const auto cOnSpot = [&] { return std::abs(guest.Actors.at(cCopy).Position[0] - cSpot) < 5.f; };
+    CHECK(cOnSpot()); // one place is enough to stand there
     const auto cState = [&] { return party.Guest().get<OwnerPlaceComponent>(entity).CellId; };
     if (cLate == Late::kTwo)
         cArrives(cNow - 80, -30.f, false, cCell, false);
-    if (cLate != Late::kNone)
+    if (cLate == Late::kOlderSpawn)
+        cGets(older);
+    else if (cLate != Late::kNone)
         cArrives(cNow - 40, 0.f, false, cLate == Late::kOldCell ? oldCell : cCell, true);
     CHECK(cState() == cCell);
 
-    size_t between = 0, moved = 0;
+    // Queued before the rest: a place seen on the frame after the late one.
     const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(600);
     while (std::chrono::steady_clock::now() < cUntil)
     {
         party.Frame();
         std::this_thread::sleep_for(std::chrono::milliseconds(4));
-        const float cX = guest.Actors.at(cCopy).Position[0];
-        moved += cX > cSpot - 5.f;
-        between += cX < -5.f || (cX > 5.f && cX < cSpot - 5.f);
+        back += !cOnSpot();
     }
-    INFO(between << " frames between its places, " << moved << " on its spot");
-    CHECK(between == 0);
-    CHECK(moved > 0);
-    if (cLate != Late::kNone)
+    INFO(back << " frames off its spot");
+    CHECK(back == 0);
+    if (cLate != Late::kNone && cLate != Late::kOlderSpawn)
         CHECK(guest.GetActorLatestAnimation(cCopy).IdleId == gesture.IdleId);
+}
+
+SCENARIO("An actor handed over stands at its new owner's first snapshot, never at the origin", "[travel][copy-step]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    party.Agree("the games agree on the players");
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke, {900.f, 700.f, 0.f}); });
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    entt::entity entity = entt::null;
+    uint32_t id = 0;
+    for (auto&& [cEntity, cForm, cLocal] : party.Host().view<FormIdComponent, LocalComponent>().each())
+        if (cForm.Id == npc)
+        {
+            entity = cEntity;
+            id = cLocal.Id;
+        }
+    REQUIRE(id != 0);
+    party.As(party.Host(), [&] { party.Host().GetCharacterService().GiveUpOwnership(entity, id, npc); });
+    party.Step(party.Host());
+    CHECK(host.Actors.at(npc).Position[0] == 900.f); // nothing said yet
+    NotifyReferencesMove message;
+    message.Tick = party.Host().GetFrameTick();
+    message.Updates[id].UpdatedMovement.Position = glm::vec3(950.f, 700.f, 0.f);
+    message.Updates[id].UpdatedMovement.CellId = GameId{0, kSmoke};
+    message.Updates[id].UpdatedMovement.OnGround = true;
+    party.As(party.Host(), [&] { party.Host().GetCharacterService().OnReferencesMoveRequest(message); });
+    party.Step(party.Host());
+    CHECK(std::abs(host.Actors.at(npc).Position[0] - 950.f) < 1.f);
+    CHECK(std::abs(host.Actors.at(npc).Position[1] - 700.f) < 1.f);
+}
+
+SCENARIO("A spawn built from a copy carries its owner's newest place, cell and tick", "[travel][copy-step]")
+{
+    Party party(1, SmokeWorld);
+    party.Agree("the games agree on the players");
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    uint32_t id = 0;
+    for (auto&& [cEntity, cRemote, cPlayer] : party.Host().view<RemoteComponent, PlayerComponent>().each())
+        id = cRemote.Id;
+    REQUIRE(id != 0);
+    NotifyReferencesMove message;
+    message.Tick = party.Host().GetFrameTick() + 5;
+    message.Updates[id].UpdatedMovement.Position = glm::vec3(1500.f, 20.f, 0.f);
+    message.Updates[id].UpdatedMovement.CellId = GameId{0, kSinkhole};
+    message.Updates[id].UpdatedMovement.Teleported = true;
+    NotifyCharacterSpawn spawn;
+    party.As(party.Host(), [&] {
+        party.Host().GetCharacterService().OnReferencesMoveRequest(message);
+        REQUIRE(party.Host().GetCharacterService().ReadCopy(id, spawn));
+    });
+    CHECK(spawn.Tick == message.Tick);
+    CHECK(spawn.CellId == GameId{0, kSinkhole});
+    CHECK(glm::distance(glm::vec3(spawn.Position), glm::vec3(1500.f, 20.f, 0.f)) < 1.f);
 }
 
 SCENARIO("A follower landing on a guest's arrival spot does not shove the guest", "[travel]")

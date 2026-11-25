@@ -70,3 +70,5 @@ time	op	id	rva	item
 2026-11-25T14:56:16Z	comment	37648	0x6990f0	{"addr": "0x1406990F0", "comment": "Actor::FollowPlayerThroughDoor: named earlier on this branch."}
 2026-11-25T14:56:16Z	comment	37877	0x6a7fb0	{"addr": "0x1406A7FB0", "comment": "Actor::WarpToPathingLocation: named earlier on this branch."}
 2026-11-25T14:56:16Z	comment	39220	0x6ee150	{"addr": "0x1406EE150", "comment": "AIProcess::UpdateFollowProcedureWarp: named earlier on this branch."}
+2026-11-25T15:24:58Z	comment	37648	0x6990f0	{"addr": "0x1406990F0", "comment": "Our name. A follower through the player's load door: 37313 to the door's teleport data, then 37618. Called by 140781620 (41346) for each actor that follows the player (40493). Read 2026-11-24."}
+2026-11-25T15:24:58Z	comment	78275	0x1064d20	{"addr": "0x141064D20", "comment": "78275. Read 2026-11-25: the wanted velocity (+0xB0) is delta * (1/dt) with no clamp in this function (z zeroed on the ground unless state 5 or flag 0x800); the state manager and the controller's ApplyVelocity (79201, 62456) were not read to the end for a limit. Steps of at most 2 substeps."}

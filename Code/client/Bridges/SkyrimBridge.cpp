@@ -279,10 +279,11 @@ void SkyrimBridge::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, flo
         pos.x = aX;
         pos.y = aY;
         pos.z = aZ;
-        pActor->MoveTo(pCell, pos);
-        // The goal is the place it left: the movement job would step it back there (37356).
+        // The goal is the place it leaves: the movement job would step it back there (37356). Before the move, which
+        // can delete the actor.
         if (auto* pExtension = pActor->GetExtension(); pExtension && pExtension->IsCopy())
             pExtension->HasCopyGoal = false;
+        pActor->MoveTo(pCell, pos);
     }
 }
 

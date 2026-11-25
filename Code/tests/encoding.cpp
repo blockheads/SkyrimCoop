@@ -18,6 +18,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <Messages/EnterCellRequest.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestMessageFactory.h>
 #include <Messages/RelayedMessages.h>
@@ -2726,4 +2727,20 @@ TEST_CASE("A player's item change carries what the host decides a party item by"
     REQUIRE(decoded);
     REQUIRE(decoded->GetOpcode() == kRequestInventoryChanges);
     CHECK(static_cast<const RequestInventoryChanges&>(*decoded) == sent);
+}
+
+TEST_CASE("EnterCellRequest carries when its place was read", "[encoding]")
+{
+    EnterCellRequest sent, received;
+    sent.Tick = 987654321;
+    sent.CellId = GameId{0, 0x9C5E1};
+    Wire::Buffer buffer(1 << 12);
+    Wire::Buffer::Writer writer(&buffer);
+    sent.Serialize(writer);
+    Wire::Buffer::Reader reader(&buffer);
+    uint64_t trash = 0;
+    reader.ReadBits(trash, 8);
+    received.DeserializeRaw(reader);
+    CHECK(received.Tick == sent.Tick);
+    CHECK(received == sent);
 }

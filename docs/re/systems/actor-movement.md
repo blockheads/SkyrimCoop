@@ -398,14 +398,20 @@ second snapshot        goal new: more than CopyStep::kSnap off, so placed back
   travels stands at its owner's new place", scenario `copies_keep_place_on_arrival`.
 - **Late snapshots (2026-11-25).** Movement goes on ENet channel 1, jumps and spawns reliably on channel 0: one stamped
   before a jump can arrive after it, and old -> new then interpolates as a sweep (or an old cell moves `OwnerPlaceComponent`
-  back). GameTests "A snapshot older than a copy's jump never takes it back" (the late packet injected; not seen on a
-  line). `Restart` and a spawn keep their tick, carried by `NotifyCharacterSpawn`; `SnapshotAge` drops older places, not
-  their actions, and the host's record of a player does too.
-- **The goal dropped at its cause:** `MoveActorTo` clears a copy's goal, and the hold places a copy at its owner's last
-  place once in its cell. Read: `SetupJobLists` puts a full barrier (entry 11) between the movement job (10) and
-  our update (23), so the write never meets the job. `Disable` (19801, queued by 37267) frees the process, and
-  41444 skips an actor without one: a hidden copy is not stepped. 37313 may queue the controller's warp (task 32).
-  `CharacterStep` (78275) itself clamps no velocity; what caps the step is not found.
+  back). GameTests "A snapshot older than a copy's jump never takes it back" (injected; not seen on a line).
+  - `Restart` and a spawn keep their tick (`NotifyCharacterSpawn::Tick`) as a cutoff (`SnapshotAge`): older places are
+    dropped, their actions kept; the host's record of a player too. However late; never ahead of this game's clock;
+    0 again when the owner changes (`ClaimService`, `GiveUpOwnership`).
+  - The other way round, an older jump or spawn keeps newer points and their cell.
+  - A spawn built from a copy carries its owner's newest place, cell and tick together (`PlaceFromOwner`).
+  - Left: an owner's clock snapping back (`FrameClock`, over 250 ms) right after its own jump holds its copy until the
+    clock is past the jump again.
+- **The goal dropped at its cause:** `MoveActorTo` clears a copy's goal before the move (`MoveTo` can delete the actor),
+  and the hold places a copy at its owner's last place once in its cell. Read in IDA: `BuildJobListFromTable` (35419)
+  puts a full barrier (entry 11) between the movement job (10, 39053, which waits for its own list, 69377) and our update
+  (23, 39074), so the write never meets the job. `Actor::Disable` (37267) queues; once its task has run 19801 the process is gone and
+  41444 skips the actor, so a hidden copy is not stepped from then on. 37313 may queue the controller's warp (36949,
+  task 32). `CharacterStep` (78275, read) clamps no velocity; what caps the step is not found.
 - **Read, not seen:** the engine itself warps actors near a load, unlike `MoveTo_Impl` with no teleport flag from us:
   37313 (door followers 37648, followers 37434, package locations 37472, sandbox 29002, fast travel 40445) and
   37618 (placing an actor for its package, from `MoveToHigh` 37621). A host NPC warped so after its first snapshot

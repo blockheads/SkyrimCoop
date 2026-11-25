@@ -768,10 +768,14 @@ TEST_CASE("Moving groups never wrap onto one in use; a freed one is taken again"
     CHECK(groups.Take(13) == cFirst); // free again, taken by another object
 }
 
-TEST_CASE("A snapshot stamped before its owner's jump is stale, one far older is a clock's change", "[copy-step]")
+TEST_CASE("A snapshot stamped before its owner's jump is stale; the cutoff never goes back or past this game's clock", "[copy-step]")
 {
     CHECK(SnapshotAge::IsStale(960, 1000));
+    CHECK(SnapshotAge::IsStale(7999, 10000)); // however late
     CHECK_FALSE(SnapshotAge::IsStale(1000, 1000));
     CHECK_FALSE(SnapshotAge::IsStale(1040, 1000));
-    CHECK_FALSE(SnapshotAge::IsStale(1000, 1000 + SnapshotAge::kLatestMs + 1));
+    CHECK(SnapshotAge::Cutoff(1000, 1010, 0) == 1000);
+    CHECK(SnapshotAge::Cutoff(900000, 1010, 0) == 1010);
+    CHECK(SnapshotAge::Cutoff(960, 1010, 1000) == 1000);
+    CHECK(SnapshotAge::Cutoff(1000, 0, 0) == 1000); // no clock yet
 }

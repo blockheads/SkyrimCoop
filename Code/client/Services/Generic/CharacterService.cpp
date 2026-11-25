@@ -193,7 +193,8 @@ void CharacterService::GiveUpOwnership(entt::entity aEntity, uint32_t aSessionId
         m_world.emplace_or_replace<RemoteComponent>(aEntity, aSessionId, aFormId);
     }
     m_actorBridge.SetActorCopy(aFormId, true);
-    InterpolationSystem::Setup(m_world, aEntity);
+    auto& interpolation = InterpolationSystem::Setup(m_world, aEntity);
+    m_actorBridge.GetActorPosition(aFormId, interpolation.Position.x, interpolation.Position.y, interpolation.Position.z);
     AnimationSystem::Setup(m_world, aEntity);
 }
 
@@ -591,7 +592,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
 
     auto& interpolationComponent = InterpolationSystem::Setup(m_world, *entity);
     interpolationComponent.Position = acMessage.Position;
-    interpolationComponent.RestartTick = acMessage.Tick;
+    interpolationComponent.RestartTick = SnapshotAge::Cutoff(acMessage.Tick, m_transport.GetTick(), 0);
     m_world.emplace_or_replace<OwnerPlaceComponent>(*entity, acMessage.CellId, GameId{}, std::chrono::steady_clock::now());
 
     AnimationSystem::Setup(m_world, *entity);
@@ -687,10 +688,10 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
         m_world.emplace_or_replace<WaitingFor3D>(aEntity, acMessage);
 
     // The owner's arrival: it is there now (RunPresence moves the copy), as the spawn would have it.
-    if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity))
-        InterpolationSystem::Restart(*pInterpolation, acMessage.Position, acMessage.Tick);
     auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(aEntity);
-    place.CellId = acMessage.CellId;
+    auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity);
+    if (!pInterpolation || InterpolationSystem::Restart(*pInterpolation, acMessage.Position, acMessage.Tick, m_transport.GetTick()))
+        place.CellId = acMessage.CellId;
     place.LastMove = {};
     if (auto* pWaitingFor3D = m_world.try_get<WaitingFor3D>(aEntity))
         pWaitingFor3D->SpawnRequest = acMessage;
@@ -737,7 +738,8 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         // Put there at once, or into another interior or worldspace: the copy starts there (RunPresence), never
         // sweeps across.
         bool teleported = movement.Teleported;
-        if (movement.CellId)
+        const auto& points = interpolationComponent.TimePoints;
+        if (movement.CellId && (points.empty() || points.back().Tick <= point.Tick))
         {
             auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(*itor);
             teleported |= place.CellId && (movement.WorldSpaceId != place.WorldSpaceId || (!movement.WorldSpaceId && movement.CellId != place.CellId));
@@ -747,10 +749,12 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         interpolationComponent.Playback.OnPoint(point.Tick);
         if (teleported)
         {
-            InterpolationSystem::Restart(interpolationComponent, movement.Position, acMessage.Tick);
+            InterpolationSystem::Restart(interpolationComponent, movement.Position, acMessage.Tick, m_transport.GetTick());
             interpolationComponent.Playback.Snap(clock);
         }
         InterpolationSystem::AddPoint(interpolationComponent, point);
+        if (interpolationComponent.TimePoints.size() == 1)
+            interpolationComponent.Position = point.Position; // shown there until the second (HoldCopy)
     }
 }
 
@@ -1614,7 +1618,7 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     }
 
     AnnounceCharacterRequest message{};
-    message.Tick = m_world.any_of<RemoteComponent>(aEntity) ? InterpolationSystem::PlaybackTick(m_world, aEntity) : m_world.GetFrameTick();
+    message.Tick = m_world.GetFrameTick(); // ours; a copy's is its owner's (PlaceFromOwner)
 
     // A created actor goes by its created id: the spawn rebuilds it from its base (NotifyCharacterSpawn).
     const auto cReference = ToSessionOrCreated(formIdComponent.Id);
@@ -1763,8 +1767,31 @@ std::optional<NotifyCharacterSpawn> CharacterService::BuildCopySpawn(uint32_t aS
     for (const auto cEntity : m_world.view<FormIdComponent, RemoteComponent>())
         if (m_world.get<RemoteComponent>(cEntity).Id == aSessionId)
             if (const auto cAnnouncement = BuildAnnouncement(cEntity))
-                return NotifyCharacterSpawn::FromAnnouncement(*cAnnouncement, aSessionId, 0);
+            {
+                auto spawn = NotifyCharacterSpawn::FromAnnouncement(*cAnnouncement, aSessionId, 0);
+                PlaceFromOwner(cEntity, spawn);
+                return spawn;
+            }
     return std::nullopt;
+}
+
+void CharacterService::PlaceFromOwner(entt::entity aEntity, NotifyCharacterSpawn& aSpawn) const noexcept
+{
+    const auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity);
+    const auto* pPlace = m_world.try_get<OwnerPlaceComponent>(aEntity);
+    aSpawn.Tick = pInterpolation ? pInterpolation->RestartTick : 0;
+    if (pInterpolation && !pInterpolation->TimePoints.empty())
+    {
+        const auto& cNewest = pInterpolation->TimePoints.back();
+        aSpawn.Tick = cNewest.Tick;
+        aSpawn.Position = cNewest.Position;
+        aSpawn.Rotation.x = cNewest.Rotation.x;
+        aSpawn.Rotation.y = cNewest.Rotation.z;
+    }
+    else if (aSpawn.Tick)
+        aSpawn.Position = pInterpolation->Position;
+    if (aSpawn.Tick && pPlace && pPlace->CellId)
+        aSpawn.CellId = pPlace->CellId;
 }
 
 bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) const noexcept
@@ -1777,9 +1804,9 @@ bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpaw
         if (!m_actorBridge.ActorExists(cFormId))
             return false;
         const auto cState = ReadLiveState(cFormId);
-        aSpawn.Tick = InterpolationSystem::PlaybackTick(m_world, cEntity);
         aSpawn.Position = cState.Position;
         aSpawn.Rotation = cState.Rotation;
+        PlaceFromOwner(cEntity, aSpawn);
         aSpawn.IsDead = cState.Data.IsDead;
         aSpawn.LatestAction = cState.LatestAction;
         aSpawn.GraphState = cState.GraphState;
@@ -1938,7 +1965,11 @@ void CharacterService::HoldCopy(entt::entity aEntity, uint32_t aFormId) const no
     // By the cell alone: a spawn says no worldspace (RefreshCopy keeps the last one's).
     const auto* pPlace = m_world.try_get<OwnerPlaceComponent>(aEntity);
     if (pPlace && pPlace->CellId && m_actorBridge.GetActorParentCellFormId(aFormId) == ToGame(pPlace->CellId))
-        at = m_world.get<InterpolationComponent>(aEntity).Position;
+    {
+        const auto& cInterpolation = m_world.get<InterpolationComponent>(aEntity);
+        if (!cInterpolation.TimePoints.empty() || cInterpolation.RestartTick)
+            at = cInterpolation.Position;
+    }
     m_actorBridge.GetActorRotation(aFormId, rotation.x, rotation.y, rotation.z);
     const float cAt[3]{at.x, at.y, at.z};
     const float cRotation[3]{rotation.x, rotation.y, rotation.z};
