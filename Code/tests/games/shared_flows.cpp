@@ -85,6 +85,16 @@ SCENARIO("A guest's down camera slows its own clock alone", "[shared]")
         party.Until([&] { return guest.TimeMultiplier() == 0.8f; }, "the guest's back at its down camera's speed");
     }
 
+    INFO("a kill cam on the guest's own game while it lies slows both");
+    {
+        party.As(party.Guest(), [&] { guest.SlowsTime(0.25f); });
+        party.Until([&] { return host.TimeMultiplier() == 0.25f; }, "the host's clock runs at the guest's kill cam's speed");
+        // Its end asks 1, which replaces the down camera's 0.8 in vanilla too.
+        party.As(party.Guest(), [&] { guest.SlowsTime(1.f); });
+        party.Until([&] { return host.TimeMultiplier() == 1.f; }, "the host's back at full speed");
+        CHECK(guest.TimeMultiplier() == 1.f);
+    }
+
     INFO("it gets up");
     {
         party.As(party.Guest(), [&] { guest.LeavesDownCamera(); });
@@ -93,4 +103,20 @@ SCENARIO("A guest's down camera slows its own clock alone", "[shared]")
         CHECK(guest.TimeMultiplier() == 1.f);
         CHECK(host.TimeMultiplier() == 1.f);
     }
+}
+
+SCENARIO("A guest knocked down in its own Slow Time frees the host's clock", "[shared]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+
+    party.As(party.Guest(), [&] { guest.SlowsTime(0.3f); });
+    party.Until([&] { return host.TimeMultiplier() == 0.3f; }, "the host's clock runs at the guest's Slow Time");
+    // The down camera's 0.8 replaces the Slow Time's slot (44300), as in vanilla.
+    party.As(party.Guest(), [&] { guest.EntersDownCamera(); });
+    party.Until([&] { return host.TimeMultiplier() == 1.f; }, "the host's clock is free");
+    CHECK(guest.TimeMultiplier() == 0.8f);
+    party.As(party.Guest(), [&] { guest.LeavesDownCamera(); });
+    CHECK(guest.TimeMultiplier() == 1.f);
 }

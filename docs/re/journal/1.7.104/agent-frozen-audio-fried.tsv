@@ -39,3 +39,15 @@ time	op	id	rva	item
 2026-11-25T05:08:45Z	comment		0x735c23	{"addr": "0x140735c23", "comment": "[re]\nAddressLib ID 40150\nSkyrimCoop: call as s_beginGetUp (Code/client/Games/Skyrim/AI/KnockState.cpp:26)\nBeginGetUp: ragdoll back to the graph, the get-up action; for the player in the bleedout camera (+0x110) clears the magic time slowdown (clock back to 1)."}
 2026-11-25T05:17:46Z	read	39896	0x723b60	{"name": "ActorProcess::UpdateKnockState"}
 2026-11-25T05:18:27Z	read	33026	0x558f90	{"name": "TESCamera::SetState"}
+2026-11-25T05:36:48Z	comment	35125	0x5e8a50	{"addr": "0x1405e8a50", "comment": "[re]\nAddressLib ID 35125\nPer frame: sound speed = BSTimer::value * GetGlobalTimeMultiplier (44302, the kill cam shot). When it moves >0.05 from the last applied (g_lastTimeSensitiveSoundMult), re-applies default object 146 (kTimeSensitiveSoundCategory) frequency to BSAudioManager (67846). Every clock change (Slow Time, kill cam, the down camera's 0.8, our shared multiplier) re-pitches these sounds."}
+2026-11-25T05:36:48Z	comment	39894	0x723620	{"addr": "0x140723620", "comment": "[re]\nAddressLib ID 39894\nAIProcess::KnockParalyze: a paralysis effect (Ice Form's VoiceIceFormEffect 000A0366 has the Paralysis archetype) knocks the actor down through Actor::BeginKnockDown (40151); the player's camera goes to bleedout (50823)."}
+2026-11-25T05:36:48Z	comment	39895	0x7237c0	{"addr": "0x1407237c0", "comment": "[re]\nAddressLib ID 39895\nAIProcess::KnockExplosion: an explosion/push knock; also calls Actor::BeginKnockDown (40151)."}
+2026-11-25T05:36:53Z	data			{"old": "UpdateTimeSensitiveSoundFrequency", "new": "UpdateTimeSensitiveSoundFrequency_body"}
+2026-11-25T05:36:57Z	name	35125	0x5e8a50	{"addr": "0x1405e8a50", "name": "UpdateTimeSensitiveSoundFrequency"}
+2026-11-25T05:36:58Z	comment		0x5e8a60	{"addr": "0x1405e8a60", "comment": "35125's first read of BSTimer::value; the function's name and summary are on its entry 0x1405e8a50."}
+2026-11-25T05:37:08Z	comment	50714	0x8f3b90	{"addr": "0x1408f3b90", "comment": "[re]\nAddressLib ID 50714\nThe player's down camera (bleedout; also a knocked-down or paralysed player, entered by 50823): HUD 'VATSPlayback', VATS::SetMagicTimeSlowdown(0.8, 0.8) (44300: clock to 0.8, which re-pitches kTimeSensitiveSoundCategory via 35125) and loops MAGShoutSlowTimeActiveLP. Vanilla's 'frozen' audio."}
+2026-11-25T05:37:08Z	comment	50715	0x8f3cd0	{"addr": "0x1408f3cd0", "comment": "[re]\nAddressLib ID 50715\nLeaving the down camera: SetMagicTimeSlowdown(0, 0) puts the clock back to 1.0, stops the loop and the HUD effect."}
+2026-11-25T05:37:08Z	comment	40150	0x735c20	{"addr": "0x140735c20", "comment": "[re]\nAddressLib ID 40150\nSkyrimCoop: call as s_beginGetUp (Code/client/Games/Skyrim/AI/KnockState.cpp:26)\nBeginGetUp: ragdoll back to the graph, the get-up action; for the player in the bleedout camera (+0x110) clears the magic time slowdown (44300, clock back to 1)."}
+2026-11-25T05:37:08Z	comment		0x8f3bae	{"addr": "0x1408f3bae", "comment": ""}
+2026-11-25T05:37:08Z	comment		0x8f3cd9	{"addr": "0x1408f3cd9", "comment": ""}
+2026-11-25T05:37:08Z	comment		0x735c23	{"addr": "0x140735c23", "comment": ""}

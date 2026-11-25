@@ -1711,11 +1711,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetPartyMarkers(const PartyMarkerSet& acMarkers) noexcept override { PartyMarkers = acMarkers; }
     // The clock's speed as our BSTimer hook runs it: this game's own wishes and the party's.
     ClockWishes Clock;
-    void SlowsTime(float aMultiplier, bool aDownCamera = false);
+    void SlowsTime(float aMultiplier);
     // The player's down camera (BleedoutCameraState 50714/50715, entered by a knock or paralysis, 40151): the clock
     // to 0.8 while down, back to 1 on leaving, both asked with the camera down.
-    void EntersDownCamera() { SlowsTime(0.8f, true); }
-    void LeavesDownCamera() { SlowsTime(1.f, true); }
+    void EntersDownCamera() { m_cameraDown = true; SlowsTime(ClockWishes::cDownCamera); }
+    void LeavesDownCamera() { SlowsTime(1.f); m_cameraDown = false; }
     [[nodiscard]] float TimeMultiplier() const noexcept { return Clock.Clock(); }
     void SetSharedTimeScale(float aMultiplier) noexcept override { Clock.Shared = aMultiplier; }
     // NPC bases that go down instead of dying, even at the console's kill (measured: Lydia, owner and copy).
@@ -2168,6 +2168,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint64_t m_frameCount = 0; // frames run: the fake's 60 a second
     bool m_inSystemQuest = false; // a system quest's function runs (CallsQuest): its natives are its instance's
     std::chrono::steady_clock::time_point m_lastFrame;
+    bool m_cameraDown = false; // the player's camera in the bleedout state
     // An actor's cell changed from aFrom: this game's player in another location raises CLOC.
     void CellChanged(uint32_t aFormId, uint32_t aFrom);
     // The cells loaded around the player at aCell and acPosition (an interior, or outdoors its grid); the others its

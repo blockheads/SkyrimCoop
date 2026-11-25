@@ -595,20 +595,26 @@ runs the clock at the slower of it and the other players' slowest (`NotifyTimeSc
 
 ## A player's down camera (2026-11-24)
 
-Read in IDA unless marked. A player knocked down or paralysed (Ice Form, a paralysis spell) goes through
-`Actor::BeginKnockDown` (40151, from `AIProcess::KnockParalyze` and `KnockExplosion`), which plays the knock action and,
-for the player, `PlayerCamera::EnterBleedout` (50823; also from `Actor::SetLifeState` and `Actor::KillImpl`). The
-bleedout state's `OnEnterState` (50714) calls `VATS::SetMagicTimeSlowdown(0.8, 0.8)` (44300 -> 68245) and loops
-`MAGShoutSlowTimeActiveLP`; its `OnExitState` (50715) and `BeginGetUp` (40150) call `SetMagicTimeSlowdown(0, 0)`,
-which puts the clock back to 1. Each frame `UpdateTimeSensitiveSoundFrequency` (35125) re-applies the
-`kTimeSensitiveSoundCategory` (default object 146) frequency when the clock moved by more than 0.05: the frozen
-player's sound slows with its clock. Measured: on a game with no session, 0.8 while down, 1 at the get-up.
+Read in IDA: a knock goes through `Actor::BeginKnockDown` (40151, from `AIProcess::KnockParalyze` 39894 and
+`KnockExplosion` 39895), which plays the knock action and, for the player, `PlayerCamera::EnterBleedout` (50823; also
+from `Actor::SetLifeState` and `Actor::KillImpl`). The bleedout state's `OnEnterState` (50714) calls
+`VATS::SetMagicTimeSlowdown(0.8, 0.8)` (44300 -> 68245) and loops `MAGShoutSlowTimeActiveLP`; its `OnExitState` (50715)
+and `BeginGetUp` (40150) call `SetMagicTimeSlowdown(0, 0)`, which puts the clock back to 1. Each frame
+`UpdateTimeSensitiveSoundFrequency` (35125) re-applies the `kTimeSensitiveSoundCategory` (default object 146) frequency
+when the clock moved by more than 0.05: the down player's sound slows with its clock.
+
+Inferred, not measured: Ice Form freezes through `KnockParalyze`, as its `VoiceIceFormEffect` (Skyrim.esm `000A0366`)
+has the Paralysis archetype; the console's Ice Form never landed on a player in QASmoke. Measured with a push
+(`pushactoraway`, `KnockExplosion`): on a game with no session the clock at 0.8 while down, 1 at the get-up; in a
+session before the fix, the host's at 0.8 too for as long as the guest lay.
 
 `TESCamera::SetState` (33026) runs the old state's End and the new one's Begin with the camera's current state the
-bleedout one in both, and `BeginGetUp` asks only in it, so a request made with `state == cameraStates[kBleedout]` is the
-down camera's. The shared clock ("Kill cams slow the clock") sent that 0.8 to every game for as long as the player lay
-(measured: the host at 0.8 while the guest was down). Now `ClockWishes` keeps it this game's own; leaving the
-down camera asks 1 of everyone, as vanilla's ends a Slow Time it cut short; a request with the camera up drops it.
+bleedout one in both, and `BeginGetUp` asks only in it. So the hook takes a request as the down camera's when the
+camera is in it (`state == cameraStates[kBleedout]`) and the value is the camera's own (0.8, or the 1 of its exit or a
+get-up); anything else asked meanwhile (`sgtm`, a kill cam) is the party's as before. `ClockWishes` keeps the down
+camera's this game's alone. Each request replaces the engine's clock, so the down camera's entry also ends this
+game's party wish (a Slow Time whose VATS slot it overwrote: the others go back to 1), and a party request ends the
+down camera's.
 
 ## Kill moves by the client (2026-10-13)
 

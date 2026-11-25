@@ -51,11 +51,12 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 2026-11-24: **a frozen guest no longer slows the host's clock and sound** (`agent/frozen-audio-fried`). The "deep
 fried" audio while frozen: a player knocked down or paralysed (Ice Form) gets vanilla's down camera
-(`BleedoutCameraState` 50714, entered by 40151 from `KnockParalyze`/`KnockExplosion`), which slows its clock to 0.8
+(`BleedoutCameraState` 50714, entered by 40151 from `KnockParalyze` 39894 / `KnockExplosion` 39895; Ice Form's
+paralysis inferred from its effect's archetype, a push measured), which slows its clock to 0.8
 and loops `MAGShoutSlowTimeActiveLP`; the sound re-pitches with the clock (35125, `kTimeSensitiveSoundCategory`).
 Vanilla does this for the frozen player (measured on a game with no session: 0.8 while down, 1 at the get-up). Our
 shared clock carried the 0.8 to every other game for as long as the player lay. The down camera's request now stays
-its own game's (`ClockWishes`, `BSTimer.cpp`: a request made with the player's camera in the bleedout state). Scenario
+its own game's (`ClockWishes`, `BSTimer.cpp`: the camera's own 0.8 or 1, asked with it in the bleedout state). Scenario
 `down-camera-clock-stays-own` (new verb `down_camera_clock_stays_own`), GameTests "A guest's down camera slows its own
 clock alone", ClientTests `[clock-wishes]` ([actor-ai-and-copies.md](re/systems/actor-ai-and-copies.md), "A player's
 down camera").

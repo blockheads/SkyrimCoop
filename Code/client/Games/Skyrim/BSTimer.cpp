@@ -29,12 +29,13 @@ void BSTimer::SetSharedMultiplier(float aMultiplier) noexcept
 }
 
 // A kill cam (its camera shot's globalTimeMult), Slow Time, a bow zoom, `sgtm`: every game slows with it. The down
-// camera's 0.8 (50714, its exit 50715, BeginGetUp 40150) is asked with the camera down: this game's alone.
+// camera's 0.8 (50714; its exit 50715, BeginGetUp 40150 ask 1) is asked with the camera down: this game's alone.
 void HookSetGlobalTimeMultiplier(BSTimer* apThis, float aMultiplier, bool aArg2)
 {
     const PlayerCamera* pCamera = PlayerCamera::Get();
-    if (s_wishes.Ask(aMultiplier, pCamera && pCamera->IsDown()) && World::Get().GetTransport().IsConnected())
-        World::Get().GetRunner().Trigger(TimeScaleEvent{aMultiplier});
+    const bool cDown = ClockWishes::FromDownCamera(aMultiplier, pCamera && pCamera->IsDown());
+    if (s_wishes.Ask(aMultiplier, cDown) && World::Get().GetTransport().IsConnected())
+        World::Get().GetRunner().Trigger(TimeScaleEvent{s_wishes.Wanted});
     RealSetGlobalTimeMultiplier(apThis, s_wishes.Clock(), aArg2);
 }
 

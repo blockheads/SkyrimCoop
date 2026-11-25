@@ -3329,11 +3329,11 @@ void FakeEngine::RemovesMarker()
     Waypoint.reset();
 }
 
-// HookSetGlobalTimeMultiplier: a change of this game's own, raised while connected.
-void FakeEngine::SlowsTime(float aMultiplier, bool aDownCamera)
+// HookSetGlobalTimeMultiplier: this game's request, its party wish raised while connected.
+void FakeEngine::SlowsTime(float aMultiplier)
 {
-    if (Clock.Ask(aMultiplier, aDownCamera) && World::Get().GetTransport().IsConnected())
-        World::Get().GetRunner().Trigger(TimeScaleEvent{aMultiplier});
+    if (Clock.Ask(aMultiplier, ClockWishes::FromDownCamera(aMultiplier, m_cameraDown)) && World::Get().GetTransport().IsConnected())
+        World::Get().GetRunner().Trigger(TimeScaleEvent{Clock.Wanted});
 }
 
 void FakeEngine::CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget)

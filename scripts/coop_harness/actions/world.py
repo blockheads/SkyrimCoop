@@ -157,23 +157,32 @@ class WorldActions:
 
 
     def down_camera_clock_stays_own(ctx, instance):
-        """That game's player is pushed down (pushactoraway on itself): its down camera slows its own clock to 0.8 as
-        vanilla's does (BleedoutCameraState 50714) and the other game's stays at 1 all the while; both at 1 once up."""
+        """That game's player is pushed down (pushactoraway on itself, the knock a paralysis also takes, 40151): while it
+        lies its down camera runs its own clock at 0.8 as vanilla's does (BleedoutCameraState 50714) and the other
+        game's at 1; both at 1 once it is up."""
         other = "" if instance else "client"
         who, where = instance or "host", other or "host"
         def knock():
-            return (ctx.actor_snapshot(instance, 0x14).get("state") or {}).get("knock", 0)
-        seen = {"own": [], "other": []}
-        def sample():
-            seen["own"].append(ctx.clock_speed(instance) or 0)
-            seen["other"].append(ctx.clock_speed(other) or 0)
+            state = ctx.actor_snapshot(instance, 0x14).get("state") or {}
+            if "knock" not in state:
+                raise ctx.failure(f"[{who}] its player's knock state is unread")
+            return state["knock"]
+        def clock(name):
+            speed = ctx.clock_speed(name)
+            if speed is None:
+                raise ctx.failure(f"[{name or 'host'}] its clock speed is unread")
+            return speed
+        down = []  # (own, other) read while it lay
+        def lies():
+            if knock():
+                down.append((clock(instance), clock(other)))
+            return down and any(abs(own - 0.8) < 0.01 for own, _ in down)
         ctx.console_on(instance, "player.pushactoraway player 5")
-        ctx.wait_for(f"[{who}] its player is knocked down", lambda: (sample(), knock())[1], 3)
-        ctx.wait_for(f"[{who}] its player is up again", lambda: (sample(), not knock())[1], 20)
-        if min(seen["own"]) > 0.81:
-            raise ctx.failure(f"[{who}] its clock never slowed while down (vanilla's 0.8): {sorted(set(seen['own']))}")
-        if min(seen["other"]) < 0.99:
-            raise ctx.failure(f"[{where}] its clock slowed to {min(seen['other']):.2f} while the {who}'s player was down")
+        ctx.wait_for(f"[{who}] its player lies with its clock at 0.8", lies, 3,
+                     explain=lambda: f"read while it lay: {down}")
+        ctx.wait_for(f"[{who}] its player is up again", lambda: (lies(), not knock())[1], 20)
+        if slowed := [theirs for _, theirs in down if abs(theirs - 1.0) >= 0.01]:
+            raise ctx.failure(f"[{where}] its clock ran at {min(slowed):.2f} while the {who}'s player lay")
         ctx.clocks_run_at(1.0, "both players up")
 
 
