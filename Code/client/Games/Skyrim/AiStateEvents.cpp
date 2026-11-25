@@ -5,6 +5,8 @@
 #include <AI/AIProcess.h>
 #include <Games/ActorExtension.h>
 #include <Combat/CombatController.h>
+#include <Combat/CombatGroup.h>
+#include <Games/CopyCombatGroups.h>
 #include <DetectionRules.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EventDispatcher.h>
@@ -12,8 +14,10 @@
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <PlayerCharacter.h>
+#include <RTTI.h>
 #include <VersionDb.h>
 #include <World.h>
+#include <WorldGate.h>
 
 #include <atomic>
 
@@ -111,6 +115,32 @@ void HookUpdatePlayerInCombat(PlayerCharacter* apPlayer, float aDelta)
         Raise(apPlayer);
 }
 
+using TUpdateCombatGroup = void(CombatGroup*);
+TUpdateCombatGroup* RealUpdateCombatGroup = nullptr;
+
+// CombatGroup's update (44703, on the combat manager's job) adds and drops its targets with no event: a change marks
+// each member changed, as its state carries its group (combat-targets.md, "A copy's combat"). A group of copies only
+// holds its owners' fight: its update, which would drop targets on this game's detection, is not run.
+void HookUpdateCombatGroup(CombatGroup* apGroup)
+{
+    const WorldGate::Reader cWorld;
+    if (cWorld && CopyCombatGroups::HeldByOwners(*apGroup))
+        return;
+    RealUpdateCombatGroup(apGroup);
+    if (!cWorld || !s_users.load(std::memory_order_relaxed))
+        return;
+    BSReadLockGuard lock(apGroup->lock);
+    uint64_t hash = 0xCBF29CE484222325ull;
+    for (const CombatTarget& cTarget : apGroup->targets)
+        hash = (hash ^ cTarget.targetHandle) * 0x100000001B3ull;
+    for (const CombatMember& cMember : apGroup->members)
+    {
+        auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(cMember.hMember.handle.iBits));
+        if (pActor && pActor->GetExtension()->GroupTargetsSent.exchange(hash, std::memory_order_relaxed) != hash)
+            Raise(pActor);
+    }
+}
+
 // A copy's ProcessTracking is running on this thread.
 thread_local bool s_copyTracking = false;
 
@@ -163,6 +193,7 @@ Hooks::Initializer s_aiStateHooks(
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(33235, &RealSetCombatTarget, HookSetCombatTarget);
+        HOOK_ID(44703, &RealUpdateCombatGroup, HookUpdateCombatGroup);
         HOOK_ID(37758, &RealDetectionStateOf, HookDetectionStateOf);
         HOOK_ID(38009, &RealProcessTracking, HookProcessTracking);
         HOOK_ID(41238, &RealUpdatePlayerInCombat, HookUpdatePlayerInCombat);

@@ -43,6 +43,23 @@ struct ActorAiFields
     uint32_t FurnitureId{};
 };
 
+// One of this game's actors' combat group (CombatGroup), for its AI state record.
+struct CombatGroupRead
+{
+    bool Exists{};                 // in a combat group
+    uint32_t Id{};                 // CombatGroup +0x00, unique in this game (the first is 0)
+    std::vector<uint32_t> Targets; // its targets (44706), form ids
+};
+
+// A copy's owner's fight in this game's ids (SetCopyCombat): its copy holds a real controller and group with it.
+struct CopyCombatFields
+{
+    uint8_t State{};                      // the owner's GetCombatState: 0 none, 1 fighting, 2 searching
+    uint32_t TargetId{};                  // the owner's controller's target
+    uint64_t GroupKey{};                  // the owner's group, unique across games; copies of one group share one
+    std::vector<uint32_t> GroupTargetIds; // the owner's group's targets
+};
+
 // An actor's state beside its graph (one-simulator.md, piece 2): this game's form ids, 0 for none.
 struct ActorStateFields
 {
@@ -282,6 +299,8 @@ public:
     // --- AI state ---
     // One of this game's own actors, as its AI runs it.
     virtual ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept = 0;
+    // One of this game's actors: its combat group, for its AI state record.
+    virtual CombatGroupRead GetCombatGroup(uint32_t aFormId) const noexcept = 0;
     // A copy: holds its owner's AI state.
     /// This game's actor takes a trap's hit the host's script gave its copy there.
     virtual void TakeTrapHit(uint32_t aFormId, uint32_t aTrapFormId, const Payloads::TrapHit& acHit) noexcept = 0;
@@ -289,8 +308,8 @@ public:
     [[nodiscard]] virtual Perks GetPlayerPerks() const noexcept = 0;
     virtual void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept = 0;
     virtual void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept = 0;
-    // The copies fighting this game's player: it counts as in combat from them.
-    virtual void SetCopiesFightingPlayer(uint32_t aCount) noexcept = 0;
+    // A copy: holds its owner's fight in a real controller and group.
+    virtual void SetCopyCombat(uint32_t aFormId, const CopyCombatFields& acFields) noexcept = 0;
 
     // --- Animation variables ---
     virtual void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept = 0;

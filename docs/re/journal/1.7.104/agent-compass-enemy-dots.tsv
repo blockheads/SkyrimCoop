@@ -1,0 +1,92 @@
+time	op	id	rva	item
+2026-11-25T04:46:43Z	read	51668	0x9385b0	{"name": "Compass::Update"}
+2026-11-25T04:47:06Z	read		0x934997	{"name": "HUDMenu::sub_51612"}
+2026-11-25T04:48:08Z	read	41240	0x776a80	{"name": "sub_140776A80"}
+2026-11-25T04:49:09Z	read	51728	0x93c540	{"name": "sub_14093C540"}
+2026-11-25T04:49:14Z	read		0x65b2f1	{"name": "Main::sub_36592"}
+2026-11-25T04:49:15Z	read	44706	0x818c50	{"name": "CombatGroup__HasTarget"}
+2026-11-25T04:49:23Z	name	41240	0x776a80	{"addr": "0x140776a80", "name": "PlayerCharacter__UpdateActorsToDisplayOnHUD"}
+2026-11-25T04:49:23Z	name	51728	0x93c540	{"addr": "0x14093c540", "name": "HUDMarkerManager__AddMarker"}
+2026-11-25T04:49:23Z	name	51612	0x933180	{"addr": "0x140933180", "name": "HUDMenu__ProcessMessage"}
+2026-11-25T04:49:23Z	local	41240	0x776a80	{"func_addr": "0x140776a80", "old": "a1", "new": "player"}
+2026-11-25T04:49:23Z	local	41240	0x776a80	{"func_addr": "0x140776a80", "old": "v5", "new": "group"}
+2026-11-25T04:49:23Z	local	41240	0x776a80	{"func_addr": "0x140776a80", "old": "v1", "new": "hudActors"}
+2026-11-25T04:49:23Z	local	41240	0x776a80	{"func_addr": "0x140776a80", "old": "v13", "new": "memberHandle"}
+2026-11-25T04:49:23Z	local	51728	0x93c540	{"func_addr": "0x14093c540", "old": "a1", "new": "manager"}
+2026-11-25T04:49:23Z	local	51728	0x93c540	{"func_addr": "0x14093c540", "old": "a4", "new": "refHandle"}
+2026-11-25T04:49:23Z	local	51728	0x93c540	{"func_addr": "0x14093c540", "old": "a3", "new": "positions"}
+2026-11-25T04:49:33Z	comment	41240	0x776a80	{"addr": "0x140776a80", "comment": "41240. Rebuilds PlayerCharacter::actorsToDisplayOnTheHUDArray (+0x9E8, count +0x9F8): clears it, then every member (group+0x20, 12 bytes each, count +0x30) of every CombatManager group that has the player among its targets (CombatGroup__HasTarget 44706). Called once a frame by 36592 after the CombatManager update. The compass's enemy markers. SkyrimCoop: hooked, copies fighting the party appended (copies have no combat groups)."}
+2026-11-25T04:49:33Z	comment		0x65b2f1	{"addr": "0x14065b2f1", "comment": "Player's HUD enemy list (41240), after the CombatManager update (sub_140851A00)"}
+2026-11-25T04:49:33Z	comment	51728	0x93c540	{"addr": "0x14093c540", "comment": "51728 (CNO's HUDMarkerManager::AddMarker). Adds one compass marker for a ref handle: refuses past 48 markers (+0x14BC) and the player itself; no other filter (no detection, hostility or distance test)."}
+2026-11-25T04:49:33Z	comment		0x93484c	{"addr": "0x14093484c", "comment": "Compass enemy markers: the first 16 of the player's actorsToDisplayOnTheHUDArray (+0x9E8), each through AddMarker 51728 (CNO UpdateEnemies hook at +0x1735)"}
+2026-11-25T04:49:33Z	comment	44706	0x818c50	{"addr": "0x140818c50", "comment": "44706. Whether the group's targets (group+0x08, CombatTarget 0xA8 each, count +0x18; first field the handle) hold the actor, under the group's lock (+0x160)."}
+2026-11-25T04:50:18Z	read		0x91a600	{"name": "sub_1409194A0"}
+2026-11-25T05:11:13Z	read	44703	0x818570	{"name": "sub_140818570"}
+2026-11-25T05:13:00Z	read	46869	0x851910	{"name": "NiTPrimitiveArray_CombatGroup__::sub_46869"}
+2026-11-25T05:13:06Z	name	46869	0x851910	{"addr": "0x140851910", "name": "CombatManager__UpdateGroups"}
+2026-11-25T05:13:06Z	name	44703	0x818570	{"addr": "0x140818570", "name": "CombatGroup__Update"}
+2026-11-25T05:13:06Z	local	44703	0x818570	{"func_addr": "0x140818570", "old": "a1", "new": "group"}
+2026-11-25T05:13:08Z	comment	44703	0x818570	{"addr": "0x140818570", "comment": "44703. A combat group's update, under its write lock (+0x160): its targets' detection, adding and dropping targets (sub_140821830/930/A60/CE0), stealth points decay, search state. No event says its targets changed. SkyrimCoop: hooked (AiStateEvents), a change in its targets marks its members' AI state changed (compass.md)."}
+2026-11-25T05:13:08Z	comment	46869	0x851910	{"addr": "0x140851910", "comment": "46869. Main thread (from 36592 through sub_140851A00): each CombatManager group's update (44703), then PlayerCharacter::UpdateInCombat (41238)."}
+2026-11-25T05:23:09Z	comment	41240	0x776a80	{"addr": "0x140776a80", "comment": "41240. Rebuilds PlayerCharacter::actorsToDisplayOnTheHUDArray (+0x9E8, count +0x9F8): clears it, then every member (group+0x20, 12 bytes each, count +0x30) of every CombatManager group that has the player among its targets (CombatGroup__HasTarget 44706). Called once a frame by 36592 after the CombatManager update. The compass's enemy markers. SkyrimCoop: hooked, copies whose owner's group targets this game's player appended (copies have no combat groups; compass.md)."}
+2026-11-25T05:34:10Z	comment	44703	0x818570	{"addr": "0x140818570", "comment": "44703. A combat group's update, under its write lock (+0x160): its targets' detection, adding and dropping targets (sub_140821830/930/A60/CE0), stealth points decay, search state. No event says its targets changed. Runs on the combat manager's job (Job_Combat_manager 39044 -> 46869), not the main thread. SkyrimCoop: hooked (AiStateEvents), a change in its targets marks its members' AI state changed (compass.md)."}
+2026-11-25T05:34:10Z	comment	46869	0x851910	{"addr": "0x140851910", "comment": "46869. Called by Job_Combat_manager (39044 +0xD): each CombatManager group's update (44703), then PlayerCharacter::UpdateInCombat (41238). The main loop's 36592 calls 46870 (0x140851A00) instead."}
+2026-11-25T14:51:15Z	read	44799	0x821560	{"name": "sub_140821560"}
+2026-11-25T14:51:39Z	name	44803	0x821a60	{"addr": "0x140821a60", "name": "CombatGroup__RemoveStaleTargets"}
+2026-11-25T14:51:39Z	name	44799	0x821560	{"addr": "0x140821560", "name": "CombatGroup__IsTargetStale"}
+2026-11-25T14:51:39Z	name	44704	0x818870	{"addr": "0x140818870", "name": "CombatGroup__AddTarget"}
+2026-11-25T14:51:39Z	name	44719	0x8197f0	{"addr": "0x1408197f0", "name": "CombatGroup__IsEmpty"}
+2026-11-25T14:51:42Z	comment	44803	0x821a60	{"addr": "0x140821a60", "comment": "44803 (po3-Tweaks CombatDialogue hooks it). Each target IsTargetStale (0x140821560) is removed (0x140821480); the last one leaving fires combat dialogue (0x140817110, topic 60/63) and a script event. Run from CombatGroup__Update (44703) on its timer."}
+2026-11-25T14:51:42Z	comment	44799	0x821560	{"addr": "0x140821560", "comment": "Stale: the target is gone; or LOST (+0xA6 bit 2) and unseen past fCombat timeouts (since +0x90/+0x94) with no member engaging near it; or dead, disabled or deleted. Uses the detection 44703 computes on this game."}
+2026-11-25T14:51:42Z	comment	44704	0x818870	{"addr": "0x140818870", "comment": "44704. Adds a target (CombatTarget, 0xA8) under the write lock, unless refused (0x140818D90 every member CanAttackActor it, 44708; 0x1408192F0 already a target); then the CombatManager is told (0x140852960) and each non-low-process member's detection asked (37759)."}
+2026-11-25T14:52:49Z	read	44705	0x818bd0	{"name": "sub_140818BD0"}
+2026-11-25T14:53:03Z	name	44705	0x818bd0	{"addr": "0x140818bd0", "name": "CombatGroup__RemoveTarget"}
+2026-11-25T14:53:03Z	name	44798	0x821480	{"addr": "0x140821480", "name": "CombatGroup__RemoveTargetAt"}
+2026-11-25T14:53:04Z	comment	44705	0x818bd0	{"addr": "0x140818bd0", "comment": "44705. Removes an actor from the group's targets (by its handle; RemoveTargetAt 0x140821480). No lock taken here."}
+2026-11-25T14:56:43Z	read	44798	0x821480	{"name": "CombatGroup__RemoveTargetAt"}
+2026-11-25T15:07:35Z	read	41261	0x779090	{"name": "CombatManager::CountGroupsTargetingPlayer"}
+2026-11-25T15:21:24Z	read	46899	0x854230	{"name": "NiTPrimitiveArray_CombatGroup__::sub_46899"}
+2026-11-25T15:21:37Z	comment	46899	0x854230	{"addr": "0x140854230", "comment": "46899. A new CombatGroup (360 bytes, ctor 0x1408180A0), counted (+0x60), put in the manager's array (0x140854A60): its groupID (+0x00) is the slot it took, so ids start at 0 and a freed slot's id is reused."}
+2026-11-25T15:47:41Z	read	19384	0x2d64b0	{"name": "BSFadeNode__IsFadedIn"}
+2026-11-25T16:09:21Z	read	37340	0x679bc0	{"name": "Actor::ResetHealthAndLimbs"}
+2026-11-25T16:09:22Z	read	37592	0x692580	{"name": "Actor::sub_37592"}
+2026-11-25T16:55:59Z	read	21743	0x33e840	{"name": "GameFunc::native::IsLastHostileActor"}
+2026-11-25T16:56:08Z	read	41402	0x785b30	{"name": "ProcessLists::AreHostileActorsNear"}
+2026-11-25T16:56:23Z	read	38571	0x6c9f60	{"name": "Actor::IsCombatTarget"}
+2026-11-25T17:05:12Z	read	46902	0x8544e0	{"name": "CombatUpdateJob"}
+2026-11-25T17:05:13Z	read	37273	0x675600	{"name": "Actor::UpdateCombatSearchState"}
+2026-11-25T17:07:54Z	read	33233	0x561310	{"name": "sub_140561310"}
+2026-11-25T17:14:57Z	comment	37273	0x675600	{"addr": "0x140675600", "comment": "37273. Actor::UpdateCombatSearchState: in combat with a controller, +0x104 (currentCombatTarget) := the controller's target (+0x2C) and boolBits (+0xE8 on 1.7.104) kSearchingInCombat (0x4000) := its group searching (0x140561310: group +0xD8); not in combat, both cleared. Called from Actor::Update, FinishLoadGame and UpdateCombat's tail (38565). SkyrimCoop: a copy's UpdateCombat is skipped but this tail still runs (CopyCombatGroups); measured 2026-11-25: skipping it too stopped every player's kill moves on both games (consumer not yet read)."}
+2026-11-25T17:14:57Z	comment	33233	0x561310	{"addr": "0x140561310", "comment": "The controller's group searching: group+0xD8 (searchState) != 0."}
+2026-11-25T18:50:27Z	read		0x6c94e0	{"name": "Actor::StartCombat"}
+2026-11-25T18:50:27Z	read		0x6c9800	{"name": "Actor::StartCombat"}
+2026-11-25T18:50:27Z	read	38562	0x6c9850	{"name": "Actor::IsInCombat"}
+2026-11-25T18:52:08Z	name	33236	0x5617a0	{"addr": "0x1405617a0", "name": "CombatController__UpdateTarget"}
+2026-11-25T18:52:08Z	name	33234	0x561330	{"addr": "0x140561330", "name": "CombatController__ShouldStop"}
+2026-11-25T18:52:08Z	name	33266	0x563710	{"addr": "0x140563710", "name": "CombatController__LockHandles"}
+2026-11-25T18:52:08Z	name	33267	0x563770	{"addr": "0x140563770", "name": "CombatController__UnlockHandles"}
+2026-11-25T18:52:08Z	name	33271	0x563850	{"addr": "0x140563850", "name": "CombatController__StartBehaviorTree"}
+2026-11-25T18:52:08Z	name	46873	0x852060	{"addr": "0x140852060", "name": "CombatManager__StartCombatGroup"}
+2026-11-25T18:52:08Z	name	46874	0x8521a0	{"addr": "0x1408521a0", "name": "CombatManager__JoinCombatGroup"}
+2026-11-25T18:52:08Z	name	33214	0x55fee0	{"addr": "0x14055fee0", "name": "CombatController__ctor"}
+2026-11-25T18:52:08Z	name	44711	0x818f00	{"addr": "0x140818f00", "name": "CombatGroup__AddMember"}
+2026-11-25T18:52:18Z	comment	33236	0x5617a0	{"addr": "0x1405617a0", "comment": "33236. CombatController::UpdateTarget: the target selectors (+0xA0, count +0xB0) update and sort; the first with a target wins, then SetTarget (33235) if it changed. A decider: not run for a copy (UpdateCombat 38565 skipped)."}
+2026-11-25T18:52:18Z	comment	33234	0x561330	{"addr": "0x140561330", "comment": "33234. CombatController::ShouldStop: true when the stopped byte (+0x40) is set or the target is gone or dead (38593/38595); UpdateCombat (38565) then queues StopCombat. A decider."}
+2026-11-25T18:52:18Z	comment	33266	0x563710	{"addr": "0x140563710", "comment": "33218. Caches the attacker's and target's smart pointers (+0xD0/+0xD8) while handles are held (count +0xC8)."}
+2026-11-25T18:52:18Z	comment	33267	0x563770	{"addr": "0x140563770", "comment": "33267. Releases 33218's cached pointers when the count drops to 0."}
+2026-11-25T18:52:18Z	comment	33271	0x563850	{"addr": "0x140563850", "comment": "33271. Unless +0x42: finds the \"Combat\" (or \"LowCombat\", low process 37965) tree and CombatBehaviorController::Start: builds its threads once. Stepping is CombatBehaviorController::Update, reached only from UpdateCombat (38565)."}
+2026-11-25T18:52:18Z	comment	46874	0x8521a0	{"addr": "0x1408521a0", "comment": "46874. The actor joins a given group: already in another, it moves (0x1408198E0/0x140819730); else AddMember (0x140818F00) and a new controller (33214). Returns the controller; the caller stores it (StartCombat at 0x1406C9755). Under StartCombat's spinlock 403935. SkyrimCoop: refused for a copy outside CopyCombatGroups::Hold."}
+2026-11-25T18:52:18Z	comment	46873	0x852060	{"addr": "0x140852060", "comment": "46873. With a controller: AddTarget (44704) only. Else, if CanAttackActor (37532): a new group (46899), AddMember (0x140818F00), a controller (33214), AddTarget; the controller deleted if refused. Returns the controller; the caller stores it. Under StartCombat's spinlock 403935. SkyrimCoop: refused for a copy outside CopyCombatGroups::Hold."}
+2026-11-25T18:52:18Z	comment	41240	0x776a80	{"addr": "0x140776a80", "comment": "41240. Rebuilds PlayerCharacter::actorsToDisplayOnTheHUDArray (+0x9E8, count +0x9F8): every member (group+0x20, count +0x30) of every CombatManager group targeting the player (CombatGroup__HasTarget 44706). Called once a frame by 36592 after the CombatManager update. The compass's enemy markers. Copies are members of real groups (CopyCombatGroups), so it lists them natively; not hooked."}
+2026-11-25T18:52:18Z	comment	38565	0x6c98f0	{"addr": "0x1406c98f0", "comment": "38565. Actor::UpdateCombat (CommonLib void UpdateCombat(), vfunc 0xE4; only CombatUpdateJob 46902 calls it, RCX only): form flag 0x200000 returns at once (0x1406C990F); else lock handles (33218), UpdateTarget (33236), ShouldStop (33234), the combat head-track slot, the behaviour tree (0x1405609E0 / 0x140560820), unlock (33267), then UpdateCombatSearchState (37273). SkyrimCoop: for a copy only the guard and the 37273 tail run."}
+2026-11-25T18:52:18Z	comment	403935	0x3243c98	{"addr": "0x143243C98", "comment": "403935. A spinlock (cmpxchg 0 -> 1, Sleep(0) while held) Actor::StartCombat holds from 0x1406C9505 to 0x1406C9808 around 46873/46874 and storing the controller. SkyrimCoop: CopyCombatGroups::Hold takes it the same way."}
+2026-11-25T18:52:47Z	name	33218	0x5609e0	{"addr": "0x1405609e0", "name": "CombatController__UpdateBehavior"}
+2026-11-25T18:52:47Z	name	33217	0x560820	{"addr": "0x140560820", "name": "CombatController__UpdateBehaviorLow"}
+2026-11-25T18:52:50Z	comment	33266	0x563710	{"addr": "0x140563710", "comment": "33266. Caches the attacker's and target's smart pointers (+0xD0/+0xD8) while handles are held (count +0xC8); 33267 releases them."}
+2026-11-25T18:52:50Z	comment	33218	0x5609e0	{"addr": "0x1405609e0", "comment": "33218. The behaviour tree's update (CombatBehaviorController::Update) for an actor in high process; 33217 for a low one (Character 37965). Reached only from UpdateCombat (38565): a copy's tree is never stepped."}
+2026-11-25T18:52:50Z	comment	33217	0x560820	{"addr": "0x140560820", "comment": "33217. The behaviour tree's update (CombatBehaviorController::Update) for a low-process actor; 33218 for others. Reached only from UpdateCombat (38565)."}
+2026-11-25T18:52:50Z	comment	38565	0x6c98f0	{"addr": "0x1406c98f0", "comment": "38565. Actor::UpdateCombat (CommonLib void UpdateCombat(), vfunc 0xE4; only CombatUpdateJob 46902 calls it, RCX only): form flag 0x200000 returns at once (0x1406C990F); else lock handles (33266), UpdateTarget (33236), ShouldStop (33234), the combat head-track slot, the behaviour tree (33218 / 33217), unlock (33267), then UpdateCombatSearchState (37273). SkyrimCoop: for a copy only the guard and the 37273 tail run."}
+2026-11-25T19:21:31Z	comment	37273	0x675600	{"addr": "0x140675600", "comment": "37273. Actor::UpdateCombatSearchState: in combat with a controller, +0x104 (currentCombatTarget) := the controller's target (+0x2C) and boolBits (+0xE8 on 1.7.104) kSearchingInCombat (0x4000) := its group searching (0x140561310: group +0xD8); not in combat, both cleared. Called from Actor::Update, FinishLoadGame and UpdateCombat's tail (38565). SkyrimCoop: a copy's UpdateCombat is skipped but this tail runs (CopyCombatGroups). Correction 2026-11-25: an earlier comment here said skipping it stopped kill moves; that A/B was void."}
+2026-11-25T19:28:12Z	read	77461	0x1015800	{"name": "NiSkinInstance_UpdateBoneMatrices"}
+2026-11-25T19:28:26Z	comment	77461	0x1015800	{"addr": "0x141015800", "comment": "77461 (Precision, HIGGS call it with frameID = -1 to force it). Under the skin's critical section (+0x60): only if frameID (+0x38) != gFrameCounter, rebuilds the GPU bone matrices (+0x48, previous kept at +0x50) from boneWorldTransforms (+0x30, an array of NiTransform pointers; a null one leaves its matrix), rootParent (+0x20) and NiSkinData (+0x10: bone count +0x58, per-bone offsets +0x50 stride 88). bones (+0x28) is not read here: what is drawn follows the transform pointers, not the nodes. Only caller 108322."}
+2026-11-25T22:07:14Z	comment	33267	0x563770	{"addr": "0x140563770", "comment": "33267. Releases 33266's cached pointers when the count drops to 0."}

@@ -49,6 +49,30 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-25: **copies hold real combat controllers and groups** (`agent/compass-enemy-dots`, PR #130). A guest's
+compass showed no red enemy dots: the compass lists the members of combat groups targeting the player (41240), and a
+copy had none. Instead of another per-reader hook, a copy now holds a real controller and group filled from its
+owner's fight (the owner's AI state carries its group key and the session actors it targets; copies of one group
+share one), and the deciders are off for it (`UpdateCombat` 38565, the group's update 44703, the group primitives
+46873/46874 outside `Hold`). Deleted: the `IsInCombat` / `GetCombatState` hooks and their call-site list, the 41261
+fighting-player count, the 37273 target keeper. Every reader (compass, in-combat flag, regen rate, conditions,
+plugins) reads it natively (`docs/re/systems/combat-targets.md`, "A copy's combat"). GameTests `[compass]`,
+`[copy-combat]`, ClientTests `[CopyCombat]`; MCP verbs `compass_enemies`, `expect_compass_enemies`,
+`combat_targets_of`.
+
+2026-11-25: **friends get the host's mod setup through SkyrimModSync; our launcher and bundled zip are gone**
+(`agent/launcher-modpack`; [launcher.md](design/launcher.md)). A separate Rust CLI (`sms`, the SkyrimModSync project,
+branch `main`) publishes the host's MO2 profile as a signed pack (files by hash, load order, shared INI settings).
+A file found in the Nexus archive its mod was installed from downloads from Nexus with the friend's own Premium API key;
+everything else comes from the host over P2P. `sms play <code>` syncs, loads the pack into the game folder (journaled,
+the friend's own files set aside, SKSE's loader in Steam's launcher slot) and starts Skyrim through Steam; `sms unload`
+restores the folder. Here: `Code/launcher/` and the `SKYRIMCOOP_LAUNCH_ARGS` carrier deleted (invites to a closed game
+dropped), `scripts/package.sh` makes one MO2-installable mod archive (no vendor files), `scripts/package_check.py`
+goes through `sms` (publish, sync, load, boot, unload), [install.md](install.md) rewritten. The host plays the same
+way: `sms play` with no code syncs its own pack from its own MO2 files (nothing downloaded) and loads it. Releases:
+SkyrimModSync is public (`blockheads/SkyrimModSync`, binaries per OS on `v*` tags); `scripts/release.sh TAG` publishes
+our archive as a prerelease here, which hosts use as the mod's source (`sms host source SkyrimCoop github ...`).
+
 - **2026-11-24, copies no longer race across the screen on arrival:** a copy with fewer than two snapshots stays where
   it is, not stepped on to its place in the cell it left (`actor-movement.md`, "A goal outlives its place"). GameTests
   "A copy that travels stands at its owner's new place", scenarios `copies_keep_place_on_arrival`,

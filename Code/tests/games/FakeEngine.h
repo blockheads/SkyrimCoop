@@ -801,6 +801,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool NoProcess = false;   // its process freed, its handle still valid (marked deleted, MarkForDelete)
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
+        std::vector<uint32_t> GroupTargets; // its combat group's targets (44706)
         uint32_t ClaimedIn = 0; // the guest session SetActorCopy(false) made it this game's in (GuestNpcs::Held)
         bool Refused3D = false; // held on a guest: its Load3D refused (HookLoad3D), loaded once it is not
         bool LoadQueued = false; // its load job out (TESQueuedHandles' handle), until QueuedReference::Finish
@@ -838,7 +839,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         FakePackage DoNothing;            // the do-nothing package a copy holds with no owner's to show
         int32_t ProcedureType = 0;        // the running package's: the engine indexes a table with it unchecked
         uint8_t RunningPackageType = 0;   // TESPackage::packType of the package in its running slot
-        uint32_t OwnerCombatTarget{};
+        std::optional<uint32_t> GroupId;  // its combat group's id (CombatGroup +0x00): the engine's count from 0
+        uint64_t CopyGroupKey{};          // a copy: its owner's group (CopyCombatGroups keeps one group per key)
         uint32_t OwnCombatTarget{};       // what its own combat controller fights (AttackedBy)
         uint32_t ExtraPackageFallback{};
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
@@ -1613,6 +1615,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
     void Fights(uint32_t aActor, uint32_t aTarget);
+    uint32_t NextGroupId = 0; // the first combat group is 0 (46899)
+    // Its combat group's targets change (44703, whose hook marks its members changed).
+    void GroupTargets(uint32_t aActor, std::vector<uint32_t> aTargets);
     // Actor::StartCombat (38561) as an attack runs it on its victim (AIProcess::StartAssault): the victim takes a combat
     // controller of its own, whose tree CombatUpdateJob (46902) runs. A copy refuses (HookStartCombat).
     void AttackedBy(uint32_t aVictim, uint32_t aAttacker);
@@ -1624,6 +1629,31 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // furniture's graphs linked to its own (63364), TESFurnitureEvent.
     void SitsIn(uint32_t aActor, uint32_t aFurniture);
     void EndScene(uint32_t aActor);
+    CombatGroupRead GetCombatGroup(uint32_t aFormId) const noexcept override
+    {
+        // Its group, whatever its own combat state (a member out of combat stays in it, 41240 lists it); an actor in
+        // combat is always in one (StartCombat 38561 makes it).
+        const auto it = Actors.find(aFormId);
+        if (it == Actors.end() || (!it->second.GroupId && !it->second.Ai.CombatState))
+            return {};
+        auto targets = it->second.GroupTargets;
+        if (targets.empty() && it->second.Ai.CombatTargetId)
+            targets.push_back(it->second.Ai.CombatTargetId);
+        return {true, it->second.GroupId.value_or(aFormId), targets};
+    }
+    // CopyCombatGroups::Hold: a copy's real controller and group hold its owner's fight (a player's: its own group).
+    void SetCopyCombat(uint32_t aFormId, const CopyCombatFields& acFields) noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        if (it == Actors.end() || !it->second.Copy)
+            return;
+        // Membership follows the owner's group, the combat state its IsInCombat (CopyCombat::Next, Inactive).
+        const bool cMember = acFields.GroupKey != 0;
+        it->second.Ai.CombatState = cMember ? acFields.State : 0;
+        it->second.Ai.CombatTargetId = cMember ? acFields.TargetId : 0;
+        it->second.GroupTargets = cMember ? acFields.GroupTargetIds : std::vector<uint32_t>{};
+        it->second.CopyGroupKey = acFields.GroupKey;
+    }
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
@@ -1643,8 +1673,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         if (const auto it = Actors.find(aFormId); it != Actors.end())
         {
+            // Its fight is SetCopyCombat's (a real controller), not these fields.
+            const uint8_t cState = it->second.Ai.CombatState;
+            const uint32_t cTarget = it->second.Ai.CombatTargetId;
             it->second.Ai = acFields;
-            it->second.OwnerCombatTarget = acFields.CombatTargetId;
+            it->second.Ai.CombatState = cState;
+            it->second.Ai.CombatTargetId = cTarget;
             // Actor::LinkFurnitureGraphs: only with the furniture's graph here.
             it->second.LinkedFurniture = FurnitureUnloaded.contains(acFields.FurnitureId) ? 0 : acFields.FurnitureId;
             if (!acFields.PackageId)
@@ -1701,8 +1735,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Actor::ProcessTracking (38009), each frame: an actor whose look is this game's player asks its own detection of
     // that player (37758) and, with a state of level 0 or less, drops its default slot (slot 0).
     void ProcessTracking();
-    uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
-    void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
+    // PlayerCharacter::UpdateInCombat (41238 through 41261): in combat while any group targets the player.
+    [[nodiscard]] bool PlayerFlaggedInCombat() const;
+    // The compass's enemies (41240): the actors whose combat group targets this game's player.
+    [[nodiscard]] std::vector<uint32_t> CompassEnemies() const;
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).
     void Burns(uint32_t aActor, uint32_t aEffect, bool aOn);
     std::map<uint32_t, uint32_t> EffectVisualFlags;

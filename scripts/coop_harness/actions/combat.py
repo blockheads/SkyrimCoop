@@ -116,6 +116,13 @@ def kill_move_apart(trace, attacker, other):
 
 
 class CombatActions:
+    def combat_targets_of(ctx, npc, instance="client"):
+        """An actor's combat in one game (harness combat_targets): its controller's target, the behaviour tree's
+        running nodes, its group's candidates. On a guest, for an NPC's copy."""
+        game = "guest" if instance in ("client", "guest") else "host"
+        ctx.refresh_handles()
+        return ctx.player_command(instance, {"cmd": "combat_targets", "actor": ctx.resolve(npc, game)})
+
     def equip_weapon(ctx, instance, item):
         """That game's player gets `item` (a form id) and holds it in its hand; 0 is bare hands."""
         if item:
@@ -233,6 +240,7 @@ class CombatActions:
             except TestFailure:
                 pass
             report["check"] = {key: check.get(key) for key in ("should_attack_kill", "killable", "attack_target")}
+            report["check"]["victim"] = victim[attacker]
             trace = AnimTrace(ctx, "kill-move-on", {game: {killer[game]: "attacker", victim[game]: "victim"} for game in games}, video=False)
             with trace:
                 ctx.press(attacker, "right")
