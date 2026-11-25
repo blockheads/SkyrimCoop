@@ -1565,6 +1565,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // aEffect) is cast by the hit actor's own caster on itself (HandleRefImpact 44205).
     void ObjectProjectileHits(uint32_t aTarget, float aDamage, uint32_t aEnchantment = 0, uint32_t aEffect = 0,
                               float aMagnitude = 0.f);
+    // A body its own move step met hits the actor (Actor::TakeImpactFromBody 38185): no aggressor, and its own game's
+    // to judge (HitRules::JudgesImpact; a guest's own stands past its world-hit drop).
+    void BodyImpacts(uint32_t aTarget, float aDamage);
     bool InWorldImpact = false; // within that impact (Projectile::WorldImpact)
     struct Shot
     {

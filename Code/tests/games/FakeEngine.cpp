@@ -3724,6 +3724,12 @@ void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile
     Shots.push_back({aShooter, aSpell, acOrigin});
 }
 
+void FakeEngine::BodyImpacts(uint32_t aTarget, float aDamage)
+{
+    if (HitRules::JudgesImpact(PartyOf(aTarget)))
+        TakesDamage(aTarget, 0, aDamage, false, false);
+}
+
 void FakeEngine::ObjectProjectileHits(uint32_t aTarget, float aDamage, uint32_t aEnchantment, uint32_t aEffect, float aMagnitude)
 {
     // Projectile::Func190 (44204) with no actor shooter: a HitData with no aggressor (ProcessHit 38586), a world hit.

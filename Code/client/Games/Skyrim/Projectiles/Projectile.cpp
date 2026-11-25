@@ -10,6 +10,7 @@
 #include <World.h>
 #include <TrapRules.h>
 #include <Combat/HitData.h>
+#include <Combat/HitOwnership.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Games/Skyrim/Forms/TESObjectCELL.h>
 #include <Games/Skyrim/Forms/TESWorldSpace.h>
@@ -22,6 +23,7 @@
 #include <Diagnostics/Counters.h>
 
 #include <atomic>
+#include <utility>
 #include <format>
 
 using TLaunch = BSPointerHandle<Projectile>*(BSPointerHandle<Projectile>*, Projectile::LaunchData& arData);
@@ -156,8 +158,28 @@ std::atomic<uint32_t> s_relayedTarget{0}; // the actor the host's relayed hit is
 using TProcessHit = uint64_t(TESObjectREFR*, HitData*);
 TProcessHit* RealProcessHit = nullptr;
 
+thread_local bool t_ownImpact = false;
+
+// Actor::TakeImpactFromBody (38185): a body its own move step met hits the actor (no aggressor).
+using TImpactFromBody = uint64_t(Actor**, uint64_t, void*);
+TImpactFromBody* RealImpactFromBody = nullptr;
+
+uint64_t HookImpactFromBody(Actor** appThis, uint64_t a2, void* apContact)
+{
+    Actor* pActor = appThis ? *appThis : nullptr;
+    if (pActor && !HitRules::JudgesImpact(HitRules::PartyOf(pActor)))
+        return 1;
+    const bool cBefore = std::exchange(t_ownImpact, pActor != nullptr);
+    const uint64_t cResult = RealImpactFromBody(appThis, a2, apContact);
+    t_ownImpact = cBefore;
+    return cResult;
+}
+
 uint64_t HookProcessHit(TESObjectREFR* apTarget, HitData* apHit)
 {
+    // Its own impact stands, on a guest too: marked here, before ProcessHit queues itself.
+    if (t_ownImpact && apTarget)
+        s_relayedTarget = apTarget->formID;
     t_worldHit = apHit && !Cast<Actor>(TESObjectREFR::GetByHandle(apHit->aggressor));
     const uint64_t cResult = RealProcessHit(apTarget, apHit);
     t_worldHit = false;
@@ -192,6 +214,7 @@ static Hooks::Initializer s_projectileHooks(
         const HookGate cGate(__FILE__);
         HOOK_ID(44108, &RealLaunch, HookLaunch);
         HOOK_ID(38586, &RealProcessHit, HookProcessHit);
+        HOOK_ID(38185, &RealImpactFromBody, HookImpactFromBody);
         HOOK_ID(44204, &RealImpact, HookImpact);
 
         VersionDbPtr<uint8_t> hookLoc(34452);

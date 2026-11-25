@@ -98,6 +98,18 @@ a rock 14) is taken by nobody's touch (`GuestBodies::HostsOnly`, `HostBodies::Ma
 untripped rope had the host play its frames on it, and the trap never fired. Fired and dynamic, it is the toucher's
 like any body. GameTests "A guest's player pushes a body a script holds keyframed".
 
+## An object's impact damage is the hit actor's own game's (read and measured, 2026-11-24)
+
+`Actor::TakeImpactFromBody` (38185, our name; from `Actor::Move` 37507 and the player's 37692) takes each rigid body
+the actor's own move step met: unless the player holds it, `GetDamageForImpact`, a `HitData` with no aggressor and
+`ProcessHit` (38586) when it damages. Copies step, so the host judged impacts on a guest's copy from the rocks it
+only follows: 7 impacts of 4.3 in 90 ms in one round (30 of the guest's 46 damage), where the host's own player takes
+about one a round, while the guest's own impacts fell to its world-hit drop. Now the host skips 38185 for another
+player's copy (`HitRules::JudgesImpact`) and a guest's own stands (marked past the drop as the relayed trap hit is).
+Measured after: no relayed impacts; the guest's rock rounds 8, 16 and 32, the host's 32. Left: in the two low rounds
+the guest's game read two of three rock contacts at speed 0 (the host's read 24 to 26 for the same rocks on its own
+player), so their scripted hits never counted; the rocks it follows do fall at 400 to 600 units/s there. Not explained.
+
 ## A physics trap's hit is the contact's speed (read and measured, 2026-11-24)
 
 `PhysicsTrapHit` hits on a new contact (`OnTrapHitStart`) whose event velocity squared is at least 6

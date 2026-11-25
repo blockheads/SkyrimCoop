@@ -49,3 +49,11 @@ TEST_CASE("The host's world hit on another player's copy (an object's projectile
     CHECK(Of(Party::LocalPlayer, Party::None, false, false, true) == Route::Apply); // its own fall
     CHECK(Of(Party::Local, Party::None, false, true, true) == Route::Apply);
 }
+
+TEST_CASE("An object's impact is judged in the hit actor's own game, not on another player's copy", "[HitRules]")
+{
+    using enum HitRules::Party;
+    CHECK(HitRules::JudgesImpact(LocalPlayer));
+    CHECK(HitRules::JudgesImpact(Local));
+    CHECK_FALSE(HitRules::JudgesImpact(OtherPlayer)); // the host's followed rocks struck a copy 7 times in 90 ms
+}

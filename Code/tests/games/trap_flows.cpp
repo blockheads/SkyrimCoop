@@ -293,3 +293,23 @@ SCENARIO("A script's motion type on the host's object reaches every guest, joine
     party.Until([&] { return second.References.at(kTripwire).Motion == ScriptMotion::Pack(kDynamic, false); },
                 "a later guest's tripwire is as the host's is now");
 }
+
+// WarehouseTraps' falling rocks (2026-11-24): an object's impact damage was the host's to judge against the guest's
+// copy (7 impacts of 4.3 in 90 ms from followed rocks, the host's own player one a round), the guest's own dropped.
+SCENARIO("A falling body's impact on a guest's player is its own game's to judge", "[traps][impact]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
+    const float cBefore = Health(guest);
+    party.As(party.Host(), [&] {
+        for (int i = 0; i < 7; ++i)
+            host.BodyImpacts(PlayerCopy(host), 4.3f);
+    });
+    Settle(party, 1);
+    CHECK(Health(guest) == Approx(cBefore));
+    party.As(party.Guest(), [&] { guest.BodyImpacts(FakeEngine::kPlayer, 4.3f); });
+    CHECK(Health(guest) == Approx(cBefore - 4.3f));
+    party.Until([&] { return Health(host, PlayerCopy(host)) <= cBefore - 4.f; }, "the host's copy shows the guest's health");
+}

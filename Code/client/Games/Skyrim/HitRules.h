@@ -14,6 +14,13 @@ enum class Party
     Copy,        // another game's NPC's copy
 };
 
+// An object's impact (a falling rock; Actor::TakeImpactFromBody 38185, in the hit actor's own move step) is judged in
+// that actor's own game, as its trap contacts are: not on another player's copy, whose step meets followed bodies.
+[[nodiscard]] constexpr bool JudgesImpact(Party aHittee) noexcept
+{
+    return aHittee != Party::OtherPlayer;
+}
+
 enum class Route
 {
     Apply,    // the owner takes it here
