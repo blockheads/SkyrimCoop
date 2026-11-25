@@ -88,8 +88,9 @@ struct HostGame
     std::function<bool(uint32_t aSessionId)> CanPair;
     // One of the host's actors is dead now (a corpse a guest's player may move: HostBodies).
     std::function<bool(uint32_t aSessionId)> IsDead;
-    // A trap's body: the host's game simulates it, nobody may claim it (BodyGroups::IsTrapLayer).
-    std::function<bool(const BodyKey&)> IsTrapBody;
+    // A body this game's physics does not simulate (a script holds it keyframed: an untripped tripwire, a trap that
+    // has not fired): nobody's to take by a touch.
+    std::function<bool(const BodyKey&)> IsKeyframed;
     // One of the host's NPCs its game could take back once claimed: no player's summon (TakeOwnership refuses one).
     std::function<bool(uint32_t aSessionId)> Claimable;
     // The host's clock (the session's) and setting its hour.

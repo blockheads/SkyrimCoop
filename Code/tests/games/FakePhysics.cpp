@@ -2,7 +2,6 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
-#include <Physics/BodyGroups.h>
 #include <Physics/BodyPrediction.h>
 #include <Systems/CopyStep.h>
 #include "FakeDialogue.h"
@@ -292,7 +291,7 @@ std::optional<BodyRead> FakeEngine::Read(const BodyKey& acKey) noexcept
         return std::nullopt;
     const Body& cBody = it->second;
     return BodyRead{.Position = cBody.Flight.Body.Position, .Rotation = cBody.Flight.Body.Rotation, .LinearVelocity = cBody.Flight.Body.LinearVelocity,
-                    .AngularVelocity = cBody.Flight.Body.AngularVelocity, .Dynamic = !cBody.Held, .Active = cBody.Awake};
+                    .AngularVelocity = cBody.Flight.Body.AngularVelocity, .Dynamic = !cBody.Held && !cBody.ScriptKeyframed, .Active = cBody.Awake};
 }
 
 std::vector<std::pair<BodyKey, BodyKey>> FakeEngine::ReadTouching(const std::vector<BodyKey>& acKeys) noexcept
@@ -621,13 +620,6 @@ void StepBody(FakeEngine::Body& aBody, uint64_t aTick, bool aByFrame = false)
 }
 } // namespace
 
-bool FakeEngine::IsTrap(const BodyKey& acKey) noexcept
-{
-    return !acKey.Actor && std::ranges::any_of(Bodies, [&](const auto& acBody) {
-        return !acBody.first.Actor && acBody.first.Object == acKey.Object && BodyGroups::IsTrapLayer(acBody.second.Layer);
-    });
-}
-
 uint32_t FakeEngine::ReferenceOf(const BodyKey& acKey) noexcept
 {
     return acKey.Actor ? acKey.Actor : ::FormIdOf(acKey.Object);
@@ -745,7 +737,7 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
             reference.Bodies.resize(cKey.Index + 1);
         BodyRead read{.Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation,
                       .LinearVelocity = body.Flight.Body.LinearVelocity, .AngularVelocity = body.Flight.Body.AngularVelocity,
-                      .Dynamic = !body.Held, .Active = body.Awake && (cRising || !body.Flight.Resting || body.KeptAwake || cRestStep)};
+                      .Dynamic = !body.Held && !body.ScriptKeyframed, .Active = body.Awake && (cRising || !body.Flight.Resting || body.KeptAwake || cRestStep)};
         reference.Bodies[cKey.Index] = IBodyReads::Body{.Read = read};
         if (!reference.Actor)
             reference.Bodies[cKey.Index]->Node = std::pair(body.NodePosition, body.NodeRotation);

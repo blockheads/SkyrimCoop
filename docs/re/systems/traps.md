@@ -86,14 +86,17 @@ stayed on the host, so the guest saw no flames. The addressed vtable's sink also
 Spell.Cast's first argument), so the caster read as the spell. Both fixed (ClientTests `code_reach_tests`); on the duo the
 guest's game then casts the flames from its own jets, its copy of the host burning for nothing (copies mirror).
 
-## A trap's bodies stay the host's (measured, 2026-11-24)
+## Who simulates a trap's bodies (audited 2026-11-24)
 
-WarehouseTraps' mace 2464D: 14 bodies, its base, pin and 11 links on layer 10 (props), its head `Mace01` on 14; the
-falling rocks one body on 14. By the physics authority's touch rule the guest's player took the swinging mace, and the
-host's only followed it: contacts with the copy at no speed, no hit (`warehouse_traps_hurt_both` failed four runs). A
-reference with any body on a trap's layer is now the host's, all of it: the guest never takes one (`GuestBodies`), the
-host refuses a claim (`HostBodies::MayClaim`). Then the host judged the hit in four of four tries and the scenario's
-trap steps passed. Its rests on the guest still show small pose drift (a rock's node turned, rope links up to 20 units).
+A guest's hit by a touching trap is judged on the guest's game: its own copy of the trap's body touches its own player,
+the contact goes to the host, the host's script decides, the hit comes back (`TrapRules::OfContact`; the host drops its
+own engine's contacts with the copy). So nothing needs the host to simulate a trap's bodies, and a rule that kept them
+the host's (by collision layer 14/16, then by contact, then a host hold; built and removed the same day) rested on
+misreading the host's dropped contacts as the ones that count. What stands is not about traps: a body a script holds
+keyframed (an untripped tripwire's rope, a trap not yet fired; layers for the record: the mace's head 14, its chain 10,
+a rock 14) is taken by nobody's touch (`GuestBodies::HostsOnly`, `HostBodies::MayClaim`): a guest that took the
+untripped rope had the host play its frames on it, and the trap never fired. Fired and dynamic, it is the toucher's
+like any body. GameTests "A guest's player pushes a body a script holds keyframed".
 
 ## A physics trap's hit is the contact's speed (read and measured, 2026-11-24)
 
@@ -104,9 +107,9 @@ The event's velocity (`TrapTargetEntry::GetVelocityAndPosition` 26034) is the tr
 character controller's velocity: a target moving with the trap is hit softer, one walking into it harder.
 WarehouseTraps' mace, someone standing on its tripwire: the swing is spent there, first contacts squared 3.4 to 14 on the
 guest's copy and on the host's own player alike, each missed some runs. Walked into across the wire
-(`warehouse_traps_hurt_both`), the mace meets the guest near the bottom of its arc and hit in both runs. A copy hit
-twice where the host's own player is hit once: the hit's push moves the host's player at once, the copy only when the
-guest's movement arrives, so the return swing meets it still standing (not fixed).
+(`warehouse_traps_hurt_both`), the mace meets the guest near the bottom of its arc and hit in both runs. A guest hit
+twice where the host's own player is hit once (inferred, not traced): its contacts are its own game's, and the hit's
+push reaches its player a round trip late, so the return swing meets it still standing.
 
 ## Darts carry their damage (read in IDA and measured, 2026-11-23)
 

@@ -255,7 +255,10 @@ void HostService::MakeAuthority() noexcept
         return std::nullopt;
     };
     game.TakeTouches = [this] { return m_pEngine->TakeTouches(); };
-    game.IsTrapBody = [this](const BodyKey& acKey) { return m_world.ctx().at<IBodyBridge&>().IsTrap(acKey); };
+    game.IsKeyframed = [this](const BodyKey& acKey) {
+        const auto cRead = m_world.ctx().at<IBodyBridge&>().Read(acKey);
+        return cRead && !cRead->Dynamic;
+    };
     game.ReadTouching = [this](const std::vector<BodyKey>& acKeys) { return m_world.ctx().at<IBodyBridge&>().ReadTouching(acKeys); };
     game.EndPlayback = [this](const BodyKey& acKey, uint64_t aUntil) {
         // A guest's states this game played end here; its own physics has the body again, where it is.

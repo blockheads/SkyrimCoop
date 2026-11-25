@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bridges/IBodyBridge.h>
+#include <Physics/BodyGroups.h>
 
 #include <Physics/BodyPrediction.h>
 
@@ -17,7 +18,6 @@ class BodyBridge final : public IBodyBridge
 public:
     void SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf, std::function<std::optional<GameId>(uint32_t aFormId)> aIdOf) noexcept override;
     [[nodiscard]] std::optional<BodyRead> Read(const BodyKey& acKey) noexcept override;
-    [[nodiscard]] bool IsTrap(const BodyKey& acKey) noexcept override;
     [[nodiscard]] std::vector<std::pair<BodyKey, BodyKey>> ReadTouching(const std::vector<BodyKey>& acKeys) noexcept override;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept override;
     bool Glide(const BodyPose& acRest) noexcept override;
@@ -69,6 +69,7 @@ private:
         bool Applied = true;
     };
     std::map<BodyKey, Class> m_classes;
+    BodyGroups::MovingGroups m_movingGroups;
     std::function<uint32_t(const GameId& acId)> m_formIdOf;
     std::function<std::optional<GameId>(uint32_t aFormId)> m_idOf;
     std::map<BodyKey, uint8_t> m_motions; // the reference bodies held here: their own motion type

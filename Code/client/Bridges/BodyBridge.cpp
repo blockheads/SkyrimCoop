@@ -84,8 +84,10 @@ void BodyBridge::SetClass(const BodyKey& acKey, bhkWorldObject* apBody, BodyClas
         m_classes.erase(it);
         return;
     }
+    const uint16_t cOwn = it != m_classes.end() ? it->second.Group
+                          : apBody->referencedObject ? static_cast<uint16_t>(apBody->referencedObject->CollisionFilterInfo() >> 16) : uint16_t{};
     const uint16_t cGroup = aClass == BodyClass::kPlayed ? BodyGroups::kPlayed
-                            : aClass == BodyClass::kMoving ? BodyGroups::kMoving
+                            : aClass == BodyClass::kMoving ? m_movingGroups.Of(cOwn)
                             : it->second.Group;
     const auto cWas = SetBodyGroup(*apBody, cGroup);
     if (!cWas)
@@ -113,7 +115,7 @@ void BodyBridge::WriteMoving() noexcept
 {
     for (auto& [cKey, moving] : m_classes)
         if (moving.Is == BodyClass::kMoving && !moving.Applied)
-            if (const Found cOther = Find(cKey, 0, false); cOther.pBody && SetBodyGroup(*cOther.pBody, BodyGroups::kMoving))
+            if (const Found cOther = Find(cKey, 0, false); cOther.pBody && SetBodyGroup(*cOther.pBody, m_movingGroups.Of(moving.Group)))
                 moving.Applied = true;
 }
 
@@ -126,7 +128,7 @@ void BodyBridge::SetMoving(const BodyKey& acKey, bool aMoving) noexcept
         auto* pCopy = cRagdoll != m_ragdolls.end() ? Cast<Actor>(TESForm::GetById(cRagdoll->second.first)) : nullptr;
         if (const auto cBodies = pCopy && m_ragdollGroups.contains(acKey) ? RagdollBodiesOf(*pCopy) : std::vector<bhkWorldObject*>{};
             acKey.Index < cBodies.size() && cBodies[acKey.Index])
-            SetBodyGroup(*cBodies[acKey.Index], aMoving ? BodyGroups::kMoving : BodyGroups::kPlayed);
+            SetBodyGroup(*cBodies[acKey.Index], aMoving ? m_movingGroups.Of(m_ragdollGroups.at(acKey)) : BodyGroups::kPlayed);
         return;
     }
     const auto it = m_classes.find(acKey);
@@ -155,6 +157,7 @@ void BodyBridge::ForgetAll() noexcept
         m_classes.erase(cKey); // its body in another world now: kept as it is
     }
     m_placing.clear();
+    m_movingGroups.Clear();
 }
 
 bool BodyBridge::KnockDown(uint32_t aCopyFormId) noexcept
@@ -237,15 +240,6 @@ void BodyBridge::RememberMotion(const BodyKey& acKey, const Found& acBody) noexc
 {
     if (acBody.pCollision && acBody.pBody && acBody.pBody->referencedObject && acBody.pBody->referencedObject->IsDynamic())
         m_motions.try_emplace(acKey, acBody.pBody->referencedObject->motionType);
-}
-
-bool BodyBridge::IsTrap(const BodyKey& acKey) noexcept
-{
-    if (acKey.Actor)
-        return false;
-    const uint32_t cFormId = m_formIdOf ? m_formIdOf(acKey.Object) : (acKey.Object.ModId == ObjectChange::kCreatedModId ? 0 : ToGame(acKey.Object));
-    auto* pObject = cFormId ? Cast<TESObjectREFR>(TESForm::GetById(cFormId)) : nullptr;
-    return pObject && ReferenceBodies::IsTrap(*pObject);
 }
 
 std::optional<BodyRead> BodyBridge::Read(const BodyKey& acKey) noexcept

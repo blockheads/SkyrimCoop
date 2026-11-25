@@ -61,8 +61,6 @@ public:
     virtual void ForgetAll() noexcept = 0;
     // A reference's body's form id in this game, 0 for an actor's or one not here.
     [[nodiscard]] virtual uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept = 0;
-    // A reference's body belongs to a trap (ReferenceBodies::IsTrap): the host's game always simulates it.
-    [[nodiscard]] virtual bool IsTrap(const BodyKey& acKey) noexcept = 0;
     // A reference a world state row places (a cell's load): its body's own motion kept, false for one that is not
     // dynamic; then simulated again where it is, asleep.
     virtual bool KeepMotion(const BodyKey& acKey) noexcept = 0;

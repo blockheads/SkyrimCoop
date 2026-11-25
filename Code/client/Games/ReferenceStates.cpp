@@ -376,7 +376,7 @@ void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept
 }
 
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
-          std::vector<ObjectChange>& aChanges) noexcept
+          std::vector<ObjectChange>& aChanges, bool aWhole) noexcept
 {
     uint32_t left = aFlags & SentFlags();
     for (const auto& cState : cStates)
@@ -391,8 +391,9 @@ void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
         if (cState.Read(acObject, cTaken, change))
             aChanges.push_back(std::move(change));
     }
-    if (ObjectChange motion{ObjectChange::Kind::kMotion, acId}; ReadMotion(acObject, 0, motion))
-        aChanges.push_back(std::move(motion));
+    // A cell's state carries it; live, each script call once.
+    if (const auto cMotion = aWhole ? ScriptMotion::Get().Of(acObject.formID) : ScriptMotion::Get().TakeUnsent(acObject.formID))
+        aChanges.push_back({.Type = ObjectChange::Kind::kMotion, .Object = acId, .Value = *cMotion});
     // A flag no row takes, the first time: what vanilla still needs a row for. The game's thread only.
     static uint32_t s_logged = 0;
     if (const uint32_t cNew = left & ~s_logged)

@@ -52,13 +52,10 @@ void GuestBodies::Drop(const BodyKey& acKey) noexcept
 
 bool GuestBodies::HostsOnly(const BodyKey& acKey) const noexcept
 {
-    auto& bridge = m_world.ctx().at<IBodyBridge&>();
-    if (acKey.Actor)
+    if (acKey.Actor || m_authority.Is(acKey, kMe))
         return false;
-    if (bridge.IsTrap(acKey))
-        return true;
-    return BodyAuthority::TouchingHostOnly(bridge.ReadTouching({acKey}), [&](const BodyKey& acOther) { return bridge.IsTrap(acOther); })
-        .contains(acKey);
+    const auto cRead = m_world.ctx().at<IBodyBridge&>().Read(acKey);
+    return cRead && !cRead->Dynamic;
 }
 
 bool GuestBodies::Elsewhere(const BodyKey& acKey) const noexcept

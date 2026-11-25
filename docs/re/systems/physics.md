@@ -114,23 +114,22 @@ keyframe their bodies in `OnCellAttach`; on a guest they stayed their model's dy
 motion 3 on the guest against 4 on the host, the hanging rocks the same), so the guest's player pushed a tripwire's
 rope and took it, and anything waking a hanging rock there would have dropped it. A hook on 56332 remembers each
 reference's scripted type (`ScriptMotion`); the host's rows carry it (`kMotion`, read with the reference its havok
-change marks), and a guest applies it as 56332 does, at once and at each cell load. Measured: the guest's tripwire,
+change marks; live once for each script call, always with a cell's state: a falling rock's row had gone out 57
+times, re-applied each time), and a guest applies it as 56332 does, at once and at each cell load. Measured: the guest's tripwire,
 rocks and mace keyframed before their traps fire; `warehouse_traps_hurt_both`'s end comparison went from 8 references
 apart to 6, the rocks within a unit. Left: a tripped tripwire's rope keeps moving on both games (2 to 30 units/s past
 15 s), not yet compared with a game without a session.
 
-## A pile with a trap's body has one simulator (measured, 2026-11-24)
+## A taken body keeps its own group's rule (read and measured, 2026-11-24)
 
-A tripped tripwire's rope (props, so anyone's to take) under the host's falling rocks (a trap's, the host's alone):
-the guest's player, standing in the rope as it tripped, took it, and each game steered the other's bodies in one pile.
-The rope moved at 2 to 30 units/s past 15 s on both games, where a game without a session stills it in 5 s and the
-host tripping it (one simulator) in 3 s. A body touching a trap's body (Havok's pairs, `BodyAuthority::TouchingHostOnly`)
-is now the host's too: the host gives back a guest's moving body that touches one and refuses its claim meanwhile, and
-a guest does not take one. Measured: the host's rope still in 5 s and asleep by 8 s, the guest's still by 14 s (its
-player, standing in it, still claimed it: its touches numbered past the host's). The host now holds such a body
-(`BodyAuthority::Grab`, released when it no longer touches one, ended by its rest): a hold outranks any touch, so the
-guest yields it within a second and follows the host's frames. Left: most of the rope's links get no rest on the guest
-(the host declared rests for 3 of 11 in one run; the guest's frames stop when its player walks away).
+Two bodies of one nonzero group never collide (78553): a rope's links, a chain's, a ragdoll's bones. Taking a body
+wrote one shared moving group on it and `BodyGroups::Decide` made any two moving bodies collide, so a rope this game
+took had its links collide with each other every step: a tripped tripwire's rope a guest took spun at 20 to 30 rad/s
+past 30 s on both games (the host playing its frames), where a game without a session, or the host tripping it (the
+moving group is written only once something is played), stills it in 5 s. First taken for a pile with two simulators.
+Now each group a game moves gets its own moving group (`BodyGroups::MovingGroups`): the same group again is the
+engine's to say, different ones collide as before. Measured: the guest-tripped rope still and asleep on both games 10 s
+after the trip.
 
 ## Motion type and kSetLocal
 

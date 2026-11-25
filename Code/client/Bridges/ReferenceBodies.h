@@ -30,8 +30,6 @@ struct Body
 [[nodiscard]] std::optional<uint8_t> IndexOf(TESObjectREFR& aObject, const hkpRigidBody* apBody) noexcept;
 // A read as a frame of the body at that index (no object yet).
 [[nodiscard]] BodyFrame FrameOf(const BodyRead& acRead, uint8_t aIndex) noexcept;
-// One of its bodies is on a trap's layer (BodyGroups::IsTrapLayer): a mace's chain is props, its head a trap's.
-[[nodiscard]] bool IsTrap(TESObjectREFR& aObject) noexcept;
 // Its dynamic bodies' frames, read now.
 [[nodiscard]] std::vector<BodyFrame> ReadFrames(TESObjectREFR& aObject) noexcept;
 } // namespace ReferenceBodies

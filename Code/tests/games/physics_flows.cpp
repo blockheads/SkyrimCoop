@@ -325,51 +325,6 @@ SCENARIO("A bucket at rest in an island kept awake is nudged again: its new rest
     CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
 }
 
-// WarehouseTraps' tripwire (2026-11-24): the guest's player took its rope as the host's rocks fell onto it, and each
-// game steered the other's bodies in one pile: the rope moved at 2-30 units/s for good (a game without a session: still
-// in 5 s). A pile with a trap's body in it has one simulator, the host.
-SCENARIO("A guest's player pushes a bucket a trap's rock rests on: the host's game keeps simulating it", "[physics][traps]")
-{
-    const BodyKey cRock{.Object = GameId(0, 0x00079979)};
-    Party party(1, [&](FakeEngine& aEngine) {
-        Plugins(aEngine);
-        FakeEngine::Body rock;
-        rock.Layer = 14;
-        rock.Flight.Body.Position = {100.f, 200.f, kTable + 20.f};
-        aEngine.Bodies[cRock] = rock;
-        aEngine.Lands(cRock, kBucket);
-    });
-    FakeEngine& guest = Party::Engine(party.Guest());
-    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
-    party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
-    for (int i = 0; i < 30; ++i)
-        party.Frame();
-    CHECK_FALSE(Moves(party.Guest(), kBucket));
-
-    WHEN("a bucket the guest already moves comes to touch the rock")
-    {
-        party.As(party.Guest(), [&] { guest.Islands.clear(); });
-        party.As(party.Host(), [&] { Party::Engine(party.Host()).Islands.clear(); });
-        party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {400.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
-        party.Until([&] { return Moves(party.Guest(), kBucket); }, "the guest's push takes the bucket");
-        party.As(party.Host(), [&] { Party::Engine(party.Host()).Lands(cRock, kBucket); });
-        party.As(party.Guest(), [&] { guest.Lands(cRock, kBucket); });
-        // While it still moves: not its rest (a rest is nobody's too).
-        party.Until([&] { return !Moves(party.Guest(), kBucket) || guestBucket.Flight.Resting; }, "the bucket goes back or stops");
-        CHECK_FALSE(Moves(party.Guest(), kBucket));
-        CHECK_FALSE(guestBucket.Flight.Resting);
-        // Held by the host while it touches the rock: the guest's next push takes nothing, its bucket keyframed on the
-        // host's frames (a tripwire's rope its player stands in, pushed each step).
-        party.Until([&] { return guestBucket.Held; }, "the guest shows the host's hold");
-        party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
-        for (int i = 0; i < 10; ++i)
-        {
-            party.Frame();
-            CHECK_FALSE(Moves(party.Guest(), kBucket));
-        }
-    }
-}
-
 SCENARIO("The host's player holds a bucket still in the air and lets go: the guest's first rest is where it lands", "[physics][still]")
 {
     // Review of #56: its stillness matured in the hand, so the release was taken for a rest in midair.
@@ -2312,30 +2267,27 @@ SCENARIO("The host's bucket lies on what holds it only there: the guest's, woken
     CHECK(glm::distance(guestBucket.Flight.Body.Position, cOn) < 2.f);
 }
 
-// WarehouseTraps' mace (2026-11-24): its chain is props (layer 10), its head a trap's (14). A guest's player it swung
-// into took it by Fiedler's touch rule, so the host's trap only followed the guest's and judged no hit. A trap's
-// bodies are the host's (BodyGroups::IsTrapLayer), all of them.
-SCENARIO("A guest's player hits a swinging trap: it stays the host's to simulate", "[physics][traps]")
+// WarehouseTraps' tripwire (2026-11-24): its script holds its rope keyframed until it trips. A guest's player
+// touching it took it (a touch took any body), the host played the guest's frames on it, and the trap never fired.
+// Only a body physics simulates is taken; tripped (dynamic), it is anyone's like any other.
+SCENARIO("A guest's player pushes a body a script holds keyframed: it is not taken until the script frees it", "[physics][traps]")
 {
-    const BodyKey cChain{.Object = GameId(0, 0x0002464D), .Index = 0};
-    const BodyKey cHead{.Object = GameId(0, 0x0002464D), .Index = 1};
-    Party party(1, [&](FakeEngine& aEngine) {
+    Party party(1, [](FakeEngine& aEngine) {
         Plugins(aEngine);
-        FakeEngine::Body chain;
-        chain.Layer = 10;
-        chain.Flight.Body.Position = {200.f, 200.f, kTable};
-        aEngine.Bodies[cChain] = chain;
-        FakeEngine::Body head;
-        head.Layer = 14;
-        head.Flight.Body.Position = {200.f, 230.f, kTable};
-        aEngine.Bodies[cHead] = head;
+        aEngine.Bodies.at(kBucket).ScriptKeyframed = true;
     });
-    auto& guestChain = BodyOf(party, party.Guest(), cChain);
-    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(cChain, {0.f, 120.f, 0.f}); });
-    party.Until([&] { return guestChain.Drives > 2; }, "the guest's chain follows the host's swing");
-    const size_t cDrives = guestChain.Drives;
-    party.As(party.Guest(), [&] { Party::Engine(party.Guest()).Swing(cChain, {160.f, 0.f, 0.f}); });
-    party.Until([&] { return guestChain.Drives > cDrives + 5; }, "the guest's chain still follows the host's");
-    CHECK_FALSE(Moves(party.Guest(), cChain));
-    CHECK_FALSE(Moves(party.Guest(), cHead));
+    FakeEngine& guest = Party::Engine(party.Guest());
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
+    for (int i = 0; i < 30; ++i)
+    {
+        party.Frame();
+        CHECK_FALSE(Moves(party.Guest(), kBucket));
+    }
+    CHECK(hostBucket.Drives == 0);
+
+    hostBucket.ScriptKeyframed = guestBucket.ScriptKeyframed = false; // tripped: SetMotionType(1), its row applied
+    party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
+    party.Until([&] { return Moves(party.Guest(), kBucket); }, "the guest's push takes it once it is simulated");
 }

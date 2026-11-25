@@ -71,7 +71,7 @@ class TrapActions:
                     row[("start", "stop", "hit")[e["type"]]] += 1
         return {"contacts": seen, "health": {g: [round(v[0], 1), round(min(v), 1), round(v[-1], 1)] for g, v in health.items()}}
 
-    def trap_rounds(ctx, who, at, away, rounds=4, seconds=6.0, health=1000, holder_at=None, gap=0.0, use=None, pull=None, walk_on=None):
+    def trap_rounds(ctx, who, at, away, rounds=4, seconds=6.0, health=1000, holder_at=None, gap=0.0, use=None, pull=None, walk_on=None, walk_within=60.0):
         """`walk_on` (a plate, hex): `who` walks onto it from `away` along the navmesh instead of being put on `at`. `pull` (a lever, hex): the other player walks up and pulls it once `who` stands at `at`. `who` (host or guest) put on `at` (a trap's plate) and back to `away`, `rounds` times, with `health` points: the
         hits it took each time (each loss of health between two looks)."""
         instance = "" if who == "host" else "client"
@@ -88,15 +88,25 @@ class TrapActions:
                 time.sleep(3.0)
                 ctx.console_on(instance, f"player.restoreav health {health}")
                 time.sleep(0.5)
+                # Read from before a walk: its trap may strike on the way in.
+                since = {g: ctx.engine_events(g)[1] for g in ("", "client")}
+                last, hits = ctx.player_health(instance), []
+                samples = [last]  # health before, after the walk or pull, and the lowest: a miss explains itself
                 if walk_on:  # along the navmesh, as go_to: a line by input caught on the room (191-615 units short)
-                    ctx.reach(instance, walk_on, 60.0, False)  # on the plate, not at its centre
+                    ctx.reach(instance, walk_on, walk_within, False)  # how near: a plate's trigger can be narrower than 60
+                    now = ctx.player_health(instance)
+                    samples.append(now)
+                    if now < last - 0.5:
+                        hits.append(round(last - now, 1))
+                    last = now
                 else:
                     ctx.put_player(instance, at, gap)
                 if holder_at:  # the other player holds the trap's trigger
                     ctx.put_player(other, holder_at)
-                since = {g: ctx.engine_events(g)[1] for g in ("", "client")}
-                last, hits = ctx.player_health(instance), []
-                samples = [last]  # health before, after the pull, and the lowest: a miss explains itself
+                if not walk_on:
+                    since = {g: ctx.engine_events(g)[1] for g in ("", "client")}
+                    last = ctx.player_health(instance)
+                    samples = [last]
                 if use:  # a lever: `who` walks up and pulls it, by real input
                     ctx.name_handle("trap_lever", {"host": int(use, 16), "guest": int(use, 16)})
                     ctx.use(instance, "trap_lever")
@@ -132,11 +142,11 @@ class TrapActions:
         ctx.console_on(instance, "player.setav health 100")
         return results
 
-    def expect_trap_hurts(ctx, who, at, away, rounds=4, holder_at=None, gap=0.0, use=None, seconds=6.0, pull=None, health=1000, least=None, walk_on=None):
+    def expect_trap_hurts(ctx, who, at, away, rounds=4, holder_at=None, gap=0.0, use=None, seconds=6.0, pull=None, health=1000, least=None, walk_on=None, walk_within=60.0):
         """`who` stepping on a trap's plate `rounds` times is hurt every time (or in `least` of them: a trap firing at
         random), on its own game (trap_rounds); fails naming
         the rounds it was not, with each game's contacts then."""
-        results = ctx.trap_rounds(who, at, away, rounds, seconds=seconds, health=health, holder_at=holder_at, gap=gap, use=use, pull=pull, walk_on=walk_on)
+        results = ctx.trap_rounds(who, at, away, rounds, seconds=seconds, health=health, holder_at=holder_at, gap=gap, use=use, pull=pull, walk_on=walk_on, walk_within=walk_within)
         missed = [i for i, r in enumerate(results) if not r["hits"]]
         if rounds - len(missed) < (rounds if least is None else least):
             raise ctx.failure(f"[{who}] the trap hurt it in {rounds - len(missed)} of {rounds} rounds; missed {missed}: "

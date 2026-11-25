@@ -496,7 +496,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // and so does a host body far from the host's player, so PhysicsBodies writes it too (guest-cast-moves-host).
     struct Body
     {
-        uint32_t Layer = 4; // COL_LAYER: clutter; a trap's 14 (IsTrap)
+        bool ScriptKeyframed = false; // a script holds it keyframed (an untripped tripwire): read not dynamic
         bool ReportedAwake = false; // its island's wake was reported (TakeMovedReferences)
         bool NeedsKnock{};
         bool RestBusy{};
@@ -598,8 +598,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // IBodyBridge: the bodies other games own, played here as Skyrim's would be (BodyBridge).
     void SetReferences(std::function<uint32_t(const GameId& acId)>, std::function<std::optional<GameId>(uint32_t)>) noexcept override {}
     std::optional<BodyRead> Read(const BodyKey& acKey) noexcept override;
-    // One of its reference's bodies is on a trap's layer (BodyBridge, ReferenceBodies::IsTrap).
-    bool IsTrap(const BodyKey& acKey) noexcept override;
     // Havok's pairs (its collision entries): the bodies that share one of Islands with each of acKeys.
     std::vector<std::pair<BodyKey, BodyKey>> ReadTouching(const std::vector<BodyKey>& acKeys) noexcept override;
     // Its pose now (a test's read).

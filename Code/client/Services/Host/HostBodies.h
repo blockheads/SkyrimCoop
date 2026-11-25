@@ -57,8 +57,6 @@ private:
     // The host's game's reads of the bodies it simulates.
     void Read(uint64_t aTick) noexcept;
     void Stream(uint64_t aTick) noexcept;
-    // A guest's moving body that touches a trap's: the host's again, and no guest's while it does (TouchingHostOnly).
-    void TrapBound(uint64_t aTick) noexcept;
     // Nobody's again: the host's game simulates it from where it is.
     void Unclaim(const BodyKey& acKey, const char* acpWhy) noexcept;
     // A ragdoll body the sender's character owns, or a corpse the host's game owns (a guest's player may grab it).
@@ -77,8 +75,6 @@ private:
     BodyMotions m_motions;
     PairedPoses m_paired; // what Havok pairs with its player's bodies, and where each lay
     std::vector<BodyKey> m_held; // the host's player holds them
-    std::set<BodyKey> m_trapBound; // touching a trap's body this update
-    std::set<BodyKey> m_trapHeld;  // held by the host for it
     std::map<ConnectionId_t, uint32_t> m_numbers;
     uint32_t m_lastNumber{};
     uint64_t m_tick{};

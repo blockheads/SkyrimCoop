@@ -4,6 +4,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <utility>
 
 // The motion type a script last gave each reference (ObjectReference.SetMotionType, 56232 -> 56332): saved with it as
 // a havok change, read by the host for its world row (kMotion; physics.md, "A script's motion type").
@@ -28,18 +29,32 @@ struct Store
     void Remember(uint32_t aFormId, uint32_t aValue) noexcept
     {
         std::scoped_lock _(m_lock);
-        m_values[aFormId] = aValue;
+        m_values[aFormId] = {aValue, true};
     }
     [[nodiscard]] std::optional<uint32_t> Of(uint32_t aFormId) const noexcept
     {
         std::scoped_lock _(m_lock);
         const auto it = m_values.find(aFormId);
-        return it != m_values.end() ? std::optional(it->second) : std::nullopt;
+        return it != m_values.end() ? std::optional(it->second.Value) : std::nullopt;
+    }
+    // Once for each script call: its live row (a moving body's reference is read every frame).
+    [[nodiscard]] std::optional<uint32_t> TakeUnsent(uint32_t aFormId) noexcept
+    {
+        std::scoped_lock _(m_lock);
+        const auto it = m_values.find(aFormId);
+        if (it == m_values.end() || !std::exchange(it->second.Unsent, false))
+            return std::nullopt;
+        return it->second.Value;
     }
 
 private:
+    struct Entry
+    {
+        uint32_t Value{};
+        bool Unsent{};
+    };
     mutable std::mutex m_lock;
-    std::unordered_map<uint32_t, uint32_t> m_values;
+    std::unordered_map<uint32_t, Entry> m_values;
 };
 
 // This game's.
