@@ -134,6 +134,10 @@ class Scenery(unittest.TestCase):
         boom = {"id": 0xFF00089E, "base": 0x88109, "type": EXPL_TYPE, "cell": 0x3C, "flags": 0, "changes": 2, "position": [4928.0, 992.0, -224.0],
                 "pose": {"AddOnNode43": {"position": [4758.0, 879.0, -443.0], "rotate": [1.0] + [0.0] * 8}}}
         flown = {**boom, "id": 0xFF000901, "pose": {"AddOnNode43": {"position": [4928.0, 992.0, -224.0], "rotate": [1.0] + [0.0] * 8}}}
+        # darts_hurt_puller, 2026-11-24: its debris spheres' bodies apart too.
+        sphere = {"node": "cSphere01", "in_world": True, "motion": 2, "position": [4644.0, 1472.0, -495.0], "rotation": [0.0, 0.0, 0.0, 1.0]}
+        boom["collision"] = [sphere]
+        flown["collision"] = [{**sphere, "position": [4608.0, 1460.0, -496.0], "rotation": [0.0, 0.3, 0.0, 0.95]}]
         self.assertEqual(world_differences({boom["id"]: boom}, {flown["id"]: flown}), {})
         elsewhere = {**flown, "position": [5928.0, 992.0, -224.0]}
         self.assertNotEqual(world_differences({boom["id"]: boom}, {elsewhere["id"]: elsewhere}), {})

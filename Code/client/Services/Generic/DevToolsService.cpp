@@ -29,6 +29,8 @@ void DevToolsService::Run(const std::string& acLine) noexcept
     const auto& cCommand = *cParsed.Run;
     if (cCommand.What == DevCommands::Kind::KillAll)
         m_bridge.KillHostiles();
+    if (DevCommands::IsPartyHorse(cCommand))
+        m_bridge.SpawnPartyHorses(0x14, cCommand.Count); // this game's player
     for (const auto& cLine : DevCommands::WorldLines(cCommand, "player"))
         m_bridge.RunConsole(cLine);
     Apply(cCommand);

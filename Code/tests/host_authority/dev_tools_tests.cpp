@@ -45,6 +45,26 @@ TEST_CASE("Dev commands: a guest's spawn runs in the host's console at its chara
     CHECK(session.ConsoleLines == std::vector<std::string>{"fw 4D7FB"});
 }
 
+TEST_CASE("Dev commands: a guest's /spawn horse places party horses at its character, no console line",
+          "[HostAuthority][DevTools]")
+{
+    Session session;
+    Announce(session, kPeer, 0x14);
+    session.ConsoleNames[session.CharacterId(kPeer)] = "FF000801";
+    session.Outbox.clear();
+
+    session.Receive(kPeer, Typed("/spawn horse 2"));
+    CHECK(session.PartyHorses == std::vector<std::pair<uint32_t, uint32_t>>{{session.CharacterId(kPeer), 2}});
+    CHECK(session.ConsoleLines.empty());
+    CHECK(session.SentTo<NotifyDevCommand>(kHost).size() == 1);
+
+    // Its character gone from the host's game: nowhere to place them.
+    session.ConsoleNames.clear();
+    session.PartyHorses.clear();
+    session.Receive(kPeer, Typed("/spawn horse"));
+    CHECK(session.PartyHorses.empty());
+}
+
 TEST_CASE("Dev commands: a player command runs nothing on the host's console; killall kills there once",
           "[HostAuthority][DevTools]")
 {

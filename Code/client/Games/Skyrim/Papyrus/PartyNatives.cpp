@@ -278,11 +278,6 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
     facts.Target = cSelf == PartyRules::kThisPlayerFormId     ? Target::kThisPlayer
                    : GuestScripts::IsGuestCharacter(cSelf) ? Target::kGuestCharacter
                                                            : Target::kNone;
-    if (facts.Reach.Kind == NativeReach::Call::kCast)
-    {
-        const auto* pCaster = Cast<TESObjectREFR>(TESForm::GetById(cSelf));
-        facts.ObjectCaster = pCaster && pCaster->formType == FormType::Reference;
-    }
     facts.OwnQuest = !cStatic && PlayerNatives::IsOwnQuest(cObject);
     facts.CreatedObject = !cStatic && IsCreatedForm(cObject) && World::Get().ctx().at<CreatedIds>().ToSession(cObject).has_value();
     const BSScript::StackFrame* cpCaller = acStack.pTop->pPrevious;

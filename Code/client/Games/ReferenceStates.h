@@ -27,7 +27,10 @@ uint32_t LinkedLockRows(const TESObjectREFR& acObject) noexcept;
 void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept;
 // The reference's state now for aFlags: a change for each row that takes any of them.
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
-          std::vector<ObjectChange>& aChanges) noexcept;
+          std::vector<ObjectChange>& aChanges, bool aWhole = false) noexcept;
+// aWhole: a cell's state (a script's motion type with it); else live, that row once for each script call.
+// A motion row that came before the reference's 3D, applied now it loaded.
+void ApplyDeferredMotion(TESObjectREFR& aObject) noexcept;
 // The enabled row of a reference that is gone (deleted), for one no longer there to read.
 ObjectChange Deleted(const GameId& acId) noexcept;
 // Whether the reference here already reads as the change (a row's kind only).

@@ -35,6 +35,22 @@ enum class FormType : uint8_t
 struct BGSSaveFormBuffer;
 struct BGSLoadFormBuffer;
 
+// A plugin file (CommonLibSSE-NG TESFile): only its name.
+struct TESFile
+{
+    uint8_t unk0[0x58];
+    char fileName[260]; // 58
+};
+static_assert(offsetof(TESFile, fileName) == 0x58);
+
+// The plugins a form comes from (CommonLibSSE-NG TESFileArray): the first defines it (TESForm::GetFile 14621 with 0).
+struct TESFileArray
+{
+    TESFile** files; // 0
+    uint32_t count;  // 8
+};
+static_assert(offsetof(TESFileArray, count) == 0x8);
+
 struct TESForm : BaseFormComponent
 {
     // A change record's entry (35503): its flags, and the buffer its changes went to when it unloaded or was
@@ -138,7 +154,13 @@ struct TESForm : BaseFormComponent
     bool IsTemporary() const noexcept { return formID >= 0xFF000000; }
     bool IsConsumable() const noexcept { return formType == FormType::Ingredient || formType == FormType::Alchemy; }
 
-    uintptr_t unk4;
+    // The plugin that defines it (14621 with 0), null for a form made at run time.
+    [[nodiscard]] const TESFile* GetDefiningFile() const noexcept
+    {
+        return sourceFiles && sourceFiles->count ? sourceFiles->files[0] : nullptr;
+    }
+
+    TESFileArray* sourceFiles; // 08 (TESFileContainer)
     uint32_t flags;           // 10
     uint32_t formID;          // 14
     uint16_t inGameFormFlags; // 18 (CommonLibSSE-NG InGameFormFlag)
@@ -147,6 +169,7 @@ struct TESForm : BaseFormComponent
 };
 
 static_assert(sizeof(TESForm) == 0x20);
+static_assert(offsetof(TESForm, sourceFiles) == 0x08);
 static_assert(offsetof(TESForm, flags) == 0x10);
 static_assert(offsetof(TESForm, formID) == 0x14);
 static_assert(offsetof(TESForm, inGameFormFlags) == 0x18);

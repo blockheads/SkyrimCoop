@@ -253,12 +253,15 @@ class Runner:
         except (OSError, ValueError):
             return False
 
-    def restart_duo(ctx):
-        """Boots the duo again as it was booted (boot.json) and returns its baseline world."""
+    def restart_duo(ctx, plugins=None):
+        """Boots the duo again as it was booted (boot.json) and returns its baseline world. `plugins`: the bundled mods
+        (MOD_PLUGINS) it loads from now on instead."""
         try:
             boot = json.loads((ctx.game("").control / BOOT_FILE).read_text())
         except (OSError, ValueError):
             raise ctx.failure(f"no {BOOT_FILE}: boot the duo with this harness to let it restart")
+        if plugins is not None:
+            boot["plugins"] = list(plugins)
         log(f"=== booting the duo again ({boot})")
         ctx.stop_duo()
         try:

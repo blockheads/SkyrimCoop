@@ -13,7 +13,6 @@ struct ActorPerks;
 struct MeleeStagger;
 struct TrapContact;
 struct TrapHit;
-struct WorldProjectile;
 struct ActorValueChanges;
 struct ActorMaxValueChanges;
 struct DeathStateChange;
@@ -127,8 +126,6 @@ using TrapContactRequest = Relayed<Payloads::TrapContact, kTrapContactRequest>;
 using TrapHitRequest = Relayed<Payloads::TrapHit, kTrapHitRequest>;
 using NotifyTrapHit = Relayed<Payloads::TrapHit, kNotifyTrapHit>;
 // A projectile an object of the host's world fired (a dart trap), for every guest to show.
-using WorldProjectileRequest = Relayed<Payloads::WorldProjectile, kWorldProjectileRequest>;
-using NotifyWorldProjectile = Relayed<Payloads::WorldProjectile, kNotifyWorldProjectile>;
 
 using SystemQuestsRequest = Relayed<Payloads::SystemQuests, kSystemQuestsRequest>;
 using NotifySystemQuests = Relayed<Payloads::SystemQuests, kNotifySystemQuests>;

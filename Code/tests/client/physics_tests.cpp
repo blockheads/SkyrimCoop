@@ -9,6 +9,7 @@
 #include "../FakeFlight.h"
 
 #include <Physics/BodyGroups.h>
+#include <Games/ScriptMotion.h>
 #include <Physics/BodyPlayback.h>
 #include <Physics/RagdollPending.h>
 #include <Physics/RagdollStart.h>
@@ -667,12 +668,21 @@ TEST_CASE("What a body meets: a played one passes loose objects nobody moves, an
     using BodyGroups::Decide;
     using BodyGroups::Meet;
     const auto cInfo = [](uint32_t aLayer, uint32_t aGroup) { return aLayer | (aGroup << 16); };
-    const uint32_t cPlayed = cInfo(4, BodyGroups::kPlayed), cMoving = cInfo(4, BodyGroups::kMoving), cResting = cInfo(4, 0);
+    const uint32_t cPlayed = cInfo(4, BodyGroups::kPlayed), cMoving = cInfo(4, BodyGroups::kMovingFirst), cResting = cInfo(4, 0);
     CHECK(Decide(cPlayed, cResting) == Meet::kPass);
     CHECK(Decide(cResting, cPlayed) == Meet::kPass);
     CHECK(Decide(cPlayed, cPlayed) == Meet::kPass);
     CHECK(Decide(cPlayed, cMoving) == Meet::kCollide);
-    CHECK(Decide(cMoving, cMoving) == Meet::kCollide); // one group: the engine would keep them apart
+    CHECK(Decide(cMoving, cInfo(4, BodyGroups::kMovingFirst + 1)) == Meet::kCollide);
+    // One moving group: bodies that shared a group (a rope's links), kept apart as the engine kept them. The duo,
+    // 2026-11-24: a tripwire's rope a guest took spun at 30 rad/s for good, its links colliding with each other.
+    CHECK(Decide(cMoving, cMoving) == Meet::kEngine);
+    BodyGroups::MovingGroups groups;
+    const uint16_t cRope = groups.Take(12);
+    CHECK(BodyGroups::IsMoving(cRope));
+    CHECK(groups.Take(12) == cRope);   // its next link
+    CHECK(groups.Take(13) != cRope);   // another object
+    CHECK(groups.Take(0) != groups.Take(0)); // no group of its own: nothing shared
     CHECK(Decide(cMoving, cResting) == Meet::kEngine);
     CHECK(Decide(cResting, cResting) == Meet::kEngine);
     // The world (static, layer 1) and a character's capsule (layer 30, its own group) are the engine's to say.
@@ -690,11 +700,11 @@ TEST_CASE("A moving body's group waits for a played body: nothing else meets it 
     // Against anything not played the moving group only hands the pair to the engine, as its own group would.
     for (const uint32_t cOther : {cInfo(4, 0), cInfo(4, 12), cInfo(1, 0), cInfo(30, 7), cInfo(32, 9)})
     {
-        CHECK(Decide(cInfo(4, BodyGroups::kMoving), cOther) == Meet::kEngine);
+        CHECK(Decide(cInfo(4, BodyGroups::kMovingFirst), cOther) == Meet::kEngine);
         CHECK(Decide(cInfo(4, 12), cOther) == Meet::kEngine);
     }
     // Against a played one it is what makes them collide.
-    CHECK(Decide(cInfo(4, BodyGroups::kMoving), cInfo(4, BodyGroups::kPlayed)) == Meet::kCollide);
+    CHECK(Decide(cInfo(4, BodyGroups::kMovingFirst), cInfo(4, BodyGroups::kPlayed)) == Meet::kCollide);
     CHECK(Decide(cInfo(4, 12), cInfo(4, BodyGroups::kPlayed)) == Meet::kPass);
     CHECK_FALSE(BodyGroups::WritesMoving(false));
     CHECK(BodyGroups::WritesMoving(true));
@@ -712,7 +722,7 @@ TEST_CASE("A lying copy's ragdoll, played, meets the world and what this game mo
     CHECK(Decide(cCopy, cInfo(10, 0)) == Meet::kPass);                    // a prop nobody moves
     CHECK(Decide(cCopy, cInfo(4, BodyGroups::kPlayed)) == Meet::kPass);   // an object another game moves
     CHECK(Decide(cCopy, cInfo(32, BodyGroups::kPlayed)) == Meet::kPass);  // another copy's ragdoll
-    CHECK(Decide(cCopy, cInfo(4, BodyGroups::kMoving)) == Meet::kCollide); // what this game's player carries
+    CHECK(Decide(cCopy, cInfo(4, BodyGroups::kMovingFirst)) == Meet::kCollide); // what this game's player carries
     CHECK(Decide(cCopy, cInfo(1, 0)) == Meet::kEngine);                   // the floor
     CHECK(Decide(cCopy, cInfo(13, 0)) == Meet::kEngine);                  // terrain
     CHECK(Decide(cCopy, cInfo(32, 9)) == Meet::kEngine);                  // this game's own corpse: the layers say
@@ -723,4 +733,36 @@ TEST_CASE("A copy with no two snapshots is held where it is, unless its ragdoll 
     CHECK(CopyStep::Hold(false, false) == CopyMove::Place);
     CHECK(CopyStep::Hold(true, false) == CopyMove::Leave);
     CHECK(CopyStep::Hold(false, true) == CopyMove::Leave);
+}
+
+TEST_CASE("A script's motion type packs with its allowActivate and the last one stands", "[physics][motion]")
+{
+    CHECK(ScriptMotion::TypeOf(ScriptMotion::Pack(4, true)) == 4);
+    CHECK(ScriptMotion::AllowsActivate(ScriptMotion::Pack(4, true)));
+    CHECK_FALSE(ScriptMotion::AllowsActivate(ScriptMotion::Pack(1, false)));
+    ScriptMotion::Store store;
+    CHECK_FALSE(store.Of(0x7998B));
+    store.Remember(0x7998B, ScriptMotion::Pack(4, false));
+    store.Remember(0x7998B, ScriptMotion::Pack(1, false)); // tripped
+    CHECK(store.Of(0x7998B) == ScriptMotion::Pack(1, false));
+    // Live, once for the call (the duo: a falling rock's row went out 57 times, re-applied each time on the guest).
+    CHECK(store.TakeUnsent(0x7998B) == ScriptMotion::Pack(1, false));
+    CHECK_FALSE(store.TakeUnsent(0x7998B));
+    CHECK(store.Of(0x7998B) == ScriptMotion::Pack(1, false)); // a cell's state still has it
+}
+
+TEST_CASE("Moving groups never wrap onto one in use; a freed one is taken again", "[physics]")
+{
+    // Review of #129: past the range's 4076 values one was handed out again while still live, and two objects passed
+    // through each other.
+    BodyGroups::MovingGroups groups;
+    const uint16_t cFirst = groups.Take(12);
+    for (uint16_t i = 0; i < BodyGroups::kMovingLast - BodyGroups::kMovingFirst; ++i)
+        (void)groups.Take(0);
+    CHECK(groups.InUse() == size_t(BodyGroups::kMovingLast - BodyGroups::kMovingFirst + 1));
+    CHECK(groups.Take(0) == 0);       // all in use: no moving group, never cFirst again
+    CHECK(groups.Take(12) == cFirst); // its own group's still
+    groups.Give(cFirst);
+    groups.Give(cFirst);              // both of group 12's bodies stopped
+    CHECK(groups.Take(13) == cFirst); // free again, taken by another object
 }

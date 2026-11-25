@@ -19,6 +19,7 @@ import time
 import uuid
 from .common import (
     BOOT_FILE,
+    duo_plugins,
     CLI_HELP,
     GAME,
     HOME_CELL,
@@ -193,6 +194,7 @@ class Commands:
                     ctx.face_actor(next(iter(seen[name or "host"])), _game=_game)
                 ctx.save_home(cell_name=args.cell if not args.save else None)
                 boot = {key: getattr(args, key, None) for key in ("cell", "save", "level", "npc", "seconds", "boot_timeout", "world_timeout")}
+                boot["plugins"] = duo_plugins(args) or []
                 atomic_write(ctx.game("").control / BOOT_FILE, json.dumps(boot) + "\n")
         except TestFailure as error:
             print(f"\nFAIL: {error}\nLogs: {run_dir}", file=sys.stderr)
@@ -912,6 +914,8 @@ class Commands:
             if name == "duo":
                 sub.add_argument("--seconds", type=float, default=30, help="how long to wait for the games to show each other")
                 sub.add_argument("--keep-running", action="store_true", help="leave Skyrim open afterwards")
+                sub.add_argument("--plugins", default="", help="bundled mods (MOD_PLUGINS, comma separated) both games load, "
+                                 "e.g. 'unofficial skyrim special edition patch.esp,alternate start - live another life.esp'")
             if name == "repro":
                 sub.add_argument("name", nargs="?", help=f"a known crash: {', '.join(REPROS)}")
                 sub.add_argument("commands", nargs="*", help="or: console commands after booting into --cell (3s apart)")

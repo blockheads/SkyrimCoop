@@ -171,3 +171,29 @@ TEST_CASE("Claims: a player joining while a kill move is claimed hears the claim
     REQUIRE(cClaims.size() == 1);
     CHECK(cClaims[0]->ForId == cPeerPlayer);
 }
+
+TEST_CASE("Claims: a player joining while a guest rides a horse gets the rider's word on its effects", "[HostAuthority][claims][effects]")
+{
+    // Review of #129: a guest's horse's spawn came from the host's copy, whose own list never holds the owner's effects.
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    session.Receive(kPeer, RideClaim(cPeerPlayer, cHorse));
+    RequestActiveEffects effects;
+    effects.SessionId = cHorse;
+    effects.EffectIds = {GameId(0, 0x12F03)};
+    effects.Held = {{GameId(0, 0xA0370), GameId(0, 0x9F28F)}};
+    session.Receive(kPeer, effects);
+
+    constexpr ConnectionId_t cLate = 4;
+    session.Join(cLate, JoinRequest("Serana"));
+    AnnounceCharacterRequest late;
+    late.SessionId = session.CharacterId(cLate);
+    late.ReferenceId = GameId(0, 0x14);
+    session.Receive(cLate, late);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(cLate);
+    const auto cSpawn = std::ranges::find_if(cSpawns, [&](const auto* apSpawn) { return apSpawn->SessionId == cHorse; });
+    REQUIRE(cSpawn != cSpawns.end());
+    CHECK((*cSpawn)->HeldEffects == effects.Held);
+    CHECK((*cSpawn)->EffectIds == effects.EffectIds);
+}

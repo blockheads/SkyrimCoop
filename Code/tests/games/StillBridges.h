@@ -411,6 +411,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
                         int32_t aCount) noexcept override
     {
     }
+    void ActorWearStack(uint32_t aActorFormId, const Inventory::Entry& acStack) noexcept override
+    {
+    }
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId,
                           int32_t aCount) noexcept override
     {
@@ -883,6 +886,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
         return {};
     }
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
+    {
+    }
+    void SetCopyEffects(uint32_t, std::vector<OwnerEffects::Held>) noexcept override
     {
     }
     bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override

@@ -51,6 +51,14 @@ TEST_CASE("Dev commands: a world command is the host's; every player command run
     CHECK(Parse("/leash off").Run->On == false);
     CHECK(WorldLines(*Parse("/leash on").Run, "player").empty());
     CHECK(PlayerLines(*cSpawn).empty());
+    // A horse is the bridge's to place, the party's: no console line.
+    const auto cHorses = Parse("/spawn horse 2").Run;
+    REQUIRE(cHorses);
+    CHECK(IsWorld(cHorses->What));
+    CHECK(IsPartyHorse(*cHorses));
+    CHECK(cHorses->Count == 2);
+    CHECK(WorldLines(*cHorses, "player").empty());
+    CHECK_FALSE(IsPartyHorse(*cSpawn));
 
     for (const char* cpLine :
          {"/heal", "/god", "/speed 2", "/gravity 0.5", "/shouts", "/gear", "/lootbox", "/killmove 50", "/reset"})

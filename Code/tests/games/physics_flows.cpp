@@ -299,6 +299,30 @@ SCENARIO("A knocked bucket stops where an animated body keeps its island awake: 
     }
 }
 
+// A still body in an island kept awake stays watched (physics.md, "Still in an awake island").
+SCENARIO("A bucket at rest in an island kept awake is nudged again: its new rest reaches the guest", "[physics][still]")
+{
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    hostBucket.KeptAwake = true;
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {0.f, 120.f, 0.f}); });
+    party.Until([&] { return hostBucket.Flight.Resting && guestBucket.Rests > 0; }, "the first rest reaches the guest");
+    const size_t cRests = guestBucket.Rests;
+    const float cFirst = hostBucket.Flight.Body.Position.x;
+    // An island mate nudges it: Havok's island was awake all along.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {120.f, 0.f, 0.f}); });
+    const auto cWhere = [&] {
+        return std::format("host's at x {:.1f} {}, guest's at x {:.1f}, {} rests", hostBucket.Flight.Body.Position.x,
+                           hostBucket.Flight.Resting ? "stopped" : "moving", guestBucket.Flight.Body.Position.x, guestBucket.Rests);
+    };
+    party.Until([&] { return hostBucket.Flight.Resting && guestBucket.Rests > cRests; }, "its second rest reaches the guest", cWhere);
+    INFO(cWhere());
+    CHECK(hostBucket.Flight.Body.Position.x > cFirst + 10.f);
+    CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
+}
+
 SCENARIO("The host's player holds a bucket still in the air and lets go: the guest's first rest is where it lands", "[physics][still]")
 {
     // Review of #56: its stillness matured in the hand, so the release was taken for a rest in midair.
@@ -2239,4 +2263,27 @@ SCENARIO("The host's bucket lies on what holds it only there: the guest's, woken
     CHECK(furthestStep < 2.f);
     CHECK(furthestOff < 5.f);
     CHECK(glm::distance(guestBucket.Flight.Body.Position, cOn) < 2.f);
+}
+
+// A body a script holds keyframed (an untripped tripwire) is taken by no touch (traps.md, "Who simulates a trap's bodies").
+SCENARIO("A guest's player pushes a body a script holds keyframed: it is not taken until the script frees it", "[physics][traps]")
+{
+    Party party(1, [](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        aEngine.Bodies.at(kBucket).ScriptKeyframed = true;
+    });
+    FakeEngine& guest = Party::Engine(party.Guest());
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
+    for (int i = 0; i < 30; ++i)
+    {
+        party.Frame();
+        CHECK_FALSE(Moves(party.Guest(), kBucket));
+    }
+    CHECK(hostBucket.Drives == 0);
+
+    hostBucket.ScriptKeyframed = guestBucket.ScriptKeyframed = false; // tripped: SetMotionType(1), its row applied
+    party.As(party.Guest(), [&] { guest.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position}); });
+    party.Until([&] { return Moves(party.Guest(), kBucket); }, "the guest's push takes it once it is simulated");
 }

@@ -19,6 +19,7 @@
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
 #include <Systems/CopyStep.h>
+#include <Combat/WorldHits.h>
 #include <Misc/GameVM.h>
 #include <DefaultObjectManager.h>
 #include <Forms/TESNPC.h>
@@ -87,6 +88,7 @@
 #include <Havok/hkbStateMachine.h>
 #include <Havok/hkbBehaviorGraph.h>
 #include <Forms/BGSOutfit.h>
+#include <Games/ScriptEquips.h>
 #include <Forms/TESObjectARMO.h>
 
 #include <ModCompat/BehaviorVar.h>
@@ -1538,13 +1540,16 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
 
     // Direct authority: the hittee's owner applies a hit; our player's hit on another game's actor (a host NPC, another
     // player) is a request to that owner, and the copy mirrors the owner's health instead.
-    switch (HitRules::Of(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), s_applyingEffect))
+    const bool cWorldHit = WorldHits::Current();
+    const auto cRoute = HitRules::Of(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), s_applyingEffect, cWorldHit,
+                                     cWorldHit && GuestNpcs::Session() != 0);
+    switch (cRoute)
     {
     case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
         return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
     case HitRules::Route::AskOwner:
-        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter->formID));
+        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter ? apHitter->formID : 0));
         return wouldKill;
     case HitRules::Route::Mirror: return wouldKill;
     case HitRules::Route::Drop: return false;
@@ -1614,6 +1619,30 @@ static void ReportAdd(const Actor& acActor, const TESBoundObject& acItem, ExtraD
     event.StoryGiven = GuestScripts::StoryGiving();
     event.AliasHeld = apExtraData && apExtraData->Contains(ExtraDataType::AliasInstanceArray);
     World::Get().GetRunner().Trigger(std::move(event));
+}
+
+// Papyrus Actor.EquipItem (54661): an item the actor lacks is added past AddInventoryItem (16053), reported here.
+using TScriptEquipItem = void(void*, uint32_t, Actor*, TESForm*, bool, bool);
+static TScriptEquipItem* RealScriptEquipItem = nullptr;
+
+// The count 54661's own test (16133) sees, read without creating the changes (16039): with none it adds nothing.
+static std::optional<int64_t> HeldCount(const Actor& acActor, const TESForm& acItem) noexcept
+{
+    if (!acActor.FindContainerChanges())
+        return std::nullopt;
+    return acActor.GetItemCountInInventory(const_cast<TESForm*>(&acItem));
+}
+
+static void HookScriptEquipItem(void* apVm, uint32_t aStackId, Actor* apThis, TESForm* apItem, bool aPreventRemoval, bool aSilent)
+{
+    const auto cBefore = apThis && apItem ? HeldCount(*apThis, *apItem) : std::nullopt;
+    RealScriptEquipItem(apVm, aStackId, apThis, apItem, aPreventRemoval, aSilent);
+    if (!cBefore || *cBefore > 0 || ScopedInventoryOverride::IsOverriden())
+        return;
+    const int64_t cAfter = HeldCount(*apThis, *apItem).value_or(0);
+    if (auto event = ScriptEquips::Arrival(apThis->formID, ItemId(apItem->formID).value_or(GameId{}), static_cast<int32_t>(*cBefore),
+                                           static_cast<int32_t>(cAfter), GuestScripts::StoryCalling()))
+        World::Get().GetRunner().Trigger(std::move(*event));
 }
 
 void HookAddInventoryItem(Actor* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
@@ -1843,7 +1872,8 @@ static TSpeakSoundFunction* RealSpeakSoundFunction = nullptr;
 
 float HookSpeakSoundFunction(Actor* apThis, const char* apName, uint32_t* a3, uint32_t a4, uint32_t a5, uint32_t a6, uint64_t a7, uint64_t a8, uint64_t a9, bool a10, uint64_t a11, bool a12, bool a13, bool a14)
 {
-    spdlog::debug("a3: {:X}, a4: {}, a5: {}, a6: {}, a7: {}, a8: {:X}, a9: {:X}, a10: {}, a11: {:X}, a12: {}, a13: {}, a14: {}", (uint64_t)a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
+    spdlog::debug("Voice: {:X} ({}) says {}", apThis->formID,
+                  apThis->GetExtension()->IsCopy() ? "copy, refused" : apThis->GetExtension()->IsLocal() ? "local" : "not ours", apName ? apName : "");
 
     if (apThis->GetExtension()->IsLocal())
         World::Get().GetRunner().Trigger(DialogueEvent(apThis->formID, apName));
@@ -2148,6 +2178,7 @@ static Hooks::Initializer s_actorHooks(
 
         HOOK_ID(37356, &RealApplyMovement, HookApplyMovement);
         HOOK_ID(37322, &RealResetInventory, HookResetInventory);
+        HOOK_ID(54661, &RealScriptEquipItem, HookScriptEquipItem);
         HOOK_ID(37347, &RealUpdateAI, HookUpdateAI);
         // Every actor's AI runs through it: a lock order there is the engine's unless a copy's runs (UpdateCopyAI).
         LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookUpdateAI));

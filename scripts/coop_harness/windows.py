@@ -220,7 +220,7 @@ class WindowsRuntime(Runtime):
             CRASH_OWNERS.write_text(json.dumps(owners, indent=1))
         return [path for path in logs if path.name in owners and (owners[path.name] is None or name in owners[path.name])]
 
-    def prepare_prefix(ctx, bundled_start=True, *, _game=None):
+    def prepare_prefix(ctx, bundled_start=True, plugins=None, *, _game=None):
         _game = ctx.game(_game)
         _game.prefix.mkdir(parents=True, exist_ok=True)
         _game.my_games.mkdir(parents=True, exist_ok=True)
@@ -243,7 +243,7 @@ class WindowsRuntime(Runtime):
                             "AudioMenu": {"fAudioMasterVolume": "0.0000"},
                             "Interface": {"bDialogueSubtitles": "1", "bGeneralSubtitles": "1"}})
         if bundled_start:
-            ctx.enable_bundled_start(_game=_game)
+            ctx.enable_bundled_start(plugins, _game=_game)
 
     def start_game(ctx, run_dir, *, _game=None):
         """SKSE's loader starts the game and exits: the game's process is the SkyrimSE.exe that appears."""

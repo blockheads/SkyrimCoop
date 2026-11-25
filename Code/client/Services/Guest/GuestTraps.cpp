@@ -1,13 +1,10 @@
 #include <Services/Guest/GuestTraps.h>
 
 #include <Bridges/IActorBridge.h>
-#include <Bridges/IFormBridge.h>
 #include <CreatedIds.h>
-#include <Diagnostics/Counters.h>
 #include <Events/TrapEvents.h>
 #include <FormIds.h>
 #include <Messages/Relayed.h>
-#include <Services/ProjectileLaunches.h>
 #include <Services/TransportService.h>
 #include <SessionIds.h>
 #include <World.h>
@@ -17,7 +14,6 @@ GuestTraps::GuestTraps(World& aWorld, entt::dispatcher& aDispatcher) noexcept
 {
     Listen<TrapContactEvent, &GuestTraps::OnTrapContact>(m_connections, aDispatcher, this);
     Listen<NotifyTrapHit, &GuestTraps::OnTrapHit>(m_connections, aDispatcher, this);
-    Listen<NotifyWorldProjectile, &GuestTraps::OnWorldProjectile>(m_connections, aDispatcher, this);
 }
 
 std::optional<GameId> GuestTraps::ToWire(uint32_t aFormId) const noexcept
@@ -52,15 +48,4 @@ void GuestTraps::OnTrapHit(const NotifyTrapHit& acMessage) const noexcept
     const uint32_t cTrap = FromWire(acMessage.Trap);
     spdlog::info("GuestTraps: {:X} takes the hit of {:X} for {:.1f}", cTarget, cTrap, acMessage.Damage);
     actors.TakeTrapHit(cTarget, cTrap, acMessage);
-}
-
-void GuestTraps::OnWorldProjectile(const NotifyWorldProjectile& acMessage) const noexcept
-{
-    auto& forms = m_world.ctx().at<IFormBridge&>();
-    const uint32_t cShooter = FromWire(acMessage.Shooter);
-    if (!cShooter || !forms.FormExists(cShooter))
-        return;
-    static auto& s_launched = Diagnostics::Counters::Get("world projectiles launched");
-    Diagnostics::Counters::Add(s_launched, 1);
-    ProjectileLaunches::Launch(forms, cShooter, acMessage.Launch);
 }

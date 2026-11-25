@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/OwnerEffects.h>
 #include <array>
 
 #include <cstdint>
@@ -191,7 +192,7 @@ public:
         uint32_t EffectFormId{};
         uint32_t SpellFormId{};
         uint32_t CasterFormId{};
-        bool CasterIsActor{}; // false for an object's cast: a trap, an explosion (its NonActorMagicCaster), a hazard
+        bool CasterIsActor{}; // false for no caster or an object's (a trap, an explosion, a hazard)
         float Magnitude{};
         float Duration{};
         float Elapsed{};
@@ -370,6 +371,8 @@ public:
     // --- Effect visuals: what a magic effect shows on its target (burning, frost, a glow) ---
     // Whether that magic effect shows on its target while it runs (a hit shader or hit art, FX Persist).
     virtual bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept = 0;
+    // A copy's owner's active effects, its answer to "has this effect / spell" (OwnerEffects.h).
+    virtual void SetCopyEffects(uint32_t aFormId, std::vector<OwnerEffects::Held> aHeld) noexcept = 0;
     // Plays only that effect's hit visuals on the actor until stopped; true if they now play (not
     // before the actor has 3D, nor the first time a shader is used in this game: it loads).
     virtual bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept = 0;

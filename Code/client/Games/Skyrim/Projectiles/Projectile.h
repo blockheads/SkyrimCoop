@@ -60,6 +60,8 @@ struct Projectile : TESObjectREFR
     float fDamage;
 
     static BSPointerHandle<Projectile>* Launch(BSPointerHandle<Projectile>* apResult, LaunchData& arData) noexcept;
+    // An object's projectile (no actor shooter) hitting a reference on this thread (44204): its enchantment's cast.
+    [[nodiscard]] static bool WorldImpact() noexcept;
 };
 
 static_assert(sizeof(Projectile::LaunchData) == 0xA8);

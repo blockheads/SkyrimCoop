@@ -18,6 +18,7 @@ struct GameLoadedEvent;
 struct GameLoadFailedEvent;
 struct NotifyPartyReload;
 struct NotifySaveChunk;
+struct NotifySaveWaiting;
 struct UpdateEvent;
 struct World;
 
@@ -34,6 +35,8 @@ struct JoinService
     static constexpr const char* kTransferSave = "SkyrimCoopTransfer";
     static constexpr double kConnectSeconds = 20.0;
     static constexpr double kChunkSeconds = 30.0;
+    static constexpr const char* kWaitingForSave = "The host's game can't save right now (a conversation or a menu is open). "
+                                                   "Joining as soon as it can.";
     static constexpr double kLoadSeconds = 180.0;
     // A guest's session that drops: the same host again, this many times, each try this long at most.
     static constexpr int kReconnectTries = 3;
@@ -99,6 +102,7 @@ private:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
     void OnAuthentication(const AuthenticationResponse& acResponse) noexcept;
     void OnSaveChunk(const NotifySaveChunk& acChunk) noexcept;
+    void OnSaveWaiting(const NotifySaveWaiting& acNotice) noexcept;
     void OnConnected(const ConnectedEvent&) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void OnGameLoaded(const GameLoadedEvent&) noexcept;

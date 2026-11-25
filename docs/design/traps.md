@@ -40,14 +40,23 @@ left looping sent about 30 a second for minutes.
 
 ## What a trap fires, casts and places
 
-- **Darts, bolts** (`Weapon.Fire`): `Projectile::Launch` (44108) with an object as shooter goes to every guest
-  (`WorldProjectileRequest`), which launches it from its own reference. Each game's dart hits its own player, as an
-  NPC's arrow does.
-- **Casts** (`Spell.Cast`, `InterruptCast` by an object): relayed to every game as the script's call
-  (`NativeReach::Call::kCast`, `PartyRules::RouteOf`), to show. What it does to a guest's player stays the host's
-  (`MagicTarget`'s world cast -> `AddTargetRequest`), so a guest's own copy of an effect no actor casts applies nothing
-  to its player (`TrapRules::AppliesWorldEffect`).
-- **Hazards** (`PlaceAtMe`): a created reference the host sends like any other (`HostEngine::ReadCreate`).
+One rule for everything the world does to a player: **the host's game decides, every game shows.**
+
+- **What an object shoots** (a dart port's `Weapon.Fire`, a flame jet's or a statue's `Spell.Cast`, Storm Call's
+  activator, a catapult), of any kind: `Projectile::Launch` (44108) with no actor shooter goes from the game that
+  launched it to every other with shooter 0 (`CombatService`, the same path as Storm Call's bolts,
+  `docs/re/systems/projectiles.md`), and is relaunched there with no shooter, so it shows and applies nothing there.
+  Its hit on a guest's copy is the host's world hit, sent to the guest's game (`HitRules::Of`, `aWorldHit`).
+- **Casts** (`Spell.Cast`, `InterruptCast`): run where their script does (`NativeReach::Call::kCast`, never the
+  screen's); what they launch reaches the others as above.
+- **Hazards and explosions** (`PlaceAtMe`): created references the host sends like any other (`HostEngine::ReadCreate`);
+  an explosion's placed hazard each game's explosion places.
+- **What they do to a guest's character:** the host's verdict on its copy (`MagicTarget`'s world cast, any cast no actor
+  casts -> `AddTargetRequest`; a world hit, no actor aggressor -> a health change); a guest's own copy of a world cast
+  or world hit applies nothing to its player (`TrapRules::AppliesWorldEffect`, `HitRules::Of`). The host's hazard ticks
+  can reach the guest twice before its copy answers: a guest skips a world cast of an effect it holds from no actor
+  (`TrapRules::SkipsWorldEffect`). A trap's script that asks the copy about its effects gets its player's answer
+  (copy-contract.md), so the host's gas and hazards stop at a player already under them.
 
 ## Tests
 
@@ -64,7 +73,8 @@ left looping sent about 30 a second for minutes.
     guest's burn the size of the host's (not applied twice).
 
   - `warehouse_traps_hurt_both` (the test cell WarehouseTraps, a fresh duo: rocks, mace and logs fire once a load):
-    the fire plate's hazard (both), falling rocks (both), the mace (the guest), the log lean-to the host pulls (the guest).
+    the fire plate's hazard (both), falling rocks (both), the mace (the guest), the log lean-to the host pulls (the
+    guest), the poison gas each player walks onto (both).
 
 Open:
 - **A guest pushing the host's swinging mace**: its body went to the guest's physics (`HostHands: ... moves 2464D`), as
@@ -72,23 +82,21 @@ Open:
 - Floor rays look past triggers (layer 12: a pressure plate's volume, 15 above the floor characters stand on), in the
   harness's `floor_under` and the body readout (`EngineReads::GetBodyPose`), which read a player on a plate as sunk.
 
-## A hazard's burn once (measured, 2026-11-23)
+## A hazard's or explosion's effect is the host's verdict (measured, 2026-11-23 and 24)
 
-A placed hazard casts its spell on an actor only while that actor is not under it (`HazardTargets__CheckActor`, 43987:
-`MagicItem::IsSpellTarget`). The host's copy of a guest never takes the effect, so the host's hazard cast again at every
-tick and each reached the guest as a new burn (0.7 rising to 7 a tick). A guest now skips a cast with no caster of an
-effect its player already has (`TrapRules::SkipsWorldEffect`, MagicService); its own copy of the hazard or explosion,
-cast with no caster too, applies (`TrapRules::AppliesWorldEffect`), the host's then skipped.
+A causeless hazard or explosion (a trap's) casts with no caster at all: a hazard through a `NonActorMagicCaster` on the
+stack (`HazardTargets__CheckActor` 43987), an explosion through its own (43827, 43849). On the host it hits the guest's
+copy and its effect is relayed; the guest's own copy applies nothing. Tried and reverted: each game's own copy judging
+its own player. On WarehouseTraps' gas the guest's copies of the first explosions failed their line of sight for about
+3 s, while the host's script, seeing an unpoisoned copy, kept firing; their poisons then landed together and stacked.
 
-## An explosion's poison once (measured, 2026-11-23)
-
-The gas trap places an explosion every half second; an explosion's enchantment is cast by its own `NonActorMagicCaster`
-(43827, 43849), so the effect's caster is the explosion (an object), and `AddTarget` sees no caster actor. The host's
-cast on the guest's copy always reaches the guest first (the guest's copy of the explosion is made from the host's next
-message), and the guest's copy then poisoned it again: 1.3 a tick against the host's 0.6, up to 7 as they stacked. Each
-side now checks for the other's: the host's request is skipped while an effect of the spell by an object lasts
-(`ActiveEffectInfo::CasterIsActor`, MagicService), and the guest's own cast with no caster while the host's (no caster)
-lasts (HookAddTarget). GameTests "An explosion's poison on a guest's player is applied once", both orders.
+The host's scripts and hazards ask the copy about its effects: the gas script (`TrapPoisonGas`'s `onTrigger`:
+`HasMagicEffectWithKeyword(gasKeyword)`, its source in Enderal's mirror of the Skyrim scripts) and a hazard's
+`IsSpellTarget` (43987). A copy held no effects, so both fired at it again and again (the fire plate's burn 0.7 rising to
+7 a tick). Copies now answer with their owner's active effects (`MagicTarget::HasMagicEffect` 34517,
+`HasMagicEffectWithKeyword` 34518, `MagicItem::IsSpellTarget` 34513 hooked; the owner's list sent with
+`NotifyActiveEffects`, copy-contract.md). GameTests "A hazard's or explosion's effect on a guest's player is the host's
+verdict, once", "A script asking a guest's copy for an effect gets its player's answer".
 
 ## A tripped tripwire is broken on every game (read and measured, 2026-11-23)
 

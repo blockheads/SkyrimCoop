@@ -59,6 +59,8 @@ struct InventoryService
     // A party item (party-items.md): this game's player and every player copy carry the party's count of that stack.
     void OnNotifyPartyItem(const NotifyPartyItem& acMessage) noexcept;
     void SetPartyItem(uint32_t aActorFormId, const Inventory::Entry& acItem) const noexcept;
+    // This game's player puts on its copy of a party item the story dressed the player in.
+    void WearPartyItem(const Inventory::Entry& acItem) noexcept;
     // Every party item (a join): carried at the party's count, and a tagged stack the party lacks dropped.
     void OnNotifyPartyItems(const NotifyPartyItems& acMessage) noexcept;
     void SetPartyItems(uint32_t aActorFormId, const std::vector<Inventory::Entry>& acItems) const noexcept;

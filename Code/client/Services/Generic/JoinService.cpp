@@ -37,6 +37,7 @@ JoinService::JoinService(World& aWorld, entt::dispatcher& aDispatcher, IJoinBrid
     Listen<UpdateEvent, &JoinService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<AuthenticationResponse, &JoinService::OnAuthentication>(m_connections, aDispatcher, this);
     Listen<NotifySaveChunk, &JoinService::OnSaveChunk>(m_connections, aDispatcher, this);
+    Listen<NotifySaveWaiting, &JoinService::OnSaveWaiting>(m_connections, aDispatcher, this);
     Listen<ConnectedEvent, &JoinService::OnConnected>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &JoinService::OnDisconnected>(m_connections, aDispatcher, this);
     Listen<GameLoadFailedEvent, &JoinService::OnGameLoadFailed>(m_connections, aDispatcher, this);
@@ -277,6 +278,15 @@ void JoinService::CreationHostLost() noexcept
         Fail("lost_connection");
 }
 
+void JoinService::OnSaveWaiting(const NotifySaveWaiting&) noexcept
+{
+    // The host's game cannot save yet: the join waits as long as the host does, and says why.
+    if (m_step != Step::kReceiving || m_metrics.Chunks)
+        return;
+    m_waited = 0.0;
+    m_status.Message = kWaitingForSave;
+}
+
 void JoinService::OnSaveChunk(const NotifySaveChunk& acChunk) noexcept
 {
     PROFILE_ZONE("Receive world block");
@@ -285,6 +295,7 @@ void JoinService::OnSaveChunk(const NotifySaveChunk& acChunk) noexcept
         return;
     if (m_metrics.Chunks == 0)
     {
+        m_status.Message.clear(); // no longer waiting for the host's save
         m_metrics.WaitForWorldMs = Since(m_worldRequested);
         m_transferStarted = Clock::now();
     }

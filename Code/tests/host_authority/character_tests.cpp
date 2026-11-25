@@ -25,6 +25,7 @@ TEST_CASE("Characters: a player's own goes under the id from its join, everyone 
     announce.AppearanceBuffer = "face";
     announce.Weight = 100.f;
     announce.EffectIds = {GameId(0, 0x4B2D9)};
+    announce.HeldEffects = {{GameId(0, 0xA0370), GameId(0, 0x9F28F)}};
     session.Receive(kPeer, announce);
     const uint32_t cPlayer = announce.SessionId;
     CHECK(cPlayer != cOtherPlayer);
@@ -47,6 +48,7 @@ TEST_CASE("Characters: a player's own goes under the id from its join, everyone 
         CHECK(cSpawns[0]->AppearanceBuffer == "face");
         CHECK(cSpawns[0]->Weight == 100.f);
         CHECK(cSpawns[0]->EffectIds == announce.EffectIds);
+        CHECK(cSpawns[0]->HeldEffects == announce.HeldEffects);
     }
 }
 
