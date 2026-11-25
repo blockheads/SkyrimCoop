@@ -32,8 +32,6 @@ struct ProjectileLaunchedEvent
     bool UnkBool2;
     // Shot by a reference that is no actor (an activator's Spell.RemoteCast, a statue) or by nothing.
     bool FromObject = false;
-    // Its base makes an explosion on impact (BGSProjectile +0xB0).
-    bool Explodes = false;
     // Outdoors, the cell's worldspace: the others find the cell from it and the origin (an engine-made cell has no id).
     uint32_t WorldSpaceID = 0;
 };

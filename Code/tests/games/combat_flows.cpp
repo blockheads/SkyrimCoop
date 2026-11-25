@@ -86,10 +86,10 @@ SCENARIO("A storm bolt a script casts from an activator shows on every game", "[
     party.Until([&] { return cShows(host, {-30.f, 5.f, 3600.f}); }, "the host's game launches the guest's bolt");
     CHECK(guest.Shots.size() == 2);
 
-    // An object's shot of any kind goes too: one with no spell (an arrow trap's dart), one whose base explodes.
+    // An object's shot of any kind goes too: one with no spell (an arrow trap's dart), a firebolt from an object.
     party.As(party.Host(), [&] {
         host.ObjectShoots(kStormActivator + 2, 0, kFireboltProjectile, kSmoke, {0.f, 0.f, 0.f});
-        host.ObjectShoots(kStormActivator + 3, kFirebolt, kFireboltProjectile, kSmoke, {0.f, 0.f, 0.f}, true);
+        host.ObjectShoots(kStormActivator + 3, kFirebolt, kFireboltProjectile, kSmoke, {0.f, 0.f, 0.f});
         host.ObjectShoots(kStormActivator, kStormBolt, kStormBoltProjectile, kSmoke, {50.f, 50.f, 3600.f});
     });
     party.Until([&] { return cShows(guest, {50.f, 50.f, 3600.f}); }, "the guest's game launches the next bolt");

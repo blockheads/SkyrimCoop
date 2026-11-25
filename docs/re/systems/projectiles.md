@@ -66,12 +66,12 @@ A weapon projectile (a dart) applies its hit in `Projectile::Func190` (44204) on
 above zero, which its constructor (44100) works out from the shooter: relaunched with no shooter it strikes for nothing
 (measured: the guest struck, no health lost). Shot by an object on the host, its `HitData` has no aggressor
 (`InitializeArrowData` 44002), and `ProcessHit` (38586) on a guest's copy reached `DoDamage` (37335) with no hitter and
-was dropped. A hit with no actor aggressor is now the host's world hit (`Projectile::WorldHit`, scoped on each run of
+was dropped. A hit with no actor aggressor is now the host's world hit (`WorldHits::Current`, scoped on each run of
 38586, which queues itself off the main thread: `TaskQueueInterface::ShouldUseTaskQueue`): on another player's copy it
 goes to its owner as a health change (`HitRules::Of`, `aWorldHit`). On a guest, its own copy of a world hit on its
 player (the relaunch of a projectile that explodes on impact, the Fishing catapult: force 2300, radius 2000, whose
 explosion 43849 hits through 38586) is dropped: the host's verdict counts, once. The host's relayed trap hit, applied
-through `DoTrap1` (37509 -> 38586) with no aggressor too, is exempt (`Projectile::RelayedHit`). Not measured on the
+through `DoTrap1` (37509 -> 38586) with no aggressor too, is exempt (`WorldHits::JudgedHere`, a mark in the hit itself). Not measured on the
 catapult.
 
 A concentration spell an object casts (Morvunskar's flame jets, Flames 12FCD) is a stream of short projectiles

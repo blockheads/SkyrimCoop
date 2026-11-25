@@ -63,7 +63,7 @@ private:
     // A copy's owner lists these: the visuals of those that left it stop, the missing play.
     void Show(uint32_t aSessionId, std::vector<uint32_t> aEffectIds) noexcept;
     void PlayMissing(uint32_t aSessionId) noexcept;
-    // Every active effect on its list, as the engine's queries see it (no flag filter: 34517), sorted.
+    // Every active effect on its list in its order, as the engine's queries read it (OwnerEffects).
     [[nodiscard]] std::vector<OwnerEffects::Held> ReadHeld(uint32_t aFormId) const noexcept;
     void StopShown(uint32_t aSessionId) noexcept;
 

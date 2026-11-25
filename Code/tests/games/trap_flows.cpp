@@ -208,7 +208,7 @@ SCENARIO("A dart an object fires flies on every other game, once, with no shoote
     party.Until([&] { return PlayerCopy(host, 1) != 0; }, "the host has both guests");
     WHEN("the host's trap fires")
     {
-        party.As(party.Host(), [&] { host.ObjectShoots(kDarts, 0, kDartProjectile, kSmoke, {10.f, 20.f, 30.f}, false, kDart); });
+        party.As(party.Host(), [&] { host.ObjectShoots(kDarts, 0, kDartProjectile, kSmoke, {10.f, 20.f, 30.f}, kDart); });
         party.Until([&] { return guest.Shots.size() == 1 && other.Shots.size() == 1; }, "both guests fire it");
         Settle(party, 2);
         CHECK(guest.Shots.size() == 1);
@@ -238,7 +238,7 @@ SCENARIO("A dart an object fires flies on every other game, once, with no shoote
     }
     WHEN("a guest's engine fires one of its own (its player's Storm Call)")
     {
-        party.As(party.Guest(0), [&] { guest.ObjectShoots(kDarts, 0, kDartProjectile, kSmoke, {10.f, 20.f, 30.f}, false, kDart); });
+        party.As(party.Guest(0), [&] { guest.ObjectShoots(kDarts, 0, kDartProjectile, kSmoke, {10.f, 20.f, 30.f}, kDart); });
         party.Until([&] { return host.Shots.size() == 1 && other.Shots.size() == 1; }, "the host and the other guest fire it");
         CHECK(guest.Shots.size() == 1); // its own
     }

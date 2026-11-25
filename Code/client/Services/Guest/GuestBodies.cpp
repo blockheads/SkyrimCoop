@@ -50,7 +50,7 @@ void GuestBodies::Drop(const BodyKey& acKey) noexcept
     m_last.erase(acKey);
 }
 
-bool GuestBodies::HostsOnly(const BodyKey& acKey) const noexcept
+bool GuestBodies::ScriptKeyframed(const BodyKey& acKey) const noexcept
 {
     if (acKey.Actor || m_authority.Is(acKey, kMe))
         return false;
@@ -71,7 +71,7 @@ void GuestBodies::TakeHands(uint64_t aTick, std::map<BodyKey, BodyFrame>& aHeld,
 {
     const auto cTake = [&](const BodyKey& acKey, const char* acpHow) {
         const bool cWasMine = m_authority.Is(acKey, kMe) && !m_authority.Of(acKey).AtRest;
-        if (Elsewhere(acKey) || HostsOnly(acKey))
+        if (Elsewhere(acKey) || ScriptKeyframed(acKey))
             return;
         if (m_authority.Touch(acKey, kMe, aTick) && !cWasMine)
             Took(acKey, acpHow, aTaken);
@@ -100,7 +100,7 @@ void GuestBodies::TakeHands(uint64_t aTick, std::map<BodyKey, BodyFrame>& aHeld,
     for (const auto& [cKey, cFrame] : aHeld)
     {
         const bool cWasMine = m_authority.Is(cKey, kMe) && !m_authority.Of(cKey).AtRest;
-        if (m_held.contains(cKey) || HostsOnly(cKey) || !m_authority.Grab(cKey, kMe, aTick))
+        if (m_held.contains(cKey) || ScriptKeyframed(cKey) || !m_authority.Grab(cKey, kMe, aTick))
             continue;
         m_held.insert(cKey);
         if (!cWasMine)
@@ -130,7 +130,7 @@ std::vector<BodyKey> GuestBodies::Update(uint64_t aTick) noexcept
         const auto it = m_hostRests.find(acKey);
         return it != m_hostRests.end() ? std::optional(it->second) : std::nullopt;
     });
-    for (const BodyKey& cKey : m_authority.Spread(kMe, cContacts, aTick, [this](const BodyKey& acKey) { return m_paired.Moved(acKey) && !Elsewhere(acKey) && !HostsOnly(acKey); }))
+    for (const BodyKey& cKey : m_authority.Spread(kMe, cContacts, aTick, [this](const BodyKey& acKey) { return m_paired.Moved(acKey) && !Elsewhere(acKey) && !ScriptKeyframed(acKey); }))
         Took(cKey, "knocks", taken);
 
     // Its bodies not awake here are still; a pile rests as one.

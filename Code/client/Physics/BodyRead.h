@@ -17,5 +17,4 @@ struct BodyRead
     glm::vec3 AngularVelocity{};
     bool Dynamic{};
     bool Active{};
-    uint32_t Layer{}; // its collision layer (filter info's low 7 bits, CommonLibSSE-NG COL_LAYER)
 };

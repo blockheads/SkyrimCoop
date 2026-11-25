@@ -3743,7 +3743,7 @@ void FakeEngine::ObjectProjectileHits(uint32_t aTarget, float aDamage, uint32_t 
 }
 
 void FakeEngine::ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProjectile, uint32_t aCell,
-                              const glm::vec3& acOrigin, bool aExplodes, uint32_t aWeapon)
+                              const glm::vec3& acOrigin, uint32_t aWeapon)
 {
     ProjectileLaunchedEvent event{};
     event.Origin = acOrigin;
@@ -3753,7 +3753,6 @@ void FakeEngine::ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProje
     event.WeaponID = aWeapon;
     event.ParentCellID = aCell;
     event.FromObject = true;
-    event.Explodes = aExplodes;
     if (TrapRules::SendsLaunch(Spell(aSpell).Concentration, false)) // HookLaunch (44108)
         World::Get().GetRunner().Trigger(event);
     Shots.push_back({aObject, aSpell, acOrigin});

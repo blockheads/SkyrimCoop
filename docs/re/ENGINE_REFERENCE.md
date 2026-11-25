@@ -156,7 +156,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37996 | `0x6b1ab0` | `BSTEventSink_BSTransformDeltaEvent_::Handle` | IDA meh | hook → `HookTransformDelta` | `RealTransformDelta` | [Actor.cpp:2188](../../Code/client/Games/Skyrim/Actor.cpp#L2188) |  |
 | 38009 | `0x6b3f20` | `Actor::ProcessTracking` | IDA meh | hook → `HookProcessTracking` | `RealProcessTracking` | [AiStateEvents.cpp:167](../../Code/client/Games/Skyrim/AiStateEvents.cpp#L167) |  |
 | 38011 | `0x6b4a30` | `Character::ShouldRotateToTrack` | IDA meh | hook → `HookShouldRotateToTrack` | `RealShouldRotateToTrack` | [DialogueBridge.cpp:439](../../Code/client/Bridges/DialogueBridge.cpp#L439) |  |
-| 38185 | `0x6bb800` | `Actor::TakeImpactFromBody` | IDA | hook → `HookImpactFromBody` | `RealImpactFromBody` | [Projectile.cpp:216](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L216) |  |
+| 38185 | `0x6bb800` | `Actor::TakeImpactFromBody` | IDA | hook → `HookImpactFromBody` | `RealImpactFromBody` | [WorldHits.cpp:51](../../Code/client/Games/Skyrim/Combat/WorldHits.cpp#L51) |  |
 | 38459 | `0x6c48b0` | `Actor::RegenerateActorValue` | IDA | hook → `HookRegenerateActorValue` | `RealRegenerateActorValue` | [Actor.cpp:2195](../../Code/client/Games/Skyrim/Actor.cpp#L2195) |  |
 | 38465 | `0x6c5030` | `ActorValueOwner::SetBaseActorValue` | meh | hook → `HookSetBase` | `RealSetBase` | [FollowerTargets.cpp:156](../../Code/client/Games/Skyrim/AI/FollowerTargets.cpp#L156) |  |
 | 38470 | `0x6c54c0` | `Actor::SendActorValueUpdate` | meh | hook → `HookUpdate` | `RealUpdate` | [ActorValueEvents.cpp:74](../../Code/client/Games/Skyrim/ActorValueEvents.cpp#L74) |  |
@@ -164,7 +164,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 38556 | `0x6c90b0` | `Actor::GetCombatState` | PL meh | hook → `HookGetCombatState` | `RealGetCombatState` | [CopyAiState.cpp:163](../../Code/client/Games/Skyrim/CopyAiState.cpp#L163) |  |
 | 38561 | `0x6c93b0` | `Actor::StartCombat` | IDA CL meh | hook → `HookStartCombat` | `RealStartCombat` | [CopyAiState.cpp:161](../../Code/client/Games/Skyrim/CopyAiState.cpp#L161) |  |
 | 38562 | `0x6c9850` | `Actor::IsInCombat` | meh | hook → `HookIsInCombat` | `RealIsInCombat` | [CopyAiState.cpp:162](../../Code/client/Games/Skyrim/CopyAiState.cpp#L162) |  |
-| 38586 | `0x6ca640` | `TESObjectREFR::sub_38586` | PL meh | hook → `HookProcessHit` | `RealProcessHit` | [Projectile.cpp:215](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L215) |  |
+| 38586 | `0x6ca640` | `TESObjectREFR::sub_38586` | PL meh | hook → `HookProcessHit` | `RealProcessHit` | [WorldHits.cpp:50](../../Code/client/Games/Skyrim/Combat/WorldHits.cpp#L50) |  |
 | 38606 | `0x6cc3d0` | `Actor::HandleHealthDamage` | IDA meh | hook → `HandleDamage` | `RealHandleDamage` | [PartyAggro.cpp:205](../../Code/client/Games/Skyrim/Combat/PartyAggro.cpp#L205) |  |
 | 38628 | `0x6cd850` | `Actor::CalculateCurrentHitTargetForWeaponSwing` | IDA PL meh | hook → `HookWeaponSwing` | `RealWeaponSwing` | [PlayerHands.cpp:155](../../Code/client/Games/Skyrim/PlayerHands.cpp#L155) |  |
 | 38717 | `0x6d3f70` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `RealRemoveSpell` | [Actor.cpp:2189](../../Code/client/Games/Skyrim/Actor.cpp#L2189) |  |
@@ -210,8 +210,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 43622 | `0x7da2b0` | `coop_LoadEventClipsQueued` | IDA | hook → `HookLoadEventClipsQueued` | `RealLoadEventClipsQueued` | [GraphStreamHooks.cpp:589](../../Code/client/Games/Skyrim/Havok/GraphStreamHooks.cpp#L589) |  |
 | 43624 | `0x7da500` | `coop_LoadEventClipsForManager` | IDA | hook → `HookLoadManagerClips` | `RealLoadManagerClips` | [GraphStreamHooks.cpp:590](../../Code/client/Games/Skyrim/Havok/GraphStreamHooks.cpp#L590) |  |
 | 43830 | `0x7e45b0` | `Explosion::Func162_43830` | meh | hook → `ExplosionInitialize` | `RealExplosionInitialize` | [ModManager.cpp:134](../../Code/client/Games/ModManager.cpp#L134) |  |
-| 44108 | `0x7f9300` | `Projectile::Launch` | CL meh | hook → `HookLaunch` | `RealLaunch` | [Projectile.cpp:214](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L214) |  |
-| 44204 | `0x8009c0` | `Projectile::Func190_44204` | IDA meh | hook → `HookImpact` | `RealImpact` | [Projectile.cpp:217](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L217) |  |
+| 44108 | `0x7f9300` | `Projectile::Launch` | CL meh | hook → `HookLaunch` | `RealLaunch` | [Projectile.cpp:156](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L156) |  |
+| 44204 | `0x8009c0` | `Projectile::Func190_44204` | IDA meh | hook → `HookImpact` | `RealImpact` | [Projectile.cpp:157](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L157) |  |
 | 46877 | `0x852450` | `CombatManager__GetLowestStealthPointsOf` | IDA meh | hook → `HookLowestStealth` | `RealLowestStealth` | [StealthEye.cpp:58](../../Code/client/Games/Skyrim/StealthEye.cpp#L58) |  |
 | 47191 | `0x862040` | `CombatTargetSelectorStandard::SelectTarget` | IDA meh | hook → `Select` | `RealSelect` | [PartyAggro.cpp:206](../../Code/client/Games/Skyrim/Combat/PartyAggro.cpp#L206) |  |
 | 51093 | `0x90b9d0` | `Console::SetSelectedRef_Impl` | CL meh | hook → `HookSetCurrentPickREFR` | `RealSetCurrentPickREFR` | [References.cpp:226](../../Code/client/Games/References.cpp#L226) |  |
@@ -3726,7 +3726,9 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 33285 | `0x564190` | `?` | - | call | `arrayQuickSort` | [CombatController.cpp:16](../../Code/client/Games/Skyrim/Combat/CombatController.cpp#L16) | **undocumented** |
 | 37509 | `0x68a650` | `Actor::DoTrap1` | IDA meh | hook → `HookDoTrap` | `RealDoTrap` | [Traps.cpp:86](../../Code/client/Games/Skyrim/Combat/Traps.cpp#L86) |  |
 | 37710 | `0x69fc00` | `Character::sub_37710` | meh | hook → `HookStagger` | `RealStagger` | [MeleeStagger.cpp:41](../../Code/client/Games/Skyrim/Combat/MeleeStagger.cpp#L41) |  |
+| 38185 | `0x6bb800` | `Actor::TakeImpactFromBody` | IDA | hook → `HookImpactFromBody` | `RealImpactFromBody` | [WorldHits.cpp:51](../../Code/client/Games/Skyrim/Combat/WorldHits.cpp#L51) |  |
 | 38586 | `0x6ca640` | `TESObjectREFR::sub_38586` | PL meh | data | `s_processHit` | [MeleeStagger.cpp:22](../../Code/client/Games/Skyrim/Combat/MeleeStagger.cpp#L22) |  |
+| 38586 | `0x6ca640` | `TESObjectREFR::sub_38586` | PL meh | hook → `HookProcessHit` | `RealProcessHit` | [WorldHits.cpp:50](../../Code/client/Games/Skyrim/Combat/WorldHits.cpp#L50) |  |
 | 38606 | `0x6cc3d0` | `Actor::HandleHealthDamage` | IDA meh | hook → `HandleDamage` | `RealHandleDamage` | [PartyAggro.cpp:205](../../Code/client/Games/Skyrim/Combat/PartyAggro.cpp#L205) |  |
 | 47191 | `0x862040` | `CombatTargetSelectorStandard::SelectTarget` | IDA meh | hook → `Select` | `RealSelect` | [PartyAggro.cpp:206](../../Code/client/Games/Skyrim/Combat/PartyAggro.cpp#L206) |  |
 | 47196 | `0x8629a0` | `CombatTargetSelectorStandard::IsValidTarget` | IDA | call | `s_valid` | [PartyAggro.cpp:152](../../Code/client/Games/Skyrim/Combat/PartyAggro.cpp#L152) |  |
@@ -3841,7 +3843,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 25932 | `0x3ffb10` | `hkpAllCdPointCollector::SetFilterGroup` | IDA meh | call | `s_setGroup` | [SwingCast.cpp:98](../../Code/client/Games/Skyrim/Havok/SwingCast.cpp#L98) |  |
 | 26003 | `0x404740` | `FindCollidableRef` | CL meh | call | `s_findCollidableRef` | [Raycast.cpp:91](../../Code/client/Games/Skyrim/Havok/Raycast.cpp#L91) |  |
 | 26003 | `0x404740` | `FindCollidableRef` | CL meh | call | `s_findCollidableRef` | [SwingCast.cpp:55](../../Code/client/Games/Skyrim/Havok/SwingCast.cpp#L55) |  |
-| 26003 | `0x404740` | `FindCollidableRef` | CL meh | call | `s_findCollidableRef` | [bhkCollision.cpp:336](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L336) |  |
+| 26003 | `0x404740` | `FindCollidableRef` | CL meh | call | `s_findCollidableRef` | [bhkCollision.cpp:335](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L335) |  |
 | 35999 | `0x637a90` | `BGSLoadGameBuffer::GetVersion` | IDA meh | call | `s_version` | [AnimationGraphState.cpp:75](../../Code/client/Games/Skyrim/Havok/AnimationGraphState.cpp#L75) |  |
 | 36924 | `0x668480` | `TaskQueueInterface::QueueRemoveFromWorld` | IDA | call | `s_removeFromWorld` | [Ragdoll.cpp:16](../../Code/client/Games/Skyrim/Havok/Ragdoll.cpp#L16) |  |
 | 37560 | `0x690be0` | `Actor::GetCollisionFilterInfo` | CL meh | call | `s_filterInfo` | [SwingCast.cpp:84](../../Code/client/Games/Skyrim/Havok/SwingCast.cpp#L84) |  |
@@ -3875,10 +3877,10 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 63895 | `0xbe3160` | `hkbNodeIterator::FreeLists` | IDA | call | `s_freeLists` | [GraphVariableWriters.cpp:22](../../Code/client/Games/Skyrim/Havok/GraphVariableWriters.cpp#L22) |  |
 | 68109 | `0xcddfd0` | `ScrapArray::Free` | IDA PL | call | `s_freeBuckets` | [GraphVariableWriters.cpp:21](../../Code/client/Games/Skyrim/Havok/GraphVariableWriters.cpp#L21) |  |
 | 68221 | `0xce25f0` | `CalculateCRC32_64` | SKSE meh | call | `s_hash` | [GraphStreamHooks.cpp:62](../../Code/client/Games/Skyrim/Havok/GraphStreamHooks.cpp#L62) |  |
-| 77794 | `0x1047ba0` | `bhkWorldObject::UpdateCollisionFilter` | IDA meh | call | `s_updateCollisionFilter` | [bhkCollision.cpp:296](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L296) |  |
+| 77794 | `0x1047ba0` | `bhkWorldObject::UpdateCollisionFilter` | IDA meh | call | `s_updateCollisionFilter` | [bhkCollision.cpp:295](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L295) |  |
 | 77866 | `0x104cb90` | `NiAVObject::SetMotionType` | CL meh | call | `s_setMotionType` | [bhkCollision.cpp:143](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L143) |  |
 | 78077 | `0x10586b0` | `bhkRigidBody::SetMotionType` | IDA PL meh | call | `s_setMotionType` | [bhkCollision.cpp:97](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L97) |  |
-| 78082 | `0x1058a40` | `bhkRigidBody::SetPositionAndRotation` | IDA meh | call | `s_setPositionAndRotation` | [bhkCollision.cpp:213](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L213) |  |
+| 78082 | `0x1058a40` | `bhkRigidBody::SetPositionAndRotation` | IDA meh | call | `s_setPositionAndRotation` | [bhkCollision.cpp:212](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L212) |  |
 | 78089 | `0x1058d70` | `bhkRigidBody::SetLinearVelocity` | IDA CL meh | call | `s_setLinearVelocity` | [bhkCollision.cpp:83](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L83) |  |
 | 78090 | `0x1058e40` | `bhkRigidBody::SetAngularVelocity` | CL meh | call | `s_setAngularVelocity` | [bhkCollision.cpp:84](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L84) |  |
 | 239939 | `0x1a877f0` | `?` | IDA | data | `s_linked` | [GraphInternalState.cpp:113](../../Code/client/Games/Skyrim/Havok/GraphInternalState.cpp#L113) |  |
@@ -4128,11 +4130,9 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 34452 | `0x5ce8b0` | `MagicCaster::FireProjectile` | IDA | data | `hookLoc` | [Projectile.cpp:219](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L219) |  |
-| 38185 | `0x6bb800` | `Actor::TakeImpactFromBody` | IDA | hook → `HookImpactFromBody` | `RealImpactFromBody` | [Projectile.cpp:216](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L216) |  |
-| 38586 | `0x6ca640` | `TESObjectREFR::sub_38586` | PL meh | hook → `HookProcessHit` | `RealProcessHit` | [Projectile.cpp:215](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L215) |  |
-| 44108 | `0x7f9300` | `Projectile::Launch` | CL meh | hook → `HookLaunch` | `RealLaunch` | [Projectile.cpp:214](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L214) |  |
-| 44204 | `0x8009c0` | `Projectile::Func190_44204` | IDA meh | hook → `HookImpact` | `RealImpact` | [Projectile.cpp:217](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L217) |  |
+| 34452 | `0x5ce8b0` | `MagicCaster::FireProjectile` | IDA | data | `hookLoc` | [Projectile.cpp:159](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L159) |  |
+| 44108 | `0x7f9300` | `Projectile::Launch` | CL meh | hook → `HookLaunch` | `RealLaunch` | [Projectile.cpp:156](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L156) |  |
+| 44204 | `0x8009c0` | `Projectile::Func190_44204` | IDA meh | hook → `HookImpact` | `RealImpact` | [Projectile.cpp:157](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L157) |  |
 
 ## Games/Skyrim/Sky
 

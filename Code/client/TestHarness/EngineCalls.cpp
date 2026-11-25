@@ -1118,7 +1118,7 @@ void ReadPose(const NiAVObject& acRoot, ReferenceState& aState) noexcept
                 if (BodyRead read; ReadBody(*pCollision->body, read))
                 {
                     body.Awake = read.Active;
-                    body.Layer = read.Layer;
+                    body.Layer = pBody->CollisionFilterInfo() & 0x7F; // COL_LAYER
                     body.Rotation[0] = read.Rotation.x;
                     body.Rotation[1] = read.Rotation.y;
                     body.Rotation[2] = read.Rotation.z;

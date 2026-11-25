@@ -94,7 +94,7 @@ own engine's contacts with the copy). So nothing needs the host to simulate a tr
 the host's (by collision layer 14/16, then by contact, then a host hold; built and removed the same day) rested on
 misreading the host's dropped contacts as the ones that count. What stands is not about traps: a body a script holds
 keyframed (an untripped tripwire's rope, a trap not yet fired; layers for the record: the mace's head 14, its chain 10,
-a rock 14) is taken by nobody's touch (`GuestBodies::HostsOnly`, `HostBodies::MayClaim`): a guest that took the
+a rock 14) is taken by nobody's touch (`GuestBodies::ScriptKeyframed`, `HostBodies::MayClaim`): a guest that took the
 untripped rope had the host play its frames on it, and the trap never fired. Fired and dynamic, it is the toucher's
 like any body. GameTests "A guest's player pushes a body a script holds keyframed".
 

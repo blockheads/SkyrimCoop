@@ -60,21 +60,8 @@ struct Projectile : TESObjectREFR
     float fDamage;
 
     static BSPointerHandle<Projectile>* Launch(BSPointerHandle<Projectile>* apResult, LaunchData& arData) noexcept;
-    // A hit with no actor aggressor (an object's projectile, a causeless explosion) on this thread (38586).
-    [[nodiscard]] static bool WorldHit() noexcept;
     // An object's projectile (no actor shooter) hitting a reference on this thread (44204): its enchantment's cast.
     [[nodiscard]] static bool WorldImpact() noexcept;
-    // Hits made in its scope are this game's own to judge (the host's relayed trap hit), marked in the hit (38586).
-    struct JudgedHere
-    {
-        JudgedHere() noexcept;
-        ~JudgedHere() noexcept;
-        JudgedHere(const JudgedHere&) = delete;
-        JudgedHere& operator=(const JudgedHere&) = delete;
-
-    private:
-        bool m_before;
-    };
 };
 
 static_assert(sizeof(Projectile::LaunchData) == 0xA8);

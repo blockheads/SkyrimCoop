@@ -4,13 +4,10 @@
 #include <Games/Skyrim/Forms/TESObjectWEAP.h>
 #include <Games/Skyrim/Forms/MagicItem.h>
 #include <Games/Skyrim/Forms/TESAmmo.h>
-#include <Games/Skyrim/Forms/BGSProjectile.h>
 #include <Actor.h>
 #include <Games/ActorExtension.h>
 #include <World.h>
 #include <TrapRules.h>
-#include <Combat/HitData.h>
-#include <Combat/HitOwnership.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Games/Skyrim/Forms/TESObjectCELL.h>
 #include <Games/Skyrim/Forms/TESWorldSpace.h>
@@ -22,8 +19,6 @@
 #include <VersionDb.h>
 #include <Diagnostics/Counters.h>
 
-#include <atomic>
-#include <utility>
 #include <format>
 
 using TLaunch = BSPointerHandle<Projectile>*(BSPointerHandle<Projectile>*, Projectile::LaunchData& arData);
@@ -96,8 +91,6 @@ BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Pro
     if (arData.pShooter)
         Event.ShooterID = arData.pShooter->formID;
     Event.FromObject = !Cast<Actor>(arData.pShooter);
-    if (const auto* pBase = Cast<BGSProjectile>(arData.pProjectileBase))
-        Event.Explodes = pBase->pExplosion != nullptr;
     if (arData.pParentCell && arData.pParentCell->worldspace)
         Event.WorldSpaceID = arData.pParentCell->worldspace->formID;
     if (arData.pFromWeapon)
@@ -134,11 +127,9 @@ BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Pro
 
 namespace
 {
-thread_local bool t_worldHit = false;
-
 thread_local bool t_worldImpact = false;
 
-// Projectile::Func190 (44204): a projectile hits a reference; its weapon's enchantment is cast in HandleRefImpact (44205)
+// Projectile::HandleHits (44204): a projectile hits a reference; its weapon's enchantment is cast in HandleRefImpact (44205)
 // by the hit actor's own instant caster. Shot by no actor, that effect is the world's.
 using TImpact = bool(Projectile*, void*);
 TImpact* RealImpact = nullptr;
@@ -151,60 +142,11 @@ bool HookImpact(Projectile* apThis, void* apHit)
     t_worldImpact = cBefore;
     return cResult;
 }
-
-thread_local bool t_judgedHere = false; // a relayed trap hit being applied (Traps::TakeHit)
-
-// TESObjectREFR::ProcessHit (38586): a hit with no actor aggressor is the world's, scoped around its DoDamage (37335).
-using TProcessHit = uint64_t(TESObjectREFR*, HitData*);
-TProcessHit* RealProcessHit = nullptr;
-
-thread_local bool t_ownImpact = false;
-
-// Actor::TakeImpactFromBody (38185): a body its own move step met hits the actor (no aggressor).
-using TImpactFromBody = uint64_t(Actor**, uint64_t, void*);
-TImpactFromBody* RealImpactFromBody = nullptr;
-
-uint64_t HookImpactFromBody(Actor** appThis, uint64_t a2, void* apContact)
-{
-    Actor* pActor = appThis ? *appThis : nullptr;
-    if (pActor && !HitRules::JudgesImpact(HitRules::PartyOf(pActor)))
-        return 1;
-    const bool cBefore = std::exchange(t_ownImpact, pActor != nullptr);
-    const uint64_t cResult = RealImpactFromBody(appThis, a2, apContact);
-    t_ownImpact = cBefore;
-    return cResult;
-}
-
-uint64_t HookProcessHit(TESObjectREFR* apTarget, HitData* apHit)
-{
-    // Marked in the hit itself, which a queued run copies (ProcessHit_QueueTask): its own to judge.
-    if (apHit && (t_ownImpact || t_judgedHere))
-        apHit->flags |= HitData::kJudgedHere;
-    t_worldHit = apHit && !(apHit->flags & HitData::kJudgedHere) && !Cast<Actor>(TESObjectREFR::GetByHandle(apHit->aggressor));
-    const uint64_t cResult = RealProcessHit(apTarget, apHit);
-    t_worldHit = false;
-    return cResult;
-}
 } // namespace
-
-bool Projectile::WorldHit() noexcept
-{
-    return t_worldHit;
-}
 
 bool Projectile::WorldImpact() noexcept
 {
     return t_worldImpact;
-}
-
-Projectile::JudgedHere::JudgedHere() noexcept
-    : m_before(std::exchange(t_judgedHere, true))
-{
-}
-
-Projectile::JudgedHere::~JudgedHere() noexcept
-{
-    t_judgedHere = m_before;
 }
 
 static Hooks::Initializer s_projectileHooks(
@@ -212,8 +154,6 @@ static Hooks::Initializer s_projectileHooks(
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(44108, &RealLaunch, HookLaunch);
-        HOOK_ID(38586, &RealProcessHit, HookProcessHit);
-        HOOK_ID(38185, &RealImpactFromBody, HookImpactFromBody);
         HOOK_ID(44204, &RealImpact, HookImpact);
 
         VersionDbPtr<uint8_t> hookLoc(34452);

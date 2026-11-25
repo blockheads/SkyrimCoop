@@ -1559,9 +1559,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // launched, relaunched here (LaunchProjectile).
     void Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile, const glm::vec3& acOrigin);
     // A projectile an object shot, of any kind: an activator's Spell.RemoteCast (magicProjectileStormScript), a statue,
-    // a dart port's Weapon.Fire (aWeapon). aExplodes: its base makes an explosion on impact (BGSProjectile +0xB0).
+    // a dart port's Weapon.Fire (aWeapon).
     void ObjectShoots(uint32_t aObject, uint32_t aSpell, uint32_t aProjectile, uint32_t aCell, const glm::vec3& acOrigin,
-                      bool aExplodes = false, uint32_t aWeapon = 0);
+                      uint32_t aWeapon = 0);
     // That projectile hits an actor here (44204): its HitData has no aggressor. Its weapon's enchantment (aEnchantment,
     // aEffect) is cast by the hit actor's own caster on itself (HandleRefImpact 44205).
     void ObjectProjectileHits(uint32_t aTarget, float aDamage, uint32_t aEnchantment = 0, uint32_t aEffect = 0,

@@ -366,16 +366,13 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
         return;
     }
 
-    // The host's world cast (no caster: a hazard's tick) while one of it lasts here: its copy's answer was not back yet.
-    if (!cCasterFormId)
-    {
-        const auto cEffects = m_actorBridge.GetActorActiveEffects(cTargetFormId);
-        const bool cActive = std::ranges::any_of(cEffects, [&](const auto& acEffect) {
-            return acEffect.SpellFormId == cSpellId && acEffect.EffectFormId == cEffectId && !acEffect.CasterIsActor;
-        });
-        if (TrapRules::SkipsWorldEffect(true, cActive))
-            return;
-    }
+    // A hazard's or explosion's cast while one by an object still lasts here (docs/design/traps.md).
+    const auto cEffects = cCasterFormId ? std::vector<IActorBridge::ActiveEffectInfo>{} : m_actorBridge.GetActorActiveEffects(cTargetFormId);
+    const bool cActive = std::ranges::any_of(cEffects, [&](const auto& acEffect) {
+        return acEffect.SpellFormId == cSpellId && acEffect.EffectFormId == cEffectId && !acEffect.CasterIsActor;
+    });
+    if (TrapRules::SkipsWorldEffect(!cCasterFormId, cActive))
+        return;
 
     m_formBridge.AddMagicTargetEffect(cTargetFormId, cCasterFormId, cSpellId, cEffectId,
                                        acMessage.Magnitude, acMessage.IsDualCasting,

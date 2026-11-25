@@ -19,7 +19,7 @@
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
 #include <Systems/CopyStep.h>
-#include <Projectiles/Projectile.h>
+#include <Combat/WorldHits.h>
 #include <Misc/GameVM.h>
 #include <DefaultObjectManager.h>
 #include <Forms/TESNPC.h>
@@ -1540,7 +1540,7 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
 
     // Direct authority: the hittee's owner applies a hit; our player's hit on another game's actor (a host NPC, another
     // player) is a request to that owner, and the copy mirrors the owner's health instead.
-    const bool cWorldHit = Projectile::WorldHit();
+    const bool cWorldHit = WorldHits::Current();
     const auto cRoute = HitRules::Of(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), s_applyingEffect, cWorldHit,
                                      cWorldHit && GuestNpcs::Session() != 0);
     switch (cRoute)
