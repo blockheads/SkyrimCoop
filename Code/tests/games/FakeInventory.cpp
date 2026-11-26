@@ -52,12 +52,27 @@
 #include <cstdio>
 #include <items/Overrides.h>
 #include <join/GameLoadedEvent.h>
-#include <core/MenuEvent.h>
 #include <core/PlayerFormChangeEvent.h>
 #include <join/SaveService.h>
 #include <Wire/Buffer.h>
 #include <core/World.h>
-#include <core/FormIds.h>
+#include <CriticalStageRules.h>
+#include <animation/DeferredClips.h>
+#include <DisplayNames.h>
+#include <FreedWornList.h>
+#include <Diagnostics/HeadTrackRead.h>
+#include <CopyCombat.h>
+#include <magic/InterruptCastEvent.h>
+#include <characters/ActorHeadUpdateEvent.h>
+#include <movement/CopyStep.h>
+#include <magic/OwnerEffects.h>
+#include <mounts/DismountEvent.h>
+#include <mounts/BoardEvent.h>
+#include <mounts/MountEvent.h>
+#include <join/SaveWrittenEvent.h>
+#include <set>
+
+using namespace PartyRules;
 
 using namespace PartyRules;
 
@@ -901,7 +916,6 @@ void FakeEngine::ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept
     }
 }
 
-
 // As SetCarriedStacks: the stacks with extra data that differ (worn and charge aside) out and in, then the plain count
 // (with the base container's entries counted, as 16108 does).
 void FakeEngine::SetCopyItemCount(uint32_t aActorFormId, const GameId& acItem, int32_t aCount, const std::vector<Inventory::Entry>& acStacks) noexcept
@@ -950,4 +964,41 @@ void FakeEngine::SetCarriedStacks(uint32_t aActorFormId, const GameId& acItem, i
         plain.Count = -cOver;
         AddEntry(aActorFormId, plain);
     }
+}
+
+uint32_t FakeEngine::GetEquippedWeaponFormId(uint32_t aActorFormId, uint32_t aSlot) const noexcept
+{
+    const auto it = Actors.find(aActorFormId);
+    if (it == Actors.end() || aSlot >= 2)
+        return 0;
+    return it->second.HeldWeapons[aSlot] ? it->second.HeldWeapons[aSlot] : it->second.HeldSpells[aSlot];
+}
+
+void FakeEngine::EquipSpells(uint32_t aFormId, const MagicEquipment& acMagic)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.Items.CurrentMagicEquipment = acMagic;
+    if (ActorHas3D(aFormId))
+    {
+        actor.HeldSpells[0] = ::ItemForm(acMagic.LeftHandSpell);
+        actor.HeldSpells[1] = ::ItemForm(acMagic.RightHandSpell);
+    }
+}
+
+void FakeEngine::EquipsSpell(uint32_t aActor, const GameId& acSpell, uint32_t aHand)
+{
+    auto& actor = Actors.at(aActor);
+    if (!actor.Copy)
+        World::Get().GetRunner().Trigger(EquipmentChangeEvent{.ActorId = aActor, .ItemId = ::ItemForm(acSpell), .IsSpell = true});
+    MagicEquipment magic = actor.Items.CurrentMagicEquipment;
+    (aHand == 0 ? magic.LeftHandSpell : magic.RightHandSpell) = acSpell;
+    EquipSpells(aActor, magic);
+}
+
+void FakeEngine::EquipsShout(uint32_t aActor, const GameId& acShout)
+{
+    auto& actor = Actors.at(aActor);
+    if (!actor.Copy)
+        World::Get().GetRunner().Trigger(EquipmentChangeEvent{.ActorId = aActor, .ItemId = ::ItemForm(acShout), .Unequip = !acShout, .IsShout = true});
+    actor.Items.CurrentMagicEquipment.Shout = acShout;
 }

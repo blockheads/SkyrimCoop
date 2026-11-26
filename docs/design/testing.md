@@ -25,6 +25,12 @@ Fake-engine and Skyrim coverage exercise different boundaries; neither replaces 
      scenarios with the others              possibly another agent
 ```
 
+The fake engine is `FakeEngine` (`Code/tests/games/FakeEngine.h`), its code in files by topic: `FakeMovement.cpp`,
+`FakeCombat.cpp`, `FakeMagic.cpp`, `FakeAnimation.cpp`, `FakeInventory.cpp`, `FakeObjects.cpp`, `FakePhysics.cpp`,
+`FakeScripts.cpp`, `FakeJoin.cpp`, `FakePlayer.cpp`, `FakeActorState.cpp`; identity and the rest in `FakeEngine.cpp`.
+Where a hook decides something, the fake calls the same rule (`HitRules`, `EffectRules`, `ActionRules`).
+
+
 The duo is one shared pair of games and costs minutes a run; a fix iterated in tiers 1-2 costs seconds and leaves a
 test that keeps catching the bug. Also in [CLAUDE.md](../../CLAUDE.md) and [AGENTS.md](../../AGENTS.md).
 
