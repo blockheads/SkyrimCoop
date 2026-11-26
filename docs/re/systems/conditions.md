@@ -3,7 +3,7 @@
 Every condition list in the game (an idle's, a perk entry's, a spell effect's, a dialogue line's, a
 package's) is a `TESCondition`: a linked list of `TESConditionItem`s, each one a condition function
 (`GetIsRace`, `GetActorValue`, `IsInCombat`, ... CommonLib `FUNCTION_DATA::FunctionID`) compared against a
-value. Structs: `Code/client/Games/Skyrim/Components/TESCondition.h`, checked against CommonLibSSE-NG
+value. Structs: `Code/engine/Components/TESCondition.h`, checked against CommonLibSSE-NG
 (`RE/T/TESCondition.h`) and IDA (2026-10-14).
 
 ## One item

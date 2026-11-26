@@ -2,8 +2,8 @@
 #include "FakeDialogue.h"
 #include "Fixtures.h"
 #include "Party.h"
-#include <Services/TransportService.h>
-#include <SessionIds.h>
+#include <core/TransportService.h>
+#include <core/SessionIds.h>
 
 namespace
 {

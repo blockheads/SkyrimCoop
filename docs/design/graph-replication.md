@@ -9,7 +9,7 @@ built. A narrower state reconciliation was prototyped and shelved (`git stash` "
 
 Copies are driven by the owner's replayed actions plus its graph variables. The variables travel through
 hand-written descriptors (`Code/encoding/Structs/Skyrim/AnimationGraphDescriptor_*`, 65 files, chosen by
-the behaviour's hash; modded behaviours go through `Code/client/ModCompat/` and `README-ANIMATION-MODS.md`).
+the behaviour's hash; modded behaviours go through `Code/engine/ModCompat/` and `README-ANIMATION-MODS.md`).
 A behaviour without a fitting descriptor syncs no variables. That is the wall for animation mods (Nemesis,
 Pandora, Open Animation Replacer): every behaviour mod changes the hash.
 
@@ -100,7 +100,7 @@ as `sub_140BC9070` / 63948 does; Open Animation Replacer uses it too), per behav
 **Variable indices in a node are local to its behaviour file** (`hkbBehaviorGraph::data` 0x88 →
 `stringData` 0x78 → `variableNames` 0x30): `bowZoomAmt = ...` at index 61 in `1HM_Behavior` is
 `weapChangeStartFraction` at 61 project-wide. So writers are matched by name, then mapped to the project's
-index (`BShkbHkxDB::animationVariables`). Code: `Code/client/Games/Skyrim/Havok/GraphVariableWriters.cpp`,
+index (`BShkbHkxDB::animationVariables`). Code: `Code/engine/Havok/GraphVariableWriters.cpp`,
 `hkbNode.h`; harness command `graph_writers` lists every writer with its node.
 
 People (`DefaultMale`): 97 of 301 variables are the graph's (1468 writing nodes counted with first person).
@@ -148,7 +148,7 @@ or modded graphs. Small risk for a benefit that is mostly unproven. It earns its
 
 **Why the generic sync is parked:** for vanilla it adds nothing (outside the descriptor only `weaponSpeedMult`
 and `TimeDelta` ever differed: the copy's own engine sets the rest). For behaviour mods,
-`Code/client/ModCompat/BehaviorVar.cpp` already maps the vanilla descriptor onto a modded project by name and
+`Code/engine/ModCompat/BehaviorVar.cpp` already maps the vanilla descriptor onto a modded project by name and
 adds a mod's variables from patch files (TDM, TUDM, MCO, Elden Counter, dragons shipped). What a generic sync
 would add is a mod's variables without a patch, and dropping the 65 descriptors. And variables are probably
 not what a modded copy misses first:

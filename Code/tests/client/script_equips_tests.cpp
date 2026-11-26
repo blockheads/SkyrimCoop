@@ -1,7 +1,7 @@
-// A script's EquipItem adding a missing item (Games/ScriptEquips.h, Actor.EquipItem 54661).
+// A script's EquipItem adding a missing item (engine/ScriptEquips.h, Actor.EquipItem 54661).
 #include <catch2/catch.hpp>
 
-#include <Games/ScriptEquips.h>
+#include <ScriptEquips.h>
 
 TEST_CASE("A script's EquipItem reports the item it added, the story's when a quest called it", "[ScriptEquips]")
 {

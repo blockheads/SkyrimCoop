@@ -3,10 +3,10 @@
 // A game's conversation as the engine runs it (MenuTopicManager, DialogueMenu), behind IDialogueBridge: one speaker
 // at a time, a menu that may be open or not, the list the engine builds from a small script of topics, and the
 // service's filters where our hooks ask them (DialogueHooks.cpp). Each World has its own.
-#include <Bridges/IDialogueBridge.h>
-#include <Services/ActivatePrompts.h>
-#include <Services/DialogueMenuPolicy.h>
-#include <Services/SpeakerUpdate.h>
+#include <dialogue/IDialogueBridge.h>
+#include <world/ActivatePrompts.h>
+#include <dialogue/DialogueMenuPolicy.h>
+#include <dialogue/SpeakerUpdate.h>
 
 #include <algorithm>
 #include <cstdint>

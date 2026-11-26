@@ -3,7 +3,7 @@
 // exactly as with our plugin (same commands, same frame, same camera) and answers "is it us?".
 //
 // It speaks the subset of the client's control files the harness falls back to without the
-// command socket (Code/client/TestHarness/ControlFiles.h): boot.txt (one command once the main menu is
+// command socket (Code/harness/TestHarness/ControlFiles.h): boot.txt (one command once the main menu is
 // up), console.txt ("<id> <command>", "<id> @show Menu" / "@hide Menu", or "<id> @node <form id> <node>": a node of
 // that reference's 3D, its local and world rotation and flags; "<id> @quit": Game.QuitToMainMenu), console_out.txt (the id, then what
 // the console printed for that line), and status.json (heartbeat_ms, pid, console_id, session.world_ready).
@@ -11,7 +11,7 @@
 //
 // Engine addresses come from the selected runtime's Address Library.
 #include <windows.h>
-#include "../client/VersionDb.h"
+#include "../engine/VersionDb.h"
 
 #include <MinHook.h>
 
@@ -44,7 +44,7 @@ constexpr uint32_t cCompileAndRun = 441582; // Script::CompileAndRun_Impl
 constexpr uint32_t cFormById = 14617;            // TESForm::LookupByID
 constexpr uint32_t cGet3D = 19735;               // TESObjectREFR::Get3D
 constexpr uint32_t cQuitToMainMenu = 55490;      // papyrus::Game::QuitToMainMenu: fade, then the main menu
-// The head of a NiAVObject (CommonLibSSE-NG; Code/client/Games/Skyrim/NetImmerse/NiAVObject.h): what @node reads.
+// The head of a NiAVObject (CommonLibSSE-NG; Code/engine/NetImmerse/NiAVObject.h): what @node reads.
 struct Node
 {
     void** vtable;
@@ -412,7 +412,7 @@ struct SKSEPluginVersionData
 static_assert(offsetof(SKSEPluginVersionData, author) == 0x108 && offsetof(SKSEPluginVersionData, supportEmail) == 0x208,
               "SKSE's PluginVersionData layout (CommonLibSSE)");
 
-// Exact runtime compatibility, as the client's (Code/client/skse_entry.cpp).
+// Exact runtime compatibility, as the client's (Code/plugin/skse_entry.cpp).
 extern "C" __declspec(dllexport) const SKSEPluginVersionData SKSEPlugin_Version = {
     1, 1, "SkyrimCoopVanillaHarness", "SkyrimCoop", "", 1 << 1, 0,
     {SkyrimRuntime::PackedVersion, 0}, 0};

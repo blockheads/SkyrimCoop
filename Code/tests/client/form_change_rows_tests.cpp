@@ -1,7 +1,7 @@
-// Which recorded form changes the host sends its guests as rows (Games/FormChangeRows.h).
+// Which recorded form changes the host sends its guests as rows (engine/FormChangeRows.h).
 #include <catch2/catch.hpp>
 
-#include <Games/FormChangeRows.h>
+#include <FormChangeRows.h>
 
 using FormChangeRows::Form;
 

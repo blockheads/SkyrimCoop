@@ -47,7 +47,7 @@ live messages and the scenarios' world desync check.
   that started the quest. The harness `quest` command reads the same state live from the engine.
 - `coop_test.py change-rate [scenarios] [--seconds S]`: counts the engine's change records on both games
   over a window (idle, or the named scenarios), per form type and flag, with the distinct forms
-  recorded and example ids. The hook is `Code/client/TestHarness/ChangeLog.cpp` (test builds only).
+  recorded and example ids. The hook is `Code/harness/TestHarness/ChangeLog.cpp` (test builds only).
 
 ### How a difference is classified
 

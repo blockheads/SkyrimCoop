@@ -2,7 +2,7 @@
 // goo, as the engine would leave it with no 3D and its frame waiting on the player's update.
 #include <catch2/catch.hpp>
 
-#include <Games/Skyrim/CriticalStageRules.h>
+#include <CriticalStageRules.h>
 
 using namespace CriticalStage;
 

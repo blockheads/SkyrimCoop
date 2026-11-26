@@ -65,7 +65,7 @@ def scenery(ref):
 - The sawmill's log and the `DweButton01` plates stay compared (the user, 2026-11-21: state, not scenery). Their
   entries stay open in bugs.md as activations (piece 6's kind), not closed here.
 
-Files: `TestHarness/EngineCalls.{h,cpp}` (`ReferenceState::Scripts`, `OnPath`), `TestHarness/CommandsWorld.cpp`,
+Files: `TestHarness/EngineCalls.{h,cpp}` (`ReferenceState::Scripts`, `OnPath`), `harness/TestHarness/CommandsWorld.cpp`,
 `scripts/coop_harness/comparisons.py`, `common.py`.
 Tests: Python unit tests of `world_differences` (new `scripts/test_world_comparisons.py`): a moth apart, a landing
 marker on one game, a salmon posed differently, a pheasant's `b_Lower` turned: no difference; a cabbage moved, a
@@ -94,7 +94,7 @@ if (first) m_ragdollGroups[acKey] = SetBodyGroup(*pBody, BodyGroups::kPlayed);  
 // where m_ragdolls drops a standing copy's bodies: SetBodyGroup(body, its own)
 ```
 
-Tests: ClientTests `BodyGroups::Decide` for a layer 32 played body (loose: pass; static: engine; moving: collide;
+Tests: UnitTests `BodyGroups::Decide` for a layer 32 played body (loose: pass; static: engine; moving: collide;
 two played: pass). GameTests "A host NPC dies onto a ladle: the guest's ladle stays where the host's does" (the fake
 learns layer 32 pushes loose bodies unless played) and "Two host NPCs die in a heap: each copy lies as its owner".
 Duo: `ragdoll-lies-as-host`, `knockdown-lies-as-host`, and one new recorded scenario for open question 8, a corpse
@@ -132,8 +132,8 @@ constexpr RagdollRestStep RagdollRest(bool aAllNear, bool aAllStill, bool aPlace
 - A falling copy's steer takes the frame time (`SteerSeconds(frame seconds)`), as a reference body's: the shake
   hypothesis, judged on the duo by `RagdollTrace`'s turn-backs, kept only if they drop.
 
-Files: `Physics/BodyPrediction.h`, `Games/Skyrim/Havok/CopyRagdollPhysics.cpp`, `Physics/RagdollPending.h`.
-Tests: ClientTests `[ragdoll-rest]` (each row above; nothing steers once done). GameTests "A dead copy at its
+Files: `sync/physics/BodyPrediction.h`, `engine/Havok/CopyRagdollPhysics.cpp`, `sync/physics/RagdollPending.h`.
+Tests: UnitTests `[ragdoll-rest]` (each row above; nothing steers once done). GameTests "A dead copy at its
 owner's rest sleeps and stays asleep": the fake learns that a steer wakes a body and that a ragdoll left awake at
 a placed pose settles off it; fails today. `[corpse-rest]`, `[death]`, `[held-knock-rest]`, `[rising]` keep passing.
 Duo: `death-spectate-host`, `kill-move-kills-guest` (no wake after the first sleep; the lie check passes).
@@ -153,8 +153,8 @@ Closes the gap behind "A copy that stays off its owner": a body already lying wh
 load, a guest's hidden NPC shown again) has no rest today and lies where the guest's own physics drops it.
 Before building: `body_trace` of a living actor lying by `RagdollInstant` on the host (does it ever read as rested?).
 
-Files: `Structs/RecordPart.h` (`kRagdoll`), a `RagdollPart` struct, `Bridges/PhysicsBodies` (the declare),
-`Services/Generic/BodyService` (Register, Apply), `Services/Host/HostPhysics` (actor rests leave the message).
+Files: `Structs/RecordPart.h` (`kRagdoll`), a `RagdollPart` struct, `sync/physics/PhysicsBodies` (the declare),
+`sync/physics/BodyService` (Register, Apply), `sync/physics/HostPhysics` (actor rests leave the message).
 Tests: TPTests the part; HostAuthorityTests a joiner's spawn carries it; GameTests "A guest joining beside a corpse
 shows it lying as the host's" and "A lying body whose copy gets its 3D late lies as its owner's".
 

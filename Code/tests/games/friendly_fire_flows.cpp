@@ -2,14 +2,16 @@
 // player's game, which applies it to its real player; a teammate's kill is a real death, named in every chat.
 #include "Party.h"
 #include "Fixtures.h"
-#include <Games/Animation/ReplayState.h>
-#include <Systems/InterpolationSystem.h>
+#include <animation/ReplayState.h>
+#include <movement/InterpolationSystem.h>
 
-#include <Events/SessionNoticeEvent.h>
-#include <Events/MeleeStaggerEvent.h>
-#include <Services/DeathService.h>
-#include <SessionIds.h>
-#include <Games/Skyrim/CriticalStageRules.h>
+#include <core/SessionNoticeEvent.h>
+#include <combat/MeleeStaggerEvent.h>
+#include <death/DeathService.h>
+#include <core/SessionIds.h>
+#include <CriticalStageRules.h>
+#include <core/FormIdComponent.h>
+#include <animation/RemoteAnimationComponent.h>
 
 namespace
 {

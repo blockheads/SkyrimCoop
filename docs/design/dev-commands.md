@@ -70,7 +70,7 @@ every value back, so the console, the harness or a cog swap never leaves it wron
 
 ## Tests
 
-ClientTests `[dev-commands]` (parse, lines, odds, console names); HostAuthorityTests `[DevTools]`; GameTests
+UnitTests `[dev-commands]` (parse, lines, odds, console names); HostAuthorityTests `[DevTools]`; GameTests
 `[dev-commands]` (a guest's `/heal` heals both players; a guest's `/spawn` gives the guest copies, `/killall` kills
 them; a guest's `/spawn horse` is the party's on both games; `/killmove` and `/reset` reach both games). Skyrim 2026-11-16 (duo, by hand): spawn at the guest's copy, speed,
 gravity, jump, gear, shout recovery and kill move picks read back in both games. Scenario `killmove-odds-every-swing`:

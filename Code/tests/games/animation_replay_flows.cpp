@@ -1,13 +1,19 @@
 #include "Party.h"
-#include <Services/CopyRecords.h>
+#include <animation/GraphStream.h>
+#include <core/CopyRecords.h>
 #include <Structs/ActorStatePart.h>
 #include "Fixtures.h"
-#include <Services/CharacterService.h>
+#include <characters/CharacterService.h>
 #include <Messages/NotifyReferencesMove.h>
-#include <Systems/InterpolationSystem.h>
-#include <Components/InterpolationComponent.h>
-#include <SessionIds.h>
-#include <Games/Animation/ReplayState.h>
+#include <movement/InterpolationSystem.h>
+#include <movement/InterpolationComponent.h>
+#include <core/SessionIds.h>
+#include <animation/ReplayState.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <animation/RemoteAnimationComponent.h>
+#include <core/RemoteComponent.h>
+#include <movement/MovementService.h>
 
 namespace
 {
@@ -266,7 +272,7 @@ TEST_CASE("NPC actions wait for the same playback time as their movement", "[ani
     gesture.IdleId = 0xF779D;
     gesture.EventName = "MotionDrivenIdle";
     snapshot.Updates[sid].ActionEvents.push_back(gesture);
-    party.As(party.Guest(), [&] { party.Guest().GetCharacterService().OnReferencesMoveRequest(snapshot); });
+    party.As(party.Guest(), [&] { party.Guest().ctx().at<MovementService>().OnReferencesMoveRequest(snapshot); });
     const auto cBefore = guest.GetActorLatestAnimation(cCopy);
     party.Step(party.Guest());
     CHECK(guest.GetActorLatestAnimation(cCopy) == cBefore);

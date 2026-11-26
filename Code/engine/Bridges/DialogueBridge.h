@@ -1,0 +1,39 @@
+#pragma once
+
+#include <dialogue/IDialogueBridge.h>
+
+/// IDialogueBridge on the engine (docs/re/systems/dialogue.md).
+class DialogueBridge final : public IDialogueBridge
+{
+public:
+    DialogueBridge() noexcept;
+    ~DialogueBridge() override;
+
+    void SetFilters(Filters aFilters) noexcept override;
+
+    uint32_t GetSpeaker() const noexcept override;
+    bool IsMenuOpen() const noexcept override;
+    std::vector<Option> GetOptions() const noexcept override;
+    std::optional<std::vector<Option>> GetOptionsFor(uint32_t aCharacterFormId) const noexcept override;
+    bool IsChoices() const noexcept override;
+    uint32_t GetGreeting() const noexcept override;
+
+    bool Start(uint32_t aActorFormId, bool aShowMenu, uint32_t aGreeting = 0) noexcept override;
+    bool ShowMenu() noexcept override;
+    void CloseMenu() noexcept override;
+    void SetMenuCloseEnds(bool aEnds) noexcept override;
+    void End() noexcept override;
+    void FaceTalker() noexcept override;
+    bool ClearOrphaned() noexcept override;
+    std::optional<VoiceSource> GetVoiceSource(uint32_t aInfo) const noexcept override;
+    void Clear() noexcept override;
+
+    bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept override;
+    bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept override;
+    void SkipLine() noexcept override;
+    bool ShowPicked(const std::string& acText) noexcept override;
+
+    std::optional<uint32_t> GetHighlight() const noexcept override;
+    void SetHighlight(uint32_t aIndex) noexcept override;
+    std::optional<std::pair<float, float>> GetCursor() const noexcept override;
+};

@@ -5,7 +5,7 @@
   player_events.py story [CELL]       the client's location change raised on the host for its copy
 
 The story trace goes to each game's tp_client.log ("Story:"). The party returns to QASmoke afterwards. The
-activator, trigger and tile drivers used the spike's player context, now Games/Skyrim/Papyrus/GuestScripts.cpp (6f1a5ff9).
+activator, trigger and tile drivers used the spike's player context, now engine/Papyrus/GuestScripts.cpp (6f1a5ff9).
 """
 import argparse
 import contextlib

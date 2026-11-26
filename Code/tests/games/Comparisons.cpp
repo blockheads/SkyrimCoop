@@ -1,9 +1,13 @@
 #include "Party.h"
 
 #include <Diagnostics/HeadTrackRead.h>
-#include <Games/EngineNames.h>
+#include <core/EngineNames.h>
 
 #include <ranges>
+#include <core/FormIdComponent.h>
+#include <characters/HeldCopyComponent.h>
+#include <core/LocalComponent.h>
+#include <core/RemoteComponent.h>
 
 namespace GameTest
 {
@@ -120,7 +124,7 @@ static uint64_t SharedName(World& aGame, uint32_t aFormId)
     return aFormId;
 }
 
-// What the engine reads of an actor's slots, as every game names it; none if its gate is shut (Diagnostics/HeadTrackRead.h).
+// What the engine reads of an actor's slots, as every game names it; none if its gate is shut (plugin/Diagnostics/HeadTrackRead.h).
 static std::optional<std::vector<uint64_t>> LooksAt(World& aGame, const FakeEngine& acEngine, uint32_t aActor)
 {
     const auto& cActor = acEngine.Actors.at(aActor);

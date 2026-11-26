@@ -15,8 +15,8 @@ body-check documentation. With this review document, the final dev diff covers 1
 
 Four textual conflicts were resolved:
 
-- `Bridges/HostEngine.h`: retain container transfers and story-event callbacks.
-- `TestHarness/CommandsSession.cpp`: retain session cleanup and both knowledge/system-quest descriptions.
+- `engine/Bridges/HostEngine.h`: retain container transfers and story-event callbacks.
+- `harness/TestHarness/CommandsSession.cpp`: retain session cleanup and both knowledge/system-quest descriptions.
 - `encoding/Opcodes.h`: retain the new container, story and system-quest requests, each with a distinct opcode.
 - `tests/games/xmake.lua`: build both container-transfer logic and the system-quest/event routing support.
 
@@ -77,13 +77,13 @@ Final `scripts/check.sh` passes (`build/dev-review-final-check.log`):
 
 | Check | Result |
 | --- | --- |
-| ClientTests | 93 cases, 819 assertions |
+| UnitTests | 93 cases, 819 assertions |
 | HostAuthorityTests | 182 cases, 1,944 assertions |
 | Encoding / TPTests | 26 cases, 302 assertions |
 | GameTests | 201 cases, 2,071 assertions, eight shards |
 | Harness and ragdoll comparison tests | pass |
 | UI workbench fixtures | pass |
-| Windows SkyrimTogetherClientDLL build | pass |
+| Windows SkyrimCoopPlugin build | pass |
 
 The scene regression failed before the filter fix and passes after it. Python compilation of `coop_test.py` and
 `coop_v1.py` passes. Diff whitespace checks pass. `scripts/net_check.sh` was not run.

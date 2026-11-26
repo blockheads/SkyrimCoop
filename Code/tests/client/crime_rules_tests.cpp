@@ -1,7 +1,7 @@
 // CrimeBridge::Judge's checks (docs/re/systems/crime.md, "A created item's theft names its owner").
 #include <catch2/catch.hpp>
 
-#include <Services/Host/CrimeRules.h>
+#include <crime/CrimeRules.h>
 
 using namespace CrimeRules;
 

@@ -68,7 +68,7 @@ and a controls call is shared only if it asks for movement (ControlMap::ToggleCo
 ```
 
 - **The cause:** GuestScripts already tags a stack with the guest whose action started it (the rules: `ScriptTags`,
-  `OwnEvents`, in `ClientTests`). In a session it also tags
+  `OwnEvents`, in `UnitTests`). In a session it also tags
   this game's own player (0x14): an engine event naming the player (an activation, a trigger, a hit), the player's
   own events, SKSE's input and menu events (`WorldEvents::IsOwnEvent`, as on a guest), the host's own picked line
   (`HostConversation::LineFor`), and what those queue or register. A native's own calls keep its stack's cause.
@@ -100,7 +100,7 @@ starts) is the guest's. Its stages stay there, and its events (the quest's own, 
 
 ## Scenarios
 
-The rule and the holds are tier 1 (`ClientTests`, `party_tests.cpp`), the flows between games tier 2
+The rule and the holds are tier 1 (`UnitTests`, `party_tests.cpp`), the flows between games tier 2
 (`GameTests`, `cutscene_flows.cpp`; `docs/design/testing.md`). In Skyrim:
 
 `player-moment-stays-theirs` (a player's own script's controls and fade stay on that game, both ways),

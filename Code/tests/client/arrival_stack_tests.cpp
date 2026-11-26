@@ -1,8 +1,8 @@
 // ArrivalStack and CollisionGroups: who passes through whom on the party's arrival spot (host-authority-migration.md).
 #include <catch2/catch.hpp>
 
-#include <Games/Skyrim/CollisionGroups.h>
-#include <Services/ArrivalStack.h>
+#include <CollisionGroups.h>
+#include <travel/ArrivalStack.h>
 
 #include <algorithm>
 #include <thread>

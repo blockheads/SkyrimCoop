@@ -27,7 +27,7 @@ scripts/check.sh            # tiers 1-2 and the plugin's build; before every pus
 scripts/check.sh --no-dll   # without the Windows toolchain
 ```
 
-It builds and runs `ClientTests`, `HostAuthorityTests`, `TPTests` and `GameTests`, then builds the plugin, one target per
+It builds and runs `UnitTests`, `HostAuthorityTests`, `TPTests` and `GameTests`, then builds the plugin, one target per
 build at `-j8`. Each step's output is in `build/check/`, and a failure shows its failed checks or compiler errors.
 `GameTests` runs in 8 shards at once (`build/check/GameTests/`), each with its own ports (`GAMETESTS_PORT`): its
 games wait on real timers, not the CPU. The step fails if any case did not run (Catch2 reads a comma in a name as
@@ -39,7 +39,7 @@ Skyrim's scenarios are not in it.
 
 - DLL, one `.cpp` touched (`PartyNatives.cpp`, `CutsceneService.cpp`, `World.cpp`): 1.8-2.4 s
 - DLL, `World.h` touched (most of the plugin): 12.9 s
-- `ClientTests`: rule edit, build and run 0.4 s; test edit, build and run 1.1 s
+- `UnitTests`: rule edit, build and run 0.4 s; test edit, build and run 1.1 s
 - `HostAuthorityTests`: build 2.4-3.8 s (one rule or test file); run 0.04 s (118 cases)
 - `TPTests`: build 1.9 s; run under 0.01 s
 - `GameTests` (tier 2): build 2.5-4.5 s (one service), 14.5 s from clean; run 14 s (28 flows and spec runs, 2-3 games each;
@@ -61,15 +61,15 @@ Scripts that edit and build in a loop wait a second first.
 - **For:** pure client and host logic, no engine: whose a call is, who holds what, the host's rules, message
   encoding.
 - **Where:**
-  - `Code/tests/client/` (`ClientTests`): every game's logic. The pure files are listed one by one in its
-    `xmake.lua` (`PartyRules`, `ScriptTags`, `OwnEvents`, and `Games/EngineNames.h`); a file that needs the engine
+  - `Code/tests/client/` (`UnitTests`): every game's logic. The pure files are listed one by one in its
+    `xmake.lua` (`PartyRules`, `ScriptTags`, `OwnEvents`, and `sync/core/EngineNames.h`); a file that needs the engine
     doesn't build there, so the Linux build is the purity check.
   - `Code/tests/host_authority/` (`HostAuthorityTests`): the host's rules (`HostAuthority`, `Services/Host/`) against in-process
     games (`session.h`).
   - `Code/tests/encoding.cpp` (`TPTests`): messages on the wire.
 - **Run:**
   ```bash
-  scripts/xmake-linux.sh build -j8 ClientTests && build/linux/x86_64/debug/ClientTests
+  scripts/xmake-linux.sh build -j8 UnitTests && build/linux/x86_64/debug/UnitTests
   scripts/xmake-linux.sh build -j8 HostAuthorityTests && build/linux/x86_64/debug/HostAuthorityTests
   scripts/xmake-linux.sh build -j8 TPTests && build/linux/x86_64/debug/TPTests
   ```
@@ -252,7 +252,7 @@ game): a guest's sword hit on a host NPC is applied by the host's game, the gues
 showing the guard's health bar, and its killing blow credits the host's copy of the guest; a guest's fire bolt
 launches from its copy on the host's game from the same place; a guest's lever pull replays by its copy, a
 locked gate's activation (a lockpick attempt) is not passed on. To build natively: `CombatService` takes its two
-engine upkeep calls from `Games/ActorUpkeep.h` (out of `Actor.h`), `ProjectileLaunchedEvent` holds a `glm::vec3`
+engine upkeep calls from `sync/combat/ActorUpkeep.h` (out of `Actor.h`), `ProjectileLaunchedEvent` holds a `glm::vec3`
 and `ActivateEvent` only the form ids it was read into (its engine pointers had no reader).
 
 Dialogue (`dialogue_flows.cpp`, the same day; `DialogueService` in every game, `HostConversation` made by the
@@ -369,7 +369,7 @@ Today 13 of the 26 service files build natively (`ActorValueService`, `Character
 (`CharacterService` was only three unused or misplaced includes):
 
 1. **Engine structs in services** (`HostService`; `InventoryService`, `CombatService` and `ObjectService` were a
-   header each, `MagicService` and the others below `Utils.h`, all in tier 2 now): `Games/Primitives.h` fails its own `static_assert` (`sizeof(NiRefObject)`), as
+   header each, `MagicService` and the others below `Utils.h`, all in tier 2 now): `engine/Primitives.h` fails its own `static_assert` (`sizeof(NiRefObject)`), as
    it should: the engine's layout is the MSVC ABI's (`long` is 4 bytes there, 8 on Linux). They can never build
    natively; their engine calls go behind a bridge first. Large: one service at a time, as a flow needs it.
 2. **`VersionDb.h` / `intrin.h` through the Papyrus and engine helpers** (`AiStateService`,
@@ -390,7 +390,7 @@ Today 13 of the 26 service files build natively (`ActorValueService`, `Character
 
 ## Tier 3: black box
 
-- **For:** two real games, the harness and hot reload (`scripts/coop_test.py`, `Code/client/TestHarness/`).
+- **For:** two real games, the harness and hot reload (`scripts/coop_test.py`, `Code/harness/TestHarness/`).
 - **When:**
   - building a new feature: fast, targeted runs to learn how Skyrim behaves, since we have no data on it yet.
     What's learned goes into the fake engine, and from then on tiers 1-2 gate the feature.
@@ -626,7 +626,7 @@ Skyrim (tier 3) now and then. When they disagree, Skyrim is right and the fake i
 
 ## Trickiest first
 
-Done (`ClientTests`, 173 assertions):
+Done (`UnitTests`, 173 assertions):
 
 - `PartyRules` (`party_tests.cpp`): the cutscene share rule and the control holds.
 - `ScriptTags` (`script_tags_tests.cpp`): GuestScripts' tag table (calls, stacks, timers, delayed natives) and the
@@ -710,8 +710,8 @@ uses the same selection helper. Hidden `--files a b c` replaces Git's path list 
 nonexistent/deleted paths; `--files` with no paths selects nothing. For example:
 
 ```
-coop_test.py affected --files Code/client/Services/Generic/InventoryService.cpp
-coop_test.py affected --run --dry-run --files Code/client/World.cpp Code/client/Games/Skyrim/Papyrus/PartyNatives.cpp
+coop_test.py affected --files Code/sync/items/InventoryService.cpp
+coop_test.py affected --run --dry-run --files Code/sync/game/World.cpp Code/engine/Papyrus/PartyNatives.cpp
 coop_test.py affected --check
 ```
 

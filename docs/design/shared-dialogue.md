@@ -249,9 +249,9 @@ A refused start goes back as a session event (a chat system line), like a refuse
 
 ## Engine pieces
 
-Typed structs in `Code/client/Games/` with `static_assert`ed offsets (CommonLibSSE-NG, IDA):
+Typed structs in `Code/engine/` with `static_assert`ed offsets (CommonLibSSE-NG, IDA):
 
-- `MenuTopicManager` (`Games/Misc/MenuTopicManager.h`), `TESTopic`, `TESTopicInfo`, `UIMessageQueue` and
+- `MenuTopicManager` (`engine/Misc/MenuTopicManager.h`), `TESTopic`, `TESTopicInfo`, `UIMessageQueue` and
   `BSUIMessageData` (`Interface/UI.h`).
 - `IDialogueBridge` / `DialogueBridge` (`Bridges/`): what `DialogueService` needs from the engine, and
   the hooks.
@@ -321,7 +321,7 @@ HostDialogue (DialogueLineFor): the presser's own line for the topic, else refus
   back. Two moves crossing on the line end every menu on the one that reached the host last; before, each menu
   kept the other's.
 - Tests: `HostAuthorityTests` (`dialogue_tests.cpp`: the merge, its own options said, another's refused with the
-  line to the presser only, the highlight relay), `ClientTests` (`PartyOptionText`, `CanSay`, `CannotSayText`),
+  line to the presser only, the highlight relay), `UnitTests` (`PartyOptionText`, `CanSay`, `CannotSayText`),
   `GameTests` (`dialogue_flows.cpp`: each menu's own lines and the tags, the host pressing a guest's option refused on
   its own game, the guest saying its own, the shared highlight with three games).
 

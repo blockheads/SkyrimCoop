@@ -3,7 +3,7 @@
 // Steam for games in this process, behind ISteamBridge: every game's account signed into one Steam network, its
 // lobbies and its P2P connections. As Steam does, a lobby request answers on a later frame and a connection reaches
 // Connected once the listener accepts it.
-#include <Bridges/ISteamBridge.h>
+#include <join/ISteamBridge.h>
 
 #include <deque>
 #include <map>

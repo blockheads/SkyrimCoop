@@ -16,7 +16,7 @@ Development is Linux only for now; Windows is not supported yet. You need xmake,
 ```bash
 scripts/xmake-linux.sh f                 # configure the native tests (once)
 scripts/xmake-msvc.sh f -m dev           # configure the plugin; downloads LLVM and the Windows SDK (once)
-scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
+scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin
 scripts/check.sh                         # builds and runs the tests; run it before a pull request
 ```
 
@@ -25,6 +25,8 @@ Paths to your Steam library and game go in environment variables or `~/.config/s
 
 ## Docs
 
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to make a change, and the rules the code follows
+- [docs/architecture.md](docs/architecture.md): how the code is organised, on one page
 - [docs/progress.md](docs/progress.md): where things stand
 - [docs/design/](docs/design/): how it works, starting with [the glossary](docs/design/glossary.md)
 - [docs/design/testing.md](docs/design/testing.md): the tests, and running two games side by side

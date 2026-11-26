@@ -1,12 +1,12 @@
 // Host loads reuse the wipe's transfer and rejoin; guest-initiated loads are refused in chat.
 #include "Party.h"
 
-#include <Events/GameLoadFailedEvent.h>
-#include <Events/MenuEvent.h>
-#include <Events/SessionNoticeEvent.h>
-#include <Services/JoinService.h>
-#include <Services/SaveService.h>
-#include <Services/SaveTransfer.h>
+#include <join/GameLoadFailedEvent.h>
+#include <core/MenuEvent.h>
+#include <core/SessionNoticeEvent.h>
+#include <join/JoinService.h>
+#include <join/SaveService.h>
+#include <join/SaveTransfer.h>
 
 namespace
 {

@@ -3,16 +3,17 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Events/SessionNoticeEvent.h>
+#include <core/SessionNoticeEvent.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/NotifyPartyTravel.h>
-#include <Components.h>
-#include <Events/PlayerDeathEvent.h>
-#include <Services/DeathService.h>
-#include <Services/SaveService.h>
-#include <Services/JoinService.h>
-#include <Events/MenuEvent.h>
-#include <Events/PlayerLooksChangeEvent.h>
+#include <core/RemoteComponent.h>
+#include <core/PlayerComponent.h>
+#include <core/PlayerDeathEvent.h>
+#include <death/DeathService.h>
+#include <join/SaveService.h>
+#include <join/JoinService.h>
+#include <core/MenuEvent.h>
+#include <core/PlayerLooksChangeEvent.h>
 
 namespace
 {

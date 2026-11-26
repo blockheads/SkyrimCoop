@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Games/Animation/ReplayStep.h>
+#include <animation/ReplayStep.h>
 
 TEST_CASE("An action waits one graph update after its variables", "[animation][replay-step]")
 {

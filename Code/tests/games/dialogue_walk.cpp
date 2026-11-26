@@ -3,12 +3,13 @@
 #include "FakeDialogue.h"
 #include "Party.h"
 #include "Fixtures.h"
-#include <Components.h>
-#include <SessionIds.h>
-#include <Services/DialogueService.h>
-#include <Events/DialogueEvent.h>
-#include <Events/SubtitleEvent.h>
-#include <Services/Guest/VoiceFiles.h>
+#include <core/FormIdComponent.h>
+#include <core/RemoteComponent.h>
+#include <core/SessionIds.h>
+#include <dialogue/DialogueService.h>
+#include <dialogue/DialogueEvent.h>
+#include <dialogue/SubtitleEvent.h>
+#include <dialogue/VoiceFiles.h>
 
 #include <chrono>
 #include <cstdlib>

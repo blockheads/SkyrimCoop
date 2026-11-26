@@ -2,10 +2,10 @@
 
 // The bridges a game's services read the engine through, standing still: every call does nothing or returns nothing,
 // but who the player is. Generated once from the interfaces; an interface's new method fails the build here, add it.
-#include <Bridges/IActorBridge.h>
-#include <Bridges/IFormBridge.h>
-#include <Bridges/IPlayerBridge.h>
-#include <Bridges/IWorldBridge.h>
+#include <ports/IActorBridge.h>
+#include <ports/IFormBridge.h>
+#include <ports/IPlayerBridge.h>
+#include <ports/IWorldBridge.h>
 
 #include <string>
 
@@ -783,9 +783,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override
     {
     }
-    void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept override
-    {
-    }
     std::string SaveActorGraphState(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -868,9 +865,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
     }
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override
-    {
-    }
-    void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override
     {
     }
     bool IsActorFacePainted(uint32_t aFormId) const noexcept override

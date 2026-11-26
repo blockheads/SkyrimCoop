@@ -4,7 +4,7 @@ Found 2026-11-01 on the Windows duo, after the 2026-10-31 playtest lagged (fight
 
 ## What breadcrumbs do
 
-`Code/client/Breadcrumbs.cpp` records every call of every hook of ours (`Hooks::SetHookObserver` wraps each hook in a
+`Code/plugin/Breadcrumbs.cpp` records every call of every hook of ours (`Hooks::SetHookObserver` wraps each hook in a
 stub that calls `Breadcrumbs::RecordHook` with the hook's name and first argument), so a crash log shows what our
 code did just before. A call on an object not among the hook's last 24 got a description of the object: its class
 from MSVC RTTI and, for a form, its id (`Describe` → `Rtti::ClassName` and `Rtti::IsForm`).

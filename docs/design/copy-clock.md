@@ -147,7 +147,7 @@ What the baseline showed and what changed:
   turn made it overshoot and the late one put it back in one frame (a copy moving against its owner in the strafe
   trace). `CopyCorrection`: from where the guess showed it, over 100 ms; past 64 units (`CopyStep::kSnap`) or at a
   teleport it jumps. A teleport or a refreshed spawn (an arrival) drops the guess and correction with the points
-  (`InterpolationSystem::Restart`; GameTests "A refreshed spawn drops a copy's guess and correction with its points"). ClientTests `[copy-correction]`; GameTests "Over a lossy line a strafing player's copy never jumps
+  (`InterpolationSystem::Restart`; GameTests "A refreshed spawn drops a copy's guess and correction with its points"). UnitTests `[copy-correction]`; GameTests "Over a lossy line a strafing player's copy never jumps
   back where its guess overshot" (up to 23 units in a frame before).
 - **Smaller snapshots.** The graph variables were diffed against nothing, so every integer and float went each time;
   now against zeros of their sizes (only those set travel; the reader already fills zeros), and `Direction` in 16 bits.
@@ -169,7 +169,7 @@ The harness status: `copy_clock` (`network_ms`, `delay_ms`), and per copy `behin
 
 ## Tests
 
-- ClientTests `copy_clock_tests.cpp`, on a simulated line:
+- UnitTests `copy_clock_tests.cpp`, on a simulated line:
   - a good line plays a little behind;
   - a jittery line never runs out;
   - a spike raises the delay at once and is forgotten after the window;

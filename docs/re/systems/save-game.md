@@ -1,7 +1,7 @@
 # Saving and loading a game (the join flow's engine side)
 
 IDA 1.6.1170, 2026-10-23; names from CommonLibSSE-NG (`BGSSaveLoadManager.h`) and SKSE (`GameData.h`). Used by
-`Games/Skyrim/SaveGameHooks.cpp` (guests refuse saves) and the join flow's save transfer
+`engine/SaveGameHooks.cpp` (guests refuse saves) and the join flow's save transfer
 (`docs/design/join-flow.md`, "As built").
 
 ## One choke point for every save

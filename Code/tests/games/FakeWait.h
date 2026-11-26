@@ -1,10 +1,10 @@
 #pragma once
 
 #include "FakeEngine.h"
-#include <Bridges/IWaitBridge.h>
+#include <time/IWaitBridge.h>
 #include <DateTime.h>
-#include <Events/MenuEvent.h>
-#include <World.h>
+#include <core/MenuEvent.h>
+#include <core/World.h>
 
 // Native menu behavior: an opened menu pauses, the host's timer takes a step, guests need an explicit replay.
 struct FakeWait final : IWaitBridge

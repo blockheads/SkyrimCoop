@@ -30,12 +30,12 @@ copy's game: InterpolationSystem plays both on one timeline (CopyClock); an acti
   playback tick passes action.Tick, so a raw stamp lands a frame or two off its movement
 ```
 
-- **Fix:** `Code/client/Games/Animation.cpp:53` `action.Tick = World::Get().GetFrameTick();`. Check every other place
-  that stamps an action or replay event (`grep -rn "GetTick()" Code/client/Games/Animation* Code/client/Systems`).
+- **Fix:** `Code/engine/Animation.cpp:53` `action.Tick = World::Get().GetFrameTick();`. Check every other place
+  that stamps an action or replay event (`grep -rn "GetTick()" Code/engine/Animation* Code/sync/animation Code/sync/movement`).
 - **`CopyEase`:** `CharacterService.cpp:1452` (`currentTick = m_transport.GetTick()`) only has to be consistent with
   itself. Leave it, or move it to the copy clock if the change is trivial.
 - **Test:**
-  - ClientTests if a pure helper takes the tick;
+  - UnitTests if a pure helper takes the tick;
   - otherwise a GameTests flow: an owner's action and its movement in one frame replay together on the copy. The
     fake's session time can be made to jump the way Skyrim's does (S10).
 - **Duo:** `copy-jumps-with-owner`, `copy-strafes-with-host`, `copy-strafes-with-guest`, `host-kill-move`.
@@ -88,7 +88,7 @@ Animation.cpp:89  pActor->SaveAnimationGraphState(action.GraphState)   on each a
                   ~7.9 KB for DefaultMale ("Graph state DefaultMale: loaded true, read 7863 of 7863 bytes")
 ```
 
-- **Measure the cost:** a profiler zone around the call (`Diagnostics/Profile.h`, Tracy:
+- **Measure the cost:** a profiler zone around the call (`sync/core/Profile.h`, Tracy:
   `coop_test.py profile --stacks`). Look at the time per call and per second in combat, and the bytes sent per
   action (`MessageTrail`).
 - **Measure input-to-motion delay:** the frames from a press to the player's own motion, as host, as guest, and in
@@ -123,10 +123,10 @@ seen 2026-11-02 for one ladle: "BodyService: placed the owner's rest of 32AFF" A
 - **Target:** a loaded reference with dynamic bodies takes its rest from path A only. Path B keeps the save record
   and references that aren't loaded (or have no 3D) here, where A can't reach.
 - **Files:**
-  - `Code/client/Bridges/GuestEngine.cpp:531`: `kMove` goes to `PlaceAtHostRest`;
-  - `Code/client/Bridges/GuestEngineBodies.cpp` (`PlaceAtHostRest`, `HoldBodies`, `FreePlaced`);
-  - `Code/client/Services/GuestService.cpp:118`;
-  - the host side in `Services/Host/HostWorldState*`;
+  - `Code/engine/Bridges/GuestEngine.cpp:531`: `kMove` goes to `PlaceAtHostRest`;
+  - `Code/engine/Bridges/GuestEngineBodies.cpp` (`PlaceAtHostRest`, `HoldBodies`, `FreePlaced`);
+  - `Code/sync/game/GuestService.cpp:118`;
+  - the host side in `sync/world/HostWorldState*`;
   - `docs/design/world-state-sync.md` (move rows) and `physics-sync.md`.
 - **Bug-fix flow:**
   - a scenario that shows both paths firing for one rest, with a check that the guest's body is written once, in the
@@ -167,7 +167,7 @@ network: Net::Server and Client, 2 ENet channels: 0 reliable, 1 unreliable (Serv
 - **Ordering:** copies replay movement and actions by tick, not by arrival, so splitting channels is safe. Check that
   an unreliable snapshot older than the newest is dropped (`InterpolationSystem`) rather than played back.
 - **Tests:**
-  - TPTests or ClientTests for the flag choice;
+  - TPTests or UnitTests for the flag choice;
   - GameTests through `UdpRelay` (it can drop packets): with 5% loss, a guest's copy on the host moves without the
     stalls the reliable path shows.
 - **Duo:** the movement and copy scenarios. **`scripts/net_check.sh` only with the user's OK** (memory

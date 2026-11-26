@@ -4,7 +4,7 @@
 #include <Structs/Perks.h>
 
 // What a request and its notification carry when a relay passes the request on unchanged (the
-// host's authority, Code/client/Services/Host/HostAuthority.cpp). Both messages inherit the payload, so its
+// host's authority, Code/sync/game/HostAuthority.cpp). Both messages inherit the payload, so its
 // fields and their bytes are written once.
 
 #include <Structs/RecordPart.h>
@@ -585,7 +585,7 @@ struct GraphSyncPoint
     uint32_t Id{};
     uint32_t Update{};  // its updates so far: the ops from this update index on follow it
     uint64_t Tick{};    // the owner's frame tick then
-    std::string State;  // its whole graph (Skyrim: Havok's internal state, Games/Animation/GraphState.h)
+    std::string State;  // its whole graph (Skyrim: Havok's internal state, sync/animation/GraphState.h)
     std::vector<uint32_t> Words; // its variables, exact
     GraphSeed Seed{};
     // Its next update walks its active nodes again (stateOrTransitionChanged: its last generate pass changed a

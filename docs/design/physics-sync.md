@@ -44,7 +44,7 @@ every game (BodyService)   moving: 100 ms behind (BodyPlayback), steered, held o
   asleep in a pose it cannot hold awake (a rack's weapon) is held there asleep (`HoldAt`, 60908 without activation).
 - The live move row moves no loaded dynamic body (`GuestWorldState`, `GuestEngine::HasLiveBody`): the body's state
   places it; a cell's load and a reference with no body here still take the row.
-- Tests: ClientTests `[authority]`, `[stream]`, `[rest-placer]` (body_authority_tests.cpp); HostAuthorityTests
+- Tests: UnitTests `[authority]`, `[stream]`, `[rest-placer]` (body_authority_tests.cpp); HostAuthorityTests
   `[Physics]`; GameTests `[physics]` (the fake learned `ReadTouching` from its islands, the rest steps,
   `PlacedByGame`, `OnlyAsleep`); TPTests `[encoding.physics]`.
 - Duo (2026-11-23): `guest-push-like-vanilla`, `host-push-like-vanilla`, `host-cannot-take-guest-hold`,
@@ -56,7 +56,7 @@ every game (BodyService)   moving: 100 ms behind (BodyPlayback), steered, held o
 ## A watcher's object stops where its owner's does (2026-11-23, built)
 
 The playtest: another player's push slid on past its stop and was smoothed back, every time. Measured with the pure
-classes (ClientTests `[watcher]`): 1.5 to 2.6 units past, 1.1 to 2.2 back, settled 0.5 s late.
+classes (UnitTests `[watcher]`): 1.5 to 2.6 units past, 1.1 to 2.2 back, settled 0.5 s late.
 
 ```text
 before                                            now
@@ -114,7 +114,7 @@ A playtest saw a mask set on Orgnar's back snap about once a second on the guest
 left its rest is not known. Read in our code: a rest woken off was glided 0.5 s, put, slept, twice, then left where it
 fell. `RestPlacer::kKeep`: done, then awake off it -> steered toward the rest every update (`BodyBridge::Glide`), never
 put; back and still, put to sleep again. The put-back count (`kAgainAtMost`) is gone. Tests: GameTests `[kept-rest]` (a
-floor only the host's game has; before: a 3.5 unit step, left 40 units off); ClientTests `[rest-placer]`.
+floor only the host's game has; before: a 3.5 unit step, left 40 units off); UnitTests `[rest-placer]`.
 
 # History (replaced 2026-11-23)
 
@@ -178,7 +178,7 @@ guest: puts it back, into its player's capsule
   inside that trial (the creep ends with the trial, so a check after it found nothing in 14 rounds).
 - Tests: GameTests `[mover]` "A guest's player drops the bucket onto the plate..." (the fake's `Lands`, `Islands`),
   "A guest's player leans on the bucket and shifts it a unit...", "A guest's player knocks the bucket and the plate: the
-  plate's rest waits for the bucket's..."; ClientTests "A moving body's group waits for a played body...".
+  plate's rest waits for the bucket's..."; UnitTests "A moving body's group waits for a played body...".
 
 ## One simulator per pile, held to vanilla (2026-11-15, built)
 
@@ -222,11 +222,11 @@ who simulates what (one game per object, always)
 - **The pile is the mover's.** Only what the player touched was the guest's; what its held bucket hit was simulated by
   both games, the host's result steered the guest's pile against the bucket, and the jam dropped the hold after 1.4 s.
 - **The host's game placing wins.** A funnel move (`CHANGE_REFR_MOVE`) of a reference a guest moves: nothing steers it
-  from that moment (`Bridges/PlacedByGame`), the host reads where it was put, stops following, and the mover gets that
+  from that moment (`engine/Bridges/PlacedByGame`), the host reads where it was put, stops following, and the mover gets that
   place with `NotifyBodyRests::Placed` and gives the object back (`GuestHands::GiveBack`).
 - **A hold on another game is carried by velocity** (`SteerKeyframed`), not put at the frame each step: placing
   (60898) starts its contacts over every frame.
-- **What a body meets depends on who simulates it** (`Physics/BodyGroups.h`, in the filter hook 78553): each
+- **What a body meets depends on who simulates it** (`sync/physics/BodyGroups.h`, in the filter hook 78553): each
   reference body another game moves is in our "played" collision group, each one this game moves in "moving"
   (`IBodyBridge::SetMoving`, set by `BodyBridge::Drive`, the host's `TakeBodies`, a guest's `Own`; given back at its
   rest). A played body meets the world, characters and moving bodies; not other played bodies (their owner's game
@@ -276,7 +276,7 @@ who simulates what (one game per object, always)
   `docs/re/systems/physics.md`, "When an island sleeps"). The guest skips a row within the send limits (2 units) of
   the rest it sent, and our island sleeps (`SleepBody`, a free asleep: `DeactivateIsland`) refuse an island with a
   body not still (60850 skips Havok's stillness counts) and put back each body's fastest speeds, so a moving body
-  keeps its island awake, as in vanilla (ClientTests "An island is put to sleep only when every body in it is dynamic
+  keeps its island awake, as in vanilla (UnitTests "An island is put to sleep only when every body in it is dynamic
   and still": a steady 90 units/s slide). Trials `stack_release`
   (a wheel lifted off a stack, held, let go) and `pile_carry_release` (carried through a pile of wheels first): the
   let go wheel's `fell` is held to vanilla's (20 to 37 units in 40 rounds), and in no game is it put to sleep while it
@@ -305,7 +305,7 @@ Open (`docs/bugs.md`, "Physics against vanilla"):
 Tests: GameTests `[mover]` "The host's game places the bucket a guest's push still moves", "A guest's copy walks into
 the bucket in the host's game", "A guest's player bumps the bucket into the plate", "...the host's is never faster
 than the guest's push made it"; HostAuthorityTests "the host's game placing a body a guest moves takes it back";
-ClientTests "A played body's gap is closed slowly while its frame moves slowly, stiffly when fast", "A rest is put awake for one step so its contacts form...", "A body off its rest glides onto it..."; GameTests "The host puts the guest's rest of the bucket in place...", "The host's rest of the bucket has its contacts", "...asked about all of them at once", "...asked twice, then left where it lies"; `scripts/test_collision_metrics.py`.
+UnitTests "A played body's gap is closed slowly while its frame moves slowly, stiffly when fast", "A rest is put awake for one step so its contacts form...", "A body off its rest glides onto it..."; GameTests "The host puts the guest's rest of the bucket in place...", "The host's rest of the bucket has its contacts", "...asked about all of them at once", "...asked twice, then left where it lies"; `scripts/test_collision_metrics.py`.
 
 ## The mover's until its rest (2026-11-14, built)
 
@@ -394,10 +394,10 @@ the host's own player's hold: sent as a hold too (HostBodies::Held), every guest
   of the last one sent (a body Orgnar keeps waking where it lies) goes again only after 2 s
   (`PhysicsBodies::kRestAgainMs`): the guest's own Orgnar wobbles its copy too, and the rest puts it back. With the
   still limits as the "same" test, a slow settle's last tilt never went out and the inn's clutter ended turned
-  differently on the guest (ClientTests "A body still for a while rests though its island stays awake"). Ragdolls keep the island rule (their own lying and
+  differently on the guest (UnitTests "A body still for a while rests though its island stays awake"). Ragdolls keep the island rule (their own lying and
   get-up rules). Scenario `object-rests-beside-orgnar` (a cheese wheel dropped on the bar; the old rule: 6 of 7
   without a rest, keyframed on the guest; now 5 of 5), GameTests "A knocked bucket stops where an animated body keeps
-  its island awake" (the fake's `KeptAwake`), ClientTests "A body is at rest once it keeps one pose".
+  its island awake" (the fake's `KeptAwake`), UnitTests "A body is at rest once it keeps one pose".
 - A body this game's player holds counts as moving, so a body held still in the air does not rest the moment it is
   let go (GameTests "The host's player holds a bucket still in the air and lets go").
 - **Kept: the guest's "moved by itself, ask the host"** (step 4 of the plan, dropped). The nudge corrects only a body
@@ -419,7 +419,7 @@ who owns a body
   an actor's ragdoll             the actor's owner (HostCharacters): the host's NPCs and player the host,
                                  a guest's player its game
 
-every game (BodyService, Services/Generic)
+every game (BodyService, sync/physics)
   frames and rests of bodies it does not own -> BodyPlayback, 100 ms behind -> IBodyBridge drives/rests them
   (references; copies' ragdolls, a copy not in its ragdoll yet put there)
 
@@ -435,7 +435,7 @@ the host (HostPhysics, HostHands)
 
 Build order:
 
-1. **One body bridge for every game** (built 2026-10-26): `IBodyBridge` (`Bridges/BodyBridge`; the fake engine's in
+1. **One body bridge for every game** (built 2026-10-26): `IBodyBridge` (`engine/Bridges/BodyBridge`; the fake engine's in
    GameTests) finds, drives, rests, frees and pushes a body by its key, references and copies' ragdolls alike, out of
    `GuestEngine` and `HostEngine` (each sets how its references are found). `BodyService` (every game) took
    GuestPhysics' playback; `GuestHands` is its keeper on a guest. HostHands forwards a holder's frames to every
@@ -478,22 +478,22 @@ tankard flash green (S2).
 rechecked before writing, preserving contacts if the engine already followed them. A rested reference's move
 row is recorded after those writes, so its saved place matches its repaired node. Forgetting the reference
 invalidates queued repairs and records; destroying the physics reader cancels its tasks. GameTests observe
-manual scene writes outside the main-loop drain, and ClientTests cover repair/rest ordering and cancellation.
+manual scene writes outside the main-loop drain, and UnitTests cover repair/rest ordering and cancellation.
 
 ## As built (2026-10-24, split 2026-10-25)
 
 Where each part lives:
 
 ```
-host   HostPhysics (Services/Host/)   the host's bodies out to each guest: send rule, relevance, rests
+host   HostPhysics (sync/physics)   the host's bodies out to each guest: send rule, relevance, rests
        HostHands                      a guest's player's hands on the host's bodies: push, hold, let go
        HostEngine (Bridges/)          the engine side: HostEngineBodies.cpp, PhysicsBodies (what physics moves)
-every  BodyService (Services/Generic/) plays the bodies other games own (BodyPlayback, 100 ms behind), IBodyBridge
+every  BodyService (sync/physics) plays the bodies other games own (BodyPlayback, 100 ms behind), IBodyBridge
        GuestHands                     this player's pushes, holds and let gos, and bodies its own physics moved
        GuestEngine (Bridges/)         the engine side: GuestEngineBodies.cpp
-both   Physics/                       the pure halves (ClientTests): BodyPrediction, BodySends, BodyPlayback,
+both   Physics/                       the pure halves (UnitTests): BodyPrediction, BodySends, BodyPlayback,
                                       BodyRelevance
-       Bridges/ReferenceBodies        a reference's bodies by BodyKey::Index; Havok/bhkCollision the engine calls
+       engine/Bridges/ReferenceBodies        a reference's bodies by BodyKey::Index; Havok/bhkCollision the engine calls
 ```
 
 The flow:
@@ -508,12 +508,12 @@ host game
     awake: its island's active mark; none awake -> rested (every dynamic body's pose) + the move row (references)
     an awake reference body's 3D written from its body when the engine left it behind (FollowBody; since
       2026-11-01 only then: writing a followed one re-placed it, "Matches a game without co-op" below)
-  HostPhysics (Services/Host/): BodyMotions marks free fall; each guest's BodySends picks the frames its guess got
+  HostPhysics (sync/physics): BodyMotions marks free fall; each guest's BodySends picks the frames its guess got
     wrong (2 units, 0.05 rad), or 500 ms old, the most wrong first within ~8 KB/s, of the bodies within 4096
     units of that guest's copy (BodyRelevance)
     -> NotifyBodyFrames (unreliable, ~1 KB packets) to that guest; NotifyBodyRests (reliable) to everyone
 guest game
-  BodyService (Services/Generic/): BodyPlayback, 100 ms behind the host's clock: the last frame's guess blended
+  BodyService (sync/physics): BodyPlayback, 100 ms behind the host's clock: the last frame's guess blended
     into the next frame (or the rest) when that is already here, a late frame's correction blended out over
     100 ms, the first frame blended from where this game's own physics put it, a rest placed once
     -> IBodyBridge::Drive: keyframed (78077), put at the frame (SetPositionAndRotation 78082) moving at its
@@ -523,7 +523,7 @@ guest game
     a copy's ragdoll body is taken only once its own ragdoll simulates it (the copy dead by its owner's action)
 ```
 
-- Pure halves, tier 1 (`ClientTests`, `physics_tests.cpp`): `Physics/BodyPrediction` (the guess), `BodySends`
+- Pure halves, tier 1 (`UnitTests`, `physics_tests.cpp`): `sync/physics/BodyPrediction` (the guess), `BodySends`
   (the send rule and budget), `BodyPlayback` (the guest's playback). A thrown, bouncing, sliding body sends 16
   frames over its flight (`FakeFlight`), the guest never more than a correction off.
 - Tier 2 (`GameTests`, `physics_flows.cpp`, `[physics]`): the fake engine's bodies fly (`FakeFlight`) in the host's
@@ -576,7 +576,7 @@ guest: never driven, so dynamic: its player grabs it; the host's rest places it 
 ```
 
 Bug: the guest's held E on a bottle on Orgnar's bar picked it up (a theft) instead of grabbing it: each of Orgnar's
-wakes keyframed the guest's bottle. Tests: `ClientTests` "A woken body that never left where it woke is not moving",
+wakes keyframed the guest's bottle. Tests: `UnitTests` "A woken body that never left where it woke is not moving",
 `GameTests` "The bottles on Orgnar's bar wake without moving" (the fake's `Wake`, woken three times), scenario
 `guest-grabs-orgnar-bottle`.
 
@@ -587,7 +587,7 @@ its copy in the host's game (`HostGame::ReadPlayerPosition`), so a fight far fro
 without a copy shown (joining, travelling) it gets them all. Rests go to every guest, and the host writes an awake
 body's 3D wherever the players are when the engine skipped its own write (sometimes, at any distance:
 `docs/re/systems/physics.md`). A body that comes near mid-flight starts getting frames (its guess is old); one that
-leaves stops at its last guess until its rest. Tests: `ClientTests` "A guest gets the frames of the bodies near its
+leaves stops at its last guess until its rest. Tests: `UnitTests` "A guest gets the frames of the bodies near its
 character", `HostAuthorityTests` "a guest gets the frames of the bodies near its character, every guest the rests".
 
 ## A guest's hand, as built (steps 5 and 6, 2026-10-24)
@@ -716,7 +716,7 @@ spinning bucket's 3D turned as it was" (a position-only check fails it).
   its player can grab it (a keyframed body is a wall to both). Held keyframed from every 3D's load (the design's
   first idea) was tried: its own blasts then moved nothing, but a carried or pushed body jammed against the held
   clutter around it and the grab dropped (`guest-throw-lands-on-host`, 2026-10-24).
-- Tier 1 and 2: `ClientTests` as before; `HostAuthorityTests` `[Physics]` (a push, a hold the others see and a second
+- Tier 1 and 2: `UnitTests` as before; `HostAuthorityTests` `[Physics]` (a push, a hold the others see and a second
   holder refused, a release and its late frames, a holder leaving, a guest asking for poses); `GameTests`
   `[physics]` (a guest's push, its carry and drop, its own blast the host never followed).
 - Tier 3: `guest-bump-moves-host`, `guest-throw-lands-on-host`, `guest-cast-moves-host` (with steps 1-4's), 3 rounds
@@ -816,7 +816,7 @@ host update (main thread, under the world's read lock), awake bodies only:
 ```
 
 **Sent when the guess goes wrong, not at a rate** (dead reckoning, with a budget as in Fiedler's state sync):
-both games run the same `Predict` (`Code/client/Physics/BodyPrediction`, pure: Havok's gravity while the frame says
+both games run the same `Predict` (`Code/sync/physics/BodyPrediction`, pure: Havok's gravity while the frame says
 the body falls freely, which the host reads from its velocity's change; damping later, read on each game from the
 same .nif). A flight is an arc, so a throw sends a frame
 at the release, at each bounce, while it rolls, and its rest: the contacts are the events. The 500 ms refresh covers
@@ -1014,7 +1014,7 @@ runs in `ragdoll-lies-as-host`, `knockdown-lies-as-host` and `kill-move-kills-gu
    to get up from where it was steered
 ```
 
-Also: a copy's ragdoll plays at its copy's time (`Services/CopyClock.h`, as its movement, [copy-clock.md](copy-clock.md));
+Also: a copy's ragdoll plays at its copy's time (`sync/core/CopyClock.h`, as its movement, [copy-clock.md](copy-clock.md));
 references stay at 100 ms.
 
 Readouts: `knockdown-smoke` (Lydia knocked down three times between the two players): `RagdollTrace.snaps` (a frame
@@ -1073,13 +1073,13 @@ lying, its bodies               in the played collision group (BodyBridge::Find)
   ragdoll's own bodies' motion does not keep its island awake (`SleepBody`'s acOwnMotion), and keeps 60850's HK_REAL_MAX
   so Havok's last test (62264) lets them sleep: every copy then slept in the update after its place, near its rest and
   still, in `kill-move-kills-guest` 3 of 3 and `death-spectate-host` 3 of 3 (one run failed on a wolf's stamina).
-- Played (`Physics/BodyGroups.h`): a lying ragdoll is on layer 32, which meets clutter, props and other corpses
+- Played (`sync/physics/BodyGroups.h`): a lying ragdoll is on layer 32, which meets clutter, props and other corpses
   (`docs/re/systems/physics.md`, "A lying ragdoll's layer and group"); in its owner's game it settled among them, so
   here it passes what nobody moves and what another game moves, and meets the world and what this game moves.
 - The rest was a reliable `NotifyBodyRests` sent once: a copy made later never got it ("A copy that stays off its
   owner"). `NotifyBodyRests` carries reference bodies only now.
 
-Tests: ClientTests `[ragdoll-rest]`, `[played-ragdoll]`; GameTests "A dead copy at its owner's rest falls asleep there
+Tests: UnitTests `[ragdoll-rest]`, `[played-ragdoll]`; GameTests "A dead copy at its owner's rest falls asleep there
 and stays asleep" (the fake learned that a steer wakes a copy's ragdoll body and an unsteered awake one settles off),
 "A guest joining beside a host corpse sees it lie as the host's"; TPTests the part.
 
@@ -1101,7 +1101,7 @@ game and the dropper's reference becomes its twin; its body stays the dropper's 
 
 ## Engine pieces
 
-All through typed structs in `Code/client/Games/Skyrim/Havok/` with `static_assert`ed offsets, checked against
+All through typed structs in `Code/engine/Havok/` with `static_assert`ed offsets, checked against
 CommonLibSSE-NG and IDA. Ids checked in IDA (1.6.1170) unless marked:
 
 | Id | Name | Use | Checked |
@@ -1135,7 +1135,7 @@ and the cell animations after it in the job list at `0x142011ba0`), the world lo
 ## Tests
 
 ```
-tier 1  ClientTests     frame quantization and the body walk's order; Predict (a flight's arc, damping); the host's
+tier 1  UnitTests     frame quantization and the body walk's order; Predict (a flight's arc, damping); the host's
                         send rule (a straight flight sends nothing, a bounce sends, the 500 ms refresh, the budget
                         and its priorities); the guest's buffer (guessing on, blending into a frame it has
                         early, a late correction blended out, starting from its own pose, a rest); the awake set from activation events
@@ -1156,7 +1156,7 @@ tier 3  scenarios       (driving the game as a player would, waiting on body sta
                                           follows the hold and it lands at the same spot on both (written 2026-10-24;
                                           vanilla has no throw for a grabbed object: a carry and a drop is one)
           ragdoll-lies-as-host            the host kills an NPC; the copy's body lies as the host's, bone by bone
-        harness readouts (TestHarness/EngineCalls): a reference's bodies (motion type, awake, pose, velocity) and an
+        harness readouts (harness/TestHarness/EngineCalls): a reference's bodies (motion type, awake, pose, velocity) and an
         actor's ragdoll bodies; world-diff compares bodies, not only references' positions
 ```
 

@@ -1,15 +1,22 @@
--- The host's authority (HostAuthority, Code/client/Services/Host/) with no game: each rule against in-process
+-- The host's authority (HostAuthority, the Host* files in Code/sync) with no game: each rule against in-process
 -- games on the host's network. Run: build/linux/x86_64/<mode>/HostAuthorityTests
 target("HostAuthorityTests")
     set_kind("binary")
     set_group("Tests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
-    -- Conversation and aggro bind the host's game; GameTests covers their engine reads.
-    add_files("*.cpp", "../../client/Services/Host/*.cpp|HostConversation.cpp|HostAggro.cpp|HostTakeBacks.cpp|HostTraps.cpp", "../../client/Physics/*.cpp", "../../client/RecipeBook.cpp",
-              "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Counters.cpp", "../../client/Diagnostics/ReportPaths.cpp",
-              "../../client/Services/Generic/PartyOptionText.cpp", "../../client/Services/DevCommands.cpp")
-    add_includedirs(".", "../../client")
+    -- Every host rule (Host*.cpp in a feature's folder) but those that bind the host's own game, which GameTests covers.
+    add_files("*.cpp")
+    add_files("../../sync/*/Host*.cpp|combat/HostAggro.cpp|combat/HostTakeBacks.cpp|combat/HostTraps.cpp" ..
+              "|dialogue/HostConversation.cpp|game/HostService.cpp|game/HostServiceReload.cpp|game/HostWorldCalls.cpp")
+    -- What those rules use, with no engine behind it.
+    add_files("../../sync/combat/PartyThreat.cpp", "../../sync/core/JoinRefusal.cpp",
+              "../../sync/physics/BodyAuthority.cpp", "../../sync/physics/BodyMotions.cpp",
+              "../../sync/physics/BodyPlayback.cpp", "../../sync/physics/BodyPrediction.cpp",
+              "../../sync/physics/BodyStream.cpp", "../../sync/core/RecipeBook.cpp",
+              "../../sync/core/MessageTrail.cpp", "../../sync/core/Counters.cpp", "../../sync/tools/ReportPaths.cpp",
+              "../../sync/dialogue/PartyOptionText.cpp", "../../sync/tools/DevCommands.cpp")
+    add_includedirs(".", "../../sync")
     add_deps("SkyrimEncoding", "Network", "CommonLib")
     add_packages("catch2", "glm", "spdlog", "rpmalloc", "enet6", "entt", "snappy", "libuv")
     add_syslinks("pthread")

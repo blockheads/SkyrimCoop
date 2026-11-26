@@ -2,7 +2,7 @@
 // and every game hears what it is now.
 #include "session.h"
 
-#include <Services/Host/HostPartyItems.h>
+#include <items/HostPartyItems.h>
 
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/RequestInventoryChanges.h>

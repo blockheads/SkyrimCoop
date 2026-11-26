@@ -5,17 +5,24 @@
 #include "Fixtures.h"
 #include "FakeDialogue.h"
 
-#include <Components.h>
-#include <Events/FastTravelEvent.h>
-#include <Events/PlayerTravelQueuedEvent.h>
-#include <Events/PartySummonCommandEvent.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <core/RemoteComponent.h>
+#include <characters/WaitingFor3D.h>
+#include <core/PlayerComponent.h>
+#include <animation/SpawnGraphStateComponent.h>
+#include <characters/OwnerPlaceComponent.h>
+#include <travel/FastTravelEvent.h>
+#include <core/PlayerTravelQueuedEvent.h>
+#include <travel/PartySummonCommandEvent.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyReferencesMove.h>
-#include <Services/CharacterService.h>
+#include <characters/CharacterService.h>
 
 #include <chrono>
 #include <format>
 #include <thread>
+#include <movement/MovementService.h>
 
 namespace
 {
@@ -321,7 +328,7 @@ SCENARIO("A snapshot older than a copy's jump never takes it back", "[travel][co
         update.UpdatedMovement.CellId = acCell;
         if (aActs)
             update.ActionEvents.push_back(gesture);
-        party.As(party.Guest(), [&] { party.Guest().GetCharacterService().OnReferencesMoveRequest(message); });
+        party.As(party.Guest(), [&] { party.Guest().ctx().at<MovementService>().OnReferencesMoveRequest(message); });
     };
     if (cLate == Late::kAfterSpawn)
         cGets(cSpawnNow());
@@ -380,7 +387,7 @@ SCENARIO("An actor handed over stands at its new owner's first snapshot, never a
     message.Updates[id].UpdatedMovement.Position = glm::vec3(950.f, 700.f, 0.f);
     message.Updates[id].UpdatedMovement.CellId = GameId{0, kSmoke};
     message.Updates[id].UpdatedMovement.OnGround = true;
-    party.As(party.Host(), [&] { party.Host().GetCharacterService().OnReferencesMoveRequest(message); });
+    party.As(party.Host(), [&] { party.Host().ctx().at<MovementService>().OnReferencesMoveRequest(message); });
     party.Step(party.Host());
     CHECK(std::abs(host.Actors.at(npc).Position[0] - 950.f) < 1.f);
     CHECK(std::abs(host.Actors.at(npc).Position[1] - 700.f) < 1.f);
@@ -403,7 +410,7 @@ SCENARIO("A spawn built from a copy carries its owner's newest place, cell and t
     message.Updates[id].UpdatedMovement.Teleported = true;
     NotifyCharacterSpawn spawn;
     party.As(party.Host(), [&] {
-        party.Host().GetCharacterService().OnReferencesMoveRequest(message);
+        party.Host().ctx().at<MovementService>().OnReferencesMoveRequest(message);
         REQUIRE(party.Host().GetCharacterService().ReadCopy(id, spawn));
     });
     CHECK(spawn.Tick == message.Tick);

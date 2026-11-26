@@ -111,9 +111,9 @@ void CopyRecords::OnSessionId(uint32_t aId)               // a copy made, or a n
 - Events about an actor that is not here are **dropped**: its record holds their result. Nothing is queued.
 - Parts move in one at a time; each service keeps its message until its part exists, then its message goes.
 
-Files: `Services/CopyRecords.{h,cpp}` (every game), `Services/Host/HostRecords` (it exists: the per-character
+Files: `Services/CopyRecords.{h,cpp}` (every game), `sync/characters/HostRecords` (it exists: the per-character
 record grows the parts), `Messages/Payloads.h` (`Record`), `CharacterService` (spawn, `OnSessionId`).
-Tests: ClientTests `[records]` (versions, waits-for), HostAuthorityTests (owner check, a joiner gets every part),
+Tests: UnitTests `[records]` (versions, waits-for), HostAuthorityTests (owner check, a joiner gets every part),
 GameTests "A part sent before its copy exists is on the copy when it spawns", "A part naming an actor that
 spawns later".
 
@@ -126,7 +126,7 @@ Stays: `GuestEngine::m_pendingAliases` (quests are on the model already; moved o
 **As built (2026-11-18), with one part, AI state:**
 
 ```text
-CopyRecords (Services/CopyRecords, no engine: ClientTests [copy-records])
+CopyRecords (sync/core/CopyRecords, no engine: UnitTests [copy-records])
   Register(kind, Apply, Read)   by the part's service, once
   Declare(id, kind, bytes)      an owner's change: the next version, sent (RecordRequest)
   ReadAll(id, form)             the announcement's parts (AnnounceCharacterRequest::Record)
@@ -198,8 +198,8 @@ bool ApplyActorState(Actor& aCopy, const ActorStatePart& acPart)
 - A copy off its stream (the pair exception, piece 4) still plays its owner's actions, which write these bits
   themselves through 39004; the part then agrees with them.
 
-Files: `Games/Animation/ActorStateRules.h` (the masks, pure), `CharacterService::RunLocalUpdates` (the read),
-`AnimationSystem` (the rules go). Tests: ClientTests `[actor-state]` (one writer per bit: the masks never
+Files: `sync/animation/ActorStateRules.h` (the masks, pure), `CharacterService::RunLocalUpdates` (the read),
+`AnimationSystem` (the rules go). Tests: UnitTests `[actor-state]` (one writer per bit: the masks never
 overlap the stream's), GameTests "A copy made after its owner sneaked stands sneaking", "...after its owner's
 last action holds its state" (the travel cases), "A copy on a sync point of drawn hands shows them".
 
@@ -280,7 +280,7 @@ Tests: HostAuthorityTests "an item change from a game that does not own the acto
 looted corpse's copy is as empty as the corpse" (either looter), "An equip sent after the spawn was read
 survives it", "A copy spawned again wears what its owner wears".
 
-Deletes: `HostAuthority::OnInventoryChanges`'s relay from anyone, `RequestEquipmentChanges`/`Snapshot` and
+Deletes: `HostItems::OnInventoryChanges`'s relay from anyone, `RequestEquipmentChanges`/`Snapshot` and
 `EquipmentSnapshots` (one part instead), `CharacterService`'s `WaitingFor3D` inventory.
 To check when building: whether `RunNakedNPCBugChecks` (a 1 s poll) still has anything to catch.
 
@@ -296,7 +296,7 @@ InventoryService (every game), RecordKind::kItems = ItemsPart {Full, Inventory: 
          only the pieces that differ off and on, each hand holding its worn weapon or torch and its spell; the full
          reset (EquipmentRepair) when one is refused; not settled: tried again every 0.25 s for 5 s
 CopyRecords / HostRecords: MergedPart  a change merges onto the version just before; else the owner is asked (R3)
-HostAuthority::OnInventoryChanges      the party's gold and items; a host script's change of another game's actor to its
+HostItems::OnInventoryChanges      the party's gold and items; a host script's change of another game's actor to its
                                        owner alone (a quest taking a guest's claw), whose part follows
 HostItems::OnContainerTransfer         the loot to the looter alone; the NPC's change goes out as its part (ItemsChangedEvent)
 ```
@@ -372,7 +372,7 @@ Build in two steps:
 
 Files: `Services/Host/HostPairs.{h,cpp}`, `HostCharacters` (`Lend`, `GiveBack`), `CharacterService`
 (`OnNotifyPairClaim`, `OnNotifyPairRefused`), `AnimationSystem` (the local-partner path shrinks to the player
-victim), `Games/Animation/ReplayState.h`.
+victim), `sync/animation/ReplayState.h`.
 Tests: HostAuthorityTests "the first claim on an actor wins", "a claim on a frozen NPC is refused", "a claimer
 gone gives the NPC back"; GameTests "A guest's kill move on a host NPC runs on the guest's game alone", "A
 refused pair ends on the claimer with no blow", "The horse changes owner only between pairs" (the fake's pair
@@ -408,7 +408,7 @@ a passenger who drives on (HandOver): takes it at once and sends PairEnd itself,
 - The planned `Deactivate` hook on the rider's game is not needed: the instance is gone at every measured `Detach`.
 - Tests: GameTests "A horse taken back over a slow line plays its rider's exit to its end first" (the fake learned a
   mount's exit half and its `PairEnd` on the graph stream, `FakeEngine::MountGraph`; fails without the wait),
-  HostAuthorityTests (the tick passed on), ClientTests `TakesOverMount`; on the duo `horse-passes-between-riders`,
+  HostAuthorityTests (the tick passed on), UnitTests `TakesOverMount`; on the duo `horse-passes-between-riders`,
   `party-shares-a-horse` (3 of 3 to the end comparison), `host-rides-horse`, `guest-rides-host-horse`,
   `mounted-guest-leaves`.
 
@@ -507,7 +507,7 @@ Changes from the plan above, each from what was read:
   its own yielded clip.
 - Tests: HostAuthorityTests `[claims]`, GameTests `[pair-claim]` and `[claims]` (the first 4b set: the lend, the host's two copies paired, the
   host's kill with its credit, a taken-back NPC can die, two guests on one NPC, the frozen NPC's plain swing, a claimer
-  leaving, a short crossed winner's blow, a refusal on a watching game, a kill at the clip's end, a summon), the crossed flows of `[friendly-fire][kill-move]`, ClientTests
+  leaving, a short crossed winner's blow, a refusal on a watching game, a kill at the clip's end, a summon), the crossed flows of `[friendly-fire][kill-move]`, UnitTests
   `[replay-state]`. The fake learned: the scripted deferred kill (kept by a released copy, a held kill counted and
   dropped by our release), `KillActor`'s partner credit, a victim's clip's `KillActor` and an attacker's
   `KillMoveEnd`, a forwarded hit on a held victim refused, "already paired" meaning in a pair (not the flag a record
@@ -614,7 +614,7 @@ every game: the familiar's spawn with CommanderId -> commanded by that player's 
 - Tests: GameTests "A guest's familiar is one actor on every game", "A host NPC already burning when its copy is
   made burns on the copy once it has 3D", `vampirism_flows.cpp` "VampireChange's marker is the host's" (placed and
   disabled on the host, the guest's script given the host's); HostAuthorityTests `[Summons]`, the create answer to
-  its asker only; ClientTests `RouteOf` for `kCreate`, `ClassifyCall`'s creation; TPTests the summon request and the
+  its asker only; UnitTests `RouteOf` for `kCreate`, `ClassifyCall`'s creation; TPTests the summon request and the
   answer's guest. Duo: `guest-summons-familiar` (one familiar, both games agree, the shader included; no NPC of the
   guest's own), `vampirism-is-each-players`, `vampirism-kept-across-rejoin`; GameTests "A reference the host's game
   created is one on a guest joining with the host's world".
@@ -655,7 +655,7 @@ every game: any copy judging this game's player is an unseen witness (DetectionR
   nobody asked each frame); the read each frame is what the engine does for its own player. In a fight the guest's
   eye showed hidden: its game has no combat group with its player.
 - Tests: GameTests "A guest's eye is what the host's NPCs see of it, in a fight and out of one" (the fake learned
-  detection by target, 46877 and the eye's combat branch), HostAuthorityTests `[Eye]`, ClientTests
+  detection by target, 46877 and the eye's combat branch), HostAuthorityTests `[Eye]`, UnitTests
   `[DetectionRules]`, TPTests the message; scenario `guest-eye-is-hosts`, `other-player-looking-leaves-eye-hidden`
   still passing. Bugs closed: "The guest's eye is its own estimate", "The sneak eye with the other player looking".
 
@@ -700,7 +700,7 @@ copy: ApplyCast casts the owner's spell in a slot newly held (a named target not
 ## Piece 10: ragdolls follow the pile rule; scenery is nobody's
 
 - **A copy's ragdoll** keeps its own Havok bodies, steered to its owner's frames (as now), and joins the
-  "played" collision group of `Physics/BodyGroups.h`: it meets the world and characters, not other played bodies
+  "played" collision group of `sync/physics/BodyGroups.h`: it meets the world and characters, not other played bodies
   or loose objects nobody moves. Its rest follows the pile's sleep rule (`RestSlept`), which is what the two
   open rest bugs miss (woken by the steering after its first sleep). Its own section in physics-sync.md when built.
 - **Scenery, critters, ambient animation:** each game's own. The world check (`world_state`, the end

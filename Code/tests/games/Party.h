@@ -9,12 +9,12 @@
 #include "FakeSteam.h"
 #include "UdpRelay.h"
 
-#include <Components.h>
-#include <RunningGame.h>
-#include <Services/Host/HostNetwork.h>
-#include <Services/HostService.h>
-#include <Services/TransportService.h>
-#include <World.h>
+#include <characters/HeldCopyComponent.h>
+#include <core/RunningGame.h>
+#include <core/HostNetwork.h>
+#include <game/HostService.h>
+#include <core/TransportService.h>
+#include <core/World.h>
 
 #include <chrono>
 #include <cstdlib>

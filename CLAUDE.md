@@ -10,7 +10,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 
 **Core Value:** Two friends can drop into Skyrim together on Linux with zero server setup — host clicks "host," friend joins via Steam invite, and it just works.
 
-**Direct authority:** the host's game is the only authority. It owns every NPC and the world; each guest owns only its own player. There is no server: the host's rules (`Code/client/Services/Host/`, `HostAuthority`) run inside the host's game and listen for the guests' games (`HostNetwork`). Where things stand: `docs/progress.md`; the words (host, guest, owner, copy, player): `docs/design/glossary.md`.
+**Direct authority:** the host's game is the only authority. It owns every NPC and the world; each guest owns only its own player. There is no server: the host's rules (the `Host*` files in `Code/sync/`, wired by `HostAuthority`) run inside the host's game and listen for the guests' games (`HostNetwork`). Where things stand: `docs/progress.md`; the words (host, guest, owner, copy, player): `docs/design/glossary.md`.
 
 **License:** GNU GPLv3
 
@@ -21,10 +21,10 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
   Keep the existing optional 1.6 build configuration; its artifacts remain isolated under
   `build/skyrim-1.6.1170` / `build/msvc-config-1.6.1170`.
 
-- **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL`. Details: `docs/re/systems/compiler-abi.md`
+- **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin`. Details: `docs/re/systems/compiler-abi.md`
 - **Testing**: four tiers, `docs/design/testing.md` (unit and in-process games gate every change: `scripts/check.sh`, also the pre-push hook; the duo for what's affected). `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the testing guide
-- **Test harness**: the command socket, control files, status and harness engine calls live in `Code/client/TestHarness/`, the DLL swap in `Code/client/HotReload/` and `Code/hotreload/Loader.cpp`. Both build only with the xmake option `test_harness` (`COOP_TEST_HARNESS`), which `scripts/xmake-msvc.sh f` turns on; a player build (`--test_harness=n`, the default elsewhere) contains neither. Production code reaches the harness only through `TestHarness::Configure/Poll/Shutdown`, each behind `#if COOP_TEST_HARNESS`
-- **Profiling**: `scripts/coop_test.py profile [--load wolves=N] [--stacks]` reports fps, CPU, memory, messages, hook call rates, our zones and call stacks per game (`docs/design/testing.md`, Profiling). Tracy builds in with the xmake option `profiler` (`COOP_PROFILER`, on in `scripts/xmake-msvc.sh f`, off in player packages); code uses it only through `Diagnostics/Profile.h`
+- **Test harness**: the command socket, control files, status and harness engine calls live in `Code/harness/TestHarness/`, the DLL swap in `Code/harness/HotReload/` and `Code/hotreload/Loader.cpp`. Both build only with the xmake option `test_harness` (`COOP_TEST_HARNESS`), which `scripts/xmake-msvc.sh f` turns on; a player build (`--test_harness=n`, the default elsewhere) contains neither. Production code reaches the harness only through `TestHarness::Configure/Poll/Shutdown`, each behind `#if COOP_TEST_HARNESS`
+- **Profiling**: `scripts/coop_test.py profile [--load wolves=N] [--stacks]` reports fps, CPU, memory, messages, hook call rates, our zones and call stacks per game (`docs/design/testing.md`, Profiling). Tracy builds in with the xmake option `profiler` (`COOP_PROFILER`, on in `scripts/xmake-msvc.sh f`, off in player packages); code uses it only through `sync/core/Profile.h`
 - **SKSE dependency**: Client DLL loads into Skyrim via SKSE — cannot modify SKSE itself
 - **Wine/Proton**: Client always runs under Wine/Proton on Linux, debug tooling must work with this
 - **License**: GPLv3 — all modifications must remain open source
@@ -55,7 +55,7 @@ Every bug, in this order:
    **Then free the duo** (`scripts/coop_test.py stop` or the MCP's `duo_stop`; the lock frees itself, nobody edits
    `build/coop-test/DUO.md` or asks the user): steps 2-4 need no Skyrim. If the smoke test cannot show the bug yet,
    queue for the duo again only to learn the engine fact the fake lacks.
-3. **Unit tests** for the logic (`ClientTests`, `HostAuthorityTests`), then the fix.
+3. **Unit tests** for the logic (`UnitTests`, `HostAuthorityTests`), then the fix.
 4. **The smoke test passes**, with `scripts/check.sh`.
 
 Iterate in tiers 1-2, not in Skyrim: the duo is shared and slow (one pair of games, minutes a run). So the duo is queued
@@ -66,15 +66,15 @@ keeps catching it, so the fast suite grows into the one that matters.
 
 ### Engineering rules
 
-- **Test code never widens production interfaces.** No harness methods on the bridges, services or engine structs; the harness reads engine state through its own `TestHarness/EngineCalls`, and production code calls the harness only through the gated entry points.
-- **Engine access goes through typed structs** in `Code/client/Games/` with `static_assert`ed offsets, checked against CommonLibSSE-NG and IDA. No raw byte offsets in services, bridges or the harness.
+- **Test code never widens production interfaces.** No harness methods on the bridges, services or engine structs; the harness reads engine state through its own `harness/TestHarness/EngineCalls`, and production code calls the harness only through the gated entry points.
+- **Engine access goes through typed structs** in `Code/engine/` with `static_assert`ed offsets, checked against CommonLibSSE-NG and IDA. No raw byte offsets in services, bridges or the harness.
 - **Before reversing anything, search GitHub/Nexus** for an SKSE mod that already does it, and add good ones to `scripts/re/fetch_references.sh`.
 - **When adding or touching a hook,** check its signature against the community name and the disassembly (three inherited upstream hooks were silently wrong).
 - **Every bug follows the bug-fix flow** (above), step 0 first (understand the engine code, documented): a scenario shows it, a GameTests flow fails on it, unit tests and the
   fix, the flow passes. The fake engine learns what Skyrim taught (`docs/design/testing.md`).
 - **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
 - **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning, evidence and history go in `docs/` (`docs/re/systems/`, `docs/design/`), not in the source.
-- **Host, guest, every game.** Code only the host runs lives in `Services/Host/` (rules, `HostAuthority`) and `Bridges/HostEngine`; code only a guest runs in `Services/Guest/` and `Bridges/GuestEngine`, made by `GuestService` on joining. No `IsHosting()` checks inside them. Actors split by owner and copy instead.
+- **Host, guest, every game.** In a feature's folder (`Code/sync/<feature>/`), code only the host runs is in `Host*` files (wired by `game/HostAuthority`) and code only a guest runs in `Guest*` files (made by `GuestService` on joining); their engine reads are `engine/Bridges/HostEngine` and `GuestEngine`. No `IsHosting()` checks inside them. Actors split by owner and copy instead.
 - **Use the glossary's words** (`docs/design/glossary.md`): host and guest for the games, owner, local and copy for actors, player for a person in the party. New code and docs never say client, peer or remote player for a guest or a copy.
 
 ## Build
@@ -85,13 +85,13 @@ XMake 2.8.5+, C++23 (the Linux build needs `libstdc++-13-dev`, from the `ubuntu-
 ```bash
 # The SKSE plugin: clang-cl targeting Windows (first time: scripts/xmake-msvc.sh f -m dev). Also runs natively on
 # Windows from Git Bash: LLVM unpacked in build/toolchains/LLVM, Visual Studio's SDK (docs/design/testing.md, On Windows)
-scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
+scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin
 scripts/xmake-msvc.sh build -j8 SkyrimCoopLoader          # hot reload's resident loader
 
 # Native Linux: clang 18 (first time: scripts/xmake-linux.sh f)
 scripts/xmake-linux.sh build -j8 HostAuthorityTests && build/linux/x86_64/debug/HostAuthorityTests
 scripts/xmake-linux.sh build -j8 TPTests && build/linux/x86_64/debug/TPTests
-scripts/xmake-linux.sh build -j8 ClientTests && build/linux/x86_64/debug/ClientTests
+scripts/xmake-linux.sh build -j8 UnitTests && build/linux/x86_64/debug/UnitTests
 scripts/xmake-linux.sh build -j8 GameTests && build/linux/x86_64/debug/GameTests
 scripts/xmake-linux.sh build -j8 coop_peer
 
@@ -107,47 +107,51 @@ scripts/compile_commands.sh
 
 Targets:
 
-- `SkyrimTogetherClientDLL` - the SKSE plugin (`SkyrimTogetherClient.dll`), every game's code, the host's rules included
+- `SkyrimCoopPlugin` - the SKSE plugin (`SkyrimCoop.dll`), every game's code, the host's rules included
+- `SkyrimCoopSync` - the sync layer (`Code/sync`): every game's decisions with no Skyrim or Windows header,
+  built for the plugin and for `GameTests`. A new `.cpp` goes in its feature's folder
+  (`scripts/check_layout.py`, part of the gate, checks what it includes; the layers: `docs/architecture.md`)
 - `SkyrimCoopLoader` - hot reload's loader (`Code/hotreload`), test builds only
 - `SkyrimCoopVanillaHarness` - a stand-in plugin running the harness commands without ours (`coop_test.py repro --vanilla`)
-- `HostAuthorityTests` - the host's rules (`HostAuthority`, `Services/Host/`) with in-process games and no Skyrim (Catch2)
+- `HostAuthorityTests` - the host's rules (`HostAuthority`, the `Host*` files in `Code/sync/`) with in-process games and no Skyrim (Catch2)
 - `TPTests` - message encoding, quantization, differentials (Catch2)
-- `ClientTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2)
-- `GameTests` - whole games in-process: real services and the host's rules on a fake engine (Catch2)
+- `UnitTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2)
+- `GameTests` - whole games in-process: the real `World`, services and host's rules on a fake engine (`IEngine`, Catch2)
 - `coop_peer` - a game stand-in on the network for scenarios (a host refusing joins, a game asking to join)
 
 ## Layout
 
 ```
 Code/
-├── client/              # The SKSE plugin
-│   ├── Services/        # Systems every game runs (Character, Inventory, Magic, Transport, ...)
-│   │   ├── Host/        # The host's rules: HostAuthority, HostNetwork (the listener), sessions, characters, world state
-│   │   └── Guest/       # Only while joined: the host's clock, weather, world state applied
-│   ├── Bridges/         # The engine behind interfaces: SkyrimBridge, HostEngine (the host's reads), GuestEngine
-│   ├── Games/Skyrim/    # Typed engine structs and hooks
-│   ├── Hooks/           # MinHook wrapper (HOOK, Hooks::Initializer), patch helpers, D3D11/input hooks
-│   ├── Components/      # ECS components (LocalComponent, RemoteComponent, ...)
-│   ├── Systems/         # Interpolation, animation, rendering
-│   ├── Ui/              # The in-game UI (RmlUi)
-│   ├── Diagnostics/     # Bug reports (/bug, /export, crash bundles) and the readouts the harness shares
-│   ├── TestHarness/     # What scripts/coop_harness drives; test builds only
-│   └── HotReload/       # Swapping a rebuilt DLL into a running game; test builds only
+├── plugin/              # Starts everything: SKSE entry, crash handler, the in-game UI (Ui/), debug views, bug reports
+├── engine/              # Skyrim itself: typed engine structs and our hooks, in Skyrim's own groups (Forms/, AI/, Papyrus/, ...)
+│   ├── Bridges/         # The ports' real side: SkyrimBridge, HostEngine (the host's reads), GuestEngine
+│   └── Hooks/           # MinHook wrapper (HOOK, Hooks::Initializer), patch helpers, D3D11/input hooks
+├── sync/                # Every decision the mod makes, no Skyrim header: one folder per feature (docs/architecture.md)
+│   ├── core/            # What every feature uses: World, transport, session, ids, records, HostRouter, HostNetwork
+│   ├── game/            # The wiring: HostAuthority, HostService, GuestService
+│   ├── <feature>/       # Its service, its Host* (host only) and Guest* (guest only) files, events, components, port
+│   └── ports/           # The ports every feature shares (IActorBridge, IHostEngine, IGuestEngine)
+├── harness/             # TestHarness/ (what scripts/coop_harness drives) and HotReload/; test builds only
 ├── encoding/            # Messages (Messages/), shared structs (Structs/), the wire buffer (Wire/), opcodes
 ├── network/             # The enet transport (Net::Server under HostNetwork, Net::Client under TransportService)
 ├── common/, base/       # Build version, DateTime, NO_COPY_MOVE; rpmalloc as global new/delete, thread names
 ├── components/imgui/    # The debug views' renderer
 ├── hotreload/           # Hot reload's loader
 ├── vanilla_harness/     # The harness without our plugin
-└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (ClientTests), games/ (GameTests),
+└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests), games/ (GameTests),
                          # specs/ (shared specs: GameTests and scripts/coop_specs.py), peer/ (coop_peer)
 ```
+
+Includes name the folder under the layer: `<characters/CharacterService.h>`, `<core/World.h>`, `<Forms/TESForm.h>`
+(engine), `<TestHarness/Commands.h>`. A layer may only use the layers below it (`plugin → engine → sync → encoding`),
+and `scripts/check_layout.py` (part of the gate) fails on a `sync` file that includes the engine.
 
 ### How a message flows
 
 ```
 guest's game: a service sends a request (TransportService::Send)
-  → enet → the host's HostNetwork → HostAuthority::Handle → its rule (Services/Host/)
+  → enet → the host's HostNetwork → HostAuthority::Handle → its rule (a Host* file in its feature's folder)
   → notifications to the other games (HostPlayers::SendToOthers)
   → each game's service handles the notification
 the host's own game: the same, over an in-process route instead of enet
@@ -160,7 +164,8 @@ the host's own game: the same, over an in-process route instead of enet
    `RequestMessage` or `NotifyMessage` with `SerializeRaw`/`DeserializeRaw`), included in `RequestMessageFactory.h` /
    `NotifyMessageFactory.h`
 2. Its name at the end of its list in `Code/encoding/Opcodes.h`: that makes its opcode and its factory entry
-3. The host's rule: a part in `Services/Host/` registered with `HostAuthority::On` (or a `Relay`), with a `HostAuthorityTests` case
+3. The host's rule: in its feature's `Host*` part (`Code/sync/<feature>/`), registered with `HostRouter::On` (or a `Relay`) in that part's
+   constructor, with a `HostAuthorityTests` case. A new part is built in `HostAuthority`, which holds no rules itself
 4. Each game's handler: a client service's `m_messageHandlers` entry or dispatcher sink
 5. A round trip in `Code/tests/encoding.cpp`
 
@@ -198,7 +203,7 @@ Code:
 - No exceptions: return `bool` or result values, `noexcept` where possible, `[[nodiscard]]` on results that matter
 - Pass complex objects by const reference (`const AuthenticationResponse& acMessage`)
 - `struct` for most types; `NO_COPY_MOVE` in services; `#pragma once` in every header
-- Include what a file uses. `Code/client/ClientPch.h` is forced into every client file and holds only third-party,
+- Include what a file uses. `Code/engine/ClientPch.h` is forced into every client file and holds only third-party,
   standard and rarely edited headers of ours (editing one rebuilds the whole plugin); never add a service,
   component or engine struct there
 - Log with spdlog (`spdlog::info/warn/error/debug`), which formats with `std::format` (format strings checked at compile

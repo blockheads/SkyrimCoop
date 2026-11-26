@@ -16,7 +16,7 @@ Scope: remove old debug shortcuts, finish ordinary session exits, prevent duplic
 
 Before the fixes, fast tests reproduced guest/host Quit and kick leaving the session active, and both a host/guest pair and two guests obtaining two swords from a chest containing one. Logs are in the implementation worktree's ignored build directory (`exits-red.log`, `container-red.log`).
 
-`scripts/check.sh` passes: ClientTests (738 assertions), HostAuthorityTests (1902), encoding tests (287), GameTests (1985), harness/ragdoll comparisons, UI fixtures and the Windows plugin build. The added flows cover intentional exit/rejoin, terminal reconnects, concurrent takes, partial takes/storing, shared gold and NPC inventory transfers. Knowledge tests cover serialization through the host's co-save, old record compatibility, bringing a character's knowledge, later learning/rejoin, and a new character with no knowledge inheriting none of the host's.
+`scripts/check.sh` passes: UnitTests (738 assertions), HostAuthorityTests (1902), encoding tests (287), GameTests (1985), harness/ragdoll comparisons, UI fixtures and the Windows plugin build. The added flows cover intentional exit/rejoin, terminal reconnects, concurrent takes, partial takes/storing, shared gold and NPC inventory transfers. Knowledge tests cover serialization through the host's co-save, old record compatibility, bringing a character's knowledge, later learning/rejoin, and a new character with no knowledge inheriting none of the host's.
 
 Native two-game assertions passed for:
 
@@ -75,7 +75,7 @@ Evidence is retained in `.worktrees/v1-stability/build/stability-*.log`; the key
 - On the combined dev base `722b934d`, the production DLL passes three host transformations, three guest transformations and three interleaved reloads (`stability-final-cycles.log`). The directly granted QA power now initializes C00's original-human-race property, matching the prerequisite normally established by the Companions. A missing property had made one QA guest finish its reversion quest while still a werewolf; this fixture setup does not claim end-to-end coverage of acquiring Beast Form through the Companions.
 - Reload acceptance now requires both games to advance frames after restoration and a new actor to spawn and reach the guest. This closes the former scenario's blind spot.
 - Placed Riverwood wildlife takes its owner's base and remains loaded; travel through the inn door works in both directions with the host's NPCs appearing afterward (`stability-spawn-native.log`).
-- The merged `scripts/check.sh` gate passes: ClientTests 101 cases, HostAuthorityTests 181, TPTests 26 and GameTests 203, plus the harness/ragdoll comparisons, UI fixtures and Windows DLL build. Dev's own Windows DLL also builds (`build/stability-dev-build.log` on dev).
+- The merged `scripts/check.sh` gate passes: UnitTests 101 cases, HostAuthorityTests 181, TPTests 26 and GameTests 203, plus the harness/ragdoll comparisons, UI fixtures and Windows DLL build. Dev's own Windows DLL also builds (`build/stability-dev-build.log` on dev).
 
 **The save/reload corruption remains unresolved.** It reproduced on the production DLL during saving, before loading (`stability-save-hang-symbolized.log`, `stability-save-map.log`). The VM job was inserting into a fresh `ActorValues` map whose sentinel had become an ordinary value node. A later repeated-save run instead crashed while iterating `ActorValueService::ApplyCopyPools`' local set (`stability-watch-crash-symbolized.log`). Successful reload repeats do not establish that either failure is fixed. The historical guest graph crash on werewolf reversion has not been independently reproduced on the baseline in this follow-up, so that crash remains open too.
 
@@ -98,7 +98,7 @@ All direct readers and writers now go through these operations.
 
 The focused tier-1 test failed on the original unsynchronized access (`stability-action-red.log`: a torn snapshot).
 It passes with the fix, along with acceptance/refusal, concurrent replacement and body-reset restoration checks
-(`stability-action-green.log`, 17 assertions). The full gate passes in `stability-snapshot-check.log`: ClientTests
+(`stability-action-green.log`, 17 assertions). The full gate passes in `stability-snapshot-check.log`: UnitTests
 103 cases/916 assertions, HostAuthorityTests 181/1933, TPTests 26/302, GameTests 203/2119, harness/ragdoll
 comparisons, UI fixtures and the Windows DLL build.
 

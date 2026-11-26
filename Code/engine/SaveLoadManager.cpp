@@ -1,0 +1,110 @@
+#include <SaveLoadManager.h>
+
+#include <ScriptMotion.h>
+#include <HookSwitch.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <Interface/UI.h>
+#include <join/SaveService.h>
+#include <VersionDb.h>
+#include <core/World.h>
+
+namespace
+{
+// CommonLibSSE-NG Load_Impl (35728): menu and console loads. Quickload queues its own request.
+using TLoadImpl = bool(BGSSaveLoadManager*, const char*, int32_t, uint32_t, bool);
+TLoadImpl* RealLoadImpl = nullptr;
+
+bool HookLoadImpl(BGSSaveLoadManager* apManager, const char* apName, int32_t aDevice, uint32_t aOutputStats, bool aCheckForMods)
+{
+    auto* pSaves = entt::locator<World>::has_value() ? World::Get().ctx().find<SaveService>() : nullptr;
+    if (pSaves && !pSaves->OnLoadRequested(apName ? apName : ""))
+    {
+        // The journal has already started its loading fade; refusing must release both menus.
+        if (auto* pQueue = UIMessageQueue::Get())
+        {
+            pQueue->AddMessage("Fader Menu", UIMessage::kForceHide, nullptr);
+            pQueue->AddMessage("Journal Menu", UIMessage::kForceHide, nullptr);
+        }
+        return false;
+    }
+    ScriptMotion::Get().Clear();
+    return RealLoadImpl(apManager, apName, aDevice, aOutputStats, aCheckForMods);
+}
+
+// QuickSaveLoadHandler queues 0xD0000400 through 35769; 35772 inlines the load instead of calling 35728.
+using TQueueSaveLoad = void(BGSSaveLoadManager*, uint32_t);
+TQueueSaveLoad* RealQueueSaveLoad = nullptr;
+
+void HookQueueSaveLoad(BGSSaveLoadManager* apManager, uint32_t aEvent)
+{
+    if (aEvent == 0xD0000400)
+    {
+        auto* pSaves = entt::locator<World>::has_value() ? World::Get().ctx().find<SaveService>() : nullptr;
+        if (pSaves && !pSaves->OnLoadRequested(apManager->QuickSaveName()))
+            return;
+        ScriptMotion::Get().Clear();
+    }
+    RealQueueSaveLoad(apManager, aEvent);
+}
+
+Hooks::Initializer s_loadHook([]() {
+    const HookGate cGate(__FILE__);
+    HOOK_ID(35728, &RealLoadImpl, HookLoadImpl);
+    HOOK_ID(35769, &RealQueueSaveLoad, HookQueueSaveLoad);
+});
+} // namespace
+
+BGSSaveLoadManager* BGSSaveLoadManager::Get() noexcept
+{
+    POINTER_SKYRIMSE(BGSSaveLoadManager*, s_singleton, 403340);
+    return *s_singleton.Get();
+}
+
+bool BGSSaveLoadManager::Save(const char* apName) noexcept
+{
+    using TSaveImpl = bool(BGSSaveLoadManager*, int32_t, uint32_t, const char*);
+    POINTER_SKYRIMSE(TSaveImpl, s_save, 35727);
+    return s_save(this, 2, 0, apName);
+}
+
+bool BGSSaveLoadManager::Load(const char* apName) noexcept
+{
+    // Only JoinBridge calls this: the party already authorized the transfer, so bypass the player-load hook.
+    if (RealLoadImpl)
+        return RealLoadImpl(this, apName, -1, 0, true);
+    POINTER_SKYRIMSE(TLoadImpl, s_load, 35728);
+    return s_load(this, apName, -1, 0, true);
+}
+
+std::filesystem::path BGSSaveLoadManager::SaveFilePath(const char* apName) noexcept
+{
+    // The utility singleton (GetWin32SaveDataSystemUtility 109278); its vfunc 2 joins the save folder and the name.
+    using TGetUtility = void*();
+    using TPreparePath = int(void*, const char*, char*, bool, bool);
+    POINTER_SKYRIMSE(TGetUtility, s_getUtility, 109278);
+    POINTER_SKYRIMSE(TPreparePath, s_preparePath, 109357);
+    char path[0x104]{};
+    void* pUtility = s_getUtility();
+    if (!pUtility || s_preparePath(pUtility, apName, path, false, false) != 0)
+        return {};
+    return path;
+}
+
+void BGSSaveLoadManager::SetCurrentCharacter(uint32_t aCharacterId) noexcept
+{
+    // The engine's {id, modded} pair (CommonLibSSE-NG currentCharacterID, currentCharacterModded).
+    using TSetCurrent = void(BGSSaveLoadManager*, const uint32_t*);
+    POINTER_SKYRIMSE(TSetCurrent, s_setCurrent, 35751);
+    const uint32_t cPair[2]{aCharacterId, currentCharacterModded};
+    s_setCurrent(this, cPair);
+}
+
+std::string BGSSaveLoadManager::QuickSaveName() noexcept
+{
+    using TGetSaveEntry = SaveEntry*(BGSSaveLoadManager*, const uint32_t*);
+    POINTER_SKYRIMSE(TGetSaveEntry, s_entry, 35789);
+    const SaveEntry* cpEntry = s_entry(this, &currentCharacterId);
+    const char* cpName = cpEntry ? cpEntry->lastQuicksave.AsAscii() : nullptr;
+    return cpName ? cpName : "";
+}

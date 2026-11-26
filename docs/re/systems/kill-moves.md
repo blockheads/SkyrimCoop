@@ -2,7 +2,7 @@
 
 Reviewed and reproduced 2026-11-04 on 1.7.104. Scenarios `kill-move-runs-full-length`, `kill-moves-cross`,
 `kill-move-drops-at-blow`, `kill-moves-by-weapon`; GameTests
-`[kill-move]`, ClientTests `[replay-state]`.
+`[kill-move]`, UnitTests `[replay-state]`.
 
 ## Claimed pairs (one-simulator.md piece 4b, 2026-11-20)
 
@@ -382,9 +382,9 @@ the rest steered, and (inferred: the trace shows the mixed placements and a burs
 them threw the bodies about. That showed in 3 of 6 falls, all HeadButts, each at
 its burst.
 
-`RagdollStart` (`Code/client/Physics/RagdollStart.h`) plans the whole ragdoll at once: each body's gap at its first frame is
+`RagdollStart` (`Code/sync/physics/RagdollStart.h`) plans the whole ragdoll at once: each body's gap at its first frame is
 blended out over 0.2 s, and one body 64+ units off (`BodyTolerances::kPlaceFar`) puts them all on their frames. After: 0
-flickers in 9 of 9 falls, and in 16 more on the authority scheme's base. Tests: GameTests and ClientTests `[ragdoll-start]`.
+flickers in 9 of 9 falls, and in 16 more on the authority scheme's base. Tests: GameTests and UnitTests `[ragdoll-start]`.
 
 Not fixed by it: the host's HeadButts on the guest still jump about 18 units (4 of 5, 2026-11-23). The trace: every body of
 the copy's ragdoll drops about 22 units in one frame at its death (the host's rises), while its frame is 100 ms behind;

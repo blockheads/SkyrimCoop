@@ -19,7 +19,7 @@ VectoredExceptionHandler: crash occurred!
 exception code is c0000005, at address 0x6fffffa4f0d0
 ```
 
-Dumps: `crash_UTC_*.dmp` in the game root (written by `Code/client/CrashHandler.cpp`).
+Dumps: `crash_UTC_*.dmp` in the game root (written by `Code/plugin/CrashHandler.cpp`).
 
 **What the dump shows**
 

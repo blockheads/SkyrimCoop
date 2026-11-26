@@ -2,10 +2,10 @@
 // stream to each game, and putting another game's rest on a body.
 #include <catch2/catch.hpp>
 
-#include <Physics/BodyAuthority.h>
-#include <Physics/BodyStream.h>
-#include <Physics/PairedPoses.h>
-#include <Physics/RestPlacer.h>
+#include <physics/BodyAuthority.h>
+#include <physics/BodyStream.h>
+#include <physics/PairedPoses.h>
+#include <physics/RestPlacer.h>
 #include <Wire/Buffer.h>
 
 namespace
@@ -347,9 +347,9 @@ TEST_CASE("The host taking a body back with the number of a rest it never got is
 }
 
 #include "../FakeFlight.h"
-#include <Physics/BodyMotions.h>
-#include <Physics/BodyPlayback.h>
-#include <Physics/BodyPrediction.h>
+#include <physics/BodyMotions.h>
+#include <physics/BodyPlayback.h>
+#include <physics/BodyPrediction.h>
 
 namespace
 {

@@ -17,7 +17,7 @@ behavior. This feature adds no party-pause message or vote.
 
 ## Existing cause
 
-`Games/Skyrim/Interface/UI.cpp` cleared three flags only for inventory, magic, skills, favourites,
+`engine/Interface/UI.cpp` cleared three flags only for inventory, magic, skills, favourites,
 containers, message boxes, tutorial, tween and console. Other pausing menus stopped their game's
 simulation. The host owns every NPC: a paused host sends stationary NPCs to every guest. A paused
 guest stops its own player's simulation even while the host and the other guests keep playing.
@@ -79,7 +79,7 @@ another game changes the open chest (ApplyContainerItems / ApplyContainerContent
 the host saves while a guest's menu is open: written, the menu keeps running
 ```
 
-Tests: ClientTests `menu_auto_close_tests.cpp`; Skyrim `host-/guest-chest-list-follows-changes`,
+Tests: UnitTests `menu_auto_close_tests.cpp`; Skyrim `host-/guest-chest-list-follows-changes`,
 `host-/guest-menus-close-when-target-goes`, `host-saves-with-guest-menu-open` (`coop_menus.py`). A host's console save
 with its own container open is not a player's path (no quicksave or console in that menu); its journal save is
 `host-journal-save`.
@@ -114,7 +114,7 @@ Results (one host and one guest, Skyrim 1.6.1170):
 
 | Check | Result |
 |---|---|
-| ClientTests | PASS: 49 cases, 534 assertions (three menu cases) |
+| UnitTests | PASS: 49 cases, 534 assertions (three menu cases) |
 | HostAuthorityTests | PASS: 161 cases, 1761 assertions |
 | TPTests | PASS: 14 cases, 225 assertions |
 | GameTests except the baseline plate-carry failure | PASS: 132 cases, 1465 assertions |

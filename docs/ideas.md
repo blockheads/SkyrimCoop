@@ -104,7 +104,7 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   (`FormState`), for what no message covers. Vanilla state goes as messages and the join as save transfer;
   design: `docs/design/world-state-sync.md`.
   - Where it goes (2026-10-21): the change funnel already reports every change on the host (`Forms/FormChanges`,
-    `HostEngine`'s watcher). Today the watcher keeps only the flags of `Games/ReferenceStates.cpp`'s rows and
+    `HostEngine`'s watcher). Today the watcher keeps only the flags of `engine/ReferenceStates.cpp`'s rows and
     the host reads each with its row. The mods' branch: a changed form or flag with no row is sent as
     `FormState::Save(form, flags)`, a guest applies it with `FormState::Load`.
   - Needs: a queue that retries when `Save`/`Load` refuse (a save or load running); the reference location
@@ -184,7 +184,7 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 
 ## UI
 
-- **The other screens in RmlUi.** The party panel is done (`Code/client/Ui/`, `skyrim.rcss`). Still to
+- **The other screens in RmlUi.** The party panel is done (`Code/plugin/Ui/`, `skyrim.rcss`). Still to
   make, in the same SkyUI look: chat, player list, connect, settings, notifications.
 
 ## Code cleanup
@@ -197,7 +197,7 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   installation. All verified function types and globals stay, including originals called outside their hooks.
   Left unchanged: 24 installs with setup in between, reused relocation names or another target form (listed in
   progress.md, "Test suite"). IAT, vtable and raw patches stay as they were.
-- ~~Event connections without a member each~~ (done 2026-10-23, progress.md "Test suite"): `Events/Listen.h`, 123
+- ~~Event connections without a member each~~ (done 2026-10-23, progress.md "Test suite"): `sync/core/Listen.h`, 123
   connections in 26 vectors.
 - **Events over polling** (user, 2026-10-22: "we always want to use events over polling if possible"). Discrete
   state should go out when an engine event or hook says it changed, not from a timer that re-reads it.

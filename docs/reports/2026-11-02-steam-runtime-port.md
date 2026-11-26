@@ -93,7 +93,7 @@ of functions that need manual reversing.
 
 Three unresolved RTTI registrations (`392519`, `394235`, `398437`) are absent from **both** libraries; they are existing
 gaps, not new 1.7 regressions. The one newly absent indexed ID is **52488, `SleepWaitMenu::OK`**, used by
-[`WaitBridge.cpp`](../../Code/client/Bridges/WaitBridge.cpp).
+[`WaitBridge.cpp`](../../Code/engine/Bridges/WaitBridge.cpp).
 
 I independently recovered the 1.7.104 OK callback from the executable's RTTI, primary vtable slot 1
 (`SleepWaitMenu::Accept`), and the function registered with the literal callback name `OK`:

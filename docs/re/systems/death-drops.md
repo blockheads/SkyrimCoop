@@ -47,7 +47,7 @@ Decided 2026-11-06 (the user): nobody takes a dead player's weapon, and it is th
   only what the hands still hold. Anyone could pick it up.
 - **Now:** our hook on `Actor::DropHeldItemsOnDeath` (37320; its only caller is `KillImpl` 37896, so disarms, which
   share the gate 37523, are untouched) skips it for a player's character, its own or a copy, in a session
-  (`Services/DeathDrops.h`). The shield, torch and drawn weapons stay in the dead body's hands, out of reach (a
+  (`sync/death/DeathDrops.h`). The shield, torch and drawn weapons stay in the dead body's hands, out of reach (a
   player's body opens no loot menu, `party-items.md`); `PlayerCharacter::Revive` (`death.md`) takes them off and
   equips them again. NPCs still drop theirs. Measured on the duo 2026-11-06: nothing on either game after the
   guest's death or the host's, and each held its sword again once respawned (`dead-player-keeps-weapon`).

@@ -2,7 +2,7 @@
 
 How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 
-## Hooks (`Code/client/SkyrimVM64.cpp`)
+## Hooks (`Code/plugin/SkyrimVM64.cpp`)
 
 | ID | Engine function | Our hook | Notes |
 |---|---|---|---|
@@ -19,7 +19,7 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 - Because the tick lives in `SkyrimVM64.cpp`, which nothing references directly, a static-archive
   link silently dropped it (see [plugin linking](plugin-linking.md)): the plugin loaded but never ran.
 
-## Native function registration (`Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp`)
+## Native function registration (`Code/engine/Papyrus/VirtualMachine.cpp`)
 
 | ID | Engine function | Our hook | Notes |
 |---|---|---|---|
@@ -38,7 +38,7 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 
 ## Freezing the world: `Main::freezeTime` (2026-11-02, 1.7.104)
 
-`Main` (singleton 403449, `Games/Skyrim/Main.h`) has `freezeTime` at 0x16 and `freezeNextFrame` at 0x17 (CommonLibSSE
+`Main` (singleton 403449, `engine/Main.h`) has `freezeTime` at 0x16 and `freezeNextFrame` at 0x17 (CommonLibSSE
 `RE::Main`). `Main::Update` (36564, 0x140658870 in 1.7.104) tests `freezeTime` next to the menu-mode flag (UI +352,
 `numPausesGame`) at five places, and skips together what a pausing menu skips:
 
@@ -51,7 +51,7 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 `SkyrimVM`'s update still runs, and our update with it (HookVMUpdate), so the network and the harness keep going.
 PhotoMode (`reference/plugins/PhotoMode`) toggles the same flag.
 
-The repro harness's `world_freeze` sets it, and `step` clears it for N frames (`TestHarness/FrameStepper.h`). Our
+The repro harness's `world_freeze` sets it, and `step` clears it for N frames (`harness/TestHarness/FrameStepper.h`). Our
 update runs after the frame's world update, so clearing it there lets exactly the next frame run. On the duo: frozen,
 both games' world-frame counts stop, game time stays put and the guest stays connected; `step(10)` moves both by
 exactly 10. Not yet checked: whether Havok's step is among the skipped work (a body in the air while frozen).

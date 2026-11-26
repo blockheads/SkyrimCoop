@@ -1,611 +1,470 @@
-#include <Games/PartyItems.h>
-#include <Events/ItemsChangedEvent.h>
-#include <Events/GameLoadFailedEvent.h>
-#include <Events/GameLoadedEvent.h>
-#include <Events/ActorRenamedEvent.h>
+#include <items/PartyItems.h>
+#include <animation/GraphStream.h>
+#include <items/ItemsChangedEvent.h>
+#include <join/GameLoadFailedEvent.h>
+#include <join/GameLoadedEvent.h>
+#include <characters/ActorRenamedEvent.h>
 // The host's side in this process: HostService hosting as in Skyrim (the network, HostAuthority, the host's own
 // game joining in process), its reads from the fake engine's world and the real CharacterService; and the systems
 // and services CharacterService calls that tier 2 leaves out (animation, face tints, AI state, effects).
 #include "FakeEngine.h"
-#include <Bridges/IDevToolsBridge.h>
-#include <Services/DevCommands.h>
-#include <Services/CrimeService.h>
+#include <tools/IDevToolsBridge.h>
+#include <tools/DevCommands.h>
+#include <crime/CrimeService.h>
 #include <Messages/ContainerTransferRequest.h>
-#include <Games/Overrides.h>
+#include <items/Overrides.h>
 
-#include <Bridges/HostEngine.h>
-#include <Bridges/IActorBridge.h>
+#include "FakeHostEngine.h"
+#include <ports/IActorBridge.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/Relayed.h>
-#include <ScriptValues.h>
+#include <core/ScriptValues.h>
 #include <Messages/SummonRequest.h>
-#include <CreatedIds.h>
-#include <FormIds.h>
-#include <SessionIds.h>
-#include <Events/DifficultyChangeEvent.h>
-#include <Events/GameSavingEvent.h>
-#include <Events/SaveWrittenEvent.h>
-#include <Services/SaveLibrary.h>
-#include <SessionIds.h>
-#include <Bridges/IJoinBridge.h>
-#include <Services/JoinService.h>
-#include <Services/SaveService.h>
-#include <Events/UpdateEvent.h>
-#include <RunningGame.h>
-#include <Services/AiStateService.h>
-#include <Services/CharacterService.h>
-#include <Services/DialogueService.h>
-#include <Services/EffectVisualsService.h>
-#include <Services/Host/HostAuthority.h>
-#include <Services/Host/HostConversation.h>
-#include <Services/Host/HostGame.h>
-#include <Services/Host/HostNetwork.h>
-#include <Services/HostService.h>
-#include <Services/Host/HostAggro.h>
-#include <Services/Host/HostTakeBacks.h>
-#include <Services/Host/HostTraps.h>
-#include <Services/BodyService.h>
-#include <Services/CrimeService.h>
-#include <Services/InventoryService.h>
-#include <Bridges/IPlayerBridge.h>
-#include <Systems/AnimationSystem.h>
-#include <Systems/FaceGenSystem.h>
-#include <Components.h>
-#include <World.h>
+#include <core/CreatedIds.h>
+#include <core/FormIds.h>
+#include <core/SessionIds.h>
+#include <core/DifficultyChangeEvent.h>
+#include <join/GameSavingEvent.h>
+#include <join/SaveWrittenEvent.h>
+#include <join/SaveLibrary.h>
+#include <core/SessionIds.h>
+#include <join/IJoinBridge.h>
+#include <join/JoinService.h>
+#include <join/SaveService.h>
+#include <core/UpdateEvent.h>
+#include <core/RunningGame.h>
+#include <actorstate/AiStateService.h>
+#include <characters/CharacterService.h>
+#include <dialogue/DialogueService.h>
+#include <magic/EffectVisualsService.h>
+#include <game/HostAuthority.h>
+#include <dialogue/HostConversation.h>
+#include <game/HostGame.h>
+#include <core/HostNetwork.h>
+#include <game/HostService.h>
+#include <core/Hosting.h>
+#include <combat/HostAggro.h>
+#include <combat/HostTakeBacks.h>
+#include <combat/HostTraps.h>
+#include <physics/BodyService.h>
+#include <crime/CrimeService.h>
+#include <items/InventoryService.h>
+#include <ports/IPlayerBridge.h>
+#include <animation/AnimationSystem.h>
+#include <Bridges/FaceGenSystem.h>
+#include <animation/LocalAnimationComponent.h>
+#include <animation/RemoteAnimationComponent.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <characters/FaceGenComponent.h>
+#include <core/World.h>
 
-HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
-    : m_world(aWorld), m_dispatcher(aDispatcher)
+// The host's game on the fake engine: what HostEngine does in Skyrim (the real HostService runs on it).
+FakeHostEngine::FakeHostEngine(World& aWorld, FakeEngine& aEngine) noexcept
+    : m_world(aWorld), m_engine(aEngine), m_physics(aEngine)
 {
-    Listen<UpdateEvent, &HostService::OnUpdate>(m_connections, m_dispatcher, this);
-    Listen<DifficultyChangeEvent, &HostService::OnDifficultyChange>(m_connections, m_dispatcher, this);
-    Listen<NotifyRoutedCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
-    Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
-    Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
-    Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
-    Listen<SaveWrittenEvent, &HostService::OnSaveWritten>(m_connections, m_dispatcher, this);
-    Listen<ActorRenamedEvent, &HostService::OnActorRenamed>(m_connections, m_dispatcher, this);
 }
 
-HostService::~HostService() noexcept
+std::optional<std::vector<Followers::State>> FakeHostEngine::ReadFollowers() const noexcept
 {
-    StopHosting();
+    FakeEngine& engine = m_engine;
+    auto followers = engine.PartyFollowers;
+    for (auto& follower : followers)
+    {
+        const auto it = engine.Actors.find(follower.Reference);
+        if (it == engine.Actors.end())
+            continue;
+        follower.Session = Utils::GetSessionIdByFormId(follower.Reference).value_or(0);
+        follower.At = {it->second.WorldSpace, it->second.Cell, {it->second.Position[0], it->second.Position[1], it->second.Position[2]}};
+        follower.Waiting = engine.GetActorValue(follower.Reference, 95) != 0.f;
+        follower.Dead = engine.IsActorDead(follower.Reference);
+    }
+    return followers;
 }
 
-// As HostService::StartHosting, the host's game read from the fake engine (HostEngine's part) and the real
-// CharacterService (its actors' spawns, its copies).
-bool HostService::StartHosting(uint16_t aPort) noexcept
+std::vector<Followers::Order> FakeHostEngine::TakeFollowerOrders() const noexcept
 {
-    if (IsHosting())
-        return true;
-    auto pNetwork = std::make_unique<HostNetwork>();
-    if (!pNetwork->Listen(aPort))
-        return false;
-    m_pNetwork = std::move(pNetwork);
-
-    MakeAuthority();
-    return true;
+    FakeEngine& engine = m_engine;
+    return std::exchange(engine.FollowerOrders, {});
 }
 
-void HostService::MakeAuthority() noexcept
+void FakeHostEngine::SetFollowerTargets(const std::vector<Followers::Target>& acTargets) const noexcept
 {
-    m_world.ctx().at<CreatedIds>().SetHosting(true);
-    m_pAggro.reset();
-    FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
-    m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
-        [&engine](const auto& acState) { engine.PartyThreats = acState; });
-    m_pTraps = std::make_unique<HostTraps>(m_world, m_dispatcher);
-    m_pTakeBacks = std::make_unique<HostTakeBacks>(m_world, m_dispatcher, engine, [this](uint32_t aId) {
-        if (m_pAuthority)
-            m_pAuthority->ActorTaken(aId);
+    FakeEngine& engine = m_engine;
+    engine.FollowerTargets = acTargets;
+}
+
+void FakeHostEngine::SetPartyThreats(const PartyThreat::State& acState) const noexcept
+{ m_engine.PartyThreats = acState;
+}
+
+std::optional<HostSky> FakeHostEngine::ReadWeather() const noexcept
+{
+    FakeEngine& engine = m_engine;
+    if (!engine.Weather.BaseId)
+        return std::nullopt;
+    return HostSky{.Weather = engine.Weather, .Forced = static_cast<bool>(engine.ForcedWeather),
+                   .Region = engine.WeatherRegion ? GameId{0, engine.WeatherRegion} : GameId{}};
+}
+
+std::optional<GameId> FakeHostEngine::RegionWeather(const GameId& acRegion) const noexcept
+{
+    FakeEngine& engine = m_engine;
+    // HostEngine::RegionWeather: none set since the load is set as the shown weather's change would.
+    if (!engine.RegionWeather.contains(acRegion.BaseId))
+        engine.SetRegionWeather(acRegion.BaseId);
+    const auto it = engine.RegionWeather.find(acRegion.BaseId);
+    return it == engine.RegionWeather.end() ? std::nullopt : std::optional(it->second);
+}
+
+std::optional<DetectionRules::EyeReading> FakeHostEngine::ReadEye(uint32_t aSessionId) const noexcept
+{
+    FakeEngine& engine = m_engine;
+    // HostEngine::ReadEye: a loaded copy's 41408 and 46877.
+    const uint32_t cCopy = Utils::GetFormIdBySessionId(aSessionId);
+    const auto it = engine.Actors.find(cCopy);
+    if (it == engine.Actors.end() || !it->second.Copy || !it->second.Loaded)
+        return std::nullopt;
+    DetectionRules::EyeReading reading;
+    reading.Level = engine.HighestDetection(cCopy, reading.Seeing);
+    reading.Stealth = engine.LowestStealthPoints(cCopy);
+    return reading;
+}
+
+std::vector<HostGlobal> FakeHostEngine::ReadGlobals() const noexcept
+{
+    FakeEngine& engine = m_engine;
+    std::vector<HostGlobal> globals;
+    for (const auto& [cId, cValue] : engine.Globals)
+        if (!engine.SystemQuestList.IsGlobal(cId)) // as HostEngine: each player's own
+            globals.push_back({.Id = GameId{0, cId}, .Value = cValue});
+    return globals;
+}
+
+std::vector<HostGlobal> FakeHostEngine::TakeGlobalChanges() const noexcept
+{
+    FakeEngine& engine = m_engine;
+    std::vector<HostGlobal> globals;
+    for (const uint32_t cId : std::exchange(engine.GlobalWrites, {}))
+        if (!engine.SystemQuestList.IsGlobal(cId))
+            globals.push_back({.Id = GameId{0, cId}, .Value = engine.Globals.at(cId)});
+    return globals;
+}
+
+std::vector<QuestState> FakeHostEngine::ReadQuests() const noexcept
+{
+    FakeEngine& engine = m_engine;
+    std::vector<QuestState> quests;
+    for (const auto& [cId, cQuest] : engine.Quests)
+        if (!engine.SystemQuestList.Contains(cId))
+            quests.push_back(cQuest);
+    return quests;
+}
+
+std::vector<QuestState> FakeHostEngine::TakeQuestChanges() const noexcept
+{
+    FakeEngine& engine = m_engine;
+    std::vector<QuestState> quests;
+    for (const uint32_t cId : engine.QuestWrites.Take())
+        if (const auto it = engine.Quests.find(cId); it != engine.Quests.end() && !engine.SystemQuestList.Contains(cId))
+            quests.push_back(it->second);
+    return quests;
+}
+
+void FakeHostEngine::SetHour(float aHours) noexcept
+{
+    FakeEngine& engine = m_engine;
+    engine.Calendar.Time = aHours;
+}
+
+void FakeHostEngine::AdvanceTime(float aHours) noexcept
+{
+    FakeEngine& engine = m_engine;
+    MainLoopTasks::Queue([&engine, aHours] {
+        DateTime time(engine.Calendar);
+        const float cScale = time.m_timeModel.TimeScale;
+        time.m_timeModel.TimeScale = 3600.f;
+        time.Update(static_cast<uint64_t>(aHours * 1000.f));
+        time.m_timeModel.TimeScale = cScale;
+        engine.Calendar = time.m_timeModel;
     });
-    HostGame game;
-    game.ReadFollowers = [&engine]() -> std::optional<std::vector<Followers::State>> {
-        auto followers = engine.PartyFollowers;
-        for (auto& follower : followers)
-        {
-            const auto it = engine.Actors.find(follower.Reference);
-            if (it == engine.Actors.end())
-                continue;
-            follower.Session = Utils::GetSessionIdByFormId(follower.Reference).value_or(0);
-            follower.At = {it->second.WorldSpace, it->second.Cell, {it->second.Position[0], it->second.Position[1], it->second.Position[2]}};
-            follower.Waiting = engine.GetActorValue(follower.Reference, 95) != 0.f;
-            follower.Dead = engine.IsActorDead(follower.Reference);
-        }
-        return followers;
-    };
-    game.TakeFollowerOrders = [&engine] { return std::exchange(engine.FollowerOrders, {}); };
-    game.SetFollowerTargets = [&engine](const auto& acTargets) { engine.FollowerTargets = acTargets; };
-    game.FollowerAnchors = [this]() -> Followers::Anchors& { return m_world.ctx().at<SaveService>().GetFollowerAnchors(); };
-    game.TakeCrimeConfiscations = [this] { return m_world.ctx().at<CrimeService>().TakeConfiscations(); };
-    game.ReadCrimeGold = [this] { return m_world.ctx().at<CrimeService>().ReadGold(); };
-    game.TakeCrimeReports = [this] { return m_world.ctx().at<CrimeService>().TakeReports(); };
-    game.ReadPartyGold = [this] { return m_world.ctx().at<InventoryService>().GoldOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId()); };
-    game.AddPartyGold = [this](int32_t aCount) { m_world.ctx().at<InventoryService>().AddGold(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId(), aCount); };
-    game.ReadPartyItem = [this](const Inventory::Entry& acItem) {
-        return m_world.ctx().at<InventoryService>().PartyItemCount(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId(), acItem);
-    };
-    game.AddPartyItem = [this](const Inventory::Entry& acItem) {
-        m_world.ctx().at<InventoryService>().AddPartyItem(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId(), acItem);
-    };
-    game.ReadPartyItems = [this] {
-        return m_world.ctx().at<InventoryService>().PartyItemsOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId());
-    };
-    game.ItemName = [this](const GameId& acItem) { return m_world.ctx().at<InventoryService>().ItemName(acItem); };
-    game.ItemFormType = [this](const GameId& acItem) { return m_world.ctx().at<InventoryService>().ItemFormType(acItem); };
-    game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) { return m_world.ctx().at<CrimeService>().Judge(aActor, aCrime); };
-    game.OwnSpawns = [this](uint32_t aExcludedSessionId) {
-        return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId);
-    };
-    game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) {
-        return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn);
-    };
-    game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
-    game.Claimable = [&engine](uint32_t aSessionId) { return !engine.IsPlayerSummon(Utils::GetFormIdBySessionId(aSessionId)); };
-    game.CanPair = [&engine](uint32_t aSessionId) { return engine.ActorCanPair(Utils::GetFormIdBySessionId(aSessionId)); };
-    game.IsDead = [&engine](uint32_t aSessionId) { return engine.IsActorDead(Utils::GetFormIdBySessionId(aSessionId)); };
-    game.AdvanceTime = [&engine](float aHours) {
-        MainLoopTasks::Queue([&engine, aHours] {
-            DateTime time(engine.Calendar);
-            const float cScale = time.m_timeModel.TimeScale;
-            time.m_timeModel.TimeScale = 3600.f;
-            time.Update(static_cast<uint64_t>(aHours * 1000.f));
-            time.m_timeModel.TimeScale = cScale;
-            engine.Calendar = time.m_timeModel;
+}
+
+void FakeHostEngine::RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept
+{
+    FakeEngine& engine = m_engine;
+    // The fake engine records its own world's changes where they happen (FakeEngine::Recorded).
+}
+
+void FakeHostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent, uint32_t aPullerFormId) noexcept
+{
+}
+
+void FakeHostEngine::RecordItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
+{
+}
+
+void FakeHostEngine::Activate(const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) noexcept
+{
+    FakeEngine& engine = m_engine;
+    const uint32_t cObject = aNpcId ? Utils::GetFormIdBySessionId(aNpcId) : FormIdOf(acObject);
+    const uint32_t cActivator = Utils::GetFormIdBySessionId(aActivatorId);
+    if (!cActivator || (aNpcId && engine.IsActorCopy(cObject)))
+        return;
+    engine.RunsActivation(cObject, cActivator);
+    // As HostEngine::Activate: a lever furniture's pull, which 17420 gives this game's player only, recorded.
+    if (const auto cLever = engine.References.find(cObject); cLever != engine.References.end() && cLever->second.Lever &&
+        !cLever->second.ActivationBlocked)
+    {
+        cLever->second.GraphEvents.push_back(FakeEngine::kPull);
+        ObjectChange pull{.Type = ObjectChange::Kind::kAnimation, .Object = SessionIdOf(cObject), .Event = FakeEngine::kPull};
+        pull.Value = aActivatorId;
+        engine.Recorded.push_back(std::move(pull));
+    }
+}
+
+void FakeHostEngine::Summon(uint32_t aCasterId, const SummonRequest& acSummon) noexcept
+{
+    FakeEngine& engine = m_engine;
+    const uint32_t cCopy = Utils::GetFormIdBySessionId(aCasterId);
+    const uint32_t cSpell = FormIdOf(acSummon.SpellId);
+    if (cCopy && engine.IsOtherPlayer(cCopy) && engine.SpellForms.contains(cSpell) && engine.SpellForms.at(cSpell).Summons)
+        engine.AddMagicTargetEffect(cCopy, cCopy, cSpell, FormIdOf(acSummon.EffectId), acSummon.Magnitude, acSummon.DualCast, false, false);
+}
+
+void FakeHostEngine::TouchTrap(const Payloads::TrapContact& acContact) noexcept
+{
+    FakeEngine& engine = m_engine;
+    if (const uint32_t cCopy = Utils::GetFormIdBySessionId(acContact.TargetId); cCopy && engine.References.contains(FormIdOf(acContact.Trap)))
+        engine.RunsTrapScript(FormIdOf(acContact.Trap), cCopy);
+}
+
+void FakeHostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept
+{
+    FakeEngine& engine = m_engine;
+    engine.SetLock(FormIdOf(acObject), aLocked, aLockLevel);
+}
+
+void FakeHostEngine::SetItems(const ObjectChange& acItems) noexcept
+{
+    FakeEngine& engine = m_engine;
+    engine.SetItems(FormIdOf(acItems.Object), ItemForm(acItems.Item), static_cast<int32_t>(acItems.Value), acItems.Stacks);
+}
+
+Inventory::Entry FakeHostEngine::TransferContainer(const ContainerTransferRequest& acRequest, uint32_t aPlayer) noexcept
+{
+    FakeEngine& engine = m_engine;
+    Inventory::Entry moved = acRequest.Item;
+    const uint32_t cPlayer = Utils::GetFormIdBySessionId(aPlayer);
+    const uint32_t cContainer = acRequest.ContainerActorId ? Utils::GetFormIdBySessionId(acRequest.ContainerActorId) : FormIdOf(acRequest.Container);
+    const uint32_t cItem = ItemForm(moved.BaseId);
+    const bool cTake = moved.Count > 0;
+    const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.ContainerCountOf(cContainer, cItem)) : engine.CountOf(cPlayer, cItem);
+    moved.Count = std::min(std::abs(moved.Count), cAvailable) * (cTake ? 1 : -1);
+    // As HostEngine::TransferContainer: a put of a party item's mirror moves the host's player's real stack.
+    if (!cTake && moved.Count && PartyItems::IsParty(moved) && !acRequest.ContainerActorId)
+    {
+        auto& entries = engine.Actors.at(FakeEngine::kPlayer).Items.Entries;
+        auto it = std::ranges::find_if(entries, [&](const auto& acEntry) {
+            return acEntry.BaseId == moved.BaseId && !acEntry.IsQuestItem && acEntry.ExtraName == moved.ExtraName && acEntry.Count > 0;
         });
-    };
-    game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
-    game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
-    game.SpawnPartyHorses = [this](uint32_t aSessionId, uint32_t aCount) {
-        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
-        return cFormId ? m_world.ctx().at<IDevToolsBridge&>().SpawnPartyHorses(cFormId, aCount) : 0u;
-    };
-    game.ConsoleNameOf = [](uint32_t aSessionId) {
-        return DevCommands::ConsoleName(Utils::GetFormIdBySessionId(aSessionId), FakeEngine::kPlayer);
-    };
-    game.ReadTime = [&engine] { return engine.Calendar; };
-    game.SetHour = [&engine](float aHours) { engine.Calendar.Time = aHours; };
-    game.ReadEye = [&engine](uint32_t aSessionId) -> std::optional<DetectionRules::EyeReading> {
-        // HostEngine::ReadEye: a loaded copy's 41408 and 46877.
-        const uint32_t cCopy = Utils::GetFormIdBySessionId(aSessionId);
-        const auto it = engine.Actors.find(cCopy);
-        if (it == engine.Actors.end() || !it->second.Copy || !it->second.Loaded)
-            return std::nullopt;
-        DetectionRules::EyeReading reading;
-        reading.Level = engine.HighestDetection(cCopy, reading.Seeing);
-        reading.Stealth = engine.LowestStealthPoints(cCopy);
-        return reading;
-    };
-    game.ReadWeather = [&engine]() -> std::optional<HostSky> {
-        if (!engine.Weather.BaseId)
-            return std::nullopt;
-        return HostSky{.Weather = engine.Weather, .Forced = static_cast<bool>(engine.ForcedWeather),
-                       .Region = engine.WeatherRegion ? GameId{0, engine.WeatherRegion} : GameId{}};
-    };
-    game.RegionWeather = [&engine](const GameId& acRegion) -> std::optional<GameId> {
-        // HostEngine::RegionWeather: none set since the load is set as the shown weather's change would.
-        if (!engine.RegionWeather.contains(acRegion.BaseId))
-            engine.SetRegionWeather(acRegion.BaseId);
-        const auto it = engine.RegionWeather.find(acRegion.BaseId);
-        return it == engine.RegionWeather.end() ? std::nullopt : std::optional(it->second);
-    };
-    game.ReadGlobals = [&engine] {
-        std::vector<HostGlobal> globals;
-        for (const auto& [cId, cValue] : engine.Globals)
-            if (!engine.SystemQuestList.IsGlobal(cId)) // as HostEngine: each player's own
-                globals.push_back({.Id = GameId{0, cId}, .Value = cValue});
-        return globals;
-    };
-    game.TakeGlobalChanges = [&engine] {
-        std::vector<HostGlobal> globals;
-        for (const uint32_t cId : std::exchange(engine.GlobalWrites, {}))
-            if (!engine.SystemQuestList.IsGlobal(cId))
-                globals.push_back({.Id = GameId{0, cId}, .Value = engine.Globals.at(cId)});
-        return globals;
-    };
-    game.ReadQuests = [&engine] {
-        std::vector<QuestState> quests;
-        for (const auto& [cId, cQuest] : engine.Quests)
-            if (!engine.SystemQuestList.Contains(cId))
-                quests.push_back(cQuest);
-        return quests;
-    };
-    game.TakeQuestChanges = [&engine] {
-        std::vector<QuestState> quests;
-        for (const uint32_t cId : engine.QuestWrites.Take())
-            if (const auto it = engine.Quests.find(cId); it != engine.Quests.end() && !engine.SystemQuestList.Contains(cId))
-                quests.push_back(it->second);
-        return quests;
-    };
-    game.TakeObjectChanges = [&engine] { return std::exchange(engine.Recorded, {}); };
-    game.TakePlaced = [&engine] {
-        for (auto& [cKey, body] : engine.Bodies)
-            body.PlacedByGame = false; // read: where the game put it (HostEngine::TakeObjectChanges clears PlacedByGame)
-        return std::exchange(engine.Placed, {});
-    };
-    game.ReadCellState = [&engine](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
-        return engine.CellState(acCell, acChanged);
-    };
-    game.ReadContents = [&engine](const GameId& acObject) {
-        return acObject.ModId == ObjectChange::kCreatedModId ? engine.ContentsOf(0xFF000000 | acObject.BaseId) : std::nullopt;
-    };
-    game.RaiseStoryEvent = [&engine](const StoryEvent& acEvent) { engine.StoriesRaised.push_back(acEvent); };
-    game.Activate = [&engine](const GameId& acObject, uint32_t aNpcId, uint32_t aActivatorId) {
-        const uint32_t cObject = aNpcId ? Utils::GetFormIdBySessionId(aNpcId) : FormIdOf(acObject);
-        const uint32_t cActivator = Utils::GetFormIdBySessionId(aActivatorId);
-        if (!cActivator || (aNpcId && engine.IsActorCopy(cObject)))
-            return;
-        engine.RunsActivation(cObject, cActivator);
-        // As HostEngine::Activate: a lever furniture's pull, which 17420 gives this game's player only, recorded.
-        if (const auto cLever = engine.References.find(cObject); cLever != engine.References.end() && cLever->second.Lever &&
-            !cLever->second.ActivationBlocked)
+        if (it == entries.end()) // a quest object's real stack keeps its alias's name
+            it = std::ranges::find_if(entries, [&](const auto& acEntry) { return acEntry.BaseId == moved.BaseId && acEntry.IsQuestItem && acEntry.Count > 0; });
+        if (it == entries.end())
         {
-            cLever->second.GraphEvents.push_back(FakeEngine::kPull);
-            ObjectChange pull{.Type = ObjectChange::Kind::kAnimation, .Object = SessionIdOf(cObject), .Event = FakeEngine::kPull};
-            pull.Value = aActivatorId;
-            engine.Recorded.push_back(std::move(pull));
+            moved.Count = 0;
+            return moved;
         }
-    };
-    game.Summon = [&engine](uint32_t aCasterId, const SummonRequest& acSummon) {
-        const uint32_t cCopy = Utils::GetFormIdBySessionId(aCasterId);
-        const uint32_t cSpell = FormIdOf(acSummon.SpellId);
-        if (cCopy && engine.IsOtherPlayer(cCopy) && engine.SpellForms.contains(cSpell) && engine.SpellForms.at(cSpell).Summons)
-            engine.AddMagicTargetEffect(cCopy, cCopy, cSpell, FormIdOf(acSummon.EffectId), acSummon.Magnitude, acSummon.DualCast, false, false);
-    };
-    game.TouchTrap = [&engine](const Payloads::TrapContact& acContact) {
-        if (const uint32_t cCopy = Utils::GetFormIdBySessionId(acContact.TargetId); cCopy && engine.References.contains(FormIdOf(acContact.Trap)))
-            engine.RunsTrapScript(FormIdOf(acContact.Trap), cCopy);
-    };
-    game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
-        engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
-    };
-    game.SetItems = [&engine](const ObjectChange& acItems) {
-        engine.SetItems(FormIdOf(acItems.Object), ItemForm(acItems.Item), static_cast<int32_t>(acItems.Value), acItems.Stacks);
-    };
-    game.TransferContainer = [&engine](const ContainerTransferRequest& acRequest, uint32_t aPlayer) {
-        Inventory::Entry moved = acRequest.Item;
-        const uint32_t cPlayer = Utils::GetFormIdBySessionId(aPlayer);
-        const uint32_t cContainer = acRequest.ContainerActorId ? Utils::GetFormIdBySessionId(acRequest.ContainerActorId) : FormIdOf(acRequest.Container);
-        const uint32_t cItem = ItemForm(moved.BaseId);
-        const bool cTake = moved.Count > 0;
-        const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.ContainerCountOf(cContainer, cItem)) : engine.CountOf(cPlayer, cItem);
-        moved.Count = std::min(std::abs(moved.Count), cAvailable) * (cTake ? 1 : -1);
-        // As HostEngine::TransferContainer: a put of a party item's mirror moves the host's player's real stack.
-        if (!cTake && moved.Count && PartyItems::IsParty(moved) && !acRequest.ContainerActorId)
-        {
-            auto& entries = engine.Actors.at(FakeEngine::kPlayer).Items.Entries;
-            auto it = std::ranges::find_if(entries, [&](const auto& acEntry) {
-                return acEntry.BaseId == moved.BaseId && !acEntry.IsQuestItem && acEntry.ExtraName == moved.ExtraName && acEntry.Count > 0;
-            });
-            if (it == entries.end()) // a quest object's real stack keeps its alias's name
-                it = std::ranges::find_if(entries, [&](const auto& acEntry) { return acEntry.BaseId == moved.BaseId && acEntry.IsQuestItem && acEntry.Count > 0; });
-            if (it == entries.end())
-            {
-                moved.Count = 0;
-                return moved;
-            }
-            {
-                ScopedInventoryOverride _;
-                const int32_t cCount = std::min(-moved.Count, it->Count);
-                Inventory::Entry real = *it;
-                real.Count = cCount;
-                if ((it->Count -= cCount) <= 0)
-                    entries.erase(it);
-                auto& reference = engine.References.at(cContainer);
-                std::vector<Inventory::Entry> stacks;
-                for (const auto& cStack : reference.Stacks)
-                    if (cStack.BaseId == moved.BaseId)
-                        stacks.push_back(cStack);
-                stacks.push_back(real);
-                engine.SetItems(cContainer, cItem, reference.Items[cItem] + cCount, stacks);
-                if (const auto cAlias = engine.AliasStacks.find({FakeEngine::kPlayer, cItem}); cAlias != engine.AliasStacks.end())
-                {
-                    engine.AliasStacks[{cContainer, cItem}] = cAlias->second;
-                    engine.AliasStacks.erase(cAlias);
-                }
-                moved.Count = -cCount;
-                moved.IsQuestItem = true;
-                return moved;
-            }
-        }
-        // As HostEngine::MoveAliasStack: a quest alias's stack moves to this game's player, its arrival raised.
-        bool aliasMoved = false;
-        if (cTake && moved.Count && engine.AliasStacks.contains({cContainer, cItem}))
-        {
-            moved.IsQuestItem = true;
-            engine.MovesStack(cContainer, FakeEngine::kPlayer, cItem, moved.Count, acRequest.Steal);
-            aliasMoved = true;
-        }
-        // As HostEngine::TransferContainer: a take changes only the container, the player's own game its player; a put
-        // moves from the player's copy here.
-        if (moved.Count && !aliasMoved)
         {
             ScopedInventoryOverride _;
-            if (!cTake)
-                engine.GetsItem(cPlayer, moved);
-            Inventory::Entry other = moved;
-            other.Count = -other.Count;
-            // As FindStack: a plain request matches a quest item's list too (ContainerTransfers::Stack drops the flag).
-            const auto cStacks = acRequest.ContainerActorId ? engine.EntriesOf(cContainer, cItem) : std::vector<Inventory::Entry>{};
-            if (!other.ContainsExtraData() && std::ranges::any_of(cStacks, [](const auto& acStack) { return acStack.IsQuestItem; }) &&
-                std::ranges::none_of(cStacks, [](const auto& acStack) { return !acStack.ContainsExtraData(); }))
-                other.IsQuestItem = true;
-            if (acRequest.ContainerActorId)
-                engine.GetsItem(cContainer, other);
-            else
+            const int32_t cCount = std::min(-moved.Count, it->Count);
+            Inventory::Entry real = *it;
+            real.Count = cCount;
+            if ((it->Count -= cCount) <= 0)
+                entries.erase(it);
+            auto& reference = engine.References.at(cContainer);
+            std::vector<Inventory::Entry> stacks;
+            for (const auto& cStack : reference.Stacks)
+                if (cStack.BaseId == moved.BaseId)
+                    stacks.push_back(cStack);
+            stacks.push_back(real);
+            engine.SetItems(cContainer, cItem, reference.Items[cItem] + cCount, stacks);
+            if (const auto cAlias = engine.AliasStacks.find({FakeEngine::kPlayer, cItem}); cAlias != engine.AliasStacks.end())
             {
-                // Measured as HostEngine::TransferContainer does: the count before and after the removal.
-                const int32_t cBefore = engine.ContainerCountOf(cContainer, cItem);
-                engine.SetItems(cContainer, cItem, engine.References.at(cContainer).Items[cItem] - moved.Count);
-                const int32_t cAfter = engine.ContainerCountOf(cContainer, cItem);
-                moved.Count = std::clamp(cTake ? cBefore - cAfter : cAfter - cBefore, 0, std::abs(moved.Count)) * (cTake ? 1 : -1);
+                engine.AliasStacks[{cContainer, cItem}] = cAlias->second;
+                engine.AliasStacks.erase(cAlias);
             }
+            moved.Count = -cCount;
+            moved.IsQuestItem = true;
+            return moved;
         }
-        if (moved.Count && acRequest.ContainerActorId) // as HostEngine::TransferContainer
-            World::Get().GetRunner().Trigger(ItemsChangedEvent{cContainer});
-        // A theft marks the item as the container's owner's (16059 on its target): an actor's NPC, else the
-        // reference's owner, else its cell's.
-        if (cTake && acRequest.Steal && moved.Count && !moved.IsQuestItem && moved.ExtraOwner == GameId{} && cItem != 0xF)
-        {
-            uint32_t owner{};
-            if (acRequest.ContainerActorId) // its original leveled form, else its base (TESObjectREFR::GetItemsOwner)
-            {
-                const auto& cActor = engine.Actors.at(cContainer);
-                owner = cActor.LeveledBase ? cActor.LeveledBase : cActor.Base ? cActor.Base : cContainer;
-            }
-            else if (const auto& cReference = engine.References.at(cContainer); cReference.Owner)
-                owner = cReference.Owner;
-            else if (const auto cCell = engine.CellOwners.find(engine.References.at(cContainer).Cell); cCell != engine.CellOwners.end())
-                owner = cCell->second;
-            if (owner)
-                moved.ExtraOwner = GameId(0, owner);
-        }
-        return moved;
-    };
-    game.CreateItem = [&engine](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) {
-        return engine.CreateLoose(acItem, FormIdOf(acPlacement.Cell));
-    };
-    game.TakeItem = [&engine](const GameId& acObject) { return engine.TakeLoose(acObject); };
-    game.DropPartyItem = [&engine](const Inventory::Entry& acItem, uint32_t aPlayer) {
-        return engine.DropsPartyItem(acItem, Utils::GetFormIdBySessionId(aPlayer));
-    };
-    game.TakeQuestObject = [&engine](const GameId& acObject) { return engine.TakeQuestObject(acObject); };
-    // The real PhysicsBodies over the fake engine's physics, keyed as HostEngine::TakeBodies keys them: an actor's
-    // ragdoll by its session id, only this game's own actors' (a copy's is played here).
-    const auto physics = std::make_shared<PhysicsBodies>(engine);
-    game.TakeBodies = [&engine, this, physics](uint64_t aTick) {
-        const auto cSessionOf = [this](uint32_t aFormId) -> uint32_t {
-            for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
-                if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
-                    return m_world.get<LocalComponent>(cEntity).Id;
-            return 0;
-        };
-        const auto cOwner = [&](const PhysicsBodies::Bodies& acBodies) -> std::optional<BodyKey> {
-            if (acBodies.Actor)
-            {
-                const uint32_t cSessionId = cSessionOf(acBodies.FormId);
-                return cSessionId ? std::optional(BodyKey{.Actor = cSessionId}) : std::nullopt;
-            }
-            for (const auto& [cKey, cBody] : engine.Bodies)
-                if (!cKey.Actor && FakeEngine::ReferenceOf(cKey) == acBodies.FormId)
-                    return BodyKey{.Object = cKey.Object};
-            return std::nullopt;
-        };
-        engine.PhysicsTick = engine.PhysicsTime(m_pNetwork->GetTick());
-        const auto cUpdate = physics->Take(aTick);
-        HostBodyReads bodies;
-        for (const auto& cAwake : cUpdate.Awake)
-            if (const auto cKey = cOwner(cAwake))
-                for (BodyFrame frame : cAwake.Read)
-                {
-                    frame.Key = {cKey->Object, cKey->Actor, frame.Key.Index};
-                    if (cAwake.Held)
-                        bodies.Held.push_back(frame.Key);
-                    if (!cKey->Actor)
-                        engine.SetMoving(frame.Key, true);
-                    bodies.Awake.push_back(frame);
-                }
-        for (const auto& cRested : cUpdate.Rested)
-            if (const auto cKey = cOwner(cRested))
-                for (const BodyFrame& cRead : cRested.Read)
-                {
-                    if (!cKey->Actor)
-                        engine.SetMoving({cKey->Object, 0, cRead.Key.Index}, false);
-                    bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position,
-                                             .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
-                }
-        m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake); // as HostService
-        return bodies;
-    };
-    game.TakeTouches = [&engine] {
-        std::vector<BodyKey> keys;
-        for (const auto& cPush : std::exchange(engine.PlayerPushes, {}))
-            keys.push_back(cPush.Key);
-        for (const auto& cHit : std::exchange(engine.PlayerHits, {}))
-            keys.push_back(cHit.Key);
-        return keys;
-    };
-    game.ReadTouching = [&engine](const std::vector<BodyKey>& acKeys) { return engine.ReadTouching(acKeys); };
-    game.IsKeyframed = [&engine](const BodyKey& acKey) {
-        const auto cRead = engine.Read(acKey);
-        return cRead && !cRead->Dynamic;
-    };
-    game.EndPlayback = [&engine, this](const BodyKey& acKey, uint64_t aUntil) {
-        m_world.ctx().at<BodyService>().Forget(acKey, std::max(aUntil, m_world.GetFrameTick()));
-        engine.Release(acKey);
-    };
-    game.ReadBodies = [&engine](const std::vector<BodyKey>& acKeys) {
-        std::vector<BodyPose> poses;
-        for (const BodyKey& cKey : acKeys)
-            if (const auto it = engine.Bodies.find(cKey); it != engine.Bodies.end())
-                poses.push_back({cKey, it->second.Flight.Body.Position, it->second.Flight.Body.Rotation});
-        return poses;
-    };
-    game.ReadDifficulty = [&engine] { return engine.GetDifficulty(); };
-    // The records live in SaveService, which a world tearing down drops before its Steam lobby kicks the guests.
-    const auto cRecords = [this]() -> CharacterRecords* {
-        auto* pSaves = m_world.ctx().find<SaveService>();
-        return pSaves ? &pSaves->GetRecords() : nullptr;
-    };
-    game.StoreRecord = [cRecords](const PlayerRecord& acRecord) {
-        if (auto* pRecords = cRecords())
-            pRecords->Put(acRecord, CharacterRecords::Clock::now());
-    };
-    game.SettleRecord = [cRecords](const std::string& acKey) {
-        if (auto* pRecords = cRecords())
-            pRecords->Settle(acKey, CharacterRecords::Clock::now());
-    };
-    game.StoreStorySpell = [cRecords](const GameId& acSpell, bool aAdded) {
-        if (auto* pRecords = cRecords())
-            pRecords->SetStorySpell(acSpell, aAdded);
-    };
-    game.HasRecord = [cRecords](const std::string& acKey) {
-        const auto* pRecords = cRecords();
-        return pRecords && pRecords->Find(acKey) != nullptr;
-    };
-    BindSaves(game);
-    game.StorePlace = [cRecords](const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell,
-                                 const std::array<float, 3>& acPosition) {
-        if (auto* pRecords = cRecords())
-            pRecords->SetPlace(acKey, acWorldSpace, acCell, acPosition);
-    };
-    game.Versions = RunningGame::GetVersions();
-    game.Plugins = RunningGame::Plugins(engine);
-    m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
-    m_world.ctx().at<InventoryService>().SetArrivalDecider(&PartyItems::ArrivesAsParty);
-    m_pConversation = std::make_unique<HostConversation>(m_world, m_dispatcher, m_world.ctx().at<DialogueService>());
-    InstallFrontDoor();
-}
-
-void HostService::StopHosting() noexcept
-{
-    m_pAggro.reset();
-    m_pTakeBacks.reset();
-    m_pTraps.reset();
-    m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
-    m_checkpoint.reset();
-    m_reloadJoins.clear();
-    if (!IsHosting())
-        return;
-    // As the real one: our own in-process connection goes through it.
-    if (m_world.GetTransport().IsConnectedLocally())
-        m_world.GetTransport().Close();
-    m_world.ctx().at<CreatedIds>().SetHosting(false);
-    m_pConversation.reset();
-    m_pNetwork.reset();
-    m_world.ctx().at<InventoryService>().SetArrivalDecider({});
-    m_pAuthority.reset();
-    m_pSaves.reset();
-}
-
-void HostService::KickPlayer(uint32_t aPlayerId) noexcept
-{
-    if (m_pAuthority)
-        m_pAuthority->Kick(aPlayerId);
-}
-
-uint32_t HostService::NewCharacterId() noexcept
-{
-    return m_pAuthority ? m_pAuthority->NewCharacterId() : 0;
-}
-
-void HostService::OnDifficultyChange(const DifficultyChangeEvent& acEvent) const noexcept
-{
-    if (IsHosting())
-        m_pAuthority->DifficultyChanged(acEvent.Difficulty);
-}
-
-// As HostService::OnWorldCall: a guest's script's call made here for it (GlobalCall::QueueCall in a stack run for it).
-void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
-{
-    if (acMessage.To != CallTo::kHost || !IsHosting())
-        return;
-    const uint32_t cGuest = Utils::GetFormIdBySessionId(acMessage.SessionId);
-    const auto cCall = Utils::ToLocalCall(acMessage.Call);
-    if (!cGuest || !cCall)
-        return;
-    if (!acMessage.ReplyId)
-    {
-        m_world.ctx().at<FakeEngine&>().Queue(*cCall, cGuest);
-        return;
     }
-    // Its script waits: what the call returns goes back (as HostService).
-    m_world.ctx().at<FakeEngine&>().Queue(*cCall, cGuest, [this, cReplyId = acMessage.ReplyId, cSessionId = acMessage.SessionId](LocalValue aResult) {
-        QueueWorldAnswer(cReplyId, cSessionId, std::move(aResult));
-    });
+    // As HostEngine::MoveAliasStack: a quest alias's stack moves to this game's player, its arrival raised.
+    bool aliasMoved = false;
+    if (cTake && moved.Count && engine.AliasStacks.contains({cContainer, cItem}))
+    {
+        moved.IsQuestItem = true;
+        engine.MovesStack(cContainer, FakeEngine::kPlayer, cItem, moved.Count, acRequest.Steal);
+        aliasMoved = true;
+    }
+    // As HostEngine::TransferContainer: a take changes only the container, the player's own game its player; a put
+    // moves from the player's copy here.
+    if (moved.Count && !aliasMoved)
+    {
+        ScopedInventoryOverride _;
+        if (!cTake)
+            engine.GetsItem(cPlayer, moved);
+        Inventory::Entry other = moved;
+        other.Count = -other.Count;
+        // As FindStack: a plain request matches a quest item's list too (ContainerTransfers::Stack drops the flag).
+        const auto cStacks = acRequest.ContainerActorId ? engine.EntriesOf(cContainer, cItem) : std::vector<Inventory::Entry>{};
+        if (!other.ContainsExtraData() && std::ranges::any_of(cStacks, [](const auto& acStack) { return acStack.IsQuestItem; }) &&
+            std::ranges::none_of(cStacks, [](const auto& acStack) { return !acStack.ContainsExtraData(); }))
+            other.IsQuestItem = true;
+        if (acRequest.ContainerActorId)
+            engine.GetsItem(cContainer, other);
+        else
+        {
+            // Measured as HostEngine::TransferContainer does: the count before and after the removal.
+            const int32_t cBefore = engine.ContainerCountOf(cContainer, cItem);
+            engine.SetItems(cContainer, cItem, engine.References.at(cContainer).Items[cItem] - moved.Count);
+            const int32_t cAfter = engine.ContainerCountOf(cContainer, cItem);
+            moved.Count = std::clamp(cTake ? cBefore - cAfter : cAfter - cBefore, 0, std::abs(moved.Count)) * (cTake ? 1 : -1);
+        }
+    }
+    if (moved.Count && acRequest.ContainerActorId) // as HostEngine::TransferContainer
+        World::Get().GetRunner().Trigger(ItemsChangedEvent{cContainer});
+    // A theft marks the item as the container's owner's (16059 on its target): an actor's NPC, else the
+    // reference's owner, else its cell's.
+    if (cTake && acRequest.Steal && moved.Count && !moved.IsQuestItem && moved.ExtraOwner == GameId{} && cItem != 0xF)
+    {
+        uint32_t owner{};
+        if (acRequest.ContainerActorId) // its original leveled form, else its base (TESObjectREFR::GetItemsOwner)
+        {
+            const auto& cActor = engine.Actors.at(cContainer);
+            owner = cActor.LeveledBase ? cActor.LeveledBase : cActor.Base ? cActor.Base : cContainer;
+        }
+        else if (const auto& cReference = engine.References.at(cContainer); cReference.Owner)
+            owner = cReference.Owner;
+        else if (const auto cCell = engine.CellOwners.find(engine.References.at(cContainer).Cell); cCell != engine.CellOwners.end())
+            owner = cCell->second;
+        if (owner)
+            moved.ExtraOwner = GameId(0, owner);
+    }
+    return moved;
 }
 
-// As HostService::OnActorRenamed.
-void HostService::OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcept
+void FakeHostEngine::RaiseStoryEvent(const StoryEvent& acEvent) noexcept
 {
-    if (!IsHosting() || acEvent.FormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId())
-        return;
-    if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId))
-        m_pAuthority->NameActor(*cSessionId, acEvent.Name); // as HostService
+    FakeEngine& engine = m_engine;
+    engine.StoriesRaised.push_back(acEvent);
 }
 
-void HostService::OnGameSaving(const GameSavingEvent&) const noexcept
+std::optional<GameId> FakeHostEngine::CreateItem(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) noexcept
 {
-    if (IsHosting())
-        m_pAuthority->Saving();
+    FakeEngine& engine = m_engine;
+    return engine.CreateLoose(acItem, FormIdOf(acPlacement.Cell));
 }
 
-void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
+std::optional<Inventory::Entry> FakeHostEngine::TakeItem(const GameId& acObject) noexcept
 {
-    if (!IsHosting())
-        return;
-    m_pNetwork->Update();
-    m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta, m_world.GetFrameTick());
-    SendWorldAnswers();
-    UpdateReload();
-    if (m_pAggro)
-        m_pAggro->Update(acEvent);
-    if (m_pTakeBacks)
-        m_pTakeBacks->Update(acEvent);
+    FakeEngine& engine = m_engine;
+    return engine.TakeLoose(acObject);
 }
 
-// Never made here (the fake engine is the host's reads), but HostService's members name them.
-HostEngine::~HostEngine() noexcept = default;
-// AnimationSystem and FaceGenSystem as their own (their files read the engine too): the components only.
-void AnimationSystem::Setup(World& aWorld, entt::entity aEntity) noexcept
+std::optional<GameId> FakeHostEngine::DropPartyItem(const Inventory::Entry& acItem, uint32_t aPlayer) noexcept
 {
-    aWorld.emplace_or_replace<RemoteAnimationComponent>(aEntity);
+    FakeEngine& engine = m_engine;
+    return engine.DropsPartyItem(acItem, Utils::GetFormIdBySessionId(aPlayer));
 }
 
-// As the real one through the actor bridge: where the actor is and its actions; no graph variables or direction.
-void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent,
-                                LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent)
+bool FakeHostEngine::TakeQuestObject(const GameId& acObject) noexcept
 {
-    const auto& cActors = aWorld.ctx().at<IActorBridge&>();
-    if (!cActors.ActorExists(formIdComponent.Id))
-        return;
-    auto& update = aMovementSnapshot.Updates[localComponent.Id];
-    auto& movement = update.UpdatedMovement;
-    if (const uint32_t cCell = cActors.GetActorParentCellFormId(formIdComponent.Id))
-        movement.CellId = ToSession(cCell).value_or(GameId{});
-    if (const uint32_t cWorldSpace = cActors.GetActorWorldSpaceFormId(formIdComponent.Id))
-        movement.WorldSpaceId = ToSession(cWorldSpace).value_or(GameId{});
-    float x = 0.f, y = 0.f, z = 0.f;
-    cActors.GetActorPosition(formIdComponent.Id, x, y, z);
-    movement.Position = {x, y, z};
-    cActors.GetActorRotation(formIdComponent.Id, x, y, z);
-    movement.Rotation.x = x;
-    movement.Rotation.y = z;
-    const bool cStreamed = aWorld.GetGraphStreams().Streaming(formIdComponent.Id);
-    if (const auto it = aWorld.ctx().at<FakeEngine&>().Actors.find(formIdComponent.Id); it != aWorld.ctx().at<FakeEngine&>().Actors.end() && !cStreamed)
-        movement.Variables = it->second.GraphVariables;
-    for (auto& entry : animationComponent.Actions)
-        update.ActionEvents.push_back(entry);
-    if (auto latestAction = animationComponent.GetLatestAction())
-        localComponent.CurrentAction = std::move(*latestAction);
-    animationComponent.Actions.clear();
+    FakeEngine& engine = m_engine;
+    return engine.TakeQuestObject(acObject);
 }
 
-void AnimationSystem::TargetToNetwork(ActionEvent& aAction) noexcept
+std::vector<ObjectChange> FakeHostEngine::TakeObjectChanges() noexcept
 {
-    const auto cSessionId = Utils::GetSessionIdByFormId(aAction.TargetId);
-    aAction.TargetActor = cSessionId ? *cSessionId + 1 : 0;
-    if (cSessionId)
-        aAction.TargetId = 0;
+    FakeEngine& engine = m_engine;
+    return std::exchange(engine.Recorded, {});
+}
+
+std::vector<BodyKey> FakeHostEngine::TakeTouches() noexcept
+{
+    FakeEngine& engine = m_engine;
+    std::vector<BodyKey> keys;
+    for (const auto& cPush : std::exchange(engine.PlayerPushes, {}))
+        keys.push_back(cPush.Key);
+    for (const auto& cHit : std::exchange(engine.PlayerHits, {}))
+        keys.push_back(cHit.Key);
+    return keys;
+}
+
+std::vector<std::pair<GameId, glm::vec3>> FakeHostEngine::TakePlaced() noexcept
+{
+    FakeEngine& engine = m_engine;
+    for (auto& [cKey, body] : engine.Bodies)
+        body.PlacedByGame = false; // read: where the game put it (HostEngine::TakeObjectChanges clears PlacedByGame)
+    return std::exchange(engine.Placed, {});
+}
+
+HostBodyReads FakeHostEngine::TakeBodies(uint64_t aTick, const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept
+{
+    FakeEngine& engine = m_engine;
+    const auto cOwner = [&](const PhysicsBodies::Bodies& acBodies) -> std::optional<BodyKey> {
+        if (acBodies.Actor)
+        {
+            const uint32_t cSessionId = aSessionOf(acBodies.FormId);
+            return cSessionId ? std::optional(BodyKey{.Actor = cSessionId}) : std::nullopt;
+        }
+        for (const auto& [cKey, cBody] : engine.Bodies)
+            if (!cKey.Actor && FakeEngine::ReferenceOf(cKey) == acBodies.FormId)
+                return BodyKey{.Object = cKey.Object};
+        return std::nullopt;
+    };
+    engine.PhysicsTick = engine.PhysicsTime(m_world.GetHosting().GetNetwork()->GetTick());
+    const auto cUpdate = m_physics.Take(aTick);
+    HostBodyReads bodies;
+    for (const auto& cAwake : cUpdate.Awake)
+        if (const auto cKey = cOwner(cAwake))
+            for (BodyFrame frame : cAwake.Read)
+            {
+                frame.Key = {cKey->Object, cKey->Actor, frame.Key.Index};
+                if (cAwake.Held)
+                    bodies.Held.push_back(frame.Key);
+                if (!cKey->Actor)
+                    engine.SetMoving(frame.Key, true);
+                bodies.Awake.push_back(frame);
+            }
+    for (const auto& cRested : cUpdate.Rested)
+        if (const auto cKey = cOwner(cRested))
+            for (const BodyFrame& cRead : cRested.Read)
+            {
+                if (!cKey->Actor)
+                    engine.SetMoving({cKey->Object, 0, cRead.Key.Index}, false);
+                bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position,
+                                         .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
+            }
+    return bodies;
+}
+
+std::optional<ObjectChange> FakeHostEngine::ReadContents(const GameId& acObject) const noexcept
+{
+    FakeEngine& engine = m_engine;
+    return acObject.ModId == ObjectChange::kCreatedModId ? engine.ContentsOf(0xFF000000 | acObject.BaseId) : std::nullopt;
+}
+
+std::optional<std::vector<ObjectChange>> FakeHostEngine::ReadCellState(const GameId& acCell, const std::vector<ChangedReference>& acChanged) const noexcept
+{
+    FakeEngine& engine = m_engine;
+    return engine.CellState(acCell, acChanged);
+}
+
+bool FakeHostEngine::RunFor(uint32_t aGuestFormId, const LocalCall& acCall, std::function<void(LocalValue)> aOnReturn) noexcept
+{
+    m_engine.Queue(acCall, aGuestFormId, std::move(aOnReturn));
+    return true;
 }
 
 // CombatService's engine upkeep (Actor.cpp): no remote-player anger or hang watch in the fake.
@@ -615,10 +474,4 @@ void UpdateRemotePlayerAnger() noexcept
 
 void RefreshHangLockWatch() noexcept
 {
-}
-
-void FaceGenSystem::Setup(World& aWorld, entt::entity aEntity, const Tints& acTints) noexcept
-{
-    if (!acTints.Entries.empty())
-        aWorld.emplace_or_replace<FaceGenComponent>(aEntity).FaceTints = acTints;
 }

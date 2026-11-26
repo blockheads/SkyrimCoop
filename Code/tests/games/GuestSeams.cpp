@@ -1,63 +1,77 @@
 // A guest's side in this process: GuestEngine's calls GuestWorldState makes, on the fake engine's world, and
 // GuestService's making of the guest's parts as it joins (its clock, weather, world state and dialogue).
-#include <CreatedIds.h>
-#include <Physics/BodyRead.h>
-#include "GuestSeams.h"
+#include <core/CreatedIds.h>
+#include <physics/BodyRead.h>
 #include "FakeEngine.h"
-#include <Games/QuestStarts.h>
+#include <QuestStarts.h>
 
-#include <Bridges/GuestEngine.h>
-#include <Bridges/IBodyBridge.h>
-#include <Events/ConnectedEvent.h>
-#include <Events/DisconnectedEvent.h>
-#include <Events/UpdateEvent.h>
-#include <Events/StoryEvents.h>
-#include <FormIds.h>
-#include <Events/InventoryChangeEvent.h>
-#include <Games/Overrides.h>
-#include <Services/DialogueService.h>
-#include <Services/Guest/GuestClock.h>
-#include <Services/Guest/GuestDialogue.h>
-#include <Services/Guest/GuestRecord.h>
-#include <Services/Guest/GuestSaves.h>
-#include <Services/Guest/GuestScene.h>
-#include <Services/Guest/GuestCopies.h>
-#include <Services/Guest/GuestBodies.h>
-#include <Services/Guest/GuestWeather.h>
-#include <Services/Guest/GuestEye.h>
-#include <Services/Guest/GuestLeash.h>
-#include <Services/Guest/GuestTraps.h>
-#include <Bridges/IPlayerBridge.h>
-#include <Services/Guest/GuestWorldState.h>
-#include <Services/Guest/GuestWait.h>
-#include <Services/HostService.h>
+#include "FakeGuestEngine.h"
+#include <physics/IBodyBridge.h>
+#include <core/ConnectedEvent.h>
+#include <core/DisconnectedEvent.h>
+#include <core/UpdateEvent.h>
+#include <scripts/StoryEvents.h>
+#include <core/FormIds.h>
+#include <items/InventoryChangeEvent.h>
+#include <items/Overrides.h>
+#include <dialogue/DialogueService.h>
+#include <time/GuestClock.h>
+#include <dialogue/GuestDialogue.h>
+#include <join/GuestRecord.h>
+#include <join/GuestSaves.h>
+#include <scripts/GuestScene.h>
+#include <characters/GuestCopies.h>
+#include <physics/GuestBodies.h>
+#include <time/GuestWeather.h>
+#include <crime/GuestEye.h>
+#include <travel/GuestLeash.h>
+#include <combat/GuestTraps.h>
+#include <ports/IPlayerBridge.h>
+#include <world/GuestWorldState.h>
+#include <time/GuestWait.h>
+#include <game/HostService.h>
 #include <Messages/Relayed.h>
-#include <ScriptValues.h>
-#include <World.h>
-#include <ScriptValues.h>
+#include <core/ScriptValues.h>
+#include <core/World.h>
+#include <core/ScriptValues.h>
 #include <Messages/Relayed.h>
-#include <SessionIds.h>
-#include <Papyrus/PartyRules.h>
+#include <core/SessionIds.h>
+#include <scripts/PartyRules.h>
 
-GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
+FakeGuestEngine::FakeGuestEngine(IBodyBridge& aBodies) noexcept
     : m_bodyBridge(aBodies)
     , m_moving(m_reads, false)
 {
 }
 
-GuestEngine::~GuestEngine() noexcept = default;
+FakeGuestEngine::~FakeGuestEngine() noexcept = default;
 
-bool GuestEngine::RunScenePackage(const GameId& acPackage) noexcept
+bool FakeGuestEngine::RunScenePackage(const GameId& acPackage) noexcept
 {
     FakeEngine::Current().AiDriven = true;
     FakeEngine::Current().ScenePackage = FormIdOf(acPackage);
     return true;
 }
 
-void GuestEngine::EndScenePackage() noexcept
+void FakeGuestEngine::EndScenePackage() noexcept
 {
     FakeEngine::Current().AiDriven = false;
 }
+bool FakeGuestEngine::RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)>) noexcept
+{
+    // As GuestEngine: GlobalCall::QueueCall, as this player's own.
+    const auto cCall = Utils::ToLocalCall(acCall.Call);
+    if (!cCall)
+        return false;
+    FakeEngine::Current().Queue(*cCall, PartyRules::kRoutedCallCause);
+    return true;
+}
+
+bool FakeGuestEngine::Adopting(const GameId& acObject) const noexcept
+{
+    return std::ranges::any_of(m_adopted, [&acObject](const BodyKey& acKey) { return acKey.Object == acObject; });
+}
+
 // The engine's reads as the fake engine's (GuestEngine and HostEngine hold one; HostService's TakeBodies reads the fake
 // directly).
 BodyReads::BodyReads() noexcept = default;
@@ -83,7 +97,7 @@ void BodyReads::WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept
     FakeEngine::Current().WriteNode(aFormId, aIndex);
 }
 
-void GuestEngine::SetDecidesWorld(bool aOn) noexcept
+void FakeGuestEngine::SetDecidesWorld(bool aOn) noexcept
 {
     static uint32_t s_sessions = 0;
     FakeEngine::Current().DecidesWorld = aOn;
@@ -95,7 +109,7 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 }
 
 // As StoryEvents::ToSend: the fake's members name forms by their ids.
-std::optional<StoryEvent> GuestEngine::ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept
+std::optional<StoryEvent> FakeGuestEngine::ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept
 {
     const FakeEngine& cEngine = FakeEngine::Current();
     if (acEvent.Index >= cEngine.StoryTypes.size())
@@ -119,12 +133,12 @@ std::optional<StoryEvent> GuestEngine::ReadStoryEvent(const OwnStoryEvent& acEve
     return StoryEvent{.Type = cType.Id, .Members = std::move(*members)};
 }
 
-void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
+void FakeGuestEngine::SetCalendar(const TimeModel& acTime) noexcept
 {
     FakeEngine::Current().Calendar = acTime;
 }
 
-bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
+bool FakeGuestEngine::HoldWeather(const GameId& acWeather) noexcept
 {
     // Sky::SetWeather(override) (26241): the forced weather, faded into by the next update; held, kept from aging.
     FakeEngine& engine = FakeEngine::Current();
@@ -135,29 +149,29 @@ bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
     return true;
 }
 
-void GuestEngine::ReleaseWeather() noexcept
+void FakeGuestEngine::ReleaseWeather() noexcept
 {
     FakeEngine::Current().ForcedWeather = {};
     FakeEngine::Current().WeatherHeld = false;
 }
 
-GameId GuestEngine::ReadWeatherRegion() const noexcept
+GameId FakeGuestEngine::ReadWeatherRegion() const noexcept
 {
     const uint32_t cRegion = FakeEngine::Current().WeatherRegion;
     return cRegion ? GameId{0, cRegion} : GameId{};
 }
 
-void GuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
+void FakeGuestEngine::HoldEye(const DetectionRules::EyeReading& acReading) noexcept
 {
     FakeEngine::Current().HeldEye = acReading;
 }
 
-void GuestEngine::ReleaseEye() noexcept
+void FakeGuestEngine::ReleaseEye() noexcept
 {
     FakeEngine::Current().HeldEye.reset();
 }
 
-bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
+bool FakeGuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     if (engine.SystemQuestList.IsGlobal(FormIdOf(acGlobal.Id)))
@@ -166,7 +180,7 @@ bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
     return true;
 }
 
-void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
+void FakeGuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
 {
     auto& engine = FakeEngine::Current();
     const uint32_t cId = FormIdOf(acQuest.Id);
@@ -182,7 +196,7 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
     RetryQuestAliases();
 }
 
-void GuestEngine::RetryQuestAliases() noexcept
+void FakeGuestEngine::RetryQuestAliases() noexcept
 {
     auto& engine = FakeEngine::Current();
     for (auto it = m_pendingAliases.begin(); it != m_pendingAliases.end();)
@@ -218,14 +232,14 @@ void GuestEngine::RetryQuestAliases() noexcept
     }
 }
 
-bool GuestEngine::HasLiveBody(const GameId& acObject) noexcept
+bool FakeGuestEngine::HasLiveBody(const GameId& acObject) noexcept
 {
     const auto& cBodies = FakeEngine::Current().Bodies;
     const auto it = cBodies.find(BodyKey{.Object = acObject});
     return it != cBodies.end() && !it->second.Held;
 }
 
-bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept
+bool FakeGuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     if (acChange.Object.ModId != ObjectChange::kCreatedModId)
@@ -287,7 +301,7 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
     return true;
 }
 
-std::optional<DropItemRequest> GuestEngine::ReadDrop(uint32_t aFormId) noexcept
+std::optional<DropItemRequest> FakeGuestEngine::ReadDrop(uint32_t aFormId) noexcept
 {
     const auto& cLoose = FakeEngine::Current().Loose;
     const auto it = cLoose.find(aFormId);
@@ -302,7 +316,7 @@ std::optional<DropItemRequest> GuestEngine::ReadDrop(uint32_t aFormId) noexcept
     return drop;
 }
 
-bool GuestEngine::AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept
+bool FakeGuestEngine::AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept
 {
     const auto it = m_ownDrops.find(aTag);
     if (it == m_ownDrops.end() || !FakeEngine::Current().Loose.contains(it->second))
@@ -320,12 +334,12 @@ bool GuestEngine::AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept
     return true;
 }
 
-std::vector<BodyKey> GuestEngine::TakeAdoptedDrops() noexcept
+std::vector<BodyKey> FakeGuestEngine::TakeAdoptedDrops() noexcept
 {
     return std::exchange(m_adopted, {});
 }
 
-std::optional<PickUpRequest> GuestEngine::ReadPickUp(uint32_t aFormId) const noexcept
+std::optional<PickUpRequest> FakeGuestEngine::ReadPickUp(uint32_t aFormId) const noexcept
 {
     PickUpRequest request;
     for (const auto& [cHostId, cOwn] : m_created)
@@ -338,7 +352,7 @@ std::optional<PickUpRequest> GuestEngine::ReadPickUp(uint32_t aFormId) const noe
     return request;
 }
 
-void GuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
+void FakeGuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     uint32_t twin = 0;
@@ -365,7 +379,7 @@ void GuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
     engine.ObjectAddOrRemoveItem(FakeEngine::kPlayer, acGrant.Item);
 }
 
-std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept
+std::optional<ObjectChange> FakeGuestEngine::ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept
 {
     const auto& cReferences = FakeEngine::Current().References;
     const auto it = cReferences.find(aObjectFormId);
@@ -381,27 +395,27 @@ std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectForm
     return change;
 }
 
-std::vector<uint32_t> GuestEngine::AttachedCells() const noexcept
+std::vector<uint32_t> FakeGuestEngine::AttachedCells() const noexcept
 {
     const auto& cAttached = FakeEngine::Current().Attached;
     return {cAttached.begin(), cAttached.end()};
 }
 
-std::optional<CellStateRequest> GuestEngine::ReadCellChanges(uint32_t aCellFormId) const noexcept
+std::optional<CellStateRequest> FakeGuestEngine::ReadCellChanges(uint32_t aCellFormId) const noexcept
 {
     return FakeEngine::Current().CellChanges(aCellFormId);
 }
 
-bool GuestEngine::IsCellAttached(const GameId& acCell) const noexcept
+bool FakeGuestEngine::IsCellAttached(const GameId& acCell) const noexcept
 {
     return FakeEngine::Current().Attached.contains(FormIdOf(acCell));
 }
 
-void GuestEngine::FreePlaced() noexcept
+void FakeGuestEngine::FreePlaced() noexcept
 {
 }
 
-bool GuestEngine::IsPlacementPending(const GameId& acObject) const noexcept
+bool FakeGuestEngine::IsPlacementPending(const GameId& acObject) const noexcept
 {
     return FakeEngine::Current().PendingPlacements.contains(FormIdOf(acObject));
 }
@@ -418,18 +432,18 @@ std::vector<BodyKey> KeysOf(std::vector<FakeEngine::BodyPush> aPushes)
 }
 } // namespace
 
-std::vector<BodyKey> GuestEngine::TakePushes() noexcept
+std::vector<BodyKey> FakeGuestEngine::TakePushes() noexcept
 {
     return KeysOf(std::exchange(FakeEngine::Current().PlayerPushes, {}));
 }
 
-std::vector<BodyKey> GuestEngine::TakeHits() noexcept
+std::vector<BodyKey> FakeGuestEngine::TakeHits() noexcept
 {
     return KeysOf(std::exchange(FakeEngine::Current().PlayerHits, {}));
 }
 
 // The player's ragdoll is keyed by its form id here (0x14), by index alone out of GuestEngine.
-GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t, const SessionOf_t&) noexcept
+IGuestEngine::OwnBodies FakeGuestEngine::TakeOwnBodies(uint64_t, const SessionOf_t&) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     OwnBodies own;
@@ -465,14 +479,14 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t, const SessionOf_t&) 
 }
 
 // As PhysicsBodies::Follow: read as moved from now, so its rest goes out when it lies still.
-void GuestEngine::FollowOwn(const BodyKey& acKey) noexcept
+void FakeGuestEngine::FollowOwn(const BodyKey& acKey) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     if (const auto it = engine.Bodies.find(acKey); it != engine.Bodies.end() && !it->second.Awake)
         engine.Wake(acKey, 32);
 }
 
-std::vector<BodyFrame> GuestEngine::ReadHeld(const SessionOf_t&) noexcept
+std::vector<BodyFrame> FakeGuestEngine::ReadHeld(const SessionOf_t&) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     const auto it = engine.Grabbed ? engine.Bodies.find(*engine.Grabbed) : engine.Bodies.end();
@@ -495,84 +509,4 @@ std::vector<BodyFrame> GuestEngine::ReadHeld(const SessionOf_t&) noexcept
     BodyFrame frame = it->second.Flight.Body;
     frame.Key = it->first;
     return {frame};
-}
-
-struct GuestSeam::Guest
-{
-    explicit Guest(World& aWorld)
-        : Engine(aWorld.ctx().at<IBodyBridge&>()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
-          Weather(aWorld, aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
-          Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
-          Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
-          Saves(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
-          Bodies(aWorld, Engine),
-          Wait(aWorld, aWorld.GetDispatcher(), Engine),
-          Scene(aWorld, aWorld.GetDispatcher(), Engine),
-          Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>()),
-          Leash(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IPlayerBridge&>()),
-          Traps(aWorld, aWorld.GetDispatcher())
-    {
-    }
-
-    GuestEngine Engine;
-    GuestClock Clock;
-    GuestWeather Weather;
-    GuestEye Eye;
-    GuestWorldState WorldState;
-    GuestDialogue Dialogue;
-    GuestRecord Record;
-    GuestSaves Saves;
-    GuestBodies Bodies;
-    GuestWait Wait;
-    GuestScene Scene;
-    GuestCopies Copies;
-    GuestLeash Leash;
-    GuestTraps Traps;
-};
-
-GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
-{
-    auto& dispatcher = aWorld.GetDispatcher();
-    m_connected = dispatcher.sink<ConnectedEvent>().connect<&GuestSeam::OnConnected>(this);
-    m_disconnected = dispatcher.sink<DisconnectedEvent>().connect<&GuestSeam::OnDisconnected>(this);
-    m_playerNative = dispatcher.sink<NotifyRoutedCall>().connect<&GuestSeam::OnPlayerNative>(this);
-}
-
-void GuestSeam::OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept
-{
-    if (!m_pGuest || acMessage.To != CallTo::kOwner)
-        return;
-    // GuestService::OnPlayerNative -> GuestEngine::RunPlayerNative -> GlobalCall::QueueCall, as this player's own.
-    if (const auto cCall = Utils::ToLocalCall(acMessage.Call))
-        FakeEngine::Current().Queue(*cCall, PartyRules::kRoutedCallCause);
-}
-
-GuestSeam::~GuestSeam() noexcept = default;
-
-void GuestSeam::OnConnected(const ConnectedEvent&) noexcept
-{
-    // The host joins its own session too: its world is its own (GuestService::OnConnected).
-    if (!m_world.GetHostService().IsHosting())
-        m_pGuest = std::make_unique<Guest>(m_world);
-}
-
-void GuestSeam::OnDisconnected(const DisconnectedEvent&) noexcept
-{
-    if (m_pGuest)
-        m_pGuest->Dialogue.OnLeft(); // as GuestService
-    m_pGuest.reset();
-}
-
-void GuestSeam::Update() noexcept
-{
-    if (!m_pGuest)
-        return;
-    const UpdateEvent cUpdate(1.0 / 60);
-    m_pGuest->Clock.OnUpdate(cUpdate);
-    m_pGuest->Weather.OnUpdate(cUpdate);
-    m_pGuest->WorldState.OnUpdate(cUpdate);
-    m_pGuest->Record.OnUpdate(cUpdate);
-    m_pGuest->Engine.FreePlaced();
-    m_pGuest->Wait.OnUpdate();
-    m_pGuest->Leash.OnUpdate(cUpdate);
 }

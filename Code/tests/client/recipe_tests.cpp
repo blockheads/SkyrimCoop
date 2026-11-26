@@ -2,7 +2,7 @@
 // docs/design/crafted-potions.md).
 #include <catch2/catch.hpp>
 
-#include <RecipeBook.h>
+#include <core/RecipeBook.h>
 
 #include <map>
 

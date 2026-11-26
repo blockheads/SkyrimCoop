@@ -3,7 +3,7 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <SessionIds.h>
+#include <core/SessionIds.h>
 
 namespace
 {

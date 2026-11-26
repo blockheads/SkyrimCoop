@@ -64,6 +64,6 @@ packages) comes back with the reference's own change form. A guest joining takes
 
 Measured again for quest rewards (2026-10-27): real host and guest turn-ins of Finn's Lute, The Book of Love and
 The Golden Claw produce the guest's native stage, stage-item-done and QuestStatus completion events, without a
-reward fragment (`TestHarness/QuestFragments.cpp` counters, [quest-rewards.md](../../design/quest-rewards.md)).
+reward fragment (`harness/TestHarness/QuestFragments.cpp` counters, [quest-rewards.md](../../design/quest-rewards.md)).
 TESQuestStartStopEvent is a separate signal, not a completion event; stop counts can differ on the guest's flag
 application path. No installed Experience DLL result is claimed by these event measurements.

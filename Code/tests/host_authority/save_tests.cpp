@@ -3,7 +3,7 @@
 
 #include <Messages/DeathMessages.h>
 #include <Messages/JoinMessages.h>
-#include <Services/Host/HostSaveTransfer.h>
+#include <join/HostSaveTransfer.h>
 
 namespace
 {

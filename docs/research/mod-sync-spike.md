@@ -7,7 +7,7 @@ changes except throwaway prototypes under `tools/spikes/mod-sync/` (see "Rules")
 ## The project in five lines
 
 SkyrimCoop is a co-op mod for Skyrim Special Edition (runtime 1.6.1170), forked from Skyrim Together.
-It is an SKSE plugin (a Windows DLL, `SkyrimTogetherClient.dll`, cross-built on Linux) that lets one
+It is an SKSE plugin (a Windows DLL, `SkyrimCoop.dll`, cross-built on Linux) that lets one
 player host from inside their game and friends join; the host's game is the only authority. Players
 are on Windows, and on Linux through Steam's Proton. The target experience: the host clicks Host and
 invites a friend through Steam; the friend accepts and, without loading a save of their own, is in the
@@ -152,10 +152,10 @@ Fallout 76 is not relevant). How do they handle mod mismatches?
 - `docs/design/join-flow.md`: the agreed join flow, the manifest, the plugin's file interface
   (`request`, `status`, `events`, `manifest`), the join panel, and the open mod sync question.
 - `docs/design/world-state-sync.md`: loading the host's world through its save.
-- `Code/client/skse_entry.cpp`: how the plugin loads under SKSE (load phases, versions it reads).
+- `Code/plugin/skse_entry.cpp`: how the plugin loads under SKSE (load phases, versions it reads).
 - `Code/hotreload/Loader.cpp`: a resident loader that loads the client DLL from a copy (test builds);
   relevant to restarting into a new build.
-- `IFormBridge::GetLoadedMods` (`Code/client/Bridges/`): what the plugin reads of the load order today.
+- `IFormBridge::GetLoadedMods` (`Code/engine/Bridges/`): what the plugin reads of the load order today.
 - Earlier Steam research, kept in git stashes (`git stash list`): "steam/launcher work" holds a
   `steam_probe` diagnostic with `Code/steam_probe/RESULTS.md` and a PySide launcher prototype
   (`Code/launcher/`, which parses `+connect_lobby`). Its files were untracked, so read them with

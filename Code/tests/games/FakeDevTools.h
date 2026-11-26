@@ -2,8 +2,8 @@
 
 #include "FakeEngine.h"
 
-#include <Bridges/IDevToolsBridge.h>
-#include <Services/DevCommands.h>
+#include <tools/IDevToolsBridge.h>
+#include <tools/DevCommands.h>
 
 #include <sstream>
 #include <vector>

@@ -1,6 +1,6 @@
 #include <catch2/catch.hpp>
 
-#include <Games/ItemMenuGate.h>
+#include <ItemMenuGate.h>
 
 #include <atomic>
 #include <thread>

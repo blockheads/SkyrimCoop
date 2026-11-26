@@ -5,7 +5,7 @@ How health, magicka and stamina regenerate, and why copies must not (1.6.1170, v
 | ID | Name (ours) | What |
 |---|---|---|
 | 38451 / 38453 / 38452 | `Actor::UpdateHealthRegen` / `UpdateMagickaRegen` / `UpdateStaminaRegen` | Per frame, `(actor, deltaSecs)`. Each checks the process and `38461(actor, av)`, then calls 38459 with its actor value (24 / 25 / 26). |
-| 38459 | `Actor::RegenerateActorValue` | `(actor, av, deltaSecs)`. Gets the rate from 38460; if the value is damaged, restores `rate * deltaSecs` into the damage modifier (`ActorValueOwner` vfunc +0x30). **We hook it** (`HookRegenerateActorValue`, `Code/client/Games/Skyrim/Actor.cpp`). |
+| 38459 | `Actor::RegenerateActorValue` | `(actor, av, deltaSecs)`. Gets the rate from 38460; if the value is damaged, restores `rate * deltaSecs` into the damage modifier (`ActorValueOwner` vfunc +0x30). **We hook it** (`HookRegenerateActorValue`, `Code/engine/Actor.cpp`). |
 | 38460 | `Actor::GetActorValueRegenRate` | `(actor, av)` → per-second amount: `HealRate`/`MagickaRate`/`StaminaRate` percent of the maximum, times the combat multipliers (`CombatHealthRegenMultiply`, `fCombatMagickaRegenRateMult`, ...), perk entries, and the `...RateMult` value. Also called when an attack's stamina cost empties stamina (38603). |
 
 ## When a pool may regenerate (1.7.104, read in IDA 2026-11-23)

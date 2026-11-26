@@ -1,7 +1,7 @@
-// The kEnabled row's value: enabled, deleted and destroyed (Games/EnabledRow.h).
+// The kEnabled row's value: enabled, deleted and destroyed (sync/world/EnabledRow.h).
 #include <catch2/catch.hpp>
 
-#include <Games/EnabledRow.h>
+#include <world/EnabledRow.h>
 
 using namespace EnabledRow;
 

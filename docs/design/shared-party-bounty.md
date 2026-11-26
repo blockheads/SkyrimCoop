@@ -100,7 +100,7 @@ the tether. The tests check Whiterun's actual dungeon (Skyrim.esm:04A376), the h
 and positive sentence, and both players standing together. The host jail control calls the native
 theft entry; guest cases steal through the actual container UI and choose with their keys.
 
-Engine layouts formerly embedded in CrimeBridge now live in Games/Skyrim/Crime.h with checked
+Engine layouts formerly embedded in CrimeBridge now live in engine/Crime.h with checked
 offsets. The AE gold-map integers differ from CommonLib's older float layout. Jail faction +0x720
 and sentence +0x728 are measured in 40655. Existing death, character, Skyrim actor hooks and physics
 files are unchanged.
@@ -156,7 +156,7 @@ Current review evidence lives in ignored build/crime-re/guard-jail/:
 - Six native shared-dialogue regressions and nine of the ten earlier crime cases PASS in shuffled
   order (native-regressions.log, seed 2610272). Pickpocket's bounty checks pass, then the whole-world
   comparison finds QA ladle 32AFE rotated differently. The world checker and physics are unchanged.
-- ClientTests 360 assertions, HostAuthorityTests 1647, TPTests 203, UI fixtures and the Windows plugin
+- UnitTests 360 assertions, HostAuthorityTests 1647, TPTests 203, UI fixtures and the Windows plugin
   build PASS. The full gate still fails the intermittent physics carry case at physics_flows.cpp:140
   (75 units versus 45 allowed), previously reproduced on dev (baseline-carry.log). check.log retains it.
 
@@ -177,7 +177,7 @@ blocking crime/dialogue findings. Simplified container-transfer capture to retur
 code outside guest theft transfers. The merge preserves dev's BodyService wiring and BodyRestsRequest
 opcode before appending CrimeRequest; existing actor, death and physics implementation files are unchanged.
 
-The integrated tree passes scripts/check.sh: ClientTests 360 assertions, HostAuthorityTests 1664,
+The integrated tree passes scripts/check.sh: UnitTests 360 assertions, HostAuthorityTests 1664,
 TPTests 206, GameTests 1297 / 115 cases, UI fixtures and the Windows plugin build. The earlier carry
 failure did not recur in this gate; it does not establish that the native physics issues above are fixed.
 Both lossy crime/dialogue profiles pass (7 cases / 52 assertions each): 50 ms / 30 ms jitter / 5% loss

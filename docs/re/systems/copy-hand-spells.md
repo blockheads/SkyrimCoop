@@ -12,7 +12,7 @@ also compares the hand spells, and a difference takes the existing reset (`Actor
 owner's spells, then the worn set). Shouts are not compared: not seen dropped.
 
 Tests: scenario `copy-keeps-spell-after-party-travel`; GameTests "A player's copy holds its owner's spell after party
-travel" (the fake drops an NPC's hand spells on a cell change); ClientTests `[hand-spell]`.
+travel" (the fake drops an NPC's hand spells on a cell change); UnitTests `[hand-spell]`.
 
 ## Selected, not held (2026-11-07)
 
@@ -35,5 +35,5 @@ also reads a loaded copy's hands: a hand the owner holds a spell in that holds n
 (`EquipmentRepair::HandHolds`). A hand holding a weapon over a stale selection is left alone, so it cannot reset every 3 s.
 
 Tests: scenario `copy-holds-spell-after-trip`; GameTests "A player's copy whose 3D comes back holds its owner's spell,
-not only selects it" (the fake learns both places: `HeldSpells`, `EquipSpells`, `Unload3D`); ClientTests `[hand-spell]`.
+not only selects it" (the fake learns both places: `HeldSpells`, `EquipSpells`, `Unload3D`); UnitTests `[hand-spell]`.
 Readout: `mod.selected_spells` beside `state.hands`.

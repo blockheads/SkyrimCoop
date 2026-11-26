@@ -1,8 +1,11 @@
 // Actor values across games (ActorValueService): an owner's health lost and regained shows on its copies.
 #include "Party.h"
 #include "Fixtures.h"
-#include <Events/ReferenceLoadedEvent.h>
+#include <characters/ReferenceLoadedEvent.h>
 #include <Messages/Relayed.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <core/RemoteComponent.h>
 
 namespace
 {

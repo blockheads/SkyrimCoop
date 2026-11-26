@@ -1,5 +1,5 @@
 // HostNetwork runs on the host's game frame (HostService::OnUpdate): it must never block it.
-#include <Services/Host/HostNetwork.h>
+#include <core/HostNetwork.h>
 
 #include <network/Client.h>
 

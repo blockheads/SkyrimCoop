@@ -1,89 +1,90 @@
-#include <Games/Skyrim/CriticalStageRules.h>
-#include <Games/Animation/DeferredClips.h>
-#include <Games/DisplayNames.h>
-#include <Games/FreedWornList.h>
+#include <CriticalStageRules.h>
+#include <animation/DeferredClips.h>
+#include <DisplayNames.h>
+#include <FreedWornList.h>
 #include <Diagnostics/HeadTrackRead.h>
-#include <Games/Skyrim/CopyCombat.h>
-#include <Events/MenuEvent.h>
-#include <Events/InterruptCastEvent.h>
-#include <Events/ActorHeadUpdateEvent.h>
-#include <Games/CheckedPlacement.h>
-#include <Events/PlayerDeathEvent.h>
+#include <CopyCombat.h>
+#include <core/MenuEvent.h>
+#include <magic/InterruptCastEvent.h>
+#include <characters/ActorHeadUpdateEvent.h>
+#include <CheckedPlacement.h>
+#include <core/PlayerDeathEvent.h>
 #include "FakeEngine.h"
-#include <Systems/CopyStep.h>
-#include <Games/OwnerEffects.h>
+#include <movement/CopyStep.h>
+#include <magic/OwnerEffects.h>
 
-#include <Events/DismountEvent.h>
-#include <Events/BoardEvent.h>
-#include <Events/MountEvent.h>
-#include <Events/SaveWrittenEvent.h>
+#include <mounts/DismountEvent.h>
+#include <mounts/BoardEvent.h>
+#include <mounts/MountEvent.h>
+#include <join/SaveWrittenEvent.h>
 
-#include <Games/Animation/GraphState.h>
-#include <Games/Animation/GraphStream.h>
+#include <animation/GraphState.h>
+#include <animation/GraphStream.h>
 #include <bit>
 #include <set>
 #include <span>
-#include <Events/ActorRenamedEvent.h>
+#include <characters/ActorRenamedEvent.h>
 #include "FakeDialogue.h"
-#include <Events/PlayerTravelQueuedEvent.h>
-#include <Events/StoryEvents.h>
+#include <core/PlayerTravelQueuedEvent.h>
+#include <scripts/StoryEvents.h>
 
-#include <Events/ContainerChangeEvent.h>
-#include <Events/DifficultyChangeEvent.h>
-#include <Events/ActivateEvent.h>
-#include <Services/ContainerOpens.h>
-#include <Services/DeathDrops.h>
-#include <Events/AddTargetEvent.h>
-#include <Services/HostService.h>
-#include <Events/SummonEvent.h>
-#include <Events/AiStateChangeEvent.h>
-#include <Events/EffectVisualsChangeEvent.h>
-#include <Events/EquipmentChangeEvent.h>
-#include <Events/HealthChangeEvent.h>
-#include <Events/ActorDamagedEvent.h>
-#include <Events/ActorValueChangeEvent.h>
-#include <Events/ActorDeathChangeEvent.h>
-#include <Events/ReferenceLoadedEvent.h>
-#include <Events/NpcHeldEvent.h>
-#include <Games/GuestNpcs.h>
-#include <Games/DeathActions.h>
-#include <Games/Animation/ReplayCapture.h>
-#include <Games/Animation/ReplayGraph.h>
-#include <Games/NpcSnapshot.h>
-#include <Events/HitEvent.h>
-#include <Events/ProjectileLaunchedEvent.h>
-#include <Events/TrapEvents.h>
-#include <Games/Skyrim/TrapRules.h>
-#include <Events/SpellCastEvent.h>
-#include <Events/InventoryChangeEvent.h>
-#include <Events/LockChangeEvent.h>
-#include <Events/LooseItemEvents.h>
-#include <Events/CallEndedEvent.h>
-#include <Events/RoutedCallEvent.h>
-#include <Events/PlayerProgressEvent.h>
-#include <Games/EngineNames.h>
-#include <Games/Animation/ActorStateRules.h>
-#include <Games/Animation/ReplayState.h>
-#include <Events/RemoveWaypointEvent.h>
-#include <Events/SetWaypointEvent.h>
-#include <Events/TimeScaleEvent.h>
+#include <items/ContainerChangeEvent.h>
+#include <core/DifficultyChangeEvent.h>
+#include <world/ActivateEvent.h>
+#include <items/ContainerOpens.h>
+#include <death/DeathDrops.h>
+#include <combat/AddTargetEvent.h>
+#include <magic/SummonEvent.h>
+#include <actorstate/AiStateChangeEvent.h>
+#include <magic/EffectVisualsChangeEvent.h>
+#include <items/EquipmentChangeEvent.h>
+#include <actorstate/HealthChangeEvent.h>
+#include <characters/ActorDamagedEvent.h>
+#include <characters/ActorValueChangeEvent.h>
+#include <characters/ActorDeathChangeEvent.h>
+#include <characters/ReferenceLoadedEvent.h>
+#include <characters/NpcHeldEvent.h>
+#include <GuestNpcs.h>
+#include <actorstate/DeathActions.h>
+#include <animation/ReplayCapture.h>
+#include <animation/ReplayGraph.h>
+#include <characters/NpcSnapshot.h>
+#include <combat/HitEvent.h>
+#include <animation/ActionRules.h>
+#include <magic/EffectRules.h>
+#include <magic/ProjectileLaunchedEvent.h>
+#include <combat/TrapEvents.h>
+#include <combat/TrapRules.h>
+#include <magic/SpellCastEvent.h>
+#include <items/InventoryChangeEvent.h>
+#include <world/LockChangeEvent.h>
+#include <items/LooseItemEvents.h>
+#include <scripts/CallEndedEvent.h>
+#include <scripts/RoutedCallEvent.h>
+#include <core/PlayerProgressEvent.h>
+#include <core/EngineNames.h>
+#include <animation/ActorStateRules.h>
+#include <animation/ReplayState.h>
+#include <travel/RemoveWaypointEvent.h>
+#include <travel/SetWaypointEvent.h>
+#include <time/TimeScaleEvent.h>
 #include <Structs/GridCellCoords.h>
-#include <Papyrus/PartyNatives.h>
-#include <Papyrus/SystemQuests.h>
-#include <Events/SystemQuestLearnedEvent.h>
-#include <ScriptValues.h>
+#include <scripts/PartyNatives.h>
+#include <scripts/SystemQuests.h>
+#include <scripts/SystemQuestLearnedEvent.h>
+#include <core/ScriptValues.h>
 #include <array>
 #include <ranges>
 #include <cstdio>
-#include <Games/Overrides.h>
-#include <Events/GameLoadedEvent.h>
-#include <Events/MenuEvent.h>
-#include <Events/PlayerFormChangeEvent.h>
-#include <Services/SaveService.h>
-#include <Services/SaveNames.h>
+#include <items/Overrides.h>
+#include <join/GameLoadedEvent.h>
+#include <core/MenuEvent.h>
+#include <core/PlayerFormChangeEvent.h>
+#include <join/SaveService.h>
+#include <join/SaveNames.h>
 #include <Wire/Buffer.h>
-#include <World.h>
-#include <FormIds.h>
+#include <core/World.h>
+#include <core/FormIds.h>
 
 using namespace PartyRules;
 bool FakeEngine::IsLyingInRagdoll(uint32_t aFormId) const noexcept
@@ -413,13 +414,13 @@ void FakeEngine::GenerateGraph(Actor& aActor) const
     floats[cDamp->Output] = graph.Damped;
 }
 
-// One graph update (63358): channels, then the step; an owner's recorded for its copies (Games/Animation's hooks).
+// One graph update (63358): channels, then the step; an owner's recorded for its copies (engine/Animation's hooks).
 void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
 {
     const auto cStep = float(aActor.AnimationStepMs); // the stream carries it as a float, as Skyrim's deltaTime
     WriteGraphChannels(aActor, cStep);
     auto& streams = World::Get().GetGraphStreams();
-    // In a pair or a kill move it is recorded on, but gives no sync point (Games/Skyrim's 63587 hook).
+    // In a pair or a kill move it is recorded on, but gives no sync point (the engine's 63587 hook).
     const bool cOwnBody = aActor.InPair || aActor.InKillMove || aActor.InPairClip;
     const bool cRecorded = !aActor.Copy && streams.Recording(aFormId);
     if (cRecorded)
@@ -489,7 +490,7 @@ struct FakeGraphTarget final : IGraphTarget
         const auto cEvents = Engine.GraphEventTable();
         if (aEventId >= cEvents.size())
             return nullptr;
-        // As Games/Skyrim's target: between frames, not in the graph's update.
+        // As the engine's target: between frames, not in the graph's update.
         const auto cCopy = [pEngine = &Engine, cFormId = FormId] {
             const auto cActor = pEngine->Actors.find(cFormId);
             return cActor != pEngine->Actors.end() && cActor->second.Copy;
@@ -507,7 +508,7 @@ void FakeEngine::ReplayStream(uint32_t aFormId, Actor& aActor)
     m_replaying = true;
     World::Get().GetGraphStreams().Replay(aFormId, target, GraphIdentity(aActor), aActor.GraphProject);
     m_replaying = false;
-    aActor.Graph.Updated = false; // its generate passes are its owner's, in the replay (Games/Skyrim's 63587 hook)
+    aActor.Graph.Updated = false; // its generate passes are its owner's, in the replay (the engine's 63587 hook)
 }
 
 void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32_t aProject)
@@ -677,7 +678,7 @@ void FakeEngine::Frame()
     if (Graph)
         for (auto& [cId, actor] : Actors)
         {
-            // On its own body (in a pair): off its owner's stream, and back after (Games/Skyrim's 63587 hook).
+            // On its own body (in a pair): off its owner's stream, and back after (the engine's 63587 hook).
             if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && streams.Held(cId))
                 streams.HoldWhile(cId, ::ReplayState::CopyOwnBody(actor.InPair, actor.InKillMove, false, SitState(cId)));
             if (actor.Copy)
@@ -1845,7 +1846,7 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         // 32803 makes an instance and plays the target's half through its graph (63591); a replay names no target
         // event for a copy partner (PlayReplayedAction): no instance, its half is its owner's action.
         const bool cInstance = !Replaying || actor.Replay.PairHere;
-        // A copy on its owner's stream takes the half only held off the stream (Games/Skyrim's 63591 hook); refused,
+        // A copy on its owner's stream takes the half only held off the stream (the engine's 63591 hook); refused,
         // the pair fails.
         if (auto& streams = World::Get().GetGraphStreams();
             cInstance && cPartner->second.Copy && streams.OnStream(acAction.TargetId) && !streams.HoldWhile(acAction.TargetId, true))
@@ -1853,7 +1854,7 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         // 32803 plays the partner's half through Func5 (41557) -> 38949: our hook refuses a copy's own action but for
         // the local player's partner's half or a half of a pair replayed here; refused, the pair fails.
         if (cInstance && cPartner->second.Copy &&
-            !::ReplayState::CopyTakesAction(false, !Replaying && aFormId == kPlayer, Replaying))
+            !ActionRules::Before({.Copy = true, .PlayerActing = !Replaying && aFormId == kPlayer, .TargetIsThisPlayer = aFormId == kPlayer, .Replaying = Replaying}).Take)
             return false;
         // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once. Paired:
         // in an instance (32808), or each playing its half from its own game's pair; not the kill move flag alone (an
@@ -1933,7 +1934,7 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
     }
     if (!GraphTransitions.empty() && !actor.GraphState.empty())
     {
-        // 63591's hook: an owner's event recorded before its graph handles it (Games/Animation).
+        // 63591's hook: an owner's event recorded before its graph handles it (engine/Animation).
         if (auto& streams = World::Get().GetGraphStreams(); Graph && !actor.Copy && streams.Recording(aFormId))
             streams.OnEvent(aFormId, streams.Tick(), GraphEventId(acAction.EventName), GraphWords(actor), {actor.GraphRandom, 0});
         // A copy on its stream takes its owner's events alone (63591's hook drops any other).
@@ -2049,19 +2050,26 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     });
     if (!aQuery)
         ApplyActionWrites(aFormId, aAction.EventName);
-    if (cOutcome.Capture && cOutcome.Result)
-    {
-        aAction.StateAfter1 = Actors.at(aFormId).State1;
-        if (::ReplayState::StartsAttack(aAction.EventName))
-            Actors.at(aFormId).ClashUntil = 0;
+    // HookPerformAction's second half: ActionRules::After decides.
+    const auto cAfter = ActionRules::After({
+        .Captured = cOutcome.Capture,
+        .Accepted = cOutcome.Result != 0,
+        .Paired = !aAction.TargetEventName.empty(),
         // Without a behaviour graph no copy is on a stream (a fixture's scripted transitions alone).
-        const auto& cActor = Actors.at(aFormId);
-        const bool cOwnBody = ::ReplayState::CopyOwnBody(false, false, false, SitState(aFormId));
-        if (::ReplayState::CarriesGraphState(!aAction.TargetEventName.empty(), Graph && World::Get().GetGraphStreams().Streaming(aFormId), cOwnBody))
-            aAction.GraphState = SaveActorGraphState(aFormId);
+        .Streamed = Graph && World::Get().GetGraphStreams().Streaming(aFormId),
+        .OwnBody = ::ReplayState::CopyOwnBody(false, false, false, SitState(aFormId)),
+        .Event = aAction.EventName,
+    });
+    if (cAfter.Record)
+        aAction.StateAfter1 = Actors.at(aFormId).State1;
+    if (cAfter.ResetClash)
+        Actors.at(aFormId).ClashUntil = 0;
+    if (cAfter.GraphState)
+        aAction.GraphState = SaveActorGraphState(aFormId);
+    if (cAfter.Record)
         Actors.at(aFormId).LatestAnimation = aAction;
+    if (cAfter.Send)
         World::Get().GetDispatcher().trigger(aAction);
-    }
     return cOutcome.Result != 0;
 }
 
@@ -3378,44 +3386,47 @@ void FakeEngine::StopsCasting(uint32_t aCaster, uint32_t aSource)
         World::Get().GetRunner().Trigger(InterruptCastEvent(aCaster, aSource));
 }
 
+// HookAddTarget: reads the landing, EffectRules::Of decides.
 void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude,
                            bool aDualCast)
 {
-    const auto cTarget = Actors.find(aTarget);
-    if (cTarget == Actors.end())
+    if (!Actors.contains(aTarget))
         return;
-    const bool cOurCast = Actors.contains(aCaster) && !Actors.at(aCaster).Copy;
-    // A summon on its caster: applied here (a guest's CreateSummon makes nothing); a guest's player's goes to the host's
-    // game too (MagicTarget's hook, summons.md).
-    if (Spell(aSpell).Summons && aTarget == aCaster && cOurCast)
+    const SpellForm cSpell = Spell(aSpell);
+    const auto cVerdict = EffectRules::Of({
+        .Target = PartyOf(aTarget),
+        .Caster = PartyOf(aCaster),
+        .TargetIsThisPlayer = aTarget == kPlayer,
+        .CasterIsTarget = aCaster == aTarget,
+        .Guest = HoldSession != 0,
+        .Hosting = World::Get().IsHosting(),
+        .Summon = cSpell.Summons != 0,
+        .Shared = !cSpell.Summons && !cSpell.Invisibility,
+        .Healing = cSpell.Healing,
+        .Buff = cSpell.Buff,
+        .WorldImpact = InWorldImpact,
+    });
+    if (cVerdict.AskOwner)
     {
-        if (HoldSession && aTarget == kPlayer)
-            World::Get().GetRunner().Trigger(SummonEvent{aSpell, aEffect, aMagnitude});
-        AddMagicTargetEffect(aTarget, aCaster, aSpell, aEffect, aMagnitude, false, false, false);
-        return;
-    }
-    if (cTarget->second.Copy)
-    {
-        // A world cast (no actor casts it: a trap's object, a hazard's or explosion's 0) on another player's copy goes to
-        // that player's game (IsWorldCast).
-        const bool cWorldCast = (!Actors.contains(aCaster) || InWorldImpact) && IsOtherPlayer(aTarget) && World::Get().GetHostService().IsHosting();
-        if (!cOurCast && !cWorldCast)
-            return;
         AddTargetEvent event;
         event.TargetID = aTarget;
-        event.CasterID = Actors.contains(aCaster) ? aCaster : 0; // an actor's only (HookAddTarget)
+        event.CasterID = Actors.contains(aCaster) ? aCaster : 0; // an actor's only
         event.SpellID = aSpell;
         event.EffectID = aEffect;
         event.Magnitude = aMagnitude;
         event.IsDualCasting = aDualCast;
         World::Get().GetRunner().Trigger(event);
-        return;
     }
-    // A guest's own copy of a world cast on its player applies nothing: the host's verdict does (AppliesWorldEffect).
-    if (!TrapRules::AppliesWorldEffect(HoldSession != 0, aTarget == kPlayer ? HitRules::Party::LocalPlayer : HitRules::Party::Local,
-                                       !Actors.contains(aCaster) || InWorldImpact, false))
+    if (cVerdict.Hit)
+        World::Get().GetRunner().Trigger(HitEvent(aCaster, aTarget));
+    if (!cVerdict.Apply)
         return;
-    if (EffectHolds(aEffect, aDualCast, aCaster))
+    if (cVerdict.Summon)
+        World::Get().GetRunner().Trigger(SummonEvent{aSpell, aEffect, aMagnitude});
+    // A summon on its caster makes its creature (a guest's CreateSummon makes nothing).
+    if (cSpell.Summons && aTarget == aCaster)
+        AddMagicTargetEffect(aTarget, aCaster, aSpell, aEffect, aMagnitude, false, false, false);
+    else if (EffectHolds(aEffect, aDualCast, aCaster))
         StartsEffect({aTarget, aCaster, aSpell, aEffect});
 }
 
@@ -3700,9 +3711,13 @@ HitRules::Party FakeEngine::PartyOf(uint32_t aFormId) const noexcept
     return Local;
 }
 
-void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit)
+// HookDamageActor: reads the hit, HitRules::Lands decides.
+void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit, bool aCancelledBlow)
 {
-    switch (HitRules::Of(PartyOf(aHittee), PartyOf(aHitter), aApplyingEffect, aWorldHit, aWorldHit && HoldSession != 0))
+    const auto cVerdict = HitRules::Lands(PartyOf(aHittee), PartyOf(aHitter), aCancelledBlow, aApplyingEffect, aWorldHit, aWorldHit && HoldSession != 0);
+    if (cVerdict.Hit)
+        World::Get().GetRunner().Trigger(HitEvent(aHitter, aHittee));
+    switch (cVerdict.To)
     {
     case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage));
@@ -3719,7 +3734,7 @@ void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, 
 void FakeEngine::TouchesTrap(uint32_t aActor, uint32_t aTrap)
 {
     World& world = World::Get();
-    switch (TrapRules::OfContact(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor), false))
+    switch (TrapRules::OfContact(world.GetTransport().IsOnline(), world.IsHosting(), PartyOf(aActor), false))
     {
     case TrapRules::Contact::Raise: RunsTrapScript(aTrap, aActor); break;
     case TrapRules::Contact::AskHost: world.GetRunner().Trigger(TrapContactEvent{aTrap, aActor, {.Velocity = {1.f, 2.f, 3.f}}}); break;
@@ -3736,7 +3751,7 @@ void FakeEngine::RunsTrapScript(uint32_t aTrap, uint32_t aActor)
     if (!trap.TrapCanHit)
         return;
     World& world = World::Get();
-    switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor)))
+    switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.IsHosting(), PartyOf(aActor)))
     {
     case TrapRules::Hit::Apply: TakesDamage(aActor, 0, trap.TrapDamage, false); break;
     case TrapRules::Hit::AskOwner: world.GetRunner().Trigger(TrapHitEvent{aTrap, aActor, {.Damage = trap.TrapDamage}}); break;
@@ -3751,14 +3766,9 @@ void FakeEngine::TakeTrapHit(uint32_t aFormId, uint32_t, const Payloads::TrapHit
 
 void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
 {
-    // HookDamageActor's check.
-    if (const auto& cHitter = Actors.at(aHitter);
-        ::ReplayState::CancelledBlow(World::Get().GetTick() < cHitter.ClashUntil))
-        return;
     if (!Actors.contains(aHittee))
         return;
-    World::Get().GetRunner().Trigger(HitEvent(aHitter, aHittee));
-    TakesDamage(aHittee, aHitter, aDamage, false);
+    TakesDamage(aHittee, aHitter, aDamage, false, false, ::ReplayState::CancelledBlow(World::Get().GetTick() < Actors.at(aHitter).ClashUntil));
 }
 
 void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile, const glm::vec3& acOrigin)

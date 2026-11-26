@@ -1,7 +1,7 @@
 // A story event of any type between the engine and the session (Misc/StoryEventRules).
 #include <catch2/catch.hpp>
 
-#include <Misc/StoryEventRules.h>
+#include <scripts/StoryEventRules.h>
 
 #include <cstring>
 

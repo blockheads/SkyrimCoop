@@ -80,11 +80,11 @@ guest's proposal (`ContainerChangeRequest`) carries them the same way, and a cel
 | Piece | Where |
 |---|---|
 | Messages | `Code/encoding/Messages/DroppedItems.h` (`DropItemRequest`, `NotifyItemDropped`, `PickUpRequest`, `NotifyPickUp`); `ObjectChange::Stacks`, `ContainerChangeRequest::Stacks`; `Inventory::Entry::ExtraName` |
-| Host's rule | `Services/Host/HostItems` (registered in `HostAuthority`); `HostGame::CreateItem`, `TakeItem`, `SetItems` (a kItems change) |
+| Host's rule | `sync/items/HostItems` (registered in `HostAuthority`); `HostGame::CreateItem`, `TakeItem`, `SetItems` (a kItems change) |
 | Host's engine | `HostEngine::CreateItem` (made past the creation hook, logged as created), `TakeItem`, `ReadCreate` (the item's stack) |
 | Guest | `GuestWorldState` (drop, pickup, their answers), `GuestEngine::ReadDrop`, `AdoptDrop`, `ReadPickUp`, `PickUp`, `IsPartyItem` (the pickup gate), `Create` (a twin with its count and extra data); `GuestHands` owns an adopted drop's body |
 | Engine | `Bridges/LooseItems` (read, place, make), `Bridges/ContainerItems` (stacks), `ExtraDataList::SetCount` (11617), `SetCustomName` (vtable 186855, SKSE's `s_ExtraTextDisplayVtbl`), `TESObjectREFR::SetItemExtraData`; hooks: `HookDropObject` raises `ItemDroppedEvent` with the made reference (40454's result handle), `PlayerCharacter`'s `HookPickUpObject` asks the gate |
-| Harness | `give_item`, `drop`, `store`, `item_stacks` (`TestHarness/CommandsWorld.cpp`) |
+| Harness | `give_item`, `drop`, `store`, `item_stacks` (`harness/TestHarness/CommandsWorld.cpp`) |
 
 Engine notes (IDA, 1.6.1170): `PlayerCharacter::DropObject` (40454) removes the item through the actor's `RemoveItem`
 (vtable 0x56, reason 3 dropping, the extra list), which makes the reference, and returns its handle; under a condition

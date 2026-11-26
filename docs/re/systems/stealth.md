@@ -117,7 +117,7 @@ Now the noise is its owner's (one-simulator.md, R2): `ActorStatePart::Noise` car
 holds it until the owner's part clears it (`ActorStateRules::CopyNoiseTimer`; the copy's own countdown never ends it),
 and `HookSetActionValue` keeps a copy's own engine (a replayed swing or cast) from setting one. Five rounds of
 `host_death_watch` after: no search, the copy at 175-209 at the switch. Tests: GameTests "A guest's bump is heard on
-the host", ClientTests `[actor-state]`, TPTests the part's round trip, scenario `guest-bump-heard-on-host`.
+the host", UnitTests `[actor-state]`, TPTests the part's round trip, scenario `guest-bump-heard-on-host`.
 
 ## The eye is the host's (read and built 2026-11-21, one-simulator.md piece 8)
 
@@ -150,7 +150,7 @@ every game: a copy's pass of this game's player is unseen (DetectionRules::Insta
 Measured after: in the fight both games show 100 (scenario `guest-eye-is-hosts`); sneaking in front of Andurs the
 guest's eye follows the host's reading a read behind (-14, then 47); a negative level (-16) reaches it intact.
 A copy released to its own game (a guest leaving) drops a held noise (`ActorStateRules::HoldsOwnersNoise`). Tests: GameTests "A guest's eye is what the host's
-NPCs see of it", HostAuthorityTests `[Eye]`, ClientTests `[DetectionRules]`, TPTests the message.
+NPCs see of it", HostAuthorityTests `[Eye]`, UnitTests `[DetectionRules]`, TPTests the message.
 
 | ID | Name | Use |
 |---|---|---|

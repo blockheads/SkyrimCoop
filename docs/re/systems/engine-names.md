@@ -12,7 +12,7 @@ order), so a compare that works today can break with a mod.
 
 ## In our code
 
-`Code/client/Games/EngineNames.h`:
+`Code/sync/core/EngineNames.h`:
 
 - `SameName(a, b)`: equal names, whatever their case. For a name copied out of the engine into our own
   strings too (`ActionEvent::EventName`).

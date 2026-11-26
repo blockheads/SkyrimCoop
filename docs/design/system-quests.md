@@ -123,5 +123,5 @@ when someone turns after a cure, so a cure for one would have left the other wit
 - The hook: `GuestScripts::HookScriptCalled`; registrations from `HookNativeCalled`.
 - The session: `SystemQuestService`, `HostAuthority`'s relay; the save: `CoSave` (SYSQ).
 - The sync: `HostEngine` (quests and globals skipped), `GuestEngine` (not applied).
-- Tests: ClientTests `system_quests_tests.cpp`, `own_events_tests.cpp`; TPTests `encoding.cpp`; GameTests
+- Tests: UnitTests `system_quests_tests.cpp`, `own_events_tests.cpp`; TPTests `encoding.cpp`; GameTests
   `vampirism_flows.cpp`; Skyrim `vampirism-is-each-players`.

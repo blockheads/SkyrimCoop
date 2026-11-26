@@ -51,7 +51,7 @@ on_arrival_there: revive(); stand_up(); copies_made_again(); send PlayerDeathReq
 ## Where it runs
 
 ```text
-Games/Skyrim     PlayerCharacter::Revive, HoldDeathReload; PlayerCamera::Spectate, LeaveBleedout;
+engine           PlayerCharacter::Revive, HoldDeathReload; PlayerCamera::Spectate, LeaveBleedout;
                  PartyNatives::HoldDeathControls (beside the scripts' control holds)
 every game       DeathService: this game's player down, spectating, respawn; the death screen (UiService, death.rml)
                  CharacterService: the copies of a revived player made again (PlayerRevivedEvent)

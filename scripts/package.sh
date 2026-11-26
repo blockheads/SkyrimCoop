@@ -10,7 +10,7 @@ VERSION="$(python3 -c 'import sys; sys.path.insert(0, "scripts"); from skyrim_ru
 export XMAKE_CONFIGDIR="$ROOT/build/package-config-$VERSION"
 xmake f -P "$ROOT" -p windows -a x64 --toolchain=clang-cl --sdk="$T/winsysroot" -m dev --test_harness=n \
     --skyrim_version="$VERSION" -o "build/package-build/$VERSION" -y >/dev/null
-xmake build -P "$ROOT" -j8 SkyrimTogetherClientDLL
+xmake build -P "$ROOT" -j8 SkyrimCoopPlugin
 python3 - "$ROOT" "$(git describe --tags --always --dirty)" "$(git rev-parse --short HEAD)" "$VERSION" <<'EOF'
 import shutil, sys, zipfile
 from pathlib import Path
@@ -18,16 +18,16 @@ from pathlib import Path
 root, version, commit = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 runtime = sys.argv[4]
 built = root / f"build/package-build/{runtime}/windows/x64/dev"
-dll = built / "SkyrimTogetherClient.dll"
+dll = built / "SkyrimCoop.dll"
 if b"SkyrimCoopHotReload" in dll.read_bytes():
     sys.exit(f"{dll} has the test harness: the package needs --test_harness=n")
 if str(Path.home()).encode() in dll.read_bytes():
     sys.exit(f"{dll} names this machine's home folder: not for a public release")
-ui = root / "Code/client/Ui/assets"
+ui = root / "Code/plugin/Ui/assets"
 # Paths relative to Data/ (MO2's mod root); the documents live in the plugin's own folder, not loose in Data.
 docs = "SKSE/Plugins/SkyrimCoop"
 files = {
-    "SKSE/Plugins/SkyrimTogetherClient.dll": dll,
+    "SKSE/Plugins/SkyrimCoop.dll": dll,
     "SkyrimCoopStart.esp": root / "GameFiles/Skyrim/SkyrimCoopStart.esp",
     f"{docs}/INSTALL.md": root / "docs/install.md",
     f"{docs}/playtest.md": root / "docs/playtest.md",
@@ -59,7 +59,7 @@ out.parent.mkdir(parents=True, exist_ok=True)
 write(out, files)
 symbols = out.parent / f"{out.stem}-symbols"
 symbols.mkdir(exist_ok=True)
-for name in ("SkyrimTogetherClient.dll", "SkyrimTogetherClient.pdb"):
+for name in ("SkyrimCoop.dll", "SkyrimCoop.pdb"):
     shutil.copy2(built / name, symbols / name)
 (symbols / "BUILD").write_text(commit + "\n")
 (symbols / "RUNTIME").write_text(runtime + "\n")

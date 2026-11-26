@@ -2,8 +2,8 @@
 // allows, steered, never back.
 #include <catch2/catch.hpp>
 
-#include <Services/CopyClock.h>
-#include <Systems/CopyCorrection.h>
+#include <core/CopyClock.h>
+#include <movement/CopyCorrection.h>
 
 #include <algorithm>
 #include <deque>

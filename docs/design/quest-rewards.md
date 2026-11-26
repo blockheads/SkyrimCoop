@@ -33,7 +33,7 @@ otherwise:
 Searched CommonLibSSE-NG and [Papyrus Extender](https://github.com/powerof3/PapyrusExtenderSSE) first; the existing
 local checkouts are under `reference/`. Vanilla scripts below are in `build/re/scripts/Source/Scripts`.
 No new native hooks or addresses are needed for grants: GuestScripts already intercepts NativeFunctionBase::Call
-(104651), whose frame holds the call; the natives' engine functions are rows of the progression table (party-calls.md), tested in ClientTests.
+(104651), whose frame holds the call; the natives' engine functions are rows of the progression table (party-calls.md), tested in UnitTests.
 
 | Input | Engine path (1.6.1170) | Shared |
 |---|---|---|
@@ -128,7 +128,7 @@ the real join flow. The guest keeps its earned amount and receives none of the a
 
 ## Tests and validation
 
-- ClientTests: the reward natives' rows and routes, source/cause rules, mirrored calls, personal effects and item
+- UnitTests: the reward natives' rows and routes, source/cause rules, mirrored calls, personal effects and item
   exclusions.
 - HostAuthorityTests: the host's progression call reaches every guest once, with no echo; legacy measured XP is not
   relayed.
@@ -142,7 +142,7 @@ the real join flow. The guest keeps its earned amount and receives none of the a
   picker's item changes and the party's gold are checked. A spawned actor alias is HostOnly today, so clones cannot be used for
   this journal assertion. Stopping Finn's Lute runs its reward-bearing shutdown stage; setup resets instead.
 
-After the rebuild as the party's calls (2026-10-27): `scripts/check.sh` PASS (634 / 57 ClientTests, 1772 / 163
+After the rebuild as the party's calls (2026-10-27): `scripts/check.sh` PASS (634 / 57 UnitTests, 1772 / 163
 HostAuthorityTests, 227 / 14 encoding cases, 1628 / 142 GameTests, UI fixtures, DLL); `scripts/net_check.sh
 '[dragonborn],[rewards],[records]'` PASS in both profiles (172 assertions / 10 flows each); Skyrim: the nine reward
 scenarios, the six Dragonborn ones, the picker's Speech and training, personal combat XP, the shrine and two cutscene
@@ -150,7 +150,7 @@ regressions, 21/21.
 
 Final validation (before the rebuild):
 
-- `scripts/check.sh`: PASS, 834 assertions / 57 ClientTests, 1859 / 164 HostAuthorityTests, 239 / 14 encoding
+- `scripts/check.sh`: PASS, 834 assertions / 57 UnitTests, 1859 / 164 HostAuthorityTests, 239 / 14 encoding
   cases, 1628 / 142 GameTests, UI fixtures and DLL build (`build/reward-check-complete.log`). The known intermittent
   plate-carry gate failure reproduced in earlier runs and passed in the final gate; no physics change was made.
 - `scripts/net_check.sh '[rewards],[records]'`: PASS in both profiles, 111 assertions / 5 flows each

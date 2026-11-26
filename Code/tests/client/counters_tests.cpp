@@ -1,6 +1,6 @@
 #include <catch2/catch.hpp>
 
-#include <Diagnostics/Counters.h>
+#include <core/Counters.h>
 
 #include <algorithm>
 

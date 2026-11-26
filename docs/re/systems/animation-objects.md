@@ -24,7 +24,7 @@ the reference's 3D goes (TESObjectREFR::Release3DRelatedData, 19302)
 
 - `AnimationObjects` (singleton 400328): `+0x08` an inline array of 0x28-byte entries (data `+0x08`, capacity
   `+0x10`, size `+0x18`), `+0x20` a 0/1 spin flag both Load and Draw take. Entry: handle `+0x00`, ANIO `+0x08`,
-  attached model `+0x10`, queued load `+0x18`, visible `+0x20` (`Games/Skyrim/AnimationObjects.cpp`). CommonLibSSE-NG
+  attached model `+0x10`, queued load `+0x18`, visible `+0x20` (`engine/AnimationObjects.cpp`). CommonLibSSE-NG
   calls the array `BSTArray<BSTSmartPointer<AnimationObject>>`; Load's stride (`40 * i`) says inline entries.
 - **Drawn** is not entry `+0x20` alone: Draw on an attached model clears the model's kHidden and leaves `+0x20` false.
   Save (43579) writes `visible || (attached && !(attached->flags & 1))`, and `AnimationObjects::IsDrawn` matches it.

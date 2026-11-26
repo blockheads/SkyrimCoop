@@ -44,7 +44,7 @@ conversion uses 20496. Scaleform values obtained from the engine release their m
 ## Verification
 
 `GameTests [party-markers]` covers three players, movement, departure/rejoin, local-player exclusion and coexistence
-with the shared destination. All three flows fail with the marker service omitted. `ClientTests [party-markers]`
+with the shared destination. All three flows fail with the marker service omitted. `UnitTests [party-markers]`
 checks bearings, north wrap, undefined directions and separation of unrelated coordinate spaces.
 
 An additional GameTests flow renders each game's received names through the real Scaleform label code on

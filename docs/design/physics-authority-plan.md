@@ -180,7 +180,7 @@ tries twice and leaves it, as `kAsksAtMost` does now. Why it falls is not traced
 
 ```text
 A  pure, beside the old code      BodyTolerances.h, BodyAuthority, RestPlacer, BodyStream, sequence compare
-                                  ClientTests for each; nothing calls them yet
+                                  UnitTests for each; nothing calls them yet
 B  the wire                       BodyState, the two messages; TPTests round trip
 C  the engine reads               hkpLinkedCollidable typed (static_assert), ReadTouching under the world's
                                   lock, the push and hit hooks watched on the host too; the fake engine's
@@ -198,16 +198,16 @@ A to C change no behaviour and pass `scripts/check.sh` each. D cannot be split: 
 
 ## Tests
 
-Kept and moved onto the new classes (they state behaviour, not mechanism): ClientTests' prediction, playback,
+Kept and moved onto the new classes (they state behaviour, not mechanism): UnitTests' prediction, playback,
 rest placement, island sleep and ragdoll rest cases; GameTests `[mover]` and `[physics]` flows; HostAuthorityTests
 `[Physics]`.
 
 New, each written before its piece:
 
-- ClientTests `[authority]`: a touch takes; a held body is not taken; a contact takes only a body with no
+- UnitTests `[authority]`: a touch takes; a held body is not taken; a contact takes only a body with no
   authority, recursively; a pile rests as one; a rest is kept until the host confirms; the host's newer state wins;
   the same number under another name yields; the sequence wraps.
-- ClientTests `[stream]`: a changed row goes first, three times; a resting row comes round within the refresh; a
+- UnitTests `[stream]`: a changed row goes first, three times; a resting row comes round within the refresh; a
   moving row is sent on error; the budget holds.
 - HostAuthorityTests: two guests take one body, the first heard keeps it and the other is corrected; a guest's
   touch takes a body the host's player moved, and the reverse; the host's game placing takes it; a silent

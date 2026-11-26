@@ -1,6 +1,6 @@
 #include <catch2/catch.hpp>
 
-#include <Games/NpcSnapshot.h>
+#include <characters/NpcSnapshot.h>
 
 TEST_CASE("A resolved NPC captures its name separately from its chosen face", "[copies][npc-snapshot]")
 {

@@ -3,7 +3,7 @@
 // Party::Differences: every reference in a cell two games have loaded is the same.
 #include "Party.h"
 
-#include <Events/LockChangeEvent.h>
+#include <world/LockChangeEvent.h>
 
 namespace
 {

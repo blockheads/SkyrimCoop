@@ -2,8 +2,7 @@
 // guest's game raises is raised in the host's game for its character (its own game's start no quest).
 #include "Party.h"
 
-#include <Components.h>
-#include <SessionIds.h>
+#include <core/SessionIds.h>
 
 namespace
 {
@@ -75,7 +74,7 @@ SCENARIO("The host's arrival raises nothing for anyone: its engine raises its ow
     for (int i = 0; i < 10; ++i)
         party.Frame();
     // The guest's game follows the host's: its arrival raised for its character too, the story manager's PartyArrivals
-    // then drops it (the host's player arrived first, ClientTests).
+    // then drops it (the host's player arrived first, UnitTests).
     CHECK(host.StoriesRaised.size() <= 1);
     for (const StoryEvent& cRaised : host.StoriesRaised)
         CHECK(cRaised.Members.back() == StoryEvent::Member{StoryEvent::Member::kForm, GameId(0, kSinkholeLocation)});

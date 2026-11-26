@@ -60,7 +60,7 @@ this way. The face node names its geometry after the part it was built with, so 
 Every head attach ends in `TESNPC::UpdateHeadState` (24724): `TESNPC::AttachHead` (24732: `Update3DModel_Impl`,
 `QueuedHead`, `QueuedCharacter`, `ModifyFaceGen`) and 24740 call it after attaching the face node; worn changes
 reach it through 24725. RaceMenu hooks the same calls to put its face overlays back (skee64
-`UpdateHeadState_Enable_Hooked`). Coop hooks the function (`Games/Skyrim/HeadEvents.cpp`) and queues an
+`UpdateHeadState_Enable_Hooked`). Coop hooks the function (`engine/HeadEvents.cpp`) and queues an
 `ActorHeadUpdateEvent` (a queued head can finish off the main thread). `CharacterService::OnActorHeadUpdate` paints a
 copy with a `FaceGenComponent` whose head is not painted; new tints are painted when they arrive (spawn, looks
 change). A copy spawned before its 3D has no head to paint yet: its first head's update paints it.

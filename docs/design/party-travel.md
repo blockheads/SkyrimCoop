@@ -180,7 +180,7 @@ shared Skyrim harness runs two games.
 Integration on dev: `scripts/check.sh` passes after cleanup and transfer (106 s;
 `build/party-travel-review-check.log` in the main checkout). No commit was created.
 
-Final fast validation: `scripts/check.sh` passes (`build/final-check.log`): ClientTests 655 assertions / 60 cases,
+Final fast validation: `scripts/check.sh` passes (`build/final-check.log`): UnitTests 655 assertions / 60 cases,
 HostAuthorityTests 1809 / 168, TPTests 240 / 17, GameTests 1743 / 156 across eight shards, UI fixtures and native DLL.
 `coop_test.py affected --check` covers all 1378 source files; Python compilation and `git diff --check` pass.
 

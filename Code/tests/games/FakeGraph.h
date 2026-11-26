@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Games/Animation/PoseBlend.h>
+#include <animation/PoseBlend.h>
 #include <Structs/GraphOps.h>
 #include <cstdint>
 #include <map>

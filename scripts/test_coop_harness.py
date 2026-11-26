@@ -2440,7 +2440,7 @@ class DuoHookTests(unittest.TestCase):
             self.assertIn("You hold the shared duo", message)
             self.assertIn("1 waiting", message)
             self.assertIn("the 15-minute cap", message)
-        self.assertIn("Free it", self.warn("Bash", command="scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL"))
+        self.assertIn("Free it", self.warn("Bash", command="scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin"))
 
     def test_no_warning_while_driving_the_games_alone_or_for_another_checkout(self):
         self.held()
@@ -3000,9 +3000,9 @@ class LockOrderPassThroughTests(unittest.TestCase):
     def test_every_pass_through_hook_fits_the_list(self):
         # A hook past the list reads as ours: the engine's own lock orders then fail flows.
         root = Path(__file__).resolve().parent.parent
-        header = (root / "Code/client/Games/Skyrim/BSCore/LockOrderAttribution.h").read_text()
+        header = (root / "Code/engine/BSCore/LockOrderAttribution.h").read_text()
         limit = int(re.search(r"kMaxPassThrough = (\d+)", header).group(1))
-        calls = sum(path.read_text(errors="ignore").count("LockOrder::IgnoreFrames(") for path in (root / "Code/client").rglob("*.cpp"))
+        calls = sum(path.read_text(errors="ignore").count("LockOrder::IgnoreFrames(") for layer in ("engine", "plugin", "harness") for path in (root / "Code" / layer).rglob("*.cpp"))
         self.assertGreater(calls, 0)
         self.assertLessEqual(calls, limit)
 

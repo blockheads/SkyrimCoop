@@ -2,7 +2,7 @@
 // player's game takes the hit.
 #include "Party.h"
 #include "Fixtures.h"
-#include <Games/ScriptMotion.h>
+#include <ScriptMotion.h>
 
 namespace
 {
@@ -34,12 +34,16 @@ void Settle(Party& aParty, size_t aGuests)
 {
     FakeEngine& host = Party::Engine(aParty.Host());
     const size_t cBefore = host.References.at(kMarker).TrapContacts.size();
+    // Each guest's markers so far: a second call waits for its own, not the first's.
+    std::vector<size_t> seen;
+    for (size_t i = 0; i < aGuests; ++i)
+        seen.push_back(Party::Engine(aParty.Guest(i)).References.at(kMarker).GraphEvents.size());
     for (size_t i = 0; i < aGuests; ++i)
         aParty.As(aParty.Guest(i), [&] { Party::Engine(aParty.Guest(i)).TouchesTrap(FakeEngine::kPlayer, kMarker); });
     aParty.Until([&] { return host.References.at(kMarker).TrapContacts.size() == cBefore + aGuests; }, "the guests' markers reach the host");
     aParty.As(aParty.Host(), [&] { host.ScriptPlaysAnimation(kMarker, "marker"); });
     for (size_t i = 0; i < aGuests; ++i)
-        aParty.Until([&] { return !Party::Engine(aParty.Guest(i)).References.at(kMarker).GraphEvents.empty(); }, "the host's marker reaches a guest");
+        aParty.Until([&] { return Party::Engine(aParty.Guest(i)).References.at(kMarker).GraphEvents.size() > seen[i]; }, "the host's marker reaches a guest");
 }
 } // namespace
 

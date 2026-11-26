@@ -1,5 +1,5 @@
 #include "FakeNativeVm.h"
-#include <Games/Memory.h>
+#include <Memory.h>
 #include <Misc/BSScript.h>
 
 #include <cassert>

@@ -1,6 +1,6 @@
 #include <catch2/catch.hpp>
 
-#include <Games/Animation/ReplayCapture.h>
+#include <animation/ReplayCapture.h>
 
 TEST_CASE("Resolved animation queries are never captured as performed actions", "[animation][replay-capture]")
 {

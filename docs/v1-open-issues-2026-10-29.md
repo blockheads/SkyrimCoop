@@ -58,13 +58,13 @@ Scenarios removed their spawned NPCs before the runner's desync check, so no spa
 copy. `remove_host_npc` now checks every copy first, and `pick_with_keys` checks mid-conversation (one player talks).
 Fixed: a copy is given an item its owner equips without carrying it (an outfit put back on after `removeallitems`
 left Lydia's copy unarmored; GameTests `[equipment]`), and a copy's running package stays its owner's
-(`HookInitFromPackage`, ClientTests `[CopyPackage]`). Found, open:
+(`HookInitFromPackage`, UnitTests `[CopyPackage]`). Found, open:
 
 - Lydia's dialogue idle differs mid-conversation (`animation.idle` 1105592 on the host vs 1105590 on the copy).
   **Cause and fast fix verified 2026-10-30 (`v1-copy-desync`):** the hook published an idle query after Skyrim
   changed its flags from 1 to 2; the copy performed the query before the owner's actual gesture, then refused
   the actual event or kept the queried idle. The fake models the native query and graph transitions;
-  GameTests `[replay-query]` fails before, passes after remembering the initial query flag. ClientTests
+  GameTests `[replay-query]` fails before, passes after remembering the initial query flag. UnitTests
   `[replay-capture]` and full `scripts/check.sh` pass. Focused native acceptance now passes anchor switch,
   saved anchor, trade and host load. Both Beast Form and both kill-move scenarios pass in the next batch.
   The final 105-scenario tag union finishes 87 PASS/18 FAIL; both transformations and both kill-move replay cases pass.
@@ -109,7 +109,7 @@ left Lydia's copy unarmored; GameTests `[equipment]`), and a copy's running pack
   `--until-fail 20` did not reproduce it. Run 17 failed differently: the guest's chat did not explain its refused
   menu load within 10 s (bug report `2026-10-30-1256-8a5`). Open.
 - Found 2026-10-30 (the user, then the harness): actors slide or walk in slow motion, often right after the party
-  arrives somewhere. The harness's `gait` readout (`TestHarness/GaitWatch`, `check_gait`) compares how far each
+  arrives somewhere. The harness's `gait` readout (`harness/TestHarness/GaitWatch`, `check_gait`) compares how far each
   humanoid travels with how far its feet move against its body. `actors-walk-after-arrival` (Riverwood and the
   Sleeping Giant, 12 s each) fails 3 of 3: guest copies slide while their owners walk (Faendal, Sven, Dorthe,
   Frodnar, Alvor), and the host's own NPCs slide for a few seconds after arrival too (Embry, Sigrid, Gerdur), with no

@@ -4,7 +4,7 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Games/Overrides.h>
+#include <items/Overrides.h>
 
 namespace
 {

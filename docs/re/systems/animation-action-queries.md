@@ -44,7 +44,7 @@ events that only have transitions from the expected state. The GameTests flow `[
 then fails: the copy takes the query's idle and refuses the actual gesture. The duo was stopped
 and released immediately after that failure.
 
-ClientTests `[replay-capture]` fails on the resolved queries (two assertions). The correction
+UnitTests `[replay-capture]` fails on the resolved queries (two assertions). The correction
 remembers whether the action began as a query before calling the engine, and suppresses its
 capture regardless of the flags the engine returns. Performed and refused actions retain their
 native results. Both suites pass afterward (9 flow assertions and 16 unit assertions).

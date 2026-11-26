@@ -7,7 +7,7 @@ How a key press becomes a player action, and how to inject one the way real inpu
 
 | Step | ID | What |
 |---|---|---|
-| `Main::Update` → `BSInputDeviceManager::PollInputDevices` | 68617 | Once a frame. **We hook it** (`Code/client/Games/Skyrim/BSInput/BSInputDeviceManager.cpp`) and skip it entirely while the game window is not in the foreground, so off-screen test games get no device input at all. |
+| `Main::Update` → `BSInputDeviceManager::PollInputDevices` | 68617 | Once a frame. **We hook it** (`Code/engine/BSInput/BSInputDeviceManager.cpp`) and skip it entirely while the game window is not in the foreground, so off-screen test games get no device input at all. |
 | devices `Poll` (vfunc 2 of each of the 4 devices at `+0x60`) | | Keyboard, mouse, gamepad, virtual keyboard fill `BSInputEventQueue` (singleton 407374). |
 | `ControlMap::MapUserEvents` | 68542 | Gives each queued event with an **empty** `userEvent` the user event mapped to its (device, idCode) in the active input contexts; disabled controls get "Skip", then "". Events that already carry a `userEvent` keep it. |
 | `BSTEventSource<InputEvent*>::SendEvent` | 68655 | Sends the chain (`BSInputEventQueue+0x380` = head) to every sink of `BSInputDeviceManager` (singleton 402776; the event source is at offset 0). CommonLib inlines this template, so no community ID. |
@@ -48,7 +48,7 @@ does: `ControlMap::MapUserEvents` (68542, `(ControlMap* 400863, InputEvent* chai
 `PlacePlayerMarker`). Then `SendEvent`. Its `mouse` command does the same with a mouse button or a
 `MouseMoveEvent` (vtable 236703, idCode 0xA "Cursor", deltas `mouseInputX/Y` at `+0x28/+0x2C`), which moves
 the menu cursor (`MenuCursor` 403551, `cursorPosX/Y` at `+0x4/+0x8`, window pixels).
-`TestHarness::EngineCalls::SendPlayerButton` (`Code/client/TestHarness/EngineCalls.cpp`; the harness's `input` command, test builds only; `scripts/coop_test.py` press/release/tap).
+`TestHarness::EngineCalls::SendPlayerButton` (`Code/harness/TestHarness/EngineCalls.cpp`; the harness's `input` command, test builds only; `scripts/coop_test.py` press/release/tap).
 What it took to drive a player like this (verified 2026-10-11):
 
 - **A held button is sent every frame**, value 1 with the time held so far, as devices do (`TestHarness::PlayerInput::Poll`).
@@ -100,7 +100,7 @@ the control map's, as in game menus:
 
 We hook `BSTEventSource<InputEvent*>::SendEvent` (68655; verified in IDA 2026-10-13: `(source, InputEvent* const*
 chain)`, each sink's `ProcessEvent` is vfunc 1 with `(sink, chain, source)`; its one caller is
-`PollInputDevices`). `UiInput::Take` (`Code/client/Ui/UiInput.cpp`) sees every chain first:
+`PollInputDevices`). `UiInput::Take` (`Code/plugin/Ui/UiInput.cpp`) sees every chain first:
 
 - Chat closed: an Enter press (scan code 0x1C, or 0x9C on the numpad) while only the HUD is up opens it;
   nothing else is touched.
@@ -115,7 +115,7 @@ hook like a keyboard's: `chat-reaches-everyone` types with them.
 
 ## The input trace (test builds)
 
-`TestHarness/InputTrace.cpp` logs each key or button press and release as the game dispatched it, one line each
+`harness/TestHarness/InputTrace.cpp` logs each key or button press and release as the game dispatched it, one line each
 into the log trail, so a failed scenario's digest shows what happened to its presses:
 
 ```
@@ -123,12 +123,12 @@ Input: keyboard 0x13 'XButton' press; menus ContainerMenu (ContainerMenu lists 5
        MenuControls continue, PlayerControls continue, a sink of skse64_1_6_1170.dll continue, BGSMoviePlayer continue
 ```
 
-- It reads `BSInputDeviceManager`'s sinks (`InputEventSource`, `Games/Skyrim/BSInput/InputEvent.h`: the sinks array
+- It reads `BSInputDeviceManager`'s sinks (`InputEventSource`, `engine/BSInput/InputEvent.h`: the sinks array
   at `+0x00`, count at `+0x10`, lock `+0x48`, `notifying` `+0x50`; IDA 2026-10-21) once a second and wraps each sink
   class's `ProcessEvent` (vtable slot 1). `SendEvent` stops at the first sink returning 1. The production hook on
   `SendEvent` (the chat) is left alone; `Stop` puts the slots back before a hot reload.
 - The sinks on 1.6.1170, in order: `ConsoleHotkeyManager`, `MenuControls`, `PlayerControls`, one of SKSE's,
-  `BGSMoviePlayer`. Names from RTTI (`Games/Rtti.h`); another module's sink by its module.
+  `BGSMoviePlayer`. Names from RTTI (`engine/Rtti.h`); another module's sink by its module.
 - An item menu (container, inventory, barter, gift) drops keys while its lists slide in:
   `InventoryLists_mc.currentState` (`InventoryLists.as`) 1 or 2 shown, 3-5 sliding. Every sink passes the key on
   either way: the drop is in the menu's Flash. Seen 2026-10-21: R (Take All) at state 5 took nothing.

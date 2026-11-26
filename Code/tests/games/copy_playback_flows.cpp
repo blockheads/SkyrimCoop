@@ -1,11 +1,14 @@
 // A copy's playback time (CopyClock, CopyPlayback; docs/design/copy-clock.md): as far behind its owner as the line
 // needs, moving on smoothly when snapshots come late.
 #include "Party.h"
+#include <animation/GraphStream.h>
 #include "Fixtures.h"
 
-#include <Components.h>
-#include <Systems/InterpolationSystem.h>
-#include <Services/CharacterService.h>
+#include <core/FormIdComponent.h>
+#include <movement/InterpolationComponent.h>
+#include <core/RemoteComponent.h>
+#include <movement/InterpolationSystem.h>
+#include <characters/CharacterService.h>
 #include <Messages/NotifyCharacterSpawn.h>
 
 #include <format>

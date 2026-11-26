@@ -1,25 +1,25 @@
 -- Every game's client logic with no engine (tier 1, docs/design/testing.md): the pure halves of the client's
--- hooks, listed one by one; a file that needs the engine does not build here. Run: build/linux/x86_64/<mode>/ClientTests
-target("ClientTests")
+-- hooks, listed one by one; a file that needs the engine does not build here. Run: build/linux/x86_64/<mode>/UnitTests
+target("UnitTests")
     set_kind("binary")
     set_group("Tests")
     set_languages("cxx23")
-    add_files("*.cpp|SaveTransferBench.cpp", "../FakeNativeVm.cpp", "../../client/Games/Skyrim/Misc/ScriptFunction.cpp")
-    add_files("../../client/Diagnostics/Counters.cpp")
-    add_files("../../client/Services/SaveTransfer.cpp", "../../client/MainLoopTasks.cpp", "../../client/TaskQueue.cpp", "../../client/Bridges/PhysicsBodies.cpp",
-              "../../client/Services/Host/PartyThreat.cpp", "../../client/Services/DevCommands.cpp")
-    add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp", "../../client/Services/CopyRecords.cpp", "../../client/Services/Generic/PartyOptionText.cpp",
-              "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Perf.cpp", "../../client/Diagnostics/ReportPaths.cpp", "../../client/Diagnostics/LogRing.cpp",
-              "../../client/Diagnostics/Zip.cpp", "../../client/Diagnostics/Export.cpp", "../../client/Diagnostics/CrashReports.cpp")
-    add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp", "../../client/Games/Skyrim/Papyrus/ScriptTags.cpp",
-              "../../client/Games/Skyrim/Papyrus/OwnEvents.cpp", "../../client/Games/Skyrim/Papyrus/StoryGifts.cpp", "../../client/Games/Skyrim/Papyrus/CodeReach.cpp",
-              "../../client/Games/Skyrim/Misc/PartyArrivals.cpp", "../../client/Games/Skyrim/Misc/JudgedRules.cpp",
-              "../../client/Games/Skyrim/Misc/StoryEventRules.cpp",
-              "../../client/Physics/BodyPrediction.cpp", "../../client/Physics/BodyMotions.cpp", "../../client/Physics/BodyPlayback.cpp",
-              "../../client/Physics/BodyAuthority.cpp", "../../client/Physics/BodyStream.cpp", "../../client/Games/HiddenCopies.cpp", "../../client/Games/GuestNpcs.cpp",
-              "../../client/Games/Animation/GraphStream.cpp", "../../client/Games/Animation/NodeMemory.cpp",
-              "../../client/Games/Animation/GraphState.cpp")
-    add_includedirs("../../client", "../../client/Games/Skyrim")
+    add_files("*.cpp|SaveTransferBench.cpp", "../FakeNativeVm.cpp", "../../engine/Misc/ScriptFunction.cpp")
+    add_files("../../sync/core/Counters.cpp")
+    add_files("../../sync/join/SaveTransfer.cpp", "../../engine/MainLoopTasks.cpp", "../../sync/core/TaskQueue.cpp", "../../sync/physics/PhysicsBodies.cpp",
+              "../../sync/combat/PartyThreat.cpp", "../../sync/tools/DevCommands.cpp")
+    add_files("../../sync/core/CharacterRecords.cpp", "../../sync/core/RecipeBook.cpp", "../../sync/core/CopyClock.cpp", "../../sync/core/CopyRecords.cpp", "../../sync/dialogue/PartyOptionText.cpp",
+              "../../sync/core/MessageTrail.cpp", "../../plugin/Diagnostics/Perf.cpp", "../../sync/tools/ReportPaths.cpp", "../../plugin/Diagnostics/LogRing.cpp",
+              "../../plugin/Diagnostics/Zip.cpp", "../../plugin/Diagnostics/Export.cpp", "../../plugin/Diagnostics/CrashReports.cpp")
+    add_files("../../sync/scripts/PartyRules.cpp", "../../sync/scripts/ScriptTags.cpp",
+              "../../sync/scripts/OwnEvents.cpp", "../../sync/scripts/StoryGifts.cpp", "../../sync/scripts/CodeReach.cpp",
+              "../../engine/Misc/PartyArrivals.cpp", "../../engine/Misc/JudgedRules.cpp",
+              "../../sync/scripts/StoryEventRules.cpp",
+              "../../sync/physics/BodyPrediction.cpp", "../../sync/physics/BodyMotions.cpp", "../../sync/physics/BodyPlayback.cpp",
+              "../../sync/physics/BodyAuthority.cpp", "../../sync/physics/BodyStream.cpp", "../../engine/HiddenCopies.cpp", "../../engine/GuestNpcs.cpp",
+              "../../sync/animation/GraphStream.cpp", "../../sync/animation/NodeMemory.cpp",
+              "../../sync/animation/GraphState.cpp")
+    add_includedirs("../../sync", "../../engine", "../../plugin", "../../harness")
     add_deps("SkyrimEncoding")
     add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy", "zstd", "lz4", "nlohmann_json")
     if is_plat("windows") then add_syslinks("bcrypt") end
@@ -31,8 +31,8 @@ target("SaveTransferBench")
     set_optimize("fastest")
     set_group("Tools")
     set_languages("cxx23")
-    add_files("SaveTransferBench.cpp", "../../client/Services/SaveTransfer.cpp")
-    add_includedirs("../../client")
+    add_files("SaveTransferBench.cpp", "../../sync/join/SaveTransfer.cpp")
+    add_includedirs("../../sync")
     add_deps("SkyrimEncoding")
     add_packages("zstd", "lz4", "zlib")
     if is_plat("windows") then add_syslinks("bcrypt") end

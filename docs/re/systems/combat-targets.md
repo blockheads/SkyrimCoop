@@ -295,7 +295,7 @@ The party rule (`party-model.md`, Crime): an NPC whose combat target is a player
   (`guest-angers-ally-party-enemy`, Lydia staged as an ally): after the guest's second punch Lydia went into combat on
   the copy before the anger was marked (the third hit read her no longer an ally), so the party-fight rule made the host
   her enemy (reaction 1, the host among her candidates). That run did not exercise the anger slot itself;
-  ClientTests `[party-aggro]` hold its rule.
+  UnitTests `[party-aggro]` hold its rule.
 - Read, not measured: the host's admission through 39359 sets `kAngryWithPlayer` on the NPC, which `CrimeBridge` reads
   as a party grudge (`crime.md`, Who an NPC fights for a party crime). Whether vanilla clears it when the fight ends
   was not read.

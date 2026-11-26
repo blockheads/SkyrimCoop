@@ -1,8 +1,12 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Games/DeathActions.h>
+#include <actorstate/DeathActions.h>
 #include <Messages/Relayed.h>
+#include <actorstate/ActorValuesComponent.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <core/RemoteComponent.h>
 
 namespace
 {

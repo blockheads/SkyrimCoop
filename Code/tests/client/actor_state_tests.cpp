@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Games/Animation/ActorStateRules.h>
+#include <animation/ActorStateRules.h>
 
 using namespace ActorStateRules;
 

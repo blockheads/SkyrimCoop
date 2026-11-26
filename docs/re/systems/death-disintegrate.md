@@ -54,7 +54,7 @@ Inferred: which wait job, and why the player's update does not finish without it
 
 ## What we do
 
-`Games/Skyrim/CriticalStage.cpp`, rule `CriticalStageRules.h` (ClientTests `[CriticalStage]`):
+`engine/CriticalStage.cpp`, rule `CriticalStageRules.h` (UnitTests `[CriticalStage]`):
 
 - `Actor::SetCriticalStage` (37615) refuses any stage but none for this game's player: it dies the normal way (real
   death, spectating, respawn), with its body.

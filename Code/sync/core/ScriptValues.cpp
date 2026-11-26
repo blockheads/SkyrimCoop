@@ -1,0 +1,62 @@
+#include <core/ScriptValues.h>
+
+#include <ports/IFormBridge.h>
+#include <core/SessionIds.h>
+#include <core/FormIds.h>
+#include <core/World.h>
+#include <core/CreatedIds.h>
+
+namespace Utils
+{
+ScriptValue ToScriptValue(const LocalValue& acValue) noexcept
+{
+    const auto cToSession = [](const LocalForm& acForm) {
+        ScriptForm form;
+        if (acForm.EachPlayer)
+            form.Form = GameId(0, 0x14);
+        else if (const auto cSessionId = GetSessionIdByFormId(acForm.FormId))
+            form.SessionId = *cSessionId;
+        else if (const auto cCreated = World::Get().ctx().at<CreatedIds>().ToSession(acForm.FormId))
+            form.Form = *cCreated; // a created reference the other games know (piece 7)
+        else
+            form.Form = ToSession(acForm.FormId).value_or(GameId{});
+        return std::optional(form);
+    };
+    return *MapForm<ScriptForm>(acValue, cToSession);
+}
+
+std::optional<LocalValue> ToLocalValue(const ScriptValue& acValue) noexcept
+{
+    const auto cToLocal = [](const ScriptForm& acForm) {
+        const uint32_t cFormId = acForm.SessionId ? GetFormIdBySessionId(acForm.SessionId)
+                                 : IsCreatedId(acForm.Form) ? World::Get().ctx().at<CreatedIds>().ToGame(acForm.Form)
+                                                            : ToGame(acForm.Form);
+        return World::Get().GetFormBridge().FormExists(cFormId) ? std::optional(LocalForm{cFormId}) : std::nullopt;
+    };
+    return MapForm<LocalForm>(acValue, cToLocal);
+}
+
+ScriptCall ToScriptCall(const LocalCall& acCall) noexcept
+{
+    ScriptCall call{.Class = acCall.Class, .Function = acCall.Function, .Self = ToScriptValue(acCall.Self)};
+    for (const auto& cArgument : acCall.Arguments)
+        call.Arguments.push_back(ToScriptValue(cArgument));
+    return call;
+}
+
+std::optional<LocalCall> ToLocalCall(const ScriptCall& acCall) noexcept
+{
+    auto self = ToLocalValue(acCall.Self);
+    if (!self)
+        return std::nullopt;
+    LocalCall call{.Class = acCall.Class, .Function = acCall.Function, .Self = std::move(*self)};
+    for (const auto& cArgument : acCall.Arguments)
+    {
+        auto argument = ToLocalValue(cArgument);
+        if (!argument)
+            return std::nullopt;
+        call.Arguments.push_back(std::move(*argument));
+    }
+    return call;
+}
+} // namespace Utils

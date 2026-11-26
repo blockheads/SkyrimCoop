@@ -1,6 +1,6 @@
 # A form's save data in a running game (FormState)
 
-Engine side of `Code/client/Games/FormState.cpp`, world-state sync step 3 (`docs/design/world-state-sync.md`).
+Engine side of `Code/engine/FormState.cpp`, world-state sync step 3 (`docs/design/world-state-sync.md`).
 IDA 1.6.1170, 2026-10-20; layouts from CommonLibSSE-NG (`BGSSaveFormBuffer.h`, `BGSLoadFormBuffer.h`,
 `BGSLoadGameBuffer.h`, `BGSLoadFormData.h`) and checked against the engine's own builders.
 
@@ -37,7 +37,7 @@ attaches, with no save involved. `FormState` follows those two routines:
 ## Form ids inside the data
 
 Saves write a form reference as a 3-byte index into the save's form id array (`WriteFormID` 36048, 36047;
-`ReadFormID` 36000). Upstream's hooks (`Games/SaveLoad.cpp`) replace them, while `ScopedSaveLoadOverride`
+`ReadFormID` 36000). Upstream's hooks (`engine/SaveLoad.cpp`) replace them, while `ScopedSaveLoadOverride`
 is held, with network ids: the mod and base id (`FormIds.h`; a created form's as `kCreatedModId`), as two var
 ints. So the bytes mean the same on any game with the same mods.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Turn the crash handler's "backtrace #NN module+0xOFF" lines into names.
 
-  scripts/re/symbolize_crash.py [tp_client.log] [--dll path/to/SkyrimTogetherClient.dll | --build COMMIT]
+  scripts/re/symbolize_crash.py [tp_client.log] [--dll path/to/SkyrimCoop.dll | --build COMMIT]
 
 A friend's crash: --build with the commit its report names ("build:"), for the DLL and PDB scripts/package.sh kept
 beside that package (build/package/*-symbols/); the dev build's lines would be wrong for it.
@@ -23,7 +23,7 @@ from skyrim_runtime import runtime_from_log
 
 ROOT = re_data.ROOT
 DEFAULT_LOG = ROOT / "build/coop-test/game/Data/SKSE/Plugins/logs/tp_client.log"  # the duo host's
-DEFAULT_DLL = ROOT / "build/windows/x64/dev/SkyrimTogetherClient.dll"
+DEFAULT_DLL = ROOT / "build/windows/x64/dev/SkyrimCoop.dll"
 FRAME = re.compile(r"backtrace #(\d+) (\S+)\+0x([0-9a-f]+)")
 
 
@@ -78,7 +78,7 @@ def main():
                       key=lambda folder: folder.stat().st_mtime)
         if not kept:
             parser.error(f"no package kept symbols for build {args.build} (build/package/*-symbols/)")
-        args.dll = kept[-1] / "SkyrimTogetherClient.dll"
+        args.dll = kept[-1] / "SkyrimCoop.dll"
 
     starts = [i for i, line in enumerate(lines) if "crash occurred" in line]
     whole = not starts
@@ -95,7 +95,7 @@ def main():
         number, module, offset = match.group(1), match.group(2), int(match.group(3), 16)
         if module.lower() == "skyrimse.exe":
             where = resolve_engine(offset)
-        # The hot reload loader runs copies: SkyrimTogetherClient[-instance].<pid>.<n>.dll.
+        # The hot reload loader runs copies: SkyrimCoop[-instance].<pid>.<n>.dll.
         elif module.lower() == args.dll.name.lower() or re.fullmatch(
                 re.escape(args.dll.stem) + r"(-[\w-]+)?\.\d+\.\d+\.dll", module, re.IGNORECASE):
             where = symbolize_ours(args.dll, offset)

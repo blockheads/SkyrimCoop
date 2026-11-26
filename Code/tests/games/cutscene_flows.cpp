@@ -1,8 +1,12 @@
 // Cutscenes for the whole party across games (docs/design/cutscenes.md): a world script's controls reach every game,
 // and a leaver's cutscene gives back what it held.
 #include "Party.h"
-#include <Events/CopyAiStateEvent.h>
+#include <characters/CopyAiStateEvent.h>
 #include <Messages/Relayed.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <core/PlayerComponent.h>
+#include <core/RemoteComponent.h>
 
 using namespace PartyRules;
 

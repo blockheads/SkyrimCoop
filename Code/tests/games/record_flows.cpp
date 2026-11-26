@@ -1,10 +1,12 @@
 #include "Party.h"
 #include "Fixtures.h"
-#include <Events/AiStateChangeEvent.h>
-#include <Events/Listen.h>
+#include <actorstate/AiStateChangeEvent.h>
+#include <core/Listen.h>
 #include <Messages/Relayed.h>
-#include <Services/CopyRecords.h>
-#include <Services/CopyRecordsService.h>
+#include <core/CopyRecords.h>
+#include <core/CopyRecordsService.h>
+#include <core/FormIdComponent.h>
+#include <core/RemoteComponent.h>
 
 // The copy record (docs/design/one-simulator.md, piece 1): a copy takes its owner's last state whenever it appears.
 namespace

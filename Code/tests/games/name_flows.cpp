@@ -1,17 +1,21 @@
 // Every name in a session on every game: players' copies, the party's lists, NPC copies (docs/re/systems/names.md).
 #include "Party.h"
 #include "Fixtures.h"
-#include <Events/GameLoadedEvent.h>
-#include <Events/MountEvent.h>
-#include <Services/JoinService.h>
-#include <Services/SaveService.h>
+#include <join/GameLoadedEvent.h>
+#include <mounts/MountEvent.h>
+#include <join/JoinService.h>
+#include <join/SaveService.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/WorldState.h>
-#include <SessionIds.h>
+#include <core/SessionIds.h>
 #include <Messages/Relayed.h>
 #include <algorithm>
-#include <Services/SessionService.h>
-#include <Services/TransportService.h>
+#include <core/SessionService.h>
+#include <core/TransportService.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <core/PlayerComponent.h>
+#include <core/RemoteComponent.h>
 
 namespace
 {

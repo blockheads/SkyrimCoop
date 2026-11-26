@@ -48,7 +48,7 @@ before any message leaves for a game, it gets the book entries it has not had
                                      the authentication); the host's NotifyRecipes are learned in HandleRecipes
                                      (sent back with the guest's own; the host keeps each once)
   host:  HostNetwork::Send(conn)  -> NotifyRecipes{Unsent(sent[conn])} first; the host's own route shares the book
-  HostAuthority::OnRecipes: a guest's recipes into the host's book (HostNetwork passes them on)
+  HostItems::OnRecipes: a guest's recipes into the host's book (HostNetwork passes them on)
 ```
 
 Messages go on one ordered reliable channel, so a recipe always lands before the first message naming it. A joiner
@@ -84,7 +84,7 @@ restarted game (no created forms, an empty book) makes its potions again.
 
 ## Tests
 
-- ClientTests `recipe_tests.cpp`: the id is order- and cost-independent, a poison or a stronger potion is another;
+- UnitTests `recipe_tests.cpp`: the id is order- and cost-independent, a poison or a stronger potion is another;
   the book keeps each once, gives a game what it has not had, an inventory's recipes; a form is made once and again
   when the engine let it go or reused its id.
 - HostAuthorityTests `recipe_tests.cpp`: a guest's recipes are the host's and reach another game before the next

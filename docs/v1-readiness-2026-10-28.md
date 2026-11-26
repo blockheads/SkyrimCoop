@@ -49,10 +49,10 @@ entries likewise describe gaps subsequently fixed. Do not use that section as th
 ### 1. Remove the debug F9 hosting toggle
 
 **Source finding; physical-key reproduction still needed.**
-[`DebugService::OnUpdate`](../Code/client/Services/Debug/DebugService.cpp#L148) polls OS key state whenever
+[`DebugService::OnUpdate`](../Code/plugin/Debug/DebugService.cpp#L148) polls OS key state whenever
 the game is foregrounded. F9 calls `StopHosting`/`StartHosting`, although F9 is also the native quickload
 key used by the project's own scenarios. `DebugService` is constructed unconditionally in
-[`World.cpp`](../Code/client/World.cpp#L101), and its source is not excluded by `test_harness=n`.
+[`World.cpp`](../Code/sync/game/World.cpp#L101), and its source is not excluded by `test_harness=n`.
 
 A real quickload can therefore also change the game's hosting role. The existing off-screen engine-input
 scenario does not establish that the physical-key path is safe: it does not reproduce this foreground
@@ -70,7 +70,7 @@ dev alone and incorrectly presented this as project-wide work still to implement
 
 The owner reports Skyrim `guest-story-starts-no-quest`, `guest-location-change-starts-story` and
 `guest-craft-raises-story` passing. Source:
-[HostStory.cpp](../.worktrees/party-scripts-2/Code/client/Services/Host/HostStory.cpp);
+[HostStory.cpp](../.worktrees/party-scripts-2/Code/sync/scripts/HostStory.cpp);
 design/status: [worktree progress, feature 12](../.worktrees/party-scripts-2/docs/progress.md).
 
 Remaining readiness work: integrate the implementation and retain its affected acceptance evidence
@@ -81,12 +81,12 @@ on the merged build. Its owner is actively editing these files; do not duplicate
 **Source finding; native quit-to-menu reproduction still needed.**
 
 The network leave/kick/reconnect mechanisms exist, but the player-facing lifecycle is incomplete.
-[`SteamService::OnMenu`](../Code/client/Services/Generic/SteamService.cpp#L47) handles new-game loading;
+[`SteamService::OnMenu`](../Code/sync/join/SteamService.cpp#L47) handles new-game loading;
 it does not close a session when the main menu opens. I found no other production menu route doing
-that cleanup. [`JoinService::OnDisconnected`](../Code/client/Services/Generic/JoinService.cpp#L251)
+that cleanup. [`JoinService::OnDisconnected`](../Code/sync/join/JoinService.cpp#L251)
 sets the kicked/ended state, and exhausted reconnects set another ended state, without returning the
 guest to the main menu. The join panel's Back button only dismisses its status
-([`UiService.cpp`](../Code/client/Ui/UiService.cpp#L420)).
+([`UiService.cpp`](../Code/plugin/Ui/UiService.cpp#L420)).
 
 That differs from the leave/kick contract in [join-flow.md](design/join-flow.md#leaving-and-kick).
 It risks a lobby/listener outliving the host's loaded world and leaves a disconnected guest in the
@@ -204,7 +204,7 @@ Initial `scripts/check.sh`: **PASS** in 11 seconds.
 
 | Suite | Cases | Assertions |
 |---|---:|---:|
-| ClientTests | 80 | 732 |
+| UnitTests | 80 | 732 |
 | HostAuthorityTests | 178 | 1902 |
 | Encoding / TPTests | 22 | 281 |
 | GameTests | 179 | 1937 |

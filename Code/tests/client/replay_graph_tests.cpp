@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Games/Animation/ReplayGraph.h>
+#include <animation/ReplayGraph.h>
 
 TEST_CASE("A refused action can take its owner's resulting graph", "[animation][replay-graph]")
 {

@@ -29,7 +29,7 @@ BGSStoryTeller::Update 32483, per frame, each queued event in order:
 
 ## A guest's story manager starts no quest
 
-`BGSStoryManager::ProcessEvent` (32372) is hooked (`Games/Skyrim/Misc/BGSStoryManager.cpp`). While the game
+`BGSStoryManager::ProcessEvent` (32372) is hooked (`engine/Misc/BGSStoryManager.cpp`). While the game
 is a guest (`GuestWorldState` switches it through `GuestEngine::SetDecidesWorld`), the hook leaves the
 tree unwalked and reports "not timed out". `Update` then starts nothing and ends the event with `started
 a quest` false, the same path as an event no node takes. The events are still raised, so forwarding them
@@ -69,7 +69,7 @@ Every type travels the same way, read from the engine's own type table rather th
   4 keyword (CommonLibSSE-NG `BGSStoryEventMember::DATA_TYPE`).
 - 32330 walks those members over the raw event: a reference or integer takes 4 bytes, any other an 8-byte pointer,
   the raw pointer first moved to its next 8-byte boundary (`test dil, 7`). Each lands in a 64-bit member. So a raw
-  event can be rebuilt from the member types alone (`StoryEventRules::Layout`, ClientTests).
+  event can be rebuilt from the member types alone (`StoryEventRules::Layout`, UnitTests).
 - 32330's only caller is `AddEvent_Impl` (0x52BD31, a byte scan of `.text`): hooking it sees each event once, as it
   is queued. `AddEvent_Impl` holds the manager's `eventArrayLock` (+0x60) around it, so the hook only copies the
   members and queues an `OwnStoryEvent`; handles are read on the next update.

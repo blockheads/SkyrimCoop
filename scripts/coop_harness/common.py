@@ -38,7 +38,7 @@ TEST_HOME = (ROOT / "build/coop-test").resolve()
 # The duo's game folder: STEAM_GAME's files linked, its own SKSE plugins (runtime.ensure_duo_game).
 GAME = Path(os.environ.get("SKYRIM_GAME_DIR", TEST_HOME / "game"))
 BUILD_HOME = ROOT / ("build/skyrim-1.6.1170" if SKYRIM_VERSION == "1.6.1170.0" else "build")
-DLL = Path(os.environ.get("COOP_DLL", BUILD_HOME / "windows/x64/dev/SkyrimTogetherClient.dll"))
+DLL = Path(os.environ.get("COOP_DLL", BUILD_HOME / "windows/x64/dev/SkyrimCoop.dll"))
 LOADER = DLL.with_name("SkyrimCoopLoader.dll")
 VANILLA_HARNESS = DLL.with_name("SkyrimCoopVanillaHarness.dll")
 PEER = ROOT / "build/linux/x86_64/debug/coop_peer"
@@ -47,7 +47,7 @@ WINDOW_SIZE = (960, 540)
 PLUGINS = GAME / "Data/SKSE/Plugins"
 START = time.monotonic()
 CLIENT_NETNS, HOST_SIDE_ADDRESS, CLIENT_ADDRESS = "coop2", "10.77.0.1", "10.77.0.2"
-UI_SOURCE = ROOT / "Code/client/Ui/assets"
+UI_SOURCE = ROOT / "Code/plugin/Ui/assets"
 CRASH_LOGGER_VERSION = "1.25.0"
 CRASH_LOGGER_SHA256 = "ce8592d60a2394bc05874d4cc759d3513686c3e26f841fe831a98c9d66fa979c"
 CRASH_LOGGER_FILES = ("CrashLogger.dll", "CrashLogger.pdb", "msdia140.dll")

@@ -1,6 +1,7 @@
 // Equipment across games (InventoryService): what an owner's actor equips or unequips, its copies wear. Each ends
 // with the actor checksum (Party::Agree), which compares what each copy wears with its owner's actor.
 #include "Party.h"
+#include <animation/GraphStream.h>
 #include "Fixtures.h"
 
 namespace

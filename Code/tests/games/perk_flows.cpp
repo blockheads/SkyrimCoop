@@ -1,8 +1,8 @@
 #include "Party.h"
-#include <Events/ActorValueChangeEvent.h>
+#include <characters/ActorValueChangeEvent.h>
 
-#include <Events/PlayerProgressEvent.h>
-#include <SessionIds.h>
+#include <core/PlayerProgressEvent.h>
+#include <core/SessionIds.h>
 
 SCENARIO("A player's earned perks follow only its copies, initially and after changes", "[perks]")
 {

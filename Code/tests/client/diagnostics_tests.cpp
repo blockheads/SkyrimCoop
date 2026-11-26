@@ -4,9 +4,9 @@
 #include <Diagnostics/CrashReports.h>
 #include <Diagnostics/Export.h>
 #include <Diagnostics/LogRing.h>
-#include <Diagnostics/MessageTrail.h>
+#include <core/MessageTrail.h>
 #include <Diagnostics/Perf.h>
-#include <Diagnostics/ReportPaths.h>
+#include <tools/ReportPaths.h>
 #include <Diagnostics/Zip.h>
 
 #include <zlib.h>

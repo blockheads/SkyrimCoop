@@ -102,7 +102,7 @@ after the physics step: the engine writes the actor's place from its controller 
   - before the change it reached 1.8, and her copy's capsule was shoved 43 to 61 units off;
   - her copy's controller stays on her (0.0 off).
 - **Tests:** GameTests "A guest's player presses a held plate against a host NPC's copy" (the fake's capsule pushes
-  only for a stepped copy: `FakeEngine::Actor::Stepped`); ClientTests `[copy-step]`.
+  only for a stepped copy: `FakeEngine::Actor::Stepped`); UnitTests `[copy-step]`.
 - **A still copy kept the clutter beside it awake** (2026-11-13, `guest-swing-moves-host`): its step was `goal -
   position` every frame, never quite zero (Havok's step lands about 0.04 units short), so its body was given a new
   velocity each frame, and `hkpCharacterRigidBody::setLinearVelocity` (62456) wakes the body's island whenever the
@@ -110,7 +110,7 @@ after the physics step: the engine writes the actor's place from its controller 
   while supported (`kSupport`) and still (read in IDA). Measured with `who_wakes`: a ladle 28 units from the guest's
   copy woke 40 times in 20 s, every time through the copy's body, so it never slept and the guest kept it keyframed
   (unhittable, ungrabbable). Now a copy within `CopyStep::kStill` (0.5 units) of its goal steps by nothing
-  (`CopyStep::Translation`): 0 wakes in 20 s, the ladle asleep in both games. Tests: ClientTests "A copy on its owner's
+  (`CopyStep::Translation`): 0 wakes in 20 s, the ladle asleep in both games. Tests: UnitTests "A copy on its owner's
   place steps by nothing", GameTests "A guest's player stands beside a bucket the host knocks" (the fake's step lands
   `kStepShort` short and a non-zero step wakes what is within `kIslandReach`).
 - **A stepped copy shoves a player it lands on** (2026-11-03, `follower-lands-on-guest`): the host's Lydia moved
@@ -171,7 +171,7 @@ gives a copy's capsule its pushes); a state we have not met falls to Place, righ
 skymp moves its copies with `TranslateTo` (kinematic: no gravity or support) the whole time; we keep the step on
 the ground for its pushes. After the fix: copy peaks 73-74 against its owner's 74, turning once in the air.
 Tests: GameTests "A jumping player's copy rises and falls with it, never stuck on the ground" (the fake's step
-never rises), ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest`; scenarios `copy-jumps-smoothly-host`,
+never rises), UnitTests `[copy-step]`, TPTests `ReferencesMoveRequest`; scenarios `copy-jumps-smoothly-host`,
 `copy-jumps-smoothly-guest`.
 
 ## A copy in furniture (2026-11-05)
@@ -242,7 +242,7 @@ frame, and `HookSetPosition` refused every write-back. The animation merge (#12)
 
 Tests: GameTests "A copy's capsule collides only when its owner's does" (the fake's colliding copies in furniture are
 pushed off their goal, and a step out of furniture turns collision back on; fails without the sync or without placing),
-ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest` (the new field), scenario
+UnitTests `[copy-step]`, TPTests `ReferencesMoveRequest` (the new field), scenario
 `copy-leaves-furniture-steady`.
 
 **Getting up** (2026-11-18, read in IDA, 1.7.104; measured on the duo): the owner's exit is an action whose graph
@@ -286,7 +286,7 @@ same NPCs walk with steady steps.
 
 ## Motion-driven and the Virtual Path Follower (2026-11-05)
 
-Read in IDA on 1.7.104 (every ID below read; measured where it says so). `MovementControllerNPC` (Actor+0x150, `Code/client/Games/Skyrim/AI/Movement/`) has a movement
+Read in IDA on 1.7.104 (every ID below read; measured where it says so). `MovementControllerNPC` (Actor+0x150, `Code/engine/AI/Movement/`) has a movement
 state at +0x1C0 and two agent sets, picked through its `IMovementMotionDrivenControl` (+0x128):
 
 ```

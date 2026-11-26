@@ -48,3 +48,5 @@ Without a Premium key the host sends every mod (the tool never automates Nexus's
 - New Game skips the Helgen intro (Alternate Start). You wake in a prison cell, make your character, then pick how
   your life begins at the statue of Mara (escaping Helgen is one of the choices).
 - Bugs and crashes: see `playtest.md` (in the mod's `SKSE/Plugins/SkyrimCoop` folder): `/bug`, `/export` in the chat.
+- Coming from a version installed by hand before 2026-11-25: delete `Data/SKSE/Plugins/SkyrimTogetherClient.dll` from the game
+  folder. The plugin is now `SkyrimCoop.dll`, and the game would load the old one beside it.

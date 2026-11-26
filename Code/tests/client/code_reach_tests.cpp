@@ -3,7 +3,7 @@
 // addresses; the process is a fake Code.
 #include <catch2/catch.hpp>
 
-#include <Papyrus/CodeReach.h>
+#include <scripts/CodeReach.h>
 
 #include <algorithm>
 #include <map>

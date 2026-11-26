@@ -2,7 +2,7 @@
 // actor is a request to its owner, and friendly fire reaches another player like any NPC's hit.
 #include <catch2/catch.hpp>
 
-#include <Games/Skyrim/HitRules.h>
+#include <combat/HitRules.h>
 
 using namespace HitRules;
 using enum Party;
@@ -56,4 +56,14 @@ TEST_CASE("An object's impact is judged in the hit actor's own game, not on anot
     CHECK(HitRules::JudgesImpact(LocalPlayer));
     CHECK(HitRules::JudgesImpact(Local));
     CHECK_FALSE(HitRules::JudgesImpact(OtherPlayer)); // the host's followed rocks struck a copy 7 times in 90 ms
+}
+
+TEST_CASE("A hit an actor dealt is told, and a blow whose pair yielded lands nowhere", "[HitRules]")
+{
+    CHECK(Lands(Local, LocalPlayer, false, false) == Verdict{.Hit = true, .To = Route::Apply});
+    CHECK(Lands(Copy, LocalPlayer, false, false) == Verdict{.Hit = true, .To = Route::AskOwner});
+    // The yielded blow is still told (its attacker's feedback), and changes nothing.
+    CHECK(Lands(Local, LocalPlayer, true, false) == Verdict{.Hit = true, .To = Route::Drop});
+    // No actor dealt it (a fall, a trap): nothing to tell or cancel.
+    CHECK(Lands(Local, None, true, false) == Verdict{.Hit = false, .To = Route::Apply});
 }

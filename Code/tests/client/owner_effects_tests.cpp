@@ -1,7 +1,7 @@
-// A copy answers about its effects with its owner's (Games/OwnerEffects.h).
+// A copy answers about its effects with its owner's (sync/magic/OwnerEffects.h).
 #include <catch2/catch.hpp>
 
-#include <Games/OwnerEffects.h>
+#include <magic/OwnerEffects.h>
 
 using OwnerEffects::Held;
 

@@ -44,7 +44,7 @@ size_t HeapHistory::Capture(void** apFrames, size_t aMax) noexcept
 }
 ```
 
-Files: `Code/client/HeapHistory.cpp`. Tests: the harness unit for the capture; the duo:
+Files: `Code/plugin/HeapHistory.cpp`. Tests: the harness unit for the capture; the duo:
 `spectator-watches-kill-move` with `SKYRIMCOOP_HEAP_HISTORY` set, 4 runs (4 of 4 crashed before).
 
 **A2, hook sizes measured, not written** ("A pass-through hook counted as ours"; then "The AI/quest lock pair",
@@ -114,13 +114,13 @@ the clip-load and graph hooks   a WorldGate::Reader, else the engine's own: the 
 ```
 
 - Tests: the scenario `held_copy_shown_again_frees_no_list_twice` (the hook off: the guest crashed 1 of 1, a vtable in
-  a constructor's `this`); ClientTests `[freed-worn-list]`; GameTests "A held copy wearing its outfit beside a twin is shown again: no
+  a constructor's `this`); UnitTests `[freed-worn-list]`; GameTests "A held copy wearing its outfit beside a twin is shown again: no
   worn list is freed twice" (the fake's `EnableActor` learned the reset and counts the second free); the harness's
   `heap` readout (`double_frees`, with heap history on) and the verb `expect_no_double_free`.
 - Dropped: the copy teardown between frames. No step 0 run showed a copy freed mid-frame.
 - Found by its runs and fixed with it: a guest deadlock between a copy's clip request, made inside its graph's
   update, and the animation file job's callbacks (`animation-file-loads.md`, "A request under a graph's lock";
-  `Games/Animation/DeferredClips.h`). Not the same bug: its only tie is our equip of a copy, whose clip load was the
+  `sync/animation/DeferredClips.h`). Not the same bug: its only tie is our equip of a copy, whose clip load was the
   callback.
 
 ## Piece D: a copy starts whole
@@ -189,7 +189,7 @@ bool ApplyStart(Actor& aCopy, const StartPart& acPart)    // only at a start: af
 }
 ```
 
-One writer per field stays the rule (ClientTests `[actor-state]`): `StartPart` writes only at a start; between
+One writer per field stays the rule (UnitTests `[actor-state]`): `StartPart` writes only at a start; between
 starts the stream's handlers do. The ask is the R3 half: a copy off its owner for 2 s takes a new start.
 
 Step 0 (to read in IDA before the build):
@@ -204,7 +204,7 @@ the werewolf   why the copy's graph refuses IdleWerewolfTransformation (its own 
 ```
 
 Files: `Structs/StartPart.h`, `Structs/RecordPart.h` (`kStart`), `ActorStateService` (declare, apply, the check),
-`GraphStream` (declare at a sync point), `CharacterService` (the announcement), `Games/Animation/ActorStateRules.h`.
+`GraphStream` (declare at a sync point), `CharacterService` (the announcement), `sync/animation/ActorStateRules.h`.
 Deletes: `NotifyCharacterSpawn::LatestAction` and `AnnounceCharacterRequest`'s, `HostCharacters::OnMovement`'s
 action record, the hand repair's own compare where the part covers it.
 Tests, failing first: GameTests "A copy spawned while its owner sits is seated in its furniture", "A copy spawned

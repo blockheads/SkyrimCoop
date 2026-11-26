@@ -3,8 +3,8 @@
 
 #include <algorithm>
 
-#include <Games/Skyrim/CopyCombat.h>
-#include <Games/Skyrim/CopyPackage.h>
+#include <CopyCombat.h>
+#include <CopyPackage.h>
 
 namespace
 {

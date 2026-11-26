@@ -68,7 +68,7 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
   guest's recruit (`pick` uses real keys now), `expect items` passing on 0 of 0, `use` reporting before the menu, a
   stale handle on a reused form id.
 
-Shaking (2026-11-05): `jitter(game, seconds)` ranks what turned back on itself frame by frame (`TestHarness/JitterWatch`:
+Shaking (2026-11-05): `jitter(game, seconds)` ranks what turned back on itself frame by frame (`harness/TestHarness/JitterWatch`:
 each actor's place, drawn root, pelvis, heading) and reads what a whole screen hangs on (hour, clock speed, weather,
 player, camera). The animation trace's `pos` entries also carry `sit`, `goal` and `controller`.
 
@@ -91,7 +91,7 @@ together(lanes=[{call, args}, ...], sync="frame")
   both games' clocks read first (harness "clock": its steady clock, offset from the round trip)
   moment = now + 0.4 s; each lane in its own thread
   a lane's first key/mouse/input command goes as {..., "at": moment on that game's clock}
-     TestHarness/Scheduled: runs it in the first frame at or past it; "scheduled" {id} hands back frame, late_ms
+     harness/TestHarness/Scheduled: runs it in the first frame at or past it; "scheduled" {id} hands back frame, late_ms
   inputs more than one slow frame (40 ms) apart fail the call: they did not land together
   exported as ctx.together([lambda: ..., ...], sync=...)
 line_delay(ms, jitter_ms): netem on the guest's namespace link (coop2-host, coop2-ns), both ways;
@@ -244,7 +244,7 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
   `record_start`, `record_export`, `status`, `unstage`, the play flow's (above), and since 2026-11-04 `mcp_reload`,
   `verb`, `verbs`, `rounds`, `trace_*` and `log` (Robustness). The tools live in `coop_harness/mcp_tools.py`.
 - **Verbs as Session methods** (`actions/repro.py`), so exported scenarios call the same code.
-- **Freeze:** `world_freeze` / `step` / `world_clock` harness commands, `Games/Skyrim/Main.h`, `TestHarness/FrameStepper.h`.
+- **Freeze:** `world_freeze` / `step` / `world_clock` harness commands, `engine/Main.h`, `harness/TestHarness/FrameStepper.h`.
   Engine fact: `docs/re/systems/main-loop-and-papyrus-vm.md`, "Freezing the world".
 - **Acceptance (duo):**
   1. Frozen, both games' world-frame counts stop; `step(10)` moves both by exactly 10; game time stays; the guest
@@ -264,9 +264,9 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
 
 ### Phase 2, as built
 
-- **Counters** (`Diagnostics/Counters.h`): `COUNT(name, value)` and `COUNT_TIME(name)`, atomic, fine in hooks. They
+- **Counters** (`sync/core/Counters.h`): `COUNT(name, value)` and `COUNT_TIME(name)`, atomic, fine in hooks. They
   show in `status` (`counters`), the harness `counters` command (with `reset`), `coop_test.py profile` (reset at the
-  window's start, a table per game) and the MCP `counters` tool. ClientTests `[counters]`. First uses:
+  window's start, a table per game) and the MCP `counters` tool. UnitTests `[counters]`. First uses:
   `graph state save us` and `graph state bytes` (`Animation.cpp`), `movement messages` and
   `movement stamp ahead ms` (`HostCharacters::OnMovement`).
 - **Network** (`status.network`, MCP `network`, a line in `profile`): the session time, the host's round trip per
@@ -393,7 +393,7 @@ step(frames=N)       new harness command: Main::freezeTime on, then freezeNextFr
 - First a spike, in IDA and on the duo: does `freezeTime` stop Havok and AI but keep our update and the network
   running? Do both games need to step together (yes, or the copy clock drifts)? The answer goes in
   `docs/re/systems/` before building.
-- New: `TestHarness/CommandsWorld.cpp` gets `world_freeze` and `step`. Engine access goes through a typed `Main`
+- New: `harness/TestHarness/CommandsWorld.cpp` gets `world_freeze` and `step`. Engine access goes through a typed `Main`
   struct in `Games/` with `static_assert`ed offsets.
 
 ### 3. stage: one call sets up a scene
@@ -449,7 +449,7 @@ record_export(bug, kind="scenario"|"spec")
 
 ## Phase 2: readouts the repros need (found in red flags 1–5)
 
-- **Counters:** `Diagnostics/Counters.h`, a named count, sum and max that hooks and services can bump cheaply. It
+- **Counters:** `sync/core/Counters.h`, a named count, sum and max that hooks and services can bump cheaply. It
   shows in `status` and `coop_test.py profile` and as an MCP `counters()` call, so there's no temporary measuring
   code.
 - **Network:** each game's ping (enet RTT) and clock-sync history (server tick, ping used, resulting offset) in
@@ -469,8 +469,8 @@ record_export(bug, kind="scenario"|"spec")
 - New: `scripts/coop_mcp.py` (the server), `scripts/coop_harness/actions/repro.py` (stage, observe, expect,
   recorder as Session methods, so scenarios can call them too), `scripts/coop_harness/scenarios/recorded/`,
   `.mcp.json`.
-- C++: `Code/client/TestHarness/CommandsWorld.cpp` (world_freeze, step), a typed `Main` in
-  `Code/client/Games/Skyrim/`, with its address in `docs/re/ENGINE_REFERENCE.md`
+- C++: `Code/harness/TestHarness/CommandsWorld.cpp` (world_freeze, step), a typed `Main` in
+  `Code/engine/`, with its address in `docs/re/ENGINE_REFERENCE.md`
   (`scripts/re/build_re_data.py`).
 - Docs: `docs/design/repro-mcp.md` (this plan, kept current), `docs/design/testing.md` (a "Repro with the MCP"
   section), `docs/progress.md`; it replaces step 7 of `checked-actions.md`.
@@ -479,7 +479,7 @@ record_export(bug, kind="scenario"|"spec")
 
 - **Python units** (`scripts/test_coop_harness.py`): the recorder turns a recorded call list into scenario code
   and spec JSON; handle resolution; refusal when the duo is held by someone else.
-- **ClientTests:** the pure half of the frame step (counting requested against advanced frames), if any logic
+- **UnitTests:** the pure half of the frame step (counting requested against advanced frames), if any logic
   ends up outside the engine call.
 - **Duo acceptance, end to end through the MCP:**
   1. `duo_start`, `scene_reset`, `world_freeze`: both games' frame counters stop; `step(10)` moves both by 10.

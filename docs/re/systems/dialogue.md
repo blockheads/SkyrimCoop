@@ -579,9 +579,9 @@ shown here"). The guest's game had no form `A7B31` at all; the host's had it onl
 
 A guest's quest is started by sync (`GuestEngine::ApplyQuest` sets its flags, no engine start), so its lines were never
 read. `ApplyQuest` now calls `TESQuest::LoadDialogue` (25086) when a quest goes from stopped to started there
-(`Games/QuestStarts.h`, shared with the fake's `GuestSeams`). The fake engine knows the fact (`FakeDialogue::LineQuest`,
+(`engine/QuestStarts.h`, shared with the fake's `GuestSeams`). The fake engine knows the fact (`FakeDialogue::LineQuest`,
 `FakeEngine::DialogueLoaded`): GameTests "A quest the host starts in play: its lines show on a guest's menu too" went red
-on it, ClientTests `[QuestStarts]`. A stopped
+on it, UnitTests `[QuestStarts]`. A stopped
 quest's lines stay loaded on the guest (harmless). Harness readouts: `info_conditions` (each condition of a line judged
 for a player) and `info_responses` (a line's responses as the engine loads them).
 
@@ -674,6 +674,6 @@ Ride prompt never applied.
 Measured on the duo (2026-11-23, QASmoke): before, both games read `Talk\nPrisoner` over the other player, and a sneaking
 guest read `Pickpocket\nPrisoner` over the host's copy; pressing E (standing) opened nothing and sent no ask. After the
 Talk fix alone the Pickpocket prompt stayed (scenario `no-prompt-over-players` failed on it); with the prompt hook it
-passes. The Search prompt over a dead player is not measured (the fake's flow covers it). ClientTests `TalksToPlayer`,
+passes. The Search prompt over a dead player is not measured (the fake's flow covers it). UnitTests `TalksToPlayer`,
 `ActivatePrompts`; GameTests "A player's character offers no prompt to the other players, on every game" (the fake's
 `CanTalkToPlayer`, `ActivateText`), scenario `no-prompt-over-players` (verb `expect_prompt_lacks`).

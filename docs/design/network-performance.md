@@ -88,7 +88,7 @@ travels; the rate Steam applies read back through `GetConnectionRealTimeStatus`)
 - 1 MB/s with ENet's throttle never cut (deceleration 0): 1.66-1.89 s, no stall; not kept, since the throttle is the
   only back-off on a slow upload
 
-Kept as tests: ClientTests `[steam-pacing]` (`SteamPacing.h`: Steam puts out ENet's window within a frame; fails at
+Kept as tests: UnitTests `[steam-pacing]` (`SteamPacing.h`: Steam puts out ENet's window within a frame; fails at
 256 KB/s and 1 MB/s), and the two-account scenario `steam-join-sends-save-fast` (a whole save through a Steam invite
 in under 4 s: 1.33 s on this build, 7.27 s on the one before).
 
@@ -109,7 +109,7 @@ assuming every delay is disk loading. No Windows large-save loading-time claim i
 
 `host-quickloads-party` passed on both the saved prior-build control and the final build. One earlier run flagged
 a small ladle rotation difference after the reload; that comparison did not recur in the final repeats.
-`bug-report-writes-every-game` passed, including export. Fast checks: 209 ClientTests, 199 HostAuthorityTests,
+`bug-report-writes-every-game` passed, including export. Fast checks: 209 UnitTests, 199 HostAuthorityTests,
 33 encoding cases, 291 GameTests flows, and 32 Python harness checks.
 
 Launcher: normal menu Play and `--graphics +connect_lobby 0` both booted SKSE and our plugin; the invitation

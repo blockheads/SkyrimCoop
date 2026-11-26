@@ -1,7 +1,7 @@
 #include <catch2/catch.hpp>
-#include <Services/ActivatePrompts.h>
-#include <Services/DialogueMenuPolicy.h>
-#include <Services/Guest/VoiceFiles.h>
+#include <world/ActivatePrompts.h>
+#include <dialogue/DialogueMenuPolicy.h>
+#include <dialogue/VoiceFiles.h>
 
 TEST_CASE("A dialogue refresh restores a hidden list even when its options did not change", "[dialogue]")
 {

@@ -1,6 +1,6 @@
 # Terrain: the ground as a walking player meets it
 
-Read on 1.7.104, 2026-11-06, for the harness's `terrain` readout (`TestHarness/Terrain.cpp`,
+Read on 1.7.104, 2026-11-06, for the harness's `terrain` readout (`harness/TestHarness/Terrain.cpp`,
 `scripts/coop_harness/terrain.py`), after the playthrough flow kept guessing at walls and ramps in Embershard Mine
 (`docs/re/systems/pathing.md`). Names are in the IDA database (journal `agent-playthrough-flows.tsv`).
 

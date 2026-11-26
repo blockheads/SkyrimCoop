@@ -54,7 +54,7 @@ only the sender had left the receiver rejecting the flash. `HitVisualsRules` kee
 and lasting FX Persist effects out of the instant-flash rule, and still respects No Hit Effect. A copy plays the
 shader and art with lifetime zero, allowing their normal passes and fades to finish.
 
-Fast regressions: `[instant-visuals]` in ClientTests and GameTests; the fake effect is already gone before its frame.
+Fast regressions: `[instant-visuals]` in UnitTests and GameTests; the fake effect is already gone before its frame.
 Skyrim: `copy-flashes-instant-effects` casts a shrine blessing at Vilkas and checks CureDiseaseEffect's HealMysticFXS
 on both games and its ending. `copy-flashes-one-shot-effects` retains Gift of Charity's non-persisting regression.
 The start hook (34094) remains `void(ActiveEffect*)`; its calling convention and body were checked in IDA.
@@ -91,7 +91,7 @@ in the shuffle, then passed alone, including player recovery.
 
 - `scripts/net_check.sh '[copies],[join-placement],[resurrect-animation],[resurrect-events],[instant-visuals]'`:
   15 cases / 254 assertions pass at both 50 ms delay, 30 ms jitter, 5% loss and 120 ms, 80 ms jitter, 10% loss.
-- `scripts/check.sh`: ClientTests 52 cases / 555 assertions, HostAuthorityTests 161 / 1765 and TPTests 14 / 227
+- `scripts/check.sh`: UnitTests 52 cases / 555 assertions, HostAuthorityTests 161 / 1765 and TPTests 14 / 227
   pass; UI fixtures and plugin build pass. All 137 GameTests run; 136 pass and the existing plate-carry case fails
   at `physics_flows.cpp:147` (75 units behind, about 20 allowed).
 - Unchanged dev `241bb0f2`, archived and built separately, reproduces that same plate failure using the current

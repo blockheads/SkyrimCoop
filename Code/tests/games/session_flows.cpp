@@ -3,7 +3,7 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Services/JoinService.h>
+#include <join/JoinService.h>
 
 namespace
 {

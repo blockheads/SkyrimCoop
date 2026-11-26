@@ -27,7 +27,7 @@ scenario now loads the reference's exterior cell before staging it.
 The fake learns that a temporary resolved base can have a name distinct from its permanent
 face base, and that native form serialization omits a name without change flag `0x20`
 (CommonLibSSE-NG `TESNPC::ChangeFlags::kFullName`). GameTests `[npc-choice]` fails for both new
-and placed copies: **Bandit Outlaw != Bandit Chief**. ClientTests `[npc-snapshot]` then fails
+and placed copies: **Bandit Outlaw != Bandit Chief**. UnitTests `[npc-snapshot]` then fails
 three assertions before the correction. Games are stopped and the duo released for offline work.
 
 The announcement includes the full-name section for a temporary NPC, using the existing form
@@ -44,7 +44,7 @@ against CommonLibSSE-NG (`originalBase +0x10`, `templateBase +0x18`, size `0x20`
 
 Fast verification: created and placed name/race checks pass, and each game's shared face record
 remains named Bandit Outlaw. Refresh and disconnect preserve placed references and clear their copy role;
-a temporary private base does not make a plugin reference deletable. ClientTests: 8 assertions. Full `scripts/check.sh`: 587 cases,
+a temporary private base does not make a plugin reference deletable. UnitTests: 8 assertions. Full `scripts/check.sh`: 587 cases,
 6,178 assertions, Python checks, UI fixtures, plugin and launcher pass. Combined native acceptance
 is recorded in the v1 issue index when completed.
 

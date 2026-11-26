@@ -89,7 +89,7 @@ disabled after setting, call EnableAI afterwards to actually move the NPC"). Van
 ### 4. Replayed actions are refused by the copy's behaviour graph
 
 `AnimationSystem::Update` replays the owner's actions with `ActorMediator::ForceAction`
-(Games/Animation.cpp) → `PerformComplexAction` (38953) → paired-animation check (32803, passes for
+(engine/Animation.cpp) → `PerformComplexAction` (38953) → paired-animation check (32803, passes for
 unpaired actions) → `sub_1407C2FB0` → `IAnimationGraphManagerHolder` vfunc +0x8
 (`NotifyAnimationGraph(eventName)`). A refusal means **the copy's graph had no transition for the
 event in its current state**. Observed (DIAG traces, since removed):
@@ -161,7 +161,7 @@ player).
 
 ## Verification
 
-- `scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL`, then `scripts/coop_test.py reload`
+- `scripts/xmake-msvc.sh build -j16 SkyrimCoopPlugin`, then `scripts/coop_test.py reload`
   into a running duo (or `stop` + `duo --keep-running`).
 - While iterating, run the affected scenarios: `scenario --tag hands,magic,combat --repeat 2`, plus
   `party-changes-cells` and `load-door-not-replayed` (cell changes, respawns).

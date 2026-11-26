@@ -1,9 +1,9 @@
 #include <deque>
 #include <utility>
 #include <catch2/catch.hpp>
-#include <Games/Animation/ActionClaims.h>
+#include <animation/ActionClaims.h>
 #include <Messages/Payloads.h>
-#include <Games/Animation/ReplayState.h>
+#include <animation/ReplayState.h>
 
 TEST_CASE("A replayed pair on this game's player goes by the host's answer to its claim", "[copies][replay-state][kill-move]")
 {

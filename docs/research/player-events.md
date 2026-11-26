@@ -163,8 +163,8 @@ player's context. Plain physical consequences travel as change forms.
 
 ## Spike results (2026-10-19)
 
-Harness-only code: `Code/client/TestHarness/PlayerEvents.cpp`. Its script-engine spike (commands
-`player_events`, `player_context`, as committed in `6f1a5ff9`) became `Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp`;
+Harness-only code: `Code/harness/TestHarness/PlayerEvents.cpp`. Its script-engine spike (commands
+`player_events`, `player_context`, as committed in `6f1a5ff9`) became `Code/engine/Papyrus/GuestScripts.cpp`;
 what stays is `player_probe`, `player_probe_read`, `story_trace`, `story_raise_location_change`.
 
 ### Spike 1: traffic (done)

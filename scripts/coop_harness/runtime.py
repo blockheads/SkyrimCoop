@@ -58,6 +58,11 @@ def late_save_sources():
                             capture_output=True, text=True).stdout.strip()
     folders = [TEST_HOME / "late-saves/extracted"] + ([Path(common).parent / "build/coop-test/late-saves/extracted"] if common else [])
     return [path for folder in folders if folder.exists() for path in sorted(folder.rglob("*.ess"))]
+
+
+# The plugin's file name before the rename: left in Plugins it would load beside ours.
+OLD_DLL_NAME = "SkyrimTogetherClient.dll"
+
 from .utilities import (
     atomic_write,
     log,
@@ -299,7 +304,7 @@ class Runtime:
         required = [GAME / "SkyrimSE.exe", GAME / "skse64_loader.exe", PROTON / "proton", RUNTIME / "run", DLL]
         missing = [str(path) for path in required if not path.exists()]
         if missing:
-            hint = ("\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL && scripts/xmake-msvc.sh build SkyrimCoopLoader")
+            hint = ("\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && scripts/xmake-msvc.sh build -j16 SkyrimCoopPlugin && scripts/xmake-msvc.sh build SkyrimCoopLoader")
             raise ctx.failure("Missing:\n  " + "\n  ".join(missing) + hint)
         # Skyrim's DRM needs the Steam of each game's user: this user's must be running; DUO_USER's starts on launch.
         if any(not ctx.instance_user(_game=game) for game in ctx.games) and \
@@ -382,7 +387,7 @@ class Runtime:
                 ctx.copy_if_changed(source, PLUGINS / "SkyrimCoop/ui" / source.relative_to(UI_SOURCE))
 
     def require_test_harness(ctx):
-        """These scripts drive the plugin through its test harness (Code/client/TestHarness), which only
+        """These scripts drive the plugin through its test harness (Code/harness/TestHarness), which only
         builds configured with --test_harness=y have; a player build would never answer."""
         if b"SkyrimCoopHotReload" not in DLL.read_bytes():
             raise ctx.failure(f"{DLL} has no test harness. Configure with scripts/xmake-msvc.sh f -m dev "
@@ -393,7 +398,8 @@ class Runtime:
         Otherwise the client is the SKSE plugin. Never both: the client would load twice."""
         ctx.require_test_harness()
         ctx.deploy_ui()
-        direct = PLUGINS / "SkyrimTogetherClient.dll"
+        direct = PLUGINS / "SkyrimCoop.dll"
+        (PLUGINS / OLD_DLL_NAME).unlink(missing_ok=True)
         if LOADER.exists():
             direct.unlink(missing_ok=True)
             ctx.copy_if_changed(LOADER, PLUGINS / LOADER.name, compare_contents=True)
@@ -473,7 +479,8 @@ class Runtime:
                 raise ctx.failure(f"{name or 'host'} crashed:\n" + ctx.crash_report(name, new[-1]))
 
     def remove_plugin(ctx):
-        (PLUGINS / "SkyrimTogetherClient.dll").unlink(missing_ok=True)
+        (PLUGINS / OLD_DLL_NAME).unlink(missing_ok=True)
+        (PLUGINS / "SkyrimCoop.dll").unlink(missing_ok=True)
         (PLUGINS / LOADER.name).unlink(missing_ok=True)
         (PLUGINS / VANILLA_HARNESS.name).unlink(missing_ok=True)
 

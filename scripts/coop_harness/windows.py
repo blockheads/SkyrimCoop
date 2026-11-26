@@ -171,7 +171,7 @@ class WindowsRuntime(Runtime):
         missing = [str(path) for path in required if not path.exists()]
         if missing:
             raise ctx.failure("Missing:\n  " + "\n  ".join(missing) + "\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && "
-                              "scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL && scripts/xmake-msvc.sh build SkyrimCoopLoader")
+                              "scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin && scripts/xmake-msvc.sh build SkyrimCoopLoader")
         if not any(process.info["name"] and process.info["name"].lower() == "steam.exe"
                    for process in psutil().process_iter(["name"])):
             raise ctx.failure("Steam must be running (Skyrim's DRM needs it).")

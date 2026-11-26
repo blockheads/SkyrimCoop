@@ -91,7 +91,7 @@ party's by its quest flag and shows the quest marker. The ownership-field marker
 
 - **Arrival:** `InventoryService::OnInventoryChangeEvent`. A key, quest item or story gift arriving on a player is a
   new party item. The arriving game takes its untagged copy back and sends the tagged one with `NewPartyItem`
-  (rules in `Games/PartyItems.h`, ClientTests `[PartyItems]`).
+  (rules in `sync/items/PartyItems.h`, UnitTests `[PartyItems]`).
 - **The story's gift:** `GuestScripts`. An `AddItemFunctor` queued from a quest's script is marked
   (`HookFunctorQueued`), and its run (56095) sets `StoryGiving()`, which the add hooks copy into
   `InventoryChangeEvent::StoryGiven`.
@@ -123,7 +123,7 @@ party's by its quest flag and shows the quest marker. The ownership-field marker
   rule matches a party item on any game (`PartyItems::SameStack`: base and tag, or the holder's quest stack). A guest
   dropping its copy gets it back (as Skyrim refuses a quest item's drop). The upstream quest-item copy in
   `TESObjectREFR::AddOrRemoveItem` is removed. GameTests "A guest picks up a quest object", HostAuthorityTests,
-  ClientTests; Skyrim `party-quest-item-host` / `-guest` pass.
+  UnitTests; Skyrim `party-quest-item-host` / `-guest` pass.
 - **A quest item in a body or chest (2026-11-23, playtest 2026-11-22 item 15):** a guest looting the Golden Claw from
   Arvel left MS13 at 30: the host's take removed it to nowhere, which unbinds its alias's script, and the guest kept a
   plain claw. Now a guest's take of a stack an alias holds is moved with a target (`HostEngine::MoveAliasStack`): a
@@ -134,10 +134,10 @@ party's by its quest flag and shows the quest marker. The ownership-field marker
   GameTests `[container-transfer]` (the host's take, a guest's, a non-quest alias item), HostAuthorityTests; Skyrim
   `golden-claw-guest`.
 - **Improving (2026-10-30):** hooks on tempering (16145) and enchanting (16146) read the owner's stacks of the item
-  before and after; the difference goes out as item changes (`Games/ItemChanges.h` `Diff`). An improved stack is
+  before and after; the difference goes out as item changes (`engine/ItemChanges.h` `Diff`). An improved stack is
   another party stack (`SameStack` matches health and enchantment, not a copy's own charge or poison), so every copy
   loses the old and gains the improved one. Renaming needs nothing (51415 never renames a named stack). GameTests
-  "Tempering or enchanting a party item improves every player's copy" (red first), ClientTests `[ItemChanges]`,
+  "Tempering or enchanting a party item improves every player's copy" (red first), UnitTests `[ItemChanges]`,
   `[PartyItems]`; Skyrim `party-item-improved-host` / `-guest` (harness `improve`, as the tables call 16145/16146).
 - **Removing a stack with extra data (found by `party-item-improved-*` on a fresh duo):** the engine's removal (16059)
   takes only from the stack whose own list it is given; a list rebuilt from the entry (what `AddOrRemoveItem` passed)

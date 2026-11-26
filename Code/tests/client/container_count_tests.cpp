@@ -1,7 +1,7 @@
-// A reference's count of an item (Games/ContainerCount.h): CommonLibSSE-NG's rule, not 16214's.
+// A reference's count of an item (engine/ContainerCount.h): CommonLibSSE-NG's rule, not 16214's.
 #include <catch2/catch.hpp>
 
-#include <Games/ContainerCount.h>
+#include <ContainerCount.h>
 
 TEST_CASE("A chest's count of an item: its base container's and its changes entry's", "[ContainerCount]")
 {

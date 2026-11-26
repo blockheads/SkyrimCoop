@@ -1,9 +1,9 @@
 // Traps' rules (docs/design/traps.md): whose a contact, a hit, a world's effect and an unseen animation are.
 #include <catch2/catch.hpp>
 
-#include <Games/Skyrim/TrapRules.h>
+#include <combat/TrapRules.h>
 #include <Messages/Payloads.h>
-#include <Papyrus/PartyRules.h>
+#include <scripts/PartyRules.h>
 
 using namespace TrapRules;
 using enum HitRules::Party;

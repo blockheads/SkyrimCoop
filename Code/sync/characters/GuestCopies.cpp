@@ -1,0 +1,30 @@
+#include <characters/GuestCopies.h>
+
+#include <ports/IActorBridge.h>
+#include <characters/HeldCopyComponent.h>
+#include <characters/CopyHeldEvent.h>
+#include <core/World.h>
+
+GuestCopies::GuestCopies(World& aWorld, entt::dispatcher& aDispatcher, IActorBridge& aActors) noexcept
+    : m_world(aWorld)
+    , m_actors(aActors)
+{
+    Listen<CopyHeldEvent, &GuestCopies::OnCopyHeld>(m_connections, aDispatcher, this);
+}
+
+void GuestCopies::OnCopyHeld(const CopyHeldEvent& acEvent) noexcept
+{
+    auto* pHeld = m_world.try_get<HeldCopyComponent>(acEvent.Entity);
+    if (!pHeld)
+        return;
+    // Persistent for the session: a cell's unload frees its other references, disabled or not (TESObjectCELL 19113).
+    if (!m_world.all_of<KeptCopyComponent>(acEvent.Entity))
+        m_world.emplace<KeptCopyComponent>(acEvent.Entity, acEvent.FormId, m_actors.SetActorPersistent(acEvent.FormId, true));
+    if (pHeld->Hidden)
+        return;
+    // Disabled already, or its owner's was: it stays so after the session too.
+    pHeld->DisabledByUs = !acEvent.OwnerDisabled && !m_actors.IsActorDisabled(acEvent.FormId);
+    spdlog::info("Copy {:X}: no owner: hidden", acEvent.FormId);
+    m_actors.SetActorHidden(acEvent.FormId, true);
+    pHeld->Hidden = true;
+}

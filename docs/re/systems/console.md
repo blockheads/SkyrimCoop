@@ -1,6 +1,6 @@
 # The console
 
-How a console line runs, and how the test harness reads what it printed (`TestHarness/ConsoleOutput.cpp`,
+How a console line runs, and how the test harness reads what it printed (`harness/TestHarness/ConsoleOutput.cpp`,
 2026-10-21, verified in IDA).
 
 ```

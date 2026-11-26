@@ -1,0 +1,71 @@
+#pragma once
+
+#include <core/Listen.h>
+#include <dialogue/DialogueService.h>
+
+#include <chrono>
+#include <map>
+#include <optional>
+#include <string>
+#include <Messages/RelayedMessages.h>
+
+struct World;
+struct NotifyDialogueRefused;
+
+/**
+ * @brief A guest's game in the party's conversation (docs/design/shared-dialogue.md): talking to a copy asks the
+ * host, whose game runs it; its menu opens on the copy and shows each step's list as the host's game built it; its
+ * picks go to the host, whose game says them.
+ */
+struct GuestDialogue final : DialogueService::Role
+{
+    GuestDialogue(World& aWorld, entt::dispatcher& aDispatcher, DialogueService& aDialogue) noexcept;
+    ~GuestDialogue() noexcept override;
+
+    NO_COPY_MOVE(GuestDialogue);
+
+    bool OnStartAsked(uint32_t aActorFormId, bool aForceGreet) noexcept override;
+    bool OnTalk(uint32_t aActorFormId) noexcept override;
+    [[nodiscard]] bool RunsWithoutMenu() const noexcept override { return false; }
+    void OnOpen(const NotifyDialogueOpen& acMessage) noexcept override;
+    void OnClosed() noexcept override;
+    // The party's list for the current step, in place of any its engine builds.
+    std::optional<std::vector<IDialogueBridge::Option>> OnListBuilt() noexcept override;
+    void OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept override;
+    // The host's NPC moved on: its copy's voice stops with it.
+    void OnLineSkipped() noexcept override;
+    // Leaving the session deletes the copies: a conversation on one ends now (dialogue.md, A guest leaving mid-line).
+    void OnLeft() noexcept;
+    void OnPicked(const NotifyDialoguePicked& acMessage, uint32_t aTopic, uint32_t aInfo, bool aOwnLine) noexcept override;
+
+private:
+    void OnRefused(const NotifyDialogueRefused& acMessage) noexcept;
+    // The owner's lines relayed to copies: the last one of each kind, to say again once the menu is open.
+    void OnLine(const NotifyDialogue& acMessage) noexcept;
+    void OnSubtitle(const NotifySubtitle& acMessage) noexcept;
+    // A menu this game's ask opened (or the NPC's greeting to the party) silences the copy: the host's greeting,
+    // relayed just before, plays again. A menu joining mid-line leaves the copy's line playing.
+    void ReplayGreeting() noexcept;
+
+    World& m_world;
+    DialogueService& m_dialogue;
+
+    uint32_t m_asked{}; // the NPC this guest asked the host to talk to (session id), until it opens
+    uint32_t m_greeting{};
+    std::optional<IDialogueBridge::VoiceSource> m_greetingVoice; // whose files the greeting's are (25502)
+    bool m_menuOpen{};
+    bool m_replayGreeting{}; // the opening menu is this game's own start
+    struct HeardLine
+    {
+        uint32_t SessionId{};
+        std::string Text; // the sound file, or the subtitle
+        uint32_t TopicInfo{};
+        std::chrono::steady_clock::time_point At;
+    };
+    // The last line and subtitle relayed for each speaker (by session id), and when this conversation's last pick came.
+    std::map<uint32_t, HeardLine> m_lastLines;
+    std::map<uint32_t, HeardLine> m_lastSubtitles;
+    std::chrono::steady_clock::time_point m_pickedAt;
+
+    std::vector<entt::scoped_connection> m_connections;
+};

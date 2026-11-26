@@ -1,7 +1,7 @@
 // The party's dialogue list as each menu shows it (docs/design/shared-dialogue.md): who can say an option.
 #include <catch2/catch.hpp>
 
-#include <Services/PartyOptionText.h>
+#include <dialogue/PartyOptionText.h>
 
 TEST_CASE("An option everyone has shows its text; one only some have, their names", "[dialogue]")
 {

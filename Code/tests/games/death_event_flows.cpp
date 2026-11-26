@@ -1,10 +1,12 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Events/ActorDeathChangeEvent.h>
-#include <Events/HealthChangeEvent.h>
+#include <characters/ActorDeathChangeEvent.h>
+#include <actorstate/HealthChangeEvent.h>
 #include <Messages/NotifyMessageFactory.h>
 #include <Messages/Relayed.h>
+#include <core/FormIdComponent.h>
+#include <core/RemoteComponent.h>
 
 namespace
 {

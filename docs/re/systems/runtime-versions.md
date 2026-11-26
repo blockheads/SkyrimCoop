@@ -7,11 +7,11 @@ Each binary advertises and checks its exact runtime; the launcher, resident load
 ```bash
 # Primary build
 scripts/xmake-msvc.sh f -m dev
-scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
+scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin
 
 # Legacy configuration and artifacts are separate; select the option on both commands.
 scripts/xmake-msvc.sh f -m dev --skyrim_version=1.6.1170
-scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL --skyrim_version=1.6.1170
+scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin --skyrim_version=1.6.1170
 
 # The same selector applies to staging, packaging and RE tools.
 COOP_SKYRIM_VERSION=1.6.1170 python3 scripts/coop_test.py duo --keep-running

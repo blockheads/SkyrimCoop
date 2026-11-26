@@ -1,7 +1,7 @@
-// A guest's quest started by the host's state reads in its dialogue lines (Games/QuestStarts.h).
+// A guest's quest started by the host's state reads in its dialogue lines (engine/QuestStarts.h).
 #include <catch2/catch.hpp>
 
-#include <Games/QuestStarts.h>
+#include <QuestStarts.h>
 
 TEST_CASE("A quest the host's state starts here reads its lines once, on the start", "[QuestStarts]")
 {

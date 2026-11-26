@@ -1,0 +1,10 @@
+#include "Forms/TESWorldSpace.h"
+#include <Forms/TESObjectCELL.h>
+#include <VersionDb.h>
+
+TESObjectCELL* TESWorldSpace::LoadCell(int32_t aXCoordinate, int32_t aYCoordinate) noexcept
+{
+    using TLoadCell = TESObjectCELL*(TESWorldSpace*, int32_t aXCoordinate, int32_t aYCoordinate);
+    POINTER_SKYRIMSE(TLoadCell, s_loadCell, 20460);
+    return s_loadCell(this, aXCoordinate, aYCoordinate);
+}
