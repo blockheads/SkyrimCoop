@@ -7,6 +7,7 @@
 
 #include <Hooks/DInputHook.h>
 
+#include <SkyrimEngine.h>
 #include <World.h>
 #include <PluginPaths.h>
 #include <Diagnostics/Folders.h>
@@ -72,7 +73,7 @@ Plugin::~Plugin() = default;
 
 void Plugin::Start()
 {
-    World::Create();
+    CreateWorld();
     World::Get().ctx().emplace<RenderSystemD3D11>(World::Get().ctx().at<ImguiService>());
 
     // TODO: Figure out a way to un-blacklist NvCamera64.dll (see DllBlocklist.cpp). Then this hack can be removed

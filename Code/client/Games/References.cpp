@@ -210,7 +210,7 @@ void HookSetCurrentPickREFR(Console* apThis, BSPointerHandle<TESObjectREFR>* apR
     if (pObject)
         formId = pObject->formID;
 
-    World::Get().GetDebugService().SetDebugId(formId);
+    World::Get().ctx().at<DebugService>().SetDebugId(formId);
 
     return RealSetCurrentPickREFR(apThis, apRefr);
 }

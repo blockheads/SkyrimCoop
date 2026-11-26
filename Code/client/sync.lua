@@ -128,8 +128,8 @@ sync_files = {
     "Services/SessionEnd.cpp",
     "SessionIds.cpp",
     "Systems/InterpolationSystem.cpp",
-    "TaskQueue.cpp"
-
+    "TaskQueue.cpp",
+    "World.cpp"
 }
 
 target("SkyrimCoopSync")

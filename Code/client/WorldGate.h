@@ -33,7 +33,7 @@ struct Reader
     bool m_admitted;
 };
 
-// World::Create.
+// CreateWorld (SkyrimEngine.cpp).
 inline void Open() noexcept
 {
     g_open.store(true);

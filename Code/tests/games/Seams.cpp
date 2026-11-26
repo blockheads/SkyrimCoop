@@ -18,6 +18,7 @@
 
 #include <Bridges/IActorBridge.h>
 #include "FakeGuestEngine.h"
+#include <IEngine.h>
 #include "FakeHostEngine.h"
 #include <Services/GuestService.h>
 
@@ -69,495 +70,357 @@
 #include <Structs/Mods.h>
 #include <World.h>
 
-// The engine behind the bridges: the fake.
-class SkyrimBridge : public FakeEngine
-{
-};
-
+// The engine a game here runs on: the fake behind every port, and the frame the fake drives.
 namespace
 {
-World* s_pCurrent = nullptr;
-
-std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& aWorld)
+class FakeEngineSet final : public IEngine
 {
-    auto bridge = std::make_unique<SkyrimBridge>();
-    FakeEngine& engine = *bridge;
-    aWorld.ctx().emplace<FakeEngine&>(engine);
-    aWorld.ctx().emplace<IActorBridge&>(static_cast<IActorBridge&>(engine));
-    aWorld.ctx().emplace<IFormBridge&>(static_cast<IFormBridge&>(engine));
-    aWorld.ctx().emplace<IPlayerBridge&>(static_cast<IPlayerBridge&>(engine));
-    aWorld.ctx().emplace<IWorldBridge&>(static_cast<IWorldBridge&>(engine));
-    aWorld.ctx().emplace<IJoinBridge&>(static_cast<IJoinBridge&>(engine));
-    aWorld.ctx().emplace<IBodyBridge&>(static_cast<IBodyBridge&>(engine));
-    return bridge;
-}
-} // namespace
+public:
+    IActorBridge& Actors() noexcept override { return m_engine; }
+    IFormBridge& Forms() noexcept override { return m_engine; }
+    IPlayerBridge& Player() noexcept override { return m_engine; }
+    IWorldBridge& WorldBridge() noexcept override { return m_engine; }
+    IDialogueBridge& Dialogue() noexcept override { return m_dialogue; }
+    ISteamBridge& Steam() noexcept override { return m_steam; }
+    IJoinBridge& Join() noexcept override { return m_engine; }
+    IWaitBridge& Wait() noexcept override { return m_wait; }
+    IBodyBridge& Bodies() noexcept override { return m_engine; }
+    ICrimeBridge& Crime() noexcept override { return m_crime; }
+    IBugReportBridge& BugReports() noexcept override { return m_bugReports; }
+    IDevToolsBridge& DevTools() noexcept override { return m_devTools; }
+    std::unique_ptr<IGuestEngine> MakeGuestEngine() override { return std::make_unique<FakeGuestEngine>(m_engine); }
+    std::unique_ptr<IHostEngine> MakeHostEngine() override { return std::make_unique<FakeHostEngine>(*m_pWorld, m_engine); }
 
-void SetCurrentWorld(World* apWorld) noexcept
-{
-    s_pCurrent = apWorld;
-}
-
-World::World()
-    : m_pSkyrimBridge(CreateBridgeContext(*this)), m_pDialogueBridge(std::make_unique<FakeDialogue>()),
-      m_pSteamBridge(std::make_unique<FakeSteam>()),
-      m_pWaitBridge(std::make_unique<FakeWait>(ctx().at<FakeEngine&>())),
-      m_pCrimeBridge(std::make_unique<FakeCrime>(ctx().at<FakeEngine&>())), m_pBugReportBridge(std::make_unique<FakeBugReports>()),
-      m_pDevToolsBridge(std::make_unique<FakeDevTools>(ctx().at<FakeEngine&>())), m_pGraphStreams(std::make_unique<GraphStreams>())
-    , m_pActionClaims(std::make_unique<ActionClaims>())
-    , m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
-{
-    m_lastFrameTime = std::chrono::high_resolution_clock::now();
-    m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
-    // In the real World's order: TravelService before CharacterService.
-    ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
-                                 ctx().at<IPlayerBridge&>());
-    ctx().emplace<CreatedIds>();
-    ctx().emplace<CopyRecords>(); // before CharacterService: its Ride part
-    ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
-                                    ctx().at<IPlayerBridge&>());
-    ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
-    ctx().emplace<TimeScaleService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<FakeWait&>(static_cast<FakeWait&>(*m_pWaitBridge));
-    ctx().emplace<WaitService>(*this, m_dispatcher, m_transport, *m_pWaitBridge);
-    ctx().emplace<BodyService>(*this, m_dispatcher, ctx().at<IBodyBridge&>());
-    ctx().emplace<FakeCrime&>(static_cast<FakeCrime&>(*m_pCrimeBridge));
-    ctx().emplace<CrimeService>(*this, m_dispatcher, m_transport, *m_pCrimeBridge);
-    ctx().emplace<SessionService>(*this, m_dispatcher);
-    ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<MagicService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
-    ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<PerkService>(m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<CopyRecordsService>(*this, m_dispatcher, m_transport, ctx().at<CopyRecords>());
-    ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
-    ctx().emplace<ActorStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<CopyRecords>());
-    ctx().emplace<ClaimService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<KillMoveService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
-                                   ctx().at<CopyRecords>());
-    ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<FakeBugReports&>(static_cast<FakeBugReports&>(*m_pBugReportBridge));
-    ctx().emplace<BugReportService>(*this, m_dispatcher, m_transport, *m_pBugReportBridge);
-    ctx().emplace<IDevToolsBridge&>(*m_pDevToolsBridge);
-    ctx().emplace<FakeDevTools&>(static_cast<FakeDevTools&>(*m_pDevToolsBridge));
-    ctx().emplace<DevToolsService>(*this, m_dispatcher, m_transport, *m_pDevToolsBridge);
-    ctx().emplace<FakeDialogue&>(static_cast<FakeDialogue&>(*m_pDialogueBridge));
-    // An NPC's AI sets its slot; a copy runs none (Skyrim: the copy's slots stayed empty).
-    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerLooks = [](uint32_t aSpeaker, uint32_t aTarget) {
-        FakeEngine& engine = FakeEngine::Current();
-        if (const auto it = engine.Actors.find(aSpeaker); it != engine.Actors.end() && !it->second.Copy)
-            engine.LooksAt(aSpeaker, FakeEngine::kDialogueHeadTrack, aTarget);
-    };
-    // An NPC's AI turns it; a copy follows its owner's heading.
-    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerTurns = [](uint32_t aSpeaker, uint32_t aTarget) {
-        FakeEngine& engine = FakeEngine::Current();
-        const auto it = engine.Actors.find(aSpeaker);
-        const auto target = engine.Actors.find(aTarget);
-        if (it != engine.Actors.end() && !it->second.Copy && target != engine.Actors.end())
-            it->second.Rotation[2] = std::atan2(target->second.Position[0] - it->second.Position[0],
-                                                target->second.Position[1] - it->second.Position[1]);
-    };
-    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerHasProcess = [](uint32_t aSpeaker) {
-        const FakeEngine& engine = FakeEngine::Current();
-        const auto it = engine.Actors.find(aSpeaker);
-        return it != engine.Actors.end() && !it->second.NoProcess;
-    };
-    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerDeadOrFighting = [](uint32_t aSpeaker) {
-        const FakeEngine& engine = FakeEngine::Current();
-        const auto it = engine.Actors.find(aSpeaker);
-        return it != engine.Actors.end() && (it->second.Dead || it->second.OwnCombatTarget);
-    };
-    // DialogueBridge::Start refuses a dead or fighting actor.
-    static_cast<FakeDialogue&>(*m_pDialogueBridge).CanTalk = [](uint32_t aActor) {
-        const FakeEngine& engine = FakeEngine::Current();
-        const auto it = engine.Actors.find(aActor);
-        return it == engine.Actors.end() || (!it->second.Dead && !it->second.OwnCombatTarget);
-    };
-    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerResolves = [](uint32_t aSpeaker) {
-        return FakeEngine::Current().HandleResolves(aSpeaker);
-    };
-    static_cast<FakeDialogue&>(*m_pDialogueBridge).DialogueLoaded = [](uint32_t aQuest) {
-        return FakeEngine::Current().DialogueLoaded.contains(aQuest);
-    };
-    ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
-    ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>());
-    ctx().emplace<DeathService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IActorBridge&>());
-    ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
-                                 ctx().at<IPlayerBridge&>());
-    ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<PartyMarkerService>(*this, m_dispatcher, ctx().at<IActorBridge&>(), ctx().at<IPlayerBridge&>());
-    ctx().emplace<HostService>(*this, m_dispatcher, [this] { return std::unique_ptr<IHostEngine>(std::make_unique<FakeHostEngine>(*this, ctx().at<FakeEngine&>())); });
-    ctx().emplace<GuestService>(*this, m_dispatcher, [this] { return std::unique_ptr<IGuestEngine>(std::make_unique<FakeGuestEngine>(ctx().at<IBodyBridge&>())); });
-    ctx().emplace<FakeSteam&>(static_cast<FakeSteam&>(*m_pSteamBridge));
-    ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
-    ctx().emplace<JoinService>(*this, m_dispatcher, ctx().at<IJoinBridge&>());
-    ctx().emplace<SaveService>(*this, m_dispatcher);
-    WireSessionEnd(*this);
-    ctx().emplace<FollowerService>(*this, m_dispatcher, ctx().at<IPlayerBridge&>());
-}
-
-// As the real World: the services go first, newest first, while the dispatcher and the engine they use still live.
-World::~World()
-{
-    ctx().erase<FollowerService>();
-    ctx().erase<SaveService>();
-    ctx().erase<JoinService>();
-    ctx().erase<SteamService>();
-    ctx().erase<GuestService>();
-    ctx().erase<HostService>();
-    ctx().erase<PartyMarkerService>();
-    ctx().erase<MapService>();
-    ctx().erase<CombatService>();
-    ctx().erase<DeathService>();
-    ctx().erase<PlayerService>();
-    ctx().erase<DialogueService>();
-    ctx().erase<DevToolsService>();
-    ctx().erase<BugReportService>();
-    ctx().erase<SystemQuestService>();
-    ctx().erase<CutsceneService>();
-    ctx().erase<PerkService>();
-    ctx().erase<InventoryService>();
-    ctx().erase<KillMoveService>();
-    ctx().erase<ClaimService>();
-    ctx().erase<ActorStateService>();
-    ctx().erase<AiStateService>();
-    ctx().erase<CopyRecordsService>();
-    ctx().erase<EffectVisualsService>();
-    ctx().erase<MagicService>();
-    ctx().erase<ActorValueService>();
-    ctx().erase<SessionService>();
-    ctx().erase<BodyService>();
-    ctx().erase<WaitService>();
-    ctx().erase<CrimeService>();
-    ctx().erase<TimeScaleService>();
-    ctx().erase<ObjectService>();
-    ctx().erase<CharacterService>();
-    ctx().erase<CopyRecords>();
-    ctx().erase<TravelService>();
-}
-
-World& World::Get() noexcept
-{
-    return *s_pCurrent;
-}
-
-void World::Update() noexcept
-{
-    auto& mainEngine = ctx().at<FakeEngine&>();
-    if (mainEngine.FrameStalled)
-        return;
-    mainEngine.AtMainLoop = true;
-    MainLoopTasks::Run();
-    mainEngine.AtMainLoop = false;
-    ctx().at<FakeEngine&>().RunMainLoop();
-    const auto cNow = std::chrono::high_resolution_clock::now();
-    const double cDelta = std::chrono::duration<double>(cNow - m_lastFrameTime).count();
-    m_lastFrameTime = cNow;
-    const double cEngineFrameMs = mainEngine.FrameMs > 0.0 ? mainEngine.FrameMs : cDelta * 1000.0;
-    if (mainEngine.FrameMs > 0.0)
-        mainEngine.EngineMs = mainEngine.EngineMs > 0.0 ? mainEngine.EngineMs + cEngineFrameMs : static_cast<double>(GetTick());
-    m_frameClock.Advance(GetTick(), cEngineFrameMs);
-    m_copyClock.Advance(m_frameClock.Now(), cEngineFrameMs);
-    m_pGraphStreams->SetTick(m_frameClock.Now());
-    // A delayed line delivers in wall time: recovery must use that clock too.
-    m_dispatcher.trigger(UpdateEvent(std::getenv("COOP_NET") ? cDelta : 1.0 / 60));
-    static_cast<FakeDialogue&>(*m_pDialogueBridge).EngineFrame(m_transport.IsOnline());
-    ctx().at<FakeEngine&>().Releasing.clear();
-    // The real AnimationSystem replays a dying owner's action at its copy's time (CopyPlayback).
-    auto& engine = ctx().at<FakeEngine&>();
-    for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
+    // The fakes themselves, for the flows and the other fakes to reach.
+    void AddFirstServices(World& aWorld) override
     {
-        if (!engine.ActorExists(form.Id)) continue;
-        // On the stream, its sync point is newer than its spawn's state (as AnimationSystem).
-        if (auto* spawn = try_get<SpawnGraphStateComponent>(cEntity); spawn && GetGraphStreams().OnStream(form.Id))
+        m_pWorld = &aWorld;
+        aWorld.ctx().emplace<FakeEngine&>(m_engine);
+        aWorld.ctx().emplace<FakeWait&>(m_wait);
+        aWorld.ctx().emplace<FakeCrime&>(m_crime);
+        aWorld.ctx().emplace<FakeBugReports&>(m_bugReports);
+        aWorld.ctx().emplace<FakeDevTools&>(m_devTools);
+        aWorld.ctx().emplace<FakeDialogue&>(m_dialogue);
+        aWorld.ctx().emplace<FakeSteam&>(m_steam);
+        // An NPC's AI sets its slot; a copy runs none (Skyrim: the copy's slots stayed empty).
+        m_dialogue.SpeakerLooks = [](uint32_t aSpeaker, uint32_t aTarget) {
+            FakeEngine& engine = FakeEngine::Current();
+            if (const auto it = engine.Actors.find(aSpeaker); it != engine.Actors.end() && !it->second.Copy)
+                engine.LooksAt(aSpeaker, FakeEngine::kDialogueHeadTrack, aTarget);
+        };
+        // An NPC's AI turns it; a copy follows its owner's heading.
+        m_dialogue.SpeakerTurns = [](uint32_t aSpeaker, uint32_t aTarget) {
+            FakeEngine& engine = FakeEngine::Current();
+            const auto it = engine.Actors.find(aSpeaker);
+            const auto target = engine.Actors.find(aTarget);
+            if (it != engine.Actors.end() && !it->second.Copy && target != engine.Actors.end())
+                it->second.Rotation[2] = std::atan2(target->second.Position[0] - it->second.Position[0],
+                                                    target->second.Position[1] - it->second.Position[1]);
+        };
+        m_dialogue.SpeakerHasProcess = [](uint32_t aSpeaker) {
+            const FakeEngine& engine = FakeEngine::Current();
+            const auto it = engine.Actors.find(aSpeaker);
+            return it != engine.Actors.end() && !it->second.NoProcess;
+        };
+        m_dialogue.SpeakerDeadOrFighting = [](uint32_t aSpeaker) {
+            const FakeEngine& engine = FakeEngine::Current();
+            const auto it = engine.Actors.find(aSpeaker);
+            return it != engine.Actors.end() && (it->second.Dead || it->second.OwnCombatTarget);
+        };
+        // DialogueBridge::Start refuses a dead or fighting actor.
+        m_dialogue.CanTalk = [](uint32_t aActor) {
+            const FakeEngine& engine = FakeEngine::Current();
+            const auto it = engine.Actors.find(aActor);
+            return it == engine.Actors.end() || (!it->second.Dead && !it->second.OwnCombatTarget);
+        };
+        m_dialogue.SpeakerResolves = [](uint32_t aSpeaker) {
+            return FakeEngine::Current().HandleResolves(aSpeaker);
+        };
+        m_dialogue.DialogueLoaded = [](uint32_t aQuest) {
+            return FakeEngine::Current().DialogueLoaded.contains(aQuest);
+        };
+    }
+
+    void Frame(World& aWorld) noexcept override
+    {
+        auto& mainEngine = aWorld.ctx().at<FakeEngine&>();
+        if (mainEngine.FrameStalled)
+            return;
+        mainEngine.AtMainLoop = true;
+        MainLoopTasks::Run();
+        mainEngine.AtMainLoop = false;
+        aWorld.ctx().at<FakeEngine&>().RunMainLoop();
+        const auto cNow = std::chrono::high_resolution_clock::now();
+        const double cDelta = std::chrono::duration<double>(cNow - m_lastFrameTime).count();
+        m_lastFrameTime = cNow;
+        const double cEngineFrameMs = mainEngine.FrameMs > 0.0 ? mainEngine.FrameMs : cDelta * 1000.0;
+        if (mainEngine.FrameMs > 0.0)
+            mainEngine.EngineMs = mainEngine.EngineMs > 0.0 ? mainEngine.EngineMs + cEngineFrameMs : static_cast<double>(aWorld.GetTick());
+        // A delayed line delivers in wall time: recovery must use that clock too.
+        aWorld.Step(std::getenv("COOP_NET") ? cDelta : 1.0 / 60, cEngineFrameMs);
+        m_dialogue.EngineFrame(aWorld.GetTransport().IsOnline());
+        aWorld.ctx().at<FakeEngine&>().Releasing.clear();
+        // The real AnimationSystem replays a dying owner's action at its copy's time (CopyPlayback).
+        auto& engine = aWorld.ctx().at<FakeEngine&>();
+        for (auto&& [cEntity, animation, form] : aWorld.view<RemoteAnimationComponent, FormIdComponent>().each())
         {
-            // Its actor state alone, and its spawn action taken (as AnimationSystem).
-            if (engine.LoadGraphStateFlags(form.Id, spawn->State) && !animation.TimePoints.empty())
+            if (!engine.ActorExists(form.Id)) continue;
+            // On the stream, its sync point is newer than its spawn's state (as AnimationSystem).
+            if (auto* spawn = aWorld.try_get<SpawnGraphStateComponent>(cEntity); spawn && aWorld.GetGraphStreams().OnStream(form.Id))
             {
-                animation.LastRanAction = animation.TimePoints.front();
-                engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
-                animation.TimePoints.pop_front();
-            }
-            remove<SpawnGraphStateComponent>(cEntity);
-        }
-        if (auto* spawn = try_get<SpawnGraphStateComponent>(cEntity))
-        {
-            if (all_of<WaitingFor3D>(cEntity) || !engine.IsAnimationGraphReady(form.Id)) continue;
-            if (engine.LoadActorGraphState(form.Id, spawn->State) && !animation.TimePoints.empty())
-            {
-                animation.LastRanAction = animation.TimePoints.front();
-                animation.Variables = animation.LastRanAction.Variables;
-                animation.VariablesTick = animation.LastRanAction.Tick;
-                engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
-                animation.TimePoints.pop_front();
-            }
-            remove<SpawnGraphStateComponent>(cEntity);
-        }
-        auto& actor = engine.Actors.at(form.Id);
-        // On its owner's graph input stream (graph-input-stream.md), as AnimationSystem: its graph's inputs are the
-        // stream's, so its actions are bookkeeping only, but a death (its own body's).
-        auto& streams = GetGraphStreams();
-        const uint64_t cPlayback = InterpolationSystem::PlaybackTick(*this, cEntity);
-        streams.SetPlayback(form.Id, cPlayback);
-        // As AnimationSystem: holding its pose for its owner's death, it takes it when heard.
-        auto& staged = actor.Replay;
-        if (uint8_t waiting = AnimationReplayStep::kClips; engine.PoseHeld(form.Id) && staged.Phase.compare_exchange_strong(waiting, AnimationReplayStep::kIdle))
-            animation.StagedUpdates = 0;
-        const bool cStepFree = streams.OnStream(form.Id) || staged.Phase.load() == AnimationReplayStep::kIdle;
-        bool deathNow = cStepFree && ::ReplayState::TakeOverdueDeath(animation.TimePoints, engine.PoseHeld(form.Id),
-                                                                     [](const ActionEvent& acAction) { return DeathActions::IsDying(acAction.State1); });
-        if (streams.OnStream(form.Id))
-        {
-            while (!animation.TimePoints.empty() && ::ReplayState::ActionDue(animation.TimePoints.front().Tick, cPlayback, deathNow))
-            {
-                const ActionEvent cAction = animation.TimePoints.front();
-                // Its death on its stream: the kill beside the graph, its death's clip its stream's (AnimationSystem).
-                if (DeathActions::IsDying(cAction.State1) && !actor.Dead)
-                    engine.KillBesideGraph(form.Id, cAction);
-                // Its owner's pair: its half by this action, unless its partner here is a copy too (AnimationSystem).
-                const uint32_t cPartnerId = cAction.TargetActor ? Utils::GetFormIdBySessionId(cAction.TargetActor - 1) : cAction.TargetId;
-                const auto cPartner = engine.Actors.find(cPartnerId);
-                const bool cKillMove = !cAction.TargetEventName.empty() && ::ReplayState::EntersKillMove(cAction.EventName);
-                const bool cHasPartner = cPartner != engine.Actors.end();
-                const auto cClaim = cKillMove ? GetActionClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), cAction.Tick)
-                                              : ::ReplayState::ClaimAnswer::kNotNeeded;
-                // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
-                const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
-                    cClaim, cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player));
-                if (cClaimOutcome == ::ReplayState::PairOutcome::kWait)
-                    break;
-                if (cClaimOutcome == ::ReplayState::PairOutcome::kSkip)
+                // Its actor state alone, and its spawn action taken (as AnimationSystem).
+                if (engine.LoadGraphStateFlags(form.Id, spawn->State) && !animation.TimePoints.empty())
                 {
+                    animation.LastRanAction = animation.TimePoints.front();
+                    engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
                     animation.TimePoints.pop_front();
+                }
+                aWorld.remove<SpawnGraphStateComponent>(cEntity);
+            }
+            if (auto* spawn = aWorld.try_get<SpawnGraphStateComponent>(cEntity))
+            {
+                if (aWorld.all_of<WaitingFor3D>(cEntity) || !engine.IsAnimationGraphReady(form.Id)) continue;
+                if (engine.LoadActorGraphState(form.Id, spawn->State) && !animation.TimePoints.empty())
+                {
+                    animation.LastRanAction = animation.TimePoints.front();
+                    animation.Variables = animation.LastRanAction.Variables;
+                    animation.VariablesTick = animation.LastRanAction.Tick;
+                    engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
+                    animation.TimePoints.pop_front();
+                }
+                aWorld.remove<SpawnGraphStateComponent>(cEntity);
+            }
+            auto& actor = engine.Actors.at(form.Id);
+            // On its owner's graph input stream (graph-input-stream.md), as AnimationSystem: its graph's inputs are the
+            // stream's, so its actions are bookkeeping only, but a death (its own body's).
+            auto& streams = aWorld.GetGraphStreams();
+            const uint64_t cPlayback = InterpolationSystem::PlaybackTick(aWorld, cEntity);
+            streams.SetPlayback(form.Id, cPlayback);
+            // As AnimationSystem: holding its pose for its owner's death, it takes it when heard.
+            auto& staged = actor.Replay;
+            if (uint8_t waiting = AnimationReplayStep::kClips; engine.PoseHeld(form.Id) && staged.Phase.compare_exchange_strong(waiting, AnimationReplayStep::kIdle))
+                animation.StagedUpdates = 0;
+            const bool cStepFree = streams.OnStream(form.Id) || staged.Phase.load() == AnimationReplayStep::kIdle;
+            bool deathNow = cStepFree && ::ReplayState::TakeOverdueDeath(animation.TimePoints, engine.PoseHeld(form.Id),
+                                                                         [](const ActionEvent& acAction) { return DeathActions::IsDying(acAction.State1); });
+            if (streams.OnStream(form.Id))
+            {
+                while (!animation.TimePoints.empty() && ::ReplayState::ActionDue(animation.TimePoints.front().Tick, cPlayback, deathNow))
+                {
+                    const ActionEvent cAction = animation.TimePoints.front();
+                    // Its death on its stream: the kill beside the graph, its death's clip its stream's (AnimationSystem).
+                    if (DeathActions::IsDying(cAction.State1) && !actor.Dead)
+                        engine.KillBesideGraph(form.Id, cAction);
+                    // Its owner's pair: its half by this action, unless its partner here is a copy too (AnimationSystem).
+                    const uint32_t cPartnerId = cAction.TargetActor ? Utils::GetFormIdBySessionId(cAction.TargetActor - 1) : cAction.TargetId;
+                    const auto cPartner = engine.Actors.find(cPartnerId);
+                    const bool cKillMove = !cAction.TargetEventName.empty() && ::ReplayState::EntersKillMove(cAction.EventName);
+                    const bool cHasPartner = cPartner != engine.Actors.end();
+                    const auto cClaim = cKillMove ? aWorld.GetActionClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), cAction.Tick)
+                                                  : ::ReplayState::ClaimAnswer::kNotNeeded;
+                    // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
+                    const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
+                        cClaim, cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player));
+                    if (cClaimOutcome == ::ReplayState::PairOutcome::kWait)
+                        break;
+                    if (cClaimOutcome == ::ReplayState::PairOutcome::kSkip)
+                    {
+                        animation.TimePoints.pop_front();
+                        animation.LastRanAction = cAction;
+                        engine.SetActorLatestAnimation(form.Id, cAction);
+                        continue;
+                    }
+                    const bool cPartnerCopy = cHasPartner && cPartner->second.Copy;
+                    const bool cTaken = cHasPartner && ::ReplayState::TakenVictim(cKillMove, cClaim, cPartnerCopy, cPartner->second.Player);
+                    if (!cAction.TargetEventName.empty() && !::ReplayState::PairOnStream(cPartnerCopy, cTaken))
+                    {
+                        streams.HoldUntilPoint(form.Id, cAction.Tick);
+                        break;
+                    }
+                    // What playing the action does beside the graph (39004), as AnimationSystem.
+                    if (cKillMove)
+                    {
+                        actor.InKillMove = cPartner->second.InKillMove = true;
+                        cPartner->second.Killer = form.Id;
+                    }
+                    animation.TimePoints.pop_front();
+                    // Its owner's get-up stands its own body up; its graph's get-up is the stream's (AnimationSystem).
+                    if (KnockReplay::StandsUp(actor.KnockedDown ? 1 : 0, cAction.ActionId == FakeEngine::kActionGetUp))
+                        engine.StandUp(form.Id);
+                    if (!actor.Dead && KnockReplay::GoesDown(engine.KnockStateOf(form.Id), cAction.ActionId == FakeEngine::kActionRagdoll))
+                        aWorld.ctx().at<BodyService>().KnockDown(form.Id);
+                    actor.State1 = ActorStateRules::FromSnapshot1(cAction.StateAfter1, actor.State1); // as AnimationSystem
                     animation.LastRanAction = cAction;
                     engine.SetActorLatestAnimation(form.Id, cAction);
-                    continue;
                 }
-                const bool cPartnerCopy = cHasPartner && cPartner->second.Copy;
-                const bool cTaken = cHasPartner && ::ReplayState::TakenVictim(cKillMove, cClaim, cPartnerCopy, cPartner->second.Player);
-                if (!cAction.TargetEventName.empty() && !::ReplayState::PairOnStream(cPartnerCopy, cTaken))
-                {
-                    streams.HoldUntilPoint(form.Id, cAction.Tick);
-                    break;
-                }
-                // What playing the action does beside the graph (39004), as AnimationSystem.
-                if (cKillMove)
-                {
-                    actor.InKillMove = cPartner->second.InKillMove = true;
-                    cPartner->second.Killer = form.Id;
-                }
-                animation.TimePoints.pop_front();
-                // Its owner's get-up stands its own body up; its graph's get-up is the stream's (AnimationSystem).
-                if (KnockReplay::StandsUp(actor.KnockedDown ? 1 : 0, cAction.ActionId == FakeEngine::kActionGetUp))
-                    engine.StandUp(form.Id);
-                if (!actor.Dead && KnockReplay::GoesDown(engine.KnockStateOf(form.Id), cAction.ActionId == FakeEngine::kActionRagdoll))
-                    ctx().at<BodyService>().KnockDown(form.Id);
-                actor.State1 = ActorStateRules::FromSnapshot1(cAction.StateAfter1, actor.State1); // as AnimationSystem
-                animation.LastRanAction = cAction;
-                engine.SetActorLatestAnimation(form.Id, cAction);
-            }
-            continue;
-        }
-        if (actor.PairStops)
-        {
-            --actor.PairStops;
-            if (::ReplayState::ResendPairStop(1, actor.InKillMove, actor.InPairClip))
-                engine.StopPairClip(form.Id);
-            if (engine.Actors.contains(actor.ClashPartner) &&
-                ::ReplayState::ResendPairStop(1, engine.Actors.at(actor.ClashPartner).InKillMove, engine.Actors.at(actor.ClashPartner).InPairClip))
-            {
-                engine.StopPairClip(actor.ClashPartner);
-                if (actor.PairStops)
-                    continue;
-            }
-        }
-        auto& step = actor.Replay;
-        using Step = AnimationReplayStep;
-        const uint8_t cPhase = step.Phase.load();
-        if (cPhase == Step::kTaken || cPhase == Step::kRefused)
-        {
-                if (cPhase == Step::kTaken)
-            {
-                animation.LastRanAction = step.Action;
-                engine.SetActorLatestAnimation(form.Id, step.Action);
-            }
-            if (!animation.TimePoints.empty() && animation.TimePoints.front().Tick == step.Action.Tick &&
-                animation.TimePoints.front().ActionId == step.Action.ActionId)
-                animation.TimePoints.pop_front();
-            step.Phase.store(Step::kIdle);
-            continue;
-        }
-        if (cPhase == Step::kClips)
-        {
-            if (ClipWaitOver(step, ++animation.StagedUpdates))
-            {
-                animation.StagedUpdates = 0;
-                step.Phase.store(Step::kVariables);
-            }
-            continue;
-        }
-        if (cPhase != Step::kIdle)
-        {
-            // Native Update falls back after ten main-thread updates if no graph job takes the step.
-            if (++animation.StagedUpdates > 10 && cPhase != Step::kBusy)
-            {
-                step.Phase.store(Step::kBusy);
-                engine.ActorLoadAnimationVariables(form.Id, step.Variables);
-                step.Phase.store(engine.PlayReplayed(form.Id, step.Action) ? Step::kTaken : Step::kRefused);
-            }
-            continue;
-        }
-        // As AnimationSystem: held for its owner's pair, it may ask once that action has played.
-        if (streams.Held(form.Id) && std::ranges::none_of(animation.TimePoints, [&](const ActionEvent& acAction) {
-                return !acAction.TargetEventName.empty() && acAction.Tick <= cPlayback;
-            }))
-            streams.PairPlayed(form.Id);
-        if (animation.TimePoints.empty()) continue;
-        const auto& action = animation.TimePoints.front();
-        if (!::ReplayState::ActionDue(action.Tick, InterpolationSystem::PlaybackTick(*this, cEntity), deathNow)) continue;
-        if (!engine.IsAnimationGraphReady(form.Id)) continue;
-        if (DeathActions::IsDying(action.State1))
-        {
-            if (engine.HoldDeathActions) continue;
-            engine.ReplayDeathAction(form.Id, action);
-            animation.TimePoints.pop_front();
-            continue;
-        }
-        if (actor.GraphState == "dead" || actor.GraphState == "recovering")
-        {
-            animation.TimePoints.pop_front();
-            continue;
-        }
-        ActionEvent replayed = action;
-        if (replayed.TargetActor)
-            replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
-        const auto cPartner = engine.Actors.find(replayed.TargetId);
-        const bool cKillMove = ::ReplayState::EntersKillMove(replayed.EventName);
-        // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
-        const bool cHasPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end();
-        const auto cClaim = cKillMove ? GetActionClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), replayed.Tick)
-                                      : ::ReplayState::ClaimAnswer::kNotNeeded;
-        const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
-            cClaim, cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player));
-        if (cClaimOutcome == ::ReplayState::PairOutcome::kWait)
-            continue;
-        if (cClaimOutcome == ::ReplayState::PairOutcome::kSkip)
-        {
-            animation.LastRanAction = replayed;
-            engine.SetActorLatestAnimation(form.Id, replayed);
-            animation.TimePoints.pop_front();
-            continue;
-        }
-        const bool cTaken = cPartner != engine.Actors.end() && ::ReplayState::TakenVictim(cKillMove, cClaim, cPartner->second.Copy, cPartner->second.Player);
-        const bool cLocalPartner = cHasPartner &&
-                                   ::ReplayState::PairsHere(cPartner->second.Copy, engine.IsActorMount(replayed.TargetId), cPartner->second.Player, cKillMove, cTaken);
-        step.PairHere = cLocalPartner;
-        if (cLocalPartner && !cTaken)
-        {
-            const auto cOutcome = ::ReplayState::SettlePairedReplay(cPartner->second.InKillMove, cClaim);
-            if (cOutcome == ::ReplayState::PairOutcome::kWait)
-                continue;
-            if (cOutcome == ::ReplayState::PairOutcome::kYield)
-            {
-                engine.ActorYieldPair(replayed.TargetId, form.Id);
                 continue;
             }
-            if (cOutcome == ::ReplayState::PairOutcome::kSkip)
+            if (actor.PairStops)
+            {
+                --actor.PairStops;
+                if (::ReplayState::ResendPairStop(1, actor.InKillMove, actor.InPairClip))
+                    engine.StopPairClip(form.Id);
+                if (engine.Actors.contains(actor.ClashPartner) &&
+                    ::ReplayState::ResendPairStop(1, engine.Actors.at(actor.ClashPartner).InKillMove, engine.Actors.at(actor.ClashPartner).InPairClip))
+                {
+                    engine.StopPairClip(actor.ClashPartner);
+                    if (actor.PairStops)
+                        continue;
+                }
+            }
+            auto& step = actor.Replay;
+            using Step = AnimationReplayStep;
+            const uint8_t cPhase = step.Phase.load();
+            if (cPhase == Step::kTaken || cPhase == Step::kRefused)
+            {
+                    if (cPhase == Step::kTaken)
+                {
+                    animation.LastRanAction = step.Action;
+                    engine.SetActorLatestAnimation(form.Id, step.Action);
+                }
+                if (!animation.TimePoints.empty() && animation.TimePoints.front().Tick == step.Action.Tick &&
+                    animation.TimePoints.front().ActionId == step.Action.ActionId)
+                    animation.TimePoints.pop_front();
+                step.Phase.store(Step::kIdle);
+                continue;
+            }
+            if (cPhase == Step::kClips)
+            {
+                if (ClipWaitOver(step, ++animation.StagedUpdates))
+                {
+                    animation.StagedUpdates = 0;
+                    step.Phase.store(Step::kVariables);
+                }
+                continue;
+            }
+            if (cPhase != Step::kIdle)
+            {
+                // Native Update falls back after ten main-thread updates if no graph job takes the step.
+                if (++animation.StagedUpdates > 10 && cPhase != Step::kBusy)
+                {
+                    step.Phase.store(Step::kBusy);
+                    engine.ActorLoadAnimationVariables(form.Id, step.Variables);
+                    step.Phase.store(engine.PlayReplayed(form.Id, step.Action) ? Step::kTaken : Step::kRefused);
+                }
+                continue;
+            }
+            // As AnimationSystem: held for its owner's pair, it may ask once that action has played.
+            if (streams.Held(form.Id) && std::ranges::none_of(animation.TimePoints, [&](const ActionEvent& acAction) {
+                    return !acAction.TargetEventName.empty() && acAction.Tick <= cPlayback;
+                }))
+                streams.PairPlayed(form.Id);
+            if (animation.TimePoints.empty()) continue;
+            const auto& action = animation.TimePoints.front();
+            if (!::ReplayState::ActionDue(action.Tick, InterpolationSystem::PlaybackTick(aWorld, cEntity), deathNow)) continue;
+            if (!engine.IsAnimationGraphReady(form.Id)) continue;
+            if (DeathActions::IsDying(action.State1))
+            {
+                if (engine.HoldDeathActions) continue;
+                engine.ReplayDeathAction(form.Id, action);
+                animation.TimePoints.pop_front();
+                continue;
+            }
+            if (actor.GraphState == "dead" || actor.GraphState == "recovering")
+            {
+                animation.TimePoints.pop_front();
+                continue;
+            }
+            ActionEvent replayed = action;
+            if (replayed.TargetActor)
+                replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
+            const auto cPartner = engine.Actors.find(replayed.TargetId);
+            const bool cKillMove = ::ReplayState::EntersKillMove(replayed.EventName);
+            // As AnimationSystem: refused, skipped; on an NPC still this game's, it waits for the host's answer.
+            const bool cHasPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end();
+            const auto cClaim = cKillMove ? aWorld.GetActionClaims().Of(Utils::GetSessionIdByFormId(form.Id).value_or(0), replayed.Tick)
+                                          : ::ReplayState::ClaimAnswer::kNotNeeded;
+            const auto cClaimOutcome = ::ReplayState::ClaimOutcome(
+                cClaim, cHasPartner && ::ReplayState::ClaimedAway(cKillMove, cPartner->second.Copy, cPartner->second.Player));
+            if (cClaimOutcome == ::ReplayState::PairOutcome::kWait)
+                continue;
+            if (cClaimOutcome == ::ReplayState::PairOutcome::kSkip)
             {
                 animation.LastRanAction = replayed;
                 engine.SetActorLatestAnimation(form.Id, replayed);
                 animation.TimePoints.pop_front();
                 continue;
             }
+            const bool cTaken = cPartner != engine.Actors.end() && ::ReplayState::TakenVictim(cKillMove, cClaim, cPartner->second.Copy, cPartner->second.Player);
+            const bool cLocalPartner = cHasPartner &&
+                                       ::ReplayState::PairsHere(cPartner->second.Copy, engine.IsActorMount(replayed.TargetId), cPartner->second.Player, cKillMove, cTaken);
+            step.PairHere = cLocalPartner;
+            if (cLocalPartner && !cTaken)
+            {
+                const auto cOutcome = ::ReplayState::SettlePairedReplay(cPartner->second.InKillMove, cClaim);
+                if (cOutcome == ::ReplayState::PairOutcome::kWait)
+                    continue;
+                if (cOutcome == ::ReplayState::PairOutcome::kYield)
+                {
+                    engine.ActorYieldPair(replayed.TargetId, form.Id);
+                    continue;
+                }
+                if (cOutcome == ::ReplayState::PairOutcome::kSkip)
+                {
+                    animation.LastRanAction = replayed;
+                    engine.SetActorLatestAnimation(form.Id, replayed);
+                    animation.TimePoints.pop_front();
+                    continue;
+                }
+            }
+            step.Action = replayed;
+            if (action.Tick >= animation.VariablesTick)
+            {
+                animation.Variables = action.Variables;
+                animation.VariablesTick = action.Tick;
+            }
+            step.Variables = animation.Variables;
+            step.Retries = 0;
+            animation.StagedUpdates = 0;
+            step.ClipsLoaded = engine.RequestActionClips(form.Id, action.EventName);
+            step.Phase.store(step.ClipsLoaded ? Step::kClips : Step::kVariables);
         }
-        step.Action = replayed;
-        if (action.Tick >= animation.VariablesTick)
-        {
-            animation.Variables = action.Variables;
-            animation.VariablesTick = action.Tick;
-        }
-        step.Variables = animation.Variables;
-        step.Retries = 0;
-        animation.StagedUpdates = 0;
-        step.ClipsLoaded = engine.RequestActionClips(form.Id, action.EventName);
-        step.Phase.store(step.ClipsLoaded ? Step::kClips : Step::kVariables);
+        // The same graph-job phase machine as Skyrim, with the fake's graph behind it.
+        for (auto&& [cEntity, animation, form] : aWorld.view<RemoteAnimationComponent, FormIdComponent>().each())
+            if (engine.IsAnimationGraphReady(form.Id) && engine.Actors.at(form.Id).GraphUpdating && !aWorld.all_of<WaitingFor3D>(cEntity))
+            {
+                auto& step = engine.Actors.at(form.Id).Replay;
+                RunAnimationReplayStep(step, [&](const AnimationVariables& acVariables) {
+                    engine.ActorLoadAnimationVariables(form.Id, acVariables);
+                }, [&] {
+                    if (step.Action.Variables.GraphRandom)
+                        engine.Actors.at(form.Id).GraphRandom = step.Action.Variables.GraphRandom;
+                    return engine.PlayReplayed(form.Id, step.Action);
+                });
+            }
+        auto& waitEngine = aWorld.ctx().at<FakeEngine&>();
+        const float cTimeScale = waitEngine.Calendar.TimeScale;
+        if (aWorld.ctx().at<FakeWait&>().Open)
+            waitEngine.Calendar.TimeScale = 0.f;
+        waitEngine.Frame();
+        waitEngine.Calendar.TimeScale = cTimeScale;
     }
-    // The same graph-job phase machine as Skyrim, with the fake's graph behind it.
-    for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
-        if (engine.IsAnimationGraphReady(form.Id) && engine.Actors.at(form.Id).GraphUpdating && !all_of<WaitingFor3D>(cEntity))
-        {
-            auto& step = engine.Actors.at(form.Id).Replay;
-            RunAnimationReplayStep(step, [&](const AnimationVariables& acVariables) {
-                engine.ActorLoadAnimationVariables(form.Id, acVariables);
-            }, [&] {
-                if (step.Action.Variables.GraphRandom)
-                    engine.Actors.at(form.Id).GraphRandom = step.Action.Variables.GraphRandom;
-                return engine.PlayReplayed(form.Id, step.Action);
-            });
-        }
-    auto& waitEngine = ctx().at<FakeEngine&>();
-    const float cTimeScale = waitEngine.Calendar.TimeScale;
-    if (ctx().at<FakeWait&>().Open)
-        waitEngine.Calendar.TimeScale = 0.f;
-    waitEngine.Frame();
-    waitEngine.Calendar.TimeScale = cTimeScale;
+
+private:
+    World* m_pWorld{};
+    FakeEngine m_engine;
+    FakeDialogue m_dialogue;
+    FakeSteam m_steam;
+    FakeWait m_wait{m_engine};
+    FakeCrime m_crime{m_engine};
+    FakeBugReports m_bugReports;
+    FakeDevTools m_devTools{m_engine};
+    std::chrono::high_resolution_clock::time_point m_lastFrameTime{std::chrono::high_resolution_clock::now()};
+};
+} // namespace
+
+std::unique_ptr<IEngine> MakeFakeEngine()
+{
+    return std::make_unique<FakeEngineSet>();
 }
 
-RunnerService& World::GetRunner() noexcept
+void SetCurrentWorld(World* apWorld) noexcept
 {
-    return m_runner;
-}
-
-IActorBridge& World::GetActorBridge() noexcept
-{
-    return ctx().at<IActorBridge&>();
-}
-
-// As the real World: the session's clock (the host's network's, or the guest's estimate of it).
-uint64_t World::GetTick() const noexcept
-{
-    return m_transport.GetTick();
-}
-
-TransportService& World::GetTransport() noexcept
-{
-    return m_transport;
-}
-
-IPlayerBridge& World::GetPlayerBridge() noexcept
-{
-    return ctx().at<IPlayerBridge&>();
-}
-
-IFormBridge& World::GetFormBridge() noexcept
-{
-    return ctx().at<IFormBridge&>();
-}
-
-TravelService& World::GetTravelService() noexcept
-{
-    return ctx().at<TravelService>();
-}
-
-CharacterService& World::GetCharacterService() noexcept
-{
-    return ctx().at<CharacterService>();
-}
-
-Hosting& World::GetHosting() noexcept
-{
-    return GetHostService();
-}
-
-HostService& World::GetHostService() noexcept
-{
-    return ctx().at<HostService>();
-}
-
-SessionService& World::GetSessionService() noexcept
-{
-    return ctx().at<SessionService>();
+    World::SetCurrent(apWorld);
 }
 
 // Skyrim 1.6.1170 with SKSE 2.2.6; Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm (HostAuthorityTests' host).

@@ -39,6 +39,7 @@
 #include <Papyrus/OwnEvents.h>
 #include <Papyrus/PartyRules.h>
 #include <Structs/Recipe.h>
+#include <IEngine.h>
 #include <Services/Host/HostGame.h>
 #include <Structs/ScriptValue.h>
 #include <Structs/SystemQuestState.h>
@@ -2284,3 +2285,5 @@ LocalCall EnablePlayerControls(bool aMovement = true, bool aFighting = true, boo
 
 // The process holds several games: World::Get() is this one while it runs (Party::As).
 void SetCurrentWorld(World* apWorld) noexcept;
+// The fake behind every port, for a World to run on (Seams.cpp).
+std::unique_ptr<IEngine> MakeFakeEngine();

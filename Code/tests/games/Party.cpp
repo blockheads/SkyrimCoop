@@ -114,7 +114,7 @@ uint16_t Party::Port()
 
 std::unique_ptr<World> Party::NewGame(const char* acpName, const WorldPlugins& acPlugins)
 {
-    auto pGame = std::make_unique<World>();
+    auto pGame = std::make_unique<World>(MakeFakeEngine());
     Engine(*pGame).Name = acpName;
     pGame->ctx().at<FakeSteam&>().Name = acpName;
     // As that game: its engine's loads raise their events on its runner.

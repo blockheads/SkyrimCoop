@@ -55,9 +55,6 @@ plugin	Services/*/ImguiService.*
 plugin	Services/ImguiService.h
 plugin	Systems/RenderSystemD3D11.*
 
-# The real engine's wiring, which the tests replace (tests/games/*Seams.cpp) until World takes its ports
-plugin	World.cpp
-
 # Engine structs and engine-typed code outside Games/Skyrim
 engine	Games/Animation/ActionInput.h
 engine	Games/Animation/ActionOutput.h
@@ -87,6 +84,8 @@ sync/join	Services/Host/HostJoinGame.h
 
 # core: what three or more features use
 sync/core	World.h
+sync/core	IEngine.h
+sync/game	World.cpp
 sync/core	WorldGate.h
 sync/core	FormIds.h
 sync/core	SessionIds.*

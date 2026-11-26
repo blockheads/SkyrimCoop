@@ -28,7 +28,7 @@ uint32_t Character(Party& aParty, World& aGame)
 
 SCENARIO("A follower already in the host's loaded world survives hosting", "[followers][actors]")
 {
-    World world;
+    World world(MakeFakeEngine());
     SetCurrentWorld(&world);
     auto& engine = Party::Engine(world);
     Plugins(engine);

@@ -7,8 +7,8 @@
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 
-// Forward declarations only: no bridge or feature header here. World.cpp (the plugin) and the tests' Seams.cpp build
-// them, so a bridge's interface can change without rebuilding everything that includes this file.
+// Forward declarations only: no bridge or feature header here, so a bridge's interface can change without rebuilding
+// everything that includes this file.
 class IActorBridge;
 class IBodyBridge;
 class ICrimeBridge;
@@ -23,22 +23,26 @@ struct GraphStreams;
 class IFormBridge;
 class IPlayerBridge;
 class IWorldBridge;
-class SkyrimBridge;
+class IEngine;
 
 struct SessionService;
 struct TravelService;
 struct CharacterService;
-struct DebugService;
 struct MagicService;
 struct HostService;
 struct Hosting;
 
 struct World : entt::registry
 {
-    World();
+    // Builds every service on that engine (IEngine.h).
+    explicit World(std::unique_ptr<IEngine> apEngine);
     ~World();
 
+    // A frame, as the engine runs it (IEngine::Frame); it calls Step.
     void Update() noexcept;
+    // The frame's update: the clocks, then every service's (UpdateEvent). aEngineFrameMs: the engine's own frame.
+    void Step(double aDeltaSeconds, double aEngineFrameMs) noexcept;
+    [[nodiscard]] IEngine& GetEngine() noexcept { return *m_pEngine; }
 
     // Frames that stalled (over kStallMs), and how much of the worst ones was our own update: the
     // rest is the engine (or Wine) between our updates.
@@ -51,6 +55,7 @@ struct World : entt::registry
         double LongestUpdateMs{};
     };
     [[nodiscard]] const FrameStats& GetFrameStats() const noexcept { return m_frameStats; }
+    [[nodiscard]] FrameStats& GetFrameStats() noexcept { return m_frameStats; }
 
     RunnerService& GetRunner() noexcept;
     TransportService& GetTransport() noexcept;
@@ -61,8 +66,6 @@ struct World : entt::registry
     const TravelService& GetTravelService() const noexcept;
     CharacterService& GetCharacterService() noexcept;
     const CharacterService& GetCharacterService() const noexcept;
-    DebugService& GetDebugService() noexcept;
-    const DebugService& GetDebugService() const noexcept;
     MagicService& GetMagicService() noexcept;
     const MagicService& GetMagicService() const noexcept;
     // Hosting as the features use it (HostService).
@@ -93,21 +96,15 @@ struct World : entt::registry
     [[nodiscard]] bool IsHosting() const noexcept { return m_hosting; }
     void SetHosting(bool aHosting) noexcept { m_hosting = aHosting; }
 
-    static void Create() noexcept;
+    // The game this code runs in: the plugin's one World; in the tests, the game whose turn it is.
     [[nodiscard]] static World& Get() noexcept;
+    [[nodiscard]] static bool Exists() noexcept;
+    static void SetCurrent(World* apWorld) noexcept;
 
 private:
     entt::dispatcher m_dispatcher;
-    // Must exist before TransportService looks up its bridge references.
-    std::unique_ptr<SkyrimBridge> m_pSkyrimBridge;
-    std::unique_ptr<IDialogueBridge> m_pDialogueBridge;
-    std::unique_ptr<ISteamBridge> m_pSteamBridge;
-    std::unique_ptr<IJoinBridge> m_pJoinBridge;
-    std::unique_ptr<IWaitBridge> m_pWaitBridge;
-    std::unique_ptr<IBodyBridge> m_pBodyBridge;
-    std::unique_ptr<ICrimeBridge> m_pCrimeBridge;
-    std::unique_ptr<IBugReportBridge> m_pBugReportBridge;
-    std::unique_ptr<IDevToolsBridge> m_pDevToolsBridge;
+    // First: every service is built on it, and outlives none of them.
+    std::unique_ptr<IEngine> m_pEngine;
     RecipeBook m_recipes;
     FrameClock m_frameClock;
     CopyClock m_copyClock;
@@ -116,9 +113,7 @@ private:
     RunnerService m_runner;
     TransportService m_transport;
 
-    std::chrono::high_resolution_clock::time_point m_lastFrameTime;
     FrameStats m_frameStats;
-    double m_lastUpdateMs{};
     bool m_hosting{};
 
 };

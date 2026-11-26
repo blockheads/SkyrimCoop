@@ -1,21 +1,20 @@
-#include <WorldGate.h>
-#include "World.h"
+#include <World.h>
 
-// SkyrimBridge is included here (not in World.h) to keep SKSE headers out of
-// every service that includes World.h.
-#include <Bridges/GuestEngine.h>
-#include <Bridges/HostEngine.h>
-#include <Bridges/SkyrimBridge.h>
+#include <IEngine.h>
+#include <CreatedIds.h>
 #include <Bridges/IActorBridge.h>
+#include <Bridges/IBodyBridge.h>
+#include <Bridges/IDevToolsBridge.h>
 #include <Bridges/IFormBridge.h>
+#include <Bridges/IGuestEngine.h>
+#include <Bridges/IHostEngine.h>
+#include <Bridges/IJoinBridge.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IWorldBridge.h>
-
+#include <Games/Animation/ActionClaims.h>
+#include <Games/Animation/GraphStream.h>
 #include <Services/TransportService.h>
 #include <Services/RunnerService.h>
-#include <Services/ImguiService.h>
-#include <Ui/UiService.h>
-#include <Services/PapyrusService.h>
 #include <Services/ObjectService.h>
 #include <Services/ActorValueService.h>
 #include <Services/InventoryService.h>
@@ -27,19 +26,10 @@
 #include <Services/ClaimService.h>
 #include <Services/KillMoveService.h>
 #include <Services/CopyRecords.h>
-#include <CreatedIds.h>
 #include <Services/CopyRecordsService.h>
 #include <Services/PerkService.h>
 #include <Services/DialogueService.h>
-#include <Bridges/DialogueBridge.h>
-#include <Bridges/SteamBridge.h>
-#include <Bridges/JoinBridge.h>
-#include <Bridges/WaitBridge.h>
-#include <Bridges/BodyBridge.h>
 #include <Services/BodyService.h>
-#include <Bridges/CrimeBridge.h>
-#include <Bridges/BugReportBridge.h>
-#include <Bridges/DevToolsBridge.h>
 #include <Services/BugReportService.h>
 #include <Services/CrimeService.h>
 #include <Services/WaitService.h>
@@ -47,8 +37,6 @@
 #include <Services/SaveService.h>
 #include <Services/FollowerService.h>
 #include <Services/SteamService.h>
-#include <LoadGameEvents.h>
-#include <MenuEvents.h>
 #include <Services/MagicService.h>
 #include <Services/CommandService.h>
 #include <Services/DevToolsService.h>
@@ -64,59 +52,35 @@
 #include <Services/SessionService.h>
 #include <Services/CharacterService.h>
 #include <Services/TravelService.h>
-#include <Services/DebugService.h>
-
-#include <Games/Animation/ActionClaims.h>
-#include <Games/Animation/GraphStream.h>
 #include <Events/UpdateEvent.h>
-#include <Diagnostics/Perf.h>
-#include <Diagnostics/Profile.h>
-
-#include <ModCompat/BehaviorVar.h>  
-#include <Hooks/MemoryVP.h>
 
 namespace
 {
-std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& world)
-{
-    // Create the bridge and register all five interfaces into EnTT context so
-    // that services can look them up via ctx().at<IXxxBridge&>().
-    //
-    // IMPORTANT: With multiple inheritance, entt 3.10.0 ctx().emplace<T&>(obj) stores
-    // the raw pointer reinterpreted as T. To get correct virtual dispatch, we must
-    // explicitly cast to each interface type before storing.
-    auto bridge = std::make_unique<SkyrimBridge>();
-    IActorBridge&  actorRef  = *bridge;
-    IFormBridge&   formRef   = *bridge;
-    IPlayerBridge& playerRef = *bridge;
-    IWorldBridge&  worldRef  = *bridge;
-    world.ctx().emplace<IActorBridge&>(actorRef);
-    world.ctx().emplace<IFormBridge&>(formRef);
-    world.ctx().emplace<IPlayerBridge&>(playerRef);
-    world.ctx().emplace<IWorldBridge&>(worldRef);
-    return bridge;
-}
-}
+World* s_pCurrent = nullptr;
 
-World::World()
-    : m_pSkyrimBridge(CreateBridgeContext(*this))
-    , m_pDialogueBridge(std::make_unique<DialogueBridge>())
-    , m_pSteamBridge(std::make_unique<SteamBridge>())
-    , m_pJoinBridge(std::make_unique<JoinBridge>())
-    , m_pWaitBridge(std::make_unique<WaitBridge>())
-    , m_pBodyBridge(std::make_unique<BodyBridge>())
-    , m_pCrimeBridge(std::make_unique<CrimeBridge>())
-    , m_pBugReportBridge(std::make_unique<BugReportBridge>())
-    , m_pDevToolsBridge(std::make_unique<DevToolsBridge>())
+// The ports the services look up, before the first of them (TransportService) is made. Each by its own interface:
+// with multiple inheritance, entt's ctx().emplace<T&> keeps the pointer as given.
+std::unique_ptr<IEngine> Registered(World& aWorld, std::unique_ptr<IEngine> apEngine)
+{
+    aWorld.ctx().emplace<IActorBridge&>(apEngine->Actors());
+    aWorld.ctx().emplace<IFormBridge&>(apEngine->Forms());
+    aWorld.ctx().emplace<IPlayerBridge&>(apEngine->Player());
+    aWorld.ctx().emplace<IWorldBridge&>(apEngine->WorldBridge());
+    aWorld.ctx().emplace<IBodyBridge&>(apEngine->Bodies());
+    aWorld.ctx().emplace<IJoinBridge&>(apEngine->Join());
+    aWorld.ctx().emplace<IDevToolsBridge&>(apEngine->DevTools());
+    return apEngine;
+}
+} // namespace
+
+World::World(std::unique_ptr<IEngine> apEngine)
+    : m_pEngine(Registered(*this, std::move(apEngine)))
     , m_pGraphStreams(std::make_unique<GraphStreams>())
     , m_pActionClaims(std::make_unique<ActionClaims>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
-    , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
 {
-
-    ctx().emplace<ImguiService>();
-    ctx().emplace<UiService>(*this, ctx().at<IActorBridge&>());
+    m_pEngine->AddFirstServices(*this);
     // Before CharacterService: an arrival drops the copies the old cell took before they are checked.
     ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                  ctx().at<IPlayerBridge&>());
@@ -124,15 +88,13 @@ World::World()
     ctx().emplace<CopyRecords>(); // before CharacterService: its Ride part
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport,
                                    ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
-    ctx().emplace<DebugService>(m_dispatcher, *this, m_transport, ctx().at<ImguiService>());
-    ctx().emplace<PapyrusService>(m_dispatcher);
+    m_pEngine->AddServicesAfterCharacters(*this);
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport,
                                   ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<TimeScaleService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<WaitService>(*this, m_dispatcher, m_transport, *m_pWaitBridge);
-    ctx().emplace<IBodyBridge&>(*m_pBodyBridge);
-    ctx().emplace<BodyService>(*this, m_dispatcher, *m_pBodyBridge);
-    ctx().emplace<CrimeService>(*this, m_dispatcher, m_transport, *m_pCrimeBridge);
+    ctx().emplace<WaitService>(*this, m_dispatcher, m_transport, m_pEngine->Wait());
+    ctx().emplace<BodyService>(*this, m_dispatcher, m_pEngine->Bodies());
+    ctx().emplace<CrimeService>(*this, m_dispatcher, m_transport, m_pEngine->Crime());
     ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport,
@@ -148,28 +110,24 @@ World::World()
                                    ctx().at<CopyRecords>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<BugReportService>(*this, m_dispatcher, m_transport, *m_pBugReportBridge);
-    ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
+    ctx().emplace<BugReportService>(*this, m_dispatcher, m_transport, m_pEngine->BugReports());
+    ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, m_pEngine->Dialogue());
     ctx().emplace<CommandService>(m_transport, m_dispatcher);
-    ctx().emplace<IDevToolsBridge&>(*m_pDevToolsBridge);
-    ctx().emplace<DevToolsService>(*this, m_dispatcher, m_transport, *m_pDevToolsBridge);
+    ctx().emplace<DevToolsService>(*this, m_dispatcher, m_transport, m_pEngine->DevTools());
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<DeathService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<PartyMarkerService>(*this, m_dispatcher, ctx().at<IActorBridge&>(), ctx().at<IPlayerBridge&>());
-    ctx().emplace<HostService>(*this, m_dispatcher, [this] { return std::unique_ptr<IHostEngine>(std::make_unique<HostEngine>(*m_pBodyBridge)); });
-    ctx().emplace<GuestService>(*this, m_dispatcher, [this] { return std::unique_ptr<IGuestEngine>(std::make_unique<GuestEngine>(*m_pBodyBridge)); });
-    ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
-    ctx().emplace<IJoinBridge&>(*m_pJoinBridge);
-    ctx().emplace<JoinService>(*this, m_dispatcher, *m_pJoinBridge);
+    ctx().emplace<HostService>(*this, m_dispatcher, [this] { return m_pEngine->MakeHostEngine(); });
+    ctx().emplace<GuestService>(*this, m_dispatcher, [this] { return m_pEngine->MakeGuestEngine(); });
+    ctx().emplace<SteamService>(*this, m_dispatcher, m_pEngine->Steam());
+    ctx().emplace<JoinService>(*this, m_dispatcher, m_pEngine->Join());
     ctx().emplace<SaveService>(*this, m_dispatcher);
     WireSessionEnd(*this);
     ctx().emplace<FollowerService>(*this, m_dispatcher, ctx().at<IPlayerBridge&>());
-    LoadGameEvents::Start();
-
-    BehaviorVar::Get()->Init();
+    m_pEngine->Started(*this);
 }
 
 World::~World()
@@ -177,8 +135,7 @@ World::~World()
     // The services live in the registry's context, which is destroyed after our own members: their
     // connections to m_dispatcher would be released against a dispatcher already gone (it crashed
     // hot reloads now and then). They go first, newest first.
-    LoadGameEvents::Stop();
-    MenuEvents::Stop();
+    m_pEngine->Stopping(*this);
     ctx().erase<FollowerService>();
     ctx().erase<SaveService>();
     ctx().erase<JoinService>();
@@ -212,54 +169,43 @@ World::~World()
     ctx().erase<CrimeService>();
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
-    ctx().erase<PapyrusService>();
-    ctx().erase<DebugService>();
+    m_pEngine->RemoveServicesAfterCharacters(*this);
     ctx().erase<CharacterService>();
     ctx().erase<CopyRecords>();
-    ctx().erase<UiService>();
-    ctx().erase<ImguiService>();
+    ctx().erase<TravelService>();
+    m_pEngine->RemoveFirstServices(*this);
+    if (s_pCurrent == this)
+        s_pCurrent = nullptr;
 }
 
 void World::Update() noexcept
 {
-    const auto cNow = std::chrono::high_resolution_clock::now();
-    const auto cDelta = cNow - m_lastFrameTime;
-    m_lastFrameTime = cNow;
+    m_pEngine->Frame(*this);
+}
 
-    const auto cDeltaSeconds = std::chrono::duration_cast<std::chrono::duration<double>>(cDelta).count();
+void World::Step(double aDeltaSeconds, double aEngineFrameMs) noexcept
+{
+    m_frameClock.Advance(GetTick(), aEngineFrameMs);
+    m_copyClock.Advance(m_frameClock.Now(), aEngineFrameMs);
+    m_pGraphStreams->SetTick(m_frameClock.Now());
+    // Force run this before so we get the tasks scheduled to run
+    m_runner.OnUpdate(UpdateEvent(aDeltaSeconds));
+    m_dispatcher.trigger(UpdateEvent(aDeltaSeconds));
+}
 
-    const double cFrameMs = cDeltaSeconds * 1000.0;
-    ++m_frameStats.Frames;
-    m_frameStats.LongestFrameMs = std::max(m_frameStats.LongestFrameMs, cFrameMs);
-    if (cFrameMs > kStallMs && m_frameStats.Frames > 1)
-    {
-        ++m_frameStats.Stalls;
-        spdlog::warn("Frame stalled: {:.0f}ms since the last one (our last update took {:.1f}ms)", cFrameMs, m_lastUpdateMs);
-    }
+World& World::Get() noexcept
+{
+    return *s_pCurrent;
+}
 
-    // The engine's UI is made after the plugin loads: its menu events from the first frame it is there.
-    MenuEvents::Start();
+bool World::Exists() noexcept
+{
+    return s_pCurrent != nullptr;
+}
 
-    {
-        PROFILE_ZONE("World::Update");
-        // The engine's frame, not ours: our update runs at a different point in each frame (S10).
-        const double cEngineFrameMs = GetWorldBridge().GetRealFrameSeconds() * 1000.0;
-        m_frameClock.Advance(GetTick(), cEngineFrameMs);
-        m_copyClock.Advance(m_frameClock.Now(), cEngineFrameMs);
-        m_pGraphStreams->SetTick(m_frameClock.Now());
-        // Force run this before so we get the tasks scheduled to run
-        m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));
-        m_dispatcher.trigger(UpdateEvent(cDeltaSeconds));
-    }
-    Profile::PlotFrame();
-    PROFILE_FRAME();
-
-    m_lastUpdateMs = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - cNow).count();
-    m_frameStats.LongestUpdateMs = std::max(m_frameStats.LongestUpdateMs, m_lastUpdateMs);
-    const auto cUnixMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    Diagnostics::Frames().Add(cUnixMs, static_cast<float>(cFrameMs), static_cast<float>(m_lastUpdateMs));
-    if (m_lastUpdateMs > kStallMs)
-        spdlog::warn("Our update took {:.0f}ms", m_lastUpdateMs);
+void World::SetCurrent(World* apWorld) noexcept
+{
+    s_pCurrent = apWorld;
 }
 
 RunnerService& World::GetRunner() noexcept
@@ -297,20 +243,6 @@ uint64_t World::GetTick() const noexcept
     return m_transport.GetTick();
 }
 
-void World::Create() noexcept
-{
-    if (!entt::locator<World>::has_value())
-    {
-        entt::locator<World>::emplace();
-        WorldGate::Open();
-    }
-}
-
-World& World::Get() noexcept
-{
-    return entt::locator<World>::value();
-}
-
 SessionService& World::GetSessionService() noexcept
 {
     return ctx().at<SessionService>();
@@ -339,16 +271,6 @@ CharacterService& World::GetCharacterService() noexcept
 const CharacterService& World::GetCharacterService() const noexcept
 {
     return ctx().at<const CharacterService>();
-}
-
-DebugService& World::GetDebugService() noexcept
-{
-    return ctx().at<DebugService>();
-}
-
-const DebugService& World::GetDebugService() const noexcept
-{
-    return ctx().at<const DebugService>();
 }
 
 MagicService& World::GetMagicService() noexcept
