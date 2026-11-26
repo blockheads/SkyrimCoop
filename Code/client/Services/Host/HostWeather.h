@@ -1,7 +1,7 @@
 #pragma once
 
 #include <network/ENetInterface.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostTimeGame.h>
 #include <Structs/GameId.h>
 #include <NoCopyMove.h>
 
@@ -21,7 +21,7 @@ struct HostWeather
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostWeather(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostWeather(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostTimeGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostWeather);
 
@@ -39,7 +39,7 @@ private:
 
     HostNetwork& m_network;
     const HostPlayers& m_players;
-    const HostGame& m_game;
+    const HostTimeGame& m_game;
     std::optional<HostSky> m_sky;
     // Each guest's weather region as it last reported it, and the weather it was sent.
     std::unordered_map<ConnectionId_t, GameId> m_regions;

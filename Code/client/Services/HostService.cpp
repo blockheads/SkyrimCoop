@@ -32,7 +32,9 @@
 #include <Services/Host/HostNetwork.h>
 #include <Services/CharacterService.h>
 #include <Bridges/HostEngine.h>
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/PlayerComponent.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IWorldBridge.h>
 #include <Bridges/IDevToolsBridge.h>

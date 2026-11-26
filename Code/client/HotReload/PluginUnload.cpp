@@ -1,7 +1,8 @@
 #include <WorldGate.h>
 #include <Plugin.h>
 #include <World.h>
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/RemoteComponent.h>
 #include <TestHarness/TestHarness.h>
 #include <Games/References.h>
 #include <Bridges/IActorBridge.h>

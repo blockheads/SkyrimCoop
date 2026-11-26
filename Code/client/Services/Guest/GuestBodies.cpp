@@ -4,7 +4,9 @@
 #include <Physics/BodyPrediction.h>
 #include <Physics/BodyTolerances.h>
 
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
 #include <Messages/Relayed.h>
 #include <Services/TransportService.h>
 #include <Physics/BodyLog.h>

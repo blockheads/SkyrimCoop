@@ -3,7 +3,8 @@
 #include <Services/DialogueMenuPolicy.h>
 #include <Bridges/IActorBridge.h>
 
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/RemoteComponent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Events/MenuEvent.h>

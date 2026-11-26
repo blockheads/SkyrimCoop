@@ -3,6 +3,9 @@
 
 #include <Services/CharacterService.h>
 #include <Games/EngineNames.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
 
 TEST_CASE("A copied NPC name retains the first pooled spelling in each game", "[copies][npc-name-pool]")
 {

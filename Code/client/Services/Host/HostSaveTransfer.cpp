@@ -1,6 +1,6 @@
 #include <Services/Host/HostSaveTransfer.h>
 
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostJoinGame.h>
 #include <Services/Host/HostNetwork.h>
 
 #include <Messages/AuthenticationResponse.h>
@@ -8,7 +8,7 @@
 
 #include <algorithm>
 
-HostSaveTransfer::HostSaveTransfer(HostNetwork& aNetwork, const HostGame& acGame) noexcept
+HostSaveTransfer::HostSaveTransfer(HostNetwork& aNetwork, const HostJoinGame& acGame) noexcept
     : m_network(aNetwork)
     , m_game(acGame)
 {

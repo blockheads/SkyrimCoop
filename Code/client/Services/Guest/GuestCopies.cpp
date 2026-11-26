@@ -1,7 +1,7 @@
 #include <Services/Guest/GuestCopies.h>
 
 #include <Bridges/IActorBridge.h>
-#include <Components.h>
+#include <Components/HeldCopyComponent.h>
 #include <Events/CopyHeldEvent.h>
 #include <World.h>
 

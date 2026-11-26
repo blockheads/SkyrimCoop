@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Events/Listen.h>
+#include <Services/Hosting.h>
 #include <memory>
 #include <string>
 #include <network/ENetInterface.h>
@@ -40,29 +41,25 @@ struct HostTraps;
  * @brief Hosting a session: the listener the other players' games join (HostNetwork), the host's
  * rules (HostAuthority) and its game's reads (HostEngine). The host's own game joins in process.
  */
-struct HostService
+struct HostService final : Hosting
 {
     HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept;
     ~HostService() noexcept;
 
     NO_COPY_MOVE(HostService);
 
-    // Listens on aPort, or the next free one above it.
-    bool StartHosting(uint16_t aPort = 10578) noexcept;
-    void StopHosting() noexcept;
+    bool StartHosting(uint16_t aPort = 10578) noexcept override;
+    void StopHosting() noexcept override;
     void AnnounceEnd() const noexcept;
 
     [[nodiscard]] bool IsHosting() const noexcept { return m_pNetwork != nullptr; }
-    // Null when not hosting.
-    [[nodiscard]] HostNetwork* GetNetwork() const noexcept { return m_pNetwork.get(); }
+    [[nodiscard]] HostNetwork* GetNetwork() const noexcept override { return m_pNetwork.get(); }
 
-    // A host quickload or menu load: the chosen save goes through the party reload.
-    void LoadSave(const std::string& acName) noexcept;
+    void LoadSave(const std::string& acName) noexcept override;
 
     // Removes a player from the session (hosting only).
     void KickPlayer(uint32_t aPlayerId) noexcept;
-    // A session id for one of this game's actors while hosting, else 0.
-    [[nodiscard]] uint32_t NewCharacterId() noexcept;
+    [[nodiscard]] uint32_t NewCharacterId() noexcept override;
 
 protected:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;

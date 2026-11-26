@@ -3,7 +3,8 @@
 #include "FakeDialogue.h"
 #include "Party.h"
 #include "Fixtures.h"
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/RemoteComponent.h>
 #include <SessionIds.h>
 #include <Services/DialogueService.h>
 #include <Events/DialogueEvent.h>

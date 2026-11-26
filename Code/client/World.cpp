@@ -359,6 +359,11 @@ const MagicService& World::GetMagicService() const noexcept
     return ctx().at<const MagicService>();
 }
 
+Hosting& World::GetHosting() noexcept
+{
+    return GetHostService();
+}
+
 HostService& World::GetHostService() noexcept
 {
     return ctx().at<HostService>();

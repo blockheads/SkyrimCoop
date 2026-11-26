@@ -18,7 +18,10 @@
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
+#include <Components/CombatComponent.h>
 #include <Diagnostics/Profile.h>
 
 CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher, IFormBridge& aFormBridge,

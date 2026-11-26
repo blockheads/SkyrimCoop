@@ -18,7 +18,8 @@
 #include <NetImmerse/NiNode.h>
 #include <World.h>
 #include <Bridges/IActorBridge.h>
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/InterpolationComponent.h>
 #include <Systems/InterpolationSystem.h>
 
 #include <Hooks/FunctionHook.h>

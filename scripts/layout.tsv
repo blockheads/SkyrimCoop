@@ -1,5 +1,48 @@
 # Where each file under Code/client is going (docs/architecture.md). One rule a line: target, then a pattern
 # matched against the path under Code/client; the first match wins. scripts/check_layout.py reads it.
+# Pure rules that sit beside the hooks using them
+sync/crime	Games/Skyrim/DetectionRules.h
+sync/combat	Games/Skyrim/TrapRules.h
+sync/combat	Games/Skyrim/HitRules.h
+sync/scripts	Games/Skyrim/Misc/StoryEventRules.*
+sync/scripts	Games/Skyrim/Papyrus/PartyRules.*
+sync/scripts	Games/Skyrim/Papyrus/CodeReach.*
+sync/scripts	Games/Skyrim/Papyrus/ScriptTags.*
+sync/scripts	Games/Skyrim/Papyrus/OwnEvents.*
+sync/scripts	Games/Skyrim/Papyrus/StoryGifts.*
+sync/core	Diagnostics/Profile.h
+sync/core	Diagnostics/Counters.*
+sync/core	Diagnostics/MessageTrail.*
+sync/core	Diagnostics/Trail.h
+engine	Utils.h
+sync/tools	Diagnostics/ReportPaths.*
+sync/core	Games/EngineNames.h
+sync/characters	Games/ActorPools.h
+sync/characters	Games/NpcSnapshot.h
+sync/combat	Games/ActorUpkeep.h
+sync/actorstate	Games/DeathActions.h
+sync/world	Games/EnabledRow.h
+sync/items	Games/EquipmentRepair.h
+sync/items	Games/Overrides.h
+sync/items	Games/PartyItems.h
+sync/items	Bridges/LooseItems.h
+sync/items	Bridges/ContainerItems.h
+sync/magic	Games/OwnerEffects.h
+sync/magic	Games/Magic/CastingSafety.h
+sync/animation	Games/KnockReplay.h
+sync/animation	ModCompat/BehaviorVarsMap.*
+sync/animation	ModCompat/BehaviorOrig.cpp
+
+
+# Link-time seams today: one header, the engine's .cpp in the plugin and a fake's in the tests. Interfaces later.
+ports	Games/Skyrim/Papyrus/PartyNatives.h
+ports	Games/Skyrim/Papyrus/SystemQuests.h
+ports	Games/Skyrim/Papyrus/PlayerNatives.h
+ports	Systems/FaceGenSystem.h
+ports	Systems/AnimationSystem.h
+engine	Systems/AnimationSystem.cpp
+engine	Services/*PapyrusService.*
+
 harness	TestHarness/*
 harness	HotReload/*
 engine	Games/Skyrim/*
@@ -12,18 +55,53 @@ plugin	Services/*/ImguiService.*
 plugin	Services/ImguiService.h
 plugin	Systems/RenderSystemD3D11.*
 
+# The real engine's wiring, which the tests replace (tests/games/*Seams.cpp) until World takes its ports
+plugin	World.cpp
+plugin	Services/HostService.cpp
+plugin	Services/GuestService.cpp
+
+# Engine structs and engine-typed code outside Games/Skyrim
+engine	Games/Animation/ActionInput.h
+engine	Games/Animation/ActionOutput.h
+engine	Games/Animation/BGSActionData.h
+engine	Games/Animation/TESActionData.h
+engine	Games/Animation/BSAnimation*.h
+engine	Games/Animation/IAnimationGraphManagerHolder.h
+engine	Games/Animation/VariableSync.h
+sync/animation	Games/Animation/*
+engine	Games/*
+engine	ModCompat/*
+engine	Systems/FaceGenSystem.*
+
+# The host's game, a part per feature (HostGame joins them)
+sync/followers	Services/Host/HostFollowersGame.h
+sync/crime	Services/Host/HostCrimeGame.h
+sync/items	Services/Host/HostItemsGame.h
+sync/characters	Services/Host/HostCharactersGame.h
+sync/physics	Services/Host/HostBodiesGame.h
+sync/time	Services/Host/HostTimeGame.h
+sync/tools	Services/Host/HostDevToolsGame.h
+sync/world	Services/Host/HostWorldGame.h
+sync/magic	Services/Host/HostMagicGame.h
+sync/combat	Services/Host/HostCombatGame.h
+sync/scripts	Services/Host/HostStoryGame.h
+sync/join	Services/Host/HostJoinGame.h
+
 # core: what three or more features use
 sync/core	World.h
 sync/core	WorldGate.h
 sync/core	FormIds.h
 sync/core	SessionIds.*
 sync/core	CreatedIds.*
-sync/core	RunningGame.*
+sync/core	RunningGame.h
+engine	RunningGame.cpp
 sync/core	RecipeBook.*
 sync/core	ItemIds.*
 sync/core	Services/JoinStatus.h
+sync/core	Services/Hosting.h
 sync/core	TaskQueue.*
-sync/core	MainLoopTasks.*
+sync/core	MainLoopTasks.h
+engine	MainLoopTasks.cpp
 sync/core	ScriptValues.*
 sync/core	Events/Listen.h
 sync/core	Events/UpdateEvent.h
@@ -49,13 +127,13 @@ sync/core	Services/Host/HostChat.*
 sync/core	Services/Host/JoinRefusal.*
 
 # game: wires the features into a host's or a guest's game
-sync/game	World.cpp
-sync/game	Services/HostService*
+sync/game	Services/HostService*.h
+sync/game	Services/HostServiceReload.cpp
 sync/game	Services/HostWorldCalls.cpp
-sync/game	Services/GuestService.*
+sync/game	Services/GuestService.h
 sync/game	Services/SessionEnd.*
 sync/game	Services/Host/HostAuthority.*
-sync/core	Services/Host/HostGame.h
+sync/game	Services/Host/HostGame.h
 
 sync/join	Services/*Join*
 sync/join	Services/Host/HostSession.*
@@ -91,7 +169,6 @@ sync/characters	Services/Host/HostClaims.*
 sync/characters	Services/Guest/GuestCopies.*
 sync/characters	Games/GuestNpcs.*
 sync/characters	Games/HiddenCopies.*
-sync/characters	Systems/FaceGenSystem.*
 sync/characters	Events/Actor*Event.h
 sync/characters	Events/Copy*Event.h
 sync/characters	Events/NpcHeldEvent.h
@@ -104,11 +181,9 @@ sync/movement	Systems/InterpolationSystem.*
 sync/movement	Systems/Copy*.h
 sync/movement	Systems/SnapshotAge.h
 sync/movement	Components/InterpolationComponent.h
-sync/movement	Events/MoveActorEvent.h
+plugin	Events/MoveActorEvent.h
 
 sync/animation	Systems/AnimationSystem.*
-sync/animation	Games/Animation/*
-sync/animation	ModCompat/*
 sync/animation	ObjectAnimations.h
 sync/animation	Components/*AnimationComponent.h
 sync/animation	Components/SpawnGraphStateComponent.h
@@ -136,7 +211,6 @@ sync/combat	Services/Host/PartyThreat.*
 sync/combat	Services/*KillMoveService.*
 sync/combat	Services/Host/HostTakeBacks.*
 sync/combat	Services/*Traps.*
-sync/combat	Bridges/PartyAggro.cpp
 sync/combat	Components/CombatComponent.h
 sync/combat	Events/HitEvent.h
 sync/combat	Events/MeleeStaggerEvent.h
@@ -147,7 +221,6 @@ sync/magic	Services/*MagicService.*
 sync/magic	Services/*EffectVisualsService.*
 sync/magic	Services/ProjectileLaunches.h
 sync/magic	Services/Host/HostMagic.*
-sync/magic	Games/Magic/*
 sync/magic	Events/SpellCastEvent.h
 sync/magic	Events/InterruptCastEvent.h
 sync/magic	Events/RemoveSpellEvent.h
@@ -161,8 +234,6 @@ sync/items	Services/*InventoryService.*
 sync/items	Services/Host/HostItems.*
 sync/items	Services/Host/HostPartyItems.*
 sync/items	Services/Container*
-sync/items	Bridges/LooseItems.*
-sync/items	Bridges/ContainerItems.*
 sync/items	Events/InventoryChangeEvent.h
 sync/items	Events/ItemsChangedEvent.h
 sync/items	Events/EquipmentChangeEvent.h
@@ -199,11 +270,9 @@ sync/dialogue	Services/SpeakerUpdate.h
 sync/dialogue	Services/*PartyOptionText.*
 sync/dialogue	Services/Guest/VoiceFiles.*
 sync/dialogue	Bridges/IDialogueBridge.h
-sync/dialogue	Games/Misc/*
 sync/dialogue	Events/DialogueEvent.h
 sync/dialogue	Events/SubtitleEvent.h
 
-sync/scripts	Services/*PapyrusService.*
 sync/scripts	Services/*SystemQuestService.*
 sync/scripts	Services/Host/HostPlayerNatives.*
 sync/scripts	Services/Host/HostStory.*
@@ -231,6 +300,8 @@ sync/core	Components/*
 
 # The shared ports, split by feature later
 ports	Bridges/I*Bridge.h
+ports	Bridges/GuestEngine.h
+ports	Bridges/HostEngine.h
 engine	Bridges/*
 
 # The plugin's own files

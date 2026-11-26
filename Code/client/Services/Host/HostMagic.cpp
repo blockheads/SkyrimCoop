@@ -1,14 +1,14 @@
 #include <Services/Host/HostMagic.h>
 
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostMagicGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostRouter.h>
 #include <Messages/Relayed.h>
 
 #include <Messages/SummonRequest.h>
 
-HostMagic::HostMagic(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
+HostMagic::HostMagic(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostMagicGame& acGame) noexcept
     : m_router(aRouter)
     , m_players(acPlayers)
     , m_characters(acCharacters)

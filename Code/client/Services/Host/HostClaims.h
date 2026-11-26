@@ -11,7 +11,7 @@
 
 struct HostRouter;
 struct HostCharacters;
-struct HostGame;
+struct HostCharactersGame;
 struct HostPlayers;
 
 // Action claims (one-simulator.md, "Action claims"): one game holds the actors an action involves, all or none; an
@@ -30,7 +30,7 @@ struct HostClaims
     };
 
     // Registers its rules with aRouter.
-    HostClaims(HostRouter& aRouter, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostGame& acGame) noexcept;
+    HostClaims(HostRouter& aRouter, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostCharactersGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostClaims);
 
@@ -72,7 +72,7 @@ private:
 
     const HostPlayers& m_players;
     HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostCharactersGame& m_game;
     std::unordered_map<uint8_t, Rule> m_rules;
     std::unordered_map<uint32_t, Held> m_claims;      // by claim id
     std::unordered_map<uint32_t, uint32_t> m_inClaim; // member -> claim id

@@ -7,7 +7,7 @@
 #include <Events/SessionNoticeEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Services/Host/HostNetwork.h>
-#include <Services/HostService.h>
+#include <Services/Hosting.h>
 #include <Services/JoinService.h>
 #include <Bridges/IJoinBridge.h>
 #include <Services/TransportService.h>
@@ -83,8 +83,8 @@ bool SteamService::Host() noexcept
     if ((m_status.State != "idle" && m_status.State != "failed") || !m_steam.IsReady())
         return false;
     // The session the lobby leads to: this game hosts it and plays in it, as the Host button does.
-    auto& host = m_world.GetHostService();
-    if (!host.IsHosting() && !host.StartHosting())
+    auto& host = m_world.GetHosting();
+    if (!m_world.IsHosting() && !host.StartHosting())
         return false;
     if (!m_world.GetTransport().IsOnline())
         m_world.GetTransport().ConnectLocal(*host.GetNetwork());
@@ -147,8 +147,8 @@ void SteamService::Fail(std::string aError) noexcept
 
 bool SteamService::StepDown() noexcept
 {
-    auto& host = m_world.GetHostService();
-    if (!host.IsHosting())
+    auto& host = m_world.GetHosting();
+    if (!m_world.IsHosting())
         return true;
     if (!m_status.Peers.empty() || (host.GetNetwork() && host.GetNetwork()->GetClientCount() != 0))
         return false;
@@ -257,7 +257,7 @@ void SteamService::OnControl(Peer& aPeer, const std::string& acLine) noexcept
     {
         // Its tunnel into our listener, before the welcome lets its transport dial.
         auto pPort = std::make_unique<Net::LoopbackPort>();
-        const HostNetwork* pNetwork = m_world.GetHostService().GetNetwork();
+        const HostNetwork* pNetwork = m_world.GetHosting().GetNetwork();
         if (!pNetwork || !pPort->Open())
         {
             spdlog::error("Steam: no tunnel for {} (hosting: {})", aPeer.Id, pNetwork != nullptr);
@@ -301,7 +301,7 @@ void SteamService::CloseTunnel(ISteamBridge::Connection aConnection) noexcept
     const auto it = m_tunnels.find(aConnection);
     if (it == m_tunnels.end())
         return;
-    HostNetwork* pNetwork = m_hosting ? m_world.GetHostService().GetNetwork() : nullptr;
+    HostNetwork* pNetwork = m_hosting ? m_world.GetHosting().GetNetwork() : nullptr;
     if (const auto cSession = pNetwork ? pNetwork->FindLocalConnection(it->second.Port->Port()) : 0)
         pNetwork->Kick(cSession);
     m_tunnels.erase(it);

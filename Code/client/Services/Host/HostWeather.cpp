@@ -7,7 +7,7 @@
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/WeatherRegionRequest.h>
 
-HostWeather::HostWeather(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostWeather::HostWeather(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostTimeGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)

@@ -539,6 +539,11 @@ CharacterService& World::GetCharacterService() noexcept
     return ctx().at<CharacterService>();
 }
 
+Hosting& World::GetHosting() noexcept
+{
+    return GetHostService();
+}
+
 HostService& World::GetHostService() noexcept
 {
     return ctx().at<HostService>();

@@ -7,7 +7,7 @@
 
 struct HostRouter;
 struct HostCharacters;
-struct HostGame;
+struct HostStoryGame;
 struct HostPlayers;
 struct StoryEventRequest;
 
@@ -19,7 +19,7 @@ struct HostStory
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostStory(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
+    HostStory(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostStoryGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostStory);
 
@@ -29,5 +29,5 @@ private:
 
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostStoryGame& m_game;
 };

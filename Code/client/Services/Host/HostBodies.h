@@ -13,7 +13,7 @@
 
 struct HostRouter;
 struct HostCharacters;
-struct HostGame;
+struct HostBodiesGame;
 struct HostNetwork;
 struct HostPlayers;
 
@@ -26,7 +26,7 @@ struct HostBodies
     using ConnectionId_t = Net::ConnectionId_t;
 
     HostBodies(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
-               const HostGame& acGame) noexcept;
+               const HostBodiesGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostBodies);
 
@@ -68,7 +68,7 @@ private:
     HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostBodiesGame& m_game;
     BodyAuthority m_authority;
     std::map<BodyKey, Row> m_rows;
     std::map<ConnectionId_t, BodyStream> m_streams;

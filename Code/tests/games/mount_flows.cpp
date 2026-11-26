@@ -6,6 +6,8 @@
 #include <Games/Animation/ReplayState.h>
 #include <SessionIds.h>
 #include <Events/AiStateChangeEvent.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
 
 namespace
 {

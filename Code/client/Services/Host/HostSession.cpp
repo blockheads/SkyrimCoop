@@ -3,7 +3,7 @@
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostJoinGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostSaveTransfer.h>
 #include <Services/Host/JoinRefusal.h>
@@ -18,7 +18,7 @@
 #include <Structs/LoadOrder.h>
 
 HostSession::HostSession(HostRouter& aRouter, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
-                         HostSaveTransfer& aTransfer, const HostGame& acGame) noexcept
+                         HostSaveTransfer& aTransfer, const HostJoinGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(aPlayers)
     , m_characters(aCharacters)

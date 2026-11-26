@@ -4,7 +4,9 @@
 #include <Games/Animation/GraphStream.h>
 #include "Fixtures.h"
 
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/InterpolationComponent.h>
+#include <Components/RemoteComponent.h>
 #include <Systems/InterpolationSystem.h>
 #include <Services/CharacterService.h>
 #include <Messages/NotifyCharacterSpawn.h>

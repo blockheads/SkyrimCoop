@@ -17,6 +17,8 @@
 #include <chrono>
 #include <format>
 #include <thread>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
 
 namespace
 {

@@ -3,7 +3,9 @@
 #include "EngineCalls.h"
 
 #include <Actor.h>
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/InterpolationComponent.h>
+#include <Components/WaitingFor3D.h>
 #include <Forms/TESObjectCELL.h>
 #include <Games/ActorExtension.h>
 #include <Misc/BSFixedString.h>

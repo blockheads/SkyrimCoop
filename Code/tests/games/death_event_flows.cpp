@@ -5,6 +5,8 @@
 #include <Events/HealthChangeEvent.h>
 #include <Messages/NotifyMessageFactory.h>
 #include <Messages/Relayed.h>
+#include <Components/FormIdComponent.h>
+#include <Components/RemoteComponent.h>
 
 namespace
 {

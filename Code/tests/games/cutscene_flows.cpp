@@ -3,6 +3,10 @@
 #include "Party.h"
 #include <Events/CopyAiStateEvent.h>
 #include <Messages/Relayed.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/PlayerComponent.h>
+#include <Components/RemoteComponent.h>
 
 using namespace PartyRules;
 

@@ -51,7 +51,11 @@
 #include <Bridges/IPlayerBridge.h>
 #include <Systems/AnimationSystem.h>
 #include <Systems/FaceGenSystem.h>
-#include <Components.h>
+#include <Components/LocalAnimationComponent.h>
+#include <Components/RemoteAnimationComponent.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/FaceGenComponent.h>
 #include <World.h>
 
 HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept

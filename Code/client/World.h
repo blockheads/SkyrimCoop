@@ -31,6 +31,7 @@ struct CharacterService;
 struct DebugService;
 struct MagicService;
 struct HostService;
+struct Hosting;
 
 struct World : entt::registry
 {
@@ -64,6 +65,8 @@ struct World : entt::registry
     const DebugService& GetDebugService() const noexcept;
     MagicService& GetMagicService() noexcept;
     const MagicService& GetMagicService() const noexcept;
+    // Hosting as the features use it (HostService).
+    Hosting& GetHosting() noexcept;
     HostService& GetHostService() noexcept;
     const HostService& GetHostService() const noexcept;
 

@@ -88,6 +88,8 @@
 #include <Utils.h>
 #include <VersionDb.h>
 #include <World.h>
+#include <Components/FormIdComponent.h>
+#include <Components/RemoteAnimationComponent.h>
 
 // ---------------------------------------------------------------------------
 // Helpers

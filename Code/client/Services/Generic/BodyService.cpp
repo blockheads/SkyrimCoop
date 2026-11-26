@@ -3,7 +3,9 @@
 #include <Bridges/IBodyBridge.h>
 #include <Physics/BodyPrediction.h>
 #include <Physics/BodyTolerances.h>
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/Relayed.h>

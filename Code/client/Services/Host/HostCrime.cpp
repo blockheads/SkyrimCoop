@@ -1,12 +1,12 @@
 #include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostCrime.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostCrimeGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 
 HostCrime::HostCrime(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& aPlayers,
-                     const HostCharacters& aCharacters, const HostGame& aGame) noexcept
+                     const HostCharacters& aCharacters, const HostCrimeGame& aGame) noexcept
     : m_network(aNetwork), m_players(aPlayers), m_characters(aCharacters), m_game(aGame)
 {
     aRouter.On(*this, &HostCrime::OnRequest);

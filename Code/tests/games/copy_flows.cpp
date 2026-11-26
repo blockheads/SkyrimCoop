@@ -4,7 +4,10 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/FaceGenComponent.h>
+#include <Components/HeldCopyComponent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/PlayerLooksChangeEvent.h>
 #include <Messages/PlayerLevelRequest.h>

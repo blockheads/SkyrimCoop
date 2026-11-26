@@ -60,7 +60,6 @@ SOURCE_TAGS = [
     # Every game's lifecycle, dispatch, hooks and shared engine access.
     ("Code/client/World.*", {'core'}),
     ("Code/client/*Pch.h", {'core'}),
-    ("Code/client/Components.h", {'core'}),
     ("Code/client/main.cpp", {'core'}),
     ("Code/client/skse_*", {'core'}),
     ("Code/client/Plugin*", {'core'}),

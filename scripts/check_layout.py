@@ -3,7 +3,7 @@
 
 scripts/layout.tsv says where each file is going. This reads every file's includes and prints what breaks the rules:
 core using a feature, sync using the engine, two features using each other, and files with no place yet.
-It only reports; the exit code is 0 unless --strict.
+--strict fails on the four rules marked "must be 0" and on a file with no place (scripts/check.sh runs it).
     scripts/check_layout.py            # the summary
     scripts/check_layout.py --list     # every offending include
 """
@@ -90,7 +90,8 @@ def main(argv):
     total = 0
     for title, found in findings:
         includes = sum(len(uses) for uses in found.values())
-        total += includes
+        if "must be 0" in title:
+            total += includes
         print(f"{includes:5}  {title}")
         for (origin, target), uses in sorted(found.items(), key=lambda item: -len(item[1])):
             print(f"         {len(uses):4}  {origin} -> {target}")
@@ -101,6 +102,14 @@ def main(argv):
     if listing:
         for name in unplaced:
             print(f"         {name}")
+    # The build's list of the sync layer (Code/client/sync.lua) must be the files placed in sync.
+    listed = set(re.findall(r'^    "([^"]+\.cpp)",?$', (CLIENT / "sync.lua").read_text(), re.M))
+    placed = {name for name, target in files.items() if target and target.startswith("sync/") and name.endswith(".cpp")}
+    drift = sorted(listed ^ placed)
+    print(f"{len(drift):5}  files in Code/client/sync.lua or placed in sync, but not both (must be 0)")
+    for name in drift:
+        print(f"         {name}" + ("  (not in sync.lua)" if name in placed else "  (not placed in sync)"))
+    total += len(drift)
     sizes = collections.Counter(target for target in files.values() if target)
     print("\nfiles per place: " + ", ".join(f"{target} {n}" for target, n in sorted(sizes.items())))
     return 1 if "--strict" in argv and (total or unplaced) else 0

@@ -7,7 +7,7 @@
 #include <NoCopyMove.h>
 
 struct HostRouter;
-struct HostGame;
+struct HostTimeGame;
 struct HostPlayers;
 struct SetTimeCommandRequest;
 struct TravelTimeRequest;
@@ -23,7 +23,7 @@ struct HostClock
     using ConnectionId_t = Net::ConnectionId_t;
 
     // Registers its rules with aRouter.
-    HostClock(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostClock(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostTimeGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostClock);
 
@@ -38,7 +38,7 @@ private:
 
     HostNetwork& m_network;
     const HostPlayers& m_players;
-    const HostGame& m_game;
+    const HostTimeGame& m_game;
     // The clock peers run on, as of m_peersClockTick.
     std::optional<DateTime> m_peersClock;
     uint64_t m_peersClockTick{};

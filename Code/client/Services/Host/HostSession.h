@@ -8,7 +8,7 @@
 
 struct AuthenticationRequest;
 struct HostRouter;
-struct HostGame;
+struct HostJoinGame;
 struct HostPlayers;
 struct HostCharacters;
 struct HostSaveTransfer;
@@ -26,7 +26,7 @@ struct HostSession
 
     // Registers its rules with aRouter.
     HostSession(HostRouter& aRouter, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
-                HostSaveTransfer& aTransfer, const HostGame& acGame) noexcept;
+                HostSaveTransfer& aTransfer, const HostJoinGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostSession);
 
@@ -47,5 +47,5 @@ private:
     HostPlayers& m_players;
     HostCharacters& m_characters;
     HostSaveTransfer& m_transfer;
-    const HostGame& m_game;
+    const HostJoinGame& m_game;
 };

@@ -10,7 +10,7 @@
 #include <unordered_map>
 
 struct HostCharacters;
-struct HostGame;
+struct HostItemsGame;
 struct HostPlayers;
 struct RequestInventoryChanges;
 
@@ -23,7 +23,7 @@ struct HostPartyItems
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostPartyItems(const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
+    HostPartyItems(const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostItemsGame& acGame) noexcept;
 
     // What a player did with the gold it spent, as every game's chat tells it ("Lydia devoured 40 gold"; the user's words).
     static constexpr std::array<std::string_view, 10> cSpendWords{
@@ -63,7 +63,7 @@ struct HostPartyItems
 
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostItemsGame& m_game;
     std::unordered_map<GameId, ConnectionId_t> m_finders;
     std::map<std::pair<ConnectionId_t, uint64_t>, GameId> m_dropped; // (player, item) -> the real stack it dropped
     std::map<std::pair<ConnectionId_t, uint64_t>, int32_t> m_refused; // (player, item) -> refused drops still coming back

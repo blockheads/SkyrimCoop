@@ -1,7 +1,8 @@
 #include <Services/Host/HostConversation.h>
 
 #include <Messages/SharedDialogue.h>
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/PlayerComponent.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 #include <SessionIds.h>

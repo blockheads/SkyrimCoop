@@ -1,7 +1,6 @@
 #include <Utils.h>
 #include <World.h>
 #include <Structs/ScriptValue.h>
-#include <Components.h>
 #include <Actor.h>
 #include <VersionDb.h>
 

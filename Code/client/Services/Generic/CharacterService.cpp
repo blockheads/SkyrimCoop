@@ -8,7 +8,18 @@
 #include <Services/TransportService.h>
 #include <Services/SessionService.h>
 
-#include <Components.h>
+#include <Components/LocalAnimationComponent.h>
+#include <Components/RemoteAnimationComponent.h>
+#include <Components/FormIdComponent.h>
+#include <Components/InterpolationComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
+#include <Components/FaceGenComponent.h>
+#include <Components/WaitingFor3D.h>
+#include <Components/PlayerComponent.h>
+#include <Components/SpawnGraphStateComponent.h>
+#include <Components/OwnerPlaceComponent.h>
+#include <Components/HeldCopyComponent.h>
 
 #include <Events/Copy3DEvent.h>
 #include <Events/ActorAddedEvent.h>
@@ -66,7 +77,7 @@
 
 #include <World.h>
 #include <SessionIds.h>
-#include <Services/HostService.h>
+#include <Services/Hosting.h>
 #include <FormIds.h>
 #include <Diagnostics/Profile.h>
 
@@ -1720,7 +1731,7 @@ void CharacterService::AnnounceCharacter(const entt::entity aEntity) const noexc
     if (!message)
         return;
     // The id the host gave it: the player's from the join, the host's game's other actors' from its rules.
-    message->SessionId = cIsPlayer ? m_characterId : m_world.GetHostService().NewCharacterId();
+    message->SessionId = cIsPlayer ? m_characterId : m_world.GetHosting().NewCharacterId();
     if (!message->SessionId)
         return;
 

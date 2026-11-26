@@ -11,7 +11,7 @@
 
 struct HostRouter;
 struct HostCharacters;
-struct HostGame;
+struct HostCharactersGame;
 struct HostPlayers;
 struct PlayerRecordRequest;
 
@@ -27,7 +27,7 @@ struct HostRecords
     using ConnectionId_t = Net::ConnectionId_t;
 
     // Registers its rule with aRouter.
-    HostRecords(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
+    HostRecords(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostCharactersGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostRecords);
 
@@ -55,7 +55,7 @@ private:
     void OnPartyCall(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostCharactersGame& m_game;
     // Each character's parts, by session id.
     std::unordered_map<uint32_t, std::map<RecordKind, RecordPart>> m_parts;
 };

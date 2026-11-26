@@ -2,13 +2,13 @@
 
 #include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostCharactersGame.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/JoinMessages.h>
 #include <Messages/Relayed.h>
 
-HostRecords::HostRecords(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
+HostRecords::HostRecords(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostCharactersGame& acGame) noexcept
     : m_players(acPlayers)
     , m_characters(acCharacters)
     , m_game(acGame)

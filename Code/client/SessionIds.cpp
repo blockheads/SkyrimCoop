@@ -1,6 +1,8 @@
 #include <SessionIds.h>
 
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
 #include <World.h>
 
 namespace Utils

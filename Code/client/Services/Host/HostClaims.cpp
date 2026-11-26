@@ -2,14 +2,14 @@
 
 #include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostCharactersGame.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/Relayed.h>
 
 #include <algorithm>
 
-HostClaims::HostClaims(HostRouter& aRouter, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostGame& acGame) noexcept
+HostClaims::HostClaims(HostRouter& aRouter, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostCharactersGame& acGame) noexcept
     : m_players(acPlayers)
     , m_characters(aCharacters)
     , m_game(acGame)

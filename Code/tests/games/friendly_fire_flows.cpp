@@ -10,6 +10,8 @@
 #include <Services/DeathService.h>
 #include <SessionIds.h>
 #include <Games/Skyrim/CriticalStageRules.h>
+#include <Components/FormIdComponent.h>
+#include <Components/RemoteAnimationComponent.h>
 
 namespace
 {

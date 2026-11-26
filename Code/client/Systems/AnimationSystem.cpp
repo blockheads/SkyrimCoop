@@ -24,7 +24,12 @@
 
 #include <Messages/ReferencesMoveRequest.h>
 
-#include <Components.h>
+#include <Components/LocalAnimationComponent.h>
+#include <Components/RemoteAnimationComponent.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/WaitingFor3D.h>
+#include <Components/SpawnGraphStateComponent.h>
 #include <World.h>
 #include <Utils.h>
 

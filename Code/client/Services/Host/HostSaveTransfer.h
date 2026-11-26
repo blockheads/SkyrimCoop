@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-struct HostGame;
+struct HostJoinGame;
 struct HostNetwork;
 
 /**
@@ -37,7 +37,7 @@ struct HostSaveTransfer
     static constexpr uint32_t kWaitNoticeEvery = 600;
     static constexpr uint64_t kWaitNoticeSeconds = 10;
 
-    HostSaveTransfer(HostNetwork& aNetwork, const HostGame& acGame) noexcept;
+    HostSaveTransfer(HostNetwork& aNetwork, const HostJoinGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostSaveTransfer);
 
@@ -77,7 +77,7 @@ private:
     void Refuse(ConnectionId_t aConnection) noexcept;
 
     HostNetwork& m_network;
-    const HostGame& m_game;
+    const HostJoinGame& m_game;
     std::map<ConnectionId_t, Receiver> m_receivers;
     std::map<ConnectionId_t, std::vector<std::string>> m_held;
     // The save each game was sent or told to load, until it disconnects: one that says it lost the save's base, or

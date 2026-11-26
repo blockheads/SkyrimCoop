@@ -1,7 +1,7 @@
 #include <Services/Host/HostObjects.h>
 
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostWorldGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostRouter.h>
 
@@ -9,7 +9,7 @@
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/LockChangeRequest.h>
 
-HostObjects::HostObjects(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
+HostObjects::HostObjects(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostWorldGame& acGame) noexcept
     : m_players(acPlayers)
     , m_characters(acCharacters)
     , m_game(acGame)

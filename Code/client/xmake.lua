@@ -25,6 +25,8 @@ target(name)
 
     add_headerfiles("**.h|Games/Skyrim/**|TestHarness/**|HotReload/**")
     add_files("**.cpp|Games/Skyrim/**|TestHarness/**|HotReload/**|skse_entry.cpp")
+    -- The sync layer builds on its own (sync.lua), without this target's Windows and engine headers.
+    remove_files(table.unpack(sync_files))
     -- HotReload/Handoff.h is used by production code either way: without the harness it is no-ops.
     add_headerfiles("HotReload/Handoff.h")
     add_test_harness_define()
@@ -36,10 +38,11 @@ target(name)
     add_files("Bridges/SkyrimBridge.cpp")
     add_headerfiles("Bridges/*.h")
     add_files("Games/Skyrim/**.cpp")
+    remove_files(table.unpack(sync_files))
     add_headerfiles("Games/Skyrim/**.h")
     -- rather hacky:
     add_includedirs("Games/Skyrim")
-    add_deps("SkyrimEncoding")
+    add_deps("SkyrimEncoding", "SkyrimCoopSync")
 
     -- Core dependencies (always needed)
     add_deps(

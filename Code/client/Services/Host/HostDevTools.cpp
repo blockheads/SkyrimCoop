@@ -5,14 +5,14 @@
 #include <Services/Host/HostChat.h>
 #include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostDevToolsGame.h>
 #include <Services/Host/HostLeash.h>
 #include <Services/Host/HostNetwork.h>
 #include <Diagnostics/ReportPaths.h>
 #include <Services/Host/HostPlayers.h>
 
 HostDevTools::HostDevTools(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
-                           const HostGame& acGame, HostLeash& aLeash) noexcept
+                           const HostDevToolsGame& acGame, HostLeash& aLeash) noexcept
     : m_network(aNetwork), m_players(acPlayers), m_characters(acCharacters), m_game(acGame), m_leash(aLeash)
 {
     aRouter.On(*this, &HostDevTools::OnDevCommand);

@@ -1,5 +1,5 @@
 #include <Systems/InterpolationSystem.h>
-#include <Components.h>
+#include <Components/InterpolationComponent.h>
 #include <Systems/SnapshotAge.h>
 
 #include <algorithm>

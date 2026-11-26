@@ -2,7 +2,7 @@
 
 #include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostBodiesGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 
@@ -28,7 +28,7 @@ bool Apart(const BodyFrame& acA, const BodyFrame& acB) noexcept
 } // namespace
 
 HostBodies::HostBodies(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
-                       const HostGame& acGame) noexcept
+                       const HostBodiesGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_characters(acCharacters)

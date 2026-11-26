@@ -1,6 +1,9 @@
 #pragma once
 
-#include <Components.h>
+#include <Components/LocalAnimationComponent.h>
+#include <Components/RemoteAnimationComponent.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
 #include <Games/ActorExtension.h>
 
 struct World;

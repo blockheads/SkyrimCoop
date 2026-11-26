@@ -16,11 +16,11 @@
 #include <NoCopyMove.h>
 
 struct HostRouter;
-struct HostGame;
+struct HostWorldGame;
 struct HostPlayers;
 
 // Each created container's contents right after its create row: a guest's own made one holds nothing.
-void AddCreatedContents(const HostGame& acGame, std::vector<ObjectChange>& aChanges) noexcept;
+void AddCreatedContents(const HostWorldGame& acGame, std::vector<ObjectChange>& aChanges) noexcept;
 
 struct HostNetwork;
 
@@ -34,7 +34,7 @@ struct HostWorldState
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostWorldState(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostWorldState(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostWorldGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostWorldState);
 
@@ -62,7 +62,7 @@ private:
 
     HostNetwork& m_network;
     const HostPlayers& m_players;
-    const HostGame& m_game;
+    const HostWorldGame& m_game;
     // The globals' values the others hold, by session id ((mod id << 32) | base id), as float bits.
     std::unordered_map<uint64_t, uint32_t> m_globals;
     bool m_globalsRead = false;

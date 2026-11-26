@@ -1,7 +1,7 @@
 #include <Services/Host/HostCombat.h>
 
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostCombatGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostRouter.h>
 #include <Messages/Relayed.h>
@@ -10,7 +10,7 @@
 #include <array>
 #include <cmath>
 
-HostCombat::HostCombat(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
+HostCombat::HostCombat(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostCombatGame& acGame) noexcept
     : m_router(aRouter)
     , m_players(acPlayers)
     , m_characters(acCharacters)

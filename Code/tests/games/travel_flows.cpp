@@ -5,7 +5,13 @@
 #include "Fixtures.h"
 #include "FakeDialogue.h"
 
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
+#include <Components/WaitingFor3D.h>
+#include <Components/PlayerComponent.h>
+#include <Components/SpawnGraphStateComponent.h>
+#include <Components/OwnerPlaceComponent.h>
 #include <Events/FastTravelEvent.h>
 #include <Events/PlayerTravelQueuedEvent.h>
 #include <Events/PartySummonCommandEvent.h>

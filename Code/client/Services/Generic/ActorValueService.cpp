@@ -2,7 +2,10 @@
 #include <Games/Animation/ActionClaims.h>
 #include <Messages/Payloads.h>
 #include <World.h>
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
+#include <Components/ActorValuesComponent.h>
 #include <SessionIds.h>
 
 #include <Events/UpdateEvent.h>

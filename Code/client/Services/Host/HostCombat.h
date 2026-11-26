@@ -5,7 +5,7 @@
 #include <network/ENetInterface.h>
 
 struct HostCharacters;
-struct HostGame;
+struct HostCombatGame;
 struct HostPlayers;
 struct HostRouter;
 
@@ -15,7 +15,7 @@ struct HostCombat
     using ConnectionId_t = Net::ConnectionId_t;
 
     // Registers its rules with aRouter.
-    HostCombat(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
+    HostCombat(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostCombatGame& acGame) noexcept;
     NO_COPY_MOVE(HostCombat);
 
   private:
@@ -27,5 +27,5 @@ struct HostCombat
     const HostRouter& m_router;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostCombatGame& m_game;
 };

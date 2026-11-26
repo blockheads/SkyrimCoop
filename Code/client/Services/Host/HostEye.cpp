@@ -1,12 +1,12 @@
 #include <Services/Host/HostEye.h>
 
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostCrimeGame.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/NotifyStealthEye.h>
 
-HostEye::HostEye(const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
+HostEye::HostEye(const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostCrimeGame& acGame) noexcept
     : m_players(acPlayers)
     , m_characters(acCharacters)
     , m_game(acGame)

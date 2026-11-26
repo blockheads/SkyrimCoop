@@ -9,7 +9,11 @@
 #include <Services/HostService.h>
 #include <Services/Host/HostNetwork.h>
 #include <Bridges/IActorBridge.h>
-#include <Components.h>
+#include <Components/LocalAnimationComponent.h>
+#include <Components/RemoteAnimationComponent.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/SpawnGraphStateComponent.h>
 
 namespace TestHarness
 {

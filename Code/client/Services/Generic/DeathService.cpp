@@ -2,7 +2,8 @@
 
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IPlayerBridge.h>
-#include <Components.h>
+#include <Components/RemoteComponent.h>
+#include <Components/PlayerComponent.h>
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/ActorRemovedEvent.h>
 #include <Events/AiStateChangeEvent.h>

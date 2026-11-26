@@ -12,7 +12,7 @@
 #include <NoCopyMove.h>
 
 struct HostRouter;
-struct HostGame;
+struct HostCharactersGame;
 struct HostPlayers;
 struct ReferencesMoveRequest;
 struct AnnounceCharacterRequest;
@@ -41,7 +41,7 @@ struct HostCharacters
     using ConnectionId_t = Net::ConnectionId_t;
 
     // Registers its rules with aRouter.
-    HostCharacters(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostCharacters(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharactersGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostCharacters);
 
@@ -172,7 +172,7 @@ private:
     Listeners m_listeners;
     HostNetwork& m_network;
     const HostPlayers& m_players;
-    const HostGame& m_game;
+    const HostCharactersGame& m_game;
     std::unordered_map<uint32_t, Character> m_characters;
     // Never reused in a session: a late message for a removed character finds nothing.
     uint32_t m_lastSessionId = 0;

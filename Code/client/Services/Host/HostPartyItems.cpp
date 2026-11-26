@@ -1,5 +1,5 @@
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostItemsGame.h>
 #include <Services/Host/HostPartyItems.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostChat.h>
@@ -12,7 +12,7 @@
 
 #include <random>
 
-HostPartyItems::HostPartyItems(const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
+HostPartyItems::HostPartyItems(const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostItemsGame& acGame) noexcept
     : m_players(acPlayers), m_characters(acCharacters), m_game(acGame)
 {
 }

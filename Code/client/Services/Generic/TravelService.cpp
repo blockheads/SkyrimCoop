@@ -16,7 +16,11 @@
 #include <Bridges/IPlayerBridge.h>
 #include <Services/TransportService.h>
 #include <Services/CharacterService.h>
-#include <Components.h>
+#include <Components/FormIdComponent.h>
+#include <Components/InterpolationComponent.h>
+#include <Components/RemoteComponent.h>
+#include <Components/PlayerComponent.h>
+#include <Components/OwnerPlaceComponent.h>
 #include <World.h>
 #include <FormIds.h>
 #include <Diagnostics/Profile.h>

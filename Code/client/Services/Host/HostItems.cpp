@@ -8,13 +8,13 @@
 #include <RecipeBook.h>
 #include <Services/Host/HostRouter.h>
 #include <Messages/Relayed.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostItemsGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <algorithm>
 
-HostItems::HostItems(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, HostPartyItems& aPartyItems, const HostGame& acGame) noexcept
+HostItems::HostItems(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, HostPartyItems& aPartyItems, const HostItemsGame& acGame) noexcept
     : m_router(aRouter)
     , m_network(aNetwork)
     , m_players(acPlayers)

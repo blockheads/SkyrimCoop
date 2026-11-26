@@ -7,7 +7,7 @@
 struct ActivateRequest;
 struct ContainerChangeRequest;
 struct HostCharacters;
-struct HostGame;
+struct HostWorldGame;
 struct HostPlayers;
 struct HostRouter;
 struct LockChangeRequest;
@@ -19,7 +19,7 @@ struct HostObjects
     using ConnectionId_t = Net::ConnectionId_t;
 
     // Registers its rules with aRouter.
-    HostObjects(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
+    HostObjects(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostWorldGame& acGame) noexcept;
     NO_COPY_MOVE(HostObjects);
 
   private:
@@ -32,5 +32,5 @@ struct HostObjects
 
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostWorldGame& m_game;
 };

@@ -6,7 +6,8 @@
 #include <Events/SessionNoticeEvent.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/NotifyPartyTravel.h>
-#include <Components.h>
+#include <Components/RemoteComponent.h>
+#include <Components/PlayerComponent.h>
 #include <Events/PlayerDeathEvent.h>
 #include <Services/DeathService.h>
 #include <Services/SaveService.h>

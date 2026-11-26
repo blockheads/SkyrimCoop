@@ -5,7 +5,7 @@
 #include <Messages/TravelMessages.h>
 
 #include <Services/Host/HostNetwork.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostCharactersGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostRouter.h>
 
@@ -32,7 +32,7 @@ namespace
 constexpr uint32_t cNoCharacter = 0;
 } // namespace
 
-HostCharacters::HostCharacters(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostCharacters::HostCharacters(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharactersGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)

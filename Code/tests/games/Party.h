@@ -9,7 +9,7 @@
 #include "FakeSteam.h"
 #include "UdpRelay.h"
 
-#include <Components.h>
+#include <Components/HeldCopyComponent.h>
 #include <RunningGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/HostService.h>

@@ -1,7 +1,8 @@
 #include <Services/Host/HostWait.h>
 
 #include <Services/Host/HostRouter.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostTimeGame.h>
+#include <Services/Host/HostWorldGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostWorldState.h>
@@ -14,8 +15,8 @@ constexpr uint64_t kStallTicks = 15000;
 } // namespace
 
 HostWait::HostWait(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers,
-                   const HostGame& acGame) noexcept
-    : m_network(aNetwork), m_players(acPlayers), m_game(acGame)
+                   const HostTimeGame& acTime, const HostWorldGame& acWorld) noexcept
+    : m_network(aNetwork), m_players(acPlayers), m_time(acTime), m_world(acWorld)
 {
     aRouter.On(*this, &HostWait::OnRequest);
     aRouter.On(*this, &HostWait::OnWorldRequest);
@@ -93,7 +94,7 @@ void HostWait::Tell(WaitPhase aPhase) const noexcept
     state.Id = m_wait->Id;
     state.Hours = m_wait->Hours;
     state.RemainingSeconds = m_wait->RemainingSeconds;
-    state.Calendar = m_game.ReadTime();
+    state.Calendar = m_time.ReadTime();
     for (const auto cPlayer : m_players.Connections())
     {
         state.Driver = cPlayer == m_players.Host();
@@ -114,11 +115,11 @@ void HostWait::End() noexcept
 
 void HostWait::OnWorldRequest(const WaitWorldRequest& acRequest, ConnectionId_t aSender) noexcept
 {
-    if (m_wait || !m_completedId || acRequest.Id != m_completedId || aSender == m_players.Host() || !m_game.ReadCellState)
+    if (m_wait || !m_completedId || acRequest.Id != m_completedId || aSender == m_players.Host() || !m_world.ReadCellState)
         return;
-    auto cChanges = m_game.ReadCellState(acRequest.State.Cell, acRequest.State.Changed);
+    auto cChanges = m_world.ReadCellState(acRequest.State.Cell, acRequest.State.Changed);
     if (cChanges)
-        AddCreatedContents(m_game, *cChanges);
+        AddCreatedContents(m_world, *cChanges);
     // An unloaded host cell gets an empty reply. Ordinary cell loading will request its state later.
     const std::vector<ObjectChange> cEmpty;
     const auto& cRows = cChanges ? *cChanges : cEmpty;

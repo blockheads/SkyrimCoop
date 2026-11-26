@@ -1,7 +1,7 @@
 #include <Services/Host/HostClock.h>
 
 #include <Services/Host/HostNetwork.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostTimeGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostRouter.h>
 
@@ -26,7 +26,7 @@ bool SameDate(const TimeModel& acLeft, const TimeModel& acRight)
 }
 } // namespace
 
-HostClock::HostClock(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostClock::HostClock(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostTimeGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)

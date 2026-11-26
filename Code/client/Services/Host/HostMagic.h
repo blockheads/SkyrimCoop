@@ -5,7 +5,7 @@
 #include <network/ENetInterface.h>
 
 struct HostCharacters;
-struct HostGame;
+struct HostMagicGame;
 struct HostPlayers;
 struct HostRouter;
 struct SummonRequest;
@@ -16,7 +16,7 @@ struct HostMagic
     using ConnectionId_t = Net::ConnectionId_t;
 
     // Registers its rules with aRouter.
-    HostMagic(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
+    HostMagic(HostRouter& aRouter, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostMagicGame& acGame) noexcept;
     NO_COPY_MOVE(HostMagic);
 
   private:
@@ -29,5 +29,5 @@ struct HostMagic
     const HostRouter& m_router;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostMagicGame& m_game;
 };

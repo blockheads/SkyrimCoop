@@ -16,7 +16,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_session(m_router, aNetwork, m_players, m_characters, m_transfer, m_game)
     , m_characters(m_router, aNetwork, m_players, m_game)
     , m_clock(m_router, aNetwork, m_players, m_game)
-    , m_wait(m_router, aNetwork, m_players, m_game)
+    , m_wait(m_router, aNetwork, m_players, m_game, m_game)
     , m_crime(m_router, aNetwork, m_players, m_characters, m_game)
     , m_partyItems(m_players, m_characters, m_game)
     , m_weather(m_router, aNetwork, m_players, m_game)

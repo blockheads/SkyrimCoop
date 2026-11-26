@@ -6,14 +6,14 @@
 #include <Services/Host/HostRouter.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostDeath.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostFollowersGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 #include <algorithm>
 
 HostFollowers::HostFollowers(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                              const HostCharacters& acCharacters, const HostDeath& acDeath,
-                             const HostGame& acGame) noexcept
+                             const HostFollowersGame& acGame) noexcept
     : m_network(aNetwork), m_players(acPlayers), m_characters(acCharacters), m_death(acDeath), m_game(acGame)
 {
     aRouter.On(*this, &HostFollowers::OnTradeClosed);

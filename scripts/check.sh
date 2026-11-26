@@ -127,6 +127,7 @@ step "check collision metrics" python3 -m unittest discover -s scripts -p test_c
 step "check gate configure" python3 -m unittest discover -s scripts -p test_check.py
 step "check repro MCP" python3 -m unittest discover -s scripts -p test_coop_mcp.py
 step "check scenario origins" python3 scripts/check_scenarios.py
+step "check layout" python3 scripts/check_layout.py --strict
 step "check stack walks" python3 -m unittest discover -s scripts -p test_stack_walk.py
 step "check IDA hooks" python3 -m unittest discover -s scripts -p 'test_ida_hook.py'
 step "check RE notes" bash -c "python3 -m unittest discover -s scripts -p test_check_re.py && python3 scripts/check_re.py"

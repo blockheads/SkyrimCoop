@@ -1,5 +1,11 @@
 
-#include <Components.h>
+#include <Components/LocalAnimationComponent.h>
+#include <Components/RemoteAnimationComponent.h>
+#include <Components/FormIdComponent.h>
+#include <Components/InterpolationComponent.h>
+#include <Components/RemoteComponent.h>
+#include <Components/FaceGenComponent.h>
+#include <Components/ActorValuesComponent.h>
 #include <World.h>
 #include <imgui.h>
 #include <inttypes.h>

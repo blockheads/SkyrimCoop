@@ -3,6 +3,9 @@
 #include "Fixtures.h"
 #include <Events/ReferenceLoadedEvent.h>
 #include <Messages/Relayed.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
 
 namespace
 {

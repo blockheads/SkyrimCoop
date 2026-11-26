@@ -8,7 +8,7 @@
 #include <unordered_map>
 
 struct HostCharacters;
-struct HostGame;
+struct HostCrimeGame;
 struct HostPlayers;
 
 /**
@@ -20,7 +20,7 @@ struct HostEye
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostEye(const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
+    HostEye(const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostCrimeGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostEye);
 
@@ -30,7 +30,7 @@ struct HostEye
 private:
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostCrimeGame& m_game;
     // Each guest's last reading sent.
     std::unordered_map<ConnectionId_t, DetectionRules::EyeReading> m_sent;
 };

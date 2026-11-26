@@ -3,7 +3,7 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/GameSavingEvent.h>
 #include <Events/SessionNoticeEvent.h>
-#include <Services/HostService.h>
+#include <Services/Hosting.h>
 #include <Services/JoinService.h>
 #include <Services/TransportService.h>
 #include <World.h>
@@ -41,8 +41,8 @@ bool SaveService::OnLoadRequested(const std::string& acName) noexcept
         m_dispatcher.trigger(SessionNoticeEvent{kLoadRefusal});
         return false;
     }
-    auto& host = m_world.GetHostService();
-    if (!host.IsHosting())
+    auto& host = m_world.GetHosting();
+    if (!m_world.IsHosting())
         return true;
     host.LoadSave(acName);
     return false;

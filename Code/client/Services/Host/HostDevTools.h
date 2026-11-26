@@ -6,7 +6,7 @@
 
 struct HostRouter;
 struct HostCharacters;
-struct HostGame;
+struct HostDevToolsGame;
 struct HostLeash;
 struct HostNetwork;
 struct HostPlayers;
@@ -20,7 +20,7 @@ struct HostDevTools
     using ConnectionId_t = Net::ConnectionId_t;
 
     HostDevTools(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
-                 const HostGame& acGame, HostLeash& aLeash) noexcept;
+                 const HostDevToolsGame& acGame, HostLeash& aLeash) noexcept;
     NO_COPY_MOVE(HostDevTools);
 
   private:
@@ -31,6 +31,6 @@ struct HostDevTools
     HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostDevToolsGame& m_game;
     HostLeash& m_leash;
 };

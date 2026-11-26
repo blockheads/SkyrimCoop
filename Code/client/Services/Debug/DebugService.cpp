@@ -31,7 +31,7 @@
 #include <Misc/BSFixedString.h>
 #include <Structs/ActionEvent.h>
 
-#include <Components.h>
+#include <Components/FormIdComponent.h>
 #include <World.h>
 
 #include <Forms/TESObjectCELL.h>

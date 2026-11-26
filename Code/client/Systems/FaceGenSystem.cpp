@@ -5,7 +5,7 @@
 #include <Forms/BGSHeadPart.h>
 #include <Forms/TESNPC.h>
 
-#include <Components.h>
+#include <Components/FaceGenComponent.h>
 #include <World.h>
 
 #include <Structs/Tints.h>

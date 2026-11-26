@@ -2,7 +2,7 @@
 
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostRouter.h>
-#include <Services/Host/HostGame.h>
+#include <Services/Host/HostWorldGame.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/WorldState.h>
@@ -23,7 +23,7 @@ uint64_t Key(const GameId& acId) noexcept
 }
 } // namespace
 
-void AddCreatedContents(const HostGame& acGame, std::vector<ObjectChange>& aChanges) noexcept
+void AddCreatedContents(const HostWorldGame& acGame, std::vector<ObjectChange>& aChanges) noexcept
 {
     if (!acGame.ReadContents)
         return;
@@ -33,7 +33,7 @@ void AddCreatedContents(const HostGame& acGame, std::vector<ObjectChange>& aChan
                 aChanges.insert(aChanges.begin() + ++i, std::move(*contents));
 }
 
-HostWorldState::HostWorldState(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostWorldState::HostWorldState(HostRouter& aRouter, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostWorldGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)

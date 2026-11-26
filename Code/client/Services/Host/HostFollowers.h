@@ -12,13 +12,13 @@ struct FollowerTradeClosedRequest;
 struct HostPlayers;
 struct HostCharacters;
 struct HostDeath;
-struct HostGame;
+struct HostFollowersGame;
 
 // Shared vanilla slots, with a stable desired member and a temporary standing-party fallback.
 struct HostFollowers
 {
     HostFollowers(HostRouter&, HostNetwork&, const HostPlayers&, const HostCharacters&, const HostDeath&,
-                  const HostGame&) noexcept;
+                  const HostFollowersGame&) noexcept;
     void Update(uint64_t aTick) noexcept;
 
   private:
@@ -29,7 +29,7 @@ struct HostFollowers
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
     const HostDeath& m_death;
-    const HostGame& m_game;
+    const HostFollowersGame& m_game;
     struct Pending
     {
         Followers::Order Order;

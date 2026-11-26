@@ -8,12 +8,12 @@ struct HostRouter;
 struct HostNetwork;
 struct HostPlayers;
 struct HostCharacters;
-struct HostGame;
+struct HostCrimeGame;
 
 struct HostCrime
 {
     using ConnectionId_t = Net::ConnectionId_t;
-    HostCrime(HostRouter&, HostNetwork&, const HostPlayers&, const HostCharacters&, const HostGame&) noexcept;
+    HostCrime(HostRouter&, HostNetwork&, const HostPlayers&, const HostCharacters&, const HostCrimeGame&) noexcept;
     void Update() noexcept;
     void Entered(ConnectionId_t) noexcept;
     void Left(ConnectionId_t aPlayer) noexcept
@@ -27,7 +27,7 @@ struct HostCrime
     HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
+    const HostCrimeGame& m_game;
     std::unordered_map<ConnectionId_t, uint32_t> m_sequences;
     std::unordered_map<ConnectionId_t, uint32_t> m_caughtLocks;
     std::vector<CrimeGold> m_gold;

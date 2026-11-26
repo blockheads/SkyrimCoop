@@ -5,6 +5,8 @@
 #include <Messages/Relayed.h>
 #include <Services/CopyRecords.h>
 #include <Services/CopyRecordsService.h>
+#include <Components/FormIdComponent.h>
+#include <Components/RemoteComponent.h>
 
 // The copy record (docs/design/one-simulator.md, piece 1): a copy takes its owner's last state whenever it appears.
 namespace

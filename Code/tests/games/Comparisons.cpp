@@ -4,6 +4,10 @@
 #include <Games/EngineNames.h>
 
 #include <ranges>
+#include <Components/FormIdComponent.h>
+#include <Components/HeldCopyComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
 
 namespace GameTest
 {
