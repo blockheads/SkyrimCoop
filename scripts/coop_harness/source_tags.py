@@ -446,6 +446,7 @@ SOURCE_TAGS = [
     ("Code/sync/animation/ReplayCapture.h", {'animation', 'movement', 'hands'}),
     ("Code/sync/animation/ReplayGraph.h", {'animation', 'movement', 'hands'}),
     ("Code/sync/animation/ReplayState.h", {'animation', 'movement', 'hands'}),
+    ("Code/sync/animation/ActionRules.h", {'animation', 'movement', 'hands'}),
     ("Code/sync/animation/ReplayStep.h", {'animation', 'movement', 'hands'}),
     ("Code/engine/Havok/*", {'animation', 'movement', 'combat'}),
     ("Code/engine/*CopyAiState.*", {'ai', 'combat', 'movement'}),

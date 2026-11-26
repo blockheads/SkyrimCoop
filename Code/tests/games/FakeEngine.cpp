@@ -50,6 +50,7 @@
 #include <animation/ReplayGraph.h>
 #include <characters/NpcSnapshot.h>
 #include <combat/HitEvent.h>
+#include <animation/ActionRules.h>
 #include <magic/EffectRules.h>
 #include <magic/ProjectileLaunchedEvent.h>
 #include <combat/TrapEvents.h>
@@ -1853,7 +1854,7 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         // 32803 plays the partner's half through Func5 (41557) -> 38949: our hook refuses a copy's own action but for
         // the local player's partner's half or a half of a pair replayed here; refused, the pair fails.
         if (cInstance && cPartner->second.Copy &&
-            !::ReplayState::CopyTakesAction(false, !Replaying && aFormId == kPlayer, Replaying))
+            !ActionRules::Before({.Copy = true, .PlayerActing = !Replaying && aFormId == kPlayer, .TargetIsThisPlayer = aFormId == kPlayer, .Replaying = Replaying}).Take)
             return false;
         // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once. Paired:
         // in an instance (32808), or each playing its half from its own game's pair; not the kill move flag alone (an
@@ -2049,19 +2050,26 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     });
     if (!aQuery)
         ApplyActionWrites(aFormId, aAction.EventName);
-    if (cOutcome.Capture && cOutcome.Result)
-    {
-        aAction.StateAfter1 = Actors.at(aFormId).State1;
-        if (::ReplayState::StartsAttack(aAction.EventName))
-            Actors.at(aFormId).ClashUntil = 0;
+    // HookPerformAction's second half: ActionRules::After decides.
+    const auto cAfter = ActionRules::After({
+        .Captured = cOutcome.Capture,
+        .Accepted = cOutcome.Result != 0,
+        .Paired = !aAction.TargetEventName.empty(),
         // Without a behaviour graph no copy is on a stream (a fixture's scripted transitions alone).
-        const auto& cActor = Actors.at(aFormId);
-        const bool cOwnBody = ::ReplayState::CopyOwnBody(false, false, false, SitState(aFormId));
-        if (::ReplayState::CarriesGraphState(!aAction.TargetEventName.empty(), Graph && World::Get().GetGraphStreams().Streaming(aFormId), cOwnBody))
-            aAction.GraphState = SaveActorGraphState(aFormId);
+        .Streamed = Graph && World::Get().GetGraphStreams().Streaming(aFormId),
+        .OwnBody = ::ReplayState::CopyOwnBody(false, false, false, SitState(aFormId)),
+        .Event = aAction.EventName,
+    });
+    if (cAfter.Record)
+        aAction.StateAfter1 = Actors.at(aFormId).State1;
+    if (cAfter.ResetClash)
+        Actors.at(aFormId).ClashUntil = 0;
+    if (cAfter.GraphState)
+        aAction.GraphState = SaveActorGraphState(aFormId);
+    if (cAfter.Record)
         Actors.at(aFormId).LatestAnimation = aAction;
+    if (cAfter.Send)
         World::Get().GetDispatcher().trigger(aAction);
-    }
     return cOutcome.Result != 0;
 }
 

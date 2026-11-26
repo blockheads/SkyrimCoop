@@ -26,6 +26,7 @@
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <Utils.h>
+#include <animation/ActionRules.h>
 #include <animation/ReplayCapture.h>
 #include <animation/ReplayState.h>
 #include <VersionDb.h>
@@ -48,72 +49,76 @@ thread_local bool s_playerAction = false;
 // A replayed action under way: its owner's game judged it.
 thread_local bool s_replayedAction = false;
 
+// ActorMediator::PerformAction (38949): reads the action, ActionRules decides before and after the engine's call.
 uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
 {
     auto pActor = apAction->actor;
     const auto pExtension = pActor->GetExtension();
-    // A copy's half of the local player's paired action: taken as the player's game plays it, never sent
-    // (its owner's game plays it from the player's action).
-    // Or its half of a pair this game replays: inside ForceAction (38953, not hooked) only 32803's Func5 comes here.
-    const bool cReplayedHalf = s_replayedAction && pExtension->IsCopy();
-    const bool cPlayersPartner = (s_playerAction && pExtension->IsCopy() && apAction->target == PlayerCharacter::Get()) || cReplayedHalf;
+    const auto cTaking = ActionRules::Before({
+        .Copy = pExtension->IsCopy(),
+        .Forced = g_forceAnimation,
+        .PlayerActing = s_playerAction,
+        .TargetIsThisPlayer = apAction->target == PlayerCharacter::Get(),
+        .Replaying = s_replayedAction,
+    });
+    if (!cTaking.Take)
+        return 0;
 
-    if (!pExtension->IsCopy() || ReplayState::CopyTakesAction(g_forceAnimation, cPlayersPartner, cReplayedHalf))
+    ActionEvent action;
+    action.State1 = pActor->actorState.flags1;
+    action.State2 = pActor->actorState.flags2;
+    action.Type = apAction->unkInput | (apAction->someFlag ? 0x4 : 0);
+    action.Tick = World::Get().GetFrameTick(); // the frame's, as its movement is stamped (S10)
+    action.ActorId = pActor->formID;
+    action.ActionId = apAction->action->formID;
+    action.TargetId = apAction->target ? apAction->target->formID : 0;
+
+    pActor->SaveAnimationVariables(action.Variables);
+    action.Variables.GraphRandom = pActor->GetGraphRandom();
+
+    const bool cOuterPlayerAction = pActor == PlayerCharacter::Get() && !s_playerAction;
+    s_playerAction |= cOuterPlayerAction;
+    const auto cOutcome = ReplayCapture::Run(apAction->someFlag, [&] { return RealPerformAction(apThis, apAction); });
+    const auto res = cOutcome.Result;
+    if (cOuterPlayerAction)
+        s_playerAction = false;
+
+    // A resolved idle query selected an animation but never performed it (38949).
+    if (!cOutcome.Capture)
+        return res;
+
+    action.EventName = apAction->eventName.AsAscii();
+    action.TargetEventName = apAction->targetEventName.AsAscii();
+    action.StateAfter1 = pActor->actorState.flags1;
+    action.StateAfter2 = pActor->actorState.flags2;
+    action.IdleId = apAction->idleForm ? apAction->idleForm->formID : 0;
+
+    const bool cOwn = !g_forceAnimation && !cTaking.PairHalf;
+    // Its graph writes (39004: a refused TurnStop sets iSyncTurnState) reach a copy in its owner's stream.
+    if (!res && cOwn)
+        spdlog::debug("Owner {:X} action {:X} '{}' refused by the engine, not sent", pActor->formID, action.ActionId, action.EventName);
+
+    const auto cAfter = ActionRules::After({
+        .Captured = true,
+        .Accepted = res != 0,
+        .Forced = g_forceAnimation,
+        .PairHalf = cTaking.PairHalf,
+        .Paired = !action.TargetEventName.empty(),
+        .Streamed = res && cOwn && World::Get().GetGraphStreams().Streaming(pActor->formID),
+        .OwnBody = ReplayState::CopyOwnBody(pActor->InPair(), pActor->IsInKillMove(), (pActor->flags2 & Actor::GETTING_ON_OFF_MOUNT) != 0,
+                                            pActor->actorState.GetSitSleepState()),
+        .Event = action.EventName,
+    });
+    if (cAfter.GraphState)
     {
-        ActionEvent action;
-        action.State1 = pActor->actorState.flags1;
-        action.State2 = pActor->actorState.flags2;
-        action.Type = apAction->unkInput | (apAction->someFlag ? 0x4 : 0);
-        action.Tick = World::Get().GetFrameTick(); // the frame's, as its movement is stamped (S10)
-        action.ActorId = pActor->formID;
-        action.ActionId = apAction->action->formID;
-        action.TargetId = apAction->target ? apAction->target->formID : 0;
-
-        pActor->SaveAnimationVariables(action.Variables);
-        action.Variables.GraphRandom = pActor->GetGraphRandom();
-
-        const bool cOuterPlayerAction = pActor == PlayerCharacter::Get() && !s_playerAction;
-        s_playerAction |= cOuterPlayerAction;
-        const auto cOutcome = ReplayCapture::Run(apAction->someFlag, [&] { return RealPerformAction(apThis, apAction); });
-        const auto res = cOutcome.Result;
-        if (cOuterPlayerAction)
-            s_playerAction = false;
-
-        // spdlog::debug("Action event name: {}, target name: {}", apAction->eventName.AsAscii(), apAction->targetEventName.AsAscii());
-
-        // A resolved idle query selected an animation but never performed it (38949).
-        if (!cOutcome.Capture)
-            return res;
-
-        action.EventName = apAction->eventName.AsAscii();
-        action.TargetEventName = apAction->targetEventName.AsAscii();
-        action.StateAfter1 = pActor->actorState.flags1;
-        action.StateAfter2 = pActor->actorState.flags2;
-        action.IdleId = apAction->idleForm ? apAction->idleForm->formID : 0;
-
-        // A refused action is never replayed: a copy could take it (a late 'MRh_Equipped_Event' after the hands were
-        // lowered). Its graph writes (39004: a refused TurnStop sets iSyncTurnState) reach a copy in its owner's stream.
-        if (!res)
-        {
-            if (!g_forceAnimation && !cPlayersPartner)
-                spdlog::debug("Owner {:X} action {:X} '{}' refused by the engine, not sent", pActor->formID, action.ActionId, action.EventName);
-            return res;
-        }
-
-        // A copy whose clip already advanced can recover from the accepted action's result.
-        const bool cOwnBody = ReplayState::CopyOwnBody(pActor->InPair(), pActor->IsInKillMove(),
-                                                       (pActor->flags2 & Actor::GETTING_ON_OFF_MOUNT) != 0, pActor->actorState.GetSitSleepState());
-        if (!g_forceAnimation && !cPlayersPartner &&
-            ReplayState::CarriesGraphState(!action.TargetEventName.empty(), World::Get().GetGraphStreams().Streaming(pActor->formID), cOwnBody))
-        {
-            COUNT_TIME("graph state save us");
-            pActor->SaveAnimationGraphState(action.GraphState);
-            COUNT("graph state bytes", action.GraphState.size());
-        }
-
-        if (ReplayState::StartsAttack(action.EventName.c_str()))
-            pExtension->ClashUntil = 0;
-
+        COUNT_TIME("graph state save us");
+        pActor->SaveAnimationGraphState(action.GraphState);
+        COUNT("graph state bytes", action.GraphState.size());
+    }
+    if (cAfter.ResetClash)
+        pExtension->ClashUntil = 0;
+    if (cAfter.Record)
+    {
         // What this actor's graph last took, owner or copy (see AnimationSystem for replays).
         pExtension->LatestAnimation.Write(action);
         if (apAction->action->formID == 0x132AF)
@@ -123,19 +128,14 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
             auto* pPartner = apAction->target && apAction->target->formType == Actor::Type ? static_cast<Actor*>(*apAction->target) : nullptr;
             pExtension->PairedWithCopy = pPartner && pPartner->GetExtension()->IsCopy();
         }
-
-        // Forced by us (a copy converging, a special case of ours) or a copy's paired half: never the owner's own action.
-        if (g_forceAnimation || cPlayersPartner)
-            return res;
-
+    }
+    if (cAfter.Send)
+    {
         if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying)
             spdlog::debug("Owner {:X} death action {:X} '{}'", pActor->formID, action.ActionId, action.EventName);
         World::Get().GetRunner().Trigger(action);
-
-        return res;
     }
-
-    return 0;
+    return res;
 }
 
 // TESObjectREFR::sub_20123 (UpdateAnimationGraphs, our name): an actor's graph update in its animation job
