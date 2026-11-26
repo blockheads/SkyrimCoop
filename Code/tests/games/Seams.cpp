@@ -18,6 +18,7 @@
 
 #include <Bridges/IActorBridge.h>
 #include "FakeGuestEngine.h"
+#include "FakeHostEngine.h"
 #include <Services/GuestService.h>
 
 #include <Games/Animation/ActionClaims.h>
@@ -186,7 +187,7 @@ World::World()
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<PartyMarkerService>(*this, m_dispatcher, ctx().at<IActorBridge&>(), ctx().at<IPlayerBridge&>());
-    ctx().emplace<HostService>(*this, m_dispatcher);
+    ctx().emplace<HostService>(*this, m_dispatcher, [this] { return std::unique_ptr<IHostEngine>(std::make_unique<FakeHostEngine>(*this, ctx().at<FakeEngine&>())); });
     ctx().emplace<GuestService>(*this, m_dispatcher, [this] { return std::unique_ptr<IGuestEngine>(std::make_unique<FakeGuestEngine>(ctx().at<IBodyBridge&>())); });
     ctx().emplace<FakeSteam&>(static_cast<FakeSteam&>(*m_pSteamBridge));
     ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
@@ -522,6 +523,11 @@ uint64_t World::GetTick() const noexcept
 TransportService& World::GetTransport() noexcept
 {
     return m_transport;
+}
+
+IPlayerBridge& World::GetPlayerBridge() noexcept
+{
+    return ctx().at<IPlayerBridge&>();
 }
 
 IFormBridge& World::GetFormBridge() noexcept

@@ -31,7 +31,7 @@
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/CharacterService.h>
-#include <Bridges/HostEngine.h>
+#include <Bridges/IHostEngine.h>
 #include <Components/FormIdComponent.h>
 #include <Components/LocalComponent.h>
 #include <Components/PlayerComponent.h>
@@ -45,14 +45,11 @@
 #include <Messages/SummonRequest.h>
 #include <CreatedIds.h>
 #include <ScriptValues.h>
-#include <Papyrus/GlobalCall.h>
-#include <Papyrus/GuestScripts.h>
 #include <Papyrus/PlayerNatives.h>
-#include <Utils.h>
 #include <Diagnostics/Profile.h>
 
-HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
-    : m_world(aWorld), m_dispatcher(aDispatcher)
+HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher, MakeEngine_t aMakeEngine) noexcept
+    : m_world(aWorld), m_dispatcher(aDispatcher), m_makeEngine(std::move(aMakeEngine))
 {
     Listen<UpdateEvent, &HostService::OnUpdate>(m_connections, m_dispatcher, this);
     Listen<ActivateEvent, &HostService::OnActivate>(m_connections, m_dispatcher, this);
@@ -80,7 +77,7 @@ void HostService::OnActivate(const ActivateEvent& acEvent) noexcept
 void HostService::OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept
 {
     if (IsHosting())
-        m_pEngine->RecordAnimation(acEvent.FormID, acEvent.Animation, acEvent.EventName);
+        m_pEngine->RecordAnimation(acEvent.FormID, acEvent.Animation, acEvent.EventName, 0);
 }
 
 void HostService::OnContainerChange(const ContainerChangeEvent& acEvent) noexcept
@@ -124,18 +121,14 @@ void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
         return;
     }
     spdlog::info("HostService: {}.{} from guest {:X}'s own script runs here, for it", acMessage.Call.Class, acMessage.Call.Function, cGuest);
-    const GuestScripts::ScopedCause cCause(cGuest); // the call runs for that guest (rule 2)
-    if (!acMessage.ReplyId)
-    {
-        GlobalCall::QueueCall(*cCall);
-        return;
-    }
     // Its script waits (a created reference): what the call returns goes back to it, on the VM's thread.
-    const auto cAnswer = [this, cReplyId = acMessage.ReplyId, cSessionId = acMessage.SessionId](const LocalValue& acResult) {
-        QueueWorldAnswer(cReplyId, cSessionId, acResult);
-    };
-    if (!GlobalCall::QueueCall(*cCall, cAnswer))
-        cAnswer(std::monostate{});
+    std::function<void(LocalValue)> answer;
+    if (acMessage.ReplyId)
+        answer = [this, cReplyId = acMessage.ReplyId, cSessionId = acMessage.SessionId](LocalValue aResult) {
+            QueueWorldAnswer(cReplyId, cSessionId, std::move(aResult));
+        };
+    if (!m_pEngine->RunFor(cGuest, *cCall, answer) && answer)
+        answer(std::monostate{});
 }
 
 HostService::~HostService() noexcept
@@ -165,7 +158,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
 void HostService::MakeAuthority() noexcept
 {
     m_pAggro.reset();
-    m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
+    m_pEngine = m_makeEngine();
     m_world.ctx().at<CreatedIds>().SetHosting(true);
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(),
         [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); });

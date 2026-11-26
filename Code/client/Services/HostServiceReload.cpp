@@ -4,7 +4,7 @@
 #include <Bridges/IJoinBridge.h>
 #include <Services/Host/HostAggro.h>
 
-#include <Bridges/HostEngine.h>
+#include <Bridges/IHostEngine.h>
 #include <Events/GameLoadFailedEvent.h>
 #include <Events/GameLoadedEvent.h>
 #include <Events/SaveWrittenEvent.h>

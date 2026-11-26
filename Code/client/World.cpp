@@ -4,6 +4,7 @@
 // SkyrimBridge is included here (not in World.h) to keep SKSE headers out of
 // every service that includes World.h.
 #include <Bridges/GuestEngine.h>
+#include <Bridges/HostEngine.h>
 #include <Bridges/SkyrimBridge.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
@@ -158,7 +159,7 @@ World::World()
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<PartyMarkerService>(*this, m_dispatcher, ctx().at<IActorBridge&>(), ctx().at<IPlayerBridge&>());
-    ctx().emplace<HostService>(*this, m_dispatcher);
+    ctx().emplace<HostService>(*this, m_dispatcher, [this] { return std::unique_ptr<IHostEngine>(std::make_unique<HostEngine>(*m_pBodyBridge)); });
     ctx().emplace<GuestService>(*this, m_dispatcher, [this] { return std::unique_ptr<IGuestEngine>(std::make_unique<GuestEngine>(*m_pBodyBridge)); });
     ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
     ctx().emplace<IJoinBridge&>(*m_pJoinBridge);

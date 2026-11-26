@@ -2,6 +2,7 @@
 
 #include <Events/Listen.h>
 #include <Services/Hosting.h>
+#include <functional>
 #include <memory>
 #include <string>
 #include <network/ENetInterface.h>
@@ -31,7 +32,7 @@ struct SaveLibrary;
 struct HostAuthority;
 struct HostGame;
 struct HostNetwork;
-class HostEngine;
+class IHostEngine;
 struct HostConversation;
 struct HostAggro;
 struct HostTakeBacks;
@@ -43,7 +44,9 @@ struct HostTraps;
  */
 struct HostService final : Hosting
 {
-    HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept;
+    // Makes the engine side of the host's game as it starts hosting (the engine's HostEngine; the tests' fake).
+    using MakeEngine_t = std::function<std::unique_ptr<IHostEngine>()>;
+    HostService(World& aWorld, entt::dispatcher& aDispatcher, MakeEngine_t aMakeEngine) noexcept;
     ~HostService() noexcept;
 
     NO_COPY_MOVE(HostService);
@@ -116,7 +119,8 @@ private:
     entt::dispatcher& m_dispatcher;
 
     // Declared first so they outlive the network, which calls into the authority, which reads the engine.
-    std::unique_ptr<HostEngine> m_pEngine;
+    MakeEngine_t m_makeEngine;
+    std::unique_ptr<IHostEngine> m_pEngine;
     std::unique_ptr<HostAggro> m_pAggro;
     // Claimed actors given back, taken by this game (HostClaims).
     std::unique_ptr<HostTakeBacks> m_pTakeBacks;

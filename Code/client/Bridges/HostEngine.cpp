@@ -3,6 +3,8 @@
 #include <FarAnimations.h>
 #include <Bridges/PlacedByGame.h>
 #include <Bridges/HostEngine.h>
+#include <Papyrus/GlobalCall.h>
+#include <Papyrus/GuestScripts.h>
 #include <Games/Skyrim/PlayerHands.h>
 #include <Games/Skyrim/StealthEye.h>
 #include <Papyrus/SystemQuests.h>
@@ -784,3 +786,14 @@ std::optional<std::vector<Followers::State>> HostEngine::ReadFollowers() const n
 
 std::vector<Followers::Order> HostEngine::TakeFollowerOrders() const noexcept { return FollowerTargets::TakeOrders(); }
 void HostEngine::SetFollowerTargets(const std::vector<Followers::Target>& acTargets) const noexcept { FollowerTargets::Set(acTargets); }
+
+std::vector<std::pair<GameId, glm::vec3>> HostEngine::TakePlaced() noexcept
+{
+    return std::exchange(m_placed, {});
+}
+
+bool HostEngine::RunFor(uint32_t aGuestFormId, const LocalCall& acCall, std::function<void(LocalValue)> aOnReturn) noexcept
+{
+    const GuestScripts::ScopedCause cCause(aGuestFormId); // the call runs for that guest (rule 2)
+    return GlobalCall::QueueCall(acCall, std::move(aOnReturn));
+}

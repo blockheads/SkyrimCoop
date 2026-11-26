@@ -57,7 +57,6 @@ plugin	Systems/RenderSystemD3D11.*
 
 # The real engine's wiring, which the tests replace (tests/games/*Seams.cpp) until World takes its ports
 plugin	World.cpp
-plugin	Services/HostService.cpp
 
 # Engine structs and engine-typed code outside Games/Skyrim
 engine	Games/Animation/ActionInput.h
@@ -126,8 +125,7 @@ sync/core	Services/Host/HostChat.*
 sync/core	Services/Host/JoinRefusal.*
 
 # game: wires the features into a host's or a guest's game
-sync/game	Services/HostService*.h
-sync/game	Services/HostServiceReload.cpp
+sync/game	Services/HostService*
 sync/game	Services/HostWorldCalls.cpp
 sync/game	Services/GuestService.*
 sync/game	Services/SessionEnd.*
@@ -300,7 +298,7 @@ sync/core	Components/*
 # The shared ports, split by feature later
 ports	Bridges/I*Bridge.h
 ports	Bridges/IGuestEngine.h
-ports	Bridges/HostEngine.h
+ports	Bridges/IHostEngine.h
 engine	Bridges/*
 
 # The plugin's own files
