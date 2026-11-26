@@ -34,6 +34,7 @@ JoinService::JoinService(World& aWorld, entt::dispatcher& aDispatcher, IJoinBrid
     , m_dispatcher(aDispatcher)
     , m_bridge(aBridge)
 {
+    m_world.GetTransport().SetJoinOffer([this] { return TransportService::JoinOffer{PlayerKey(), WantsWorld(), HasCharacter(), HeldSaves()}; });
     Listen<UpdateEvent, &JoinService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<AuthenticationResponse, &JoinService::OnAuthentication>(m_connections, aDispatcher, this);
     Listen<NotifySaveChunk, &JoinService::OnSaveChunk>(m_connections, aDispatcher, this);

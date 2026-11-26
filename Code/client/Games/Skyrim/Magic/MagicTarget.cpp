@@ -27,7 +27,6 @@
 #include <Projectiles/Projectile.h>
 #include <Utils.h>
 #include <Forms/EffectSetting.h>
-#include <Services/HostService.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <RTTI.h>
@@ -129,7 +128,7 @@ bool IsFriendly(const MagicItem* apSpell) noexcept
 // explosion), or a script making the copy cast. The host's verdict, sent to the guest's game.
 bool IsWorldCast(Actor* apTarget, Actor* apCaster) noexcept
 {
-    if (!apTarget->GetExtension()->IsOtherPlayer() || !World::Get().GetHostService().IsHosting())
+    if (!apTarget->GetExtension()->IsOtherPlayer() || !World::Get().IsHosting())
         return false;
     const uint32_t cGuest = GuestScripts::NativeGuest();
     return !apCaster || (IsCopy(apCaster) && cGuest && cGuest != 0x14); // 0x14: the host's own player's script

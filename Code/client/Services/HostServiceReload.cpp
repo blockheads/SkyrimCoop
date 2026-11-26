@@ -1,6 +1,7 @@
 // The host's saves and the guests (docs/design/join-flow.md, "Save sync"): each save sent ahead as it is made; a host
 // load's save (a party wipe waits for one) to the guests, then loaded here, and the host's rules made again.
 #include <Services/HostService.h>
+#include <Bridges/IJoinBridge.h>
 #include <Services/Host/HostAggro.h>
 
 #include <Bridges/HostEngine.h>

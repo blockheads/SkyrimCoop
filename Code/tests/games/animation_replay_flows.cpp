@@ -1,4 +1,5 @@
 #include "Party.h"
+#include <Games/Animation/GraphStream.h>
 #include <Services/CopyRecords.h>
 #include <Structs/ActorStatePart.h>
 #include "Fixtures.h"

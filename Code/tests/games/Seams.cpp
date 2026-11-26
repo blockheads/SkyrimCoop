@@ -19,6 +19,8 @@
 #include <Bridges/IActorBridge.h>
 #include "GuestSeams.h"
 
+#include <Games/Animation/ActionClaims.h>
+#include <Games/Animation/GraphStream.h>
 #include <Events/UpdateEvent.h>
 #include <RunningGame.h>
 #include <Components/RemoteAnimationComponent.h>
@@ -58,6 +60,7 @@
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
 #include <Services/FollowerService.h>
+#include <Services/SessionEnd.h>
 #include <Services/SessionService.h>
 #include <Services/SteamService.h>
 #include <Structs/GameVersions.h>
@@ -98,7 +101,9 @@ World::World()
       m_pSteamBridge(std::make_unique<FakeSteam>()),
       m_pWaitBridge(std::make_unique<FakeWait>(ctx().at<FakeEngine&>())),
       m_pCrimeBridge(std::make_unique<FakeCrime>(ctx().at<FakeEngine&>())), m_pBugReportBridge(std::make_unique<FakeBugReports>()),
-      m_pDevToolsBridge(std::make_unique<FakeDevTools>(ctx().at<FakeEngine&>())), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
+      m_pDevToolsBridge(std::make_unique<FakeDevTools>(ctx().at<FakeEngine&>())), m_pGraphStreams(std::make_unique<GraphStreams>())
+    , m_pActionClaims(std::make_unique<ActionClaims>())
+    , m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
 {
     m_lastFrameTime = std::chrono::high_resolution_clock::now();
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
@@ -186,6 +191,7 @@ World::World()
     ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
     ctx().emplace<JoinService>(*this, m_dispatcher, ctx().at<IJoinBridge&>());
     ctx().emplace<SaveService>(*this, m_dispatcher);
+    WireSessionEnd(*this);
     ctx().emplace<FollowerService>(*this, m_dispatcher, ctx().at<IPlayerBridge&>());
 }
 
@@ -251,7 +257,7 @@ void World::Update() noexcept
         mainEngine.EngineMs = mainEngine.EngineMs > 0.0 ? mainEngine.EngineMs + cEngineFrameMs : static_cast<double>(GetTick());
     m_frameClock.Advance(GetTick(), cEngineFrameMs);
     m_copyClock.Advance(m_frameClock.Now(), cEngineFrameMs);
-    m_graphStreams.SetTick(m_frameClock.Now());
+    m_pGraphStreams->SetTick(m_frameClock.Now());
     // A delayed line delivers in wall time: recovery must use that clock too.
     m_dispatcher.trigger(UpdateEvent(std::getenv("COOP_NET") ? cDelta : 1.0 / 60));
     static_cast<FakeDialogue&>(*m_pDialogueBridge).EngineFrame(m_transport.IsOnline());

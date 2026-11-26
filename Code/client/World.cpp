@@ -58,11 +58,14 @@
 #include <Services/MapService.h>
 #include <Services/PartyMarkerService.h>
 #include <Services/HostService.h>
+#include <Services/SessionEnd.h>
 #include <Services/SessionService.h>
 #include <Services/CharacterService.h>
 #include <Services/TravelService.h>
 #include <Services/DebugService.h>
 
+#include <Games/Animation/ActionClaims.h>
+#include <Games/Animation/GraphStream.h>
 #include <Events/UpdateEvent.h>
 #include <Diagnostics/Perf.h>
 #include <Diagnostics/Profile.h>
@@ -103,6 +106,8 @@ World::World()
     , m_pCrimeBridge(std::make_unique<CrimeBridge>())
     , m_pBugReportBridge(std::make_unique<BugReportBridge>())
     , m_pDevToolsBridge(std::make_unique<DevToolsBridge>())
+    , m_pGraphStreams(std::make_unique<GraphStreams>())
+    , m_pActionClaims(std::make_unique<ActionClaims>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
@@ -158,6 +163,7 @@ World::World()
     ctx().emplace<IJoinBridge&>(*m_pJoinBridge);
     ctx().emplace<JoinService>(*this, m_dispatcher, *m_pJoinBridge);
     ctx().emplace<SaveService>(*this, m_dispatcher);
+    WireSessionEnd(*this);
     ctx().emplace<FollowerService>(*this, m_dispatcher, ctx().at<IPlayerBridge&>());
     LoadGameEvents::Start();
 
@@ -238,7 +244,7 @@ void World::Update() noexcept
         const double cEngineFrameMs = GetWorldBridge().GetRealFrameSeconds() * 1000.0;
         m_frameClock.Advance(GetTick(), cEngineFrameMs);
         m_copyClock.Advance(m_frameClock.Now(), cEngineFrameMs);
-        m_graphStreams.SetTick(m_frameClock.Now());
+        m_pGraphStreams->SetTick(m_frameClock.Now());
         // Force run this before so we get the tasks scheduled to run
         m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));
         m_dispatcher.trigger(UpdateEvent(cDeltaSeconds));

@@ -1,4 +1,5 @@
 #include <Services/WaitService.h>
+#include <Bridges/IWaitBridge.h>
 
 #include <Events/DisconnectedEvent.h>
 #include <Events/GameLoadedEvent.h>

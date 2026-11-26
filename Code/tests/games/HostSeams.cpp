@@ -1,4 +1,5 @@
 #include <Games/PartyItems.h>
+#include <Games/Animation/GraphStream.h>
 #include <Events/ItemsChangedEvent.h>
 #include <Events/GameLoadFailedEvent.h>
 #include <Events/GameLoadedEvent.h>
@@ -81,6 +82,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     if (!pNetwork->Listen(aPort))
         return false;
     m_pNetwork = std::move(pNetwork);
+    m_world.SetHosting(true);
 
     MakeAuthority();
     return true;
@@ -492,6 +494,7 @@ void HostService::StopHosting() noexcept
     m_world.ctx().at<CreatedIds>().SetHosting(false);
     m_pConversation.reset();
     m_pNetwork.reset();
+    m_world.SetHosting(false);
     m_world.ctx().at<InventoryService>().SetArrivalDecider({});
     m_pAuthority.reset();
     m_pSaves.reset();

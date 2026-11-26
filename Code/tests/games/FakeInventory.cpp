@@ -1,4 +1,5 @@
 #include <Games/Animation/ActorStateRules.h>
+#include <Games/Animation/GraphStream.h>
 #include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>

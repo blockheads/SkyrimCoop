@@ -34,7 +34,6 @@
 #include <Services/ContainerOpens.h>
 #include <Services/DeathDrops.h>
 #include <Events/AddTargetEvent.h>
-#include <Services/HostService.h>
 #include <Events/SummonEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
@@ -3398,7 +3397,7 @@ void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, 
     {
         // A world cast (no actor casts it: a trap's object, a hazard's or explosion's 0) on another player's copy goes to
         // that player's game (IsWorldCast).
-        const bool cWorldCast = (!Actors.contains(aCaster) || InWorldImpact) && IsOtherPlayer(aTarget) && World::Get().GetHostService().IsHosting();
+        const bool cWorldCast = (!Actors.contains(aCaster) || InWorldImpact) && IsOtherPlayer(aTarget) && World::Get().IsHosting();
         if (!cOurCast && !cWorldCast)
             return;
         AddTargetEvent event;
@@ -3719,7 +3718,7 @@ void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, 
 void FakeEngine::TouchesTrap(uint32_t aActor, uint32_t aTrap)
 {
     World& world = World::Get();
-    switch (TrapRules::OfContact(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor), false))
+    switch (TrapRules::OfContact(world.GetTransport().IsOnline(), world.IsHosting(), PartyOf(aActor), false))
     {
     case TrapRules::Contact::Raise: RunsTrapScript(aTrap, aActor); break;
     case TrapRules::Contact::AskHost: world.GetRunner().Trigger(TrapContactEvent{aTrap, aActor, {.Velocity = {1.f, 2.f, 3.f}}}); break;
@@ -3736,7 +3735,7 @@ void FakeEngine::RunsTrapScript(uint32_t aTrap, uint32_t aActor)
     if (!trap.TrapCanHit)
         return;
     World& world = World::Get();
-    switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), PartyOf(aActor)))
+    switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.IsHosting(), PartyOf(aActor)))
     {
     case TrapRules::Hit::Apply: TakesDamage(aActor, 0, trap.TrapDamage, false); break;
     case TrapRules::Hit::AskOwner: world.GetRunner().Trigger(TrapHitEvent{aTrap, aActor, {.Damage = trap.TrapDamage}}); break;

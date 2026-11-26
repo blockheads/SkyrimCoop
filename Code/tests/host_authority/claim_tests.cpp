@@ -1,5 +1,6 @@
 // HostClaims: action claims, one claim per actor (one-simulator.md, "Action claims").
 #include "session.h"
+#include <Games/Animation/ActionClaims.h>
 
 namespace
 {

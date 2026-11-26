@@ -58,7 +58,7 @@ void SteamService::OnMenu(const MenuEvent& acEvent) noexcept
 // already in a Steam one.
 void SteamService::HostWorld() noexcept
 {
-    const bool cGuestElsewhere = m_world.GetTransport().IsOnline() && !m_world.GetHostService().IsHosting();
+    const bool cGuestElsewhere = m_world.GetTransport().IsOnline() && !m_world.IsHosting();
     // The host's save a main menu join loads is not this player's to host.
     const auto* pJoin = m_world.ctx().find<JoinService>();
     if (cGuestElsewhere || (pJoin && (pJoin->IsJoining() || pJoin->IsCreatingCharacter())) || (m_status.State != "idle" && m_status.State != "failed") || !m_steam.IsReady())

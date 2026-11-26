@@ -17,7 +17,6 @@
 #include <Bridges/IFormBridge.h>
 
 #include <spdlog/spdlog.h>
-#include <Services/HostService.h>
 
 // The race menu (RaceSexMenu): what it changes reaches the copies once it closes.
 static constexpr const char* kRaceMenu = "RaceSex Menu";
@@ -46,7 +45,7 @@ void PlayerService::OnConnected(const ConnectedEvent&) noexcept
     m_lastLevel = m_playerBridge.GetPlayerLevel();
     m_lastRaceFormId = m_playerBridge.GetPlayerRaceFormId();
     // World encounters are the host's world: only its game spawns them.
-    m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, m_world.GetHostService().IsHosting() ? 1.f : 0.f);
+    m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, m_world.IsHosting() ? 1.f : 0.f);
 }
 
 void PlayerService::OnDisconnected(const DisconnectedEvent&) noexcept
@@ -66,7 +65,7 @@ void PlayerService::OnDisconnected(const DisconnectedEvent&) noexcept
 void PlayerService::OnDifficultyChange(const NotifySettingsChange& acMessage) noexcept
 {
     // A guest holds the host's difficulty and keeps its own for leaving; the host's game supplies it.
-    if (!m_world.GetHostService().IsHosting())
+    if (!m_world.IsHosting())
     {
         if (!m_previousDifficulty)
             m_previousDifficulty = m_playerBridge.GetDifficulty();

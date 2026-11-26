@@ -18,7 +18,7 @@ SaveService::SaveService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
 bool SaveService::MaySave() const noexcept
 {
     auto& transport = m_world.GetTransport();
-    const bool cGuest = transport.IsOnline() && !m_world.GetHostService().IsHosting();
+    const bool cGuest = transport.IsOnline() && !m_world.IsHosting();
     const auto* pJoin = m_world.ctx().find<JoinService>();
     return !cGuest && !(pJoin && pJoin->IsJoining());
 }

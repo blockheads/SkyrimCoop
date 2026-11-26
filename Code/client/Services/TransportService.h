@@ -6,6 +6,9 @@
 #include "Services/JoinStatus.h"
 
 #include <atomic>
+#include <functional>
+#include <string>
+#include <vector>
 #include <network/Client.h>
 #include <Messages/Message.h>
 #include <NoCopyMove.h>
@@ -67,6 +70,15 @@ struct TransportService : Client
     [[nodiscard]] std::string GetLocalPlayerName() const noexcept;
     // The last attempt to join: under way, joined, or refused and why.
     [[nodiscard]] const JoinStatus& GetJoinStatus() const noexcept { return m_joinStatus; }
+    // What a joining game tells the host about itself beside its install (JoinService), read as the request is sent.
+    struct JoinOffer
+    {
+        std::string PlayerKey;
+        bool WantsWorld{};
+        bool HasCharacter{};
+        std::vector<std::string> HeldSaves;
+    };
+    void SetJoinOffer(std::function<JoinOffer()> aOffer) noexcept { m_joinOffer = std::move(aOffer); }
 
 protected:
     // Event handlers
@@ -95,6 +107,7 @@ private:
     uint32_t m_localPlayerId;
     mutable size_t m_recipesSent{}; // the host has had this many of the book's recipes
     JoinStatus m_joinStatus;
+    std::function<JoinOffer()> m_joinOffer;
     std::string m_endpoint;
     std::optional<DisconnectedEvent::Cause> m_closing; // set while Close runs: the cause it gives
     bool m_closingRoute{};                             // Close is ending the host's own in-process route

@@ -1,5 +1,4 @@
 #include <Services/BugReportService.h>
-#include <Services/HostService.h>
 #include <Services/TransportService.h>
 
 #include <Bridges/IBugReportBridge.h>
@@ -36,7 +35,7 @@ void BugReportService::OnNotifyBugReport(const NotifyBugReport& acMessage) noexc
 
 void BugReportService::Write(const Payloads::BugReport& acReport) noexcept
 {
-    const BugReportPart cPart{acReport.Id, acReport.Text, acReport.By, acReport.SessionTick, m_world.GetHostService().IsHosting(), m_transport.GetLocalPlayerName()};
+    const BugReportPart cPart{acReport.Id, acReport.Text, acReport.By, acReport.SessionTick, m_world.IsHosting(), m_transport.GetLocalPlayerName()};
     const std::string cFolder = m_bridge.Write(cPart);
     m_world.GetDispatcher().trigger(SessionNoticeEvent{std::format("Bug report {} saved: {}", acReport.Id, cFolder)});
 }

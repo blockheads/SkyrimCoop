@@ -153,6 +153,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
         return false;
     }
     m_pNetwork = std::move(pNetwork);
+    m_world.SetHosting(true);
 
     MakeAuthority();
     spdlog::info("HostService: hosting on port {}", m_pNetwork->GetPort());
@@ -341,6 +342,7 @@ void HostService::StopHosting() noexcept
         m_world.GetTransport().Close();
     m_pConversation.reset();
     m_pNetwork.reset();
+    m_world.SetHosting(false);
     m_world.ctx().at<InventoryService>().SetArrivalDecider({});
     m_pAuthority.reset();
     m_pEngine.reset();

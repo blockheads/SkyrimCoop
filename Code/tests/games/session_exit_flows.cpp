@@ -22,7 +22,7 @@ SCENARIO("A guest quitting to the main menu leaves the session", "[session-exit]
     party.Until(
         [&] { return !party.Guest().GetTransport().IsConnected() && Party::Engine(party.Host()).CopiesOf().empty(); },
         "the guest leaves and its copy goes away");
-    CHECK(party.Host().GetHostService().IsHosting());
+    CHECK(party.Host().IsHosting());
 }
 
 SCENARIO("The host quitting to the main menu ends the session for its guest", "[session-exit]")
@@ -33,7 +33,7 @@ SCENARIO("The host quitting to the main menu ends the session for its guest", "[
         Party::Engine(party.Host()).AtMainMenu = true;
         party.Host().GetDispatcher().trigger(MenuEvent{"Main Menu", true});
     });
-    party.Until([&] { return !party.Host().GetHostService().IsHosting() && Party::Engine(party.Guest()).AtMainMenu; },
+    party.Until([&] { return !party.Host().IsHosting() && Party::Engine(party.Guest()).AtMainMenu; },
                 "hosting ends and the guest returns to the main menu");
     CHECK_FALSE(party.Guest().GetTransport().IsConnected());
     CHECK(party.Guest().ctx().at<JoinService>().GetStatus().Reason == "host_left");
@@ -54,7 +54,7 @@ SCENARIO("A guest leaving the session returns to the main menu and can join agai
     Party party(1, SmokeWorld);
     party.As(party.Guest(), [&] { party.Guest().GetSessionService().End(); });
     party.Until([&] { return Party::Engine(party.Guest()).AtMainMenu; }, "leaving returns to the main menu");
-    CHECK(party.Host().GetHostService().IsHosting());
+    CHECK(party.Host().IsHosting());
     CHECK_FALSE(party.Guest().GetTransport().IsConnected());
     party.Join(party.Guest());
     party.Until([&] { return party.Guest().GetTransport().IsOnline(); }, "the guest joins again");

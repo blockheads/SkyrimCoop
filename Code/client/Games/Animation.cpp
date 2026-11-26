@@ -1,4 +1,5 @@
 #include <HookSwitch.h>
+#include <Games/Animation/GraphStream.h>
 #include <Diagnostics/Counters.h>
 
 #include <Games/References.h>

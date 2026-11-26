@@ -21,7 +21,6 @@
 #include <RTTI.h>
 #include <Misc/GameVM.h>
 #include <HookSwitch.h>
-#include <Services/HostService.h>
 #include <World.h>
 
 #include <array>
@@ -257,7 +256,7 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
 {
     using PartyRules::Target;
     PartyRules::CallFacts facts{.Reach = NativeReach::CallOf(apFunction), .Cause = m_cause, .Story = m_story};
-    facts.Hosting = World::Get().GetHostService().IsHosting();
+    facts.Hosting = World::Get().IsHosting();
     facts.Guest = PlayerNatives::IsGuest();
     facts.GuestCause = GuestScripts::IsGuestCharacter(m_cause);
     const bool cStatic = apFunction->GetIsStatic();

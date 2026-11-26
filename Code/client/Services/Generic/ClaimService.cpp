@@ -1,4 +1,5 @@
 #include <Services/ClaimService.h>
+#include <Games/Animation/ActionClaims.h>
 
 #include <Bridges/IActorBridge.h>
 #include <Components/FormIdComponent.h>

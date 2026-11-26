@@ -1,4 +1,5 @@
 #include <Events/DisconnectedEvent.h>
+#include <Bridges/ICrimeBridge.h>
 #include <Events/GameLoadedEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Components/FormIdComponent.h>

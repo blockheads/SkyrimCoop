@@ -14,7 +14,6 @@
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyPartyTravel.h>
 #include <Messages/NotifySettingsChange.h>
-#include <Services/HostService.h>
 #include <Services/SessionService.h>
 #include <Services/TransportService.h>
 #include <Services/TravelService.h>
@@ -268,7 +267,7 @@ std::string DeathService::Status() const noexcept
     if (!m_party.Error.empty())
         return m_party.Error;
     if (m_party.Wiped)
-        return m_world.GetHostService().IsHosting() ? kWipedHost : kWipedGuest;
+        return m_world.IsHosting() ? kWipedHost : kWipedGuest;
     if (m_dying)
         return "You have fallen.";
     if (!m_spectating)

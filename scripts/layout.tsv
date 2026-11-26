@@ -18,6 +18,10 @@ sync/core	WorldGate.h
 sync/core	FormIds.h
 sync/core	SessionIds.*
 sync/core	CreatedIds.*
+sync/core	RunningGame.*
+sync/core	RecipeBook.*
+sync/core	ItemIds.*
+sync/core	Services/JoinStatus.h
 sync/core	TaskQueue.*
 sync/core	MainLoopTasks.*
 sync/core	ScriptValues.*
@@ -30,12 +34,10 @@ sync/core	Events/SessionNoticeEvent.h
 sync/core	Events/Player*Event.h
 sync/core	Events/DifficultyChangeEvent.h
 sync/core	Events/MenuEvent.h
-sync/core	Components/*
 sync/core	Services/*TransportService.*
 sync/core	Services/*SessionService.*
 sync/core	Services/*PlayerService.*
 sync/core	Services/*RunnerService.*
-sync/core	Services/*CommandService.*
 sync/core	Services/CopyRecords*
 sync/core	Services/Generic/CopyRecordsService.cpp
 sync/core	Services/CharacterRecords.*
@@ -43,21 +45,20 @@ sync/core	Services/CopyClock.*
 sync/core	Services/Host/HostRouter.*
 sync/core	Services/Host/HostNetwork.*
 sync/core	Services/Host/HostPlayers.*
-sync/core	Services/Host/HostSession.*
-sync/core	Services/Host/HostRecords.*
 sync/core	Services/Host/HostChat.*
 sync/core	Services/Host/JoinRefusal.*
 
 # game: wires the features into a host's or a guest's game
 sync/game	World.cpp
-sync/game	RunningGame.*
 sync/game	Services/HostService*
 sync/game	Services/HostWorldCalls.cpp
 sync/game	Services/GuestService.*
+sync/game	Services/SessionEnd.*
 sync/game	Services/Host/HostAuthority.*
 sync/core	Services/Host/HostGame.h
 
 sync/join	Services/*Join*
+sync/join	Services/Host/HostSession.*
 sync/join	Services/*Save*
 sync/join	Services/*Steam*
 sync/join	Services/Guest/GuestRecord.*
@@ -80,6 +81,11 @@ sync/travel	Events/PartySummonCommandEvent.h
 
 sync/characters	Services/*CharacterService.*
 sync/characters	Services/Host/HostCharacters.*
+sync/characters	Services/Host/HostRecords.*
+sync/characters	Components/FaceGenComponent.h
+sync/characters	Components/HeldCopyComponent.h
+sync/characters	Components/OwnerPlaceComponent.h
+sync/characters	Components/WaitingFor3D.h
 sync/characters	Services/*ClaimService.*
 sync/characters	Services/Host/HostClaims.*
 sync/characters	Services/Guest/GuestCopies.*
@@ -97,12 +103,15 @@ sync/characters	Events/BoardEvent.h
 sync/movement	Systems/InterpolationSystem.*
 sync/movement	Systems/Copy*.h
 sync/movement	Systems/SnapshotAge.h
+sync/movement	Components/InterpolationComponent.h
 sync/movement	Events/MoveActorEvent.h
 
 sync/animation	Systems/AnimationSystem.*
 sync/animation	Games/Animation/*
 sync/animation	ModCompat/*
 sync/animation	ObjectAnimations.h
+sync/animation	Components/*AnimationComponent.h
+sync/animation	Components/SpawnGraphStateComponent.h
 sync/animation	Services/Host/HostGraph.*
 sync/animation	Events/ScriptAnimationEvent.h
 
@@ -112,6 +121,7 @@ sync/actorstate	Services/*AiStateService.*
 sync/actorstate	Services/*PerkService.*
 sync/actorstate	Services/Host/HostValues.*
 sync/actorstate	Games/CopyAiState.h
+sync/actorstate	Components/ActorValuesComponent.h
 sync/actorstate	Events/AiStateChangeEvent.h
 sync/actorstate	Events/HealthChangeEvent.h
 sync/actorstate	Events/FactionsChangeEvent.h
@@ -127,6 +137,7 @@ sync/combat	Services/*KillMoveService.*
 sync/combat	Services/Host/HostTakeBacks.*
 sync/combat	Services/*Traps.*
 sync/combat	Bridges/PartyAggro.cpp
+sync/combat	Components/CombatComponent.h
 sync/combat	Events/HitEvent.h
 sync/combat	Events/MeleeStaggerEvent.h
 sync/combat	Events/TrapEvents.h
@@ -150,8 +161,6 @@ sync/items	Services/*InventoryService.*
 sync/items	Services/Host/HostItems.*
 sync/items	Services/Host/HostPartyItems.*
 sync/items	Services/Container*
-sync/items	RecipeBook.*
-sync/items	ItemIds.*
 sync/items	Bridges/LooseItems.*
 sync/items	Bridges/ContainerItems.*
 sync/items	Events/InventoryChangeEvent.h
@@ -179,6 +188,7 @@ sync/time	Services/*Clock.*
 sync/time	Services/*Weather.*
 sync/time	Services/*TimeScale*
 sync/time	Services/*Wait*
+sync/time	Services/*CommandService.*
 sync/time	Bridges/IWaitBridge.h
 sync/time	Events/TimeScaleEvent.h
 sync/time	Events/SetTimeCommandEvent.h
@@ -215,6 +225,9 @@ sync/tools	Services/DevCommands.*
 sync/tools	Services/*BugReportService.*
 sync/tools	Bridges/IDevToolsBridge.h
 sync/tools	Bridges/IBugReportBridge.h
+
+# The components every feature reads (LocalComponent, RemoteComponent, FormIdComponent, PlayerComponent)
+sync/core	Components/*
 
 # The shared ports, split by feature later
 ports	Bridges/I*Bridge.h

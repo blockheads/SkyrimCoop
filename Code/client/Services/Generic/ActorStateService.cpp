@@ -1,4 +1,5 @@
 #include <Services/ActorStateService.h>
+#include <Games/Animation/GraphStream.h>
 
 #include <Bridges/IActorBridge.h>
 #include <Components/FormIdComponent.h>

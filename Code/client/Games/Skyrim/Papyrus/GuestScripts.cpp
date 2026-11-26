@@ -21,7 +21,6 @@
 #include <HookSwitch.h>
 #include <Misc/BSScript.h>
 #include <PlayerCharacter.h>
-#include <Services/HostService.h>
 #include <World.h>
 
 #include <algorithm>
@@ -164,7 +163,7 @@ constexpr uint32_t cPlayerFormId = kThisPlayer;
 
 bool IsHosting() noexcept
 {
-    return World::Get().GetHostService().IsHosting();
+    return World::Get().IsHosting();
 }
 
 uint32_t FormIdOf(const BSScript::Variable& acValue) noexcept

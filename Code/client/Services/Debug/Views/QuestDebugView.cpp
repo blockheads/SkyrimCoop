@@ -11,7 +11,6 @@
 #include <imgui.h>
 #include <RTTI.h>
 #include <World.h>
-#include <Services/HostService.h>
 
 void DebugService::DrawQuestDebugView()
 {
@@ -23,7 +22,7 @@ void DebugService::DrawQuestDebugView()
     ImGui::Begin("Quests");
 
     // TODO(cosideci): yes I'll refactor this
-    if (m_world.GetTransport().IsConnected() && !m_world.GetHostService().IsHosting())
+    if (m_world.GetTransport().IsConnected() && !m_world.IsHosting())
     {
         ImGui::Text("Only the host can use the quest debugger.");
     }

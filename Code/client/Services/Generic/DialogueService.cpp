@@ -1,4 +1,5 @@
 #include <Services/DialogueService.h>
+#include <Bridges/IDialogueBridge.h>
 #include <Services/DialogueMenuPolicy.h>
 #include <Bridges/IActorBridge.h>
 

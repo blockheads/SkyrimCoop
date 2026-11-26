@@ -4,9 +4,6 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/MenuEvent.h>
 #include <Events/UpdateEvent.h>
-#include <Services/HostService.h>
-#include <Services/JoinService.h>
-#include <Services/SteamService.h>
 #include <Services/TransportService.h>
 #include <World.h>
 #include <Events/SessionNoticeEvent.h>
@@ -105,8 +102,8 @@ void SessionService::QuitToMainMenu() noexcept
 void SessionService::OnMenu(const MenuEvent& acEvent) noexcept
 {
     if (acEvent.Opening && acEvent.Menu == "Main Menu" &&
-        (m_world.GetTransport().IsConnected() || m_world.GetHostService().IsHosting() ||
-         m_world.ctx().at<JoinService>().IsJoining()))
+        (m_world.GetTransport().IsConnected() || m_world.IsHosting() ||
+         (m_end.IsJoining && m_end.IsJoining())))
         QuitToMainMenu();
 }
 
@@ -123,18 +120,6 @@ void SessionService::Finish(bool aReturnToMenu) noexcept
         return;
     m_finished = true;
     m_pending = false;
-    auto& host = m_world.GetHostService();
-    auto& join = m_world.ctx().at<JoinService>();
-    // The final character record needs the Steam identity until the transport closes.
-    if (host.IsHosting())
-        host.AnnounceEnd();
-    m_world.GetTransport().Close();
-    host.StopHosting();
-    auto& steam = m_world.ctx().at<SteamService>();
-    steam.EndRejoin();
-    steam.Leave();
-    join.Cancel(m_endReason);
-    auto& bridge = m_world.ctx().at<IJoinBridge&>();
-    if (aReturnToMenu && !bridge.IsAtMainMenu())
-        bridge.ReturnToMainMenu();
+    if (m_end.Finish)
+        m_end.Finish(m_endReason, aReturnToMenu);
 }

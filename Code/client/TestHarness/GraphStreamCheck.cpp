@@ -1,4 +1,5 @@
 #include "GraphStreamCheck.h"
+#include <Games/Animation/GraphStream.h>
 #include "EngineCalls.h"
 #include <Actor.h>
 #include <Games/Animation/BSAnimationUpdateData.h>

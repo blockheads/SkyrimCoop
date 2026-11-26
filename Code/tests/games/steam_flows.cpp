@@ -10,6 +10,7 @@
 #include <Events/SessionNoticeEvent.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
+#include <Services/SessionService.h>
 #include <Services/SteamService.h>
 
 namespace
@@ -103,6 +104,24 @@ SCENARIO("A friend accepts the host's Steam invite: its game joins the lobby and
         party.Until([&] { return State(host).Peers.empty() && cPlayerCopies() == 0; },
                     "the host's game drops the friend and its player's copy");
     }
+
+    WHEN("the friend ends its session")
+    {
+        party.As(guest, [&] { guest.GetSessionService().End(); });
+        // SessionEnd: the transport closes, Steam's lobby is left, the join is over, the game is back at the menu.
+        party.Until([&] { return !guest.GetTransport().IsConnected() && State(guest).State == "idle"; },
+                    "the friend's game is off the session and out of Steam's lobby",
+                    [&] { return std::format("the friend's Steam {} ({})", State(guest).State, State(guest).Error); });
+        THEN("it left the lobby, joins nothing, and is at the main menu")
+        {
+            CHECK(!FakeSteam::Lobbies().at(cLobby).Members.contains(Party::Steam(guest).Id));
+            CHECK(!guest.ctx().at<JoinService>().IsJoining());
+            CHECK(Party::Engine(guest).AtMainMenu);
+        }
+        party.Until([&] { return State(host).Peers.empty() && cPlayerCopies() == 0; },
+                    "the host's game drops the friend and its player's copy");
+        CHECK(host.IsHosting());
+    }
 }
 
 SCENARIO("A Steam lobby that is no SkyrimCoop session is refused", "[steam]")
@@ -133,7 +152,7 @@ SCENARIO("Each player loads a save and hosts; a friend accepts the host's invite
     party.As(host, [&] { host.GetDispatcher().trigger(GameLoadedEvent{}); });
     party.As(guest, [&] { guest.GetDispatcher().trigger(GameLoadedEvent{}); });
     party.Until([&] { return State(host).State == "hosting" && State(guest).State == "hosting"; }, "both games host");
-    CHECK(guest.GetHostService().IsHosting());
+    CHECK(guest.IsHosting());
     CHECK(guest.GetTransport().IsConnectedLocally());
     CHECK(hostNotices.Has("Hosting: friends can join from Steam (Shift+Tab, Invite to Game)."));
 
@@ -144,7 +163,7 @@ SCENARIO("Each player loads a save and hosts; a friend accepts the host's invite
                 [&] { return std::format("the friend's game {} ({})", State(guest).State, State(guest).Error); });
     THEN("the friend's game no longer hosts, and each player is told")
     {
-        CHECK(!guest.GetHostService().IsHosting());
+        CHECK(!guest.IsHosting());
         CHECK(guestNotices.Has("Joined Dovahkiin's game."));
         party.Until([&] { return hostNotices.Has("Lydia joined the party."); }, "the host's player is told the friend joined");
     }
@@ -183,7 +202,7 @@ SCENARIO("A player starts a new game: it hosts once its world is up, and steps d
     party.Frame();
     THEN("not while it loads") CHECK(State(guest).State == "idle");
     party.As(guest, [&] { guest.GetDispatcher().trigger(MenuEvent{"Loading Menu", false}); });
-    party.Until([&] { return State(guest).State == "hosting" && guest.GetHostService().IsHosting(); },
+    party.Until([&] { return State(guest).State == "hosting" && guest.IsHosting(); },
                 "the new game's world is up: it hosts");
 
     WHEN("its player joins a friend's game from it (JoinService)")
@@ -191,7 +210,7 @@ SCENARIO("A player starts a new game: it hosts once its world is up, and steps d
         party.As(guest, [&] {
             REQUIRE(guest.ctx().at<JoinService>().Join(std::format("127.0.0.1:{}", host.GetHostService().GetNetwork()->GetPort())));
         });
-        THEN("it stopped hosting first") CHECK(!guest.GetHostService().IsHosting());
+        THEN("it stopped hosting first") CHECK(!guest.IsHosting());
     }
 }
 
@@ -214,7 +233,7 @@ SCENARIO("A host with friends in its game does not leave it for an invite", "[st
     party.Until([&] { return lydiaNotices.Has("Couldn't join: friends are in your game. Leave it first."); },
                 "Lydia's player is told why she stays");
     CHECK(State(lydia).State == "hosting");
-    CHECK(lydia.GetHostService().IsHosting());
+    CHECK(lydia.IsHosting());
 }
 
 SCENARIO("A Steam invite at the main menu joins as a kept or newly created character", "[steam][creation]")
@@ -278,7 +297,7 @@ SCENARIO("A Steam invite at the main menu joins as a kept or newly created chara
         CHECK(join.PlayerKey() == key);
         CHECK(engine.Player.Name == "Rinara");
         CHECK(engine.CreationRequests == 1);
-        CHECK_FALSE(guest.GetHostService().IsHosting());
+        CHECK_FALSE(guest.IsHosting());
     }
 }
 

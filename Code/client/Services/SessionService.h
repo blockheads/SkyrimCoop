@@ -5,6 +5,9 @@
 #include <Events/Listen.h>
 #include <NoCopyMove.h>
 
+#include <functional>
+#include <string>
+
 struct World;
 struct DisconnectedEvent;
 struct MenuEvent;
@@ -39,6 +42,13 @@ struct SessionService
     void QuitToMainMenu() noexcept;
     void End(std::string aReason = {}) noexcept;
     [[nodiscard]] bool IsEnding() const noexcept { return m_ending; }
+    // What ending a session runs, and whether a join is under way: the game's wiring sets them (SessionEnd.h).
+    struct Ending
+    {
+        std::function<bool()> IsJoining;
+        std::function<void(const std::string& acReason, bool aReturnToMenu)> Finish;
+    };
+    void SetEnding(Ending aEnding) noexcept { m_end = std::move(aEnding); }
 
     // By player id.
     [[nodiscard]] const std::unordered_map<uint32_t, Player>& GetPlayers() const noexcept { return m_players; }
@@ -65,6 +75,7 @@ private:
     bool m_finished{};
     bool m_pending{};
     std::string m_endReason;
+    Ending m_end;
     std::unordered_map<uint32_t, Player> m_players;
 
     std::vector<entt::scoped_connection> m_connections;

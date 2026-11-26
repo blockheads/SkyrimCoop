@@ -19,7 +19,7 @@ target("GameTests")
               "../../client/Services/Generic/RunnerService.cpp", "../../client/TaskQueue.cpp",
               "../../client/ScriptValues.cpp", "../../client/SessionIds.cpp", "../../client/CreatedIds.cpp",
               "../../client/Services/Generic/CharacterService.cpp", "../../client/Services/Generic/TravelService.cpp",
-              "../../client/Services/Generic/SessionService.cpp", "../../client/Services/Generic/ActorValueService.cpp",
+              "../../client/Services/Generic/SessionService.cpp", "../../client/Services/SessionEnd.cpp", "../../client/Services/Generic/ActorValueService.cpp",
               "../../client/Services/Generic/PlayerService.cpp", "../../client/Services/Generic/DeathService.cpp",
               "../../client/Services/Generic/InventoryService.cpp",
               "../../client/Systems/InterpolationSystem.cpp",

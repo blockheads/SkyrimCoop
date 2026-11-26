@@ -25,7 +25,7 @@ namespace
 nlohmann::json Disconnect(Harness&, const nlohmann::json&)
 {
     auto& world = World::Get();
-    if (world.GetHostService().IsHosting())
+    if (world.IsHosting())
         world.GetHostService().StopHosting();
     else
         world.GetTransport().Close();

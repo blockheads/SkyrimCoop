@@ -1,26 +1,25 @@
 #pragma once
 
-#include <Bridges/IDialogueBridge.h>
-#include <Bridges/IJoinBridge.h>
-#include <Bridges/IWaitBridge.h>
-#include <Bridges/IBodyBridge.h>
-#include <Bridges/ICrimeBridge.h>
-#include <Bridges/IBugReportBridge.h>
-#include <Bridges/IDevToolsBridge.h>
-#include <Bridges/ISteamBridge.h>
-
 #include <memory>
 
 #include <RecipeBook.h>
 #include <Services/CopyClock.h>
-#include <Games/Animation/ActionClaims.h>
-#include <Games/Animation/GraphStream.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 
-// Bridge interface forward declarations — do NOT include the bridge headers here.
-// SkyrimBridge.h is included only in World.cpp, keeping SKSE headers out of this file.
+// Forward declarations only: no bridge or feature header here. World.cpp (the plugin) and the tests' Seams.cpp build
+// them, so a bridge's interface can change without rebuilding everything that includes this file.
 class IActorBridge;
+class IBodyBridge;
+class ICrimeBridge;
+class IDialogueBridge;
+class IJoinBridge;
+class ISteamBridge;
+class IWaitBridge;
+class IBugReportBridge;
+class IDevToolsBridge;
+struct ActionClaims;
+struct GraphStreams;
 class IFormBridge;
 class IPlayerBridge;
 class IWorldBridge;
@@ -82,11 +81,14 @@ struct World : entt::registry
     // The session's time at this frame (FrameClock): what owners stamp their snapshots and actions with.
     [[nodiscard]] uint64_t GetFrameTick() const noexcept { return m_frameClock.Now(); }
     // The graph input stream's recorders and replayers (graph-input-stream.md), on the graphs' threads too.
-    GraphStreams& GetGraphStreams() noexcept { return m_graphStreams; }
+    GraphStreams& GetGraphStreams() noexcept { return *m_pGraphStreams; }
     // The host's answers to action claims (ClaimService writes; AnimationSystem and held blows read).
-    ActionClaims& GetActionClaims() noexcept { return m_actionClaims; }
+    ActionClaims& GetActionClaims() noexcept { return *m_pActionClaims; }
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
+    // This game hosts the session (HostService sets it as it starts and stops hosting).
+    [[nodiscard]] bool IsHosting() const noexcept { return m_hosting; }
+    void SetHosting(bool aHosting) noexcept { m_hosting = aHosting; }
 
     static void Create() noexcept;
     [[nodiscard]] static World& Get() noexcept;
@@ -106,13 +108,14 @@ private:
     RecipeBook m_recipes;
     FrameClock m_frameClock;
     CopyClock m_copyClock;
-    GraphStreams m_graphStreams;
-    ActionClaims m_actionClaims;
+    std::unique_ptr<GraphStreams> m_pGraphStreams;
+    std::unique_ptr<ActionClaims> m_pActionClaims;
     RunnerService m_runner;
     TransportService m_transport;
 
     std::chrono::high_resolution_clock::time_point m_lastFrameTime;
     FrameStats m_frameStats;
     double m_lastUpdateMs{};
+    bool m_hosting{};
 
 };

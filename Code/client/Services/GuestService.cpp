@@ -24,7 +24,6 @@
 #include <Services/Guest/GuestScene.h>
 #include <Bridges/IBodyBridge.h>
 #include <Bridges/IJoinBridge.h>
-#include <Services/HostService.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 #include <Utils.h>
@@ -83,7 +82,7 @@ GuestService::~GuestService() noexcept = default;
 void GuestService::OnConnected(const ConnectedEvent&) noexcept
 {
     // The host joins its own session too: its world is its own.
-    if (m_world.GetHostService().IsHosting())
+    if (m_world.IsHosting())
         return;
     m_pGuest = std::make_unique<Guest>(m_world, m_dispatcher);
     PlayerNatives::SetGuest(true);

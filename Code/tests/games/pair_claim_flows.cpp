@@ -1,6 +1,7 @@
 // Kill moves as action claims (docs/design/one-simulator.md, piece 4b; docs/re/systems/kill-moves.md): the host's
 // first claim holds, an NPC partner is its claimer's game's for the pair, and its death is the host's.
 #include "Party.h"
+#include <Games/Animation/GraphStream.h>
 #include "Fixtures.h"
 
 #include <Components/FormIdComponent.h>

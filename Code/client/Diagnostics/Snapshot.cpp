@@ -466,7 +466,7 @@ nlohmann::json GameStatus()
                        {"spectating", death.Spectating()},
                        {"name", death.SpectatingName()},
                        {"status", death.Status()}}},
-            {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()},
+            {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.IsHosting()},
             {"main_menu", EngineReads::IsMenuOpen("Main Menu")}, {"character_id", EngineReads::GetCurrentCharacterId()}};
 }
 

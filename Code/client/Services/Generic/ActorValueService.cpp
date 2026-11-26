@@ -1,4 +1,5 @@
 #include <Services/ActorValueService.h>
+#include <Games/Animation/ActionClaims.h>
 #include <Messages/Payloads.h>
 #include <World.h>
 #include <Components.h>

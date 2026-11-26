@@ -23,7 +23,6 @@
 #include <network/Packet.h>
 
 #include <RunningGame.h>
-#include <Services/JoinService.h>
 #include <Events/SessionLeavingEvent.h>
 #include <Structs/GameVersions.h>
 #include <BuildVersion.h>
@@ -240,12 +239,13 @@ void TransportService::OnConnected()
     request.PlayerTime.Month = m_worldBridge.GetGameMonth();
     request.PlayerTime.Day = m_worldBridge.GetGameDay();
 
-    if (const auto* pJoin = m_world.ctx().find<JoinService>())
+    if (m_joinOffer)
     {
-        request.PlayerKey = pJoin->PlayerKey();
-        request.WantsWorld = pJoin->WantsWorld();
-        request.HasCharacter = pJoin->HasCharacter();
-        request.HeldSaves = pJoin->HeldSaves();
+        JoinOffer offer = m_joinOffer();
+        request.PlayerKey = std::move(offer.PlayerKey);
+        request.WantsWorld = offer.WantsWorld;
+        request.HasCharacter = offer.HasCharacter;
+        request.HeldSaves = std::move(offer.HeldSaves);
     }
 
     Send(request);

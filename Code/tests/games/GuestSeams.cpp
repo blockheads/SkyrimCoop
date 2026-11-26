@@ -552,7 +552,7 @@ GuestSeam::~GuestSeam() noexcept = default;
 void GuestSeam::OnConnected(const ConnectedEvent&) noexcept
 {
     // The host joins its own session too: its world is its own (GuestService::OnConnected).
-    if (!m_world.GetHostService().IsHosting())
+    if (!m_world.IsHosting())
         m_pGuest = std::make_unique<Guest>(m_world);
 }
 

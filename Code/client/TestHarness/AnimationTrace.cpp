@@ -1,4 +1,5 @@
 #include "AnimationTrace.h"
+#include <Games/Animation/GraphStream.h>
 
 #include <Games/ActorExtension.h>
 #include "EngineCalls.h"

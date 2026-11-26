@@ -1,6 +1,7 @@
 // A copy's playback time (CopyClock, CopyPlayback; docs/design/copy-clock.md): as far behind its owner as the line
 // needs, moving on smoothly when snapshots come late.
 #include "Party.h"
+#include <Games/Animation/GraphStream.h>
 #include "Fixtures.h"
 
 #include <Components.h>

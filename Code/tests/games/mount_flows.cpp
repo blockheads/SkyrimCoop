@@ -1,4 +1,5 @@
 #include "Party.h"
+#include <Games/Animation/GraphStream.h>
 
 #include <Events/DismountEvent.h>
 #include <Events/MountEvent.h>

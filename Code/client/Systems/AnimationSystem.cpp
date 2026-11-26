@@ -1,4 +1,6 @@
 #include <Systems/AnimationSystem.h>
+#include <Games/Animation/GraphStream.h>
+#include <Games/Animation/ActionClaims.h>
 
 #include <Games/Animation/TESActionData.h>
 #include <Games/Animation/ActorMediator.h>

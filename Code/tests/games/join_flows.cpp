@@ -684,7 +684,7 @@ SCENARIO("An unknown friend creates a character as part of its original join", "
     CHECK(engine.CreationRequests == 1);
     CHECK(engine.Loaded.empty());
     CHECK(Party::Engine(host).Saves.empty());
-    CHECK_FALSE(guest.GetHostService().IsHosting());
+    CHECK_FALSE(guest.IsHosting());
     party.As(guest, [&] {
         CHECK_FALSE(Join(guest).Join(endpoint));
         AuthenticationResponse duplicate;
@@ -694,7 +694,7 @@ SCENARIO("An unknown friend creates a character as part of its original join", "
         guest.GetDispatcher().trigger(MenuEvent{"Loading Menu", false});
     });
     CHECK(engine.CreationRequests == 1);
-    CHECK_FALSE(guest.GetHostService().IsHosting());
+    CHECK_FALSE(guest.IsHosting());
     engine.AtMainMenu = false;
     engine.CreationPhase = IJoinBridge::Creation::kCustomizing;
     party.As(guest, [&] { guest.GetDispatcher().trigger(UpdateEvent{JoinService::kLoadSeconds * 4}); });

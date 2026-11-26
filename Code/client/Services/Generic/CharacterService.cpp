@@ -1,4 +1,5 @@
 #include <Games/NpcSnapshot.h>
+#include <Games/Animation/GraphStream.h>
 #include <Games/ActorPools.h>
 #include <Services/CharacterService.h>
 #include <Services/ClaimService.h>
@@ -295,7 +296,7 @@ void CharacterService::RunActorDiscovery() noexcept
     const uint32_t cPlayerId = m_playerBridge.GetPlayerFormId();
     if (cPlayerId != 0 && m_actorBridge.ActorHas3D(cPlayerId))
         loaded.insert(cPlayerId);
-    if (m_world.GetHostService().IsHosting())
+    if (m_world.IsHosting())
         for (const uint32_t cFormId : m_actorBridge.GetLoadedActorFormIds())
             loaded.insert(cFormId);
     else if (m_transport.IsOnline())
@@ -344,7 +345,7 @@ void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) noexc
     {
         auto& formIdComponent = m_world.get<FormIdComponent>(entity);
         // The host's saved temporary NPCs belong to its world too; only guests discard their own.
-        if (!m_world.GetHostService().IsHosting() && formIdComponent.Id >= 0xFF000000)
+        if (!m_world.IsHosting() && formIdComponent.Id >= 0xFF000000)
         {
             m_actorBridge.DeleteActor(formIdComponent.Id);
             continue;

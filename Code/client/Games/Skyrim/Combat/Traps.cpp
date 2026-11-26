@@ -9,7 +9,6 @@
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <RTTI.h>
-#include <Services/HostService.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 #include <TrapRules.h>
@@ -34,7 +33,7 @@ uint32_t HookTrapHitSink(void* apThis, const TESTrapHitEvent* apEvent, void* apS
     if (!pTarget || !apEvent->trap)
         return RealTrapHitSink(apThis, apEvent, apSource);
     World& world = World::Get();
-    switch (TrapRules::OfContact(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), HitRules::PartyOf(pTarget), t_fromRequest))
+    switch (TrapRules::OfContact(world.GetTransport().IsOnline(), world.IsHosting(), HitRules::PartyOf(pTarget), t_fromRequest))
     {
     case TrapRules::Contact::Raise: return RealTrapHitSink(apThis, apEvent, apSource);
     case TrapRules::Contact::Drop: return 0;
@@ -63,7 +62,7 @@ TDoTrap* RealDoTrap = nullptr;
 void HookDoTrap(Actor* apThis, TrapData& arData)
 {
     World& world = World::Get();
-    switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.GetHostService().IsHosting(), HitRules::PartyOf(apThis)))
+    switch (TrapRules::OfHit(world.GetTransport().IsOnline(), world.IsHosting(), HitRules::PartyOf(apThis)))
     {
     case TrapRules::Hit::Apply: return RealDoTrap(apThis, arData);
     case TrapRules::Hit::Drop: return;
