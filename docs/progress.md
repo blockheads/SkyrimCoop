@@ -60,7 +60,6 @@ of the gate. No behaviour was meant to change.
   parts. `SkyrimBridge.cpp`, `Actor.cpp` and `TESObjectREFR.cpp` are cut by feature.
 - Seen while checking, on `dev` too (2026-11-26, same messages, at least as often): `party-travel-mounted-guest` (the
   host's player in combat, its copy not), `knockdown-lies-as-host`, `party-fast-travels` (the guest's arrival times out).
-  Seen by the user, not reproduced by `kill-move-runs-full-length` (3 of 3): some kill moves ending early.
 
 2026-11-25: **copies hold real combat controllers and groups** (`agent/compass-enemy-dots`, PR #130). A guest's
 compass showed no red enemy dots: the compass lists the members of combat groups targeting the player (41240), and a
