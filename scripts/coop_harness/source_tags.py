@@ -243,6 +243,7 @@ SOURCE_TAGS = [
     ("Code/sync/join/I*Bridge.h", {'core'}),
     ("Code/sync/physics/I*Bridge.h", {'core'}),
     ("Code/sync/ports/I*Bridge.h", {'core'}),
+    ("Code/sync/*/IActor*.h", {'core'}),
     ("Code/sync/time/I*Bridge.h", {'core'}),
     ("Code/sync/tools/I*Bridge.h", {'core'}),
     ("Code/engine/Bridges/HostEngine.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),

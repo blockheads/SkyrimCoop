@@ -135,7 +135,8 @@ Tiers 1 and 2 run on every change (`scripts/check.sh`). More in [design/testing.
 
 Not done yet:
 
-- The ports every feature shares sit in `sync/ports/`, not in a feature: `IActorBridge` is not split by feature.
+- `IActorBridge` is eight parts, one per feature (`combat/IActorCombat.h`, `magic/IActorMagic.h`, ...), joined in
+  `sync/ports/IActorBridge.h`. Most services still take the whole of it, not their part.
 - Three ports are still one header with two `.cpp` files (the engine's and the tests'), not an interface:
   `scripts/PartyNatives.h`, `PlayerNatives.h` and `SystemQuests.h`.
 - `CharacterService` is not split by feature, and unit tests are in `Code/tests/`, not beside their feature.
