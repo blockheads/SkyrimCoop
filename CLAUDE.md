@@ -128,6 +128,7 @@ Code/
 ├── engine/              # Skyrim itself: typed engine structs and our hooks, in Skyrim's own groups (Forms/, AI/, Papyrus/, ...)
 │   ├── Bridges/         # The ports' real side: SkyrimBridge, HostEngine (the host's reads), GuestEngine
 │   └── Hooks/           # MinHook wrapper (HOOK, Hooks::Initializer), patch helpers, D3D11/input hooks
+│       (ActorHooks/, ReferenceHooks/: Actor's and TESObjectREFR's hooks, one file per feature)
 ├── sync/                # Every decision the mod makes, no Skyrim header: one folder per feature (docs/architecture.md)
 │   ├── core/            # What every feature uses: World, transport, session, ids, records, HostRouter, HostNetwork
 │   ├── game/            # The wiring: HostAuthority, HostService, GuestService
