@@ -303,6 +303,7 @@ SOURCE_TAGS = [
     ("Code/sync/magic/ProjectileLaunchedEvent.h", {'combat', 'magic'}),
     ("Code/sync/magic/*Spell*Event.h", {'magic'}),
     ("Code/sync/magic/*CastEvent.h", {'magic'}),
+    ("Code/sync/magic/EffectRules.h", {'magic', 'combat'}),
     ("Code/sync/combat/AddTargetEvent.h", {'magic'}),
     ("Code/sync/magic/EffectVisualsChangeEvent.h", {'magic'}),
     ("Code/sync/core/PlayerLooksChangeEvent.h", {'magic', 'spawn', 'scripts', 'join'}),

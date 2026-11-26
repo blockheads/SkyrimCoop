@@ -22,7 +22,7 @@
 #include <TESObjectREFR.h>
 #include <Papyrus/GuestScripts.h>
 #include <Combat/HitOwnership.h>
-#include <combat/TrapRules.h>
+#include <magic/EffectRules.h>
 #include <magic/OwnerEffects.h>
 #include <Projectiles/Projectile.h>
 #include <Utils.h>
@@ -106,118 +106,71 @@ Actor* MagicTarget::GetTargetAsActor()
     return getTargetAsActor(this);
 }
 
-namespace
-{
-bool IsCopy(Actor* apActor) noexcept
-{
-    return apActor && apActor->GetExtension()->IsCopy();
-}
-
-// Cast by one of our actors (or our player): ours to send to the target's owner.
-bool IsOurCast(Actor* apCaster) noexcept
-{
-    return apCaster && !IsCopy(apCaster);
-}
-
-bool IsFriendly(const MagicItem* apSpell) noexcept
-{
-    return apSpell->IsHealingSpell() || apSpell->IsBuffSpell();
-}
-
-// The host's world on a guest's character: no actor casts it (a statue, a trap's spell or projectile, a hazard, an
-// explosion), or a script making the copy cast. The host's verdict, sent to the guest's game.
-bool IsWorldCast(Actor* apTarget, Actor* apCaster) noexcept
-{
-    if (!apTarget->GetExtension()->IsOtherPlayer() || !World::Get().IsHosting())
-        return false;
-    const uint32_t cGuest = GuestScripts::NativeGuest();
-    return !apCaster || (IsCopy(apCaster) && cGuest && cGuest != 0x14); // 0x14: the host's own player's script
-}
-} // namespace
-
+// MagicTarget::AddTarget (34526): reads the landing, EffectRules::Of decides (magic/EffectRules.h).
 bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
 {
     Actor* pTargetActor = apThis->GetTargetAsActor();
     spdlog::trace("HookAddTarget: target {:X}, caster {:X}, spell {:X}", pTargetActor ? pTargetActor->formID : 0,
                   arData.pCaster ? arData.pCaster->formID : 0, arData.pSpell ? arData.pSpell->formID : 0);
-    if (!pTargetActor || arData.IsForbiddenEffect(pTargetActor))
-        return RealAddTarget(apThis, arData);
-
-    ActorExtension* pTargetActorEx = pTargetActor->GetExtension();
-
-    // The effect precedes the graph switch: derive the descriptor from the graph actually installed.
-    if (arData.pEffectItem->IsWerewolfEffect() || arData.pEffectItem->IsVampireLordEffect())
-        pTargetActorEx->GraphDescriptorHash = 0;
-
-    if (ScopedSpellCastOverride::IsOverriden())
+    if (!pTargetActor)
         return RealAddTarget(apThis, arData);
 
     Actor* pCasterActor = Cast<Actor>(arData.pCaster);
-    // A guest's player's summon its engine took (34526 can refuse it): the host's engine makes it on this player's copy
-    // (summons.md); the effect runs here too, CreateSummon making nothing (SummonCreatureEffect.cpp).
-    if (GuestNpcs::Session() && arData.pEffectItem->IsSummonEffect() && pTargetActor == PlayerCharacter::Get() && pCasterActor == pTargetActor)
+    const bool cForbidden = arData.IsForbiddenEffect(pTargetActor);
+
+    // The effect precedes the graph switch: derive the descriptor from the graph actually installed.
+    if (!cForbidden && (arData.pEffectItem->IsWerewolfEffect() || arData.pEffectItem->IsVampireLordEffect()))
+        pTargetActor->GetExtension()->GraphDescriptorHash = 0;
+
+    // A spell's own facts are read only where the rule uses them.
+    const bool cPassed = cForbidden || ScopedSpellCastOverride::IsOverriden();
+    const auto cVerdict = EffectRules::Of({
+        .Target = HitRules::PartyOf(pTargetActor),
+        .Caster = HitRules::PartyOf(pCasterActor),
+        .TargetIsThisPlayer = pTargetActor == PlayerCharacter::Get(),
+        .CasterIsTarget = pCasterActor == pTargetActor,
+        .Guest = GuestNpcs::Session() != 0,
+        .Hosting = World::Get().IsHosting(),
+        .Forbidden = cForbidden,
+        .Overridden = cPassed && !cForbidden,
+        .Summon = !cPassed && arData.pEffectItem->IsSummonEffect(),
+        .Shared = !cPassed && arData.ShouldSync(),
+        .Healing = !cPassed && arData.pSpell->IsHealingSpell(),
+        .Buff = !cPassed && arData.pSpell->IsBuffSpell(),
+        .WorldImpact = Projectile::WorldImpact(),
+        .ScriptFor = GuestScripts::NativeGuest(),
+    });
+
+    if (cVerdict.AskOwner)
     {
-        const SummonEvent cEvent{arData.pSpell->formID, arData.pEffectItem->pEffectSetting->formID, arData.fMagnitude,
-                                 {arData.ExplosionLocation.x, arData.ExplosionLocation.y, arData.ExplosionLocation.z}, arData.bDualCast};
-        const bool cTaken = RealAddTarget(apThis, arData);
-        if (cTaken)
-            World::Get().GetRunner().Trigger(cEvent);
-        return cTaken;
-    }
-
-    AddTargetEvent addTargetEvent{};
-    addTargetEvent.TargetID = pTargetActor->formID;
-    addTargetEvent.CasterID = pCasterActor ? pCasterActor->formID : 0;
-    addTargetEvent.SpellID = arData.pSpell->formID;
-    addTargetEvent.EffectID = arData.pEffectItem->pEffectSetting->formID;
-    addTargetEvent.Magnitude = arData.fMagnitude;
-    addTargetEvent.IsDualCasting = arData.bDualCast;
-
-    // Direct authority: the caster's game decides that a spell hit, and only the target's owner
-    // applies it (effects requested by others arrive through MagicTarget::AddTarget, which skips
-    // this hook). Copies never apply effects themselves; they show the owner's resulting state.
-    if (pTargetActorEx->IsCopy())
-    {
-        // An object's projectile's enchantment: the hit actor casts it on itself (44205), the world's all the same.
-        const bool cImpact = Projectile::WorldImpact();
-        const bool cWorldCast = IsWorldCast(pTargetActor, cImpact ? nullptr : pCasterActor);
-
-        // Someone else's actor hit by someone else's spell, or by nothing of ours: their games
-        // handle it.
-        if (!IsOurCast(pCasterActor) && !cWorldCast)
-            return false;
-
-        // Friendly fire: a hostile spell on another player goes to its game like any other (friendly-fire.md).
-        if (pTargetActorEx->IsOtherPlayer() && arData.pSpell->IsHealingSpell() && pCasterActor)
+        AddTargetEvent addTargetEvent{};
+        addTargetEvent.TargetID = pTargetActor->formID;
+        addTargetEvent.CasterID = pCasterActor ? pCasterActor->formID : 0;
+        addTargetEvent.SpellID = arData.pSpell->formID;
+        addTargetEvent.EffectID = arData.pEffectItem->pEffectSetting->formID;
+        addTargetEvent.Magnitude = arData.fMagnitude;
+        addTargetEvent.IsDualCasting = arData.bDualCast;
+        if (cVerdict.HealPerks)
         {
             addTargetEvent.ApplyHealPerkBonus = pCasterActor->HasPerk(0x581f8);
             addTargetEvent.ApplyStaminaPerkBonus = pCasterActor->HasPerk(0x581f9);
         }
-
-        // Our spell hit their actor: ask the owner to apply it. A hostile one is a hit for the
-        // attacker's feedback (CombatService shows the target's health bar).
-        if (arData.ShouldSync())
-            World::Get().GetRunner().Trigger(addTargetEvent);
-        if (pCasterActor && !cImpact && !IsFriendly(arData.pSpell))
-            World::Get().GetRunner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
-        return false;
+        World::Get().GetRunner().Trigger(addTargetEvent);
     }
-
-    // On a guest, its own copy of a world cast (no actor casts it): the host's game decides and asks.
-    if (!TrapRules::AppliesWorldEffect(GuestNpcs::Session() != 0, HitRules::PartyOf(pTargetActor), pCasterActor == nullptr || Projectile::WorldImpact(),
-                                       GuestScripts::NativeGuest() == 0x14))
-        return false;
-
-    // Our actor. A replayed spell from someone else's character also lands here, but its caster's
-    // game already sent us the request for this hit: applying it too would double it.
-    if (IsCopy(pCasterActor))
-    {
-        // Send out a HitEvent because TakeDamage is never triggered (combat targeting).
+    if (cVerdict.Hit)
         World::Get().GetRunner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
+    if (!cVerdict.Apply)
         return false;
-    }
 
-    return RealAddTarget(apThis, arData);
+    if (!cVerdict.Summon)
+        return RealAddTarget(apThis, arData);
+    // Read before the engine's call, which may change arData.
+    const SummonEvent cSummon{arData.pSpell->formID, arData.pEffectItem->pEffectSetting->formID, arData.fMagnitude,
+                              {arData.ExplosionLocation.x, arData.ExplosionLocation.y, arData.ExplosionLocation.z}, arData.bDualCast};
+    const bool cTaken = RealAddTarget(apThis, arData);
+    if (cTaken)
+        World::Get().GetRunner().Trigger(cSummon);
+    return cTaken;
 }
 
 // MagicTarget::HasMagicEffect (34517) / HasMagicEffectWithKeyword (34518) / MagicItem::IsSpellTarget (34513): a copy
