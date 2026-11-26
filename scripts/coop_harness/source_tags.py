@@ -243,6 +243,7 @@ SOURCE_TAGS = [
 
     # Adapters span systems; the common bridge and actor ownership underpin every scenario.
     ("Code/engine/Bridges/SkyrimBridge.*", {'core'}),
+    ("Code/engine/Bridges/SkyrimBridge*", {'core'}),
     ("Code/sync/crime/I*Bridge.h", {'core'}),
     ("Code/sync/dialogue/I*Bridge.h", {'core'}),
     ("Code/sync/join/I*Bridge.h", {'core'}),
@@ -410,6 +411,7 @@ SOURCE_TAGS = [
     # Actors, their copies, animation, combat, input and magic glue.
     ("Code/engine/RefrInteraction.h", {'movement'}),
     ("Code/engine/Actor.*", {'spawn', 'movement', 'values', 'combat', 'ai', 'hands'}),
+    ("Code/engine/Actor*Hooks.*", {'spawn', 'movement', 'values', 'combat', 'ai', 'hands'}),
     ("Code/engine/PlayerCharacter.*", {'session', 'spawn', 'cells', 'combat', 'values'}),
     ("Code/engine/Animation.cpp", {'animation', 'movement', 'hands'}),
     ("Code/engine/AnimationExperiments.cpp", {'animation', 'movement', 'hands'}),
@@ -518,6 +520,7 @@ SOURCE_TAGS = [
     ("Code/engine/*SaveLoad.*", {'world', 'objects', 'spawn', 'reload'}),
     ("Code/engine/*TimeManager.*", {'world'}),
     ("Code/engine/TESObjectREFR.*", {'core'}),
+    ("Code/engine/TESObjectREFR*Hooks.*", {'core'}),
     ("Code/engine/ReferenceEvents.*", {'world', 'objects', 'cells'}),
     ("Code/engine/LoadingScreen.cpp", {'cells', 'travel'}),
     ("Code/engine/Fixes/*", {'cells'}),
