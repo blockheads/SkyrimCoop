@@ -1,7 +1,10 @@
 # Ideas for later
 
-One place for ideas and decided-but-not-built features. Each entry: what, why, and where its notes are.
-Move an entry out when work on it starts (into a design doc in `docs/design/`).
+One place for ideas and decided-but-not-built features. Each entry: what and why. Take an entry out when work on it
+starts.
+
+Design notes (`docs/design`, `docs/research`, `docs/reports`) were removed on 2026-11-26. A pointer to one, here or in a
+code comment, reads from history: `git show b7b43a3bd:docs/design/<name>.md`.
 
 ## Gameplay
 

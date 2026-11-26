@@ -73,7 +73,7 @@ keeps catching it, so the fast suite grows into the one that matters.
 - **Every bug follows the bug-fix flow** (above), step 0 first (understand the engine code, documented): a scenario shows it, a GameTests flow fails on it, unit tests and the
   fix, the flow passes. The fake engine learns what Skyrim taught (`docs/design/testing.md`).
 - **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
-- **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning, evidence and history go in `docs/` (`docs/re/systems/`, `docs/design/`), not in the source.
+- **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning and evidence go in `docs/re/systems/`, not in the source.
 - **Host, guest, every game.** In a feature's folder (`Code/sync/<feature>/`), code only the host runs is in `Host*` files (wired by `game/HostAuthority`) and code only a guest runs in `Guest*` files (made by `GuestService` on joining); their engine reads are `engine/Bridges/HostEngine` and `GuestEngine`. No `IsHosting()` checks inside them. Actors split by owner and copy instead.
 - **Use the glossary's words** (`docs/design/glossary.md`): host and guest for the games, owner, local and copy for actors, player for a person in the party. New code and docs never say client, peer or remote player for a guest or a copy.
 

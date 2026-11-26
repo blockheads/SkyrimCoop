@@ -1,5 +1,8 @@
 # Reverse engineering notes
 
+Notes here may point at design notes outside this folder (`docs/design`, `docs/research`, `docs/reports`). Those were
+removed on 2026-11-26 and read from history: `git show b7b43a3bd:docs/design/<name>.md`.
+
 Everything we know about SkyrimSE.exe **1.7.104** (the primary Steam target), the retained **1.6.1170** build, and how SkyrimCoop
 touches it. The repo is the record; IDA is a workbench that syncs into it.
 

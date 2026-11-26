@@ -441,7 +441,3 @@ python3 scripts/coop_test.py soak --rounds 2 --tag inventory --seed 42 --dry-run
 
 A real soak launches a fresh duo each round, shuffles the selected flows and preserves its reports under
 `build/coop-test/soak/`. Full release acceptance requires an explicit run and a duo reservation.
-
-Before/after measurements, retained failures, regression controls and exact coverage destinations are in
-[the refactor report](../reports/2026-10-30-game-test-flows.md). The previous guide and its historical run narratives
-are preserved in [testing history](../reports/testing-history/2026-10-30-testing-guide-before-refactor.md).
