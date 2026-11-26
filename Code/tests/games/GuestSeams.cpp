@@ -2,7 +2,6 @@
 // GuestService's making of the guest's parts as it joins (its clock, weather, world state and dialogue).
 #include <CreatedIds.h>
 #include <Physics/BodyRead.h>
-#include "GuestSeams.h"
 #include "FakeEngine.h"
 #include <Games/QuestStarts.h>
 
@@ -510,82 +509,4 @@ std::vector<BodyFrame> FakeGuestEngine::ReadHeld(const SessionOf_t&) noexcept
     BodyFrame frame = it->second.Flight.Body;
     frame.Key = it->first;
     return {frame};
-}
-
-struct GuestSeam::Guest
-{
-    explicit Guest(World& aWorld)
-        : Engine(aWorld.ctx().at<IBodyBridge&>()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
-          Weather(aWorld, aWorld.GetDispatcher(), Engine), Eye(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
-          Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
-          Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
-          Saves(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
-          Bodies(aWorld, Engine),
-          Wait(aWorld, aWorld.GetDispatcher(), Engine),
-          Scene(aWorld, aWorld.GetDispatcher(), Engine),
-          Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>()),
-          Leash(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IPlayerBridge&>()),
-          Traps(aWorld, aWorld.GetDispatcher())
-    {
-    }
-
-    FakeGuestEngine Engine;
-    GuestClock Clock;
-    GuestWeather Weather;
-    GuestEye Eye;
-    GuestWorldState WorldState;
-    GuestDialogue Dialogue;
-    GuestRecord Record;
-    GuestSaves Saves;
-    GuestBodies Bodies;
-    GuestWait Wait;
-    GuestScene Scene;
-    GuestCopies Copies;
-    GuestLeash Leash;
-    GuestTraps Traps;
-};
-
-GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
-{
-    auto& dispatcher = aWorld.GetDispatcher();
-    m_connected = dispatcher.sink<ConnectedEvent>().connect<&GuestSeam::OnConnected>(this);
-    m_disconnected = dispatcher.sink<DisconnectedEvent>().connect<&GuestSeam::OnDisconnected>(this);
-    m_playerNative = dispatcher.sink<NotifyRoutedCall>().connect<&GuestSeam::OnPlayerNative>(this);
-}
-
-void GuestSeam::OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept
-{
-    if (!m_pGuest || acMessage.To != CallTo::kOwner)
-        return;
-    m_pGuest->Engine.RunPlayerNative(acMessage, {}); // as GuestService::OnPlayerNative
-}
-
-GuestSeam::~GuestSeam() noexcept = default;
-
-void GuestSeam::OnConnected(const ConnectedEvent&) noexcept
-{
-    // The host joins its own session too: its world is its own (GuestService::OnConnected).
-    if (!m_world.IsHosting())
-        m_pGuest = std::make_unique<Guest>(m_world);
-}
-
-void GuestSeam::OnDisconnected(const DisconnectedEvent&) noexcept
-{
-    if (m_pGuest)
-        m_pGuest->Dialogue.OnLeft(); // as GuestService
-    m_pGuest.reset();
-}
-
-void GuestSeam::Update() noexcept
-{
-    if (!m_pGuest)
-        return;
-    const UpdateEvent cUpdate(1.0 / 60);
-    m_pGuest->Clock.OnUpdate(cUpdate);
-    m_pGuest->Weather.OnUpdate(cUpdate);
-    m_pGuest->WorldState.OnUpdate(cUpdate);
-    m_pGuest->Record.OnUpdate(cUpdate);
-    m_pGuest->Engine.FreePlaced();
-    m_pGuest->Wait.OnUpdate();
-    m_pGuest->Leash.OnUpdate(cUpdate);
 }

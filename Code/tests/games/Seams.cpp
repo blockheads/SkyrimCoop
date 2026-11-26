@@ -17,7 +17,8 @@
 #include <Games/DeathActions.h>
 
 #include <Bridges/IActorBridge.h>
-#include "GuestSeams.h"
+#include "FakeGuestEngine.h"
+#include <Services/GuestService.h>
 
 #include <Games/Animation/ActionClaims.h>
 #include <Games/Animation/GraphStream.h>
@@ -186,7 +187,7 @@ World::World()
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<PartyMarkerService>(*this, m_dispatcher, ctx().at<IActorBridge&>(), ctx().at<IPlayerBridge&>());
     ctx().emplace<HostService>(*this, m_dispatcher);
-    ctx().emplace<GuestSeam>(*this);
+    ctx().emplace<GuestService>(*this, m_dispatcher, [this] { return std::unique_ptr<IGuestEngine>(std::make_unique<FakeGuestEngine>(ctx().at<IBodyBridge&>())); });
     ctx().emplace<FakeSteam&>(static_cast<FakeSteam&>(*m_pSteamBridge));
     ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
     ctx().emplace<JoinService>(*this, m_dispatcher, ctx().at<IJoinBridge&>());
@@ -202,7 +203,7 @@ World::~World()
     ctx().erase<SaveService>();
     ctx().erase<JoinService>();
     ctx().erase<SteamService>();
-    ctx().erase<GuestSeam>();
+    ctx().erase<GuestService>();
     ctx().erase<HostService>();
     ctx().erase<PartyMarkerService>();
     ctx().erase<MapService>();
@@ -494,7 +495,6 @@ void World::Update() noexcept
                 return engine.PlayReplayed(form.Id, step.Action);
             });
         }
-    ctx().at<GuestSeam>().Update();
     auto& waitEngine = ctx().at<FakeEngine&>();
     const float cTimeScale = waitEngine.Calendar.TimeScale;
     if (ctx().at<FakeWait&>().Open)

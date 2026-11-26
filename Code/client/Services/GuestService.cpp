@@ -1,7 +1,6 @@
 #include <Services/GuestService.h>
 
-#include <Bridges/GuestEngine.h>
-#include <Papyrus/GlobalCall.h>
+#include <Bridges/IGuestEngine.h>
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
@@ -26,15 +25,16 @@
 #include <Bridges/IJoinBridge.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
-#include <Utils.h>
+#include <ScriptValues.h>
 #include <World.h>
 #include <Diagnostics/Profile.h>
 
 // The parts, after the engine they apply through.
 struct GuestService::Guest
 {
-    Guest(World& aWorld, entt::dispatcher& aDispatcher) noexcept
-        : Engine(aWorld.ctx().at<IBodyBridge&>())
+    Guest(World& aWorld, entt::dispatcher& aDispatcher, std::unique_ptr<IGuestEngine> apEngine) noexcept
+        : pEngine(std::move(apEngine))
+        , Engine(*pEngine)
         , Clock(aWorld, aDispatcher, Engine)
         , Weather(aWorld, aDispatcher, Engine)
         , Eye(aDispatcher, Engine)
@@ -51,7 +51,8 @@ struct GuestService::Guest
     {
     }
 
-    GuestEngine Engine;
+    std::unique_ptr<IGuestEngine> pEngine;
+    IGuestEngine& Engine;
     GuestClock Clock;
     GuestWeather Weather;
     GuestEye Eye;
@@ -67,9 +68,10 @@ struct GuestService::Guest
     GuestTraps Traps;
 };
 
-GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
+GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher, MakeEngine_t aMakeEngine) noexcept
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
+    , m_makeEngine(std::move(aMakeEngine))
 {
     Listen<ConnectedEvent, &GuestService::OnConnected>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &GuestService::OnDisconnected>(m_connections, aDispatcher, this);
@@ -84,7 +86,7 @@ void GuestService::OnConnected(const ConnectedEvent&) noexcept
     // The host joins its own session too: its world is its own.
     if (m_world.IsHosting())
         return;
-    m_pGuest = std::make_unique<Guest>(m_world, m_dispatcher);
+    m_pGuest = std::make_unique<Guest>(m_world, m_dispatcher, m_makeEngine());
     PlayerNatives::SetGuest(true);
 }
 
@@ -103,7 +105,7 @@ void GuestService::OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept
     spdlog::info("GuestService: the host's script runs {}.{} for this game's player", acMessage.Call.Class, acMessage.Call.Function);
     // One returning a value: the host's script waits for it.
     const uint32_t cReplyId = acMessage.ReplyId;
-    GlobalCall::OnReturn onReturn;
+    std::function<void(LocalValue)> onReturn;
     if (cReplyId)
         onReturn = [this, cReplyId](LocalValue aResult) {
             m_world.GetRunner().Queue([this, cReplyId, cResult = std::move(aResult)] { SendNativeResult(cReplyId, cResult); });

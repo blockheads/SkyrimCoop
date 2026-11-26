@@ -3,6 +3,7 @@
 #include <Events/Listen.h>
 #include <Structs/ScriptValue.h>
 
+#include <functional>
 #include <memory>
 #include <NoCopyMove.h>
 #include <Messages/RelayedMessages.h>
@@ -11,6 +12,7 @@ struct World;
 struct ConnectedEvent;
 struct DisconnectedEvent;
 struct UpdateEvent;
+class IGuestEngine;
 
 /**
  * @brief This game as a guest in someone's session: the host's world applied here (Services/Guest/). The
@@ -19,7 +21,9 @@ struct UpdateEvent;
  */
 struct GuestService
 {
-    GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept;
+    // Makes the engine side of a guest's game as it joins (the engine's GuestEngine; the tests' fake).
+    using MakeEngine_t = std::function<std::unique_ptr<IGuestEngine>()>;
+    GuestService(World& aWorld, entt::dispatcher& aDispatcher, MakeEngine_t aMakeEngine) noexcept;
     ~GuestService() noexcept;
 
     NO_COPY_MOVE(GuestService);
@@ -39,6 +43,7 @@ private:
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
+    MakeEngine_t m_makeEngine;
     std::unique_ptr<Guest> m_pGuest;
 
     std::vector<entt::scoped_connection> m_connections;

@@ -118,6 +118,7 @@ sync_files = {
     "Services/Host/HostWorldState.cpp",
     "Services/Host/JoinRefusal.cpp",
     "Services/Host/PartyThreat.cpp",
+    "Services/GuestService.cpp",
     "Services/HostServiceReload.cpp",
     "Services/HostWorldCalls.cpp",
     "Services/SaveLibrary.cpp",

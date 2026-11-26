@@ -379,6 +379,11 @@ uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf
 // The stack waiting on another game goes on with acResult (PlayerNatives::Answer's ReturnFromLatent).
 namespace PlayerNatives
 {
+// GuestService's switch: the fake's scripts need none.
+void SetGuest(bool) noexcept
+{
+}
+
 void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept
 {
     if (FakeEngine::Current().Waiting.erase(aReplyId))
