@@ -1,6 +1,6 @@
 #include <Services/Guest/GuestWeather.h>
 
-#include <Bridges/GuestEngine.h>
+#include <Bridges/IGuestEngine.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/WeatherRegionRequest.h>
@@ -8,7 +8,7 @@
 #include <World.h>
 #include <Diagnostics/Profile.h>
 
-GuestWeather::GuestWeather(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
+GuestWeather::GuestWeather(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept
     : m_world(aWorld)
     , m_engine(aEngine)
 {

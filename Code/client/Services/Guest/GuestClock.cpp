@@ -1,6 +1,6 @@
 #include <Services/Guest/GuestClock.h>
 
-#include <Bridges/GuestEngine.h>
+#include <Bridges/IGuestEngine.h>
 #include <Bridges/IWorldBridge.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/NotifyTimeSettings.h>
@@ -15,7 +15,7 @@ constexpr float kFadeSeconds = 5.f;
 
 bool GuestClock::s_hostClock = false;
 
-GuestClock::GuestClock(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
+GuestClock::GuestClock(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept
     : m_world(aWorld)
     , m_engine(aEngine)
 {

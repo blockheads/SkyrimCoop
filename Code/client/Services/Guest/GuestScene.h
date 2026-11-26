@@ -4,7 +4,7 @@
 #include <Structs/GameId.h>
 #include <NoCopyMove.h>
 
-class GuestEngine;
+class IGuestEngine;
 struct CopyAiStateEvent;
 struct World;
 
@@ -15,7 +15,7 @@ struct World;
  */
 struct GuestScene
 {
-    GuestScene(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
+    GuestScene(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept;
     // Leaving mid-scene: this game's player is its own again.
     ~GuestScene() noexcept;
 
@@ -25,7 +25,7 @@ private:
     void OnAiState(const CopyAiStateEvent& acMessage) noexcept;
 
     World& m_world;
-    GuestEngine& m_engine;
+    IGuestEngine& m_engine;
     GameId m_scene{};   // the scene this game's player plays a part in, none
     GameId m_package{}; // its package now
 

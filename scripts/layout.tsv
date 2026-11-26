@@ -300,7 +300,7 @@ sync/core	Components/*
 
 # The shared ports, split by feature later
 ports	Bridges/I*Bridge.h
-ports	Bridges/GuestEngine.h
+ports	Bridges/IGuestEngine.h
 ports	Bridges/HostEngine.h
 engine	Bridges/*
 

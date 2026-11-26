@@ -9,7 +9,7 @@
 struct UpdateEvent;
 struct NotifyWeatherChange;
 struct World;
-class GuestEngine;
+class IGuestEngine;
 
 /**
  * @brief A guest shows the weather the host gives its region (HostWeather) in place of its own, faded into; its own
@@ -17,7 +17,7 @@ class GuestEngine;
  */
 struct GuestWeather
 {
-    GuestWeather(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
+    GuestWeather(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept;
     ~GuestWeather() noexcept;
 
     NO_COPY_MOVE(GuestWeather);
@@ -29,7 +29,7 @@ private:
     void OnWeatherChange(const NotifyWeatherChange& acMessage) noexcept;
 
     World& m_world;
-    GuestEngine& m_engine;
+    IGuestEngine& m_engine;
     std::optional<GameId> m_hostWeather;
     // The region the host was told (none sent yet: the first update sends it).
     std::optional<GameId> m_sentRegion;

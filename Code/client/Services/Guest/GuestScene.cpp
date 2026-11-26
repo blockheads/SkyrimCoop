@@ -1,6 +1,6 @@
 #include <Services/Guest/GuestScene.h>
 
-#include <Bridges/GuestEngine.h>
+#include <Bridges/IGuestEngine.h>
 #include <Components/PlayerComponent.h>
 #include <Components/RemoteComponent.h>
 #include <Events/CopyAiStateEvent.h>
@@ -9,7 +9,7 @@
 
 #include <algorithm>
 
-GuestScene::GuestScene(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
+GuestScene::GuestScene(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept
     : m_world(aWorld), m_engine(aEngine)
 {
     Listen<CopyAiStateEvent, &GuestScene::OnAiState>(m_connections, aDispatcher, this);

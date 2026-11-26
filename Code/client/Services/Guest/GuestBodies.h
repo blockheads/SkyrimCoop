@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Bridges/GuestEngine.h>
+#include <Bridges/IGuestEngine.h>
 #include <Physics/BodyAuthority.h>
 #include <Physics/BodyMotions.h>
 #include <Physics/BodyStream.h>
@@ -24,7 +24,7 @@ struct GuestBodies final : BodyService::Keeper
     // This game's player, as BodyAuthority numbers it here (the host's states name "you" or "another").
     static constexpr uint32_t kMe = 1;
 
-    GuestBodies(World& aWorld, GuestEngine& aEngine) noexcept;
+    GuestBodies(World& aWorld, IGuestEngine& aEngine) noexcept;
     ~GuestBodies() noexcept override;
 
     NO_COPY_MOVE(GuestBodies);
@@ -40,17 +40,17 @@ private:
     // This game's player's touches, grabs and lets go; the bodies taken into aTaken.
     void TakeHands(uint64_t aTick, std::map<BodyKey, BodyFrame>& aHeld, std::vector<BodyKey>& aTaken) noexcept;
     // Its player's ragdoll: its frames into aStates while it moves, its rest declared.
-    void Ragdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyState>& aStates) noexcept;
+    void Ragdoll(uint64_t aTick, IGuestEngine::OwnBodies& aOwn, std::vector<BodyState>& aStates) noexcept;
     // No longer this game's: the host's states show it from now.
     void Drop(const BodyKey& acKey) noexcept;
     // The host's newest state of it is too far off to steer to: it is not where this game still shows it.
     [[nodiscard]] bool Elsewhere(const BodyKey& acKey) const noexcept;
     void Took(const BodyKey& acKey, const char* acpHow, std::vector<BodyKey>& aTaken) noexcept;
-    [[nodiscard]] GuestEngine::SessionOf_t CopySessions() const noexcept;
+    [[nodiscard]] IGuestEngine::SessionOf_t CopySessions() const noexcept;
     [[nodiscard]] uint32_t PlayerId() const noexcept;
 
     World& m_world;
-    GuestEngine& m_engine;
+    IGuestEngine& m_engine;
     BodyAuthority m_authority;
     BodyStream m_stream;
     BodyMotions m_motions;

@@ -1,12 +1,12 @@
 #include <Services/Guest/GuestWait.h>
 
-#include <Bridges/GuestEngine.h>
+#include <Bridges/IGuestEngine.h>
 #include <Events/GameLoadedEvent.h>
 #include <Events/MenuEvent.h>
 #include <Services/TransportService.h>
 #include <World.h>
 
-GuestWait::GuestWait(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
+GuestWait::GuestWait(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept
     : m_world(aWorld), m_engine(aEngine)
 {
     Listen<NotifyWaitState, &GuestWait::OnState>(m_connections, aDispatcher, this);

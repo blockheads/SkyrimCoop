@@ -20,7 +20,7 @@ namespace
 constexpr size_t kStatesPerMessage = 24;
 } // namespace
 
-GuestBodies::GuestBodies(World& aWorld, GuestEngine& aEngine) noexcept
+GuestBodies::GuestBodies(World& aWorld, IGuestEngine& aEngine) noexcept
     : m_world(aWorld)
     , m_engine(aEngine)
 {
@@ -263,7 +263,7 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
     return cHeard == BodyAuthority::Heard::kApply;
 }
 
-void GuestBodies::Ragdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyState>& aStates) noexcept
+void GuestBodies::Ragdoll(uint64_t aTick, IGuestEngine::OwnBodies& aOwn, std::vector<BodyState>& aStates) noexcept
 {
     if (aOwn.Ragdoll.empty() && aOwn.RagdollRested.empty())
         return;
@@ -294,7 +294,7 @@ void GuestBodies::Ragdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vec
     m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, aOwn.RagdollRested, aOwn.Ragdoll);
 }
 
-GuestEngine::SessionOf_t GuestBodies::CopySessions() const noexcept
+IGuestEngine::SessionOf_t GuestBodies::CopySessions() const noexcept
 {
     return [this](uint32_t aFormId) -> uint32_t {
         for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())

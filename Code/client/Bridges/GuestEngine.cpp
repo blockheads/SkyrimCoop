@@ -682,3 +682,8 @@ bool GuestEngine::IsPlacementPending(const GameId& acObject) const noexcept
 {
     return std::ranges::any_of(m_placed, [&](const auto& acPlaced) { return acPlaced.first.Object == acObject; });
 }
+
+bool GuestEngine::Adopting(const GameId& acObject) const noexcept
+{
+    return std::ranges::any_of(m_adopted, [&acObject](const BodyKey& acKey) { return acKey.Object == acObject; });
+}

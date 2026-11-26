@@ -24,7 +24,7 @@ struct NotifyItemDropped;
 struct NotifyPickUp;
 struct UpdateEvent;
 struct World;
-class GuestEngine;
+class IGuestEngine;
 
 /**
  * @brief A guest takes the host's globals and quests (HostWorldState) with its engine's own calls
@@ -37,7 +37,7 @@ class GuestEngine;
  */
 struct GuestWorldState
 {
-    GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
+    GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept;
     ~GuestWorldState() noexcept;
 
     NO_COPY_MOVE(GuestWorldState);
@@ -74,7 +74,7 @@ private:
     bool ApplyInOrder(const ObjectChange& acChange) noexcept;
 
     World& m_world;
-    GuestEngine& m_engine;
+    IGuestEngine& m_engine;
     // The attached cells already asked for.
     std::vector<uint32_t> m_cells;
     struct WaitingAnswer

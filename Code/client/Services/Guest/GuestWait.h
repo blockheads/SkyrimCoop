@@ -5,14 +5,14 @@
 #include <NoCopyMove.h>
 
 struct World;
-class GuestEngine;
+class IGuestEngine;
 struct MenuEvent;
 struct GameLoadedEvent;
 
 // Reconciles only the world snapshot requested when a shared rest's native menu closes.
 struct GuestWait
 {
-    GuestWait(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
+    GuestWait(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept;
     NO_COPY_MOVE(GuestWait);
 
     // After physics: only this rest's record rows wait for their placements to finish.
@@ -32,7 +32,7 @@ private:
     };
 
     World& m_world;
-    GuestEngine& m_engine;
+    IGuestEngine& m_engine;
     uint32_t m_id{};
     bool m_finished{};
     std::vector<GameId> m_cells;

@@ -1,6 +1,6 @@
 #include <Services/Guest/GuestWorldState.h>
 
-#include <Bridges/GuestEngine.h>
+#include <Bridges/IGuestEngine.h>
 #include <Services/BodyService.h>
 #include <Messages/WorldState.h>
 #include <Events/UpdateEvent.h>
@@ -28,7 +28,7 @@
 
 #include <cstring>
 
-GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
+GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept
     : m_world(aWorld)
     , m_engine(aEngine)
 {

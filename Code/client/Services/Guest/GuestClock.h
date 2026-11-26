@@ -8,7 +8,7 @@ struct World;
 struct UpdateEvent;
 struct NotifyTimeSettings;
 struct NotifyWaitState;
-class GuestEngine;
+class IGuestEngine;
 
 /**
  * @brief A guest's calendar is the host's (HostClock): the game's own clock is off, and this runs the host's
@@ -16,7 +16,7 @@ class GuestEngine;
  */
 struct GuestClock
 {
-    GuestClock(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
+    GuestClock(World& aWorld, entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept;
     ~GuestClock() noexcept;
 
     NO_COPY_MOVE(GuestClock);
@@ -36,7 +36,7 @@ private:
     static bool s_hostClock;
 
     World& m_world;
-    GuestEngine& m_engine;
+    IGuestEngine& m_engine;
     DateTime m_hostTime;
     // The calendar shown when the host's last came in: a fade starts from it.
     TimeModel m_shownTime;

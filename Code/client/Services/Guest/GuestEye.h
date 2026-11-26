@@ -7,7 +7,7 @@
 #include <vector>
 
 struct NotifyStealthEye;
-class GuestEngine;
+class IGuestEngine;
 
 /**
  * @brief A guest's stealth eye is what the host's NPCs see of its player (HostEye; stealth.md, "The eye is the host's").
@@ -15,7 +15,7 @@ class GuestEngine;
  */
 struct GuestEye
 {
-    GuestEye(entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
+    GuestEye(entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept;
     ~GuestEye() noexcept;
 
     NO_COPY_MOVE(GuestEye);
@@ -23,6 +23,6 @@ struct GuestEye
 private:
     void OnEye(const NotifyStealthEye& acMessage) noexcept;
 
-    GuestEngine& m_engine;
+    IGuestEngine& m_engine;
     std::vector<entt::scoped_connection> m_connections;
 };

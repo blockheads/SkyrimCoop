@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bridges/BodyReads.h>
+#include <Bridges/IGuestEngine.h>
 #include <Games/Skyrim/DetectionRules.h>
 #include <Bridges/PhysicsBodies.h>
 #include <Messages/CellStateRequest.h>
@@ -33,7 +34,7 @@ struct TESQuest;
  * @brief A guest's game taking the host's world, each with the engine's own call, from session ids.
  * Only while a guest: the host's world is its own.
  */
-class GuestEngine
+class GuestEngine final : public IGuestEngine
 {
 public:
     // aBodies finds the host's references through this game's while it lives.
@@ -42,104 +43,39 @@ public:
 
     NO_COPY_MOVE(GuestEngine);
 
-    // The calendar as the engine's clock leaves it (Calendar::Update 36291), date and days passed included.
-    void SetCalendar(const TimeModel& acTime) noexcept;
-    // Shows the weather as the forced one, faded into (26241), again after the game changed its own, and keeps it from
-    // expiring (Sky::s_pHeldWeather); leaves the world map's alone. False: no such weather.
-    bool HoldWeather(const GameId& acWeather) noexcept;
-    // The game's own weather again.
-    void ReleaseWeather() noexcept;
-    // This game's player's weather region (Sky::PlayerWeatherRegion); none for none.
-    [[nodiscard]] GameId ReadWeatherRegion() const noexcept;
-    // The eye's reads of this game's player answer what the host's NPCs see of it (StealthEye::Hold), until released.
-    void HoldEye(const DetectionRules::EyeReading& acReading) noexcept;
-    void ReleaseEye() noexcept;
-    // Runs a native on the player the host's script called for this game's player (Game.AdvanceSkill,
-    // Game.QueryStat; party-model.md, rule 2), as a script's call does; aOnReturn is told what it returned. False: a
-    // form it names is not here.
-    bool RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn = {}) noexcept;
-    // This game's player plays a part the host's player plays in an engine scene (cutscenes.md step 2): AI-driven, it
-    // runs that package. False: no such package here. Ended: its controls take it back.
-    bool RunScenePackage(const GameId& acPackage) noexcept;
-    void EndScenePackage() noexcept;
-    // Sets it as Papyrus' GlobalVariable.SetValue (55923) does; false for none or a constant.
-    bool SetGlobal(const GlobalValue& acGlobal) noexcept;
-    // Makes the quest so, each stage without its fragment (docs/re/systems/quest-apply.md); aAsLoad: as a save
-    // load does, the fields only. Created actors use their session mapping; a missing copy is retried.
-    void ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept;
-    // An actor's alias can arrive before its spawn: retry just those fills, without replaying stages.
-    void RetryQuestAliases() noexcept;
-    // Off while a guest, the host's game deciding instead: its story manager starts no quest, its world's
-    // scripts do not react to its player (activations, triggers), it rolls no leveled container or placed
-    // leveled item, its container menus' takes and stores are the host's (ContainerTransfers), and its story events
-    // go to the host's story manager (OwnStoryEvent), and its own NPCs are held until the host spawns them (GuestNpcs).
-    void SetDecidesWorld(bool aOn) noexcept;
-    // This game's story event as the session names it; none for one the host's game raises itself (it names another
-    // game's actor: a kill, an assault).
-    [[nodiscard]] std::optional<StoryEvent> ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept;
-    // Makes the host's world object change here: activates the door (if it is as the host's was), plays the
-    // animation, enables or disables the reference, sets its lock, makes the container hold that many. False: the
-    // object, the activator or the item is not in this game.
-    // aLoad: a cell's state, not a change; a state already as the host's is left alone (no events for it).
-    bool ApplyObjectChange(const ObjectChange& acChange, bool aLoad = false) noexcept;
-    // That reference has a dynamic body loaded here: the body stream places it, not its move row.
-    [[nodiscard]] bool HasLiveBody(const GameId& acObject) noexcept;
-    // This game's container's count of the item now (Bridges/ContainerItems.h), for a proposal to the host.
-    [[nodiscard]] std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept;
-    // The cells loaded here now and done loading (the interior, or the exterior grid's attached ones), by form id.
-    [[nodiscard]] std::vector<uint32_t> AttachedCells() const noexcept;
-    // Asks for the host's state of that loaded cell, naming the references this game holds changes for; none for a
-    // cell no longer loaded or not in the session's mods.
-    [[nodiscard]] std::optional<CellStateRequest> ReadCellChanges(uint32_t aCellFormId) const noexcept;
-    [[nodiscard]] bool IsCellAttached(const GameId& acCell) const noexcept;
-    // Each update: the references placed at the host's rest (a move row) an update ago, simulated again and asleep
-    // there, once the engine has put their held bodies at their nodes.
-    void FreePlaced() noexcept;
-    // Shared rest refreshes restore record flags after their placements have finished.
-    [[nodiscard]] bool IsPlacementPending(const GameId& acObject) const noexcept;
-    // This game's player's pushes of the host's references' bodies since the last call (its character's,
-    // PlayerHands), one per body.
-    [[nodiscard]] std::vector<BodyKey> TakePushes() noexcept;
-    // Its weapon swings' hits on the host's references' bodies since the last call (PlayerHands::TakeHits), one per body.
-    [[nodiscard]] std::vector<BodyKey> TakeHits() noexcept;
-    // What this game's player holds (PlayerCharacter::grabbedObject): a host reference's bodies, or a copy's corpse's by
-    // its session id, watched until they rest (40555 grabs a dead actor).
-    using SessionOf_t = std::function<uint32_t(uint32_t aFormId)>;
-    [[nodiscard]] std::vector<BodyFrame> ReadHeld(const SessionOf_t& acSessionOf) noexcept;
-    // What this game's own physics moves: the host's references' bodies awake and simulated here, where they are
-    // (Moved, and as frames in Objects), those that came to rest here (ObjectsRested: Havok's sleep or still, as on
-    // the host); this game's player's ragdoll while it simulates (dead), its awake bodies read now (Ragdoll) or every
-    // body once all sleep (RagdollRested), keyed by index alone; a copy's corpse its player grabbed, as an object's
-    // bodies (Objects, ObjectsRested), keyed by the copy's session id.
-    struct OwnBodies
-    {
-        std::vector<BodyPose> Moved;
-        std::vector<BodyFrame> Objects;
-        std::vector<BodyPose> ObjectsRested;
-        std::vector<BodyFrame> Ragdoll;
-        std::vector<BodyPose> RagdollRested;
-    };
-    [[nodiscard]] OwnBodies TakeOwnBodies(uint64_t aTick, const SessionOf_t& acSessionOf) noexcept;
-    // A reference's body this game took as its own: read as moved from now, however little it has left where it woke.
-    void FollowOwn(const BodyKey& acKey) noexcept;
-
-    // Dropped items (docs/design/dropped-items.md). This game's player's drop: the item (count, extra data) and where,
-    // tagged with its reference here, now a drop of its own until the host's answer; none for no loose item.
-    [[nodiscard]] std::optional<DropItemRequest> ReadDrop(uint32_t aFormId) noexcept;
-    // The host made drop aTag as acObject: this game's reference is its twin (an empty id: its own again, not the
-    // host's to grant). False: no longer here (picked up).
-    bool AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept;
-    // The bodies of drops adopted since the last call: this game's own until the host's rest (GuestHands).
-    [[nodiscard]] std::vector<BodyKey> TakeAdoptedDrops() noexcept;
-    // A drop adopted as acObject not yet taken (its body this game's own).
-    [[nodiscard]] bool Adopting(const GameId& acObject) const noexcept
-    {
-        return std::ranges::any_of(m_adopted, [&acObject](const BodyKey& acKey) { return acKey.Object == acObject; });
-    }
-    // This game's player reached for a loose item the host decides (a twin, or its own drop): what to ask for.
-    [[nodiscard]] std::optional<PickUpRequest> ReadPickUp(uint32_t aFormId) const noexcept;
-    // The host granted it: this game's player picks up its twin, or gets the item when the twin is gone.
-    void PickUp(const NotifyPickUp& acGrant) noexcept;
+    void SetCalendar(const TimeModel& acTime) noexcept override;
+    bool HoldWeather(const GameId& acWeather) noexcept override;
+    void ReleaseWeather() noexcept override;
+    [[nodiscard]] GameId ReadWeatherRegion() const noexcept override;
+    void HoldEye(const DetectionRules::EyeReading& acReading) noexcept override;
+    void ReleaseEye() noexcept override;
+    bool RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn) noexcept override;
+    bool RunScenePackage(const GameId& acPackage) noexcept override;
+    void EndScenePackage() noexcept override;
+    bool SetGlobal(const GlobalValue& acGlobal) noexcept override;
+    void ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept override;
+    void RetryQuestAliases() noexcept override;
+    void SetDecidesWorld(bool aOn) noexcept override;
+    [[nodiscard]] std::optional<StoryEvent> ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept override;
+    bool ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept override;
+    [[nodiscard]] bool HasLiveBody(const GameId& acObject) noexcept override;
+    [[nodiscard]] std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept override;
+    [[nodiscard]] std::vector<uint32_t> AttachedCells() const noexcept override;
+    [[nodiscard]] std::optional<CellStateRequest> ReadCellChanges(uint32_t aCellFormId) const noexcept override;
+    [[nodiscard]] bool IsCellAttached(const GameId& acCell) const noexcept override;
+    void FreePlaced() noexcept override;
+    [[nodiscard]] bool IsPlacementPending(const GameId& acObject) const noexcept override;
+    [[nodiscard]] std::vector<BodyKey> TakePushes() noexcept override;
+    [[nodiscard]] std::vector<BodyKey> TakeHits() noexcept override;
+    [[nodiscard]] std::vector<BodyFrame> ReadHeld(const SessionOf_t& acSessionOf) noexcept override;
+    [[nodiscard]] OwnBodies TakeOwnBodies(uint64_t aTick, const SessionOf_t& acSessionOf) noexcept override;
+    void FollowOwn(const BodyKey& acKey) noexcept override;
+    [[nodiscard]] std::optional<DropItemRequest> ReadDrop(uint32_t aFormId) noexcept override;
+    bool AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept override;
+    [[nodiscard]] std::vector<BodyKey> TakeAdoptedDrops() noexcept override;
+    [[nodiscard]] bool Adopting(const GameId& acObject) const noexcept override;
+    [[nodiscard]] std::optional<PickUpRequest> ReadPickUp(uint32_t aFormId) const noexcept override;
+    void PickUp(const NotifyPickUp& acGrant) noexcept override;
 
 private:
     // The reference here for a session id; the host's created ones (ObjectChange::kCreatedModId) through m_created.

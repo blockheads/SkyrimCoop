@@ -1,9 +1,9 @@
 #include <Services/Guest/GuestEye.h>
 
-#include <Bridges/GuestEngine.h>
+#include <Bridges/IGuestEngine.h>
 #include <Messages/NotifyStealthEye.h>
 
-GuestEye::GuestEye(entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
+GuestEye::GuestEye(entt::dispatcher& aDispatcher, IGuestEngine& aEngine) noexcept
     : m_engine(aEngine)
 {
     Listen<NotifyStealthEye, &GuestEye::OnEye>(m_connections, aDispatcher, this);
