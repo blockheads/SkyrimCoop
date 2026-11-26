@@ -50,8 +50,8 @@
 #include <crime/CrimeService.h>
 #include <items/InventoryService.h>
 #include <ports/IPlayerBridge.h>
-#include <ports/AnimationSystem.h>
-#include <ports/FaceGenSystem.h>
+#include <animation/AnimationSystem.h>
+#include <Bridges/FaceGenSystem.h>
 #include <animation/LocalAnimationComponent.h>
 #include <animation/RemoteAnimationComponent.h>
 #include <core/FormIdComponent.h>
@@ -467,49 +467,6 @@ bool FakeHostEngine::RunFor(uint32_t aGuestFormId, const LocalCall& acCall, std:
     return true;
 }
 
-// AnimationSystem and FaceGenSystem as their own (their files read the engine too): the components only.
-void AnimationSystem::Setup(World& aWorld, entt::entity aEntity) noexcept
-{
-    aWorld.emplace_or_replace<RemoteAnimationComponent>(aEntity);
-}
-
-// As the real one through the actor bridge: where the actor is and its actions; no graph variables or direction.
-void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent,
-                                LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent)
-{
-    const auto& cActors = aWorld.ctx().at<IActorBridge&>();
-    if (!cActors.ActorExists(formIdComponent.Id))
-        return;
-    auto& update = aMovementSnapshot.Updates[localComponent.Id];
-    auto& movement = update.UpdatedMovement;
-    if (const uint32_t cCell = cActors.GetActorParentCellFormId(formIdComponent.Id))
-        movement.CellId = ToSession(cCell).value_or(GameId{});
-    if (const uint32_t cWorldSpace = cActors.GetActorWorldSpaceFormId(formIdComponent.Id))
-        movement.WorldSpaceId = ToSession(cWorldSpace).value_or(GameId{});
-    float x = 0.f, y = 0.f, z = 0.f;
-    cActors.GetActorPosition(formIdComponent.Id, x, y, z);
-    movement.Position = {x, y, z};
-    cActors.GetActorRotation(formIdComponent.Id, x, y, z);
-    movement.Rotation.x = x;
-    movement.Rotation.y = z;
-    const bool cStreamed = aWorld.GetGraphStreams().Streaming(formIdComponent.Id);
-    if (const auto it = aWorld.ctx().at<FakeEngine&>().Actors.find(formIdComponent.Id); it != aWorld.ctx().at<FakeEngine&>().Actors.end() && !cStreamed)
-        movement.Variables = it->second.GraphVariables;
-    for (auto& entry : animationComponent.Actions)
-        update.ActionEvents.push_back(entry);
-    if (auto latestAction = animationComponent.GetLatestAction())
-        localComponent.CurrentAction = std::move(*latestAction);
-    animationComponent.Actions.clear();
-}
-
-void AnimationSystem::TargetToNetwork(ActionEvent& aAction) noexcept
-{
-    const auto cSessionId = Utils::GetSessionIdByFormId(aAction.TargetId);
-    aAction.TargetActor = cSessionId ? *cSessionId + 1 : 0;
-    if (cSessionId)
-        aAction.TargetId = 0;
-}
-
 // CombatService's engine upkeep (Actor.cpp): no remote-player anger or hang watch in the fake.
 void UpdateRemotePlayerAnger() noexcept
 {
@@ -517,10 +474,4 @@ void UpdateRemotePlayerAnger() noexcept
 
 void RefreshHangLockWatch() noexcept
 {
-}
-
-void FaceGenSystem::Setup(World& aWorld, entt::entity aEntity, const Tints& acTints) noexcept
-{
-    if (!acTints.Entries.empty())
-        aWorld.emplace_or_replace<FaceGenComponent>(aEntity).FaceTints = acTints;
 }

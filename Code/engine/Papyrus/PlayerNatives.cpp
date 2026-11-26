@@ -1,4 +1,4 @@
-#include <ports/PlayerNatives.h>
+#include <Papyrus/PlayerNativeCalls.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/NativeReach.h>
 
@@ -6,7 +6,7 @@
 #include <Forms/TESQuest.h>
 #include <Papyrus/GuestScripts.h>
 #include <scripts/OwnEvents.h>
-#include <ports/PartyNatives.h>
+#include <scripts/PartyNatives.h>
 #include <Papyrus/BodyScripts.h>
 #include <core/EngineNames.h>
 #include <HookSwitch.h>

@@ -783,9 +783,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override
     {
     }
-    void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept override
-    {
-    }
     std::string SaveActorGraphState(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -868,9 +865,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
     }
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override
-    {
-    }
-    void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override
     {
     }
     bool IsActorFacePainted(uint32_t aFormId) const noexcept override

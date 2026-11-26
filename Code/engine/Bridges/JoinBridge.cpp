@@ -26,7 +26,7 @@
 #include <SaveLoadManager.h>
 #include <Utils.h>
 #include <core/MainLoopTasks.h>
-#include <ports/SystemQuests.h>
+#include <scripts/SystemQuests.h>
 #include <Structs/SystemQuestState.h>
 #include <DragonSouls.h>
 

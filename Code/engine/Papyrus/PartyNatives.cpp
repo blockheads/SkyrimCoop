@@ -8,9 +8,9 @@
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/GuestScripts.h>
 #include <Papyrus/NativeReach.h>
-#include <ports/PlayerNatives.h>
+#include <Papyrus/PlayerNativeCalls.h>
 #include <scripts/OwnEvents.h>
-#include <ports/SystemQuests.h>
+#include <scripts/SystemQuests.h>
 
 #include <AI/Movement/PlayerControls.h>
 #include <core/EngineNames.h>

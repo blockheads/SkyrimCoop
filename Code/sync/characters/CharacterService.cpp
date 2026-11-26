@@ -72,8 +72,7 @@
 #include <movement/SnapshotAge.h>
 #include <movement/CopyStep.h>
 #include <movement/InterpolationSystem.h>
-#include <ports/AnimationSystem.h>
-#include <ports/FaceGenSystem.h>
+#include <animation/AnimationSystem.h>
 
 #include <core/World.h>
 #include <core/SessionIds.h>
@@ -83,6 +82,13 @@
 
 namespace
 {
+// A player's copy's face tints, kept for its head (painted by the engine once it is built).
+void KeepFaceTints(World& aWorld, entt::entity aEntity, const Tints& acTints) noexcept
+{
+    if (!acTints.Entries.empty())
+        aWorld.emplace_or_replace<FaceGenComponent>(aEntity).FaceTints = acTints;
+}
+
 // A snapshot of a streamed owner carries none (graph-input-stream.md).
 bool HasVariables(const AnimationVariables& acVariables) noexcept
 {
@@ -489,7 +495,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
             // Players and npcs with temporary ref ids and base ids (usually random events)
             actorFormId = m_actorBridge.CreateCustomActor(acMessage.AppearanceBuffer, acMessage.ChangeFlags, acMessage.Weight);
             m_actorBridge.SetupActorFaceGen(actorFormId);
-            FaceGenSystem::Setup(m_world, *entity, acMessage.FaceTints);
+            KeepFaceTints(m_world, *entity, acMessage.FaceTints);
             PaintFace(*entity, actorFormId);
         }
     }
@@ -1026,7 +1032,7 @@ void CharacterService::ApplyPendingLooks() noexcept
             if (form.Id == cFormId)
             {
                 m_world.remove<FaceGenComponent>(cEntity);
-                FaceGenSystem::Setup(m_world, cEntity, cLooks.FaceTints);
+                KeepFaceTints(m_world, cEntity, cLooks.FaceTints);
                 PaintFace(cEntity, cFormId);
                 if (const auto* cpPlayer = m_world.try_get<PlayerComponent>(cEntity))
                     SetCopyLevel(cFormId, cpPlayer->Id);
@@ -2130,7 +2136,8 @@ void CharacterService::RunRemoteUpdates() noexcept
     {
         auto& formIdComponent = animatedView.get<FormIdComponent>(entity);
 
-        m_actorBridge.ActorUpdateAnimation(formIdComponent.Id, InterpolationSystem::PlaybackTick(m_world, entity));
+        AnimationSystem::Update(m_world, entity, formIdComponent.Id, animatedView.get<RemoteAnimationComponent>(entity),
+                                InterpolationSystem::PlaybackTick(m_world, entity));
     }
 
 

@@ -22,7 +22,7 @@
 #include <Havok/bhkCharacterController.h>
 
 #include <core/World.h>
-#include <ports/AnimationSystem.h>
+#include <Bridges/AnimationBody.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <Utils.h>
@@ -149,7 +149,7 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
         if (auto* pExtension = pActor->GetExtension(); pExtension->IsCopy() || pExtension->KillHeld.load(std::memory_order_relaxed))
         {
             if (pExtension->IsCopy())
-                AnimationSystem::RunReplayStep(pActor);
+                AnimationBody::RunReplayStep(pActor);
             if (ReplayState::PoseHeld(World::Get().GetFrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
             {
                 HoldCopyRagdollStill(*pActor);

@@ -5,6 +5,7 @@
 #include <ports/IActorBridge.h>
 #include <physics/IBodyBridge.h>
 #include <tools/IDevToolsBridge.h>
+#include <animation/IAnimationBody.h>
 #include <ports/IFormBridge.h>
 #include <ports/IGuestEngine.h>
 #include <ports/IHostEngine.h>
@@ -69,6 +70,7 @@ std::unique_ptr<IEngine> Registered(World& aWorld, std::unique_ptr<IEngine> apEn
     aWorld.ctx().emplace<IBodyBridge&>(apEngine->Bodies());
     aWorld.ctx().emplace<IJoinBridge&>(apEngine->Join());
     aWorld.ctx().emplace<IDevToolsBridge&>(apEngine->DevTools());
+    aWorld.ctx().emplace<IAnimationBody&>(apEngine->AnimationBodies());
     return apEngine;
 }
 } // namespace

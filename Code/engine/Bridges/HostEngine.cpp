@@ -7,7 +7,7 @@
 #include <Papyrus/GuestScripts.h>
 #include <PlayerHands.h>
 #include <StealthEye.h>
-#include <ports/SystemQuests.h>
+#include <scripts/SystemQuests.h>
 #include <core/MainLoopTasks.h>
 #include <AI/FollowerTargets.h>
 #include <core/SessionIds.h>

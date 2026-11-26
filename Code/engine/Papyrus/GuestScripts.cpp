@@ -4,11 +4,11 @@
 #include <BSCore/LockOrder.h>
 #include <Papyrus/NativeReach.h>
 #include <Papyrus/PartyNativesScope.h>
-#include <ports/PlayerNatives.h>
+#include <Papyrus/PlayerNativeCalls.h>
 #include <scripts/ScriptTags.h>
 #include <scripts/OwnEvents.h>
-#include <ports/PartyNatives.h>
-#include <ports/SystemQuests.h>
+#include <scripts/PartyNatives.h>
+#include <scripts/SystemQuests.h>
 #include <Papyrus/GlobalCall.h>
 
 #include <Actor.h>

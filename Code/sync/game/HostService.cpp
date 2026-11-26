@@ -45,7 +45,7 @@
 #include <Messages/SummonRequest.h>
 #include <core/CreatedIds.h>
 #include <core/ScriptValues.h>
-#include <ports/PlayerNatives.h>
+#include <scripts/PlayerNatives.h>
 #include <core/Profile.h>
 
 HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher, MakeEngine_t aMakeEngine) noexcept

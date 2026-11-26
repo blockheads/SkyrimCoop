@@ -1,5 +1,5 @@
 #include <Camera/PlayerCamera.h>
-#include <ports/PartyNatives.h>
+#include <scripts/PartyNatives.h>
 /// SkyrimBridge.cpp — Real SKSE-backed implementation.
 ///
 /// With HostEngine.cpp and GuestEngine.cpp, the only places in the bridge layer that include SKSE headers.
@@ -70,9 +70,9 @@
 #include <Magic/MagicTarget.h>
 #include <Effects/ActiveEffect.h>
 #include <Magic/EffectItem.h>
-#include <ports/FaceGenSystem.h>
+#include <Bridges/FaceGenSystem.h>
 #include <movement/InterpolationSystem.h>
-#include <ports/AnimationSystem.h>
+#include <Bridges/AnimationBody.h>
 #include <animation/ReplayState.h>
 #include <Papyrus/GuestScripts.h>
 #include <Misc/SubtitleManager.h>
@@ -1878,7 +1878,7 @@ void SkyrimBridge::ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noe
     Actor* pOwn = GetActor(aOwnFormId);
     Actor* pCopy = GetActor(aCopyFormId);
     if (pOwn && pCopy)
-        AnimationSystem::YieldPair(World::Get(), pCopy, pOwn);
+        AnimationBody::YieldPair(World::Get(), pCopy, pOwn);
 }
 
 bool SkyrimBridge::ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept
@@ -2503,21 +2503,6 @@ void SkyrimBridge::ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) no
 {
     Breadcrumbs::Record("ActorUpdateInterpolation", aFormId);
     // InterpolationSystem::Update requires InterpolationComponent; called directly in CharacterService
-}
-
-// Empty once since the bridge refactor, which silently disabled animation replay (remote actors never drew weapons,
-// attacked, ...).
-void SkyrimBridge::ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept
-{
-    Breadcrumbs::Record("ActorUpdateAnimation", aFormId);
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return;
-    auto& world = World::Get();
-    auto view = world.view<FormIdComponent, RemoteAnimationComponent>();
-    for (auto entity : view)
-        if (view.get<FormIdComponent>(entity).Id == aFormId)
-            AnimationSystem::Update(world, entity, pActor, view.get<RemoteAnimationComponent>(entity), aTick);
 }
 
 bool SkyrimBridge::IsActorFacePainted(uint32_t aFormId) const noexcept

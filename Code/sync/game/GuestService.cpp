@@ -5,7 +5,7 @@
 #include <core/DisconnectedEvent.h>
 #include <core/UpdateEvent.h>
 #include <Messages/Relayed.h>
-#include <ports/PlayerNatives.h>
+#include <scripts/PlayerNatives.h>
 #include <ports/IActorBridge.h>
 #include <time/GuestClock.h>
 #include <characters/GuestCopies.h>

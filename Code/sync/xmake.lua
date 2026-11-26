@@ -7,8 +7,7 @@ target("SkyrimCoopSync")
     set_languages("cxx23")
     set_pcxxheader("SyncPch.h")
     add_files("**.cpp")
-    -- ../engine only for the last ports that are still one header over engine types (sync/ports).
-    add_includedirs(".", "../engine", {public = true})
+    add_includedirs(".", {public = true})
     add_includedirs("../external")
     add_defines(has_config("test_harness") and "COOP_TEST_HARNESS=1" or "COOP_TEST_HARNESS=0",
                 has_config("profiler") and "COOP_PROFILER=1" or "COOP_PROFILER=0")

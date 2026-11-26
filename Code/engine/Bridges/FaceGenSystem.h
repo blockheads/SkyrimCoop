@@ -1,6 +1,5 @@
 #pragma once
 
-struct World;
 struct Actor;
 struct Tints;
 
@@ -20,5 +19,4 @@ struct FaceGenSystem
         std::string Tint; // "" for none
     };
     [[nodiscard]] static HeadRead Read(Actor* apActor) noexcept;
-    static void Setup(World& aWorld, entt::entity aEntity, const Tints& acTints) noexcept;
 };

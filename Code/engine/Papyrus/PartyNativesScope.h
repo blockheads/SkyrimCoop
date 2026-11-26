@@ -2,7 +2,7 @@
 
 #include <scripts/RoutedCallEvent.h>
 #include <Misc/BSScript.h>
-#include <ports/PartyNatives.h>
+#include <scripts/PartyNatives.h>
 
 #include <cstdint>
 #include <optional>

@@ -4,14 +4,12 @@
 #include <animation/RemoteAnimationComponent.h>
 #include <core/FormIdComponent.h>
 #include <core/LocalComponent.h>
-#include <ActorExtension.h>
 
 struct World;
-struct Actor;
 struct ReferencesMoveRequest;
 
 /**
- * @brief Applies animations coming from remote actors.
+ * @brief Plays a copy's owner's actions on it: what to take, wait for, skip or stage (IAnimationBody does the acts).
  */
 struct AnimationSystem
 {
@@ -19,11 +17,11 @@ struct AnimationSystem
      * @brief Ran periodically to check for new animations to apply.
      * @param aWorld The registry where the actor in question lives.
      * @param aEntity The entity attached to the actor.
-     * @param apActor The actor to-be-updated.
+     * @param aFormId The copy's actor.
      * @param aAnimationComponent The animation component attached to the actor.
      * @param aTick The current tick.
      */
-    static void Update(World& aWorld, entt::entity aEntity, Actor* apActor, RemoteAnimationComponent& aAnimationComponent, uint64_t aTick) noexcept;
+    static void Update(World& aWorld, entt::entity aEntity, uint32_t aFormId, RemoteAnimationComponent& aAnimationComponent, uint64_t aTick) noexcept;
     /**
      * @brief Sets up the animation system for a particular actor.
      * @param aWorld The registry where the actor in question lives.
@@ -54,17 +52,10 @@ struct AnimationSystem
      * @param formIdComponent The form id component of the actor, used to fetch the actor pointer.
      */
     static void Serialize(World& aWorld, ReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent, LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent);
-    // This game's actor ends its pair with a copy (the host gave another pair the claim, or refused this one): both
-    // out of the instance and the kill move, its clip stopped until it leaves, its blow dropped, its kill cam ended
-    // (docs/re/systems/kill-moves.md, "Yielding").
-    static void YieldPair(World& aWorld, Actor* apCopy, Actor* apOwn) noexcept;
     // An action's target between games: an actor by its session id (ActionEvent::TargetActor), any other reference
     // by its form id (the same in both games; a temporary one names nothing there and is dropped). Game thread.
     static void TargetToNetwork(ActionEvent& aAction) noexcept;
     static void TargetFromNetwork(ActionEvent& aAction) noexcept;
-    // At the start of a copy's graph update (its animation job): applies the staged replay step.
-    static void RunReplayStep(Actor* apActor) noexcept;
-    static bool PlayReplayedAction(Actor* apActor, const ActorExtension::ReplayStep& acStep) noexcept;
     /**
      * @brief Serializes the actions to-be-sent.
      *

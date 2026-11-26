@@ -167,7 +167,6 @@ public:
     Tints GetActorFaceTints(uint32_t aFormId) const noexcept override;
     void SetupActorFaceGen(uint32_t aFormId) noexcept override;
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override;
-    void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override;
     bool IsActorFacePainted(uint32_t aFormId) const noexcept override;
     bool PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept override;
     bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept override;

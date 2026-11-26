@@ -1,7 +1,7 @@
 #include <CoSave.h>
 
 #include <core/FormIds.h>
-#include <ports/SystemQuests.h>
+#include <scripts/SystemQuests.h>
 #include <join/SaveService.h>
 #include <Wire/Buffer.h>
 #include <Messages/Payloads.h>

@@ -9,6 +9,7 @@
 #include <Bridges/BodyBridge.h>
 #include <Bridges/BugReportBridge.h>
 #include <Bridges/CrimeBridge.h>
+#include <Bridges/AnimationBody.h>
 #include <Bridges/DevToolsBridge.h>
 #include <Bridges/DialogueBridge.h>
 #include <Bridges/GuestEngine.h>
@@ -44,6 +45,7 @@ public:
     ICrimeBridge& Crime() noexcept override { return m_crime; }
     IBugReportBridge& BugReports() noexcept override { return m_bugReports; }
     IDevToolsBridge& DevTools() noexcept override { return m_devTools; }
+    IAnimationBody& AnimationBodies() noexcept override { return m_animationBodies; }
     std::unique_ptr<IGuestEngine> MakeGuestEngine() override { return std::make_unique<GuestEngine>(m_bodies); }
     std::unique_ptr<IHostEngine> MakeHostEngine() override { return std::make_unique<HostEngine>(m_bodies); }
 
@@ -130,6 +132,7 @@ private:
     CrimeBridge m_crime;
     BugReportBridge m_bugReports;
     DevToolsBridge m_devTools;
+    AnimationBody m_animationBodies;
     std::chrono::high_resolution_clock::time_point m_lastFrameTime{std::chrono::high_resolution_clock::now()};
     double m_lastUpdateMs{};
 };

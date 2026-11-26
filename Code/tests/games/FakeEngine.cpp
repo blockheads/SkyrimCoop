@@ -67,8 +67,8 @@
 #include <travel/SetWaypointEvent.h>
 #include <time/TimeScaleEvent.h>
 #include <Structs/GridCellCoords.h>
-#include <ports/PartyNatives.h>
-#include <ports/SystemQuests.h>
+#include <scripts/PartyNatives.h>
+#include <scripts/SystemQuests.h>
 #include <scripts/SystemQuestLearnedEvent.h>
 #include <core/ScriptValues.h>
 #include <array>

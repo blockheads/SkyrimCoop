@@ -1,4 +1,4 @@
-#include <ports/FaceGenSystem.h>
+#include <Bridges/FaceGenSystem.h>
 
 #include <References.h>
 
@@ -153,13 +153,4 @@ bool FaceGenSystem::Paint(Actor* apActor, const Tints& acTints) noexcept
 
     pMaterial->renderedTexture = pTexture;
     return true;
-}
-
-void FaceGenSystem::Setup(World& aWorld, const entt::entity aEntity, const Tints& acTints) noexcept
-{
-    if (acTints.Entries.empty())
-        return;
-
-    auto& component = aWorld.emplace_or_replace<FaceGenComponent>(aEntity);
-    component.FaceTints = acTints;
 }

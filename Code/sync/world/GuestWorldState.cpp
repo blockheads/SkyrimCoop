@@ -11,7 +11,7 @@
 #include <magic/SummonEvent.h>
 #include <Messages/SummonRequest.h>
 #include <Messages/Relayed.h>
-#include <ports/PlayerNatives.h>
+#include <scripts/PlayerNatives.h>
 #include <core/ScriptValues.h>
 #include <scripts/StoryEventRules.h>
 #include <Messages/CellStateRequest.h>

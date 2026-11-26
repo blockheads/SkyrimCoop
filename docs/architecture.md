@@ -125,7 +125,8 @@ Tiers 1 and 2 run on every change (`scripts/check.sh`). More in [design/testing.
 | harness  | `Code/harness/` | test builds of the plugin only          |
 
 - **A file's folder is its layer and its feature.** Includes say it: `<crime/CrimeService.h>`, `<core/World.h>`.
-- **`scripts/check.sh` fails on an include that breaks a layer rule** (`scripts/check_layout.py`).
+- **`sync` cannot see Skyrim.** It builds with no engine folder on its include path, and `scripts/check.sh` fails on
+  an include that breaks a layer rule (`scripts/check_layout.py`).
 - **One wiring.** `World` takes an `IEngine` (`Code/sync/core/IEngine.h`): every port in one place. The plugin passes
   Skyrim (`Code/plugin/SkyrimEngine.cpp`); the tests pass the fake. The same `World`, `HostService` and `GuestService`
   run in both.
@@ -135,7 +136,6 @@ Tiers 1 and 2 run on every change (`scripts/check.sh`). More in [design/testing.
 Not done yet:
 
 - The ports every feature shares sit in `sync/ports/`, not in a feature: `IActorBridge` is not split by feature.
-- A few ports are still one header with two `.cpp` files (the engine's and the tests'), not an interface
-  (`AnimationSystem.h`, `PartyNatives.h`, `PlayerNatives.h`). Two of them name engine types, so `sync` still builds
-  with `Code/engine` on its include path.
+- Three ports are still one header with two `.cpp` files (the engine's and the tests'), not an interface:
+  `scripts/PartyNatives.h`, `PlayerNatives.h` and `SystemQuests.h`.
 - `CharacterService` is not split by feature, and unit tests are in `Code/tests/`, not beside their feature.

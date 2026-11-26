@@ -1,4 +1,4 @@
-#include <ports/SystemQuests.h>
+#include <scripts/SystemQuests.h>
 #include <Papyrus/GlobalCall.h>
 #include <scripts/OwnEvents.h>
 #include <scripts/ScriptTags.h>

@@ -10,7 +10,7 @@ target("GameTests")
               "../../engine/Interface/PartyMarkerLabel.cpp")
     add_deps("SkyrimCoopSync")
     -- ../../plugin: the diagnostics readouts the fake engine fills.
-    add_includedirs(".", "../../plugin")
+    add_includedirs(".", "../../plugin", "../../engine")
     -- The shared specs, which coop_test.py runs in Skyrim too.
     add_defines("COOP_SPECS_DIR=\"$(projectdir)/Code/tests/specs\"")
     add_deps("SkyrimEncoding", "Network", "CommonLib")

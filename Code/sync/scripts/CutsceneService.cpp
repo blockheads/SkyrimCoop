@@ -7,7 +7,7 @@
 #include <scripts/RoutedCallEvent.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/Relayed.h>
-#include <ports/PartyNatives.h>
+#include <scripts/PartyNatives.h>
 #include <core/ScriptValues.h>
 #include <core/SessionIds.h>
 #include <core/World.h>

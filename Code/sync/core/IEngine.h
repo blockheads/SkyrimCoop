@@ -7,6 +7,7 @@ class IBodyBridge;
 class IBugReportBridge;
 class ICrimeBridge;
 class IDevToolsBridge;
+struct IAnimationBody;
 class IDialogueBridge;
 class IFormBridge;
 class IGuestEngine;
@@ -39,6 +40,7 @@ public:
     virtual ICrimeBridge& Crime() noexcept = 0;
     virtual IBugReportBridge& BugReports() noexcept = 0;
     virtual IDevToolsBridge& DevTools() noexcept = 0;
+    virtual IAnimationBody& AnimationBodies() noexcept = 0;
     // The engine side of a guest's game, made as it joins; and of the host's, made as it starts hosting.
     virtual std::unique_ptr<IGuestEngine> MakeGuestEngine() = 0;
     virtual std::unique_ptr<IHostEngine> MakeHostEngine() = 0;

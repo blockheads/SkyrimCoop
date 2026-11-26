@@ -7,7 +7,7 @@
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AnnounceCharacterRequest.h>
 #include <core/RunningGame.h>
-#include <ports/AnimationSystem.h>
+#include <animation/AnimationSystem.h>
 #include <Structs/GameVersions.h>
 #include <fstream>
 #include <algorithm>

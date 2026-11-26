@@ -4,7 +4,7 @@
 #include <scripts/SystemQuestLearnedEvent.h>
 #include <core/FormIds.h>
 #include <Messages/Relayed.h>
-#include <ports/SystemQuests.h>
+#include <scripts/SystemQuests.h>
 #include <core/World.h>
 
 SystemQuestService::SystemQuestService(World&, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept

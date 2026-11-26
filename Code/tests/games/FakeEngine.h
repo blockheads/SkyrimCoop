@@ -1081,6 +1081,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     };
     HeldClipLoads<MovementSet, FakeLoadLock> MovementSets;
     bool NewCopiesGraphReady = true; // a copy's graph ready as it is made (Skyrim: its 3D can come later)
+    void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end())
+            aVars = it->second.GraphVariables;
+    }
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);

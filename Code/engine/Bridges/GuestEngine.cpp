@@ -38,7 +38,7 @@
 #include <Forms/TESWeather.h>
 #include <Misc/BGSStoryManager.h>
 #include <Misc/StoryEvents.h>
-#include <ports/SystemQuests.h>
+#include <scripts/SystemQuests.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/GuestScripts.h>
 #include <scripts/PartyRules.h>

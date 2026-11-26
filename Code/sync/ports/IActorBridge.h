@@ -379,8 +379,6 @@ public:
     // --- Systems (CharacterService calls that take Actor*) ---
     /// Run interpolation update for a remote actor.
     virtual void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept = 0;
-    /// Run animation update for a remote actor.
-    virtual void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept = 0;
     /// Whether the actor's head shows face tints this game painted; a head built again (a new area, TESNPC::BuildHead
     /// 24731) shows its base's FaceTint file instead.
     virtual bool IsActorFacePainted(uint32_t aFormId) const noexcept = 0;

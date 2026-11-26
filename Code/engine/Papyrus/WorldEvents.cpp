@@ -5,9 +5,9 @@
 #include <Misc/BSScript.h>
 #include <Papyrus/GuestScripts.h>
 #include <scripts/OwnEvents.h>
-#include <ports/PartyNatives.h>
-#include <ports/PlayerNatives.h>
-#include <ports/SystemQuests.h>
+#include <scripts/PartyNatives.h>
+#include <Papyrus/PlayerNativeCalls.h>
+#include <scripts/SystemQuests.h>
 #include <core/RunningGame.h>
 
 #include <atomic>

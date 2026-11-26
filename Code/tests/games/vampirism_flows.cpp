@@ -4,7 +4,7 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <ports/SystemQuests.h>
+#include <scripts/SystemQuests.h>
 #include <join/JoinService.h>
 #include <join/SaveService.h>
 
