@@ -49,7 +49,7 @@ scripts/re/make_ida_db.sh        # first time: unpack the exe, analyse, annotate
 ```
 
 The default is 1.7.104. For legacy generation use `COOP_SKYRIM_VERSION=1.6.1170`; it writes
-`ENGINE_REFERENCE_1.6.1170.md`. Both write `build/re/<version>/annotations.json`. `COOP_RE_LIBRARY`,
+`ENGINE_REFERENCE_1.6.1170.md` (generated on demand, not kept in the repo). Both write `build/re/<version>/annotations.json`. `COOP_RE_LIBRARY`,
 `COOP_RE_EXE`, `COOP_RE_SKSE_SOURCE` and `COOP_RE_COMMONLIB` select private artifact/reference paths.
 
 In IDA (open the database matching the selected executable):
