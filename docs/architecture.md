@@ -119,12 +119,22 @@ Tiers 1 and 2 run on every change (`scripts/check.sh`). More in [design/testing.
 
 ## Where things are today
 
-The move happens one feature at a time. Until a feature has moved:
+The layers are real in the build already; the folders are not moved yet.
+
+- **`sync` is its own target**, `SkyrimCoopSync` (`Code/client/sync.lua`). It builds with no Windows or Skyrim header
+  forced in, for the plugin and for the tests.
+- **`scripts/layout.tsv` says which layer and feature each file belongs to.** `scripts/check.sh` fails on an include
+  that breaks a layer rule, and on a `sync` file missing from `sync.lua`.
+- **One wiring.** `World` takes an `IEngine` (`Code/client/IEngine.h`): every port in one place. The plugin passes
+  Skyrim (`SkyrimEngine.cpp`); the tests pass the fake. The same `World.cpp`, `HostService` and `GuestService` run in both.
 
 | Target layer | Today                                                             |
 |--------------|-------------------------------------------------------------------|
 | `plugin`     | `Code/client/*.cpp`, `Code/client/Ui/`, `Code/client/Diagnostics/` |
-| `engine`     | `Code/client/Games/`, `Code/client/Hooks/`, `Code/client/Bridges/*Bridge.cpp` |
+| `engine`     | `Code/client/Games/`, `Code/client/Hooks/`, `Code/client/Bridges/*.cpp` |
 | `sync`       | `Code/client/Services/`, `Systems/`, `Physics/`, `Components/`    |
-| ports        | `Code/client/Bridges/I*.h`                                        |
+| ports        | `Code/client/Bridges/I*.h`, `Code/client/IEngine.h`               |
 | harness      | `Code/client/TestHarness/`, `Code/client/HotReload/`              |
+
+Not done yet: a few ports are still one header with two `.cpp` files (the engine's and the tests'), not an interface
+(`AnimationSystem.h`, `PartyNatives.h`, `PlayerNatives.h`); `IActorBridge` and `CharacterService` are not split by feature.

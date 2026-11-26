@@ -108,12 +108,15 @@ scripts/compile_commands.sh
 Targets:
 
 - `SkyrimCoopPlugin` - the SKSE plugin (`SkyrimCoop.dll`), every game's code, the host's rules included
+- `SkyrimCoopSync` - the sync layer (`Code/client/sync.lua`): every game's decisions with no Skyrim or Windows header,
+  built for the plugin and for `GameTests`. A new `.cpp` there is added to `sync.lua` and placed in `scripts/layout.tsv`
+  (`scripts/check_layout.py`, part of the gate; the layers: `docs/architecture.md`)
 - `SkyrimCoopLoader` - hot reload's loader (`Code/hotreload`), test builds only
 - `SkyrimCoopVanillaHarness` - a stand-in plugin running the harness commands without ours (`coop_test.py repro --vanilla`)
 - `HostAuthorityTests` - the host's rules (`HostAuthority`, `Services/Host/`) with in-process games and no Skyrim (Catch2)
 - `TPTests` - message encoding, quantization, differentials (Catch2)
 - `UnitTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2)
-- `GameTests` - whole games in-process: real services and the host's rules on a fake engine (Catch2)
+- `GameTests` - whole games in-process: the real `World`, services and host's rules on a fake engine (`IEngine`, Catch2)
 - `coop_peer` - a game stand-in on the network for scenarios (a host refusing joins, a game asking to join)
 
 ## Layout
