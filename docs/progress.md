@@ -1915,7 +1915,7 @@ Decisions made without the user are marked **Decided**.
 Every message a game sends had a host rule; the two without one were dead (upstream's `RequestQuestUpdate`,
 never sent, and `AssignObjectsRequest`). What the host still took from `GameServer` moved:
 
-- **`HostNetwork`** (`Services/Host/`): the enet listener (`Net::Server`), each message to the front door
+- **`HostNetwork`** (`Code/sync/core/`): the enet listener (`Net::Server`), each message to the front door
   (`HostAuthority::Handle`), and in-process routes: the host's own game (the transport's local connection) and, in
   `BridgeTests`, every test game. A route carries plain messages (no packet type byte). Ports from 10578 upward.
 - **Character ids**: `HostCharacters` counts them from 1, never reused in a session; 0 is no character (the server

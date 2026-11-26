@@ -32,7 +32,8 @@ Skyrim really does.
 
 ## The rules
 
-The code is being moved to these rules. Old code still breaks some of them; new code must not.
+Rules 1 and 2 are checked by the build and `scripts/check.sh`. Old code still breaks some of the others (rule 3
+most of all); new code must not.
 
 **Structure**
 
