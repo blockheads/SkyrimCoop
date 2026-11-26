@@ -137,8 +137,10 @@ Not done yet:
 
 - `IActorBridge` is eight parts, one per feature (`combat/IActorCombat.h`, `magic/IActorMagic.h`, ...), joined in
   `sync/ports/IActorBridge.h`. Most services still take the whole of it, not their part.
-- Three ports are still one header with two `.cpp` files (the engine's and the tests'), not an interface:
-  `scripts/PartyNatives.h`, `PlayerNatives.h` and `SystemQuests.h`.
+- Seven ports are one header with two `.cpp` files (the engine's and the tests', picked by the linker), not an
+  interface: `scripts/PartyNatives.h`, `PlayerNatives.h` and `SystemQuests.h`, `core/RunningGame.h`,
+  `MainLoopTasks.h` and `ItemIds.h` (`CreatedItems`), `combat/ActorUpkeep.h`. They work and are kept: a target
+  that links all of `sync` (`GameTests`) must define each, in `Code/tests/games/Seams.cpp` or `HostSeams.cpp`.
 - `CharacterService` is one class in five files by topic (`CharacterServiceSpawn.cpp`, `...Movement.cpp`,
   `...Mounts.cpp`, `...Speech.cpp`); its mounts and speech are not yet services of their own.
 - Unit tests are in `Code/tests/`, not beside their feature.
