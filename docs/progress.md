@@ -49,6 +49,19 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-26: **the code is in layers, by feature** (`agent/codebase-audit`; `docs/architecture.md`, `CONTRIBUTING.md`).
+`Code/client` is gone: `Code/plugin` (starts everything), `Code/engine` (Skyrim's structs and our hooks), `Code/sync/<feature>`
+(every decision, built with no Skyrim header: the compiler checks it) and `Code/harness`. `scripts/check_layout.py` is part
+of the gate. No behaviour was meant to change.
+- Animation playback decisions run in `GameTests` as Skyrim runs them (`IAnimationBody`); the tests' imitation is gone.
+- Three hooks' decisions are rules the fake engine shares: spell landings (`magic/EffectRules.h`), hits
+  (`HitRules::Lands`), actions (`animation/ActionRules.h`).
+- `CharacterService` lost speech, mounts, movement and the graph stream to services of their own. `IActorBridge` is eight
+  parts. `SkyrimBridge.cpp`, `Actor.cpp` and `TESObjectREFR.cpp` are cut by feature.
+- Seen while checking, on `dev` too (2026-11-26, same messages, at least as often): `party-travel-mounted-guest` (the
+  host's player in combat, its copy not), `knockdown-lies-as-host`, `party-fast-travels` (the guest's arrival times out).
+  Seen by the user, not reproduced by `kill-move-runs-full-length` (3 of 3): some kill moves ending early.
+
 2026-11-25: **copies hold real combat controllers and groups** (`agent/compass-enemy-dots`, PR #130). A guest's
 compass showed no red enemy dots: the compass lists the members of combat groups targeting the player (41240), and a
 copy had none. Instead of another per-reader hook, a copy now holds a real controller and group filled from its
