@@ -30,6 +30,7 @@
 #include <core/CopyRecordsService.h>
 #include <actorstate/PerkService.h>
 #include <dialogue/DialogueService.h>
+#include <dialogue/SpeechService.h>
 #include <physics/BodyService.h>
 #include <tools/BugReportService.h>
 #include <crime/CrimeService.h>
@@ -90,6 +91,7 @@ World::World(std::unique_ptr<IEngine> apEngine)
     ctx().emplace<CopyRecords>(); // before CharacterService: its Ride part
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport,
                                    ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
+    ctx().emplace<SpeechService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IActorBridge&>());
     m_pEngine->AddServicesAfterCharacters(*this);
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport,
                                   ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
@@ -172,6 +174,7 @@ World::~World()
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
     m_pEngine->RemoveServicesAfterCharacters(*this);
+    ctx().erase<SpeechService>();
     ctx().erase<CharacterService>();
     ctx().erase<CopyRecords>();
     ctx().erase<TravelService>();

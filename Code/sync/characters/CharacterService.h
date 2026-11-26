@@ -41,8 +41,6 @@ struct NotifyRespawn;
 struct PlayerLooksChangeEvent;
 struct ActorHeadUpdateEvent;
 struct PlayerRevivedEvent;
-struct DialogueEvent;
-struct SubtitleEvent;
 
 class IActorBridge;
 class IFormBridge;
@@ -122,10 +120,6 @@ struct CharacterService
     void OnActorHeadUpdate(const ActorHeadUpdateEvent& acEvent) noexcept;
     // Its copies on the other games are made again, alive (a resurrected copy's graph stays dead).
     void OnPlayerRevived(const PlayerRevivedEvent&) const noexcept;
-    void OnDialogueEvent(const DialogueEvent& acEvent) noexcept;
-    void OnNotifyDialogue(const NotifyDialogue& acMessage) noexcept;
-    void OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept;
-    void OnNotifySubtitle(const NotifySubtitle& acMessage) noexcept;
     // The player arrived somewhere new (TravelService): drops the copies the old cell took and tells the host.
     void OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexcept;
 

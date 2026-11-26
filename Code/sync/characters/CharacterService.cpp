@@ -39,8 +39,6 @@
 #include <characters/ReferenceJumpEvent.h>
 #include <characters/ReferenceLoadedEvent.h>
 #include <characters/NpcHeldEvent.h>
-#include <dialogue/DialogueEvent.h>
-#include <dialogue/SubtitleEvent.h>
 
 #include <Structs/ActionEvent.h>
 #include <Structs/GridCellCoords.h>
@@ -133,11 +131,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<ActorHeadUpdateEvent, &CharacterService::OnActorHeadUpdate>(m_connections, m_dispatcher, this);
     Listen<PlayerRevivedEvent, &CharacterService::OnPlayerRevived>(m_connections, m_dispatcher, this);
 
-    Listen<DialogueEvent, &CharacterService::OnDialogueEvent>(m_connections, m_dispatcher, this);
-    Listen<NotifyDialogue, &CharacterService::OnNotifyDialogue>(m_connections, m_dispatcher, this);
-
-    Listen<SubtitleEvent, &CharacterService::OnSubtitleEvent>(m_connections, m_dispatcher, this);
-    Listen<NotifySubtitle, &CharacterService::OnNotifySubtitle>(m_connections, m_dispatcher, this);
     Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
     Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
     Listen<NotifyGraphOps, &CharacterService::OnGraphOps>(m_connections, m_dispatcher, this);

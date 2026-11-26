@@ -1,28 +1,33 @@
-// CharacterService: spoken lines and subtitles.
-#include <characters/CharacterService.h>
-#include <core/TransportService.h>
-#include <core/SessionService.h>
+// What actors say: an owner's voice lines and subtitles reach its copies.
+#include <dialogue/SpeechService.h>
+
+#include <characters/IActorIdentity.h>
+#include <dialogue/DialogueEvent.h>
+#include <dialogue/IActorSpeech.h>
+#include <dialogue/SubtitleEvent.h>
 
 #include <core/FormIdComponent.h>
 #include <core/RemoteComponent.h>
-
-#include <dialogue/DialogueEvent.h>
-#include <dialogue/SubtitleEvent.h>
-
-
-#include <ports/IActorBridge.h>
-#include <ports/IFormBridge.h>
-#include <ports/IPlayerBridge.h>
-
-
-#include <core/World.h>
 #include <core/SessionIds.h>
-#include <core/FormIds.h>
+#include <core/TransportService.h>
+#include <core/World.h>
 
 #include <Messages/Relayed.h>
-#include <characters/CharacterInternal.h>
 
-void CharacterService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept
+SpeechService::SpeechService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport, IActorSpeech& aSpeech,
+                             IActorIdentity& aActors) noexcept
+    : m_world(aWorld)
+    , m_transport(aTransport)
+    , m_speech(aSpeech)
+    , m_actors(aActors)
+{
+    Listen<DialogueEvent, &SpeechService::OnDialogueEvent>(m_connections, aDispatcher, this);
+    Listen<NotifyDialogue, &SpeechService::OnNotifyDialogue>(m_connections, aDispatcher, this);
+    Listen<SubtitleEvent, &SpeechService::OnSubtitleEvent>(m_connections, aDispatcher, this);
+    Listen<NotifySubtitle, &SpeechService::OnNotifySubtitle>(m_connections, aDispatcher, this);
+}
+
+void SpeechService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept
 {
     if (!m_transport.IsConnected())
         return;
@@ -47,7 +52,7 @@ void CharacterService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept
     m_transport.Send(request);
 }
 
-void CharacterService::OnNotifyDialogue(const NotifyDialogue& acMessage) noexcept
+void SpeechService::OnNotifyDialogue(const NotifyDialogue& acMessage) noexcept
 {
     auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
     const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.SessionId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
@@ -60,15 +65,15 @@ void CharacterService::OnNotifyDialogue(const NotifyDialogue& acMessage) noexcep
 
     auto formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
     // A copy not loaded yet has no process, which Actor::SpeakSound (37542) reads unchecked.
-    if (!m_actorBridge.ActorHas3D(formIdComponent.Id))
+    if (!m_actors.ActorHas3D(formIdComponent.Id))
         return;
 
     spdlog::debug("Voice: copy {:X} says its owner's {}", formIdComponent.Id, acMessage.SoundFilename.c_str());
-    m_actorBridge.ActorStopCurrentDialogue(formIdComponent.Id);
-    m_actorBridge.ActorSpeakSound(formIdComponent.Id, std::string(acMessage.SoundFilename.c_str()));
+    m_speech.ActorStopCurrentDialogue(formIdComponent.Id);
+    m_speech.ActorSpeakSound(formIdComponent.Id, std::string(acMessage.SoundFilename.c_str()));
 }
 
-void CharacterService::OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept
+void SpeechService::OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept
 {
     if (!m_transport.IsConnected())
         return;
@@ -95,7 +100,7 @@ void CharacterService::OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept
     m_transport.Send(request);
 }
 
-void CharacterService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcept
+void SpeechService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcept
 {
     auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
     const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.SessionId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
@@ -109,5 +114,5 @@ void CharacterService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcep
     auto formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
 
     // The owner's subtitle text over the copy (its voice comes through NotifyDialogue).
-    m_actorBridge.ActorShowSubtitle(formIdComponent.Id, std::string(acMessage.Text.c_str()), acMessage.TopicFormId, acMessage.Force);
+    m_speech.ActorShowSubtitle(formIdComponent.Id, std::string(acMessage.Text.c_str()), acMessage.TopicFormId, acMessage.Force);
 }

@@ -118,6 +118,7 @@ SOURCE_TAGS = [
     ("Code/engine/Misc/AliasNames.*", {'spawn', 'quest'}),
     ("Code/sync/animation/ActorStateRules.h", {'animation', 'hands', 'combat'}),
     ("Code/sync/dialogue/*DialogueService.*", {'dialogue'}),
+    ("Code/sync/dialogue/*SpeechService.*", {'dialogue'}),
     ("Code/sync/world/*ObjectService.*", {'objects'}),
     ("Code/sync/world/*", {'world', 'objects'}),
     ("Code/sync/scripts/*CutsceneService.*", {'scripts'}),
