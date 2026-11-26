@@ -106,7 +106,7 @@ SOURCE_TAGS = [
     ("Code/engine/Bridges/JoinKnowledge.cpp", {'inventory', 'save', 'join'}),
     ("Code/encoding/Structs/PlayerKnowledge.h", {'inventory', 'save', 'join'}),
     ("Code/harness/TestHarness/Knowledge.cpp", {'inventory', 'save'}),
-    ("Code/sync/characters/*CharacterService.*", {'spawn', 'movement', 'animation', 'ai', 'dialogue', 'combat', 'cells'}),
+    ("Code/sync/characters/*CharacterService*", {'spawn', 'movement', 'animation', 'ai', 'dialogue', 'combat', 'cells'}),
     ("Code/sync/actorstate/*ActorValueService.*", {'values'}),
     ("Code/sync/combat/*CombatService.*", {'combat'}),
     ("Code/sync/magic/*MagicService.*", {'magic'}),

@@ -139,4 +139,6 @@ Not done yet:
   `sync/ports/IActorBridge.h`. Most services still take the whole of it, not their part.
 - Three ports are still one header with two `.cpp` files (the engine's and the tests'), not an interface:
   `scripts/PartyNatives.h`, `PlayerNatives.h` and `SystemQuests.h`.
-- `CharacterService` is not split by feature, and unit tests are in `Code/tests/`, not beside their feature.
+- `CharacterService` is one class in five files by topic (`CharacterServiceSpawn.cpp`, `...Movement.cpp`,
+  `...Mounts.cpp`, `...Speech.cpp`); its mounts and speech are not yet services of their own.
+- Unit tests are in `Code/tests/`, not beside their feature.
