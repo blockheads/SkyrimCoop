@@ -1,41 +1,16 @@
 # Open bugs
 
-Every entry is a valid, open bug: none is accepted or shipped with. Each entry: what a player sees, the evidence, where to start, and the
-test that shows it. Fixing one: a test in the fastest tier that can show it first (CLAUDE.md), then the fix, then
-delete the entry and say where the evidence went. Unfinished work and unexplained behaviour stay in
-`docs/progress.md` ("Loose ends"); ideas in `docs/ideas.md`. The fixes and regression evidence for feature 14's
-visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixes and regression evidence are in
-[native-bugs.md](design/native-bugs.md). Fixes that landed after a playtest (S2's green flash, the
-2026-11-01 dialogue fixes) keep a dated entry in `docs/progress.md`.
+Every entry is a valid, open bug: none is accepted or shipped with. Each entry: what a player sees, the evidence, where
+to start, and the test that shows it. Fixing one: a test in the fastest tier that can show it first (CLAUDE.md), then
+the fix, then delete the entry. Unfinished work and unexplained behaviour are in `docs/progress.md` ("Loose ends");
+ideas in `docs/ideas.md`.
 
 Each `###` section is one task for one agent: a paste-ready "Agent task", its size (small: a day or less; medium: a few
 days), what it needs, and what it waits for. Delete a section when its last entry goes, and its index line with it.
 
-Where the evidence comes from:
-
-- **The full run of 2026-11-22:** dev `aa723513` (one-simulator pieces 1-10 merged): the 423 default scenarios, 364
-  passed; then the 21 scene, 4 input and 2 late-save scenarios each on their own boot; then every failure again in a
-  shuffled order, and 3 more runs of each entry's scenario that passed. It closed the entries whose scenario passes and
-  whose fast test exists, and added [its own section](#found-by-the-full-run-of-2026-11-22). Which entries went and
-  why: progress.md, "Test suite", 2026-11-22. Evidence: `build/coop-test/results/` in the `bugs-audit-suite` worktree.
-- **The full run of 2026-11-16:** 402 scenarios on dev (`0a2f618a`), 364 passed, then reruns; it closed entries whose
-  scenarios now pass every run and added [its own section](#found-by-the-full-run-of-2026-11-16). Which entries went
-  and why: progress.md, "Test suite", 2026-11-16.
-- **The copy-desync batch:** [its report](reports/2026-10-30-copy-desync.md#retained-final-native-failures) has the full
-  scenario names, observed values and evidence paths of its 18 failing scenarios. Its three reopened risks (lock-order
-  reports, the enemy copy's death delay, Belethor's scene) are fixed:
-  [evidence, regressions and native results](reports/2026-10-31-v1-three-risks.md).
-- **The 2026-11-04 playtest:** the 18:11 `/bug` and the 18:13 `/export` of that session: the guest's
-  `SkyrimCoop-Courier-2026-11-04-1813-e25.zip` (and the host's `reports/2026-11-04-1811-d3b/host-Dragonborn/`), both in
-  `build/coop-test/prefix-client|prefix-host/.../My Games/Skyrim Special Edition/SkyrimCoop/`. Times in its entries are
-  the logs' `mm:ss` from the host log's start (00:03:46 = 18:03:46 local). Those entries were triaged from logs and code,
-  so their engine paths are still to be proved in step 0 (CLAUDE.md).
-- **Physics and ragdolls:** the audit removed unsuccessful pose reconstruction; existing native checks and failed traces
-  remain. Retained changes and their evidence are in [native-bugs.md](design/native-bugs.md). Party travel's fixes are
-  there too. The entries dated 2026-11-01 come from the S1 work (the 2026-10-31 playtest;
-  `docs/design/physics-sync.md`, "Steered holds" and "Matches a game without co-op").
-
-How the entries relate (shared causes, wrong checks, what to fix first): [bugs-map.md](bugs-map.md).
+Design notes (`docs/design`, `docs/research`, `docs/reports`) were removed on 2026-11-26. A pointer to one, here or in a
+code comment, reads from history: `git show b7b43a3bd:docs/design/<name>.md`. Evidence paths under `build/` are from
+the runs that found each bug and may be gone.
 
 ## Index
 

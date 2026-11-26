@@ -65,7 +65,6 @@
 
 extern const AnimationGraphDescriptor* BehaviorVarPatch(BSAnimationGraphManager* pManager, Actor* pActor);
 
-
 #include <Hooks/FunctionHook.h>
 
 #include <Hooks/Initializer.h>
@@ -75,10 +74,6 @@ extern const AnimationGraphDescriptor* BehaviorVarPatch(BSAnimationGraphManager*
 #include <Utils.h>
 
 #include <core/FormIds.h>
-
-#include <Wire/Buffer.h>
-
-#include <VersionDb.h>
 
 TESObjectREFR* TESObjectREFR::GetByHandle(uint32_t aHandle) noexcept
 {

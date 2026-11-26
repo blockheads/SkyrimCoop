@@ -146,4 +146,3 @@ Not done yet:
   `...Placement.cpp`, `...Looks.cpp`). Speech, mounts, movement and the graph stream are services of their own
   (`dialogue/SpeechService`, `mounts/MountService`, `movement/MovementService`, `animation/GraphStreamService`); its
   frame calls movement's two rounds in order. A player's looks stay: a spawn carries them, and they use its reads.
-- Unit tests are in `Code/tests/`, not beside their feature.

@@ -47,12 +47,31 @@
 #include <cstdio>
 #include <items/Overrides.h>
 #include <join/GameLoadedEvent.h>
-#include <core/MenuEvent.h>
 #include <core/PlayerFormChangeEvent.h>
 #include <join/SaveService.h>
 #include <Wire/Buffer.h>
 #include <core/World.h>
 #include <core/FormIds.h>
+#include <CriticalStageRules.h>
+#include <animation/DeferredClips.h>
+#include <DisplayNames.h>
+#include <FreedWornList.h>
+#include <Diagnostics/HeadTrackRead.h>
+#include <CopyCombat.h>
+#include <magic/InterruptCastEvent.h>
+#include <characters/ActorHeadUpdateEvent.h>
+#include <movement/CopyStep.h>
+#include <magic/OwnerEffects.h>
+#include <mounts/DismountEvent.h>
+#include <mounts/BoardEvent.h>
+#include <mounts/MountEvent.h>
+#include <join/SaveWrittenEvent.h>
+#include <animation/GraphState.h>
+#include <animation/GraphStream.h>
+#include <bit>
+#include <set>
+
+using namespace PartyRules;
 
 using namespace PartyRules;
 
@@ -541,3 +560,114 @@ std::optional<CellStateRequest> FakeEngine::CellChanges(uint32_t aCell) const
     return request;
 }
 
+void FakeEngine::ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept
+{
+    if (auto it = Actors.find(aActorFormId); it != Actors.end() && ::ItemForm(it->second.Items.CurrentMagicEquipment.Shout) == aShoutFormId)
+        it->second.Items.CurrentMagicEquipment.Shout = {};
+}
+
+void FakeEngine::RevertSelectedSpells(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.Items.CurrentMagicEquipment.LeftHandSpell = actor.Items.CurrentMagicEquipment.RightHandSpell = {};
+    actor.HeldSpells[0] = actor.HeldSpells[1] = 0;
+}
+
+void FakeEngine::Unload3D(uint32_t aFormId)
+{
+    Actors.at(aFormId).Loaded = false;
+    Actors.at(aFormId).AnimObjects.clear(); // Release3DRelatedData drops its props (43573)
+    RevertSelectedSpells(aFormId);
+    DropHead(aFormId);
+}
+
+void FakeEngine::DropHead(uint32_t aFormId)
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
+        it->second.HeadBuilt = false;
+        it->second.HeadTints.reset();
+    }
+}
+
+void FakeEngine::BuildHeads()
+{
+    for (auto& [cId, actor] : Actors)
+    {
+        if (!ActorHas3D(cId))
+        {
+            actor.HeadBuilt = false;
+            actor.HeadTints.reset();
+        }
+        else if (!actor.HeadBuilt)
+        {
+            actor.HeadBuilt = true;
+            World::Get().GetRunner().Trigger(ActorHeadUpdateEvent{cId});
+        }
+    }
+}
+
+std::string FakeEngine::GetFormName(uint32_t aFormId) const noexcept
+{
+    if (aFormId == 0x7)
+        return PlayerCharacterName();
+    const auto it = FormNames.find(aFormId);
+    return it != FormNames.end() ? it->second : Name;
+}
+
+uint32_t FakeEngine::LookupCellByCoords(uint32_t aWorldSpaceFormId, int32_t aX, int32_t aY) const noexcept
+{
+    for (const auto& [cId, cCell] : Exteriors)
+        if (cCell.WorldSpace == aWorldSpaceFormId && cCell.X == aX && cCell.Y == aY)
+        {
+            if (!AtMainLoop) WorkerCellLoads.push_back(cId);
+            return cId;
+        }
+    return 0;
+}
+
+uint32_t FakeEngine::CellAt(uint32_t aWorldSpace, const glm::vec3& acPosition) const noexcept
+{
+    const auto cAt = GridCellCoords::CalculateGridCellCoords(acPosition.x, acPosition.y);
+    // Native movement resolves an already known cell; the bridge lookup can load one from disk.
+    for (const auto& [cId, cCell] : Exteriors)
+        if (cCell.WorldSpace == aWorldSpace && cCell.X == cAt.X && cCell.Y == cAt.Y)
+            return cId;
+    return 0;
+}
+
+// The loaded grid's centre is the player's cell (TES::centerGridX/Y; the engine's own lag behind it not modelled).
+void FakeEngine::LoadAroundPlayer(uint32_t aFrom)
+{
+    const auto& cPlayer = Actors.at(kPlayer);
+    std::set<uint32_t> cells{cPlayer.Cell};
+    if (const auto cCentre = Exteriors.find(cPlayer.Cell); cCentre != Exteriors.end())
+        for (const auto& [cId, cCell] : Exteriors)
+            if (cCell.WorldSpace == cCentre->second.WorldSpace &&
+                GridCellCoords::IsCellInGridCell({cCell.X, cCell.Y}, {cCentre->second.X, cCentre->second.Y}, false))
+                cells.insert(cId);
+    std::set<uint32_t> left = std::exchange(m_playerCells, cells);
+    left.insert(aFrom);
+    for (const uint32_t cCell : left)
+        if (!cells.contains(cCell))
+            UnloadCell(cCell);
+    for (const uint32_t cCell : cells)
+        LoadCell(cCell);
+}
+
+void FakeEngine::PlayerStands(uint32_t aCell, const glm::vec3& acPosition)
+{
+    auto& player = Actors.at(kPlayer);
+    const uint32_t cFrom = player.Cell;
+    player.Cell = aCell;
+    const auto cExterior = Exteriors.find(aCell);
+    player.WorldSpace = cExterior != Exteriors.end() ? cExterior->second.WorldSpace : 0;
+    std::copy_n(&acPosition.x, 3, player.Position);
+    LoadAroundPlayer(cFrom);
+}
+
+void FakeEngine::PlayerWalks(const glm::vec3& acPosition)
+{
+    const auto& cPlayer = Actors.at(kPlayer);
+    PlayerStands(CellAt(cPlayer.WorldSpace, acPosition), acPosition);
+}

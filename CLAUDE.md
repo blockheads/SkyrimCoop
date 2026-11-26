@@ -73,7 +73,7 @@ keeps catching it, so the fast suite grows into the one that matters.
 - **Every bug follows the bug-fix flow** (above), step 0 first (understand the engine code, documented): a scenario shows it, a GameTests flow fails on it, unit tests and the
   fix, the flow passes. The fake engine learns what Skyrim taught (`docs/design/testing.md`).
 - **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
-- **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning, evidence and history go in `docs/` (`docs/re/systems/`, `docs/design/`), not in the source.
+- **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning and evidence go in `docs/re/systems/`, not in the source.
 - **Host, guest, every game.** In a feature's folder (`Code/sync/<feature>/`), code only the host runs is in `Host*` files (wired by `game/HostAuthority`) and code only a guest runs in `Guest*` files (made by `GuestService` on joining); their engine reads are `engine/Bridges/HostEngine` and `GuestEngine`. No `IsHosting()` checks inside them. Actors split by owner and copy instead.
 - **Use the glossary's words** (`docs/design/glossary.md`): host and guest for the games, owner, local and copy for actors, player for a person in the party. New code and docs never say client, peer or remote player for a guest or a copy.
 
@@ -115,7 +115,8 @@ Targets:
 - `SkyrimCoopVanillaHarness` - a stand-in plugin running the harness commands without ours (`coop_test.py repro --vanilla`)
 - `HostAuthorityTests` - the host's rules (`HostAuthority`, the `Host*` files in `Code/sync/`) with in-process games and no Skyrim (Catch2)
 - `TPTests` - message encoding, quantization, differentials (Catch2)
-- `UnitTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2)
+- `UnitTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2). A unit test sits beside
+  what it tests as `<name>_tests.cpp` (`Code/sync/combat/hit_rules_tests.cpp`); the plugin's build leaves those out
 - `GameTests` - whole games in-process: the real `World`, services and host's rules on a fake engine (`IEngine`, Catch2)
 - `coop_peer` - a game stand-in on the network for scenarios (a host refusing joins, a game asking to join)
 
@@ -127,6 +128,7 @@ Code/
 ├── engine/              # Skyrim itself: typed engine structs and our hooks, in Skyrim's own groups (Forms/, AI/, Papyrus/, ...)
 │   ├── Bridges/         # The ports' real side: SkyrimBridge, HostEngine (the host's reads), GuestEngine
 │   └── Hooks/           # MinHook wrapper (HOOK, Hooks::Initializer), patch helpers, D3D11/input hooks
+│       (ActorHooks/, ReferenceHooks/: Actor's and TESObjectREFR's hooks, one file per feature)
 ├── sync/                # Every decision the mod makes, no Skyrim header: one folder per feature (docs/architecture.md)
 │   ├── core/            # What every feature uses: World, transport, session, ids, records, HostRouter, HostNetwork
 │   ├── game/            # The wiring: HostAuthority, HostService, GuestService
@@ -139,7 +141,7 @@ Code/
 ├── components/imgui/    # The debug views' renderer
 ├── hotreload/           # Hot reload's loader
 ├── vanilla_harness/     # The harness without our plugin
-└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests), games/ (GameTests),
+└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests that span layers), games/ (GameTests),
                          # specs/ (shared specs: GameTests and scripts/coop_specs.py), peer/ (coop_peer)
 ```
 

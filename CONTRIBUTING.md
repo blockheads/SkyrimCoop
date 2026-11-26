@@ -87,8 +87,13 @@ The full flow, with the tools, is in [docs/design/testing.md](docs/design/testin
 - [docs/architecture.md](docs/architecture.md): how the code is organised
 - [docs/progress.md](docs/progress.md): what works and what is next
 - [docs/bugs.md](docs/bugs.md): open bugs
-- [docs/design/](docs/design/): how each system works
+- [docs/design/testing.md](docs/design/testing.md): the test tiers and how to run them
+- [docs/design/repro-mcp.md](docs/design/repro-mcp.md): playing a bug in the two games to recreate it
+- [docs/design/glossary.md](docs/design/glossary.md): the words (host, guest, owner, copy, player)
 - [docs/re/](docs/re/): what we know about Skyrim's engine
+
+A code comment or note may point at a design note under `docs/design`, `docs/research` or `docs/reports`. Those were
+removed on 2026-11-26 and read from history: `git show b7b43a3bd:docs/design/<name>.md`.
 
 ## License
 

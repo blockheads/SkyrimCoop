@@ -57,7 +57,8 @@ Keep `SkyrimSE_1.7.104.i64` and `SkyrimSE_1.6.1170.i64` separate under `build/re
 anything. Stable-ID notes from `ida_notes.tsv` carry their 1.6.1170 provenance; new/revalidated notes are exported
 to `ida_notes_1.7.104.tsv`. Local instruction offsets in historical comments require review.
 
-`ENGINE_REFERENCE.md` describes the primary runtime; `ENGINE_REFERENCE_1.6.1170.md` retains the legacy index.
+`ENGINE_REFERENCE.md` describes the primary runtime; `ENGINE_REFERENCE_1.6.1170.md` is the legacy index, generated on
+demand and not kept in the repo.
 Direct `VersionDbPtr` declarations and RTTI registrations are included, and runtime-specific hook branches are
 selected before scanning. Crash tools select the matching annotation set from the recorded Skyrim version.
 

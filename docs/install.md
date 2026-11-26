@@ -1,8 +1,7 @@
 # Installing SkyrimCoop (playtest)
 
 You need Skyrim Special Edition (or Anniversary Edition) on Steam, game version **1.7.104**, on Windows or on Linux
-through Proton, and **SkyrimModSync** (`sms`), the tool that shares the host's mod setup
-([design](design/launcher.md)): download it from its
+through Proton, and **SkyrimModSync** (`sms`), the tool that shares the host's mod setup: download it from its
 [latest release](https://github.com/blockheads/SkyrimModSync/releases/latest) (`sms-windows-x86_64.exe` on Windows,
 `sms-linux-x86_64` on Linux; `chmod +x` it there). Everyone plays the host's exact setup: SkyrimCoop, SKSE, Address Library, the
 Unofficial Skyrim Special Edition Patch and Alternate Start - Live Another Life, plus any mods the host adds.

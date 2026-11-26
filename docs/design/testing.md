@@ -8,7 +8,7 @@ Fake-engine and Skyrim coverage exercise different boundaries; neither replaces 
 
 | Layer | Location | Purpose | When |
 |---|---|---|---|
-| Unit | `Code/tests/client`, `host_authority`, encoding tests | Pure rules, state transitions, wire encoding | Every change |
+| Unit | `*_tests.cpp` beside the code (and `Code/tests/client` for those spanning layers), `host_authority`, encoding tests | Pure rules, state transitions, wire encoding | Every change |
 | In-process games | `Code/tests/games`, `Code/tests/specs` | Real services and transport on a fake engine | Every change |
 | Skyrim | `scripts/coop_harness/scenarios` | Real engine behavior, input, integration | Target affected flows |
 | Soak | The same Skyrim flows with fresh launches and shuffle | Crashes and order dependence | Release acceptance |
@@ -24,6 +24,12 @@ Fake-engine and Skyrim coverage exercise different boundaries; neither replaces 
   ...later, combined runs: step 1's        tier 3, before a push or merge or at a cadence;
      scenarios with the others              possibly another agent
 ```
+
+The fake engine is `FakeEngine` (`Code/tests/games/FakeEngine.h`), its code in files by topic: `FakeMovement.cpp`,
+`FakeCombat.cpp`, `FakeMagic.cpp`, `FakeAnimation.cpp`, `FakeInventory.cpp`, `FakeObjects.cpp`, `FakePhysics.cpp`,
+`FakeScripts.cpp`, `FakeJoin.cpp`, `FakePlayer.cpp`, `FakeActorState.cpp`; identity and the rest in `FakeEngine.cpp`.
+Where a hook decides something, the fake calls the same rule (`HitRules`, `EffectRules`, `ActionRules`).
+
 
 The duo is one shared pair of games and costs minutes a run; a fix iterated in tiers 1-2 costs seconds and leaves a
 test that keeps catching the bug. Also in [CLAUDE.md](../../CLAUDE.md) and [AGENTS.md](../../AGENTS.md).
@@ -435,7 +441,3 @@ python3 scripts/coop_test.py soak --rounds 2 --tag inventory --seed 42 --dry-run
 
 A real soak launches a fresh duo each round, shuffles the selected flows and preserves its reports under
 `build/coop-test/soak/`. Full release acceptance requires an explicit run and a duo reservation.
-
-Before/after measurements, retained failures, regression controls and exact coverage destinations are in
-[the refactor report](../reports/2026-10-30-game-test-flows.md). The previous guide and its historical run narratives
-are preserved in [testing history](../reports/testing-history/2026-10-30-testing-guide-before-refactor.md).
