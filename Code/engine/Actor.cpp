@@ -1525,34 +1525,30 @@ static thread_local bool s_applyingEffect = false;
 
 bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMove)
 {
-    if (apHitter)
+    // Reads the hit; HitRules::Lands decides (combat/HitRules.h, docs/design/friendly-fire.md).
+    const bool cCancelled = apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil);
+    const bool cWorldHit = WorldHits::Current();
+    const auto cVerdict = HitRules::Lands(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), cCancelled, s_applyingEffect, cWorldHit,
+                                          cWorldHit && GuestNpcs::Session() != 0);
+    if (cVerdict.Hit)
         World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
-
-    if (apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil))
+    if (cCancelled)
     {
         spdlog::debug("{:X}'s blow on {:X} dropped: its pair yielded", apHitter->formID, apThis->formID);
         return false;
     }
 
-    float realDamage = GameplayFormulas::CalculateRealDamage(apThis, aDamage, aKillMove);
-
-    float currentHealth = apThis->GetActorValue(ActorValueInfo::kHealth);
-    bool wouldKill = (currentHealth - realDamage) <= 0.f;
-
-    // Direct authority: the hittee's owner applies a hit; our player's hit on another game's actor (a host NPC, another
-    // player) is a request to that owner, and the copy mirrors the owner's health instead.
-    const bool cWorldHit = WorldHits::Current();
-    const auto cRoute = HitRules::Of(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), s_applyingEffect, cWorldHit,
-                                     cWorldHit && GuestNpcs::Session() != 0);
-    switch (cRoute)
+    const float cRealDamage = GameplayFormulas::CalculateRealDamage(apThis, aDamage, aKillMove);
+    const bool cWouldKill = (apThis->GetActorValue(ActorValueInfo::kHealth) - cRealDamage) <= 0.f;
+    switch (cVerdict.To)
     {
     case HitRules::Route::Apply:
-        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
+        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage));
         return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
     case HitRules::Route::AskOwner:
-        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter ? apHitter->formID : 0));
-        return wouldKill;
-    case HitRules::Route::Mirror: return wouldKill;
+        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage, apHitter ? apHitter->formID : 0));
+        return cWouldKill;
+    case HitRules::Route::Mirror: return cWouldKill;
     case HitRules::Route::Drop: return false;
     }
     return false;

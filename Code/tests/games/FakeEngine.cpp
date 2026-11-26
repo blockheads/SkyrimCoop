@@ -50,6 +50,7 @@
 #include <animation/ReplayGraph.h>
 #include <characters/NpcSnapshot.h>
 #include <combat/HitEvent.h>
+#include <magic/EffectRules.h>
 #include <magic/ProjectileLaunchedEvent.h>
 #include <combat/TrapEvents.h>
 #include <combat/TrapRules.h>
@@ -3377,44 +3378,47 @@ void FakeEngine::StopsCasting(uint32_t aCaster, uint32_t aSource)
         World::Get().GetRunner().Trigger(InterruptCastEvent(aCaster, aSource));
 }
 
+// HookAddTarget: reads the landing, EffectRules::Of decides.
 void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude,
                            bool aDualCast)
 {
-    const auto cTarget = Actors.find(aTarget);
-    if (cTarget == Actors.end())
+    if (!Actors.contains(aTarget))
         return;
-    const bool cOurCast = Actors.contains(aCaster) && !Actors.at(aCaster).Copy;
-    // A summon on its caster: applied here (a guest's CreateSummon makes nothing); a guest's player's goes to the host's
-    // game too (MagicTarget's hook, summons.md).
-    if (Spell(aSpell).Summons && aTarget == aCaster && cOurCast)
+    const SpellForm cSpell = Spell(aSpell);
+    const auto cVerdict = EffectRules::Of({
+        .Target = PartyOf(aTarget),
+        .Caster = PartyOf(aCaster),
+        .TargetIsThisPlayer = aTarget == kPlayer,
+        .CasterIsTarget = aCaster == aTarget,
+        .Guest = HoldSession != 0,
+        .Hosting = World::Get().IsHosting(),
+        .Summon = cSpell.Summons != 0,
+        .Shared = !cSpell.Summons && !cSpell.Invisibility,
+        .Healing = cSpell.Healing,
+        .Buff = cSpell.Buff,
+        .WorldImpact = InWorldImpact,
+    });
+    if (cVerdict.AskOwner)
     {
-        if (HoldSession && aTarget == kPlayer)
-            World::Get().GetRunner().Trigger(SummonEvent{aSpell, aEffect, aMagnitude});
-        AddMagicTargetEffect(aTarget, aCaster, aSpell, aEffect, aMagnitude, false, false, false);
-        return;
-    }
-    if (cTarget->second.Copy)
-    {
-        // A world cast (no actor casts it: a trap's object, a hazard's or explosion's 0) on another player's copy goes to
-        // that player's game (IsWorldCast).
-        const bool cWorldCast = (!Actors.contains(aCaster) || InWorldImpact) && IsOtherPlayer(aTarget) && World::Get().IsHosting();
-        if (!cOurCast && !cWorldCast)
-            return;
         AddTargetEvent event;
         event.TargetID = aTarget;
-        event.CasterID = Actors.contains(aCaster) ? aCaster : 0; // an actor's only (HookAddTarget)
+        event.CasterID = Actors.contains(aCaster) ? aCaster : 0; // an actor's only
         event.SpellID = aSpell;
         event.EffectID = aEffect;
         event.Magnitude = aMagnitude;
         event.IsDualCasting = aDualCast;
         World::Get().GetRunner().Trigger(event);
-        return;
     }
-    // A guest's own copy of a world cast on its player applies nothing: the host's verdict does (AppliesWorldEffect).
-    if (!TrapRules::AppliesWorldEffect(HoldSession != 0, aTarget == kPlayer ? HitRules::Party::LocalPlayer : HitRules::Party::Local,
-                                       !Actors.contains(aCaster) || InWorldImpact, false))
+    if (cVerdict.Hit)
+        World::Get().GetRunner().Trigger(HitEvent(aCaster, aTarget));
+    if (!cVerdict.Apply)
         return;
-    if (EffectHolds(aEffect, aDualCast, aCaster))
+    if (cVerdict.Summon)
+        World::Get().GetRunner().Trigger(SummonEvent{aSpell, aEffect, aMagnitude});
+    // A summon on its caster makes its creature (a guest's CreateSummon makes nothing).
+    if (cSpell.Summons && aTarget == aCaster)
+        AddMagicTargetEffect(aTarget, aCaster, aSpell, aEffect, aMagnitude, false, false, false);
+    else if (EffectHolds(aEffect, aDualCast, aCaster))
         StartsEffect({aTarget, aCaster, aSpell, aEffect});
 }
 
@@ -3699,9 +3703,13 @@ HitRules::Party FakeEngine::PartyOf(uint32_t aFormId) const noexcept
     return Local;
 }
 
-void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit)
+// HookDamageActor: reads the hit, HitRules::Lands decides.
+void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit, bool aCancelledBlow)
 {
-    switch (HitRules::Of(PartyOf(aHittee), PartyOf(aHitter), aApplyingEffect, aWorldHit, aWorldHit && HoldSession != 0))
+    const auto cVerdict = HitRules::Lands(PartyOf(aHittee), PartyOf(aHitter), aCancelledBlow, aApplyingEffect, aWorldHit, aWorldHit && HoldSession != 0);
+    if (cVerdict.Hit)
+        World::Get().GetRunner().Trigger(HitEvent(aHitter, aHittee));
+    switch (cVerdict.To)
     {
     case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage));
@@ -3750,14 +3758,9 @@ void FakeEngine::TakeTrapHit(uint32_t aFormId, uint32_t, const Payloads::TrapHit
 
 void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
 {
-    // HookDamageActor's check.
-    if (const auto& cHitter = Actors.at(aHitter);
-        ::ReplayState::CancelledBlow(World::Get().GetTick() < cHitter.ClashUntil))
-        return;
     if (!Actors.contains(aHittee))
         return;
-    World::Get().GetRunner().Trigger(HitEvent(aHitter, aHittee));
-    TakesDamage(aHittee, aHitter, aDamage, false);
+    TakesDamage(aHittee, aHitter, aDamage, false, false, ::ReplayState::CancelledBlow(World::Get().GetTick() < Actors.at(aHitter).ClashUntil));
 }
 
 void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile, const glm::vec3& acOrigin)

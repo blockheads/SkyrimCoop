@@ -45,4 +45,20 @@ enum class Route
         return cOurs && aApplyingEffect ? Route::Apply : aHittee == Party::LocalPlayer ? Route::Drop : Route::Mirror;
     return cOurs ? Route::Apply : Route::Mirror;
 }
+
+// HookDamageActor's whole answer (Actor::DamageActor): the hit is told (HitEvent) whenever an actor dealt it, a blow
+// whose pair yielded (ReplayState::CancelledBlow) lands nowhere, and the rest goes by Of.
+struct Verdict
+{
+    bool Hit{};
+    Route To = Route::Drop;
+    bool operator==(const Verdict&) const = default;
+};
+
+[[nodiscard]] constexpr Verdict Lands(Party aHittee, Party aHitter, bool aCancelledBlow, bool aApplyingEffect, bool aWorldHit = false,
+                                      bool aGuest = false) noexcept
+{
+    const bool cHitter = aHitter != Party::None;
+    return {.Hit = cHitter, .To = cHitter && aCancelledBlow ? Route::Drop : Of(aHittee, aHitter, aApplyingEffect, aWorldHit, aGuest)};
+}
 } // namespace HitRules

@@ -1563,7 +1563,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // game's player on another's actor raised as a health change and not applied here (its owner applies it).
     void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);
     // Damage reaching an actor as HookDamageActor takes it (HitRules), from a swing or an effect being applied.
-    void TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit = false);
+    void TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit = false,
+                     bool aCancelledBlow = false);
     [[nodiscard]] HitRules::Party PartyOf(uint32_t aFormId) const noexcept;
     // A projectile this game's actor launched (our hook on Projectile::Launch raises it); one another game's actor
     // launched, relaunched here (LaunchProjectile).
