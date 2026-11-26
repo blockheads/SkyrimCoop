@@ -48,6 +48,7 @@
 #include <core/EngineNames.h>
 #include <core/Hosting.h>
 #include <characters/CharacterInternal.h>
+#include <mounts/MountService.h>
 
 void CharacterService::SpawnPending(uint32_t aFormId) noexcept
 {
@@ -77,7 +78,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     if (remoteItor != std::end(remoteView))
     {
         RefreshCopy(*remoteItor, acMessage);
-        LinkPendingRides(acMessage.SessionId);
+        m_world.ctx().at<MountService>().LinkPendingRides(acMessage.SessionId);
         return;
     }
 
@@ -232,7 +233,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     remoteAnimationComponent.TimePoints.push_back(acMessage.LatestAction);
     if (!acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
-    LinkPendingRides(acMessage.SessionId);
+    m_world.ctx().at<MountService>().LinkPendingRides(acMessage.SessionId);
     LinkPendingCommanders(acMessage.SessionId);
     SessionIdHere(acMessage.SessionId);
 }
@@ -315,64 +316,8 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
                  acMessage.CellId.BaseId);
 }
 
-void CharacterService::OnNotifyRespawn(const NotifyRespawn& acMessage) noexcept
-{
-    if (!acMessage.AppearanceBuffer.empty())
-    {
-        m_pendingLooks[acMessage.ActorId] = acMessage;
-        QueuePendingLooks();
-        return;
-    }
-    m_pendingLooks.erase(acMessage.ActorId);
-    auto view = m_world.view<FormIdComponent, RemoteComponent>();
-    const auto entityIt = std::find_if(view.begin(), view.end(), [view, id = acMessage.ActorId](auto aEntity) { return view.get<RemoteComponent>(aEntity).Id == id; });
 
-    if (entityIt == view.end())
-    {
-        spdlog::error("Actor to respawn not found in: {:X}", acMessage.ActorId);
-        return;
-    }
 
-    RespawnCopy(*entityIt, acMessage.ActorId);
-}
-
-void CharacterService::QueuePendingLooks() noexcept
-{
-    if (m_pendingLooks.empty() || m_looksQueued)
-        return;
-    m_looksQueued = true;
-    m_mainTasks.Queue([this] {
-        m_looksQueued = false;
-        ApplyPendingLooks();
-    });
-}
-
-void CharacterService::ApplyPendingLooks() noexcept
-{
-    for (auto it = m_pendingLooks.begin(); it != m_pendingLooks.end();)
-    {
-        const uint32_t cFormId = Utils::GetFormIdBySessionId(it->first);
-        const auto& cLooks = it->second;
-        if (!cFormId || !m_actorBridge.ApplyActorLooks(cFormId, cLooks.AppearanceBuffer, cLooks.ChangeFlags, cLooks.Weight))
-        {
-            ++it;
-            continue;
-        }
-        m_world.ctx().at<ActorValueService>().RestoreCopyValues(it->first);
-        // A different race has a different variable layout; derive it from the rebuilt graph.
-        m_actorBridge.SetAnimationGraphDescriptorHash(cFormId, 0);
-        for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
-            if (form.Id == cFormId)
-            {
-                m_world.remove<FaceGenComponent>(cEntity);
-                KeepFaceTints(m_world, cEntity, cLooks.FaceTints);
-                PaintFace(cEntity, cFormId);
-                if (const auto* cpPlayer = m_world.try_get<PlayerComponent>(cEntity))
-                    SetCopyLevel(cFormId, cpPlayer->Id);
-            }
-        it = m_pendingLooks.erase(it);
-    }
-}
 
 void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aSessionId) const noexcept
 {
@@ -389,78 +334,11 @@ void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aSessionId) co
     m_transport.Send(request);
 }
 
-void CharacterService::SetCopyLevel(uint32_t aFormId, uint32_t aPlayerId) const noexcept
-{
-    const auto& cPlayers = m_world.ctx().at<SessionService>().GetPlayers();
-    if (const auto it = cPlayers.find(aPlayerId); it != cPlayers.end())
-        m_actorBridge.SetActorBaseLevel(aFormId, it->second.Level);
-}
 
-void CharacterService::OnPlayerLevel(const NotifyPlayerLevel& acMessage) const noexcept
-{
-    for (auto&& [cEntity, form, player, copy] : m_world.view<FormIdComponent, PlayerComponent, RemoteComponent>().each())
-        if (player.Id == acMessage.PlayerId)
-            m_actorBridge.SetActorBaseLevel(form.Id, acMessage.NewLevel);
-}
 
-void CharacterService::PaintFace(entt::entity aEntity, uint32_t aFormId) noexcept
-{
-    auto* pFace = m_world.try_get<FaceGenComponent>(aEntity);
-    if (!pFace || (pFace->Painted && m_actorBridge.IsActorFacePainted(aFormId)))
-        return;
-    pFace->Painted = m_actorBridge.PaintActorFace(aFormId, pFace->FaceTints);
-    pFace->Paints += pFace->Painted;
-}
 
-void CharacterService::OnActorHeadUpdate(const ActorHeadUpdateEvent& acEvent) noexcept
-{
-    for (auto&& [cEntity, form, face] : m_world.view<FormIdComponent, FaceGenComponent>().each())
-        if (form.Id == acEvent.FormId)
-            PaintFace(cEntity, form.Id);
-}
 
-void CharacterService::OnPlayerLooksChange(const PlayerLooksChangeEvent&) const noexcept
-{
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    const auto it = std::find_if(view.begin(), view.end(), [view](auto entity) { return view.get<FormIdComponent>(entity).Id == 0x14; });
-    // Not announced yet: its announcement carries the looks.
-    if (it == view.end() || !m_transport.IsOnline())
-        return;
 
-    RequestRespawn request;
-    request.ActorId = view.get<LocalComponent>(*it).Id;
-    m_actorBridge.MarkActorNpcChanged(0x14, kPlayerLooksFlags);
-    request.ChangeFlags = m_actorBridge.SerializeActorNpc(0x14, request.AppearanceBuffer);
-    request.FaceTints = m_playerBridge.GetPlayerFaceTints();
-    request.Weight = m_actorBridge.GetActorBaseWeight(0x14);
-    const auto cState = ReadLiveState(0x14);
-    request.HasState = true;
-    request.LatestAction = cState.LatestAction;
-    request.GraphState = cState.GraphState;
-    request.Data = cState.Data;
-
-    spdlog::info("Player looks changed: our copies take race {:X}", m_actorBridge.GetActorRaceFormId(0x14));
-    m_transport.Send(request);
-}
-
-void CharacterService::OnPlayerRevived(const PlayerRevivedEvent&) const noexcept
-{
-    if (!m_transport.IsOnline())
-        return;
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    const auto it = std::ranges::find_if(view, [&view](auto aEntity) { return view.get<FormIdComponent>(aEntity).Id == 0x14; });
-    if (it == view.end())
-        return;
-
-    const auto state = ReadLiveState(0x14);
-    RequestRespawn request;
-    request.ActorId = view.get<LocalComponent>(*it).Id;
-    request.HasState = true;
-    request.LatestAction = state.LatestAction;
-    request.GraphState = state.GraphState;
-    request.Data = state.Data;
-    m_transport.Send(request);
-}
 
 void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
 {

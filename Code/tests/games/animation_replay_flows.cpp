@@ -13,6 +13,7 @@
 #include <core/LocalComponent.h>
 #include <animation/RemoteAnimationComponent.h>
 #include <core/RemoteComponent.h>
+#include <movement/MovementService.h>
 
 namespace
 {
@@ -271,7 +272,7 @@ TEST_CASE("NPC actions wait for the same playback time as their movement", "[ani
     gesture.IdleId = 0xF779D;
     gesture.EventName = "MotionDrivenIdle";
     snapshot.Updates[sid].ActionEvents.push_back(gesture);
-    party.As(party.Guest(), [&] { party.Guest().GetCharacterService().OnReferencesMoveRequest(snapshot); });
+    party.As(party.Guest(), [&] { party.Guest().ctx().at<MovementService>().OnReferencesMoveRequest(snapshot); });
     const auto cBefore = guest.GetActorLatestAnimation(cCopy);
     party.Step(party.Guest());
     CHECK(guest.GetActorLatestAnimation(cCopy) == cBefore);

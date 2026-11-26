@@ -13,9 +13,9 @@
 #include <movement/CopyStep.h>
 #include <magic/OwnerEffects.h>
 
-#include <characters/DismountEvent.h>
-#include <characters/BoardEvent.h>
-#include <characters/MountEvent.h>
+#include <mounts/DismountEvent.h>
+#include <mounts/BoardEvent.h>
+#include <mounts/MountEvent.h>
 #include <join/SaveWrittenEvent.h>
 
 #include <animation/GraphState.h>

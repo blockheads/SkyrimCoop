@@ -1,4 +1,5 @@
-// CharacterService: riding, boarding and getting off.
+// Riding, boarding and getting off.
+#include <mounts/MountService.h>
 #include <characters/CharacterService.h>
 #include <characters/ClaimService.h>
 #include <core/TransportService.h>
@@ -8,9 +9,9 @@
 #include <core/RemoteComponent.h>
 #include <core/PlayerComponent.h>
 
-#include <characters/MountEvent.h>
-#include <characters/DismountEvent.h>
-#include <characters/BoardEvent.h>
+#include <mounts/MountEvent.h>
+#include <mounts/DismountEvent.h>
+#include <mounts/BoardEvent.h>
 
 #include <core/CopyRecords.h>
 #include <Structs/RidePart.h>
@@ -29,8 +30,64 @@
 #include <animation/GraphStream.h>
 #include <characters/CharacterInternal.h>
 
+MountService::MountService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport, IActorBridge& aActorBridge,
+                           IPlayerBridge& aPlayerBridge, CharacterService& aCharacters) noexcept
+    : m_world(aWorld)
+    , m_transport(aTransport)
+    , m_actorBridge(aActorBridge)
+    , m_playerBridge(aPlayerBridge)
+    , m_characters(aCharacters)
+{
+    m_world.ctx().at<CopyRecords>().Register(
+        RecordKind::kRide, [this](uint32_t aId, const std::string& acBytes) { return ApplyRide(aId, acBytes); },
+        [this](uint32_t aFormId) -> std::optional<std::string> {
+            if (aFormId != m_playerBridge.GetPlayerFormId() || !m_boardedMount)
+                return std::nullopt;
+            return ToPartBytes(RidePart{m_world.GetFrameTick(), m_boardedMount});
+        });
+    Listen<MountEvent, &MountService::OnMountEvent>(m_connections, aDispatcher, this);
+    Listen<NotifyMount, &MountService::OnNotifyMount>(m_connections, aDispatcher, this);
+    Listen<NotifyMountRefused, &MountService::OnNotifyMountRefused>(m_connections, aDispatcher, this);
+    Listen<NotifyClaimRefused, &MountService::OnRideRefused>(m_connections, aDispatcher, this);
+    Listen<BoardEvent, &MountService::OnBoardEvent>(m_connections, aDispatcher, this);
+    Listen<NotifyBoard, &MountService::OnNotifyBoard>(m_connections, aDispatcher, this);
+    Listen<DismountEvent, &MountService::OnDismountEvent>(m_connections, aDispatcher, this);
+    Listen<NotifyDismount, &MountService::OnNotifyDismount>(m_connections, aDispatcher, this);
+    Listen<NotifyUnboard, &MountService::OnNotifyUnboard>(m_connections, aDispatcher, this);
+}
+
+bool MountService::IsPartyMount(uint32_t aSessionId) const noexcept
+{
+    return m_partyMounts.contains(aSessionId);
+}
+
+void MountService::ApplyDueRides() noexcept
+{
+    // Each due part waits again in ApplyRide; one whose record went is dropped.
+    for (const uint32_t cId : std::exchange(m_dueRides, {}))
+        m_world.ctx().at<CopyRecords>().ApplyAgain(cId, RecordKind::kRide);
+}
+
+void MountService::ReleaseAll() noexcept
+{
+    const auto cMounts = m_mountPersistence;
+    for (const auto& [cFormId, cPersistent] : cMounts)
+        ReleaseMount(cFormId);
+}
+
+void MountService::Clear() noexcept
+{
+    m_riddenMount = 0;
+    m_partyMounts.clear();
+    m_pendingRides.clear();
+    m_boardedMount = 0;
+    m_boardingMount = 0;
+    m_dueRides.clear();
+    m_drivers.clear();
+}
+
 // A late joiner hears who rides what right after the spawns, which can still be loading.
-void CharacterService::LinkPendingRides(uint32_t aSessionId) noexcept
+void MountService::LinkPendingRides(uint32_t aSessionId) noexcept
 {
     std::vector<NotifyMount> rides;
     for (const auto& [cMount, cRider] : m_pendingRides)
@@ -44,7 +101,7 @@ void CharacterService::LinkPendingRides(uint32_t aSessionId) noexcept
         OnNotifyMount(cRide);
 }
 
-void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
+void MountService::OnMountEvent(const MountEvent& acEvent) noexcept
 {
     auto view = m_world.view<FormIdComponent>();
 
@@ -94,7 +151,7 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
     m_transport.Send(request);
 }
 
-void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
+void MountService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 {
     m_pendingRides.erase(acMessage.MountId);
     m_drivers[acMessage.MountId] = acMessage.RiderId;
@@ -179,9 +236,9 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 
 // The ride of one of this game's actors ended (any path): the host takes its mount back.
 // A boarding refused (HostCharacters::OnBoard), or a ride (OnRideRefused): ours gets off, the horse stays a copy here.
-void CharacterService::OnRideRefused(const NotifyClaimRefused& acMessage) noexcept
+void MountService::OnRideRefused(const NotifyClaimRefused& acMessage) noexcept
 {
-    if (acMessage.Kind != Payloads::Claim::kRide || acMessage.Members.empty() || acMessage.ForId != m_characterId)
+    if (acMessage.Kind != Payloads::Claim::kRide || acMessage.Members.empty() || acMessage.ForId != m_characters.CharacterId())
         return;
     NotifyMountRefused refused;
     refused.RiderId = acMessage.ForId;
@@ -189,7 +246,7 @@ void CharacterService::OnRideRefused(const NotifyClaimRefused& acMessage) noexce
     OnNotifyMountRefused(refused);
 }
 
-void CharacterService::OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept
+void MountService::OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept
 {
     spdlog::info("Ride on {:X} refused (riding {:X}, aboard {:X}): our player gets off", acMessage.MountId, m_riddenMount, m_boardedMount);
     if (m_boardingMount == acMessage.MountId)
@@ -206,9 +263,9 @@ void CharacterService::OnNotifyMountRefused(const NotifyMountRefused& acMessage)
     m_playerBridge.PlayerStopRiding();
 }
 
-void CharacterService::OnBoardEvent(const BoardEvent& acEvent) noexcept
+void MountService::OnBoardEvent(const BoardEvent& acEvent) noexcept
 {
-    if (acEvent.RiderId != m_playerBridge.GetPlayerFormId() || m_riddenMount || m_boardedMount || m_boardingMount || !m_characterId)
+    if (acEvent.RiderId != m_playerBridge.GetPlayerFormId() || m_riddenMount || m_boardedMount || m_boardingMount || !m_characters.CharacterId())
     {
         spdlog::info("Board {:X}: not now (riding {:X}, aboard {:X})", acEvent.MountId, m_riddenMount, m_boardedMount);
         return;
@@ -228,7 +285,7 @@ void CharacterService::OnBoardEvent(const BoardEvent& acEvent) noexcept
         spdlog::info("Board {:X}: asking the host", acEvent.MountId);
         m_boardingMount = cMount;
         BoardRequest request;
-        request.RiderId = m_characterId;
+        request.RiderId = m_characters.CharacterId();
         request.MountId = cMount;
         m_transport.Send(request);
         return;
@@ -238,50 +295,50 @@ void CharacterService::OnBoardEvent(const BoardEvent& acEvent) noexcept
 
 // The host gave our player a seat: seated at once by the engine's quick get-on (PutActorOnMountQuick, no paired
 // clip: player-mount.md), its copies by its Ride part.
-void CharacterService::OnNotifyBoard(const NotifyBoard& acMessage) noexcept
+void MountService::OnNotifyBoard(const NotifyBoard& acMessage) noexcept
 {
-    if (acMessage.RiderId != m_characterId || acMessage.MountId != std::exchange(m_boardingMount, 0u))
+    if (acMessage.RiderId != m_characters.CharacterId() || acMessage.MountId != std::exchange(m_boardingMount, 0u))
         return;
-    const uint32_t cMount = FormOfSession(acMessage.MountId);
+    const uint32_t cMount = m_characters.FormOfSession(acMessage.MountId);
     // On another horse meanwhile (its own ride): the seat goes back, PutOnMount would take it off that one.
     if (!cMount || m_riddenMount || m_playerBridge.IsPlayerMounted() || !m_playerBridge.PlayerSitOnMountQuick(cMount))
     {
         spdlog::info("Board {:X}: riding {:X}, or the engine's quick get-on refused (41530)", cMount, m_riddenMount);
         UnboardRequest unboard;
-        unboard.RiderId = m_characterId;
+        unboard.RiderId = m_characters.CharacterId();
         unboard.MountId = acMessage.MountId;
         m_transport.Send(unboard);
         return;
     }
     spdlog::info("Board {:X}: on as a passenger", cMount);
     m_boardedMount = acMessage.MountId;
-    m_world.ctx().at<CopyRecords>().Declare(m_characterId, RecordKind::kRide, ToPartBytes(RidePart{m_world.GetFrameTick(), m_boardedMount}));
+    m_world.ctx().at<CopyRecords>().Declare(m_characters.CharacterId(), RecordKind::kRide, ToPartBytes(RidePart{m_world.GetFrameTick(), m_boardedMount}));
 }
 
 // Our player is no passenger now (off, or driving it): its copies stop being seated by its Ride part.
-void CharacterService::LeaveBoard() noexcept
+void MountService::LeaveBoard() noexcept
 {
     m_boardedMount = 0;
-    if (m_characterId)
-        m_world.ctx().at<CopyRecords>().Declare(m_characterId, RecordKind::kRide, ToPartBytes(RidePart{m_world.GetFrameTick(), 0}));
+    if (m_characters.CharacterId())
+        m_world.ctx().at<CopyRecords>().Declare(m_characters.CharacterId(), RecordKind::kRide, ToPartBytes(RidePart{m_world.GetFrameTick(), 0}));
 }
 
 // A passenger's copy seated on its horse once both are here (R5) and its stream reached its owner's quick get-on;
 // Ride{0} leaves getting off to NotifyUnboard.
-std::vector<uint32_t> CharacterService::ApplyRide(uint32_t aId, const std::string& acBytes) noexcept
+std::vector<uint32_t> MountService::ApplyRide(uint32_t aId, const std::string& acBytes) noexcept
 {
     m_dueRides.erase(aId);
     RidePart part;
-    const uint32_t cRider = FormOfSession(aId);
+    const uint32_t cRider = m_characters.FormOfSession(aId);
     if (!FromPartBytes(acBytes, part) || !part.Mount || !cRider || !m_actorBridge.IsActorCopy(cRider))
         return {};
-    const uint32_t cMount = FormOfSession(part.Mount);
+    const uint32_t cMount = m_characters.FormOfSession(part.Mount);
     if (!cMount)
         return {part.Mount};
     // After its driver: the horse's one slot names the first rider linked (12074), so a joiner hearing the
     // passenger's spawn before the ride would have the horse name the passenger.
     const auto cDriver = m_drivers.find(part.Mount);
-    if (cDriver == m_drivers.end() || m_actorBridge.GetActorMount(FormOfSession(cDriver->second)) != cMount)
+    if (cDriver == m_drivers.end() || m_actorBridge.GetActorMount(m_characters.FormOfSession(cDriver->second)) != cMount)
     {
         m_dueRides.insert(aId);
         return {};
@@ -302,17 +359,17 @@ std::vector<uint32_t> CharacterService::ApplyRide(uint32_t aId, const std::strin
     return {};
 }
 
-void CharacterService::OnNotifyUnboard(const NotifyUnboard& acMessage) noexcept
+void MountService::OnNotifyUnboard(const NotifyUnboard& acMessage) noexcept
 {
     // Its owner is off a horse that stays ridden: its copy gets off too, if no exit clip took it off already.
-    const uint32_t cRider = FormOfSession(acMessage.RiderId);
-    const uint32_t cMount = FormOfSession(acMessage.MountId);
+    const uint32_t cRider = m_characters.FormOfSession(acMessage.RiderId);
+    const uint32_t cMount = m_characters.FormOfSession(acMessage.MountId);
     spdlog::info("Unboard {:X}: its copy on {:X}, sit state {}", cRider, m_actorBridge.GetActorMount(cRider), m_actorBridge.GetActorSitState(cRider));
     if (cRider && m_actorBridge.IsActorCopy(cRider) && m_actorBridge.GetActorMount(cRider) == cMount)
         m_actorBridge.ActorEndRide(cRider);
 }
 
-void CharacterService::KeepDriverOn(const DismountEvent& acEvent) noexcept
+void MountService::KeepDriverOn(const DismountEvent& acEvent) noexcept
 {
     if (!acEvent.MountId)
         return;
@@ -323,7 +380,7 @@ void CharacterService::KeepDriverOn(const DismountEvent& acEvent) noexcept
     const auto cDriver = m_drivers.find(mount);
     if (cDriver == m_drivers.end())
         return;
-    const uint32_t cDriverForm = FormOfSession(cDriver->second);
+    const uint32_t cDriverForm = m_characters.FormOfSession(cDriver->second);
     if (!cDriverForm || cDriverForm == acEvent.RiderId || m_actorBridge.GetActorMount(cDriverForm) != acEvent.MountId)
         return;
     m_actorBridge.ActorHoldMount(cDriverForm, acEvent.MountId);
@@ -333,7 +390,7 @@ void CharacterService::KeepDriverOn(const DismountEvent& acEvent) noexcept
 }
 
 // The ride of one of this game's actors ended (any path): the host takes its mount back.
-void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
+void MountService::OnDismountEvent(const DismountEvent& acEvent) noexcept
 {
     KeepDriverOn(acEvent);
     if (acEvent.Copy)
@@ -344,7 +401,7 @@ void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
         if (m_boardedMount)
         {
             UnboardRequest unboard;
-            unboard.RiderId = m_characterId;
+            unboard.RiderId = m_characters.CharacterId();
             unboard.MountId = m_boardedMount;
             LeaveBoard();
             m_transport.Send(unboard);
@@ -352,7 +409,7 @@ void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
         }
         if (!m_riddenMount)
             return;
-        request.RiderId = m_characterId;
+        request.RiderId = m_characters.CharacterId();
         request.MountId = std::exchange(m_riddenMount, 0u);
     }
     else
@@ -373,7 +430,7 @@ void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
     m_world.ctx().at<ClaimService>().GiveBack(request.MountId, false, false, [this, request] { m_transport.Send(request); });
 }
 
-void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcept
+void MountService::OnNotifyDismount(const NotifyDismount& acMessage) noexcept
 {
     m_partyMounts.erase(acMessage.MountId);
     m_pendingRides.erase(acMessage.MountId);
@@ -385,18 +442,18 @@ void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcep
         if (m_world.get<RemoteComponent>(cEntity).Id == acMessage.RiderId)
             m_actorBridge.ActorEndRide(m_world.get<FormIdComponent>(cEntity).Id);
     // Its owner (the host, given back: ClaimService) keeps it as it would.
-    const uint32_t cMountFormId = FormOfSession(acMessage.MountId);
+    const uint32_t cMountFormId = m_characters.FormOfSession(acMessage.MountId);
     if (cMountFormId)
         ReleaseMount(cMountFormId);
     if (m_riddenMount == acMessage.MountId)
         m_riddenMount = 0;
     // Our player's ride ended by the host's word with our player still on it (this game could not take the horse:
     // HostClaims::OnEnded): off it too. Off already in a dismount of its own.
-    if (acMessage.RiderId == m_characterId && cMountFormId && m_actorBridge.GetActorMount(m_playerBridge.GetPlayerFormId()) == cMountFormId)
+    if (acMessage.RiderId == m_characters.CharacterId() && cMountFormId && m_actorBridge.GetActorMount(m_playerBridge.GetPlayerFormId()) == cMountFormId)
         m_playerBridge.PlayerStopRiding();
 }
 
-void CharacterService::CarryMountTo(uint32_t aCellId, const glm::vec3& acPosition) noexcept
+void MountService::CarryMountTo(uint32_t aCellId, const glm::vec3& acPosition) noexcept
 {
     if (!m_riddenMount)
         return;
@@ -409,13 +466,13 @@ void CharacterService::CarryMountTo(uint32_t aCellId, const glm::vec3& acPositio
         }
 }
 
-void CharacterService::KeepMount(uint32_t aFormId) noexcept
+void MountService::KeepMount(uint32_t aFormId) noexcept
 {
     const bool cWasPersistent = m_actorBridge.SetActorPersistent(aFormId);
     m_mountPersistence.try_emplace(aFormId, cWasPersistent);
 }
 
-void CharacterService::ReleaseMount(uint32_t aFormId) noexcept
+void MountService::ReleaseMount(uint32_t aFormId) noexcept
 {
     if (const auto it = m_mountPersistence.find(aFormId); it != m_mountPersistence.end())
     {

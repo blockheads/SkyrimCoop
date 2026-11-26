@@ -72,8 +72,9 @@ The folders in `sync`:
 | `game`        | wires the features into a host's or a guest's game        |
 | `join`        | joining, save transfer, saves, Steam                      |
 | `travel`      | the party travelling together, the map, markers           |
-| `characters`  | spawning, who owns an actor, claims, looks, mounts        |
-| `movement`    | how a copy moves                                          |
+| `characters`  | spawning, who owns an actor, claims, looks                |
+| `mounts`      | riding, riding along, getting off                         |
+| `movement`    | snapshots out, how a copy moves                           |
 | `animation`   | how a copy animates                                       |
 | `actorstate`  | actor values, actor state, AI state, perks                |
 | `followers`   | followers                                                 |
@@ -141,7 +142,8 @@ Not done yet:
   interface: `scripts/PartyNatives.h`, `PlayerNatives.h` and `SystemQuests.h`, `core/RunningGame.h`,
   `MainLoopTasks.h` and `ItemIds.h` (`CreatedItems`), `combat/ActorUpkeep.h`. They work and are kept: a target
   that links all of `sync` (`GameTests`) must define each, in `Code/tests/games/Seams.cpp` or `HostSeams.cpp`.
-- `CharacterService` is one class in four files by topic (`CharacterServiceSpawn.cpp`, `...Movement.cpp`,
-  `...Mounts.cpp`); speech is its own service (`dialogue/SpeechService`), its mounts, looks, graph stream and
-  movement not yet.
+- `CharacterService` (spawn, ownership, discovery, presence) is one class in four files (`CharacterServiceSpawn.cpp`,
+  `...Placement.cpp`, `...Looks.cpp`). Speech, mounts, movement and the graph stream are services of their own
+  (`dialogue/SpeechService`, `mounts/MountService`, `movement/MovementService`, `animation/GraphStreamService`); its
+  frame calls movement's two rounds in order. A player's looks stay: a spawn carries them, and they use its reads.
 - Unit tests are in `Code/tests/`, not beside their feature.

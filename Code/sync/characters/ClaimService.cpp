@@ -14,6 +14,7 @@
 #include <core/TransportService.h>
 #include <core/SessionIds.h>
 #include <core/World.h>
+#include <animation/GraphStreamService.h>
 
 namespace
 {
@@ -167,7 +168,7 @@ void ClaimService::RunGiveBacks() noexcept
         request.Tick = cUpdates ? cUpdates->LastTick : 0;
         if (pending.FormId)
             request.Whereabouts = m_world.GetCharacterService().ReadWhereabouts(pending.FormId);
-        m_world.GetCharacterService().SendGraphStream();
+        m_world.ctx().at<GraphStreamService>().Send();
         if (pending.Before)
             pending.Before();
         m_transport.Send(request);

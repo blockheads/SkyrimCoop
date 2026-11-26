@@ -38,9 +38,9 @@
 #include <items/InventoryChangeEvent.h>
 #include <items/WornResetEvent.h>
 #include <items/LooseItemEvents.h>
-#include <characters/MountEvent.h>
-#include <characters/DismountEvent.h>
-#include <characters/BoardEvent.h>
+#include <mounts/MountEvent.h>
+#include <mounts/DismountEvent.h>
+#include <mounts/BoardEvent.h>
 #include <dialogue/DialogueEvent.h>
 #include <combat/HitEvent.h>
 #include <Combat/HitOwnership.h>

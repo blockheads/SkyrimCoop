@@ -24,6 +24,7 @@
 #include <core/World.h>
 #include <core/FormIds.h>
 #include <core/Profile.h>
+#include <mounts/MountService.h>
 
 namespace
 {
@@ -225,7 +226,7 @@ void TravelService::FollowBetweenFrames(const GameId& aWorld, const GameId& aCel
     if (!again)
         m_tetherTargets.push_back({aWorld, aCell, aPosition, aHeading});
     spdlog::info("Party travel: following to cell {:X} (worldspace {:X}){}", aCell.BaseId, aWorld.BaseId, again ? ", again" : "");
-    m_world.GetCharacterService().CarryMountTo(cCellId, aPosition);
+    m_world.ctx().at<MountService>().CarryMountTo(cCellId, aPosition);
     m_actorBridge.MoveActorTo(m_playerBridge.GetPlayerFormId(), cCellId, aPosition.x, aPosition.y, aPosition.z);
 }
 

@@ -1,8 +1,8 @@
 #include "Party.h"
 #include <animation/GraphStream.h>
 
-#include <characters/DismountEvent.h>
-#include <characters/MountEvent.h>
+#include <mounts/DismountEvent.h>
+#include <mounts/MountEvent.h>
 #include <animation/ReplayState.h>
 #include <core/SessionIds.h>
 #include <actorstate/AiStateChangeEvent.h>

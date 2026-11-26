@@ -28,9 +28,9 @@
 #include <core/ConnectedEvent.h>
 #include <characters/CopyHeldEvent.h>
 #include <core/DisconnectedEvent.h>
-#include <characters/MountEvent.h>
-#include <characters/DismountEvent.h>
-#include <characters/BoardEvent.h>
+#include <mounts/MountEvent.h>
+#include <mounts/DismountEvent.h>
+#include <mounts/BoardEvent.h>
 #include <animation/ReplayState.h>
 #include <actorstate/AiStateChangeEvent.h>
 #include <core/PlayerLooksChangeEvent.h>
@@ -79,6 +79,8 @@
 #include <core/Profile.h>
 
 #include <characters/CharacterInternal.h>
+#include <mounts/MountService.h>
+#include <movement/MovementService.h>
 
 
 CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
@@ -90,39 +92,20 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     , m_formBridge(aFormBridge)
     , m_playerBridge(aPlayerBridge)
 {
-    m_world.ctx().at<CopyRecords>().Register(
-        RecordKind::kRide, [this](uint32_t aId, const std::string& acBytes) { return ApplyRide(aId, acBytes); },
-        [this](uint32_t aFormId) -> std::optional<std::string> {
-            if (aFormId != m_playerBridge.GetPlayerFormId() || !m_boardedMount)
-                return std::nullopt;
-            return ToPartBytes(RidePart{m_world.GetFrameTick(), m_boardedMount});
-        });
     Listen<ActorAddedEvent, &CharacterService::OnActorAdded>(m_connections, m_dispatcher, this);
     Listen<ActorRemovedEvent, &CharacterService::OnActorRemoved>(m_connections, m_dispatcher, this);
 
     Listen<UpdateEvent, &CharacterService::OnUpdate>(m_connections, m_dispatcher, this);
-    Listen<ActionEvent, &CharacterService::OnActionEvent>(m_connections, m_dispatcher, this);
 
     Listen<ConnectedEvent, &CharacterService::OnConnected>(m_connections, m_dispatcher, this);
     Listen<DisconnectedEvent, &CharacterService::OnDisconnected>(m_connections, m_dispatcher, this);
 
     Listen<NotifyCharacterSpawn, &CharacterService::OnCharacterSpawn>(m_connections, m_dispatcher, this);
-    Listen<NotifyReferencesMove, &CharacterService::OnReferencesMoveRequest>(m_connections, m_dispatcher, this);
-    Listen<ReferenceJumpEvent, &CharacterService::OnReferenceJump>(m_connections, m_dispatcher, this);
     Listen<ReferenceLoadedEvent, &CharacterService::OnReferenceLoaded>(m_connections, m_dispatcher, this);
     Listen<NpcHeldEvent, &CharacterService::OnNpcHeld>(m_connections, m_dispatcher, this);
     Listen<NotifyRemoveCharacter, &CharacterService::OnRemoveCharacter>(m_connections, m_dispatcher, this);
 
-    Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
-    Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
-    Listen<NotifyMountRefused, &CharacterService::OnNotifyMountRefused>(m_connections, m_dispatcher, this);
-    Listen<NotifyClaimRefused, &CharacterService::OnRideRefused>(m_connections, m_dispatcher, this);
-    Listen<BoardEvent, &CharacterService::OnBoardEvent>(m_connections, m_dispatcher, this);
-    Listen<NotifyBoard, &CharacterService::OnNotifyBoard>(m_connections, m_dispatcher, this);
     Listen<NotifyActorName, &CharacterService::OnNotifyActorName>(m_connections, m_dispatcher, this);
-    Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
-    Listen<NotifyDismount, &CharacterService::OnNotifyDismount>(m_connections, m_dispatcher, this);
-    Listen<NotifyUnboard, &CharacterService::OnNotifyUnboard>(m_connections, m_dispatcher, this);
 
     Listen<NotifyRespawn, &CharacterService::OnNotifyRespawn>(m_connections, m_dispatcher, this);
     Listen<PlayerArrivedEvent, &CharacterService::OnPlayerArrived>(m_connections, m_dispatcher, this);
@@ -131,11 +114,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<ActorHeadUpdateEvent, &CharacterService::OnActorHeadUpdate>(m_connections, m_dispatcher, this);
     Listen<PlayerRevivedEvent, &CharacterService::OnPlayerRevived>(m_connections, m_dispatcher, this);
 
-    Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
-    Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
-    Listen<NotifyGraphOps, &CharacterService::OnGraphOps>(m_connections, m_dispatcher, this);
-    Listen<NotifyGraphSync, &CharacterService::OnGraphSync>(m_connections, m_dispatcher, this);
-    Listen<NotifyGraphSyncPoint, &CharacterService::OnGraphSyncPoint>(m_connections, m_dispatcher, this);
 
 }
 
@@ -249,7 +227,7 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
     }
 
     const auto cId = *entityIt;
-    if (const auto cSession = Utils::GetSessionId(cId); cSession && m_partyMounts.contains(*cSession))
+    if (const auto cSession = Utils::GetSessionId(cId); cSession && m_world.ctx().at<MountService>().IsPartyMount(*cSession))
         return;
     // Another player's copy left the loaded area with our travel: it travels with the party, not its cell.
     if (m_world.all_of<RemoteComponent, PlayerComponent>(cId) && m_actorBridge.IsActorCopy(acEvent.FormId))
@@ -273,11 +251,11 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     QueuePendingLooks();
     RunActorDiscovery();
     RunPresence();
-    RunLocalUpdates();
-    RunRemoteUpdates();
-    // Each due part waits again in ApplyRide; one whose record went is dropped.
-    for (const uint32_t cId : std::exchange(m_dueRides, {}))
-        m_world.ctx().at<CopyRecords>().ApplyAgain(cId, RecordKind::kRide);
+    auto& movement = m_world.ctx().at<MovementService>();
+    movement.RunLocalUpdates();
+    movement.RunRemoteUpdates();
+    RunCopy3D();
+    m_world.ctx().at<MountService>().ApplyDueRides();
 }
 
 // Dispatches ActorAddedEvent / ActorRemovedEvent as actors gain or lose loaded 3D, which drives
@@ -354,9 +332,7 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
     m_pendingLooks.clear();
     m_pendingSpawns.clear();
     m_world.GetCopyClock().Reset();
-    const auto cMounts = m_mountPersistence;
-    for (const auto& [cFormId, cPersistent] : cMounts)
-        ReleaseMount(cFormId);
+    m_world.ctx().at<MountService>().ReleaseAll();
     // The session's copies go: the ones we spawned are deleted, the game's own actors are its own again.
     DropCopies([](uint32_t) { return true; });
     const auto cHeld = m_world.view<HeldCopyComponent>();
@@ -388,14 +364,8 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
     m_world.clear<LocalComponent>();
     m_playerId = 0;
     m_characterId = 0;
-    m_riddenMount = 0;
-    m_partyMounts.clear();
-    m_pendingRides.clear();
     m_pendingCommanders.clear();
-    m_boardedMount = 0;
-    m_boardingMount = 0;
-    m_dueRides.clear();
-    m_drivers.clear();
+    m_world.ctx().at<MountService>().Clear();
 }
 
 CharacterService::~CharacterService() noexcept
@@ -505,14 +475,14 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
     const uint32_t cCellId = acEvent.CellId;
     const uint32_t cWorldSpaceId = acEvent.WorldSpaceId;
     // MoveTo can unlink the mount interaction without calling Actor::Dismount.
-    if ((m_riddenMount || m_boardedMount) && !m_playerBridge.IsPlayerMounted())
-        OnDismountEvent(DismountEvent{m_playerBridge.GetPlayerFormId()});
+    if (auto& mounts = m_world.ctx().at<MountService>(); mounts.PlayerOnMount() && !m_playerBridge.IsPlayerMounted())
+        mounts.OnDismountEvent(DismountEvent{m_playerBridge.GetPlayerFormId()});
 
     // Players and their ridden horses travel with the party; other copies stay with their cell.
     std::unordered_set<uint32_t> partyCopies;
     for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
     {
-        if (!m_world.all_of<PlayerComponent>(cEntity) && !m_partyMounts.contains(m_world.get<RemoteComponent>(cEntity).Id))
+        if (!m_world.all_of<PlayerComponent>(cEntity) && !m_world.ctx().at<MountService>().IsPartyMount(m_world.get<RemoteComponent>(cEntity).Id))
             continue;
         partyCopies.insert(m_world.get<FormIdComponent>(cEntity).Id);
         // Moved at once, not after the spacing between two moves of the same copy.
