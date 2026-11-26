@@ -7,7 +7,6 @@
 #include <animation/ReplayState.h>
 #include <animation/ActorStateRules.h>
 #include <animation/GraphReference.h>
-#include <BSAnimationGraphManager.h>
 #include <CrashHandler.h>
 #include <HookSwitch.h>
 #include <BSCore/LockOrder.h>
@@ -75,32 +74,10 @@
 #include <ExtraData/ExtraCount.h>
 #include <ExtraData/ExtraEnchantment.h>
 #include <ExtraData/ExtraHealth.h>
-#include <ExtraData/ExtraPoison.h>
-#include <ExtraData/ExtraSoul.h>
-#include <ExtraData/ExtraTextDisplayData.h>
-#include <Forms/EnchantmentItem.h>
-#include <Forms/AlchemyItem.h>
-#include <core/ItemIds.h>
-#include <Forms/TESObjectCELL.h>
 
-#include <Structs/Skyrim/AnimationGraphDescriptor_BHR_Master.h>
-
-#include <items/Overrides.h>
 #include <BSAnimationGraphManager.h>
-#include <Havok/hkbStateMachine.h>
-#include <Havok/hkbBehaviorGraph.h>
-#include <Forms/BGSOutfit.h>
-#include <ScriptEquips.h>
-#include <Forms/TESObjectARMO.h>
 
-#include <ModCompat/BehaviorVar.h>
-
-#include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
-#include <RTTI.h>
-#include <Utils.h>
-#include <VersionDb.h>
-#include <core/FormIds.h>
 
 using TInitiateMountPackage = bool(Actor*, Actor* apMount);
 

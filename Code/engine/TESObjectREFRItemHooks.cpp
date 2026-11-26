@@ -50,19 +50,6 @@
 #include <EquipManager.h>
 #include <DefaultObjectManager.h>
 #include <BSAnimationGraphManager.h>
-#include <Havok/BShkbAnimationGraph.h>
-#include <Havok/hkbBehaviorGraph.h>
-#include <Havok/hkbVariableValueSet.h>
-#include <Havok/hkbStateMachine.h>
-#include <Forms/TESObjectCELL.h>
-#include <Forms/TESObjectACTI.h>
-#include <ExtraData/ExtraFlags.h>
-#include <Forms/BGSAction.h>
-#include <Animation/TESActionData.h>
-#include <Forms/TESWorldSpace.h>
-
-#include <Structs/AnimationGraphDescriptorManager.h>
-#include <Structs/AnimationVariables.h>
 
 using TAddInventoryItem = void(TESObjectREFR*, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner);
 

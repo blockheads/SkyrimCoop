@@ -33,36 +33,6 @@
 #include <ExtraData/ExtraContainerChanges.h>
 #include <items/ContainerTransfers.h>
 #include <Interface/ItemMenuWatch.h>
-#include <Interface/UI.h>
-#include <ExtraData/ExtraDataList.h>
-#include <ExtraData/ExtraCharge.h>
-#include <ExtraData/ExtraCount.h>
-#include <ExtraData/ExtraEnchantment.h>
-#include <ExtraData/ExtraHealth.h>
-#include <ExtraData/ExtraPoison.h>
-#include <ExtraData/ExtraSoul.h>
-#include <ExtraData/ExtraTextDisplayData.h>
-#include <ExtraData/ExtraWorn.h>
-#include <ExtraData/ExtraWornLeft.h>
-#include <Forms/EnchantmentItem.h>
-#include <Forms/AlchemyItem.h>
-#include <core/ItemIds.h>
-#include <EquipManager.h>
-#include <DefaultObjectManager.h>
-#include <BSAnimationGraphManager.h>
-#include <Havok/BShkbAnimationGraph.h>
-#include <Havok/hkbBehaviorGraph.h>
-#include <Havok/hkbVariableValueSet.h>
-#include <Havok/hkbStateMachine.h>
-#include <Forms/TESObjectCELL.h>
-#include <Forms/TESObjectACTI.h>
-#include <ExtraData/ExtraFlags.h>
-#include <Forms/BGSAction.h>
-#include <Animation/TESActionData.h>
-#include <Forms/TESWorldSpace.h>
-
-#include <Structs/AnimationGraphDescriptorManager.h>
-#include <Structs/AnimationVariables.h>
 
 // TESObjectREFR::Load3D (19727; Actor::Load3D 37177 calls it first): a guest's own NPC gets none until the host
 // spawns its copy, as a disabled reference (GuestNpcs, actor-ai-and-copies.md). Runs on the loader threads too.

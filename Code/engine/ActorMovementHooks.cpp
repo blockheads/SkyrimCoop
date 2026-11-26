@@ -87,20 +87,8 @@
 
 #include <items/Overrides.h>
 #include <BSAnimationGraphManager.h>
-#include <Havok/hkbStateMachine.h>
-#include <Havok/hkbBehaviorGraph.h>
-#include <Forms/BGSOutfit.h>
-#include <ScriptEquips.h>
-#include <Forms/TESObjectARMO.h>
 
-#include <ModCompat/BehaviorVar.h>
-
-#include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
-#include <RTTI.h>
-#include <Utils.h>
-#include <VersionDb.h>
-#include <core/FormIds.h>
 
 using TSetPosition = char(Actor*, NiPoint3& acPosition);
 
