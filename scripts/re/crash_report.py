@@ -8,8 +8,8 @@ prefix; `coop_test.py crash` finds it). The report keeps its essentials: the exc
 access-violation analysis, the objects the registers and stack point to, and the probable call
 stack with engine function names added from build/re/annotations.json. From our plugin's log it
 adds the breadcrumbs our crash handler writes (the last engine changes our code made and the
-hooks of ours that ran, see Code/client/Breadcrumbs.h), the heap history when it was on (who
-allocated and freed the memory the crash touched, Code/client/HeapHistory.h) and the last lines
+hooks of ours that ran, see Code/plugin/Breadcrumbs.h), the heap history when it was on (who
+allocated and freed the memory the crash touched, Code/plugin/HeapHistory.h) and the last lines
 logged before the crash.
 """
 import argparse

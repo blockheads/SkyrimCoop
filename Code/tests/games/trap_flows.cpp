@@ -2,7 +2,7 @@
 // player's game takes the hit.
 #include "Party.h"
 #include "Fixtures.h"
-#include <Games/ScriptMotion.h>
+#include <ScriptMotion.h>
 
 namespace
 {

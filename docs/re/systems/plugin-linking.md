@@ -12,7 +12,7 @@ linked `libSkyrimCoop.a` and silently lost 38 of 121 client objects, including t
 main-loop tick (`SkyrimVM64.cpp`), the crash handler, magic, UI, input and Papyrus hooks.
 The MSVC build avoided this with `/WHOLEARCHIVE`.
 
-Fix: on MinGW the client is an xmake `object` target (`Code/client/xmake.lua`), so every object
+Fix: on MinGW the client is an xmake `object` target (`Code/plugin/xmake.lua`), so every object
 is linked. To check after build changes:
 
 ```bash

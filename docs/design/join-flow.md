@@ -455,7 +455,7 @@ know the game is at the main menu. The panel only shows the state; the scenarios
 The host's side is smaller: a Host button in game (pause menu or a key) and its state (hosting on a
 port, or why hosting failed).
 
-**Today (2026-10-24):** built as a box rather than a full screen (`Code/client/Ui/README.md`, "In the
+**Today (2026-10-24):** built as a box rather than a full screen (`Code/plugin/Ui/README.md`, "In the
 game"): it shows a join on its way and a refusal, with Copy and Back, over the main menu or the game.
 Idle shows nothing: there is no co-op entry at the main menu, by design for now (below).
 Scenario `join-panel-shows-refusal`.

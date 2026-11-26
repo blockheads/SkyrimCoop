@@ -2,7 +2,7 @@
 
 Status: **steps 1 to 3 done** (2026-10-19, 2026-10-20): what drifts between two games and how often the
 engine records changes are in `docs/research/world-state-drift.md`; a form's save data round-trips through
-our own buffers in a running game (`Games/FormState.cpp`, `docs/re/systems/form-state.md`). **Step 4 is
+our own buffers in a running game (`engine/FormState.cpp`, `docs/re/systems/form-state.md`). **Step 4 is
 next.** Rewritten 2026-10-20: save data goes to a guest only at join and host reload (save transfer); while
 playing, vanilla state goes as plain messages, and save data per form is kept for mods, later. AI state is
 not part of this sync: the owner sends it as its own record (`docs/design/copy-contract.md`, "AI state").
@@ -142,7 +142,7 @@ guest: rolls no world container's leveled entries (16129 skipped)
 guest: a state already as the host's is skipped (a load raises no events)
 ```
 
-Rows (2026-10-21, `Games/ReferenceStates.cpp`):
+Rows (2026-10-21, `engine/ReferenceStates.cpp`):
 
 | Flag | Kind | Apply (the engine's call) |
 |---|---|---|
@@ -184,7 +184,7 @@ the host's game raised (opening a door re-sets its lock: `lock_changed` on both)
   guest. Two changes in one update send the state as it is then.
 - Events (a door a script opens, a script's animation) have no change flag worth reading: they keep their
   hooks. So does a guest's lock change: a guest's own action, proposed to the host (`LockChangeEvent`).
-- Adding a state: a row in `Games/ReferenceStates.cpp` above the save-data row (kind, change flags, read, apply).
+- Adding a state: a row in `engine/ReferenceStates.cpp` above the save-data row (kind, change flags, read, apply).
   A row fills `ObjectChange::Value`, or `Data` for a kind listed in `ObjectChange::HasData` (a move's six floats);
   its read returns false when there is nothing to send.
 - **Rows where the oracle shows a side effect, save data for the rest (2026-10-21).** Tried both ways with
@@ -379,9 +379,9 @@ Open, not this audit's: a trap's hit on a guest (playtest 2026-11-22 items 13-14
 1. **Save diff tool.** Done 2026-10-19: `scripts/re/save_diff.py`, `coop_test.py save-diff`. Not yet run with
    mods installed.
 2. **Observe the funnel.** Done 2026-10-19: a harness-only hook on 14607/14608
-   (`Code/client/TestHarness/ChangeLog.cpp`), `coop_test.py change-rate`. Findings:
+   (`Code/harness/TestHarness/ChangeLog.cpp`), `coop_test.py change-rate`. Findings:
    `docs/research/world-state-drift.md`.
-3. **Buffers.** Done 2026-10-20: `FormState::Save`/`Load` (`Games/FormState.cpp`), scenario
+3. **Buffers.** Done 2026-10-20: `FormState::Save`/`Load` (`engine/FormState.cpp`), scenario
    `form-state-round-trips` (a door's lock; the copies' appearance, now on `FormState`, which fixed upstream's
    guessed buffer layouts).
 4. **Globals and quests as messages:** the global table diffed, quest stages, objectives, flags and alias
@@ -461,7 +461,7 @@ data for the forms no message covers, once mods are taken on.
 
 - `docs/design/copy-contract.md`: actors (copies) and their AI state are the copy contract's, not this.
 - `docs/design/join-flow.md`: save transfer at join.
-- `Code/client/Games/Skyrim/Havok/AnimationGraphState.cpp`: the same save-data technique for animation graphs.
+- `Code/engine/Havok/AnimationGraphState.cpp`: the same save-data technique for animation graphs.
 - Scripts checking `== Game.GetPlayer()`: handled on the host by the party model's rules
   (`docs/design/party-model.md`, "A guest's actions on the host"); upstream's per-script patches are gone.
 

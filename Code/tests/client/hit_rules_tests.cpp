@@ -2,7 +2,7 @@
 // actor is a request to its owner, and friendly fire reaches another player like any NPC's hit.
 #include <catch2/catch.hpp>
 
-#include <Games/Skyrim/HitRules.h>
+#include <combat/HitRules.h>
 
 using namespace HitRules;
 using enum Party;

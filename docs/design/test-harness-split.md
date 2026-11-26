@@ -2,16 +2,16 @@
 
 **Status: done (2026-10-11), uncommitted for review.** Where things ended up:
 
-- `Code/client/TestHarness/`: `TestHarness.{h,cpp}` (the only entry points: `Configure`, `Poll`,
+- `Code/harness/TestHarness/`: `TestHarness.{h,cpp}` (the only entry points: `Configure`, `Poll`,
   `Shutdown`), `Harness.h` (its state), `CommandServer`, `Commands.{h,cpp}` plus
   `CommandsStaging/Input/World/Session.cpp`, `Status` (reads the copies itself: `status["actors"]`
   comes from the world's `RemoteComponent` entities, no hook in `CharacterService`), `ControlFiles`,
   `PlayerInput` (held buttons, equip-animation count), `Session`, `EngineCalls` (the old
   `HotReload/Harness`, plus console, menus, the player activating and locking objects and the cell's
   objects, which left `IFormBridge` and `TESObjectREFR`).
-- `Code/client/HotReload/`: `PluginUnload.cpp`, `Handoff.{h,cpp}`. `Handoff.h` compiles to no-ops
+- `Code/harness/HotReload/`: `PluginUnload.cpp`, `Handoff.{h,cpp}`. `Handoff.h` compiles to no-ops
   without the harness, so `PapyrusService`, `LockOrder` and `SkseRipAllocator.h` are unchanged.
-- `Code/client/PluginPaths.{h,cpp}`: the plugin directory and instance suffix (production).
+- `Code/plugin/PluginPaths.{h,cpp}`: the plugin directory and instance suffix (production).
 - The movement-module reload is gone: `InterpolationSystem::Interpolate` (same math) is called
   directly; `MovementLoader`, `SkyrimCoopMovementCore`, `scripts/hot_reload.py`,
   `scripts/launch_dev_game.sh`, `HOT_RELOAD.md`, their tests and `request.txt` are deleted. The status
@@ -40,7 +40,7 @@ Handoff for the agent doing this work (written 2026-10-11). Read this whole page
 Test and dev tooling has grown inside the client that players run, and every new test feature
 widened production code to fit:
 
-- `Code/client/HotReload/Runtime.cpp` (~780 lines) mixes the test command server, the status JSON
+- `Code/harness/HotReload/Runtime.cpp` (~780 lines) mixes the test command server, the status JSON
   the harness polls, control files, the whole-DLL reload, the old movement-module reload, and the
   plugin's paths.
 - **It all runs in every build.** `Runtime::Poll` (called each frame from `SkyrimVM64.cpp:46`) starts
@@ -69,7 +69,7 @@ is structural: test code gets its own home and its own build switch, so it can't
 
 ## Current inventory
 
-`Code/client/HotReload/` (client target, `Code/client/xmake.lua` globs `**.cpp`):
+`Code/harness/HotReload/` (client target, `Code/plugin/xmake.lua` globs `**.cpp`):
 
 | File | What it is | Goes to |
 |---|---|---|
@@ -84,36 +84,36 @@ is structural: test code gets its own home and its own build switch, so it can't
 | `Runtime::Evaluate/Observe`, `MovementLoader` (`Code/hotreload/MovementLoader.cpp`, compiled into the client), `Code/hotreload/MovementCore.cpp`/`MovementMath.h`/`MovementApi.h`, target `SkyrimCoopMovementCore`, `scripts/hot_reload.py`, `request.txt` module names | The original hot-reloadable movement module. **The reload part appears unused**: the harness only writes `request.txt = builtin`, to switch on the status file. Verify, then delete the reload and call the movement code directly | production movement (direct) + delete the reload |
 | `Runtime::PluginDirectory()`, `CoopReload::InstanceSuffix()` | Plugin paths; used for the log (`Plugin.cpp:40,45`) | production: a small plugin-paths utility |
 
-Production call sites into all of this (find them with `grep -rn "CoopReload::" Code/client | grep -v HotReload/`):
+Production call sites into all of this (find them with `grep -rn "CoopReload::" Code/plugin Code/engine | grep -v HotReload/`):
 - `skse_entry.cpp:135` `Runtime::Configure`, `:144` `SetUITaskQueue`
 - `SkyrimVM64.cpp:46` `Runtime::Poll` (each frame)
 - `Plugin.cpp:40,45` paths and log name, `:93` `Runtime::Shutdown`
-- `Services/Generic/CharacterService.cpp` ~1446 `Evaluate`/`Observe`/`ValidMovement`
-- `Services/Generic/PapyrusService.cpp` and `Games/Skyrim/BSCore/LockOrder.cpp`: `TakeHandoff`/`HandOff`
+- `sync/characters/CharacterService.cpp` ~1446 `Evaluate`/`Observe`/`ValidMovement`
+- `engine/Bridges/PapyrusService.cpp` and `engine/BSCore/LockOrder.cpp`: `TakeHandoff`/`HandOff`
   (they keep state across a DLL swap; in a release build these become no-ops or go away)
 
 Also test-only, outside `HotReload/`:
-- `Ui/UiService.h` `GetPartyMembers()` / `IsPartyPanelShown()` (const getters the harness reads).
+- `plugin/Ui/UiService.h` `GetPartyMembers()` / `IsPartyPanelShown()` (const getters the harness reads).
   Acceptable as service API; leave them unless they get in the way.
 - The `cast` command still uses `CastSpellImmediate`, which skips `ActorMagicCaster::SpellCast` (the
   cast sync never sees it). Scenarios no longer use it for the player: delete it, or keep it only
   for NPC casters if a scenario needs that.
-- `Games/Skyrim/BSCore/LockOrder.cpp` hooks every engine `BSReadWriteLock` (68233/68234/68239/68240)
+- `engine/BSCore/LockOrder.cpp` hooks every engine `BSReadWriteLock` (68233/68234/68239/68240)
   in every build. It is diagnostics; decide with the user whether it belongs under the same switch.
   It currently finds real bugs in scenarios, so the test builds must keep it.
 
 ## Target layout
 
 ```
-Code/client/TestHarness/          only in test builds (xmake option, see below)
+Code/harness/TestHarness/          only in test builds (xmake option, see below)
   CommandServer.{h,cpp}
   Commands*.cpp                   HandleCommand split by area: staging, input, session, world, ...
   Status.{h,cpp}                  the status JSON; reads copies itself (see "Observe" below)
   ControlFiles.{h,cpp}            boot.txt, console.txt, session.txt, status.json
   EngineCalls.{h,cpp}             today's HotReload/Harness.{h,cpp}
   TestHarness.{h,cpp}             Configure / Poll / Shutdown: the only entry points production calls
-Code/client/HotReload/            dev DLL swap only (PluginUnload, Handoff), same switch
-Code/client/PluginPaths.{h,cpp}   PluginDirectory(), InstanceSuffix() (production)
+Code/harness/HotReload/            dev DLL swap only (PluginUnload, Handoff), same switch
+Code/plugin/PluginPaths.{h,cpp}   PluginDirectory(), InstanceSuffix() (production)
 ```
 
 Names are suggestions; match the codebase's style (`CODE_GUIDELINES.md`, `CLAUDE.md` naming).
@@ -193,7 +193,7 @@ Done in the session that wrote this page:
 - **Layouts.** `PlayerControls::Data` is at 0x24 on AE (was 0x20). `MagicCaster::State` holds
   CommonLib's names (the old enum held actor-value names).
 - **`ProcessLists`.** Typed `magicEffects`/`magicEffectsLock`, `GetPlayingVisualFormIds`,
-  `StopEffectShader`/`StopArtObject` (`Games/TES`), and new `Games/Skyrim/Effects/ReferenceEffect.h`.
+  `StopEffectShader`/`StopArtObject` (`engine/TES`), and new `engine/Effects/ReferenceEffect.h`.
 - **Owners always send magicka and stamina**, like health (`ActorValueService`): copies no longer
   regenerate, so drift from their replayed casts has to be corrected.
 - **Input injector.** `Harness::SendPlayerButton` builds a `ButtonEvent` and sends it through
@@ -221,7 +221,7 @@ Real bugs the suite exposes (keep them failing loudly; not part of this work):
 - **Test code never widens production interfaces.** No harness methods on the bridges, services or
   engine structs. The harness reads engine state through its own `EngineCalls`, and production
   code never calls the harness except through the gated entry points.
-- **Engine access goes through typed structs** in `Code/client/Games/` with `static_assert`ed
+- **Engine access goes through typed structs** in `Code/engine/` with `static_assert`ed
   offsets, checked against CommonLibSSE-NG and IDA. No raw byte offsets in services, bridges or
   the harness.
 - **Before reversing anything, search GitHub/Nexus** for an SKSE mod that already does it, and add

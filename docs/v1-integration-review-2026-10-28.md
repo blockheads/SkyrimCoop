@@ -15,8 +15,8 @@ body-check documentation. With this review document, the final dev diff covers 1
 
 Four textual conflicts were resolved:
 
-- `Bridges/HostEngine.h`: retain container transfers and story-event callbacks.
-- `TestHarness/CommandsSession.cpp`: retain session cleanup and both knowledge/system-quest descriptions.
+- `engine/Bridges/HostEngine.h`: retain container transfers and story-event callbacks.
+- `harness/TestHarness/CommandsSession.cpp`: retain session cleanup and both knowledge/system-quest descriptions.
 - `encoding/Opcodes.h`: retain the new container, story and system-quest requests, each with a distinct opcode.
 - `tests/games/xmake.lua`: build both container-transfer logic and the system-quest/event routing support.
 

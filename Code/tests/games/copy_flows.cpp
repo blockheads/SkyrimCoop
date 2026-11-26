@@ -4,12 +4,12 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Components/FormIdComponent.h>
-#include <Components/LocalComponent.h>
-#include <Components/FaceGenComponent.h>
-#include <Components/HeldCopyComponent.h>
-#include <Events/DialogueEvent.h>
-#include <Events/PlayerLooksChangeEvent.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <characters/FaceGenComponent.h>
+#include <characters/HeldCopyComponent.h>
+#include <dialogue/DialogueEvent.h>
+#include <core/PlayerLooksChangeEvent.h>
 #include <Messages/PlayerLevelRequest.h>
 
 #include <ranges>

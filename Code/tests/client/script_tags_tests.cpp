@@ -2,8 +2,8 @@
 // "Whose moment"; docs/re/systems/papyrus-guest-scripts.md).
 #include <catch2/catch.hpp>
 
-#include <Papyrus/ScriptTags.h>
-#include <Papyrus/PartyRules.h>
+#include <scripts/ScriptTags.h>
+#include <scripts/PartyRules.h>
 
 using namespace GuestScripts;
 

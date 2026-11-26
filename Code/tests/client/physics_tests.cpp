@@ -1,25 +1,25 @@
 // Physics sync's pure halves (docs/design/physics-sync.md): the guess every game makes, the host's send rule, the
 // guest's playback.
-#include <Systems/SnapshotAge.h>
+#include <movement/SnapshotAge.h>
 #include <catch2/catch.hpp>
-#include <Games/KnockReplay.h>
-#include <Games/Animation/PoseMatch.h>
+#include <animation/KnockReplay.h>
+#include <animation/PoseMatch.h>
 #include <Structs/AnimationGraphDescriptorManager.h>
 #include <Structs/Skyrim/AnimationGraphDescriptor_Master_Behavior.h>
 
 #include "../FakeFlight.h"
 
-#include <Physics/BodyGroups.h>
-#include <Games/ScriptMotion.h>
-#include <Physics/BodyPlayback.h>
-#include <Physics/RagdollPending.h>
-#include <Physics/RagdollStart.h>
-#include <Physics/BodyRelevance.h>
-#include <Physics/BodyMotions.h>
-#include <Physics/BodyStream.h>
-#include <Physics/HavokStep.h>
-#include <Systems/CopyEase.h>
-#include <Systems/CopyStep.h>
+#include <physics/BodyGroups.h>
+#include <ScriptMotion.h>
+#include <physics/BodyPlayback.h>
+#include <physics/RagdollPending.h>
+#include <physics/RagdollStart.h>
+#include <physics/BodyRelevance.h>
+#include <physics/BodyMotions.h>
+#include <physics/BodyStream.h>
+#include <physics/HavokStep.h>
+#include <movement/CopyEase.h>
+#include <movement/CopyStep.h>
 
 #include <glm/geometric.hpp>
 

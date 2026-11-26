@@ -1,0 +1,60 @@
+#pragma once
+
+#include <crime/ICrimeBridge.h>
+#include <core/Listen.h>
+#include <NoCopyMove.h>
+
+struct World;
+struct TransportService;
+struct UpdateEvent;
+struct DisconnectedEvent;
+struct GameLoadedEvent;
+
+struct CrimeService
+{
+    CrimeService(World&, entt::dispatcher&, TransportService&, ICrimeBridge&) noexcept;
+    ~CrimeService() noexcept;
+    NO_COPY_MOVE(CrimeService);
+    std::vector<CrimeGold> ReadGold() const noexcept
+    {
+        return m_bridge.ReadGold();
+    }
+    bool Judge(uint32_t aActorSessionId, const CrimeRequest&) noexcept;
+    bool PartyIsCriminalTo(uint32_t aActorFormId) const noexcept
+    {
+        return m_bridge.PartyIsCriminalTo(aActorFormId);
+    }
+    std::vector<CrimeConfiscation> TakeConfiscations() noexcept;
+    std::vector<CrimeReport> TakeReports() noexcept
+    {
+        return m_bridge.TakeReports();
+    }
+
+  private:
+    // A guest's crime action, held behind a theft while every witness looks at the guest's copy (crime.md).
+    struct HeldCrime
+    {
+        uint32_t ActorSessionId;
+        CrimeRequest Request;
+        double Waited;
+        uint32_t Asks;
+    };
+    void JudgeHeld(double aDelta) noexcept;
+    void OnUpdate(const UpdateEvent&) noexcept;
+    void OnState(const NotifyCrimeState&) noexcept;
+    void OnLockCrime(const NotifyLockCrime&) noexcept;
+    void OnConfiscation(const NotifyCrimeConfiscation&) noexcept;
+    void ApplyConfiscations() noexcept;
+    void OnDisconnected(const DisconnectedEvent&) noexcept;
+    void OnLoaded(const GameLoadedEvent&) noexcept;
+    World& m_world;
+    TransportService& m_transport;
+    ICrimeBridge& m_bridge;
+    uint32_t m_sequence{};
+    uint32_t m_lastConfiscation{};
+    bool m_hasState{};
+    std::vector<CrimeGold> m_gold;
+    std::vector<HeldCrime> m_held;
+    std::vector<CrimeConfiscation> m_confiscations; // ToActor a session id: waits until that actor is here
+    std::vector<entt::scoped_connection> m_connections;
+};

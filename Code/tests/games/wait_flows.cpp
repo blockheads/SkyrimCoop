@@ -1,6 +1,6 @@
 #include "FakeWait.h"
 #include "Party.h"
-#include <Events/GameLoadedEvent.h>
+#include <join/GameLoadedEvent.h>
 #include <Messages/WaitMessages.h>
 
 namespace

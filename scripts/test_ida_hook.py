@@ -152,10 +152,10 @@ class Reminders(HookTest):
         self.assertIsNone(self.post("mcp__skyrim-coop__duo_start", {}))
 
     def test_engine_code_edits_remind_once_without_reads(self):
-        harness = self.root / "Code/client/TestHarness/Commands.cpp"
+        harness = self.root / "Code/harness/TestHarness/Commands.cpp"
         self.assertIsNone(self.post("Edit", {"file_path": str(harness)}))
-        self.assertIn("engine-facing", self.post("Edit", {"file_path": str(self.root / "Code/client/Systems/A.h")}))
-        self.assertIsNone(self.post("Write", {"file_path": str(self.root / "Code/client/Games/B.h")}))
+        self.assertIn("engine-facing", self.post("Edit", {"file_path": str(self.root / "Code/sync/A.h")}))
+        self.assertIsNone(self.post("Write", {"file_path": str(self.root / "Code/engine/B.h")}))
 
     def test_py_eval_writes_are_pointed_at_the_journaled_tools(self):
         self.assertIn("py_eval", self.post("mcp__ida-multi-mcp__py_eval", {"code": "idc.set_name(ea, 'X')"}))

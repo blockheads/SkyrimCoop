@@ -3,17 +3,17 @@
 #include "Party.h"
 
 #include <Structs/GridCellCoords.h>
-#include <Papyrus/ScriptTags.h>
+#include <scripts/ScriptTags.h>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <Components/FormIdComponent.h>
-#include <Components/HeldCopyComponent.h>
-#include <Components/LocalComponent.h>
-#include <Components/RemoteComponent.h>
+#include <core/FormIdComponent.h>
+#include <characters/HeldCopyComponent.h>
+#include <core/LocalComponent.h>
+#include <core/RemoteComponent.h>
 
 namespace
 {

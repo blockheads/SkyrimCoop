@@ -1,12 +1,12 @@
 #include "FakeDialogue.h"
 #include "Party.h"
 #include "Fixtures.h"
-#include <Services/DialogueService.h>
+#include <dialogue/DialogueService.h>
 #include <Messages/SharedDialogue.h>
 #include <Messages/RelayedMessages.h>
 #include <Messages/Relayed.h>
-#include <SessionIds.h>
-#include <Events/DialogueEvent.h>
+#include <core/SessionIds.h>
+#include <dialogue/DialogueEvent.h>
 
 namespace
 {

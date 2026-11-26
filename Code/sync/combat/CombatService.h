@@ -1,0 +1,55 @@
+#pragma once
+
+#include <core/Listen.h>
+#include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
+
+class IActorBridge;
+class IFormBridge;
+class IPlayerBridge;
+struct World;
+struct TransportService;
+struct UpdateEvent;
+struct ProjectileLaunchedEvent;
+struct HitEvent;
+struct MeleeStaggerEvent;
+
+/**
+ * @brief Responsible for projectiles, combat agro, etc.
+ */
+struct CombatService
+{
+    CombatService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher, IFormBridge& aFormBridge,
+                  IActorBridge& aActorBridge, IPlayerBridge& aPlayerBridge);
+    ~CombatService() noexcept = default;
+
+    NO_COPY_MOVE(CombatService);
+
+protected:
+    void OnUpdate(const UpdateEvent& acEvent) noexcept;
+    void OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept;
+    void OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acEvent) const noexcept;
+    void OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMessage) const noexcept;
+    void OnHitEvent(const HitEvent& acEvent) noexcept;
+    void OnMeleeStagger(const MeleeStaggerEvent& acEvent) noexcept;
+    void OnNotifyMeleeStagger(const NotifyMeleeStagger& acMessage) noexcept;
+    void RunHitFeedback() noexcept;
+
+private:
+    World& m_world;
+    TransportService& m_transport;
+    IFormBridge& m_formBridge;
+    IActorBridge& m_actorBridge;
+    IPlayerBridge& m_playerBridge;
+
+    // Another game's actors our player hit lately, with the health our copy showed then: the
+    // owner's lower health arriving shows the health bar again (see OnHitEvent).
+    struct RecentHit
+    {
+        std::chrono::steady_clock::time_point At;
+        float Health;
+    };
+    std::unordered_map<uint32_t, RecentHit> m_recentHits;
+
+    std::vector<entt::scoped_connection> m_connections;
+};

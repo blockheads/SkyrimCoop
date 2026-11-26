@@ -2,7 +2,7 @@
 // (docs/design/world-state-sync.md, "A guest's own quests"; docs/design/cutscenes.md, "Whose moment").
 #include <catch2/catch.hpp>
 
-#include <Papyrus/OwnEvents.h>
+#include <scripts/OwnEvents.h>
 
 using namespace OwnEvents;
 

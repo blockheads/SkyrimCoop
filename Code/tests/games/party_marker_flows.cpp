@@ -2,8 +2,8 @@
 #include "Fixtures.h"
 #include "FakeMapMovie.h"
 #include <Interface/PartyMarkerLabel.h>
-#include <Services/PartyMarkers.h>
-#include <Services/SessionService.h>
+#include <travel/PartyMarkers.h>
+#include <core/SessionService.h>
 #include <algorithm>
 
 namespace

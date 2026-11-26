@@ -1,4 +1,4 @@
-#include <Followers/Anchors.h>
+#include <followers/Anchors.h>
 #include <catch2/catch.hpp>
 
 using namespace Followers;
@@ -57,7 +57,7 @@ TEST_CASE("A follow order during fallback replaces the original desired anchor",
     CHECK(anchors.Choose(50, {}, members) == 3);
 }
 
-#include <Followers/Records.h>
+#include <followers/Records.h>
 
 TEST_CASE("Follower saves preserve desired keys and resolve host references without saving temporary targets",
           "[followers]")

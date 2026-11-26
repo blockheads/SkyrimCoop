@@ -1,7 +1,7 @@
 // HostRouter: the host's table of rules, with no part registered but the test's own.
-#include <Services/Host/HostNetwork.h>
-#include <Services/Host/HostPlayers.h>
-#include <Services/Host/HostRouter.h>
+#include <core/HostNetwork.h>
+#include <core/HostPlayers.h>
+#include <core/HostRouter.h>
 
 #include <Messages/Relayed.h>
 #include <Messages/RelayedMessages.h>

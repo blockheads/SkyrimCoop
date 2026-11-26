@@ -32,7 +32,7 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | Graph variables | inputs only, latest by owner tick | the variables the graph writes itself are not synced (`currentDefaultState`, `NotCasting`; see actor-ai-and-copies.md) |
 | AI packages (picked or engine-created) | no | `HookCheckForNewPackage` and `HookPutCreatedPackage` (References.cpp) |
 | The owner's package | held, never run | the owner's form package in the copy's running slot, no target (`Actor::PutOwnerPackage`, `ActorPackage::InitFromPackage` 38959), so conditions, Papyrus and plugins reading the slot inline see it; `UpdateAI`, which runs packages, is cut; none or an engine-made one: the do-nothing package. Upstream's package relay (`AI_SYNC`, `NewPackageRequest`) is deleted |
-| AI state others read (current package, sitting, sleeping, in a scene, alarmed, combat state) | the owner's | built 2026-10-22 (`AiStateService`, `Games/Skyrim/CopyAiState.cpp`): package, scene, combat state and target; sitting and sleeping by replay; alarmed not yet. Below, "AI state" |
+| AI state others read (current package, sitting, sleeping, in a scene, alarmed, combat state) | the owner's | built 2026-10-22 (`AiStateService`, `engine/CopyAiState.cpp`): package, scene, combat state and target; sitting and sleeping by replay; alarmed not yet. Below, "AI state" |
 | What it looks at (headtrack slots) | the owner's | built 2026-10-31: the owner's six slots in `ActorAiState::HeadTrack`, put in before `Actor::ProcessTracking` (38009) reads them; the copy's engine turns the head (actor-ai-and-copies.md, "Headtracking") |
 | Combat controller, combat group membership | no | `HookStartCombat` refuses a copy (38561, since 2026-11-05: an attack gave one, `combat-targets.md`): `CombatUpdateJob` (46902) would run its combat AI (below, "AI state") |
 | Applying spell effects locally | no | the owner applies them (MagicTarget.cpp); on the host, the world's spells on a guest's character (a statue, a trap, a script making the copy cast) are sent to its owner too (`docs/re/systems/guest-world-events.md`) |
@@ -59,7 +59,7 @@ inherited from upstream Tilted Online and listed here so they stay choices:
 
 On the host every guest player is the player in scripts, and `Game.GetPlayer()` is the player
 whose action started the script (2026-10-19, `docs/design/party-model.md`, "A guest's actions on the
-host"; `Games/Skyrim/Papyrus/GuestScripts.cpp`). Upstream made only the comparison true, globally, and dropped it:
+host"; `engine/Papyrus/GuestScripts.cpp`). Upstream made only the comparison true, globally, and dropped it:
 "it messes up other things like beastform" (`GetPlayer()` still named the host, so the effect after the
 check landed on the wrong body). Upstream's patched vanilla scripts (claw doors, temple shrines, Vilkas's trial)
 and their `SkyrimTogetherUtils` natives were removed for it (2026-10-20); each has a scenario
@@ -184,13 +184,13 @@ get the copy's own answer.
 
 **As built (2026-10-22).** `AiStateService` (every game), event-driven: the engine's package, combat, death and
 scene events, a combat target switch (`CombatController::SetTarget` 33235) and the player's in-combat flag
-(`PlayerCharacter::UpdateInCombat` 41238), all in `Games/Skyrim/AiStateEvents.cpp`, mark an owned actor changed; its state is read on the main thread and
+(`PlayerCharacter::UpdateInCombat` 41238), all in `engine/AiStateEvents.cpp`, mark an owned actor changed; its state is read on the main thread and
 declared as a part of the actor's copy record (`CopyRecords`, `RecordRequest`; one-simulator.md, piece 1; since
 2026-11-18, before that its own `AiStateRequest`) when it differs from the last sent. A spawn carries the record. The
 host keeps it and relays it from the owner only (`NotifyRecord`). No timed check, no periodic resend. A state that
 arrives before its copy, or names an actor that is not here yet (a look or combat target), is applied when that copy
 or actor appears. The copy's side, `IActorBridge::SetCopyAiFields` and
-`Games/Skyrim/CopyAiState.cpp`:
+`engine/CopyAiState.cpp`:
 
 ```
 owner's game                              copy's game
@@ -306,7 +306,7 @@ the session's end                      shown, its own persistence back, this gam
   freed (the players' copies' lever), a disabled one gets no 3D. Only the enables needed hooks, and both are the
   flag's own funnels. Engine path:
   [copy-lifecycle.md](../re/systems/copy-lifecycle.md).
-- Guests only (`Services/Guest/GuestCopies`): on the host a held reference is a horse a guest rode, the host's own to
+- Guests only (`sync/characters/GuestCopies`): on the host a held reference is a horse a guest rode, the host's own to
   take back. An owner's disabled or deleted actor leaves its copy disabled, not hidden, so the session's end leaves it so.
 - Replaced (2026-11-07): a per-frame scan hiding held copies whose 3D the guest's game had loaded, and a per-frame
   sweep dropping entities whose reference the guest's engine had collected (which also left the host's next spawn

@@ -1,8 +1,8 @@
 #include "FakeCrime.h"
 #include "Fixtures.h"
 #include "Party.h"
-#include <Events/AiStateChangeEvent.h>
-#include <Events/UpdateEvent.h>
+#include <actorstate/AiStateChangeEvent.h>
+#include <core/UpdateEvent.h>
 
 namespace
 {

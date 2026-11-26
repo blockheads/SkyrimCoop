@@ -1,0 +1,293 @@
+#include <HookSwitch.h>
+#include <Hooks/Initializer.h>
+#include <Hooks/FunctionHook.h>
+#include <Actor.h>
+#include <BSCore/LockOrder.h>
+#include <Interface/IMenu.h>
+#include <Interface/ItemMenuWatch.h>
+#include <Interface/MenuAutoClose.h>
+#include <world/LidUnposedEvent.h>
+#include <Interface/Menus/LockpickingMenu.h>
+#include <Interface/Menus/MapMenu.h>
+#include <Interface/MenuPauseRules.h>
+#include <core/MainLoopTasks.h>
+#include <Interface/UI.h>
+#include <PlayerCharacter.h>
+#include <NetImmerse/NiNode.h>
+#include <core/World.h>
+
+
+namespace
+{
+bool InSession() noexcept
+{
+    return entt::locator<World>::has_value() && World::Get().GetTransport().IsConnected();
+}
+
+bool MapRuns() noexcept
+{
+    UI* pUI = UI::Get();
+    const auto* cpMap = pUI && pUI->GetMenuOpen("MapMenu") ? pUI->FindMenuByName("MapMenu") : nullptr;
+    return InSession() && cpMap && !cpMap->PausesGame();
+}
+
+// A container's or merchant's live menu closes when its target goes, dies or leaves (Skyrim Souls RE's
+// AutoCloseManager): watched from the menu's kShow, checked each frame (UpdatePlayer; barter gets no kUpdate).
+using TMenuProcess = UI_MESSAGE_RESULTS(IMenu*, UIMessage&);
+
+struct AutoClosed
+{
+    const char* Name;
+    ItemMenuWatch::Kind Kind;
+    uint32_t (*TargetHandle)();
+    TMenuProcess* Real{};
+    MenuAutoClose::Watch Watch{};
+    bool Watching{};
+};
+
+MenuAutoClose::Target TargetOf(uint32_t aHandle) noexcept
+{
+    TESObjectREFR* pTarget = aHandle ? TESObjectREFR::GetByHandle(aHandle) : nullptr;
+    const auto* pPlayer = PlayerCharacter::Get();
+    if (!pTarget || !pPlayer)
+        return {.Gone = true};
+    MenuAutoClose::Target target{.Gone = pTarget->IsDisabled() || pTarget->IsDeleted()};
+    if (auto* pActor = Cast<Actor>(pTarget))
+    {
+        target.Actor = true;
+        target.Dead = pActor->IsDead();
+    }
+    const float cX = pTarget->position.x - pPlayer->position.x, cY = pTarget->position.y - pPlayer->position.y,
+                cZ = pTarget->position.z - pPlayer->position.z;
+    target.Distance = std::sqrt(cX * cX + cY * cY + cZ * cZ);
+    return target;
+}
+
+UI_MESSAGE_RESULTS Watched(AutoClosed& aMenu, IMenu* apMenu, UIMessage& aMessage)
+{
+    if (aMessage.eType == UIMessage::kShow)
+    {
+        ItemMenuWatch::Shown(aMenu.Kind, apMenu);
+        aMenu.Watching = InSession();
+        if (aMenu.Watching)
+            aMenu.Watch = MenuAutoClose::Open(TargetOf(aMenu.TargetHandle()));
+    }
+    else if (aMessage.eType == UIMessage::kHide || aMessage.eType == UIMessage::kForceHide)
+    {
+        ItemMenuWatch::Hidden(aMenu.Kind);
+        aMenu.Watching = false;
+    }
+    return aMenu.Real(apMenu, aMessage);
+}
+
+// Out of line: UpdatePlayer's own frames are pass-through for the lock checker, this is ours.
+__declspec(noinline) void CheckWatched(AutoClosed& aMenu) noexcept
+{
+    if (!aMenu.Watching || !InSession())
+        return;
+    const auto cTarget = TargetOf(aMenu.TargetHandle());
+    if (const auto cWhy = MenuAutoClose::Check(aMenu.Watch, cTarget); !cWhy.empty())
+    {
+        spdlog::info("LiveMenus: closing {}: {}", aMenu.Name, cWhy);
+        // A gone chest has no 3D: the menu's close (51125 -> OpenOrClose 14284) only flips its open state.
+        if (const TESObjectREFR* pTarget = cTarget.Gone && std::string_view(aMenu.Name) == "ContainerMenu" ? TESObjectREFR::GetByHandle(aMenu.TargetHandle()) : nullptr)
+            World::Get().GetRunner().Trigger(LidUnposedEvent{pTarget->formID});
+        aMenu.Watching = false;
+        if (auto* pQueue = UIMessageQueue::Get())
+            pQueue->AddMessage(aMenu.Name, UIMessage::kHide, nullptr);
+    }
+}
+
+uint32_t ContainerTarget()
+{
+    POINTER_SKYRIMSE(uint32_t, s_handle, 405962); // ContainerMenu's target (CommonLibSSE-NG GetTargetRefHandle)
+    return *s_handle.Get();
+}
+
+uint32_t BarterTarget()
+{
+    POINTER_SKYRIMSE(uint32_t, s_handle, 405823); // BarterMenu's target
+    return *s_handle.Get();
+}
+
+AutoClosed s_container{"ContainerMenu", ItemMenuWatch::Kind::Container, &ContainerTarget};
+AutoClosed s_barter{"BarterMenu", ItemMenuWatch::Kind::Barter, &BarterTarget};
+
+UI_MESSAGE_RESULTS ContainerProcess(IMenu* apMenu, UIMessage& aMessage)
+{
+    return Watched(s_container, apMenu, aMessage);
+}
+
+UI_MESSAGE_RESULTS BarterProcess(IMenu* apMenu, UIMessage& aMessage)
+{
+    return Watched(s_barter, apMenu, aMessage);
+}
+
+// InventoryMenu lists the player's stacks too (ItemMenuWatch); no target to auto-close on.
+TMenuProcess* RealInventoryProcess{};
+
+UI_MESSAGE_RESULTS InventoryProcess(IMenu* apMenu, UIMessage& aMessage)
+{
+    if (aMessage.eType == UIMessage::kShow)
+        ItemMenuWatch::Shown(ItemMenuWatch::Kind::Inventory, apMenu);
+    else if (aMessage.eType == UIMessage::kHide || aMessage.eType == UIMessage::kForceHide)
+        ItemMenuWatch::Hidden(ItemMenuWatch::Kind::Inventory);
+    return RealInventoryProcess(apMenu, aMessage);
+}
+
+// Main::UpdatePlayer (36581+0x7A) only tests this result for zero; the map still needs the player update.
+uintptr_t HasPlayerModel(PlayerCharacter* apPlayer)
+{
+    return apPlayer->GetNiNode() || MapRuns();
+}
+
+using TUpdatePlayer = uint64_t(void*);
+TUpdatePlayer* RealUpdatePlayer{};
+NiNode* s_hiddenModel{};
+bool s_wasHidden{};
+
+uint64_t UpdatePlayer(void* apMain)
+{
+    auto* pPlayer = PlayerCharacter::Get();
+    auto* pModel = pPlayer ? pPlayer->firstPerson3D : nullptr;
+    if (pModel && pModel == s_hiddenModel)
+        pModel->flags = (pModel->flags & ~1u) | static_cast<uint32_t>(s_wasHidden);
+    s_hiddenModel = nullptr;
+    const uint64_t cResult = RealUpdatePlayer(apMain);
+    CheckWatched(s_container);
+    CheckWatched(s_barter);
+    pPlayer = PlayerCharacter::Get();
+    pModel = pPlayer ? pPlayer->firstPerson3D : nullptr;
+    if (pModel && MapRuns())
+    {
+        s_hiddenModel = pModel;
+        s_wasHidden = (pModel->flags & 1) != 0;
+        pModel->flags |= 1;
+    }
+    return cResult;
+}
+
+using TLocalMap = uint64_t(MapMenu*, bool);
+TLocalMap* RealLocalMap{};
+using TFreezeBackground = void(void*);
+TFreezeBackground* RealFreezeBackground{};
+
+void FreezeMapBackground(void* apState)
+{
+    if (!MapRuns())
+        RealFreezeBackground(apState);
+}
+
+uint64_t LocalMap(MapMenu* apMenu, bool aShown)
+{
+    const uint64_t cResult = RealLocalMap(apMenu, aShown);
+    if (InSession() && !apMenu->PausesGame())
+        apMenu->ClearFlag(IMenu::kFreezeFrameBackground);
+    return cResult;
+}
+
+using TMapProcess = UI_MESSAGE_RESULTS(MapMenu*, UIMessage&);
+TMapProcess* RealMapProcess{};
+
+UI_MESSAGE_RESULTS MapProcess(MapMenu* apMenu, UIMessage& aMessage)
+{
+    // Skyrim Souls RE: generic updates continually restart the native map-marker pick in a live map.
+    if (InSession() && !apMenu->PausesGame() && aMessage.eType == UIMessage::kUpdate && aMessage.menu != "MapMenu")
+        return UI_MESSAGE_RESULTS::kHandled;
+    return RealMapProcess(apMenu, aMessage);
+}
+
+// UI::ProcessMessages (82082) and the movies' advance (82083) run the menus' callbacks: kept apart from listed item
+// changes, noted item menus marked to rebuild first (ItemMenuWatch::UiCall).
+using TUiMessages = uint64_t(UI*);
+TUiMessages* RealUiMessages{};
+using TUiMovies = uint64_t(UI*);
+TUiMovies* RealUiMovies{};
+
+uint64_t UiMessages(UI* apUI)
+{
+    const ItemMenuWatch::UiCall cCall;
+    return RealUiMessages(apUI);
+}
+
+uint64_t UiMovies(UI* apUI)
+{
+    const ItemMenuWatch::UiCall cCall;
+    return RealUiMovies(apUI);
+}
+
+// LockpickingMenu::ProcessMessage (51950, vtable slot 4): a live menu's kUpdate comes from Job_UI and never builds the
+// lock; one kUpdate between frames on the main thread builds it, as a paused game's would.
+TMenuProcess* RealLockpickProcess{};
+MenuPauseRules::MainThreadBuild s_lockpickBuild;
+
+void BuildLockpickOnMainThread()
+{
+    s_lockpickBuild.Ran();
+    UI* pUI = UI::Get();
+    auto* pMenu = pUI && pUI->GetMenuOpen("Lockpicking Menu")
+                      ? static_cast<LockpickingMenu*>(pUI->FindMenuByName("Lockpicking Menu"))
+                      : nullptr;
+    if (!pMenu || !MenuPauseRules::NeedsMainThreadBuild("Lockpicking Menu", pMenu->uiMenuFlags, pMenu->built3D))
+        return;
+    UIMessage update{};
+    update.menu.Set("Lockpicking Menu");
+    update.eType = UIMessage::kUpdate;
+    RealLockpickProcess(pMenu, update);
+    spdlog::info("LiveMenus: the lockpicking menu's 3D built on the main thread: {}", pMenu->built3D);
+}
+
+UI_MESSAGE_RESULTS LockpickProcess(IMenu* apMenu, UIMessage& aMessage)
+{
+    const auto cResult = RealLockpickProcess(apMenu, aMessage);
+    const auto* cpMenu = static_cast<const LockpickingMenu*>(apMenu);
+    if (aMessage.eType == UIMessage::kUpdate && s_lockpickBuild.Ask("Lockpicking Menu", cpMenu->uiMenuFlags, cpMenu->built3D))
+        MainLoopTasks::Queue(&BuildLockpickOnMainThread);
+    return cResult;
+}
+
+using TMenuMode = bool(uint32_t);
+TMenuMode* RealBookMenuMode{};
+
+bool BookMenuMode(uint32_t aMode)
+{
+    // BookMenu::ProcessMessage (51049) otherwise defers creating the book's 3D until the game pauses.
+    return InSession() ? false : RealBookMenuMode(aMode);
+}
+
+Hooks::Initializer s_hooks([] {
+    const HookGate cGate(__FILE__);
+    VersionDbPtr<uint8_t> updatePlayer(36581);
+    Hooks::Nop(updatePlayer.Get() + 0x7A, 6);
+    Hooks::PutCall(updatePlayer.Get() + 0x7A, &HasPlayerModel);
+    HOOK_ID(36581, &RealUpdatePlayer, UpdatePlayer);
+    // The frame's world update (the grid's cell attach and detach) runs inside: its lock orders are the engine's.
+    LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&UpdatePlayer));
+
+    // 1.6.1170: MapMenu's local-map updater sets the background flag and freezes the render frame.
+    VersionDbPtr<uint8_t> localMap(53112);
+    Hooks::SwapCall(localMap.Get() + 0xC2, RealFreezeBackground, &FreezeMapBackground);
+    HOOK_ID(53112, &RealLocalMap, LocalMap);
+    HOOK_ID(53102, &RealMapProcess, MapProcess);
+
+    // ProcessMessage, vtable slot 4 (ContainerMenu 215061, BarterMenu 214926; InventoryMenu 51848).
+    HOOK_ID(51126, &s_container.Real, ContainerProcess);
+    HOOK_ID(50945, &s_barter.Real, BarterProcess);
+    HOOK_ID(51848, &RealInventoryProcess, InventoryProcess);
+    HOOK_ID(82082, &RealUiMessages, UiMessages);
+    HOOK_ID(82083, &RealUiMovies, UiMovies);
+
+#if !COOP_SKYRIM_1_6_1170 // the +0x11C build flag was read in 1.7.104 only
+    HOOK_ID(51950, &RealLockpickProcess, LockpickProcess);
+#endif
+
+    VersionDbPtr<uint8_t> bookProcess(51049);
+    constexpr size_t cBookModeCall = COOP_SKYRIM_1_6_1170 ? 0x6F : 0x71;
+    VersionDbPtr<uint8_t> menuMode(35406);
+    uint8_t* pCall = bookProcess.Get() + cBookModeCall;
+    if (*pCall == 0xE8 && pCall + 5 + *reinterpret_cast<const int32_t*>(pCall + 1) == menuMode.Get())
+        Hooks::SwapCall(pCall, RealBookMenuMode, &BookMenuMode);
+    else
+        spdlog::error("BookMenu: expected menu-mode call missing; keeping the engine's behavior");
+});
+} // namespace

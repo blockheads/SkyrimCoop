@@ -1,10 +1,10 @@
 #pragma once
 
 #include "FakeEngine.h"
-#include <Bridges/ICrimeBridge.h>
-#include <FormIds.h>
-#include <SessionIds.h>
-#include <Services/Host/CrimeRules.h>
+#include <crime/ICrimeBridge.h>
+#include <core/FormIds.h>
+#include <core/SessionIds.h>
+#include <crime/CrimeRules.h>
 #include <functional>
 #include <map>
 #include <set>

@@ -193,7 +193,7 @@ Done:
   moves to the host's `World` with assignment. Player level stays on the server with the player
   list (session, phase 5).
 
-The bridge lives in `Code/client/Services/Host/`. `HostAuthority` (named `HostBridge` until 2026-10-20) is the front door, the deliveries
+The bridge lives in the `Host*` files of `Code/sync/` (then `Code/client/Services/Host/`). `HostAuthority` (named `HostBridge` until 2026-10-20) is the front door, the deliveries
 and the plain relays; the parts that keep state register their own rules with it: `HostCharacters`
 (ids, owners, spawns, removal, respawn, movement) and `HostClock` (the session's time);
 `HostWeather` (the session's weather) only sends. What the
@@ -335,7 +335,7 @@ Still on the server, reading positions that had been stale since phase 2: telepo
   name, cut to `kChatMaxLength` bytes without control characters (`ChatText`; 2026-10-19 it replaced
   upstream's markup strip, made for its HTML chat: RmlUi's `{{ }}` binding shows text as text, so stripping
   only ate text like `1 < 2 > 0`); players cannot send system messages. The chat is an RmlUi box
-  (`Code/client/Ui/assets/chat.rml`): Enter in gameplay opens its line, the input dispatch hook (68655)
+  (`Code/plugin/Ui/assets/chat.rml`): Enter in gameplay opens its line, the input dispatch hook (68655)
   gives it the keys and the game none while it is open, Enter sends, Escape cancels. Scenario
   `chat-reaches-everyone`, bridge cases in `chat_tests.cpp`. Dropped: the player list's health
   (`RequestPlayerHealthUpdate`; the party panel reads health from the copies), player dialogue lines in

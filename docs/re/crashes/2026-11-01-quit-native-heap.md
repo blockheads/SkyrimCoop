@@ -111,7 +111,7 @@ and Windows process-adapter checks. Logs: `build/c3-review-harness-red.log`, `bu
 
 The merged default profiler build also exposed an inherited xmake Tracy CMake-package issue: its manifest
 exports the feature flags but omits `TRACY_ENABLE`, disabling the API declarations required by `Profile.cpp`.
-`Code/client/xmake.lua` now supplies that define when profiling is enabled. The existing package library contains
+`Code/plugin/xmake.lua` now supplies that define when profiling is enabled. The existing package library contains
 the matching startup/shutdown symbols; no profiler implementation or package-cache changes were made.
 
 Final integration validation:

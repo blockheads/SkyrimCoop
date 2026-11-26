@@ -1,6 +1,6 @@
 #include <catch2/catch.hpp>
 
-#include <Games/FreedWornList.h>
+#include <FreedWornList.h>
 
 #include <vector>
 

@@ -88,21 +88,21 @@ start/stop event is injected alongside the native one. A cancelled preparation e
 
 ## Pieces
 
-- `Services/Host/HostWait`: accepts Start, collects Ready from the current roster, authorizes Running,
+- `sync/time/HostWait`: accepts Start, collects Ready from the current roster, authorizes Running,
   accepts decreasing remaining-seconds Progress only from the host, and broadcasts Finished on completion or exit.
 - `Messages/WaitMessages`: request action plus wait id and hours; state notification with phase,
   chosen hours and native remaining seconds, recipient's sleeping/driver flags and host calendar. Appended opcodes.
-- `Services/Generic/WaitService`: prepares the bridge, acknowledges readiness, starts native waiting,
+- `sync/time/WaitService`: prepares the bridge, acknowledges readiness, starts native waiting,
   forwards host steps and replays guest steps. Progress received before Finished is consumed before
   closing the menu, including when several reliable notifications arrive in one frame.
-- `Bridges/IWaitBridge`, `WaitBridge`: isolated native callbacks and typed SleepWaitMenu integration.
+- `sync/time/IWaitBridge`, `WaitBridge`: isolated native callbacks and typed SleepWaitMenu integration.
   Readiness requires the slider to exist and the menu's pause flag to be set. The host's update runs
   normally; a guest's timer update is suppressed, and each host notification calls the native menu
   update once with the authoritative remaining seconds. Its wait-step hook updates only the guest's
   player, leaving NPC/world/physics fast-forwarding to the host.
-- `Services/Guest/GuestClock`: takes shared calendar snapshots immediately, without the initial join
+- `sync/time/GuestClock`: takes shared calendar snapshots immediately, without the initial join
   fade, and suspends projection until Finished. Its existing calendar hook remains unchanged.
-- `Services/Guest/GuestWait`: after the shared menu closes, requests the host's current loaded-cell
+- `sync/time/GuestWait`: after the shared menu closes, requests the host's current loaded-cell
   state with `WaitWorldRequest`, tagged with that completed wait's id. `HostWait` accepts only the most
   recently completed rest's requests and returns bounded `NotifyWaitWorld` chunks to that guest.
   Only these snapshots defer their record flags until all chunks arrive and their placements finish.

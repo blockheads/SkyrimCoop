@@ -1,7 +1,7 @@
 # The calendar (game time, days passed)
 
 IDA 1.6.1170, CommonLibSSE-NG `RE::Calendar`; checked 2026-10-20. Our struct: `TimeData`
-(`Code/client/Games/Skyrim/TimeManager.h`, singleton 400447).
+(`Code/engine/TimeManager.h`, singleton 400447).
 
 ## Layout
 
@@ -57,7 +57,7 @@ is overwritten on the next frame by `rawDaysPassed + GameHour / 24`. Wait, sleep
 
 ## The Sleep/Wait menu (shared rest)
 
-How the party rests together: `docs/design/shared-wait-sleep.md`. The hooks are in `Bridges/WaitBridge.cpp`,
+How the party rests together: `docs/design/shared-wait-sleep.md`. The hooks are in `engine/Bridges/WaitBridge.cpp`,
 the layouts in `Interface/Menus/SleepWaitMenu.h` and `PlayerCharacter::sleepSeconds`. Checked against the AE
 1.6.1170 disassembly, CommonLibSSE-NG's `SleepWaitMenu` and `FxDelegateArgs`, and SkyrimSoulsRE's OK callback.
 

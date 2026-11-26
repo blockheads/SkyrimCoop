@@ -382,7 +382,7 @@ variables; those go.
 
 ## Phase 1's seam: one recorder and replayer, two engines
 
-The stream's logic is pure and shared (`Games/Animation/GraphStream.h`, built, UnitTests `[graph-stream]`). Skyrim's
+The stream's logic is pure and shared (`sync/animation/GraphStream.h`, built, UnitTests `[graph-stream]`). Skyrim's
 hooks (step 4) and the fake engine call the same entry points on `World::GetGraphStreams()`, so GameTests run the code
 that ships.
 
@@ -493,7 +493,7 @@ copy: the clip sets its owner's process held, loaded first (a clip binds its fil
   then each BS node's runtime members onto its new clone
 ```
 
-- **One reader for every class** (`Games/Animation/NodeMemory.h`, UnitTests `[node-memory]`): plain values, enums,
+- **One reader for every class** (`sync/animation/NodeMemory.h`, UnitTests `[node-memory]`): plain values, enums,
   inline arrays, structs and `hkArray`s of them; a new state's arrays are sized in Havok's heap (57048). A running
   transition's effect (`hkbStateMachineActiveTransitionInfo`) is remade by its machine (59343); its effect's own state
   travels inside the machine's and is restored onto the new clone.
@@ -502,7 +502,7 @@ copy: the clip sets its owner's process held, loaded first (a clip binds its fil
 - **BS nodes** have no internal state: their runtime members (`SERIALIZE_IGNORED`, 0x400: a timer's elapsed time, an
   every-N modifier's counts, a tweener's start) are carried by reflection. Skyrim's own restore (65149's functor) cannot
   follow Havok's: it ends every running transition and restarts it approximately (65164).
-- **The codec** (`Games/Animation/GraphState.h`, UnitTests `[graph-state]`): sync info as its used points and times.
+- **The codec** (`sync/animation/GraphState.h`, UnitTests `[graph-state]`): sync info as its used points and times.
 - **Clip files:** the owner's clip loads are ops in its stream (`GraphOp::ClipSet`: set 3 an action's, 4 an instant
   interaction's, 47 a movement idle's, from `coop_LoadEventClips` 43621, its queued twin 43622 and a save's reload
   43624), replayed in their place and holding what follows until the files are in; the point names each set held, and
@@ -554,7 +554,7 @@ What it found on the duo (2026-11-09), in order:
    1. The encoding (`Structs/GraphOps.h`, TPTests): done.
    2. The fake's graph, with the wolf flows on it, failing the live check without the stream: done.
    3. The stream (`GraphStream.h`, the three messages and their host rules, `CharacterService`), in GameTests: done.
-   4. The Skyrim hooks (`Games/Skyrim/Havok/GraphStreamHooks.cpp`): done.
+   4. The Skyrim hooks (`engine/Havok/GraphStreamHooks.cpp`): done.
    5. The live check on the duo (`GraphStreamCheck`, verb `graph_stream_check`): built; it finds the copies apart
       soon after their sync point (Skyrim on the stream, below), which is phase 2.
 2. **The whole graph** in sync points (Havok's internal state).

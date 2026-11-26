@@ -387,7 +387,7 @@ class Runtime:
                 ctx.copy_if_changed(source, PLUGINS / "SkyrimCoop/ui" / source.relative_to(UI_SOURCE))
 
     def require_test_harness(ctx):
-        """These scripts drive the plugin through its test harness (Code/client/TestHarness), which only
+        """These scripts drive the plugin through its test harness (Code/harness/TestHarness), which only
         builds configured with --test_harness=y have; a player build would never answer."""
         if b"SkyrimCoopHotReload" not in DLL.read_bytes():
             raise ctx.failure(f"{DLL} has no test harness. Configure with scripts/xmake-msvc.sh f -m dev "

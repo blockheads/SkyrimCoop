@@ -3,8 +3,8 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Events/SessionNoticeEvent.h>
-#include <Services/SaveService.h>
+#include <core/SessionNoticeEvent.h>
+#include <join/SaveService.h>
 
 namespace
 {

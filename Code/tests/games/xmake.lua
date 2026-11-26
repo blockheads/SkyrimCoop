@@ -5,11 +5,12 @@ target("GameTests")
     set_group("Tests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
-    -- The sync layer is its own target (Code/client/sync.lua). Two engine files that are pure enough to run here.
-    add_files("*.cpp", "../FakeNativeVm.cpp", "../../client/Games/Skyrim/Misc/ScriptFunction.cpp",
-              "../../client/Games/Skyrim/Interface/PartyMarkerLabel.cpp")
+    -- The sync layer is its own target (Code/sync). Two engine files that are pure enough to run here.
+    add_files("*.cpp", "../FakeNativeVm.cpp", "../../engine/Misc/ScriptFunction.cpp",
+              "../../engine/Interface/PartyMarkerLabel.cpp")
     add_deps("SkyrimCoopSync")
-    add_includedirs(".", "../../client", "../../client/Games/Skyrim")
+    -- ../../plugin: the diagnostics readouts the fake engine fills.
+    add_includedirs(".", "../../plugin")
     -- The shared specs, which coop_test.py runs in Skyrim too.
     add_defines("COOP_SPECS_DIR=\"$(projectdir)/Code/tests/specs\"")
     add_deps("SkyrimEncoding", "Network", "CommonLib")

@@ -152,10 +152,10 @@ Fallout 76 is not relevant). How do they handle mod mismatches?
 - `docs/design/join-flow.md`: the agreed join flow, the manifest, the plugin's file interface
   (`request`, `status`, `events`, `manifest`), the join panel, and the open mod sync question.
 - `docs/design/world-state-sync.md`: loading the host's world through its save.
-- `Code/client/skse_entry.cpp`: how the plugin loads under SKSE (load phases, versions it reads).
+- `Code/plugin/skse_entry.cpp`: how the plugin loads under SKSE (load phases, versions it reads).
 - `Code/hotreload/Loader.cpp`: a resident loader that loads the client DLL from a copy (test builds);
   relevant to restarting into a new build.
-- `IFormBridge::GetLoadedMods` (`Code/client/Bridges/`): what the plugin reads of the load order today.
+- `IFormBridge::GetLoadedMods` (`Code/engine/Bridges/`): what the plugin reads of the load order today.
 - Earlier Steam research, kept in git stashes (`git stash list`): "steam/launcher work" holds a
   `steam_probe` diagnostic with `Code/steam_probe/RESULTS.md` and a PySide launcher prototype
   (`Code/launcher/`, which parses `+connect_lobby`). Its files were untracked, so read them with

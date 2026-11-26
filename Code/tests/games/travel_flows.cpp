@@ -5,19 +5,19 @@
 #include "Fixtures.h"
 #include "FakeDialogue.h"
 
-#include <Components/FormIdComponent.h>
-#include <Components/LocalComponent.h>
-#include <Components/RemoteComponent.h>
-#include <Components/WaitingFor3D.h>
-#include <Components/PlayerComponent.h>
-#include <Components/SpawnGraphStateComponent.h>
-#include <Components/OwnerPlaceComponent.h>
-#include <Events/FastTravelEvent.h>
-#include <Events/PlayerTravelQueuedEvent.h>
-#include <Events/PartySummonCommandEvent.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <core/RemoteComponent.h>
+#include <characters/WaitingFor3D.h>
+#include <core/PlayerComponent.h>
+#include <animation/SpawnGraphStateComponent.h>
+#include <characters/OwnerPlaceComponent.h>
+#include <travel/FastTravelEvent.h>
+#include <core/PlayerTravelQueuedEvent.h>
+#include <travel/PartySummonCommandEvent.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyReferencesMove.h>
-#include <Services/CharacterService.h>
+#include <characters/CharacterService.h>
 
 #include <chrono>
 #include <format>

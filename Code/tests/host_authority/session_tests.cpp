@@ -2,7 +2,7 @@
 #include "session.h"
 
 #include <Messages/AuthenticationResponse.h>
-#include <Services/Host/JoinRefusal.h>
+#include <core/JoinRefusal.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/DeathMessages.h>
 #include <Structs/LoadOrder.h>

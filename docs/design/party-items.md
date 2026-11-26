@@ -91,7 +91,7 @@ party's by its quest flag and shows the quest marker. The ownership-field marker
 
 - **Arrival:** `InventoryService::OnInventoryChangeEvent`. A key, quest item or story gift arriving on a player is a
   new party item. The arriving game takes its untagged copy back and sends the tagged one with `NewPartyItem`
-  (rules in `Games/PartyItems.h`, UnitTests `[PartyItems]`).
+  (rules in `sync/items/PartyItems.h`, UnitTests `[PartyItems]`).
 - **The story's gift:** `GuestScripts`. An `AddItemFunctor` queued from a quest's script is marked
   (`HookFunctorQueued`), and its run (56095) sets `StoryGiving()`, which the add hooks copy into
   `InventoryChangeEvent::StoryGiven`.
@@ -134,7 +134,7 @@ party's by its quest flag and shows the quest marker. The ownership-field marker
   GameTests `[container-transfer]` (the host's take, a guest's, a non-quest alias item), HostAuthorityTests; Skyrim
   `golden-claw-guest`.
 - **Improving (2026-10-30):** hooks on tempering (16145) and enchanting (16146) read the owner's stacks of the item
-  before and after; the difference goes out as item changes (`Games/ItemChanges.h` `Diff`). An improved stack is
+  before and after; the difference goes out as item changes (`engine/ItemChanges.h` `Diff`). An improved stack is
   another party stack (`SameStack` matches health and enchantment, not a copy's own charge or poison), so every copy
   loses the old and gains the improved one. Renaming needs nothing (51415 never renames a named stack). GameTests
   "Tempering or enchanting a party item improves every player's copy" (red first), UnitTests `[ItemChanges]`,

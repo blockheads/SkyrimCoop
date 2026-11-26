@@ -45,7 +45,7 @@ class TravelActions:
 
 
     def watch_races(ctx):
-        """Both games watch, frame by frame, for actors that race (TestHarness/JitterWatch): read with races."""
+        """Both games watch, frame by frame, for actors that race (harness/TestHarness/JitterWatch): read with races."""
         for name in ("", "client"):
             ctx.player_command(name, {"cmd": "jitter", "start": True})
 

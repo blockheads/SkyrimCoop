@@ -1,5 +1,5 @@
-#include <Games/Animation/GraphStream.h>
-#include <Games/Animation/PoseBlend.h>
+#include <animation/GraphStream.h>
+#include <animation/PoseBlend.h>
 
 #include <catch2/catch.hpp>
 

@@ -3,18 +3,18 @@
 // own brings its character into the host's save, a friend the host's save knows joins from the main menu as that
 // character (JoinService, HostSaveTransfer).
 #include "Party.h"
-#include <Services/SaveStore.h>
+#include <join/SaveStore.h>
 #include "Fixtures.h"
 
-#include <Events/MenuEvent.h>
-#include <Events/UpdateEvent.h>
-#include <Events/NewGameEvent.h>
-#include <Events/GameLoadedEvent.h>
+#include <core/MenuEvent.h>
+#include <core/UpdateEvent.h>
+#include <join/NewGameEvent.h>
+#include <join/GameLoadedEvent.h>
 #include <Messages/AuthenticationResponse.h>
-#include <Events/SessionNoticeEvent.h>
-#include <Services/JoinService.h>
-#include <Services/SaveService.h>
-#include <Services/SessionService.h>
+#include <core/SessionNoticeEvent.h>
+#include <join/JoinService.h>
+#include <join/SaveService.h>
+#include <core/SessionService.h>
 
 namespace
 {

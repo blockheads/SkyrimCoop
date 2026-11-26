@@ -53,7 +53,7 @@ skills and perks earned by using them.
 
 Generic: rules in the host's script engine and story manager, never per script or per mod. Evidence and
 numbers: `docs/research/player-events.md` (spikes, "Script scan"). Built: rules 1 and 2
-(`Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp`, `docs/re/systems/papyrus-guest-scripts.md`; scenarios
+(`Code/engine/Papyrus/GuestScripts.cpp`, `docs/re/systems/papyrus-guest-scripts.md`; scenarios
 `plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`).
 
 1. **Every party member is the player.** On the host, any script comparison with the player
@@ -125,7 +125,7 @@ and conditions would have been right whoever acted; with each player's own, thre
   S" beside the engine for S's game alone, unless play shows players wanting their own rooms or horses.
 - **A house is the party's on every game** (2026-10-30). `HousePurchaseScript.PurchaseHouse` makes the house's cell
   `PlayerFaction`'s (`Cell.SetFactionOwner`), which already means each game's own player. The host now sends a
-  cell's ownership change as a row (`Games/FormChangeRows.h`; `HostEngine::OnFormChange`, `GuestEngine` applies it to
+  cell's ownership change as a row (`engine/FormChangeRows.h`; `HostEngine::OnFormChange`, `GuestEngine` applies it to
   the cell), so the guest's game shows the house as the party's too. Checked in the `ownership` scenarios, which
   cover a rented room, a house and a stable horse, each bought by the host and by a guest. Still open:
   - The key goes only to the buyer's inventory (items are each player's own), and Breezehome's door requires it

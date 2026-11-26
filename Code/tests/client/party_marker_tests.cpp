@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Services/PartyMarkers.h>
+#include <travel/PartyMarkers.h>
 #include <limits>
 
 TEST_CASE("Party compass bearings cross north and reject an undefined direction", "[party-markers]")

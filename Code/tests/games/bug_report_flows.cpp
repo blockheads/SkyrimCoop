@@ -2,7 +2,7 @@
 #include "FakeBugReports.h"
 #include "Party.h"
 
-#include <Services/BugReportService.h>
+#include <tools/BugReportService.h>
 
 SCENARIO("A guest's /bug: every game writes its part under one id", "[bug_report]")
 {

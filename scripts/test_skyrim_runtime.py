@@ -150,10 +150,10 @@ class RuntimeTests(unittest.TestCase):
         import build_re_data
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            client = root / "Code/client"
+            client = root / "Code/engine"
             client.mkdir(parents=True)
             (client / "hooks.cpp").write_text('#if COOP_SKYRIM_1_6_1170\nHOOK_ID(52488, &RealOkay, HookOkay);\n#else\nHOOK_ID(524025, &RealOkay, HookOkay);\n#endif\n')
-            with patch.object(build_re_data, "ROOT", root), patch.object(build_re_data, "CLIENT", client):
+            with patch.object(build_re_data, "ROOT", root), patch.object(build_re_data, "SOURCES", [client]):
                 for version, expected in (("1.6.1170.0", 52488), ("1.7.104.0", 524025)):
                     with patch.object(build_re_data, "EXE_VERSION", version):
                         self.assertEqual(set(build_re_data.scan_our_code()), {expected})

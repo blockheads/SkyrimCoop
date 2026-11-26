@@ -4,14 +4,14 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Events/GameLoadedEvent.h>
-#include <Events/MenuEvent.h>
-#include <Events/NewGameEvent.h>
-#include <Events/SessionNoticeEvent.h>
-#include <Services/JoinService.h>
-#include <Services/SaveService.h>
-#include <Services/SessionService.h>
-#include <Services/SteamService.h>
+#include <join/GameLoadedEvent.h>
+#include <core/MenuEvent.h>
+#include <join/NewGameEvent.h>
+#include <core/SessionNoticeEvent.h>
+#include <join/JoinService.h>
+#include <join/SaveService.h>
+#include <core/SessionService.h>
+#include <join/SteamService.h>
 
 namespace
 {

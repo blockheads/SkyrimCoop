@@ -132,7 +132,7 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hoo
 
 def gated_hook_files() -> str:
     """Every client file whose hooks HookGate can leave out, by name (the harness's own included)."""
-    names = {path.stem for path in (ROOT / "Code/client").rglob("*.cpp") if "HookGate cGate" in path.read_text(errors="ignore")}
+    names = {path.stem for layer in ("engine", "plugin", "harness") for path in (ROOT / "Code" / layer).rglob("*.cpp") if "HookGate cGate" in path.read_text(errors="ignore")}
     return ",".join(sorted(names))
 
 
@@ -365,13 +365,13 @@ def profile(seconds: float = 60, route: str = "", budget: str = "", stacks: bool
 
 @tool
 def counters(game: str = "host", reset: bool = False) -> dict:
-    """That game's named counters (Diagnostics/Counters.h): count, sum, max each; reset zeroes them after reading."""
+    """That game's named counters (sync/core/Counters.h): count, sum, max each; reset zeroes them after reading."""
     return {"ok": True, "counters": (session.player_command(_game(game), {"cmd": "counters", "reset": reset}) or {}).get("counters")}
 
 
 @tool
 def jitter(game: str = "client", seconds: float = 8.0, top: int = 12) -> dict:
-    """What shakes in that game over `seconds`, frame by frame (TestHarness/JitterWatch): each actor's place, drawn root,
+    """What shakes in that game over `seconds`, frame by frame (harness/TestHarness/JitterWatch): each actor's place, drawn root,
     pelvis against its root and heading, by how often a step undid the last; and what all of a screen hangs on (hour
     going back, clock speed changes, the player). The actors that turned back most first."""
     game = _game(game)

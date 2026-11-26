@@ -40,7 +40,7 @@ the scripts' events in order; `docs/design/world-state-sync.md`, "As built"), on
 (`GuestWorldState`, `GuestEngine::ApplyObjectChange`). `ObjectService` keeps the relays every game makes
 (players' activations, locks).
 
-A guest applies each change under `ScopedHostChangeOverride` (`Games/Overrides.h`): the object hooks it goes
+A guest applies each change under `ScopedHostChangeOverride` (`sync/items/Overrides.h`): the object hooks it goes
 through (`HookActivate`, `HookLockChange`, the two animation hooks) raise no event
 for it, so nothing the host sent goes back as a guest's change. Before, each kind avoided the echo its own
 way (a call past the hook, a thread-local flag in the wrapper, a flag on the event), and a lock sent

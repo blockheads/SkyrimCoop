@@ -1,7 +1,7 @@
-// An actor's stacks before and after an in-place change, as item changes (Games/ItemChanges.h).
+// An actor's stacks before and after an in-place change, as item changes (engine/ItemChanges.h).
 #include <catch2/catch.hpp>
 
-#include <Games/ItemChanges.h>
+#include <ItemChanges.h>
 
 TEST_CASE("Tempering one of two swords: one plain sword fewer, one tempered more", "[ItemChanges]")
 {

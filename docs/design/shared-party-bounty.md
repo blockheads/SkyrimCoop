@@ -100,7 +100,7 @@ the tether. The tests check Whiterun's actual dungeon (Skyrim.esm:04A376), the h
 and positive sentence, and both players standing together. The host jail control calls the native
 theft entry; guest cases steal through the actual container UI and choose with their keys.
 
-Engine layouts formerly embedded in CrimeBridge now live in Games/Skyrim/Crime.h with checked
+Engine layouts formerly embedded in CrimeBridge now live in engine/Crime.h with checked
 offsets. The AE gold-map integers differ from CommonLib's older float layout. Jail faction +0x720
 and sentence +0x728 are measured in 40655. Existing death, character, Skyrim actor hooks and physics
 files are unchanged.

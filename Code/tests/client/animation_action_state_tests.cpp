@@ -1,4 +1,4 @@
-#include <Games/Animation/ActionState.h>
+#include <animation/ActionState.h>
 #include <catch2/catch.hpp>
 
 #include <atomic>

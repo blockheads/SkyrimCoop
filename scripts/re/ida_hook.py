@@ -25,7 +25,7 @@ REGISTRY = Path(os.environ.get("IDA_MCP_REGISTRY", Path.home() / ".ida-mcp/insta
 DEBT_STEP = 3  # remind at every third unnamed function read and not yet documented
 DUO_TOOLS = ("mcp__skyrim-coop__duo_start", "mcp__skyrim-coop__vanilla_start")
 DUO_COMMAND = re.compile(r"coop_test\.py\s+(duo|scenario|repro|launch)\b")
-ENGINE_CODE = re.compile(r"^Code/client/(?!TestHarness/|Ui/|HotReload/)")
+ENGINE_CODE = re.compile(r"^Code/(?:engine/|sync/|plugin/(?!Ui/))")
 PY_EVAL_WRITE = re.compile(r"\b(set_name|set_cmt|set_func_cmt|apply_tinfo|SetType|parse_decls?|set_lvar|rename_lvar)\b")
 
 

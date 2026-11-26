@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Games/EquipmentRepair.h>
+#include <items/EquipmentRepair.h>
 #include <cstdint>
 #include <set>
 #include <utility>

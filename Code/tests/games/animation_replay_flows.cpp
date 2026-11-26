@@ -1,18 +1,18 @@
 #include "Party.h"
-#include <Games/Animation/GraphStream.h>
-#include <Services/CopyRecords.h>
+#include <animation/GraphStream.h>
+#include <core/CopyRecords.h>
 #include <Structs/ActorStatePart.h>
 #include "Fixtures.h"
-#include <Services/CharacterService.h>
+#include <characters/CharacterService.h>
 #include <Messages/NotifyReferencesMove.h>
-#include <Systems/InterpolationSystem.h>
-#include <Components/InterpolationComponent.h>
-#include <SessionIds.h>
-#include <Games/Animation/ReplayState.h>
-#include <Components/FormIdComponent.h>
-#include <Components/LocalComponent.h>
-#include <Components/RemoteAnimationComponent.h>
-#include <Components/RemoteComponent.h>
+#include <movement/InterpolationSystem.h>
+#include <movement/InterpolationComponent.h>
+#include <core/SessionIds.h>
+#include <animation/ReplayState.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <animation/RemoteAnimationComponent.h>
+#include <core/RemoteComponent.h>
 
 namespace
 {

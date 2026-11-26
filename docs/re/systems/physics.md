@@ -1,7 +1,7 @@
 # Physics bodies (Havok 2010)
 
 What physics sync (`docs/design/physics-sync.md`) reads and drives, checked in IDA on 1.6.1170. Structs:
-`Code/client/Games/Skyrim/Havok/bhkCollision.h`.
+`Code/engine/Havok/bhkCollision.h`.
 
 ## From a reference to its bodies
 
@@ -552,7 +552,7 @@ different groups                              the layer matrix (+464, 64 bits pe
   `UpdateCollisionFilterOnWorldObject`), which makes the world re-evaluate that body's collisions.
 - So a group of our own on the bodies another game moves, and a rule for it in the hook we already have, is how a
   played object can meet the world and not other objects (HIGGS puts a held object in the player's group the same
-  way). Built 2026-11-15: `Physics/BodyGroups.h`, `SetBodyGroup` (the filter info written under the world's write
+  way). Built 2026-11-15: `sync/physics/BodyGroups.h`, `SetBodyGroup` (the filter info written under the world's write
   lock, then 77794), `docs/design/physics-sync.md`, "One simulator per pile".
 
 ## A rest needs its contacts (read in IDA on 1.7.104, 2026-11-15)

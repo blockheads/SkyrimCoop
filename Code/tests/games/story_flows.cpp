@@ -2,7 +2,7 @@
 // guest's game raises is raised in the host's game for its character (its own game's start no quest).
 #include "Party.h"
 
-#include <SessionIds.h>
+#include <core/SessionIds.h>
 
 namespace
 {

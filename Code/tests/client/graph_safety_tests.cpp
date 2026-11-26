@@ -1,7 +1,7 @@
 #include <catch2/catch.hpp>
 
-#include <Games/Animation/GraphReference.h>
-#include <Games/Animation/VariableSync.h>
+#include <animation/GraphReference.h>
+#include <Animation/VariableSync.h>
 
 #include <array>
 #include <bit>

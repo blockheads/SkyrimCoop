@@ -2,7 +2,7 @@
 // installed unseen rather than skipped. The eye's rules: what it shows, and when the host sends a guest its reading.
 #include <catch2/catch.hpp>
 
-#include <Games/Skyrim/DetectionRules.h>
+#include <crime/DetectionRules.h>
 
 using namespace DetectionRules;
 

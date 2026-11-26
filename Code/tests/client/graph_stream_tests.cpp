@@ -1,5 +1,5 @@
-#include <Games/Animation/GraphStream.h>
-#include <Games/Skyrim/AnimationObjects.h>
+#include <animation/GraphStream.h>
+#include <AnimationObjects.h>
 
 #include <catch2/catch.hpp>
 

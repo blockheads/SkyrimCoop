@@ -1,13 +1,13 @@
 #include "Party.h"
-#include <Games/Animation/GraphStream.h>
+#include <animation/GraphStream.h>
 
-#include <Events/DismountEvent.h>
-#include <Events/MountEvent.h>
-#include <Games/Animation/ReplayState.h>
-#include <SessionIds.h>
-#include <Events/AiStateChangeEvent.h>
-#include <Components/FormIdComponent.h>
-#include <Components/LocalComponent.h>
+#include <characters/DismountEvent.h>
+#include <characters/MountEvent.h>
+#include <animation/ReplayState.h>
+#include <core/SessionIds.h>
+#include <actorstate/AiStateChangeEvent.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
 
 namespace
 {

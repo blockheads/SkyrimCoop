@@ -1,6 +1,6 @@
 #include <catch2/catch.hpp>
 
-#include <MainLoopTasks.h>
+#include <core/MainLoopTasks.h>
 
 #include <thread>
 

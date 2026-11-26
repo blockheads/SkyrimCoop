@@ -75,11 +75,11 @@ scripts/coop_test.py report friend1.zip --id ID --boot
 
 ## Code
 
-- `Code/client/Diagnostics/`: the shared production library, which the test harness calls as well.
+- `Code/plugin/Diagnostics/`: the shared production library, which the test harness calls as well.
   - `EngineReads`: the engine reads both use.
   - `Snapshot`: the status readouts.
   - `LogRing`, `MessageTrail`.
   - `ReportPaths`, `Zip`, `Export`, `CrashReports`: no engine; tested in `UnitTests`.
   - `Folders`.
-- `Services/BugReportService` (every game) and `Bridges/BugReportBridge`. GameTests uses `FakeBugReports`.
+- `sync/tools/BugReportService` (every game) and `engine/Bridges/BugReportBridge`. GameTests uses `FakeBugReports`.
 - `HostDevTools::OnBugReport`.

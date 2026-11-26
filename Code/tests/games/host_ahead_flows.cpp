@@ -3,9 +3,9 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Events/DisconnectedEvent.h>
-#include <Services/Guest/GuestLeash.h>
-#include <Services/Host/HostLeash.h>
+#include <core/DisconnectedEvent.h>
+#include <travel/GuestLeash.h>
+#include <travel/HostLeash.h>
 
 namespace
 {

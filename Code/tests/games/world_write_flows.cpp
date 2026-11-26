@@ -1,7 +1,7 @@
 #include "Party.h"
 #include "Fixtures.h"
-#include <Components/FormIdComponent.h>
-#include <Components/LocalComponent.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
 
 namespace
 {

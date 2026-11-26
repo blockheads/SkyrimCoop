@@ -50,7 +50,7 @@ IDA 9.3, the unpacked **1.6.1170** executable:
 | 36459 | `0x63B120` | `GarbageCollector::Add`; reaches that base read while cleaning references. |
 
 The `isFrozen` offset agrees with [CommonLibSSE's SkyrimVM layout](https://github.com/powerof3/CommonLibSSE/blob/master/include/RE/S/SkyrimVM.h).
-[Upstream's VM hook](https://github.com/tiltedphoques/TiltedEvolution/blob/dev/Code/client/SkyrimVM64.cpp)
+[Upstream's VM hook](https://github.com/tiltedphoques/TiltedEvolution/blob/dev/Code/plugin/SkyrimVM64.cpp)
 also skips its update while the VM is inactive. Our old startup notes had removed an earlier,
 incorrect `0x690` guard after resolving a separate compiler ABI defect. This check uses the
 verified `0x680` field, represented in the typed engine structure with an offset assertion.

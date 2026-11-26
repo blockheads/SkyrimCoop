@@ -65,7 +65,7 @@ Windows' own walk was not read.
 
 ## Our walk
 
-`CrashHandler::CaptureStack(frames, max, skip)` (`Code/client/CrashHandler.cpp`): `RtlCaptureContext`, then the walk
+`CrashHandler::CaptureStack(frames, max, skip)` (`Code/plugin/CrashHandler.cpp`): `RtlCaptureContext`, then the walk
 the crash handler and the stack sampler already used.
 
 - A frame with no unwind data ends the walk, and is the last frame kept (only the innermost frame may be a leaf).
@@ -73,7 +73,7 @@ the crash handler and the stack sampler already used.
 - So a stack under a camera change ends at SKSE's stub: who changed the camera is not in it. Registering unwind data
   for the stub (`RtlAddFunctionTable`) would give every walker the rest (docs/ideas.md).
 
-The gate keeps every capture on it (`scripts/test_stack_walk.py`: no system walk in `Code/client`, the five tools call
+The gate keeps every capture on it (`scripts/test_stack_walk.py`: no system walk in the plugin's code, the five tools call
 `CaptureStack`); the native tests cannot run a Windows unwinder.
 
 Checked by the harness's `stack_walk_check` (a stub of the same shape, `stack-walk-stops-at-stub`): the walk returns

@@ -8,7 +8,7 @@ clients; some of its words are still in the code until the migration removes the
 | Word | Means | In code |
 |---|---|---|
 | **host** | The game everyone joins. Its Skyrim is the only authority: it owns every NPC and the world, and decides quests | `HostService`, `HostAuthority` (was `HostBridge`), `HostEngine`, `Services/Host/` |
-| **guest** | A game that joined the host. It owns only its own player's character | `GuestService`, `GuestEngine`, `Services/Guest/` (was "client" or "peer") |
+| **guest** | A game that joined the host. It owns only its own player's character | `GuestService`, `GuestEngine`, the `Guest*` files (was "client" or "peer") |
 | **party** | Everyone in the session; party and session are one thing | `HostPlayers`, `SessionService` |
 | **player** | A person in the party: the host player, a guest player | `PlayerComponent`, `PlayerId` |
 | **this game's player** | The engine's player, form 0x14. Every game has exactly one, and "the player" in engine and script terms means only it | `PlayerCharacter::Get()` |
@@ -21,10 +21,10 @@ clients; some of its words are still in the code until the migration removes the
 | **local** | Owned by this game | `ActorExtension::IsLocal`, `LocalComponent` |
 | **copy** | What every other game shows for an actor: an NPC body that runs no AI and does what its owner says (`copy-contract.md`) | `ActorExtension::IsCopy`, `IActorBridge::IsActorCopy` |
 | **other player** | Another player's character, shown on this game as a copy: on the host, the guests' characters; on a guest, the host player's and the other guests' | `ActorExtension::IsOtherPlayer`, `IActorBridge::IsOtherPlayer` |
-| **guest scripts** | On the host, the script rules for guests' actions: a guest's character is the player in scripts, and `Game.GetPlayer()` is the guest whose action started the script (`party-model.md`) | `Games/Skyrim/Papyrus/GuestScripts.cpp` |
+| **guest scripts** | On the host, the script rules for guests' actions: a guest's character is the player in scripts, and `Game.GetPlayer()` is the guest whose action started the script (`party-model.md`) | `engine/Papyrus/GuestScripts.cpp` |
 
-Where code runs: `Services/Host/` and `Bridges/HostEngine` only while hosting; `Services/Guest/` and
-`Bridges/GuestEngine` only while a guest (`GuestService` makes them on joining); everything else on every game.
+Where code runs: the `Host*` files and `engine/Bridges/HostEngine` only while hosting; the `Guest*` files and
+`engine/Bridges/GuestEngine` only while a guest (`GuestService` makes them on joining); everything else on every game.
 Actors split by owner and copy instead: every game owns its own player and shows the others' as copies.
 
 A host NPC is local on the host and a copy on each guest. A guest player's character is local on their
@@ -43,5 +43,5 @@ game and a copy (an other player) on the host and the other guests.
 | In code | Now means | Goes |
 |---|---|---|
 | `RemoteComponent` | a copy (the ECS component; kept, alongside `LocalComponent`) | stays |
-| `Code/client/`, `Net::Client`, "client" in build targets | the plugin and its transport, on the host and guests alike | stays; never means a guest |
+| `Net::Client`, `ClientPch.h`, "client" in build targets | the plugin and its transport, on the host and guests alike | stays; never means a guest |
 | "peer", "client", "remote player", "member" in older docs | guest, guest, other player, player | as docs are touched |

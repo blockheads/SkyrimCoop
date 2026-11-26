@@ -109,7 +109,7 @@ left Lydia's copy unarmored; GameTests `[equipment]`), and a copy's running pack
   `--until-fail 20` did not reproduce it. Run 17 failed differently: the guest's chat did not explain its refused
   menu load within 10 s (bug report `2026-10-30-1256-8a5`). Open.
 - Found 2026-10-30 (the user, then the harness): actors slide or walk in slow motion, often right after the party
-  arrives somewhere. The harness's `gait` readout (`TestHarness/GaitWatch`, `check_gait`) compares how far each
+  arrives somewhere. The harness's `gait` readout (`harness/TestHarness/GaitWatch`, `check_gait`) compares how far each
   humanoid travels with how far its feet move against its body. `actors-walk-after-arrival` (Riverwood and the
   Sleeping Giant, 12 s each) fails 3 of 3: guest copies slide while their owners walk (Faendal, Sven, Dorthe,
   Frodnar, Alvor), and the host's own NPCs slide for a few seconds after arrival too (Embry, Sigrid, Gerdur), with no

@@ -222,11 +222,11 @@ who simulates what (one game per object, always)
 - **The pile is the mover's.** Only what the player touched was the guest's; what its held bucket hit was simulated by
   both games, the host's result steered the guest's pile against the bucket, and the jam dropped the hold after 1.4 s.
 - **The host's game placing wins.** A funnel move (`CHANGE_REFR_MOVE`) of a reference a guest moves: nothing steers it
-  from that moment (`Bridges/PlacedByGame`), the host reads where it was put, stops following, and the mover gets that
+  from that moment (`engine/Bridges/PlacedByGame`), the host reads where it was put, stops following, and the mover gets that
   place with `NotifyBodyRests::Placed` and gives the object back (`GuestHands::GiveBack`).
 - **A hold on another game is carried by velocity** (`SteerKeyframed`), not put at the frame each step: placing
   (60898) starts its contacts over every frame.
-- **What a body meets depends on who simulates it** (`Physics/BodyGroups.h`, in the filter hook 78553): each
+- **What a body meets depends on who simulates it** (`sync/physics/BodyGroups.h`, in the filter hook 78553): each
   reference body another game moves is in our "played" collision group, each one this game moves in "moving"
   (`IBodyBridge::SetMoving`, set by `BodyBridge::Drive`, the host's `TakeBodies`, a guest's `Own`; given back at its
   rest). A played body meets the world, characters and moving bodies; not other played bodies (their owner's game
@@ -419,7 +419,7 @@ who owns a body
   an actor's ragdoll             the actor's owner (HostCharacters): the host's NPCs and player the host,
                                  a guest's player its game
 
-every game (BodyService, Services/Generic)
+every game (BodyService, sync/physics)
   frames and rests of bodies it does not own -> BodyPlayback, 100 ms behind -> IBodyBridge drives/rests them
   (references; copies' ragdolls, a copy not in its ragdoll yet put there)
 
@@ -435,7 +435,7 @@ the host (HostPhysics, HostHands)
 
 Build order:
 
-1. **One body bridge for every game** (built 2026-10-26): `IBodyBridge` (`Bridges/BodyBridge`; the fake engine's in
+1. **One body bridge for every game** (built 2026-10-26): `IBodyBridge` (`engine/Bridges/BodyBridge`; the fake engine's in
    GameTests) finds, drives, rests, frees and pushes a body by its key, references and copies' ragdolls alike, out of
    `GuestEngine` and `HostEngine` (each sets how its references are found). `BodyService` (every game) took
    GuestPhysics' playback; `GuestHands` is its keeper on a guest. HostHands forwards a holder's frames to every
@@ -485,15 +485,15 @@ manual scene writes outside the main-loop drain, and UnitTests cover repair/rest
 Where each part lives:
 
 ```
-host   HostPhysics (Services/Host/)   the host's bodies out to each guest: send rule, relevance, rests
+host   HostPhysics (sync/physics)   the host's bodies out to each guest: send rule, relevance, rests
        HostHands                      a guest's player's hands on the host's bodies: push, hold, let go
        HostEngine (Bridges/)          the engine side: HostEngineBodies.cpp, PhysicsBodies (what physics moves)
-every  BodyService (Services/Generic/) plays the bodies other games own (BodyPlayback, 100 ms behind), IBodyBridge
+every  BodyService (sync/physics) plays the bodies other games own (BodyPlayback, 100 ms behind), IBodyBridge
        GuestHands                     this player's pushes, holds and let gos, and bodies its own physics moved
        GuestEngine (Bridges/)         the engine side: GuestEngineBodies.cpp
 both   Physics/                       the pure halves (UnitTests): BodyPrediction, BodySends, BodyPlayback,
                                       BodyRelevance
-       Bridges/ReferenceBodies        a reference's bodies by BodyKey::Index; Havok/bhkCollision the engine calls
+       engine/Bridges/ReferenceBodies        a reference's bodies by BodyKey::Index; Havok/bhkCollision the engine calls
 ```
 
 The flow:
@@ -508,12 +508,12 @@ host game
     awake: its island's active mark; none awake -> rested (every dynamic body's pose) + the move row (references)
     an awake reference body's 3D written from its body when the engine left it behind (FollowBody; since
       2026-11-01 only then: writing a followed one re-placed it, "Matches a game without co-op" below)
-  HostPhysics (Services/Host/): BodyMotions marks free fall; each guest's BodySends picks the frames its guess got
+  HostPhysics (sync/physics): BodyMotions marks free fall; each guest's BodySends picks the frames its guess got
     wrong (2 units, 0.05 rad), or 500 ms old, the most wrong first within ~8 KB/s, of the bodies within 4096
     units of that guest's copy (BodyRelevance)
     -> NotifyBodyFrames (unreliable, ~1 KB packets) to that guest; NotifyBodyRests (reliable) to everyone
 guest game
-  BodyService (Services/Generic/): BodyPlayback, 100 ms behind the host's clock: the last frame's guess blended
+  BodyService (sync/physics): BodyPlayback, 100 ms behind the host's clock: the last frame's guess blended
     into the next frame (or the rest) when that is already here, a late frame's correction blended out over
     100 ms, the first frame blended from where this game's own physics put it, a rest placed once
     -> IBodyBridge::Drive: keyframed (78077), put at the frame (SetPositionAndRotation 78082) moving at its
@@ -523,7 +523,7 @@ guest game
     a copy's ragdoll body is taken only once its own ragdoll simulates it (the copy dead by its owner's action)
 ```
 
-- Pure halves, tier 1 (`UnitTests`, `physics_tests.cpp`): `Physics/BodyPrediction` (the guess), `BodySends`
+- Pure halves, tier 1 (`UnitTests`, `physics_tests.cpp`): `sync/physics/BodyPrediction` (the guess), `BodySends`
   (the send rule and budget), `BodyPlayback` (the guest's playback). A thrown, bouncing, sliding body sends 16
   frames over its flight (`FakeFlight`), the guest never more than a correction off.
 - Tier 2 (`GameTests`, `physics_flows.cpp`, `[physics]`): the fake engine's bodies fly (`FakeFlight`) in the host's
@@ -816,7 +816,7 @@ host update (main thread, under the world's read lock), awake bodies only:
 ```
 
 **Sent when the guess goes wrong, not at a rate** (dead reckoning, with a budget as in Fiedler's state sync):
-both games run the same `Predict` (`Code/client/Physics/BodyPrediction`, pure: Havok's gravity while the frame says
+both games run the same `Predict` (`Code/sync/physics/BodyPrediction`, pure: Havok's gravity while the frame says
 the body falls freely, which the host reads from its velocity's change; damping later, read on each game from the
 same .nif). A flight is an arc, so a throw sends a frame
 at the release, at each bounce, while it rolls, and its rest: the contacts are the events. The 500 ms refresh covers
@@ -1014,7 +1014,7 @@ runs in `ragdoll-lies-as-host`, `knockdown-lies-as-host` and `kill-move-kills-gu
    to get up from where it was steered
 ```
 
-Also: a copy's ragdoll plays at its copy's time (`Services/CopyClock.h`, as its movement, [copy-clock.md](copy-clock.md));
+Also: a copy's ragdoll plays at its copy's time (`sync/core/CopyClock.h`, as its movement, [copy-clock.md](copy-clock.md));
 references stay at 100 ms.
 
 Readouts: `knockdown-smoke` (Lydia knocked down three times between the two players): `RagdollTrace.snaps` (a frame
@@ -1073,7 +1073,7 @@ lying, its bodies               in the played collision group (BodyBridge::Find)
   ragdoll's own bodies' motion does not keep its island awake (`SleepBody`'s acOwnMotion), and keeps 60850's HK_REAL_MAX
   so Havok's last test (62264) lets them sleep: every copy then slept in the update after its place, near its rest and
   still, in `kill-move-kills-guest` 3 of 3 and `death-spectate-host` 3 of 3 (one run failed on a wolf's stamina).
-- Played (`Physics/BodyGroups.h`): a lying ragdoll is on layer 32, which meets clutter, props and other corpses
+- Played (`sync/physics/BodyGroups.h`): a lying ragdoll is on layer 32, which meets clutter, props and other corpses
   (`docs/re/systems/physics.md`, "A lying ragdoll's layer and group"); in its owner's game it settled among them, so
   here it passes what nobody moves and what another game moves, and meets the world and what this game moves.
 - The rest was a reliable `NotifyBodyRests` sent once: a copy made later never got it ("A copy that stays off its
@@ -1101,7 +1101,7 @@ game and the dropper's reference becomes its twin; its body stays the dropper's 
 
 ## Engine pieces
 
-All through typed structs in `Code/client/Games/Skyrim/Havok/` with `static_assert`ed offsets, checked against
+All through typed structs in `Code/engine/Havok/` with `static_assert`ed offsets, checked against
 CommonLibSSE-NG and IDA. Ids checked in IDA (1.6.1170) unless marked:
 
 | Id | Name | Use | Checked |
@@ -1156,7 +1156,7 @@ tier 3  scenarios       (driving the game as a player would, waiting on body sta
                                           follows the hold and it lands at the same spot on both (written 2026-10-24;
                                           vanilla has no throw for a grabbed object: a carry and a drop is one)
           ragdoll-lies-as-host            the host kills an NPC; the copy's body lies as the host's, bone by bone
-        harness readouts (TestHarness/EngineCalls): a reference's bodies (motion type, awake, pose, velocity) and an
+        harness readouts (harness/TestHarness/EngineCalls): a reference's bodies (motion type, awake, pose, velocity) and an
         actor's ragdoll bodies; world-diff compares bodies, not only references' positions
 ```
 

@@ -46,7 +46,7 @@ python3 scripts/coop_test.py --help
 python3 scripts/coop_test.py scenario --dry-run
 python3 scripts/coop_test.py scenario --tag inventory,hands --dry-run
 python3 scripts/coop_test.py affected --check
-python3 scripts/coop_test.py affected --files Code/client/Services/Generic/InventoryService.cpp
+python3 scripts/coop_test.py affected --files Code/sync/items/InventoryService.cpp
 python3 scripts/coop_specs.py --dry
 build/linux/x86_64/debug/GameTests --list-test-names-only
 build/linux/x86_64/debug/GameTests --list-tests '[spec]'
@@ -209,7 +209,7 @@ python3 scripts/coop_test.py repro quit-main-menu
 python3 scripts/coop_test.py repro quit-in-game
 ```
 
-**Heap tools on the duo** (`Code/client/HeapHistory.h`): boot with `SKYRIMCOOP_HEAP_HISTORY=2` (the MCP's
+**Heap tools on the duo** (`Code/plugin/HeapHistory.h`): boot with `SKYRIMCOOP_HEAP_HISTORY=2` (the MCP's
 `duo_start heap_history=2`) and the games record the engine's allocations and frees and count double frees: the
 harness's `heap` readout, the verb `expect_no_double_free`, a `DOUBLE FREE` log entry with both frees' stacks (the
 second free is not passed on). With `SKYRIMCOOP_HEAP_QUARANTINE=256` a use after free stops at once; a hang on a lock
@@ -281,7 +281,7 @@ walk_to / steer_to                  navmesh walks (AI-driven, PathToReference, i
 talk_to / pick / menu               conversations by Activate (pick waits for the response); menus
 travel / arrives_with_party         a far trip (coc) and the party tether's arrival
 needs_save                          a recording on a late save starts by checking the duo was booted from it
-counters / network / press_to_motion   readouts (Diagnostics/Counters.h, round trips and clock syncs, press timing)
+counters / network / press_to_motion   readouts (sync/core/Counters.h, round trips and clock syncs, press timing)
 vanilla_start / quest_walk / job_wait  the vanilla stand-in; a quest walk on a duo booted from a late save
 harness                             any raw harness command
 verb spawn_horse                    that game's player types /spawn horse; the party's horse is named `horse`
@@ -322,17 +322,17 @@ python3 scripts/coop_test.py profile --route whiterun --seconds 60 --budget p95=
 
 | Section | From |
 |---|---|
-| fps, frame-time and our update's percentiles | the plugin's `perf` command (`Diagnostics::PerfStatus`, `Diagnostics/Perf.h`) |
+| fps, frame-time and our update's percentiles | the plugin's `perf` command (`Diagnostics::PerfStatus`, `plugin/Diagnostics/Perf.h`) |
 | CPU and memory | the game's process (psutil / `/proc`) |
-| messages by name and way, KB/s | the message trail (`Diagnostics/MessageTrail.h`) |
+| messages by name and way, KB/s | the message trail (`sync/core/MessageTrail.h`) |
 | each hook's calls per second | the breadcrumb counters (`Breadcrumbs::Totals`) |
 | our zones: total, self, mean, max | a Tracy capture (`<game>.tracy`, `tracy-csvexport`) |
-| call stacks, engine and ours | `--stacks`: the plugin's sampler (`TestHarness/Sampler.cpp`) |
+| call stacks, engine and ours | `--stacks`: the plugin's sampler (`harness/TestHarness/Sampler.cpp`) |
 
 **Tracy** (v0.11.1, BSD-3) is built in with the xmake option `profiler`:
 - On in `scripts/xmake-msvc.sh f`; off in player packages unless `--profiler=y`.
 - It is idle until a viewer connects, listens on localhost only (`TRACY_PORT`: the host 8086, the guest 8087), and is
-  started and stopped by the plugin (`Diagnostics/Profile.h`), so hot reload works.
+  started and stopped by the plugin (`sync/core/Profile.h`), so hot reload works.
 - Zones go only in our update (one `PROFILE_ZONE` per service update, `HostAuthority::Update`), never in hooks.
 - Plots: each hook's calls per frame, memory and the guest's line.
 - It has no call stacks: resolving them would hold our PDB open in the game and block relinking.

@@ -19,7 +19,7 @@ TestHarness/Actions.{h,cpp}   act / act_state / act_cancel; ticked in Poll once 
           buttons held through PlayerInput for the run, released at its end
           watch   distance | distance_xy | z_between [a, b], z a: min/max with frames; series: wall ms per frame
   conditions  on_ground, takes_input, holding id (0: nothing), aimed, for s, near/far(_xy) [a, b, d], moved_less [a, d]
-TestHarness/ActionSteer.h     pure: AngleError, Axis (probes 1, 2, 4... counts until a turn shows, then measures
+harness/TestHarness/ActionSteer.h     pure: AngleError, Axis (probes 1, 2, 4... counts until a turn shows, then measures
                               the sensitivity each frame; never past the goal; capped per frame), Extremes
                               UnitTests [action-steer]
 actions/play.py              ctx.act, ctx.act_both (several games at once, series lined up by ctx.series_at),
@@ -161,7 +161,7 @@ scripts/coop_harness: 20k lines Python, 341 registered scenarios
   a scenario: Python function -> ctx.* -> Game.rpc (JSON over TCP) -> TestHarness::HandleCommand (game thread)
   waiting: ctx.wait_for(desc, predicate, timeout): Python polls every 50 ms, each poll a full "status" RPC
   run_flow: setup -> action -> comparison (desync, dialogue trace, world diff, lock order) -> cleanup (baseline)
-Code/client/TestHarness: 7.2k lines C++, Poll() once a frame: input resend, commands, traces, gait watch
+Code/harness/TestHarness: 7.2k lines C++, Poll() once a frame: input resend, commands, traces, gait watch
 ```
 
 How scenarios act, counted in `scenarios/` and `actions/`:

@@ -101,7 +101,7 @@ advance (crash 2, 82083). Every caller of 82083 runs 82082 just before it (Job_U
 
 ### The gate
 
-`ItemMenuGate` (Games/ItemMenuGate.h) keeps a listed change and the UI's calls apart without an engine lock: each side
+`ItemMenuGate` (engine/ItemMenuGate.h) keeps a listed change and the UI's calls apart without an engine lock: each side
 sets its flag, then waits for the other's to clear, at most 5 ms; a change that finds the UI reading steps back
 (uncounts itself) while it waits, so the two never wait on each other. On a timeout the side goes on (logged): the
 crash risk returns for that one overlap instead of a freeze. UnitTests `[item-menu-gate]`: each interleaving, both

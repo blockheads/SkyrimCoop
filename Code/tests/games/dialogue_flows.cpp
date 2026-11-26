@@ -3,14 +3,14 @@
 // host's game's list, its pick is said by the host's game, and the conversation ends for everyone.
 #include "FakeDialogue.h"
 #include <cmath>
-#include <Services/DialogueService.h>
-#include <Events/MenuEvent.h>
+#include <dialogue/DialogueService.h>
+#include <core/MenuEvent.h>
 #include "Party.h"
 #include "Fixtures.h"
-#include <Events/SessionNoticeEvent.h>
+#include <core/SessionNoticeEvent.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/SharedDialogue.h>
-#include <SessionIds.h>
+#include <core/SessionIds.h>
 
 namespace
 {

@@ -82,7 +82,7 @@ item's entry went from 1 to 0 and its roll list stayed, now with `ExtraCount` (t
   take reads right. That would be why the run on the first run's leftovers passed (its take was logged "1 moved").
 
 `TESObjectREFR::GetContainerCount` now counts as CommonLibSSE-NG's `GetInventory` does (what the menus show): the base
-count unless the entry is a roll's, plus the entry's, with no special case (`Games/ContainerCount.h`, UnitTests
+count unless the entry is a roll's, plus the entry's, with no special case (`engine/ContainerCount.h`, UnitTests
 "A roll's item taken from a chest counts none, not one"). `guest-loots-hosts-roll` 3 of 3, 3 different fresh chests.
 GameTests "A guest takes a fresh roll's item: it gets it and the chest is empty on every game": the fake's chest keeps
 a roll's entry at 0 and counts through the same `ContainerCount` (control: with 16214's rule it never gets the item).
@@ -221,7 +221,7 @@ disabled (19801 frees it).
 - **Read:** 19694 has a second caller in 16059 (`0x14022f49b`), where its 1 means "unequipped, go on"; a 0 there
   skips the removal. So its answer is left alone.
 
-**The fix** (`Games/FreedWornList.h`, `TESObjectREFR.cpp`): `HookUnequipForRemove` (19694) looks, after the engine's
+**The fix** (`engine/FreedWornList.h`, `TESObjectREFR.cpp`): `HookUnequipForRemove` (19694) looks, after the engine's
 call, whether the item's entry still holds the list, and remembers one that is gone (per thread) until the
 `RemoveItem` it ran in returns; `HookRemoveFromInventory` (16059) passes no list in its place to each nested call
 (16059 makes up to two with the same list: `0x14022f51d`, `0x1402305e0`). Tests: UnitTests

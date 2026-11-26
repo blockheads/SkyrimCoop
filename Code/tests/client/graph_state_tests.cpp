@@ -1,4 +1,4 @@
-#include <Games/Animation/GraphState.h>
+#include <animation/GraphState.h>
 
 #include <catch2/catch.hpp>
 

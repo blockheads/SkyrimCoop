@@ -103,7 +103,7 @@ verdict, once", "A script asking a guest's copy for an effect gets its player's 
 A tripwire's script marks it destroyed when tripped (`ObjectReference.SetDestroyed` 56641 -> `TESForm__SetDestroyed`
 14649: form flag 0x800000 and a form-flags change). World state's `kEnabled` row took that change but sent only
 disabled and deleted, so the guest's tripwires stayed whole (the end comparison, on all three in WarehouseTraps). The row
-now packs destroyed too (`Games/EnabledRow.h`, UnitTests `enabled_row_tests`), applied by 14649 on the guest; GameTests
+now packs destroyed too (`sync/world/EnabledRow.h`, UnitTests `enabled_row_tests`), applied by 14649 on the guest; GameTests
 "A reference the host's script marks destroyed is destroyed on the guest".
 
 The scenarios' hits: a burn drains a little each frame, under the 0.5 a readout step counted, so `trap_rounds` adds the
@@ -133,5 +133,5 @@ host stands at its height" (the fake's copy controller rests `kRigidRest` under 
   first `TRIGGER` and took it on a retry; dropped, the guest's mace never fell. Every refusal waits up to `kWait`.
 - An explosion's placed object (a hazard: `Explosion::Func162` 43830 through `CreateReferenceAtLocation` 13723) is
   not sent as created: each game's explosion places its own (`ModManager.cpp`). A script's `PlaceAtMe` hazard still is.
-- The host-only trap code lives in `Services/Host/HostTraps` (its hit on a guest's copy, what its objects fire), the
-  guest-only in `Services/Guest/GuestTraps` (its contact, the host's hit, the host's projectiles).
+- The host-only trap code lives in `sync/combat/HostTraps` (its hit on a guest's copy, what its objects fire), the
+  guest-only in `sync/combat/GuestTraps` (its contact, the host's hit, the host's projectiles).

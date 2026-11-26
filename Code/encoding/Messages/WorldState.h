@@ -118,7 +118,7 @@ struct NotifyQuests final : NotifyMessage
 
 // A world object changing on the host's game in a way no other message carries (steps 5 and 6): a script's event (a
 // door it activated by a reference, `Activate(Self)`, or an animation it played), a container's count of an item, or a
-// reference's state, as one value its row packs (client `Games/ReferenceStates.cpp`).
+// reference's state, as one value its row packs (client `engine/ReferenceStates.cpp`).
 struct ObjectChange
 {
     enum class Kind : uint8_t

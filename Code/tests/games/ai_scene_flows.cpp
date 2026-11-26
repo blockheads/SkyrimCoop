@@ -1,7 +1,7 @@
 #include "Party.h"
 #include "Fixtures.h"
-#include <Events/AiStateChangeEvent.h>
-#include <FormIds.h>
+#include <actorstate/AiStateChangeEvent.h>
+#include <core/FormIds.h>
 
 SCENARIO("A native scene clears after its end event and the gameplay copies follow", "[ai][scene-clear]")
 {

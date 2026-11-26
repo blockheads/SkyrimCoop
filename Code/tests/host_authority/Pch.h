@@ -2,7 +2,7 @@
 
 #include <NoCopyMove.h>
 
-// What the host's code (Code/client/Services/Host/) takes from the client's precompiled header.
+// What the host's code (the Host* files in Code/sync) takes from the client's precompiled header.
 #include <Wire/Serialization.h>
 #include <deque>
 #include <list>

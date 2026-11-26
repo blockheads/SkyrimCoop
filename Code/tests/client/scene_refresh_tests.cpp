@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Services/SceneRefresh.h>
+#include <scripts/SceneRefresh.h>
 
 TEST_CASE("A scene ending after its event publishes the final owner state", "[scene-refresh]")
 {

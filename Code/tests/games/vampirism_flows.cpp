@@ -4,9 +4,9 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Papyrus/SystemQuests.h>
-#include <Services/JoinService.h>
-#include <Services/SaveService.h>
+#include <ports/SystemQuests.h>
+#include <join/JoinService.h>
+#include <join/SaveService.h>
 
 namespace
 {

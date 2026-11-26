@@ -1,9 +1,9 @@
 #include "Party.h"
 
-#include <Components/FormIdComponent.h>
-#include <Components/LocalComponent.h>
-#include <Components/RemoteComponent.h>
-#include <Services/CharacterService.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
+#include <core/RemoteComponent.h>
+#include <characters/CharacterService.h>
 #include <Messages/NotifyRemoveCharacter.h>
 
 namespace

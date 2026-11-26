@@ -33,7 +33,7 @@ B's game   OnNotifyAddTarget -> MagicTarget::AddTarget (the hook skipped)
 The host needed nothing new: hits (`RequestHealthChangeBroadcast`) and effects (`AddTargetRequest`) were
 already relayed to the actor's owner, a player's character included.
 
-`HitRules` (`Games/Skyrim/HitRules.h`) is the damage hook's rule with no engine, checked by UnitTests and
+`HitRules` (`sync/combat/HitRules.h`) is the damage hook's rule with no engine, checked by UnitTests and
 followed by GameTests' fake engine. Given who the hittee and hitter are on this game:
 
 - **Our player hits another game's actor** (a host NPC, another player's copy): ask its owner. Until

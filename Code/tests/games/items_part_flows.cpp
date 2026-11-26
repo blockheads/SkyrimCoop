@@ -2,8 +2,8 @@
 // count, whatever reached it first.
 #include "Party.h"
 #include "Fixtures.h"
-#include <Games/Overrides.h>
-#include <Services/ContainerTransfers.h>
+#include <items/Overrides.h>
+#include <items/ContainerTransfers.h>
 
 namespace
 {

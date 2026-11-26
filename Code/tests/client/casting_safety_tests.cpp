@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Games/Magic/CastingSafety.h>
+#include <magic/CastingSafety.h>
 
 TEST_CASE("Casting synchronization accepts absent actors and the native current-spell fallback", "[casting-safety]")
 {

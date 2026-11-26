@@ -62,7 +62,7 @@ builder from a static table. Game code calls it on the game thread whatever `bBa
 queued requests (`PathingTaskData` 91414/91416), so the probe calling it from the game thread is what the game does.
 Cleanup as `Submit` does it: `BSPathingSolution::dtor` (90962) then free the 176 bytes; each location's
 `PathingData_dtor` (90350) releases its navmesh info.
-Structs: `Games/Skyrim/AI/Movement/Pathing.h` (CommonLibSSE-NG's BSNavmesh, BSPathingLocation, PathingDoor).
+Structs: `engine/AI/Movement/Pathing.h` (CommonLibSSE-NG's BSNavmesh, BSPathingLocation, PathingDoor).
 
 ## Obstacles
 

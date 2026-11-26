@@ -99,7 +99,7 @@ if is_plat("windows") then
     add_requires("minhook v1.3.3", "xbyak v7.06")
     -- Reading natives' machine code (Papyrus/NativeReach).
     add_requires("zydis v4.1.0")
-    -- The in-game UI (Code/client/Ui): HTML/CSS-like documents, FreeType fonts.
+    -- The in-game UI (Code/plugin/Ui): HTML/CSS-like documents, FreeType fonts.
     add_requires("rmlui 6.2", {configs = {freetype = true}})
     -- MSVC treats __movsb as a builtin; clang-cl only declares it in <intrin.h>.
     add_requireconfs("minhook", {configs = {cflags = "/FIintrin.h"}})
@@ -156,8 +156,8 @@ if is_mode("debug") then
 end
 
 
--- The test harness scripts/coop_test.py drives (Code/client/TestHarness/) and the hot reload
--- (Code/client/HotReload/, Code/hotreload/Loader.cpp). Off by default: a player's build has neither
+-- The test harness scripts/coop_test.py drives (Code/harness/TestHarness/) and the hot reload
+-- (Code/harness/HotReload/, Code/hotreload/Loader.cpp). Off by default: a player's build has neither
 -- the command socket nor the control files. scripts/xmake-msvc.sh turns it on.
 option("test_harness")
     set_default(false)
@@ -165,7 +165,7 @@ option("test_harness")
     set_description("Build the test harness and hot reload into the client (never for release)")
 option_end()
 
--- Tracy (Code/client/Diagnostics/Profile.h): zones, plots and call stacks for `coop_test.py profile` and the Tracy
+-- Tracy (Code/sync/core/Profile.h): zones, plots and call stacks for `coop_test.py profile` and the Tracy
 -- viewer. On in the harness's builds (scripts/xmake-msvc.sh); a playtester's package may have it (--profiler=y).
 option("profiler")
     set_default(false)

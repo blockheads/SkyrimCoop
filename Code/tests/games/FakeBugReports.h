@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Bridges/IBugReportBridge.h>
+#include <tools/IBugReportBridge.h>
 
 #include <vector>
 

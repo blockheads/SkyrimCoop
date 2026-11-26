@@ -6,10 +6,10 @@
 // Characters are announced through it, as the games do.
 #include <catch2/catch.hpp>
 
-#include <Services/Host/HostAuthority.h>
+#include <game/HostAuthority.h>
 #include <Messages/ContainerTransferRequest.h>
-#include <Services/Host/HostNetwork.h>
-#include <RecipeBook.h>
+#include <core/HostNetwork.h>
+#include <core/RecipeBook.h>
 
 #include <Messages/Relayed.h>
 #include <Messages/ActivateRequest.h>

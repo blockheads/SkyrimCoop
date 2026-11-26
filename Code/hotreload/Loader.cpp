@@ -14,7 +14,7 @@
 // run when any thread exits, and engine threads may still be returning out of its hooks; leaving it
 // mapped makes both harmless. Each reload costs the copy's image and heap (tens of MB).
 #include <windows.h>
-#include "../client/RuntimeVersion.h"
+#include "../engine/RuntimeVersion.h"
 
 #include <MinHook.h>
 

@@ -1,4 +1,4 @@
-#include <Games/Animation/NodeMemory.h>
+#include <animation/NodeMemory.h>
 #include <Wire/Serialization.h>
 
 #include <catch2/catch.hpp>

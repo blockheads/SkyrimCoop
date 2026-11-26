@@ -1,5 +1,5 @@
-#include <Bridges/PhysicsBodies.h>
-#include <MainLoopTasks.h>
+#include <physics/PhysicsBodies.h>
+#include <core/MainLoopTasks.h>
 #include <catch2/catch.hpp>
 
 namespace

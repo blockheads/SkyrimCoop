@@ -1,4 +1,4 @@
-#include <Services/Host/PartyThreat.h>
+#include <combat/PartyThreat.h>
 #include <array>
 #include <catch2/catch.hpp>
 #include <limits>

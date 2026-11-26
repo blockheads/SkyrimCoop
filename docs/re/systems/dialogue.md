@@ -579,7 +579,7 @@ shown here"). The guest's game had no form `A7B31` at all; the host's had it onl
 
 A guest's quest is started by sync (`GuestEngine::ApplyQuest` sets its flags, no engine start), so its lines were never
 read. `ApplyQuest` now calls `TESQuest::LoadDialogue` (25086) when a quest goes from stopped to started there
-(`Games/QuestStarts.h`, shared with the fake's `GuestSeams`). The fake engine knows the fact (`FakeDialogue::LineQuest`,
+(`engine/QuestStarts.h`, shared with the fake's `GuestSeams`). The fake engine knows the fact (`FakeDialogue::LineQuest`,
 `FakeEngine::DialogueLoaded`): GameTests "A quest the host starts in play: its lines show on a guest's menu too" went red
 on it, UnitTests `[QuestStarts]`. A stopped
 quest's lines stay loaded on the guest (harmless). Harness readouts: `info_conditions` (each condition of a line judged

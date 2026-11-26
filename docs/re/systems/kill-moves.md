@@ -382,7 +382,7 @@ the rest steered, and (inferred: the trace shows the mixed placements and a burs
 them threw the bodies about. That showed in 3 of 6 falls, all HeadButts, each at
 its burst.
 
-`RagdollStart` (`Code/client/Physics/RagdollStart.h`) plans the whole ragdoll at once: each body's gap at its first frame is
+`RagdollStart` (`Code/sync/physics/RagdollStart.h`) plans the whole ragdoll at once: each body's gap at its first frame is
 blended out over 0.2 s, and one body 64+ units off (`BodyTolerances::kPlaceFar`) puts them all on their frames. After: 0
 flickers in 9 of 9 falls, and in 16 more on the authority scheme's base. Tests: GameTests and UnitTests `[ragdoll-start]`.
 

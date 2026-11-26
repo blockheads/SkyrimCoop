@@ -246,7 +246,7 @@ own.
   `natives-reach-matches-ida`); `story-message-reaches-party`, `story-box-host-answers` (a standing stone's box: the
   host clicks Cancel, the client's copy closes), and the guest's moments' boxes (`relief-takes-client-relics`: the
   box is the client's now, `shrine-blesses-client`, `keyhole-asks-client`, `ring-turns-for-client`,
-  `map-marker-reaches-everyone`), 7 of 7. Harness: `hud_messages` (the HUD's notifications, `TestHarness/HudMessages`),
+  `map-marker-reaches-everyone`), 7 of 7. Harness: `hud_messages` (the HUD's notifications, `harness/TestHarness/HudMessages`),
   `box_button` (a box's button from its movie). Rule 3: `question_flows.cpp` (a distance answered by the nearer
   guest, a guard seeing any player), `timer-asks-party-position` (a quest's `PlayerRef.GetDistance(Lydia)` is the
   near client's, the host's own action's the host's). Harness: `papyrus_result` (what a queued call returned).

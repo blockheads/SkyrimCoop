@@ -1,9 +1,9 @@
 #include "Party.h"
 #include "Fixtures.h"
-#include <Games/Overrides.h>
-#include <Services/ContainerTransfers.h>
-#include <Services/CopyRecords.h>
-#include <SessionIds.h>
+#include <items/Overrides.h>
+#include <items/ContainerTransfers.h>
+#include <core/CopyRecords.h>
+#include <core/SessionIds.h>
 
 namespace
 {

@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Games/HitVisualsRules.h>
+#include <HitVisualsRules.h>
 
 TEST_CASE("Instant FX Persist visuals flash and can play on a copy", "[instant-visuals]")
 {

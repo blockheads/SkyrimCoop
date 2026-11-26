@@ -23,7 +23,7 @@ if b"SkyrimCoopHotReload" in dll.read_bytes():
     sys.exit(f"{dll} has the test harness: the package needs --test_harness=n")
 if str(Path.home()).encode() in dll.read_bytes():
     sys.exit(f"{dll} names this machine's home folder: not for a public release")
-ui = root / "Code/client/Ui/assets"
+ui = root / "Code/plugin/Ui/assets"
 # Paths relative to Data/ (MO2's mod root); the documents live in the plugin's own folder, not loose in Data.
 docs = "SKSE/Plugins/SkyrimCoop"
 files = {

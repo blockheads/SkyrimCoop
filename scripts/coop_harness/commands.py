@@ -380,7 +380,7 @@ class Commands:
         print(f"\nReport: {out}")
 
     def command_change_rate(ctx, args):
-        """Counts the engine's change records (Code/client/TestHarness/ChangeLog.cpp) over a window: idle for
+        """Counts the engine's change records (Code/harness/TestHarness/ChangeLog.cpp) over a window: idle for
         --seconds, or while the named scenarios run."""
         _game = ctx.game()
         games = ("", "client") if args.instance in (None, "both") else ("client" if args.instance == "client" else "",)
@@ -922,7 +922,7 @@ class Commands:
                 sub.add_argument("--wait", type=float, default=25, help="seconds to wait for the crash after them")
                 sub.add_argument("--runs", type=int, default=1, help="repeat N times (how reliably it crashes)")
                 sub.add_argument("--heap-history", nargs="?", type=int, const=2, default=0, metavar="MILLIONS",
-                                 help="record engine allocations and frees with stacks (Code/client/HeapHistory.h)")
+                                 help="record engine allocations and frees with stacks (Code/plugin/HeapHistory.h)")
                 sub.add_argument("--watch", default="", metavar="ADDR,ADDR",
                                  help="keep every allocation and free of the blocks at these addresses since boot")
                 sub.add_argument("--quarantine", nargs="?", type=int, const=256, default=0, metavar="MB",

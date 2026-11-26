@@ -38,7 +38,7 @@ index data).
 
 ## Fix
 
-`Code/client/Games/Skyrim/Fixes/PortalGraphFix.cpp` hooks `ShadowSceneNode::SetPortalGraph`
+`Code/engine/Fixes/PortalGraphFix.cpp` hooks `ShadowSceneNode::SetPortalGraph`
 (ID 106385, called by the unload). When the graph changes, it empties the camera entry's room list
 (`BSPortalGraphEntry+0x18`, releasing the rooms), clears its visibility (ID 76119) and resets its
 graph and root room, as `BSPortalGraphEntry::SetPortalGraph` does. The next frame's refresh fills it

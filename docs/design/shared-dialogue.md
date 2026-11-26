@@ -249,9 +249,9 @@ A refused start goes back as a session event (a chat system line), like a refuse
 
 ## Engine pieces
 
-Typed structs in `Code/client/Games/` with `static_assert`ed offsets (CommonLibSSE-NG, IDA):
+Typed structs in `Code/engine/` with `static_assert`ed offsets (CommonLibSSE-NG, IDA):
 
-- `MenuTopicManager` (`Games/Misc/MenuTopicManager.h`), `TESTopic`, `TESTopicInfo`, `UIMessageQueue` and
+- `MenuTopicManager` (`engine/Misc/MenuTopicManager.h`), `TESTopic`, `TESTopicInfo`, `UIMessageQueue` and
   `BSUIMessageData` (`Interface/UI.h`).
 - `IDialogueBridge` / `DialogueBridge` (`Bridges/`): what `DialogueService` needs from the engine, and
   the hooks.

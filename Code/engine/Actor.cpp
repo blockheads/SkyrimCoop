@@ -1,0 +1,2227 @@
+#include <CopyCombatGroups.h>
+#include <Forms/BGSAction.h>
+#include <Interface/ItemMenuWatch.h>
+#include <animation/ActorMediator.h>
+#include <Animation/TESActionData.h>
+#include <animation/ReplayState.h>
+#include <animation/ActorStateRules.h>
+#include <animation/GraphReference.h>
+#include <BSAnimationGraphManager.h>
+#include <CrashHandler.h>
+#include <HookSwitch.h>
+#include <BSCore/LockOrder.h>
+#include <core/EngineNames.h>
+#include <References.h>
+#include <characters/ActorPools.h>
+#include <EquipManager.h>
+#include <AI/AIProcess.h>
+#include <Misc/MiddleProcess.h>
+#include <Havok/bhkCharacterController.h>
+#include <Havok/bhkCollision.h>
+#include <Havok/Ragdoll.h>
+#include <movement/CopyStep.h>
+#include <Combat/WorldHits.h>
+#include <Misc/GameVM.h>
+#include <DefaultObjectManager.h>
+#include <Forms/TESNPC.h>
+#include <Forms/TESFaction.h>
+#include <Components/TESActorBaseData.h>
+#include <ExtraData/ExtraFactionChanges.h>
+#include <Memory.h>
+#include <RefrInteraction.h>
+#include <Forms/TESLevItem.h>
+#include <Combat/CombatController.h>
+
+#include <actorstate/HealthChangeEvent.h>
+#include <characters/ActorDeathChangeEvent.h>
+#include <Papyrus/GuestScripts.h>
+#include <items/InventoryChangeEvent.h>
+#include <items/WornResetEvent.h>
+#include <items/LooseItemEvents.h>
+#include <characters/MountEvent.h>
+#include <characters/DismountEvent.h>
+#include <characters/BoardEvent.h>
+#include <dialogue/DialogueEvent.h>
+#include <combat/HitEvent.h>
+#include <Combat/HitOwnership.h>
+#include <Combat/PartyAggro.h>
+#include <magic/RemoveSpellEvent.h>
+
+#include <TES.h>
+#include <GuestNpcs.h>
+#include <characters/NpcHeldEvent.h>
+#include <core/World.h>
+#include <ports/IActorBridge.h>
+#include <world/ActivatePrompts.h>
+#include <dialogue/SpeakerUpdate.h>
+#include <Bridges/PapyrusService.h>
+#include <death/DeathDrops.h>
+
+#include <Forms/ActorValueInfo.h>
+#include <Forms/TESRace.h>
+
+#include <Effects/ValueModifierEffect.h>
+
+#include <Misc/InventoryEntry.h>
+#include <ExtraData/ExtraCount.h>
+#include <Misc/ActorKnowledge.h>
+#include <Crime.h>
+#include <crime/DetectionRules.h>
+
+#include <ExtraData/ExtraDataList.h>
+#include <ExtraData/ExtraInteraction.h>
+#include <ExtraData/ExtraCharge.h>
+#include <ExtraData/ExtraCount.h>
+#include <ExtraData/ExtraEnchantment.h>
+#include <ExtraData/ExtraHealth.h>
+#include <ExtraData/ExtraPoison.h>
+#include <ExtraData/ExtraSoul.h>
+#include <ExtraData/ExtraTextDisplayData.h>
+#include <Forms/EnchantmentItem.h>
+#include <Forms/AlchemyItem.h>
+#include <core/ItemIds.h>
+#include <Forms/TESObjectCELL.h>
+
+#include <Structs/Skyrim/AnimationGraphDescriptor_BHR_Master.h>
+
+#include <items/Overrides.h>
+#include <BSAnimationGraphManager.h>
+#include <Havok/hkbStateMachine.h>
+#include <Havok/hkbBehaviorGraph.h>
+#include <Forms/BGSOutfit.h>
+#include <ScriptEquips.h>
+#include <Forms/TESObjectARMO.h>
+
+#include <ModCompat/BehaviorVar.h>
+
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <Utils.h>
+#include <VersionDb.h>
+#include <core/FormIds.h>
+
+using TRemoveSpell = bool(Actor*, MagicItem*);
+using TCharacterConstructor = Actor*(Actor*);
+using TCharacterConstructor2 = Actor*(Actor*, uint8_t aUnk);
+using TCharacterDestructor = Actor*(Actor*);
+using TAddInventoryItem = void(Actor*, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner);
+using TPickUpObject = void*(Actor*, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2);
+using TDropObject = void*(Actor*, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation);
+using TSetPosition = char(Actor*, NiPoint3& acPosition);
+using TApplyMovement = void(Actor*, float aDelta);
+
+using TGetLocation = TESForm*(TESForm*);
+static TGetLocation* FUNC_GetActorLocation;
+
+TCharacterConstructor* RealCharacterConstructor;
+TCharacterConstructor2* RealCharacterConstructor2;
+TCharacterDestructor* RealCharacterDestructor;
+
+static TRemoveSpell* RealRemoveSpell = nullptr;
+static TAddInventoryItem* RealAddInventoryItem = nullptr;
+// TESObjectREFR::sub_19688: an item straight into a reference's inventory changes (the alchemy menu's potion, 51354);
+// Actor::AddObjectToContainer (37525) calls it too, having reported its add already.
+using TAddToInventory = void(TESObjectREFR*, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apFrom);
+static TAddToInventory* RealAddToInventory = nullptr;
+static thread_local bool t_addReported = false;
+static TPickUpObject* RealPickUpObject = nullptr;
+static TDropObject* RealDropObject = nullptr;
+static TSetPosition* RealSetPosition = nullptr;
+static TApplyMovement* RealApplyMovement = nullptr;
+
+float Actor::GetSpeed() noexcept
+{
+    static BSFixedString speedSampledStr("SpeedSampled");
+    float speed = 0.f;
+    EngineVirtual(animationGraphHolder).GetVariableFloat(&speedSampledStr, &speed);
+
+    return speed;
+}
+
+void Actor::SetSpeed(float aSpeed) noexcept
+{
+    static BSFixedString speedSampledStr("SpeedSampled");
+    EngineVirtual(animationGraphHolder).SetVariableFloat(&speedSampledStr, aSpeed);
+}
+
+uint16_t Actor::GetLevel() const noexcept
+{
+    using TGetLevel = uint16_t(const Actor*);
+    POINTER_SKYRIMSE(TGetLevel, s_getLevel, 37334);
+    return s_getLevel(this);
+}
+
+void Actor::ForcePosition(const NiPoint3& acPosition) noexcept
+{
+    ScopedReferencesOverride recursionGuard;
+
+    // It just works TM
+    SetPosition(acPosition, true);
+}
+
+bool Actor::CapsuleCollides() const noexcept
+{
+    const auto* pProcess = currentProcess;
+    const auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    if (!pController)
+        return true;
+    uint32_t filter = 0;
+    pController->GetCollisionFilterInfo(filter);
+    return (filter & 0x7F) != bhkCharacterController::kCapsuleLayer || !(filter & bhkCharacterController::kFilterNoCollision);
+}
+
+bool Actor::SetCapsuleCollision(bool aCollides) noexcept
+{
+    auto* pProcess = currentProcess;
+    auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    hkpRigidBody* pBody = pController ? pController->GetRigidBody() : nullptr;
+    if (!pBody || !pBody->userData)
+        return false;
+    uint32_t filter = 0;
+    pController->GetCollisionFilterInfo(filter);
+    if ((filter & 0x7F) != bhkCharacterController::kCapsuleLayer)
+        return false;
+    const uint32_t cWanted = aCollides ? filter & ~bhkCharacterController::kFilterNoCollision : filter | bhkCharacterController::kFilterNoCollision;
+    if (cWanted != filter)
+    {
+        // bhkWorldObject::SetCollisionFilterInfo: its filter, re-filtered in the world.
+        using TSetFilter = void(bhkWorldObject*, uint32_t);
+        POINTER_SKYRIMSE(TSetFilter, s_setFilter, 37006);
+        s_setFilter(pBody->userData, cWanted);
+    }
+    return true;
+}
+
+namespace
+{
+// Its first ragdoll body: the ragdoll's bodies are its 3D's (40063 and 39912 set them all at once), else null.
+const hkpRigidBody* FirstBodyOf(const Actor& acActor) noexcept
+{
+    for (const bhkWorldObject* pBody : RagdollBodiesOf(acActor))
+        if (pBody && pBody->referencedObject)
+            return pBody->referencedObject;
+    return nullptr;
+}
+
+uint8_t LayerOf(const hkpRigidBody* apBody) noexcept
+{
+    return apBody && apBody->world ? static_cast<uint8_t>(apBody->CollisionFilterInfo() & 0x7F) : 0;
+}
+} // namespace
+
+uint8_t Actor::BodiesLayer() const noexcept
+{
+    return LayerOf(FirstBodyOf(*this));
+}
+
+bool Actor::SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf) noexcept
+{
+    NiNode* pRoot = GetNiNode();
+    auto* pProcess = currentProcess;
+    auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    const hkpRigidBody* pBody = FirstBodyOf(*this);
+    if (!pRoot || !pController || !parentCell || !pBody)
+        return false;
+    // Its own capsule's group, or its mount's: one group never collides, as SeatRider (40358) sets a rider's.
+    const auto* pGroupProcess = apGroupOf ? apGroupOf->currentProcess : nullptr;
+    auto* pGroupController = pGroupProcess && pGroupProcess->middleProcess ? pGroupProcess->middleProcess->charController : nullptr;
+    uint32_t groupFilter = 0;
+    (pGroupController ? pGroupController : pController)->GetCollisionFilterInfo(groupFilter);
+    const uint32_t cGroup = groupFilter >> 16;
+    if (LayerOf(pBody) == aLayer && (!aLayer || pBody->CollisionFilterInfo() >> 16 == cGroup))
+        return false;
+    const bool cInWorld = pBody->world != nullptr;
+
+    POINTER_SKYRIMSE(void*, s_queue, 403759); // TaskQueueInterface::singleton
+    using TAddToWorld = void(void*, NiAVObject*, void* apWorld, int32_t);
+    using TRemoveFromWorld = void(void*, NiAVObject*);
+    using TSetMotionType = void(void*, NiAVObject*, uint32_t, bool);
+    using TSetLayerAndGroup = void(void*, NiAVObject*, uint32_t, uint32_t);
+    POINTER_SKYRIMSE(TAddToWorld, s_addToWorld, 36922);
+    POINTER_SKYRIMSE(TRemoveFromWorld, s_removeFromWorld, 36924);
+    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 36925);
+    POINTER_SKYRIMSE(TSetLayerAndGroup, s_setLayerAndGroup, 36929);
+    void* pQueue = *s_queue.Get();
+    if (!pQueue)
+        return false;
+    if (!aLayer)
+    {
+        s_removeFromWorld.Get()(pQueue, pRoot);
+        return true;
+    }
+    // As EnterFurnitureCollision (40063): keyframed, the layer with its capsule's group (a rider's: its mount's), in
+    // its cell's world (39912 changes only the layer of bodies in the world already).
+    s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
+    s_setLayerAndGroup.Get()(pQueue, pRoot, aLayer, cGroup);
+    if (!cInWorld)
+        s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);
+    return true;
+}
+
+void Actor::QueueUpdate() noexcept
+{
+    auto* pSetting = INISettingCollection::Get()->GetSetting("bUseFaceGenPreprocessedHeads:General");
+    const auto originalValue = pSetting->data;
+    pSetting->data = 0;
+
+    using TQueueUpdate = void(Actor*, bool);
+    POINTER_SKYRIMSE(TQueueUpdate, QueueUpdate, 40255);
+
+    QueueUpdate(this, true);
+
+    pSetting->data = originalValue;
+}
+
+GamePtr<Actor> Actor::Create(TESNPC* apBaseForm) noexcept
+{
+    auto pActor = New();
+    // Prevent saving
+    pActor->SetSkipSaveFlag(true);
+    pActor->GetExtension()->SetCopy(true);
+
+    const auto pPlayer = static_cast<Actor*>(GetById(0x14));
+    auto pCell = pPlayer->parentCell;
+    const auto pWorldSpace = pPlayer->GetWorldSpace();
+
+    pActor->SetLevelMod(4);
+    pActor->MarkChanged(0x40000000);
+    pActor->SetParentCell(pCell);
+    pActor->SetBaseForm(apBaseForm);
+
+    auto position = pPlayer->position;
+    auto rotation = pPlayer->rotation;
+
+    if (pCell && !(pCell->cellFlags[0] & 1))
+        pCell = nullptr;
+
+    ModManager::Get()->Spawn(position, rotation, pCell, pWorldSpace, pActor);
+
+    pActor->ForcePosition(position);
+
+    pActor->GetMagicCaster(MagicSystem::CastingSource::LEFT_HAND);
+    pActor->GetMagicCaster(MagicSystem::CastingSource::RIGHT_HAND);
+    pActor->GetMagicCaster(MagicSystem::CastingSource::OTHER);
+
+    pActor->flags &= 0xFFDFFFFF;
+
+    return pActor;
+}
+
+GamePtr<Actor> Actor::Spawn(uint32_t aBaseFormId) noexcept
+{
+    TESNPC* pNpc = Cast<TESNPC>(TESForm::GetById(aBaseFormId));
+    return Actor::Create(pNpc);
+}
+
+void Actor::SetLevelMod(uint32_t aLevel) noexcept
+{
+    using TActorSetLevelMod = void(ExtraDataList*, uint32_t);
+    POINTER_SKYRIMSE(TActorSetLevelMod, realSetLevelMod, 11806);
+
+    const auto pExtraDataList = &extraData;
+
+    realSetLevelMod(pExtraDataList, aLevel);
+}
+
+ActorExtension* Actor::GetExtension() noexcept
+{
+    ActorExtension* pExtension = nullptr;
+    if (AsExActor())
+        pExtension = static_cast<ActorExtension*>(AsExActor());
+    else if (AsExPlayerCharacter())
+        pExtension = static_cast<ActorExtension*>(AsExPlayerCharacter());
+
+    if (pExtension)
+        pExtension->EnsureCurrent();
+    return pExtension;
+}
+
+ExActor* Actor::AsExActor() noexcept
+{
+    if (formType == Type && this != PlayerCharacter::Get())
+        return static_cast<ExActor*>(this);
+
+    return nullptr;
+}
+
+ExPlayerCharacter* Actor::AsExPlayerCharacter() noexcept
+{
+    if (this == PlayerCharacter::Get())
+        return static_cast<ExPlayerCharacter*>(this);
+
+    return nullptr;
+}
+
+extern thread_local bool g_forceAnimation;
+
+void Actor::SetWeaponDrawnEx(bool aDraw) noexcept
+{
+    spdlog::debug("Setting weapon drawn: {:X}:{}, current state: {}", formID, aDraw, actorState.IsWeaponDrawn());
+
+    // A copy's own draw/sheathe actions are refused, so a request the engine made for it can stay
+    // pending (1 wants to draw, 4 wants to sheathe) and swallow every new one: settle it back to
+    // what the actor shows first.
+    if (actorState.GetWeaponState() == 1)
+        actorState.SetWeaponStateFlags(0);
+    else if (actorState.GetWeaponState() == 4)
+        actorState.SetWeaponStateFlags(3);
+
+    // Already sheathed: nothing to play, and the toggle below could strand the flag at "drawn".
+    if (!aDraw && !actorState.IsWeaponDrawn())
+        return;
+
+    // The game ignores a draw for an actor already flagged drawn, so flip the flag first to make
+    // it play the draw again.
+    if (actorState.IsWeaponDrawn() == aDraw)
+    {
+        actorState.SetWeaponDrawn(!aDraw);
+
+        spdlog::debug("Setting weapon drawn after update: {:X}:{}, current state: {}", formID, aDraw, actorState.IsWeaponDrawn());
+    }
+
+    g_forceAnimation = true;
+    SetWeaponDrawn(aDraw);
+    g_forceAnimation = false;
+}
+
+// The weaponDraw or weaponSheathe event's result with no action: RightHandWeaponDrawHandler (42824, its handler
+// unused), 37169. Both set the weapon state through ActorState vfunc 21, which skips a pending opposite request.
+void Actor::ShowWeaponDrawn(bool aDrawn) noexcept
+{
+    using TDrawn = bool(void*, Actor*);
+    using TSheathed = void(Actor*);
+    POINTER_SKYRIMSE(TDrawn, s_drawn, 42824);
+    POINTER_SKYRIMSE(TSheathed, s_sheathed, 37169);
+
+    if (actorState.GetWeaponState() == 1)
+        actorState.SetWeaponStateFlags(0);
+    else if (actorState.GetWeaponState() == 4)
+        actorState.SetWeaponStateFlags(3);
+    if (aDrawn)
+        s_drawn(nullptr, this);
+    else
+        s_sheathed(this);
+}
+
+void Actor::SetEssentialEx(bool aSet) noexcept
+{
+    SetEssential(aSet);
+    if (TESNPC* pBase = Cast<TESNPC>(baseForm))
+        pBase->actorData.SetEssential(aSet);
+}
+
+void Actor::JoinPlayerFaction() noexcept
+{
+    if (auto* pPlayerFaction = Cast<TESFaction>(TESForm::GetById(0xDB1)))
+        SetFactionRank(pPlayerFaction, 1);
+}
+
+void Actor::CastPermanentMagic(bool aWornItemEnchantments, bool aBaseSpells, bool aRaceSpells, bool aEveryActorAbility) noexcept
+{
+    using TCastPermanentMagic = void(Actor*, bool, bool, bool, bool);
+    POINTER_SKYRIMSE(TCastPermanentMagic, s_castPermanentMagic, 38753);
+    s_castPermanentMagic(this, aWornItemEnchantments, aBaseSpells, aRaceSpells, aEveryActorAbility);
+}
+
+void Actor::DoReset3D(bool aUpdateWeight) noexcept
+{
+    using TDoReset3D = void(Actor*, bool);
+    POINTER_SKYRIMSE(TDoReset3D, s_doReset3D, 40255);
+    s_doReset3D(this, aUpdateWeight);
+}
+
+void Actor::DispelAllSpells(bool aNow) noexcept
+{
+    magicTarget.DispelAllSpells(aNow);
+}
+
+void Actor::ClearPowerCooldowns() noexcept
+{
+    POINTER_SKYRIMSE(void(Actor*), s_clear, 38825);
+    s_clear(this);
+}
+
+void Actor::SetPowerCooldown(SpellItem* apPower, float aSeconds) noexcept
+{
+    POINTER_SKYRIMSE(void(Actor*, SpellItem*, float), s_set, 38738);
+    s_set(this, apPower, aSeconds);
+}
+
+GameList<ActiveEffect>* Actor::GetActiveEffects() noexcept
+{
+    POINTER_SKYRIMSE(GameList<ActiveEffect>*(MagicTarget*), s_effects, 38795);
+    return s_effects(&magicTarget);
+}
+
+bool Actor::IsInCombat() const noexcept
+{
+    PAPYRUS_FUNCTION(bool, Actor, IsInCombat);
+    return s_pIsInCombat(this);
+}
+
+Actor* Actor::GetCombatTarget() const noexcept
+{
+    PAPYRUS_FUNCTION(Actor*, Actor, GetCombatTarget);
+    return s_pGetCombatTarget(this);
+}
+
+// TODO: this is a really hacky solution.
+// The internal targeting system should be disabled instead.
+void Actor::StartCombatEx(Actor* apTarget) noexcept
+{
+    if (GetCombatTarget() != apTarget)
+    {
+        StopCombat();
+        StartCombat(apTarget);
+    }
+}
+
+void Actor::SetCombatTargetEx(Actor* apTarget) noexcept
+{
+    if (pCombatController)
+        pCombatController->SetTarget(apTarget);
+}
+
+void Actor::StartCombat(Actor* apTarget) noexcept
+{
+    PAPYRUS_FUNCTION(void, Actor, StartCombat, Actor*);
+    s_pStartCombat(this, apTarget);
+}
+
+void Actor::StopCombat() noexcept
+{
+    PAPYRUS_FUNCTION(void, Actor, StopCombat);
+    s_pStopCombat(this);
+}
+
+bool Actor::AddSpell(SpellItem* apSpell) noexcept
+{
+    using TAddSpell = bool(Actor*, SpellItem*);
+    POINTER_SKYRIMSE(TAddSpell, s_addSpell, 38716);
+    return apSpell && s_addSpell(this, apSpell);
+}
+
+void Actor::SwitchRace(TESRace* apRace, bool aPlayer) noexcept
+{
+    using TSwitchRace = void(Actor*, TESRace*, bool);
+    POINTER_SKYRIMSE(TSwitchRace, s_switchRace, 37925);
+    if (apRace)
+        s_switchRace(this, apRace, aPlayer);
+}
+
+bool Actor::RemoveSpell(MagicItem* apSpell) noexcept
+{
+    if (!apSpell)
+    {
+        spdlog::error("{}: : apSpell is null", __FUNCTION__);
+        return false;
+    }
+    // spdlog::info("{}: : removing: {} from actor: {}", __FUNCTION__, apSpell->formID, formID);
+    return RealRemoveSpell(this, apSpell);
+}
+
+bool Actor::HasPerk(uint32_t aPerkFormId) const noexcept
+{
+    return GetPerkRank(aPerkFormId) != 0;
+}
+
+uint8_t Actor::GetPerkRank(uint32_t aPerkFormId) const noexcept
+{
+    BGSPerk* pPerk = Cast<BGSPerk>(TESForm::GetById(aPerkFormId));
+    if (!pPerk)
+        return 0;
+
+    using TGetPerkRank = uint8_t(const Actor*, BGSPerk*);
+    POINTER_SKYRIMSE(TGetPerkRank, getPerkRank, 37698);
+
+    return getPerkRank(this, pPerk);
+}
+
+bool HookRemoveSpell(Actor* apThis, MagicItem* apSpell)
+{
+    bool result = RealRemoveSpell(apThis, apSpell);
+    if (apThis->GetExtension()->IsLocalPlayer() && result)
+    {
+        //spdlog::info("{}: : spell: {}, ID: {} from local player", __FUNCTION__, apSpell->GetName() , apSpell->formID);
+       RemoveSpellEvent removalEvent;
+
+        removalEvent.TargetId = apThis->formID;
+        removalEvent.SpellId = apSpell->formID;
+        World::Get().GetRunner().Trigger(removalEvent);
+    }
+
+    return result;
+}
+
+Actor* HookCharacterConstructor(Actor* apThis)
+{
+    EMPTY_HOOK_PLACEHOLDER;
+
+    RealCharacterConstructor(apThis);
+
+    return apThis;
+}
+
+Actor* HookCharacterConstructor2(Actor* apThis, uint8_t aUnk)
+{
+    EMPTY_HOOK_PLACEHOLDER;
+
+    RealCharacterConstructor2(apThis, aUnk);
+
+    return apThis;
+}
+
+Actor* HookCharacterDestructor(Actor* apThis)
+{
+    EMPTY_HOOK_PLACEHOLDER;
+
+    auto pExtension = apThis->GetExtension();
+
+    if (pExtension)
+    {
+        pExtension->~ActorExtension();
+    }
+
+    RealCharacterDestructor(apThis);
+
+    return apThis;
+}
+
+GamePtr<Actor> Actor::New() noexcept
+{
+    auto* const pActor = Memory::Allocate<Actor>();
+
+    RealCharacterConstructor(pActor);
+
+    return {pActor};
+}
+
+void Actor::InterruptCast(bool abRefund) noexcept
+{
+    using TInterruptCast = void(Actor*, bool abRefund);
+
+    POINTER_SKYRIMSE(TInterruptCast, s_interruptCast, 38757);
+
+    s_interruptCast(this, abRefund);
+}
+
+TESForm* Actor::GetEquippedWeapon(uint32_t aSlotId) const noexcept
+{
+    if (currentProcess && currentProcess->middleProcess)
+    {
+        auto pMiddleProcess = currentProcess->middleProcess;
+
+        if (aSlotId == 0 && pMiddleProcess->leftEquippedObject)
+            return pMiddleProcess->leftEquippedObject->pObject;
+
+        else if (aSlotId == 1 && pMiddleProcess->rightEquippedObject)
+            return pMiddleProcess->rightEquippedObject->pObject;
+    }
+
+    return nullptr;
+}
+
+TESForm* Actor::GetEquippedAmmo() const noexcept
+{
+    if (currentProcess && currentProcess->middleProcess && currentProcess->middleProcess->ammoEquippedObject)
+    {
+        // TODO: rtti cast to check if is ammo object? or actually, just call AIProcess::GetCurrentAmmo()
+        return currentProcess->middleProcess->ammoEquippedObject->pObject;
+    }
+
+    return nullptr;
+}
+
+bool Actor::IsWearingBodyPiece() const noexcept
+{
+    return GetContainerChanges()->GetArmor(32) != nullptr;
+}
+
+bool Actor::ShouldWearBodyPiece() const noexcept
+{
+    TESNPC* pBase = Cast<TESNPC>(baseForm);
+    if (!pBase)
+        return false;
+
+    BGSOutfit* pDefaultOutfit = pBase->outfits[0];
+    if (!pDefaultOutfit)
+        return false;
+
+    for (auto* pItem : pDefaultOutfit->outfitItems)
+    {
+        TESObjectARMO* pArmor = nullptr;
+
+        if (pItem->formType == FormType::Armor)
+            pArmor = Cast<TESObjectARMO>(pItem);
+        else if (pItem->formType == FormType::LeveledItem)
+        {
+            TESLevItem* pLevItem = Cast<TESLevItem>(pItem);
+            if (!pLevItem || !pLevItem->pLeveledListA || !pLevItem->pLeveledListA->pForm)
+                continue;
+
+            pArmor = Cast<TESObjectARMO>(pLevItem->pLeveledListA->pForm);
+        }
+        else
+            continue;
+
+        if (!pArmor)
+            continue;
+
+        if (pArmor->IsBodyPiece()) 
+            return true;
+    }
+
+    return false;
+}
+
+// Get owner of a summon or raised corpse
+Actor* Actor::GetCommandingActor() const noexcept
+{
+    if (currentProcess && currentProcess->middleProcess && currentProcess->middleProcess->commandingActor)
+    {
+        auto handle = currentProcess->middleProcess->commandingActor.handle;
+        auto* pOwner = Cast<Actor>(TESObjectREFR::GetByHandle(handle.iBits));
+        return pOwner;
+    }
+
+    return nullptr;
+}
+
+// Get owner of a summon or raised corpse
+void Actor::SetCommandingActor(BSPointerHandle<TESObjectREFR> aCommandingActor) noexcept
+{
+    if (currentProcess && currentProcess->middleProcess)
+    {
+        currentProcess->middleProcess->commandingActor = aCommandingActor;
+        flags2 |= ActorFlags::IS_COMMANDED_ACTOR;
+    }
+}
+
+bool Actor::IsPlayerSummon() const noexcept
+{
+    const Actor* pCommandingActor = GetCommandingActor();
+    return pCommandingActor && pCommandingActor->formID == 0x14;
+}
+
+TESForm* Actor::GetCurrentLocation()
+{
+    // we use the safe function which also
+    // checks the form type
+    return FUNC_GetActorLocation(this);
+}
+
+Factions Actor::GetFactions() const noexcept
+{
+    Factions result;
+
+    auto* pNpc = Cast<TESNPC>(baseForm);
+    if (pNpc)
+    {
+        auto& factions = pNpc->actorData.factions;
+
+        for (auto i = 0u; i < factions.length; ++i)
+        {
+            Faction faction;
+
+            faction.Id = ToSession(factions[i].faction->formID).value_or(GameId{});
+            faction.Rank = factions[i].rank;
+
+            result.NpcFactions.push_back(faction);
+        }
+    }
+
+    auto* pChanges = Cast<ExtraFactionChanges>(extraData.GetByType(ExtraDataType::Faction));
+    if (pChanges)
+    {
+        for (auto i = 0u; i < pChanges->entries.length; ++i)
+        {
+            Faction faction;
+
+            faction.Id = ToSession(pChanges->entries[i].faction->formID).value_or(GameId{});
+            faction.Rank = pChanges->entries[i].rank;
+
+            result.ExtraFactions.push_back(faction);
+        }
+    }
+
+    return result;
+}
+
+float Actor::GetActorValue(uint32_t aId) const noexcept
+{
+    return EngineVirtual(actorValueOwner).GetValue(aId);
+}
+
+float Actor::GetActorPermanentValue(uint32_t aId) const noexcept
+{
+    return EngineVirtual(actorValueOwner).GetPermanentValue(aId);
+}
+
+float Actor::GetActorValueModifier(ActorValueOwner::ForceMode aMode, uint32_t aId) const noexcept
+{
+    // CommonLibSSE-NG Actor::GetActorValueModifier (38469).
+    POINTER_SKYRIMSE(float(const Actor*, uint32_t, uint32_t), s_modifier, 38469);
+    return s_modifier(this, static_cast<uint32_t>(aMode), aId);
+}
+
+float Actor::GetActorTemporaryValue(uint32_t aId) const noexcept
+{
+    return GetActorValueModifier(ActorValueOwner::ForceMode::TEMPORARY, aId);
+}
+
+void Actor::SetActorValue(uint32_t aId, float aValue) noexcept
+{
+    EngineVirtual(actorValueOwner).SetValue(aId, aValue);
+}
+
+void Actor::ForceActorValue(ActorValueOwner::ForceMode aMode, uint32_t aId, float aValue) noexcept
+{
+    float initialValue = aMode == ActorValueOwner::ForceMode::PERMANENT 
+                         ? GetActorPermanentValue(aId)
+                         : GetActorValue(aId);
+
+    if (aValue == initialValue)
+        return;
+
+    EngineVirtual(actorValueOwner).ForceCurrent(aMode, aId, aValue - initialValue);
+}
+
+void Actor::DamageHealth(float aDamage, Actor* apAttacker) noexcept
+{
+    // Actor::SetActorValueModifiers (38468), as DoDamage (37335) calls it: calls HandleHealthDamage (38606).
+    using TSetActorValueModifiers = void(Actor*, int32_t aModifier, uint32_t aId, float aValue, Actor* apSource);
+    POINTER_SKYRIMSE(TSetActorValueModifiers, s_setActorValueModifiers, 38468);
+    constexpr int32_t cDamageModifier = 2;
+    (s_setActorValueModifiers.Get())(this, cDamageModifier, ActorValueInfo::kHealth, -aDamage, apAttacker);
+}
+
+Inventory Actor::GetActorInventory() const noexcept
+{
+    Inventory inventory = GetInventory();
+
+    inventory.CurrentMagicEquipment = GetMagicEquipment();
+
+    return inventory;
+}
+
+MagicEquipment Actor::GetMagicEquipment() const noexcept
+{
+    MagicEquipment equipment;
+
+    uint32_t mainId = magicItems[0] ? magicItems[0]->formID : 0;
+    equipment.LeftHandSpell = ToSession(mainId).value_or(GameId{});
+
+    uint32_t secondaryId = magicItems[1] ? magicItems[1]->formID : 0;
+    equipment.RightHandSpell = ToSession(secondaryId).value_or(GameId{});
+
+    uint32_t shoutId = equippedShout ? equippedShout->formID : 0;
+    equipment.Shout = ToSession(shoutId).value_or(GameId{});
+
+    return equipment;
+}
+
+Inventory Actor::GetEquipment() const noexcept
+{
+    Inventory inventory = GetInventory();
+    inventory.RemoveByFilter([](const auto& entry) { return !entry.IsWorn(); });
+    inventory.CurrentMagicEquipment = GetMagicEquipment();
+    return inventory;
+}
+
+int32_t Actor::GetGoldAmount() const noexcept
+{
+    using TGetGoldAmount = int32_t(const Actor*);
+    POINTER_SKYRIMSE(TGetGoldAmount, s_getGoldAmount, 37527);
+    return s_getGoldAmount(this);
+}
+
+void Actor::SetActorInventory(const Inventory& acInventory) noexcept
+{
+    spdlog::info("Setting inventory for actor {:X}", formID);
+
+    // The UnEquipAll() that used to be here is redundant,
+    // as RemoveAllItems() unequips every item if needed.
+    // Placing this UnEquipAll() here seems to trigger a Skyrim bug/race.
+
+    Inventory currentInventory = GetActorInventory();
+
+    if (!this->GetExtension()->IsPlayer() && currentInventory.ContainsQuestItems())
+        SetInventoryRetainingQuestItems(currentInventory, acInventory);
+    else
+        SetInventory(acInventory);
+
+    SetMagicEquipment(acInventory.CurrentMagicEquipment);
+}
+
+void Actor::SetMagicEquipment(const MagicEquipment& acEquipment) noexcept
+{
+    auto* pEquipManager = EquipManager::Get();
+
+    if (acEquipment.LeftHandSpell)
+    {
+        uint32_t mainHandWeaponId = ToGame(acEquipment.LeftHandSpell);
+        spdlog::debug("Setting left hand spell: {:X}", mainHandWeaponId);
+        pEquipManager->EquipSpell(this, TESForm::GetById(mainHandWeaponId), 0);
+    }
+
+    if (acEquipment.RightHandSpell)
+    {
+        uint32_t secondaryHandWeaponId = ToGame(acEquipment.RightHandSpell);
+        spdlog::debug("Setting right hand spell: {:X}", secondaryHandWeaponId);
+        pEquipManager->EquipSpell(this, TESForm::GetById(secondaryHandWeaponId), 1);
+    }
+
+    if (acEquipment.Shout)
+    {
+        uint32_t shoutId = ToGame(acEquipment.Shout);
+        spdlog::debug("Setting shout: {:X}", shoutId);
+        pEquipManager->EquipShout(this, TESForm::GetById(shoutId));
+    }
+}
+
+void Actor::SetActorValues(const ActorValues& acActorValues) noexcept
+{
+    ActorPools::Restore(acActorValues, [this](int32_t aId) { return GetActorValue(aId); },
+        [this](int32_t aId) { return GetActorTemporaryValue(aId); },
+        [this](int32_t aMode, int32_t aId, float aTarget) {
+            ForceActorValue(static_cast<ActorValueOwner::ForceMode>(aMode), aId, aTarget);
+        });
+    for (const auto& [cId, cValue] : acActorValues.ActorValuesList)
+        if (!ActorPools::IsPool(cId))
+            SetActorValue(cId, cValue);
+}
+
+void Actor::SetFactions(const Factions& acFactions) noexcept
+{
+    RemoveFromAllFactions();
+
+    for (auto& entry : acFactions.NpcFactions)
+    {
+        auto pForm = GetById(ToGame(entry.Id));
+        auto pFaction = Cast<TESFaction>(pForm);
+        if (pFaction)
+        {
+            SetFactionRank(pFaction, entry.Rank);
+        }
+    }
+
+    for (auto& entry : acFactions.ExtraFactions)
+    {
+        auto pForm = GetById(ToGame(entry.Id));
+        auto pFaction = Cast<TESFaction>(pForm);
+        if (pFaction)
+        {
+            SetFactionRank(pFaction, entry.Rank);
+        }
+    }
+}
+
+void Actor::SetFactionRank(const TESFaction* apFaction, int8_t aRank) noexcept
+{
+    using TSetFactionRankInternal = void(Actor*, const TESFaction*, int8_t);
+
+    POINTER_SKYRIMSE(TSetFactionRankInternal, s_setFactionRankInternal, 37677);
+
+    s_setFactionRankInternal(this, apFaction, aRank);
+}
+
+void Actor::SetPlayerTeammate(bool aSet) noexcept
+{
+    using TSetPlayerTeammate = void(Actor*, bool aSet, bool abCanDoFavor);
+    POINTER_SKYRIMSE(TSetPlayerTeammate, setPlayerTeammate, 37717);
+    return setPlayerTeammate(this, aSet, true);
+}
+
+void Actor::UnEquipAll() noexcept
+{
+    EquipManager::Get()->UnequipAll(this);
+
+    // Taken from skyrim's code shouts can be two form types apparently
+    if (equippedShout && ((int)equippedShout->formType - 41) <= 1)
+    {
+        EquipManager::Get()->UnEquipShout(this, equippedShout);
+        equippedShout = nullptr;
+    }
+}
+
+void Actor::RemoveFromAllFactions() noexcept
+{
+    PAPYRUS_FUNCTION(void, Actor, RemoveFromAllFactions);
+
+    s_pRemoveFromAllFactions(this);
+}
+
+using TInitiateMountPackage = bool(Actor*, Actor* apMount);
+static TInitiateMountPackage* RealInitiateMountPackage = nullptr;
+using TDetachInteraction = uint64_t(RefrInteraction*, bool);
+static TDetachInteraction* RealDetachInteraction = nullptr;
+
+bool Actor::InitiateMountPackage(Actor* apMount) noexcept
+{
+    return RealInitiateMountPackage(this, apMount);
+}
+
+bool Actor::PutOnMount(Actor* apMount) noexcept
+{
+    using TConstruct = RefrInteraction*(void* apMemory, Actor* apRider, Actor* apMount);
+    using TAttach = void(RefrInteraction** appInteraction);
+    POINTER_SKYRIMSE(TConstruct, s_construct, 40345); // MountInteraction::MountInteraction
+    POINTER_SKYRIMSE(TAttach, s_attach, 41532);       // into the rider's and the mount's ExtraInteraction
+    if (!apMount)
+        return false;
+    RefrInteraction* pInteraction = s_construct(Memory::Allocate(0x38), this, apMount);
+    InterlockedIncrement(&pInteraction->refCount);
+    s_attach(&pInteraction);
+    if (InterlockedDecrement(&pInteraction->refCount) == 0)
+        delete pInteraction;
+    return true;
+}
+
+void Actor::SeatOnMount(Actor* apMount) noexcept
+{
+    using TSeated = void(Actor*);
+    POINTER_SKYRIMSE(TSeated, s_onSeated, 41533);
+    const RefrInteraction* pLink = GetOwnInteraction();
+    const bool cLinked = pLink && TESObjectREFR::GetByHandle(pLink->actorHandle) == this && TESObjectREFR::GetByHandle(pLink->targetHandle) == apMount;
+    if (!cLinked && !PutOnMount(apMount))
+        return;
+    actorState.SetSitSleepStateFlags(3);
+    s_onSeated(this);
+}
+
+bool Actor::SitOnMountQuick(Actor* apMount) noexcept
+{
+    return PutOnMount(apMount) && PutActorOnMountQuick();
+}
+
+TESObjectREFR* Actor::GetSeatFurniture() const noexcept
+{
+    using TGetOccupiedFurniture = uint32_t*(const Actor*, uint32_t* apHandle);
+    POINTER_SKYRIMSE(TGetOccupiedFurniture, s_getOccupiedFurniture, 38708);
+    // The engine leaves the handle set after the actor stands (actor-ai-and-copies.md).
+    if (!actorState.GetSitSleepState())
+        return nullptr;
+    uint32_t handle = 0;
+    s_getOccupiedFurniture(this, &handle);
+    TESObjectREFR* pFurniture = TESObjectREFR::GetByHandle(handle);
+    return pFurniture && pFurniture->formType != FormType::Character ? pFurniture : nullptr;
+}
+
+void Actor::LinkFurnitureGraphs(TESObjectREFR* apFurniture) noexcept
+{
+    using TAddDependent = bool(BSAnimationGraphManager*, BSAnimationGraphManager** appDependent, bool aShare);
+    using TRemoveDependent = bool(BSAnimationGraphManager*, BSAnimationGraphManager** appDependent);
+    POINTER_SKYRIMSE(TAddDependent, s_addDependent, 63364);
+    POINTER_SKYRIMSE(TRemoveDependent, s_removeDependent, 63366);
+    const auto cGraphsOf = [](const TESObjectREFR* apObject) {
+        BSAnimationGraphManager* pManager = nullptr;
+        if (apObject)
+            EngineVirtual(apObject->animationGraphHolder).GetBSAnimationGraph(&pManager);
+        return GraphReference<BSAnimationGraphManager>(pManager);
+    };
+    ActorExtension& link = *GetExtension();
+    const uint32_t cWanted = apFurniture ? apFurniture->formID : 0;
+    const auto cOwn = cGraphsOf(this);
+    const auto cFurniture = cGraphsOf(apFurniture);
+    if (link.LinkedFurniture == cWanted && link.LinkedOwnGraphs == cOwn.get() && link.LinkedFurnitureGraphs == cFurniture.get())
+        return;
+    // The old link, on the same manager of its own (a new one starts with none); the list holds the furniture's.
+    if (link.LinkedFurnitureGraphs && cOwn && link.LinkedOwnGraphs == cOwn.get())
+    {
+        auto* pOld = const_cast<BSAnimationGraphManager*>(static_cast<const BSAnimationGraphManager*>(link.LinkedFurnitureGraphs));
+        s_removeDependent(cOwn.get(), &pOld);
+    }
+    link.LinkedFurniture = 0;
+    link.LinkedOwnGraphs = link.LinkedFurnitureGraphs = nullptr;
+    // Either graph missing (a 3D still loading): linked when it loads (AiStateService::RelinkSeats).
+    if (!cOwn || !cFurniture)
+        return;
+    BSAnimationGraphManager* pNew = cFurniture.get();
+    s_addDependent(cOwn.get(), &pNew, true);
+    link.LinkedFurniture = cWanted;
+    link.LinkedOwnGraphs = cOwn.get();
+    link.LinkedFurnitureGraphs = cFurniture.get();
+}
+
+RefrInteraction* Actor::GetOwnInteraction() const noexcept
+{
+    const auto* pExtra = static_cast<const ExtraInteraction*>(extraData.GetByType(ExtraDataType::Interaction));
+    return pExtra ? pExtra->interaction : nullptr;
+}
+
+void Actor::HoldRider(Actor* apRider, bool aReplace) noexcept
+{
+    using TSetInteraction = void(ExtraDataList*, RefrInteraction** appInteraction);
+    POINTER_SKYRIMSE(TSetInteraction, s_setInteraction, 12074);
+    RefrInteraction* pLink = apRider ? apRider->GetOwnInteraction() : nullptr;
+    if (aReplace || !pLink)
+    {
+        RefrInteraction* pNone = nullptr;
+        s_setInteraction(&extraData, &pNone);
+    }
+    if (pLink)
+        s_setInteraction(&extraData, &pLink);
+}
+
+void Actor::EvaluatePackageNow() noexcept
+{
+    using TEvaluate = void(Actor*, bool aImmediate, bool aResetAI);
+    POINTER_SKYRIMSE(TEvaluate, s_evaluate, 37401);
+    s_evaluate(this, true, false);
+}
+
+void Actor::EndMountPair() noexcept
+{
+    BSFixedString end("PairEnd");
+    SendAnimationEvent(&end);
+}
+
+bool Actor::StopRidingQuick() noexcept
+{
+    using TStopRidingQuick = bool(Actor*, uint32_t aMode);
+    POINTER_SKYRIMSE(TStopRidingQuick, s_stopRidingQuick, 38705);
+    return s_stopRidingQuick(this, 2);
+}
+
+void Actor::EndRideNow() noexcept
+{
+    using TSetSitSleepState = void(AIProcess*, Actor*, uint32_t aState, uint32_t* apFurniture, int32_t aMarker);
+    using TFinishDismount = void(Actor*);
+    POINTER_SKYRIMSE(TSetSitSleepState, s_setSitSleepState, 39912);
+    POINTER_SKYRIMSE(TFinishDismount, s_finishDismount, 38696);
+    if (currentProcess)
+    {
+        uint32_t noFurniture = 0; // g_invalidRefHandle
+        s_setSitSleepState(currentProcess, this, 0, &noFurniture, -1);
+    }
+    s_finishDismount(this);
+}
+
+void Actor::FinishDismount() noexcept
+{
+    using TFinishDismount = void(Actor*);
+    POINTER_SKYRIMSE(TFinishDismount, s_finishDismount, 38696);
+    s_finishDismount(this);
+}
+
+void Actor::GenerateMagicCasters() noexcept
+{
+    using CS = MagicSystem::CastingSource;
+
+    for (int i = 0; i < 4; i++)
+    {
+        if (casters[i] == nullptr)
+            casters[i] = Cast<ActorMagicCaster>(GetMagicCaster(static_cast<CS>(i)));
+    }
+}
+
+bool Actor::IsDead() const noexcept
+{
+    PAPYRUS_FUNCTION(bool, Actor, IsDead);
+
+    return s_pIsDead(this);
+}
+
+bool Actor::LiesInRagdoll() const noexcept
+{
+    using TIsInRagdollState = bool(const Actor*);
+    POINTER_SKYRIMSE(TIsInRagdollState, s_isInRagdollState, 37491);
+    return (IsDead() || actorState.GetKnockState() != 0) && s_isInRagdollState.Get()(this);
+}
+
+bool Actor::IsDragon() const noexcept
+{
+    const ActorExtension* pExtension = const_cast<Actor*>(this)->GetExtension();
+    return BehaviorVar::IsDragon(pExtension->GraphDescriptorHash);
+}
+
+void Actor::StartDeferredKill() noexcept
+{
+    // Character::StartDeferredKill (38616), with the papyrus wrapper's argument.
+    using TStartDeferredKill = void(Actor*, bool aScripted);
+    POINTER_SKYRIMSE(TStartDeferredKill, s_startDeferredKill, 38616);
+    (s_startDeferredKill.Get())(this, true);
+}
+
+void Actor::EndDeferredKill() noexcept
+{
+    // Actor::EndDeferredKill (38618); a kill it held back is queued (task queue), after any kill made now.
+    using TEndDeferredKill = void(Actor*, bool aScripted);
+    POINTER_SKYRIMSE(TEndDeferredKill, s_endDeferredKill, 38618);
+    (s_endDeferredKill.Get())(this, true);
+}
+
+bool Actor::IsHeldOnGuest() noexcept
+{
+    const uint32_t cSession = GuestNpcs::Session();
+    if (!cSession)
+        return false;
+    const ActorExtension* pExtension = GetExtension();
+    return GuestNpcs::Held(cSession, this == PlayerCharacter::Get(), pExtension->IsCopy(), pExtension->ClaimedIn.load());
+}
+
+bool Actor::RefuseHeld3D() noexcept
+{
+    ActorExtension* pExtension = GetExtension();
+    if (IsHeldOnGuest())
+    {
+        // Marked before the second look: SetActorCopy queues it once it reads the mark, or this sees the copy.
+        pExtension->Refused3D.store(true);
+        if (IsHeldOnGuest())
+            return true;
+    }
+    pExtension->Refused3D.store(false);
+    return false;
+}
+
+void Actor::FinishLoad3D() noexcept
+{
+    const bool cRefused = GetExtension()->Refused3D.load();
+    if (!cRefused && !(GetNiNode() && IsHeldOnGuest()))
+        return;
+    const uint32_t cFormId = formID;
+    if (cRefused)
+        World::Get().GetRunner().Trigger(NpcHeldEvent{cFormId});
+    World::Get().GetRunner().Queue([cFormId] {
+        if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
+            pActor->ApplyHeld3D();
+    });
+}
+
+void Actor::ApplyHeld3D() noexcept
+{
+    // Held with 3D (shown before holding started, or a load begun then): reloaded, so refused.
+    if (IsHeldOnGuest())
+    {
+        if (GetNiNode() && !IsDisabled())
+            Reload3D();
+        return;
+    }
+    if (!GetExtension()->Refused3D.load())
+        return;
+    // As Enable (19800): its cell loaded (TES::IsCellLoaded 13308), no 3D, then QueueReference (13057) at the cell's
+    // priority (TES::GetCellLoadPriority 13321). A job still out only takes the priority: its Finish calls this again.
+    using TIsCellLoaded = bool(TES*, TESObjectCELL*, bool aAttachedOnly);
+    using TGetCellLoadPriority = uint32_t(TES*, TESObjectCELL*, bool aFromCamera);
+    using TQueueReference = void(void* apQueuedHandles, TESObjectREFR*, uint32_t aPriority, bool aNow);
+    POINTER_SKYRIMSE(TIsCellLoaded, s_isCellLoaded, 13308);
+    POINTER_SKYRIMSE(TGetCellLoadPriority, s_getCellLoadPriority, 13321);
+    POINTER_SKYRIMSE(TQueueReference, s_queueReference, 13057);
+    POINTER_SKYRIMSE(void*, s_queuedHandles, 400332);
+    TES* pTes = TES::Get();
+    if (!pTes || !parentCell || IsDeleted() || GetNiNode() || !s_isCellLoaded(pTes, parentCell, false))
+        return;
+    s_queueReference(*s_queuedHandles.Get(), this, s_getCellLoadPriority(pTes, parentCell, false), false);
+}
+
+bool Actor::IsInKillMove() const noexcept
+{
+    // Actor::IsInKillMove (38615): either half of a kill move.
+    using TIsInKillMove = bool(const Actor*);
+    POINTER_SKYRIMSE(TIsInKillMove, s_isInKillMove, 38615);
+    return (s_isInKillMove.Get())(this);
+}
+
+void Actor::EndPairs() noexcept
+{
+    // BGSSynchronizedAnimationManager::EndPairsOf 32809; its instances send the halves PairEnd, then PairedStop.
+    using TEndPairsOf = void(void*, const uint32_t*);
+    POINTER_SKYRIMSE(TEndPairsOf, s_endPairsOf, 32809);
+    POINTER_SKYRIMSE(void*, s_manager, 401100);
+    const uint32_t cHandle = GetHandle().handle.iBits;
+    (s_endPairsOf.Get())(*s_manager.Get(), &cHandle);
+    StopPairClip();
+}
+
+bool Actor::InPair() const noexcept
+{
+    using TIsInInstance = bool(void*, const uint32_t*);
+    POINTER_SKYRIMSE(TIsInInstance, s_isInInstance, 32808);
+    POINTER_SKYRIMSE(void*, s_manager, 401100);
+    const uint32_t cHandle = GetHandle().handle.iBits;
+    return *s_manager.Get() && (s_isInInstance.Get())(*s_manager.Get(), &cHandle);
+}
+
+bool Actor::InPairClip() noexcept
+{
+    // The graph's bIsSynced, on through a pair's clip.
+    BSFixedString name("bIsSynced");
+    bool value = false;
+    EngineVirtual(animationGraphHolder).GetVariableBool(&name, &value);
+    return value;
+}
+
+void Actor::StopPairClip() noexcept
+{
+    // An attacker's KillMoveState leaves only on pairedStop, sent by the instance only if PairEnd went unanswered.
+    BSFixedString stop("pairedStop");
+    SendAnimationEvent(&stop);
+}
+
+void Actor::EnterKillMove(Actor* apKiller) noexcept
+{
+    using TEnterKillMove = int64_t(Actor*, Actor*);
+    POINTER_SKYRIMSE(TEnterKillMove, s_enterKillMove, 38613);
+    (s_enterKillMove.Get())(this, apKiller);
+}
+
+void Actor::EndKillMove() noexcept
+{
+    // Character 38614: clears the kill move flag, and kills an actor with a recorded killer.
+    using TEndKillMove = void(Actor*);
+    POINTER_SKYRIMSE(TEndKillMove, s_endKillMove, 38614);
+    (s_endKillMove.Get())(this);
+}
+
+bool Actor::IsHeldByKillMove() const noexcept
+{
+    // Character 38619 (in a deferred kill, as KillActorHandler tests it): a kill move holds its victim so until KillActor.
+    using TIsInDeferredKill = bool(const Actor*);
+    POINTER_SKYRIMSE(TIsInDeferredKill, s_isInDeferredKill, 38619);
+    return IsInKillMove() && (s_isInDeferredKill.Get())(this);
+}
+
+void Actor::Kill() noexcept
+{
+    // Never this game's player; a player's copy dies as its owner did.
+    ActorExtension* pExtension = GetExtension();
+    if (pExtension->IsLocalPlayer())
+        return;
+
+    EndDeferredKill();
+
+    // TODO: these args are kind of bogus of course
+    KillImpl(nullptr, 100.f, true, true);
+
+    // Papyrus kill will not go through if it is queued by a kill move
+    /*
+    PAPYRUS_FUNCTION(void, Actor, Kill, void*);
+    s_pKill(this, NULL);
+    */
+}
+
+void Actor::HoldKill(bool aHold) noexcept
+{
+    GetExtension()->KillHeld.store(aHold, std::memory_order_relaxed);
+    if (aHold)
+    {
+        StartDeferredKill();
+        return;
+    }
+    // A death is its owner's word: a kill counted meanwhile is not queued for the player (40036).
+    if (auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr; pMiddle && pMiddle->deferredKill > 1)
+        pMiddle->deferredKill = 1;
+    EndDeferredKill();
+}
+
+bool Actor::KillCounted() const noexcept
+{
+    const auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr;
+    return pMiddle && pMiddle->deferredKill > 1;
+}
+
+bool Actor::KillQueued() const noexcept
+{
+    const auto* pMiddle = currentProcess ? currentProcess->middleProcess : nullptr;
+    return pMiddle && pMiddle->killQueued;
+}
+
+void Actor::KillBy(Actor* apKiller) noexcept
+{
+    if (GetExtension()->IsLocalPlayer())
+        return;
+    GetExtension()->PoseHeldUntil.store(0, std::memory_order_relaxed);
+    HoldKill(false);
+    KillImpl(apKiller, 100.f, true, false);
+}
+
+bool Actor::PerformPlainly(BGSAction* apAction) noexcept
+{
+    if (!apAction)
+        return false;
+    // Through 38949's own entry, as 42350's Func5 (41557) goes: our hook records and sends it, and its swing ends the
+    // yield's blow guard (ReplayState::StartsAttack).
+    using TPerformAction = uint8_t(ActorMediator*, TESActionData*);
+    POINTER_SKYRIMSE(TPerformAction, s_performAction, 38949);
+    TESActionData actionData(2, this, apAction, nullptr);
+    const bool cTaken = s_performAction.Get()(ActorMediator::Get(), &actionData) != 0;
+    spdlog::debug("{:X} performs {:X} with no target: '{}' {}", formID, apAction->formID, actionData.eventName.AsAscii(), cTaken ? "taken" : "refused");
+    return cTaken;
+}
+
+bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
+{
+    ActorExtension* pExtension = GetExtension();
+    if (pExtension->IsLocalPlayer())
+        return false;
+
+    // KillImpl (37896) performs the death animation, or RagdollInstant when told to ragdoll at once; a
+    // copy's own actions are refused unless forced.
+    const bool cRagdoll = SameName(acAction.EventName, "RagdollInstant");
+    const auto cAttempt = pExtension->LatestAnimation.BeginAttempt();
+    pExtension->PoseHeldUntil.store(0, std::memory_order_relaxed);
+    EndDeferredKill();
+    g_forceAnimation = true;
+    KillImpl(nullptr, 100.f, true, cRagdoll);
+    g_forceAnimation = false;
+    World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
+    return pExtension->LatestAnimation.FinishAttempt(acAction.ActionId, cAttempt);
+}
+
+void Actor::KillBesideGraph(const ActionEvent& acAction) noexcept
+{
+    ActorExtension* pExtension = GetExtension();
+    if (pExtension->IsLocalPlayer())
+        return;
+    pExtension->PoseHeldUntil.store(0, std::memory_order_relaxed);
+    EndDeferredKill();
+    KillImpl(nullptr, 100.f, true, SameName(acAction.EventName, "RagdollInstant"));
+    World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
+}
+
+void Actor::Reset() noexcept
+{
+    using ObjectReference = TESObjectREFR;
+
+    PAPYRUS_FUNCTION(void, ObjectReference, Reset, int, TESObjectREFR*);
+
+    s_pReset(this, 0, nullptr);
+}
+
+bool Actor::PlayIdle(TESIdleForm* apIdle) noexcept
+{
+    PAPYRUS_FUNCTION(bool, Actor, PlayIdle, TESIdleForm*);
+    return s_pPlayIdle(this, apIdle);
+}
+
+void Actor::Respawn() noexcept
+{
+    Resurrect(false);
+    Reset();
+}
+
+bool Actor::IsVampireLord() const noexcept
+{
+    return race && race->formID == 0x200283A;
+}
+
+extern thread_local bool g_forceAnimation;
+
+void Actor::FixVampireLordModel() noexcept
+{
+    TESBoundObject* pObject = Cast<TESBoundObject>(TESForm::GetById(0x2011a84));
+    if (!pObject)
+        return;
+
+    {
+        ScopedInventoryOverride _;
+        AddObjectToContainer(pObject, nullptr, 1, nullptr);
+    }
+
+    EquipManager::Get()->Equip(this, pObject, nullptr, 1, nullptr, false, true, false, false);
+
+    g_forceAnimation = true;
+
+    BSFixedString str("isLevitating");
+    uint32_t isLevitating = GetAnimationVariableInt(&str);
+    spdlog::critical("isLevitating {}", isLevitating);
+
+    // By default, a loaded vampire lord is not levitating.
+    if (isLevitating)
+    {
+        BSFixedString levitation("LevitationToggle");
+        SendAnimationEvent(&levitation);
+    }
+
+    // TODO: weapon draw code does not seem to take care of this
+    //BSFixedString weapEquip("WeapEquip");
+    //SendAnimationEvent(&weapEquip);
+
+    g_forceAnimation = false;
+}
+
+char HookSetPosition(Actor* apThis, NiPoint3& aPosition)
+{
+    const auto pExtension = apThis ? apThis->GetExtension() : nullptr;
+    const auto bIsCopy = pExtension && pExtension->IsCopy();
+
+    // A copy is placed by the sync, except while its engine steps it (its controller's place written back after
+    // the physics step: HookApplyMovement) or its seat carries it (its REFRSyncController, 20318).
+    if (bIsCopy && !ScopedReferencesOverride::IsOverriden() &&
+        !ReplayState::CopyTakesEnginePlace(pExtension->HasCopyGoal, apThis->extraData.Contains(ExtraDataType::Interaction),
+                                           apThis->actorState.GetSitSleepState()))
+        return 1;
+
+    // A non-actor's move reaches the change funnel (RecordMove).
+    if (apThis->formType != Actor::Type)
+    {
+        const NiPoint3 cBefore = apThis->position;
+        const char cResult = RealSetPosition(apThis, aPosition);
+        apThis->RecordMove(apThis->position != cBefore);
+        return cResult;
+    }
+
+    // Don't interfere with the player, or if we are calling our self
+    if (apThis == PlayerCharacter::Get() || ScopedReferencesOverride::IsOverriden())
+        return RealSetPosition(apThis, aPosition);
+
+    ScopedReferencesOverride recursionGuard;
+
+    // A stepped copy's controller's place, at its owner's height on its owner's place (CopyStep::RestHeight). Writes the
+    // reference only (no warp): its capsule rests where it does.
+    NiPoint3 place = aPosition;
+    if (bIsCopy && pExtension->HasCopyGoal)
+        place.z = CopyStep::RestHeight({place.x, place.y, place.z}, {pExtension->CopyGoal[0], pExtension->CopyGoal[1], pExtension->CopyGoal[2]});
+
+    // It just works TM
+    apThis->SetPosition(place, false);
+
+    return 1;
+}
+
+// Actor's BSTEventSink<BSTransformDeltaEvent>::ProcessEvent (37996): its graph's root motion, and an actor in its
+// ragdoll kept on it (its controller, SetRotationZ, SetPosition). A copy lying in its ragdoll is let through, as its
+// owner is: moved anywhere else in the frame, its skeleton shows its old pose at the new place (physics-sync.md).
+using TTransformDelta = uint32_t(void*, const void*, void*);
+static TTransformDelta* RealTransformDelta = nullptr;
+
+uint32_t HookTransformDelta(void* apSink, const void* apEvent, void* apSource)
+{
+    auto* pActor = reinterpret_cast<Actor*>(static_cast<uint8_t*>(apSink) - offsetof(Actor, tdEvent));
+    if (const auto* pExtension = pActor->GetExtension(); pExtension && pExtension->IsCopy() && pActor->LiesInRagdoll())
+    {
+        ScopedReferencesOverride engineMoves;
+        return RealTransformDelta(apSink, apEvent, apSource);
+    }
+    return RealTransformDelta(apSink, apEvent, apSource);
+}
+
+using TForceState = void(Actor*, const NiPoint3&, float, float, TESObjectCELL*, TESWorldSpace*, bool);
+static TForceState* RealForceState = nullptr;
+
+void HookForceState(Actor* apThis, const NiPoint3& acPosition, float aX, float aZ, TESObjectCELL* apCell, TESWorldSpace* apWorldSpace, bool aUnkBool)
+{
+    /*const auto pNpc = Cast<TESNPC>(apThis->baseForm);
+    if (pNpc)
+    {
+        spdlog::info("For TESNPC: {}, spawn at {} {} {}", pNpc->fullName.value, apPosition->m_x, apPosition->m_y,
+                     apPosition->m_z);
+    }*/
+
+    // if (apThis != PlayerCharacter::Get())
+    //     return;
+
+    return RealForceState(apThis, acPosition, aX, aZ, apCell, apWorldSpace, aUnkBool);
+}
+
+using TDamageActor = bool(Actor*, float aDamage, Actor* apHitter, bool aKillMove);
+static TDamageActor* RealDamageActor = nullptr;
+
+// TODO: this is flawed, since it does not account for invulnerable actors
+// Set while an active effect applies its value (HookApplyActorEffect): damage then comes from an
+// effect this game owns, never from a replayed melee swing.
+static thread_local bool s_applyingEffect = false;
+
+bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMove)
+{
+    if (apHitter)
+        World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
+
+    if (apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil))
+    {
+        spdlog::debug("{:X}'s blow on {:X} dropped: its pair yielded", apHitter->formID, apThis->formID);
+        return false;
+    }
+
+    float realDamage = GameplayFormulas::CalculateRealDamage(apThis, aDamage, aKillMove);
+
+    float currentHealth = apThis->GetActorValue(ActorValueInfo::kHealth);
+    bool wouldKill = (currentHealth - realDamage) <= 0.f;
+
+    // Direct authority: the hittee's owner applies a hit; our player's hit on another game's actor (a host NPC, another
+    // player) is a request to that owner, and the copy mirrors the owner's health instead.
+    const bool cWorldHit = WorldHits::Current();
+    const auto cRoute = HitRules::Of(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), s_applyingEffect, cWorldHit,
+                                     cWorldHit && GuestNpcs::Session() != 0);
+    switch (cRoute)
+    {
+    case HitRules::Route::Apply:
+        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
+        return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
+    case HitRules::Route::AskOwner:
+        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter ? apHitter->formID : 0));
+        return wouldKill;
+    case HitRules::Route::Mirror: return wouldKill;
+    case HitRules::Route::Drop: return false;
+    }
+    return false;
+}
+
+using TApplyActorEffect = void(ActiveEffect*, Actor* apTarget, float aEffectValue, unsigned int unk1);
+static TApplyActorEffect* RealApplyActorEffect = nullptr;
+
+void HookApplyActorEffect(ActiveEffect* apThis, Actor* apTarget, float aEffectValue, unsigned int unk1)
+{
+    struct ScopedEffect
+    {
+        ScopedEffect() { s_applyingEffect = true; }
+        ~ScopedEffect() { s_applyingEffect = false; }
+    } scope;
+
+    const auto* pValueModEffect = Cast<ValueModifierEffect>(apThis);
+
+    if (pValueModEffect)
+    {
+        if (pValueModEffect->actorValueIndex == ActorValueInfo::kHealth && aEffectValue > 0.0f)
+        {
+            if (apTarget && apTarget->GetExtension())
+            {
+                const auto pExTarget = apTarget->GetExtension();
+                if (pExTarget->IsLocal())
+                {
+                    World::Get().GetRunner().Trigger(HealthChangeEvent(apTarget->formID, aEffectValue));
+                    return RealApplyActorEffect(apThis, apTarget, aEffectValue, unk1);
+                }
+                return;
+            }
+        }
+    }
+
+    return RealApplyActorEffect(apThis, apTarget, aEffectValue, unk1);
+}
+
+// The passive regeneration of health (24), magicka (25) and stamina (26): aDelta seconds' worth, restored
+// into the damage modifier. The per-value updates (38451 health, 38452 stamina, 38453 magicka) call it every
+// frame. Copies take these values from their owner, so they never regenerate. (Upstream hooked 37448,
+// Actor::GetSubmergedLevel, here since its 2021 AE port; see docs/re/systems/actor-values.md.)
+using TRegenerateActorValue = void(Actor*, int32_t aActorValue, float aDelta);
+static TRegenerateActorValue* RealRegenerateActorValue = nullptr;
+
+void HookRegenerateActorValue(Actor* apThis, int32_t aActorValue, float aDelta)
+{
+    if (apThis->GetExtension()->IsCopy())
+        return;
+
+    RealRegenerateActorValue(apThis, aActorValue, aDelta);
+}
+
+// An actor got an item: its inventory change, for its copies.
+static void ReportAdd(const Actor& acActor, const TESBoundObject& acItem, ExtraDataList* apExtraData, int32_t aCount) noexcept
+{
+    if (ScopedInventoryOverride::IsOverriden())
+        return;
+    Inventory::Entry item{};
+    item.BaseId = ItemId(acItem.formID).value_or(GameId{});
+    item.Count = aCount;
+    if (apExtraData)
+        TESObjectREFR::GetItemFromExtraData(item, apExtraData);
+    InventoryChangeEvent event(acActor.formID, std::move(item));
+    event.StoryGiven = GuestScripts::StoryGiving();
+    event.AliasHeld = apExtraData && apExtraData->Contains(ExtraDataType::AliasInstanceArray);
+    World::Get().GetRunner().Trigger(std::move(event));
+}
+
+// Papyrus Actor.EquipItem (54661): an item the actor lacks is added past AddInventoryItem (16053), reported here.
+using TScriptEquipItem = void(void*, uint32_t, Actor*, TESForm*, bool, bool);
+static TScriptEquipItem* RealScriptEquipItem = nullptr;
+
+// The count 54661's own test (16133) sees, read without creating the changes (16039): with none it adds nothing.
+static std::optional<int64_t> HeldCount(const Actor& acActor, const TESForm& acItem) noexcept
+{
+    if (!acActor.FindContainerChanges())
+        return std::nullopt;
+    return acActor.GetItemCountInInventory(const_cast<TESForm*>(&acItem));
+}
+
+static void HookScriptEquipItem(void* apVm, uint32_t aStackId, Actor* apThis, TESForm* apItem, bool aPreventRemoval, bool aSilent)
+{
+    const auto cBefore = apThis && apItem ? HeldCount(*apThis, *apItem) : std::nullopt;
+    RealScriptEquipItem(apVm, aStackId, apThis, apItem, aPreventRemoval, aSilent);
+    if (!cBefore || *cBefore > 0 || ScopedInventoryOverride::IsOverriden())
+        return;
+    const int64_t cAfter = HeldCount(*apThis, *apItem).value_or(0);
+    if (auto event = ScriptEquips::Arrival(apThis->formID, ItemId(apItem->formID).value_or(GameId{}), static_cast<int32_t>(*cBefore),
+                                           static_cast<int32_t>(cAfter), GuestScripts::StoryCalling()))
+        World::Get().GetRunner().Trigger(std::move(*event));
+}
+
+void HookAddInventoryItem(Actor* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
+{
+    ReportAdd(*apThis, *apItem, apExtraData, aCount);
+    t_addReported = true;
+    RealAddInventoryItem(apThis, apItem, apExtraData, aCount, apOldOwner);
+    t_addReported = false;
+}
+
+void HookAddToInventory(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apFrom)
+{
+    if (const auto* cpActor = Cast<Actor>(apThis); cpActor && apItem && !t_addReported)
+        ReportAdd(*cpActor, *apItem, apExtraData, aCount);
+    RealAddToInventory(apThis, apItem, apExtraData, aCount, apFrom);
+}
+
+void* HookPickUpObject(Actor* apThis, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2)
+{
+    if (!ScopedInventoryOverride::IsOverriden())
+    {
+
+        Inventory::Entry item{};
+        item.BaseId = ItemId(apObject->baseForm->formID).value_or(GameId{});
+        item.Count = aCount;
+
+        if (apObject->GetExtraDataList())
+            apThis->GetItemFromExtraData(item, apObject->GetExtraDataList());
+
+        // This is here so that objects that are picked up on both clients, aka non temps, are synced through activation sync.
+        // The inventory change event should always be sent to the server, otherwise the server inventory won't be updated.
+        bool shouldUpdateClients = apObject->IsTemporary() && !ScopedActivateOverride::IsOverriden();
+
+        World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item), false, shouldUpdateClients));
+    }
+
+    return RealPickUpObject(apThis, apObject, aCount, aUnk1, aUnk2);
+}
+
+void Actor::PickUpObject(TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2) noexcept
+{
+    RealPickUpObject(this, apObject, aCount, aUnk1, aUnk2);
+}
+
+void* HookDropObject(Actor* apThis, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation)
+{
+
+    Inventory::Entry item{};
+    item.BaseId = ItemId(apObject->formID).value_or(GameId{});
+    item.Count = -aCount;
+
+    if (apExtraData)
+        apThis->GetItemFromExtraData(item, apExtraData);
+
+    World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item), true));
+
+    ScopedInventoryOverride _;
+
+    void* pResult = RealDropObject(apThis, apResult, apObject, apExtraData, aCount, apLocation, apRotation);
+    // The loose item it made (none when it went into a container instead), by its handle.
+    if (const TESObjectREFR* pDropped = apResult ? TESObjectREFR::GetByHandle(*static_cast<uint32_t*>(apResult)) : nullptr)
+        World::Get().GetRunner().Trigger(ItemDroppedEvent{pDropped->formID});
+    return pResult;
+}
+
+void Actor::DropOrPickUpObject(const Inventory::Entry& arEntry, NiPoint3* apLocation, NiPoint3* apRotation) noexcept
+{
+    ExtraDataList* pExtraData = GetExtraDataFromItem(arEntry);
+
+    uint32_t objectId = ItemForm(arEntry.BaseId);
+    TESBoundObject* pObject = Cast<TESBoundObject>(TESForm::GetById(objectId));
+    if (!pObject)
+    {
+        spdlog::warn("Object to drop not found, {:X}:{:X}.", arEntry.BaseId.ModId, arEntry.BaseId.BaseId);
+        return;
+    }
+
+    if (arEntry.Count < 0)
+        DropObject(pObject, pExtraData, -arEntry.Count, apLocation, apRotation);
+    // TODO: pick up
+}
+
+void Actor::DropObject(TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation) noexcept
+{
+    spdlog::debug("Dropping object, form id: {:X}, count: {}, actor: {:X}", apObject->formID, aCount, formID);
+    BSPointerHandle<TESObjectREFR> result{};
+    RealDropObject(this, &result, apObject, apExtraData, aCount, apLocation, apRotation);
+}
+
+// ActorKnowledge::SetDetectionState (42704), the detection job's pass: a copy sees our player unseen (its eye is the host's).
+using TUpdateDetectionState = void(ActorKnowledge*, CrimeEngine::DetectionState*);
+static TUpdateDetectionState* RealUpdateDetectionState = nullptr;
+
+void HookUpdateDetectionState(ActorKnowledge* apThis, CrimeEngine::DetectionState* apState)
+{
+    auto* pWitness = Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hOwner));
+    auto* pTarget = Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hTarget));
+    if (apState && pWitness && pTarget)
+    {
+        const auto cPass = DetectionRules::Installed(pWitness->GetExtension()->IsCopy(), pTarget->GetExtension()->IsLocalPlayer(),
+                                                     {apState->Level, apState->LineOfSight, apState->Seen, apState->Unk16});
+        apState->Level = cPass.Level;
+        apState->LineOfSight = cPass.LineOfSight;
+        apState->Seen = cPass.Seen;
+        apState->Unk16 = cPass.Unk16;
+    }
+    RealUpdateDetectionState(apThis, apState);
+}
+
+// Actor::SetActionValue (37711): the noise an actor's action makes (a swing, a cast, the player's bump). A copy's is its
+// owner's, from its record (ActorStateService), not its own engine's.
+using TSetActionValue = void(Actor*, int32_t);
+static TSetActionValue* RealSetActionValue = nullptr;
+
+void HookSetActionValue(Actor* apThis, int32_t aNoise)
+{
+    if (!ActorStateRules::MakesOwnNoise(apThis->GetExtension()->IsCopy()))
+        return;
+    RealSetActionValue(apThis, aNoise);
+}
+
+struct DialogueItem;
+
+// TODO: This is an AIProcess function
+// The engine passes a fifth argument (a byte it hands on to the response's processing); dropping it left
+// the original reading an uninitialized stack slot.
+using TProcessResponse = uint64_t(void*, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor, bool aUnk);
+static TProcessResponse* RealProcessResponse = nullptr;
+
+uint64_t HookProcessResponse(void* apThis, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor, bool aUnk)
+{
+    if (apTalkingActor)
+    {
+        if (apTalkingActor->GetExtension()->IsOtherPlayer())
+            return 0;
+    }
+    return RealProcessResponse(apThis, apVoice, apTalkingActor, apTalkedToActor, aUnk);
+}
+
+// A ride started (37905): true for the mount package; false for a refusal (CanRide 38706) and for the low-process
+// at-once attach (40345, 41532), which the rider's ExtraInteraction shows. A refused try reserves no horse.
+bool HookInitiateMountPackage(Actor* apThis, Actor* apMount)
+{
+    const bool cStarted = RealInitiateMountPackage(apThis, apMount);
+    if (apMount && apThis->GetExtension()->IsLocal() && (cStarted || apThis->extraData.Contains(ExtraDataType::Interaction)))
+        World::Get().GetRunner().Trigger(MountEvent(apThis->formID, apMount->formID));
+    return cStarted;
+}
+
+// Every ride ends here (RefrInteraction::Detach 41539): the dismount clip's end, StopRiding, jail, a fine, a load.
+uint64_t HookDetachInteraction(RefrInteraction* apThis, bool aUnk)
+{
+    auto* pRider = apThis ? Cast<Actor>(TESObjectREFR::GetByHandle(apThis->actorHandle)) : nullptr;
+    const auto* cpMount = apThis ? TESObjectREFR::GetByHandle(apThis->targetHandle) : nullptr;
+    const uint32_t cMountId = cpMount ? cpMount->formID : 0;
+    const uint64_t cResult = RealDetachInteraction(apThis, aUnk);
+    if (pRider)
+        World::Get().GetRunner().Trigger(DismountEvent{pRider->formID, cMountId, !pRider->GetExtension()->IsLocal()});
+    return cResult;
+}
+
+using TActivateMount = void(Actor*, TESObjectREFR* apTarget, int32_t, int32_t, uint8_t);
+static TActivateMount* RealActivateMount = nullptr;
+
+// A horse a party player drives: our player may board it (CharacterService::OnBoardEvent).
+static bool OffersBoarding(Actor* apMount) noexcept
+{
+    auto* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || !apMount || !apMount->IsMount() || apMount->IsDead() || pPlayer->extraData.Contains(ExtraDataType::Interaction))
+        return false;
+    const RefrInteraction* pLink = apMount->GetOwnInteraction();
+    auto* pRider = pLink ? Cast<Actor>(TESObjectREFR::GetByHandle(pLink->actorHandle)) : nullptr;
+    return pRider && pRider != pPlayer && pRider->GetExtension()->IsOtherPlayer();
+}
+
+using TGetActivateText = bool(TESNPC*, TESObjectREFR* apTarget, BSString* apText);
+static TGetActivateText* RealGetActivateText = nullptr;
+
+// The crosshair's prompt (TESNPC::GetActivateText 24716; false: none, UpdateCrosshairs 40621): none over another
+// player's character. A horse offers Ride only when CanRide (38706) passes, which refuses a ridden one; a horse a party
+// player drives offers it too.
+bool HookGetActivateText(TESNPC* apThis, TESObjectREFR* apTarget, BSString* apText)
+{
+    if (auto* pActor = Cast<Actor>(apTarget); pActor && !ActivatePrompts::Offered(pActor->GetExtension()->IsOtherPlayer()))
+        return false;
+    if (RealGetActivateText(apThis, apTarget, apText))
+        return true;
+    auto* pMount = Cast<Actor>(apTarget);
+    if (!apText || !OffersBoarding(pMount))
+        return false;
+    using TSetString = void(BSString*, const char*, uint32_t);
+    POINTER_SKYRIMSE(TSetString, s_setString, 439876); // BSString::Set
+    POINTER_SKYRIMSE(Setting, s_ride, 377833); // gGameSetting_sRide
+    const char* cpRide = reinterpret_cast<const char*>(s_ride.Get()->data); // a string setting's text
+    const std::string cText = std::format("{}\n{}", cpRide ? cpRide : "Ride", pMount->GetDisplayFullName());
+    s_setString(apText, cText.c_str(), 0);
+    return true;
+}
+
+// A character activating a mount (37864): ridden by another, nothing; our player's may board it as a passenger.
+void HookActivateMount(Actor* apThis, TESObjectREFR* apTarget, int32_t aUnk1, int32_t aUnk2, uint8_t aUnk3)
+{
+    RealActivateMount(apThis, apTarget, aUnk1, aUnk2, aUnk3);
+    auto* pMount = Cast<Actor>(apTarget);
+    if (!apThis || apThis != PlayerCharacter::Get() || !pMount || !pMount->IsMount())
+        return;
+    if (OffersBoarding(pMount))
+        return World::Get().GetRunner().Trigger(BoardEvent{apThis->formID, pMount->formID});
+    const RefrInteraction* pLink = pMount->GetOwnInteraction();
+    spdlog::info("Activated mount {:X}: no boarding (our player riding {}, its slot {}, its rider {:X})", pMount->formID,
+                 apThis->extraData.Contains(ExtraDataType::Interaction), pLink != nullptr,
+                 pLink ? pLink->actorHandle : 0u);
+}
+
+using TUnequipObject = void(Actor*, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3);
+static TUnequipObject* RealUnequipObject = nullptr;
+
+void HookUnequipObject(Actor* apThis, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3)
+{
+    RealUnequipObject(apThis, apUnk1, apObject, aUnk2, apUnk3);
+}
+
+// Character::SpeakSound (37542): queues a line; returns when it ends (game seconds), -1 without a voice, which
+// Actor::UpdateInDialogue (37541) takes as said: the menu's voice is ready and it takes a pick.
+using TSpeakSoundFunction = float(Actor*, const char* apName, uint32_t* a3, uint32_t a4, uint32_t a5, uint32_t a6, uint64_t a7, uint64_t a8, uint64_t a9, bool a10, uint64_t a11, bool a12, bool a13, bool a14);
+static TSpeakSoundFunction* RealSpeakSoundFunction = nullptr;
+
+float HookSpeakSoundFunction(Actor* apThis, const char* apName, uint32_t* a3, uint32_t a4, uint32_t a5, uint32_t a6, uint64_t a7, uint64_t a8, uint64_t a9, bool a10, uint64_t a11, bool a12, bool a13, bool a14)
+{
+    spdlog::debug("Voice: {:X} ({}) says {}", apThis->formID,
+                  apThis->GetExtension()->IsCopy() ? "copy, refused" : apThis->GetExtension()->IsLocal() ? "local" : "not ours", apName ? apName : "");
+
+    if (apThis->GetExtension()->IsLocal())
+        World::Get().GetRunner().Trigger(DialogueEvent(apThis->formID, apName));
+    // A copy says only its owner's lines (NotifyDialogue calls past this hook), none its game picks: no voice.
+    else if (apThis->GetExtension()->IsCopy())
+        return -1.f;
+
+    return RealSpeakSoundFunction(apThis, apName, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
+}
+
+// Actor::UpdateInDialogue (37541, vfunc 0x4C): SpeakerUpdate.h says why. DialogueBridge::ClearOrphaned ends it.
+using TUpdateInDialogue = bool(Actor*, void* apResponse, bool aUnused);
+static TUpdateInDialogue* RealUpdateInDialogue = nullptr;
+
+bool HookUpdateInDialogue(Actor* apThis, void* apResponse, bool aUnused)
+{
+    if (SpeakerUpdate::Skipped(apThis->currentProcess != nullptr, World::Get().GetTransport().IsOnline()))
+        return false;
+    return RealUpdateInDialogue(apThis, apResponse, aUnused);
+}
+
+void Actor::SpeakSound(const char* pFile)
+{
+    uint32_t handle[3]{};
+    handle[0] = -1;
+    RealSpeakSoundFunction(this, pFile, handle, 0, 0x32, 0, 0, 0, 0, 0, 0, 0, 1, 1);
+}
+
+// Actor::ResetInventory (37322): back to its base's template, outfit taken off and put on again, as enabling
+// it does (TESObjectREFR::Enable 19800). A copy's inventory is its owner's: never reset (copy-contract.md).
+using TResetInventory = void(Actor*, bool aLeveledOnly);
+static TResetInventory* RealResetInventory = nullptr;
+void HookResetInventory(Actor* apThis, bool aLeveledOnly)
+{
+    if (apThis->GetExtension()->IsCopy())
+        return;
+    const ItemMenuWatch::Change cChange(apThis); // frees the lists an open item menu lists
+    RealResetInventory(apThis, aLeveledOnly);
+}
+
+// Actor::ApplyMovement (37356): a copy runs none of its decisions, only its engine's step onto its owner's place
+// (Actor::Move, so its capsule collides and pushes: docs/re/systems/actor-movement.md).
+// Out of line: a lock order its Move starts stays ours on the checker's stacks (LockOrder::IgnoreFrames below).
+__declspec(noinline) static void StepCopy(Actor* apThis, ActorExtension* apExtension, float aDelta)
+{
+    if (!apExtension->HasCopyGoal || aDelta <= 0.f)
+        return;
+    const NiPoint3 cGoal(glm::vec3(apExtension->CopyGoal[0], apExtension->CopyGoal[1], apExtension->CopyGoal[2]));
+    auto* pProcess = apThis->currentProcess;
+    const bool cCanStep = pProcess && pProcess->middleProcess && pProcess->middleProcess->charController &&
+                          apThis->parentCell && apThis->parentCell->IsFullyLoaded();
+    if (!cCanStep)
+    {
+        apThis->ForcePosition(cGoal);
+        return;
+    }
+    const glm::vec3 cLocal = CopyStep::Translation({cGoal.x - apThis->position.x, cGoal.y - apThis->position.y,
+                                                    cGoal.z - apThis->position.z}, apThis->rotation.z);
+    apThis->Move(aDelta, NiPoint3(cLocal));
+}
+
+void HookApplyMovement(Actor* apThis, float aDelta)
+{
+    auto* pExtension = apThis->GetExtension();
+    if (pExtension->IsCopy())
+        return StepCopy(apThis, pExtension, aDelta);
+    RealApplyMovement(apThis, aDelta);
+}
+
+// Character::UpdateAI (37347). Copies skip it but run its body upkeep below
+// (docs/re/systems/actor-ai-and-copies.md).
+using TUpdateAI = void(Actor*, float aDelta);
+static TUpdateAI* RealUpdateAI = nullptr;
+// Character::UpdateCellAttachment (37352): loads/unloads 3D as the actor's cell attaches.
+using TUpdateCellAttachment = void(Actor*);
+static TUpdateCellAttachment* UpdateCellAttachment = nullptr;
+// Character::UpdateVoiceTimer (37752): counts the voice line down and marks it ended.
+using TUpdateVoiceTimer = void(Actor*, bool aForceEnd);
+static TUpdateVoiceTimer* UpdateVoiceTimer = nullptr;
+// Character::CalculateEssentialProtected (37227): kEssential/kProtected.
+using TCalculateEssentialProtected = void(Actor*);
+static TCalculateEssentialProtected* CalculateEssentialProtected = nullptr;
+// AIProcess::GetLipData (39373), AIProcess::UpdateLipSyncGraph (39377): mouth movement of races
+// without a FaceGen head (dragons).
+using TGetLipData = void*(AIProcess*);
+static TGetLipData* GetLipData = nullptr;
+using TUpdateLipSyncGraph = void(AIProcess*, void* apLipData, Actor* apActor);
+static TUpdateLipSyncGraph* UpdateLipSyncGraph = nullptr;
+
+// A copy's part of UpdateAI: its body's upkeep only. Not inlined: HookUpdateAI's own frames are a pass-through.
+__declspec(noinline) void UpdateCopyAI(Actor* apThis)
+{
+    // UpdateAI's own early return.
+    if (!(apThis->flags1 & Actor::kProcessMe) || apThis->IsDisabled())
+        return;
+
+    UpdateVoiceTimer(apThis, false);
+    apThis->UpdateSoundCallback(false);
+
+    // Copies die with their owner, never from their own health (as skymp keeps its remote actors).
+    if (!apThis->IsDead())
+        apThis->StartDeferredKill();
+    else if (ActorState::LifeStateOf(apThis->actorState.flags1) == ActorState::kLifeDying &&
+             apThis->LiesInRagdoll() && !apThis->IsInKillMove())
+    {
+        // Copies skip native death upkeep; a ragdoll must leave kDying before NPC activation permits looting.
+        POINTER_SKYRIMSE(void(Actor*, uint32_t), s_setLifeState, 37612);
+        s_setLifeState(apThis, ActorState::kLifeDead);
+    }
+
+    AIProcess* pProcess = apThis->currentProcess;
+    if (pProcess && pProcess->processLevel == 0)
+    {
+        CalculateEssentialProtected(apThis);
+        if (void* pLipData = GetLipData(pProcess); pLipData && apThis->race && !(apThis->race->raceFlags & TESRace::kFaceGenHead))
+            UpdateLipSyncGraph(pProcess, pLipData, apThis);
+    }
+
+    // UpdateAI does this last, below high process.
+    if (apThis->baseForm && (!pProcess || pProcess->processLevel != 0))
+        UpdateCellAttachment(apThis);
+}
+
+void HookUpdateAI(Actor* apThis, float aDelta)
+{
+    if (apThis->GetExtension()->IsCopy())
+        return UpdateCopyAI(apThis);
+    // A guest's own NPC stands still until the host spawns its copy (GuestNpcs).
+    if (apThis->IsHeldOnGuest())
+        return;
+    RealUpdateAI(apThis, aDelta);
+}
+
+// TESNPC::ResetWornToOutfit (418622): worn items off (16100), the hands emptied, the base's outfit on; past our equip hooks.
+// Callers: ResetInventory, InitLoadGame, SetLevel, TESNPC::InitWornOn3D 24725 (inventory-changes.md).
+// Four byte arguments (24725's call: r8b, r9b, two stack bytes); the fourth picks the best weapons carried.
+using TResetWornToOutfit = void(void* apNpc, Actor* apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag);
+static TResetWornToOutfit* RealResetWornToOutfit = nullptr;
+
+void HookResetWornToOutfit(void* apNpc, Actor* apActor, bool aUnused3, bool aEquipBestWeapons, bool aUnused5, bool aKeepTlsFlag)
+{
+    {
+        const ItemMenuWatch::Change cChange(apActor); // its unequips merge worn lists (16067)
+        RealResetWornToOutfit(apNpc, apActor, aUnused3, aEquipBestWeapons, aUnused5, aKeepTlsFlag);
+    }
+    if (apActor)
+        World::Get().GetRunner().Trigger(WornResetEvent{apActor->formID});
+}
+
+using TAddDeathItems = void(Actor*);
+static TAddDeathItems* RealAddDeathItems = nullptr;
+
+void HookAddDeathItems(Actor* apThis)
+{
+    if (apThis->GetExtension()->IsCopy())
+        return;
+
+    RealAddDeathItems(apThis);
+}
+
+// KillImpl's (37896) only call: the shield, torch and drawn weapons fall. A player's stay in its hands.
+using TDropHeldItemsOnDeath = void(Actor*);
+static TDropHeldItemsOnDeath* RealDropHeldItemsOnDeath = nullptr;
+
+void HookDropHeldItemsOnDeath(Actor* apThis)
+{
+    if (DeathDrops::Kept(apThis->GetExtension()->IsPlayer(), World::Get().GetTransport().IsOnline()))
+        return;
+
+    RealDropHeldItemsOnDeath(apThis);
+}
+
+using TIsFleeing = bool(Actor*);
+static TIsFleeing* RealIsFleeing = nullptr;
+
+bool HookIsFleeing(Actor* apThis)
+{
+    // TODO: Player or RemotePlayer? Can players be in fleeing mode in skyrim?
+    // TODO: investigate why the flee flag is set at all on remote players sometimes.
+    if (apThis->GetExtension()->IsPlayer())
+        return false;
+    
+    return RealIsFleeing(apThis);
+}
+
+using TIsHostileToActor = bool(Actor*, Actor* apOther);
+static TIsHostileToActor* RealIsHostileToActor = nullptr;
+
+// Hang diagnostics: every loaded actor's reference lock (TESObjectREFR+0x88, BSReadWriteLock
+// {writer thread id, lock word}); held ones are logged from the watchdog thread (read-only peeks
+// of pointers refreshed by the main thread).
+static std::atomic<Actor*> s_lockWatch[128]{};
+
+static void LogHeldReferenceLocks()
+{
+    for (auto& slot : s_lockWatch)
+        if (Actor* pActor = slot.load())
+        {
+            const auto* pLock = reinterpret_cast<const volatile uint32_t*>(reinterpret_cast<const uint8_t*>(pActor) + 0x88);
+            if (pLock[0] || pLock[1])
+                spdlog::error("HangWatchdog: actor {:X} reference lock held: writer thread {}, lock word {:#x}", pActor->formID, uint32_t(pLock[0]), uint32_t(pLock[1]));
+        }
+    spdlog::error("HangWatchdog: (end of held reference locks)");
+    LockOrder::LogHeldLocks();
+}
+
+static bool DescribeReferenceLock(const void* apLock, char* apBuffer, size_t aSize)
+{
+    for (auto& slot : s_lockWatch)
+        if (Actor* pActor = slot.load())
+            if (reinterpret_cast<const uint8_t*>(pActor) + 0x88 == apLock)
+            {
+                *std::format_to_n(apBuffer, aSize - 1, "actor {:X} reference lock", pActor->formID).out = '\0';
+                return true;
+            }
+    return false;
+}
+
+void RefreshHangLockWatch() noexcept
+{
+    static const bool s_diagnosticSet = [] {
+        CrashHandler::SetHangDiagnostic(&LogHeldReferenceLocks);
+        // Mutex::Lock1 (13129), the engine's BSSpinLock wait: the lock stays in rdi while it sleeps.
+        POINTER_SKYRIMSE(void, s_spinLockWait, 13129);
+        CrashHandler::SetSpinLockWait(reinterpret_cast<DWORD64>(s_spinLockWait.Get()), [](const CONTEXT& acFrame) { return acFrame.Rdi; });
+        LockOrder::SetLockDescriber(&DescribeReferenceLock);
+        return true;
+    }();
+    size_t index = 0;
+    if (auto* pPlayer = Cast<Actor>(TESForm::GetById(0x14)))
+        s_lockWatch[index++] = pPlayer;
+    for (const uint32_t cFormId : World::Get().GetActorBridge().GetLoadedActorFormIds())
+        if (index < std::size(s_lockWatch))
+            if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
+                s_lockWatch[index++] = pActor;
+    for (; index < std::size(s_lockWatch); ++index)
+        s_lockWatch[index] = nullptr;
+}
+
+bool HookIsHostileToActor(Actor* apThis, Actor* apOther)
+{
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
+        return true;
+    return RealIsHostileToActor(apThis, apOther);
+}
+
+// The reaction (0 neutral, 1 enemy, 2 ally, 3 friend), cached (37666) or computed (37667): every player is the enemy
+// of an actor angry with one or fighting one (combat-targets.md, A fight with one player is the party's).
+constexpr int32_t cReactionEnemy = 1;
+
+using TGetFactionReaction = int32_t(Actor*, Actor* apOther);
+static TGetFactionReaction* RealGetFactionReaction = nullptr;
+
+int32_t HookGetFactionReaction(Actor* apThis, Actor* apOther)
+{
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
+        return cReactionEnemy;
+    return RealGetFactionReaction(apThis, apOther);
+}
+
+uint8_t Actor::GetCombatState() const noexcept
+{
+    using TGetCombatState = uint32_t(Actor*);
+    POINTER_SKYRIMSE(TGetCombatState, s_getCombatState, 38556);
+    return static_cast<uint8_t>(s_getCombatState(const_cast<Actor*>(this)));
+}
+
+// The core "may this actor attack that one" check (CanAttackActor, IsHostileToActor and combat
+// use it). It reads the relationship cached in the actor's knowledge of the other directly, which
+// still says ally right after the actor got angry, so answer it here too.
+using TShouldAttack = bool(Actor*, Actor* apOther, int32_t aAggression, uint8_t aFlags);
+static TShouldAttack* RealShouldAttack = nullptr;
+
+bool HookShouldAttack(Actor* apThis, Actor* apOther, int32_t aAggression, uint8_t aFlags)
+{
+    // Inside CopyCombatGroups::Hold the copy's owner's fight already answered it; a copy has no knowledge of its own.
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther) || CopyCombatGroups::Holding())
+        return true;
+    return RealShouldAttack(apThis, apOther, aAggression, aFlags);
+}
+
+using TComputeReaction = int32_t(Actor*, Actor* apOther, bool aUnk);
+static TComputeReaction* RealComputeReaction = nullptr;
+
+int32_t HookComputeReaction(Actor* apThis, Actor* apOther, bool aUnk)
+{
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
+        return cReactionEnemy;
+    return RealComputeReaction(apThis, apOther, aUnk);
+}
+
+static Hooks::Initializer s_actorHooks(
+    []()
+    {
+        const HookGate cGate(__FILE__);
+        POINTER_SKYRIMSE(TCharacterDestructor, s_characterDtor, 37175);
+        POINTER_SKYRIMSE(TGetLocation, s_GetActorLocation, 19812);
+
+        POINTER_SKYRIMSE(TUpdateCellAttachment, s_updateCellAttachment, 37352);
+        UpdateCellAttachment = s_updateCellAttachment.Get();
+        POINTER_SKYRIMSE(TUpdateVoiceTimer, s_updateVoiceTimer, 37752);
+        UpdateVoiceTimer = s_updateVoiceTimer.Get();
+        POINTER_SKYRIMSE(TCalculateEssentialProtected, s_calculateEssentialProtected, 37227);
+        CalculateEssentialProtected = s_calculateEssentialProtected.Get();
+        POINTER_SKYRIMSE(TGetLipData, s_getLipData, 39373);
+        GetLipData = s_getLipData.Get();
+        POINTER_SKYRIMSE(TUpdateLipSyncGraph, s_updateLipSyncGraph, 39377);
+        UpdateLipSyncGraph = s_updateLipSyncGraph.Get();
+        FUNC_GetActorLocation = s_GetActorLocation.Get();
+
+        HOOK_ID(37356, &RealApplyMovement, HookApplyMovement);
+        HOOK_ID(37322, &RealResetInventory, HookResetInventory);
+        HOOK_ID(54661, &RealScriptEquipItem, HookScriptEquipItem);
+        HOOK_ID(37347, &RealUpdateAI, HookUpdateAI);
+        // Every actor's AI runs through it: a lock order there is the engine's unless a copy's runs (UpdateCopyAI).
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookUpdateAI));
+        // Every actor's movement step (pathing locks): the engine's; a copy's step is StepCopy.
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookApplyMovement));
+        HOOK_ID(19790, &RealSetPosition, HookSetPosition);
+        HOOK_ID(37996, &RealTransformDelta, HookTransformDelta);
+        HOOK_ID(38717, &RealRemoveSpell, HookRemoveSpell);
+        HOOK_ID(40245, &RealCharacterConstructor, HookCharacterConstructor);
+        HOOK_ID(40246, &RealCharacterConstructor2, HookCharacterConstructor2);
+        HOOK_ID(37313, &RealForceState, HookForceState);
+        HOOK_ID(37335, &RealDamageActor, HookDamageActor);
+        HOOK_ID(35086, &RealApplyActorEffect, HookApplyActorEffect);
+        HOOK_ID(38459, &RealRegenerateActorValue, HookRegenerateActorValue);
+        HOOK_ID(37537, &RealIsHostileToActor, HookIsHostileToActor);
+        HOOK_ID(37666, &RealGetFactionReaction, HookGetFactionReaction);
+        HOOK_ID(37534, &RealShouldAttack, HookShouldAttack);
+        HOOK_ID(37667, &RealComputeReaction, HookComputeReaction);
+        HOOK_ID(37525, &RealAddInventoryItem, HookAddInventoryItem);
+        HOOK_ID(19688, &RealAddToInventory, HookAddToInventory);
+        HOOK_ID(37521, &RealPickUpObject, HookPickUpObject);
+        HOOK_ID(40454, &RealDropObject, HookDropObject);
+        HOOK_ID(42704, &RealUpdateDetectionState, HookUpdateDetectionState);
+        HOOK_ID(37711, &RealSetActionValue, HookSetActionValue);
+        HOOK_ID(39643, &RealProcessResponse, HookProcessResponse);
+        HOOK_ID(37905, &RealInitiateMountPackage, HookInitiateMountPackage);
+        HOOK_ID(41539, &RealDetachInteraction, HookDetachInteraction);
+        HOOK_ID(37864, &RealActivateMount, HookActivateMount);
+        HOOK_ID(24716, &RealGetActivateText, HookGetActivateText);
+        HOOK_ID(37975, &RealUnequipObject, HookUnequipObject);
+        HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
+        HOOK_ID(37541, &RealUpdateInDialogue, HookUpdateInDialogue);
+        HOOK_ID(37198, &RealAddDeathItems, HookAddDeathItems);
+        HOOK_ID(418622, &RealResetWornToOutfit, HookResetWornToOutfit);
+        HOOK_ID(37320, &RealDropHeldItemsOnDeath, HookDropHeldItemsOnDeath);
+        HOOK_ID(37577, &RealIsFleeing, HookIsFleeing);
+    });

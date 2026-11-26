@@ -1,7 +1,7 @@
 // The story's items: an AddItem queued from a quest's script is the story's in its run (Papyrus/StoryGifts.h).
 #include <catch2/catch.hpp>
 
-#include <Papyrus/StoryGifts.h>
+#include <scripts/StoryGifts.h>
 
 using StoryGifts::Queue;
 

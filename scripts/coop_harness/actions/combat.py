@@ -547,7 +547,7 @@ class CombatActions:
         return rows
 
     def counter(ctx, instance, name):
-        """How many times that game's named counter (Diagnostics/Counters.h) was bumped; 0 before its first use."""
+        """How many times that game's named counter (sync/core/Counters.h) was bumped; 0 before its first use."""
         counters = (ctx.player_command(instance, {"cmd": "counters"}) or {}).get("counters") or {}
         return (counters.get(name) or {}).get("count", 0)
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Bridges/IHostEngine.h>
-#include <Bridges/PhysicsBodies.h>
+#include <ports/IHostEngine.h>
+#include <physics/PhysicsBodies.h>
 
 struct FakeEngine;
 struct World;

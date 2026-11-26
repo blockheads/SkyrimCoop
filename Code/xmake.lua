@@ -7,12 +7,12 @@ includes("hotreload")
 includes("vanilla_harness")
 
 -- The sync layer, built for the plugin and for the tests.
-includes("client/sync.lua")
+includes("sync")
 
 -- The SKSE plugin: clang-cl targeting Windows (scripts/xmake-msvc.sh).
 if is_plat("windows") then
     includes("external/imgui")
-    includes("client")
+    includes("plugin")
 end
 
 -- The host's rules and the message encoding, natively (scripts/xmake-linux.sh).

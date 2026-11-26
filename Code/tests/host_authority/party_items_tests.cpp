@@ -2,7 +2,7 @@
 // change of one changes them, and every game hears the count now.
 #include "session.h"
 
-#include <Games/PartyItems.h>
+#include <items/PartyItems.h>
 
 #include <Messages/ContainerTransferRequest.h>
 #include <Messages/NotifyChatMessageBroadcast.h>

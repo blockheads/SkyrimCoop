@@ -1,7 +1,7 @@
 #include <catch2/catch.hpp>
 
-#include <Games/Animation/DeferredClips.h>
-#include <WorldGate.h>
+#include <animation/DeferredClips.h>
+#include <core/WorldGate.h>
 
 #include <chrono>
 #include <thread>

@@ -2,45 +2,45 @@
 
 #include "FakeGraph.h"
 #include <span>
-#include <Followers/State.h>
+#include <followers/State.h>
 
 // One game's engine in tier 2 (docs/design/testing.md): the player's controls (ControlMap's bitmask), a script VM
 // running Game.DisablePlayerControls / EnablePlayerControls through what PartyNatives' glue does around them, the
 // world's references (locks, containers' items) with the change records the engine keeps, and the actors (the
 // player, placed and placeatme NPCs, copies: where, health, death, bleedout, enabled).
 #include "StillBridges.h"
-#include <Services/PartyMarkers.h>
-#include <Services/Host/PartyThreat.h>
-#include <Games/Skyrim/CopyPackage.h>
+#include <travel/PartyMarkers.h>
+#include <combat/PartyThreat.h>
+#include <CopyPackage.h>
 #include "../FakeNativeVm.h"
-#include <Games/Animation/ReplayStep.h>
-#include <Games/Animation/ReplayState.h>
-#include <Games/Animation/HeldClipLoads.h>
+#include <animation/ReplayStep.h>
+#include <animation/ReplayState.h>
+#include <animation/HeldClipLoads.h>
 #include "../FakeFlight.h"
 
-#include <Bridges/IJoinBridge.h>
-#include <Bridges/IBodyBridge.h>
-#include <Bridges/IBodyReads.h>
-#include <Games/KnockReplay.h>
-#include <Games/ItemMenuRebuild.h>
-#include <Physics/RagdollPending.h>
-#include <Physics/RagdollStart.h>
-#include <Physics/RestPlacer.h>
+#include <join/IJoinBridge.h>
+#include <physics/IBodyBridge.h>
+#include <physics/IBodyReads.h>
+#include <animation/KnockReplay.h>
+#include <ItemMenuRebuild.h>
+#include <physics/RagdollPending.h>
+#include <physics/RagdollStart.h>
+#include <physics/RestPlacer.h>
 
-#include <Games/QuestChanges.h>
-#include <Games/HitVisualsRules.h>
-#include <MainLoopTasks.h>
-#include <Games/Skyrim/HitRules.h>
-#include <Games/Skyrim/DetectionRules.h>
+#include <QuestChanges.h>
+#include <HitVisualsRules.h>
+#include <core/MainLoopTasks.h>
+#include <combat/HitRules.h>
+#include <crime/DetectionRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
-#include <ItemIds.h>
-#include <Misc/StoryEventRules.h>
-#include <Papyrus/OwnEvents.h>
-#include <Papyrus/PartyRules.h>
+#include <core/ItemIds.h>
+#include <scripts/StoryEventRules.h>
+#include <scripts/OwnEvents.h>
+#include <scripts/PartyRules.h>
 #include <Structs/Recipe.h>
-#include <IEngine.h>
-#include <Services/Host/HostGame.h>
+#include <core/IEngine.h>
+#include <game/HostGame.h>
 #include <Structs/ScriptValue.h>
 #include <Structs/SystemQuestState.h>
 
@@ -52,7 +52,7 @@
 #include <functional>
 #include <map>
 #include <optional>
-#include <Games/OwnerEffects.h>
+#include <magic/OwnerEffects.h>
 #include <set>
 #include <string_view>
 #include <tuple>
@@ -525,7 +525,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // Nothing holds it awake (a rack's weapon): put to sleep there by us, Havok's last test (62264) wakes it and it
         // falls; held there asleep and never woken (HoldAt) it stays.
         bool OnlyAsleep = false;
-        bool PlacedByGame = false; // this game placed it, not yet read (Bridges/PlacedByGame): another game's states leave it
+        bool PlacedByGame = false; // this game placed it, not yet read (engine/Bridges/PlacedByGame): another game's states leave it
         bool Placing = false;   // another game's rest being put here (BodyBridge's m_placing): its wakes are not this game's moves
         bool RestStep = false;  // awake at or onto its rest this frame: read awake, not stepped (BodyBridge::Glide, Place)
         size_t Thrown = 0;
@@ -607,7 +607,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] std::optional<BodyPose> ReadPose(const BodyKey& acKey) const noexcept;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept override;
     bool KnockDown(uint32_t aCopyFormId) noexcept override;
-    // What a body meets here (Physics/BodyGroups.h): played while another game's frames drive it, moving while this
+    // What a body meets here (sync/physics/BodyGroups.h): played while another game's frames drive it, moving while this
     // game says so.
     std::map<BodyKey, BodyClass> Classes;
     void SetMoving(const BodyKey& acKey, bool aMoving) noexcept override

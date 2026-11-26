@@ -1,4 +1,4 @@
-#include <Games/QuestChanges.h>
+#include <QuestChanges.h>
 #include <catch2/catch.hpp>
 
 TEST_CASE("Quest writes coalesce until the frame reads them", "[Quests]")

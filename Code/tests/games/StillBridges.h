@@ -2,10 +2,10 @@
 
 // The bridges a game's services read the engine through, standing still: every call does nothing or returns nothing,
 // but who the player is. Generated once from the interfaces; an interface's new method fails the build here, add it.
-#include <Bridges/IActorBridge.h>
-#include <Bridges/IFormBridge.h>
-#include <Bridges/IPlayerBridge.h>
-#include <Bridges/IWorldBridge.h>
+#include <ports/IActorBridge.h>
+#include <ports/IFormBridge.h>
+#include <ports/IPlayerBridge.h>
+#include <ports/IWorldBridge.h>
 
 #include <string>
 

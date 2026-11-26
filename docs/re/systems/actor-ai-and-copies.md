@@ -754,7 +754,7 @@ meh321 where they have one, ours otherwise.
   - A first hook answered a copy's owner's state everywhere but at those 9 call sites: the client crashed casting
     (`MagicCaster` 34450 → `Actor::EngagingInCombat` 38563, then the controller at `+0x160`). `EngagingInCombat` wraps
     `IsInCombat` for 23 more functions (weapon fire, spell casting, 37410, 39753, combat code), outside a scan of
-    direct callers. So `HookIsInCombat` and `HookGetCombatState` (`Games/Skyrim/CopyAiState.cpp`) answer the owner's
+    direct callers. So `HookIsInCombat` and `HookGetCombatState` (`engine/CopyAiState.cpp`) answer the owner's
     state only to the condition functions (21576 and 21740, by return address: Address Library ID plus offset) and to
     plugins (callers outside the game's image); every engine caller gets the copy's own answer (no controller: no).
     Papyrus `IsInCombat` (54945) and `GetCombatState` (54679) tail-jump from the VM's call and get the copy's own.
@@ -871,7 +871,7 @@ meh321 where they have one, ours otherwise.
   The player: its own update (`PlayerCharacter::Update` 40447) calls ProcessTracking only in camera states from 9, read; not
   through the gate above. Knocked or asleep in third person, a player reads its slots; only `ProcessTracking`'s own checks apply.
 
-  **`ai_state.head_track` is what these read:** `Diagnostics/HeadTrackRead.h` mirrors the gate (`ai.head_track_shut` says
+  **`ai_state.head_track` is what these read:** `plugin/Diagnostics/HeadTrackRead.h` mirrors the gate (`ai.head_track_shut` says
   what shut it, `"unread"` compares with anything, and each flow logs the actors read on one game only) and the highest slot, slot 0 beside slot 2 when they alternate, none for a self-target. Only the targets both games read count: each game decides alone whether it alternates, from its own player and voice timer. The
   six raw slots stay in the snapshot as `ai.head_track_slots`, not compared. A shadowed slot differs unseen until the
   higher one clears; the comparison sees it then.
@@ -971,7 +971,7 @@ reference's own Disable (19801) before Enable: `Actor::Disable` (37267) only que
 ## Holding an NPC still (test harness, 2026-10-20)
 
 A scenario that hits or talks to one of the game's own NPCs needs it in a known spot, standing still, whatever
-its schedule was doing. Harness commands `move_actor` and `freeze` (`TestHarness/EngineCalls`: `MoveActorToPlayer`,
+its schedule was doing. Harness commands `move_actor` and `freeze` (`harness/TestHarness/EngineCalls`: `MoveActorToPlayer`,
 `MoveActorHome`, `FreezeActor`); `coop_test.py` `stage_host_npc` / `release_host_npc`.
 
 | Step | Engine function | Why |
@@ -1009,7 +1009,7 @@ its 18 ragdoll bodies keyframed (motion 4) at a constant velocity, drifting 750 
 (inferred: the last velocity `driveToPose` 58291 gave them; no graph update changes it). So its body never rested,
 no rest reached the guest, and the guest's copy, which updates, ragdolled and lay where its own physics put it, 129 to
 351 units off (`frozen-npc-corpse-rests-as-host`). Not a bug of the games: nobody freezes an NPC in play. Since then the
-harness thaws a frozen actor at its death (`TestHarness/FrozenActors.h`, polled each frame). `SetRestrained(false)`
+harness thaws a frozen actor at its death (`harness/TestHarness/FrozenActors.h`, polled each frame). `SetRestrained(false)`
 (37488) writes life state 0 only while it reads 6, so the thaw leaves a dying actor dying.
 
 

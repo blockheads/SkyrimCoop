@@ -1,10 +1,10 @@
-// Party items (Games/PartyItems.h, docs/design/party-items.md) and a player's kept death drop (Services/DeathDrops.h).
+// Party items (sync/items/PartyItems.h, docs/design/party-items.md) and a player's kept death drop (sync/death/DeathDrops.h).
 #include <catch2/catch.hpp>
 
-#include <Games/PartyItems.h>
-#include <Services/DeathDrops.h>
-#include <Services/SpeakerUpdate.h>
-#include <Games/HiddenCopies.h>
+#include <items/PartyItems.h>
+#include <death/DeathDrops.h>
+#include <dialogue/SpeakerUpdate.h>
+#include <HiddenCopies.h>
 
 TEST_CASE("Keys, quest items, aliases' items and the story's arrive as the party's; loot and gold do not", "[PartyItems]")
 {

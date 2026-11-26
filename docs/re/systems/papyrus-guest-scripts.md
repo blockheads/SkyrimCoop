@@ -1,7 +1,7 @@
 # Papyrus: guests' characters are the player (host)
 
 Engine side of `docs/design/party-model.md`, "A guest's actions on the host", rules 1 and 2
-(`Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp`). Found in the 2026-10-19 spikes (`docs/research/player-events.md`).
+(`Code/engine/Papyrus/GuestScripts.cpp`). Found in the 2026-10-19 spikes (`docs/research/player-events.md`).
 
 ## Rule 1: comparisons
 

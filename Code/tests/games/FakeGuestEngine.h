@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Bridges/BodyReads.h>
-#include <Bridges/IGuestEngine.h>
-#include <Bridges/PhysicsBodies.h>
+#include <ports/IGuestEngine.h>
+#include <physics/PhysicsBodies.h>
 
 #include <map>
 #include <unordered_map>

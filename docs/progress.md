@@ -506,7 +506,7 @@ production), UnitTests; `relief-takes-client-relics` 4 of 4 (0 of 4 before), the
 scenarios pass.
 Third, **"The host's roll for a guest's loot" fixed**: the roll already agreed (the cell state sends contents); a
 guest's Take All of a fresh roll moved nothing because a chest keeps a taken roll item's entry at 0 (16059) and
-16108/16214 reads that as one. `GetContainerCount` now counts as CommonLibSSE-NG does (`Games/ContainerCount.h`,
+16108/16214 reads that as one. `GetContainerCount` now counts as CommonLibSSE-NG does (`engine/ContainerCount.h`,
 UnitTests); `guest-loots-hosts-roll` 3 of 3 (1 of 3 before), the container scenarios pass
 (inventory-changes.md, "A roll's taken item").
 Review of PR #87: a picked plant goes out as the host's row (`kHarvested`: `SetHarvestedFlag` 14647 and
@@ -612,7 +612,7 @@ guest's second connect keeps its first connection", GameTests `[rejoin]`; scenar
 comparison fails on bugs.md's open "References differ").
 
 2026-11-18: **the copy record, piece 1 of one-simulator.md, built** (`agent/copy-record`): every game keeps each actor's
-last declared state in versioned parts by session id (`Services/CopyRecords`), the host keeps them and puts them on every
+last declared state in versioned parts by session id (`sync/core/CopyRecords`), the host keeps them and puts them on every
 spawn (`HostRecords`), a part waits for its copy and for an actor it names, and a game can ask for one again. One part
 moved onto it, AI state: `AiStateRequest`/`NotifyAiState` and the spawn's `AiState` are gone; a look or combat target
 named before its copy exists is applied when it appears ("A copy that looks at nobody": closed by the rejoin entry above, whose duo scenario
@@ -820,7 +820,7 @@ only when left far behind or stuck twice; chat `!stay` / `!follow`, `--no-follow
 [actor-movement.md](re/systems/actor-movement.md), "KeepOffsetFromActor".
 
 2026-11-09: both players at once (`dialogue-stress`). The MCP's `together` runs lanes (any tool or verb) from one
-moment; a lane's first key or mouse input is queued in its game (`TestHarness/Scheduled`, any command's `at`) and
+moment; a lane's first key or mouse input is queued in its game (`harness/TestHarness/Scheduled`, any command's `at`) and
 lands in one frame on both games (0-14 ms apart measured). `line_delay(ms)` puts netem on the guest's namespace link,
 so races two machines meet show on one. First bug from it: two players moving the dialogue highlight at once ended
 each menu on the other's move (host 2, guest 0; `dialogue-highlights-cross`, GameTests "Highlights moved on two games
@@ -1068,7 +1068,7 @@ combined batch is left to the next combined run. Filed: the MCP's crash check re
     mid-transition. `coop_test.py scenario` now reads each NPC's owner and copy live through each flow
     (`comparisons.GraphApart`, a `copies' graphs, owner against copy:` line, logged, never failing). "A copy walks while its
     owner turns" and "A copy's idle variant" deleted; "A copy's graph after a turn or a pick" is what the live check found.
-  - **`ai_state.head_track`** compares what the engine reads (`Diagnostics/HeadTrackRead.h`: its gate, the highest slot, slot
+  - **`ai_state.head_track`** compares what the engine reads (`plugin/Diagnostics/HeadTrackRead.h`: its gate, the highest slot, slot
     0 beside 2, none for a self-target; IDA, actor-ai-and-copies.md). 18 of 30 flows held a lasting raw slot difference at a
     check and passed both runs, the three kill moves among them; `kill-moves-cross` shows a real case, 1 of 2 (bugs.md,
     Headtracking on copies). A review then found the first mirror of the engine wrong (life states 4, 5 and 8 read, the settings
@@ -1300,9 +1300,9 @@ held still is not at rest (`physics-sync.md`, "Held still is not at rest").
 
 2026-11-02: the repro MCP ([repro-mcp.md](design/repro-mcp.md)): `scripts/coop_mcp.py` keeps one harness
 session open over the duo, so a bug is staged step by step: a frozen world stepped a frame at a time (`Main::freezeTime`,
-`TestHarness/FrameStepper.h`), `stage`/`drop` with handles per game, `observe` both games, `expect`, and
+`harness/TestHarness/FrameStepper.h`), `stage`/`drop` with handles per game, `observe` both games, `expect`, and
 `record_export` writing the session as a scenario (`scenarios/recorded/`) or a shared spec. Python units
-(`test_coop_harness.Repro`), UnitTests `[frame-stepper]`. Phase 2: named counters (`Diagnostics/Counters.h`, in
+(`test_coop_harness.Repro`), UnitTests `[frame-stepper]`. Phase 2: named counters (`sync/core/Counters.h`, in
 status and `profile`), round trips and clock syncs in status, press timing against the vanilla stand-in. Phase 3:
 `walk_to` along the navmesh (AI-driven player, `PathToReference` in legs), `talk_to`, `pick`, `menu`, `travel`,
 `quest_walk` (the late-save duo boots and connects again). A quest played by the verbs on a late save ("A Lovely
@@ -1387,7 +1387,7 @@ Fast tiers and the Skyrim dialogue tag pass (the party list, the shared highligh
 save/load gate; the werewolf crash moved to `docs/bugs.md` (after v1). The party limit is a Steam lobby's 250 (`PartySize.h`,
 was 4 on Steam, 8 on the host); only up to 4 players have ever been tested.
 
-2026-10-29: bug reports from play: `/bug`, `/export`, crash bundles at the next start and `coop_test.py report` ([bug-reports.md](design/bug-reports.md), [playtest.md](playtest.md)); the harness status and log trail now come from the shared `Code/client/Diagnostics/`. Fast tests pass; the plugin builds (test and player builds). `bug-report-writes-every-game` passed in Skyrim before screenshots were dropped and saves kept once per export; that change awaits a rerun on a free duo.
+2026-10-29: bug reports from play: `/bug`, `/export`, crash bundles at the next start and `coop_test.py report` ([bug-reports.md](design/bug-reports.md), [playtest.md](playtest.md)); the harness status and log trail now come from the shared `Code/plugin/Diagnostics/`. Fast tests pass; the plugin builds (test and player builds). `bug-report-writes-every-game` passed in Skyrim before screenshots were dropped and saves kept once per export; that change awaits a rerun on a free duo.
 
 2026-10-28: the party-scripts-2 and v1-session-items work, and crafted potions (v1 checklist), are integrated into dev.
 The combined fast tests and Windows plugin build pass. Review findings and verification limits:
@@ -1415,7 +1415,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 |---|---|
 | Time (`HostClock`; set-time from any player) | done (`4e0efb0a`); set-time works in the game since 2026-10-20 (`/settime` in the chat, `guest-sets-time`); the whole calendar 2026-10-20: a guest takes the host's date and days passed too, written as `Calendar::Update` leaves them (`docs/re/systems/calendar.md`) |
 | Weather (`HostWeather`) | done (`50397fa0`); per region 2026-11-22 (`WeatherRegionRequest`, `HostWeather::WeatherFor`) |
-| Host/guest code split, the world (2026-10-20) | done: `Services/Guest/` (`GuestClock`, `GuestWeather`, `GuestWorldState`) exist only while joined (`GuestService`); `Bridges/HostEngine` (the host's reads, set hour) and `Bridges/GuestEngine` (applying the host's calendar, weather, globals, quests) replace those `IWorldBridge` calls; `CalendarService` is `TimeScaleService`; `WeatherService`, `WorldStateService` deleted; `HostBridge` renamed `HostAuthority`. Actors next, by owner/copy (`docs/ideas.md`, "Client services by role") |
+| Host/guest code split, the world (2026-10-20) | done: `Services/Guest/` (`GuestClock`, `GuestWeather`, `GuestWorldState`) exist only while joined (`GuestService`); `engine/Bridges/HostEngine` (the host's reads, set hour) and `engine/Bridges/GuestEngine` (applying the host's calendar, weather, globals, quests) replace those `IWorldBridge` calls; `CalendarService` is `TimeScaleService`; `WeatherService`, `WorldStateService` deleted; `HostBridge` renamed `HostAuthority`. Actors next, by owner/copy (`docs/ideas.md`, "Client services by role") |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
 | Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
 | Arriving together: the party stacks on the arrival spot, passing through each other until each walks off; followers face the leader's way, so every game shows the same view; an NPC follower or copy landing on the spot joins the stack (2026-11-03: her copy shoved the guest through a table) | done (replaces the step-aside of `83178416`), `party-stacks-on-arrival`, `party-uses-door`, `follower-lands-on-guest`, GameTests "A follower landing on a guest's arrival spot...", UnitTests `[arrival-stack]` |
@@ -1504,7 +1504,7 @@ Before AI state and dialogue (below), world sync is finished while its pieces ar
 5. **Physics objects' rest positions.** Havok moved `0x4`: when the host's body comes to rest (deactivated), its
    position and angle go out through the move row. Each game simulates the flight its own way, then the host's
    resting spot wins. Built 2026-10-21 (`Bridges/PhysicsRests`); since 2026-10-24 the flight itself is the host's too
-   (live physics, `Bridges/PhysicsBodies`, below) and the rest is found from Havok's island mark. A guest's own push
+   (live physics, `sync/physics/PhysicsBodies`, below) and the rest is found from Havok's island mark. A guest's own push
    goes to the host as its impulse (physics sync step 5, 2026-10-24).
 
 World sync is then done: every object ends where the host's is. Live physics (the flight itself, ragdolls, a guest's
@@ -1641,7 +1641,7 @@ Decisions made without the user are marked **Decided**.
     matters there is that the copy holds one, for `UpdateAI`'s upkeep).
 - **2. Sit/sleep, furniture, scene, talking, follow target: partly.** Sit/sleep state (`GetSitting`, `GetSleeping`)
   and talking (`IsTalking`) are the owner's already (replayed actions, the copy's own voice line); `ai_state.talking`
-  is compared. Scene: `Actor::GetCurrentScene` (37247) hooked for copies (`Games/Skyrim/CopyAiState.cpp`), compared
+  is compared. Scene: `Actor::GetCurrentScene` (37247) hooked for copies (`engine/CopyAiState.cpp`), compared
   as `ai_state.scene`; **no scenario** (no lever to put a host NPC in a scene without a quest: a stall, left). The
   occupied furniture and follow target travel but are not written (**Decided:** no vanilla dialogue condition reads
   them; writing the furniture handle would hand a copy to the engine's furniture exit code). Greeting
@@ -1675,12 +1675,12 @@ Decisions made without the user are marked **Decided**.
     picker's own line. Ported from the archive: refusals, training, force greets (`DialogueStartFailedRequest`,
     `DialogueTrainingRequest`, `NotifyDialogueRefused`, `NotifyDialogueTraining`, `Everyone`), Speech experience to the
     picker (`PlayerCharacter::GainSkillExperience`, `SetSpeechExperienceFilter`), the copy-speaker guard on
-    `TESTopicInfo::Begin` (25616), the dialogue hooks (`Bridges/DialogueBridge.cpp`), the harness (`dialogue`,
+    `TESTopicInfo::Begin` (25616), the dialogue hooks (`engine/Bridges/DialogueBridge.cpp`), the harness (`dialogue`,
     `dialogue_pick`, `skill`, `force_greet`, `info_said`, `trainings`; `item_count` takes `form` alone for the
     player) and the scenarios. `dialogue_tests.cpp` rewritten for steps (27 cases); TPTests round trip.
   - **Decided:** the game side splits by role, per the rules: a shared `DialogueService` (joins, leaves, picks, the
-    picker's training and Speech; `Services/Generic`), the host's part `Services/Host/HostConversation` (made by
-    `HostService` while hosting) and a guest's `Services/Guest/GuestDialogue` (made by `GuestService`), each plugging
+    picker's training and Speech; `Services/Generic`), the host's part `sync/dialogue/HostConversation` (made by
+    `HostService` while hosting) and a guest's `sync/dialogue/GuestDialogue` (made by `GuestService`), each plugging
     in as `DialogueService::Role`; not the archive's one service with `IsHost()` branches.
   - **Decided:** a guest with no answer to a line's choices leaves (its menu closes), as the archive did; the host's
     held choices (`HoldChoices`) stay.
@@ -1957,8 +1957,8 @@ Leaving `TiltedPhoques` (2026-10-21, `docs/ideas.md`, "Modern C++ over `TiltedPh
    engine's `uint32_t*&` through `ThisCall`'s copy; it names the copy now (`TESObjectREFR::MoveTo`).
 4. The rest moved into our tree and `Code/TiltedCore` and `Code/libraries` are gone: the wire buffer is
    `Code/encoding/Wire` (`Wire::Buffer`, `Wire::Serialization`), the enet transport `Code/network` (`Net::Server`,
-   `Net::Client`), the MinHook wrapper, patch helpers and D3D11/input hooks `Code/client/Hooks` (`Hooks::`, `HOOK`,
-   `Hooks::Initializer`), `TaskQueue` the client's own, the CRC64 of animation descriptors `Games/Crc64`, and global
+   `Net::Client`), the MinHook wrapper, patch helpers and D3D11/input hooks `Code/engine/Hooks` (`Hooks::`, `HOOK`,
+   `Hooks::Initializer`), `TaskQueue` the client's own, the CRC64 of animation descriptors `engine/Crc64`, and global
    `new`/`delete` call rpmalloc directly (`Code/base/allocator`). The `App`/`Entry` framework, its WinMain hooks and
    the SKSE loader went (`Plugin` is a plain class: `InstallHooks`, `Start`, `Update`). Found on the way:
    a bridge test read a message after freeing the outbox that held it (`dialogue_tests.cpp`, `Talking::Open`);
@@ -1972,7 +1972,7 @@ handlers; `NotifySetTimeResult` (a guest never read it; the host ignores an hour
 unpublished or unheard events (`ActorSpawnedEvent`, `ConnectionErrorEvent`, `PreUpdateEvent`); 20 headers
 nothing included (`Differential.h`, engine structs never used); `WindowsHook` (never installed); upstream's
 release-branch flag `IS_MASTER` (`BranchInfo.h`); the CRT heap swap and the EngineFixes rehook in
-`Games/Memory.cpp`, both only ever called by upstream's launcher. Renamed: `TiltedOnlineApp` is `Plugin`,
+`engine/Memory.cpp`, both only ever called by upstream's launcher. Renamed: `TiltedOnlineApp` is `Plugin`,
 `TiltedOnlinePCH.h` is `ClientPch.h`, `TP_ASSERT` is `Utils::Assert` (a function, `std::source_location`),
 and the components' include guard is gone. 11 scenarios pass on a fresh duo (sessions, time, combat,
 magic, chat).
@@ -2037,8 +2037,8 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Crime / party bounty | host-authoritative | shared totals, guest alarms and fines from the party's purse; native coverage and jail/trespass-AI limits: `docs/design/shared-party-bounty.md` |
 | Dropped items | one in the host's world with their extra data; pickups granted by the host (feature 6, 2026-10-26); a dead player keeps what it held, out of reach, and holds it again on respawn (2026-11-06, `re/systems/death-drops.md`) | `docs/design/dropped-items.md` |
 | Followers | on dev: shared vanilla slots, member anchors, fallback and picker inventory; native coverage/limits in design | `docs/design/followers.md`, `follower-*` |
-| World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); a form's save data round-trips in a running game (step 3, 2026-10-20: `Games/FormState.cpp`, `form-state-round-trips`; the copies' appearance uses it); quest walks 2026-10-20: `coop_test.py quest-walk` drives real quests (main, side, radiant) from a late save (`scripts/fetch_late_saves.py`) and shows the client never follows (`docs/research/world-state-drift.md`, "Quest walks"); step 4 built: globals and quests from the host (`HostWorldState`, `NotifyGlobals`, `NotifyQuests`; a guest applies with the engine's own calls, stage fragments skipped; scenarios `global-reaches-guest`, `late-join-gets-globals`, `quest-stage-reaches-guest`, `quest-completes-for-guest`, `quest-roles-match-host`, `late-join-gets-quests`), the main-quest walk matches 14 of 14; loose ends below. Step 5 slice 1 built 2026-10-21: a guest's world scripts get no activation or trigger events, the host's run them for its copy, and their doors, animations and spells reach the guest from the host (`Papyrus/WorldEvents.cpp`, `HostWorldState`'s `NotifyObjectChanges`, `MagicTarget.cpp`; `docs/re/systems/guest-world-events.md`; scenarios `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `shrine-blesses-client`). Step 6's enabled state built 2026-10-21: the host's references enabled or disabled reach the guests (`NotifyObjectChanges`; `sword-box-asks-client`, harness `ref_enabled`). Locks the same day: the host's lock changes go out as object changes, a guest's are proposals the host's game takes (`HostObjects::OnLockChange`; `lock-reaches-others`); the old lock relay is deleted. Both read on the host from the engine's change funnel (`Forms/FormChanges`, `HostEngine::TakeObjectChanges`; `docs/design/world-state-sync.md`, "As built"), built 2026-10-21 (scenarios `lock-reaches-others`, `guest-loads-propose-no-locks`, `sword-box-asks-client` pass); the `Enable`/`Disable` hooks are deleted. Containers slice 1 the same day: a container's item changes travel as its count now (`kItems` object changes from the host; a guest's own a `ContainerChangeRequest` the host's game takes), seen through the engine's `TESContainerChangedEvent` (`ContainerEvents`); `chest-take-reaches-others`; the unused `RequestObjectInventoryChanges`/`NotifyObjectInventoryChanges` deleted. World desync check for references (step 7) 2026-10-21: harness `world_state` (with each reference's change record, pose, physics, graph, effects), `coop_test.py world-diff`, scenario `world-changes-reach-guest` (also each change's object events). Reference sync reworked the same day from what it showed: rows for enabled, lock, open state, move, scale and owner (the engine's calls: swing, events, 3D, collision), the funnel also watching `RemoveChange` and repeat moves; every kind but created references matches in every side effect, items' container event included. The save-data fallback is built but off until mods (with it on, it hid the missing container event); flags with no row are logged once, `coop_test.py unsynced` (now: havok moved, activating children, animation). Open: created references, those rows, whether the guest's scripts should get object events at all, references the guest has not loaded (changes dropped). Rewritten 2026-10-20: save transfer at join, plain messages while playing (step 4: globals and quests), save data per form only for mods later; AI state travels on its own | `docs/design/world-state-sync.md`, `docs/re/systems/form-state.md` |
-| A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Rules 1-2 built (`Games/Skyrim/Papyrus/GuestScripts.cpp`; rule 2 never ran until 2026-10-20: `GetPlayer`'s name reads back from the engine's string pool as `getplayer`; engine names are now compared case-insensitively everywhere, `Games/EngineNames.h`, `docs/re/systems/engine-names.md`; scenarios `plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `keyhole-asks-client`, `shrine-blesses-client`, `vilkas-counts-client-hits`); upstream's patched vanilla scripts and `SkyrimTogetherUtils` natives removed; rules 3-5 not built. The client's world scripts stop reacting to activations and triggers (world-state sync step 5, slice 1, 2026-10-21); other events still run on both games | `docs/research/player-events.md`, `scripts/spikes/` |
+| World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); a form's save data round-trips in a running game (step 3, 2026-10-20: `engine/FormState.cpp`, `form-state-round-trips`; the copies' appearance uses it); quest walks 2026-10-20: `coop_test.py quest-walk` drives real quests (main, side, radiant) from a late save (`scripts/fetch_late_saves.py`) and shows the client never follows (`docs/research/world-state-drift.md`, "Quest walks"); step 4 built: globals and quests from the host (`HostWorldState`, `NotifyGlobals`, `NotifyQuests`; a guest applies with the engine's own calls, stage fragments skipped; scenarios `global-reaches-guest`, `late-join-gets-globals`, `quest-stage-reaches-guest`, `quest-completes-for-guest`, `quest-roles-match-host`, `late-join-gets-quests`), the main-quest walk matches 14 of 14; loose ends below. Step 5 slice 1 built 2026-10-21: a guest's world scripts get no activation or trigger events, the host's run them for its copy, and their doors, animations and spells reach the guest from the host (`Papyrus/WorldEvents.cpp`, `HostWorldState`'s `NotifyObjectChanges`, `MagicTarget.cpp`; `docs/re/systems/guest-world-events.md`; scenarios `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `shrine-blesses-client`). Step 6's enabled state built 2026-10-21: the host's references enabled or disabled reach the guests (`NotifyObjectChanges`; `sword-box-asks-client`, harness `ref_enabled`). Locks the same day: the host's lock changes go out as object changes, a guest's are proposals the host's game takes (`HostObjects::OnLockChange`; `lock-reaches-others`); the old lock relay is deleted. Both read on the host from the engine's change funnel (`Forms/FormChanges`, `HostEngine::TakeObjectChanges`; `docs/design/world-state-sync.md`, "As built"), built 2026-10-21 (scenarios `lock-reaches-others`, `guest-loads-propose-no-locks`, `sword-box-asks-client` pass); the `Enable`/`Disable` hooks are deleted. Containers slice 1 the same day: a container's item changes travel as its count now (`kItems` object changes from the host; a guest's own a `ContainerChangeRequest` the host's game takes), seen through the engine's `TESContainerChangedEvent` (`ContainerEvents`); `chest-take-reaches-others`; the unused `RequestObjectInventoryChanges`/`NotifyObjectInventoryChanges` deleted. World desync check for references (step 7) 2026-10-21: harness `world_state` (with each reference's change record, pose, physics, graph, effects), `coop_test.py world-diff`, scenario `world-changes-reach-guest` (also each change's object events). Reference sync reworked the same day from what it showed: rows for enabled, lock, open state, move, scale and owner (the engine's calls: swing, events, 3D, collision), the funnel also watching `RemoveChange` and repeat moves; every kind but created references matches in every side effect, items' container event included. The save-data fallback is built but off until mods (with it on, it hid the missing container event); flags with no row are logged once, `coop_test.py unsynced` (now: havok moved, activating children, animation). Open: created references, those rows, whether the guest's scripts should get object events at all, references the guest has not loaded (changes dropped). Rewritten 2026-10-20: save transfer at join, plain messages while playing (step 4: globals and quests), save data per form only for mods later; AI state travels on its own | `docs/design/world-state-sync.md`, `docs/re/systems/form-state.md` |
+| A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Rules 1-2 built (`engine/Papyrus/GuestScripts.cpp`; rule 2 never ran until 2026-10-20: `GetPlayer`'s name reads back from the engine's string pool as `getplayer`; engine names are now compared case-insensitively everywhere, `sync/core/EngineNames.h`, `docs/re/systems/engine-names.md`; scenarios `plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `keyhole-asks-client`, `shrine-blesses-client`, `vilkas-counts-client-hits`); upstream's patched vanilla scripts and `SkyrimTogetherUtils` natives removed; rules 3-5 not built. The client's world scripts stop reacting to activations and triggers (world-state sync step 5, slice 1, 2026-10-21); other events still run on both games | `docs/research/player-events.md`, `scripts/spikes/` |
 
 ## Copies (how other players' and the host's actors appear)
 
@@ -2315,7 +2315,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   `host-kill-move` 3 of 3, `clock-slows-for-everyone`, kill credit, `death-host-npc`, `late-join-client`,
   `steady-state` pass, `host-rejoins` 3 of 4 (Lydia's `JumpLand`, Loose ends).
 - Animation trace (2026-10-13, `5a58a51c`): `AnimTrace` in `coop_test.py` and the harness's
-  `anim_trace` command (`Code/client/TestHarness/AnimationTrace.cpp`). For chosen actors in both games
+  `anim_trace` command (`Code/harness/TestHarness/AnimationTrace.cpp`). For chosen actors in both games
   it records every behaviour graph event (a sink on each graph's `BSAnimationGraphEvent` source), the
   actions taken, life state, kill move, health, graph booleans and position each frame, with the wall
   clock and frame; both screens; and the plugin logs' lines naming them. It writes one timeline (host
@@ -2412,7 +2412,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   of sending an id no game finds (a guest's activation, lock or equip of a created form). `UnitTests`
   "[FormIds]". `Inventory.h` includes `<optional>`.
 - One line per hook (2026-10-23, ideas.md "Code cleanup"): `HOOK_ID(ID, &Real, HookFn)` (and
-  `HOOK_ID_IMMEDIATE`, `Hooks/FunctionHook.h`) replaces the `POINTER_SKYRIMSE` / `Real = .Get()` / `HOOK` triple at
+  `HOOK_ID_IMMEDIATE`, `engine/Hooks/FunctionHook.h`) replaces the `POINTER_SKYRIMSE` / `Real = .Get()` / `HOOK` triple at
   122 installs in 38 files (266 lines); signatures, ids, breadcrumb names and install order are unchanged. Left as
   they were (24): setup between resolving and installing (`Memory.cpp`'s two, `Actor.cpp`'s `ApplyMovement`,
   `ResetInventory`, `UpdateAI`, `GuestScripts.cpp`'s nine), relocation names an engine-call wrapper reuses
@@ -2420,7 +2420,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   (`ExitProcess`, DInput's device, four `VersionDbPtr` casts). `build_re_data.py` reads the new form: the same 441
   ids, 486 uses and 152 hook rows.
 - Event connections in one vector (2026-10-23): `Listen<Event, &T::Handler>(m_connections,
-  m_dispatcher, this)` (`Events/Listen.h`, with a sink overload for the registry's `on_destroy` and the ImGui draw
+  m_dispatcher, this)` (`sync/core/Listen.h`, with a sink overload for the registry's `on_destroy` and the ImGui draw
   signal) replaces 123 `scoped_connection` members in 26 classes, each vector where its members were (97 fields).
 - `BridgeTests` is `HostAuthorityTests` (2026-10-23): `Code/tests/host_authority/`, `[HostAuthority]`
   tags, the `HostAuthorityTest` namespace; the gate, `CLAUDE.md` and the design docs follow. Dated entries keep
@@ -2611,7 +2611,7 @@ removed (git history keeps them).
 
 - **A dragged object blinked once in play (2026-11-01).** Not reproduced with `body_trace`; nothing traces a hold; a
   scenario that drags an object while both games trace it would catch a recurrence.
-- **Replace the health faces before a Nexus release (2026-11-18).** `Code/client/Ui/assets/moods/*.png` are
+- **Replace the health faces before a Nexus release (2026-11-18).** `Code/plugin/Ui/assets/moods/*.png` are
   RollerCoaster Tycoon art, not ours and not GPL; swap in our own or CC0 faces.
 
 ### Mounts (2026-10-23)
@@ -2855,7 +2855,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - The client's fire statue in Soljund's Sinkhole fired though `6AE8C.disable` ran on the client (2026-10-20): its script checks `FPStatueA.isEnabled()`. Not followed up; the scenario no longer disables it (step 5 stops the client's trigger).
 - The guest's view of a script's object animation (a claw door's ring turning, from the host's `NotifyObjectChanges`) has no harness readout: `ring-turns-for-client` checks that the guest's own ring script stays, not that its ring turns (2026-10-21).
 - `load-door-not-replayed` reported a lock-order inversion once (2026-10-20 night, host: `+0xe85437 > +0x17928d` against `+0x16abbd > +0xe92c16`, ours on the stack), next to known patterns; passed on rerun. Stacks not read.
-- `Projectile::LaunchData` (`Games/Skyrim/Projectiles/Projectile.h`) names `+0x50` `fYAngle`; CommonLibSSE-NG has a pointer there (`unk50`) and `desiredTarget` at `+0x58`. Projectile sync sends it as `YAngle`. Not checked in IDA.
+- `Projectile::LaunchData` (`engine/Projectiles/Projectile.h`) names `+0x50` `fYAngle`; CommonLibSSE-NG has a pointer there (`unk50`) and `desiredTarget` at `+0x58`. Projectile sync sends it as `YAngle`. Not checked in IDA.
 - A failed `sword-box-asks-client` run leaves the secret door open on the client, so the next run fails at "not closed to begin with" until a fresh duo.
 - The lock-order checker reported two inversions on the guest during a beast form change (2026-10-20, `tp_client-client.log`: the guest's character's reference lock, `SkyrimSE.exe+0x16d4cb > +0x182241` against `+0x182315 > +0x17928d`, one marked ours). Not followed up.
 - A release-mode client build (`-m release --test_harness=n`) fails to link: `/opt:ref: no such file or directory` (2026-10-19, seen while checking a player build; `-m dev --test_harness=n` links).
@@ -3087,7 +3087,7 @@ The earlier "Product pieces not started" list was obsolete. Steam lobbies/invite
 game/build/plugin-order checks, main-menu returning-character joins, host save transfer and character co-save
 records are implemented. The join UI shows progress/refusals/end reasons; ordinary leave, kick, host exit and
 exhausted reconnects now clean up and return to the main menu. Difficulty follows the host's actual setting.
-See `docs/design/join-flow.md`, `Code/client/Ui/README.md` and the integration review above for evidence and limits.
+See `docs/design/join-flow.md`, `Code/plugin/Ui/README.md` and the integration review above for evidence and limits.
 
 Animation action snapshots now copy and replace their owned strings/vectors under one mutex; refused death
 actions preserve newer actions and body resets. Fast concurrency/restoration tests and native checks pass.

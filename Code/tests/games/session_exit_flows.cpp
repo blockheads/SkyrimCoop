@@ -1,10 +1,10 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Events/MenuEvent.h>
-#include <Services/JoinService.h>
-#include <Services/SaveService.h>
-#include <Services/SessionService.h>
+#include <core/MenuEvent.h>
+#include <join/JoinService.h>
+#include <join/SaveService.h>
+#include <core/SessionService.h>
 
 namespace
 {

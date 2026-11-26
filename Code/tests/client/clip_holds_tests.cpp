@@ -1,7 +1,7 @@
 // The host's script-animated objects out of its sight (docs/design/traps.md): held for a while, each animation again.
 #include <catch2/catch.hpp>
 
-#include <Games/Skyrim/ClipHolds.h>
+#include <ClipHolds.h>
 
 TEST_CASE("An animated object is held for a clip's time, from its last animation", "[ClipHolds]")
 {

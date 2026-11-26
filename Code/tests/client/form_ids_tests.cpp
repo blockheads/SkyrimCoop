@@ -2,7 +2,7 @@
 // keeps its number; a created form (0xFF) is only its own game's.
 #include <catch2/catch.hpp>
 
-#include <FormIds.h>
+#include <core/FormIds.h>
 
 TEST_CASE("Form ids: a plugin's form has the same id in every game", "[FormIds]")
 {

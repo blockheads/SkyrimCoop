@@ -3,22 +3,22 @@
 // host's: held keyframed, following the host's flight a little behind, resting exactly where the host's rests.
 #include "Party.h"
 
-#include <Components/RemoteComponent.h>
-#include <Services/BodyService.h>
-#include <Services/Guest/GuestBodies.h>
+#include <core/RemoteComponent.h>
+#include <physics/BodyService.h>
+#include <physics/GuestBodies.h>
 #include <Messages/Relayed.h>
-#include <Physics/BodyPrediction.h>
-#include <Physics/BodyTolerances.h>
-#include <Physics/RestPlacer.h>
-#include <Bridges/PhysicsBodies.h>
-#include <Services/CopyRecords.h>
+#include <physics/BodyPrediction.h>
+#include <physics/BodyTolerances.h>
+#include <physics/RestPlacer.h>
+#include <physics/PhysicsBodies.h>
+#include <core/CopyRecords.h>
 #include <Structs/RagdollPart.h>
 
 #include <chrono>
 #include <format>
 #include <thread>
-#include <Components/FormIdComponent.h>
-#include <Components/LocalComponent.h>
+#include <core/FormIdComponent.h>
+#include <core/LocalComponent.h>
 
 namespace
 {
@@ -1748,7 +1748,7 @@ SCENARIO("A guest's bucket, played on the host, runs into a plate the guest's ne
 {
     // The duo, 2026-11-15 (tavern): steered onto the guest's frames, the host's copy of a guest's object knocked a
     // neighbour the guest's game never hit. The host simulated that neighbour itself, and the guest's, at rest, jumped
-    // 26 units after it. A played object meets the world, not objects nobody moves (Physics/BodyGroups.h).
+    // 26 units after it. A played object meets the world, not objects nobody moves (sync/physics/BodyGroups.h).
     Party party(1, Plugins);
     auto& hostBucket = BodyOf(party, party.Host(), kBucket);
     auto& hostPlate = BodyOf(party, party.Host(), kPlate);

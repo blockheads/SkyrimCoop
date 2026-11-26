@@ -17,7 +17,7 @@ touches it. The repo is the record; IDA is a workbench that syncs into it.
    `ida_notes.tsv` retains its findings, and `ida_notes_1.7.104.tsv` holds target-specific notes.
 2. **CommonLibSSE** (powerof3, GPL-3) in `reference/CommonLibSSE`: engine classes, layouts,
    vtables, RTTI, and `RELOCATION_ID(SE, AE)` for ~9.7k addresses. The best reference for
-   struct layouts; check our hand-written structs in `Code/client/Games/` against it.
+   struct layouts; check our hand-written structs in `Code/engine/` against it.
    **CommonLibSSE-NG** (alandtse) in `reference/CommonLibSSE-NG` fills the gaps: ~170 more AE IDs,
    AE layout fixes (e.g. `PlayerControls::data` at 0x24, the `ButtonEvent` stride) and helpers such
    as `ButtonEvent::Create`. When the two disagree on an AE layout, check IDA.
@@ -105,7 +105,7 @@ the report; `scripts/coop_test.py crash` prints the newest crash of each game ag
 - the objects the registers and stack point to (RTTI types, form IDs and names, scene node names);
 - the probable call stack, engine frames named from `build/re/<version>/annotations.json`;
 - our breadcrumbs: the last engine changes our code made through `SkyrimBridge`, with times
-  before the crash and repeat counts (`Code/client/Breadcrumbs.h`, written by our crash handler);
+  before the crash and repeat counts (`Code/plugin/Breadcrumbs.h`, written by our crash handler);
 - the last lines of `tp_client.log` before the crash.
 
 A crash with no breadcrumbs in the last second or so did not start with something we just did.
@@ -116,7 +116,7 @@ A crash with no breadcrumbs in the last second or so did not start with somethin
 
 **Crashes on freed memory** (garbage in a register, a fault far from the cause) are the common
 kind in the engine: something deleted an object another system still lists. The heap tools
-(`Code/client/HeapHistory.h`, off unless asked for) say who freed what:
+(`Code/plugin/HeapHistory.h`, off unless asked for) say who freed what:
 
 1. `coop_test.py repro NAME --heap-history`: every engine allocation and free of the last seconds
    with its stack; the report gives each register's and stack value's block its story

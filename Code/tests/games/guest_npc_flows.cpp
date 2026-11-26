@@ -4,7 +4,7 @@
 #include "Party.h"
 #include "Fixtures.h"
 
-#include <Events/MountEvent.h>
+#include <characters/MountEvent.h>
 
 namespace
 {

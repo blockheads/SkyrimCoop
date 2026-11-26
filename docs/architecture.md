@@ -2,8 +2,6 @@
 
 How the code is organised, and why. One page; the details live in [docs/design/](design/).
 
-The code is being moved to this layout. The last section says where each part lives today.
-
 ## The idea
 
 The host's game is the only authority. It owns every NPC and the world. Each guest owns only its own player.
@@ -43,8 +41,8 @@ sync/crime/CrimeService       "did anyone see that theft?"
         |  calls
 sync/crime/ICrimeBridge       the port: a few methods, no Skyrim types
         ^  implemented by
-engine/crime/CrimeBridge      the real one: asks Skyrim's witnesses
-tests/fake/FakeCrime          the fake one: witnesses the test sets up
+engine/Bridges/CrimeBridge    the real one: asks Skyrim's witnesses
+tests/games/FakeCrime         the fake one: witnesses the test sets up
 ```
 
 Hooks go the other way. A hook in `engine` sees something happen and reports it as an event. It makes no decision.
@@ -117,24 +115,27 @@ The host's own game takes the same path, without the network.
 
 Tiers 1 and 2 run on every change (`scripts/check.sh`). More in [design/testing.md](design/testing.md).
 
-## Where things are today
+## Where things are
 
-The layers are real in the build already; the folders are not moved yet.
+| Layer    | Folder          | Target                                  |
+|----------|-----------------|-----------------------------------------|
+| `plugin` | `Code/plugin/`  | `SkyrimCoopPlugin` (with `engine`)      |
+| `engine` | `Code/engine/`  | built into the plugin                   |
+| `sync`   | `Code/sync/`    | `SkyrimCoopSync`, also in `GameTests`   |
+| harness  | `Code/harness/` | test builds of the plugin only          |
 
-- **`sync` is its own target**, `SkyrimCoopSync` (`Code/client/sync.lua`). It builds with no Windows or Skyrim header
-  forced in, for the plugin and for the tests.
-- **`scripts/layout.tsv` says which layer and feature each file belongs to.** `scripts/check.sh` fails on an include
-  that breaks a layer rule, and on a `sync` file missing from `sync.lua`.
-- **One wiring.** `World` takes an `IEngine` (`Code/client/IEngine.h`): every port in one place. The plugin passes
-  Skyrim (`SkyrimEngine.cpp`); the tests pass the fake. The same `World.cpp`, `HostService` and `GuestService` run in both.
+- **A file's folder is its layer and its feature.** Includes say it: `<crime/CrimeService.h>`, `<core/World.h>`.
+- **`scripts/check.sh` fails on an include that breaks a layer rule** (`scripts/check_layout.py`).
+- **One wiring.** `World` takes an `IEngine` (`Code/sync/core/IEngine.h`): every port in one place. The plugin passes
+  Skyrim (`Code/plugin/SkyrimEngine.cpp`); the tests pass the fake. The same `World`, `HostService` and `GuestService`
+  run in both.
+- **`engine` keeps Skyrim's own groups** (`Forms/`, `AI/`, `Papyrus/`, ...), not our features. Our side of each port
+  is in `engine/Bridges/`.
 
-| Target layer | Today                                                             |
-|--------------|-------------------------------------------------------------------|
-| `plugin`     | `Code/client/*.cpp`, `Code/client/Ui/`, `Code/client/Diagnostics/` |
-| `engine`     | `Code/client/Games/`, `Code/client/Hooks/`, `Code/client/Bridges/*.cpp` |
-| `sync`       | `Code/client/Services/`, `Systems/`, `Physics/`, `Components/`    |
-| ports        | `Code/client/Bridges/I*.h`, `Code/client/IEngine.h`               |
-| harness      | `Code/client/TestHarness/`, `Code/client/HotReload/`              |
+Not done yet:
 
-Not done yet: a few ports are still one header with two `.cpp` files (the engine's and the tests'), not an interface
-(`AnimationSystem.h`, `PartyNatives.h`, `PlayerNatives.h`); `IActorBridge` and `CharacterService` are not split by feature.
+- The ports every feature shares sit in `sync/ports/`, not in a feature: `IActorBridge` is not split by feature.
+- A few ports are still one header with two `.cpp` files (the engine's and the tests'), not an interface
+  (`AnimationSystem.h`, `PartyNatives.h`, `PlayerNatives.h`). Two of them name engine types, so `sync` still builds
+  with `Code/engine` on its include path.
+- `CharacterService` is not split by feature, and unit tests are in `Code/tests/`, not beside their feature.

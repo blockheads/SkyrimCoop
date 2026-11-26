@@ -17,7 +17,7 @@ behavior. This feature adds no party-pause message or vote.
 
 ## Existing cause
 
-`Games/Skyrim/Interface/UI.cpp` cleared three flags only for inventory, magic, skills, favourites,
+`engine/Interface/UI.cpp` cleared three flags only for inventory, magic, skills, favourites,
 containers, message boxes, tutorial, tween and console. Other pausing menus stopped their game's
 simulation. The host owns every NPC: a paused host sends stationary NPCs to every guest. A paused
 guest stops its own player's simulation even while the host and the other guests keep playing.

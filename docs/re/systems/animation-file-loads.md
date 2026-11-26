@@ -10,7 +10,7 @@ IDA on 1.7.104, 2026-11-17, for the guest's freeze in the 2026-11-16 playtest.
 | Step | ID | What |
 |---|---|---|
 | Queue a load | 63969 / 63968 | Allocates an entry (0x68): `+0x38` the set's kind, `+0x48`/`+0x50` the callback and its argument, `+0x58` **the requester's lock**, `+0x60` live. Pushes `{priority, entry}` on the pending heap (64045) under the manager's lock (`+0x0C`). Returns the entry: the requester's handle. |
-| The queue | | `+0x68` pending (a BSTArray kept as a max-heap by priority, size `+0x78`), `+0x80` the load under way, `+0x88` the finished loads (size `+0x98`). Typed in `Games/Skyrim/AnimationFileManager.h`. |
+| The queue | | `+0x68` pending (a BSTArray kept as a max-heap by priority, size `+0x78`), `+0x80` the load under way, `+0x88` the finished loads (size `+0x98`). Typed in `engine/AnimationFileManager.h`. |
 | Its job | 63980 | `Job_Animation_files`' update, every frame in the job list. It ends in 63997. |
 | Callbacks | 63997 | First pass: **takes every finished live entry's `+0x58` lock** (`BSSpinLock::Lock`), with no manager lock held. Then the manager's lock, each live entry's callback, then it unlocks the locks of the entries **still live**, and drops the finished list. |
 | Cancel | 63971 → 63986 | Under the manager's lock: drops the load under way, takes the entry off the pending heap (64014), or clears a finished entry's live byte so 63997 skips it. It compares pointers only, so a stale handle is harmless. |
@@ -48,7 +48,7 @@ entry's lock pointer, or taken the lock, before the cancel clears `+0x60`. It st
 unlock because the entry is no longer live. Freeing the lock after the cancel is a use after free; keeping it leaves it
 held forever. The engine's own cancels share this window. We stay out of it by never cancelling.
 
-`HeldClipLoads` (`Games/Animation/HeldClipLoads.h`) holds a copy's movement sets:
+`HeldClipLoads` (`sync/animation/HeldClipLoads.h`) holds a copy's movement sets:
 
 - **Its own lock**, which outlives the copy.
 - **Each queued load's callback reference.** The queue keeps only the pointer (63968 writes it to `+0x40` without
@@ -104,7 +104,7 @@ may hold the same inversion.
   thread 440 in 63997 held it and waited in 32932 for the graph lock, owner 436 (`waits for spin lock 0x27add630:
   owner thread 436`). Our equipment reconcile had equipped the copy just before (the equip's clip load is the
   callback). Four more animation threads waited in 63968 for the manager's lock.
-- **The fix** (`Games/Animation/DeferredClips.h`): the stream's request is queued for the frame's start
+- **The fix** (`sync/animation/DeferredClips.h`): the stream's request is queued for the frame's start
   (`MainLoopTasks`), where no job runs; the replay already waits on the load's flag, which now exists before the
   load does. A request whose actor is no longer a copy at the drain (released as the session ended) is dropped:
   the action's load would cancel that actor's own (39258). Tests: GameTests "A copy deleted while its movement idle's clips load leaves no load on its lock" (the

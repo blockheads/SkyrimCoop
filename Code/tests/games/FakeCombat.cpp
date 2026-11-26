@@ -1,6 +1,6 @@
 #include "FakeEngine.h"
-#include <Events/AiStateChangeEvent.h>
-#include <World.h>
+#include <actorstate/AiStateChangeEvent.h>
+#include <core/World.h>
 
 void FakeEngine::RunNativeCombat() noexcept
 {

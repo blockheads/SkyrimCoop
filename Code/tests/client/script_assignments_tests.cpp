@@ -1,4 +1,4 @@
-#include <Games/ScriptAssignments.h>
+#include <ScriptAssignments.h>
 #include <catch2/catch.hpp>
 
 #include <array>

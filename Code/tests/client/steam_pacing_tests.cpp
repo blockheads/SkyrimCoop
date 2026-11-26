@@ -2,7 +2,7 @@
 // and cuts its throttle (docs/design/network-performance.md, Steam's send rate).
 #include <catch2/catch.hpp>
 
-#include <Bridges/SteamPacing.h>
+#include <join/SteamPacing.h>
 
 using namespace SteamPacing;
 

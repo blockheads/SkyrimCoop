@@ -1,0 +1,60 @@
+#include <travel/MapService.h>
+
+#include <core/World.h>
+
+#include <travel/SetWaypointEvent.h>
+#include <travel/RemoveWaypointEvent.h>
+#include <Messages/NotifySetWaypoint.h>
+#include <Messages/NotifyRemoveWaypoint.h>
+#include <Messages/RequestSetWaypoint.h>
+#include <Messages/RequestRemoveWaypoint.h>
+
+#include <ports/IPlayerBridge.h>
+#include <core/FormIds.h>
+
+MapService::MapService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
+    : m_world(aWorld)
+    , m_dispatcher(aDispatcher)
+    , m_transport(aTransport)
+    , m_playerBridge(aWorld.ctx().at<IPlayerBridge&>())
+{
+    Listen<NotifySetWaypoint, &MapService::OnNotifySetWaypoint>(m_connections, m_dispatcher, this);
+    Listen<NotifyRemoveWaypoint, &MapService::OnNotifyRemoveWaypoint>(m_connections, m_dispatcher, this);
+    Listen<SetWaypointEvent, &MapService::OnSetWaypoint>(m_connections, m_dispatcher, this);
+    Listen<RemoveWaypointEvent, &MapService::OnRemoveWaypoint>(m_connections, m_dispatcher, this);
+}
+
+void MapService::OnSetWaypoint(const SetWaypointEvent& acMessage) noexcept
+{
+    if (!m_transport.IsConnected())
+        return;
+
+    RequestSetWaypoint request{};
+    request.Position = acMessage.Position;
+
+    request.WorldSpaceFormID = ToSession(acMessage.WorldSpaceFormID).value_or(GameId{});
+
+    m_transport.Send(request);
+}
+
+void MapService::OnRemoveWaypoint(const RemoveWaypointEvent& acMessage) noexcept
+{
+    if (!m_transport.IsConnected())
+        return;
+
+    RequestRemoveWaypoint request{};
+    m_transport.Send(request);
+}
+
+void MapService::OnNotifySetWaypoint(const NotifySetWaypoint& acMessage) noexcept
+{
+    const uint32_t cWorldSpaceID = ToGame(acMessage.WorldSpaceFormID);
+
+    m_playerBridge.SetPlayerWaypoint(acMessage.Position.x, acMessage.Position.y, acMessage.Position.z, cWorldSpaceID);
+}
+
+void MapService::OnNotifyRemoveWaypoint(const NotifyRemoveWaypoint& acMessage) noexcept
+{
+    m_playerBridge.RemovePlayerWaypoint();
+}
+

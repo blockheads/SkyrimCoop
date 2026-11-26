@@ -1,6 +1,6 @@
 #include <catch2/catch.hpp>
 
-#include <Games/ItemMenuRebuild.h>
+#include <ItemMenuRebuild.h>
 
 TEST_CASE("An open item menu is rebuilt after a stack it lists changes", "[inventory][item-menu]")
 {

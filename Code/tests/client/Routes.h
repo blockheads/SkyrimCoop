@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Papyrus/PartyRules.h>
+#include <scripts/PartyRules.h>
 
 // What NativeReach reads from the progression natives' code (its engine table, NativeReach.cpp; the reading itself:
 // code_reach_tests.cpp), and the router's answer for one (PartyRules::RouteOf).

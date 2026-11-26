@@ -111,7 +111,7 @@ void CopyRecords::OnSessionId(uint32_t aId)               // a copy made, or a n
 - Events about an actor that is not here are **dropped**: its record holds their result. Nothing is queued.
 - Parts move in one at a time; each service keeps its message until its part exists, then its message goes.
 
-Files: `Services/CopyRecords.{h,cpp}` (every game), `Services/Host/HostRecords` (it exists: the per-character
+Files: `Services/CopyRecords.{h,cpp}` (every game), `sync/characters/HostRecords` (it exists: the per-character
 record grows the parts), `Messages/Payloads.h` (`Record`), `CharacterService` (spawn, `OnSessionId`).
 Tests: UnitTests `[records]` (versions, waits-for), HostAuthorityTests (owner check, a joiner gets every part),
 GameTests "A part sent before its copy exists is on the copy when it spawns", "A part naming an actor that
@@ -126,7 +126,7 @@ Stays: `GuestEngine::m_pendingAliases` (quests are on the model already; moved o
 **As built (2026-11-18), with one part, AI state:**
 
 ```text
-CopyRecords (Services/CopyRecords, no engine: UnitTests [copy-records])
+CopyRecords (sync/core/CopyRecords, no engine: UnitTests [copy-records])
   Register(kind, Apply, Read)   by the part's service, once
   Declare(id, kind, bytes)      an owner's change: the next version, sent (RecordRequest)
   ReadAll(id, form)             the announcement's parts (AnnounceCharacterRequest::Record)
@@ -198,7 +198,7 @@ bool ApplyActorState(Actor& aCopy, const ActorStatePart& acPart)
 - A copy off its stream (the pair exception, piece 4) still plays its owner's actions, which write these bits
   themselves through 39004; the part then agrees with them.
 
-Files: `Games/Animation/ActorStateRules.h` (the masks, pure), `CharacterService::RunLocalUpdates` (the read),
+Files: `sync/animation/ActorStateRules.h` (the masks, pure), `CharacterService::RunLocalUpdates` (the read),
 `AnimationSystem` (the rules go). Tests: UnitTests `[actor-state]` (one writer per bit: the masks never
 overlap the stream's), GameTests "A copy made after its owner sneaked stands sneaking", "...after its owner's
 last action holds its state" (the travel cases), "A copy on a sync point of drawn hands shows them".
@@ -372,7 +372,7 @@ Build in two steps:
 
 Files: `Services/Host/HostPairs.{h,cpp}`, `HostCharacters` (`Lend`, `GiveBack`), `CharacterService`
 (`OnNotifyPairClaim`, `OnNotifyPairRefused`), `AnimationSystem` (the local-partner path shrinks to the player
-victim), `Games/Animation/ReplayState.h`.
+victim), `sync/animation/ReplayState.h`.
 Tests: HostAuthorityTests "the first claim on an actor wins", "a claim on a frozen NPC is refused", "a claimer
 gone gives the NPC back"; GameTests "A guest's kill move on a host NPC runs on the guest's game alone", "A
 refused pair ends on the claimer with no blow", "The horse changes owner only between pairs" (the fake's pair
@@ -700,7 +700,7 @@ copy: ApplyCast casts the owner's spell in a slot newly held (a named target not
 ## Piece 10: ragdolls follow the pile rule; scenery is nobody's
 
 - **A copy's ragdoll** keeps its own Havok bodies, steered to its owner's frames (as now), and joins the
-  "played" collision group of `Physics/BodyGroups.h`: it meets the world and characters, not other played bodies
+  "played" collision group of `sync/physics/BodyGroups.h`: it meets the world and characters, not other played bodies
   or loose objects nobody moves. Its rest follows the pile's sleep rule (`RestSlept`), which is what the two
   open rest bugs miss (woken by the steering after its first sleep). Its own section in physics-sync.md when built.
 - **Scenery, critters, ambient animation:** each game's own. The world check (`world_state`, the end

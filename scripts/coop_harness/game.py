@@ -82,7 +82,7 @@ class Game:
             self.my_games = self.prefix / "pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition"
         base = int(os.environ.get("COOP_DISPLAY", ":99").lstrip(":"))
         self.display = display or f":{base + bool(name)}"
-        self.tracy_port = 8086 + bool(name)  # TRACY_PORT: where `profile` captures it (Diagnostics/Profile.h)
+        self.tracy_port = 8086 + bool(name)  # TRACY_PORT: where `profile` captures it (sync/core/Profile.h)
         self.rpc_connections = {}
         self.held_buttons = set()
 

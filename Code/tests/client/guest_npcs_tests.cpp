@@ -2,7 +2,7 @@
 // runs but its player, the copies and what it claimed in this session.
 #include <catch2/catch.hpp>
 
-#include <Games/GuestNpcs.h>
+#include <GuestNpcs.h>
 
 TEST_CASE("Out of a guest session nothing is held", "[GuestNpcs]")
 {

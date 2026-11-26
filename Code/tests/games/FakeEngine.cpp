@@ -1,88 +1,88 @@
-#include <Games/Skyrim/CriticalStageRules.h>
-#include <Games/Animation/DeferredClips.h>
-#include <Games/DisplayNames.h>
-#include <Games/FreedWornList.h>
+#include <CriticalStageRules.h>
+#include <animation/DeferredClips.h>
+#include <DisplayNames.h>
+#include <FreedWornList.h>
 #include <Diagnostics/HeadTrackRead.h>
-#include <Games/Skyrim/CopyCombat.h>
-#include <Events/MenuEvent.h>
-#include <Events/InterruptCastEvent.h>
-#include <Events/ActorHeadUpdateEvent.h>
-#include <Games/CheckedPlacement.h>
-#include <Events/PlayerDeathEvent.h>
+#include <CopyCombat.h>
+#include <core/MenuEvent.h>
+#include <magic/InterruptCastEvent.h>
+#include <characters/ActorHeadUpdateEvent.h>
+#include <CheckedPlacement.h>
+#include <core/PlayerDeathEvent.h>
 #include "FakeEngine.h"
-#include <Systems/CopyStep.h>
-#include <Games/OwnerEffects.h>
+#include <movement/CopyStep.h>
+#include <magic/OwnerEffects.h>
 
-#include <Events/DismountEvent.h>
-#include <Events/BoardEvent.h>
-#include <Events/MountEvent.h>
-#include <Events/SaveWrittenEvent.h>
+#include <characters/DismountEvent.h>
+#include <characters/BoardEvent.h>
+#include <characters/MountEvent.h>
+#include <join/SaveWrittenEvent.h>
 
-#include <Games/Animation/GraphState.h>
-#include <Games/Animation/GraphStream.h>
+#include <animation/GraphState.h>
+#include <animation/GraphStream.h>
 #include <bit>
 #include <set>
 #include <span>
-#include <Events/ActorRenamedEvent.h>
+#include <characters/ActorRenamedEvent.h>
 #include "FakeDialogue.h"
-#include <Events/PlayerTravelQueuedEvent.h>
-#include <Events/StoryEvents.h>
+#include <core/PlayerTravelQueuedEvent.h>
+#include <scripts/StoryEvents.h>
 
-#include <Events/ContainerChangeEvent.h>
-#include <Events/DifficultyChangeEvent.h>
-#include <Events/ActivateEvent.h>
-#include <Services/ContainerOpens.h>
-#include <Services/DeathDrops.h>
-#include <Events/AddTargetEvent.h>
-#include <Events/SummonEvent.h>
-#include <Events/AiStateChangeEvent.h>
-#include <Events/EffectVisualsChangeEvent.h>
-#include <Events/EquipmentChangeEvent.h>
-#include <Events/HealthChangeEvent.h>
-#include <Events/ActorDamagedEvent.h>
-#include <Events/ActorValueChangeEvent.h>
-#include <Events/ActorDeathChangeEvent.h>
-#include <Events/ReferenceLoadedEvent.h>
-#include <Events/NpcHeldEvent.h>
-#include <Games/GuestNpcs.h>
-#include <Games/DeathActions.h>
-#include <Games/Animation/ReplayCapture.h>
-#include <Games/Animation/ReplayGraph.h>
-#include <Games/NpcSnapshot.h>
-#include <Events/HitEvent.h>
-#include <Events/ProjectileLaunchedEvent.h>
-#include <Events/TrapEvents.h>
-#include <Games/Skyrim/TrapRules.h>
-#include <Events/SpellCastEvent.h>
-#include <Events/InventoryChangeEvent.h>
-#include <Events/LockChangeEvent.h>
-#include <Events/LooseItemEvents.h>
-#include <Events/CallEndedEvent.h>
-#include <Events/RoutedCallEvent.h>
-#include <Events/PlayerProgressEvent.h>
-#include <Games/EngineNames.h>
-#include <Games/Animation/ActorStateRules.h>
-#include <Games/Animation/ReplayState.h>
-#include <Events/RemoveWaypointEvent.h>
-#include <Events/SetWaypointEvent.h>
-#include <Events/TimeScaleEvent.h>
+#include <items/ContainerChangeEvent.h>
+#include <core/DifficultyChangeEvent.h>
+#include <world/ActivateEvent.h>
+#include <items/ContainerOpens.h>
+#include <death/DeathDrops.h>
+#include <combat/AddTargetEvent.h>
+#include <magic/SummonEvent.h>
+#include <actorstate/AiStateChangeEvent.h>
+#include <magic/EffectVisualsChangeEvent.h>
+#include <items/EquipmentChangeEvent.h>
+#include <actorstate/HealthChangeEvent.h>
+#include <characters/ActorDamagedEvent.h>
+#include <characters/ActorValueChangeEvent.h>
+#include <characters/ActorDeathChangeEvent.h>
+#include <characters/ReferenceLoadedEvent.h>
+#include <characters/NpcHeldEvent.h>
+#include <GuestNpcs.h>
+#include <actorstate/DeathActions.h>
+#include <animation/ReplayCapture.h>
+#include <animation/ReplayGraph.h>
+#include <characters/NpcSnapshot.h>
+#include <combat/HitEvent.h>
+#include <magic/ProjectileLaunchedEvent.h>
+#include <combat/TrapEvents.h>
+#include <combat/TrapRules.h>
+#include <magic/SpellCastEvent.h>
+#include <items/InventoryChangeEvent.h>
+#include <world/LockChangeEvent.h>
+#include <items/LooseItemEvents.h>
+#include <scripts/CallEndedEvent.h>
+#include <scripts/RoutedCallEvent.h>
+#include <core/PlayerProgressEvent.h>
+#include <core/EngineNames.h>
+#include <animation/ActorStateRules.h>
+#include <animation/ReplayState.h>
+#include <travel/RemoveWaypointEvent.h>
+#include <travel/SetWaypointEvent.h>
+#include <time/TimeScaleEvent.h>
 #include <Structs/GridCellCoords.h>
-#include <Papyrus/PartyNatives.h>
-#include <Papyrus/SystemQuests.h>
-#include <Events/SystemQuestLearnedEvent.h>
-#include <ScriptValues.h>
+#include <ports/PartyNatives.h>
+#include <ports/SystemQuests.h>
+#include <scripts/SystemQuestLearnedEvent.h>
+#include <core/ScriptValues.h>
 #include <array>
 #include <ranges>
 #include <cstdio>
-#include <Games/Overrides.h>
-#include <Events/GameLoadedEvent.h>
-#include <Events/MenuEvent.h>
-#include <Events/PlayerFormChangeEvent.h>
-#include <Services/SaveService.h>
-#include <Services/SaveNames.h>
+#include <items/Overrides.h>
+#include <join/GameLoadedEvent.h>
+#include <core/MenuEvent.h>
+#include <core/PlayerFormChangeEvent.h>
+#include <join/SaveService.h>
+#include <join/SaveNames.h>
 #include <Wire/Buffer.h>
-#include <World.h>
-#include <FormIds.h>
+#include <core/World.h>
+#include <core/FormIds.h>
 
 using namespace PartyRules;
 bool FakeEngine::IsLyingInRagdoll(uint32_t aFormId) const noexcept
@@ -412,13 +412,13 @@ void FakeEngine::GenerateGraph(Actor& aActor) const
     floats[cDamp->Output] = graph.Damped;
 }
 
-// One graph update (63358): channels, then the step; an owner's recorded for its copies (Games/Animation's hooks).
+// One graph update (63358): channels, then the step; an owner's recorded for its copies (engine/Animation's hooks).
 void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
 {
     const auto cStep = float(aActor.AnimationStepMs); // the stream carries it as a float, as Skyrim's deltaTime
     WriteGraphChannels(aActor, cStep);
     auto& streams = World::Get().GetGraphStreams();
-    // In a pair or a kill move it is recorded on, but gives no sync point (Games/Skyrim's 63587 hook).
+    // In a pair or a kill move it is recorded on, but gives no sync point (the engine's 63587 hook).
     const bool cOwnBody = aActor.InPair || aActor.InKillMove || aActor.InPairClip;
     const bool cRecorded = !aActor.Copy && streams.Recording(aFormId);
     if (cRecorded)
@@ -488,7 +488,7 @@ struct FakeGraphTarget final : IGraphTarget
         const auto cEvents = Engine.GraphEventTable();
         if (aEventId >= cEvents.size())
             return nullptr;
-        // As Games/Skyrim's target: between frames, not in the graph's update.
+        // As the engine's target: between frames, not in the graph's update.
         const auto cCopy = [pEngine = &Engine, cFormId = FormId] {
             const auto cActor = pEngine->Actors.find(cFormId);
             return cActor != pEngine->Actors.end() && cActor->second.Copy;
@@ -506,7 +506,7 @@ void FakeEngine::ReplayStream(uint32_t aFormId, Actor& aActor)
     m_replaying = true;
     World::Get().GetGraphStreams().Replay(aFormId, target, GraphIdentity(aActor), aActor.GraphProject);
     m_replaying = false;
-    aActor.Graph.Updated = false; // its generate passes are its owner's, in the replay (Games/Skyrim's 63587 hook)
+    aActor.Graph.Updated = false; // its generate passes are its owner's, in the replay (the engine's 63587 hook)
 }
 
 void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32_t aProject)
@@ -676,7 +676,7 @@ void FakeEngine::Frame()
     if (Graph)
         for (auto& [cId, actor] : Actors)
         {
-            // On its own body (in a pair): off its owner's stream, and back after (Games/Skyrim's 63587 hook).
+            // On its own body (in a pair): off its owner's stream, and back after (the engine's 63587 hook).
             if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && streams.Held(cId))
                 streams.HoldWhile(cId, ::ReplayState::CopyOwnBody(actor.InPair, actor.InKillMove, false, SitState(cId)));
             if (actor.Copy)
@@ -1844,7 +1844,7 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         // 32803 makes an instance and plays the target's half through its graph (63591); a replay names no target
         // event for a copy partner (PlayReplayedAction): no instance, its half is its owner's action.
         const bool cInstance = !Replaying || actor.Replay.PairHere;
-        // A copy on its owner's stream takes the half only held off the stream (Games/Skyrim's 63591 hook); refused,
+        // A copy on its owner's stream takes the half only held off the stream (the engine's 63591 hook); refused,
         // the pair fails.
         if (auto& streams = World::Get().GetGraphStreams();
             cInstance && cPartner->second.Copy && streams.OnStream(acAction.TargetId) && !streams.HoldWhile(acAction.TargetId, true))
@@ -1932,7 +1932,7 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
     }
     if (!GraphTransitions.empty() && !actor.GraphState.empty())
     {
-        // 63591's hook: an owner's event recorded before its graph handles it (Games/Animation).
+        // 63591's hook: an owner's event recorded before its graph handles it (engine/Animation).
         if (auto& streams = World::Get().GetGraphStreams(); Graph && !actor.Copy && streams.Recording(aFormId))
             streams.OnEvent(aFormId, streams.Tick(), GraphEventId(acAction.EventName), GraphWords(actor), {actor.GraphRandom, 0});
         // A copy on its stream takes its owner's events alone (63591's hook drops any other).

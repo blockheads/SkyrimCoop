@@ -1,5 +1,5 @@
 #include <catch2/catch.hpp>
-#include <Games/CheckedPlacement.h>
+#include <CheckedPlacement.h>
 #include <cmath>
 
 TEST_CASE("A joining player gets a checked spot beside the host", "[checked-placement]")

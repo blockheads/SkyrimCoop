@@ -148,7 +148,7 @@ class Profiling:
                 if not response.get("ok"):
                     raise ctx.failure(f"[{game.name or 'host'}] sampling refused: {response.get('error', 'no answer')}")
                 samples[game.name] = response["run"]
-        for game in games if not vanilla else []:  # the window's own counts and maxima (Diagnostics/Counters.h)
+        for game in games if not vanilla else []:  # the window's own counts and maxima (sync/core/Counters.h)
             game.rpc({"cmd": "counters", "reset": True})
         before = {game.name: ctx.perf_sample(game) for game in games}
         log(f"Profiling {', '.join(game.name or 'host' for game in games)} for {args.seconds:.0f}s")
@@ -403,7 +403,7 @@ class Profiling:
                           "| call | /s |", "|---|---|"]
                 lines += [f"| {hook} | {rate:,.0f} |" for rate, hook in rates[:12] if rate > 0]
             if counters := last.get("counters"):
-                lines += ["", "Counters (Diagnostics/Counters.h, this window)", "", "| counter | count | /s | mean | max |", "|---|---|---|---|---|"]
+                lines += ["", "Counters (sync/core/Counters.h, this window)", "", "| counter | count | /s | mean | max |", "|---|---|---|---|---|"]
                 lines += [f"| {name} | {c['count']} | {c['count'] / seconds:.1f} | {c['sum'] / c['count'] if c['count'] else 0:.1f} | {c['max']} |"
                           for name, c in sorted(counters.items()) if c["count"]]
             if network := last.get("network"):

@@ -1,7 +1,7 @@
 // The host's scripts' animations on a guest's object (docs/design/traps.md): in order, each once its graph takes it.
 #include <catch2/catch.hpp>
 
-#include <ObjectAnimations.h>
+#include <animation/ObjectAnimations.h>
 
 #include <vector>
 

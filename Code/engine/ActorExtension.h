@@ -1,0 +1,79 @@
+#pragma once
+
+#include <animation/ActionState.h>
+#include <animation/ReplayStep.h>
+
+#include <array>
+#include <atomic>
+#include <magic/OwnerEffects.h>
+#include <memory>
+#include <vector>
+
+// Words: docs/design/glossary.md.
+struct ActorExtension
+{
+    enum
+    {
+        kCopy = 1 << 0,   // another game owns the actor; this one shows it
+        kPlayer = 1 << 1, // a player's character: this game's player, or another player's copy
+    };
+
+    bool IsCopy() const noexcept;
+    bool IsLocal() const noexcept;
+    bool IsPlayer() const noexcept;
+    bool IsOtherPlayer() const noexcept;
+    bool IsLocalPlayer() const noexcept;
+    void SetCopy(bool aSet) noexcept;
+    void SetPlayer(bool aSet) noexcept;
+
+    AnimationActionState LatestAnimation;
+    AnimationActionState LatestWeapEquipAnimation;
+    bool PairedWithCopy = false; // its last pair's partner is another game's (ReplayState::ContactKills)
+    std::atomic<uint64_t> PoseHeldUntil{0}; // a copy at its clip's KillActor (ReplayState::PoseHeld); set in its graph job
+    std::atomic<bool> KillHeld{false}; // taken by this game for a claimed kill move: its kill is the host's (Actor::HoldKill)
+    uint32_t ClashPartner = 0; // a copy: the player whose pair yielded to its own
+    uint64_t ClashUntil = 0;   // its clip's blow is dropped until then (ReplayState::CancelledBlow)
+    uint8_t PairStops = 0;     // a copy: pairedStops left to send after a clash
+    size_t GraphDescriptorHash = 0;
+    uint64_t GraphDescriptorProjectKey = 0;
+    // A copy: its owner's AI state (SkyrimBridge::SetCopyAiFields). The package (0: none or engine-made) is put back
+    // in its running slot when the engine asks for a new one; its scene is answered (CopyAiState.cpp). Its fight is a
+    // real controller and group (CopyCombatGroups).
+    std::atomic<uint32_t> OwnerPackageId{0};
+    std::atomic<std::shared_ptr<const std::vector<OwnerEffects::Held>>> OwnerEffects; // a copy: its owner's (OwnerEffects.h)
+    uint32_t OwnerSceneId = 0;
+    uint64_t OwnerCombatGroup = 0; // the owner's group key its controller's group holds (CopyCombatGroups)
+    // Its headtrack slots (HighProcessData::headTrackTarget, form ids): a copy's owner's, put in before the engine
+    // reads them; an owner's last sent (AiStateEvents' ProcessTracking hook).
+    std::array<std::atomic<uint32_t>, 6> HeadTrack{};
+    // An owner's combat group's targets as last sent (a hash; AiStateEvents' CombatGroup update hook).
+    std::atomic<uint64_t> GroupTargetsSent{0};
+    // A copy: the furniture its graphs are linked to (Actor::LinkFurnitureGraphs), 0 none, and the two graph managers
+    // linked: a new manager on either side (a reload) is linked again.
+    uint32_t LinkedFurniture = 0;
+    const void* LinkedOwnGraphs = nullptr;
+    const void* LinkedFurnitureGraphs = nullptr;
+
+    // The guest session this game claimed it in (GuestNpcs::Held), and its 3D refused while held (HookLoad3D), loaded
+    // once it is not (Actor::ApplyHeld3D).
+    std::atomic<uint32_t> ClaimedIn{0};
+    std::atomic<bool> Refused3D{false};
+
+    // A copy's owner's place, stepped to in its movement job (HookApplyMovement; set by SkyrimBridge).
+    float CopyGoal[3]{};
+    bool HasCopyGoal = false;
+
+    // A copy's replayed action, applied at the start of its graph updates (AnimationSystem::RunReplayStep).
+    using ReplayStep = AnimationReplayStep;
+    ReplayStep Replay;
+
+    // Hot reload: an extension made by an earlier load of the plugin holds strings and vectors
+    // from that load's heap. It is reset (leaking them) before use, never freed or read.
+    static uint32_t CurrentGeneration() noexcept;
+    void EnsureCurrent() noexcept;
+
+  private:
+    std::atomic<uint32_t> onlineFlags{0}; // read on the combat job (CopyCombatGroups::HeldByOwners)
+    // Last: written after everything else when an extension is (re)made.
+    uint32_t m_generation{CurrentGeneration()};
+};

@@ -1,8 +1,8 @@
 #include "Party.h"
 #include "Fixtures.h"
-#include <Games/Animation/ActorStateRules.h>
-#include <Services/CopyRecords.h>
-#include <SessionIds.h>
+#include <animation/ActorStateRules.h>
+#include <core/CopyRecords.h>
+#include <core/SessionIds.h>
 #include <Structs/ActorStatePart.h>
 
 // Actor state as a record part (docs/design/one-simulator.md, piece 2): what an actor's owner set beside its graph

@@ -286,7 +286,7 @@ same NPCs walk with steady steps.
 
 ## Motion-driven and the Virtual Path Follower (2026-11-05)
 
-Read in IDA on 1.7.104 (every ID below read; measured where it says so). `MovementControllerNPC` (Actor+0x150, `Code/client/Games/Skyrim/AI/Movement/`) has a movement
+Read in IDA on 1.7.104 (every ID below read; measured where it says so). `MovementControllerNPC` (Actor+0x150, `Code/engine/AI/Movement/`) has a movement
 state at +0x1C0 and two agent sets, picked through its `IMovementMotionDrivenControl` (+0x128):
 
 ```

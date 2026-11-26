@@ -36,7 +36,8 @@ import local_paths
 GAME = Path(os.environ.get("SKYRIM_GAME_DIR", local_paths.STEAM_GAME))
 PLUGINS = ROOT / "reference/plugins"
 MEH_NAMES = ROOT / "reference/AddressLibraryDatabase/skyrimae.rename"
-CLIENT = ROOT / "Code/client"
+# The plugin's own code: every layer that can name an engine address.
+SOURCES = [ROOT / "Code" / layer for layer in ("engine", "plugin", "sync", "harness")]
 IMAGE_BASE = 0x140000000
 
 
@@ -217,7 +218,7 @@ def scan_our_code():
     hook_macro = re.compile(r"\bHOOK_ID(?:_IMMEDIATE)?\(\s*(\d+)\s*,\s*&\s*(\w+)\s*,\s*&?(\w+)\s*\)")
     resolve = re.compile(r"\bHooks::Resolve<\s*(\d+)\s*>\(\s*&\s*(\w+)\s*\)")
     uses = defaultdict(list)
-    for path in sorted(CLIENT.rglob("*")):
+    for path in sorted(path for folder in SOURCES for path in folder.rglob("*")):
         if path.suffix not in (".h", ".cpp"):
             continue
         text = path.read_text(errors="replace")
@@ -358,7 +359,7 @@ def write_markdown(ids, meh, commonlib, skse, ours, notes, plugins):
     hooks, undocumented = [], 0
     for ident, uses in sorted(ours.items()):
         for use in uses:
-            area = str(Path(use["file"]).parent.relative_to("Code/client")) or "."
+            area = str(Path(use["file"]).parent.relative_to("Code")) or "."
             rows_by_area[area].append(row(ident, use))
             if use["kind"] == "hook":
                 hooks.append(row(ident, use))
