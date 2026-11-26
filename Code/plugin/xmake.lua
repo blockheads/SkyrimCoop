@@ -25,12 +25,13 @@ target(name)
 
     -- The engine and plugin layers. The sync layer is its own target (Code/sync).
     add_headerfiles("**.h", "../engine/**.h")
-    add_files("**.cpp|skse_entry.cpp", "../engine/**.cpp")
+    -- Unit tests sit beside what they test (*_tests.cpp) and build in UnitTests only.
+    add_files("**.cpp|skse_entry.cpp|**_tests.cpp", "../engine/**.cpp|**_tests.cpp")
     -- HotReload/Handoff.h is used by production code either way: without the harness it is no-ops.
     add_headerfiles("../harness/HotReload/Handoff.h")
     add_test_harness_define()
     if has_config("test_harness") then
-        add_files("../harness/**.cpp")
+        add_files("../harness/**.cpp|**_tests.cpp")
         add_headerfiles("../harness/**.h")
     end
     add_deps("SkyrimEncoding", "SkyrimCoopSync")

@@ -5,6 +5,8 @@ target("UnitTests")
     set_group("Tests")
     set_languages("cxx23")
     add_files("*.cpp|SaveTransferBench.cpp", "../FakeNativeVm.cpp", "../../engine/Misc/ScriptFunction.cpp")
+    -- Each layer's unit tests, beside what they test.
+    add_files("../../sync/**_tests.cpp", "../../engine/**_tests.cpp", "../../plugin/**_tests.cpp", "../../harness/**_tests.cpp")
     add_files("../../sync/core/Counters.cpp")
     add_files("../../sync/join/SaveTransfer.cpp", "../../engine/MainLoopTasks.cpp", "../../sync/core/TaskQueue.cpp", "../../sync/physics/PhysicsBodies.cpp",
               "../../sync/combat/PartyThreat.cpp", "../../sync/tools/DevCommands.cpp")
@@ -19,7 +21,7 @@ target("UnitTests")
               "../../sync/physics/BodyAuthority.cpp", "../../sync/physics/BodyStream.cpp", "../../engine/HiddenCopies.cpp", "../../engine/GuestNpcs.cpp",
               "../../sync/animation/GraphStream.cpp", "../../sync/animation/NodeMemory.cpp",
               "../../sync/animation/GraphState.cpp")
-    add_includedirs("../../sync", "../../engine", "../../plugin", "../../harness")
+    add_includedirs("..", "../../sync", "../../engine", "../../plugin", "../../harness")
     add_deps("SkyrimEncoding")
     add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy", "zstd", "lz4", "nlohmann_json")
     if is_plat("windows") then add_syslinks("bcrypt") end

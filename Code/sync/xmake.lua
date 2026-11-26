@@ -6,7 +6,8 @@ target("SkyrimCoopSync")
     set_group("Client")
     set_languages("cxx23")
     set_pcxxheader("SyncPch.h")
-    add_files("**.cpp")
+    -- A feature's unit tests sit beside it (*_tests.cpp) and build in UnitTests only.
+    add_files("**.cpp|**_tests.cpp")
     add_includedirs(".", {public = true})
     add_includedirs("../external")
     add_defines(has_config("test_harness") and "COOP_TEST_HARNESS=1" or "COOP_TEST_HARNESS=0",

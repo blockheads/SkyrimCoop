@@ -346,7 +346,7 @@ TEST_CASE("The host taking a body back with the number of a rest it never got is
     CHECK(guest.Is(kBucket, BodyAuthority::kNobody));
 }
 
-#include "../FakeFlight.h"
+#include <FakeFlight.h>
 #include <physics/BodyMotions.h>
 #include <physics/BodyPlayback.h>
 #include <physics/BodyPrediction.h>

@@ -115,7 +115,8 @@ Targets:
 - `SkyrimCoopVanillaHarness` - a stand-in plugin running the harness commands without ours (`coop_test.py repro --vanilla`)
 - `HostAuthorityTests` - the host's rules (`HostAuthority`, the `Host*` files in `Code/sync/`) with in-process games and no Skyrim (Catch2)
 - `TPTests` - message encoding, quantization, differentials (Catch2)
-- `UnitTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2)
+- `UnitTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2). A unit test sits beside
+  what it tests as `<name>_tests.cpp` (`Code/sync/combat/hit_rules_tests.cpp`); the plugin's build leaves those out
 - `GameTests` - whole games in-process: the real `World`, services and host's rules on a fake engine (`IEngine`, Catch2)
 - `coop_peer` - a game stand-in on the network for scenarios (a host refusing joins, a game asking to join)
 
@@ -139,7 +140,7 @@ Code/
 ├── components/imgui/    # The debug views' renderer
 ├── hotreload/           # Hot reload's loader
 ├── vanilla_harness/     # The harness without our plugin
-└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests), games/ (GameTests),
+└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests that span layers), games/ (GameTests),
                          # specs/ (shared specs: GameTests and scripts/coop_specs.py), peer/ (coop_peer)
 ```
 

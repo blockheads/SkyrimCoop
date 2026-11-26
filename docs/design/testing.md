@@ -8,7 +8,7 @@ Fake-engine and Skyrim coverage exercise different boundaries; neither replaces 
 
 | Layer | Location | Purpose | When |
 |---|---|---|---|
-| Unit | `Code/tests/client`, `host_authority`, encoding tests | Pure rules, state transitions, wire encoding | Every change |
+| Unit | `*_tests.cpp` beside the code (and `Code/tests/client` for those spanning layers), `host_authority`, encoding tests | Pure rules, state transitions, wire encoding | Every change |
 | In-process games | `Code/tests/games`, `Code/tests/specs` | Real services and transport on a fake engine | Every change |
 | Skyrim | `scripts/coop_harness/scenarios` | Real engine behavior, input, integration | Target affected flows |
 | Soak | The same Skyrim flows with fresh launches and shuffle | Crashes and order dependence | Release acceptance |
