@@ -23,6 +23,7 @@
 #include <join/JoinService.h>
 #include <core/SessionService.h>
 #include <core/TransportService.h>
+#include <core/UpdateEvent.h>
 #include <core/World.h>
 #include <Diagnostics/Snapshot.h>
 
@@ -68,10 +69,6 @@ struct UiSystem final : Rml::SystemInterface
 
 UiSystem s_system;
 
-// How the chat shows its lines: the last ones for a while after they arrive, more while it is open.
-constexpr auto cChatLineShown = std::chrono::seconds(10);
-constexpr size_t cChatLinesShown = 6;
-constexpr size_t cChatLinesOpen = 12;
 constexpr size_t cChatHistory = 50;
 
 // The text a key types with the player's keyboard layout and shift (as skymp's InputConverter).
@@ -114,11 +111,12 @@ Rml::String UiDirectory() noexcept
 
 UiService::UiService(World& aWorld, IActorBridge& aActorBridge) noexcept : m_world(aWorld), m_actorBridge(aActorBridge)
 {
+    Listen<UpdateEvent, &UiService::OnUpdate>(m_connections, aWorld.GetDispatcher(), this);
     Listen<NotifyChatMessageBroadcast, &UiService::OnChatMessage>(m_connections, aWorld.GetDispatcher(), this);
     Listen<NotifyPartyGold, &UiService::OnPartyGold>(m_connections, aWorld.GetDispatcher(), this);
     Listen<SessionNoticeEvent, &UiService::OnSessionNotice>(m_connections, aWorld.GetDispatcher(), this);
-    m_party.Visible = false;
-    m_party.Opacity = 0.f;
+    m_party.Visible = m_state.Party.Visible = false;
+    m_party.Opacity = m_state.Party.Opacity = 0.f;
     m_joinButtons.pService = this;
 }
 
@@ -258,10 +256,15 @@ void UiService::Render() noexcept
     // Laid out for 1080 lines: the same proportions at any resolution.
     m_pContext->SetDensityIndependentPixelRatio(float(cSize.y) / 1080.f);
 
-    UpdateParty();
-    UpdateChat();
-    UpdateJoin();
-    UpdateDeath();
+    Snapshot shown;
+    {
+        std::scoped_lock lock(m_lock);
+        shown = m_shared;
+    }
+    UpdateParty(shown);
+    UpdateChat(shown);
+    UpdateJoin(shown);
+    UpdateDeath(shown);
     m_pContext->Update();
 
     m_pRenderer->BeginFrame(cSize.x, cSize.y);
@@ -269,7 +272,19 @@ void UiService::Render() noexcept
     m_pRenderer->EndFrame();
 }
 
-void UiService::UpdateParty() noexcept
+void UiService::OnUpdate(const UpdateEvent&) noexcept
+{
+    FillParty();
+    FillJoin();
+    FillDeath();
+    m_state.Connected = m_world.GetTransport().IsConnected();
+    const size_t cFirst = m_chatHistory.size() > Ui::cChatLinesOpen ? m_chatHistory.size() - Ui::cChatLinesOpen : 0;
+    m_state.Chat.assign(m_chatHistory.begin() + cFirst, m_chatHistory.end());
+    std::scoped_lock lock(m_lock);
+    m_shared = m_state;
+}
+
+void UiService::FillParty() noexcept
 {
     Rml::Vector<Member> members;
     const bool cConnected = m_world.GetTransport().IsConnected();
@@ -303,20 +318,26 @@ void UiService::UpdateParty() noexcept
     }
 
     m_partyActivity.Update(members, cConnected, UiInput::IsHudVisible(), std::chrono::steady_clock::now());
-    if (members != m_party.Members)
+    m_state.Party.Members = std::move(members);
+    m_state.Party.Opacity = m_partyActivity.Opacity();
+    m_state.Party.Visible = m_state.Party.Opacity > 0.f;
+}
+
+void UiService::UpdateParty(const Snapshot& acShown) noexcept
+{
+    if (acShown.Party.Members != m_party.Members)
     {
-        m_party.Members = std::move(members);
+        m_party.Members = acShown.Party.Members;
         m_party.Handle.DirtyVariable("members");
     }
-    const float cOpacity = m_partyActivity.Opacity();
-    if (m_party.Visible != (cOpacity > 0.f))
+    if (m_party.Visible != acShown.Party.Visible)
     {
-        m_party.Visible = cOpacity > 0.f;
+        m_party.Visible = acShown.Party.Visible;
         m_party.Handle.DirtyVariable("visible");
     }
-    if (m_party.Opacity != cOpacity)
+    if (m_party.Opacity != acShown.Party.Opacity)
     {
-        m_party.Opacity = cOpacity;
+        m_party.Opacity = acShown.Party.Opacity;
         m_party.Handle.DirtyVariable("opacity");
     }
 }
@@ -343,6 +364,17 @@ Rml::Vector<UiService::ChatLine> UiService::GetChatLines() const noexcept
     for (const auto& cReceived : m_chatHistory)
         lines.push_back(cReceived.Line);
     return lines;
+}
+
+bool UiService::IsChatOpen() const noexcept
+{
+    return UiInput::IsChatOpen();
+}
+
+Rml::String UiService::GetChatDraft() const noexcept
+{
+    std::scoped_lock lock(m_lock);
+    return m_sharedDraft;
 }
 
 namespace
@@ -393,7 +425,7 @@ void CopyToClipboard(const Rml::String& acText) noexcept
 }
 } // namespace
 
-void UiService::UpdateJoin() noexcept
+void UiService::FillJoin() noexcept
 {
     const auto* pJoinService = m_world.ctx().find<JoinService>();
     if (!pJoinService)
@@ -402,31 +434,40 @@ void UiService::UpdateJoin() noexcept
     if (m_dismissed && *m_dismissed != cStatus)
         m_dismissed.reset();
 
-    Ui::JoinModel next;
+    Ui::JoinModel& join = m_state.Join;
     // Losing the host must not take the native creator's input; show the failure after naming finishes.
-    next.Visible = PanelShows(cStatus.Current) && !m_dismissed && !pJoinService->IsCreatingCharacter();
-    next.State = ToString(cStatus.Current);
-    next.Reason = cStatus.Reason;
-    next.Message = cStatus.Message.empty() ? ProgressMessage(cStatus.Current) : cStatus.Message;
-    next.Details.assign(cStatus.Details.begin(), cStatus.Details.end());
-    next.Progress = cStatus.Current == JoinStatus::State::kReceivingWorld ? cStatus.Progress : -1.f;
-    if (next.Visible != m_join.Visible || next.State != m_join.State || next.Reason != m_join.Reason ||
-        next.Message != m_join.Message || next.Details != m_join.Details || next.Progress != m_join.Progress)
+    join.Visible = PanelShows(cStatus.Current) && !m_dismissed && !pJoinService->IsCreatingCharacter();
+    join.State = ToString(cStatus.Current);
+    join.Reason = cStatus.Reason;
+    join.Message = cStatus.Message.empty() ? ProgressMessage(cStatus.Current) : cStatus.Message;
+    join.Details.assign(cStatus.Details.begin(), cStatus.Details.end());
+    join.Progress = cStatus.Current == JoinStatus::State::kReceivingWorld ? cStatus.Progress : -1.f;
+    // Copy and Back: the menus' cursor and the left button while they show; Escape is Back where no cursor is up.
+    m_state.JoinButtons =
+        join.Visible && (cStatus.Current == JoinStatus::State::kRefused || cStatus.Current == JoinStatus::State::kEnded);
+    m_state.Cursor.reset();
+    UI* pUI = UI::Get();
+    if (const MenuCursor* pCursor = MenuCursor::Get(); m_state.JoinButtons && pCursor && pUI && pUI->GetMenuOpen("Cursor Menu"))
+        m_state.Cursor = Rml::Vector2i{int(pCursor->cursorPosX), int(pCursor->cursorPosY)};
+}
+
+void UiService::UpdateJoin(const Snapshot& acShown) noexcept
+{
+    const Ui::JoinModel& cNext = acShown.Join;
+    if (cNext.Visible != m_join.Visible || cNext.State != m_join.State || cNext.Reason != m_join.Reason ||
+        cNext.Message != m_join.Message || cNext.Details != m_join.Details || cNext.Progress != m_join.Progress)
     {
-        next.Handle = m_join.Handle;
-        m_join = std::move(next);
+        const auto cHandle = m_join.Handle;
+        m_join = cNext;
+        m_join.Handle = cHandle;
         m_join.Handle.DirtyAllVariables();
     }
 
-    // Copy and Back: the menus' cursor and the left button while they show; Escape is Back where no cursor is up.
-    const bool cButtons =
-        m_join.Visible && (cStatus.Current == JoinStatus::State::kRefused || cStatus.Current == JoinStatus::State::kEnded);
-    UiInput::SetButtonsShown(cButtons);
-    if (!cButtons)
+    UiInput::SetButtonsShown(acShown.JoinButtons);
+    if (!acShown.JoinButtons)
         return;
-    UI* pUI = UI::Get();
-    if (const MenuCursor* pCursor = MenuCursor::Get(); pCursor && pUI && pUI->GetMenuOpen("Cursor Menu"))
-        m_pContext->ProcessMouseMove(int(pCursor->cursorPosX), int(pCursor->cursorPosY), 0);
+    if (acShown.Cursor)
+        m_pContext->ProcessMouseMove(acShown.Cursor->x, acShown.Cursor->y, 0);
     for (const bool cDown : UiInput::TakeClicks())
         cDown ? m_pContext->ProcessMouseButtonDown(0, 0) : m_pContext->ProcessMouseButtonUp(0, 0);
     if (UiInput::TakeEscape())
@@ -438,8 +479,10 @@ void UiService::OnJoinButton(const Rml::String& acId) noexcept
     if (acId == "copy")
         CopyToClipboard(m_join.CopyText());
     else if (acId == "back")
-        if (const auto* pJoinService = m_world.ctx().find<JoinService>())
-            m_dismissed = pJoinService->GetStatus();
+        World::Runner().Queue([this] {
+            if (const auto* pJoinService = m_world.ctx().find<JoinService>())
+                m_dismissed = pJoinService->GetStatus();
+        });
 }
 
 void UiService::JoinButtons::ProcessEvent(Rml::Event& aEvent)
@@ -449,9 +492,9 @@ void UiService::JoinButtons::ProcessEvent(Rml::Event& aEvent)
             return pService->OnJoinButton(pTarget->GetId());
 }
 
-void UiService::UpdateChat() noexcept
+void UiService::UpdateChat(const Snapshot& acShown) noexcept
 {
-    UiInput::SetChatAvailable(m_pChat && m_world.GetTransport().IsConnected());
+    UiInput::SetChatAvailable(m_pChat && acShown.Connected);
 
     const Rml::String cDraft = m_chat.Draft;
     for (const auto& cKey : UiInput::TakeKeys())
@@ -460,7 +503,9 @@ void UiService::UpdateChat() noexcept
         {
         case UiInput::cEnter:
         case UiInput::cNumpadEnter:
-            SendChat();
+            if (!m_chat.Draft.empty())
+                World::Runner().Queue([this, cLine = m_chat.Draft] { SendChat(cLine); });
+            m_chat.Draft.clear();
             UiInput::CloseChat();
             break;
         case UiInput::cEscape:
@@ -485,16 +530,13 @@ void UiService::UpdateChat() noexcept
         m_chat.Handle.DirtyVariable("open");
     }
     if (m_chat.Draft != cDraft)
+    {
         m_chat.Handle.DirtyVariable("draft");
+        std::scoped_lock lock(m_lock);
+        m_sharedDraft = m_chat.Draft;
+    }
 
-    // Open: the last lines. Closed: the last few, while they are recent.
-    Rml::Vector<ChatLine> shown;
-    const auto cNow = std::chrono::steady_clock::now();
-    const size_t cCount = m_chat.Open ? cChatLinesOpen : cChatLinesShown;
-    for (size_t i = m_chatHistory.size() > cCount ? m_chatHistory.size() - cCount : 0; i < m_chatHistory.size(); ++i)
-        if (m_chat.Open || cNow - m_chatHistory[i].At < cChatLineShown)
-            shown.push_back(m_chatHistory[i].Line);
-    if (shown != m_chat.Lines)
+    if (auto shown = Ui::ShownChatLines(acShown.Chat, m_chat.Open, std::chrono::steady_clock::now()); shown != m_chat.Lines)
     {
         m_chat.Lines = std::move(shown);
         m_chat.Handle.DirtyVariable("lines");
@@ -579,34 +621,37 @@ void UiService::ShowSystemLine(const Rml::String& acText, bool aPerished) noexce
         m_chatHistory.erase(m_chatHistory.begin());
 }
 
-void UiService::SendChat() noexcept
+void UiService::SendChat(const Rml::String& acLine) noexcept
 {
-    if (m_chat.Draft.empty())
-        return;
-    if (m_chat.Draft[0] == '/')
-    {
-        RunChatCommand(m_chat.Draft);
-        m_chat.Draft.clear();
-        return;
-    }
+    if (acLine[0] == '/')
+        return RunChatCommand(acLine);
     // Everyone gets it from the host, us too: what shows is what was sent.
     SendChatMessageRequest request;
-    request.ChatMessage = m_chat.Draft.c_str();
+    request.ChatMessage = acLine.c_str();
     m_world.GetTransport().Send(request);
-    m_chat.Draft.clear();
 }
 
-void UiService::UpdateDeath() noexcept
+void UiService::FillDeath() noexcept
 {
     const auto* cpDeath = m_world.ctx().find<DeathService>();
     const bool cDown = cpDeath && cpDeath->IsDown();
-    m_death.Visible = cDown && !UiInput::GetHudVisibility().BlockingMenu;
-    m_death.Name = cpDeath ? cpDeath->SpectatingName() : "";
-    m_death.Status = cpDeath ? cpDeath->Status() : "";
+    const bool cBlocked = UiInput::GetHudVisibility().BlockingMenu;
+    Ui::DeathModel& death = m_state.Death;
+    death.Visible = cDown && !cBlocked;
+    death.Name = cpDeath ? cpDeath->SpectatingName() : "";
+    death.Status = cpDeath ? cpDeath->Status() : "";
     // The leash's warning banner (GuestLeash), while this player stands.
     const auto* cpLeash = m_world.ctx().find<LeashCountdown>();
-    m_death.LeashSeconds = !cDown && cpLeash && !UiInput::GetHudVisibility().BlockingMenu ? cpLeash->Seconds : 0;
-    UiInput::SetSpectatorAvailable(cDown && cpDeath->Spectating());
+    death.LeashSeconds = !cDown && cpLeash && !cBlocked ? cpLeash->Seconds : 0;
+    m_state.Spectating = cDown && cpDeath->Spectating();
+}
+
+void UiService::UpdateDeath(const Snapshot& acShown) noexcept
+{
+    const auto cHandle = m_death.Handle;
+    m_death = acShown.Death;
+    m_death.Handle = cHandle;
+    UiInput::SetSpectatorAvailable(acShown.Spectating);
     if (m_death.Handle)
         m_death.Handle.DirtyAllVariables();
 }

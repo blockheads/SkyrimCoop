@@ -4,13 +4,13 @@
 #include <DebugService.h>
 #include <ImguiService.h>
 #include <Ui/UiService.h>
-#include <core/World.h>
 
 #include <d3d11.h>
 
-RenderSystemD3D11::RenderSystemD3D11(ImguiService& aImguiService)
+RenderSystemD3D11::RenderSystemD3D11(ImguiService& aImguiService, UiService& aUiService)
     : m_pSwapChain(nullptr)
     , m_imguiService(aImguiService)
+    , m_uiService(aUiService)
 {
 }
 
@@ -35,8 +35,7 @@ void RenderSystemD3D11::OnDeviceCreation(IDXGISwapChain* apSwapChain, bool aArra
     m_pSwapChain = apSwapChain;
 
     m_imguiService.Create(this, GetWindow());
-    if (auto* pUi = World::Get().ctx().find<UiService>())
-        pUi->Create(apSwapChain);
+    m_uiService.Create(apSwapChain);
     // Not again after a hot reload: its "another game is open" mutex is our own process's by then,
     // and it would move this window to the second game's place.
     if (aArrangeWindows)
@@ -45,9 +44,8 @@ void RenderSystemD3D11::OnDeviceCreation(IDXGISwapChain* apSwapChain, bool aArra
 
 void RenderSystemD3D11::OnRender()
 {
-    // Under ImGui: the debug views stay on top.
-    if (auto* pUi = World::Get().ctx().find<UiService>())
-        pUi->Render();
+    // Under ImGui: the debug views stay on top. Also on the loading screen's thread (0x1406E4C20): no World here.
+    m_uiService.Render();
     m_imguiService.Render();
 }
 

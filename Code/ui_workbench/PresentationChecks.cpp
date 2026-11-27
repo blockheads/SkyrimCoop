@@ -40,6 +40,19 @@ bool CheckPresentationPolicy()
         colors.ForName("A late arrival");
         require(colors.ForName("Player 0") == firstColor, "A joining player changed an existing color");
 
+        // The chat's lines: the game's thread hands the last twelve with their times, drawing picks what shows.
+        Rml::Vector<Ui::ReceivedLine> received;
+        const std::chrono::steady_clock::time_point start{};
+        for (int i = 0; i < 12; ++i)
+            received.push_back({{"Lydia", std::to_string(i)}, start + std::chrono::seconds(i)});
+        const auto shown = [&](bool open, int seconds) {
+            return Ui::ShownChatLines(received, open, start + std::chrono::seconds(seconds));
+        };
+        require(shown(true, 100).size() == 12, "The open chat did not show its last twelve lines");
+        require(shown(false, 12).size() == 6 && shown(false, 12).front().Text == "6", "The closed chat did not show its last six");
+        require(shown(false, 19).size() == 2, "The closed chat kept lines older than ten seconds");
+        require(shown(false, 100).empty(), "The closed chat kept old lines");
+
         Ui::PartyActivity activity;
         Rml::Vector<Ui::Member> members;
         const auto update = [&](double seconds, bool hud = true, bool connected = true) {

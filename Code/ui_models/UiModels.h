@@ -2,6 +2,7 @@
 
 #include <RmlUi/Core/DataModelHandle.h>
 #include <RmlUi/Core/Types.h>
+#include <chrono>
 #include <unordered_map>
 
 namespace Rml
@@ -45,6 +46,17 @@ struct ChatLine
 
     bool operator==(const ChatLine&) const = default;
 };
+
+// A chat line and when it came.
+struct ReceivedLine
+{
+    ChatLine Line;
+    std::chrono::steady_clock::time_point At;
+};
+constexpr size_t cChatLinesOpen = 12;
+// What the chat shows: open, the last twelve lines; closed, the last six still under ten seconds old.
+[[nodiscard]] Rml::Vector<ChatLine> ShownChatLines(const Rml::Vector<ReceivedLine>& acReceived, bool aOpen,
+                                                   std::chrono::steady_clock::time_point aNow);
 
 struct PartyModel
 {
