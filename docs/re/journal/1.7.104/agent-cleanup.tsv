@@ -15,3 +15,52 @@ time	op	id	rva	item
 2026-11-27T06:25:20Z	comment	41354	0x7820d0	{"addr": "0x1407820d0", "comment": "A crime of type a5 (<=7) by a3 is on record in the lists at +0xB0: victim a2 (null any), witness a4 (null any), day a7 (-1 any). SkyrimCoop: ProcessLists::HasKnownCrime; hooked by CrimeBridge's HookKnownCrime."}
 2026-11-27T06:25:20Z	comment	439876	0x10d710	{"addr": "0x14010d710", "comment": "Returns bool (copied length != 0). SkyrimCoop: BSString::Set (Code/engine/Misc/BSString.h)."}
 2026-11-27T08:36:10Z	read	19187	0x2cb870	{"name": "TESObjectCELL::sub_19187"}
+2026-11-27T12:54:17Z	read	18322	0x296650	{"name": "sub_140296650"}
+2026-11-27T12:54:46Z	read	36479	0x64f6f0	{"name": "coop_GarbageCollector_DeleteNextForm"}
+2026-11-27T13:00:33Z	read	36460	0x64df30	{"name": "GarbageCollector__DestroyForm_36460"}
+2026-11-27T13:01:03Z	read	40246	0x739280	{"name": "BSTask::sub_40246"}
+2026-11-27T13:04:37Z	read	38899	0x6dc8a0	{"name": "coop_unequipAll"}
+2026-11-27T13:04:40Z	read	16096	0x237300	{"name": "InventoryChanges::VisitWornItems"}
+2026-11-27T13:05:01Z	read	38942	0x6df960	{"name": "sub_1406DF960"}
+2026-11-27T13:05:12Z	read	16067	0x232330	{"name": "TESObjectREFR::sub_16067"}
+2026-11-27T13:05:24Z	read		0x232990	{"name": "TESObjectREFR::sub_16067"}
+2026-11-27T13:07:12Z	read		0x232930	{"name": "TESObjectREFR::sub_16067"}
+2026-11-27T13:07:22Z	name	16067	0x232330	{"addr": "0x140232330", "name": "InventoryChanges__UnequipWornList_16067"}
+2026-11-27T13:07:22Z	name	16180	0x240480	{"addr": "0x140240480", "name": "BSSimpleList_InventoryEntryData_Node__Delete_16180"}
+2026-11-27T13:07:22Z	name	38942	0x6df960	{"addr": "0x1406DF960", "name": "UnequipAllVisitor__Visit"}
+2026-11-27T13:07:25Z	comment		0x232965	{"addr": "0x140232965", "comment": "Entry with no extra list left and countDelta 0: removed from the changes' entry list (BSSimpleList) and freed."}
+2026-11-27T13:07:25Z	comment		0x2329a3	{"addr": "0x1402329a3", "comment": "Removing the list head: the next node's item and link are copied into the head and the NEXT node is freed (16180). A walk holding that next node (VisitWornItems 16096) then reads freed memory (guest crash 2026-11-27, docs/re/crashes)."}
+2026-11-27T13:07:25Z	comment		0x23734b	{"addr": "0x14023734b", "comment": "Takes the next node before the visitor runs; UnequipAllVisitor's unequip can free that node (16067 removing the head entry): use after free."}
+2026-11-27T13:07:25Z	comment		0x6dc8ff	{"addr": "0x1406DC8FF", "comment": "Walks worn items with UnequipAllVisitor; each visit unequips (38901), which can free the walk's next node (16067). SkyrimCoop unequips the worn stacks itself first (EquipManager::UnequipAll)."}
+Z	name	16067	0x232330	{"addr": "0x140232330", "name": "InventoryChanges__UnequipWornList_16067"}
+Z	name	16180	0x240480	{"addr": "0x140240480", "name": "BSSimpleList_InventoryEntryData_Node__Delete_16180"}
+Z	name	38942	0x6df960	{"addr": "0x1406DF960", "name": "UnequipAllVisitor__Visit"}
+Z	comment		0x232965	{"addr": "0x140232965", "comment": "Entry with no extra list left and countDelta 0: removed from the changes' entry list (BSSimpleList) and freed."}
+Z	comment		0x2329a3	{"addr": "0x1402329a3", "comment": "Removing the list head: the next node's item and link are copied into the head and the NEXT node is freed (16180). A walk holding that next node (VisitWornItems 16096) then reads freed memory (guest crash 2026-11-27, docs/re/crashes)."}
+Z	comment		0x23734b	{"addr": "0x14023734b", "comment": "Takes the next node before the visitor runs; UnequipAllVisitor's unequip can free that node (16067 removing the head entry): use after free."}
+Z	comment		0x6dc8ff	{"addr": "0x1406DC8FF", "comment": "Walks worn items with UnequipAllVisitor; each visit unequips (38901), which can free the walk's next node (16067). SkyrimCoop unequips the worn stacks itself first (EquipManager::UnequipAll)."}
+2026-11-27T13:19:48Z	read	63997	0xbe9800	{"name": "AnimationFileManagerSingleton__RunLoadedCallbacks"}
+2026-11-27T13:21:03Z	read	39258	0x6f1190	{"name": "coop_CancelLoad"}
+2026-11-27T13:21:03Z	read	39798	0x71fec0	{"name": "sub_14071FEC0"}
+2026-11-27T13:21:13Z	read		0x6f11c5	{"name": "coop_CancelLoad"}
+2026-11-27T13:21:13Z	read	63971	0xbe7920	{"name": "AnimationFileManagerSingleton__CancelLoad"}
+2026-11-27T13:41:04Z	read	39731	0x71cb30	{"name": "coop_AssignMiddleCallback"}
+2026-11-27T14:01:08Z	read	37323	0x678a50	{"name": "Character__RerollLeveledBase_37323"}
+2026-11-27T14:01:39Z	read	14374	0x1dcba0	{"name": "TESLevCharacter__ResolveForReference"}
+2026-11-27T14:08:37Z	read		0x177f40	{"name": "ExtraDataList__LoadGame"}
+2026-11-27T14:09:48Z	read	38464	0x6c4ef0	{"name": "ActorValueOwner::GetBaseActorValue_0"}
+2026-11-27T14:10:12Z	read	19529	0x2e0c70	{"name": "TESObjectREFR::LoadGame"}
+2026-11-27T14:11:42Z	read	14375	0x1dcf40	{"name": "coop_SetLeveledNpc"}
+2026-11-27T14:11:47Z	read	35569	0x616160	{"name": "BGSSaveLoadGame::LoadStoredChanges"}
+2026-11-27T14:11:47Z	read	18882	0x2b8ed0	{"name": "TESObjectCELL::sub_18882"}
+2026-11-27T14:11:53Z	read	35572	0x6167c0	{"name": "sub_1406167C0"}
+2026-11-27T14:12:11Z	comment	35572	0x6167c0	{"addr": "0x1406167C0", "comment": "35572: a cell's InitItemImpl (18882) loads the stored changes of the cell itself, then of every reference the save's moved-reference map (+200) places in that cell (LoadStoredChanges 35569 each). Guest crash 2026-11-27: freed a copy's temporary base through Actor::LoadGame -> ExtraDataList::LoadGame (ExtraLeveledCreature)."}
+2026-11-27T14:12:11Z	comment	39798	0x71fec0	{"addr": "0x14071FEC0", "comment": "39798: ends an actor's instant interaction: under the process's animationLock cancels the instant clip load (sets +0x80, 63971) before it releases the callback (middle +0x230)."}
+2026-11-27T14:12:11Z	comment	18322	0x296650	{"addr": "0x140296650", "comment": "18322: adds a reference to the cell's per-type lists during attach (no free); not on the 2026-11-27 crash's path."}
+Z	comment	35572	0x6167c0	{"addr": "0x1406167C0", "comment": "35572: a cell's InitItemImpl (18882) loads the stored changes of the cell itself, then of every reference the save's moved-reference map (+200) places in that cell (LoadStoredChanges 35569 each). Guest crash 2026-11-27: freed a copy's temporary base through Actor::LoadGame -> ExtraDataList::LoadGame (ExtraLeveledCreature)."}
+Z	comment	39798	0x71fec0	{"addr": "0x14071FEC0", "comment": "39798: ends an actor's instant interaction: under the process's animationLock cancels the instant clip load (sets +0x80, 63971) before it releases the callback (middle +0x230)."}
+Z	comment	18322	0x296650	{"addr": "0x140296650", "comment": "18322: adds a reference to the cell's per-type lists during attach (no free); not on the 2026-11-27 crash's path."}
+2026-11-27T14:13:05Z	read		0x175960	{"name": "ExtraDataList__LoadGame"}
+2026-11-27T14:20:40Z	read	37650	0x699900	{"name": "Actor::LoadGame"}
+2026-11-27T14:45:27Z	comment		0x2e0cbe	{"addr": "0x1402e0cbe", "comment": "Base change (0x80): the recorded base looked up by id and given to the reference. A recorded TEMPORARY id gives it another reference's temporary NPC (or a newer one that reused the id); 12095's ExtraLeveledCreature case then destroys it as this reference's own. SkyrimCoop never records a temporary base (BaseChange.h); guest crashes 2026-11-27."}
+Z	comment		0x2e0cbe	{"addr": "0x1402e0cbe", "comment": "Base change (0x80): the recorded base looked up by id and given to the reference. A recorded TEMPORARY id gives it another reference's temporary NPC (or a newer one that reused the id); 12095's ExtraLeveledCreature case then destroys it as this reference's own. SkyrimCoop never records a temporary base (BaseChange.h); guest crashes 2026-11-27."}
