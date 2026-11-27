@@ -40,10 +40,8 @@ nlohmann::json FrameOf(Actor& aActor)
     nlohmann::json entry{{"at", {aActor.position.x, aActor.position.y, aActor.position.z}}};
     if (const auto* pExtension = aActor.GetExtension(); pExtension && pExtension->HasCopyGoal)
         entry["goal"] = pExtension->CopyGoal;
-    for (const auto cEntity : World::Get().view<FormIdComponent, InterpolationComponent>())
+    if (const auto cEntity = World::Get().GetActorIndex().ByForm<InterpolationComponent>(aActor.formID); cEntity != entt::null)
     {
-        if (World::Get().get<FormIdComponent>(cEntity).Id != aActor.formID)
-            continue;
         const auto& cShown = World::Get().get<InterpolationComponent>(cEntity);
         entry["points"] = cShown.TimePoints.size();
         entry["tick"] = InterpolationSystem::PlaybackTick(World::Get(), cEntity);

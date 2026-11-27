@@ -109,15 +109,13 @@ static nlohmann::json ActorRotation(uint32_t aFormId)
 static int64_t SessionId(uint32_t aFormId)
 {
     auto& world = World::Get();
-    for (const auto entity : world.view<FormIdComponent>())
-    {
-        if (world.get<FormIdComponent>(entity).Id != aFormId)
-            continue;
-        if (const auto* pLocal = world.try_get<LocalComponent>(entity))
-            return pLocal->Id;
-        if (const auto* pRemote = world.try_get<RemoteComponent>(entity))
-            return pRemote->Id;
-    }
+    const auto cEntity = world.GetActorIndex().ByForm(aFormId);
+    if (cEntity == entt::null)
+        return -1;
+    if (const auto* pLocal = world.try_get<LocalComponent>(cEntity))
+        return pLocal->Id;
+    if (const auto* pRemote = world.try_get<RemoteComponent>(cEntity))
+        return pRemote->Id;
     return -1;
 }
 
@@ -213,10 +211,8 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
     nlohmann::json mod = {{"session_id", SessionId(aFormId)}};
     // The last action the actor's graph took: an owner's own, or a copy's accepted replay or forced action.
     const ActionEvent latest = actors.GetActorLatestAnimation(aFormId);
-    for (const auto entity : world.view<FormIdComponent>())
+    if (const auto entity = world.GetActorIndex().ByForm(aFormId); entity != entt::null)
     {
-        if (world.get<FormIdComponent>(entity).Id != aFormId)
-            continue;
         auto components = nlohmann::json::array();
         const auto has = [&](auto* apType, const char* apName) {
             if (world.all_of<std::remove_pointer_t<decltype(apType)>>(entity))
@@ -248,7 +244,6 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
                            {"head", {{"geometry", cHead.Geometry}, {"material", cHead.Material}, {"tint", cHead.Tint}}},
                            {"base_layers", BaseLayersOf(aFormId)}};
         }
-        break;
     }
 
     // This game's player's head: the tints it shows (a vampire's overlay ones, else its own), as its copies get them.

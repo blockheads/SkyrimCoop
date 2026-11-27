@@ -96,24 +96,14 @@ void ActorValueService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcep
     if (!m_transport.IsConnected())
         return;
 
-    auto view = m_world.view<FormIdComponent>();
     const uint32_t formId = acEvent.FormId;
     m_changedValues.erase(formId);
     m_changedDeaths.erase(formId);
     m_replayedDeaths.erase(formId);
     m_resurrections.erase(formId);
 
-    const auto it = std::find_if(
-        std::begin(view), std::end(view),
-        [view, formId](auto entity)
-        {
-            const auto& formIdComponent = view.get<FormIdComponent>(entity);
-
-            return formIdComponent.Id == formId;
-        });
-
-    if (it != std::end(view))
-        m_world.remove<ActorValuesComponent>(*it);
+    if (const auto cEntity = m_world.GetActorIndex().ByForm(formId); cEntity != entt::null)
+        m_world.remove<ActorValuesComponent>(cEntity);
 }
 
 void ActorValueService::OnUpdate(const UpdateEvent&) noexcept
@@ -130,9 +120,9 @@ void ActorValueService::OnUpdate(const UpdateEvent&) noexcept
 void ActorValueService::OnValueChanged(const ActorValueChangeEvent& acEvent) noexcept
 {
     m_changedValues[acEvent.FormId].insert(acEvent.Value);
-    for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
-        if (form.Id == acEvent.FormId && m_copyValues.contains(copy.Id))
-            m_copyPoolsPending.insert(copy.Id);
+    if (const auto cCopy = m_world.GetActorIndex().ByForm<RemoteComponent>(acEvent.FormId); cCopy != entt::null)
+        if (const uint32_t cId = m_world.get<RemoteComponent>(cCopy).Id; m_copyValues.contains(cId))
+            m_copyPoolsPending.insert(cId);
 }
 
 void ActorValueService::OnDeathChanged(const ActorDeathChangeEvent& acEvent) noexcept
@@ -145,26 +135,25 @@ void ActorValueService::OnDeathChanged(const ActorDeathChangeEvent& acEvent) noe
 void ActorValueService::OnDeathActionReplayed(const DeathActionReplayedEvent& acEvent) noexcept
 {
     m_replayedDeaths[acEvent.FormId] = acEvent.Tick;
-    for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
-        if (form.Id == acEvent.FormId)
-        {
-            const auto it = m_copyDeathStates.find(copy.Id);
-            if (it != m_copyDeathStates.end() && !it->second.IsDead &&
-                (!it->second.ActionTick || *it->second.ActionTick < acEvent.Tick))
-                m_copyDeathStates.erase(it);
-            ApplyDeathState(copy.Id);
-        }
+    const auto cCopy = m_world.GetActorIndex().ByForm<RemoteComponent>(acEvent.FormId);
+    if (cCopy == entt::null)
+        return;
+    const uint32_t cId = m_world.get<RemoteComponent>(cCopy).Id;
+    const auto it = m_copyDeathStates.find(cId);
+    if (it != m_copyDeathStates.end() && !it->second.IsDead && (!it->second.ActionTick || *it->second.ActionTick < acEvent.Tick))
+        m_copyDeathStates.erase(it);
+    ApplyDeathState(cId);
 }
 
 void ActorValueService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept
 {
-    for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
-        if (form.Id == acEvent.FormId)
-        {
-            if (m_copyValues.contains(copy.Id))
-                m_copyPoolsPending.insert(copy.Id);
-            ApplyDeathState(copy.Id);
-        }
+    const auto cCopy = m_world.GetActorIndex().ByForm<RemoteComponent>(acEvent.FormId);
+    if (cCopy == entt::null)
+        return;
+    const uint32_t cId = m_world.get<RemoteComponent>(cCopy).Id;
+    if (m_copyValues.contains(cId))
+        m_copyPoolsPending.insert(cId);
+    ApplyDeathState(cId);
 }
 
 void ActorValueService::OnSpawn(const NotifyCharacterSpawn& acMessage) noexcept
@@ -230,11 +219,9 @@ void ActorValueService::OnHealthChange(const HealthChangeEvent& acEvent) noexcep
     if (!m_transport.IsConnected())
         return;
 
-    auto view = m_world.view<FormIdComponent>();
-
-    const auto hitteeIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.HitteeId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
-
-    if (hitteeIt == std::end(view))
+    const auto& actors = m_world.GetActorIndex();
+    const auto cHittee = actors.ByForm(acEvent.HitteeId);
+    if (cHittee == entt::null)
     {
         spdlog::warn("Health change event form id component not found, form id: {:X}", acEvent.HitteeId);
         return;
@@ -242,10 +229,10 @@ void ActorValueService::OnHealthChange(const HealthChangeEvent& acEvent) noexcep
 
     // Our own actors' health reaches everyone through RunPoolUpdates. Only a hit on an actor
     // someone else owns is sent: as a request the server forwards to that owner.
-    if (m_world.all_of<LocalComponent>(*hitteeIt))
+    if (m_world.all_of<LocalComponent>(cHittee))
         return;
 
-    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*hitteeIt);
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(cHittee);
     if (!sessionIdRes.has_value())
     {
         spdlog::error("{}: failed to find session id", __FUNCTION__);
@@ -268,9 +255,8 @@ void ActorValueService::OnHealthChange(const HealthChangeEvent& acEvent) noexcep
     requestHealthChange.DeltaHealth = acEvent.DeltaHealth;
     if (acEvent.AttackerId)
     {
-        const auto attackerIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.AttackerId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
-        if (attackerIt != std::end(view))
-            if (const auto cAttackerSessionId = Utils::GetSessionId(*attackerIt))
+        if (const auto cAttacker = actors.ByForm(acEvent.AttackerId); cAttacker != entt::null)
+            if (const auto cAttackerSessionId = Utils::GetSessionId(cAttacker))
             {
                 requestHealthChange.HasAttacker = true;
                 requestHealthChange.AttackerId = *cAttackerSessionId;
@@ -467,15 +453,11 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
             m_copyValues[acMessage.Id].ActorTemporaryValuesList[cIndex] = cValue;
             m_copyPoolsPending.insert(acMessage.Id);
         }
-    auto view = m_world.view<FormIdComponent, RemoteComponent>();
-
-    const auto itor = std::find_if(std::begin(view), std::end(view), [id = acMessage.Id, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
-
-    if (itor == std::end(view))
+    const auto cCopy = m_world.GetActorIndex().BySession<FormIdComponent, RemoteComponent>(acMessage.Id);
+    if (cCopy == entt::null)
         return;
 
-    auto& formIdComponent = view.get<FormIdComponent>(*itor);
-    const uint32_t formId = formIdComponent.Id;
+    const uint32_t formId = m_world.get<FormIdComponent>(cCopy).Id;
 
     if (!m_actorBridge.ActorExists(formId))
         return;
@@ -505,15 +487,11 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
             if (ActorPools::IsPool(key))
                 m_copyPoolsPending.insert(acMessage.Id);
         }
-    auto view = m_world.view<FormIdComponent, RemoteComponent>();
-
-    const auto it = std::find_if(std::begin(view), std::end(view), [id = acMessage.Id, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
-
-    if (it == std::end(view))
+    const auto cCopy = m_world.GetActorIndex().BySession<FormIdComponent, RemoteComponent>(acMessage.Id);
+    if (cCopy == entt::null)
         return;
 
-    auto& formIdComponent = view.get<FormIdComponent>(*it);
-    const uint32_t formId = formIdComponent.Id;
+    const uint32_t formId = m_world.get<FormIdComponent>(cCopy).Id;
 
     if (!m_actorBridge.ActorExists(formId))
         return;

@@ -36,43 +36,40 @@ void GraphStreamService::OnStreamedRemoved(entt::registry& aRegistry, entt::enti
 void GraphStreamService::OnGraphOps(const NotifyGraphOps& acMessage) const noexcept
 {
     auto& streams = m_world.GetGraphStreams();
-    auto view = m_world.view<RemoteComponent, FormIdComponent>();
+    const auto& actors = m_world.GetActorIndex();
     for (const auto& cRun : acMessage.Ops.Runs)
-        for (const auto cEntity : view)
-            if (view.get<RemoteComponent>(cEntity).Id == cRun.ActorId)
-            {
-                const uint32_t cFormId = view.get<FormIdComponent>(cEntity).Id;
-                // A copy that died off its stream (a pair with this game's actor) stays off it.
-                if (m_actorBridge.IsActorDead(cFormId) && !streams.OnStream(cFormId))
-                    break;
-                streams.Feed(cFormId, cRun, acMessage.Ops.Frames);
-                if (streams.ShouldAsk(cFormId))
-                {
-                    GraphSyncRequest ask;
-                    ask.Id = cRun.ActorId;
-                    m_transport.Send(ask);
-                }
-                break;
-            }
+    {
+        const auto cCopy = actors.BySession<RemoteComponent, FormIdComponent>(cRun.ActorId);
+        if (cCopy == entt::null)
+            continue;
+        const uint32_t cFormId = m_world.get<FormIdComponent>(cCopy).Id;
+        // A copy that died off its stream (a pair with this game's actor) stays off it.
+        if (m_actorBridge.IsActorDead(cFormId) && !streams.OnStream(cFormId))
+            continue;
+        streams.Feed(cFormId, cRun, acMessage.Ops.Frames);
+        if (streams.ShouldAsk(cFormId))
+        {
+            GraphSyncRequest ask;
+            ask.Id = cRun.ActorId;
+            m_transport.Send(ask);
+        }
+    }
 }
 
 void GraphStreamService::OnGraphSync(const NotifyGraphSync& acMessage) const noexcept
 {
-    auto view = m_world.view<LocalComponent, FormIdComponent>();
-    for (const auto cEntity : view)
-        if (view.get<LocalComponent>(cEntity).Id == acMessage.Id)
-            m_world.GetGraphStreams().WantPoint(view.get<FormIdComponent>(cEntity).Id);
+    if (const auto cEntity = m_world.GetActorIndex().BySession<LocalComponent, FormIdComponent>(acMessage.Id); cEntity != entt::null)
+        m_world.GetGraphStreams().WantPoint(m_world.get<FormIdComponent>(cEntity).Id);
 }
 
 void GraphStreamService::OnGraphSyncPoint(const NotifyGraphSyncPoint& acMessage) const noexcept
 {
-    auto view = m_world.view<RemoteComponent, FormIdComponent>();
-    for (const auto cEntity : view)
-        if (view.get<RemoteComponent>(cEntity).Id == acMessage.Id)
-        {
-            spdlog::info("Copy {:X} starts on its owner's graph stream at update {} ({} clip sets held)", view.get<FormIdComponent>(cEntity).Id, acMessage.Update, acMessage.ClipSets.size());
-            m_world.GetGraphStreams().Load(view.get<FormIdComponent>(cEntity).Id, acMessage);
-        }
+    const auto cCopy = m_world.GetActorIndex().BySession<RemoteComponent, FormIdComponent>(acMessage.Id);
+    if (cCopy == entt::null)
+        return;
+    const uint32_t cFormId = m_world.get<FormIdComponent>(cCopy).Id;
+    spdlog::info("Copy {:X} starts on its owner's graph stream at update {} ({} clip sets held)", cFormId, acMessage.Update, acMessage.ClipSets.size());
+    m_world.GetGraphStreams().Load(cFormId, acMessage);
 }
 
 void GraphStreamService::Send() const noexcept
@@ -94,13 +91,9 @@ void GraphStreamService::Send() const noexcept
 
 void GraphStreamService::OnActionEvent(const ActionEvent& acActionEvent) const noexcept
 {
-    auto view = m_world.view<LocalAnimationComponent, FormIdComponent>();
-
-    const auto itor = std::find_if(std::begin(view), std::end(view), [id = acActionEvent.ActorId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
-
-    if (itor != std::end(view))
+    if (const auto cEntity = m_world.GetActorIndex().ByForm<LocalAnimationComponent>(acActionEvent.ActorId); cEntity != entt::null)
     {
-        auto& localComponent = view.get<LocalAnimationComponent>(*itor);
+        auto& localComponent = m_world.get<LocalAnimationComponent>(cEntity);
 
         ActionEvent action = acActionEvent;
         AnimationSystem::TargetToNetwork(action);

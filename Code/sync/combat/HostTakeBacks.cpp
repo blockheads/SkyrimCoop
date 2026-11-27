@@ -40,10 +40,7 @@ void HostTakeBacks::Update(const UpdateEvent&) noexcept
 
 bool HostTakeBacks::Take(const TakeBack& acTakeBack) noexcept
 {
-    entt::entity entity = entt::null;
-    for (const auto cEntity : m_world.view<FormIdComponent>())
-        if (Utils::GetSessionId(cEntity) == acTakeBack.SessionId)
-            entity = cEntity;
+    const entt::entity entity = m_world.GetActorIndex().BySession<FormIdComponent>(acTakeBack.SessionId);
     // Gone, or ours all along (the host's own ride): nothing to take.
     if (entity == entt::null || !m_world.all_of<RemoteComponent>(entity))
     {

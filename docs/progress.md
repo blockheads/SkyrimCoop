@@ -189,6 +189,9 @@ removed (git history keeps them).
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
+- **Done 2026-11-26: actors are found by id in one lookup** (`core/ActorIndex`, kept by the registry's signals): the
+  `Utils::` session/form id functions and the services' own scans of every entity use it (cleanup step 3).
+
 - **Open 2026-10-24: a copy's base has no original race.** `TESNPC::Create` clears it (`TESNPC+0x1E8`, upstream's
   "forces facegen"); the owner's is kept. Only a beast form's return reads it, and a copy follows its owner's race.
   Scenarios compare the race section by its race only (`copy_base_differences`).
