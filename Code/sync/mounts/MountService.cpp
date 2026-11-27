@@ -153,7 +153,7 @@ void MountService::OnNotifyMount(const NotifyMount& acMessage) noexcept
     if (m_world.GetActorIndex().BySession<PlayerComponent>(acMessage.RiderId) != entt::null)
         m_partyMounts.insert(acMessage.MountId);
     // Our player got on it: the host's claim gave the mount to this game (ClaimService, just before). Not asked for: a
-    // handover (HostCharacters::HandOver).
+    // handover (HostRides::HandOver).
     const bool cHandedOver = m_riddenMount != acMessage.MountId;
     const auto& actors = m_world.GetActorIndex();
     if (actors.BySession<LocalComponent>(acMessage.RiderId) != entt::null)
@@ -208,7 +208,7 @@ void MountService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 }
 
 // The ride of one of this game's actors ended (any path): the host takes its mount back.
-// A boarding refused (HostCharacters::OnBoard), or a ride (OnRideRefused): ours gets off, the horse stays a copy here.
+// A boarding refused (HostRides::OnBoard), or a ride (OnRideRefused): ours gets off, the horse stays a copy here.
 void MountService::OnRideRefused(const NotifyClaimRefused& acMessage) noexcept
 {
     if (acMessage.Kind != Payloads::Claim::kRide || acMessage.Members.empty() || acMessage.ForId != m_characters.CharacterId())

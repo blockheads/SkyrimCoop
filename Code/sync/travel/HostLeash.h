@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <unordered_map>
 
-struct HostCharacters;
+struct HostArrivals;
 struct HostDeath;
 struct HostNetwork;
 struct HostPlayers;
@@ -27,7 +27,7 @@ struct HostLeash
     // A trip to the host that has not landed after this long is sent again.
     static constexpr double kRetrySeconds = 15.0;
 
-    HostLeash(HostNetwork& aNetwork, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostDeath& acDeath) noexcept;
+    HostLeash(HostNetwork& aNetwork, const HostPlayers& acPlayers, HostArrivals& aArrivals, const HostDeath& acDeath) noexcept;
 
     NO_COPY_MOVE(HostLeash);
 
@@ -51,7 +51,7 @@ private:
 
     HostNetwork& m_network;
     const HostPlayers& m_players;
-    HostCharacters& m_characters;
+    HostArrivals& m_arrivals;
     const HostDeath& m_death;
     std::unordered_map<ConnectionId_t, Leash> m_out;
     bool m_on{true};
