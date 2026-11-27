@@ -677,7 +677,6 @@ SOURCE_TAGS = [
     ("Code/encoding/Structs/Mods.*", {'core'}),
     ("Code/encoding/Structs/GridCellCoords.*", {'cells'}),
     ("Code/encoding/Structs/Inventory.*", {'inventory'}),
-    ("Code/encoding/Structs/LockData.*", {'objects'}),
     ("Code/encoding/Structs/MagicEquipment.*", {'inventory', 'magic'}),
     ("Code/encoding/Structs/Movement.*", {'movement'}),
     ("Code/encoding/Structs/ReferenceUpdate.*", {'movement', 'animation'}),

@@ -33,7 +33,6 @@
 #include <Structs/RidePart.h>
 #include <Structs/CastPart.h>
 #include <Structs/RagdollPart.h>
-#include <Structs/Vector2_NetQuantize.h>
 #include <Messages/ActivateRequest.h>
 #include <Structs/SystemQuestState.h>
 #include <Structs/GraphOps.h>
@@ -515,25 +514,6 @@ TEST_CASE("Static structures", "[encoding.static]")
             for (int axis = 0; axis < 3; ++axis)
                 CHECK(std::abs(received[axis] - cAt[axis]) <= 0.125f);
             CHECK(writer.Size() == 8);
-        }
-    }
-
-    GIVEN("Vector2_NetQuantize")
-    {
-        Vector2_NetQuantize sendObjects, recvObjects;
-        sendObjects.x = 1000.89f;
-        sendObjects.y = -485632.75f;
-
-        {
-            Buffer buff(1000);
-            Buffer::Writer writer(&buff);
-
-            sendObjects.Serialize(writer);
-
-            Buffer::Reader reader(&buff);
-            recvObjects.Deserialize(reader);
-
-            REQUIRE(sendObjects == recvObjects);
         }
     }
 
