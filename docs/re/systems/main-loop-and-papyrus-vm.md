@@ -44,7 +44,8 @@ Where our hooks run besides the main thread and our update (the check in `World:
 - Present (77246, `Hook_StopTimer`, so `RenderSystemD3D11::OnRender`): from `Main` each frame, and from that loading
   screen loop.
 - Papyrus natives and their registration (104788), graph updates and events (63587, 58329, 63568, 63591), actor
-  animation jobs (41453), `MagicTarget::AddTarget` (34526): the engine's job and VM threads.
+  animation jobs (41453), `MagicTarget::AddTarget` (34526), a melee hit's damage and stagger (`HookDamageActor`, 37710):
+  the engine's job and VM threads.
 
 Those hooks read what is safe there through `World`'s static accessors (`Hosts`, `Connected`, `FrameTick`, `Streams`,
 `Created`; `World.h`) and queue the rest through `World::Runner()`.

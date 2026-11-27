@@ -61,7 +61,7 @@ every other section needs the duo.
 
 **Plugin compatibility**
 
-- [World::Get() off the game's thread](#worldget-off-the-games-thread): medium
+- [World::Get() off the game's thread](#worldget-off-the-games-thread): small, the UI's render left
 - [Quest start and stop events](#quest-start-and-stop-events): medium
 
 **Crime and aggro**
@@ -730,26 +730,20 @@ Size: small. Needs: code and GameTests only.
 
 ### World::Get() off the game's thread
 
-Found 2026-11-27 by the thread check in `World::Get()` (test and debug builds; `Code/sync/game/World.cpp`): in a duo
-run of eleven scenarios each game logged about 60 lines, 18 call sites on the engine's job, Papyrus, graph and render
-threads, outside our update. `entt`'s registry and dispatcher are not thread-safe, and the plain fields read here have
-no lock. The sites, by symbol (`build/coop-test/runs/20261127-001358-duo`, resolved against the run's PDB):
+Found 2026-11-27 by the thread check in `World::Get()` (test and debug builds; `Code/sync/game/World.cpp`). The hooks it
+named now read `World`'s static accessors (`Hosts`, `Connected`, `FrameTick`, `Streams`, `Created`) or the locked
+`PapyrusNatives` table; in a duo run of ten scenarios each game logged one line, the one site left:
 
-- Papyrus threads: `GuestScripts::IsHosting` (GuestScripts.cpp:166), `PartyNatives::Scope::FactsOf`
-  (PartyNatives.cpp:259, 281), `HookRegisterPapyrusFunction` (VirtualMachine.cpp:22), `TESObjectREFR::GetOpenState`.
-- Graph threads: `GraphStreamHooks.cpp`'s `HookUpdate`, `HookBehaviourUpdate`, `HookGenerate`, `HookSendEvent`,
-  `LogOwnerLoad` (the streams are meant to be used there, but are reached through `World::Get()`), the harness's
-  `GraphStreamCheck.cpp`, `HookUpdateAnimationGraphs` (Animation.cpp:153, the frame tick), `HookPerformAction`
-  (Animation.cpp:71, 101).
-- Job threads: `HookAddTarget` (MagicTarget.cpp:118).
-- UI and render threads: `UI_FindOnStack_Hook` (UI.cpp:77, the transport's connected flag),
-  `RenderSystemD3D11::OnRender` (the registry's context, for `UiService`).
+- `RenderSystemD3D11::OnRender` (RenderSystemD3D11.cpp:49) on the loading screen's thread (`0x1406E4C20`, which
+  processes the UI and presents while the main thread loads: [main-loop-and-papyrus-vm.md](re/systems/main-loop-and-papyrus-vm.md)).
+  The `World::Get()` there is the least of it: `UiService::Render` then reads the registry (the party's
+  `PlayerComponent`s), `SessionService`'s players, `JoinService`'s status, `DeathService`, and sends chat
+  (`TransportService::Send`), all on that thread while the main thread's hooks may change them. Removing the lookup
+  alone would only hide it. Needs: the model updates (`UpdateParty`, `UpdateChat`, `UpdateJoin`, `UpdateDeath`) moved
+  to `UiService`'s update, with a lock shared with `Render` around the RmlUi context; the join panel must still draw
+  during loads.
 
-Agent task: for each site, read what it touches. A value meant for other threads (the frame tick, hosting, connected,
-the graph streams) gets its own thread-safe accessor beside `World::Runner()`; a site that reads the registry or a
-service moves its work to the queue (`World::Runner().Trigger`). The check's log should then be empty in a duo run.
-
-Size: medium. Needs: the duo (the check only speaks in the game).
+Size: small. Needs: the duo (the check only speaks in the game).
 
 ### Quest start and stop events
 

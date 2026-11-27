@@ -369,7 +369,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 - **2026-11-26: bug-finders.** Sanitized native tests and `FuzzMessages` (testing.md, "Sanitizers and fuzzing"); in
   debug and harness builds `World::Get()` logs a caller off the update and main thread (hooks queue through
-  `World::Runner()`), not yet seen in Skyrim. Under ASan many GameTests flows miss their real-time waits (slowness).
+  `World::Runner()` and read `World`'s static accessors; 2026-11-27 only the UI's render on a loading screen is left,
+  bugs.md). Under ASan many GameTests flows miss their real-time waits (slowness).
 
 - **Open 2026-11-17: the graph stream check crashed a guest.** `guest-trips-platform-guard`'s first run: the guest's
   game died 48 s in, in `GraphStreamCheck.cpp`'s `HookHandleEvent` (line 113), formatting the platform guard's copy's
