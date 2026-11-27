@@ -37,15 +37,19 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 
 ## Hooks off the main thread (2026-11-27, 1.7.104)
 
-Where our hooks run besides the main thread and our update (the check in `World::Get()`, test and debug builds):
+Where our hooks run besides the main thread and our update (the check in `World::Get()`, test and debug builds; since
+2026-11-27 none of them reaches `World::Get()`):
 
 - `UI::ProcessMessages` (82082, `UI_FindOnStack_Hook`): also from `Job_UI` (a job thread) and from the loading
   screen's loop (`0x1406E4C20`), which runs on its own thread while the main thread loads.
 - Present (77246, `Hook_StopTimer`, so `RenderSystemD3D11::OnRender`): from `Main` each frame, and from that loading
-  screen loop.
+  screen loop. The loop also polls input (`BSInputDeviceManager::PollInputDevices`, 68617, so `UiInput::Take`), so the
+  UI's input and its drawing always share a thread. `UiService` draws from a snapshot the main thread fills each
+  update (one mutex); a sent chat line or Back goes to the main thread through `World::Runner()`. During a load the
+  snapshot is the last one before it (the join panel shows "Loading the world..." with its activity bar).
 - Papyrus natives and their registration (104788), graph updates and events (63587, 58329, 63568, 63591), actor
-  animation jobs (41453), `MagicTarget::AddTarget` (34526), a melee hit's damage and stagger (`HookDamageActor`, 37710):
-  the engine's job and VM threads.
+  animation jobs (41453), `MagicTarget::AddTarget` (34526), a melee hit's damage and stagger (`HookDamageActor`, 37710),
+  `BSTimer::SetGlobalTimeMultiplier` (68245, on a guest's death, a new thread each time): the engine's job and VM threads.
 
 Those hooks read what is safe there through `World`'s static accessors (`Hosts`, `Connected`, `FrameTick`, `Streams`,
 `Created`; `World.h`) and queue the rest through `World::Runner()`.

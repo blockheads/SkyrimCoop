@@ -114,6 +114,18 @@ bool JoinModel::Bind(Rml::Context& aContext)
     return true;
 }
 
+Rml::Vector<ChatLine> ShownChatLines(const Rml::Vector<ReceivedLine>& acReceived, bool aOpen,
+                                     std::chrono::steady_clock::time_point aNow)
+{
+    constexpr auto cShownFor = std::chrono::seconds(10);
+    const size_t cCount = aOpen ? cChatLinesOpen : 6;
+    Rml::Vector<ChatLine> shown;
+    for (size_t i = acReceived.size() > cCount ? acReceived.size() - cCount : 0; i < acReceived.size(); ++i)
+        if (aOpen || aNow - acReceived[i].At < cShownFor)
+            shown.push_back(acReceived[i].Line);
+    return shown;
+}
+
 Rml::String JoinModel::CopyText() const
 {
     Rml::String text = "state " + State + "\nreason " + Reason + "\nmessage " + Message;

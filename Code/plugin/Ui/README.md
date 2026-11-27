@@ -169,6 +169,11 @@ The game loads the party, chat and join documents.
 
 ## In the game
 
+- **Threads:** drawing reads no game state. `UiService`'s update (the main thread) fills a `Snapshot` (party, join,
+  death, the last chat lines); `Render` copies it under one mutex and is the only code touching the RmlUi context and
+  `UiInput`. It runs on the loading screen's thread during a load, which also polls input
+  ([main-loop-and-papyrus-vm.md](../../../docs/re/systems/main-loop-and-papyrus-vm.md)). A sent chat line and Back
+  reach the main thread through `World::Runner().Queue`.
 - **The join panel** follows `JoinService::GetStatus()` (`UiService::UpdateJoin`): shown while a join is on
   its way (connecting, checking, receiving the world with its fraction, loading), while a guest that lost
   its host reconnects, on a refusal and when a session ended (lost after its tries, or kicked); hidden

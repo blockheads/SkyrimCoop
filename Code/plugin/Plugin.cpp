@@ -21,6 +21,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include <RenderSystemD3D11.h>
+#include <Ui/UiService.h>
 
 #include <ImguiService.h>
 
@@ -74,7 +75,7 @@ Plugin::~Plugin() = default;
 void Plugin::Start()
 {
     CreateWorld();
-    World::Get().ctx().emplace<RenderSystemD3D11>(World::Get().ctx().at<ImguiService>());
+    World::Get().ctx().emplace<RenderSystemD3D11>(World::Get().ctx().at<ImguiService>(), World::Get().ctx().at<UiService>());
 
     // TODO: Figure out a way to un-blacklist NvCamera64.dll (see DllBlocklist.cpp). Then this hack can be removed
     if (IsNvidiaOverlayLoaded())

@@ -61,7 +61,6 @@ every other section needs the duo.
 
 **Plugin compatibility**
 
-- [World::Get() off the game's thread](#worldget-off-the-games-thread): small, the UI's render left
 - [Quest start and stop events](#quest-start-and-stop-events): medium
 
 **Crime and aggro**
@@ -728,28 +727,6 @@ Size: small. Needs: code and GameTests only.
   - Test: a `host_load_flows.cpp` case.
 
 ## Plugin compatibility
-
-### World::Get() off the game's thread
-
-Found 2026-11-27 by the thread check in `World::Get()` (test and debug builds; `Code/sync/game/World.cpp`). The hooks it
-named now read `World`'s static accessors (`Hosts`, `Connected`, `FrameTick`, `Streams`, `Created`) or the locked
-`PapyrusNatives` table; in a duo run of ten scenarios each game logged one line, the one site left:
-
-- `RenderSystemD3D11::OnRender` (RenderSystemD3D11.cpp:49) on the loading screen's thread (`0x1406E4C20`, which
-  processes the UI and presents while the main thread loads: [main-loop-and-papyrus-vm.md](re/systems/main-loop-and-papyrus-vm.md)).
-  The `World::Get()` there is the least of it: `UiService::Render` then reads the registry (the party's
-  `PlayerComponent`s), `SessionService`'s players, `JoinService`'s status, `DeathService`, and sends chat
-  (`TransportService::Send`), all on that thread while the main thread's hooks may change them. Removing the lookup
-  alone would only hide it.
-
-Agent task: drawing reads no live game state. `UiService`'s update (the main thread) fills a plain snapshot of what
-the four `Update*` read (party, chat, join, death; the `UiModels` types) and swaps it under one small mutex; `Render`
-copies it and is the only code that touches the RmlUi context, so the context needs no lock. A click's action (a chat
-line sent) goes through `World::Runner().Queue`. First read which thread `UiInput` feeds the context from during a
-load: if not the presenting one, its events go through the snapshot's mutex too. The join panel must still draw
-during loads (from the last snapshot; check what its progress reads).
-
-Size: medium. Needs: the duo (the check only speaks in the game).
 
 ### Quest start and stop events
 
