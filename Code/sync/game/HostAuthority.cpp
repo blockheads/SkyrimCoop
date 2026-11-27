@@ -31,7 +31,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_records(m_router, m_players, m_characters, m_game)
     , m_story(m_router, m_players, m_characters, m_game)
     , m_death(m_router, aNetwork, m_players, m_characters)
-    , m_leash(aNetwork, m_players, m_characters.Arrivals(), m_death)
+    , m_leash(aNetwork, m_players, m_characters, m_death)
     , m_followers(m_router, aNetwork, m_players, m_characters, m_death, m_game)
     , m_devTools(m_router, aNetwork, m_players, m_characters, m_game, m_leash)
     , m_objects(m_router, m_players, m_characters, m_game)

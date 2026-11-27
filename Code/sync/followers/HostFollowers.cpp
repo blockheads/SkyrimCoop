@@ -66,7 +66,7 @@ void HostFollowers::Update(uint64_t aTick) noexcept
     std::vector<Followers::Member> members;
     m_players.ForEach([&](auto aConnection, const HostPlayers::Player& acPlayer) {
         const uint32_t cCharacter = m_characters.PlayerCharacterOf(aConnection);
-        const auto cAt = m_characters.Arrivals().CharacterPlace(cCharacter);
+        const auto cAt = m_characters.CharacterPlace(cCharacter);
         Followers::Member member{
             acPlayer.Key, cCharacter, acPlayer.IsHost, m_death.Standing(aConnection) && cAt.has_value(), {}};
         if (cAt)

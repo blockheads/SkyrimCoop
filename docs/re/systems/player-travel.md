@@ -84,7 +84,7 @@ arrival puts the party on one spot (the user, 2026-11-09: no spot beside):
 1. The summoner's game sends its player's position (`PartySummonRequest`) and stacks the party on it
    (`ArrivalStack`): it never travels, and pass-through (`PlayerCollision`, 78553) needs both actors on that game's
    stack.
-2. The host's rule (`HostArrivals::OnPartySummon`) sends `NotifyPartySummon` to every other game and makes the
+2. The host's rule (`HostCharacters::OnPartySummon`) sends `NotifyPartySummon` to every other game and makes the
    spot the tether's last place, so a follower arriving there is not sent on to an older trip.
 3. Each game makes a forced tether move there (`FollowTo(..., true)`), so the arrival is following, not leading, and
    stacks even inside the same cell. Everyone passes through everyone on the spot until each walks off it.

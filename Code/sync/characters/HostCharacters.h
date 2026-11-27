@@ -2,11 +2,11 @@
 
 #include <network/ENetInterface.h>
 #include <Messages/NotifyCharacterSpawn.h>
+#include <Messages/NotifyPartyTravel.h>
 #include <Structs/ActorWhereabouts.h>
 #include <Messages/RelayedMessages.h>
 #include <characters/HostClaims.h>
 #include <mounts/HostRides.h>
-#include <travel/HostArrivals.h>
 
 #include <functional>
 #include <optional>
@@ -18,6 +18,9 @@ struct HostPlayers;
 struct AnnounceCharacterRequest;
 struct RequestRemoveCharacter;
 struct RequestRespawn;
+struct EnterCellRequest;
+struct PartyTravelRequest;
+struct PartySummonRequest;
 
 struct HostNetwork;
 
@@ -26,8 +29,12 @@ struct HostNetwork;
  * and spawns them for players who did not see them appear.
  *
  * Players' characters keep a record of what the host's copy cannot show (appearance, base, face),
- * kept current with their movement; the host's own actors are read from its engine. Its rides are HostRides', where
- * each player's game is HostArrivals'.
+ * kept current with their movement; the host's own actors are read from its engine.
+ *
+ * Under the party tether everyone is where the host is, or on the way there. Arriving somewhere (a
+ * door, coc, fast travel), a game loses its copies with the old cell and says where it is. Once it
+ * is with the host, it gets everyone with the host and they get it; a player still on the way gets
+ * nothing, so nothing lands in the wrong place.
  */
 struct HostCharacters
 {
@@ -71,21 +78,26 @@ struct HostCharacters
     // Each character in the table's order: its owner, its player record (null for none) and its seats.
     using Visit = std::function<void(uint32_t aSessionId, ConnectionId_t aOwner, NotifyCharacterSpawn* apRecord, RideSeats& aSeats)>;
     void ForEachCharacter(const Visit& acVisit) noexcept;
+    // Where a player's character stands now: its cell (outdoors its worldspace too), position and heading, from its
+    // game's announcement, arrivals and movement (the host's own from its engine). None for any other character.
+    [[nodiscard]] std::optional<NotifyPartyTravel> CharacterPlace(uint32_t aSessionId) const noexcept;
+    // A player's character outdoors: its worldspace and position from its records (no engine read). None indoors, on
+    // its way somewhere, or before its announcement.
+    struct Outdoors
+    {
+        GameId WorldSpaceId{};
+        Vector3_NetQuantize Position{};
+    };
+    [[nodiscard]] std::optional<Outdoors> OutdoorsAt(ConnectionId_t aPlayer) const noexcept;
+    // The party tether's trip to the host's player (the soft leash, HostLeash).
+    void BringToHost(ConnectionId_t aPlayer) noexcept { BringToParty(aPlayer); }
+    // Sent to the host's player and not arrived yet.
+    [[nodiscard]] bool OnWayToHost(ConnectionId_t aPlayer) const noexcept { return m_broughtToParty.contains(aPlayer); }
     // Every character but aPlayer's own (aOwnSessionId), as it is now.
     void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) noexcept;
     // Action claims (a ride, a kill move), which change their taken members' owner (SetOwner).
     [[nodiscard]] HostClaims& Claims() noexcept { return m_claims; }
     [[nodiscard]] const HostRides& Rides() const noexcept { return m_rides; }
-    // Where each player's game is (the party tether).
-    [[nodiscard]] HostArrivals& Arrivals() noexcept { return m_arrivals; }
-    [[nodiscard]] const HostArrivals& Arrivals() const noexcept { return m_arrivals; }
-    // A player's arrival where it was brought: the players' copies either way were made where it joined and may be
-    // gone (a copy moved out of the loaded cells is), so each is sent again; a game that still has one refreshes it.
-    void SendPlayersMet(ConnectionId_t aPlayer) noexcept;
-    // The host's actors (not its player, whose copy travels with the party) to one player.
-    void SendHostActors(ConnectionId_t aPlayer) noexcept;
-    // A spawn of the character as it is now: its record as its owner last declared it.
-    [[nodiscard]] std::optional<NotifyCharacterSpawn> BuildSpawn(uint32_t aSessionId) const noexcept;
     // HostClaims only: aTo's game owns the actor from now. False if it did already, or no such character.
     bool SetOwner(uint32_t aSessionId, ConnectionId_t aTo) noexcept;
     // Its characters leave with it.
@@ -102,12 +114,30 @@ private:
     void OnRespawn(const RequestRespawn& acRequest, ConnectionId_t aSender) noexcept;
     // The owner's actor's effects with visuals: to everyone else, and into a player's record for its later spawns.
     void OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept;
+    // A player's game arrived somewhere: with the host, it gets everyone there and they get it.
+    void OnTravelQueued(const PartyTravelRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // /tpa: everyone else goes to the sender's spot; the tether's last place becomes it.
+    void OnPartySummon(const PartySummonRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // Its game is where the host's is (not still on the way).
+    [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;
+    // Indoors anywhere; outdoors within the host's player's loaded grid (GridCellCoords::IsCellInGridCell).
+    [[nodiscard]] bool InHostGrid(const Vector3_NetQuantize& acPosition) const noexcept;
+    // A player that joined where the host is not, or outdoors out of its grid, goes there (the party tether).
+    void BringToParty(ConnectionId_t aPlayer) noexcept;
+    // Its arrival there: the players' copies either way were made where it joined and may be gone (a copy moved
+    // out of the loaded cells is), so each is sent again; a game that still has one refreshes it.
+    void SendPlayersMet(ConnectionId_t aPlayer) noexcept;
+    // The host's actors (not its player, whose copy travels with the party) to one player.
+    void SendHostActors(ConnectionId_t aPlayer) noexcept;
     // The host's game's spawns of its actors but aExcludedSessionId, to aPlayer. How many went.
     size_t SendHostSpawns(ConnectionId_t aPlayer, uint32_t aExcludedSessionId) noexcept;
     void SendToOthersWithHost(const NotifyCharacterSpawn& acSpawn, ConnectionId_t aSender) const noexcept;
 
-    // A spawn as BuildSpawn without its record: the host's actor from its engine, a player's from its record and
-    // the host's copy.
+    // A spawn of the character as it is now: the host's actor from its engine, a player's from its
+    // record and the host's copy.
+    [[nodiscard]] std::optional<NotifyCharacterSpawn> BuildSpawn(uint32_t aSessionId) const noexcept;
+    // The same without its record.
     [[nodiscard]] std::optional<NotifyCharacterSpawn> ReadSpawn(uint32_t aSessionId) const noexcept;
     // Its copies follow aWhereabouts (where the owner's actor went).
     void RemoveCharacter(uint32_t aSessionId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
@@ -132,7 +162,29 @@ private:
     uint32_t m_lastSessionId = 0;
     HostClaims m_claims;
     HostRides m_rides;
-    HostArrivals m_arrivals;
     // Each player's character's id, from its join.
     std::unordered_map<ConnectionId_t, uint32_t> m_playerCharacters;
+
+    // Where a player's game is: a worldspace (outdoors) or an interior cell.
+    struct Place
+    {
+        GameId WorldSpaceId{};
+        GameId CellId{};
+        bool operator==(const Place&) const noexcept = default;
+    };
+    static Place PlaceOf(GameId aCellId, GameId aWorldSpaceId) noexcept;
+    // An arrival in that place: its interior cell, or outdoors its worldspace within the loaded grid.
+    static bool At(const NotifyPartyTravel& acPlace, const EnterCellRequest& acArrival) noexcept;
+    // From each player's announcement, then its arrivals.
+    std::unordered_map<ConnectionId_t, Place> m_places;
+    // Arrived where the host is not yet (it led, or the host is still loading): the host's actors there reach
+    // them once the host arrives.
+    std::unordered_set<ConnectionId_t> m_aheadOfHost;
+    // Sent to the party at its join (BringToParty), not arrived yet.
+    std::unordered_set<ConnectionId_t> m_broughtToParty;
+    // Where the party went last (the latest player to travel by itself), for followers that arrive elsewhere.
+    std::optional<NotifyPartyTravel> m_partyTravel;
+    // Each player's trip announced before its load (PartyTravelRequest), not arrived yet: its arrival there is not
+    // sent again (a follower that walked off its spot stays).
+    std::unordered_map<ConnectionId_t, NotifyPartyTravel> m_announced;
 };

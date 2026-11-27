@@ -1,16 +1,16 @@
 #include <travel/HostLeash.h>
 
 #include <Messages/NotifyPartyTravel.h>
-#include <travel/HostArrivals.h>
+#include <characters/HostCharacters.h>
 #include <death/HostDeath.h>
 #include <core/HostNetwork.h>
 #include <core/HostPlayers.h>
 #include <Structs/GridCellCoords.h>
 
-HostLeash::HostLeash(HostNetwork& aNetwork, const HostPlayers& acPlayers, HostArrivals& aArrivals, const HostDeath& acDeath) noexcept
+HostLeash::HostLeash(HostNetwork& aNetwork, const HostPlayers& acPlayers, HostCharacters& aCharacters, const HostDeath& acDeath) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
-    , m_arrivals(aArrivals)
+    , m_characters(aCharacters)
     , m_death(acDeath)
 {
 }
@@ -39,14 +39,14 @@ void HostLeash::Update(double aDelta) noexcept
     if (!m_on)
         return;
     const ConnectionId_t cHost = m_players.Host();
-    const auto cHostAt = m_arrivals.OutdoorsAt(cHost);
+    const auto cHostAt = m_characters.OutdoorsAt(cHost);
     for (const ConnectionId_t cPlayer : m_players.Connections())
     {
         if (cPlayer == cHost)
             continue;
         const auto it = m_out.find(cPlayer);
         // Sent to the host: until it arrives nothing counts; a trip that never lands is sent again.
-        if (m_arrivals.OnWayToHost(cPlayer))
+        if (m_characters.OnWayToHost(cPlayer))
         {
             // Another system took over meanwhile (a fall, the host indoors or on a trip): the leash's trip is dropped.
             if (it != m_out.end() && (!cHostAt || m_death.Down(cPlayer) || m_death.Down(cHost)))
@@ -55,11 +55,11 @@ void HostLeash::Update(double aDelta) noexcept
             {
                 spdlog::warn("HostLeash: {:x} has not arrived at the host in {} s: sent again", cPlayer, kRetrySeconds);
                 it->second.Left = kRetrySeconds;
-                m_arrivals.BringToHost(cPlayer);
+                m_characters.BringToHost(cPlayer);
             }
             continue;
         }
-        const auto cAt = m_arrivals.OutdoorsAt(cPlayer);
+        const auto cAt = m_characters.OutdoorsAt(cPlayer);
         // Both outdoors in one worldspace and standing: indoors and other worldspaces are the party tether's (load
         // doors take everyone), a downed player's place is its respawn's (HostDeath).
         const bool cApplies = cHostAt && cAt && cAt->WorldSpaceId == cHostAt->WorldSpaceId && !m_death.Down(cPlayer) &&
@@ -95,7 +95,7 @@ void HostLeash::Update(double aDelta) noexcept
             it->second.Sent = it->second.Told = true;
             it->second.Left = kRetrySeconds;
             spdlog::info("HostLeash: {:x} stayed out of the host's grid: sent to the host", cPlayer);
-            m_arrivals.BringToHost(cPlayer);
+            m_characters.BringToHost(cPlayer);
         }
     }
 }

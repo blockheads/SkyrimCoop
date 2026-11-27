@@ -65,7 +65,7 @@ void HostRecords::StorePlace(ConnectionId_t aPlayer) const noexcept
     const auto* cpPlayer = m_players.Find(aPlayer);
     if (!m_game.StorePlace || !cpPlayer || cpPlayer->IsHost || cpPlayer->Key.empty())
         return;
-    if (const auto cPlace = m_characters.Arrivals().CharacterPlace(m_characters.PlayerCharacterOf(aPlayer)))
+    if (const auto cPlace = m_characters.CharacterPlace(m_characters.PlayerCharacterOf(aPlayer)))
         m_game.StorePlace(cpPlayer->Key, cPlace->WorldSpaceId, cPlace->CellId, {cPlace->Position.x, cPlace->Position.y, cPlace->Position.z});
 }
 
