@@ -1,27 +1,37 @@
 # Cleanup plan
 
-How to act on [standards-review.md](standards-review.md): eight steps, each one or a few pull requests, each ending
-with a check in the gate so the problem cannot come back. No step changes behaviour except step 1 (two bugs).
+How to act on [standards-review.md](standards-review.md). The goal is the least code to maintain, as simple as it
+can be while everything still works. So every step must delete more than it adds, fix a real bug, or be a few lines
+that find bugs. Work that only adds machinery or moves code around is left out (listed at the end).
 
 ```
-1 decoder safety ──► 2 safety nets ──► 3 id index ──► 4 one field list per message
-   (bugs, 1 day)      (2 days)          (1 day)          (2 days + per message)
-                           │
-                           ▼
-   5 engine functions declared once ──► 6 classes by feature ──► 7 dependencies ──► 8 small things
-      (1 day + per folder)                 (3 PRs, 1 day each)      (2 days + L)       (in passing)
+1 delete ──► 2 bugs and bug-finders ──► 3 simplify ──► 4 tidy
 ```
 
-Rules for every step:
+How it runs: each piece is done by a worker on its own branch, as a pull request into the integration branch
+`agent/cleanup`. Each is reviewed and `scripts/check.sh` run before it is merged there; the affected scenarios run
+in the two games on `agent/cleanup` after parts 3 and 4. One pull request from `agent/cleanup` to `dev` ends it.
+No behaviour changes except the bug fixes.
 
-- One piece at a time, with its test, then delete the old code (no parallel old and new paths left behind).
-- **A ratchet for every count.** `scripts/check_layout.py --strict` gets a `must not grow` number for each thing
-  being removed (entity scans, `ctx().at`, inline `VersionDbPtr`, ...). New code cannot add to it; each PR lowers it.
-- `scripts/check.sh` passes on every PR. Steps 3, 6 and 7 also run their affected scenarios in the duo.
+## 1. Delete
 
-## Step 1: decoder safety
+A survey of what nothing uses, with line counts and the proof for each ([deletion-survey.md](deletion-survey.md)),
+then its removal, one commit per kind so each can be reverted alone:
 
-The only step that fixes bugs (review 1.1, 1.2, 1.4, 1.6).
+- C++ no code reaches: headers nothing includes, functions and structs nothing references, parked experiments.
+  A file with a hook, a Papyrus native or a static registrar is live even when nothing names it: the count of
+  installed hooks and registered natives is compared before and after.
+- Messages and opcodes nothing sends or handles.
+- Upstream leftovers: `BranchInfo.h` generation, `SkyrimTogether.esp`, `.githooks/commit-msg`, `NOTICE`'s launcher
+  paragraph, the root `.clang-format`, animation graph descriptors nothing reads.
+- Scripts nothing imports or registers.
+- Skyrim 1.6.1170 support is measured, not deleted: the owner decides.
+
+## 2. Bugs and bug-finders
+
+### Decoder safety
+
+Review 1.1, 1.2, 1.4, 1.6.
 
 ```
 packet ─► Server::HandleMessage ─► [snappy: length ≤ cap?] ─► HostNetwork::Receive
@@ -58,46 +68,21 @@ Tests: `TPTests` cases built from crafted buffers (count 2^40, truncated at ever
 one `GameTests` flow where `coop_peer` sends the crafted `ReferencesMoveRequest` before joining and the host's
 frame still returns.
 
-Done when: no `ReadVarInt` result sizes a container or bounds a loop (ratchet: 0), and a truncated message is
-dropped, not decoded.
+Done when: no `ReadVarInt` result sizes a container or bounds a loop, and a truncated message is dropped, not
+decoded.
 
-## Step 2: safety nets, before any refactor
+### Bug-finders (a few lines each)
 
-The later steps move a lot of code. These catch what a move breaks.
+- **Sanitizers:** an xmake option `sanitize` adding `-fsanitize=address,undefined` to the Linux test targets.
+- **A fuzz target** on both message factories (`Code/tests/fuzz/`, libFuzzer with clang 18): what decodes must
+  encode and decode to the same thing.
+- **A main-thread check** in `World::Get()`, debug builds only: job threads use the queue (`GetRunner().Trigger`).
 
-```
-scripts/check.sh
-   ├─ existing: UnitTests, HostAuthorityTests, TPTests, GameTests, layout, RE notes, python tests
-   ├─ new: round trip of every opcode (one templated test)
-   ├─ new: fuzz smoke, 30 s (both factories)
-   └─ new: clang-format on changed lines, ruff, shellcheck
-nightly or on demand: the native tests under ASan + UBSan
-GitHub Actions: check.sh --no-dll on every pull request to dev
-```
+What they find is fixed, or listed in `docs/bugs.md`.
 
-```cpp
-// Code/tests/fuzz/fuzz_requests.cpp (and fuzz_notifies.cpp)
-int LLVMFuzzerTestOneInput(const uint8_t* apData, size_t aSize)
-{
-    Wire::Buffer::Reader reader(std::span(apData, aSize));
-    if (auto pMessage = RequestMessageFactory{}.Extract(reader))
-    {   // what decodes must encode and decode to the same thing
-        Wire::Buffer buffer; Wire::Buffer::Writer writer(&buffer);
-        pMessage->Serialize(writer);
-        ...
-    }
-    return 0;
-}
-```
+## 3. Simplify
 
-Files: `xmake.lua` (options `sanitize` and `fuzz`, Linux only), `Code/tests/fuzz/`, `Code/tests/encoding.cpp`
-(`TEMPLATE_TEST_CASE` over the opcode list in `Opcodes.h`: 52 messages have no round trip today),
-`.github/workflows/check.yml`, `pyproject.toml` (ruff config, the scripts' dependencies), `scripts/check.sh`.
-One `.clang-format` (delete the root one, `SortIncludes: Never` in `Code/.clang-format` so it is safe on edits).
-
-Done when: the gate runs them, and the sanitizer run is clean (fix or list what it finds as bugs in `docs/bugs.md`).
-
-## Step 3: an index for session and form ids
+### One id lookup
 
 Review 2.1: 194 lookups that scan every entity, 26 more open-coded.
 
@@ -130,9 +115,8 @@ fields `const` to keep it so).
 
 Tests: `UnitTests` for add, remove, a copy held with neither component, an id reused after a respawn.
 Measure: `coop_test.py profile --load wolves=N` before and after.
-Ratchet: entity scans by id (26 → 0).
 
-## Step 4: one field list per message
+### One field list per message
 
 Review 1.5: read, write and `==` are three hand-written lists per message.
 
@@ -162,9 +146,8 @@ The bytes on the wire do not change: each converted message keeps its round-trip
 
 Order: the archives and five simple messages; then the `Payloads.h` relayed payloads (one file, most messages);
 then the rest as they are touched. Differential messages (`SerializeDifferential`) stay hand-written.
-Ratchet: hand-written `DeserializeRaw` bodies must not grow.
 
-## Step 5: each engine function declared once
+### Each engine function declared once
 
 Review 4.1: 710 inline `static VersionDbPtr<...> f(id)`; 14 IDs declared twice with two signatures.
 
@@ -182,85 +165,27 @@ Order: (a) a check in `scripts/re/build_re_data.py` (it already reads every ID) 
 declared in two files: lists the 14; (b) fix those 14; (c) per engine folder, move inline declarations into the
 struct's file, checking each signature against CommonLibSSE-NG and IDA as the hook rule already asks, and
 recording names in IDA. The harness calls the engine's declarations (it may include engine headers).
-Also here: one set of named form ids (`kPlayerRef = 0x14`, `kGold = 0xF`) replacing about 60 literals.
-Ratchet: inline `VersionDbPtr` outside a struct's own `.cpp` (710 → falls per folder).
 
-## Step 6: classes by feature
+### The repeated block in `AnimationSystem::Update`
 
-Review 3.1, 3.2, 3.3. Three independent pull requests.
+`Code/sync/animation/AnimationSystem.cpp:62-95` takes a copy's spawn graph state in two near-identical blocks
+(on the stream, and off it). One `TakeSpawnState` with a `UnitTests` case over the fake `IAnimationBody`.
 
-```
-HostCharacters (14 handlers, 786 lines)
-   ├─ stays:  announce, remove, respawn, the character table, OwnerOf
-   ├─► mounts/HostRides          dismount, board, unboard, the ride claim's rule
-   ├─► actorstate/HostValues     values, max values, perks, active effects   (file exists: RelayActorValues)
-   ├─► movement/HostMovement     OnMovement
-   └─► travel/HostArrivals       enter cell, travel queued, party summon
+## 4. Tidy
 
-AnimationSystem::Update (251 lines)
-   ├─ StopPairs        ├─ TakeSpawnState (the block written twice becomes one)
-   ├─ PlayStream       └─ PlayQueue
+- **`HostCharacters` by feature:** its mount rules to `mounts/HostRides`, values, perks and effects to
+  `actorstate/HostValues`, movement to `movement/HostMovement`, cell and travel handlers to `travel/`. It keeps
+  the character table and `OwnerOf`. The existing tests move with the code and pass unchanged.
+- **Warnings as errors:** the 33 warnings of a clean `GameTests` build fixed, then `set_warnings("all", "error")`.
+- **ruff with autofix** over `scripts/` (119 unused imports), and a minimal config so it stays clean.
+- **CI:** one workflow running `scripts/check.sh --no-dll` on pull requests.
+- **Licenses:** every linked library's license in the player package, the Oswald font's included.
 
-CrimeBridge::Judge (engine decides)
-   ├─ bridge keeps:  ReadCrimeTarget (engine reads), ApplyCrime (engine writes)
-   └─► crime/HostCrime + CrimeRules:  the decision, from plain values
-```
+## Left out, on purpose
 
-Each new `Host*` part takes `const HostCharacters&` for ownership (`OwnerOf`, `IsPlayerCharacter`) and registers
-its own handlers with `HostRouter`, as `CONTRIBUTING.md` rule 4 says. The existing `HostAuthorityTests` and
-`GameTests` flows move with the code and must pass unchanged; `AnimationSystem`'s parts get a `UnitTests` case
-each over the fake `IAnimationBody`.
-
-Duo: mounts and travel scenarios for the first, animation and kill moves for the second, crime for the third.
-Ratchet: functions over 150 lines or complexity 50 (a `lizard` step in the gate, today's list as the allowance).
-
-## Step 7: dependencies stated, not looked up
-
-Review 2.2, 2.3.
-
-```
-sync:    m_world.ctx().at<IPlayerBridge&>()   ─►  a constructor parameter      (162 sites)
-engine:  World::Get() in hooks                ─►  stays for now; gains a debug main-thread assert,
-                                                   job threads use World::Queue() (the Runner)
-later:   World : entt::registry               ─►  World { entt::registry m_registry; }
-```
-
-Order: (a) the assert, which may find real off-thread uses: each is a bug to list; (b) `sync` services take
-their bridges by constructor, one feature folder per PR (mechanical; `World`'s wiring grows, services' headers
-show what they use); (c) the registry as a member only when (b) is done, since it touches every service.
-Ratchet: `ctx().at<` in `sync` (162 → 0), `World::Get()` in `sync` (14 → 0).
-
-## Step 8: small things, in passing or in one sweep
-
-- Hook files' copied include blocks: `clang-include-cleaner` per folder (review 4.3).
-- `std::unique_ptr` for the 13 owning raw pointers (5.2).
-- Dead code: `BranchInfo.h` generation, `SkyrimTogether.esp`, `.githooks/commit-msg`, `NOTICE`'s launcher line.
-- Upstream style (`__FUNCTION__` in logs, `Utils::`) replaced as files are touched; no bulk pass.
-- Release needs, before the next public tag: every linked library's license in the package (3 of about 17
-  today, and the Oswald font's), `SECURITY.md`, the license version stated (`GPL-3.0-or-later` or `-only`),
-  `CHANGELOG.md`.
-- The 268 files naming deleted design notes: point at `docs/re/systems/` or drop the reference, per folder.
-- Still open from PR #134: 22 `engine → plugin` includes, the four feature cycles in `sync`, the seven
-  link-time ports. Add the first two to `check_layout.py --strict` as ratchets.
-
-## What this does not do
-
-- No rewrite of the generated-looking tables (`RTTI.*`, the 65 animation graph descriptors): they are data.
-- No bulk reformat, no rename sweep: both make every open branch conflict.
-- No change to the sync model, the ports or the layers PR #134 set.
-
-## Sizes
-
-| Step | Work | Needs the duo |
-| --- | --- | --- |
-| 1 decoder safety | 1 day | no |
-| 2 safety nets | 2 days | no |
-| 3 id index | 1 day, then scans per PR | a profile run |
-| 4 field lists | 2 days, then per message | no |
-| 5 engine functions | 1 day for the 14, then per folder | affected scenarios |
-| 6 classes by feature | 3 PRs, about a day each | affected scenarios |
-| 7 dependencies | 2 days in `sync`; the registry later | affected scenarios |
-| 8 small things | in passing | no |
-
-Steps 1 and 2 first and in order. After that 3, 4 and 5 are independent and can go to separate workers; 6 and 7
-touch the same services, so one after the other.
+- **Constructor rewiring** (`ctx().at` to constructor parameters): more wiring, no less code.
+- **Moving the crime decision out of `CrimeBridge`:** worth doing with the next crime bug; it needs the two games.
+- **clang-tidy:** noisy on the engine's deliberate casts.
+- **"Must not grow" counts** other than the duplicate engine declaration check.
+- **Changelog, issue templates, code of conduct, `SECURITY.md`:** when the repo goes public.
+- **No bulk reformat or rename sweep:** every open branch would conflict.
