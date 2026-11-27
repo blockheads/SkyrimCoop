@@ -30,7 +30,6 @@ struct SaveLibrary
     // acSave for a guest holding acHeld: against the newest of them kept here, else whole. None while it is being
     // encoded; no data when acSave is no longer kept.
     [[nodiscard]] std::shared_ptr<const SaveTransfer::Stream> Encode(const std::string& acSave, const std::vector<std::string>& acHeld) noexcept;
-    void Clear() noexcept;
 
 private:
     using Key = std::pair<std::string, std::string>; // the save, its base

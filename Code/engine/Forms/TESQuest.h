@@ -143,7 +143,6 @@ struct TESQuest : BGSStoryManagerTreeForm
     void ClearLocationAlias(BGSBaseAlias* apAlias) noexcept;
 
     Stage* GetStage(uint16_t aIndex) noexcept;
-    Objective* GetObjective(uint16_t aIndex) noexcept;
 
     bool IsStageDone(uint16_t stageIndex);
     // Sets or clears Completed (24991): the change, the QuestStatus event, the HUD's message.
@@ -154,7 +153,6 @@ struct TESQuest : BGSStoryManagerTreeForm
     // started with the game has no lines (TESTopicInfo forms) until then. A topic's loaded ones are kept.
     void LoadDialogue() noexcept;
 
-    void CompleteAllObjectives(); // completes all objectives + stages
     void SetActive(bool toggle);  // < is the quest selected in journal and followed?
 
     inline void Disable() { flags &= ~Flags::Enabled; };
@@ -164,11 +162,6 @@ struct TESQuest : BGSStoryManagerTreeForm
     inline bool IsStopped() const { return (flags & (Flags::Enabled | Flags::StageWait)) == 0; } // & 0x81
     // Running, not waiting on a stage: as TESTopic's line lookup (25544) asks of a topic's quest.
     inline bool IsRunning() const { return (flags & Flags::Enabled) && !(flags & Flags::StageWait); }
-
-    bool Kill();
-    State getState();
-
-    bool EnsureQuestStarted(bool& succeded, bool force);
 
     bool SetStage(uint16_t stage);
     // SetStage with each stage item's fragment skipped, as the VM skips an item without one (a guest

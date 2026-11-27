@@ -98,21 +98,6 @@ void PlayerCharacter::SetDifficulty(const int32_t aDifficulty, bool aForceUpdate
     *difficultySetting = difficulty = aDifficulty;
 }
 
-bool PlayerCharacter::SaidRecently(const TESTopicInfo* apInfo) const noexcept
-{
-    using TSaidRecently = bool(const PlayerCharacter*, const TESTopicInfo* apInfo);
-    POINTER_SKYRIMSE(TSaidRecently, s_saidRecently, 40694);
-    return apInfo && apInfo->timeUntilReset && (s_saidRecently.Get())(this, apInfo);
-}
-
-void PlayerCharacter::RememberSaid(const TESTopicInfo* apInfo) noexcept
-{
-    using TRememberSaid = void(PlayerCharacter*, const TESTopicInfo* apInfo);
-    POINTER_SKYRIMSE(TRememberSaid, s_rememberSaid, 40692);
-    if (apInfo && apInfo->timeUntilReset)
-        (s_rememberSaid.Get())(this, apInfo);
-}
-
 void PlayerCharacter::SetAIDriven(bool aDriven) noexcept
 {
     using TSetAIDriven = void(PlayerCharacter*, bool);

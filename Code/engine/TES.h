@@ -160,7 +160,6 @@ struct ModManager
     // On this thread an explosion places its own object (Explosion::Initialize 43830): each game's explosion does.
     [[nodiscard]] static bool ExplosionPlaces() noexcept;
     Mod* GetByName(const char* acpName) const noexcept;
-    TESObjectCELL* GetCellFromCoordinates(int32_t aX, int32_t aY, TESWorldSpace* aWorldSpace, bool aSpawnCell) noexcept;
 
     // TESDataHandler::formArrays: GLOB 0x09, ENCH 0x15, INGR 0x1E, QUST 0x4D (CommonLibSSE-NG).
     uint8_t pad0[0xE8];

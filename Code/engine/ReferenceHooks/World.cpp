@@ -94,18 +94,6 @@ bool TESObjectREFR::Activate(TESObjectREFR* apActivator, uint8_t aUnk1, TESBound
 
 static thread_local bool s_cancelAnimationWaitEvent = false;
 
-bool TESObjectREFR::PlayAnimationAndWait(BSFixedString* apAnimation, BSFixedString* apEventName) noexcept
-{
-    using ObjectReference = TESObjectREFR;
-
-    PAPYRUS_FUNCTION(bool, ObjectReference, PlayAnimationAndWait, BSFixedString*, BSFixedString*);
-
-    s_cancelAnimationWaitEvent = true;
-    bool result = s_pPlayAnimationAndWait(this, apAnimation, apEventName);
-    s_cancelAnimationWaitEvent = false;
-    return result;
-}
-
 bool HookPlayAnimationAndWait(void* apThis, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apAnimation, BSFixedString* apEventName)
 {
     spdlog::debug("Animation: {}, EventName: {}", apAnimation->AsAscii(), apEventName->AsAscii());
@@ -118,18 +106,6 @@ bool HookPlayAnimationAndWait(void* apThis, uint32_t auiStackID, TESObjectREFR* 
 }
 
 static thread_local bool s_cancelAnimationEvent = false;
-
-bool TESObjectREFR::PlayAnimation(BSFixedString* apEventName) noexcept
-{
-    using ObjectReference = TESObjectREFR;
-
-    PAPYRUS_FUNCTION(bool, ObjectReference, PlayAnimation, BSFixedString*);
-
-    s_cancelAnimationEvent = true;
-    bool result = s_pPlayAnimation(this, apEventName);
-    s_cancelAnimationEvent = false;
-    return result;
-}
 
 bool HookPlayAnimation(void* apThis, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName)
 {

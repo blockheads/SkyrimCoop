@@ -39,10 +39,6 @@ struct PlayerControls
 
     void SetBlockPlayerInput(bool abFlag) { bBlockPlayerInput = abFlag; }
 
-    void SetEnabled(bool abFlag);
-
-    void SetCamSwitch(bool aSet) noexcept;
-
 public:
     char pad0[0x24];                         // AE: 0x20 on SE (CommonLibSSE-NG; ProcessEvent passes this+0x24)
     PlayerControlsData Data;                 // 024
@@ -102,8 +98,6 @@ struct BSInputEnableManager
     };
 
     static BSInputEnableManager* Get();
-
-    void EnableOtherEvent(int32_t aFlags, bool aEnable, bool aUnk2);
 
     uint8_t pad0[0x108];
     GameArray<uint32_t> contextStack; // 108, input contexts (UserEvents::INPUT_CONTEXT_ID), the top last

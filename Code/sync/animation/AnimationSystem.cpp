@@ -341,12 +341,6 @@ void AnimationSystem::Setup(World& aWorld, const entt::entity aEntity) noexcept
     aWorld.emplace_or_replace<RemoteAnimationComponent>(aEntity);
 }
 
-void AnimationSystem::Clean(World& aWorld, const entt::entity aEntity) noexcept
-{
-    if (aWorld.all_of<RemoteAnimationComponent>(aEntity))
-        aWorld.remove<RemoteAnimationComponent>(aEntity);
-}
-
 void AnimationSystem::AddAction(RemoteAnimationComponent& aAnimationComponent, const std::string& acActionDiff) noexcept
 {
     auto& lastProcessedAction = aAnimationComponent.LastProcessedAction;

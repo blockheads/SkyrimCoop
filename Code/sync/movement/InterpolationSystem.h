@@ -20,5 +20,4 @@ struct InterpolationSystem
     // A copy's owner time shown this frame (CopyPlayback on the game's CopyClock).
     static uint64_t PlaybackTick(World& aWorld, entt::entity aEntity) noexcept;
     static InterpolationComponent& Setup(World& aWorld, entt::entity aEntity) noexcept;
-    static void Clean(World& aWorld, entt::entity aEntity) noexcept;
 };

@@ -166,56 +166,10 @@ namespace Hooks
         std::memcpy(s_realDirectInput8CreatePrologue.data(), GetOriginalFunctionPrologue(), kDirectInput8CreatePrologueSize);
     }
 
-    void DInputHook::Acquire() const noexcept
-    {
-        for (auto& device : s_devices)
-        {
-            device->Acquire();
-        }
-    }
-
-    void DInputHook::Unacquire() const noexcept
-    {
-        for (auto& device : s_devices)
-        {
-            device->Unacquire();
-        }
-    }
-
     DInputHook& DInputHook::Get() noexcept
     {
         static DInputHook s_instance;
         return s_instance;
     }
 
-    void DInputHook::Update() const noexcept
-    {
-        RAWINPUTDEVICE device[2];
-
-        device[0].usUsagePage = 0x01;
-        device[0].usUsage = 0x06;
-        device[0].dwFlags = RIDEV_REMOVE;
-        device[0].hwndTarget = nullptr;
-
-        device[1].usUsagePage = 0x01;
-        device[1].usUsage = 0x02;
-        device[1].dwFlags = RIDEV_REMOVE;
-        device[1].hwndTarget = nullptr;
-
-        RegisterRawInputDevices(device, sizeof(device) / sizeof(RAWINPUTDEVICE), sizeof(RAWINPUTDEVICE));
-
-        if (m_enabled)
-        {
-            Acquire();
-
-            device[0].dwFlags = 0;
-            device[1].dwFlags = 0;
-
-            RegisterRawInputDevices(device, sizeof(device) / sizeof(RAWINPUTDEVICE), sizeof(RAWINPUTDEVICE));
-        }
-        else
-        {
-            Unacquire();
-        }
-    }
 }

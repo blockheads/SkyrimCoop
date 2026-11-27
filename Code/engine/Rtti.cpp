@@ -100,9 +100,4 @@ bool ClassName(const void* apObject, char* apOut, size_t aSize, bool& aIsForm) n
     return true;
 }
 
-bool IsForm(const void* apObject) noexcept
-{
-    const uint32_t* pLocator = Locator(apObject);
-    return pLocator && FormOf(pLocator);
-}
 } // namespace Rtti

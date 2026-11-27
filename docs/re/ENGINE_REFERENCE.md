@@ -8,8 +8,8 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **3660** distinct engine addresses used; **265** have code in CommonLib or SKSE; **2922** have no community name at all.
-- **291** hooks (these replace engine code, so check them first when the game crashes).
+- **3622** distinct engine addresses used; **261** have code in CommonLib or SKSE; **2904** have no community name at all.
+- **288** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
 
@@ -20,38 +20,37 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 12769 | `0x189840` | `ExtraTextDisplayData::ClearCachedName` | IDA meh | hook → `HookClearCachedName` | `RealClearCachedName` | [AliasNames.cpp:46](../../Code/engine/Misc/AliasNames.cpp#L46) |  |
 | 13022 | `0x193b90` | `QueuedReference::Finish` | IDA meh | hook → `HookFinishLoad3D` | `RealFinishLoad3D` | [Load.cpp:94](../../Code/engine/ReferenceHooks/Load.cpp#L94) |  |
 | 13023 | `0x193d60` | `QueuedReference::End` | IDA meh | hook → `HookEndLoad3D` | `RealEndLoad3D` | [Load.cpp:95](../../Code/engine/ReferenceHooks/Load.cpp#L95) |  |
-| 13723 | `0x1bc1c0` | `TESDataHandler::CreateReferenceAtLocation` | IDA CL | hook → `SpawnNewREFR` | `RealSpawnNewREFR` | [ModManager.cpp:133](../../Code/engine/ModManager.cpp#L133) |  |
-| 14375 | `0x1dcf40` | `?` | IDA | hook → `HookSetLeveledNpc` | `s_SetLeveledNpc` | [TESNPC.cpp:30](../../Code/engine/Forms/TESNPC.cpp#L30) |  |
+| 13723 | `0x1bc1c0` | `TESDataHandler::CreateReferenceAtLocation` | IDA CL | hook → `SpawnNewREFR` | `RealSpawnNewREFR` | [ModManager.cpp:125](../../Code/engine/ModManager.cpp#L125) |  |
 | 14385 | `0x1dd430` | `TESActorBaseData::SetLevel` | IDA meh | hook → `HookSetLevel` | `RealSetLevel` | [PlayerEvents.cpp:59](../../Code/engine/PlayerEvents.cpp#L59) |  |
 | 14607 | `0x1e5650` | `TESForm::AddChange` | meh | hook → `HookAddChange` | `RealAddChange` | [FormChanges.cpp:69](../../Code/engine/Forms/FormChanges.cpp#L69) |  |
 | 14608 | `0x1e5680` | `Character::sub_14608` | meh | hook → `HookAddChangeForced` | `RealAddChangeForced` | [FormChanges.cpp:70](../../Code/engine/Forms/FormChanges.cpp#L70) |  |
-| 14646 | `0x1e6480` | `TESForm::SetDisabled` | IDA meh | hook → `HookSetDisabled` | `RealSetDisabled` | [World.cpp:330](../../Code/engine/ReferenceHooks/World.cpp#L330) |  |
+| 14646 | `0x1e6480` | `TESForm::SetDisabled` | IDA meh | hook → `HookSetDisabled` | `RealSetDisabled` | [World.cpp:306](../../Code/engine/ReferenceHooks/World.cpp#L306) |  |
 | 16059 | `0x22da70` | `InventoryChanges::RemoveItem` | IDA CL | hook → `HookRemoveFromInventory` | `RealRemoveFromInventory` | [Item.cpp:256](../../Code/engine/ReferenceHooks/Item.cpp#L256) |  |
 | 16120 | `0x23b240` | `?` | IDA | hook → `HookConfiscate` | `RealConfiscate` | [CrimeBridge.cpp:673](../../Code/engine/Bridges/CrimeBridge.cpp#L673) |  |
 | 16129 | `0x23c380` | `InventoryChanges::InitLeveledItems` | CL meh | hook → `HookInitLeveledItems` | `RealInitLeveledItems` | [ExtraContainerChanges.cpp:31](../../Code/engine/ExtraData/ExtraContainerChanges.cpp#L31) |  |
 | 16145 | `0x23ee00` | `?` | - | hook → `HookTemper` | `RealTemper` | [Item.cpp:253](../../Code/engine/ReferenceHooks/Item.cpp#L253) | **undocumented** |
 | 16146 | `0x23f0c0` | `InventoryChanges::EnchantObject` | CL | hook → `HookEnchantObject` | `RealEnchantObject` | [Item.cpp:254](../../Code/engine/ReferenceHooks/Item.cpp#L254) |  |
 | 19384 | `0x2d64b0` | `BSFadeNode__IsFadedIn` | IDA meh | hook → `HookIsFadedIn` | `RealIsFadedIn` | [FarAnimations.cpp:27](../../Code/engine/FarAnimations.cpp#L27) |  |
-| 19512 | `0x2df840` | `TESObjectREFR::AddLockChange` | IDA CL meh | hook → `HookLockChange` | `RealLockChange` | [World.cpp:317](../../Code/engine/ReferenceHooks/World.cpp#L317) |  |
-| 19688 | `0x2e7c40` | `TESObjectREFR::AddToInventoryChanges` | IDA meh | hook → `HookAddToInventory` | `RealAddToInventory` | [Item.cpp:297](../../Code/engine/ActorHooks/Item.cpp#L297) |  |
+| 19512 | `0x2df840` | `TESObjectREFR::AddLockChange` | IDA CL meh | hook → `HookLockChange` | `RealLockChange` | [World.cpp:293](../../Code/engine/ReferenceHooks/World.cpp#L293) |  |
+| 19688 | `0x2e7c40` | `TESObjectREFR::AddToInventoryChanges` | IDA meh | hook → `HookAddToInventory` | `RealAddToInventory` | [Item.cpp:292](../../Code/engine/ActorHooks/Item.cpp#L292) |  |
 | 19689 | `0x2e7cc0` | `TESObjectREFR::RemoveItem` | meh | hook → `HookRemoveInventoryItem` | `RealRemoveInventoryItem` | [Item.cpp:255](../../Code/engine/ReferenceHooks/Item.cpp#L255) |  |
 | 19694 | `0x2e8300` | `TESObjectREFR__UnequipForRemoveNoProcess` | IDA meh | hook → `HookUnequipForRemove` | `RealUnequipForRemove` | [Item.cpp:257](../../Code/engine/ReferenceHooks/Item.cpp#L257) |  |
 | 19708 | `0x2e8940` | `TESObjectREFR::AddObjectToContainer` | meh | hook → `HookAddInventoryItem` | `RealAddInventoryItem` | [Item.cpp:252](../../Code/engine/ReferenceHooks/Item.cpp#L252) |  |
 | 19727 | `0x2e9ee0` | `TESObjectREFR::Load3D` | IDA meh | hook → `HookLoad3D` | `RealLoad3D` | [Load.cpp:93](../../Code/engine/ReferenceHooks/Load.cpp#L93) |  |
-| 19786 | `0x2f0c30` | `TESObjectREFR::SetAngle` | CL meh | hook → `HookSetAngle` | `RealSetAngle` | [World.cpp:328](../../Code/engine/ReferenceHooks/World.cpp#L328) |  |
-| 19787 | `0x2f0d20` | `TESObjectREFR::SetRotationX` | meh | hook → `HookRotateX` | `RealRotateX` | [World.cpp:318](../../Code/engine/ReferenceHooks/World.cpp#L318) |  |
-| 19788 | `0x2f0da0` | `TESObjectREFR::SetRotationY` | meh | hook → `HookRotateY` | `RealRotateY` | [World.cpp:319](../../Code/engine/ReferenceHooks/World.cpp#L319) |  |
-| 19789 | `0x2f0e20` | `TESObjectREFR::SetRotationZ` | meh | hook → `HookRotateZ` | `RealRotateZ` | [World.cpp:320](../../Code/engine/ReferenceHooks/World.cpp#L320) |  |
+| 19786 | `0x2f0c30` | `TESObjectREFR::SetAngle` | CL meh | hook → `HookSetAngle` | `RealSetAngle` | [World.cpp:304](../../Code/engine/ReferenceHooks/World.cpp#L304) |  |
+| 19787 | `0x2f0d20` | `TESObjectREFR::SetRotationX` | meh | hook → `HookRotateX` | `RealRotateX` | [World.cpp:294](../../Code/engine/ReferenceHooks/World.cpp#L294) |  |
+| 19788 | `0x2f0da0` | `TESObjectREFR::SetRotationY` | meh | hook → `HookRotateY` | `RealRotateY` | [World.cpp:295](../../Code/engine/ReferenceHooks/World.cpp#L295) |  |
+| 19789 | `0x2f0e20` | `TESObjectREFR::SetRotationZ` | meh | hook → `HookRotateZ` | `RealRotateZ` | [World.cpp:296](../../Code/engine/ReferenceHooks/World.cpp#L296) |  |
 | 19790 | `0x2f0ef0` | `TESObjectREFR::SetPosition` | CL meh | hook → `HookSetPosition` | `RealSetPosition` | [Movement.cpp:301](../../Code/engine/ActorHooks/Movement.cpp#L301) |  |
-| 19796 | `0x2f11b0` | `TESObjectREFR::ActivateRef` | IDA CL meh | hook → `HookActivate` | `RealActivate` | [World.cpp:321](../../Code/engine/ReferenceHooks/World.cpp#L321) |  |
-| 19800 | `0x2f2840` | `TESObjectREFR::Enable` | IDA CL meh | hook → `HookEnable` | `RealEnable` | [World.cpp:329](../../Code/engine/ReferenceHooks/World.cpp#L329) |  |
+| 19796 | `0x2f11b0` | `TESObjectREFR::ActivateRef` | IDA CL meh | hook → `HookActivate` | `RealActivate` | [World.cpp:297](../../Code/engine/ReferenceHooks/World.cpp#L297) |  |
+| 19800 | `0x2f2840` | `TESObjectREFR::Enable` | IDA CL meh | hook → `HookEnable` | `RealEnable` | [World.cpp:305](../../Code/engine/ReferenceHooks/World.cpp#L305) |  |
 | 20123 | `0x2fdeb0` | `TESObjectREFR::sub_20123` | meh | hook → `HookUpdateAnimationGraphs` | `RealUpdateAnimationGraphs` | [Animation.cpp:318](../../Code/engine/Animation.cpp#L318) |  |
 | 20232 | `0x301750` | `TESObjectREFR::PickLeveledBase` | IDA meh | hook → `HookPickLeveledBase` | `RealPickLeveledBase` | [Item.cpp:258](../../Code/engine/ReferenceHooks/Item.cpp#L258) |  |
-| 21622 | `0x3394e0` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `RealHasPerk` | [MagicTarget.cpp:288](../../Code/engine/Magic/MagicTarget.cpp#L288) |  |
+| 21622 | `0x3394e0` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `RealHasPerk` | [MagicTarget.cpp:270](../../Code/engine/Magic/MagicTarget.cpp#L270) |  |
 | 21743 | `0x33e840` | `GameFunc::native::IsLastHostileActor` | IDA meh | hook → `HookIsLastHostileActor` | `RealIsLastHostileActor` | [KillMoveOdds.cpp:91](../../Code/engine/Misc/KillMoveOdds.cpp#L91) |  |
 | 21744 | `0x33e920` | `GameFunc::native::ShouldAttackKill` | IDA meh | hook → `HookShouldAttackKill` | `RealShouldAttackKill` | [KillMoveOdds.cpp:90](../../Code/engine/Misc/KillMoveOdds.cpp#L90) |  |
-| 22053 | `0x3508d0` | `TESObjectREFR::SetPositionOnAxis` | IDA meh | hook → `HookSetPositionOnAxis` | `RealSetPositionOnAxis` | [World.cpp:323](../../Code/engine/ReferenceHooks/World.cpp#L323) |  |
-| 22054 | `0x350a40` | `TESObjectREFR::SetRotation` | IDA meh | hook → `HookSetAngleOnAxis` | `RealSetAngleOnAxis` | [World.cpp:324](../../Code/engine/ReferenceHooks/World.cpp#L324) |  |
+| 22053 | `0x3508d0` | `TESObjectREFR::SetPositionOnAxis` | IDA meh | hook → `HookSetPositionOnAxis` | `RealSetPositionOnAxis` | [World.cpp:299](../../Code/engine/ReferenceHooks/World.cpp#L299) |  |
+| 22054 | `0x350a40` | `TESObjectREFR::SetRotation` | IDA meh | hook → `HookSetAngleOnAxis` | `RealSetAngleOnAxis` | [World.cpp:300](../../Code/engine/ReferenceHooks/World.cpp#L300) |  |
 | 23329 | `0x386320` | `?` | - | hook → `HookOperation` | `RealOperation` | [GlobalEvents.cpp:88](../../Code/engine/GlobalEvents.cpp#L88) | **undocumented** |
 | 24075 | `0x3a4c00` | `?` | - | hook → `HookSetRelationship` | `RealSetRelationship` | [GuestScripts.cpp:154](../../Code/engine/Papyrus/GuestScripts.cpp#L154) | **undocumented** |
 | 24084 | `0x3a5290` | `BGSRelationship::GetRelationship` | CL PL meh | hook → `HookGetRelationship` | `RealGetRelationship` | [GuestScripts.cpp:155](../../Code/engine/Papyrus/GuestScripts.cpp#L155) |  |
@@ -78,19 +77,19 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 32953 | `0x555fd0` | `AnimationGraphVisitor_AddRagdollToWorld` | IDA | hook → `HookAddVisitor` | `RealAddVisitor` | [RagdollWatch.cpp:77](../../Code/harness/TestHarness/RagdollWatch.cpp#L77) |  |
 | 33235 | `0x5614a0` | `CombatController::SetTarget` | IDA | hook → `HookSetCombatTarget` | `RealSetCombatTarget` | [AiStateEvents.cpp:195](../../Code/engine/AiStateEvents.cpp#L195) |  |
 | 34050 | `0x5bac30` | `ActiveEffect::StopHitEffects` | IDA meh | hook → `HookStopHitEffects` | `RealStopHitEffects` | [EffectEvents.cpp:76](../../Code/engine/EffectEvents.cpp#L76) |  |
-| 34053 | `0x5baed0` | `ActiveEffect::CalculateDurationAndMagnitude` | meh | hook → `HookAdjustForPerks` | `RealAdjustForPerks` | [MagicTarget.cpp:287](../../Code/engine/Magic/MagicTarget.cpp#L287) |  |
-| 34062 | `0x5bb470` | `ActiveEffect::EvaluateEntryConditions` | IDA meh | hook → `HookEvaluateEntryConditions` | `RealEvaluateEntryConditions` | [MagicTarget.cpp:289](../../Code/engine/Magic/MagicTarget.cpp#L289) |  |
+| 34053 | `0x5baed0` | `ActiveEffect::CalculateDurationAndMagnitude` | meh | hook → `HookAdjustForPerks` | `RealAdjustForPerks` | [MagicTarget.cpp:269](../../Code/engine/Magic/MagicTarget.cpp#L269) |  |
+| 34062 | `0x5bb470` | `ActiveEffect::EvaluateEntryConditions` | IDA meh | hook → `HookEvaluateEntryConditions` | `RealEvaluateEntryConditions` | [MagicTarget.cpp:271](../../Code/engine/Magic/MagicTarget.cpp#L271) |  |
 | 34094 | `0x5bd6b0` | `ActiveEffect::StartHitEffects` | IDA | hook → `HookStartHitEffects` | `RealStartHitEffects` | [EffectEvents.cpp:75](../../Code/engine/EffectEvents.cpp#L75) |  |
 | 34140 | `0x5bf6a0` | `ActorMagicCaster::InterruptCastImpl` | IDA meh | hook → `HookInterruptCast` | `RealInterruptCast` | [ActorMagicCaster.cpp:98](../../Code/engine/Magic/ActorMagicCaster.cpp#L98) |  |
 | 34143 | `0x5bf8d0` | `ActorMagicCaster::Update` | IDA meh | hook → `HookCasterUpdate` | `RealCasterUpdate` | [ActorMagicCaster.cpp:99](../../Code/engine/Magic/ActorMagicCaster.cpp#L99) |  |
 | 34144 | `0x5bfdd0` | `ActorMagicCaster::Func9_34144` | meh | hook → `HookSpellCast` | `RealSpellCast` | [ActorMagicCaster.cpp:97](../../Code/engine/Magic/ActorMagicCaster.cpp#L97) |  |
 | 34145 | `0x5c0150` | `ActorMagicCaster::Func10_34145` | meh | hook → `HookCheckCast` | `RealCheckCast` | [ActorMagicCaster.cpp:100](../../Code/engine/Magic/ActorMagicCaster.cpp#L100) |  |
 | 34370 | `0x5c9180` | `InvisibilityEffect::Func21_34370` | meh | hook → `HookFinish` | `RealFinish` | [InvisibilityEffect.cpp:33](../../Code/engine/Effects/InvisibilityEffect.cpp#L33) |  |
-| 34410 | `0x5caca0` | `MagicCaster::FindTargets` | CL meh | hook → `HookFindTargets` | `RealFindTargets` | [MagicTarget.cpp:283](../../Code/engine/Magic/MagicTarget.cpp#L283) |  |
-| 34513 | `0x5d1470` | `MagicItem::IsSpellTarget` | IDA meh | hook → `HookIsSpellTarget` | `RealIsSpellTarget` | [MagicTarget.cpp:286](../../Code/engine/Magic/MagicTarget.cpp#L286) |  |
-| 34517 | `0x5d16d0` | `MagicTarget::HasMagicEffect` | IDA CL meh | hook → `HookHasMagicEffect` | `RealHasMagicEffect` | [MagicTarget.cpp:284](../../Code/engine/Magic/MagicTarget.cpp#L284) |  |
-| 34518 | `0x5d1760` | `MagicTarget::HasMagicEffectWithKeyword` | IDA CL PL meh | hook → `HookHasMagicEffectWithKeyword` | `RealHasMagicEffectWithKeyword` | [MagicTarget.cpp:285](../../Code/engine/Magic/MagicTarget.cpp#L285) |  |
-| 34526 | `0x5d1da0` | `?` | PL | hook → `HookAddTarget` | `RealAddTarget` | [MagicTarget.cpp:282](../../Code/engine/Magic/MagicTarget.cpp#L282) | **undocumented** |
+| 34410 | `0x5caca0` | `MagicCaster::FindTargets` | CL meh | hook → `HookFindTargets` | `RealFindTargets` | [MagicTarget.cpp:265](../../Code/engine/Magic/MagicTarget.cpp#L265) |  |
+| 34513 | `0x5d1470` | `MagicItem::IsSpellTarget` | IDA meh | hook → `HookIsSpellTarget` | `RealIsSpellTarget` | [MagicTarget.cpp:268](../../Code/engine/Magic/MagicTarget.cpp#L268) |  |
+| 34517 | `0x5d16d0` | `MagicTarget::HasMagicEffect` | IDA CL meh | hook → `HookHasMagicEffect` | `RealHasMagicEffect` | [MagicTarget.cpp:266](../../Code/engine/Magic/MagicTarget.cpp#L266) |  |
+| 34518 | `0x5d1760` | `MagicTarget::HasMagicEffectWithKeyword` | IDA CL PL meh | hook → `HookHasMagicEffectWithKeyword` | `RealHasMagicEffectWithKeyword` | [MagicTarget.cpp:267](../../Code/engine/Magic/MagicTarget.cpp#L267) |  |
+| 34526 | `0x5d1da0` | `?` | PL | hook → `HookAddTarget` | `RealAddTarget` | [MagicTarget.cpp:264](../../Code/engine/Magic/MagicTarget.cpp#L264) | **undocumented** |
 | 34993 | `0x5e3a50` | `SummonCreatureEffect::CreateSummon` | IDA meh | hook → `HookCreateSummon` | `RealCreateSummon` | [SummonCreatureEffect.cpp:21](../../Code/engine/Effects/SummonCreatureEffect.cpp#L21) |  |
 | 35086 | `0x5e7630` | `ValueModifierEffect::Func32_35086` | meh | hook → `HookApplyActorEffect` | `RealApplyActorEffect` | [Combat.cpp:295](../../Code/engine/ActorHooks/Combat.cpp#L295) |  |
 | 35272 | `0x5ee850` | `MenuTopicManager::Handle` | meh | hook → `HookMenuOpenClose` | `RealMenuOpenClose` | [DialogueBridge.cpp:449](../../Code/engine/Bridges/DialogueBridge.cpp#L449) |  |
@@ -106,13 +105,13 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 36291 | `0x645d60` | `Calendar::Update` | IDA | hook → `HookSimulateTime` | `RealSimulateTime` | [TimeManager.cpp:56](../../Code/engine/TimeManager.cpp#L56) |  |
 | 36564 | `0x658870` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `MainLoop` | [SkyrimVM64.cpp:96](../../Code/plugin/SkyrimVM64.cpp#L96) |  |
 | 36581 | `0x659ea0` | `Main::sub_36581` | meh | hook → `UpdatePlayer` | `RealUpdatePlayer` | [LiveMenuHooks.cpp:263](../../Code/engine/Interface/LiveMenuHooks.cpp#L263) |  |
-| 37198 | `0x672b90` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `RealAddDeathItems` | [Item.cpp:301](../../Code/engine/ActorHooks/Item.cpp#L301) |  |
+| 37198 | `0x672b90` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `RealAddDeathItems` | [Item.cpp:296](../../Code/engine/ActorHooks/Item.cpp#L296) |  |
 | 37200 | `0x672e30` | `Actor::SetDialogueWithPlayer` | meh | hook → `HookSetDialogueWithPlayer` | `RealSetDialogueWithPlayer` | [DialogueBridge.cpp:436](../../Code/engine/Bridges/DialogueBridge.cpp#L436) |  |
 | 37247 | `0x674b70` | `Actor::GetCurrentScene` | meh | hook → `HookGetCurrentScene` | `RealGetCurrentScene` | [CopyAiState.cpp:70](../../Code/engine/CopyAiState.cpp#L70) |  |
 | 37313 | `0x677370` | `Actor::WarpTo_37313` | IDA meh | hook → `HookForceState` | `RealForceState` | [Movement.cpp:303](../../Code/engine/ActorHooks/Movement.cpp#L303) |  |
-| 37320 | `0x677c90` | `Actor::DropHeldItemsOnDeath` | IDA | hook → `HookDropHeldItemsOnDeath` | `RealDropHeldItemsOnDeath` | [Item.cpp:303](../../Code/engine/ActorHooks/Item.cpp#L303) |  |
+| 37320 | `0x677c90` | `Actor::DropHeldItemsOnDeath` | IDA | hook → `HookDropHeldItemsOnDeath` | `RealDropHeldItemsOnDeath` | [Item.cpp:298](../../Code/engine/ActorHooks/Item.cpp#L298) |  |
 | 37321 | `0x678560` | `Actor::Resurrect` | IDA meh | hook → `HookResurrect` | `RealResurrect` | [ActorValueEvents.cpp:75](../../Code/engine/ActorValueEvents.cpp#L75) |  |
-| 37322 | `0x678950` | `Actor::ResetInventory` | meh | hook → `HookResetInventory` | `RealResetInventory` | [Item.cpp:294](../../Code/engine/ActorHooks/Item.cpp#L294) |  |
+| 37322 | `0x678950` | `Actor::ResetInventory` | meh | hook → `HookResetInventory` | `RealResetInventory` | [Item.cpp:289](../../Code/engine/ActorHooks/Item.cpp#L289) |  |
 | 37335 | `0x6797c0` | `Actor::DoDamage` | CL meh | hook → `HookDamageActor` | `RealDamageActor` | [Combat.cpp:294](../../Code/engine/ActorHooks/Combat.cpp#L294) |  |
 | 37347 | `0x679d50` | `Character::UpdateAI` | IDA PL meh | hook → `HookUpdateAI` | `RealUpdateAI` | [Movement.cpp:296](../../Code/engine/ActorHooks/Movement.cpp#L296) |  |
 | 37356 | `0x67c380` | `Actor::ApplyMovement` | IDA meh | hook → `HookApplyMovement` | `RealApplyMovement` | [Movement.cpp:295](../../Code/engine/ActorHooks/Movement.cpp#L295) |  |
@@ -128,8 +127,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37469 | `0x686770` | `Actor::CanTalkToPlayer` | IDA meh | hook → `HookCanTalkToPlayer` | `RealCanTalkToPlayer` | [DialogueBridge.cpp:441](../../Code/engine/Bridges/DialogueBridge.cpp#L441) |  |
 | 37509 | `0x68a650` | `Actor::DoTrap1` | IDA meh | hook → `HookDoTrap` | `RealDoTrap` | [Traps.cpp:85](../../Code/engine/Combat/Traps.cpp#L85) |  |
 | 37511 | `0x68a930` | `PlayerCharacter::sub_37511` | meh | hook → `HookPayGold` | `RealPayGold` | [CrimeBridge.cpp:672](../../Code/engine/Bridges/CrimeBridge.cpp#L672) |  |
-| 37521 | `0x68b0e0` | `Actor::PickUpObject` | meh | hook → `HookPickUpObject` | `RealPickUpObject` | [Item.cpp:298](../../Code/engine/ActorHooks/Item.cpp#L298) |  |
-| 37525 | `0x68ba50` | `Actor::AddObjectToContainer` | IDA meh | hook → `HookAddInventoryItem` | `RealAddInventoryItem` | [Item.cpp:296](../../Code/engine/ActorHooks/Item.cpp#L296) |  |
+| 37521 | `0x68b0e0` | `Actor::PickUpObject` | meh | hook → `HookPickUpObject` | `RealPickUpObject` | [Item.cpp:293](../../Code/engine/ActorHooks/Item.cpp#L293) |  |
+| 37525 | `0x68ba50` | `Actor::AddObjectToContainer` | IDA meh | hook → `HookAddInventoryItem` | `RealAddInventoryItem` | [Item.cpp:291](../../Code/engine/ActorHooks/Item.cpp#L291) |  |
 | 37534 | `0x68c170` | `Actor__ShouldAttack` | IDA meh | hook → `HookShouldAttack` | `RealShouldAttack` | [Combat.cpp:299](../../Code/engine/ActorHooks/Combat.cpp#L299) |  |
 | 37537 | `0x68c9d0` | `Actor::IsHostileToActor` | CL SKSE meh | hook → `HookIsHostileToActor` | `RealIsHostileToActor` | [Combat.cpp:297](../../Code/engine/ActorHooks/Combat.cpp#L297) |  |
 | 37541 | `0x68cc00` | `Actor::UpdateInDialogue` | IDA meh | hook → `HookUpdateInDialogue` | `RealUpdateInDialogue` | [Speech.cpp:119](../../Code/engine/ActorHooks/Speech.cpp#L119) |  |
@@ -143,7 +142,6 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37679 | `0x69d730` | `Character__ReportCrimeAddBounty` | IDA meh | hook → `HookReportCrime` | `RealReportCrime` | [CrimeBridge.cpp:677](../../Code/engine/Bridges/CrimeBridge.cpp#L677) |  |
 | 37686 | `0x69de30` | `Actor::AddToFaction` | CL meh | hook → `HookAddToFaction` | `RealAddToFaction` | [FactionEvents.cpp:79](../../Code/engine/FactionEvents.cpp#L79) |  |
 | 37688 | `0x69df90` | `Actor::RemoveFromFaction` | CL meh | hook → `HookRemoveFromFaction` | `RealRemoveFromFaction` | [FactionEvents.cpp:80](../../Code/engine/FactionEvents.cpp#L80) |  |
-| 37698 | `0x69f920` | `Actor::HasPerk` | CL SKSE meh | hook → `HookGetPerkRank` | `getPerkRank` | [MagicTarget.cpp:278](../../Code/engine/Magic/MagicTarget.cpp#L278) |  |
 | 37710 | `0x69fc00` | `Character::sub_37710` | meh | hook → `HookStagger` | `RealStagger` | [MeleeStagger.cpp:41](../../Code/engine/Combat/MeleeStagger.cpp#L41) |  |
 | 37711 | `0x69fe50` | `Actor__SetActionValue` | IDA meh | hook → `HookSetActionValue` | `RealSetActionValue` | [Detection.cpp:120](../../Code/engine/ActorHooks/Detection.cpp#L120) |  |
 | 37717 | `0x6a01c0` | `?` | - | hook → `HookTeammate` | `RealTeammate` | [FollowerTargets.cpp:155](../../Code/engine/AI/FollowerTargets.cpp#L155) | **undocumented** |
@@ -151,7 +149,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37758 | `0x6a2300` | `Actor__GetFreshDetectionStateOf` | IDA meh | hook → `HookDetectionStateOf` | `RealDetectionStateOf` | [AiStateEvents.cpp:197](../../Code/engine/AiStateEvents.cpp#L197) |  |
 | 37864 | `0x6a77c0` | `Character::ActivateMount` | IDA meh | hook → `HookActivateMount` | `RealActivateMount` | [Mount.cpp:178](../../Code/engine/ActorHooks/Mount.cpp#L178) |  |
 | 37905 | `0x6abe40` | `Actor::InitiateMountPackage` | IDA meh | hook → `HookInitiateMountPackage` | `RealInitiateMountPackage` | [Mount.cpp:176](../../Code/engine/ActorHooks/Mount.cpp#L176) |  |
-| 37975 | `0x6afd40` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `RealUnequipObject` | [Item.cpp:300](../../Code/engine/ActorHooks/Item.cpp#L300) |  |
+| 37975 | `0x6afd40` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `RealUnequipObject` | [Item.cpp:295](../../Code/engine/ActorHooks/Item.cpp#L295) |  |
 | 37996 | `0x6b1ab0` | `BSTEventSink_BSTransformDeltaEvent_::Handle` | IDA meh | hook → `HookTransformDelta` | `RealTransformDelta` | [Movement.cpp:302](../../Code/engine/ActorHooks/Movement.cpp#L302) |  |
 | 38009 | `0x6b3f20` | `Actor::ProcessTracking` | IDA meh | hook → `HookProcessTracking` | `RealProcessTracking` | [AiStateEvents.cpp:198](../../Code/engine/AiStateEvents.cpp#L198) |  |
 | 38011 | `0x6b4a30` | `Character::ShouldRotateToTrack` | IDA meh | hook → `HookShouldRotateToTrack` | `RealShouldRotateToTrack` | [DialogueBridge.cpp:439](../../Code/engine/Bridges/DialogueBridge.cpp#L439) |  |
@@ -165,7 +163,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 38586 | `0x6ca640` | `TESObjectREFR::sub_38586` | PL meh | hook → `HookProcessHit` | `RealProcessHit` | [WorldHits.cpp:50](../../Code/engine/Combat/WorldHits.cpp#L50) |  |
 | 38606 | `0x6cc3d0` | `Actor::HandleHealthDamage` | IDA meh | hook → `HandleDamage` | `RealHandleDamage` | [PartyAggro.cpp:205](../../Code/engine/Combat/PartyAggro.cpp#L205) |  |
 | 38628 | `0x6cd850` | `Actor::CalculateCurrentHitTargetForWeaponSwing` | IDA PL meh | hook → `HookWeaponSwing` | `RealWeaponSwing` | [PlayerHands.cpp:155](../../Code/engine/PlayerHands.cpp#L155) |  |
-| 38717 | `0x6d3f70` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `RealRemoveSpell` | [Actor.cpp:1456](../../Code/engine/Actor.cpp#L1456) |  |
+| 38717 | `0x6d3f70` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `RealRemoveSpell` | [Actor.cpp:1368](../../Code/engine/Actor.cpp#L1368) |  |
 | 38928 | `0x6de5c0` | `?` | - | hook → `EquipSpellHook` | `RealEquipSpell` | [EquipManager.cpp:324](../../Code/engine/EquipManager.cpp#L324) | **undocumented** |
 | 38929 | `0x6de920` | `?` | IDA | hook → `EquipHook` | `RealEquip` | [EquipManager.cpp:322](../../Code/engine/EquipManager.cpp#L322) |  |
 | 38930 | `0x6dec80` | `?` | - | hook → `EquipShoutHook` | `RealEquipShout` | [EquipManager.cpp:326](../../Code/engine/EquipManager.cpp#L326) | **undocumented** |
@@ -182,20 +180,20 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 39643 | `0x70abf0` | `DialogueResponse::Process` | IDA | hook → `HookProcessResponse` | `RealProcessResponse` | [Speech.cpp:117](../../Code/engine/ActorHooks/Speech.cpp#L117) |  |
 | 39673 | `0x7182a0` | `AIProcess__ProcStealWarning` | IDA | hook → `HookWarningStep` | `RealWarningStep` | [CrimeBridge.cpp:691](../../Code/engine/Bridges/CrimeBridge.cpp#L691) |  |
 | 39896 | `0x723b60` | `ActorProcess::UpdateKnockState` | IDA meh | hook → `HookUpdateKnockState` | `RealUpdateKnockState` | [KnockState.cpp:33](../../Code/engine/AI/KnockState.cpp#L33) |  |
-| 40245 | `0x739180` | `?` | PL | hook → `HookCharacterConstructor` | `RealCharacterConstructor` | [Actor.cpp:1457](../../Code/engine/Actor.cpp#L1457) | **undocumented** |
-| 40246 | `0x739280` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `RealCharacterConstructor2` | [Actor.cpp:1458](../../Code/engine/Actor.cpp#L1458) |  |
+| 40245 | `0x739180` | `?` | PL | hook → `HookCharacterConstructor` | `RealCharacterConstructor` | [Actor.cpp:1369](../../Code/engine/Actor.cpp#L1369) | **undocumented** |
+| 40246 | `0x739280` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `RealCharacterConstructor2` | [Actor.cpp:1370](../../Code/engine/Actor.cpp#L1370) |  |
 | 40412 | `0x740690` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:100](../../Code/plugin/SkyrimVM64.cpp#L100) |  |
-| 40438 | `0x743090` | `PlayerCharacter::ProcessQueuedTravel` | IDA | hook → `HookProcessQueuedTravel` | `RealProcessQueuedTravel` | [PlayerCharacter.cpp:433](../../Code/engine/PlayerCharacter.cpp#L433) |  |
+| 40438 | `0x743090` | `PlayerCharacter::ProcessQueuedTravel` | IDA | hook → `HookProcessQueuedTravel` | `RealProcessQueuedTravel` | [PlayerCharacter.cpp:418](../../Code/engine/PlayerCharacter.cpp#L418) |  |
 | 40445 | `0x744600` | `Actor::FastTravel` | IDA meh | hook → `HookFastTravel` | `RealFastTravel` | [TimeManager.cpp:55](../../Code/engine/TimeManager.cpp#L55) |  |
-| 40454 | `0x746e00` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `RealDropObject` | [Item.cpp:299](../../Code/engine/ActorHooks/Item.cpp#L299) |  |
+| 40454 | `0x746e00` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `RealDropObject` | [Item.cpp:294](../../Code/engine/ActorHooks/Item.cpp#L294) |  |
 | 40476 | `0x748d10` | `PlayerCharacter::ShowFirstPersonRoot` | IDA | hook → `HookShowFirstPersonRoot` | `RealShowFirstPersonRoot` | [CriticalStage.cpp:89](../../Code/engine/CriticalStage.cpp#L89) |  |
 | 40485 | `0x749560` | `PlayerCharacter::WaitStep` | IDA CL PL meh | hook → `HookStep` | `RealStep` | [WaitBridge.cpp:131](../../Code/engine/Bridges/WaitBridge.cpp#L131) |  |
-| 40488 | `0x7499e0` | `PlayerCharacter::AddSkillExperience` | CL meh | hook → `HookAddSkillExperience` | `RealAddSkillExperience` | [PlayerCharacter.cpp:436](../../Code/engine/PlayerCharacter.cpp#L436) |  |
+| 40488 | `0x7499e0` | `PlayerCharacter::AddSkillExperience` | CL meh | hook → `HookAddSkillExperience` | `RealAddSkillExperience` | [PlayerCharacter.cpp:421](../../Code/engine/PlayerCharacter.cpp#L421) |  |
 | 40496 | `0x749ed0` | `?` | - | hook → `HookTurnToSpeaker` | `RealTurnToSpeaker` | [DialogueBridge.cpp:445](../../Code/engine/Bridges/DialogueBridge.cpp#L445) | **undocumented** |
-| 40533 | `0x74c560` | `PlayerCharacter::PickUpObject` | meh | hook → `HookPickUpObject` | `RealPickUpObject` | [PlayerCharacter.cpp:434](../../Code/engine/PlayerCharacter.cpp#L434) |  |
-| 40535 | `0x74cc30` | `PlayerCharacter::SetPlayerMapMarker` | IDA | hook → `HookSetWaypoint` | `RealSetWaypoint` | [PlayerCharacter.cpp:437](../../Code/engine/PlayerCharacter.cpp#L437) |  |
-| 40536 | `0x74cd90` | `PlayerCharacter::ClearPlayerMapMarker` | IDA meh | hook → `HookRemoveWaypoint` | `RealRemoveWaypoint` | [PlayerCharacter.cpp:438](../../Code/engine/PlayerCharacter.cpp#L438) |  |
-| 40563 | `0x754640` | `?` | - | hook → `HookSetDifficulty` | `RealSetDifficulty` | [PlayerCharacter.cpp:439](../../Code/engine/PlayerCharacter.cpp#L439) | **undocumented** |
+| 40533 | `0x74c560` | `PlayerCharacter::PickUpObject` | meh | hook → `HookPickUpObject` | `RealPickUpObject` | [PlayerCharacter.cpp:419](../../Code/engine/PlayerCharacter.cpp#L419) |  |
+| 40535 | `0x74cc30` | `PlayerCharacter::SetPlayerMapMarker` | IDA | hook → `HookSetWaypoint` | `RealSetWaypoint` | [PlayerCharacter.cpp:422](../../Code/engine/PlayerCharacter.cpp#L422) |  |
+| 40536 | `0x74cd90` | `PlayerCharacter::ClearPlayerMapMarker` | IDA meh | hook → `HookRemoveWaypoint` | `RealRemoveWaypoint` | [PlayerCharacter.cpp:423](../../Code/engine/PlayerCharacter.cpp#L423) |  |
+| 40563 | `0x754640` | `?` | - | hook → `HookSetDifficulty` | `RealSetDifficulty` | [PlayerCharacter.cpp:424](../../Code/engine/PlayerCharacter.cpp#L424) | **undocumented** |
 | 40659 | `0x75a660` | `PlayerCharacter::PayFine` | meh | hook → `HookPayFine` | `RealPayFine` | [CrimeBridge.cpp:671](../../Code/engine/Bridges/CrimeBridge.cpp#L671) |  |
 | 41238 | `0x776910` | `PlayerCharacter::UpdateInCombat` | IDA meh | hook → `HookUpdatePlayerInCombat` | `RealUpdatePlayerInCombat` | [AiStateEvents.cpp:199](../../Code/engine/AiStateEvents.cpp#L199) |  |
 | 41354 | `0x7820d0` | `?` | IDA | hook → `HookKnownCrime` | `RealKnownCrime` | [CrimeBridge.cpp:666](../../Code/engine/Bridges/CrimeBridge.cpp#L666) |  |
@@ -206,7 +204,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 43621 | `0x7da170` | `?` | - | hook → `HookLoadEventClips` | `RealLoadEventClips` | [GraphStreamHooks.cpp:588](../../Code/engine/Havok/GraphStreamHooks.cpp#L588) | **undocumented** |
 | 43622 | `0x7da2b0` | `coop_LoadEventClipsQueued` | IDA | hook → `HookLoadEventClipsQueued` | `RealLoadEventClipsQueued` | [GraphStreamHooks.cpp:589](../../Code/engine/Havok/GraphStreamHooks.cpp#L589) |  |
 | 43624 | `0x7da500` | `coop_LoadEventClipsForManager` | IDA | hook → `HookLoadManagerClips` | `RealLoadManagerClips` | [GraphStreamHooks.cpp:590](../../Code/engine/Havok/GraphStreamHooks.cpp#L590) |  |
-| 43830 | `0x7e45b0` | `Explosion::Func162_43830` | meh | hook → `ExplosionInitialize` | `RealExplosionInitialize` | [ModManager.cpp:134](../../Code/engine/ModManager.cpp#L134) |  |
+| 43830 | `0x7e45b0` | `Explosion::Func162_43830` | meh | hook → `ExplosionInitialize` | `RealExplosionInitialize` | [ModManager.cpp:126](../../Code/engine/ModManager.cpp#L126) |  |
 | 44108 | `0x7f9300` | `Projectile::Launch` | CL meh | hook → `HookLaunch` | `RealLaunch` | [Projectile.cpp:156](../../Code/engine/Projectiles/Projectile.cpp#L156) |  |
 | 44204 | `0x8009c0` | `Projectile::Func190_44204` | IDA meh | hook → `HookImpact` | `RealImpact` | [Projectile.cpp:157](../../Code/engine/Projectiles/Projectile.cpp#L157) |  |
 | 44703 | `0x818570` | `CombatGroup__Update` | IDA | hook → `HookUpdateCombatGroup` | `RealUpdateCombatGroup` | [AiStateEvents.cpp:196](../../Code/engine/AiStateEvents.cpp#L196) |  |
@@ -221,17 +219,16 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 51508 | `0x92ab30` | `?` | - | hook → `HookSkipText` | `RealSkipText` | [DialogueBridge.cpp:443](../../Code/engine/Bridges/DialogueBridge.cpp#L443) | **undocumented** |
 | 51509 | `0x92ab70` | `?` | IDA | hook → `HookTopicClicked` | `RealTopicClicked` | [DialogueBridge.cpp:442](../../Code/engine/Bridges/DialogueBridge.cpp#L442) |  |
 | 51848 | `0x942b80` | `InventoryMenu::sub_51848` | IDA meh | hook → `InventoryProcess` | `RealInventoryProcess` | [LiveMenuHooks.cpp:276](../../Code/engine/Interface/LiveMenuHooks.cpp#L276) |  |
-| 51925 | `0x94b8a0` | `?` | - | hook → `RequestLoadingText` | `s_requestLoadingText` | [LoadingScreen.cpp:49](../../Code/engine/LoadingScreen.cpp#L49) | **undocumented** |
 | 51950 | `0x94d350` | `LockpickingMenu::ProcessMessage` | IDA meh | hook → `LockpickProcess` | `RealLockpickProcess` | [LiveMenuHooks.cpp:281](../../Code/engine/Interface/LiveMenuHooks.cpp#L281) |  |
 | 51959 | `0x94dc60` | `LockpickingMenu::OpenMenu` | CL meh | hook → `HookLockOpen` | `RealLockOpen` | [CrimeBridge.cpp:674](../../Code/engine/Bridges/CrimeBridge.cpp#L674) |  |
-| 51968 | `0x94f0c0` | `LockpickingMenu::Unlock` | IDA meh | hook → `HookLockpickUnlock` | `RealLockpickUnlock` | [World.cpp:327](../../Code/engine/ReferenceHooks/World.cpp#L327) |  |
+| 51968 | `0x94f0c0` | `LockpickingMenu::Unlock` | IDA meh | hook → `HookLockpickUnlock` | `RealLockpickUnlock` | [World.cpp:303](../../Code/engine/ReferenceHooks/World.cpp#L303) |  |
 | 51981 | `0x950420` | `LockpickingMenu::sub_51981` | meh | hook → `HookLockCrime` | `RealLockCrime` | [CrimeBridge.cpp:675](../../Code/engine/Bridges/CrimeBridge.cpp#L675) |  |
 | 52118 | `0x959160` | `NewGame_Enter` | SKSE | hook → `HookNewGameEnter` | `RealNewGameEnter` | [LoadGameEvents.cpp:45](../../Code/engine/LoadGameEvents.cpp#L45) |  |
 | 52415 | `0x9718d0` | `RaceSexMenu::ChangeName` | IDA CL meh | hook → `HookChangeName` | `RealChangeName` | [CreationStart.cpp:59](../../Code/engine/CreationStart.cpp#L59) |  |
 | 52486 | `0x974e00` | `SleepWaitMenu::ProcessMessage` | IDA PL meh | hook → `HookProcess` | `RealProcess` | [WaitBridge.cpp:130](../../Code/engine/Bridges/WaitBridge.cpp#L130) |  |
 | 52489 | `0x975370` | `SleepWaitMenu::Cancel` | IDA | hook → `HookCancel` | `RealCancel` | [WaitBridge.cpp:129](../../Code/engine/Bridges/WaitBridge.cpp#L129) |  |
 | 52538 | `0x97e820` | `StatsMenu::ModifyPerkPoints` | meh | hook → `HookPerkPoints` | `RealPerkPoints` | [GlobalEvents.cpp:89](../../Code/engine/GlobalEvents.cpp#L89) |  |
-| 52626 | `0x983e80` | `?` | - | hook → `HookShowSubtitle` | `RealShowSubtitle` | [SubtitleManager.cpp:57](../../Code/engine/Misc/SubtitleManager.cpp#L57) | **undocumented** |
+| 52626 | `0x983e80` | `?` | - | hook → `HookShowSubtitle` | `RealShowSubtitle` | [SubtitleManager.cpp:50](../../Code/engine/Misc/SubtitleManager.cpp#L50) | **undocumented** |
 | 52853 | `0x98e180` | `?` | - | hook → `HookShowMenu` | `RealShowMenu` | [DialogueBridge.cpp:444](../../Code/engine/Bridges/DialogueBridge.cpp#L444) | **undocumented** |
 | 52857 | `0x98e4e0` | `?` | IDA | hook → `HookShowList` | `RealShowList` | [DialogueBridge.cpp:446](../../Code/engine/Bridges/DialogueBridge.cpp#L446) |  |
 | 52933 | `0x991a30` | `SendHUDMessage::ShowHUDMessage` | CL meh | hook → `HookShowHudMessage` | `RealShowHudMessage` | [HudMessages.cpp:36](../../Code/harness/TestHarness/HudMessages.cpp#L36) |  |
@@ -243,12 +240,12 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 53926 | `0x9d7450` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:95](../../Code/plugin/SkyrimVM64.cpp#L95) |  |
 | 53954 | `0x9dad40` | `SkyrimVM::QueueDelayFunctor` | IDA meh | hook → `HookFunctorQueued` | `RealFunctorQueued` | [GuestScripts.cpp:148](../../Code/engine/Papyrus/GuestScripts.cpp#L148) |  |
 | 53955 | `0x9dae10` | `SkyrimVM::QueuePostRenderCall` | CL SKSE meh | hook → `HookPostRenderQueued` | `RealPostRenderQueued` | [GuestScripts.cpp:150](../../Code/engine/Papyrus/GuestScripts.cpp#L150) |  |
-| 53987 | `0x9de4c0` | `SkyrimVM::ProcessQuestStageEvent` | IDA meh | hook → `HookQuestStageEventSink` | `RealQuestStageEventSink` | [TESQuest.cpp:250](../../Code/engine/Forms/TESQuest.cpp#L250) |  |
+| 53987 | `0x9de4c0` | `SkyrimVM::ProcessQuestStageEvent` | IDA meh | hook → `HookQuestStageEventSink` | `RealQuestStageEventSink` | [TESQuest.cpp:195](../../Code/engine/Forms/TESQuest.cpp#L195) |  |
 | 53999 | `0x9dfc80` | `BSTEventSink_TESTrapHitEvent_::Handle` | IDA meh | hook → `HookTrapHitSink` | `RealTrapHitSink` | [Traps.cpp:84](../../Code/engine/Combat/Traps.cpp#L84) |  |
 | 54655 | `0x9ffb50` | `papyrus::Actor::AttachAshPile` | IDA meh | hook → `HookAttachAshPile` | `RealAttachAshPile` | [CriticalStage.cpp:88](../../Code/engine/CriticalStage.cpp#L88) |  |
-| 54661 | `0xa00040` | `papyrus::Actor::EquipItem` | IDA meh | hook → `HookScriptEquipItem` | `RealScriptEquipItem` | [Item.cpp:295](../../Code/engine/ActorHooks/Item.cpp#L295) |  |
+| 54661 | `0xa00040` | `papyrus::Actor::EquipItem` | IDA meh | hook → `HookScriptEquipItem` | `RealScriptEquipItem` | [Item.cpp:290](../../Code/engine/ActorHooks/Item.cpp#L290) |  |
 | 54735 | `0xa01ab0` | `papyrus::Actor::RemoveFromAllFactions` | meh | hook → `HookRemoveFromAllFactions` | `RealRemoveFromAllFactions` | [FactionEvents.cpp:83](../../Code/engine/FactionEvents.cpp#L83) |  |
-| 55497 | `0xa25610` | `papyrus::Game::SetBeastForm` | meh | hook → `HookSetBeastForm` | `RealSetBeastForm` | [PlayerCharacter.cpp:435](../../Code/engine/PlayerCharacter.cpp#L435) |  |
+| 55497 | `0xa25610` | `papyrus::Game::SetBeastForm` | meh | hook → `HookSetBeastForm` | `RealSetBeastForm` | [PlayerCharacter.cpp:420](../../Code/engine/PlayerCharacter.cpp#L420) |  |
 | 55618 | `0xa2b320` | `BSScript::NativeFunction0_BSScript::StaticFunctionTag_Actor__::MarshallAndDispatch` | meh | hook → `HookGetPlayer` | `RealGetPlayer` | [GuestScripts.cpp:140](../../Code/engine/Papyrus/GuestScripts.cpp#L140) |  |
 | 55646 | `0xa2e9a0` | `SkyrimScript::FadeThenMainMenuCallback::Func1_55646` | IDA meh | hook → `HookScriptQuit` | `RealScriptQuit` | [QuitToMainMenu.cpp:36](../../Code/engine/Interface/QuitToMainMenu.cpp#L36) |  |
 | 55739 | `0xa325a0` | `RegisterPapyrusFunctions` | SKSE | hook → `HookBindEverythingToScript` | `RealBindEverythingToScript` | [VirtualMachine.cpp:45](../../Code/engine/Papyrus/VirtualMachine.cpp#L45) |  |
@@ -256,10 +253,10 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 55923 | `0xa39ec0` | `papyrus::GlobalVariable::SetValue` | PL meh | hook → `HookSetValue` | `RealSetValue` | [GlobalEvents.cpp:87](../../Code/engine/GlobalEvents.cpp#L87) |  |
 | 56095 | `0xa415c0` | `SkyrimScript::AddItemFunctor::Func1_56095` | meh | hook → `HookAddItemRun` | `RealAddItemRun` | [GuestScripts.cpp:152](../../Code/engine/Papyrus/GuestScripts.cpp#L152) |  |
 | 56101 | `0xa41d60` | `SkyrimScript::MoveToFunctor::Func1_56101` | meh | hook → `HookMoveRun` | `RealMoveRun` | [GuestScripts.cpp:151](../../Code/engine/Papyrus/GuestScripts.cpp#L151) |  |
-| 56205 | `0xa47370` | `papyrus::ObjectReference::PlayAnimation` | meh | hook → `HookPlayAnimation` | `RealPlayAnimation` | [World.cpp:326](../../Code/engine/ReferenceHooks/World.cpp#L326) |  |
-| 56206 | `0xa473f0` | `papyrus::ObjectReference::PlayAnimationAndWait` | meh | hook → `HookPlayAnimationAndWait` | `RealPlayAnimationAndWait` | [World.cpp:325](../../Code/engine/ReferenceHooks/World.cpp#L325) |  |
+| 56205 | `0xa47370` | `papyrus::ObjectReference::PlayAnimation` | meh | hook → `HookPlayAnimation` | `RealPlayAnimation` | [World.cpp:302](../../Code/engine/ReferenceHooks/World.cpp#L302) |  |
+| 56206 | `0xa473f0` | `papyrus::ObjectReference::PlayAnimationAndWait` | meh | hook → `HookPlayAnimationAndWait` | `RealPlayAnimationAndWait` | [World.cpp:301](../../Code/engine/ReferenceHooks/World.cpp#L301) |  |
 | 56332 | `0xa517d0` | `SkyrimScript::SetMotionTypeFunctor::Run` | IDA meh | hook → `HookRun` | `RealRun` | [SetMotionType.cpp:45](../../Code/engine/Papyrus/SetMotionType.cpp#L45) |  |
-| 56626 | `0xa5d370` | `TESObjectREFR::MoveTo_Impl` | IDA CL SKSE meh | hook → `HookMoveTo` | `RealMoveTo` | [World.cpp:322](../../Code/engine/ReferenceHooks/World.cpp#L322) |  |
+| 56626 | `0xa5d370` | `TESObjectREFR::MoveTo_Impl` | IDA CL SKSE meh | hook → `HookMoveTo` | `RealMoveTo` | [World.cpp:298](../../Code/engine/ReferenceHooks/World.cpp#L298) |  |
 | 58291 | `0xac6fb0` | `hkbRagdollDriver::driveToPose` | IDA meh | hook → `HookDriveToPose` | `RealDriveToPose` | [CopyRagdollPhysics.cpp:230](../../Code/engine/Havok/CopyRagdollPhysics.cpp#L230) |  |
 | 58292 | `0xac8590` | `hkbRagdollDriver::sub_58292` | meh | hook → `HookDriveWithoutAnimation` | `RealDriveWithoutAnimation` | [CopyRagdollPhysics.cpp:231](../../Code/engine/Havok/CopyRagdollPhysics.cpp#L231) |  |
 | 58329 | `0xacbc60` | `hkbBehaviorGraph::sub_58329` | IDA meh | hook → `HookBehaviourUpdate` | `RealBehaviourUpdate` | [GraphStreamHooks.cpp:583](../../Code/engine/Havok/GraphStreamHooks.cpp#L583) |  |
@@ -302,7 +299,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 105466 | `0x14e5520` | `BSScript::Internal::ScriptFunction::Call` | meh | hook → `HookScriptCalled` | `RealScriptCalled` | [GuestScripts.cpp:146](../../Code/engine/Papyrus/GuestScripts.cpp#L146) |  |
 | 106385 | `0x1511980` | `ShadowSceneNode::SetPortalGraph` | CL meh | hook → `HookSetPortalGraph` | `RealSetPortalGraph` | [PortalGraphFix.cpp:104](../../Code/engine/Fixes/PortalGraphFix.cpp#L104) |  |
 | 109353 | `0x159c580` | `BSWin32SaveDataSystemUtility__WriteSaveFile` | IDA | hook → `HookWriteSaveFile` | `RealWriteSaveFile` | [SaveGameHooks.cpp:61](../../Code/engine/SaveGameHooks.cpp#L61) |  |
-| 418622 | `0x3c4440` | `TESNPC::ResetWornToOutfit` | IDA | hook → `HookResetWornToOutfit` | `RealResetWornToOutfit` | [Item.cpp:302](../../Code/engine/ActorHooks/Item.cpp#L302) |  |
+| 418622 | `0x3c4440` | `TESNPC::ResetWornToOutfit` | IDA | hook → `HookResetWornToOutfit` | `RealResetWornToOutfit` | [Item.cpp:297](../../Code/engine/ActorHooks/Item.cpp#L297) |  |
 | 441582 | `0x343d00` | `Script::CompileAndRun_Impl` | IDA | hook → `HookCompileAndRun` | `RealCompileAndRun` | [ConsoleOutput.cpp:95](../../Code/harness/TestHarness/ConsoleOutput.cpp#L95) |  |
 | 442673 | `0x90a2d0` | `Console::RunQueuedCommands` | IDA | hook → `HookRunQueued` | `RealRunQueued` | [ConsoleOutput.cpp:94](../../Code/harness/TestHarness/ConsoleOutput.cpp#L94) |  |
 | 524025 | `0x9752a0` | `SleepWaitMenu::OK` | IDA | hook → `HookOkay` | `RealOkay` | [WaitBridge.cpp:127](../../Code/engine/Bridges/WaitBridge.cpp#L127) |  |
@@ -312,15 +309,13 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
 | 11436 | `0x154440` | `BGSDefaultObjectManager::GetDefaultObject` | meh | call | `getObject` | [DefaultObjectManager.cpp:16](../../Code/engine/DefaultObjectManager.cpp#L16) |  |
-| 11437 | `0x1544f0` | `FixedStrings::GetSingleton` | CL meh | call | `GetDefaultStringManager` | [DefaultStringManager.cpp:8](../../Code/engine/DefaultStringManager.cpp#L8) |  |
-| 11806 | `0x1693e0` | `?` | - | call | `realSetLevelMod` | [Actor.cpp:311](../../Code/engine/Actor.cpp#L311) | **undocumented** |
-| 11810 | `0x169670` | `ExtraDataList::GetLeveledNPC` | IDA meh | call | `s_getLeveledNpc` | [TESObjectREFR.cpp:427](../../Code/engine/TESObjectREFR.cpp#L427) |  |
-| 12074 | `0x1739a0` | `ExtraDataList::SetInteractionData` | IDA meh | call | `s_setInteraction` | [Actor.cpp:1037](../../Code/engine/Actor.cpp#L1037) |  |
-| 13057 | `0x195c90` | `TESQueuedHandles::QueueReference` | IDA | call | `s_queueReference` | [Actor.cpp:1191](../../Code/engine/Actor.cpp#L1191) |  |
-| 13308 | `0x1a2200` | `TES::IsCellLoaded` | IDA meh | call | `s_isCellLoaded` | [Actor.cpp:1189](../../Code/engine/Actor.cpp#L1189) |  |
-| 13321 | `0x1a3b50` | `TES::GetCellLoadPriority` | IDA meh | call | `s_getCellLoadPriority` | [Actor.cpp:1190](../../Code/engine/Actor.cpp#L1190) |  |
-| 13718 | `0x1bb4e0` | `?` | - | call | `getCell` | [ModManager.cpp:124](../../Code/engine/ModManager.cpp#L124) | **undocumented** |
-| 13723 | `0x1bc1c0` | `TESDataHandler::CreateReferenceAtLocation` | IDA CL | hook → `SpawnNewREFR` | `RealSpawnNewREFR` | [ModManager.cpp:133](../../Code/engine/ModManager.cpp#L133) |  |
+| 11806 | `0x1693e0` | `?` | - | call | `realSetLevelMod` | [Actor.cpp:292](../../Code/engine/Actor.cpp#L292) | **undocumented** |
+| 11810 | `0x169670` | `ExtraDataList::GetLeveledNPC` | IDA meh | call | `s_getLeveledNpc` | [TESObjectREFR.cpp:399](../../Code/engine/TESObjectREFR.cpp#L399) |  |
+| 12074 | `0x1739a0` | `ExtraDataList::SetInteractionData` | IDA meh | call | `s_setInteraction` | [Actor.cpp:956](../../Code/engine/Actor.cpp#L956) |  |
+| 13057 | `0x195c90` | `TESQueuedHandles::QueueReference` | IDA | call | `s_queueReference` | [Actor.cpp:1110](../../Code/engine/Actor.cpp#L1110) |  |
+| 13308 | `0x1a2200` | `TES::IsCellLoaded` | IDA meh | call | `s_isCellLoaded` | [Actor.cpp:1108](../../Code/engine/Actor.cpp#L1108) |  |
+| 13321 | `0x1a3b50` | `TES::GetCellLoadPriority` | IDA meh | call | `s_getCellLoadPriority` | [Actor.cpp:1109](../../Code/engine/Actor.cpp#L1109) |  |
+| 13723 | `0x1bc1c0` | `TESDataHandler::CreateReferenceAtLocation` | IDA CL | hook → `SpawnNewREFR` | `RealSpawnNewREFR` | [ModManager.cpp:125](../../Code/engine/ModManager.cpp#L125) |  |
 | 13894 | `0x1c8530` | `BGSDefaultObjectManager::GetSingleton` | CL meh | call | `GetDefaultObjectManager` | [DefaultObjectManager.cpp:8](../../Code/engine/DefaultObjectManager.cpp#L8) |  |
 | 14287 | `0x1d9eb0` | `BGSOpenCloseForm::SetOpenState` | IDA CL meh | call | `s_setOpenState` | [ReferenceStates.cpp:98](../../Code/engine/ReferenceStates.cpp#L98) |  |
 | 14287 | `0x1d9eb0` | `BGSOpenCloseForm::SetOpenState` | IDA CL meh | call | `s_setOpenState` | [ReferenceStates.cpp:137](../../Code/engine/ReferenceStates.cpp#L137) |  |
@@ -329,34 +324,31 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 14647 | `0x1e64c0` | `TESObjectREFR::SetHarvestedFlag` | IDA meh | call | `s_setHarvested` | [ReferenceStates.cpp:119](../../Code/engine/ReferenceStates.cpp#L119) |  |
 | 14649 | `0x1e6520` | `TESForm__SetDestroyed` | IDA | call | `s_setDestroyed` | [ReferenceStates.cpp:45](../../Code/engine/ReferenceStates.cpp#L45) |  |
 | 14865 | `0x1eeb10` | `UpdateHarvestModel` | IDA SKSE meh | call | `s_updateModel` | [ReferenceStates.cpp:121](../../Code/engine/ReferenceStates.cpp#L121) |  |
-| 15002 | `0x1f3d70` | `?` | - | call | `sub_1401A2220` | [AnimationExperiments.cpp:376](../../Code/engine/AnimationExperiments.cpp#L376) | **undocumented** |
-| 15006 | `0x1f4020` | `?` | - | call | `sub_1401A1D50` | [AnimationExperiments.cpp:407](../../Code/engine/AnimationExperiments.cpp#L407) | **undocumented** |
 | 15328 | `0x2044e0` | `BGSDynamicPersistenceManager::PromoteList` | IDA | call | `promoteList` | [TESObjectREFR.cpp:123](../../Code/engine/TESObjectREFR.cpp#L123) |  |
-| 16038 | `0x22b060` | `TESObjectREFR::InitInventoryIfRequired` | IDA CL meh | call | `s_initInventoryIfRequired` | [TESObjectREFR.cpp:603](../../Code/engine/TESObjectREFR.cpp#L603) |  |
-| 16039 | `0x22b2c0` | `TESObjectREFR::GetInventoryChanges` | IDA PL meh | call | `s_getInventoryChanges` | [TESObjectREFR.cpp:525](../../Code/engine/TESObjectREFR.cpp#L525) |  |
-| 16040 | `0x22b2e0` | `TESObjectREFR::MakeInventoryChanges` | CL meh | call | `s_getContainerChangs` | [TESObjectREFR.cpp:477](../../Code/engine/TESObjectREFR.cpp#L477) |  |
+| 16038 | `0x22b060` | `TESObjectREFR::InitInventoryIfRequired` | IDA CL meh | call | `s_initInventoryIfRequired` | [TESObjectREFR.cpp:575](../../Code/engine/TESObjectREFR.cpp#L575) |  |
+| 16039 | `0x22b2c0` | `TESObjectREFR::GetInventoryChanges` | IDA PL meh | call | `s_getInventoryChanges` | [TESObjectREFR.cpp:497](../../Code/engine/TESObjectREFR.cpp#L497) |  |
+| 16040 | `0x22b2e0` | `TESObjectREFR::MakeInventoryChanges` | CL meh | call | `s_getContainerChangs` | [TESObjectREFR.cpp:449](../../Code/engine/TESObjectREFR.cpp#L449) |  |
 | 17201 | `0x2676c0` | `BSPointerHandleManagerInterface::GetSmartPointer` | meh | call | `s_getRefrByHandle` | [TESObjectREFR.cpp:84](../../Code/engine/TESObjectREFR.cpp#L84) |  |
 | 19378 | `0x2d63b0` | `BGSSaveLoadGame::SetThreadLoading` | IDA | call | `s_setLoading` | [SaveLoad.cpp:115](../../Code/engine/SaveLoad.cpp#L115) |  |
 | 19378 | `0x2d63b0` | `BGSSaveLoadGame::SetThreadLoading` | IDA | call | `s_setLoading` | [SaveLoad.cpp:122](../../Code/engine/SaveLoad.cpp#L122) |  |
 | 19384 | `0x2d64b0` | `BSFadeNode__IsFadedIn` | IDA meh | hook → `HookIsFadedIn` | `RealIsFadedIn` | [FarAnimations.cpp:27](../../Code/engine/FarAnimations.cpp#L27) |  |
-| 19665 | `0x2e6f80` | `TESObjectREFR::SetScale` | CL meh | call | `s_setScale` | [TESObjectREFR.cpp:405](../../Code/engine/TESObjectREFR.cpp#L405) |  |
-| 19702 | `0x2e8660` | `TESObjectREFR::GetContainer` | meh | call | `s_getContainer` | [TESObjectREFR.cpp:497](../../Code/engine/TESObjectREFR.cpp#L497) |  |
+| 19665 | `0x2e6f80` | `TESObjectREFR::SetScale` | CL meh | call | `s_setScale` | [TESObjectREFR.cpp:377](../../Code/engine/TESObjectREFR.cpp#L377) |  |
+| 19702 | `0x2e8660` | `TESObjectREFR::GetContainer` | meh | call | `s_getContainer` | [TESObjectREFR.cpp:469](../../Code/engine/TESObjectREFR.cpp#L469) |  |
 | 19781 | `0x2f08d0` | `TESObjectREFR::GetDisplayFullName` | IDA CL SKSE meh | call | `s_getDisplayFullName` | [TESObjectREFR.cpp:185](../../Code/engine/TESObjectREFR.cpp#L185) |  |
-| 19800 | `0x2f2840` | `TESObjectREFR::Enable` | IDA CL meh | call | `s_enable` | [TESObjectREFR.cpp:1050](../../Code/engine/TESObjectREFR.cpp#L1050) |  |
-| 19801 | `0x2f2d70` | `TESObjectREFR::Disable` | IDA meh | call | `s_disable` | [TESObjectREFR.cpp:624](../../Code/engine/TESObjectREFR.cpp#L624) |  |
-| 19812 | `0x2f3b70` | `TESObjectREFR::GetCurrentLocation` | CL meh | call | `s_GetActorLocation` | [Actor.cpp:1454](../../Code/engine/Actor.cpp#L1454) |  |
+| 19800 | `0x2f2840` | `TESObjectREFR::Enable` | IDA CL meh | call | `s_enable` | [TESObjectREFR.cpp:1016](../../Code/engine/TESObjectREFR.cpp#L1016) |  |
+| 19801 | `0x2f2d70` | `TESObjectREFR::Disable` | IDA meh | call | `s_disable` | [TESObjectREFR.cpp:596](../../Code/engine/TESObjectREFR.cpp#L596) |  |
+| 19812 | `0x2f3b70` | `TESObjectREFR::GetCurrentLocation` | CL meh | call | `s_GetActorLocation` | [Actor.cpp:1366](../../Code/engine/Actor.cpp#L1366) |  |
 | 19846 | `0x2f60c0` | `BSPointerHandleManagerInterface::GetHandleSafe` | meh | call | `s_getHandle` | [TESObjectREFR.cpp:97](../../Code/engine/TESObjectREFR.cpp#L97) |  |
 | 20123 | `0x2fdeb0` | `TESObjectREFR::sub_20123` | meh | hook → `HookUpdateAnimationGraphs` | `RealUpdateAnimationGraphs` | [Animation.cpp:318](../../Code/engine/Animation.cpp#L318) |  |
-| 20194 | `0x300440` | `TESObjectREFR::GetOwner` | CL meh | call | `s_getOwner` | [TESObjectREFR.cpp:432](../../Code/engine/TESObjectREFR.cpp#L432) |  |
-| 20198 | `0x300740` | `TESObjectREFR::SetOwner` | IDA CL meh | call | `s_setOwner` | [TESObjectREFR.cpp:412](../../Code/engine/TESObjectREFR.cpp#L412) |  |
-| 20221 | `0x301160` | `TESObjectREFR::AddLock` | CL meh | call | `realCreateLock` | [TESObjectREFR.cpp:453](../../Code/engine/TESObjectREFR.cpp#L453) |  |
-| 20223 | `0x301360` | `TESObjectREFR::GetLock` | IDA CL meh | call | `realGetLock` | [TESObjectREFR.cpp:445](../../Code/engine/TESObjectREFR.cpp#L445) |  |
-| 22053 | `0x3508d0` | `TESObjectREFR::SetPositionOnAxis` | IDA meh | call | `s_setPositionOnAxis` | [TESObjectREFR.cpp:388](../../Code/engine/TESObjectREFR.cpp#L388) |  |
-| 22054 | `0x350a40` | `TESObjectREFR::SetRotation` | IDA meh | call | `s_setAngleOnAxis` | [TESObjectREFR.cpp:395](../../Code/engine/TESObjectREFR.cpp#L395) |  |
+| 20194 | `0x300440` | `TESObjectREFR::GetOwner` | CL meh | call | `s_getOwner` | [TESObjectREFR.cpp:404](../../Code/engine/TESObjectREFR.cpp#L404) |  |
+| 20198 | `0x300740` | `TESObjectREFR::SetOwner` | IDA CL meh | call | `s_setOwner` | [TESObjectREFR.cpp:384](../../Code/engine/TESObjectREFR.cpp#L384) |  |
+| 20221 | `0x301160` | `TESObjectREFR::AddLock` | CL meh | call | `realCreateLock` | [TESObjectREFR.cpp:425](../../Code/engine/TESObjectREFR.cpp#L425) |  |
+| 20223 | `0x301360` | `TESObjectREFR::GetLock` | IDA CL meh | call | `realGetLock` | [TESObjectREFR.cpp:417](../../Code/engine/TESObjectREFR.cpp#L417) |  |
+| 22053 | `0x3508d0` | `TESObjectREFR::SetPositionOnAxis` | IDA meh | call | `s_setPositionOnAxis` | [TESObjectREFR.cpp:360](../../Code/engine/TESObjectREFR.cpp#L360) |  |
+| 22054 | `0x350a40` | `TESObjectREFR::SetRotation` | IDA meh | call | `s_setAngleOnAxis` | [TESObjectREFR.cpp:367](../../Code/engine/TESObjectREFR.cpp#L367) |  |
 | 23329 | `0x386320` | `?` | - | hook → `HookOperation` | `RealOperation` | [GlobalEvents.cpp:88](../../Code/engine/GlobalEvents.cpp#L88) | **undocumented** |
 | 23951 | `0x39c340` | `ObjectiveState::GetEventSource` | CL | call | `getSource` | [QuestEvents.cpp:84](../../Code/engine/QuestEvents.cpp#L84) |  |
-| 24568 | `0x3b77d0` | `TESIdleForm::sub_24568` | meh | call | `GetSomeIdleProperty` | [AnimationExperiments.cpp:255](../../Code/engine/AnimationExperiments.cpp#L255) |  |
-| 24602 | `0x3b9040` | `coop_PickIdleForAction` | IDA | call | `s_pickIdleForAction` | [TESObjectREFR.cpp:1085](../../Code/engine/TESObjectREFR.cpp#L1085) |  |
+| 24602 | `0x3b9040` | `coop_PickIdleForAction` | IDA | call | `s_pickIdleForAction` | [TESObjectREFR.cpp:1051](../../Code/engine/TESObjectREFR.cpp#L1051) |  |
 | 24724 | `0x3c2940` | `TESNPC::UpdateHeadState` | IDA meh | hook → `HookUpdateHeadState` | `RealUpdateHeadState` | [HeadEvents.cpp:29](../../Code/engine/HeadEvents.cpp#L29) |  |
 | 24790 | `0x3c8c00` | `TESNPC::HasOverlays` | IDA CL SKSE meh | call | `HasOverlays` | [Forms.cpp:115](../../Code/engine/Forms.cpp#L115) |  |
 | 24791 | `0x3c8d00` | `TESNPC::GetBaseOverlays` | IDA CL SKSE meh | call | `GetBaseOverlays` | [Forms.cpp:116](../../Code/engine/Forms.cpp#L116) |  |
@@ -369,15 +361,12 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 26503 | `0x421cc0` | `GetDifficultyMultiplier` | meh | call | `s_getDifficultyMultiplier` | [References.cpp:62](../../Code/engine/References.cpp#L62) |  |
 | 29496 | `0x496a80` | `TESPackage::CreatePackage` | CL | call | `s_createPackage` | [References.cpp:187](../../Code/engine/References.cpp#L187) |  |
 | 29582 | `0x49c530` | `TESPackage::FillProcedureType` | IDA meh | call | `s_fillProcedureType` | [References.cpp:189](../../Code/engine/References.cpp#L189) |  |
-| 32802 | `0x54f980` | `?` | PL | call | `sub_1404ECF50` | [AnimationExperiments.cpp:338](../../Code/engine/AnimationExperiments.cpp#L338) | **undocumented** |
-| 32803 | `0x54fac0` | `BGSSynchronizedAnimationManager::StartPair` | IDA PL | call | `sub_1404ED090` | [AnimationExperiments.cpp:375](../../Code/engine/AnimationExperiments.cpp#L375) |  |
-| 32808 | `0x5503f0` | `BGSSynchronizedAnimationManager::IsInInstance` | IDA | data | `s_isInInstance` | [Actor.cpp:1221](../../Code/engine/Actor.cpp#L1221) |  |
-| 32809 | `0x5504b0` | `BGSSynchronizedAnimationManager::EndPairsOf` | IDA | data | `s_endPairsOf` | [Actor.cpp:1211](../../Code/engine/Actor.cpp#L1211) |  |
-| 32887 | `0x5535a0` | `IAnimationGraphManagerHolder::SetGraphVariableFloat` | CL meh | call | `InternalSetFloatVariable` | [IAnimationGraphManagerHolder.cpp:10](../../Code/engine/IAnimationGraphManagerHolder.cpp#L10) |  |
+| 32808 | `0x5503f0` | `BGSSynchronizedAnimationManager::IsInInstance` | IDA | data | `s_isInInstance` | [Actor.cpp:1140](../../Code/engine/Actor.cpp#L1140) |  |
+| 32809 | `0x5504b0` | `BGSSynchronizedAnimationManager::EndPairsOf` | IDA | data | `s_endPairsOf` | [Actor.cpp:1130](../../Code/engine/Actor.cpp#L1130) |  |
 | 33235 | `0x5614a0` | `CombatController::SetTarget` | IDA | hook → `HookSetCombatTarget` | `RealSetCombatTarget` | [AiStateEvents.cpp:195](../../Code/engine/AiStateEvents.cpp#L195) |  |
 | 34050 | `0x5bac30` | `ActiveEffect::StopHitEffects` | IDA meh | hook → `HookStopHitEffects` | `RealStopHitEffects` | [EffectEvents.cpp:76](../../Code/engine/EffectEvents.cpp#L76) |  |
 | 34094 | `0x5bd6b0` | `ActiveEffect::StartHitEffects` | IDA | hook → `HookStartHitEffects` | `RealStartHitEffects` | [EffectEvents.cpp:75](../../Code/engine/EffectEvents.cpp#L75) |  |
-| 34402 | `0x5ca480` | `?` | - | call | `s_castPermanent` | [PlayerCharacter.cpp:138](../../Code/engine/PlayerCharacter.cpp#L138) | **undocumented** |
+| 34402 | `0x5ca480` | `?` | - | call | `s_castPermanent` | [PlayerCharacter.cpp:123](../../Code/engine/PlayerCharacter.cpp#L123) | **undocumented** |
 | 35503 | `0x6132c0` | `?` | - | call | `internalGetChangeFlags` | [Forms.cpp:76](../../Code/engine/Forms.cpp#L76) | **undocumented** |
 | 35577 | `0x616dc0` | `BGSSaveLoadGame::GetChange` | IDA CL | call | `s_getChange` | [SaveLoad.cpp:99](../../Code/engine/SaveLoad.cpp#L99) |  |
 | 35639 | `0x61b9a0` | `BGSSaveLoadManager::SaveGlobalData` | IDA | call | `s_saveGlobal` | [FormState.cpp:65](../../Code/engine/FormState.cpp#L65) |  |
@@ -401,62 +390,59 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 36048 | `0x639b00` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `RealBGSSaveFormBuffer_WriteFormId` | [SaveLoad.cpp:184](../../Code/engine/SaveLoad.cpp#L184) |  |
 | 36056 | `0x63a070` | `BGSSaveGameBuffer::Reserve` | IDA meh | call | `s_reserve` | [SaveLoad.cpp:46](../../Code/engine/SaveLoad.cpp#L46) |  |
 | 36291 | `0x645d60` | `Calendar::Update` | IDA | hook → `HookSimulateTime` | `RealSimulateTime` | [TimeManager.cpp:56](../../Code/engine/TimeManager.cpp#L56) |  |
-| 36922 | `0x6683f0` | `TaskQueueInterface::QueueAddToWorld` | IDA | call | `s_addToWorld` | [Actor.cpp:232](../../Code/engine/Actor.cpp#L232) |  |
-| 36924 | `0x668480` | `TaskQueueInterface::QueueRemoveFromWorld` | IDA | call | `s_removeFromWorld` | [Actor.cpp:233](../../Code/engine/Actor.cpp#L233) |  |
-| 36925 | `0x6684c0` | `TaskQueueInterface::QueueSetMotionType` | IDA | call | `s_setMotionType` | [Actor.cpp:234](../../Code/engine/Actor.cpp#L234) |  |
-| 36929 | `0x6685c0` | `TaskQueueInterface::QueueSetCollisionLayerAndGroup` | IDA | call | `s_setLayerAndGroup` | [Actor.cpp:235](../../Code/engine/Actor.cpp#L235) |  |
-| 37006 | `0x66cea0` | `bhkWorldObject::SetCollisionFilterInfo` | IDA | call | `s_setFilter` | [Actor.cpp:181](../../Code/engine/Actor.cpp#L181) |  |
-| 37147 | `0x66f700` | `?` | PL | call | `sub_1405CCB20` | [AnimationExperiments.cpp:337](../../Code/engine/AnimationExperiments.cpp#L337) | **undocumented** |
-| 37169 | `0x66fca0` | `Actor::FinishSheathe` | IDA meh | call | `s_sheathed` | [Actor.cpp:386](../../Code/engine/Actor.cpp#L386) |  |
-| 37175 | `0x670e20` | `Actor::sub_37175` | meh | data | `s_characterDtor` | [Actor.cpp:1453](../../Code/engine/Actor.cpp#L1453) |  |
+| 36922 | `0x6683f0` | `TaskQueueInterface::QueueAddToWorld` | IDA | call | `s_addToWorld` | [Actor.cpp:213](../../Code/engine/Actor.cpp#L213) |  |
+| 36924 | `0x668480` | `TaskQueueInterface::QueueRemoveFromWorld` | IDA | call | `s_removeFromWorld` | [Actor.cpp:214](../../Code/engine/Actor.cpp#L214) |  |
+| 36925 | `0x6684c0` | `TaskQueueInterface::QueueSetMotionType` | IDA | call | `s_setMotionType` | [Actor.cpp:215](../../Code/engine/Actor.cpp#L215) |  |
+| 36929 | `0x6685c0` | `TaskQueueInterface::QueueSetCollisionLayerAndGroup` | IDA | call | `s_setLayerAndGroup` | [Actor.cpp:216](../../Code/engine/Actor.cpp#L216) |  |
+| 37006 | `0x66cea0` | `bhkWorldObject::SetCollisionFilterInfo` | IDA | call | `s_setFilter` | [Actor.cpp:162](../../Code/engine/Actor.cpp#L162) |  |
+| 37169 | `0x66fca0` | `Actor::FinishSheathe` | IDA meh | call | `s_sheathed` | [Actor.cpp:367](../../Code/engine/Actor.cpp#L367) |  |
 | 37247 | `0x674b70` | `Actor::GetCurrentScene` | meh | hook → `HookGetCurrentScene` | `RealGetCurrentScene` | [CopyAiState.cpp:70](../../Code/engine/CopyAiState.cpp#L70) |  |
 | 37321 | `0x678560` | `Actor::Resurrect` | IDA meh | hook → `HookResurrect` | `RealResurrect` | [ActorValueEvents.cpp:75](../../Code/engine/ActorValueEvents.cpp#L75) |  |
-| 37334 | `0x6797a0` | `Actor::GetLevel` | CL SKSE meh | call | `s_getLevel` | [Actor.cpp:142](../../Code/engine/Actor.cpp#L142) |  |
+| 37334 | `0x6797a0` | `Actor::GetLevel` | CL SKSE meh | call | `s_getLevel` | [Actor.cpp:123](../../Code/engine/Actor.cpp#L123) |  |
 | 37381 | `0x67eab0` | `Character::SetCrimeFaction` | meh | hook → `HookSetCrimeFaction` | `RealSetCrimeFaction` | [FactionEvents.cpp:82](../../Code/engine/FactionEvents.cpp#L82) |  |
 | 37399 | `0x67f680` | `Actor::GetCurrentPackage` | IDA meh | hook → `HookGetCurrentPackage` | `RealGetCurrentPackage` | [CopyAiState.cpp:71](../../Code/engine/CopyAiState.cpp#L71) |  |
 | 37399 | `0x67f680` | `Actor::GetCurrentPackage` | IDA meh | call | `s_getCurrentPackage` | [References.cpp:149](../../Code/engine/References.cpp#L149) |  |
-| 37401 | `0x67f7b0` | `Actor::EvaluatePackage` | CL SKSE meh | call | `s_evaluate` | [Actor.cpp:1051](../../Code/engine/Actor.cpp#L1051) |  |
+| 37401 | `0x67f7b0` | `Actor::EvaluatePackage` | CL SKSE meh | call | `s_evaluate` | [Actor.cpp:970](../../Code/engine/Actor.cpp#L970) |  |
 | 37402 | `0x67fc60` | `Actor::InitiateDoNothingPackage` | CL | call | `s_initiateDoNothingPackage` | [References.cpp:178](../../Code/engine/References.cpp#L178) |  |
 | 37474 | `0x687080` | `Actor::EndInterruptPackage` | IDA CL meh | call | `s_endInterruptPackage` | [References.cpp:170](../../Code/engine/References.cpp#L170) |  |
-| 37491 | `0x687c20` | `Actor::IsInRagdollState` | CL meh | call | `s_isInRagdollState` | [Actor.cpp:1110](../../Code/engine/Actor.cpp#L1110) |  |
-| 37527 | `0x68be50` | `Actor::GetGoldAmount` | meh | call | `s_getGoldAmount` | [Actor.cpp:826](../../Code/engine/Actor.cpp#L826) |  |
+| 37491 | `0x687c20` | `Actor::IsInRagdollState` | CL meh | call | `s_isInRagdollState` | [Actor.cpp:1029](../../Code/engine/Actor.cpp#L1029) |  |
+| 37527 | `0x68be50` | `Actor::GetGoldAmount` | meh | call | `s_getGoldAmount` | [Actor.cpp:752](../../Code/engine/Actor.cpp#L752) |  |
 | 37570 | `0x691590` | `Actor::PutCreatedPackage` | meh | hook → `HookPutCreatedPackage` | `RealPutCreatedPackage` | [References.cpp:227](../../Code/engine/References.cpp#L227) |  |
 | 37615 | `0x6939e0` | `Actor::SetCriticalStage` | meh | hook → `HookSetCriticalStage` | `RealSetCriticalStage` | [CriticalStage.cpp:87](../../Code/engine/CriticalStage.cpp#L87) |  |
-| 37677 | `0x69d450` | `Actor::SetFactionRank` | IDA meh | call | `s_setFactionRankInternal` | [Actor.cpp:915](../../Code/engine/Actor.cpp#L915) |  |
+| 37677 | `0x69d450` | `Actor::SetFactionRank` | IDA meh | call | `s_setFactionRankInternal` | [Actor.cpp:841](../../Code/engine/Actor.cpp#L841) |  |
 | 37677 | `0x69d450` | `Actor::SetFactionRank` | IDA meh | hook → `HookSetFactionRank` | `RealSetFactionRank` | [FactionEvents.cpp:81](../../Code/engine/FactionEvents.cpp#L81) |  |
 | 37686 | `0x69de30` | `Actor::AddToFaction` | CL meh | hook → `HookAddToFaction` | `RealAddToFaction` | [FactionEvents.cpp:79](../../Code/engine/FactionEvents.cpp#L79) |  |
 | 37688 | `0x69df90` | `Actor::RemoveFromFaction` | CL meh | hook → `HookRemoveFromFaction` | `RealRemoveFromFaction` | [FactionEvents.cpp:80](../../Code/engine/FactionEvents.cpp#L80) |  |
-| 37698 | `0x69f920` | `Actor::HasPerk` | CL SKSE meh | call | `getPerkRank` | [Actor.cpp:527](../../Code/engine/Actor.cpp#L527) |  |
-| 37717 | `0x6a01c0` | `?` | - | call | `setPlayerTeammate` | [Actor.cpp:923](../../Code/engine/Actor.cpp#L923) | **undocumented** |
+| 37698 | `0x69f920` | `Actor::HasPerk` | CL SKSE meh | call | `getPerkRank` | [Actor.cpp:480](../../Code/engine/Actor.cpp#L480) |  |
 | 37758 | `0x6a2300` | `Actor__GetFreshDetectionStateOf` | IDA meh | hook → `HookDetectionStateOf` | `RealDetectionStateOf` | [AiStateEvents.cpp:197](../../Code/engine/AiStateEvents.cpp#L197) |  |
 | 37758 | `0x6a2300` | `Actor__GetFreshDetectionStateOf` | IDA meh | call | `s_freshState` | [StealthEye.cpp:68](../../Code/engine/StealthEye.cpp#L68) |  |
-| 37925 | `0x6ad970` | `Actor::SwitchRace` | CL SKSE meh | call | `s_switchRace` | [Actor.cpp:499](../../Code/engine/Actor.cpp#L499) |  |
+| 37925 | `0x6ad970` | `Actor::SwitchRace` | CL SKSE meh | call | `s_switchRace` | [Actor.cpp:452](../../Code/engine/Actor.cpp#L452) |  |
 | 38009 | `0x6b3f20` | `Actor::ProcessTracking` | IDA meh | hook → `HookProcessTracking` | `RealProcessTracking` | [AiStateEvents.cpp:198](../../Code/engine/AiStateEvents.cpp#L198) |  |
 | 38275 | `0x6bd610` | `?` | - | call | `ReleaseSet` | [ActionClips.cpp:34](../../Code/engine/ActionClips.cpp#L34) | **undocumented** |
 | 38275 | `0x6bd610` | `?` | - | call | `ReleaseSet` | [ActionClips.cpp:70](../../Code/engine/ActionClips.cpp#L70) | **undocumented** |
-| 38468 | `0x6c5220` | `Actor::SetActorValueModifiers` | PL meh | data | `s_setActorValueModifiers` | [Actor.cpp:785](../../Code/engine/Actor.cpp#L785) |  |
+| 38468 | `0x6c5220` | `Actor::SetActorValueModifiers` | PL meh | data | `s_setActorValueModifiers` | [Actor.cpp:711](../../Code/engine/Actor.cpp#L711) |  |
 | 38470 | `0x6c54c0` | `Actor::SendActorValueUpdate` | meh | hook → `HookUpdate` | `RealUpdate` | [ActorValueEvents.cpp:74](../../Code/engine/ActorValueEvents.cpp#L74) |  |
 | 38505 | `0x6c6f50` | `?` | - | hook → `HookSoulSink` | `RealSoulSink` | [DragonSouls.cpp:29](../../Code/engine/DragonSouls.cpp#L29) | **undocumented** |
-| 38556 | `0x6c90b0` | `Actor::GetCombatState` | PL meh | call | `s_getCombatState` | [Actor.cpp:1445](../../Code/engine/Actor.cpp#L1445) |  |
+| 38556 | `0x6c90b0` | `Actor::GetCombatState` | PL meh | call | `s_getCombatState` | [Actor.cpp:1358](../../Code/engine/Actor.cpp#L1358) |  |
 | 38561 | `0x6c93b0` | `Actor::StartCombat` | IDA CL meh | hook → `HookStartCombat` | `RealStartCombat` | [CopyAiState.cpp:72](../../Code/engine/CopyAiState.cpp#L72) |  |
-| 38613 | `0x6cc740` | `Character::EnterKillMove` | IDA meh | data | `s_enterKillMove` | [Actor.cpp:1246](../../Code/engine/Actor.cpp#L1246) |  |
-| 38614 | `0x6cc840` | `Character::EndKillMove` | IDA meh | data | `s_endKillMove` | [Actor.cpp:1254](../../Code/engine/Actor.cpp#L1254) |  |
-| 38615 | `0x6cc8f0` | `Actor::IsInKillMove` | meh | data | `s_isInKillMove` | [Actor.cpp:1203](../../Code/engine/Actor.cpp#L1203) |  |
-| 38616 | `0x6cc910` | `Character::StartDeferredKill` | meh | data | `s_startDeferredKill` | [Actor.cpp:1124](../../Code/engine/Actor.cpp#L1124) |  |
-| 38618 | `0x6cc950` | `Actor::EndDeferredKill` | IDA meh | data | `s_endDeferredKill` | [Actor.cpp:1132](../../Code/engine/Actor.cpp#L1132) |  |
-| 38619 | `0x6cc970` | `Actor::IsInDeferredKill` | IDA meh | data | `s_isInDeferredKill` | [Actor.cpp:1262](../../Code/engine/Actor.cpp#L1262) |  |
+| 38613 | `0x6cc740` | `Character::EnterKillMove` | IDA meh | data | `s_enterKillMove` | [Actor.cpp:1165](../../Code/engine/Actor.cpp#L1165) |  |
+| 38614 | `0x6cc840` | `Character::EndKillMove` | IDA meh | data | `s_endKillMove` | [Actor.cpp:1173](../../Code/engine/Actor.cpp#L1173) |  |
+| 38615 | `0x6cc8f0` | `Actor::IsInKillMove` | meh | data | `s_isInKillMove` | [Actor.cpp:1122](../../Code/engine/Actor.cpp#L1122) |  |
+| 38616 | `0x6cc910` | `Character::StartDeferredKill` | meh | data | `s_startDeferredKill` | [Actor.cpp:1043](../../Code/engine/Actor.cpp#L1043) |  |
+| 38618 | `0x6cc950` | `Actor::EndDeferredKill` | IDA meh | data | `s_endDeferredKill` | [Actor.cpp:1051](../../Code/engine/Actor.cpp#L1051) |  |
+| 38619 | `0x6cc970` | `Actor::IsInDeferredKill` | IDA meh | data | `s_isInDeferredKill` | [Actor.cpp:1181](../../Code/engine/Actor.cpp#L1181) |  |
 | 38628 | `0x6cd850` | `Actor::CalculateCurrentHitTargetForWeaponSwing` | IDA PL meh | data | `swing` | [PlayerHands.cpp:149](../../Code/engine/PlayerHands.cpp#L149) |  |
 | 38628 | `0x6cd850` | `Actor::CalculateCurrentHitTargetForWeaponSwing` | IDA PL meh | hook → `HookWeaponSwing` | `RealWeaponSwing` | [PlayerHands.cpp:155](../../Code/engine/PlayerHands.cpp#L155) |  |
-| 38696 | `0x6d25c0` | `Actor::FinishDismount` | IDA | call | `s_finishDismount` | [Actor.cpp:1073](../../Code/engine/Actor.cpp#L1073) |  |
-| 38696 | `0x6d25c0` | `Actor::FinishDismount` | IDA | call | `s_finishDismount` | [Actor.cpp:1085](../../Code/engine/Actor.cpp#L1085) |  |
-| 38705 | `0x6d3660` | `Actor::StopRidingQuick` | IDA meh | call | `s_stopRidingQuick` | [Actor.cpp:1064](../../Code/engine/Actor.cpp#L1064) |  |
-| 38708 | `0x6d39c0` | `Character::sub_38708` | meh | call | `s_getOccupiedFurniture` | [Actor.cpp:982](../../Code/engine/Actor.cpp#L982) |  |
-| 38716 | `0x6d3d60` | `Actor::AddSpell` | CL meh | call | `s_addSpell` | [Actor.cpp:492](../../Code/engine/Actor.cpp#L492) |  |
-| 38717 | `0x6d3f70` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `RealRemoveSpell` | [Actor.cpp:1456](../../Code/engine/Actor.cpp#L1456) |  |
-| 38753 | `0x6d6020` | `Actor::CastPermanentMagic` | CL PL meh | call | `s_castPermanentMagic` | [Actor.cpp:414](../../Code/engine/Actor.cpp#L414) |  |
-| 38757 | `0x6d6690` | `Actor::InterruptCast` | CL meh | call | `s_interruptCast` | [Actor.cpp:595](../../Code/engine/Actor.cpp#L595) |  |
-| 38795 | `0x6d85b0` | `MagicTarget::GetActiveEffectList` | meh | call | `s_effects` | [Actor.cpp:444](../../Code/engine/Actor.cpp#L444) |  |
-| 38825 | `0x6d9f20` | `Actor::ClearPowerCooldowns` | IDA meh | call | `s_clear` | [Actor.cpp:432](../../Code/engine/Actor.cpp#L432) |  |
+| 38696 | `0x6d25c0` | `Actor::FinishDismount` | IDA | call | `s_finishDismount` | [Actor.cpp:992](../../Code/engine/Actor.cpp#L992) |  |
+| 38696 | `0x6d25c0` | `Actor::FinishDismount` | IDA | call | `s_finishDismount` | [Actor.cpp:1004](../../Code/engine/Actor.cpp#L1004) |  |
+| 38705 | `0x6d3660` | `Actor::StopRidingQuick` | IDA meh | call | `s_stopRidingQuick` | [Actor.cpp:983](../../Code/engine/Actor.cpp#L983) |  |
+| 38708 | `0x6d39c0` | `Character::sub_38708` | meh | call | `s_getOccupiedFurniture` | [Actor.cpp:901](../../Code/engine/Actor.cpp#L901) |  |
+| 38716 | `0x6d3d60` | `Actor::AddSpell` | CL meh | call | `s_addSpell` | [Actor.cpp:445](../../Code/engine/Actor.cpp#L445) |  |
+| 38717 | `0x6d3f70` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `RealRemoveSpell` | [Actor.cpp:1368](../../Code/engine/Actor.cpp#L1368) |  |
+| 38753 | `0x6d6020` | `Actor::CastPermanentMagic` | CL PL meh | call | `s_castPermanentMagic` | [Actor.cpp:395](../../Code/engine/Actor.cpp#L395) |  |
+| 38757 | `0x6d6690` | `Actor::InterruptCast` | CL meh | call | `s_interruptCast` | [Actor.cpp:532](../../Code/engine/Actor.cpp#L532) |  |
+| 38795 | `0x6d85b0` | `MagicTarget::GetActiveEffectList` | meh | call | `s_effects` | [Actor.cpp:420](../../Code/engine/Actor.cpp#L420) |  |
+| 38825 | `0x6d9f20` | `Actor::ClearPowerCooldowns` | IDA meh | call | `s_clear` | [Actor.cpp:408](../../Code/engine/Actor.cpp#L408) |  |
 | 38894 | `0x6dc310` | `ActorEquipManager::EquipObject` | IDA CL SKSE meh | call | `s_equipFunc` | [EquipManager.cpp:77](../../Code/engine/EquipManager.cpp#L77) |  |
 | 38896 | `0x6dc560` | `ActorEquipManager::EquipSpellBySlot` | IDA | call | `s_equipFunc` | [EquipManager.cpp:101](../../Code/engine/EquipManager.cpp#L101) |  |
 | 38897 | `0x6dc5d0` | `ActorEquipManager::EquipShout` | CL meh | call | `s_equipFunc` | [EquipManager.cpp:121](../../Code/engine/EquipManager.cpp#L121) |  |
@@ -470,87 +456,70 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 38933 | `0x6df010` | `?` | - | hook → `UnEquipSpellHook` | `RealUnEquipSpell` | [EquipManager.cpp:325](../../Code/engine/EquipManager.cpp#L325) | **undocumented** |
 | 38934 | `0x6df300` | `?` | - | hook → `UnEquipHook` | `RealUnEquip` | [EquipManager.cpp:323](../../Code/engine/EquipManager.cpp#L323) | **undocumented** |
 | 38935 | `0x6df550` | `?` | - | hook → `UnEquipShoutHook` | `RealUnEquipShout` | [EquipManager.cpp:327](../../Code/engine/EquipManager.cpp#L327) | **undocumented** |
-| 38949 | `0x6dfbc0` | `?` | - | call | `s_performAction` | [Actor.cpp:1327](../../Code/engine/Actor.cpp#L1327) | **undocumented** |
+| 38949 | `0x6dfbc0` | `?` | - | call | `s_performAction` | [Actor.cpp:1246](../../Code/engine/Actor.cpp#L1246) | **undocumented** |
 | 38949 | `0x6dfbc0` | `?` | - | hook → `HookPerformAction` | `RealPerformAction` | [Animation.cpp:317](../../Code/engine/Animation.cpp#L317) | **undocumented** |
-| 38952 | `0x6dff00` | `ActorMediator::sub_38952` | PL meh | call | `PerformIdleAction` | [AnimationExperiments.cpp:286](../../Code/engine/AnimationExperiments.cpp#L286) |  |
-| 38952 | `0x6dff00` | `ActorMediator::sub_38952` | PL meh | call | `sub_14063CFB0` | [AnimationExperiments.cpp:336](../../Code/engine/AnimationExperiments.cpp#L336) |  |
 | 38953 | `0x6dff90` | `?` | - | call | `PerformComplexAction` | [Animation.cpp:242](../../Code/engine/Animation.cpp#L242) | **undocumented** |
-| 38953 | `0x6dff90` | `?` | - | call | `PerformComplexAction` | [AnimationExperiments.cpp:287](../../Code/engine/AnimationExperiments.cpp#L287) | **undocumented** |
 | 38959 | `0x6e0420` | `?` | - | call | `s_initFromPackage` | [References.cpp:157](../../Code/engine/References.cpp#L157) | **undocumented** |
 | 38959 | `0x6e0420` | `?` | - | hook → `HookInitFromPackage` | `RealInitFromPackage` | [References.cpp:222](../../Code/engine/References.cpp#L222) | **undocumented** |
-| 39002 | `0x6e1ca0` | `coop_ActionSelectionChecks` | IDA | call | `sub_14063CAA0` | [AnimationExperiments.cpp:335](../../Code/engine/AnimationExperiments.cpp#L335) |  |
-| 39004 | `0x6e2250` | `coop_ApplyActionGraphEffects` | IDA | call | `ApplyAnimationVariables` | [AnimationExperiments.cpp:30](../../Code/engine/AnimationExperiments.cpp#L30) |  |
 | 39033 | `0x6e49e0` | `TaskQueueInterface::ShouldUseTaskQueue` | CL meh | call | `s_shouldUseTaskQueue` | [CriticalStage.cpp:39](../../Code/engine/CriticalStage.cpp#L39) |  |
 | 39114 | `0x6e8240` | `?` | - | hook → `HookCheckForNewPackage` | `RealCheckForNewPackage` | [References.cpp:223](../../Code/engine/References.cpp#L223) | **undocumented** |
 | 39258 | `0x6f1190` | `?` | IDA | call | `CancelLoad` | [ActionClips.cpp:101](../../Code/engine/ActionClips.cpp#L101) |  |
 | 39731 | `0x71cb30` | `coop_AssignMiddleCallback` | IDA | call | `AssignCallback` | [ActionClips.cpp:42](../../Code/engine/ActionClips.cpp#L42) |  |
 | 39731 | `0x71cb30` | `coop_AssignMiddleCallback` | IDA | call | `AssignMiddleCallback` | [ActionClips.cpp:103](../../Code/engine/ActionClips.cpp#L103) |  |
 | 39732 | `0x71cb80` | `?` | - | data | `AssignHighCallback` | [ActionClips.cpp:102](../../Code/engine/ActionClips.cpp#L102) | **undocumented** |
-| 39912 | `0x7246a0` | `AIProcess::SetSitSleepState` | IDA | call | `s_setSitSleepState` | [Actor.cpp:1072](../../Code/engine/Actor.cpp#L1072) |  |
+| 39912 | `0x7246a0` | `AIProcess::SetSitSleepState` | IDA | call | `s_setSitSleepState` | [Actor.cpp:991](../../Code/engine/Actor.cpp#L991) |  |
 | 40055 | `0x72a2c0` | `?` | - | call | `KeepSet` | [ActionClips.cpp:69](../../Code/engine/ActionClips.cpp#L69) | **undocumented** |
-| 40245 | `0x739180` | `?` | PL | hook → `HookCharacterConstructor` | `RealCharacterConstructor` | [Actor.cpp:1457](../../Code/engine/Actor.cpp#L1457) | **undocumented** |
-| 40246 | `0x739280` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `RealCharacterConstructor2` | [Actor.cpp:1458](../../Code/engine/Actor.cpp#L1458) |  |
-| 40255 | `0x739a40` | `Actor::DoReset3D` | IDA CL SKSE meh | call | `QueueUpdate` | [Actor.cpp:260](../../Code/engine/Actor.cpp#L260) |  |
-| 40255 | `0x739a40` | `Actor::DoReset3D` | IDA CL SKSE meh | call | `s_doReset3D` | [Actor.cpp:421](../../Code/engine/Actor.cpp#L421) |  |
-| 40345 | `0x73ca00` | `MountInteraction::MountInteraction` | IDA | call | `s_construct` | [Actor.cpp:950](../../Code/engine/Actor.cpp#L950) |  |
+| 40245 | `0x739180` | `?` | PL | hook → `HookCharacterConstructor` | `RealCharacterConstructor` | [Actor.cpp:1369](../../Code/engine/Actor.cpp#L1369) | **undocumented** |
+| 40246 | `0x739280` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `RealCharacterConstructor2` | [Actor.cpp:1370](../../Code/engine/Actor.cpp#L1370) |  |
+| 40255 | `0x739a40` | `Actor::DoReset3D` | IDA CL SKSE meh | call | `QueueUpdate` | [Actor.cpp:241](../../Code/engine/Actor.cpp#L241) |  |
+| 40255 | `0x739a40` | `Actor::DoReset3D` | IDA CL SKSE meh | call | `s_doReset3D` | [Actor.cpp:402](../../Code/engine/Actor.cpp#L402) |  |
+| 40345 | `0x73ca00` | `MountInteraction::MountInteraction` | IDA | call | `s_construct` | [Actor.cpp:869](../../Code/engine/Actor.cpp#L869) |  |
 | 40437 | `0x742df0` | `PlayerCharacter::CenterOnCell_Impl` | CL meh | call | `s_centerOnCell` | [CreationStart.cpp:116](../../Code/engine/CreationStart.cpp#L116) |  |
-| 40438 | `0x743090` | `PlayerCharacter::ProcessQueuedTravel` | IDA | hook → `HookProcessQueuedTravel` | `RealProcessQueuedTravel` | [PlayerCharacter.cpp:433](../../Code/engine/PlayerCharacter.cpp#L433) |  |
+| 40438 | `0x743090` | `PlayerCharacter::ProcessQueuedTravel` | IDA | hook → `HookProcessQueuedTravel` | `RealProcessQueuedTravel` | [PlayerCharacter.cpp:418](../../Code/engine/PlayerCharacter.cpp#L418) |  |
 | 40445 | `0x744600` | `Actor::FastTravel` | IDA meh | hook → `HookFastTravel` | `RealFastTravel` | [TimeManager.cpp:55](../../Code/engine/TimeManager.cpp#L55) |  |
 | 40476 | `0x748d10` | `PlayerCharacter::ShowFirstPersonRoot` | IDA | hook → `HookShowFirstPersonRoot` | `RealShowFirstPersonRoot` | [CriticalStage.cpp:89](../../Code/engine/CriticalStage.cpp#L89) |  |
-| 40488 | `0x7499e0` | `PlayerCharacter::AddSkillExperience` | CL meh | hook → `HookAddSkillExperience` | `RealAddSkillExperience` | [PlayerCharacter.cpp:436](../../Code/engine/PlayerCharacter.cpp#L436) |  |
-| 40533 | `0x74c560` | `PlayerCharacter::PickUpObject` | meh | hook → `HookPickUpObject` | `RealPickUpObject` | [PlayerCharacter.cpp:434](../../Code/engine/PlayerCharacter.cpp#L434) |  |
-| 40535 | `0x74cc30` | `PlayerCharacter::SetPlayerMapMarker` | IDA | hook → `HookSetWaypoint` | `RealSetWaypoint` | [PlayerCharacter.cpp:437](../../Code/engine/PlayerCharacter.cpp#L437) |  |
-| 40536 | `0x74cd90` | `PlayerCharacter::ClearPlayerMapMarker` | IDA meh | hook → `HookRemoveWaypoint` | `RealRemoveWaypoint` | [PlayerCharacter.cpp:438](../../Code/engine/PlayerCharacter.cpp#L438) |  |
-| 40563 | `0x754640` | `?` | - | hook → `HookSetDifficulty` | `RealSetDifficulty` | [PlayerCharacter.cpp:439](../../Code/engine/PlayerCharacter.cpp#L439) | **undocumented** |
-| 40586 | `0x7559f0` | `PlayerCharacter::SetAIDriven` | CL | call | `s_setAiDriven` | [PlayerCharacter.cpp:119](../../Code/engine/PlayerCharacter.cpp#L119) |  |
-| 40692 | `0x75c2c0` | `?` | - | data | `s_rememberSaid` | [PlayerCharacter.cpp:111](../../Code/engine/PlayerCharacter.cpp#L111) | **undocumented** |
-| 40694 | `0x75c610` | `?` | - | data | `s_saidRecently` | [PlayerCharacter.cpp:104](../../Code/engine/PlayerCharacter.cpp#L104) | **undocumented** |
+| 40488 | `0x7499e0` | `PlayerCharacter::AddSkillExperience` | CL meh | hook → `HookAddSkillExperience` | `RealAddSkillExperience` | [PlayerCharacter.cpp:421](../../Code/engine/PlayerCharacter.cpp#L421) |  |
+| 40533 | `0x74c560` | `PlayerCharacter::PickUpObject` | meh | hook → `HookPickUpObject` | `RealPickUpObject` | [PlayerCharacter.cpp:419](../../Code/engine/PlayerCharacter.cpp#L419) |  |
+| 40535 | `0x74cc30` | `PlayerCharacter::SetPlayerMapMarker` | IDA | hook → `HookSetWaypoint` | `RealSetWaypoint` | [PlayerCharacter.cpp:422](../../Code/engine/PlayerCharacter.cpp#L422) |  |
+| 40536 | `0x74cd90` | `PlayerCharacter::ClearPlayerMapMarker` | IDA meh | hook → `HookRemoveWaypoint` | `RealRemoveWaypoint` | [PlayerCharacter.cpp:423](../../Code/engine/PlayerCharacter.cpp#L423) |  |
+| 40563 | `0x754640` | `?` | - | hook → `HookSetDifficulty` | `RealSetDifficulty` | [PlayerCharacter.cpp:424](../../Code/engine/PlayerCharacter.cpp#L424) | **undocumented** |
+| 40586 | `0x7559f0` | `PlayerCharacter::SetAIDriven` | CL | call | `s_setAiDriven` | [PlayerCharacter.cpp:104](../../Code/engine/PlayerCharacter.cpp#L104) |  |
 | 40696 | `0x75cae0` | `?` | - | call | `s_rebuildTintMasks` | [PlayerCharacter.cpp:88](../../Code/engine/PlayerCharacter.cpp#L88) | **undocumented** |
-| 40725 | `0x75ddc0` | `PlayerCharacter::OnMountStarted` | IDA | call | `s_onMountStarted` | [PlayerCharacter.cpp:445](../../Code/engine/PlayerCharacter.cpp#L445) |  |
+| 40725 | `0x75ddc0` | `PlayerCharacter::OnMountStarted` | IDA | call | `s_onMountStarted` | [PlayerCharacter.cpp:430](../../Code/engine/PlayerCharacter.cpp#L430) |  |
 | 41238 | `0x776910` | `PlayerCharacter::UpdateInCombat` | IDA meh | hook → `HookUpdatePlayerInCombat` | `RealUpdatePlayerInCombat` | [AiStateEvents.cpp:199](../../Code/engine/AiStateEvents.cpp#L199) |  |
 | 41395 | `0x785310` | `?` | - | call | `s_stopEffectShader` | [TES.cpp:63](../../Code/engine/TES.cpp#L63) | **undocumented** |
 | 41396 | `0x785420` | `?` | - | call | `s_stopArtObject` | [TES.cpp:70](../../Code/engine/TES.cpp#L70) | **undocumented** |
 | 41408 | `0x786350` | `ProcessLists::RequestHighestDetectionLevelAgainstActor` | CL | hook → `HookHighest` | `RealHighest` | [StealthEye.cpp:57](../../Code/engine/StealthEye.cpp#L57) |  |
-| 41532 | `0x78cf30` | `RefrInteraction::Attach` | IDA | call | `s_attach` | [Actor.cpp:951](../../Code/engine/Actor.cpp#L951) |  |
-| 41533 | `0x78cf50` | `Actor::OnInteractionSeated` | IDA meh | call | `s_onSeated` | [Actor.cpp:965](../../Code/engine/Actor.cpp#L965) |  |
-| 42824 | `0x7ccac0` | `RightHandWeaponDrawHandler::Process_Origin` | IDA SKSE meh | call | `s_drawn` | [Actor.cpp:385](../../Code/engine/Actor.cpp#L385) |  |
+| 41532 | `0x78cf30` | `RefrInteraction::Attach` | IDA | call | `s_attach` | [Actor.cpp:870](../../Code/engine/Actor.cpp#L870) |  |
+| 41533 | `0x78cf50` | `Actor::OnInteractionSeated` | IDA meh | call | `s_onSeated` | [Actor.cpp:884](../../Code/engine/Actor.cpp#L884) |  |
+| 42824 | `0x7ccac0` | `RightHandWeaponDrawHandler::Process_Origin` | IDA SKSE meh | call | `s_drawn` | [Actor.cpp:366](../../Code/engine/Actor.cpp#L366) |  |
 | 42838 | `0x7cd430` | `KillActorHandler::Handle` | IDA meh | hook → `HookKillActorEvent` | `RealKillActorEvent` | [Animation.cpp:320](../../Code/engine/Animation.cpp#L320) |  |
 | 43571 | `0x7d7dc0` | `AnimationObjects::Load` | IDA | call | `s_load` | [AnimationObjects.cpp:68](../../Code/engine/AnimationObjects.cpp#L68) |  |
 | 43572 | `0x7d8080` | `AnimationObjects::Draw` | IDA | call | `s_draw` | [AnimationObjects.cpp:69](../../Code/engine/AnimationObjects.cpp#L69) |  |
 | 43621 | `0x7da170` | `?` | - | call | `LoadEventClips` | [ActionClips.cpp:104](../../Code/engine/ActionClips.cpp#L104) | **undocumented** |
-| 43830 | `0x7e45b0` | `Explosion::Func162_43830` | meh | hook → `ExplosionInitialize` | `RealExplosionInitialize` | [ModManager.cpp:134](../../Code/engine/ModManager.cpp#L134) |  |
+| 43830 | `0x7e45b0` | `Explosion::Func162_43830` | meh | hook → `ExplosionInitialize` | `RealExplosionInitialize` | [ModManager.cpp:126](../../Code/engine/ModManager.cpp#L126) |  |
 | 44703 | `0x818570` | `CombatGroup__Update` | IDA | hook → `HookUpdateCombatGroup` | `RealUpdateCombatGroup` | [AiStateEvents.cpp:196](../../Code/engine/AiStateEvents.cpp#L196) |  |
 | 46877 | `0x852450` | `CombatManager__GetLowestStealthPointsOf` | IDA meh | hook → `HookLowestStealth` | `RealLowestStealth` | [StealthEye.cpp:58](../../Code/engine/StealthEye.cpp#L58) |  |
 | 46877 | `0x852450` | `CombatManager__GetLowestStealthPointsOf` | IDA meh | data | `s_lowestStealth` | [StealthEye.cpp:69](../../Code/engine/StealthEye.cpp#L69) |  |
 | 51093 | `0x90b9d0` | `Console::SetSelectedRef_Impl` | CL meh | hook → `HookSetCurrentPickREFR` | `RealSetCurrentPickREFR` | [References.cpp:226](../../Code/engine/References.cpp#L226) |  |
-| 51925 | `0x94b8a0` | `?` | - | hook → `RequestLoadingText` | `s_requestLoadingText` | [LoadingScreen.cpp:49](../../Code/engine/LoadingScreen.cpp#L49) | **undocumented** |
 | 52118 | `0x959160` | `NewGame_Enter` | SKSE | hook → `HookNewGameEnter` | `RealNewGameEnter` | [LoadGameEvents.cpp:45](../../Code/engine/LoadGameEvents.cpp#L45) |  |
 | 52415 | `0x9718d0` | `RaceSexMenu::ChangeName` | IDA CL meh | hook → `HookChangeName` | `RealChangeName` | [CreationStart.cpp:59](../../Code/engine/CreationStart.cpp#L59) |  |
 | 52538 | `0x97e820` | `StatsMenu::ModifyPerkPoints` | meh | hook → `HookPerkPoints` | `RealPerkPoints` | [GlobalEvents.cpp:89](../../Code/engine/GlobalEvents.cpp#L89) |  |
-| 52849 | `0x98dea0` | `SendInventoryUpdateMessage` | CL meh | call | `updateItemList` | [TESObjectREFR.cpp:1029](../../Code/engine/TESObjectREFR.cpp#L1029) |  |
+| 52849 | `0x98dea0` | `SendInventoryUpdateMessage` | CL meh | call | `updateItemList` | [TESObjectREFR.cpp:995](../../Code/engine/TESObjectREFR.cpp#L995) |  |
 | 52933 | `0x991a30` | `SendHUDMessage::ShowHUDMessage` | CL meh | call | `s_showHudMessage` | [Utils.cpp:21](../../Code/engine/Utils.cpp#L21) |  |
 | 54655 | `0x9ffb50` | `papyrus::Actor::AttachAshPile` | IDA meh | hook → `HookAttachAshPile` | `RealAttachAshPile` | [CriticalStage.cpp:88](../../Code/engine/CriticalStage.cpp#L88) |  |
 | 54735 | `0xa01ab0` | `papyrus::Actor::RemoveFromAllFactions` | meh | hook → `HookRemoveFromAllFactions` | `RealRemoveFromAllFactions` | [FactionEvents.cpp:83](../../Code/engine/FactionEvents.cpp#L83) |  |
-| 55497 | `0xa25610` | `papyrus::Game::SetBeastForm` | meh | hook → `HookSetBeastForm` | `RealSetBeastForm` | [PlayerCharacter.cpp:435](../../Code/engine/PlayerCharacter.cpp#L435) |  |
+| 55497 | `0xa25610` | `papyrus::Game::SetBeastForm` | meh | hook → `HookSetBeastForm` | `RealSetBeastForm` | [PlayerCharacter.cpp:420](../../Code/engine/PlayerCharacter.cpp#L420) |  |
 | 55576 | `0xa2adf0` | `papyrus::Game::SetInChargen` | meh | call | `s_setInChargen` | [CreationStart.cpp:66](../../Code/engine/CreationStart.cpp#L66) |  |
 | 55580 | `0xa2ae80` | `papyrus::Game::ShowRaceMenu` | meh | call | `s_showRaceMenu` | [CreationStart.cpp:132](../../Code/engine/CreationStart.cpp#L132) |  |
 | 55923 | `0xa39ec0` | `papyrus::GlobalVariable::SetValue` | PL meh | hook → `HookSetValue` | `RealSetValue` | [GlobalEvents.cpp:87](../../Code/engine/GlobalEvents.cpp#L87) |  |
-| 56626 | `0xa5d370` | `TESObjectREFR::MoveTo_Impl` | IDA CL SKSE meh | call | `s_internalMoveTo` | [TESObjectREFR.cpp:379](../../Code/engine/TESObjectREFR.cpp#L379) |  |
-| 57185 | `0xaa6700` | `?` | - | call | `sub_1409CA9D0` | [AnimationExperiments.cpp:82](../../Code/engine/AnimationExperiments.cpp#L82) | **undocumented** |
-| 58377 | `0xacfc70` | `hkbBehaviorGraph::HandleEventOnActiveNodes` | IDA meh | data | `HandleEvents` | [AnimationExperiments.cpp:44](../../Code/engine/AnimationExperiments.cpp#L44) |  |
-| 58378 | `0xacfe90` | `hkbBehaviorGraph::sub_58378` | meh | call | `sub_1409F3EF0` | [AnimationExperiments.cpp:119](../../Code/engine/AnimationExperiments.cpp#L119) |  |
-| 59310 | `0xaef0f0` | `?` | - | call | `sub_140A13150` | [AnimationExperiments.cpp:96](../../Code/engine/AnimationExperiments.cpp#L96) | **undocumented** |
-| 60079 | `0xb29f40` | `hkbBehaviorGraph::updateActiveNodes` | IDA meh | call | `sub_140A4DFA0` | [AnimationExperiments.cpp:128](../../Code/engine/AnimationExperiments.cpp#L128) |  |
+| 56626 | `0xa5d370` | `TESObjectREFR::MoveTo_Impl` | IDA CL SKSE meh | call | `s_internalMoveTo` | [TESObjectREFR.cpp:351](../../Code/engine/TESObjectREFR.cpp#L351) |  |
 | 63092 | `0xbb2470` | `BSRagdollContactListenerModifier::contactPointCallback` | IDA meh | hook → `HookContactPoint` | `RealContactPoint` | [Animation.cpp:319](../../Code/engine/Animation.cpp#L319) |  |
-| 63362 | `0xbc0c90` | `BSAnimationGraphManager::NotifyAllGraphs` | IDA meh | data | `BSSendEvent` | [AnimationExperiments.cpp:240](../../Code/engine/AnimationExperiments.cpp#L240) |  |
-| 63364 | `0xbc0e60` | `BSAnimationGraphManager__AddDependent` | IDA meh | call | `s_addDependent` | [Actor.cpp:996](../../Code/engine/Actor.cpp#L996) |  |
-| 63366 | `0xbc0fb0` | `BSAnimationGraphManager__RemoveDependent` | IDA meh | call | `s_removeDependent` | [Actor.cpp:997](../../Code/engine/Actor.cpp#L997) |  |
-| 63372 | `0xbc1600` | `BSAnimationGraphManager__NotifyAttachedManagers` | IDA meh | call | `sub_140AE2DB0` | [AnimationExperiments.cpp:227](../../Code/engine/AnimationExperiments.cpp#L227) |  |
-| 63591 | `0xbcf690` | `BShkbAnimationGraph::SendEvent` | IDA meh | call | `InternalSendEvent` | [AnimationExperiments.cpp:207](../../Code/engine/AnimationExperiments.cpp#L207) |  |
+| 63364 | `0xbc0e60` | `BSAnimationGraphManager__AddDependent` | IDA meh | call | `s_addDependent` | [Actor.cpp:915](../../Code/engine/Actor.cpp#L915) |  |
+| 63366 | `0xbc0fb0` | `BSAnimationGraphManager__RemoveDependent` | IDA meh | call | `s_removeDependent` | [Actor.cpp:916](../../Code/engine/Actor.cpp#L916) |  |
 | 68115 | `0xcde250` | `MemoryManager::Allocate` | CL SKSE PL meh | hook → `HookFormAllocate` | `RealFormAllocate` | [Memory.cpp:122](../../Code/engine/Memory.cpp#L122) |  |
 | 68116 | `0xcde4a0` | `MemoryManager::Reallocate` | CL PL meh | hook → `HookFormReallocate` | `RealFormReallocate` | [Memory.cpp:120](../../Code/engine/Memory.cpp#L120) |  |
 | 68117 | `0xcde6a0` | `MemoryManager::Deallocate` | CL SKSE PL meh | hook → `HookFormFree` | `RealFormFree` | [Memory.cpp:119](../../Code/engine/Memory.cpp#L119) |  |
-| 68221 | `0xce25f0` | `CalculateCRC32_64` | SKSE meh | call | `hash_stub` | [AnimationExperiments.cpp:165](../../Code/engine/AnimationExperiments.cpp#L165) |  |
 | 68233 | `0xce3250` | `BSReadWriteLock::LockForRead` | CL SKSE meh | call | `s_lockForRead` | [Primitives.cpp:74](../../Code/engine/Primitives.cpp#L74) |  |
 | 68234 | `0xce32d0` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | call | `s_lockForWrite` | [Primitives.cpp:86](../../Code/engine/Primitives.cpp#L86) |  |
 | 68239 | `0xce3510` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | call | `s_unlockForRead` | [Primitives.cpp:80](../../Code/engine/Primitives.cpp#L80) |  |
@@ -567,7 +536,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 187480 | `0x17f63c0` | `?` | CL | data | `s_vtable` | [SaveLoad.cpp:68](../../Code/engine/SaveLoad.cpp#L68) |  |
 | 188603 | `0x18058f8` | `?` | CL | data | `s_vtbl` | [Animation.cpp:300](../../Code/engine/Animation.cpp#L300) |  |
 | 370892 | `0x209ffc8` | `?` | - | data | `s_greetDistance` | [References.cpp:50](../../Code/engine/References.cpp#L50) | **undocumented** |
-| 371051 | `0x20a0548` | `Setting fPlayerDeathReloadTime` | IDA meh | data | `s_reloadTime` | [PlayerCharacter.cpp:174](../../Code/engine/PlayerCharacter.cpp#L174) |  |
+| 371051 | `0x20a0548` | `Setting fPlayerDeathReloadTime` | IDA meh | data | `s_reloadTime` | [PlayerCharacter.cpp:159](../../Code/engine/PlayerCharacter.cpp#L159) |  |
 | 381472 | `0x20b7278` | `?` | - | data | `s_difficulty` | [References.cpp:44](../../Code/engine/References.cpp#L44) | **undocumented** |
 | 392214 | `0x20db980` | `?` | - | rtti | `registerRtti_IFormFactory` | [RTTI.cpp:20](../../Code/engine/RTTI.cpp#L20) | **undocumented** |
 | 392215 | `0x20db9a8` | `?` | - | rtti | `registerRtti_BaseFormComponent` | [RTTI.cpp:22](../../Code/engine/RTTI.cpp#L22) | **undocumented** |
@@ -3382,32 +3351,25 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 400320 | `0x219e588` | `BGSCreatedObjectManager::singleton` | CL SKSE meh | data | `pObjManager` | [BGSCreatedObjectManager.cpp:6](../../Code/engine/BGSCreatedObjectManager.cpp#L6) |  |
 | 400326 | `0x219e5b8` | `BGSDynamicPersistenceManager::singleton` | IDA CL | data | `s_persistence` | [TESObjectREFR.cpp:124](../../Code/engine/TESObjectREFR.cpp#L124) |  |
 | 400328 | `0x219e5c8` | `AnimationObjects::singleton` | CL | data | `s_singleton` | [AnimationObjects.cpp:40](../../Code/engine/AnimationObjects.cpp#L40) |  |
-| 400332 | `0x219e5e8` | `?` | - | data | `s_queuedHandles` | [Actor.cpp:1192](../../Code/engine/Actor.cpp#L1192) | **undocumented** |
+| 400332 | `0x219e5e8` | `?` | - | data | `s_queuedHandles` | [Actor.cpp:1111](../../Code/engine/Actor.cpp#L1111) | **undocumented** |
 | 400441 | `0x21a05a0` | `?` | - | data | `tes` | [TES.cpp:12](../../Code/engine/TES.cpp#L12) | **undocumented** |
 | 400447 | `0x21a05d0` | `Calendar::singleton` | CL meh | data | `s_instance` | [TimeManager.cpp:16](../../Code/engine/TimeManager.cpp#L16) |  |
-| 400451 | `0x21a05f0` | `?` | - | data | `s_idleSelector` | [TESObjectREFR.cpp:1086](../../Code/engine/TESObjectREFR.cpp#L1086) | **undocumented** |
+| 400451 | `0x21a05f0` | `?` | - | data | `s_idleSelector` | [TESObjectREFR.cpp:1052](../../Code/engine/TESObjectREFR.cpp#L1052) | **undocumented** |
 | 400508 | `0x21a3810` | `IFormFactory::formFactories` | CL SKSE meh | data | `s_factories` | [FormFactory.cpp:9](../../Code/engine/FormFactory.cpp#L9) |  |
 | 400636 | `0x31a42f8` | `ActorEquipManager::singleton` | CL SKSE | data | `s_singleton` | [EquipManager.cpp:69](../../Code/engine/EquipManager.cpp#L69) |  |
 | 401069 | `0x31df300` | `gPlayerCharacter3` | meh | data | `s_character` | [PlayerCharacter.cpp:72](../../Code/engine/PlayerCharacter.cpp#L72) |  |
-| 401100 | `0x31df410` | `g_BGSSynchronizedAnimationManager` | IDA PL | data | `s_manager` | [Actor.cpp:1212](../../Code/engine/Actor.cpp#L1212) |  |
-| 401100 | `0x31df410` | `g_BGSSynchronizedAnimationManager` | IDA PL | data | `s_manager` | [Actor.cpp:1222](../../Code/engine/Actor.cpp#L1222) |  |
-| 401100 | `0x31df410` | `g_BGSSynchronizedAnimationManager` | IDA PL | data | `qword_142EFF990` | [AnimationExperiments.cpp:341](../../Code/engine/AnimationExperiments.cpp#L341) |  |
-| 401100 | `0x31df410` | `g_BGSSynchronizedAnimationManager` | IDA PL | data | `qword_142EFF990` | [AnimationExperiments.cpp:378](../../Code/engine/AnimationExperiments.cpp#L378) |  |
+| 401100 | `0x31df410` | `g_BGSSynchronizedAnimationManager` | IDA PL | data | `s_manager` | [Actor.cpp:1131](../../Code/engine/Actor.cpp#L1131) |  |
+| 401100 | `0x31df410` | `g_BGSSynchronizedAnimationManager` | IDA PL | data | `s_manager` | [Actor.cpp:1141](../../Code/engine/Actor.cpp#L1141) |  |
 | 401579 | `0x31e0b30` | `?` | - | data | `s_singleton` | [AnimationFileManager.cpp:5](../../Code/engine/AnimationFileManager.cpp#L5) | **undocumented** |
 | 403330 | `0x3223e18` | `BGSSaveLoadGame::singleton` | CL | data | `s_singleton` | [Forms.cpp:78](../../Code/engine/Forms.cpp#L78) |  |
 | 403330 | `0x3223e18` | `BGSSaveLoadGame::singleton` | CL | data | `s_singleton` | [SaveLoad.cpp:85](../../Code/engine/SaveLoad.cpp#L85) |  |
 | 403340 | `0x3223e60` | `BGSSaveLoadManager::singleton` | CL SKSE meh | data | `s_singleton` | [SaveLoadManager.cpp:60](../../Code/engine/SaveLoadManager.cpp#L60) |  |
 | 403449 | `0x3230530` | `Main::singleton` | CL SKSE meh | data | `s_singleton` | [Main.cpp:5](../../Code/engine/Main.cpp#L5) |  |
-| 403566 | `0x3230a30` | `gUnknownSingleton` | meh | data | `qword_142F271B8` | [AnimationExperiments.cpp:32](../../Code/engine/AnimationExperiments.cpp#L32) |  |
 | 403567 | `0x3230a38` | `?` | PL | data | `s_actorMediator` | [Animation.cpp:202](../../Code/engine/Animation.cpp#L202) | **undocumented** |
-| 403568 | `0x3230a40` | `?` | - | data | `qword_142F271C8` | [AnimationExperiments.cpp:340](../../Code/engine/AnimationExperiments.cpp#L340) | **undocumented** |
-| 403759 | `0x3242650` | `TaskQueueInterface::singleton` | CL SKSE meh | data | `s_queue` | [Actor.cpp:227](../../Code/engine/Actor.cpp#L227) |  |
-| 403988 | `0x3243eb8` | `?` | - | data | `qword_142F3A1E8` | [AnimationExperiments.cpp:379](../../Code/engine/AnimationExperiments.cpp#L379) | **undocumented** |
+| 403759 | `0x3242650` | `TaskQueueInterface::singleton` | CL SKSE meh | data | `s_queue` | [Actor.cpp:208](../../Code/engine/Actor.cpp#L208) |  |
 | 405246 | `0x3254a78` | `CombatManager::singleton` | CL | data | `s_combatManager` | [StealthEye.cpp:70](../../Code/engine/StealthEye.cpp#L70) |  |
 | 410196 | `0x32755f0` | `BSTimer::singleton` | CL meh | data | `s_instance` | [BSTimer.cpp:20](../../Code/engine/BSTimer.cpp#L20) |  |
 | 411155 | `0x3327860` | `INISettingCollection::singleton` | CL SKSE meh | data | `settingCollection` | [INISettingCollection.cpp:6](../../Code/engine/INISettingCollection.cpp#L6) |  |
-| 411347 | `0x3330188` | `Renderer::singleton` | CL meh | data | `s_instance` | [Renderer.cpp:6](../../Code/engine/Renderer.cpp#L6) |  |
-| 411348 | `0x3330190` | `Renderer::device` | CL | data | `s_device` | [Renderer.cpp:13](../../Code/engine/Renderer.cpp#L13) |  |
 
 ## engine/AI
 
@@ -3431,9 +3393,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 42345 | `0x7ae150` | `PlayerControls::sub_42345` | meh | call | `setEnabled` | [PlayerControls.cpp:14](../../Code/engine/AI/Movement/PlayerControls.cpp#L14) |  |
-| 68545 | `0xcefaa0` | `ControlMap::ToggleControls` | CL | call | `setEnabled` | [PlayerControls.cpp:32](../../Code/engine/AI/Movement/PlayerControls.cpp#L32) |  |
-| 400863 | `0x31a5690` | `ControlMap::singleton` | CL SKSE meh | data | `s_instance` | [PlayerControls.cpp:25](../../Code/engine/AI/Movement/PlayerControls.cpp#L25) |  |
+| 400863 | `0x31a5690` | `ControlMap::singleton` | CL SKSE meh | data | `s_instance` | [PlayerControls.cpp:13](../../Code/engine/AI/Movement/PlayerControls.cpp#L13) |  |
 | 400864 | `0x31a5698` | `PlayerControls::singleton` | CL SKSE meh | data | `s_instance` | [PlayerControls.cpp:7](../../Code/engine/AI/Movement/PlayerControls.cpp#L7) |  |
 
 ## engine/ActorHooks
@@ -3441,21 +3401,21 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
 | 13129 | `0x199fa0` | `Mutex::Lock1` | meh | data | `s_spinLockWait` | [Combat.cpp:226](../../Code/engine/ActorHooks/Combat.cpp#L226) |  |
-| 19688 | `0x2e7c40` | `TESObjectREFR::AddToInventoryChanges` | IDA meh | hook → `HookAddToInventory` | `RealAddToInventory` | [Item.cpp:297](../../Code/engine/ActorHooks/Item.cpp#L297) |  |
+| 19688 | `0x2e7c40` | `TESObjectREFR::AddToInventoryChanges` | IDA meh | hook → `HookAddToInventory` | `RealAddToInventory` | [Item.cpp:292](../../Code/engine/ActorHooks/Item.cpp#L292) |  |
 | 19790 | `0x2f0ef0` | `TESObjectREFR::SetPosition` | CL meh | hook → `HookSetPosition` | `RealSetPosition` | [Movement.cpp:301](../../Code/engine/ActorHooks/Movement.cpp#L301) |  |
 | 24716 | `0x3c1000` | `TESNPC::GetActivateText` | IDA meh | hook → `HookGetActivateText` | `RealGetActivateText` | [Mount.cpp:179](../../Code/engine/ActorHooks/Mount.cpp#L179) |  |
 | 35086 | `0x5e7630` | `ValueModifierEffect::Func32_35086` | meh | hook → `HookApplyActorEffect` | `RealApplyActorEffect` | [Combat.cpp:295](../../Code/engine/ActorHooks/Combat.cpp#L295) |  |
-| 37198 | `0x672b90` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `RealAddDeathItems` | [Item.cpp:301](../../Code/engine/ActorHooks/Item.cpp#L301) |  |
+| 37198 | `0x672b90` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `RealAddDeathItems` | [Item.cpp:296](../../Code/engine/ActorHooks/Item.cpp#L296) |  |
 | 37227 | `0x673f30` | `Character::CalculateEssentialProtected` | IDA meh | call | `s_calculateEssentialProtected` | [Movement.cpp:289](../../Code/engine/ActorHooks/Movement.cpp#L289) |  |
 | 37313 | `0x677370` | `Actor::WarpTo_37313` | IDA meh | hook → `HookForceState` | `RealForceState` | [Movement.cpp:303](../../Code/engine/ActorHooks/Movement.cpp#L303) |  |
-| 37320 | `0x677c90` | `Actor::DropHeldItemsOnDeath` | IDA | hook → `HookDropHeldItemsOnDeath` | `RealDropHeldItemsOnDeath` | [Item.cpp:303](../../Code/engine/ActorHooks/Item.cpp#L303) |  |
-| 37322 | `0x678950` | `Actor::ResetInventory` | meh | hook → `HookResetInventory` | `RealResetInventory` | [Item.cpp:294](../../Code/engine/ActorHooks/Item.cpp#L294) |  |
+| 37320 | `0x677c90` | `Actor::DropHeldItemsOnDeath` | IDA | hook → `HookDropHeldItemsOnDeath` | `RealDropHeldItemsOnDeath` | [Item.cpp:298](../../Code/engine/ActorHooks/Item.cpp#L298) |  |
+| 37322 | `0x678950` | `Actor::ResetInventory` | meh | hook → `HookResetInventory` | `RealResetInventory` | [Item.cpp:289](../../Code/engine/ActorHooks/Item.cpp#L289) |  |
 | 37335 | `0x6797c0` | `Actor::DoDamage` | CL meh | hook → `HookDamageActor` | `RealDamageActor` | [Combat.cpp:294](../../Code/engine/ActorHooks/Combat.cpp#L294) |  |
 | 37347 | `0x679d50` | `Character::UpdateAI` | IDA PL meh | hook → `HookUpdateAI` | `RealUpdateAI` | [Movement.cpp:296](../../Code/engine/ActorHooks/Movement.cpp#L296) |  |
 | 37352 | `0x67bf60` | `Character::UpdateCellAttachment` | IDA meh | call | `s_updateCellAttachment` | [Movement.cpp:285](../../Code/engine/ActorHooks/Movement.cpp#L285) |  |
 | 37356 | `0x67c380` | `Actor::ApplyMovement` | IDA meh | hook → `HookApplyMovement` | `RealApplyMovement` | [Movement.cpp:295](../../Code/engine/ActorHooks/Movement.cpp#L295) |  |
-| 37521 | `0x68b0e0` | `Actor::PickUpObject` | meh | hook → `HookPickUpObject` | `RealPickUpObject` | [Item.cpp:298](../../Code/engine/ActorHooks/Item.cpp#L298) |  |
-| 37525 | `0x68ba50` | `Actor::AddObjectToContainer` | IDA meh | hook → `HookAddInventoryItem` | `RealAddInventoryItem` | [Item.cpp:296](../../Code/engine/ActorHooks/Item.cpp#L296) |  |
+| 37521 | `0x68b0e0` | `Actor::PickUpObject` | meh | hook → `HookPickUpObject` | `RealPickUpObject` | [Item.cpp:293](../../Code/engine/ActorHooks/Item.cpp#L293) |  |
+| 37525 | `0x68ba50` | `Actor::AddObjectToContainer` | IDA meh | hook → `HookAddInventoryItem` | `RealAddInventoryItem` | [Item.cpp:291](../../Code/engine/ActorHooks/Item.cpp#L291) |  |
 | 37534 | `0x68c170` | `Actor__ShouldAttack` | IDA meh | hook → `HookShouldAttack` | `RealShouldAttack` | [Combat.cpp:299](../../Code/engine/ActorHooks/Combat.cpp#L299) |  |
 | 37537 | `0x68c9d0` | `Actor::IsHostileToActor` | CL SKSE meh | hook → `HookIsHostileToActor` | `RealIsHostileToActor` | [Combat.cpp:297](../../Code/engine/ActorHooks/Combat.cpp#L297) |  |
 | 37541 | `0x68cc00` | `Actor::UpdateInDialogue` | IDA meh | hook → `HookUpdateInDialogue` | `RealUpdateInDialogue` | [Speech.cpp:119](../../Code/engine/ActorHooks/Speech.cpp#L119) |  |
@@ -3467,18 +3427,18 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37752 | `0x6a2010` | `Character::UpdateVoiceTimer` | IDA meh | call | `s_updateVoiceTimer` | [Movement.cpp:287](../../Code/engine/ActorHooks/Movement.cpp#L287) |  |
 | 37864 | `0x6a77c0` | `Character::ActivateMount` | IDA meh | hook → `HookActivateMount` | `RealActivateMount` | [Mount.cpp:178](../../Code/engine/ActorHooks/Mount.cpp#L178) |  |
 | 37905 | `0x6abe40` | `Actor::InitiateMountPackage` | IDA meh | hook → `HookInitiateMountPackage` | `RealInitiateMountPackage` | [Mount.cpp:176](../../Code/engine/ActorHooks/Mount.cpp#L176) |  |
-| 37975 | `0x6afd40` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `RealUnequipObject` | [Item.cpp:300](../../Code/engine/ActorHooks/Item.cpp#L300) |  |
+| 37975 | `0x6afd40` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `RealUnequipObject` | [Item.cpp:295](../../Code/engine/ActorHooks/Item.cpp#L295) |  |
 | 37996 | `0x6b1ab0` | `BSTEventSink_BSTransformDeltaEvent_::Handle` | IDA meh | hook → `HookTransformDelta` | `RealTransformDelta` | [Movement.cpp:302](../../Code/engine/ActorHooks/Movement.cpp#L302) |  |
 | 38459 | `0x6c48b0` | `Actor::RegenerateActorValue` | IDA | hook → `HookRegenerateActorValue` | `RealRegenerateActorValue` | [Combat.cpp:296](../../Code/engine/ActorHooks/Combat.cpp#L296) |  |
 | 39373 | `0x6f6070` | `AIProcess::GetLipData` | IDA | call | `s_getLipData` | [Movement.cpp:291](../../Code/engine/ActorHooks/Movement.cpp#L291) |  |
 | 39377 | `0x6f6240` | `AIProcess::UpdateLipSyncGraph` | IDA | call | `s_updateLipSyncGraph` | [Movement.cpp:293](../../Code/engine/ActorHooks/Movement.cpp#L293) |  |
 | 39643 | `0x70abf0` | `DialogueResponse::Process` | IDA | hook → `HookProcessResponse` | `RealProcessResponse` | [Speech.cpp:117](../../Code/engine/ActorHooks/Speech.cpp#L117) |  |
-| 40454 | `0x746e00` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `RealDropObject` | [Item.cpp:299](../../Code/engine/ActorHooks/Item.cpp#L299) |  |
+| 40454 | `0x746e00` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `RealDropObject` | [Item.cpp:294](../../Code/engine/ActorHooks/Item.cpp#L294) |  |
 | 41539 | `0x78d610` | `RefrInteraction::Detach` | IDA | hook → `HookDetachInteraction` | `RealDetachInteraction` | [Mount.cpp:177](../../Code/engine/ActorHooks/Mount.cpp#L177) |  |
 | 42704 | `0x7c3fc0` | `ActorKnowledge__SetDetectionState` | IDA meh | hook → `HookUpdateDetectionState` | `RealUpdateDetectionState` | [Detection.cpp:119](../../Code/engine/ActorHooks/Detection.cpp#L119) |  |
-| 54661 | `0xa00040` | `papyrus::Actor::EquipItem` | IDA meh | hook → `HookScriptEquipItem` | `RealScriptEquipItem` | [Item.cpp:295](../../Code/engine/ActorHooks/Item.cpp#L295) |  |
+| 54661 | `0xa00040` | `papyrus::Actor::EquipItem` | IDA meh | hook → `HookScriptEquipItem` | `RealScriptEquipItem` | [Item.cpp:290](../../Code/engine/ActorHooks/Item.cpp#L290) |  |
 | 377833 | `0x20aedf0` | `gGameSetting_sRide` | meh | data | `s_ride` | [Mount.cpp:150](../../Code/engine/ActorHooks/Mount.cpp#L150) |  |
-| 418622 | `0x3c4440` | `TESNPC::ResetWornToOutfit` | IDA | hook → `HookResetWornToOutfit` | `RealResetWornToOutfit` | [Item.cpp:302](../../Code/engine/ActorHooks/Item.cpp#L302) |  |
+| 418622 | `0x3c4440` | `TESNPC::ResetWornToOutfit` | IDA | hook → `HookResetWornToOutfit` | `RealResetWornToOutfit` | [Item.cpp:297](../../Code/engine/ActorHooks/Item.cpp#L297) |  |
 | 439876 | `0x10d710` | `BSString::Set` | SKSE | call | `s_setString` | [Mount.cpp:149](../../Code/engine/ActorHooks/Mount.cpp#L149) |  |
 
 ## engine/BSCore
@@ -3512,8 +3472,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 14774 | `0x1ea850` | `GetRandomNumberGenerator` | meh | data | `getGenerator` | [BSRandom.cpp:24](../../Code/engine/BSRandom/BSRandom.cpp#L24) |  |
-| 68276 | `0xce44e0` | `GetRandomNumber` | meh | data | `unsignedInt` | [BSRandom.cpp:21](../../Code/engine/BSRandom/BSRandom.cpp#L21) |  |
+| 14774 | `0x1ea850` | `GetRandomNumberGenerator` | meh | data | `getGenerator` | [BSRandom.cpp:19](../../Code/engine/BSRandom/BSRandom.cpp#L19) |  |
+| 68276 | `0xce44e0` | `GetRandomNumber` | meh | data | `unsignedInt` | [BSRandom.cpp:16](../../Code/engine/BSRandom/BSRandom.cpp#L16) |  |
 
 ## engine/BSSystem
 
@@ -3636,12 +3596,12 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
 | 21600 | `0x3389c0` | `GameFunc::native::IsPC1stPerson` | meh | call | `isFirstPerson` | [PlayerCamera.cpp:16](../../Code/engine/Camera/PlayerCamera.cpp#L16) |  |
-| 33026 | `0x558f90` | `TESCamera::SetState` | CL SKSE meh | call | `s_setState` | [PlayerCamera.cpp:59](../../Code/engine/Camera/PlayerCamera.cpp#L59) |  |
+| 33026 | `0x558f90` | `TESCamera::SetState` | CL SKSE meh | call | `s_setState` | [PlayerCamera.cpp:48](../../Code/engine/Camera/PlayerCamera.cpp#L48) |  |
 | 44282 | `0x805d50` | `VATS::SetMode` | IDA CL | call | `s_setMode` | [VATS.cpp:13](../../Code/engine/Camera/VATS.cpp#L13) |  |
-| 50790 | `0x8f8de0` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `forceFirstPerson` | [PlayerCamera.cpp:38](../../Code/engine/Camera/PlayerCamera.cpp#L38) |  |
-| 50796 | `0x8f8f40` | `PlayerCamera::ForceThirdPerson` | CL meh | call | `forceThirdPerson` | [PlayerCamera.cpp:45](../../Code/engine/Camera/PlayerCamera.cpp#L45) |  |
-| 50824 | `0x8f9eb0` | `PlayerCamera::LeaveBleedout` | IDA meh | call | `s_leaveBleedout` | [PlayerCamera.cpp:109](../../Code/engine/Camera/PlayerCamera.cpp#L109) |  |
-| 50838 | `0x8fb250` | `PlayerCamera::SetCameraTarget` | meh | call | `s_setTarget` | [PlayerCamera.cpp:52](../../Code/engine/Camera/PlayerCamera.cpp#L52) |  |
+| 50790 | `0x8f8de0` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `forceFirstPerson` | [PlayerCamera.cpp:27](../../Code/engine/Camera/PlayerCamera.cpp#L27) |  |
+| 50796 | `0x8f8f40` | `PlayerCamera::ForceThirdPerson` | CL meh | call | `forceThirdPerson` | [PlayerCamera.cpp:34](../../Code/engine/Camera/PlayerCamera.cpp#L34) |  |
+| 50824 | `0x8f9eb0` | `PlayerCamera::LeaveBleedout` | IDA meh | call | `s_leaveBleedout` | [PlayerCamera.cpp:98](../../Code/engine/Camera/PlayerCamera.cpp#L98) |  |
+| 50838 | `0x8fb250` | `PlayerCamera::SetCameraTarget` | meh | call | `s_setTarget` | [PlayerCamera.cpp:41](../../Code/engine/Camera/PlayerCamera.cpp#L41) |  |
 | 400802 | `0x31a5478` | `PlayerCamera::singleton` | CL SKSE meh | data | `s_instance` | [PlayerCamera.cpp:9](../../Code/engine/Camera/PlayerCamera.cpp#L9) |  |
 | 400883 | `0x31a5720` | `VATS::singleton` | CL PL | data | `s_instance` | [VATS.cpp:6](../../Code/engine/Camera/VATS.cpp#L6) |  |
 | 410506 | `0x331c690` | `gNiRTTI_NiCamera` | meh | data | `NiCameraRTTI` | [TESCamera.cpp:7](../../Code/engine/Camera/TESCamera.cpp#L7) |  |
@@ -3651,9 +3611,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
 | 20203 | `0x300b20` | `TESObjectREFR::GetLocationEncounterZone` | IDA meh | call | `s_zone` | [PartyAggro.cpp:150](../../Code/engine/Combat/PartyAggro.cpp#L150) |  |
-| 33235 | `0x5614a0` | `CombatController::SetTarget` | IDA | call | `setTarget` | [CombatController.cpp:80](../../Code/engine/Combat/CombatController.cpp#L80) |  |
-| 33282 | `0x564090` | `?` | - | data | `sortTargetSelectors` | [CombatController.cpp:19](../../Code/engine/Combat/CombatController.cpp#L19) | **undocumented** |
-| 33285 | `0x564190` | `?` | - | call | `arrayQuickSort` | [CombatController.cpp:16](../../Code/engine/Combat/CombatController.cpp#L16) | **undocumented** |
+| 33235 | `0x5614a0` | `CombatController::SetTarget` | IDA | call | `setTarget` | [CombatController.cpp:17](../../Code/engine/Combat/CombatController.cpp#L17) |  |
 | 37273 | `0x675600` | `Actor::UpdateCombatSearchState` | IDA meh | call | `s_updateSearchState` | [CopyCombatGroups.cpp:234](../../Code/engine/Combat/CopyCombatGroups.cpp#L234) |  |
 | 37509 | `0x68a650` | `Actor::DoTrap1` | IDA meh | hook → `HookDoTrap` | `RealDoTrap` | [Traps.cpp:85](../../Code/engine/Combat/Traps.cpp#L85) |  |
 | 37710 | `0x69fc00` | `Character::sub_37710` | meh | hook → `HookStagger` | `RealStagger` | [MeleeStagger.cpp:41](../../Code/engine/Combat/MeleeStagger.cpp#L41) |  |
@@ -3714,12 +3672,9 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 12052 | `0x172d30` | `ExtraDataList::HasQuestObjectAlias` | CL meh | call | `s_hasQuestObjectAlias` | [ExtraDataList.cpp:202](../../Code/engine/ExtraData/ExtraDataList.cpp#L202) |  |
 | 12060 | `0x173170` | `ExtraDataList::SetEnchantment` | CL | call | `setEnchantmentData` | [ExtraDataList.cpp:146](../../Code/engine/ExtraData/ExtraDataList.cpp#L146) |  |
 | 12354 | `0x17f8b0` | `ExtraDataList::RemoveByType` | IDA | call | `s_removeByType` | [ExtraDataList.cpp:78](../../Code/engine/ExtraData/ExtraDataList.cpp#L78) |  |
-| 15998 | `0x228c60` | `InventoryEntryData::GetFavoriteExtraList` | CL | call | `s_favoriteList` | [ExtraContainerChanges.cpp:78](../../Code/engine/ExtraData/ExtraContainerChanges.cpp#L78) |  |
-| 16005 | `0x228e90` | `InventoryEntryData::IsQuestObject` | meh | call | `s_isQuestObject` | [ExtraContainerChanges.cpp:62](../../Code/engine/ExtraData/ExtraContainerChanges.cpp#L62) |  |
-| 16113 | `0x239820` | `InventoryChanges::GetArmorInSlot` | CL meh | call | `s_getArmor` | [ExtraContainerChanges.cpp:71](../../Code/engine/ExtraData/ExtraContainerChanges.cpp#L71) |  |
+| 15998 | `0x228c60` | `InventoryEntryData::GetFavoriteExtraList` | CL | call | `s_favoriteList` | [ExtraContainerChanges.cpp:51](../../Code/engine/ExtraData/ExtraContainerChanges.cpp#L51) |  |
+| 16113 | `0x239820` | `InventoryChanges::GetArmorInSlot` | CL meh | call | `s_getArmor` | [ExtraContainerChanges.cpp:44](../../Code/engine/ExtraData/ExtraContainerChanges.cpp#L44) |  |
 | 16129 | `0x23c380` | `InventoryChanges::InitLeveledItems` | CL meh | hook → `HookInitLeveledItems` | `RealInitLeveledItems` | [ExtraContainerChanges.cpp:31](../../Code/engine/ExtraData/ExtraContainerChanges.cpp#L31) |  |
-| 16142 | `0x23ea40` | `?` | - | call | `s_save` | [ExtraContainerChanges.cpp:44](../../Code/engine/ExtraData/ExtraContainerChanges.cpp#L44) | **undocumented** |
-| 16143 | `0x23eb70` | `?` | - | call | `s_load` | [ExtraContainerChanges.cpp:53](../../Code/engine/ExtraData/ExtraContainerChanges.cpp#L53) | **undocumented** |
 | 186855 | `0x17ea638` | `s_ExtraTextDisplayVtbl` | CL SKSE | data | `s_vtable` | [ExtraDataList.cpp:177](../../Code/engine/ExtraData/ExtraDataList.cpp#L177) |  |
 
 ## engine/Fixes
@@ -3739,35 +3694,30 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 11609 | `0x15fda0` | `ExtraDataList::SetOwnerForm` | meh | call | `s_setOwnerForm` | [TESObjectCELL.cpp:72](../../Code/engine/Forms/TESObjectCELL.cpp#L72) |  |
-| 14375 | `0x1dcf40` | `?` | IDA | call | `s_buildLeveled` | [TESNPC.cpp:22](../../Code/engine/Forms/TESNPC.cpp#L22) |  |
-| 14375 | `0x1dcf40` | `?` | IDA | hook → `HookSetLeveledNpc` | `s_SetLeveledNpc` | [TESNPC.cpp:30](../../Code/engine/Forms/TESNPC.cpp#L30) |  |
+| 11609 | `0x15fda0` | `ExtraDataList::SetOwnerForm` | meh | call | `s_setOwnerForm` | [TESObjectCELL.cpp:65](../../Code/engine/Forms/TESObjectCELL.cpp#L65) |  |
+| 14375 | `0x1dcf40` | `?` | IDA | call | `s_buildLeveled` | [TESNPC.cpp:7](../../Code/engine/Forms/TESNPC.cpp#L7) |  |
 | 14607 | `0x1e5650` | `TESForm::AddChange` | meh | hook → `HookAddChange` | `RealAddChange` | [FormChanges.cpp:69](../../Code/engine/Forms/FormChanges.cpp#L69) |  |
 | 14608 | `0x1e5680` | `Character::sub_14608` | meh | hook → `HookAddChangeForced` | `RealAddChangeForced` | [FormChanges.cpp:70](../../Code/engine/Forms/FormChanges.cpp#L70) |  |
-| 19075 | `0x2c35c0` | `TESObjectCELL::sub_19075` | meh | call | `s_getCOCPlacementInfo` | [TESObjectCELL.cpp:59](../../Code/engine/Forms/TESObjectCELL.cpp#L59) |  |
 | 20460 | `0x30d0e0` | `TESWorldSpace::sub_20460` | meh | call | `s_loadCell` | [TESWorldSpace.cpp:8](../../Code/engine/Forms/TESWorldSpace.cpp#L8) |  |
-| 23231 | `0x382a60` | `TESQuest::sub_23231` | meh | call | `CompleteAll` | [TESQuest.cpp:138](../../Code/engine/Forms/TESQuest.cpp#L138) |  |
-| 23933 | `0x39b500` | `BGSQuestObjective::SetState` | IDA | call | `setState` | [TESQuest.cpp:131](../../Code/engine/Forms/TESQuest.cpp#L131) |  |
-| 24987 | `0x3d0390` | `TESQuest::sub_24987` | meh | call | `SetStopped` | [TESQuest.cpp:164](../../Code/engine/Forms/TESQuest.cpp#L164) |  |
-| 24988 | `0x3d03d0` | `TESQuest::SetFailed` | IDA | call | `setFailed` | [TESQuest.cpp:117](../../Code/engine/Forms/TESQuest.cpp#L117) |  |
-| 24991 | `0x3d0630` | `TESQuest::sub_24991` | meh | call | `SetCompleted` | [TESQuest.cpp:44](../../Code/engine/Forms/TESQuest.cpp#L44) |  |
-| 25003 | `0x3d0cb0` | `TESQuest::EnsureQuestStarted` | CL SKSE meh | call | `SetRunning` | [TESQuest.cpp:182](../../Code/engine/Forms/TESQuest.cpp#L182) |  |
-| 25004 | `0x3d0dc0` | `TESQuest::SetStage` | IDA meh | call | `SetStage` | [TESQuest.cpp:189](../../Code/engine/Forms/TESQuest.cpp#L189) |  |
-| 25042 | `0x3d3260` | `TESQuest::GetRefAlias` | IDA meh | call | `getRefAlias` | [TESQuest.cpp:51](../../Code/engine/Forms/TESQuest.cpp#L51) |  |
-| 25051 | `0x3d4bc0` | `TESQuest::ClearRefAlias` | IDA meh | call | `clearRefAlias` | [TESQuest.cpp:65](../../Code/engine/Forms/TESQuest.cpp#L65) |  |
-| 25052 | `0x3d4fa0` | `TESQuest::ForceRefIntoAlias` | CL SKSE meh | call | `forceRefIntoAlias` | [TESQuest.cpp:58](../../Code/engine/Forms/TESQuest.cpp#L58) |  |
-| 25053 | `0x3d5280` | `TESQuest::ClearLocationAlias` | IDA meh | call | `clearLocationAlias` | [TESQuest.cpp:94](../../Code/engine/Forms/TESQuest.cpp#L94) |  |
-| 25054 | `0x3d5460` | `TESQuest::ForceLocationIntoAlias` | IDA meh | call | `forceLocationIntoAlias` | [TESQuest.cpp:87](../../Code/engine/Forms/TESQuest.cpp#L87) |  |
+| 23933 | `0x39b500` | `BGSQuestObjective::SetState` | IDA | call | `setState` | [TESQuest.cpp:108](../../Code/engine/Forms/TESQuest.cpp#L108) |  |
+| 24988 | `0x3d03d0` | `TESQuest::SetFailed` | IDA | call | `setFailed` | [TESQuest.cpp:94](../../Code/engine/Forms/TESQuest.cpp#L94) |  |
+| 24991 | `0x3d0630` | `TESQuest::sub_24991` | meh | call | `SetCompleted` | [TESQuest.cpp:29](../../Code/engine/Forms/TESQuest.cpp#L29) |  |
+| 25004 | `0x3d0dc0` | `TESQuest::SetStage` | IDA meh | call | `SetStage` | [TESQuest.cpp:134](../../Code/engine/Forms/TESQuest.cpp#L134) |  |
+| 25042 | `0x3d3260` | `TESQuest::GetRefAlias` | IDA meh | call | `getRefAlias` | [TESQuest.cpp:36](../../Code/engine/Forms/TESQuest.cpp#L36) |  |
+| 25051 | `0x3d4bc0` | `TESQuest::ClearRefAlias` | IDA meh | call | `clearRefAlias` | [TESQuest.cpp:50](../../Code/engine/Forms/TESQuest.cpp#L50) |  |
+| 25052 | `0x3d4fa0` | `TESQuest::ForceRefIntoAlias` | CL SKSE meh | call | `forceRefIntoAlias` | [TESQuest.cpp:43](../../Code/engine/Forms/TESQuest.cpp#L43) |  |
+| 25053 | `0x3d5280` | `TESQuest::ClearLocationAlias` | IDA meh | call | `clearLocationAlias` | [TESQuest.cpp:79](../../Code/engine/Forms/TESQuest.cpp#L79) |  |
+| 25054 | `0x3d5460` | `TESQuest::ForceLocationIntoAlias` | IDA meh | call | `forceLocationIntoAlias` | [TESQuest.cpp:72](../../Code/engine/Forms/TESQuest.cpp#L72) |  |
 | 25066 | `0x3d8590` | `TESQuest::sub_25066` | meh | call | `getAliasedRef` | [TESQuest.cpp:18](../../Code/engine/Forms/TESQuest.cpp#L18) |  |
-| 25067 | `0x3d8610` | `TESQuest::GetAliasedLocation` | IDA meh | call | `getAliasedLocation` | [TESQuest.cpp:80](../../Code/engine/Forms/TESQuest.cpp#L80) |  |
-| 25086 | `0x3da3d0` | `TESQuest::sub_25086` | meh | call | `loadDialogue` | [TESQuest.cpp:124](../../Code/engine/Forms/TESQuest.cpp#L124) |  |
+| 25067 | `0x3d8610` | `TESQuest::GetAliasedLocation` | IDA meh | call | `getAliasedLocation` | [TESQuest.cpp:65](../../Code/engine/Forms/TESQuest.cpp#L65) |  |
+| 25086 | `0x3da3d0` | `TESQuest::sub_25086` | meh | call | `loadDialogue` | [TESQuest.cpp:101](../../Code/engine/Forms/TESQuest.cpp#L101) |  |
 | 25544 | `0x3ef3c0` | `TESTopic::sub_25544` | meh | call | `s_lineFor` | [TESTopic.cpp:9](../../Code/engine/Forms/TESTopic.cpp#L9) |  |
 | 35511 | `0x613900` | `BGSSaveLoadGame::RemoveChangeFlags` | IDA | hook → `HookRemoveFlags` | `RealRemoveFlags` | [FormChanges.cpp:71](../../Code/engine/Forms/FormChanges.cpp#L71) |  |
 | 36165 | `0x63f130` | `BGSCreatedObjectManager::AddWeaponEnchantment` | CL SKSE meh | data | `s_addWeaponEnchantment` | [EnchantmentItem.cpp:10](../../Code/engine/Forms/EnchantmentItem.cpp#L10) |  |
 | 36166 | `0x63f1d0` | `BGSCreatedObjectManager::AddArmorEnchantment` | CL SKSE meh | data | `s_addArmorEnchantment` | [EnchantmentItem.cpp:11](../../Code/engine/Forms/EnchantmentItem.cpp#L11) |  |
 | 36167 | `0x63f270` | `BGSCreatedObjectManager::AddPotion` | CL SKSE | data | `s_addPotion` | [AlchemyItem.cpp:28](../../Code/engine/Forms/AlchemyItem.cpp#L28) |  |
 | 36168 | `0x63f320` | `BGSCreatedObjectManager::AddPoison` | CL SKSE | data | `s_addPoison` | [AlchemyItem.cpp:29](../../Code/engine/Forms/AlchemyItem.cpp#L29) |  |
-| 53987 | `0x9de4c0` | `SkyrimVM::ProcessQuestStageEvent` | IDA meh | hook → `HookQuestStageEventSink` | `RealQuestStageEventSink` | [TESQuest.cpp:250](../../Code/engine/Forms/TESQuest.cpp#L250) |  |
+| 53987 | `0x9de4c0` | `SkyrimVM::ProcessQuestStageEvent` | IDA meh | hook → `HookQuestStageEventSink` | `RealQuestStageEventSink` | [TESQuest.cpp:195](../../Code/engine/Forms/TESQuest.cpp#L195) |  |
 
 ## engine/Havok
 
@@ -3830,16 +3780,16 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 13631 | `0x1b47f0` | `UIMessageQueue::AddMessage` | CL SKSE meh | data | `s_addMessage` | [UI.cpp:108](../../Code/engine/Interface/UI.cpp#L108) |  |
+| 13631 | `0x1b47f0` | `UIMessageQueue::AddMessage` | CL SKSE meh | data | `s_addMessage` | [UI.cpp:100](../../Code/engine/Interface/UI.cpp#L100) |  |
 | 20496 | `0x30e1b0` | `TESWorldSpace::AdjustWorldMapPosition` | IDA meh | call | `s_coordinates` | [PartyMarkers.cpp:160](../../Code/engine/Interface/PartyMarkers.cpp#L160) |  |
 | 35406 | `0x60e990` | `?` | IDA | data | `menuMode` | [LiveMenuHooks.cpp:286](../../Code/engine/Interface/LiveMenuHooks.cpp#L286) |  |
-| 35855 | `0x62e6a0` | `CreateUIMessageData` | SKSE | call | `s_create` | [UI.cpp:100](../../Code/engine/Interface/UI.cpp#L100) |  |
-| 36548 | `0x653b40` | `?` | - | data | `MainInit` | [UI.cpp:131](../../Code/engine/Interface/UI.cpp#L131) | **undocumented** |
+| 35855 | `0x62e6a0` | `CreateUIMessageData` | SKSE | call | `s_create` | [UI.cpp:92](../../Code/engine/Interface/UI.cpp#L92) |  |
+| 36548 | `0x653b40` | `?` | - | data | `MainInit` | [UI.cpp:113](../../Code/engine/Interface/UI.cpp#L113) | **undocumented** |
 | 36581 | `0x659ea0` | `Main::sub_36581` | meh | patch | `updatePlayer` | [LiveMenuHooks.cpp:260](../../Code/engine/Interface/LiveMenuHooks.cpp#L260) |  |
 | 36581 | `0x659ea0` | `Main::sub_36581` | meh | hook → `UpdatePlayer` | `RealUpdatePlayer` | [LiveMenuHooks.cpp:263](../../Code/engine/Interface/LiveMenuHooks.cpp#L263) |  |
 | 51031 | `0x905930` | `ItemList::Update_Impl` | CL meh | call | `s_update` | [ItemMenuWatch.cpp:137](../../Code/engine/Interface/ItemMenuWatch.cpp#L137) |  |
 | 51049 | `0x9063d0` | `BookMenu::sub_51049` | meh | data | `bookProcess` | [LiveMenuHooks.cpp:284](../../Code/engine/Interface/LiveMenuHooks.cpp#L284) |  |
-| 51538 | `0x92cd50` | `MenuEventHandler::CanProcess` | meh | data | `FavoritesCanProcess` | [UI.cpp:136](../../Code/engine/Interface/UI.cpp#L136) |  |
+| 51538 | `0x92cd50` | `MenuEventHandler::CanProcess` | meh | data | `FavoritesCanProcess` | [UI.cpp:118](../../Code/engine/Interface/UI.cpp#L118) |  |
 | 51668 | `0x9385b0` | `Compass::Update` | IDA meh | data | `update` | [PartyMarkers.cpp:240](../../Code/engine/Interface/PartyMarkers.cpp#L240) |  |
 | 51848 | `0x942b80` | `InventoryMenu::sub_51848` | IDA meh | hook → `InventoryProcess` | `RealInventoryProcess` | [LiveMenuHooks.cpp:276](../../Code/engine/Interface/LiveMenuHooks.cpp#L276) |  |
 | 51950 | `0x94d350` | `LockpickingMenu::ProcessMessage` | IDA meh | hook → `LockpickProcess` | `RealLockpickProcess` | [LiveMenuHooks.cpp:281](../../Code/engine/Interface/LiveMenuHooks.cpp#L281) |  |
@@ -3851,13 +3801,13 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 55646 | `0xa2e9a0` | `SkyrimScript::FadeThenMainMenuCallback::Func1_55646` | IDA meh | hook → `HookScriptQuit` | `RealScriptQuit` | [QuitToMainMenu.cpp:36](../../Code/engine/Interface/QuitToMainMenu.cpp#L36) |  |
 | 82074 | `0x1169530` | `Unknown3::IsMenuOpen` | SKSE | data | `s_isMenuOpen` | [UI.cpp:32](../../Code/engine/Interface/UI.cpp#L32) |  |
 | 82082 | `0x1169d20` | `ProcessEventQueue_HookTarget_Enter` | SKSE | hook → `UiMessages` | `RealUiMessages` | [LiveMenuHooks.cpp:277](../../Code/engine/Interface/LiveMenuHooks.cpp#L277) |  |
-| 82082 | `0x1169d20` | `ProcessEventQueue_HookTarget_Enter` | SKSE | patch | `ProcessHook` | [UI.cpp:126](../../Code/engine/Interface/UI.cpp#L126) |  |
+| 82082 | `0x1169d20` | `ProcessEventQueue_HookTarget_Enter` | SKSE | patch | `ProcessHook` | [UI.cpp:108](../../Code/engine/Interface/UI.cpp#L108) |  |
 | 82083 | `0x116aa10` | `?` | - | hook → `UiMovies` | `RealUiMovies` | [LiveMenuHooks.cpp:278](../../Code/engine/Interface/LiveMenuHooks.cpp#L278) | **undocumented** |
 | 82088 | `0x116b3b0` | `?` | - | data | `s_CloseAll` | [UI.cpp:40](../../Code/engine/Interface/UI.cpp#L40) | **undocumented** |
 | 82256 | `0xcf6160` | `GFxValue::ObjectInterface::Invoke` | CL SKSE meh | data | `invoke` | [PartyMarkers.cpp:240](../../Code/engine/Interface/PartyMarkers.cpp#L240) |  |
 | 82270 | `0xcf6890` | `GFxValue::ObjectInterface::ObjectRelease` | CL SKSE meh | call | `s_release` | [PartyMarkers.cpp:63](../../Code/engine/Interface/PartyMarkers.cpp#L63) |  |
 | 400327 | `0x219e5c0` | `UI::singleton` | CL SKSE meh | data | `s_instance` | [UI.cpp:16](../../Code/engine/Interface/UI.cpp#L16) |  |
-| 400445 | `0x21a05c0` | `UIMessageQueue::singleton` | CL SKSE meh | data | `s_singleton` | [UI.cpp:93](../../Code/engine/Interface/UI.cpp#L93) |  |
+| 400445 | `0x21a05c0` | `UIMessageQueue::singleton` | CL SKSE meh | data | `s_singleton` | [UI.cpp:85](../../Code/engine/Interface/UI.cpp#L85) |  |
 | 401585 | `0x31e0b70` | `CrosshairPickData::singleton` | CL SKSE meh | data | `s_instance` | [CrosshairPickData.cpp:6](../../Code/engine/Interface/CrosshairPickData.cpp#L6) |  |
 | 403551 | `0x3210e38` | `MenuCursor::singleton` | CL meh | data | `s_instance` | [MenuCursor.cpp:6](../../Code/engine/Interface/MenuCursor.cpp#L6) |  |
 | 405823 | `0x3255bc4` | `BarterMenu::handle` | CL meh | data | `s_merchant` | [ItemMenuWatch.cpp:53](../../Code/engine/Interface/ItemMenuWatch.cpp#L53) |  |
@@ -3884,23 +3834,20 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 21622 | `0x3394e0` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `RealHasPerk` | [MagicTarget.cpp:288](../../Code/engine/Magic/MagicTarget.cpp#L288) |  |
-| 34053 | `0x5baed0` | `ActiveEffect::CalculateDurationAndMagnitude` | meh | hook → `HookAdjustForPerks` | `RealAdjustForPerks` | [MagicTarget.cpp:287](../../Code/engine/Magic/MagicTarget.cpp#L287) |  |
-| 34062 | `0x5bb470` | `ActiveEffect::EvaluateEntryConditions` | IDA meh | hook → `HookEvaluateEntryConditions` | `RealEvaluateEntryConditions` | [MagicTarget.cpp:289](../../Code/engine/Magic/MagicTarget.cpp#L289) |  |
+| 21622 | `0x3394e0` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `RealHasPerk` | [MagicTarget.cpp:270](../../Code/engine/Magic/MagicTarget.cpp#L270) |  |
+| 34053 | `0x5baed0` | `ActiveEffect::CalculateDurationAndMagnitude` | meh | hook → `HookAdjustForPerks` | `RealAdjustForPerks` | [MagicTarget.cpp:269](../../Code/engine/Magic/MagicTarget.cpp#L269) |  |
+| 34062 | `0x5bb470` | `ActiveEffect::EvaluateEntryConditions` | IDA meh | hook → `HookEvaluateEntryConditions` | `RealEvaluateEntryConditions` | [MagicTarget.cpp:271](../../Code/engine/Magic/MagicTarget.cpp#L271) |  |
 | 34140 | `0x5bf6a0` | `ActorMagicCaster::InterruptCastImpl` | IDA meh | hook → `HookInterruptCast` | `RealInterruptCast` | [ActorMagicCaster.cpp:98](../../Code/engine/Magic/ActorMagicCaster.cpp#L98) |  |
 | 34143 | `0x5bf8d0` | `ActorMagicCaster::Update` | IDA meh | hook → `HookCasterUpdate` | `RealCasterUpdate` | [ActorMagicCaster.cpp:99](../../Code/engine/Magic/ActorMagicCaster.cpp#L99) |  |
 | 34144 | `0x5bfdd0` | `ActorMagicCaster::Func9_34144` | meh | hook → `HookSpellCast` | `RealSpellCast` | [ActorMagicCaster.cpp:97](../../Code/engine/Magic/ActorMagicCaster.cpp#L97) |  |
 | 34145 | `0x5c0150` | `ActorMagicCaster::Func10_34145` | meh | hook → `HookCheckCast` | `RealCheckCast` | [ActorMagicCaster.cpp:100](../../Code/engine/Magic/ActorMagicCaster.cpp#L100) |  |
-| 34401 | `0x5ca260` | `?` | - | call | `s_castSpell` | [MagicCaster.cpp:8](../../Code/engine/Magic/MagicCaster.cpp#L8) | **undocumented** |
-| 34408 | `0x5caae0` | `MagicCaster::InterruptCast` | CL meh | call | `s_interruptCast` | [MagicCaster.cpp:17](../../Code/engine/Magic/MagicCaster.cpp#L17) |  |
-| 34410 | `0x5caca0` | `MagicCaster::FindTargets` | CL meh | hook → `HookFindTargets` | `RealFindTargets` | [MagicTarget.cpp:283](../../Code/engine/Magic/MagicTarget.cpp#L283) |  |
-| 34512 | `0x5d1400` | `MagicTarget::DispelAllSpells` | meh | call | `dispelAllSpells` | [MagicTarget.cpp:66](../../Code/engine/Magic/MagicTarget.cpp#L66) |  |
-| 34513 | `0x5d1470` | `MagicItem::IsSpellTarget` | IDA meh | hook → `HookIsSpellTarget` | `RealIsSpellTarget` | [MagicTarget.cpp:286](../../Code/engine/Magic/MagicTarget.cpp#L286) |  |
-| 34517 | `0x5d16d0` | `MagicTarget::HasMagicEffect` | IDA CL meh | hook → `HookHasMagicEffect` | `RealHasMagicEffect` | [MagicTarget.cpp:284](../../Code/engine/Magic/MagicTarget.cpp#L284) |  |
-| 34518 | `0x5d1760` | `MagicTarget::HasMagicEffectWithKeyword` | IDA CL PL meh | hook → `HookHasMagicEffectWithKeyword` | `RealHasMagicEffectWithKeyword` | [MagicTarget.cpp:285](../../Code/engine/Magic/MagicTarget.cpp#L285) |  |
-| 34526 | `0x5d1da0` | `?` | PL | hook → `HookAddTarget` | `RealAddTarget` | [MagicTarget.cpp:282](../../Code/engine/Magic/MagicTarget.cpp#L282) | **undocumented** |
-| 34529 | `0x5d26e0` | `MagicTarget::GetOwnerActor` | meh | call | `getTargetAsActor` | [MagicTarget.cpp:105](../../Code/engine/Magic/MagicTarget.cpp#L105) |  |
-| 37698 | `0x69f920` | `Actor::HasPerk` | CL SKSE meh | hook → `HookGetPerkRank` | `getPerkRank` | [MagicTarget.cpp:278](../../Code/engine/Magic/MagicTarget.cpp#L278) |  |
+| 34408 | `0x5caae0` | `MagicCaster::InterruptCast` | CL meh | call | `s_interruptCast` | [MagicCaster.cpp:8](../../Code/engine/Magic/MagicCaster.cpp#L8) |  |
+| 34410 | `0x5caca0` | `MagicCaster::FindTargets` | CL meh | hook → `HookFindTargets` | `RealFindTargets` | [MagicTarget.cpp:265](../../Code/engine/Magic/MagicTarget.cpp#L265) |  |
+| 34513 | `0x5d1470` | `MagicItem::IsSpellTarget` | IDA meh | hook → `HookIsSpellTarget` | `RealIsSpellTarget` | [MagicTarget.cpp:268](../../Code/engine/Magic/MagicTarget.cpp#L268) |  |
+| 34517 | `0x5d16d0` | `MagicTarget::HasMagicEffect` | IDA CL meh | hook → `HookHasMagicEffect` | `RealHasMagicEffect` | [MagicTarget.cpp:266](../../Code/engine/Magic/MagicTarget.cpp#L266) |  |
+| 34518 | `0x5d1760` | `MagicTarget::HasMagicEffectWithKeyword` | IDA CL PL meh | hook → `HookHasMagicEffectWithKeyword` | `RealHasMagicEffectWithKeyword` | [MagicTarget.cpp:267](../../Code/engine/Magic/MagicTarget.cpp#L267) |  |
+| 34526 | `0x5d1da0` | `?` | PL | hook → `HookAddTarget` | `RealAddTarget` | [MagicTarget.cpp:264](../../Code/engine/Magic/MagicTarget.cpp#L264) | **undocumented** |
+| 34529 | `0x5d26e0` | `MagicTarget::GetOwnerActor` | meh | call | `getTargetAsActor` | [MagicTarget.cpp:96](../../Code/engine/Magic/MagicTarget.cpp#L96) |  |
 | 403337 | `0x3223e50` | `MagicFavorites::singleton` | CL SKSE meh | data | `s_instance` | [MagicFavorites.cpp:6](../../Code/engine/Magic/MagicFavorites.cpp#L6) |  |
 
 ## engine/Misc
@@ -3927,14 +3874,13 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 35274 | `0x5ee910` | `MenuTopicManager::Clear` | IDA meh | data | `s_clear` | [MenuTopicManager.cpp:79](../../Code/engine/Misc/MenuTopicManager.cpp#L79) |  |
 | 35283 | `0x5efb90` | `MenuTopicManager::SaySelected` | IDA meh | data | `s_saySelected` | [MenuTopicManager.cpp:62](../../Code/engine/Misc/MenuTopicManager.cpp#L62) |  |
 | 35290 | `0x5f0820` | `MenuTopicManager::SkipLine` | IDA meh | data | `s_skipLine` | [MenuTopicManager.cpp:71](../../Code/engine/Misc/MenuTopicManager.cpp#L71) |  |
-| 35319 | `0x5f2420` | `?` | - | data | `s_destroy` | [MenuTopicManager.cpp:201](../../Code/engine/Misc/MenuTopicManager.cpp#L201) | **undocumented** |
+| 35319 | `0x5f2420` | `?` | - | data | `s_destroy` | [MenuTopicManager.cpp:186](../../Code/engine/Misc/MenuTopicManager.cpp#L186) | **undocumented** |
 | 37229 | `0x674030` | `Actor::CanBeKilledBy` | IDA meh | call | `s_canBeKilledBy` | [KillMoveOdds.cpp:53](../../Code/engine/Misc/KillMoveOdds.cpp#L53) |  |
 | 37483 | `0x6879a0` | `Actor::IsDead` | meh | call | `s_isDead` | [KillMoveOdds.cpp:47](../../Code/engine/Misc/KillMoveOdds.cpp#L47) |  |
 | 38563 | `0x6c9870` | `Actor::EngagingInCombat` | meh | call | `s_engagingInCombat` | [KillMoveOdds.cpp:55](../../Code/engine/Misc/KillMoveOdds.cpp#L55) |  |
 | 38979 | `0x6e13c0` | `ActorState::SetWeaponDrawn` | IDA meh | call | `setWeaponState` | [ActorState.cpp:7](../../Code/engine/Misc/ActorState.cpp#L7) |  |
 | 39996 | `0x727d30` | `ActorProcess::coop_MiddleHighByte324` | IDA meh | call | `s_combatGate` | [KillMoveOdds.cpp:54](../../Code/engine/Misc/KillMoveOdds.cpp#L54) |  |
-| 52626 | `0x983e80` | `?` | - | hook → `HookShowSubtitle` | `RealShowSubtitle` | [SubtitleManager.cpp:57](../../Code/engine/Misc/SubtitleManager.cpp#L57) | **undocumented** |
-| 52627 | `0x984080` | `?` | - | call | `s_hideSubtitle` | [SubtitleManager.cpp:35](../../Code/engine/Misc/SubtitleManager.cpp#L35) | **undocumented** |
+| 52626 | `0x983e80` | `?` | - | hook → `HookShowSubtitle` | `RealShowSubtitle` | [SubtitleManager.cpp:50](../../Code/engine/Misc/SubtitleManager.cpp#L50) | **undocumented** |
 | 53915 | `0x9d5630` | `Output::Resize` | SKSE | call | `s_setSize` | [BSScript.cpp:215](../../Code/engine/Misc/BSScript.cpp#L215) |  |
 | 55510 | `0xa28f20` | `?` | - | call | `s_pack` | [BSScript.cpp:79](../../Code/engine/Misc/BSScript.cpp#L79) | **undocumented** |
 | 69161 | `0xeb0f90` | `BSFixedString::ctor8` | CL SKSE meh | call | `s_constructor` | [BSFixedString.cpp:13](../../Code/engine/Misc/BSFixedString.cpp#L13) |  |
@@ -4091,28 +4037,28 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 |---|---|---|---|---|---|---|---|
 | 13022 | `0x193b90` | `QueuedReference::Finish` | IDA meh | hook → `HookFinishLoad3D` | `RealFinishLoad3D` | [Load.cpp:94](../../Code/engine/ReferenceHooks/Load.cpp#L94) |  |
 | 13023 | `0x193d60` | `QueuedReference::End` | IDA meh | hook → `HookEndLoad3D` | `RealEndLoad3D` | [Load.cpp:95](../../Code/engine/ReferenceHooks/Load.cpp#L95) |  |
-| 14646 | `0x1e6480` | `TESForm::SetDisabled` | IDA meh | hook → `HookSetDisabled` | `RealSetDisabled` | [World.cpp:330](../../Code/engine/ReferenceHooks/World.cpp#L330) |  |
+| 14646 | `0x1e6480` | `TESForm::SetDisabled` | IDA meh | hook → `HookSetDisabled` | `RealSetDisabled` | [World.cpp:306](../../Code/engine/ReferenceHooks/World.cpp#L306) |  |
 | 16059 | `0x22da70` | `InventoryChanges::RemoveItem` | IDA CL | hook → `HookRemoveFromInventory` | `RealRemoveFromInventory` | [Item.cpp:256](../../Code/engine/ReferenceHooks/Item.cpp#L256) |  |
 | 16145 | `0x23ee00` | `?` | - | hook → `HookTemper` | `RealTemper` | [Item.cpp:253](../../Code/engine/ReferenceHooks/Item.cpp#L253) | **undocumented** |
 | 16146 | `0x23f0c0` | `InventoryChanges::EnchantObject` | CL | hook → `HookEnchantObject` | `RealEnchantObject` | [Item.cpp:254](../../Code/engine/ReferenceHooks/Item.cpp#L254) |  |
-| 19512 | `0x2df840` | `TESObjectREFR::AddLockChange` | IDA CL meh | hook → `HookLockChange` | `RealLockChange` | [World.cpp:317](../../Code/engine/ReferenceHooks/World.cpp#L317) |  |
+| 19512 | `0x2df840` | `TESObjectREFR::AddLockChange` | IDA CL meh | hook → `HookLockChange` | `RealLockChange` | [World.cpp:293](../../Code/engine/ReferenceHooks/World.cpp#L293) |  |
 | 19689 | `0x2e7cc0` | `TESObjectREFR::RemoveItem` | meh | hook → `HookRemoveInventoryItem` | `RealRemoveInventoryItem` | [Item.cpp:255](../../Code/engine/ReferenceHooks/Item.cpp#L255) |  |
 | 19694 | `0x2e8300` | `TESObjectREFR__UnequipForRemoveNoProcess` | IDA meh | hook → `HookUnequipForRemove` | `RealUnequipForRemove` | [Item.cpp:257](../../Code/engine/ReferenceHooks/Item.cpp#L257) |  |
 | 19708 | `0x2e8940` | `TESObjectREFR::AddObjectToContainer` | meh | hook → `HookAddInventoryItem` | `RealAddInventoryItem` | [Item.cpp:252](../../Code/engine/ReferenceHooks/Item.cpp#L252) |  |
 | 19727 | `0x2e9ee0` | `TESObjectREFR::Load3D` | IDA meh | hook → `HookLoad3D` | `RealLoad3D` | [Load.cpp:93](../../Code/engine/ReferenceHooks/Load.cpp#L93) |  |
-| 19786 | `0x2f0c30` | `TESObjectREFR::SetAngle` | CL meh | hook → `HookSetAngle` | `RealSetAngle` | [World.cpp:328](../../Code/engine/ReferenceHooks/World.cpp#L328) |  |
-| 19787 | `0x2f0d20` | `TESObjectREFR::SetRotationX` | meh | hook → `HookRotateX` | `RealRotateX` | [World.cpp:318](../../Code/engine/ReferenceHooks/World.cpp#L318) |  |
-| 19788 | `0x2f0da0` | `TESObjectREFR::SetRotationY` | meh | hook → `HookRotateY` | `RealRotateY` | [World.cpp:319](../../Code/engine/ReferenceHooks/World.cpp#L319) |  |
-| 19789 | `0x2f0e20` | `TESObjectREFR::SetRotationZ` | meh | hook → `HookRotateZ` | `RealRotateZ` | [World.cpp:320](../../Code/engine/ReferenceHooks/World.cpp#L320) |  |
-| 19796 | `0x2f11b0` | `TESObjectREFR::ActivateRef` | IDA CL meh | hook → `HookActivate` | `RealActivate` | [World.cpp:321](../../Code/engine/ReferenceHooks/World.cpp#L321) |  |
-| 19800 | `0x2f2840` | `TESObjectREFR::Enable` | IDA CL meh | hook → `HookEnable` | `RealEnable` | [World.cpp:329](../../Code/engine/ReferenceHooks/World.cpp#L329) |  |
+| 19786 | `0x2f0c30` | `TESObjectREFR::SetAngle` | CL meh | hook → `HookSetAngle` | `RealSetAngle` | [World.cpp:304](../../Code/engine/ReferenceHooks/World.cpp#L304) |  |
+| 19787 | `0x2f0d20` | `TESObjectREFR::SetRotationX` | meh | hook → `HookRotateX` | `RealRotateX` | [World.cpp:294](../../Code/engine/ReferenceHooks/World.cpp#L294) |  |
+| 19788 | `0x2f0da0` | `TESObjectREFR::SetRotationY` | meh | hook → `HookRotateY` | `RealRotateY` | [World.cpp:295](../../Code/engine/ReferenceHooks/World.cpp#L295) |  |
+| 19789 | `0x2f0e20` | `TESObjectREFR::SetRotationZ` | meh | hook → `HookRotateZ` | `RealRotateZ` | [World.cpp:296](../../Code/engine/ReferenceHooks/World.cpp#L296) |  |
+| 19796 | `0x2f11b0` | `TESObjectREFR::ActivateRef` | IDA CL meh | hook → `HookActivate` | `RealActivate` | [World.cpp:297](../../Code/engine/ReferenceHooks/World.cpp#L297) |  |
+| 19800 | `0x2f2840` | `TESObjectREFR::Enable` | IDA CL meh | hook → `HookEnable` | `RealEnable` | [World.cpp:305](../../Code/engine/ReferenceHooks/World.cpp#L305) |  |
 | 20232 | `0x301750` | `TESObjectREFR::PickLeveledBase` | IDA meh | hook → `HookPickLeveledBase` | `RealPickLeveledBase` | [Item.cpp:258](../../Code/engine/ReferenceHooks/Item.cpp#L258) |  |
-| 22053 | `0x3508d0` | `TESObjectREFR::SetPositionOnAxis` | IDA meh | hook → `HookSetPositionOnAxis` | `RealSetPositionOnAxis` | [World.cpp:323](../../Code/engine/ReferenceHooks/World.cpp#L323) |  |
-| 22054 | `0x350a40` | `TESObjectREFR::SetRotation` | IDA meh | hook → `HookSetAngleOnAxis` | `RealSetAngleOnAxis` | [World.cpp:324](../../Code/engine/ReferenceHooks/World.cpp#L324) |  |
-| 51968 | `0x94f0c0` | `LockpickingMenu::Unlock` | IDA meh | hook → `HookLockpickUnlock` | `RealLockpickUnlock` | [World.cpp:327](../../Code/engine/ReferenceHooks/World.cpp#L327) |  |
-| 56205 | `0xa47370` | `papyrus::ObjectReference::PlayAnimation` | meh | hook → `HookPlayAnimation` | `RealPlayAnimation` | [World.cpp:326](../../Code/engine/ReferenceHooks/World.cpp#L326) |  |
-| 56206 | `0xa473f0` | `papyrus::ObjectReference::PlayAnimationAndWait` | meh | hook → `HookPlayAnimationAndWait` | `RealPlayAnimationAndWait` | [World.cpp:325](../../Code/engine/ReferenceHooks/World.cpp#L325) |  |
-| 56626 | `0xa5d370` | `TESObjectREFR::MoveTo_Impl` | IDA CL SKSE meh | hook → `HookMoveTo` | `RealMoveTo` | [World.cpp:322](../../Code/engine/ReferenceHooks/World.cpp#L322) |  |
+| 22053 | `0x3508d0` | `TESObjectREFR::SetPositionOnAxis` | IDA meh | hook → `HookSetPositionOnAxis` | `RealSetPositionOnAxis` | [World.cpp:299](../../Code/engine/ReferenceHooks/World.cpp#L299) |  |
+| 22054 | `0x350a40` | `TESObjectREFR::SetRotation` | IDA meh | hook → `HookSetAngleOnAxis` | `RealSetAngleOnAxis` | [World.cpp:300](../../Code/engine/ReferenceHooks/World.cpp#L300) |  |
+| 51968 | `0x94f0c0` | `LockpickingMenu::Unlock` | IDA meh | hook → `HookLockpickUnlock` | `RealLockpickUnlock` | [World.cpp:303](../../Code/engine/ReferenceHooks/World.cpp#L303) |  |
+| 56205 | `0xa47370` | `papyrus::ObjectReference::PlayAnimation` | meh | hook → `HookPlayAnimation` | `RealPlayAnimation` | [World.cpp:302](../../Code/engine/ReferenceHooks/World.cpp#L302) |  |
+| 56206 | `0xa473f0` | `papyrus::ObjectReference::PlayAnimationAndWait` | meh | hook → `HookPlayAnimationAndWait` | `RealPlayAnimationAndWait` | [World.cpp:301](../../Code/engine/ReferenceHooks/World.cpp#L301) |  |
+| 56626 | `0xa5d370` | `TESObjectREFR::MoveTo_Impl` | IDA CL SKSE meh | hook → `HookMoveTo` | `RealMoveTo` | [World.cpp:298](../../Code/engine/ReferenceHooks/World.cpp#L298) |  |
 
 ## engine/Sky
 
@@ -4144,8 +4090,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 12074 | `0x1739a0` | `ExtraDataList::SetInteractionData` | IDA meh | call | `s_setInteraction` | [EngineCalls.cpp:905](../../Code/harness/TestHarness/EngineCalls.cpp#L905) |  |
 | 13631 | `0x1b47f0` | `UIMessageQueue::AddMessage` | CL SKSE meh | call | `s_addMessage` | [EngineCalls.cpp:192](../../Code/harness/TestHarness/EngineCalls.cpp#L192) |  |
 | 14287 | `0x1d9eb0` | `BGSOpenCloseForm::SetOpenState` | IDA CL meh | call | `s_setOpenState` | [EngineCalls.cpp:1063](../../Code/harness/TestHarness/EngineCalls.cpp#L1063) |  |
-| 14639 | `0x1e6150` | `TESForm::SetPlayerKnows` | CL | call | `s_setPlayerKnows` | [EngineCalls.cpp:2212](../../Code/harness/TestHarness/EngineCalls.cpp#L2212) |  |
-| 14640 | `0x1e6190` | `?` | - | call | `s_setUnlocked` | [EngineCalls.cpp:2228](../../Code/harness/TestHarness/EngineCalls.cpp#L2228) | **undocumented** |
+| 14639 | `0x1e6150` | `TESForm::SetPlayerKnows` | CL | call | `s_setPlayerKnows` | [EngineCalls.cpp:2205](../../Code/harness/TestHarness/EngineCalls.cpp#L2205) |  |
+| 14640 | `0x1e6190` | `?` | - | call | `s_setUnlocked` | [EngineCalls.cpp:2221](../../Code/harness/TestHarness/EngineCalls.cpp#L2221) | **undocumented** |
 | 16145 | `0x23ee00` | `?` | - | call | `s_temper` | [EngineCalls.cpp:1635](../../Code/harness/TestHarness/EngineCalls.cpp#L1635) | **undocumented** |
 | 16146 | `0x23f0c0` | `InventoryChanges::EnchantObject` | CL | call | `s_enchantObject` | [EngineCalls.cpp:1636](../../Code/harness/TestHarness/EngineCalls.cpp#L1636) |  |
 | 18909 | `0x2bb7e0` | `TESObjectCELL::sub_18909` | meh | data | `check` | [CommandsCrime.cpp:282](../../Code/harness/TestHarness/CommandsCrime.cpp#L282) |  |
@@ -4161,8 +4107,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 24505 | `0x3b4b40` | `TESFaction::SetPlayerEnemy` | IDA meh | data | `set` | [CommandsCrime.cpp:115](../../Code/harness/TestHarness/CommandsCrime.cpp#L115) |  |
 | 24716 | `0x3c1000` | `TESNPC::GetActivateText` | IDA meh | call | `s_getActivateText` | [EngineCalls.cpp:928](../../Code/harness/TestHarness/EngineCalls.cpp#L928) |  |
 | 25196 | `0x3dfec0` | `QuestStatus::GetEventSource` | CL | call | `source` | [QuestFragments.cpp:63](../../Code/harness/TestHarness/QuestFragments.cpp#L63) |  |
-| 25587 | `0x3f1010` | `?` | - | call | `s_freeResponses` | [EngineCalls.cpp:2147](../../Code/harness/TestHarness/EngineCalls.cpp#L2147) | **undocumented** |
-| 25626 | `0x3f3300` | `TESTopicInfo::GetResponseList` | CL | call | `s_getResponses` | [EngineCalls.cpp:2146](../../Code/harness/TestHarness/EngineCalls.cpp#L2146) |  |
+| 25587 | `0x3f1010` | `?` | - | call | `s_freeResponses` | [EngineCalls.cpp:2140](../../Code/harness/TestHarness/EngineCalls.cpp#L2140) | **undocumented** |
+| 25626 | `0x3f3300` | `TESTopicInfo::GetResponseList` | CL | call | `s_getResponses` | [EngineCalls.cpp:2139](../../Code/harness/TestHarness/EngineCalls.cpp#L2139) |  |
 | 25931 | `0x3ff900` | `hkpAllCdPointCollector::LinearCastFrom` | IDA meh | hook → `HookLinearCast` | `RealLinearCast` | [SwingWatch.cpp:53](../../Code/harness/TestHarness/SwingWatch.cpp#L53) |  |
 | 30635 | `0x4d71a0` | `Pathing::sub_30635` | PL meh | data | `s_actorLocation` | [EngineCalls.cpp:578](../../Code/harness/TestHarness/EngineCalls.cpp#L578) |  |
 | 30640 | `0x4d75a0` | `Pathing::sub_30640` | meh | data | `s_pointLocation` | [EngineCalls.cpp:580](../../Code/harness/TestHarness/EngineCalls.cpp#L580) |  |
@@ -4171,9 +4117,9 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 32359 | `0x5339b0` | `BGSStoryEventManager::AddEvent_Impl` | CL | hook → `HookAddEvent` | `RealAddEvent` | [PlayerEvents.cpp:61](../../Code/harness/TestHarness/PlayerEvents.cpp#L61) |  |
 | 32374 | `0x5346c0` | `BGSStoryManager::sub_32374` | meh | hook → `HookStoryLog` | `RealStoryLog` | [PlayerEvents.cpp:88](../../Code/harness/TestHarness/PlayerEvents.cpp#L88) |  |
 | 32953 | `0x555fd0` | `AnimationGraphVisitor_AddRagdollToWorld` | IDA | hook → `HookAddVisitor` | `RealAddVisitor` | [RagdollWatch.cpp:77](../../Code/harness/TestHarness/RagdollWatch.cpp#L77) |  |
-| 37200 | `0x672e30` | `Actor::SetDialogueWithPlayer` | meh | call | `s_setDialogueWithPlayer` | [EngineCalls.cpp:2094](../../Code/harness/TestHarness/EngineCalls.cpp#L2094) |  |
+| 37200 | `0x672e30` | `Actor::SetDialogueWithPlayer` | meh | call | `s_setDialogueWithPlayer` | [EngineCalls.cpp:2087](../../Code/harness/TestHarness/EngineCalls.cpp#L2087) |  |
 | 37229 | `0x674030` | `Actor::CanBeKilledBy` | IDA meh | call | `s_killable` | [EngineCalls.cpp:1822](../../Code/harness/TestHarness/EngineCalls.cpp#L1822) |  |
-| 37247 | `0x674b70` | `Actor::GetCurrentScene` | meh | call | `s_getCurrentScene` | [EngineCalls.cpp:2772](../../Code/harness/TestHarness/EngineCalls.cpp#L2772) |  |
+| 37247 | `0x674b70` | `Actor::GetCurrentScene` | meh | call | `s_getCurrentScene` | [EngineCalls.cpp:2765](../../Code/harness/TestHarness/EngineCalls.cpp#L2765) |  |
 | 37380 | `0x67ea40` | `Actor::GetCrimeFaction` | meh | data | `crimeFaction` | [CommandsCrime.cpp:125](../../Code/harness/TestHarness/CommandsCrime.cpp#L125) |  |
 | 37380 | `0x67ea40` | `Actor::GetCrimeFaction` | meh | data | `getFaction` | [CommandsCrime.cpp:167](../../Code/harness/TestHarness/CommandsCrime.cpp#L167) |  |
 | 37422 | `0x681de0` | `Actor::StealAlarm` | IDA CL meh | data | `steal` | [CommandsCrime.cpp:53](../../Code/harness/TestHarness/CommandsCrime.cpp#L53) |  |
@@ -4182,7 +4128,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37426 | `0x683550` | `Character::sub_37426` | meh | data | `alarm` | [CommandsCrime.cpp:79](../../Code/harness/TestHarness/CommandsCrime.cpp#L79) |  |
 | 37463 | `0x6864b0` | `Actor__SetAngryWithPlayer` | IDA meh | data | `set` | [CommandsCrime.cpp:148](../../Code/harness/TestHarness/CommandsCrime.cpp#L148) |  |
 | 37488 | `0x687b40` | `Actor::SetRestrained` | IDA meh | data | `s_setRestrained` | [EngineCalls.cpp:1016](../../Code/harness/TestHarness/EngineCalls.cpp#L1016) |  |
-| 37491 | `0x687c20` | `Actor::IsInRagdollState` | CL meh | call | `s_isInRagdollState` | [EngineCalls.cpp:2273](../../Code/harness/TestHarness/EngineCalls.cpp#L2273) |  |
+| 37491 | `0x687c20` | `Actor::IsInRagdollState` | CL meh | call | `s_isInRagdollState` | [EngineCalls.cpp:2266](../../Code/harness/TestHarness/EngineCalls.cpp#L2266) |  |
 | 37537 | `0x68c9d0` | `Actor::IsHostileToActor` | CL SKSE meh | data | `hostile` | [CommandsCrime.cpp:165](../../Code/harness/TestHarness/CommandsCrime.cpp#L165) |  |
 | 37666 | `0x69ca50` | `Actor::GetFactionReaction` | CL meh | data | `reaction` | [CommandsCrime.cpp:164](../../Code/harness/TestHarness/CommandsCrime.cpp#L164) |  |
 | 37764 | `0x6a2520` | `Actor::RequestDetectionLevel` | IDA CL meh | data | `detect` | [CommandsCrime.cpp:232](../../Code/harness/TestHarness/CommandsCrime.cpp#L232) |  |
@@ -4218,7 +4164,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 47309 | `0x869020` | `Actor__GetPredictedPosition` | IDA meh | call | `s_predicted` | [CombatReads.cpp:57](../../Code/harness/TestHarness/CombatReads.cpp#L57) |  |
 | 47336 | `0x86b240` | `CombatUtilities__GetActorReach` | IDA | call | `s_reach` | [CombatReads.cpp:64](../../Code/harness/TestHarness/CombatReads.cpp#L64) |  |
 | 50643 | `0x8f1c90` | `CombatUtilities__GetCloseRangeMargin` | IDA meh | call | `s_margin` | [CombatReads.cpp:61](../../Code/harness/TestHarness/CombatReads.cpp#L61) |  |
-| 50790 | `0x8f8de0` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:2571](../../Code/harness/TestHarness/EngineCalls.cpp#L2571) |  |
+| 50790 | `0x8f8de0` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:2564](../../Code/harness/TestHarness/EngineCalls.cpp#L2564) |  |
 | 51110 | `0x90f1e0` | `ConsoleLog::VPrint` | IDA CL SKSE PL meh | hook → `HookVPrint` | `RealVPrint` | [ConsoleOutput.cpp:93](../../Code/harness/TestHarness/ConsoleOutput.cpp#L93) |  |
 | 51968 | `0x94f0c0` | `LockpickingMenu::Unlock` | IDA meh | data | `unlock` | [CommandsCrime.cpp:101](../../Code/harness/TestHarness/CommandsCrime.cpp#L101) |  |
 | 51981 | `0x950420` | `LockpickingMenu::sub_51981` | meh | data | `check` | [CommandsCrime.cpp:90](../../Code/harness/TestHarness/CommandsCrime.cpp#L90) |  |
@@ -4233,37 +4179,36 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 63562 | `0xbca840` | `BShkbAnimationGraph::UpdateRagdollPrePhysics` | IDA PL meh | hook → `HookPrePhysics` | `RealPrePhysics` | [RagdollWatch.cpp:78](../../Code/harness/TestHarness/RagdollWatch.cpp#L78) |  |
 | 63587 | `0xbcedb0` | `coop_BShkbAnimationGraph_UpdateInterpolated` | IDA PL meh | call | `RealUpdate` | [GraphStreamCheck.cpp:272](../../Code/harness/TestHarness/GraphStreamCheck.cpp#L272) |  |
 | 63591 | `0xbcf690` | `BShkbAnimationGraph::SendEvent` | IDA meh | call | `RealSendGraphEvent` | [AnimationTrace.cpp:224](../../Code/harness/TestHarness/AnimationTrace.cpp#L224) |  |
-| 63591 | `0xbcf690` | `BShkbAnimationGraph::SendEvent` | IDA meh | call | `SendEvent` | [EngineCalls.cpp:1963](../../Code/harness/TestHarness/EngineCalls.cpp#L1963) |  |
 | 63591 | `0xbcf690` | `BShkbAnimationGraph::SendEvent` | IDA meh | call | `RealSendEvent` | [GraphStreamCheck.cpp:276](../../Code/harness/TestHarness/GraphStreamCheck.cpp#L276) |  |
 | 63980 | `0xbe8460` | `AnimationFileManagerSingleton__Update` | IDA meh | data | `update` | [ClipLoads.cpp:39](../../Code/harness/TestHarness/ClipLoads.cpp#L39) |  |
-| 68542 | `0xcef3b0` | `ControlMap::MapUserEvents` | IDA | data | `s_mapUserEvents` | [EngineCalls.cpp:2485](../../Code/harness/TestHarness/EngineCalls.cpp#L2485) |  |
-| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2423](../../Code/harness/TestHarness/EngineCalls.cpp#L2423) |  |
-| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2489](../../Code/harness/TestHarness/EngineCalls.cpp#L2489) |  |
-| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2531](../../Code/harness/TestHarness/EngineCalls.cpp#L2531) |  |
+| 68542 | `0xcef3b0` | `ControlMap::MapUserEvents` | IDA | data | `s_mapUserEvents` | [EngineCalls.cpp:2478](../../Code/harness/TestHarness/EngineCalls.cpp#L2478) |  |
+| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2416](../../Code/harness/TestHarness/EngineCalls.cpp#L2416) |  |
+| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2482](../../Code/harness/TestHarness/EngineCalls.cpp#L2482) |  |
+| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2524](../../Code/harness/TestHarness/EngineCalls.cpp#L2524) |  |
 | 90350 | `0x11b6ab0` | `?` | IDA PL | data | `s_destroy` | [EngineCalls.cpp:559](../../Code/harness/TestHarness/EngineCalls.cpp#L559) |  |
 | 90369 | `0x11b75a0` | `BSPathingLocation::ResolveToClosestNavmeshAndTriangle` | CL | data | `s_resolve` | [EngineCalls.cpp:322](../../Code/harness/TestHarness/EngineCalls.cpp#L322) |  |
 | 90396 | `0x11b90f0` | `Pathing::BuildPathNow` | IDA meh | data | `s_build` | [EngineCalls.cpp:603](../../Code/harness/TestHarness/EngineCalls.cpp#L603) |  |
 | 90961 | `0x11d7270` | `BSPathingSolution::ctor` | IDA | data | `s_solutionCtor` | [EngineCalls.cpp:599](../../Code/harness/TestHarness/EngineCalls.cpp#L599) |  |
 | 90962 | `0x11d7300` | `BSPathingSolution::dtor` | IDA | data | `s_solutionDtor` | [EngineCalls.cpp:601](../../Code/harness/TestHarness/EngineCalls.cpp#L601) |  |
-| 208708 | `0x1935110` | `?` | CL | data | `buttonEventVtable` | [EngineCalls.cpp:2399](../../Code/harness/TestHarness/EngineCalls.cpp#L2399) |  |
-| 208708 | `0x1935110` | `?` | CL | data | `buttonEventVtable` | [EngineCalls.cpp:2499](../../Code/harness/TestHarness/EngineCalls.cpp#L2499) |  |
-| 236703 | `0x1a23bc0` | `?` | CL | data | `mouseMoveEventVtable` | [EngineCalls.cpp:2545](../../Code/harness/TestHarness/EngineCalls.cpp#L2545) |  |
-| 236705 | `0x1a23be0` | `?` | CL | data | `charEventVtable` | [EngineCalls.cpp:2523](../../Code/harness/TestHarness/EngineCalls.cpp#L2523) |  |
+| 208708 | `0x1935110` | `?` | CL | data | `buttonEventVtable` | [EngineCalls.cpp:2392](../../Code/harness/TestHarness/EngineCalls.cpp#L2392) |  |
+| 208708 | `0x1935110` | `?` | CL | data | `buttonEventVtable` | [EngineCalls.cpp:2492](../../Code/harness/TestHarness/EngineCalls.cpp#L2492) |  |
+| 236703 | `0x1a23bc0` | `?` | CL | data | `mouseMoveEventVtable` | [EngineCalls.cpp:2538](../../Code/harness/TestHarness/EngineCalls.cpp#L2538) |  |
+| 236705 | `0x1a23be0` | `?` | CL | data | `charEventVtable` | [EngineCalls.cpp:2516](../../Code/harness/TestHarness/EngineCalls.cpp#L2516) |  |
 | 240560 | `0x1a89578` | `?` | CL | data | `s_proxyControllerVtable` | [EngineCalls.cpp:683](../../Code/harness/TestHarness/EngineCalls.cpp#L683) |  |
 | 370394 | `0x209ee20` | `gGameSetting_fDetectionViewCone` | meh | data | `s_viewCone` | [CombatReads.cpp:162](../../Code/harness/TestHarness/CombatReads.cpp#L162) |  |
 | 400442 | `0x21a05a8` | `?` | - | data | `s_obstacles` | [EngineCalls.cpp:515](../../Code/harness/TestHarness/EngineCalls.cpp#L515) | **undocumented** |
 | 400445 | `0x21a05c0` | `UIMessageQueue::singleton` | CL SKSE meh | data | `queue` | [EngineCalls.cpp:193](../../Code/harness/TestHarness/EngineCalls.cpp#L193) |  |
-| 400802 | `0x31a5478` | `PlayerCamera::singleton` | CL SKSE meh | data | `camera` | [EngineCalls.cpp:2569](../../Code/harness/TestHarness/EngineCalls.cpp#L2569) |  |
-| 400863 | `0x31a5690` | `ControlMap::singleton` | CL SKSE meh | data | `controlMap` | [EngineCalls.cpp:2479](../../Code/harness/TestHarness/EngineCalls.cpp#L2479) |  |
+| 400802 | `0x31a5478` | `PlayerCamera::singleton` | CL SKSE meh | data | `camera` | [EngineCalls.cpp:2562](../../Code/harness/TestHarness/EngineCalls.cpp#L2562) |  |
+| 400863 | `0x31a5690` | `ControlMap::singleton` | CL SKSE meh | data | `controlMap` | [EngineCalls.cpp:2472](../../Code/harness/TestHarness/EngineCalls.cpp#L2472) |  |
 | 401037 | `0x31df208` | `Pathing::singleton` | CL PL | data | `s_pathing` | [EngineCalls.cpp:574](../../Code/harness/TestHarness/EngineCalls.cpp#L574) |  |
 | 401037 | `0x31df208` | `Pathing::singleton` | CL PL | data | `s_pathing` | [EngineCalls.cpp:700](../../Code/harness/TestHarness/EngineCalls.cpp#L700) |  |
 | 401950 | `0x31ec8d8` | `?` | - | data | `s_pathBuilder` | [EngineCalls.cpp:575](../../Code/harness/TestHarness/EngineCalls.cpp#L575) | **undocumented** |
-| 402622 | `0x3204860` | `?` | PL | data | `s_shakeStrength` | [EngineCalls.cpp:2249](../../Code/harness/TestHarness/EngineCalls.cpp#L2249) | **undocumented** |
-| 402623 | `0x3204864` | `?` | PL | data | `s_shakeSeconds` | [EngineCalls.cpp:2250](../../Code/harness/TestHarness/EngineCalls.cpp#L2250) | **undocumented** |
-| 402638 | `0x32048d0` | `UserEvents::singleton` | CL SKSE meh | data | `userEvents` | [EngineCalls.cpp:2397](../../Code/harness/TestHarness/EngineCalls.cpp#L2397) |  |
-| 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `inputDeviceManager` | [EngineCalls.cpp:2398](../../Code/harness/TestHarness/EngineCalls.cpp#L2398) |  |
-| 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `inputDeviceManager` | [EngineCalls.cpp:2478](../../Code/harness/TestHarness/EngineCalls.cpp#L2478) |  |
-| 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `inputDeviceManager` | [EngineCalls.cpp:2519](../../Code/harness/TestHarness/EngineCalls.cpp#L2519) |  |
+| 402622 | `0x3204860` | `?` | PL | data | `s_shakeStrength` | [EngineCalls.cpp:2242](../../Code/harness/TestHarness/EngineCalls.cpp#L2242) | **undocumented** |
+| 402623 | `0x3204864` | `?` | PL | data | `s_shakeSeconds` | [EngineCalls.cpp:2243](../../Code/harness/TestHarness/EngineCalls.cpp#L2243) | **undocumented** |
+| 402638 | `0x32048d0` | `UserEvents::singleton` | CL SKSE meh | data | `userEvents` | [EngineCalls.cpp:2390](../../Code/harness/TestHarness/EngineCalls.cpp#L2390) |  |
+| 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `inputDeviceManager` | [EngineCalls.cpp:2391](../../Code/harness/TestHarness/EngineCalls.cpp#L2391) |  |
+| 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `inputDeviceManager` | [EngineCalls.cpp:2471](../../Code/harness/TestHarness/EngineCalls.cpp#L2471) |  |
+| 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `inputDeviceManager` | [EngineCalls.cpp:2512](../../Code/harness/TestHarness/EngineCalls.cpp#L2512) |  |
 | 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `source` | [InputTrace.cpp:126](../../Code/harness/TestHarness/InputTrace.cpp#L126) |  |
 | 404125 | `0x324430c` | `gUnknownElapsedTime` | meh | data | `now` | [CommandsCrime.cpp:207](../../Code/harness/TestHarness/CommandsCrime.cpp#L207) |  |
 | 404125 | `0x324430c` | `gUnknownElapsedTime` | meh | data | `now` | [CommandsCrime.cpp:243](../../Code/harness/TestHarness/CommandsCrime.cpp#L243) |  |
