@@ -3,21 +3,10 @@
 #include "Message.h"
 #include <Wire/Buffer.h>
 
-struct RequestRemoveWaypoint final : RequestMessage
+struct RequestRemoveWaypoint final : MessageOf<RequestRemoveWaypoint, kRequestRemoveWaypoint>
 {
-    static constexpr RequestOpcode Opcode = kRequestRemoveWaypoint;
-
-    RequestRemoveWaypoint() : RequestMessage(Opcode)
+    template <class TArchive> void Fields(TArchive&) noexcept
     {
     }
-
-    virtual ~RequestRemoveWaypoint() = default;
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const RequestRemoveWaypoint& acRhs) const noexcept
-    {
-        return GetOpcode() == acRhs.GetOpcode();
-    }
+    bool operator==(const RequestRemoveWaypoint&) const noexcept = default;
 };

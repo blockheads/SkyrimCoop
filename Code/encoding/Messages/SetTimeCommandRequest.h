@@ -3,19 +3,13 @@
 #include "Message.h"
 #include <Wire/Buffer.h>
 
-struct SetTimeCommandRequest final : RequestMessage
+struct SetTimeCommandRequest final : MessageOf<SetTimeCommandRequest, kSetTimeCommandRequest>
 {
-    static constexpr RequestOpcode Opcode = kSetTimeCommandRequest;
-
-    SetTimeCommandRequest()
-        : RequestMessage(Opcode)
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
+        aArchive(Wire::Bits<8>(Hours), Wire::Bits<8>(Minutes), Wire::Bits<32>(PlayerId));
     }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const SetTimeCommandRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Hours == acRhs.Hours && Minutes == acRhs.Minutes && PlayerId == acRhs.PlayerId; }
+    bool operator==(const SetTimeCommandRequest&) const noexcept = default;
 
     uint8_t Hours{};
     uint8_t Minutes{};

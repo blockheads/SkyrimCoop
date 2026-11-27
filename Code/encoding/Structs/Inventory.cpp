@@ -10,24 +10,6 @@ constexpr uint64_t kMaxEntries = 0xFFFF;
 constexpr uint64_t kMaxEffects = 256;
 } // namespace
 
-void Inventory::EffectItem::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteFloat(aWriter, Magnitude);
-    Serialization::WriteVarInt(aWriter, Area);
-    Serialization::WriteVarInt(aWriter, Duration);
-    Serialization::WriteFloat(aWriter, RawCost);
-    EffectId.Serialize(aWriter);
-}
-
-void Inventory::EffectItem::Deserialize(Wire::Buffer::Reader& aReader) noexcept
-{
-    Magnitude = Serialization::ReadFloat(aReader);
-    Area = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    Duration = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    RawCost = Serialization::ReadFloat(aReader);
-    EffectId.Deserialize(aReader);
-}
-
 void Inventory::Entry::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     BaseId.Serialize(aWriter);

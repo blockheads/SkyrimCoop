@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Structs/GameId.h>
 #include <Structs/Vector3_NetQuantize.h>
 #include <Wire/Buffer.h>
@@ -17,9 +19,14 @@ struct ActorWhereabouts
     };
 
     bool operator==(const ActorWhereabouts& acRhs) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
+    {
+        aArchive(Wire::Bits<8>(Where));
+        if (Where == State::kPlaced)
+            aArchive(CellId, WorldSpaceId, Position, Heading);
+    }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     State Where{State::kUnknown};
     GameId CellId{};

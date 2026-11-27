@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Structs/GameId.h>
 #include <Wire/Buffer.h>
 
@@ -11,6 +13,7 @@
 struct HeldCast
 {
     bool operator==(const HeldCast&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Spell, Dual, Target); }
 
     GameId Spell{};
     bool Dual{};
@@ -20,9 +23,9 @@ struct HeldCast
 struct CastPart
 {
     bool operator==(const CastPart&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Sources); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     std::array<std::optional<HeldCast>, 4> Sources{}; // left hand, right hand, voice, instant
 };

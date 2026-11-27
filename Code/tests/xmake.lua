@@ -4,7 +4,7 @@ target("TPTests")
     set_group("Tests")
 
     add_includedirs(".", "../encoding", "../common", "../base", "../external")
-    add_files("encoding.cpp", "main.cpp")
+    add_files("encoding.cpp", "encoding_fields.cpp", "main.cpp")
     add_deps("SkyrimEncoding")
     add_packages("catch2", "glm", "spdlog", "rpmalloc")
 

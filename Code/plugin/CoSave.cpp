@@ -62,7 +62,7 @@ std::string EncodeSystemQuests() noexcept
             list.Quests.push_back(*cId);
     Wire::Buffer buffer;
     Wire::Buffer::Writer writer(&buffer);
-    list.SerializePayload(writer);
+    Wire::Write(writer, list);
     return {reinterpret_cast<const char*>(buffer.GetData()), writer.Size()};
 }
 
@@ -70,7 +70,7 @@ void DecodeSystemQuests(std::string_view aData) noexcept
 {
     Wire::Buffer::Reader reader(std::span(reinterpret_cast<const uint8_t*>(aData.data()), aData.size()));
     Payloads::SystemQuests list;
-    list.DeserializePayload(reader);
+    Wire::Read(reader, list);
     for (const GameId& cId : list.Quests)
         if (const uint32_t cQuest = ToGame(cId))
             SystemQuests::Learn(cQuest, false);

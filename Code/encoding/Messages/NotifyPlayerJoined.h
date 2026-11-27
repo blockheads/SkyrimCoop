@@ -5,21 +5,13 @@
 #include <Structs/GameId.h>
 #include <Wire/Buffer.h>
 
-struct NotifyPlayerJoined final : NotifyMessage
+struct NotifyPlayerJoined final : MessageOf<NotifyPlayerJoined, kNotifyPlayerJoined>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyPlayerJoined;
-
-    NotifyPlayerJoined()
-        : NotifyMessage(Opcode)
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
+        aArchive(PlayerId, Username, Level, IsHost, Arrived);
     }
-
-    virtual ~NotifyPlayerJoined() = default;
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyPlayerJoined& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username && Level == acRhs.Level && IsHost == acRhs.IsHost && Arrived == acRhs.Arrived; }
+    bool operator==(const NotifyPlayerJoined&) const noexcept = default;
 
     uint32_t PlayerId{};
     std::string Username{};

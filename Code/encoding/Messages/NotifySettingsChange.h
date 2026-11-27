@@ -2,21 +2,10 @@
 
 #include "Message.h"
 
-struct NotifySettingsChange final : NotifyMessage
+struct NotifySettingsChange final : MessageOf<NotifySettingsChange, kNotifySettingsChange>
 {
-    static constexpr NotifyOpcode Opcode = kNotifySettingsChange;
-
-    NotifySettingsChange()
-        : NotifyMessage(Opcode)
-    {
-    }
-
-    virtual ~NotifySettingsChange() = default;
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifySettingsChange& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Difficulty == acRhs.Difficulty; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Difficulty); }
+    bool operator==(const NotifySettingsChange&) const noexcept = default;
 
     uint32_t Difficulty{};
 };

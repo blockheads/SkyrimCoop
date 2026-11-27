@@ -5,21 +5,10 @@
 #include <Structs/GameId.h>
 #include <Wire/Buffer.h>
 
-struct NotifySetWaypoint final : NotifyMessage
+struct NotifySetWaypoint final : MessageOf<NotifySetWaypoint, kNotifySetWaypoint>
 {
-    static constexpr NotifyOpcode Opcode = kNotifySetWaypoint;
-
-    NotifySetWaypoint() : NotifyMessage(Opcode)
-    {
-    }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifySetWaypoint& acRhs) const noexcept
-    {
-        return GetOpcode() == acRhs.GetOpcode() && Position == acRhs.Position && WorldSpaceFormID == acRhs.WorldSpaceFormID;
-    }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Position, WorldSpaceFormID); }
+    bool operator==(const NotifySetWaypoint&) const noexcept = default;
 
     Vector3_NetQuantize Position;
     GameId WorldSpaceFormID;

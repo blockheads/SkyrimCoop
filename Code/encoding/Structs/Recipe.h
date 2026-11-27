@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
 #include <Wire/Buffer.h>
@@ -18,11 +20,11 @@ struct Recipe
 
     // The same potion: poison or not, the same effects in any order (an effect's cost is each game's own).
     bool operator==(const Recipe& acRhs) const noexcept;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::Bits<1>(IsPoison), Wire::List(Effects, 0xFF)); }
 
     // Its id in the session, the same in every game.
     [[nodiscard]] GameId Id() const noexcept;
     [[nodiscard]] static bool IsId(const GameId& acId) noexcept { return acId.ModId == kModId; }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 };
