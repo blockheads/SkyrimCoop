@@ -54,3 +54,42 @@ playtest's own log line.
 
 Not settled: on the first duo attempt the host crashed teleporting to `DC8E3` (job thread executing a heap address under
 the animation file manager, 63997), unrelated to this path; the second boot ran clean.
+
+## A rebuilt base recorded as the reference's base change (2026-11-27)
+
+Read in IDA on 1.7.104; the free and the stale use measured on the duo (the six mount scenarios, heap history, a
+guard on 0x268-byte blocks, probes on 19529, 12095 and 24888).
+
+```text
+SkyrimBridge::RelevelActor -> TESObjectREFR::SetBaseObject
+  SetObjectReference (19785 through 37466), then MarkChanged(CHANGE_REFR_BASEOBJECT 0x80)   <- ours; the engine's
+                                                                                               leveled resolve never records it
+the reference's changes are stored (a cell's unload: StoreChangesOnUnload 35570) and loaded again
+  TESObjectCELL::InitItemImpl 18881 -> 18882 -> 35572 (the moved-reference map) -> LoadStoredChanges 35569
+    -> Actor::LoadGame 37650 -> TESObjectREFR::LoadGame 19529
+         0x80: LookupFormByID(recorded id) -> SetObjectReference      the recorded temporary, or a newer one that
+                                                                      took its id (ids are reused at once)
+         -> ExtraDataList::LoadGame 12095, ExtraLeveledCreature (0x140177F9C)
+              current base temporary -> its destructor (vfunc 0), a new base from 14375
+```
+
+So a recorded temporary base reaches a second reference (the one the cell makes again, while the old one waits for
+the collector or is held as a copy) and is destroyed there as that reference's own.
+
+- **Measured** (crash `08-28-24`, guard on): the collector's job (36468 -> 36480 -> 40288 -> 37175/37176) deleting
+  copy `105A35`'s old reference read its base, a freed guarded block: the TESNPC `FF000996` our `RelevelActor` built
+  for it 26 s before, destroyed 30 ms before through the path above (`probe:24888 TESNPC FF000996`); 10 ms later a
+  new TESNPC had the id `FF000996`.
+- **Measured** (crash `08-07-23`, quarantine on): a held copy (`EBC51`) enabled at the session's end read its base,
+  the NPC `RelevelActor` built for it 140 s before and the same path destroyed 131 s before, as the party travelled.
+- **Read, not measured:** crash `07-44-25` (no heap tools): the background loader (13108 -> 37982) read copy `DC8DF`'s
+  destroyed base 21 ms after our `RelevelActor` and `MoveActorTo` for it; and the 2026-11-27 night's second crash (a
+  copy's base `TESNPC` with a null vtable). Both have this shape.
+- **Not established:** which reference object each destroying load ran on (the probes' breadcrumbs had rotated past
+  it); that it was a second reference follows from the engine code above, since 12095 sets the new base on the one it
+  loads.
+
+**The fix** (`engine/BaseChange.h`, `TESObjectREFR::SetBaseObject`): a temporary base is never recorded as the base
+change, and an older record goes (`UnsetChanged`, 14609), as the engine's own leveled resolve leaves it; on load the
+base is built again from the ExtraLeveledCreature. A permanent base (a leveled item's pick, `ReferenceStates`) is
+still recorded. UnitTests `[base-change]` model 19529 and 12095: recording the temporary destroys it under the copy.
