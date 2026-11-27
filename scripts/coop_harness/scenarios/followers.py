@@ -221,16 +221,21 @@ def dead_anchor(ctx):
         follows(ctx, npc, lambda: ctx.player_copy(""))
 
 def dead_anchor_in_fight(ctx):
-    """The guest dies to wolves the follower fights: she follows the host, then the guest's respawned copy."""
+    """The guest dies to wolves the follower fights: she follows the guest's respawned copy once both are done."""
     with recruited(ctx) as (npc, sid, copy):
         follows(ctx, npc, lambda: ctx.player_copy(""))
+        before_death = ctx.player_copy("")
         ctx.console_on("client", "player.forceav health 10")
-        ctx.console_on("", f"{npc:X}.placeatme 23ABE 3")
-        ctx.wait_for("the followed guest dies in the fight", lambda: ctx.is_dead(ctx.player_snapshot("client")), 30)
-        follows(ctx, npc, 0x14, timeout=60)
-        ctx.wait_for("the guest recovers beside the standing party", lambda: not ctx.is_dead(ctx.player_snapshot("client")), 60)
-        follows(ctx, npc, lambda: ctx.player_copy(""), timeout=30)
-        ctx.console_on("client", "player.forceav health 100")
+        try:
+            ctx.console_on("", f"{npc:X}.placeatme 23ABE 3")
+            ctx.wait_for("the follower fights the wolves", lambda: ctx.actor_state("", npc).get("ai_state", {}).get("in_combat"), 15)
+            ctx.wait_for("the followed guest dies in the fight", lambda: ctx.is_dead(ctx.player_snapshot("client")), 30)
+            # Her host fallback can be skipped: she may leave her fight after the respawn (follower-anchor-dies has it).
+            ctx.wait_for("the guest recovers beside the standing party", lambda: not ctx.is_dead(ctx.player_snapshot("client")), 60)
+            ctx.wait_for("the guest's copy is a new actor", lambda: ctx.player_copy("") not in (None, 0, before_death), 15)
+            follows(ctx, npc, lambda: ctx.player_copy(""), timeout=30)
+        finally:
+            ctx.console_on("client", "player.forceav health 100")
 
 def saved_anchor(ctx, reference=None):
     """The host save restores the guest's desired anchor and rebinds the follower to the new player copy."""
