@@ -1,7 +1,5 @@
 #include <characters/HostCharacters.h>
 
-#include <core/Counters.h>
-
 #include <Messages/TravelMessages.h>
 
 #include <core/HostNetwork.h>
@@ -10,17 +8,13 @@
 #include <core/HostRouter.h>
 
 #include <Messages/AnnounceCharacterRequest.h>
-#include <Messages/ReferencesMoveRequest.h>
-#include <Messages/Delivery.h>
 #include <Messages/EnterCellRequest.h>
 #include <Messages/Relayed.h>
 #include <Messages/NotifyPartyTravel.h>
 #include <Messages/NotifyRemoveCharacter.h>
-#include <characters/ActorPools.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
-#include <Messages/NotifyReferencesMove.h>
 #include <Structs/GridCellCoords.h>
 #include <Structs/RidePart.h>
 #include <movement/SnapshotAge.h>
@@ -45,10 +39,6 @@ HostCharacters::HostCharacters(HostRouter& aRouter, HostNetwork& aNetwork, const
     aRouter.On(*this, &HostCharacters::OnBoard);
     aRouter.On(*this, &HostCharacters::OnUnboard);
     aRouter.On(*this, &HostCharacters::OnActiveEffects);
-    aRouter.On(*this, &HostCharacters::OnPerks);
-    aRouter.Watch(*this, &HostCharacters::OnValues);
-    aRouter.Watch(*this, &HostCharacters::OnMaxValues);
-    aRouter.On(*this, &HostCharacters::OnMovement);
     aRouter.On(*this, &HostCharacters::OnEnterCell);
     aRouter.On(*this, &HostCharacters::OnTravelQueued);
     aRouter.On(*this, &HostCharacters::OnPartySummon);
@@ -76,43 +66,6 @@ HostCharacters::HostCharacters(HostRouter& aRouter, HostNetwork& aNetwork, const
                 EndRide(cMountId, acClaim.ForId, false);
         },
     });
-}
-
-void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
-{
-    NotifyReferencesMove notify;
-    // The owner's time, as its actions carry: copies replay both on one timeline; CopyClock never plays ahead.
-    notify.Tick = acRequest.Tick;
-    if (const uint64_t cNow = m_network.GetTick(); acRequest.Tick > cNow)
-        COUNT("movement stamp ahead ms", acRequest.Tick - cNow); // a game's clock ahead of the host's (red-flags.md, 2)
-    COUNT("movement messages", 1);
-    for (const auto& [cSessionId, cUpdate] : acRequest.Updates)
-    {
-        auto it = m_characters.find(cSessionId);
-        if (it == m_characters.end() || it->second.Owner != aSender)
-        {
-            spdlog::debug("HostCharacters: {:x} moved {:x}, which it does not own", aSender, cSessionId);
-            continue;
-        }
-        notify.Updates[cSessionId] = cUpdate;
-        if (auto& record = it->second.PlayerRecord)
-        {
-            // Sent before its arrival but after it here: an old place.
-            if (!SnapshotAge::IsStale(acRequest.Tick, record->Tick))
-            {
-                record->Tick = SnapshotAge::Cutoff(acRequest.Tick, m_network.GetTick(), record->Tick);
-                record->CellId = cUpdate.UpdatedMovement.CellId;
-                record->Position = cUpdate.UpdatedMovement.Position;
-                record->Rotation = cUpdate.UpdatedMovement.Rotation;
-            }
-            if (!cUpdate.ActionEvents.empty())
-                record->LatestAction = cUpdate.ActionEvents.back();
-        }
-    }
-    if (!notify.Updates.empty())
-    {
-        m_players.SendToOthers(notify, aSender, MustArrive(notify.Updates) ? Net::kReliable : Net::kUnreliable);
-    }
 }
 
 void HostCharacters::OnAnnounceCharacter(const AnnounceCharacterRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -329,17 +282,6 @@ void HostCharacters::SendRides(ConnectionId_t aPlayer) const noexcept
             notify.MountId = cSessionId;
             m_network.Send(aPlayer, notify, Net::kReliable); // passengers: their Ride parts, on their spawns
         }
-}
-
-void HostCharacters::OnPerks(const ActorPerksRequest& acRequest, ConnectionId_t aSender) noexcept
-{
-    const auto it = m_characters.find(acRequest.SessionId);
-    if (it == m_characters.end() || it->second.Owner != aSender || !it->second.PlayerRecord)
-        return;
-    it->second.PlayerRecord->PerksContent = acRequest.Content;
-    NotifyActorPerks notify;
-    static_cast<Payloads::ActorPerks&>(notify) = acRequest;
-    m_players.SendToOthers(notify, aSender);
 }
 
 void HostCharacters::OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept
@@ -607,6 +549,14 @@ HostCharacters::ConnectionId_t HostCharacters::OwnerOf(uint32_t aSessionId) cons
     return it != m_characters.end() ? it->second.Owner : 0;
 }
 
+NotifyCharacterSpawn* HostCharacters::PlayerRecordOf(uint32_t aSessionId, ConnectionId_t aOwner) noexcept
+{
+    const auto it = m_characters.find(aSessionId);
+    if (it == m_characters.end() || it->second.Owner != aOwner || !it->second.PlayerRecord)
+        return nullptr;
+    return &*it->second.PlayerRecord;
+}
+
 std::optional<NotifyCharacterSpawn> HostCharacters::BuildSpawn(uint32_t aSessionId) const noexcept
 {
     auto spawn = ReadSpawn(aSessionId);
@@ -721,35 +671,6 @@ std::optional<HostCharacters::Outdoors> HostCharacters::OutdoorsAt(ConnectionId_
         m_aheadOfHost.contains(aPlayer) || m_broughtToParty.contains(aPlayer) || m_announced.contains(aPlayer))
         return std::nullopt;
     return Outdoors{cPlace->second.WorldSpaceId, cCharacter->second.PlayerRecord->Position};
-}
-
-void HostCharacters::OnValues(const RequestActorValueChanges& acRequest, ConnectionId_t aSender) noexcept
-{
-    KeepValues(acRequest.Id, acRequest.Values, false, aSender);
-    const auto it = m_characters.find(acRequest.Id);
-    if (it == m_characters.end() || it->second.Owner != aSender || !it->second.PlayerRecord)
-        return;
-    auto& temporary = it->second.PlayerRecord->InitialActorValues.ActorTemporaryValuesList;
-    for (const auto& [cIndex, cValue] : acRequest.TemporaryValues)
-        if (ActorPools::IsPool(cIndex))
-            temporary[cIndex] = cValue;
-}
-
-void HostCharacters::OnMaxValues(const RequestActorMaxValueChanges& acRequest, ConnectionId_t aSender) noexcept
-{
-    KeepValues(acRequest.Id, acRequest.Values, true, aSender);
-}
-
-void HostCharacters::KeepValues(uint32_t aSessionId, const std::map<uint32_t, float>& acValues, bool aMaximum,
-                                ConnectionId_t aSender) noexcept
-{
-    const auto it = m_characters.find(aSessionId);
-    if (it == m_characters.end() || it->second.Owner != aSender || !it->second.PlayerRecord)
-        return;
-    auto& kept = it->second.PlayerRecord->InitialActorValues;
-    auto& values = aMaximum ? kept.ActorMaxValuesList : kept.ActorValuesList;
-    for (const auto& [cKey, cValue] : acValues)
-        values[cKey] = cValue;
 }
 
 void HostCharacters::OnTravelQueued(const PartyTravelRequest& acRequest, ConnectionId_t aSender) noexcept

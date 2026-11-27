@@ -2,7 +2,6 @@
 #include <game/HostAuthority.h>
 
 #include <core/HostNetwork.h>
-#include <actorstate/HostValues.h>
 
 #include <core/Profile.h>
 
@@ -15,6 +14,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_transfer(aNetwork, m_game)
     , m_session(m_router, aNetwork, m_players, m_characters, m_transfer, m_game)
     , m_characters(m_router, aNetwork, m_players, m_game)
+    , m_values(m_router, m_players, m_characters)
+    , m_movement(m_router, aNetwork, m_players, m_characters)
     , m_clock(m_router, aNetwork, m_players, m_game)
     , m_wait(m_router, aNetwork, m_players, m_game, m_game)
     , m_crime(m_router, aNetwork, m_players, m_characters, m_game)
@@ -60,7 +61,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // Rules of parts built before the router could take them.
     m_players.Listen(m_router);
     m_router.On(m_transfer, &HostSaveTransfer::OnSaveHeld);
-    RelayActorValues(m_router);
 
     // Everything a joiner must know, from every store that holds it.
     m_joinerStores = {

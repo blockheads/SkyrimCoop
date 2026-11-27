@@ -4,6 +4,8 @@
 #include <Messages/Message.h>
 #include <Opcodes.h>
 #include <characters/HostCharacters.h>
+#include <actorstate/HostValues.h>
+#include <movement/HostMovement.h>
 #include <core/HostChat.h>
 #include <travel/HostLeash.h>
 #include <time/HostClock.h>
@@ -127,6 +129,8 @@ private:
     HostSaveTransfer m_transfer;
     HostSession m_session;
     HostCharacters m_characters;
+    HostValues m_values;
+    HostMovement m_movement;
     HostClock m_clock;
     HostWait m_wait;
     HostCrime m_crime;
