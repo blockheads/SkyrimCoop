@@ -1,5 +1,6 @@
 #pragma once
 
+#include <join/SaveList.h>
 #include <join/SaveTransfer.h>
 #include <Structs/PlayerRecord.h>
 
@@ -60,6 +61,10 @@ public:
     // The engine's current character (its saves are filed and named under it), as a load of that character's save
     // sets it: a load of a scratch save (SkyrimCoopWipe) sets 0 (docs/re/systems/save-game.md).
     virtual void SetCharacter(uint32_t aCharacterId) noexcept = 0;
+    [[nodiscard]] virtual uint32_t CurrentCharacter() const noexcept = 0;
+    // Which saves the Journal's Load lists from now on (callable on any thread's behalf: the engine reads it on its
+    // save thread).
+    virtual void LimitSaveList(SaveList::Limit aLimit) noexcept = 0;
     // This game's player's character (no key, no place): docs/design/join-flow.md, "The character record".
     [[nodiscard]] virtual PlayerRecord ReadPlayer() const noexcept = 0;
     // Makes this game's player the record's character (the loaded save's player is another's), standing at the

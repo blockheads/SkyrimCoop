@@ -1015,6 +1015,7 @@ SCENARIO("A friend with no character in the host's loaded save creates one; a sa
         party.Until([&] { return hostEngine.Loaded.size() == cLoads + 1 && host.GetTransport().IsOnline(); }, "the host loads its save");
     };
     Plays(host, HostsCharacter());
+    hostEngine.CharacterId = 0x0BADF00D; // the playthrough the host plays
     const std::string cBefore = "Save1_0BADF00D_0_4C79646961_WhiterunWorld_000010_20261101120000_1_1";
     const std::string cAfter = "Save2_0BADF00D_0_4C79646961_WhiterunWorld_000020_20261101130000_1_1";
     cSave(cBefore);

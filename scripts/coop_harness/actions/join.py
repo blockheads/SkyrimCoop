@@ -87,6 +87,68 @@ class JoinActions:
         return {"scratch": scratch}
 
 
+    def plant_other_playthrough_save(ctx, instance, character="0C0FFEE0"):
+        """Another playthrough's save in the game's Saves folder: the newest save's files under a name with another
+        character id (the id is only in the name, save-game.md)."""
+        saves = ctx.game(instance).my_games / "Saves"
+        newest = max(saves.glob("*.ess"), key=lambda path: path.stat().st_mtime)
+        name = f"Save900_{character}_0_4F74686572_Tamriel_000001_20260101120000_1_1"
+        for suffix in (".ess", ".skse"):
+            source = newest.with_suffix(suffix)
+            if source.exists():
+                (saves / (name + suffix)).write_bytes(source.read_bytes())
+        return {"planted": name, "from": newest.name}
+
+
+    def drop_planted_saves(ctx, instance):
+        """The saves plant_other_playthrough_save put in the game's Saves folder, gone."""
+        saves = ctx.game(instance).my_games / "Saves"
+        for path in saves.glob("Save900_*"):
+            path.unlink()
+
+
+    def journal_character_rows(ctx, instance):
+        """The player opens Load, then the Journal's Character Selection (T, quest_journal.swf SystemPage): each row's
+        character id (4294967295 for Show all saves), the Journal then closed again."""
+        value = JoinActions.open_journal_load(ctx, instance)
+        ctx.wait_for("the load list or the character list opens", lambda: value("iCurrentState") in (1, 17), 10)
+        if value("iCurrentState") == 1:
+            ctx.tap_key(instance, 0x14)  # T: Character Selection
+        ctx.wait_for("the character list opens", lambda: value("iCurrentState") == 17, 10)
+        # The rows come after a save-thread scan (52882: 0x50000008, then 52890); vanilla always has Show all saves.
+        length = lambda: int(value("SaveLoadListHolder.List_mc.entryList.length") or 0)
+        try:
+            ctx.wait_for("the character rows arrive", length, 5)
+        except TestFailure:
+            pass
+        rows = [int(value(f"SaveLoadListHolder.List_mc.entryList.{i}.id")) & 0xFFFFFFFF
+                for i in range(int(value("SaveLoadListHolder.List_mc.entryList.length") or 0))]
+        for _ in range(3):
+            if "Journal Menu" not in ctx.menus(instance):
+                break
+            ctx.tap_key(instance, 0x01)
+            time.sleep(0.5)
+        return {"rows": [f"{row:08X}" for row in rows]}
+
+
+    def expect_rows_only(ctx, instance):
+        """The Journal's character rows are this playthrough's character's at most: no Show all saves, no other
+        character (character 0 has no row: the folder scan, 35799, makes rows for nonzero ids only)."""
+        character = ctx.current_character(instance)["character"]
+        rows = ctx.journal_character_rows(instance)["rows"]
+        if any(row != character.upper() for row in rows):
+            raise ctx.failure(f"[{instance or 'host'}] the Journal's character rows are {rows}, not only {character}")
+        return {"rows": rows}
+
+
+    def current_character(ctx, instance):
+        """The engine's current character id, as the newest save this game made names it."""
+        saves = ctx.game(instance).my_games / "Saves"
+        own = [path for path in saves.glob("*.ess") if not path.name.startswith(("SkyrimCoop", "Save900_"))]
+        newest = max(own, key=lambda path: path.stat().st_mtime)
+        return {"character": newest.stem.split("_")[1].upper(), "save": newest.name}
+
+
     def press_key(ctx, instance, scan):
         """The player presses and releases a keyboard key (DirectInput scan code), through the game's input dispatch."""
         ctx.wait_for(f"[{instance or 'host'}] the game takes input", lambda: ctx.takes_input(instance), 10)
@@ -183,8 +245,8 @@ class JoinActions:
             raise ctx.failure("the guest did not load its saved character: its later level survived")
 
 
-    def load_latest_from_menu(ctx, instance):
-        """The player opens System, Load, selects the newest save and confirms through menu input."""
+    def open_journal_load(ctx, instance):
+        """The player opens the Journal's System tab and presses Load; the System page's menu variables."""
         value = lambda field: ctx.menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + field)
         ctx.tap_key(instance, 0x01)
         ctx.wait_for("the journal opens", lambda: "Journal Menu" in ctx.menus(instance), 5)
@@ -201,7 +263,13 @@ class JoinActions:
         else:
             raise ctx.failure("Load is absent from the system menu")
         ctx.tap_key(instance, 0x12)  # E, the menu's Accept action
-        # 1.7.104 lists the characters first (state 17): E takes the first, this game's.
+        return value
+
+
+    def load_latest_from_menu(ctx, instance):
+        """The player opens System, Load, selects the newest save and confirms through menu input."""
+        value = JoinActions.open_journal_load(ctx, instance)
+        # With no save of this character the Journal shows the character list (state 17): E takes the first.
         ctx.wait_for("the load list opens", lambda: value("iCurrentState") in (1, 17), 10)
         if value("iCurrentState") == 17:
             ctx.tap_key(instance, 0x12)

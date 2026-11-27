@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <Primitives.h>
 #include <Misc/BSFixedString.h>
+#include <join/SaveList.h>
 #include <optional>
 #include <string>
 
@@ -60,6 +61,10 @@ struct BGSSaveLoadManager
     // SetCurrentCharacter (35751): current and display character, as a load sets them; the modded flag kept.
     void SetCurrentCharacter(uint32_t aCharacterId) noexcept;
     static BGSSaveLoadManager* Get() noexcept;
+    // The Journal's save lists from now on (SaveListHooks.cpp: BuildSaveList 35743, the character rows 52917).
+    static void LimitSaveList(SaveList::Limit aLimit) noexcept;
+    // ClearSaveList (35746): saveGameList emptied, to be built again.
+    void ClearSaveList() noexcept;
 
     // Save_Impl(2, 0, name) (35727): a named save, written before it returns; false when the engine refused.
     bool Save(const char* apName) noexcept;

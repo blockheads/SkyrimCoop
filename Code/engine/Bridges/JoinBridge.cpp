@@ -411,6 +411,17 @@ void JoinBridge::SetCharacter(uint32_t aCharacterId) noexcept
         pManager->SetCurrentCharacter(aCharacterId);
 }
 
+uint32_t JoinBridge::CurrentCharacter() const noexcept
+{
+    const auto* pManager = BGSSaveLoadManager::Get();
+    return pManager ? pManager->currentCharacterId : 0;
+}
+
+void JoinBridge::LimitSaveList(SaveList::Limit aLimit) noexcept
+{
+    BGSSaveLoadManager::LimitSaveList(aLimit);
+}
+
 void JoinBridge::DeleteSave(const std::string& acName) noexcept
 {
     auto game = BGSSaveLoadManager::SaveFilePath(acName.c_str());

@@ -39,6 +39,8 @@ public:
     void DeleteSave(const std::string& acName) noexcept override;
     std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
     void SetCharacter(uint32_t aCharacterId) noexcept override;
+    [[nodiscard]] uint32_t CurrentCharacter() const noexcept override;
+    void LimitSaveList(SaveList::Limit aLimit) noexcept override;
 
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;

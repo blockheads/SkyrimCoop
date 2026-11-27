@@ -161,6 +161,9 @@ void JoinService::OnUpdate(const UpdateEvent& acEvent) noexcept
     if (cAtMainMenu && !m_atMainMenu)
         DropScratchSaves();
     m_atMainMenu = cAtMainMenu;
+    const auto cLimit = SaveList::For(cAtMainMenu, m_world.GetTransport().IsConnected() && !m_world.IsHosting());
+    if (cLimit != std::exchange(m_saveListLimit, cLimit))
+        m_bridge.LimitSaveList(cLimit);
     const auto cCreation = m_bridge.PollCharacterCreation();
     using Creation = IJoinBridge::Creation;
     m_creatingCharacter = cCreation == Creation::kStarting || cCreation == Creation::kCustomizing || cCreation == Creation::kFinalizing;

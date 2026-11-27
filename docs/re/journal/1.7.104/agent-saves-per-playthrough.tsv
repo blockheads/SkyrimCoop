@@ -61,3 +61,21 @@ time	op	id	rva	item
 2026-11-27T22:31:40Z	comment		0x626b07	{"addr": "0x140626b07", "comment": "35775 event type 0 (which event not read): drops saveGameList (35746 clears +0x118), resets current and display character to -1."}
 2026-11-27T22:31:42Z	comment	35925	0x632c80	{"addr": "0x140632C80", "comment": "35925: the save list's filter {id, flags} at manager +0xE0 = the request's id; bit 0 of flags from the request's bit 2 (modded)."}
 2026-11-27T22:31:42Z	comment	35775	0x626ab0	{"addr": "0x140626ab0", "comment": "35775 (ProcessEvent_1), event type 0 (which event not read): drops saveGameList (35746 clears +0x118), resets current and display character to -1."}
+2026-11-27T22:57:24Z	read	52907	0x990d80	{"name": "sub_140990D80"}
+2026-11-27T22:57:24Z	read	52909	0x990e00	{"name": "sub_140990E00"}
+2026-11-27T22:57:28Z	read	52919	0x9911b0	{"name": "sub_1409911B0"}
+2026-11-27T22:57:33Z	name	52907	0x990d80	{"addr": "0x140990D80", "name": "UISaveLoadManager__OnPopulateCharacterList"}
+2026-11-27T22:57:33Z	name	52909	0x990e00	{"addr": "0x140990E00", "name": "UISaveLoadManager__OnCharacterSelected"}
+2026-11-27T22:57:33Z	name	52919	0x9911b0	{"addr": "0x1409911B0", "name": "UISaveLoadManager__SelectCharacter"}
+2026-11-27T22:58:27Z	read	52917	0x990f50	{"name": "sub_140990F50"}
+2026-11-27T22:58:43Z	read		0x6235f0	{"name": "BGSSaveLoadManager::sub_35742"}
+2026-11-27T23:06:22Z	read	52882	0x98f170	{"name": "sub_14098F170"}
+2026-11-27T23:07:33Z	read	35924	0x632c60	{"name": "sub_140632C60"}
+2026-11-27T23:07:34Z	read		0x62aa80	{"name": "BGSSaveLoadManager__ScanSaveFolder"}
+2026-11-27T23:07:39Z	name	52917	0x990f50	{"addr": "0x140990F50", "name": "UISaveLoadManager__PushCharacterRows"}
+2026-11-27T23:07:39Z	name	52882	0x98f170	{"addr": "0x14098F170", "name": "UISaveLoadManager__ProcessListMessage"}
+2026-11-27T23:07:39Z	name	35924	0x632c60	{"addr": "0x140632C60", "name": "SaveListFilter__Matches"}
+2026-11-27T23:07:43Z	comment	52917	0x990f50	{"addr": "0x140990F50", "comment": "52917: one Journal character row per entry of the manager's character map (+0x78, {id, flags} -> name): {text, id, flags} pushed onto UISaveLoadManager's entryList (+0x30); called by FillCharacterList 52890 after its \"$ShowAllSave\" row (id 0xFFFFFFFF) and before onFillCharacterListComplete. SkyrimCoop: hooked to drop other playthroughs' rows in a game (SaveList)."}
+2026-11-27T23:07:43Z	comment	52882	0x98f170	{"addr": "0x14098F170", "comment": "52882: UISaveLoadManager's list messages: 3 save list (52892), 4 batches (52893), 5 PopulateCharacterList (queues save-thread request 0x50000008: scan characters), 6 FillCharacterList (52890)."}
+2026-11-27T23:07:43Z	comment	35924	0x632c60	{"addr": "0x140632C60", "comment": "35924: entry {id, modded byte} matches filter {id, flags}: ids equal and modded == flags bit 2. ScanSaveFolder (35799) applies it when the filter's flags bit 1 is set."}
+2026-11-27T23:07:43Z	comment	52890	0x98f600	{"addr": "0x14098f600", "comment": "52890 FillCharacterList: clears entryList, pushes \"$ShowAllSave\" (id 0xFFFFFFFF), the characters (52917), then onFillCharacterListComplete. The Journal opens it (quest_journal.swf SystemPage CHARACTER_LOAD_STATE 16) when LOAD finds no save of the current character, or by its Character Selection button (T)."}

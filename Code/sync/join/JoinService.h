@@ -3,6 +3,7 @@
 #include <core/Listen.h>
 #include <NoCopyMove.h>
 #include <core/JoinStatus.h>
+#include <join/SaveList.h>
 #include <join/SaveNames.h>
 #include <join/SaveTransfer.h>
 #include <Structs/PlayerRecord.h>
@@ -139,6 +140,7 @@ private:
     bool m_fromMainMenu{};
     bool m_creatingCharacter{};
     bool m_atMainMenu{};
+    SaveList::Limit m_saveListLimit{SaveList::Limit::kAll};
     std::optional<PlayerRecord> m_createdCharacter; // survives a failed final join for retry
     bool m_partyReload{};
     std::optional<PlayerRecord> m_joinedCharacter;

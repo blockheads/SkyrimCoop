@@ -127,6 +127,32 @@ IDA 1.7.104, read for "Continue showed another playthrough's saves"; names and c
   an older playthrough and quits without saving continues the newest one). GameTests `[saves]`, the verb
   `expect_no_scratch_saves`.
 
+## Only this playthrough's saves (2026-11-27)
+
+IDA 1.7.104 and the Journal's own ActionScript (`quest_journal.swf` from `Skyrim - Interface.bsa`, decompiled with
+JPEXS FFDec: `SystemPage`, `SaveLoadPanel`), read for "in a game, Load lists only the playthrough's saves".
+
+- **What the Journal shows.** LOAD calls the engine's `LOAD` (52924): the current character's saves (state 1). When
+  there are none it opens the character list instead (`CHARACTER_LOAD_STATE` 16, then 17), and from the save list
+  the bottom bar's "Character Selection" (T, gamepad Y) opens it too.
+- **The character list.** `PopulateCharacterList` (52907) posts message 5 to `UISaveLoadManager` (52882): a save-thread
+  scan of the characters (request `0x50000008`, 35794), then message 6, `FillCharacterList` (52890). That clears
+  the list, pushes "Show all saves" (`$ShowAllSave`, id 4294967295), and then one row per entry of the manager's
+  character map (`+0x78`, {id, flags} -> name; `PushCharacterRows` 52917). Then it calls `onFillCharacterListComplete`.
+  The map gets a row only for a nonzero id (35799) and is not cleared between scans. Picking a row
+  (`SelectCharacter` 52919) sets the display character and builds that character's list.
+- **The filter.** Every save list is `BuildSaveList` (35743) with `{id, flags}`: flags bit 1 filters by id, bit 2 is
+  the modded flag (`SaveListFilter__Matches` 35924), bit 0 picks the folder. 52892 passes the display character's,
+  -1 for "Show all saves".
+- **Ours** (`engine/SaveListHooks.cpp`): `JoinService` sets a `SaveList::Limit` each update: every playthrough at the
+  main menu, the current character in a game, nothing for a guest in a session. The 35743 hook replaces the filter
+  with `{currentCharacterId, 2 | modded}` (and for a guest, empties the list, 35746), so any row picked lists this
+  playthrough. The 52917 hook drops the rows of other characters and "Show all saves" before Flash sees the list.
+  A console `load` of another character's save is refused in chat (`SaveService::OnLoadRequested`).
+- **Measured** (scenario `load-lists-only-playthrough`, another character's save planted in the host's folder):
+  vanilla (`disable_hooks=SaveListHooks`) lists the rows `FFFFFFFF` and `0C0FFEE0`; with the hooks none (the duo's
+  QASmoke character is id 0, which never has a row), and Load still lists the current character's saves.
+
 ## Loading while dead (2026-11-16)
 
 IDA 1.7.104, read for the wipe (the host chooses the save, `../../design/death.md`).

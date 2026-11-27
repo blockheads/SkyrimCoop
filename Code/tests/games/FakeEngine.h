@@ -175,6 +175,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void RunMainLoop() noexcept;
     std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
     void SetCharacter(uint32_t aCharacterId) noexcept override { CharacterId = aCharacterId; }
+    uint32_t CurrentCharacter() const noexcept override { return CharacterId; }
+    // As SaveListHooks.cpp: BuildSaveList (35743) and the character rows (52917) under the limit.
+    SaveList::Limit SaveListLimit = SaveList::Limit::kAll;
+    void LimitSaveList(SaveList::Limit aLimit) noexcept override { SaveListLimit = aLimit; }
     // The engine's currentCharacterID: a load sets it from the save's file name (SaveNames::CharacterId, 0 for
     // SkyrimCoopWipe), the engine's own saves are named with it.
     uint32_t CharacterId = 0;
@@ -187,8 +191,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The main menu's Continue (ContinueLastSavedGame 52117, 52898): loads the newest save of any character, by
     // file time; false when the folder has none.
     bool Continues();
-    // The Journal's Load list (52894 after 0x1409914D0 shows the current character): CharacterId's saves, newest first.
-    [[nodiscard]] std::vector<std::string> LoadList() const;
+    // The Journal's Load list, newest first: LOAD shows the current character's (OpenSaveLoadList 52924), a character
+    // row picked shows aPicked's (52919; SaveList::kAllCharacters for "Show all saves").
+    [[nodiscard]] std::vector<std::string> LoadList(std::optional<uint32_t> aPicked = std::nullopt) const;
+    // The Journal's character rows (FillCharacterList 52890): "Show all saves", then each character with a save.
+    [[nodiscard]] std::vector<uint32_t> CharacterRows() const;
     // As JoinBridge's worker thread, but in step: the work runs at once and what it returns right after, or with
     // DefersWork both wait for the next FinishWork (JoinService's update), as work still running would.
     bool DefersWork = false;

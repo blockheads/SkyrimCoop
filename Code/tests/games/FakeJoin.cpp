@@ -504,17 +504,29 @@ bool FakeEngine::Continues()
     return true;
 }
 
-std::vector<std::string> FakeEngine::LoadList() const
+std::vector<std::string> FakeEngine::LoadList(std::optional<uint32_t> aPicked) const
 {
+    using enum SaveList::Limit;
+    const uint32_t cFilter = SaveListLimit == kAll ? aPicked.value_or(CharacterId) : CharacterId;
     std::vector<std::pair<uint64_t, std::string>> listed;
     for (const auto& [cName, cFiles] : SavedFiles)
-        if (SaveNames::CharacterId(cName) == CharacterId)
+        if (SaveListLimit != kNothing && (cFilter == SaveList::kAllCharacters || SaveNames::CharacterId(cName) == cFilter))
             listed.emplace_back(SaveTimes.contains(cName) ? SaveTimes.at(cName) : 0, cName);
     std::ranges::sort(listed, std::greater{});
     std::vector<std::string> names;
     for (auto& [cTime, name] : listed)
         names.push_back(std::move(name));
     return names;
+}
+
+std::vector<uint32_t> FakeEngine::CharacterRows() const
+{
+    std::vector<uint32_t> rows{SaveList::kAllCharacters};
+    for (const auto& [cName, cFiles] : SavedFiles)
+        if (const uint32_t cId = SaveNames::CharacterId(cName); !std::ranges::contains(rows, cId))
+            rows.push_back(cId);
+    std::erase_if(rows, [&](uint32_t aRow) { return !SaveList::Shows(SaveListLimit, CharacterId, aRow); });
+    return rows;
 }
 
 bool FakeEngine::PlayerLoads(const std::string& acName)

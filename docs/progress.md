@@ -573,7 +573,10 @@ What the first playtest build has besides what works today (the table above):
     any load ends and on reaching the main menu: the main menu's Continue loads the newest save of any character and
     took them, leaving character id 0 and a Load list of other playthroughs' saves
     ([save-game.md](re/systems/save-game.md), "Continue and the Load list"; GameTests `[saves]`). A friend joining a
-    loaded save without its character creates one, a save with it brings it back. Open: a guest in the session when
+    loaded save without its character creates one, a save with it brings it back. In a game the Journal's Load lists
+    only the loaded playthrough's saves (no other characters, no "Show all saves"; a guest in a session lists none),
+    and a console load of another playthrough's save is refused (`engine/SaveListHooks.cpp`, `SaveList`;
+    save-game.md, "Only this playthrough's saves"; scenario `load-lists-only-playthrough`). Open: a guest in the session when
     the host loads a save without its character keeps the character it plays (`OnPartyReload` brings it).
 17. **The party's purse** (decided and built 2026-10-27, merged into dev;
     [party-purse.md](design/party-purse.md)): every player carries one purse, the host's player's gold. Any
