@@ -47,9 +47,7 @@ void SkyrimBridge::ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormI
     // same rule to remote players: after too many hits the victim fights them.
     if (pAttacker->GetExtension()->IsOtherPlayer())
     {
-        using TGetFactionReaction = int32_t(Actor*, Actor*);
-        POINTER_SKYRIMSE(TGetFactionReaction, s_getFactionReaction, 37666);
-        const int32_t cReaction = (s_getFactionReaction.Get())(pVictim, pAttacker);
+        const int32_t cReaction = pVictim->GetFactionReaction(pAttacker);
         constexpr int32_t cAlly = 2, cFriend = 3;
         if (cReaction == cAlly || cReaction == cFriend)
         {

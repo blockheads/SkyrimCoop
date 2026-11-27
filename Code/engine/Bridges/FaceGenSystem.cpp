@@ -15,6 +15,7 @@
 #include <NetImmerse/BSShaderProperty.h>
 #include <NetImmerse/BSLightingShaderProperty.h>
 #include <NetImmerse/BSMaskedShaderMaterial.h>
+#include <BSGraphics/BSGraphicsRenderer.h>
 #include <Memory.h>
 #include <RTTI.h>
 #include <Ui/UiRenderer.h>
@@ -51,8 +52,7 @@ __declspec(noinline) NiTriBasedGeom* GetHeadTriBasedGeom(Actor* apActor, uint32_
     return nullptr;
 }
 
-struct TextureHolder;
-using TCreateResourceView = Ni2DBuffer*(TextureHolder*, uint32_t, uint32_t);
+using TCreateResourceView = Ni2DBuffer*(BSGraphics::Renderer*, uint32_t, uint32_t);
 
 using TCreateTexture = NiRenderedTexture*(BSFixedString& aName);
 using TCreateTints = void(const GameArray<TintMask*>& acTints, NiRenderedTexture* apTexture);
@@ -107,7 +107,6 @@ bool FaceGenSystem::Paint(Actor* apActor, const Tints& acTints) noexcept
     POINTER_SKYRIMSE(TCreateTexture, CreateTexture, 70717);
     POINTER_SKYRIMSE(TCreateResourceView, CreateResourceView, 77299);
     POINTER_SKYRIMSE(TCreateTints, CreateTints, 27040);
-    POINTER_SKYRIMSE(TextureHolder, s_textureHolder, 411393);
 
     BSMaskedShaderMaterial* pMaterial = GetFaceMaterial(apActor);
     if (!pMaterial)
@@ -115,7 +114,7 @@ bool FaceGenSystem::Paint(Actor* apActor, const Tints& acTints) noexcept
 
     BSFixedString name(kPaintedName.data());
     auto pTexture = CreateTexture(name);
-    pTexture->buffer = CreateResourceView(s_textureHolder.Get(), 512, 512);
+    pTexture->buffer = CreateResourceView(BSGraphics::Renderer::Get(), 512, 512);
 
     auto& tintsEntries = acTints.Entries;
 

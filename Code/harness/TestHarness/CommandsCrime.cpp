@@ -2,6 +2,8 @@
 #include "TestHarness/Commands.h"
 
 #include <Actor.h>
+#include <AI/AITimer.h>
+#include <Combat/CombatManager.h>
 #include <AI/AIProcess.h>
 #include <ActorExtension.h>
 #include <Crime.h>
@@ -111,9 +113,7 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
     {
         if (!faction)
             return Error("no faction");
-        using TSet = void(TESFaction*, bool);
-        static VersionDbPtr<TSet> set(24505);
-        set(faction, aRequest.value("enemy", false));
+        faction->SetPlayerEnemy(aRequest.value("enemy", false));
     }
     else if (action == "actor_state")
     {
@@ -121,9 +121,7 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
             return Error("missing actor or faction");
         using TGet = uint32_t(Actor*, TESFaction*);
         auto get = reinterpret_cast<TGet**>(*reinterpret_cast<uintptr_t**>(actor))[0xB8];
-        using TCrimeFaction = TESFaction*(Actor*);
-        static VersionDbPtr<TCrimeFaction> crimeFaction(37380);
-        const auto* own = reinterpret_cast<const CrimeEngine::Faction*>(crimeFaction(actor));
+        const auto* own = reinterpret_cast<const CrimeEngine::Faction*>(actor->GetCrimeFaction());
         auto* high = actor->currentProcess ? actor->currentProcess->highProcess : nullptr;
         const auto* cPackage = actor->currentProcess ? actor->currentProcess->currentPackage.package : nullptr;
         return {{"ok", true}, {"bounty", get(actor, faction)}, {"attack_on_sight", (actor->flags2 & 0x8000) != 0},
@@ -159,14 +157,8 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         auto* other = Cast<Actor>(target);
         if (!actor || !other)
             return Error("missing observer or target");
-        using TReaction = int32_t(Actor*, Actor*);
-        using THostile = bool(Actor*, Actor*);
-        static VersionDbPtr<TReaction> reaction(37666);
-        static VersionDbPtr<THostile> hostile(37537);
-        using TFaction = TESFaction*(Actor*);
-        static VersionDbPtr<TFaction> getFaction(37380);
-        auto* crimeFaction = getFaction(actor);
-        return {{"ok", true}, {"reaction", reaction(actor, other)}, {"hostile", hostile(actor, other)},
+        auto* crimeFaction = actor->GetCrimeFaction();
+        return {{"ok", true}, {"reaction", actor->GetFactionReaction(other)}, {"hostile", actor->IsHostileToActor(other)},
                 {"crime_faction", crimeFaction ? crimeFaction->formID : 0}};
     }
     else if (action == "known_crime")
@@ -174,10 +166,7 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         if (!actor)
             return Error("missing criminal");
         auto* witness = Cast<Actor>(TESForm::GetById(aRequest.value("witness", 0u)));
-        using TQuery = bool(ProcessLists*, TESObjectREFR*, TESObjectREFR*, Actor*, uint32_t, int32_t, int32_t);
-        static VersionDbPtr<TQuery> query(41354);
-        return {{"ok", true}, {"known", query(ProcessLists::Get(), target, actor, witness,
-                                              aRequest.value("type", 0u), 0, -1)}};
+        return {{"ok", true}, {"known", ProcessLists::Get()->HasKnownCrime(target, actor, witness, aRequest.value("type", 0u), 0, -1)}};
     }
     else if (action == "stealth_meter")
     {
@@ -185,14 +174,10 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         // `actor` (on the host, a guest's copy: what the host's NPCs see of that guest); in combat it shows 100 minus
         // the lowest stealth points (46877).
         auto* eyeOf = actor ? actor : player;
-        using THighest = int32_t(ProcessLists*, Actor*, uint32_t&); // int32 in eax (40593 tests all of it)
-        static VersionDbPtr<THighest> highest(41408);
-        using TStealth = float(void*, Actor*);
-        static VersionDbPtr<TStealth> stealth(46877);
-        static VersionDbPtr<void*> combatManager(405246); // CombatManager::singleton
         uint32_t seeing = 0;
-        int32_t cLevel = highest(ProcessLists::Get(), eyeOf, seeing);
-        float cStealth = *combatManager.Get() ? stealth(*combatManager.Get(), eyeOf) : 100.f;
+        int32_t cLevel = ProcessLists::Get()->RequestHighestDetectionLevelAgainstActor(eyeOf, seeing);
+        auto* pCombatManager = CombatManager::Get();
+        float cStealth = pCombatManager ? pCombatManager->GetLowestStealthPoints(eyeOf) : 100.f;
         // Another actor (a guest's copy): what the host sends that guest (HostEye), the player's exclusions applied.
         if (eyeOf != player)
         {
@@ -204,7 +189,6 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         // Each high actor's last state of the player, without asking (39763): who holds the eye's level.
         using TFind = CrimeEngine::ActorKnowledge*(HighProcessData*, Actor*);
         static VersionDbPtr<TFind> find(39763);
-        static VersionDbPtr<float> now(404125);
         nlohmann::json sources = nlohmann::json::array();
         const auto& handles = ProcessLists::Get()->highActorHandleArray;
         for (uint32_t i = 0; i < handles.length; ++i)
@@ -215,7 +199,7 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
             if (!known || !known->State)
                 continue;
             sources.push_back({{"actor", witness->formID}, {"level", known->State->Level}, {"seen", known->State->Seen},
-                               {"age", *now.Get() - known->State->UpdatedAt},
+                               {"age", AITimer::GetAITime() - known->State->UpdatedAt},
                                {"queued", known->RequestedAt != -std::numeric_limits<float>::max()},
                                {"other_player", witness->GetExtension()->IsOtherPlayer()},
                                {"not_on_meter", (witness->flags2 & Actor::kDoNotShowOnStealthMeter) != 0}});
@@ -240,7 +224,6 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
             return Error("missing witness or target");
         using TFind = CrimeEngine::ActorKnowledge*(HighProcessData*, Actor*);
         static VersionDbPtr<TFind> find(39763);
-        static VersionDbPtr<float> now(404125);
         auto* high = actor->currentProcess ? actor->currentProcess->highProcess : nullptr;
         const auto* known = high ? find(high, other) : nullptr;
         const bool cNotOnMeter = (actor->flags2 & Actor::kDoNotShowOnStealthMeter) != 0; // 41408 skips it
@@ -251,7 +234,7 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         if (known->State)
         {
             result["level"] = known->State->Level;
-            result["age"] = *now.Get() - known->State->UpdatedAt;
+            result["age"] = AITimer::GetAITime() - known->State->UpdatedAt;
         }
         return result;
     }
@@ -260,39 +243,31 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         // PickUpObject's test (37521): not an owner (20210) means a theft.
         if (!actor || !target)
             return Error("missing actor or target");
-        using TOwns = bool(TESObjectREFR*, Actor*, bool, bool);
-        static VersionDbPtr<TOwns> owns(20210);
         auto* owner = target->GetOwner();
-        return {{"ok", true}, {"owns", owns(target, actor, true, false)}, {"owner", owner ? owner->formID : 0}};
+        return {{"ok", true}, {"owns", target->IsAnOwner(actor, true, false)}, {"owner", owner ? owner->formID : 0}};
     }
     else if (action == "set_cell_owner")
     {
         auto* cell = player->GetParentCellEx();
         if (!cell)
             return Error("no cell");
-        using TSet = void(ExtraDataList*, TESForm*);
-        static VersionDbPtr<TSet> set(11609);
-        set(&cell->extraData, TESForm::GetById(aRequest.value("owner", 0u)));
+        cell->SetOwner(TESForm::GetById(aRequest.value("owner", 0u)));
     }
     else if (action == "trespass_state")
     {
         if (!actor)
             return Error("missing actor");
-        using TCheck = bool(TESObjectCELL*, Actor*);
-        static VersionDbPtr<TCheck> check(18909);
         auto* cell = actor->GetParentCellEx();
         auto* ownership = cell ? static_cast<ExtraOwnership*>(cell->extraData.GetByType(ExtraDataType::Ownership)) : nullptr;
         return {{"ok", true}, {"flag", (actor->flags2 & 0x1000) != 0},
                 {"owner", ownership && ownership->owner ? ownership->owner->formID : 0},
-                {"trespass", cell && check(cell, player)}};
+                {"trespass", cell && cell->IsTrespassing(player)}};
     }
     else if (action == "reset_alarm")
     {
         if (!actor)
             return Error("missing actor");
-        using TStop = void(ProcessLists*, Actor*, bool);
-        static VersionDbPtr<TStop> stop(41340);
-        stop(ProcessLists::Get(), actor, false);
+        ProcessLists::Get()->StopCombatAndAlarmOnActor(actor, false);
     }
     else if (action == "set_owner")
     {

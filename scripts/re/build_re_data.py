@@ -262,10 +262,12 @@ def scan_our_code():
                 flags = ["todo-in-code"] if re.search(r"TODO|not sure|FIXME|\?\?\?", window) else []
                 uses[ident].append({"file": str(path.relative_to(ROOT)), "line": number, "var": real,
                                     "type": type_name, "kind": "hook", "hook": hook, "flags": flags})
-            # Resolved now, hooked by a HOOK(&Real, ...) later (or only called).
+            # Resolved now, hooked by a HOOK(&Real, ...) or a chained FunctionHook later (or only called).
             for match in resolve.finditer(line):
                 ident, real = int(match.group(1)), match.group(2)
-                hooked = re.search(rf"\bHOOK(?:_IMMEDIATE)?\(\s*&\s*{real}\s*,\s*&?(\w+)", text)
+                hooked = re.search(rf"\bHOOK(?:_IMMEDIATE)?\(\s*&\s*{real}\s*,\s*&?(\w+)", text) or \
+                    re.search(rf"\bFunctionHook\(\s*reinterpret_cast<void\*\*>\(&{real}\)\s*,\s*"
+                              rf"reinterpret_cast<void\*>\((\w+)\)", text)
                 declaration = re.search(rf"\b(\w+)\s*\*\s*{real}\s*(?:=|;)", text)
                 window = " ".join(lines[max(0, number - 3):number + 1])
                 flags = ["todo-in-code"] if re.search(r"TODO|not sure|FIXME|\?\?\?", window) else []

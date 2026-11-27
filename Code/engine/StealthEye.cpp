@@ -1,6 +1,7 @@
 #include <StealthEye.h>
 
 #include <Actor.h>
+#include <Combat/CombatManager.h>
 #include <Crime.h>
 #include <ActorExtension.h>
 #include <TES.h>
@@ -66,8 +67,6 @@ DetectionRules::EyeReading Read(Actor& aTarget) noexcept
     // 41408's walk for aTarget with the exclusions it applies to the real player only (0x1407863FE).
     using TFreshState = CrimeEngine::DetectionState*(Actor*, Actor*, uint32_t);
     POINTER_SKYRIMSE(TFreshState, s_freshState, 37758); // Actor__GetFreshDetectionStateOf, priority 3 as 41408
-    POINTER_SKYRIMSE(TLowestStealth, s_lowestStealth, 46877);
-    POINTER_SKYRIMSE(void*, s_combatManager, 405246); // CombatManager::singleton
     DetectionRules::EyeReading reading;
     const auto& cHandles = ProcessLists::Get()->highActorHandleArray;
     for (uint32_t i = 0; i < cHandles.length; ++i)
@@ -84,8 +83,8 @@ DetectionRules::EyeReading Read(Actor& aTarget) noexcept
             reading.Seeing += pState->Seen;
         }
     }
-    if (void* pManager = *s_combatManager.Get())
-        reading.Stealth = (RealLowestStealth ? RealLowestStealth : s_lowestStealth.Get())(pManager, &aTarget);
+    if (CombatManager* pManager = CombatManager::Get())
+        reading.Stealth = RealLowestStealth ? RealLowestStealth(pManager, &aTarget) : pManager->GetLowestStealthPoints(&aTarget);
     return reading;
 }
 

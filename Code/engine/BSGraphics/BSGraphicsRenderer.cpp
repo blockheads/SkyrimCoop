@@ -25,14 +25,19 @@ static RendererWindow* g_RenderWindow = nullptr;
 static constexpr char kTogetherWindowName[]{"Skyrim Together"};
 
 } // namespace
+Renderer* Renderer::Get() noexcept
+{
+    POINTER_SKYRIMSE(Renderer, s_renderer, 411393);
+    return s_renderer.Get();
+}
+
 RendererWindow* GetMainWindow()
 {
     // Hot reloaded into a running game: Hook_Renderer_Init ran in an earlier load.
     if (!g_RenderWindow)
     {
-        POINTER_SKYRIMSE(Renderer, s_renderer, 411393);
-        if (s_renderer.Get()->Data.RenderWindowA[0].hWnd)
-            g_RenderWindow = &s_renderer.Get()->Data.RenderWindowA[0];
+        if (Renderer::Get()->Data.RenderWindowA[0].hWnd)
+            g_RenderWindow = &Renderer::Get()->Data.RenderWindowA[0];
     }
     return g_RenderWindow;
 }

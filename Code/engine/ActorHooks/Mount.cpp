@@ -145,12 +145,10 @@ bool HookGetActivateText(TESNPC* apThis, TESObjectREFR* apTarget, BSString* apTe
     auto* pMount = Cast<Actor>(apTarget);
     if (!apText || !OffersBoarding(pMount))
         return false;
-    using TSetString = void(BSString*, const char*, uint32_t);
-    POINTER_SKYRIMSE(TSetString, s_setString, 439876); // BSString::Set
     POINTER_SKYRIMSE(Setting, s_ride, 377833); // gGameSetting_sRide
     const char* cpRide = reinterpret_cast<const char*>(s_ride.Get()->data); // a string setting's text
     const std::string cText = std::format("{}\n{}", cpRide ? cpRide : "Ride", pMount->GetDisplayFullName());
-    s_setString(apText, cText.c_str(), 0);
+    apText->Set(cText.c_str());
     return true;
 }
 

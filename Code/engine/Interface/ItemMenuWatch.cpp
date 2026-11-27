@@ -44,14 +44,12 @@ uint32_t ListedHolder(Kind aKind) noexcept
     {
     case Kind::Container:
     {
-        POINTER_SKYRIMSE(uint32_t, s_target, 405962); // ContainerMenu's target (CommonLibSSE-NG GetTargetRefHandle)
-        const auto* pTarget = TESObjectREFR::GetByHandle(*s_target.Get());
+        const auto* pTarget = TESObjectREFR::GetByHandle(ContainerMenu::GetTargetRefHandle());
         return pTarget ? pTarget->formID : 0;
     }
     case Kind::Barter:
     {
-        POINTER_SKYRIMSE(uint32_t, s_merchant, 405823); // BarterMenu's merchant (CommonLibSSE-NG GetTargetRefHandle)
-        const auto* pMerchant = TESObjectREFR::GetByHandle(*s_merchant.Get());
+        const auto* pMerchant = TESObjectREFR::GetByHandle(BarterMenu::GetTargetRefHandle());
         return pMerchant ? pMerchant->formID : 0;
     }
     case Kind::Inventory: return 0;

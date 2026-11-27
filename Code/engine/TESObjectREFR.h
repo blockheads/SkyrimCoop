@@ -246,6 +246,10 @@ struct TESObjectREFR : TESForm
     // 11810: a permanent form, not the temporary NPC) or its base, else
     // TESObjectREFR::GetOwner 20194 (its ownership, a linked door's, the encounter zone's, the cell's).
     TESForm* GetItemsOwner() const noexcept;
+    // TESObjectREFR::IsAnOwner (20210): apActor owns it (aUseFaction: through its factions too).
+    [[nodiscard]] bool IsAnOwner(const Actor* apActor, bool aUseFaction, bool aRequiresOwner) const noexcept;
+    // TESObjectREFR::GetLocationEncounterZone (20203): the zone the standard combat target selector reads.
+    [[nodiscard]] struct BGSEncounterZone* GetLocationEncounterZone() const noexcept;
     bool SendAnimationEvent(BSFixedString* apEventName) noexcept;
     // A furniture with KeywordActivatorFurnitureNoPlayer: a lever, pull bar or chain the player pulls without entering.
     [[nodiscard]] bool IsActivatorFurniture() const noexcept;
@@ -260,6 +264,8 @@ struct TESObjectREFR : TESForm
     void LockChange() noexcept;
     // Locks (at that level) or unlocks it and records the change, without raising LockChangeEvent.
     bool SetLockState(bool aLocked, uint8_t aLockLevel) noexcept;
+    // BGSOpenCloseForm::SetOpenState (14287): a door or container opened or closed, at once with aSnap.
+    bool SetOpenState(bool aOpen, bool aSnap) noexcept;
 
     const float GetHeight() noexcept;
     void EnableImpl() noexcept;
