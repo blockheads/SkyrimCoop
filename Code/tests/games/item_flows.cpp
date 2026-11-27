@@ -9,7 +9,6 @@
 
 namespace
 {
-constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kGold = 0x0000000F;
 constexpr uint32_t kIronSword = 0x00012EB7;
 

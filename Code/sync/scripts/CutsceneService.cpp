@@ -13,8 +13,7 @@
 #include <core/World.h>
 
 CutsceneService::CutsceneService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
-    : m_world(aWorld)
-    , m_transport(aTransport)
+    : m_transport(aTransport)
 {
     Listen<ConnectedEvent, &CutsceneService::OnConnected>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &CutsceneService::OnDisconnected>(m_connections, aDispatcher, this);

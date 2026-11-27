@@ -20,7 +20,8 @@ if is_plat("linux") then
     add_cxflags("-fPIC")
 end
 
-set_warnings("all")
+-- Our targets build clean: a warning fails the build (packages build with their own flags).
+set_warnings("all", "error")
 add_vectorexts("sse", "sse2", "sse3", "ssse3")
 add_vectorexts("neon")
 
@@ -39,6 +40,9 @@ if is_plat("windows") then
     set_runtimes("MT")
     set_exceptions("cxx")
     add_cxflags("/bigobj", "/Zc:__cplusplus", {tools = {"clang_cl", "cl"}})
+    -- The CRT's "use the _s variant" deprecations, and the pragma in xmake's generated precompiled headers.
+    add_defines("_CRT_SECURE_NO_WARNINGS")
+    add_cxflags("-Wno-pragma-system-header-outside-header", {tools = {"clang_cl"}})
     -- Package CMake builds: Ninja instead of the Visual Studio generator.
     set_policy("package.cmake_generator.ninja", true)
 end

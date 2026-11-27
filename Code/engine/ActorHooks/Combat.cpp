@@ -220,7 +220,7 @@ static bool DescribeReferenceLock(const void* apLock, char* apBuffer, size_t aSi
 
 void RefreshHangLockWatch() noexcept
 {
-    static const bool s_diagnosticSet = [] {
+    [[maybe_unused]] static const bool s_diagnosticSet = [] {
         CrashHandler::SetHangDiagnostic(&LogHeldReferenceLocks);
         // Mutex::Lock1 (13129), the engine's BSSpinLock wait: the lock stays in rdi while it sleeps.
         POINTER_SKYRIMSE(void, s_spinLockWait, 13129);

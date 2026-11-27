@@ -288,8 +288,8 @@ SCENARIO("A guest's playback arrives at a frame it has before the frame is due",
     }
     WHEN("its rest is known too")
     {
-        playback.At(1050);
-        playback.At(1100);
+        (void)playback.At(1050);
+        (void)playback.At(1100);
         playback.Rest(1200, {{.Key = cKey, .Position = {6.f, 0.f, 0.f}}});
         CHECK(playback.At(1150)[0].Body.Position.x == Approx(5.f));
         CHECK(playback.At(1175)[0].Body.Position.x == Approx(5.5f));

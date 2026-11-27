@@ -51,7 +51,7 @@ AnimationGraphDescriptor_Spriggan::AnimationGraphDescriptor_Spriggan(AnimationGr
         kstaggerDirection = 43,
     };
 
-    uint64_t key = 10099378323021197839;
+    uint64_t key = 10099378323021197839u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,

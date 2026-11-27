@@ -53,7 +53,7 @@ AnimationGraphDescriptor_Rabbit::AnimationGraphDescriptor_Rabbit(AnimationGraphD
         kbForceIdleStop = 45,
     };
 
-    uint64_t key = 11071881714804970071;
+    uint64_t key = 11071881714804970071u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,

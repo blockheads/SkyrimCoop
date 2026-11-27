@@ -100,7 +100,7 @@ AnimationGraphDescriptor_DogRootBehavior::AnimationGraphDescriptor_DogRootBehavi
         kiState_DeerDefaultRun = 92,
     };
 
-    uint64_t key = 16093192286272613165;
+    uint64_t key = 16093192286272613165u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,
