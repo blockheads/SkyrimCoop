@@ -111,15 +111,21 @@ IDA 1.7.104, read for "Continue showed another playthrough's saves"; names and c
   (35772) loads that request's name (manager `+0x240`) through the save utility's vfunc `0xB8`, not `Load_Impl`, so none
   of our load hooks see it. The name is the list's last entry: `BuildSaveList` scans `<Saves>/*.ess` (35799) and inserts
   each by file time (35784, comparing FILETIME at `+0x50` with 35795): the newest file wins, whatever its name.
+  `PopulateSaveList` keeps the list it has only when one is built (`+0x118`) and its last filter id (`+0xE0`, set by
+  35925) is 0; Continue's own filter is -1, so the next Continue rescans. 35775's event type 0 (which event: not read)
+  drops the list and sets the current and display character to -1.
 - **The Journal's list is the current character's.** Its SAVE and LOAD buttons (registered by 52902) call
-  `0x1409914D0`: `SetDisplayCharacter` with `currentCharacterID` (`+0xD0`), then the list fills from `saveGameList`
-  newest first (52894).
+  `OpenSaveLoadList` (52924): `SetDisplayCharacter` with `currentCharacterID` (`+0xD0`, the id and the modded flag),
+  then the list fills from `saveGameList` newest first (52894). The fake's `LoadList` compares the id only.
 - **So a scratch save is a playthrough of its own.** `SkyrimCoopJoin` (a guest's join load) and `SkyrimCoopWipe` (a
   host load) were written to the Saves folder and kept: the newest file, Continue loaded it, its name gave character id
   0 (above), and the Load list then showed every save filed under 0 (other playthroughs' saves made after such a load,
   older builds' included). Ours: `JoinService` deletes every `SaveNames::kScratch` save once any load ends or fails,
-  and on reaching the main menu (a crash mid-load, an older build); `JoinBridge::MakeSave` already deleted the
-  transfer's. GameTests `[saves]`, the verb `expect_no_scratch_saves`.
+  and on reaching the main menu (a crash mid-load, an older build); a write that fails part way is deleted at once;
+  `JoinBridge::MakeSave` already deleted the transfer's. Deleted before the player has control again, so no list
+  built later holds one. Continue stays vanilla's: the newest player save, whichever playthrough (a host that loads
+  an older playthrough and quits without saving continues the newest one). GameTests `[saves]`, the verb
+  `expect_no_scratch_saves`.
 
 ## Loading while dead (2026-11-16)
 

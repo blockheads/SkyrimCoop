@@ -410,8 +410,9 @@ SCENARIO("A guest whose held save is damaged still loads a save it was never sen
 }
 
 // The main menu's Continue loads the newest save of any character, and the Journal's Load list shows the current
-// character's (save-game.md, "Continue"): a scratch save left behind is both.
-SCENARIO("After a host load, Continue and the Load list keep to the chosen save's playthrough", "[load][saves]")
+// character's (save-game.md, "Continue"): a scratch save left behind is both. Continue stays vanilla's: the newest
+// players' save, whichever playthrough it is.
+SCENARIO("After a host load, Continue and the Load list keep to the newest player save's playthrough", "[load][saves]")
 {
     Party party(1, Plugins);
     auto& host = Party::Engine(party.Host());
@@ -469,4 +470,36 @@ SCENARIO("A scratch save left by an earlier run is gone before the player can pr
     party.As(party.Host(), [&] { REQUIRE(host.Continues()); });
     party.Until([&] { return host.Loaded.size() == 1; }, "Continue loads the newest save");
     CHECK(host.Loaded.back() == cOwn);
+}
+
+SCENARIO("After a host load of an older playthrough, Continue takes the newest player save and its list alone", "[load][saves]")
+{
+    Party party(0, Plugins);
+    auto& host = Party::Engine(party.Host());
+    const std::string cChosen = "Save12_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    const std::string cOther = "Save3_0C0FFEE0_0_4C79646961_RiftenWorld_000050_20261109120000_1_1";
+    Save(party, cChosen);
+    Save(party, cOther);
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads(cChosen)); });
+    Reloads(party, 1, "the host loads the older playthrough's save");
+    CHECK(host.LoadList() == std::vector<std::string>{cChosen});
+    host.AtMainMenu = true;
+    party.Frame();
+    party.As(party.Host(), [&] { REQUIRE(host.Continues()); });
+    party.Until([&] { return host.Loaded.size() == 2; }, "Continue loads the newest save");
+    CHECK(host.Loaded.back() == cOther);
+    CHECK(host.CharacterId == 0x0C0FFEE0);
+    CHECK(host.LoadList() == std::vector<std::string>{cOther});
+}
+
+SCENARIO("A join whose save is only partly written leaves no scratch save for Continue", "[join][saves]")
+{
+    Party party(1, Plugins, false);
+    auto& guest = Party::Engine(party.Guest());
+    guest.FailsCoSaveWrite = true; // brings its own character, so the host's save comes
+    party.As(party.Guest(), [&] { REQUIRE(party.Guest().ctx().at<JoinService>().Join(std::format("127.0.0.1:{}", party.Host().GetHostService().GetNetwork()->GetPort()))); });
+    party.Until([&] { return !party.Guest().ctx().at<JoinService>().IsJoining(); }, "the join fails writing the host's save");
+    CHECK(party.Guest().ctx().at<JoinService>().GetStatus().Reason == "transfer_failed");
+    CHECK_FALSE(guest.SavedFiles.contains(SaveNames::kJoin));
+    CHECK(guest.Loaded.empty());
 }

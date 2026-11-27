@@ -183,6 +183,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<std::string, uint64_t> SaveTimes;
     void WritesSaveFile(const std::string& acName, SaveFiles aFiles);
     void DeleteSave(const std::string& acName) noexcept override;
+    bool FailsCoSaveWrite = false; // WriteAndLoad writes the .ess, then fails on the .skse
     // The main menu's Continue (ContinueLastSavedGame 52117, 52898): loads the newest save of any character, by
     // file time; false when the folder has none.
     bool Continues();

@@ -101,7 +101,10 @@ void HostService::UpdateReload() noexcept
     m_loadingSave = true;
     m_world.GetTransport().Close();
     if (!m_world.ctx().at<IJoinBridge&>().WriteAndLoad(kReloadSave, *m_checkpoint))
+    {
+        m_world.ctx().at<IJoinBridge&>().DeleteSave(kReloadSave); // a part may be written
         OnGameLoadFailed(GameLoadFailedEvent{kReloadSave});
+    }
 }
 
 void HostService::OnGameLoaded(const GameLoadedEvent&) noexcept

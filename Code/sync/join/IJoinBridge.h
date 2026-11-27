@@ -37,6 +37,7 @@ public:
     // call; call again each update) or when it refused.
     [[nodiscard]] virtual std::optional<SaveFiles> SaveNow(const std::string& acName) noexcept = 0;
     // Writes a save's files under acName; the engine loads it on a main loop frame after (TESLoadGameEvent follows).
+    // False when a file was not written: the other may be.
     virtual bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept = 0;
 
     // Work too heavy for a frame (a save imaged, encoded or decoded) runs off the game's threads; what it returns

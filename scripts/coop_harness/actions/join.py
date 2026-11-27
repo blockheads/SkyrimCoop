@@ -79,7 +79,9 @@ class JoinActions:
     def expect_no_scratch_saves(ctx, instance):
         """The game's Saves folder holds only players' saves: the main menu's Continue loads the newest .ess of any
         character (52898), and a scratch save's name files it under character 0 (save-game.md, Continue)."""
-        scratch = sorted(name for name in ctx.save_files(instance) if name.startswith("SkyrimCoop"))
+        saves = ctx.game(instance).my_games / "Saves"
+        scratch = sorted(path.name for stem in ("SkyrimCoopJoin", "SkyrimCoopWipe", "SkyrimCoopTransfer")
+                         for path in saves.glob(stem + ".*") if path.suffix in (".ess", ".skse"))
         if scratch:
             raise ctx.failure(f"[{instance or 'host'}] scratch saves left in the Saves folder: {scratch}")
         return {"scratch": scratch}

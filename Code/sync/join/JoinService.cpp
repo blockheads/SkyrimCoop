@@ -353,7 +353,10 @@ void JoinService::LoadImage(const std::string& acImage) noexcept
     m_metrics.WriteMs = Since(m_loadStarted);
     m_loadStarted = Clock::now();
     if (!cWritten)
+    {
+        m_bridge.DeleteSave(kJoinSave); // a part may be written: never one for Continue
         Fail("transfer_failed");
+    }
 }
 
 void JoinService::DropScratchSaves() noexcept
