@@ -689,10 +689,13 @@ Size: small. Needs: IDA, then GameTests.
 
 The guest's game crashed (RIP 0, a null virtual on `Character 0xDC54F` from 19187 in the cell attach) as the party
 travelled to QASmoke in `party-travel-mounted-guest`, after five mount scenarios in one session, 2026-11-27 on the
-cleanup branch `bf190e82`: 1 of 3 runs of the sequence. The same class as the 2026-11-12 crash in the garbage
-collector's job. Notes: `docs/re/crashes/2026-11-27-guest-cell-attach-null-virtual.md`.
+cleanup branch `bf190e82`; a second crash that night read a copy's destroyed base form. 2 of 18 runs of the sequence
+with `HostCharacters`' travel rules moved to their own part, 0 of 60 without (dev and six other commits), so that
+move was reverted; no defect was found in it. The same class as the 2026-11-12 crash in the garbage collector's
+job. Notes and the table: `docs/re/crashes/2026-11-27-guest-cell-attach-null-virtual.md`.
 
-Agent task: `coop_test.py repro` with the heap history on, the six scenarios in order; read who freed the reference.
+Agent task: `coop_test.py repro` with the heap history on, the six scenarios in order, on `bf190e82`; read who freed
+the form. Then the travel rules can move again (`git revert a99879a6`).
 
 Size: medium. Needs: the duo, IDA.
 

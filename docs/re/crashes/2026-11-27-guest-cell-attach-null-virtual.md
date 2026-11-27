@@ -17,9 +17,32 @@ RBX named it `Character 0x000DC54F` (Skyrim.esm); the temporary cell `FF000A70` 
 form, on the guest, after the mount scenarios, with the temporary cell `FF000A70` on the stack. That one was in the
 garbage collector's job; this one is the cell attach.
 
-**Not known:** what 0xDC54F is and what destroyed or replaced it; whether the moves of that night (the ride rules to
-`mounts/HostRides`, the travel rules to `travel/HostArrivals`; the host's sends are byte-identical in
-`HostAuthorityTests`) are involved. The crash is on the guest, whose code those moves did not touch.
+**A second crash, the same night** (`crash-2026-11-27-03-25-26.log`, the sixth repeat of the same sequence): an
+access violation in `Cast<TESNPC>` (the object's vtable pointer read as null) under `Diagnostics::GetBaseLooks` from
+the harness's status command: an actor's base form destroyed while the actor was still in our registry. In both,
+the guest had just received the host's spawns on arriving (`NotifyCharacterSpawn` for `DC54F` and eleven more).
+
+**Where it shows (measured, 2026-11-27).** Runs of `host-rides-horse guest-rides-host-horse
+horse-passes-between-riders two-players-race-for-horse mounted-guest-leaves party-travel-mounted-guest`, counting the
+guest's new crash logs:
+
+| Build | Crashes |
+| --- | --- |
+| dev `3d763578` | 0 of 6 |
+| the cleanup branch after #141 `6916f9df` | 0 of 9 |
+| after #142 `1f0af7ec` | 0 of 9 |
+| after #143 and #144 `e9cdf8bf` | 0 of 9 |
+| after #145 `9488aa4c` | 0 of 9 |
+| after the ride rules' move `3de404a9` | 0 of 9 |
+| after the travel rules' move `c62c6836` (`bf190e82`, `449f3062`) | 2 of 18 |
+| that move reverted `a99879a6` | 0 of 9 |
+
+Two in 18 against none in 60 is suggestive, not proof (about a 5% chance if the commit made no difference). Reading
+the travel move line by line found no difference from the code it replaced, and the host's sends were identical in
+`HostAuthorityTests`. It was reverted on the evidence alone (`a99879a6`).
+
+**Not known:** what destroyed the forms; whether the travel move changes anything real (timing, or a path the tests
+do not reach) or the guest has a latent lifetime bug that any build can show, as the 2026-11-12 crash suggests.
 
 **Next:** `scripts/coop_test.py repro` with the heap history on (crash debugging: tooling first), running the six
-scenarios above in order.
+scenarios above in order, on `bf190e82` where it showed.
