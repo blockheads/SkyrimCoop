@@ -297,17 +297,13 @@ void GuestBodies::Ragdoll(uint64_t aTick, IGuestEngine::OwnBodies& aOwn, std::ve
 IGuestEngine::SessionOf_t GuestBodies::CopySessions() const noexcept
 {
     return [this](uint32_t aFormId) -> uint32_t {
-        for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
-            if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
-                return m_world.get<RemoteComponent>(cEntity).Id;
-        return 0;
+        const auto cEntity = m_world.GetActorIndex().ByForm<RemoteComponent>(aFormId);
+        return cEntity == entt::null ? 0 : m_world.get<RemoteComponent>(cEntity).Id;
     };
 }
 
 uint32_t GuestBodies::PlayerId() const noexcept
 {
-    for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
-        if (m_world.get<FormIdComponent>(cEntity).Id == 0x14)
-            return m_world.get<LocalComponent>(cEntity).Id;
-    return 0;
+    const auto cEntity = m_world.GetActorIndex().ByForm<LocalComponent>(0x14);
+    return cEntity == entt::null ? 0 : m_world.get<LocalComponent>(cEntity).Id;
 }

@@ -89,11 +89,10 @@ std::optional<uint32_t> DialogueService::CopySessionId(uint32_t aFormId) const n
 {
     if (!aFormId)
         return std::nullopt;
-    auto view = m_world.view<FormIdComponent, RemoteComponent>();
-    for (const entt::entity cEntity : view)
-        if (view.get<FormIdComponent>(cEntity).Id == aFormId)
-            return view.get<RemoteComponent>(cEntity).Id;
-    return std::nullopt;
+    const auto cEntity = m_world.GetActorIndex().ByForm<RemoteComponent>(aFormId);
+    if (cEntity == entt::null)
+        return std::nullopt;
+    return m_world.get<RemoteComponent>(cEntity).Id;
 }
 
 std::optional<std::vector<IDialogueBridge::Option>> DialogueService::PartyList() const noexcept
