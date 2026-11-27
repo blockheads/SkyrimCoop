@@ -29,7 +29,6 @@ class IEngine;
 struct SessionService;
 struct TravelService;
 struct CharacterService;
-struct MagicService;
 struct HostService;
 struct Hosting;
 
@@ -62,17 +61,11 @@ struct World : entt::registry
     TransportService& GetTransport() noexcept;
 
     SessionService& GetSessionService() noexcept;
-    const SessionService& GetSessionService() const noexcept;
     TravelService& GetTravelService() noexcept;
-    const TravelService& GetTravelService() const noexcept;
     CharacterService& GetCharacterService() noexcept;
-    const CharacterService& GetCharacterService() const noexcept;
-    MagicService& GetMagicService() noexcept;
-    const MagicService& GetMagicService() const noexcept;
     // Hosting as the features use it (HostService).
     Hosting& GetHosting() noexcept;
     HostService& GetHostService() noexcept;
-    const HostService& GetHostService() const noexcept;
 
     // Bridge accessors — interfaces injected into EnTT context by World.cpp
     IActorBridge& GetActorBridge() noexcept;
@@ -102,7 +95,6 @@ struct World : entt::registry
 
     // The game this code runs in: the plugin's one World; in the tests, the game whose turn it is.
     [[nodiscard]] static World& Get() noexcept;
-    [[nodiscard]] static bool Exists() noexcept;
     static void SetCurrent(World* apWorld) noexcept;
 
 private:
