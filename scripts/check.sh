@@ -57,7 +57,7 @@ step() {
 
 # GameTests in shards at once: its games wait on real timers, not the CPU. Each shard has its own ports; it fails
 # if a shard fails or a case did not run.
-SHARDS="${CHECK_SHARDS:-8}"
+SHARDS=8
 game_tests() {
     local binary="build/linux/x86_64/debug/GameTests" dir="$LOGS/GameTests" pids=() failed=0 shard
     rm -rf "$dir" && mkdir -p "$dir"
