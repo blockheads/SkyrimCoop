@@ -189,11 +189,6 @@ void* HookPickUpObject(Actor* apThis, TESObjectREFR* apObject, int32_t aCount, b
     return RealPickUpObject(apThis, apObject, aCount, aUnk1, aUnk2);
 }
 
-void Actor::PickUpObject(TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2) noexcept
-{
-    RealPickUpObject(this, apObject, aCount, aUnk1, aUnk2);
-}
-
 void* HookDropObject(Actor* apThis, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation)
 {
 

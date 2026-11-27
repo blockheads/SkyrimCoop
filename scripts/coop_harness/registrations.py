@@ -2,7 +2,6 @@
 from .scenarios import arrest_repro, combat, crime, dialogue_regression, dialogue_repro, dialogue_stress, followers, menus, rewards, specs, v1
 from .scenarios import (
     ai,
-    combat,
     dialogue,
     input,
     interface,

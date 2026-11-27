@@ -33,7 +33,6 @@ struct BSAnimationGraphManager
     BShkbAnimationGraph* GetGraph(int aForceIndex = -1) noexcept;
     uint64_t GetProjectKey(int aForceIndex = -1) noexcept;
     uint64_t GetDescriptorKey(int aForceIndex = -1);
-    uint32_t ReSendEvent(BSFixedString* apEventName);
 };
 
 static_assert(offsetof(BSAnimationGraphManager, boundChannels) == 0x10);

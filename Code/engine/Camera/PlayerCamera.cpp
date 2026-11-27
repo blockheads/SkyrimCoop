@@ -21,17 +21,6 @@ bool PlayerCamera::IsFirstPerson() noexcept
     return firstPerson == 1.0;
 }
 
-bool PlayerCamera::WorldPtToScreenPt3(const NiPoint3& in, NiPoint3& out, float zeroTolerance /* = 1e-5f */)
-{
-    auto* pCam = GetNiCamera();
-    if (cameraNode && pCam)
-    {
-        return pCam->WorldPtToScreenPt3(in, out, zeroTolerance);
-    }
-
-    return false;
-}
-
 void PlayerCamera::ForceFirstPerson() noexcept
 {
     using TForceFirstPerson = void(PlayerCamera*);

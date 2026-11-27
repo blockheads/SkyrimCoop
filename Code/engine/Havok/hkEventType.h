@@ -4,7 +4,6 @@ struct hkbBehaviorGraph;
 
 struct hkEventType
 {
-    hkEventType(int32_t aType);
     hkEventType(const hkEventType&) = default;
 
     int32_t type;

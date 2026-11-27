@@ -150,10 +150,6 @@ struct PlayerCharacter : Actor
     // TODO: there's an in game function for this in fallout 4, maybe also for skyrim?
     void SetDifficulty(const int32_t aDifficulty, bool aForceUpdate = true, bool aExpectGameDataLoaded = true) noexcept;
 
-    // Whether the player heard this line within its reset hours (40694; TESTopic 25544 skips it then).
-    [[nodiscard]] bool SaidRecently(const TESTopicInfo* apInfo) const noexcept;
-    // Remembers the line as heard now, as saying it does (40692, from TESTopicInfo::Begin 25616).
-    void RememberSaid(const TESTopicInfo* apInfo) noexcept;
     float GetSkillExperience(Skills::Skill aSkill) const noexcept { return (*pSkills)->skills[aSkill].xp; }
 
     // Its AI drives it, as Game.SetPlayerAIDriven does (40586): it runs its package, its controls let go of it.

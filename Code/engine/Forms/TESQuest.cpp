@@ -23,21 +23,6 @@ TESObjectREFR* TESQuest::GetAliasedRef(uint32_t aAliasID) noexcept
     return TESObjectREFR::GetByHandle(result.handle.iBits);
 }
 
-TESQuest::State TESQuest::getState()
-{
-    if (flags >= 0)
-    {
-        if (unkFlags)
-            return State::WaitingPromotion;
-        else if (flags & 1)
-            return State::Running;
-        else
-            return State::Stopped;
-    }
-
-    return State::WaitingForStage;
-}
-
 void TESQuest::SetCompleted(bool aCompleted)
 {
     using TSetCompleted = void(TESQuest*, bool);
@@ -103,14 +88,6 @@ TESQuest::Stage* TESQuest::GetStage(uint16_t aIndex) noexcept
     return nullptr;
 }
 
-TESQuest::Objective* TESQuest::GetObjective(uint16_t aIndex) noexcept
-{
-    for (Objective* pObjective : objectives)
-        if (pObjective && pObjective->index == aIndex)
-            return pObjective;
-    return nullptr;
-}
-
 void TESQuest::SetFailed(bool aFailed) noexcept
 {
     using TSetFailed = void(TESQuest*, bool);
@@ -132,13 +109,6 @@ void TESQuest::Objective::SetState(uint8_t aState) noexcept
     setState(this, aState);
 }
 
-void TESQuest::CompleteAllObjectives()
-{
-    using TCompleteAllObjectives = void(TESQuest*);
-    POINTER_SKYRIMSE(TCompleteAllObjectives, CompleteAll, 23231);
-    CompleteAll(this);
-}
-
 void TESQuest::SetActive(bool toggle)
 {
     if (toggle)
@@ -156,31 +126,6 @@ bool TESQuest::IsStageDone(uint16_t stageIndex)
     }
 
     return false;
-}
-
-bool TESQuest::Kill()
-{
-    using TSetStopped = void(TESQuest*, bool);
-    POINTER_SKYRIMSE(TSetStopped, SetStopped, 24987);
-
-    if (flags & Flags::Enabled)
-    {
-        unkFlags = 0;
-        flags = Flags::Completed;
-        MarkChanged(2);
-
-        // SetStopped(this, false);
-        return true;
-    }
-
-    return false;
-}
-
-bool TESQuest::EnsureQuestStarted(bool& success, bool force)
-{
-    using TSetRunning = bool(TESQuest*, bool*, bool);
-    POINTER_SKYRIMSE(TSetRunning, SetRunning, 25003);
-    return SetRunning(this, &success, force);
 }
 
 bool TESQuest::SetStage(uint16_t newStage)

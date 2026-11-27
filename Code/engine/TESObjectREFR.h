@@ -181,7 +181,6 @@ struct TESObjectREFR : TESForm
     void SetRotation(float aX, float aY, float aZ) noexcept;
 
     BSPointerHandle<TESObjectREFR> GetHandle() const noexcept;
-    uint32_t GetCellId() const noexcept;
     // GetDisplayFullName (19781): its name with this reference's override (ExtraTextDisplayData), never null.
     const char* GetDisplayFullName() noexcept;
     TESWorldSpace* GetWorldSpace() const noexcept;
@@ -230,8 +229,6 @@ struct TESObjectREFR : TESForm
     void RemoveAllItems() noexcept;
     std::vector<uint32_t> RemoveNonQuestItems(Inventory& aCurrentInventory) noexcept;
     void Delete() const noexcept;
-    void Disable() const noexcept;
-    void Enable() const noexcept;
     void MoveTo(TESObjectCELL* apCell, const NiPoint3& acPosition) const noexcept;
     // Places it on one axis ('X', 'Y', 'Z') with its 3D and collision, as the console's SetPos and Papyrus'
     // SetPosition do (22053); SetAngleOnAxis the same for its angle, in degrees as the console's SetAngle (22054).
@@ -259,9 +256,6 @@ struct TESObjectREFR : TESForm
 
     bool Activate(TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing) noexcept;
 
-    bool PlayAnimationAndWait(BSFixedString* apAnimation, BSFixedString* apEventName) noexcept;
-    bool PlayAnimation(BSFixedString* apEventName) noexcept;
-
     Lock* CreateLock() noexcept;
     void LockChange() noexcept;
     // Locks (at that level) or unlocks it and records the change, without raising LockChangeEvent.
@@ -277,8 +271,6 @@ struct TESObjectREFR : TESForm
     Inventory GetInventory(std::function<bool(TESForm&)> aFilter) const noexcept;
     Inventory GetArmor() const noexcept;
     Inventory GetWornArmor() const noexcept;
-
-    bool IsItemInInventory(uint32_t aFormID) const noexcept;
 
     void SetInventory(const Inventory& acContainer) noexcept;
     void SetInventoryRetainingQuestItems(Inventory& aCurrentInventory, const Inventory& acSourceInventory) noexcept;

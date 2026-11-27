@@ -16,7 +16,6 @@ struct CombatAimController;
 struct CombatController
 {
     void SetTarget(Actor* apTarget);
-    void UpdateTarget();
     // The fighting actor, read as SetTarget (33235) reads it: the cached pointer while handles are held.
     [[nodiscard]] Actor* GetAttacker() const noexcept;
 

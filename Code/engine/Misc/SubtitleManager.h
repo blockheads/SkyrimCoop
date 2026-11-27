@@ -31,7 +31,6 @@ struct SubtitleManager
 
     // aForceDisplay: shown at any distance, not only within fMaxSubtitleDistance (SubtitleInfo::forceDisplay).
     void ShowSubtitle(TESObjectREFR* apSpeaker, const char* apSubtitleText, TESTopicInfo* apTopicInfo, bool aForceDisplay = false) noexcept;
-    void* HideSubtitle(TESObjectREFR* apSpeaker) noexcept;
 };
 
 static_assert(offsetof(SubtitleManager, subtitles) == 0x8);

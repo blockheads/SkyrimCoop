@@ -61,8 +61,3 @@ std::shared_ptr<const SaveTransfer::Stream> SaveLibrary::Encode(const std::strin
     const auto cStream = m_pState->Streams.find(cKey);
     return cStream != m_pState->Streams.end() ? cStream->second : nullptr;
 }
-
-void SaveLibrary::Clear() noexcept
-{
-    m_pState = std::make_shared<State>();
-}

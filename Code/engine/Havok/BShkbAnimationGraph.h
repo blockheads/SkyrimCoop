@@ -82,8 +82,6 @@ struct BShkbAnimationGraph
     uint8_t pad242[0x246 - 0x242];
     bool behaviourUpdated; // 246: it updated this frame (63587), so 63589 runs its generate pass (63568)
 
-    // Re do not use
-    bool ReSendEvent(BSFixedString* apEventName);
 };
 
 static_assert(offsetof(BShkbAnimationGraph, refCount) == 0x8);

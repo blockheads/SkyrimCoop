@@ -60,8 +60,6 @@ struct CharacterService
 
     NO_COPY_MOVE(CharacterService);
 
-    static void DeleteTempActor(const uint32_t aFormId) noexcept;
-
     void OnActorAdded(const ActorAddedEvent& acEvent) noexcept;
     void OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept;
     void OnUpdate(const UpdateEvent& acUpdateEvent) noexcept;

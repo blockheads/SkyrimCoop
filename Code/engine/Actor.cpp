@@ -107,8 +107,6 @@ using TCharacterConstructor = Actor*(Actor*);
 
 using TCharacterConstructor2 = Actor*(Actor*, uint8_t aUnk);
 
-using TCharacterDestructor = Actor*(Actor*);
-
 using TGetLocation = TESForm*(TESForm*);
 
 static TGetLocation* FUNC_GetActorLocation;
@@ -117,24 +115,7 @@ TCharacterConstructor* RealCharacterConstructor;
 
 TCharacterConstructor2* RealCharacterConstructor2;
 
-TCharacterDestructor* RealCharacterDestructor;
-
 static TRemoveSpell* RealRemoveSpell = nullptr;
-
-float Actor::GetSpeed() noexcept
-{
-    static BSFixedString speedSampledStr("SpeedSampled");
-    float speed = 0.f;
-    EngineVirtual(animationGraphHolder).GetVariableFloat(&speedSampledStr, &speed);
-
-    return speed;
-}
-
-void Actor::SetSpeed(float aSpeed) noexcept
-{
-    static BSFixedString speedSampledStr("SpeedSampled");
-    EngineVirtual(animationGraphHolder).SetVariableFloat(&speedSampledStr, aSpeed);
-}
 
 uint16_t Actor::GetLevel() const noexcept
 {
@@ -422,11 +403,6 @@ void Actor::DoReset3D(bool aUpdateWeight) noexcept
     s_doReset3D(this, aUpdateWeight);
 }
 
-void Actor::DispelAllSpells(bool aNow) noexcept
-{
-    magicTarget.DispelAllSpells(aNow);
-}
-
 void Actor::ClearPowerCooldowns() noexcept
 {
     POINTER_SKYRIMSE(void(Actor*), s_clear, 38825);
@@ -455,29 +431,6 @@ Actor* Actor::GetCombatTarget() const noexcept
 {
     PAPYRUS_FUNCTION(Actor*, Actor, GetCombatTarget);
     return s_pGetCombatTarget(this);
-}
-
-// TODO: this is a really hacky solution.
-// The internal targeting system should be disabled instead.
-void Actor::StartCombatEx(Actor* apTarget) noexcept
-{
-    if (GetCombatTarget() != apTarget)
-    {
-        StopCombat();
-        StartCombat(apTarget);
-    }
-}
-
-void Actor::SetCombatTargetEx(Actor* apTarget) noexcept
-{
-    if (pCombatController)
-        pCombatController->SetTarget(apTarget);
-}
-
-void Actor::StartCombat(Actor* apTarget) noexcept
-{
-    PAPYRUS_FUNCTION(void, Actor, StartCombat, Actor*);
-    s_pStartCombat(this, apTarget);
 }
 
 void Actor::StopCombat() noexcept
@@ -563,22 +516,6 @@ Actor* HookCharacterConstructor2(Actor* apThis, uint8_t aUnk)
     return apThis;
 }
 
-Actor* HookCharacterDestructor(Actor* apThis)
-{
-    EMPTY_HOOK_PLACEHOLDER;
-
-    auto pExtension = apThis->GetExtension();
-
-    if (pExtension)
-    {
-        pExtension->~ActorExtension();
-    }
-
-    RealCharacterDestructor(apThis);
-
-    return apThis;
-}
-
 GamePtr<Actor> Actor::New() noexcept
 {
     auto* const pActor = Memory::Allocate<Actor>();
@@ -608,17 +545,6 @@ TESForm* Actor::GetEquippedWeapon(uint32_t aSlotId) const noexcept
 
         else if (aSlotId == 1 && pMiddleProcess->rightEquippedObject)
             return pMiddleProcess->rightEquippedObject->pObject;
-    }
-
-    return nullptr;
-}
-
-TESForm* Actor::GetEquippedAmmo() const noexcept
-{
-    if (currentProcess && currentProcess->middleProcess && currentProcess->middleProcess->ammoEquippedObject)
-    {
-        // TODO: rtti cast to check if is ammo object? or actually, just call AIProcess::GetCurrentAmmo()
-        return currentProcess->middleProcess->ammoEquippedObject->pObject;
     }
 
     return nullptr;
@@ -915,13 +841,6 @@ void Actor::SetFactionRank(const TESFaction* apFaction, int8_t aRank) noexcept
     POINTER_SKYRIMSE(TSetFactionRankInternal, s_setFactionRankInternal, 37677);
 
     s_setFactionRankInternal(this, apFaction, aRank);
-}
-
-void Actor::SetPlayerTeammate(bool aSet) noexcept
-{
-    using TSetPlayerTeammate = void(Actor*, bool aSet, bool abCanDoFavor);
-    POINTER_SKYRIMSE(TSetPlayerTeammate, setPlayerTeammate, 37717);
-    return setPlayerTeammate(this, aSet, true);
 }
 
 void Actor::UnEquipAll() noexcept
@@ -1370,12 +1289,6 @@ void Actor::Reset() noexcept
     s_pReset(this, 0, nullptr);
 }
 
-bool Actor::PlayIdle(TESIdleForm* apIdle) noexcept
-{
-    PAPYRUS_FUNCTION(bool, Actor, PlayIdle, TESIdleForm*);
-    return s_pPlayIdle(this, apIdle);
-}
-
 void Actor::Respawn() noexcept
 {
     Resurrect(false);
@@ -1450,7 +1363,6 @@ static Hooks::Initializer s_actorHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TCharacterDestructor, s_characterDtor, 37175);
         POINTER_SKYRIMSE(TGetLocation, s_GetActorLocation, 19812);
         FUNC_GetActorLocation = s_GetActorLocation.Get();
         HOOK_ID(38717, &RealRemoveSpell, HookRemoveSpell);

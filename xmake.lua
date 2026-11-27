@@ -125,32 +125,6 @@ add_requireconfs("*.rpmalloc", { override = true })
 add_requireconfs("*.cmake", { version = "3.30.2", override = true })
 add_requireconfs("*.zlib", { version = "v1.3.1", override = true })
 
-before_build(function (target)
-    import("modules.version")
-    local branch, commitHash = version()
-    bool_to_number={ [true]=1, [false]=0 }
-    local contents = string.format([[
-    #pragma once
-    #define IS_MASTER %d
-    #define IS_BRANCH_BETA %d
-    #define IS_BRANCH_PREREL %d
-    ]], 
-    bool_to_number[branch == "master"], 
-    bool_to_number[branch == "bluedove"], 
-    bool_to_number[branch == "prerel"])
-
-    -- fix always-compiles problem by updating the file only if content has changed.
-    local filepath = "build/BranchInfo.h"
-    local old_content = nil
-    if os.exists(filepath) then
-        old_content = io.readfile(filepath)
-    end
-    if old_content ~= contents then
-        print("Updating file:", filepath)
-        io.writefile(filepath, contents)
-    end
-end)
-
 if is_mode("debug") then
     add_defines("DEBUG")
 end

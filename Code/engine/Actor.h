@@ -195,9 +195,7 @@ struct Actor : TESObjectREFR
     ExPlayerCharacter* AsExPlayerCharacter() noexcept;
 
     // Getters
-    float GetSpeed() noexcept;
     TESForm* GetEquippedWeapon(uint32_t aSlotId) const noexcept;
-    TESForm* GetEquippedAmmo() const noexcept;
     Actor* GetCommandingActor() const noexcept;
     // in reality this is a BGSLocation
     TESForm* GetCurrentLocation();
@@ -225,7 +223,6 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool IsVampireLord() const noexcept;
 
     // Setters
-    void SetSpeed(float aSpeed) noexcept;
     void SetLevelMod(uint32_t aLevel) noexcept;
     void SetActorValue(uint32_t aId, float aValue) noexcept;
     void ForceActorValue(ActorValueOwner::ForceMode aMode, uint32_t aId, float aValue) noexcept;
@@ -278,7 +275,6 @@ struct Actor : TESObjectREFR
     void CastPermanentMagic(bool aWornItemEnchantments, bool aBaseSpells, bool aRaceSpells, bool aEveryActorAbility) noexcept;
     // Its 3D rebuilt from its reference (CommonLibSSE-NG DoReset3D, 40255).
     void DoReset3D(bool aUpdateWeight) noexcept;
-    void SetPlayerTeammate(bool aSet) noexcept;
 
     // Actions
     void UnEquipAll() noexcept;
@@ -316,7 +312,6 @@ struct Actor : TESObjectREFR
     // pair's instance sends (BGSSynchronizedAnimationInstance::Deactivate 32797): none where the horse changed hands.
     void EndMountPair() noexcept;
     void GenerateMagicCasters() noexcept;
-    void DispelAllSpells(bool aNow = false) noexcept;
     // Its power cooldowns emptied (38825, as Actor::Revert does), and one added unless that power has one (38738).
     void ClearPowerCooldowns() noexcept;
     void SetPowerCooldown(SpellItem* apPower, float aSeconds) noexcept;
@@ -357,15 +352,10 @@ struct Actor : TESObjectREFR
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).
     bool KillWithDeathAction(const ActionEvent& acAction) noexcept;
     void Respawn() noexcept;
-    void PickUpObject(TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2) noexcept;
     void DropObject(TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation) noexcept;
     void DropOrPickUpObject(const Inventory::Entry& arEntry, NiPoint3* apPoint, NiPoint3* apRotate) noexcept;
     void SpeakSound(const char* pFile);
-    void StartCombatEx(Actor* apTarget) noexcept;
-    void SetCombatTargetEx(Actor* apTarget) noexcept;
-    void StartCombat(Actor* apTarget) noexcept;
     void StopCombat() noexcept;
-    bool PlayIdle(TESIdleForm* apIdle) noexcept;
     void FixVampireLordModel() noexcept;
     bool RemoveSpell(MagicItem* apSpell) noexcept;
     // Actor::AddSpell (38716): false when it already has it.

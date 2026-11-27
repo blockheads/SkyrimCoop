@@ -5,7 +5,6 @@
 #include <vector>
 
 #include <Structs/Inventory.h>
-#include <Structs/LockData.h>
 
 /// TESForm lookups and typed Cast<> operations.
 /// No SKSE types in any signature — all IDs use uint32_t.

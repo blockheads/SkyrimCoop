@@ -599,7 +599,6 @@ def scenario_client_melee_kill_credit(ctx):
 
 from .physics import scenario_guest_knockdown_lies_on_host
 """Scenarios combat for the co-op harness."""
-from ..common import MELEE_GAP
 
 
 def melee_bash(ctx, attacker):

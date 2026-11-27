@@ -317,16 +317,6 @@ void TESObjectREFR::SetGraphRandom(uint32_t aSeed) const noexcept
     WithGraphRandom(*this, -1, [&](hkPseudoRandomGenerator& aRandom) { aRandom.current = aSeed; });
 }
 
-uint32_t TESObjectREFR::GetCellId() const noexcept
-{
-    if (!parentCell)
-        return 0;
-
-    const auto* pWorldSpace = parentCell->worldspace;
-
-    return pWorldSpace != nullptr ? pWorldSpace->formID : parentCell->formID;
-}
-
 TESWorldSpace* TESObjectREFR::GetWorldSpace() const noexcept
 {
     auto* pParentCell = parentCell ? parentCell : GetParentCell();
@@ -349,24 +339,6 @@ void TESObjectREFR::Delete() const noexcept
     PAPYRUS_FUNCTION(void, ObjectReference, Delete);
 
     s_pDelete(this);
-}
-
-void TESObjectREFR::Disable() const noexcept
-{
-    using ObjectReference = TESObjectREFR;
-
-    PAPYRUS_FUNCTION(void, ObjectReference, Disable, bool);
-
-    s_pDisable(this, true);
-}
-
-void TESObjectREFR::Enable() const noexcept
-{
-    using ObjectReference = TESObjectREFR;
-
-    PAPYRUS_FUNCTION(void, ObjectReference, Enable, bool);
-
-    s_pEnable(this, true);
 }
 
 // Skyrim: MoveTo() can fail, causing the object to be deleted
@@ -906,12 +878,6 @@ Inventory TESObjectREFR::GetWornArmor() const noexcept
     Inventory wornArmor = GetArmor();
     wornArmor.RemoveByFilter([](const auto& entry) { return !entry.IsWorn(); });
     return wornArmor;
-}
-
-bool TESObjectREFR::IsItemInInventory(uint32_t aFormID) const noexcept
-{
-    Inventory inventory = GetInventory([aFormID](TESForm& aForm) { return aForm.formID == aFormID; });
-    return !inventory.Entries.empty();
 }
 
 void TESObjectREFR::SetInventory(const Inventory& aInventory) noexcept

@@ -1,14 +1,8 @@
 """Actions for the co-op harness."""
-import argparse
 import collections
 import contextlib
 import math
-import os
-import re
-import socket
-import subprocess
 import time
-import uuid
 from ..common import (
     BODY_TURN_TOLERANCE,
     BONE_APART,
@@ -21,7 +15,6 @@ from ..common import (
     FORM_TYPE_NAMES,
     IDLE_INTERVAL,
     IDLE_SAMPLES,
-    KEYFRAMED_MOTION,
     OBJECT_EVENTS,
     PLAYER_WEREWOLF_QUEST,
     SCENERY_SCRIPTS,
@@ -29,7 +22,6 @@ from ..common import (
 )
 from ..errors import TestFailure
 from ..comparisons import (
-    distance,
     first_body,
     near,
     reference_differences,
