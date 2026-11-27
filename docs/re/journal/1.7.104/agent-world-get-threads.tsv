@@ -1,0 +1,6 @@
+time	op	id	rva	item
+2026-11-27T17:59:00Z	read	39557	0x701320	{"name": "AIProcess__SetPendingCrime"}
+2026-11-27T18:15:00Z	read	39039	0x6e4c20	{"name": "sub_1406E4C20"}
+2026-11-27T18:15:06Z	comment		0x6e4e94	{"addr": "0x1406e4e94", "comment": "Job_UI: UI::ProcessMessages (82082) on a job thread, beside the main thread's call."}
+2026-11-27T18:15:06Z	comment	39039	0x6e4c20	{"addr": "0x1406E4C20", "comment": "Loading screen loop: while the main thread loads, this thread processes the UI's messages (82082) and presents (77246). Our hooks there run off the main thread (bugs.md, World::Get() off the game's thread)."}
+2026-11-27T18:27:07Z	read	53954	0x9dad40	{"name": "SkyrimVM::QueueDelayFunctor"}
