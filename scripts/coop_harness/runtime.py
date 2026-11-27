@@ -180,6 +180,8 @@ class Runtime:
         env.update(SteamAppId="489830", SteamGameId="489830", STEAM_COMPAT_DATA_PATH=str(_game.prefix),
                    STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam), WINEDEBUG=env.get("WINEDEBUG", "-all"),
                    SKYRIMCOOP_LOG_LEVEL=env.get("SKYRIMCOOP_LOG_LEVEL", "debug"),
+                   # A use after free stops at its first read (HeapHistory.h); about 500 MB a game. 0 turns it off.
+                   SKYRIMCOOP_HEAP_QUARANTINE=env.get("SKYRIMCOOP_HEAP_QUARANTINE", "256"),
                    # `stop` kills the games: no crash report and zip from that at the next boot.
                    SKYRIMCOOP_NO_CRASH_REPORTS="1",
                    # The UI straight from the repo (Wine's Z: is /): edits show up in game within a second.
