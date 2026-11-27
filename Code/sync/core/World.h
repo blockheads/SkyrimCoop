@@ -100,6 +100,8 @@ struct World : entt::registry
     [[nodiscard]] static World& Get() noexcept;
     [[nodiscard]] static bool Exists() noexcept;
     static void SetCurrent(World* apWorld) noexcept;
+    // Its event queue, from any thread (an engine hook on a job thread); Get() is for the update and the main thread.
+    [[nodiscard]] static RunnerService& Runner() noexcept;
 
 private:
     entt::dispatcher m_dispatcher;

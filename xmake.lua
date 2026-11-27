@@ -147,6 +147,19 @@ option("profiler")
     set_description("Build Tracy into the client (idle until a profiler connects; localhost only)")
 option_end()
 
+-- ASan and UBSan in the native Linux build, and the fuzz target (Code/tests/fuzz): COOP_SANITIZE=1
+-- scripts/xmake-linux.sh, its own config and build dir (docs/design/testing.md, Sanitizers and fuzzing).
+option("sanitize")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Build the native Linux targets with ASan, UBSan and libFuzzer's coverage")
+option_end()
+if is_plat("linux") and has_config("sanitize") then
+    add_cxflags("-fsanitize=address,undefined,fuzzer-no-link", "-fno-omit-frame-pointer")
+    add_ldflags("-fsanitize=address,undefined", {force = true})
+    add_shflags("-fsanitize=address,undefined", {force = true})
+end
+
 if is_plat("windows") and has_config("profiler") then
     -- Started and stopped by the plugin (not in DllMain; before a hot reload unloads it). No crash handler of its
     -- own (ours and CrashLoggerSSE's), no LAN broadcast, nothing needing admin. No call stacks: resolving them

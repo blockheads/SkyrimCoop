@@ -146,10 +146,10 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
             addTargetEvent.ApplyHealPerkBonus = pCasterActor->HasPerk(0x581f8);
             addTargetEvent.ApplyStaminaPerkBonus = pCasterActor->HasPerk(0x581f9);
         }
-        World::Get().GetRunner().Trigger(addTargetEvent);
+        World::Runner().Trigger(addTargetEvent);
     }
     if (cVerdict.Hit)
-        World::Get().GetRunner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
+        World::Runner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
     if (!cVerdict.Apply)
         return false;
 
@@ -160,7 +160,7 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
                               {arData.ExplosionLocation.x, arData.ExplosionLocation.y, arData.ExplosionLocation.z}, arData.bDualCast};
     const bool cTaken = RealAddTarget(apThis, arData);
     if (cTaken)
-        World::Get().GetRunner().Trigger(cSummon);
+        World::Runner().Trigger(cSummon);
     return cTaken;
 }
 

@@ -432,7 +432,7 @@ BSScript::CallResult HookScriptCalled(BSScript::IFunction* apThis, BSScript::Sta
         SystemQuests::Learn(cCallee, true);
     if (!SystemQuests::Is(cCallee))
         return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
-    World::Get().GetRunner().Trigger(PlayerProgressEvent{}); // its state is this player's record's
+    World::Runner().Trigger(PlayerProgressEvent{}); // its state is this player's record's
     if (!cpCaller)
         return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4); // its own event
 
@@ -459,7 +459,7 @@ BSScript::CallResult HookScriptCalled(BSScript::IFunction* apThis, BSScript::Sta
     PartyRules::MarkEachPlayer(*call, cRouting.MarkFor);
     if (cRouting.ThisPlayer && !PartyNatives::Run(PartyRules::OnThisPlayer(*call), 0))
         spdlog::warn("GuestScripts: {}.{} could not be queued on this game's player", call->Class, call->Function);
-    World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .Call = std::move(*call)});
+    World::Runner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .Call = std::move(*call)});
     if (cRouting.Original)
         return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
     pStack->returnValue.Clear();

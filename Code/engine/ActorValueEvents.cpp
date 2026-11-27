@@ -34,7 +34,7 @@ void HookUpdate(Actor* apActor, uint32_t aValue, float aOldValue, float aDelta, 
 {
     RealUpdate(apActor, aValue, aOldValue, aDelta, apSource);
     if (s_active && apActor)
-        World::Get().GetRunner().Trigger(ActorValueChangeEvent{apActor->formID, aValue});
+        World::Runner().Trigger(ActorValueChangeEvent{apActor->formID, aValue});
 }
 
 // Actor::Resurrect (37321): the 1.6.1170 body consumes only resetInventory (DL).
@@ -55,7 +55,7 @@ void HookResurrect(Actor* apActor, bool aResetInventory)
         tick = cAction.Tick;
     DeathActions::WithLocalReset(g_forceAnimation, [&] { RealResurrect(apActor, aResetInventory); });
     if (s_active && cWasDead != apActor->IsDead())
-        World::Get().GetRunner().Trigger(ActorDeathChangeEvent{apActor->formID, true, true, tick});
+        World::Runner().Trigger(ActorDeathChangeEvent{apActor->formID, true, true, tick});
 }
 
 struct DeathSink final : BSTEventSink<TESDeathEvent>
@@ -63,7 +63,7 @@ struct DeathSink final : BSTEventSink<TESDeathEvent>
     BSTEventResult OnEvent(const TESDeathEvent* apEvent, const EventDispatcher<TESDeathEvent>*) override
     {
         if (s_active && apEvent && apEvent->pActorDying)
-            World::Get().GetRunner().Trigger(ActorDeathChangeEvent{apEvent->pActorDying->formID, apEvent->isDead});
+            World::Runner().Trigger(ActorDeathChangeEvent{apEvent->pActorDying->formID, apEvent->isDead});
         return BSTEventResult::kOk;
     }
 };

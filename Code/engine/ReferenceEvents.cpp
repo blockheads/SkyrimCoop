@@ -20,7 +20,7 @@ struct LoadedSink final : BSTEventSink<TESObjectLoadedEvent>
         {
             if (auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(apEvent->formID)))
                 ReferenceStates::ApplyDeferredMotion(*pObject);
-            World::Get().GetRunner().Trigger(ReferenceLoadedEvent{apEvent->formID});
+            World::Runner().Trigger(ReferenceLoadedEvent{apEvent->formID});
         }
         return BSTEventResult::kOk;
     }

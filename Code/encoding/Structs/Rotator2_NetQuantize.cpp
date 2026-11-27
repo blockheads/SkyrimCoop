@@ -5,7 +5,8 @@
 
 using Wire::Serialization;
 
-constexpr float cScalingFactory = float(0xFFFF) / (2.0f * std::numbers::pi_v<float>);
+// 65536 steps a turn, rounded to the nearest: a decoded angle encodes to the same step again.
+constexpr float cScalingFactory = 65536.0f / (2.0f * std::numbers::pi_v<float>);
 constexpr float cReverseScalingFactory = 1.0f / cScalingFactory;
 
 bool Rotator2_NetQuantize::operator==(const Rotator2_NetQuantize& acRhs) const noexcept
@@ -55,8 +56,8 @@ uint32_t Rotator2_NetQuantize::Pack() const noexcept
         return angle;
     };
 
-    uint32_t ix = static_cast<uint32_t>(WrapAngle(x) * cScalingFactory) & 0xFFFF;
-    uint32_t iy = static_cast<uint32_t>(WrapAngle(y) * cScalingFactory) & 0xFFFF;
+    uint32_t ix = static_cast<uint32_t>(std::lround(WrapAngle(x) * cScalingFactory)) & 0xFFFF;
+    uint32_t iy = static_cast<uint32_t>(std::lround(WrapAngle(y) * cScalingFactory)) & 0xFFFF;
 
     data |= ix;
     data |= iy << 16;

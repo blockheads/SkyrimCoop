@@ -174,7 +174,7 @@ void* EquipHook(EquipManager* apThis, Actor* apActor, TESForm* apItem, EquipData
         evt.EquipSlotId = apData->pSlot ? apData->pSlot->formID : 0;
         evt.IsAmmo = apItem->formType == FormType::Ammo;
 
-        World::Get().GetRunner().Trigger(evt);
+        World::Runner().Trigger(evt);
     }
 
     ScopedUnequipOverride _;
@@ -208,7 +208,7 @@ void* UnEquipHook(EquipManager* apThis, Actor* apActor, TESForm* apItem, EquipDa
         evt.Unequip = true;
         evt.IsAmmo = apItem->formType == FormType::Ammo;
 
-        World::Get().GetRunner().Trigger(evt);
+        World::Runner().Trigger(evt);
     }
 
     spdlog::debug("UnEquipHook, actor: {:X}", apActor->formID);
@@ -233,7 +233,7 @@ void* EquipSpellHook(EquipManager* apThis, Actor* apActor, TESForm* apSpell, Mag
         evt.EquipSlotId = apData->pEquipSlot->formID;
         evt.IsSpell = true;
 
-        World::Get().GetRunner().Trigger(evt);
+        World::Runner().Trigger(evt);
     }
 
     ScopedUnequipOverride _;
@@ -259,7 +259,7 @@ void* UnEquipSpellHook(EquipManager* apThis, Actor* apActor, TESForm* apSpell, M
         evt.Unequip = true;
         evt.IsSpell = true;
 
-        World::Get().GetRunner().Trigger(evt);
+        World::Runner().Trigger(evt);
     }
 
     return RealUnEquipSpell(apThis, apActor, apSpell, apData);
@@ -282,7 +282,7 @@ void* EquipShoutHook(EquipManager* apThis, Actor* apActor, TESForm* apShout, Sho
         evt.ItemId = apShout->formID;
         evt.IsShout = true;
 
-        World::Get().GetRunner().Trigger(evt);
+        World::Runner().Trigger(evt);
     }
 
     ScopedUnequipOverride _;
@@ -308,7 +308,7 @@ void* UnEquipShoutHook(EquipManager* apThis, Actor* apActor, TESForm* apShout, S
         evt.Unequip = true;
         evt.IsShout = true;
 
-        World::Get().GetRunner().Trigger(evt);
+        World::Runner().Trigger(evt);
     }
 
     return RealUnEquipShout(apThis, apActor, apShout, apData);

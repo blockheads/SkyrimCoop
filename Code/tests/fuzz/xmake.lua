@@ -1,0 +1,10 @@
+-- libFuzzer on both message factories; only in the sanitize build (COOP_SANITIZE=1 scripts/xmake-linux.sh).
+target("FuzzMessages")
+    set_kind("binary")
+    set_group("Tests")
+    set_languages("cxx23")
+    add_files("FuzzMessages.cpp")
+    add_deps("SkyrimEncoding")
+    add_packages("glm")
+    add_ldflags("-fsanitize=fuzzer", {force = true})
+target_end()

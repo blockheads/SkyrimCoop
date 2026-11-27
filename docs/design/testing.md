@@ -415,6 +415,19 @@ expected results after each meaningful action. `Step(game)` is for deliberate me
 regressions separately. `COOP_NET` still selects the existing delay/jitter/loss transport profiles. Run the network
 stress script only when specifically warranted, never routinely as an audit.
 
+## Sanitizers and fuzzing
+
+`COOP_SANITIZE=1 scripts/xmake-linux.sh` builds the native tests with ASan and UBSan in their own config and build dir
+(`build/sanitize`), plus `FuzzMessages`, libFuzzer on both message factories. Not in `scripts/check.sh` (slow); a report
+found there is fixed or goes in `docs/bugs.md`. The tests link no allocator override (rpmalloc is the plugin's only).
+
+```bash
+COOP_SANITIZE=1 scripts/xmake-linux.sh f && COOP_SANITIZE=1 scripts/xmake-linux.sh build -j8 UnitTests
+build/sanitize/linux/x86_64/debug/UnitTests
+mkdir -p build/sanitize/fuzz/corpus && build/sanitize/linux/x86_64/debug/FuzzMessages build/sanitize/fuzz/corpus \
+    -max_total_time=600 -timeout=5 -rss_limit_mb=2048 -artifact_prefix=build/sanitize/fuzz/
+```
+
 ## Shared specs and soak
 
 Each JSON file in `Code/tests/specs` runs on both the fake engine and Skyrim. Its `steps` perform actions or state

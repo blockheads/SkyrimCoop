@@ -492,7 +492,7 @@ bool HookRemoveSpell(Actor* apThis, MagicItem* apSpell)
 
         removalEvent.TargetId = apThis->formID;
         removalEvent.SpellId = apSpell->formID;
-        World::Get().GetRunner().Trigger(removalEvent);
+        World::Runner().Trigger(removalEvent);
     }
 
     return result;
@@ -1082,8 +1082,8 @@ void Actor::FinishLoad3D() noexcept
         return;
     const uint32_t cFormId = formID;
     if (cRefused)
-        World::Get().GetRunner().Trigger(NpcHeldEvent{cFormId});
-    World::Get().GetRunner().Queue([cFormId] {
+        World::Runner().Trigger(NpcHeldEvent{cFormId});
+    World::Runner().Queue([cFormId] {
         if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
             pActor->ApplyHeld3D();
     });
@@ -1265,7 +1265,7 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     g_forceAnimation = true;
     KillImpl(nullptr, 100.f, true, cRagdoll);
     g_forceAnimation = false;
-    World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
+    World::Runner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
     return pExtension->LatestAnimation.FinishAttempt(acAction.ActionId, cAttempt);
 }
 
@@ -1277,7 +1277,7 @@ void Actor::KillBesideGraph(const ActionEvent& acAction) noexcept
     pExtension->PoseHeldUntil.store(0, std::memory_order_relaxed);
     EndDeferredKill();
     KillImpl(nullptr, 100.f, true, SameName(acAction.EventName, "RagdollInstant"));
-    World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
+    World::Runner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
 }
 
 void Actor::Reset() noexcept

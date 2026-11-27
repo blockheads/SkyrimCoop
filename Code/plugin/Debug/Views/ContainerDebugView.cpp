@@ -50,7 +50,7 @@ void DebugService::DrawContainerDebugView()
 
             if (ImGui::Button("Equip"))
             {
-                World::Get().GetRunner().Queue(
+                World::Runner().Queue(
                     [entry, actorId = pActor->formID]()
                     {
                         uint32_t itemId = ToGame(entry.BaseId);
@@ -61,7 +61,7 @@ void DebugService::DrawContainerDebugView()
             }
             if (ImGui::Button("Unequip"))
             {
-                World::Get().GetRunner().Queue(
+                World::Runner().Queue(
                     [entry, actorId = pActor->formID]()
                     {
                         uint32_t itemId = ToGame(entry.BaseId);

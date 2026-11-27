@@ -29,7 +29,7 @@ namespace
 void Raise(const TESObjectREFR* apActor) noexcept
 {
     if (apActor)
-        World::Get().GetRunner().Trigger(AiStateChangeEvent{apActor->formID});
+        World::Runner().Trigger(AiStateChangeEvent{apActor->formID});
 }
 
 struct PackageSink final : BSTEventSink<TESPackageEvent>
@@ -68,7 +68,7 @@ struct SceneSink final : BSTEventSink<TESSceneEvent>
 {
     BSTEventResult OnEvent(const TESSceneEvent*, const EventDispatcher<TESSceneEvent>*) override
     {
-        World::Get().GetRunner().Trigger(AiStateChangeEvent{});
+        World::Runner().Trigger(AiStateChangeEvent{});
         return BSTEventResult::kOk;
     }
 };

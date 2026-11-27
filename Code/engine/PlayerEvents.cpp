@@ -25,7 +25,7 @@ std::atomic<uint32_t> s_users{0};
 void Raise() noexcept
 {
     if (s_users.load(std::memory_order_relaxed))
-        World::Get().GetRunner().Trigger(PlayerFormChangeEvent{});
+        World::Runner().Trigger(PlayerFormChangeEvent{});
 }
 
 struct RaceSink final : BSTEventSink<TESSwitchRaceCompleteEvent>

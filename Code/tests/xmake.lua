@@ -12,3 +12,6 @@ includes("host_authority")
 includes("client")
 includes("games")
 includes("peer")
+if has_config("sanitize") then
+    includes("fuzz")
+end

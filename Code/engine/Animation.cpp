@@ -133,7 +133,7 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
     {
         if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying)
             spdlog::debug("Owner {:X} death action {:X} '{}'", pActor->formID, action.ActionId, action.EventName);
-        World::Get().GetRunner().Trigger(action);
+        World::Runner().Trigger(action);
     }
     return res;
 }
