@@ -92,7 +92,7 @@ static thread_local bool s_applyingEffect = false;
 bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMove)
 {
     // Reads the hit; HitRules::Lands decides (combat/HitRules.h, docs/design/friendly-fire.md).
-    const bool cCancelled = apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil);
+    const bool cCancelled = apHitter && ReplayState::CancelledBlow(World::FrameTick() < apHitter->GetExtension()->ClashUntil);
     const bool cWorldHit = WorldHits::Current();
     const auto cVerdict = HitRules::Lands(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), cCancelled, s_applyingEffect, cWorldHit,
                                           cWorldHit && GuestNpcs::Session() != 0);

@@ -6,7 +6,6 @@
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <core/RunnerService.h>
-#include <core/TransportService.h>
 #include <VersionDb.h>
 #include <core/World.h>
 
@@ -21,7 +20,7 @@ void HookStagger(Actor* apActor, float aMagnitude, Actor* apHitter)
 {
     POINTER_SKYRIMSE(uint8_t, s_processHit, 38586);
     // ProcessHit's selected melee reaction (1.6.1170). Spells and other native callers keep their own path.
-    if (World::Get().GetTransport().IsOnline() && _ReturnAddress() == s_processHit.Get() + 0xA62)
+    if (World::Connected() && _ReturnAddress() == s_processHit.Get() + 0xA62)
         switch (HitRules::Of(HitRules::PartyOf(apActor), HitRules::PartyOf(apHitter), false))
         {
         case HitRules::Route::AskOwner:
