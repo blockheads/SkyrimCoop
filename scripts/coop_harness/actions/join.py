@@ -184,9 +184,6 @@ class JoinActions:
     def load_latest_from_menu(ctx, instance):
         """The player opens System, Load, selects the newest save and confirms through menu input."""
         value = lambda field: ctx.menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + field)
-        # An earlier reload's scratch copy sorts above the save just made.
-        for scratch in ctx.game(instance).my_games.glob("Saves/SkyrimCoopWipe.*"):
-            scratch.unlink()
         ctx.tap_key(instance, 0x01)
         ctx.wait_for("the journal opens", lambda: "Journal Menu" in ctx.menus(instance), 5)
         ctx.move_cursor(instance, (910, 100))

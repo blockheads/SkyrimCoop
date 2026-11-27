@@ -18,3 +18,9 @@ TEST_CASE("A save name without the engine's fields gives character 0", "[save]")
                                "Save4_ABC467A6_0_73_Riften_000123_20261108211500_1_2", "Old4_ABC467A6_0_73_Riften_000123_20261108211500_1_1", ""})
         CHECK(SaveNames::CharacterId(cpName) == 0);
 }
+
+TEST_CASE("Our scratch saves are no character's: Continue must never find one", "[save]")
+{
+    for (const char* cpName : SaveNames::kScratch)
+        CHECK(SaveNames::CharacterId(cpName) == 0);
+}

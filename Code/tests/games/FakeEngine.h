@@ -163,6 +163,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     PlayerOwnState Own;
     bool RefusesSaves = false;       // Save_Impl's own refusals (combat, a menu)
     std::vector<std::string> Loaded; // the saves this game loaded, by name
+    SaveFiles LoadedFiles;           // the last of them
     bool IsAtMainMenu() const noexcept override { return AtMainMenu; }
     void ReturnToMainMenu() noexcept override { AtMainMenu = true; }
     std::string PlayerId() noexcept override;

@@ -90,6 +90,9 @@ void FakeEngine::RunMainLoop() noexcept
             WritesSaveFile(*cName, **MadeSave);
             // A menu or console save's file is written inside Save_Impl.
             World::Get().GetRunner().Trigger(SaveWrittenEvent{*cName});
+            // JoinBridge::MakeSave: a join's image is read back, then deleted from the Saves folder.
+            if (*cName == SaveNames::kTransfer)
+                DeleteSave(*cName);
         }
     }
     const auto cLoad = std::exchange(PendingLoad, std::nullopt);
@@ -167,6 +170,7 @@ void FakeEngine::RunMainLoop() noexcept
     AtMainMenu = false;
     CharacterId = SaveNames::CharacterId(cName);
     Loaded.push_back(cName);
+    LoadedFiles = cFiles;
     World::Get().GetRunner().Trigger(GameLoadedEvent{});
 }
 

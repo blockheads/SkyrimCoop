@@ -796,7 +796,7 @@ SCENARIO("A game joining again gets the host's current world as its difference f
     CHECK(Join(guest).GetMetrics().HeldSaves == 0);
     CHECK_FALSE(Join(guest).GetMetrics().AgainstHeld);
     CHECK(Join(guest).GetMetrics().PayloadBytes > 0);
-    REQUIRE(guestEngine.ReadSave(JoinService::kJoinSave));
+    CHECK_FALSE(guestEngine.ReadSave(JoinService::kJoinSave)); // the scratch save goes once loaded
     REQUIRE(guestEngine.HeldSaveFiles.size() == 1);
     const auto cKey = KeyOf(guest);
     party.Until([&] { return Records(host).Find(cKey) != nullptr; }, "the host keeps this guest before it leaves");
@@ -815,7 +815,7 @@ SCENARIO("A game joining again gets the host's current world as its difference f
     REQUIRE(guestEngine.HeldSaveFiles.size() == 2);
     const auto cLoaded = SaveTransfer::Unpack(guestEngine.HeldSaveFiles.front().second);
     REQUIRE(cLoaded);
-    CHECK(*cLoaded == *guestEngine.ReadSave(JoinService::kJoinSave));
+    CHECK(*cLoaded == guestEngine.LoadedFiles);
     auto& hostEngine = Party::Engine(host);
     for (int i = 0; i < 3; ++i)
     {
@@ -994,4 +994,50 @@ SCENARIO("A join while the host's game cannot save waits as long as the host doe
     Party::Engine(host).RefusesSaves = false; // the conversation ends
     party.Until([&] { return !Join(guest).IsJoining() && guest.GetTransport().IsOnline(); }, "the guest joins with the host's world",
                 [&] { return Describe(Join(guest).GetStatus()); }, nullptr, std::chrono::seconds(20));
+}
+
+// Characters live in the host's save (its co-save): a friend's belongs to the save the host plays, not to the friend.
+SCENARIO("A friend with no character in the host's loaded save creates one; a save that has it brings it back", "[join][creation][saves]")
+{
+    Party party(1, SmokeWorld, false);
+    auto& host = party.Host();
+    auto& guest = party.Guest();
+    auto& hostEngine = Party::Engine(host);
+    auto& engine = Party::Engine(guest);
+    const auto cSave = [&](const std::string& acName) {
+        party.As(host, [&] { (void)hostEngine.SaveNow(acName); });
+        party.Until([&] { return hostEngine.MadeSave.has_value(); }, "the host's save is written");
+        party.As(host, [&] { REQUIRE(hostEngine.SaveNow(acName).has_value()); });
+    };
+    const auto cLoad = [&](const std::string& acName) {
+        const size_t cLoads = hostEngine.Loaded.size();
+        party.As(host, [&] { CHECK_FALSE(hostEngine.PlayerLoads(acName)); });
+        party.Until([&] { return hostEngine.Loaded.size() == cLoads + 1 && host.GetTransport().IsOnline(); }, "the host loads its save");
+    };
+    Plays(host, HostsCharacter());
+    const std::string cBefore = "Save1_0BADF00D_0_4C79646961_WhiterunWorld_000010_20261101120000_1_1";
+    const std::string cAfter = "Save2_0BADF00D_0_4C79646961_WhiterunWorld_000020_20261101130000_1_1";
+    cSave(cBefore);
+    Plays(guest, LydiasCharacter());
+    party.Join(guest);
+    const auto cKey = KeyOf(guest);
+    party.Until([&] { return Records(host).Find(cKey) != nullptr; }, "the host keeps the friend's character");
+    cSave(cAfter);
+    ToMainMenu(party, guest);
+
+    cLoad(cBefore);
+    CHECK(Records(host).Find(cKey) == nullptr);
+    const auto cEndpoint = HostEndpoint(host);
+    party.As(guest, [&] { REQUIRE(Join(guest).Join(cEndpoint)); });
+    party.Until([&] { return Join(guest).IsCreatingCharacter(); }, "the save without the friend's character sends it to creation");
+    CHECK(engine.CreationRequests == 1);
+    CHECK(engine.Loaded.empty());
+
+    party.As(guest, [&] { Join(guest).Cancel(""); });
+    engine.CreationPhase = IJoinBridge::Creation::kIdle;
+    cLoad(cAfter);
+    REQUIRE(Records(host).Find(cKey) != nullptr);
+    JoinsWithWorld(party, host, guest, "the save with the friend's character brings it back");
+    CHECK(engine.Player.Name == "Lydia");
+    CHECK(engine.CreationRequests == 1);
 }

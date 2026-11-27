@@ -101,6 +101,26 @@ Ours: `SaveNames::CharacterId` is the same parse; after the party's scratch load
 (35751) with the checkpoint's id (`HostService::OnGameLoaded`, `JoinBridge::SetCharacter`), keeping the load's modded
 flag. A guest's join load still leaves its id 0 (it makes no saves in a session).
 
+## Continue and the Load list (2026-11-27)
+
+IDA 1.7.104, read for "Continue showed another playthrough's saves"; names and comments in the database.
+
+- **Continue loads the newest save of any character.** The main menu's CONTINUE (52114) asks Flash to confirm, which
+  calls `ContinueLastSavedGame` (52117) -> 52898: `PopulateSaveList` (35760) rebuilds `saveGameList` with the
+  character filter `-1` (every character, `BuildSaveList` 35743), and queues `0xD0000100`. `Thread::ProcessEvents_Internal`
+  (35772) loads that request's name (manager `+0x240`) through the save utility's vfunc `0xB8`, not `Load_Impl`, so none
+  of our load hooks see it. The name is the list's last entry: `BuildSaveList` scans `<Saves>/*.ess` (35799) and inserts
+  each by file time (35784, comparing FILETIME at `+0x50` with 35795): the newest file wins, whatever its name.
+- **The Journal's list is the current character's.** Its SAVE and LOAD buttons (registered by 52902) call
+  `0x1409914D0`: `SetDisplayCharacter` with `currentCharacterID` (`+0xD0`), then the list fills from `saveGameList`
+  newest first (52894).
+- **So a scratch save is a playthrough of its own.** `SkyrimCoopJoin` (a guest's join load) and `SkyrimCoopWipe` (a
+  host load) were written to the Saves folder and kept: the newest file, Continue loaded it, its name gave character id
+  0 (above), and the Load list then showed every save filed under 0 (other playthroughs' saves made after such a load,
+  older builds' included). Ours: `JoinService` deletes every `SaveNames::kScratch` save once any load ends or fails,
+  and on reaching the main menu (a crash mid-load, an older build); `JoinBridge::MakeSave` already deleted the
+  transfer's. GameTests `[saves]`, the verb `expect_no_scratch_saves`.
+
 ## Loading while dead (2026-11-16)
 
 IDA 1.7.104, read for the wipe (the host chooses the save, `../../design/death.md`).

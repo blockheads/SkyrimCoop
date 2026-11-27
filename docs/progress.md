@@ -569,6 +569,12 @@ What the first playtest build has besides what works today (the table above):
     bypasses `Load_Impl` (35728): it queues `0xD0000400` through 35769; its exact quicksave comes from the engine's
     per-character `SaveEntry` (35789). GameTests cover three guests, an older chosen save and repeated loads;
     Skyrim scenarios cover quickload, the Load menu, console loading, guest refusals and the shared wipe.
+    2026-11-27: the scratch saves a join or host load writes (`SkyrimCoopJoin`, `SkyrimCoopWipe`) are deleted once
+    any load ends and on reaching the main menu: the main menu's Continue loads the newest save of any character and
+    took them, leaving character id 0 and a Load list of other playthroughs' saves
+    ([save-game.md](re/systems/save-game.md), "Continue and the Load list"; GameTests `[saves]`). A friend joining a
+    loaded save without its character creates one, a save with it brings it back. Open: a guest in the session when
+    the host loads a save without its character keeps the character it plays (`OnPartyReload` brings it).
 17. **The party's purse** (decided and built 2026-10-27, merged into dev;
     [party-purse.md](design/party-purse.md)): every player carries one purse, the host's player's gold. Any
     player's gold change (loot, trade, training, a fine, a reward on a guest's copy) reaches the host as before

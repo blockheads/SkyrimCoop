@@ -5,6 +5,7 @@
 #include <core/MenuEvent.h>
 #include <core/SessionNoticeEvent.h>
 #include <join/JoinService.h>
+#include <join/SaveNames.h>
 #include <join/SaveService.h>
 #include <join/SaveTransfer.h>
 
@@ -406,4 +407,66 @@ SCENARIO("A guest whose held save is damaged still loads a save it was never sen
     CHECK_FALSE(cMetrics.AgainstHeld);
     CHECK_FALSE(guestEngine.References.at(0xECA).Locked);
     CHECK(Holds(guest, ImageOf(party, "OldSave")));
+}
+
+// The main menu's Continue loads the newest save of any character, and the Journal's Load list shows the current
+// character's (save-game.md, "Continue"): a scratch save left behind is both.
+SCENARIO("After a host load, Continue and the Load list keep to the chosen save's playthrough", "[load][saves]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    const std::string cOther = "Save3_0C0FFEE0_0_4C79646961_RiftenWorld_000050_20261101120000_1_1";
+    const std::string cChosen = "Save12_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    Save(party, cOther);
+    Save(party, cChosen);
+    // The guest's own game's save, from before it joined.
+    guest.SavedFiles[std::string("Save1_0DEADBEE_0_4C79646961_Tamriel_000005_20261020100000_1_1")] = host.SavedFiles.at(cOther);
+
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads(cChosen)); });
+    Reloads(party, 1, "the party loads the chosen save and rejoins");
+    THEN("no game keeps a scratch save, and the host's list is the chosen character's")
+    {
+        for (const char* cpScratch : SaveNames::kScratch)
+        {
+            CHECK_FALSE(host.SavedFiles.contains(cpScratch));
+            CHECK_FALSE(guest.SavedFiles.contains(cpScratch));
+        }
+        CHECK(host.LoadList() == std::vector<std::string>{cChosen});
+    }
+
+    WHEN("each player quits to the main menu and presses Continue")
+    {
+        for (auto* pEngine : {&host, &guest})
+            pEngine->AtMainMenu = true;
+        party.Frame();
+        party.As(party.Host(), [&] { REQUIRE(host.Continues()); });
+        party.As(party.Guest(), [&] { REQUIRE(guest.Continues()); });
+        party.Until([&] { return host.Loaded.size() == 2 && guest.Loaded.size() == 2; }, "both games load the newest save");
+        THEN("the host continues the chosen playthrough, the guest its own game")
+        {
+            CHECK(host.Loaded.back() == cChosen);
+            CHECK(host.CharacterId == 0x0BADF00D);
+            CHECK(host.LoadList() == std::vector<std::string>{cChosen});
+            CHECK(guest.Loaded.back() == "Save1_0DEADBEE_0_4C79646961_Tamriel_000005_20261020100000_1_1");
+            CHECK(guest.CharacterId == 0x0DEADBEE);
+        }
+    }
+}
+
+SCENARIO("A scratch save left by an earlier run is gone before the player can press Continue", "[load][saves]")
+{
+    Party party(0, Plugins);
+    auto& host = Party::Engine(party.Host());
+    const std::string cOwn = "Save2_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    Save(party, cOwn);
+    for (const char* cpScratch : SaveNames::kScratch)
+        host.WritesSaveFile(cpScratch, host.SavedFiles.at(cOwn));
+    host.AtMainMenu = true;
+    party.Frame();
+    for (const char* cpScratch : SaveNames::kScratch)
+        CHECK_FALSE(host.SavedFiles.contains(cpScratch));
+    party.As(party.Host(), [&] { REQUIRE(host.Continues()); });
+    party.Until([&] { return host.Loaded.size() == 1; }, "Continue loads the newest save");
+    CHECK(host.Loaded.back() == cOwn);
 }
