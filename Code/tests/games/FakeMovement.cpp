@@ -392,9 +392,9 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
     {
         // As the update begins: its whole graph (Havok's internal state, 58372) and the clip sets its process holds.
         std::vector<std::pair<uint8_t, uint16_t>> sets;
-        if (!aActor.LoadedClips.empty())
-            if (const uint16_t cClips = GraphEventId(*aActor.LoadedClips.begin()); cClips != UINT16_MAX)
-                sets.emplace_back(3, cClips);
+        for (const auto& [cSet, cEvent] : ClipSets.TakeHeld(GraphManagerKey(aActor)))
+            if (const uint16_t cClips = GraphEventId(cEvent); cClips != UINT16_MAX)
+                sets.emplace_back(cSet, cClips);
         streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveGraphInternalState(aFormId), .Words = GraphWords(aActor),
                                    .Seed = {aActor.GraphRandom, 0}, .ActiveNodesChanged = aActor.Graph.ActiveNodesChanged,
                                    .Project = aActor.GraphProject,

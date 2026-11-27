@@ -53,7 +53,7 @@ FormDebugView.cpp:72
 ```
 
 ```
-s_clipLoads (engine/Havok/GraphStreamHooks.cpp:122): not fixed here
+s_clipLoads (engine/Havok/GraphStreamHooks.cpp:122): fixed 2026-11-27, ActorClipSets forgets at 63355
   keyed by a graph manager; entries only added, wiped at 4096. A new manager at an old address inherits the old
   actor's held clip sets, which a sync point then names to copies.
   ──► an entry in docs/bugs.md (Copy-desync follow-ups) with this reading, and the agent task: who destroys a

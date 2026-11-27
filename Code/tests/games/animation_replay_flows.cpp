@@ -1752,6 +1752,47 @@ TEST_CASE("A copy deleted while its movement idle's clips load leaves no load on
     CHECK(guest.ClipRequestsUnderGraphLock == 0);
 }
 
+TEST_CASE("A new NPC at a gone one's graph manager's address holds none of its clip sets", "[animation][replay-start]")
+{
+    // Found by reading (2026-11-27): the clip sets an owner's game holds are kept by its graph manager's address, and
+    // the allocator gives a freed manager's block to the next one (63411, 63355: docs/re/systems/animation-file-loads.md).
+    Party party(1, SmokeWorld, true);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{.Clips = {{.State = "CounterLoop", .Ms = 500, .Starts = {"CounterLoop"}}}};
+        engine->GraphTransitions = {{{"Standing", "IdleCounter"}, "CounterLoop"}};
+        engine->ClipFiles = {{"IdleCounter", "CounterLoop"}};
+    }
+    uint32_t gone = 0;
+    party.As(party.Host(), [&] {
+        (void)host.GraphManagerKey(host.Actors.at(FakeEngine::kPlayer)); // the player's, made with its graph
+        gone = host.LoadNpc(0x1A684, 0x31D2E, {});
+        host.Actors.at(gone).GraphState = "Standing";
+        ActionEvent idle;
+        idle.ActionId = 0x13004;
+        idle.EventName = "IdleCounter";
+        REQUIRE(host.PerformAnimation(gone, idle));
+    });
+    const void* cManager = host.Actors.at(gone).GraphManager.get();
+    party.Until([&] { return guest.CopiesOf(0x1A684).size() == 1; }, "the first NPC's copy appears");
+    party.As(party.Host(), [&] { host.Actors.erase(gone); });
+    party.Until([&] { return guest.CopiesOf(0x1A684).empty(); }, "the guest deletes its copy");
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x1A685, 0x31D2E, {});
+        host.Actors.at(npc).GraphState = "Standing";
+    });
+    party.Until([&] { return guest.CopiesOf(0x1A685).size() == 1; }, "the second NPC's copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x1A685).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy) && SyncPoints(guest.Actors.at(cCopy)) >= 1; },
+                "the copy starts on its owner's stream");
+    REQUIRE(host.Actors.at(npc).GraphManager.get() == cManager);
+    party.Until([&] { return guest.ClipLoads.empty(); }, "the guest's clip loads end");
+    CHECK(guest.Actors.at(cCopy).LoadedClips.empty());
+}
+
 TEST_CASE("A copy starting mid-idle holds the props its owner's idle drew before its sync point", "[animation][replay-start][props]")
 {
     // Skyrim (duo, Riverwood, 2026-11-16): Alvor at his forge with no hammer on the guest; the idle's first clip draws

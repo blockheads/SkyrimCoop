@@ -65,7 +65,7 @@ The engine owns every object we touch and frees it on its own schedule.
 | The entry lives only inside one engine call | `FreedWornList` |
 | The whole table is rebuilt from form ids every frame | `s_copyControllers` |
 | Every new keyed object passes our hook, which sets or clears its entry | `ScriptTags::m_calls`, `m_functors` |
-| A hook on the object's destruction removes the entry | none yet |
+| A hook on the object's destruction removes the entry | `ActorClipSets` (63355) |
 | The entry holds a reference that keeps the object alive | `AnimationTrace::m_graphs` |
 
 ## Commit Naming

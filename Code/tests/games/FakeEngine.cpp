@@ -1220,6 +1220,22 @@ void FakeEngine::MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept
 }
 
 // As SkyrimBridge's: only a reference made at run time is deleted, never the plugins' or the player.
+const void* FakeEngine::GraphManagerKey(Actor& aActor)
+{
+    if (!aActor.GraphManager)
+    {
+        // The allocator's freed block first (0xB8 bytes, 63411's SizedDelete); 63355's hook forgets its clip sets.
+        const uintptr_t cAddress = FreedGraphManagers.empty() ? (m_lastGraphManager += 0xC0) : FreedGraphManagers.back();
+        if (!FreedGraphManagers.empty())
+            FreedGraphManagers.pop_back();
+        aActor.GraphManager = std::shared_ptr<const void>(reinterpret_cast<const void*>(cAddress), [this](const void* apManager) {
+            ClipSets.Forget(apManager);
+            FreedGraphManagers.push_back(reinterpret_cast<uintptr_t>(apManager));
+        });
+    }
+    return aActor.GraphManager.get();
+}
+
 void FakeEngine::DeleteActor(uint32_t aFormId) noexcept
 {
     if (!IsActorTemporary(aFormId) || !Actors.erase(aFormId))

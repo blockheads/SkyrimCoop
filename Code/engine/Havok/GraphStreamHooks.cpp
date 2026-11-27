@@ -1,6 +1,7 @@
 #include <Actor.h>
 #include <ActorExtension.h>
 #include <Animation/BSAnimationUpdateData.h>
+#include <animation/ActorClipSets.h>
 #include <animation/DeferredClips.h>
 #include <animation/GraphStream.h>
 #include <animation/ReplayState.h>
@@ -21,8 +22,6 @@
 #include <core/World.h>
 #include <core/WorldGate.h>
 #include <algorithm>
-#include <map>
-#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -110,16 +109,8 @@ std::optional<uint16_t> TimeDeltaIndex(const BShkbAnimationGraph& acGraph)
     return pEntry && pEntry->value >= 0 && pEntry->value <= UINT16_MAX ? std::optional(uint16_t(pEntry->value)) : std::nullopt;
 }
 
-// Each actor's clip sets (an action's, an instant interaction's, a movement idle's), by its graph manager: a save's
-// reload names no actor (43624). The event loaded into each, which a sync point names; its loads since its last op,
-// for its stream.
-struct ClipLoads
-{
-    std::map<uint8_t, std::string> Held;
-    std::vector<std::pair<uint8_t, std::string>> Unsent;
-};
-std::mutex s_clipLock;
-std::unordered_map<const void*, ClipLoads> s_clipLoads;
+// Each actor's clip sets, by its graph manager: a save's reload names no actor (43624).
+ActorClipSets s_clipSets;
 
 bool Mirrored(uint32_t aSet) noexcept
 {
@@ -130,28 +121,14 @@ void RecordClipLoad(const void* apManager, uint32_t aSet, const char* acpEvent)
 {
     if (!apManager || !acpEvent || !Mirrored(aSet))
         return;
-    std::scoped_lock _{s_clipLock};
-    if (s_clipLoads.size() > 4096)
-        s_clipLoads.clear();
-    auto& loads = s_clipLoads[apManager];
-    loads.Held[uint8_t(aSet)] = acpEvent;
-    if (loads.Unsent.size() < 16)
-        loads.Unsent.emplace_back(uint8_t(aSet), acpEvent);
+    s_clipSets.Record(apManager, uint8_t(aSet), acpEvent);
 }
 
 // Its loads since the last op into its stream, before the op that follows them (on its owner's game, the action is
 // performed once its files are in).
 void SendClipLoads(GraphStreams& aStreams, uint32_t aFormId, const BShkbAnimationGraph& acGraph)
 {
-    std::vector<std::pair<uint8_t, std::string>> unsent;
-    {
-        std::scoped_lock _{s_clipLock};
-        const auto it = s_clipLoads.find(acGraph.holder ? acGraph.holder->GraphManagerKey() : nullptr);
-        if (it == s_clipLoads.end() || it->second.Unsent.empty())
-            return;
-        unsent = std::exchange(it->second.Unsent, {});
-    }
-    for (const auto& [cSet, cEvent] : unsent)
+    for (const auto& [cSet, cEvent] : s_clipSets.TakeUnsent(acGraph.holder ? acGraph.holder->GraphManagerKey() : nullptr))
     {
         BSFixedString event(cEvent.c_str());
         if (const auto cId = EventId(acGraph, event))
@@ -162,17 +139,8 @@ void SendClipLoads(GraphStreams& aStreams, uint32_t aFormId, const BShkbAnimatio
 
 std::vector<std::pair<uint8_t, uint16_t>> HeldClipSets(const BShkbAnimationGraph& acGraph)
 {
-    std::map<uint8_t, std::string> held;
-    {
-        std::scoped_lock _{s_clipLock};
-        if (const auto it = s_clipLoads.find(acGraph.holder ? acGraph.holder->GraphManagerKey() : nullptr); it != s_clipLoads.end())
-        {
-            held = it->second.Held;
-            it->second.Unsent.clear(); // its point names them
-        }
-    }
     std::vector<std::pair<uint8_t, uint16_t>> sets;
-    for (const auto& [cSet, cEvent] : held)
+    for (const auto& [cSet, cEvent] : s_clipSets.TakeHeld(acGraph.holder ? acGraph.holder->GraphManagerKey() : nullptr))
     {
         BSFixedString event(cEvent.c_str());
         if (const auto cId = EventId(acGraph, event))
@@ -566,6 +534,16 @@ void* HookLoadManagerClips(BSFixedString* apEvent, void* apManager, uint32_t aSe
     return RealLoadManagerClips(apEvent, apManager, aSet, aFlags, apCallback, apLock, apMore, aKeep);
 }
 
+// BSAnimationGraphManager's destructor (63355): its address can hold the next manager.
+using TDestructManager = void*(void*);
+TDestructManager* RealDestructManager = nullptr;
+
+void* HookDestructManager(void* apManager)
+{
+    s_clipSets.Forget(apManager);
+    return RealDestructManager(apManager);
+}
+
 // coop_BShkbAnimationGraph_Generate (63568), from 63589 when the graph updated this frame: an owner's, for its copies.
 uint64_t HookGenerate(BShkbAnimationGraph* apGraph, char aQueued)
 {
@@ -588,5 +566,6 @@ Hooks::Initializer s_graphStreamHooks([]() {
     HOOK_ID(43621, &RealLoadEventClips, HookLoadEventClips);
     HOOK_ID(43622, &RealLoadEventClipsQueued, HookLoadEventClipsQueued);
     HOOK_ID(43624, &RealLoadManagerClips, HookLoadManagerClips);
+    HOOK_ID(63355, &RealDestructManager, HookDestructManager);
 });
 } // namespace

@@ -349,6 +349,7 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     {
         // Its process loads the action's clip set first (39625), in its stream's place.
         Actors.at(aFormId).LoadedClips = {aAction.EventName};
+        ClipSets.Record(GraphManagerKey(Actors.at(aFormId)), 3, aAction.EventName.c_str()); // 43621's hook
         if (auto& streams = World::Get().GetGraphStreams(); !Actors.at(aFormId).Copy && streams.Recording(aFormId))
             streams.OnClips(aFormId, streams.Tick(), 3, GraphEventId(aAction.EventName));
     }
