@@ -18,7 +18,7 @@ if [[ "${1:-}" == "f" || "${1:-}" == "config" ]]; then
     shift
     # clang takes the newest GCC for libstdc++, headers or not: the newest one with its headers. The flags go in
     # clang config files, one argument each: xmake hands a flags string with a space to CMake packages as one.
-    GCC_VERSION="$(ls /usr/include/c++ | sort -V | tail -1)"
+    GCC_VERSION="${COOP_GCC_VERSION:-$(ls /usr/include/c++ | sort -V | tail -1)}"
     GCC="--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/$GCC_VERSION"
     mkdir -p "$XMAKE_CONFIGDIR/clang"
     printf '%s\n' "$GCC" > "$XMAKE_CONFIGDIR/clang/compile.cfg"

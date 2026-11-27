@@ -37,4 +37,9 @@ jobs:
           path: ~/.xmake/packages
           key: xmake-${{ runner.os }}-${{ hashFiles('xmake.lua') }}
 
+      # libstdc++ 13 as on the developers' machines (Catch2 does not build against 14's <tuple>); two shards of
+      # GameTests, whose games wait on real timers, for the runner's four cores
       - run: scripts/check.sh --no-dll
+        env:
+          COOP_GCC_VERSION: "13"
+          CHECK_SHARDS: "2"
