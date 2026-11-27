@@ -5,6 +5,7 @@
 #include <BSCore/LockOrder.h>
 #include <Interface/IMenu.h>
 #include <Interface/ItemMenuWatch.h>
+#include <Interface/Menus/ItemMenus.h>
 #include <Interface/MenuAutoClose.h>
 #include <world/LidUnposedEvent.h>
 #include <Interface/Menus/LockpickingMenu.h>
@@ -98,20 +99,8 @@ __declspec(noinline) void CheckWatched(AutoClosed& aMenu) noexcept
     }
 }
 
-uint32_t ContainerTarget()
-{
-    POINTER_SKYRIMSE(uint32_t, s_handle, 405962); // ContainerMenu's target (CommonLibSSE-NG GetTargetRefHandle)
-    return *s_handle.Get();
-}
-
-uint32_t BarterTarget()
-{
-    POINTER_SKYRIMSE(uint32_t, s_handle, 405823); // BarterMenu's target
-    return *s_handle.Get();
-}
-
-AutoClosed s_container{"ContainerMenu", ItemMenuWatch::Kind::Container, &ContainerTarget};
-AutoClosed s_barter{"BarterMenu", ItemMenuWatch::Kind::Barter, &BarterTarget};
+AutoClosed s_container{"ContainerMenu", ItemMenuWatch::Kind::Container, &ContainerMenu::GetTargetRefHandle};
+AutoClosed s_barter{"BarterMenu", ItemMenuWatch::Kind::Barter, &BarterMenu::GetTargetRefHandle};
 
 UI_MESSAGE_RESULTS ContainerProcess(IMenu* apMenu, UIMessage& aMessage)
 {

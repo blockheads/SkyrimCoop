@@ -146,13 +146,9 @@ uint32_t* Select(CombatTargetSelectorStandard* apSelector, uint32_t* apResult)
         BSReadLockGuard guard(pGroup->lock);
         targets.assign(pGroup->targets.begin(), pGroup->targets.end());
     }
-    using TZone = BGSEncounterZone*(Actor*);
-    POINTER_SKYRIMSE(TZone, s_zone, 20203);
     using TValid = bool(CombatTargetSelector*, Actor*, Actor*, BGSEncounterZone*);
     POINTER_SKYRIMSE(TValid, s_valid, 47196);
-    using TLineOfSight = bool(Actor*, TESObjectREFR*, bool&);
-    POINTER_SKYRIMSE(TLineOfSight, s_lineOfSight, 53829);
-    auto* pZone = s_zone.Get()(pActor);
+    auto* pZone = pActor->GetLocationEncounterZone();
     std::vector<PartyThreat::Candidate> candidates;
     std::vector<std::pair<uint32_t, uint32_t>> handles;
     for (const auto& cTarget : targets)
@@ -174,7 +170,7 @@ uint32_t* Select(CombatTargetSelectorStandard* apSelector, uint32_t* apResult)
             (pTarget->formID == pCurrent->formID || cState->RecentlyHit(pActor->formID, pTarget->formID)))
         {
             bool unused = false;
-            perception.LineOfSight = s_lineOfSight.Get()(pActor, pTarget, unused);
+            perception.LineOfSight = pActor->HasLineOfSight(pTarget, unused);
             if (!perception.LineOfSight)
                 perception.ClearPath = GameRaycast::HasClearPath(pActor, pTarget);
         }

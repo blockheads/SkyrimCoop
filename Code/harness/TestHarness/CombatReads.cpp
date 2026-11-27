@@ -117,10 +117,8 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
         candidate.FormId = form(candidate.FormId);
         if (auto* pTarget = Cast<Actor>(TESForm::GetById(candidate.FormId)))
         {
-            using TLineOfSight = bool(Actor*, TESObjectREFR*, bool&);
-            POINTER_SKYRIMSE(TLineOfSight, s_lineOfSight, 53829);
             bool unused = false;
-            candidate.LineOfSight = s_lineOfSight.Get()(pActor, pTarget, unused);
+            candidate.LineOfSight = pActor->HasLineOfSight(pTarget, unused);
             candidate.ClearPath = GameRaycast::HasClearPath(pActor, pTarget);
             candidate.Invisible = pTarget->GetActorValue(ActorValueInfo::kInvisibility) > 0;
             candidate.Sneaking = pTarget->actorState.IsSneaking();

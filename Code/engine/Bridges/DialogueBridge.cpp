@@ -120,9 +120,7 @@ bool ReplaceOptions(MenuTopicManager& aManager, const std::vector<IDialogueBridg
         auto* pInfo = FormAs<TESTopicInfo>(cOption.Info);
         if (EngineOption* pBuilt = pTopic && pInfo ? aManager.BuildOption(pTopic, pInfo) : nullptr)
         {
-            using TSetText = bool(BSString*, const char*, uint32_t);
-            static VersionDbPtr<TSetText> setText(439876);
-            setText(&pBuilt->topicText, cOption.Text.c_str(), 0);
+            pBuilt->topicText.Set(cOption.Text.c_str());
             options.push_back(pBuilt);
         }
         else
