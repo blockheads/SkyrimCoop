@@ -121,7 +121,7 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
         .TargetIsThisPlayer = pTargetActor == PlayerCharacter::Get(),
         .CasterIsTarget = pCasterActor == pTargetActor,
         .Guest = GuestNpcs::Session() != 0,
-        .Hosting = World::Get().IsHosting(),
+        .Hosting = World::Hosts(),
         .Forbidden = cForbidden,
         .Overridden = cPassed && !cForbidden,
         .Summon = !cPassed && arData.pEffectItem->IsSummonEffect(),

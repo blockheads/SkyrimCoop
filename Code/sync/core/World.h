@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 
 #include <core/ActorIndex.h>
@@ -25,6 +26,7 @@ class IFormBridge;
 class IPlayerBridge;
 class IWorldBridge;
 class IEngine;
+class CreatedIds;
 
 struct SessionService;
 struct TravelService;
@@ -90,14 +92,20 @@ struct World : entt::registry
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
     // This game hosts the session (HostService sets it as it starts and stops hosting).
-    [[nodiscard]] bool IsHosting() const noexcept { return m_hosting; }
-    void SetHosting(bool aHosting) noexcept { m_hosting = aHosting; }
+    [[nodiscard]] bool IsHosting() const noexcept { return m_hosting.load(std::memory_order_relaxed); }
+    void SetHosting(bool aHosting) noexcept { m_hosting.store(aHosting, std::memory_order_relaxed); }
 
     // The game this code runs in: the plugin's one World; in the tests, the game whose turn it is.
     [[nodiscard]] static World& Get() noexcept;
     static void SetCurrent(World* apWorld) noexcept;
     // Its event queue, from any thread (an engine hook on a job thread); Get() is for the update and the main thread.
     [[nodiscard]] static RunnerService& Runner() noexcept;
+    // From any thread too (engine hooks on job, script, graph and UI threads): what is safe to read there.
+    [[nodiscard]] static bool Hosts() noexcept;
+    [[nodiscard]] static bool Connected() noexcept; // TransportService::IsConnected as of the last frame
+    [[nodiscard]] static uint64_t FrameTick() noexcept;
+    [[nodiscard]] static GraphStreams& Streams() noexcept;
+    [[nodiscard]] static CreatedIds& Created() noexcept;
 
 private:
     ActorIndex m_actorIndex{*this}; // before every service: it sees each actor's components from the first
@@ -112,7 +120,10 @@ private:
     RunnerService m_runner;
     TransportService m_transport;
 
+    CreatedIds* m_pCreatedIds{};
+
     FrameStats m_frameStats;
-    bool m_hosting{};
+    std::atomic<bool> m_hosting{};
+    std::atomic<bool> m_connected{};
 
 };

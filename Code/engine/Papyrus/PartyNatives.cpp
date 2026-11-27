@@ -256,7 +256,7 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
 {
     using PartyRules::Target;
     PartyRules::CallFacts facts{.Reach = NativeReach::CallOf(apFunction), .Cause = m_cause, .Story = m_story};
-    facts.Hosting = World::Get().IsHosting();
+    facts.Hosting = World::Hosts();
     facts.Guest = PlayerNatives::IsGuest();
     facts.GuestCause = GuestScripts::IsGuestCharacter(m_cause);
     const bool cStatic = apFunction->GetIsStatic();
@@ -278,7 +278,7 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
                    : GuestScripts::IsGuestCharacter(cSelf) ? Target::kGuestCharacter
                                                            : Target::kNone;
     facts.OwnQuest = !cStatic && PlayerNatives::IsOwnQuest(cObject);
-    facts.CreatedObject = !cStatic && IsCreatedForm(cObject) && World::Get().ctx().at<CreatedIds>().ToSession(cObject).has_value();
+    facts.CreatedObject = !cStatic && IsCreatedForm(cObject) && World::Created().ToSession(cObject).has_value();
     const BSScript::StackFrame* cpCaller = acStack.pTop->pPrevious;
     auto* pScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
     const uint64_t cScript = pScript ? pScript->GetHandle() : 0;
