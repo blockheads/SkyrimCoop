@@ -14,8 +14,7 @@ struct DialogueOption
     bool operator==(const DialogueOption&) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Topic, Info, Quest, Text, Wire::List(Players, kMaxPartyPlayers)); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     GameId Topic{};
     GameId Info{}; // the info said when picked
@@ -37,7 +36,3 @@ struct PlayerDialogueOptions
     DialogueOptions Options{};
 };
 
-void SerializeDialogueOptions(Wire::Buffer::Writer& aWriter, const DialogueOptions& acOptions) noexcept;
-void DeserializeDialogueOptions(Wire::Buffer::Reader& aReader, DialogueOptions& aOptions) noexcept;
-void SerializePlayerOptions(Wire::Buffer::Writer& aWriter, const std::vector<PlayerDialogueOptions>& acPlayers) noexcept;
-void DeserializePlayerOptions(Wire::Buffer::Reader& aReader, std::vector<PlayerDialogueOptions>& aPlayers) noexcept;

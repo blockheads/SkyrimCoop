@@ -12,14 +12,12 @@ struct GameId
     GameId(uint32_t aModId, uint32_t aBaseId) noexcept;
     ~GameId() = default;
 
-    bool operator==(const GameId& acRhs) const noexcept;
-    bool operator!=(const GameId& acRhs) const noexcept;
+    bool operator==(const GameId&) const noexcept = default;
 
     operator bool() const noexcept;
 
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(BaseId, ModId); }
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
     inline uint64_t LogFormat() const noexcept { return static_cast<uint64_t>(ModId) << 32 | BaseId; }
 
     uint32_t BaseId{};

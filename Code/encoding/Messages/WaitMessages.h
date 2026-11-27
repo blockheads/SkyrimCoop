@@ -25,9 +25,6 @@ enum class WaitPhase : uint8_t
 // Only the host's game reports Progress; every player can cancel the current wait.
 struct WaitRequest final : MessageOf<WaitRequest, kWaitRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     WaitAction Action{WaitAction::Start};
     uint32_t Id{};
     uint32_t Hours{};            // Start: chosen hours
@@ -43,9 +40,6 @@ struct WaitRequest final : MessageOf<WaitRequest, kWaitRequest>
 // Preparing opens and pauses every game; Running follows only after every menu is ready.
 struct NotifyWaitState final : MessageOf<NotifyWaitState, kNotifyWaitState>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     WaitPhase Phase{WaitPhase::Preparing};
     uint32_t Id{};
     uint32_t Hours{};
@@ -63,9 +57,6 @@ struct NotifyWaitState final : MessageOf<NotifyWaitState, kNotifyWaitState>
 // Only the completed shared rest asks for this refresh; ordinary cell loads use CellStateRequest.
 struct WaitWorldRequest final : MessageOf<WaitWorldRequest, kWaitWorldRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Id{};
     CellStateRequest State;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, State); }
@@ -74,9 +65,6 @@ struct WaitWorldRequest final : MessageOf<WaitWorldRequest, kWaitWorldRequest>
 
 struct NotifyWaitWorld final : MessageOf<NotifyWaitWorld, kNotifyWaitWorld>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Id{};
     bool Last{true}; // A cell may need several bounded messages.
     NotifyObjectChanges State;

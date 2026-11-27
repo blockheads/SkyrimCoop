@@ -8,15 +8,6 @@
 struct TravelTimeRequest final : MessageOf<TravelTimeRequest, kTravelTimeRequest>
 {
     float Hours{};
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override
-    {
-        Serialization::WriteFloat(aWriter, Hours);
-    }
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override
-    {
-        RequestMessage::DeserializeRaw(aReader);
-        Hours = Serialization::ReadFloat(aReader);
-    }
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Hours); }
     bool operator==(const TravelTimeRequest&) const noexcept = default;
 };
@@ -25,15 +16,6 @@ struct TravelTimeRequest final : MessageOf<TravelTimeRequest, kTravelTimeRequest
 struct PartyTravelRequest final : MessageOf<PartyTravelRequest, kPartyTravelRequest>
 {
     NotifyPartyTravel Destination;
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override
-    {
-        Destination.SerializeRaw(aWriter);
-    }
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override
-    {
-        RequestMessage::DeserializeRaw(aReader);
-        Destination.DeserializeRaw(aReader);
-    }
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Destination); }
     bool operator==(const PartyTravelRequest&) const noexcept = default;
 };
@@ -42,15 +24,6 @@ struct PartyTravelRequest final : MessageOf<PartyTravelRequest, kPartyTravelRequ
 struct PartySummonRequest final : MessageOf<PartySummonRequest, kPartySummonRequest>
 {
     NotifyPartyTravel Destination;
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override
-    {
-        Destination.SerializeRaw(aWriter);
-    }
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override
-    {
-        RequestMessage::DeserializeRaw(aReader);
-        Destination.DeserializeRaw(aReader);
-    }
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Destination); }
     bool operator==(const PartySummonRequest&) const noexcept = default;
 };

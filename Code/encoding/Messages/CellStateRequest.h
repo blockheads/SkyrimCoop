@@ -28,9 +28,6 @@ struct ChangedReference
 // Changed: the ones its own game holds changes for, so those go back to the host's state too.
 struct CellStateRequest final : MessageOf<CellStateRequest, kCellStateRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
         aArchive(Cell, Wire::List(Changed, kMaxChanged));

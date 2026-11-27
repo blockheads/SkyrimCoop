@@ -56,9 +56,6 @@ struct StoryEvent
 // A guest's story event its own game cannot judge (its story manager starts no quest): raised in the host's game.
 struct StoryEventRequest final : MessageOf<StoryEventRequest, kStoryEventRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Event); }
     bool operator==(const StoryEventRequest&) const noexcept = default;
 

@@ -15,8 +15,7 @@ struct ActorStatePart
     // The state alone, its tick aside: whether an owner has anything new to declare.
     [[nodiscard]] bool SameState(const ActorStatePart& acRhs) const noexcept;
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     uint64_t Tick{};   // the owner's frame, on the session's clock
     uint32_t Flags1{}; // ActorState flags1 under ActorStateRules::kPartBits1

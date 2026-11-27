@@ -18,8 +18,7 @@ struct ActorValues
                  Wire::List(ActorTemporaryValuesList, kMaxActorValues));
     }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     std::map<uint32_t, float> ActorValuesList{};
     std::map<uint32_t, float> ActorMaxValuesList{};

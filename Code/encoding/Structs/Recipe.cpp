@@ -48,20 +48,3 @@ GameId Recipe::Id() const noexcept
     return GameId(kModId, hash);
 }
 
-void Recipe::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    aWriter.WriteBits(IsPoison, 1);
-    Serialization::WriteVarInt(aWriter, Effects.size());
-    for (const auto& cEffect : Effects)
-        cEffect.Serialize(aWriter);
-}
-
-void Recipe::Deserialize(Wire::Buffer::Reader& aReader) noexcept
-{
-    uint64_t poison = 0;
-    aReader.ReadBits(poison, 1);
-    IsPoison = poison != 0;
-    Effects.resize(Serialization::ReadCount(aReader, 0xFF));
-    for (auto& effect : Effects)
-        effect.Deserialize(aReader);
-}

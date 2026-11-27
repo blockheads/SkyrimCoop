@@ -12,9 +12,6 @@
 // at Placement; the host's game makes the party's.
 struct DropItemRequest final : MessageOf<DropItemRequest, kDropItemRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Tag, Item, Placement); }
     bool operator==(const DropItemRequest&) const noexcept = default;
 
@@ -27,9 +24,6 @@ struct DropItemRequest final : MessageOf<DropItemRequest, kDropItemRequest>
 // Object: the host's game cannot make it (not in its game), it stays the dropper's own.
 struct NotifyItemDropped final : MessageOf<NotifyItemDropped, kNotifyItemDropped>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Tag, Object); }
     bool operator==(const NotifyItemDropped&) const noexcept = default;
 
@@ -40,9 +34,6 @@ struct NotifyItemDropped final : MessageOf<NotifyItemDropped, kNotifyItemDropped
 // A guest's player picks up the party's item Object, or its own drop Tag the host has not answered yet.
 struct PickUpRequest final : MessageOf<PickUpRequest, kPickUpRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Object, Tag); }
     bool operator==(const PickUpRequest&) const noexcept = default;
 
@@ -53,9 +44,6 @@ struct PickUpRequest final : MessageOf<PickUpRequest, kPickUpRequest>
 // To the picker: it was first, the item is its own (Item: what the host's reference held); gone from the world.
 struct NotifyPickUp final : MessageOf<NotifyPickUp, kNotifyPickUp>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Object, Tag, Item); }
     bool operator==(const NotifyPickUp&) const noexcept = default;
 

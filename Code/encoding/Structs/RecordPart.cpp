@@ -25,21 +25,6 @@ void RecordPart::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     aReader.ReadBytes(std::span(reinterpret_cast<uint8_t*>(Bytes.data()), Bytes.size()));
 }
 
-void RecordParts::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, Parts.size());
-    for (const auto& cPart : Parts)
-        cPart.Serialize(aWriter);
-}
-
-void RecordParts::Deserialize(Wire::Buffer::Reader& aReader) noexcept
-{
-    const uint64_t cCount = Serialization::ReadCount(aReader, 0xFF);
-    Parts.clear();
-    for (uint64_t i = 0; i < cCount; ++i)
-        Parts.emplace_back().Deserialize(aReader);
-}
-
 const RecordPart* RecordParts::Find(RecordKind aKind) const noexcept
 {
     const auto it = std::ranges::find(Parts, aKind, &RecordPart::Kind);

@@ -87,8 +87,6 @@ struct CrimeReport
 // Absolute totals: retransmission cannot add bounty. A full snapshot also clears absent factions.
 struct NotifyCrimeState final : MessageOf<NotifyCrimeState, kNotifyCrimeState>
 {
-    void SerializeRaw(Wire::Buffer::Writer&) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader&) noexcept override;
     // Crime state rows: one per crime faction, far fewer than this.
     static constexpr uint64_t kMaxRows = 4096;
     std::vector<CrimeGold> Gold;
@@ -102,8 +100,6 @@ struct NotifyCrimeState final : MessageOf<NotifyCrimeState, kNotifyCrimeState>
 
 struct NotifyLockCrime final : MessageOf<NotifyLockCrime, kNotifyLockCrime>
 {
-    void SerializeRaw(Wire::Buffer::Writer&) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader&) noexcept override;
     uint32_t Attempt{};
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Attempt); }
     bool operator==(const NotifyLockCrime&) const noexcept = default;
@@ -123,8 +119,6 @@ struct CrimeConfiscation
 
 struct NotifyCrimeConfiscation final : MessageOf<NotifyCrimeConfiscation, kNotifyCrimeConfiscation>
 {
-    void SerializeRaw(Wire::Buffer::Writer&) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader&) noexcept override;
     uint32_t Id{};
     GameId Faction{};
     GameId Owner{};

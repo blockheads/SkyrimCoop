@@ -1,16 +1,16 @@
 // Every message round trips through its factory, and its bytes stay those recorded (encoding_golden.h): the bytes of
-// a deterministic fill of its fields, as the hand-written serializers wrote them before Fields replaced them.
+// a deterministic fill of its fields, as the hand-written serializers wrote them before Fields replaced them. A new
+// message is recorded with COOP_GOLDEN_OUT=<file> (existing lines are kept as they are) and its line added there.
 #include <catch2/catch.hpp>
 
 #include <Messages/NotifyMessageFactory.h>
 #include <Messages/RequestMessageFactory.h>
-#include <Wire/Archive.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
 #include <string>
-#include <typeinfo>
 
 #include "encoding_fields_fill.h"
 
@@ -61,24 +61,6 @@ template <class T, class TFactory> void RoundTrip(const char* acpName, const TFa
     Wire::Buffer::Writer writer(&buffer);
     message.Serialize(writer);
     const std::string cHex = Hex(buffer, writer.Size());
-
-    if constexpr (Wire::kHasFields<T>)
-    {
-        // Its fields write what its SerializeRaw writes, and read back to it.
-        Wire::Buffer fields;
-        Wire::Buffer::Writer fieldsWriter(&fields);
-        fieldsWriter.WriteBits(T::Opcode, 8);
-        Wire::Write(fieldsWriter, message);
-        CHECK(Hex(fields, fieldsWriter.Size()) == cHex);
-
-        Wire::Buffer::Reader reader(&buffer);
-        uint64_t opcode = 0;
-        reader.ReadBits(opcode, 8);
-        T read;
-        Wire::Read(reader, read);
-        CHECK_FALSE(reader.Failed());
-        CHECK(read == message);
-    }
 
     Wire::Buffer::Reader reader(&buffer);
     auto pMessage = acFactory.Extract(reader);

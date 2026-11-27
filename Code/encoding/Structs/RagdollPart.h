@@ -17,8 +17,7 @@ struct RagdollPart
     bool operator==(const RagdollPart&) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Tick, Wire::List(Rests, kMaxBodies)); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     uint64_t Tick{}; // the session's time it rested
     std::vector<BodyPose> Rests;

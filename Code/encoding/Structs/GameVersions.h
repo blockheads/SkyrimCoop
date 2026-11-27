@@ -14,8 +14,7 @@ struct GameVersions
     uint32_t Runtime{};
     uint32_t Skse{};
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     bool operator==(const GameVersions&) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Runtime, Skse); }

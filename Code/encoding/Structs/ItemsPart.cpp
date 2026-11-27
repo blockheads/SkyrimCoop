@@ -5,18 +5,6 @@
 
 using Wire::Serialization;
 
-void ItemsPart::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteBool(aWriter, Full);
-    Items.Serialize(aWriter);
-}
-
-void ItemsPart::Deserialize(Wire::Buffer::Reader& aReader) noexcept
-{
-    Full = Serialization::ReadBool(aReader);
-    Items.Deserialize(aReader);
-}
-
 namespace
 {
 std::vector<Inventory::Entry>::iterator FindSame(std::vector<Inventory::Entry>& aStacks, const Inventory::Entry& acStack)

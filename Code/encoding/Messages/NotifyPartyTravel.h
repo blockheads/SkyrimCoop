@@ -12,9 +12,6 @@
 // arrived. A game already there stays.
 struct NotifyPartyTravel final : MessageOf<NotifyPartyTravel, kNotifyPartyTravel>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
         aArchive(CellId, WorldSpaceId, Position, Heading);
@@ -30,9 +27,6 @@ struct NotifyPartyTravel final : MessageOf<NotifyPartyTravel, kNotifyPartyTravel
 // /tpa: a player brought everyone to it; each game goes there even when already in that cell.
 struct NotifyPartySummon final : MessageOf<NotifyPartySummon, kNotifyPartySummon>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Destination, Username); }
     bool operator==(const NotifyPartySummon&) const noexcept = default;
 
@@ -44,9 +38,6 @@ struct NotifyPartySummon final : MessageOf<NotifyPartySummon, kNotifyPartySummon
 // host; back in time, or once the leash no longer applies (a trip, indoors, a player down), the countdown stops.
 struct NotifyLeash final : MessageOf<NotifyLeash, kNotifyLeash>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
         aArchive(Wire::Bits<2>(State), Wire::Bits<8>(Seconds));

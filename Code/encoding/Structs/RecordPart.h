@@ -41,8 +41,7 @@ struct RecordParts
     bool operator==(const RecordParts&) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(Parts, 0xFF)); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     // The part of aKind, or none.
     [[nodiscard]] const RecordPart* Find(RecordKind aKind) const noexcept;
@@ -60,7 +59,7 @@ template <class T> [[nodiscard]] std::string ToPartBytes(const T& acValue) noexc
 {
     Wire::Buffer buffer;
     Wire::Buffer::Writer writer(&buffer);
-    acValue.Serialize(writer);
+    Wire::Write(writer, acValue);
     return {reinterpret_cast<const char*>(buffer.GetData()), writer.Size()};
 }
 
@@ -69,6 +68,6 @@ template <class T> [[nodiscard]] bool FromPartBytes(const std::string& acBytes, 
     if (acBytes.empty())
         return false;
     Wire::Buffer::Reader reader(std::span(reinterpret_cast<const uint8_t*>(acBytes.data()), acBytes.size()));
-    aValue.Deserialize(reader);
+    Wire::Read(reader, aValue);
     return true;
 }

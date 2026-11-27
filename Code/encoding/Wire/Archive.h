@@ -13,8 +13,9 @@
 // A type states its fields once, in wire order, and both archives walk them:
 //     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, IsLocked, Bits<8>(Level)); }
 // A field is written by its type: bool 1 bit; an integer or an enum a varint; float and double their bytes; a string
-// WriteString's; std::array each element; std::optional a presence bit then the value; a type with Fields its fields;
-// a type with Serialize/Deserialize those. The wrappers below say anything else.
+// WriteString's; an array each element; std::optional a presence bit then the value; a type with Fields its fields;
+// a type with Serialize/Deserialize those. The wrappers below say anything else. kReading lets Fields fix up a value
+// it read (an enum past its last), and a field written only for some value of an earlier one is an if on it.
 namespace Wire
 {
 // A field in its low N bits.
@@ -158,8 +159,6 @@ struct ReadArchive
     explicit ReadArchive(Buffer::Reader& aReader) noexcept : m_reader(aReader) {}
 
     template <class... T> void operator()(T&&... aFields) noexcept { (Field(aFields), ...); }
-
-    [[nodiscard]] Buffer::Reader& Reader() noexcept { return m_reader; }
 
     template <class T> void Field(T& aValue) noexcept
     {

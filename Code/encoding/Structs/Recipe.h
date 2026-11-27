@@ -26,6 +26,5 @@ struct Recipe
     [[nodiscard]] GameId Id() const noexcept;
     [[nodiscard]] static bool IsId(const GameId& acId) noexcept { return acId.ModId == kModId; }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 };

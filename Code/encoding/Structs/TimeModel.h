@@ -19,8 +19,7 @@ struct TimeModel
     // Whole days since the game started (the calendar's rawDaysPassed): GameDaysPassed is this + Time / 24.
     uint32_t DaysPassed = 0;
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(TimeScale, Time, Day, Month, Year, DaysPassed); }
     bool operator==(const TimeModel&) const noexcept = default;

@@ -13,8 +13,7 @@ struct Faction
     bool operator==(const Faction&) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, Wire::Bits<8>(Rank)); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     GameId Id;
     int8_t Rank{};

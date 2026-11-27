@@ -7,9 +7,6 @@
 // A guest's character, for the host's save: on joining and on its changes.
 struct PlayerRecordRequest final : MessageOf<PlayerRecordRequest, kPlayerRecordRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Record); }
     bool operator==(const PlayerRecordRequest&) const noexcept = default;
 
@@ -21,8 +18,6 @@ struct SaveHeldRequest final : MessageOf<SaveHeldRequest, kSaveHeldRequest>
 {
     static constexpr size_t kMaxSaves = 16;
 
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(Saves, kMaxSaves)); }
     bool operator==(const SaveHeldRequest&) const noexcept = default;
@@ -35,8 +30,6 @@ struct NotifySaveChunk final : MessageOf<NotifySaveChunk, kNotifySaveChunk>
 {
     static constexpr uint32_t kMaxData = 32 * 1024;
 
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
@@ -56,9 +49,6 @@ struct NotifySaveChunk final : MessageOf<NotifySaveChunk, kNotifySaveChunk>
 // The host's game cannot save yet (a menu that allows no save, such as a conversation, is open): the join waits for it.
 struct NotifySaveWaiting final : MessageOf<NotifySaveWaiting, kNotifySaveWaiting>
 {
-    void SerializeRaw(Wire::Buffer::Writer&) const noexcept override {}
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override { NotifyMessage::DeserializeRaw(aReader); }
-
     template <class TArchive> void Fields(TArchive&) noexcept
     {
     }

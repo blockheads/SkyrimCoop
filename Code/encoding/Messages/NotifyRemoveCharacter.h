@@ -6,9 +6,6 @@
 
 struct NotifyRemoveCharacter final : MessageOf<NotifyRemoveCharacter, kNotifyRemoveCharacter>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, Whereabouts); }
     bool operator==(const NotifyRemoveCharacter&) const noexcept = default;
 

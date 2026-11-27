@@ -30,9 +30,6 @@ struct HostGlobal
 // The host's global variables that changed; a joining player gets all of them.
 struct NotifyGlobals final : MessageOf<NotifyGlobals, kNotifyGlobals>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(Values, kMaxGlobals)); }
     bool operator==(const NotifyGlobals&) const noexcept = default;
 
@@ -107,9 +104,6 @@ struct QuestState
 // The host's quests that changed; a joining player gets every quest (Join: applied as a save load does).
 struct NotifyQuests final : MessageOf<NotifyQuests, kNotifyQuests>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
         aArchive(Join, Wire::List(Quests, kMaxQuests));
@@ -277,9 +271,6 @@ struct ObjectChange
 // cell's references a guest asked for when it loaded (CellStateRequest).
 struct NotifyObjectChanges final : MessageOf<NotifyObjectChanges, kNotifyObjectChanges>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
         aArchive(Cell, Wire::List(Changes, kMaxChanges));

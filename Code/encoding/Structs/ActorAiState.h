@@ -13,8 +13,7 @@ struct AiTarget
     bool operator==(const AiTarget& acRhs) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, RefId); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     uint32_t SessionId{};
     GameId RefId{};

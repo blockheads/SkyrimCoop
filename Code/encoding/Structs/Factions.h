@@ -14,8 +14,7 @@ struct Factions
     bool operator==(const Factions&) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(NpcFactions, kMaxFactions), Wire::List(ExtraFactions, kMaxFactions)); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader);
+    COOP_SERIALIZE_FIELDS
 
     std::vector<Faction> NpcFactions;
     std::vector<Faction> ExtraFactions;

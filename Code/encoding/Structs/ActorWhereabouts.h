@@ -26,8 +26,7 @@ struct ActorWhereabouts
             aArchive(CellId, WorldSpaceId, Position, Heading);
     }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     State Where{State::kUnknown};
     GameId CellId{};

@@ -7,9 +7,6 @@
 
 struct RequestSetWaypoint final : MessageOf<RequestSetWaypoint, kRequestSetWaypoint>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Position, WorldSpaceFormID); }
     bool operator==(const RequestSetWaypoint&) const noexcept = default;
 

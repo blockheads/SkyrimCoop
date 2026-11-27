@@ -138,7 +138,7 @@ Code/
 ├── components/imgui/    # The debug views' renderer
 ├── hotreload/           # Hot reload's loader
 ├── vanilla_harness/     # The harness without our plugin
-└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests that span layers), games/ (GameTests),
+└── tests/               # TPTests (encoding.cpp, encoding_fields.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests that span layers), games/ (GameTests),
                          # specs/ (shared specs: GameTests and scripts/coop_specs.py), peer/ (coop_peer)
 ```
 
@@ -159,14 +159,15 @@ the host's own game: the same, over an in-process route instead of enet
 ### Adding a message
 
 1. A request and notification carrying the same payload: the payload in `Messages/Payloads.h` and a `using` line each in
-   `Messages/RelayedMessages.h` (`Relayed<Payload, Opcode>`). Otherwise its own struct in `Code/encoding/Messages/` (a
-   `RequestMessage` or `NotifyMessage` with `SerializeRaw`/`DeserializeRaw`), included in `RequestMessageFactory.h` /
-   `NotifyMessageFactory.h`
+   `Messages/RelayedMessages.h` (`Relayed<Payload, Opcode>`). Otherwise its own struct in `Code/encoding/Messages/`
+   (`struct X final : MessageOf<X, kX>`), included in `RequestMessageFactory.h` / `NotifyMessageFactory.h`. Either way
+   its fields are listed once, in wire order, in `Fields` (`Wire/Archive.h`), with `operator==` defaulted: no .cpp
 2. Its name at the end of its list in `Code/encoding/Opcodes.h`: that makes its opcode and its factory entry
 3. The host's rule: in its feature's `Host*` part (`Code/sync/<feature>/`), registered with `HostRouter::On` (or a `Relay`) in that part's
    constructor, with a `HostAuthorityTests` case. A new part is built in `HostAuthority`, which holds no rules itself
 4. Each game's handler: a client service's `m_messageHandlers` entry or dispatcher sink
-5. A round trip in `Code/tests/encoding.cpp`
+5. Its recorded bytes: `COOP_GOLDEN_OUT=<file> build/linux/x86_64/debug/TPTests "[encoding.fields]"`, its new line into
+   `Code/tests/encoding_golden.h` (every opcode round trips there); a test in `encoding.cpp` only for behaviour beyond that
 
 ## Reverse Engineering Reference
 

@@ -14,8 +14,7 @@ struct ItemsPart
     bool operator==(const ItemsPart&) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Full, Items); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     // One stack, whatever its charge: an enchanted weapon's charge falling with each hit is no change of items.
     [[nodiscard]] static bool SameStack(const Inventory::Entry& acLhs, Inventory::Entry aRhs) noexcept;

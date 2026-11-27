@@ -13,9 +13,6 @@
 // A player's game: its character went down (a new fall, Generation one up) or stood up again after the host's respawn.
 struct PlayerDeathRequest final : MessageOf<PlayerDeathRequest, kPlayerDeathRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
         aArchive(SessionId, Generation, Down, KillerId);
@@ -46,8 +43,6 @@ struct NotifyPartyDeath final : MessageOf<NotifyPartyDeath, kNotifyPartyDeath>
     // At most a party's players on the wire.
     static constexpr size_t kMaxPlayers = kMaxPartyPlayers;
 
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
@@ -65,9 +60,6 @@ struct NotifyPartyDeath final : MessageOf<NotifyPartyDeath, kNotifyPartyDeath>
 // The host to a downed player's game: respawn for that fall beside the standing character AnchorId, there.
 struct NotifyPlayerRespawn final : MessageOf<NotifyPlayerRespawn, kNotifyPlayerRespawn>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
         aArchive(SessionId, Generation, AnchorId, CellId, WorldSpaceId, Position, Heading);
@@ -87,9 +79,6 @@ struct NotifyPlayerRespawn final : MessageOf<NotifyPlayerRespawn, kNotifyPlayerR
 // the guest's store holds Save already.
 struct NotifyPartyReload final : MessageOf<NotifyPartyReload, kNotifyPartyReload>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Save); }
     bool operator==(const NotifyPartyReload&) const noexcept = default;
 
@@ -99,9 +88,6 @@ struct NotifyPartyReload final : MessageOf<NotifyPartyReload, kNotifyPartyReload
 // A player went down: to every game, the player's own too, for its chat.
 struct NotifyPlayerPerished final : MessageOf<NotifyPlayerPerished, kNotifyPlayerPerished>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(PlayerId, Username, KillerName); }
     bool operator==(const NotifyPlayerPerished&) const noexcept = default;
 

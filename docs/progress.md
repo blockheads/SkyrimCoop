@@ -55,6 +55,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 |---|---|---|
 | Session, join, leave, kick, host rejoin | works | `session-roster`, `late-join-client`, `host-rejoins`, `host-kicks-client` |
 | Crafted or truncated messages (2026-11-26) | dropped: a non-player's messages other than a join go unread, every count is bounded (`Serialization::ReadCount`), a short read drops the message, snappy output is capped at 16 MB | tier 1 `[encoding.decoder]`, tier 2 `stranger_flows.cpp` |
+| One field list per message (2026-11-27) | a message or struct lists its fields once (`Fields`, `Wire/Archive.h`), both archives walk them, `==` defaulted; the hand-written serializers left: differential (`ActionEvent` and the messages carrying it), quantizers, versioned or validated reads | tier 1 `[encoding.fields]`: every opcode against bytes recorded from the old serializers |
 | Movement (players, host NPCs) | works | `steady-state`, `move-host-npc` |
 | Cell changes (`coc`, doors, fast travel) | works | `teleport-keeps-copies`, `party-changes-cells`, `party-uses-door`, `party-fast-travels` |
 | Equipment and hands | works | `equip-*`, `repair-equipment-drift`, `hands-survive-reload-*` |

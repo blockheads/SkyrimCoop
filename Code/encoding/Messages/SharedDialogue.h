@@ -11,9 +11,6 @@
 // A game's player started talking to a copy: the host's game should start it with the real NPC.
 struct DialogueStartRequest final : MessageOf<DialogueStartRequest, kDialogueStartRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t NpcId{}; // session id
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(NpcId); }
     bool operator==(const DialogueStartRequest&) const noexcept = default;
@@ -22,9 +19,6 @@ struct DialogueStartRequest final : MessageOf<DialogueStartRequest, kDialogueSta
 // The host's game: its player's dialogue menu opened with this NPC (Everyone: the NPC started it, a force greet).
 struct DialogueOpenedRequest final : MessageOf<DialogueOpenedRequest, kDialogueOpenedRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t NpcId{};
     bool Everyone{};
     GameId Greeting{}; // host-selected INFO; copies have no arrest/alarm AI to select it
@@ -36,9 +30,6 @@ struct DialogueOpenedRequest final : MessageOf<DialogueOpenedRequest, kDialogueO
 // player's own list for the step (Players), judged for its character.
 struct DialogueOptionsRequest final : MessageOf<DialogueOptionsRequest, kDialogueOptionsRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Conversation{};
     uint32_t Step{};
     bool Choices{};
@@ -54,9 +45,6 @@ struct DialogueOptionsRequest final : MessageOf<DialogueOptionsRequest, kDialogu
 // A game's player picked an option of the step's list (its topic and line); Text, as its menu showed it.
 struct DialoguePickRequest final : MessageOf<DialoguePickRequest, kDialoguePickRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Conversation{};
     uint32_t Step{};
     GameId Topic{};
@@ -73,9 +61,6 @@ struct DialoguePickRequest final : MessageOf<DialoguePickRequest, kDialoguePickR
 // with Ended: its conversation ended (a goodbye, the NPC walking off), so it ends for everyone.
 struct DialogueCloseRequest final : MessageOf<DialogueCloseRequest, kDialogueCloseRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Conversation{};
     bool Ended{};
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Conversation, Ended); }
@@ -86,9 +71,6 @@ struct DialogueCloseRequest final : MessageOf<DialogueCloseRequest, kDialogueClo
 // is in it from the start.
 struct DialogueJoinRequest final : MessageOf<DialogueJoinRequest, kDialogueJoinRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Conversation{};
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Conversation); }
     bool operator==(const DialogueJoinRequest&) const noexcept = default;
@@ -97,9 +79,6 @@ struct DialogueJoinRequest final : MessageOf<DialogueJoinRequest, kDialogueJoinR
 // The host's game could not start the conversation a guest asked for (its player busy, the engine refused).
 struct DialogueStartFailedRequest final : MessageOf<DialogueStartFailedRequest, kDialogueStartFailedRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t NpcId{};
     bool NothingToSay{}; // started, and the engine opened nothing: the NPC only says its hello
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(NpcId, NothingToSay); }
@@ -109,9 +88,6 @@ struct DialogueStartFailedRequest final : MessageOf<DialogueStartFailedRequest, 
 // To the host's game: start its player's conversation with this NPC, for the player who asked.
 struct NotifyDialogueStart final : MessageOf<NotifyDialogueStart, kNotifyDialogueStart>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t NpcId{};
     uint32_t PlayerId{};
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(NpcId, PlayerId); }
@@ -122,9 +98,6 @@ struct NotifyDialogueStart final : MessageOf<NotifyDialogueStart, kNotifyDialogu
 // (Everyone); others join by talking to it. The host's game learns its id.
 struct NotifyDialogueOpen final : MessageOf<NotifyDialogueOpen, kNotifyDialogueOpen>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Conversation{};
     uint32_t NpcId{};
     bool Everyone{};
@@ -142,9 +115,6 @@ struct NotifyDialogueOpen final : MessageOf<NotifyDialogueOpen, kNotifyDialogueO
 // A player's list for a step, judged for its character by the host's engine (Choices: a line's choices).
 struct NotifyDialogueList final : MessageOf<NotifyDialogueList, kNotifyDialogueList>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Conversation{};
     uint32_t Step{};
     bool Choices{};
@@ -160,9 +130,6 @@ struct NotifyDialogueList final : MessageOf<NotifyDialogueList, kNotifyDialogueL
 // next step's list.
 struct NotifyDialoguePicked final : MessageOf<NotifyDialoguePicked, kNotifyDialoguePicked>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Conversation{};
     uint32_t Step{};
     GameId Topic{};
@@ -179,9 +146,6 @@ struct NotifyDialoguePicked final : MessageOf<NotifyDialoguePicked, kNotifyDialo
 // The conversation ended: every game closes its menu, the host's ends its conversation.
 struct NotifyDialogueClosed final : MessageOf<NotifyDialogueClosed, kNotifyDialogueClosed>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Conversation{};
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Conversation); }
     bool operator==(const NotifyDialogueClosed&) const noexcept = default;
@@ -190,9 +154,6 @@ struct NotifyDialogueClosed final : MessageOf<NotifyDialogueClosed, kNotifyDialo
 // To the host's game: the player the NPC faced left the conversation; it turns to this one.
 struct NotifyDialogueFace final : MessageOf<NotifyDialogueFace, kNotifyDialogueFace>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t Conversation{};
     uint32_t PlayerId{};
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Conversation, PlayerId); }
@@ -202,9 +163,6 @@ struct NotifyDialogueFace final : MessageOf<NotifyDialogueFace, kNotifyDialogueF
 // The conversation this game asked for will not start.
 struct NotifyDialogueRefused final : MessageOf<NotifyDialogueRefused, kNotifyDialogueRefused>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     uint32_t NpcId{};
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(NpcId); }
     bool operator==(const NotifyDialogueRefused&) const noexcept = default;

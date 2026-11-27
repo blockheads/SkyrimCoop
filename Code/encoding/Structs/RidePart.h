@@ -12,8 +12,7 @@ struct RidePart
     bool operator==(const RidePart&) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Tick, Mount); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     uint64_t Tick{};  // the owner's frame it sat at, on the session's clock: its copy sits when its stream does
     uint32_t Mount{}; // the horse's session id, 0 none

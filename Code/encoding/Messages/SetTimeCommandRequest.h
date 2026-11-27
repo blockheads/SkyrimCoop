@@ -5,9 +5,6 @@
 
 struct SetTimeCommandRequest final : MessageOf<SetTimeCommandRequest, kSetTimeCommandRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
         aArchive(Wire::Bits<8>(Hours), Wire::Bits<8>(Minutes), Wire::Bits<32>(PlayerId));

@@ -25,8 +25,7 @@ struct CastPart
     bool operator==(const CastPart&) const noexcept = default;
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Sources); }
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
     std::array<std::optional<HeldCast>, 4> Sources{}; // left hand, right hand, voice, instant
 };
