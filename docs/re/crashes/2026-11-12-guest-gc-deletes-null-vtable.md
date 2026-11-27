@@ -20,3 +20,7 @@ on the stream) are involved. The same scenario passed 4 of 4 and 1 of 1 before i
 
 **Next:** `scripts/coop_test.py repro` with the heap history on (crash-debugging: tooling first), running
 `spectator-watches-kill-move host-rides-horse guest-rides-host-horse mounted-guest-leaves guest-rides-across-border`.
+
+**2026-11-27:** the same class as [the cell-attach crash](2026-11-27-guest-cell-attach-null-virtual.md), whose
+investigation found `UnequipAll`'s walk reading a node its unequip freed under a copy's worn-set reset (fixed there).
+Whether this crash was one of its victims is not known: no heap history was on for it.
