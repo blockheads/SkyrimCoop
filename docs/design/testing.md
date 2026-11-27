@@ -253,9 +253,6 @@ Since 2026-11-01 the duo also runs on Windows, natively (`scripts/coop_harness/w
 Both games run as the user, on the user's Steam, in 960x540 windows side by side, with `bBackgroundMouse` set so
 they do not grab the cursor.
 
-**Skyrim version:** Steam ships 1.7 on Windows, which our Address Library IDs and SKSE do not support. The duo links
-a 1.6.1170 copy instead (`SKYRIM_STEAM_GAME_DIR`, with `SKYRIM_SKSE_DIR` and `SKYRIM_ADDRESS_LIBRARY_DIR`).
-
 **Unlike Linux:**
 - Both games share the user's `Documents/My Games/Skyrim Special Edition` (INIs, saves, SKSE and crash logs) and
   `Plugins.txt`. Skyrim reads them from the user's known folders, so there is no prefix per game.

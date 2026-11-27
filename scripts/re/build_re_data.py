@@ -49,11 +49,11 @@ def configure_runtime(value=None):
     vendor = ROOT / "build/runtime-vendor" / short
     SKSE_SRC = Path(os.environ.get("COOP_RE_SKSE_SOURCE", vendor / "src" if vendor.exists() else GAME / "src/skse64"))
     ng = Path(os.environ.get("COOP_RE_COMMONLIB", ROOT / "reference/CommonLibSSE-NG"))
-    COMMONLIBS = (ROOT / "reference/CommonLibSSE", ng) if EXE_VERSION == "1.6.1170.0" else (ng,)
+    COMMONLIBS = (ng,)
     IDA_NOTES = ROOT / "docs/re/ida_notes.tsv"
-    TARGET_NOTES = IDA_NOTES if EXE_VERSION == "1.6.1170.0" else ROOT / f"docs/re/ida_notes_{short}.tsv"
+    TARGET_NOTES = ROOT / f"docs/re/ida_notes_{short}.tsv"
     OUT_JSON = ROOT / "build/re" / short / "annotations.json"
-    OUT_MD = ROOT / "docs/re" / ("ENGINE_REFERENCE.md" if EXE_VERSION == "1.7.104.0" else f"ENGINE_REFERENCE_{short}.md")
+    OUT_MD = ROOT / "docs/re/ENGINE_REFERENCE.md"
     EXE = Path(os.environ.get("COOP_RE_EXE", ROOT / "build/re" / f"SkyrimSE_{short}_unpacked.exe"))
 
 
@@ -185,15 +185,14 @@ def load_skse(rva_to_id):
 
 def load_ida_notes():
     notes = {}
-    paths = [IDA_NOTES] if TARGET_NOTES == IDA_NOTES else [IDA_NOTES, TARGET_NOTES]
-    for path in paths:
+    for path in (IDA_NOTES, TARGET_NOTES):
         if not path.exists():
             continue
         for line in path.read_text().splitlines()[1:]:
             parts = line.split("\t")
             if len(parts) >= 3 and parts[0].isdigit():
                 comment = parts[3] if len(parts) > 3 else ""
-                if path == IDA_NOTES and EXE_VERSION != "1.6.1170.0" and comment:
+                if path == IDA_NOTES and comment:
                     comment = "From 1.6.1170 (instruction offsets require review): " + comment
                 notes[int(parts[0])] = (parts[2], comment)
     # The journals' names and comments (ida_hook.py), newest last, over the exported notes.
@@ -222,16 +221,8 @@ def scan_our_code():
             continue
         text = path.read_text(errors="replace")
         lines = text.splitlines()
-        branches = []
         for number, line in enumerate(lines, 1):
-            directive = line.strip()
-            if re.match(r"#\s*if(?:def|ndef)?\b", directive):
-                branches.append(EXE_VERSION == "1.6.1170.0" if directive == "#if COOP_SKYRIM_1_6_1170" else None)
-            elif directive == "#else" and branches and branches[-1] is not None:
-                branches[-1] = not branches[-1]
-            elif directive == "#endif" and branches:
-                branches.pop()
-            if False in branches or line.lstrip().startswith("//"):
+            if line.lstrip().startswith("//"):
                 continue
             direct = re.search(r"\bVersionDbPtr<(.+?)>\s+(.+)", line)
             extras = []

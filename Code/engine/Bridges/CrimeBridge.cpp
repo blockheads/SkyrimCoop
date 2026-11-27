@@ -679,17 +679,14 @@ static Hooks::Initializer s_hooks([] {
     HOOK_ID(39631, &RealProcessPendingCrime, HookProcessPendingCrime);
     HOOK_ID(37757, &RealFindKnowledgeState, HookFindKnowledgeState);
     // 1.7.104 offsets (read in IDA); the callees by Address Library ID.
-    if constexpr (!COOP_SKYRIM_1_6_1170)
-    {
-        SwapWarningCall(37556, 0xF0, 29811, RealWarningLocation, &WarningLocation);
-        SwapWarningCall(37556, 0x13A, 29855, RealWarningTarget, &WarningTarget);
-        SwapWarningCall(39673, 0x1CB, 37250, RealWarnIsFacing, &WarnIsFacing);
-        SwapWarningCall(39673, 0x207, 37811, RealWarnTurnBody, &WarnTurnBody);
-        SwapWarningCall(39673, 0x250, 12325, RealWarnHandle, &WarnHandle);
-        SwapWarningCall(39673, 0x29C, 39333, RealWarnSay, &WarnSay);
-        SwapWarningCall(39673, 0x2C8, 39255, RealWarnAction, &WarnAction);
-        HOOK_ID(39673, &RealWarningStep, HookWarningStep);
-    }
+    SwapWarningCall(37556, 0xF0, 29811, RealWarningLocation, &WarningLocation);
+    SwapWarningCall(37556, 0x13A, 29855, RealWarningTarget, &WarningTarget);
+    SwapWarningCall(39673, 0x1CB, 37250, RealWarnIsFacing, &WarnIsFacing);
+    SwapWarningCall(39673, 0x207, 37811, RealWarnTurnBody, &WarnTurnBody);
+    SwapWarningCall(39673, 0x250, 12325, RealWarnHandle, &WarnHandle);
+    SwapWarningCall(39673, 0x29C, 39333, RealWarnSay, &WarnSay);
+    SwapWarningCall(39673, 0x2C8, 39255, RealWarnAction, &WarnAction);
+    HOOK_ID(39673, &RealWarningStep, HookWarningStep);
 });
 } // namespace
 
