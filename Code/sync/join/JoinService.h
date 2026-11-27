@@ -3,6 +3,7 @@
 #include <core/Listen.h>
 #include <NoCopyMove.h>
 #include <core/JoinStatus.h>
+#include <join/SaveNames.h>
 #include <join/SaveTransfer.h>
 #include <Structs/PlayerRecord.h>
 
@@ -31,8 +32,8 @@ struct World;
 struct JoinService
 {
     // The names the two games' saves are written under.
-    static constexpr const char* kJoinSave = "SkyrimCoopJoin";
-    static constexpr const char* kTransferSave = "SkyrimCoopTransfer";
+    static constexpr const char* kJoinSave = SaveNames::kJoin;
+    static constexpr const char* kTransferSave = SaveNames::kTransfer;
     static constexpr double kConnectSeconds = 20.0;
     static constexpr double kChunkSeconds = 30.0;
     static constexpr const char* kWaitingForSave = "The host's game can't save right now (a conversation or a menu is open). "
@@ -106,6 +107,8 @@ private:
     void OnConnected(const ConnectedEvent&) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void OnGameLoaded(const GameLoadedEvent&) noexcept;
+    // The scratch saves out of the engine's Saves folder (SaveNames::kScratch).
+    void DropScratchSaves() noexcept;
     void OnGameLoadFailed(const GameLoadFailedEvent&) noexcept;
     // The host loaded a save or the party wiped: the save comes as a join's does, and this game loads it.
     void OnPartyReload(const NotifyPartyReload&) noexcept;
@@ -135,6 +138,7 @@ private:
     std::string m_playerKey; // fixed before creation, through both authentications
     bool m_fromMainMenu{};
     bool m_creatingCharacter{};
+    bool m_atMainMenu{};
     std::optional<PlayerRecord> m_createdCharacter; // survives a failed final join for retry
     bool m_partyReload{};
     std::optional<PlayerRecord> m_joinedCharacter;

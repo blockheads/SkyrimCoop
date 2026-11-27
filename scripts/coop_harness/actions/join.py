@@ -84,6 +84,15 @@ class JoinActions:
         return {path.name for path in saves.glob("*.ess")} if saves.exists() else set()
 
 
+    def expect_no_scratch_saves(ctx, instance):
+        """The game's Saves folder holds only players' saves: the main menu's Continue loads the newest .ess of any
+        character (52898), and a scratch save's name files it under character 0 (save-game.md, Continue)."""
+        scratch = sorted(name for name in ctx.save_files(instance) if name.startswith("SkyrimCoop"))
+        if scratch:
+            raise ctx.failure(f"[{instance or 'host'}] scratch saves left in the Saves folder: {scratch}")
+        return {"scratch": scratch}
+
+
     def press_key(ctx, instance, scan):
         """The player presses and releases a keyboard key (DirectInput scan code), through the game's input dispatch."""
         ctx.wait_for(f"[{instance or 'host'}] the game takes input", lambda: ctx.takes_input(instance), 10)

@@ -52,6 +52,8 @@ public:
     virtual bool WriteHeldSave(const std::string& acId, const std::string& acData) noexcept = 0;
     virtual void DropHeldSave(const std::string& acId) noexcept = 0;
 
+    // A save and its co-save gone from the engine's Saves folder (nothing when there is none).
+    virtual void DeleteSave(const std::string& acName) noexcept = 0;
     // An existing save and its co-save, selected by the host.
     [[nodiscard]] virtual std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept = 0;
     // The engine's current character (its saves are filed and named under it), as a load of that character's save

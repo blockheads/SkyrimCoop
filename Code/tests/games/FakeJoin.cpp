@@ -76,7 +76,7 @@ void FakeEngine::RunMainLoop() noexcept
     RunNativeCombat();
     for (auto& [name, files] : std::exchange(SaveThread, {}))
     {
-        SavedFiles[name] = std::move(files);
+        WritesSaveFile(name, std::move(files));
         World::Get().GetRunner().Trigger(SaveWrittenEvent{name});
     }
     if (const auto cName = std::exchange(PendingSave, std::nullopt))
@@ -87,7 +87,7 @@ void FakeEngine::RunMainLoop() noexcept
         {
             Saves.push_back(*cName);
             MadeSave = MakeSave();
-            SavedFiles[*cName] = **MadeSave;
+            WritesSaveFile(*cName, **MadeSave);
             // A menu or console save's file is written inside Save_Impl.
             World::Get().GetRunner().Trigger(SaveWrittenEvent{*cName});
         }
@@ -466,6 +466,51 @@ std::optional<IJoinBridge::SaveFiles> FakeEngine::ReadSave(const std::string& ac
 {
     const auto it = SavedFiles.find(acName);
     return it != SavedFiles.end() ? std::optional(it->second) : std::nullopt;
+}
+
+void FakeEngine::WritesSaveFile(const std::string& acName, SaveFiles aFiles)
+{
+    SavedFiles[acName] = std::move(aFiles);
+    uint64_t newest = 0;
+    for (const auto& [cName, cTime] : SaveTimes)
+        newest = std::max(newest, cTime);
+    SaveTimes[acName] = newest + 1;
+}
+
+void FakeEngine::DeleteSave(const std::string& acName) noexcept
+{
+    SavedFiles.erase(acName);
+    SaveTimes.erase(acName);
+}
+
+bool FakeEngine::Continues()
+{
+    const std::string* pNewest = nullptr;
+    uint64_t newest = 0;
+    for (const auto& [cName, cFiles] : SavedFiles)
+    {
+        const auto cTime = SaveTimes.contains(cName) ? SaveTimes.at(cName) : 0;
+        if (!pNewest || cTime > newest)
+            pNewest = &cName, newest = cTime;
+    }
+    if (!AtMainMenu || !pNewest)
+        return false;
+    // 0xD0000100 hands the file to the save utility: no Load_Impl, so none of our load hooks.
+    PendingLoad = {*pNewest, SavedFiles.at(*pNewest)};
+    return true;
+}
+
+std::vector<std::string> FakeEngine::LoadList() const
+{
+    std::vector<std::pair<uint64_t, std::string>> listed;
+    for (const auto& [cName, cFiles] : SavedFiles)
+        if (SaveNames::CharacterId(cName) == CharacterId)
+            listed.emplace_back(SaveTimes.contains(cName) ? SaveTimes.at(cName) : 0, cName);
+    std::ranges::sort(listed, std::greater{});
+    std::vector<std::string> names;
+    for (auto& [cTime, name] : listed)
+        names.push_back(std::move(name));
+    return names;
 }
 
 bool FakeEngine::PlayerLoads(const std::string& acName)

@@ -23,7 +23,7 @@
 
 namespace
 {
-constexpr const char* kReloadSave = "SkyrimCoopWipe";
+constexpr const char* kReloadSave = SaveNames::kReload;
 constexpr const char* kChosenMissing = "The selected save could not be read. Choose another save.";
 constexpr const char* kLoadFailed = "The save could not be loaded. Choose a save or return to the menu.";
 } // namespace

@@ -1,0 +1,53 @@
+time	op	id	rva	item
+2026-11-27T21:45:34Z	read	35766	0x624de0	{"name": "BGSSaveLoadManager::LoadMostRecentSaveGame"}
+2026-11-27T21:45:47Z	read		0x9586ab	{"name": "MainMenu::Setup"}
+2026-11-27T21:45:50Z	read	52113	0x958690	{"name": "MainMenu::Setup"}
+2026-11-27T21:45:51Z	read	52114	0x958de0	{"name": "sub_140958DE0"}
+2026-11-27T21:45:58Z	read	52117	0x9590f0	{"name": "sub_1409590F0"}
+2026-11-27T21:45:59Z	read	52884	0x98f410	{"name": "sub_14098F410"}
+2026-11-27T21:46:00Z	read	52898	0x990270	{"name": "sub_140990270"}
+2026-11-27T21:46:02Z	read	35760	0x624b40	{"name": "BGSSaveLoadManager::PopulateSaveList"}
+2026-11-27T21:46:03Z	read	35764	0x624d50	{"name": "BGSSaveLoadManager::sub_35764"}
+2026-11-27T21:46:07Z	read	35743	0x6236e0	{"name": "BGSSaveLoadManager::sub_35743"}
+2026-11-27T21:46:12Z	read	35786	0x6297f0	{"name": "BGSSaveLoadManager::sub_35786"}
+2026-11-27T21:46:15Z	read	35799	0x62a9c0	{"name": "sub_14062A9C0"}
+2026-11-27T21:46:18Z	read	35784	0x629280	{"name": "BGSSaveLoadManager::sub_35784"}
+2026-11-27T21:46:20Z	read	35795	0x62a590	{"name": "sub_14062A590"}
+2026-11-27T21:46:25Z	name	52114	0x958de0	{"addr": "0x140958DE0", "name": "MainMenu__OnContinuePressed"}
+2026-11-27T21:46:25Z	name	52117	0x9590f0	{"addr": "0x1409590F0", "name": "MainMenu__ContinueLastSavedGame"}
+2026-11-27T21:46:25Z	name	52884	0x98f410	{"addr": "0x14098F410", "name": "UISaveLoadManager__QueueNewGame"}
+2026-11-27T21:46:25Z	name	52898	0x990270	{"addr": "0x140990270", "name": "UISaveLoadManager__QueueLoadMostRecent"}
+2026-11-27T21:46:25Z	name	35799	0x62a9c0	{"addr": "0x14062A9C0", "name": "BGSSaveLoadManager__ScanSaveFolder"}
+2026-11-27T21:46:25Z	name	35795	0x62a590	{"addr": "0x14062A590", "name": "BGSSaveLoadFileEntry__CompareFileTime"}
+2026-11-27T21:46:25Z	name	35743	0x6236e0	{"addr": "0x1406236e0", "name": "BGSSaveLoadManager__BuildSaveList"}
+2026-11-27T21:46:25Z	name	35784	0x629280	{"addr": "0x140629280", "name": "BGSSaveLoadManager__AddFileEntrySorted"}
+2026-11-27T21:46:25Z	name	35786	0x6297f0	{"addr": "0x1406297f0", "name": "BGSSaveLoadManager__BuildCharacterCatalogue"}
+2026-11-27T21:46:35Z	comment	52117	0x9590f0	{"addr": "0x1409590F0", "comment": "Main menu ContinueLastSavedGame (52117): QueueLoadMostRecent; with no save at all, the else branch (message, 52884). SkyrimCoop: Continue loads the newest .ess by file time of ANY character (docs/re/systems/save-game.md, Continue)."}
+2026-11-27T21:46:35Z	comment	52898	0x990270	{"addr": "0x140990270", "comment": "52898: PopulateSaveList (35760, all characters, id -1) then, when a newest save exists (+0x248), queues 0xD0000100: load the newest save's name (+0x138, last of saveGameList sorted by file time)."}
+2026-11-27T21:46:35Z	comment	52114	0x958de0	{"addr": "0x140958DE0", "comment": "52114: main menu CONTINUE pressed: asks Flash ConfirmContinue (\"Continue from your last saved game?\"), which calls back ContinueLastSavedGame (52117)."}
+2026-11-27T21:46:35Z	comment	52884	0x98f410	{"addr": "0x14098F410", "comment": "52884: no save to continue: queues request 0x10008000 and clears the menu's state. Not on the Continue-with-saves path; meaning of 0x10008000 not read."}
+2026-11-27T21:46:35Z	comment	35799	0x62a9c0	{"addr": "0x14062A9C0", "comment": "35799: every <Saves>/*.ess: entry parsed (character id from the name, 109348), filtered by the id unless the filter is -1, added sorted by file time (35784)."}
+2026-11-27T21:46:35Z	comment	35795	0x62a590	{"addr": "0x14062A590", "comment": "35795: compares two save file entries by FILETIME at +0x50 (GameplaySaveEntry::fileTime): saveGameList is oldest first."}
+2026-11-27T21:46:35Z	comment	35743	0x6236e0	{"addr": "0x1406236e0", "comment": "35743: scans the save folder for *.ess into saveGameList (+0x100) for a character filter {id, modded}; id -1 = all characters (PopulateSaveList, Continue)."}
+2026-11-27T21:46:35Z	comment	35784	0x629280	{"addr": "0x140629280", "comment": "35784: makes a BGSSaveLoadFileEntry for one .ess and inserts it by file time (binary search with 35795)."}
+2026-11-27T21:46:35Z	comment	35786	0x6297f0	{"addr": "0x1406297f0", "comment": "35786: per-character SaveEntry catalogue from saveGameList (next save number, last quicksave); keeps the newest name at +0x138 while +0x248 is clear."}
+2026-11-27T21:46:38Z	read	35794	0x62a300	{"name": "sub_14062A300"}
+2026-11-27T21:46:40Z	read		0x625860	{"name": "BGSSaveLoadManager::QueueSaveLoadRequest"}
+2026-11-27T21:46:43Z	read	36549	0x654030	{"name": "sub_140654030"}
+2026-11-27T21:46:49Z	read	52928	0x991670	{"name": "sub_140991670"}
+2026-11-27T21:46:51Z	read		0x98fc90	{"name": "UISaveLoadManager::sub_52893"}
+2026-11-27T21:46:55Z	read	52894	0x98fcc0	{"name": "UISaveLoadManager::sub_52894"}
+2026-11-27T21:47:07Z	read	35772	0x625b90	{"name": "Thread::ProcessEvents_Internal"}
+2026-11-27T21:47:41Z	name	35794	0x62a300	{"addr": "0x14062A300", "name": "BGSSaveLoadManager__Thread__ProcessSaveThreadRequest"}
+2026-11-27T21:47:41Z	name	52928	0x991670	{"addr": "0x140991670", "name": "UISaveLoadManager__InvokeSaveLoadBatchComplete"}
+2026-11-27T21:47:44Z	comment		0x625f26	{"addr": "0x140625f26", "comment": "0xD0000100 (Continue, queued by 52898): loads the name at manager+0x240, the newest save of any character that PopulateSaveList (35760) kept; no character check. A scratch save (SkyrimCoopJoin/Wipe) left newest is what Continue loads, and its name gives character id 0 (docs/re/systems/save-game.md, Continue)."}
+2026-11-27T21:47:44Z	comment	35794	0x62a300	{"addr": "0x14062A300", "comment": "35794: save-thread requests; 0x50000020 rebuilds saveGameList for the request's character filter (35743)."}
+2026-11-27T21:47:44Z	comment	36549	0x654030	{"addr": "0x140654030", "comment": "36549: not on the Continue path (another BuildSaveList caller, not read)."}
+2026-11-27T21:47:44Z	comment	52928	0x991670	{"addr": "0x140991670", "comment": "52928: tells the Journal's SaveLoadPanel a batch of save list entries is filled (onSaveLoadBatchComplete); entries come from saveGameList newest first (52894)."}
+2026-11-27T21:47:47Z	read	52902	0x9908a0	{"name": "UISaveLoadManager::sub_52902"}
+2026-11-27T21:47:48Z	read	52916	0x990f40	{"name": "sub_140990F40"}
+2026-11-27T21:47:50Z	read	52924	0x9914d0	{"name": "sub_1409914D0"}
+2026-11-27T21:47:53Z	name	52924	0x9914d0	{"addr": "0x1409914D0", "name": "UISaveLoadManager__OpenSaveLoadList"}
+2026-11-27T21:47:53Z	name	52916	0x990f40	{"addr": "0x140990F40", "name": "UISaveLoadManager__OnSaveOrLoadPressed"}
+2026-11-27T21:47:55Z	comment	52924	0x9914d0	{"addr": "0x1409914D0", "comment": "Journal SAVE/LOAD opened: SetDisplayCharacter(currentCharacterID +0xD0), so the list shows the current character's saves only (then the list loads in batches, 52894). A scratch-save load leaves id 0: the list shows every save filed under 0 (docs/re/systems/save-game.md, Continue)."}
+2026-11-27T21:47:55Z	comment	52916	0x990f40	{"addr": "0x140990F40", "comment": "Flash SAVE and LOAD callbacks (registered by 52902): OpenSaveLoadList."}

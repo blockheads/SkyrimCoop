@@ -176,12 +176,20 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The engine's main loop between frames, before our update (HookMainLoop's MainLoopTasks).
     void RunMainLoop() noexcept;
     std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
-    // As PreviousGameplaySave: the newest save on disk of CharacterId, not a SkyrimCoop scratch save.
     void SetCharacter(uint32_t aCharacterId) noexcept override { CharacterId = aCharacterId; }
     // The engine's currentCharacterID: a load sets it from the save's file name (SaveNames::CharacterId, 0 for
     // SkyrimCoopWipe), the engine's own saves are named with it.
     uint32_t CharacterId = 0;
+    // The Saves folder: each save's files and its file time (the order written; a file set by hand is oldest).
     std::map<std::string, SaveFiles> SavedFiles;
+    std::map<std::string, uint64_t> SaveTimes;
+    void WritesSaveFile(const std::string& acName, SaveFiles aFiles);
+    void DeleteSave(const std::string& acName) noexcept override;
+    // The main menu's Continue (ContinueLastSavedGame 52117, 52898): loads the newest save of any character, by
+    // file time; false when the folder has none.
+    bool Continues();
+    // The Journal's Load list (52894 after 0x1409914D0 shows the current character): CharacterId's saves, newest first.
+    [[nodiscard]] std::vector<std::string> LoadList() const;
     // As JoinBridge's worker thread, but in step: the work runs at once and what it returns right after, or with
     // DefersWork both wait for the next FinishWork (JoinService's update), as work still running would.
     bool DefersWork = false;

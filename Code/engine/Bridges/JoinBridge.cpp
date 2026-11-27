@@ -411,6 +411,18 @@ void JoinBridge::SetCharacter(uint32_t aCharacterId) noexcept
         pManager->SetCurrentCharacter(aCharacterId);
 }
 
+void JoinBridge::DeleteSave(const std::string& acName) noexcept
+{
+    auto game = BGSSaveLoadManager::SaveFilePath(acName.c_str());
+    if (game.empty())
+        return;
+    std::error_code error;
+    if (std::filesystem::remove(game, error))
+        spdlog::info("JoinBridge: deleted {}", game.string());
+    game.replace_extension(".skse");
+    std::filesystem::remove(game, error);
+}
+
 std::optional<IJoinBridge::SaveFiles> JoinBridge::ReadSave(const std::string& acName) noexcept
 {
     const auto cGame = BGSSaveLoadManager::SaveFilePath(acName.c_str());

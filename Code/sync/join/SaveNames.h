@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string_view>
 #include <vector>
@@ -7,6 +8,13 @@
 // The engine's save file names (docs/re/systems/save-game.md, "The character a save belongs to"). No engine.
 namespace SaveNames
 {
+// Our scratch saves in the engine's Saves folder (a join's load, a host load's, a transfer's image): never a player's.
+// Each is deleted once used, or main menu Continue would load it (save-game.md, "Continue").
+inline constexpr const char* kJoin = "SkyrimCoopJoin";
+inline constexpr const char* kReload = "SkyrimCoopWipe";
+inline constexpr const char* kTransfer = "SkyrimCoopTransfer";
+inline constexpr std::array kScratch{kJoin, kReload, kTransfer};
+
 // The character id a load of acName gives the engine, as BSSaveDataSystemUtility::Entry's parse (109348) reads it:
 // Save|Autosave|Quicksave<N>_<id hex>_<modded>_<name hex>_<place>_<time>_<date>_<x>_1, 9 fields. Any other name: 0.
 [[nodiscard]] inline uint32_t CharacterId(std::string_view aName) noexcept

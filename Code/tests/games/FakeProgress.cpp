@@ -287,7 +287,7 @@ std::optional<IJoinBridge::SaveFiles> FakeEngine::SaveNow(const std::string& acN
 
 bool FakeEngine::WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept
 {
-    SavedFiles[acName] = acFiles;
+    WritesSaveFile(acName, acFiles);
     PendingLoad = {acName, acFiles};
     return true;
 }
