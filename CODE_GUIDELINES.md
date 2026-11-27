@@ -46,6 +46,28 @@ Don't use java style blocks, a ``{`` needs to be on a new line.
 
 Don't use exceptions, don't use STL code that can throw, use the nothrow version if available or the unsafe version.
 
+## Engine object lifetime
+
+The engine owns every object we touch and frees it on its own schedule.
+
+1. Across frames keep a form id or a handle and look the object up when used. Keep a `NiPointer` or
+   `BSTSmartPointer` only to hold something alive on purpose.
+2. Engine pointers are locals and parameters: not a field, a static, a container element or a capture of queued
+   work (`Runner().Queue`, `MainLoopTasks::Queue`, an event through `Runner().Trigger`).
+3. A temporary form (id `0xFF......`) is never recorded anywhere that outlives the frame.
+4. An address is a key only in one of the six situations below.
+5. A callback handed to the engine is cancelled before the object behind it goes.
+6. Queued work captures by value, never by reference.
+
+| An address is a safe key when | Example |
+| --- | --- |
+| The object lives all session (code, singletons, registered natives) | `NativeReach`, `CodeReach` |
+| The entry lives only inside one engine call | `FreedWornList` |
+| The whole table is rebuilt from form ids every frame | `s_copyControllers` |
+| Every new keyed object passes our hook, which sets or clears its entry | `ScriptTags::m_calls`, `m_functors` |
+| A hook on the object's destruction removes the entry | none yet |
+| The entry holds a reference that keeps the object alive | `AnimationTrace::m_graphs` |
+
 ## Commit Naming
 Preface commit messages with one of the following tags:
 * `feat:` for new features
