@@ -1,0 +1,17 @@
+time	op	id	rva	item
+2026-11-27T21:47:05Z	read		0x73ec70	{"name": "sub_14073EAD0"}
+2026-11-27T21:47:23Z	read	40552	0x751870	{"name": "PlayerCharacter::StartGrabObject"}
+2026-11-27T21:47:28Z	read	42420	0x7b2660	{"name": "ActivateHandler::ProcessButton"}
+2026-11-27T21:47:37Z	read	26022	0x405a50	{"name": "NiAVObject::GetCollisionObject_0"}
+2026-11-27T21:47:38Z	read	40555	0x752630	{"name": "PlayerCharacter::sub_40555"}
+2026-11-27T21:49:23Z	read	12043	0x172810	{"name": "sub_140172810"}
+2026-11-27T21:49:32Z	name	40555	0x752630	{"addr": "0x140752630", "name": "PlayerCharacter::CreateMouseSprings"}
+2026-11-27T21:49:32Z	name	40553	0x751a30	{"addr": "0x140751a30", "name": "PlayerCharacter::ReleaseGrab"}
+2026-11-27T21:49:32Z	name	12043	0x172810	{"addr": "0x140172810", "name": "ExtraDataList::HasActivationBlockFlag"}
+2026-11-27T21:49:32Z	local	12043	0x172810	{"func_addr": "0x140172810", "old": "a2", "new": "aFlag"}
+2026-11-27T21:49:32Z	local	40552	0x751870	{"func_addr": "0x140751870", "old": "v2", "new": "pRef"}
+2026-11-27T21:49:32Z	local	40552	0x751870	{"func_addr": "0x140751870", "old": "v6", "new": "pRootBody"}
+2026-11-27T21:49:32Z	local	40552	0x751870	{"func_addr": "0x140751870", "old": "v10", "new": "mass"}
+2026-11-27T21:49:50Z	comment	40552	0x751870	{"addr": "0x140751870", "comment": "AddressLib ID 40552\nCommonLibSSE: PlayerCharacter::StartGrabObject (CommonLibSSE-NG/src/RE/P/PlayerCharacter.cpp:266)\nFrom 1.6.1170 (instruction offsets require review): the crosshair reference's rigid body, if light enough: the mouse springs (40555); then tests the springs' count at +0x8C8 (verified in IDA 2026-10-24). docs/re/systems/physics.md\ndrag-friend-body (read 2026-11-27): grab mode +0xB04 zero; crosshair ref (CrosshairPickData+4); refused when its ExtraFlags (0xA0) has kBlockPlayerActivate (2); its 3D (vfunc 0x70) root collision object's rigid body, in a world (vfunc 0x27) and mass <= dword_1420A9548; then CreateMouseSprings(player, ref, 1, dist, 0). A corpse is grabbed the same way: CreateMouseSprings takes a dead actor's picked ragdoll body. docs/re/systems/physics.md, Dragging a corpse"}
+2026-11-27T21:49:50Z	comment	12043	0x172810	{"addr": "0x140172810", "comment": "drag-friend-body: true when the ref's ExtraFlags (extra 0xA0) has aFlag set (2 = kBlockPlayerActivate, CommonLib ExtraFlags); StartGrabObject refuses such a ref"}
+2026-11-27T21:49:50Z	comment	40555	0x752630	{"addr": "0x140752630", "comment": "AddressLib ID 40555 (our name). (player, ref, mode 1 hand/2 telekinesis, distance, aKeepKeyframed). An actor (formType 62) is taken only when dead (vfunc 0x99 IsDead(1)) or byte_1420B7200 set; a living one is refused. The spring goes on the crosshair's picked body (CrosshairPickData+32, for a corpse the ragdoll bone under the crosshair), anchored at its hit point (+16); with none, a ray from the camera that must hit this ref. Sets +0xB04 = mode, +0x8D0 the held handle (script event). Unless aKeepKeyframed, refuses (DestroyMouseSprings) a body with no motion or motion type (hkpRigidBody+0x160) 4 keyframed / 5 fixed. A corpse's spring is softer (fGrabbedActor* settings scaled by its 3D's size). docs/re/systems/physics.md, Dragging a corpse"}

@@ -795,7 +795,8 @@ nlohmann::json StackExtras(Harness&, const nlohmann::json& acRequest)
 
 // {"cmd": "ragdoll", "actor": id}: the actor's ragdoll bodies in order: motion type (4 keyframed), awake, position,
 // rotation (x, y, z, w) and velocity in game units; its character controller's flags and filter info; and its ragdoll
-// driver's controllers and the graph output tracks they follow (GetRagdollDriver).
+// driver's controllers and the graph output tracks they follow (GetRagdollDriver); and the body the crosshair picked
+// ("picked": what a grab springs, its index in this ragdoll or -1).
 nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
 {
     const auto cBodies = EngineCalls::GetRagdoll(acRequest.value("actor", 0u));
@@ -816,6 +817,9 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
                             {"tracks", {{"rigid_body", cDriver->Tracks[0]}, {"powered", cDriver->Tracks[1]},
                                         {"keyframed_bones", cDriver->Tracks[2]}, {"keyframe_targets", cDriver->Tracks[3]}}},
                             {"keyframed_bone_values", cDriver->KeyframedBones}};
+    if (const auto cPicked = EngineCalls::GetCrosshairCollider(acRequest.value("actor", 0u)))
+        result["picked"] = {{"ragdoll_index", cPicked->RagdollIndex}, {"layer", cPicked->Filter & 0x7F}, {"group", cPicked->Filter >> 16},
+                            {"motion", cPicked->Motion}};
     return result;
 }
 

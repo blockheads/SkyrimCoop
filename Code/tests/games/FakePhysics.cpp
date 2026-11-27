@@ -217,6 +217,10 @@ void FakeEngine::DriveCopyRagdoll(uint32_t aCopy, const std::vector<RagdollPendi
     }
     else
         m_copyRests.erase(aCopy);
+    // Held in this game's player's hands and moved there by another game's states: out of the hand (duo,
+    // host-drags-dead-guest 2026-11-27: put at its owner's rest, the host's grab of the copy broke).
+    if (Grabbed && driven.contains(*Grabbed))
+        Grabbed.reset();
     const bool cCopy = Actors.contains(aCopy) && Actors.at(aCopy).Copy;
     for (auto& [cKey, body] : Bodies)
     {
@@ -696,15 +700,36 @@ uint32_t FakeEngine::PlayerInRagdoll() noexcept
 
 uint32_t FakeEngine::PlayerHolds() noexcept
 {
+    // A held body left in the played group is pinned there and the grab breaks (duo, host-drags-dead-guest 2026-11-27:
+    // a dead copy's bones moved 0.2 units in the host's hand, let go after 1.3 s; PlayerCollision off, it followed).
+    const auto cClass = Grabbed ? Classes.find(*Grabbed) : Classes.end();
+    m_pinnedFrames = cClass != Classes.end() && cClass->second == BodyClass::kPlayed ? m_pinnedFrames + 1 : 0;
+    if (m_pinnedFrames > kPinnedBreakFrames)
+    {
+        Grabbed.reset();
+        m_pinnedFrames = 0;
+    }
     return Grabbed ? ReferenceOf(*Grabbed) : 0;
+}
+
+uint32_t FakeEngine::RagdollActorOf(uint32_t aFormId) const noexcept
+{
+    if (Actors.contains(aFormId))
+        return aFormId;
+    // A copy's ragdoll is keyed by its session id here: its actor is the copy its bodies belong to.
+    for (const auto& [cKey, cBody] : Bodies)
+        if (cKey.Actor == aFormId && cBody.RagdollOf && Actors.contains(cBody.RagdollOf))
+            return cBody.RagdollOf;
+    return 0;
 }
 
 std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId, bool aBodies) noexcept
 {
-    const auto cActor = Actors.find(aFormId);
+    const uint32_t cActorId = RagdollActorOf(aFormId);
+    const auto cActor = Actors.find(cActorId);
     IBodyReads::Reference reference{.Actor = cActor != Actors.end(),
-                        .Dead = cActor != Actors.end() && IsActorDead(aFormId),
-                        .Up = cActor != Actors.end() && !IsActorDead(aFormId) && !KnockReplay::BodiesSimulated(KnockStateOf(aFormId)),
+                        .Dead = cActor != Actors.end() && IsActorDead(cActorId),
+                        .Up = cActor != Actors.end() && !IsActorDead(cActorId) && !KnockReplay::BodiesSimulated(KnockStateOf(cActorId)),
                         .Rising = cActor != Actors.end() && cActor->second.Rising != 0,
                         .Player = aFormId == kPlayer};
     const bool cRising = reference.Rising;

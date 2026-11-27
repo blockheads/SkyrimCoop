@@ -777,6 +777,78 @@ class CombatActions:
         ctx.hold()
 
 
+    def kill_player(ctx, attacker):
+        """The attacker's player kills the other player with a sword blow (kill moves off): a real death on the
+        victim's game, its copy dead on the attacker's. Returns the attacker's copy of the victim."""
+        victim = "client" if attacker == "" else ""
+        copy = ctx.other_player(ctx.actors_on(attacker))
+        if copy is None:
+            raise ctx.failure(f"[{attacker or 'host'}] no copy of the other player")
+        ctx.console_on(attacker, "set KillMoveRandom to 0")
+        try:
+            ctx.give_sword(attacker)
+            health = ctx.player_health(victim) or 100
+            if health > 3:
+                ctx.console_on(victim, f"player.damageav health {health - 3:.6f}")
+            ctx.wait_on(attacker, "the attacker's copy shows the victim nearly dead",
+                        lambda actors: (actors.get(str(copy), {}).get("health") or 100) <= 3.5, 5)
+            ctx.place_before(attacker, copy, MELEE_GAP)
+            ctx.draw(attacker)
+            ctx.attack(attacker)
+            ctx.wait_for(f"[{victim or 'host'}] the blow kills the victim", lambda: ctx.is_dead(ctx.player_snapshot(victim)), 5)
+            ctx.wait_for(f"[{attacker or 'host'}] the copy of the victim dies with it",
+                         lambda: ctx.is_dead(ctx.actor_snapshot(attacker, copy)), 5)
+            ctx.sheathe(attacker)
+        finally:
+            ctx.console_on(attacker, f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+        return copy
+
+
+    def hold_respawn(ctx, standing=""):
+        """A host wolf fights the `standing` player, then is frozen: the party is in combat, so a downed player stays
+        down (HostDeath's recovery waits for no standing player fighting). Returns the wolf; unstage removes it."""
+        npc, _, _ = ctx.spawn_host_npc(WOLF)
+        target = 0x14 if standing == "" else ctx.client_on_host()
+        # It picks its own target first (Lydia, on the stage): a new combat on the standing player.
+        ctx.console_on("", f"{npc:X}.stopcombat")
+        ctx.console_on("", f"{npc:X}.startcombat {target:X}")
+        ctx.wait_for("the wolf fights the standing player",
+                     lambda: ctx.host_world(npc).get("ai", {}).get("combat_target") == target, 5)
+        ctx.freeze("", npc)
+        return npc
+
+
+    def drags_dead_player(ctx, dragger, back=1.0):
+        """`dragger`'s player, beside the other player's dead body, holds E on it and walks back with it for `back`
+        seconds, then lets go: the dead player's own body (on its game) moved with the drag, and every copy lies as
+        it does once it rests."""
+        victim = "client" if dragger == "" else ""
+        copy = ctx.other_player(ctx.actors_on(dragger))
+        if not ctx.death_state(victim).get("down"):
+            raise ctx.failure(f"[{victim or 'host'}] the victim is not down")
+        before = ctx.ragdoll_of(victim, 0x14)[0]["position"]
+        ctx.go_to(dragger, copy, 70.0)
+        # The crosshair on its pelvis: the grab springs the ragdoll bone it picks (40555).
+        ctx.turn_to(instance=dragger, face=ctx.ragdoll_of(dragger, copy)[0]["position"])
+        ctx.grab(instance=dragger, target=copy)
+        trace = RagdollTrace(ctx, "drag-dead-player", {dragger: {copy: "the dragger's copy"}, victim: {0x14: "the dead player"}})
+        try:
+            with trace:
+                ctx.carry(instance=dragger, held=copy, buttons=["back"], seconds=back)
+        except TestFailure:
+            log(f"the dragged bodies: {trace.report()}; samples {trace.folder}")
+            raise
+        ctx.hold_key(dragger, "e", 0.1)
+        ctx.ragdoll_lies_as_owner(owner=victim, actor=0x14, other=dragger, copy=copy)
+        moved = math.dist(before, ctx.ragdoll_of(victim, 0x14)[0]["position"])
+        if moved < 10:
+            raise ctx.failure(f"[{victim or 'host'}] the dead player's own body lies {moved:.0f} units from where it fell: "
+                              f"the drag never reached its game")
+        if not ctx.death_state(victim).get("down"):
+            raise ctx.failure(f"[{victim or 'host'}] the victim respawned during the drag (the party left combat)")
+        return moved
+
+
     def shout_at_lying_player(ctx, attacker, health=0, respawn=True):
         """The other player is pushed down on its own game, then the attacker's three-word shout hits it lying.
         `health` > 0 leaves it that much health first: Dragonborn.esm's disintegrate effect (its ash pile script,

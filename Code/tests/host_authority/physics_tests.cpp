@@ -347,6 +347,46 @@ TEST_CASE("Physics: a host NPC's corpse a guest's player grabs is that guest's; 
     CHECK(LastTo(session, kHost, cBody)->Held);
 }
 
+TEST_CASE("Physics: a dead player's body is anyone's to drag; the host takes a guest's only while its player moves it", "[HostAuthority][Physics][corpse-drag]")
+{
+    Session session;
+    const uint32_t cGuest = session.Character(kOtherPeer);
+    const BodyKey cBody{.Actor = cGuest, .Index = 0};
+    // Living: another guest's grab of it does not stand.
+    session.Receive(kPeer, StateOf(1000, 5.f, 0, 1, true, false, cBody));
+    session.Frame(1016);
+    CHECK_FALSE(LastTo(session, kOtherPeer, cBody));
+    session.Dead.insert(cGuest);
+    session.Receive(kPeer, StateOf(1100, 6.f, 0, 1, true, false, cBody));
+    session.Frame(1116);
+    REQUIRE(LastTo(session, kOtherPeer, cBody));
+    CHECK(LastTo(session, kOtherPeer, cBody)->Author == BodyAuthor::kOther);
+    CHECK(LastTo(session, kHost, cBody));
+
+    Session hosting;
+    const uint32_t cDead = hosting.Character(kPeer);
+    const BodyKey cCopy{.Actor = cDead, .Index = 0};
+    hosting.Dead.insert(cDead);
+    // The host's game reads its copy's ragdoll awake (its owner's frames move it): not the host's to send.
+    hosting.Moving.Awake = {{.Key = cCopy, .Position = {10.f, 0.f, 0.f}}};
+    hosting.Frame(1000);
+    CHECK_FALSE(LastTo(hosting, kPeer, cCopy));
+    // The host's player holds it: its owner's playback on the copy ends, the owner gets the host's frames, then its rest.
+    hosting.Moving.Awake = {{.Key = cCopy, .Position = {40.f, 0.f, 0.f}}};
+    hosting.Moving.Held = {cCopy};
+    hosting.Frame(1100);
+    CHECK(hosting.Ended == std::vector{cCopy});
+    REQUIRE(LastTo(hosting, kPeer, cCopy));
+    CHECK(LastTo(hosting, kPeer, cCopy)->Held);
+    CHECK(LastTo(hosting, kPeer, cCopy)->Author == BodyAuthor::kOther);
+    hosting.Moving.Rested = {{.Key = cCopy, .Position = {160.f, 0.f, 0.f}}};
+    hosting.Frame(1200);
+    hosting.Frame(1300);
+    REQUIRE(LastTo(hosting, kPeer, cCopy));
+    CHECK(LastTo(hosting, kPeer, cCopy)->AtRest);
+    CHECK(LastTo(hosting, kPeer, cCopy)->Frame.Position.x == Approx(160.f));
+}
+
 TEST_CASE("Physics: the host's game placing a body a guest moves takes it back by a newer number; a held one stays", "[HostAuthority][Physics]")
 {
     Session session;

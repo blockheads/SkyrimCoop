@@ -243,6 +243,16 @@ struct RagdollDriverRead
 };
 std::optional<RagdollDriverRead> GetRagdollDriver(uint32_t aActorFormId) noexcept;
 
+// The body the crosshair's ray hit (CrosshairPickData::targetCollider, what a grab springs): its index in that actor's
+// ragdoll (-1: not one of its bodies), collision filter info and motion type. None when the crosshair hit no body.
+struct CrosshairColliderRead
+{
+    int32_t RagdollIndex{-1};
+    uint32_t Filter{};
+    uint8_t Motion{};
+};
+std::optional<CrosshairColliderRead> GetCrosshairCollider(uint32_t aActorFormId) noexcept;
+
 // The calendar's whole days passed (TimeData::rawDaysPassed), which its clock counts on from.
 float GetRawDaysPassed() noexcept;
 

@@ -61,8 +61,13 @@ bool HostBodies::MayClaim(const BodyKey& acKey, ConnectionId_t aSender) const no
             return true;
         return !(m_game.IsKeyframed && m_game.IsKeyframed(acKey));
     }
-    const ConnectionId_t cOwner = m_characters.OwnerOf(acKey.Actor);
-    return cOwner == aSender || (cOwner == m_players.Host() && m_game.IsDead && m_game.IsDead(acKey.Actor));
+    // Its owner's ragdoll; a corpse, anyone's to drag (40555 grabs any dead actor).
+    return m_characters.OwnerOf(acKey.Actor) == aSender || (m_game.IsDead && m_game.IsDead(acKey.Actor));
+}
+
+bool HostBodies::IsCopy(const BodyKey& acKey) const noexcept
+{
+    return acKey.Actor && m_characters.OwnerOf(acKey.Actor) != m_players.Host();
 }
 
 void HostBodies::OnStates(const BodyStatesRequest& acMessage, ConnectionId_t aSender) noexcept
@@ -97,6 +102,7 @@ void HostBodies::OnStates(const BodyStatesRequest& acMessage, ConnectionId_t aSe
         Row& row = m_rows[cKey];
         row.Frame = cState.Frame;
         row.Placed = false;
+        row.HostMoved = false;
         row.Tick = acMessage.Tick;
         row.Heard = m_tick; // this game's clock: a guest's may run ahead
         row.Quiet = 0;
@@ -133,7 +139,8 @@ void HostBodies::TakeHands(uint64_t aTick, const std::vector<BodyKey>& acHeld) n
             return;
         const auto it = m_rows.find(acKey);
         const bool cPutting = it != m_rows.end() && it->second.FromGuest;
-        if ((IsGuest(cWas) || cPutting) && m_game.EndPlayback)
+        // A guest's corpse: its owner's frames and rest stop playing on the copy here.
+        if ((IsGuest(cWas) || cPutting || IsCopy(acKey)) && m_game.EndPlayback)
             m_game.EndPlayback(acKey, it != m_rows.end() ? it->second.Tick : m_tick);
         if (cPutting)
             it->second.FromGuest = false;
@@ -179,14 +186,18 @@ void HostBodies::Read(uint64_t aTick) noexcept
         return;
     HostBodyReads reads = m_game.TakeBodies(aTick);
     TakeHands(aTick, reads.Held);
+    const uint32_t cHost = NumberOf(m_players.Host());
+    // A copy's bodies are its owner's, but a corpse the host's player took (until it rests).
+    const auto cNotHosts = [&](const BodyKey& acKey) { return IsCopy(acKey) && !m_authority.Is(acKey, cHost); };
     m_motions.Mark(reads.Awake, aTick);
     std::set<BodyKey> awakeActors;
     for (const BodyFrame& cFrame : reads.Awake)
     {
         const BodyKey& cKey = cFrame.Key;
-        if (IsGuest(m_authority.Of(cKey).Player))
+        if (IsGuest(m_authority.Of(cKey).Player) || cNotHosts(cKey))
             continue; // played here from its authority's states
         Row& row = m_rows[cKey];
+        row.HostMoved = IsCopy(cKey);
         // A guest's rest being put here (glided, a step awake) is not the host's move; its rest read decides.
         if (row.FromGuest)
             continue;
@@ -200,7 +211,7 @@ void HostBodies::Read(uint64_t aTick) noexcept
     for (const BodyPose& cRest : reads.Rested)
     {
         const BodyKey& cKey = cRest.Key;
-        if (IsGuest(m_authority.Of(cKey).Player))
+        if (IsGuest(m_authority.Of(cKey).Player) || cNotHosts(cKey))
             continue;
         m_motions.Forget(cKey);
         Row& row = m_rows[cKey];
@@ -246,10 +257,12 @@ void HostBodies::Read(uint64_t aTick) noexcept
         row.Tick = aTick;
         m_authority.Rested(cKey);
     }
-    // An actor's ragdoll rests as its record part (BodyService::DeclareRagdolls): its rows end with its motion.
+    // An actor's ragdoll rests as its record part (BodyService::DeclareRagdolls): its rows end with its motion. A guest's
+    // corpse the host's player moved keeps its rest for its owner while it lies dead.
     std::erase_if(m_rows, [&](const auto& acRow) {
         const BodyKey& cKey = acRow.first;
-        if (!cKey.Actor || awakeActors.contains(cKey) || acRow.second.FromGuest || IsGuest(m_authority.Of(cKey).Player))
+        if (!cKey.Actor || awakeActors.contains(cKey) || acRow.second.FromGuest || IsGuest(m_authority.Of(cKey).Player) ||
+            (acRow.second.HostMoved && m_game.IsDead && m_game.IsDead(cKey.Actor)))
             return false;
         m_authority.Forget(cKey);
         m_motions.Forget(cKey);

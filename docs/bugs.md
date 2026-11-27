@@ -129,6 +129,7 @@ every other section needs the duo.
 - [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws): small
 - [The party's sword unnamed at a merchant](#the-partys-sword-unnamed-at-a-merchant): small
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
+- [A copy's corpse slips out of the hand sooner](#a-copys-corpse-slips-out-of-the-hand-sooner): small
 - [Seen once in the run of 2026-11-22](#seen-once-in-the-run-of-2026-11-22): small
 
 **Test tools**
@@ -1551,6 +1552,19 @@ Agent task: read the guest's party stacks and the barter menu's names at that st
 the host.
 
 Size: small. Needs: the duo, then GameTests.
+
+### A copy's corpse slips out of the hand sooner
+
+`host-drags-dead-guest` (2026-11-27, after the fix that takes a copy's held corpse out of the played group): the host's
+player walking backwards with the dead guest's copy let go after 1.3 s and 1.8 s (two runs); the host's own dead
+bandit (base 13BA1), dragged the same way, held the whole 2 s (one run). The copy's bones follow the hand meanwhile
+(33 units in 1.8 s) and the guest's own body follows them. Not read: which of the moving group's rules
+(`BodyGroups::Decide`) still differs from the engine's for a ragdoll, or whether it is chance.
+
+Agent task: rounds of both drags (`drags_dead_player`, and the same on a host NPC's corpse), then read what the copy's
+bones meet that the host's own corpse's do not.
+
+Size: small. Needs: the duo.
 
 ### A dragged corpse's copy apart from its owner
 

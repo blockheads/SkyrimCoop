@@ -336,6 +336,37 @@ pickup is a theft (`StealAlarm` 37422, `crime.md`). A grab holds the object wher
 the crosshair was (carried looking down at the floor, it hangs just off it); turning the player at once
 (`setangle`) drops it, as does jamming it against something that does not give.
 
+## Dragging a corpse (read in IDA on 1.7.104, 2026-11-27)
+
+Vanilla's corpse drag is the hand grab above, nothing of its own:
+
+```
+ActivateHandler::ProcessButton (42420)  E held past fZKeyDelay:Controls, no grab going
+  PlayerCharacter::StartGrabObject (40552)
+    the crosshair ref (CrosshairPickData+4); refused if its ExtraFlags (extra 0xA0) has kBlockPlayerActivate (2)
+    its 3D's (vfunc 0x70) collision object's rigid body: in a world (vfunc 0x27), mass <= the limit
+    PlayerCharacter::CreateMouseSprings (40555)
+      an actor (form type 62) only if dead: vfunc 0x99 IsDead(1) (or byte_1420B7200); a living one is refused
+      the spring's body: the crosshair's picked body (CrosshairPickData+32), for a corpse the ragdoll bone under it,
+      anchored at its hit point (+16); refused for a keyframed (4) or fixed (5) motion
+      a corpse's spring is softer: the fGrabbedActor* settings, scaled by its 3D's size
+release: ReleaseGrab (our name, 0x140751A30) -> DestroyMouseSprings (40557)
+```
+
+So any game's player can drag any dead actor's body shown there, a copy's too, as long as its bones are dynamic (a
+copy's ragdoll is steered by velocity, not keyframed, so the grab takes it). Measured on the duo
+(`host-drags-dead-guest`, 2026-11-27): the host's player held the dead guest's copy, but the host's rules never heard
+of it (`HostService::TakeBodies` keyed only the host's own actors' ragdolls), so the guest's own body never moved and
+the copy was put back at the guest's rest. Once the host heard of it, the grab still let go after 1.3 s: the copy's
+bones (dynamic, awake, the crosshair's picked body was ragdoll bone 16: harness `ragdoll`'s `picked`) moved 0.2 units
+in the hand. They sat in our played group (`BodyGroups::kPlayed`, `BodyBridge::Find`), and with the `PlayerCollision`
+hook off (`BodyGroups::Decide` in 78553) the same drag held for 2 s and moved the guest's own body 46 units (measured;
+which pair of the played group's rules pins them was not read). A guest's taken corpse already left that group
+(`BodyBridge::SetMoving`); the host's hold now does the same. Now (`docs/progress.md`): the host keys a copy's ragdoll
+and takes it while its player holds or moves it, any player may claim a dead actor's bodies (`HostBodies::MayClaim`), and the dead
+player's own game plays the dragger's states on its own body without claiming them back (`GuestBodies`). A dead
+player respawns 10 s after the party leaves combat (`HostDeath`), which ends a drag.
+
 ## Woken still: awake is not moving (2026-11-13)
 
 Skyrim wakes resting clutter it never moves. The Sleeping Giant's bar bottles (33284, 33287, 33288, 3327A, 3328A) wake

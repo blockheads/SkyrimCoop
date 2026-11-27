@@ -37,6 +37,7 @@
 #include <Havok/bhkCharacterController.h>
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
+#include <Interface/CrosshairPickData.h>
 #include <Interface/FxDelegateArgs.h>
 #include <Interface/GFxMovie.h>
 #include <Interface/IMenu.h>
@@ -558,6 +559,22 @@ std::optional<std::vector<RagdollBody>> GetRagdoll(uint32_t aActorFormId) noexce
         body.HasBone = BoneOf(*pBody, body.Bone);
     }
     return bodies;
+}
+
+std::optional<CrosshairColliderRead> GetCrosshairCollider(uint32_t aActorFormId) noexcept
+{
+    const CrosshairPickData* pPick = CrosshairPickData::Get();
+    const bhkWorldObject* pPicked = pPick ? pPick->targetCollider : nullptr;
+    if (!pPicked || !pPicked->referencedObject)
+        return std::nullopt;
+    CrosshairColliderRead read{.Filter = pPicked->referencedObject->CollisionFilterInfo(), .Motion = pPicked->referencedObject->motionType};
+    if (const auto* pActor = Cast<Actor>(TESForm::GetById(aActorFormId)))
+    {
+        const auto cBodies = RagdollBodiesOf(*pActor);
+        if (const auto it = std::ranges::find(cBodies, pPicked); it != cBodies.end())
+            read.RagdollIndex = static_cast<int32_t>(it - cBodies.begin());
+    }
+    return read;
 }
 
 std::optional<RagdollDriverRead> GetRagdollDriver(uint32_t aActorFormId) noexcept
