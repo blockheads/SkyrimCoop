@@ -703,6 +703,8 @@ Size: small. Needs: IDA, the duo (`party-shares-a-horse`), then GameTests.
 - 2026-11-26, dev `3d763578`: `rejoined-guest-sees-rider` 4 of 4 fail on the end comparison, each on another nearby
   actor or object (villagers' sit state, a rabbit 121 units from its copy, a mill log), with two agents compiling
   beside the games. The cleanup branch fails the same way (5 of 5: an elk's facing, Dorthe 94 units off, a rabbit).
+  The same sword at Riverwood's forge (35514, `IronLongSword01`, resting 5 units apart) ends dev's fourth run and
+  `two-players-race-for-horse` once on the cleanup branch (2026-11-27; it passed the run before).
 - From the closed "Whiterun plains' critters differ" (2026-11-20, the claims refactor and piece 5, not read): once the
   horse itself 53 units from its copy at the end, once two host elks' copies about 159 units off their owners. Not seen
   in the two passing runs of 2026-11-22.
