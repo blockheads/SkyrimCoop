@@ -4,6 +4,13 @@ https://github.com/tiltedphoques/TiltedEvolution
 The full license text is in LICENSE (GNU GPLv3). Third-party code under Code/external keeps its own
 license beside it.
 
+Third-party: SkyrimCoop.dll includes open source libraries under their own licenses. Their texts are in
+the licenses folder (SKSE/Plugins/SkyrimCoop/licenses in the package, Code/external/licenses in the
+source); the fonts' licenses are in the UI's fonts folder, beside the fonts.
+
+Portions of this software are copyright © 2025 The FreeType Project (www.freetype.org). All rights
+reserved.
+
 Upstream notice:
 
 Tilted Online is free software: you can redistribute it and/or modify

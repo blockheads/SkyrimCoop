@@ -12,7 +12,7 @@ xmake f -P "$ROOT" -p windows -a x64 --toolchain=clang-cl --sdk="$T/winsysroot" 
     -o "build/package-build/$VERSION" -y >/dev/null
 xmake build -P "$ROOT" -j8 SkyrimCoopPlugin
 python3 - "$ROOT" "$(git describe --tags --always --dirty)" "$(git rev-parse --short HEAD)" "$VERSION" <<'EOF'
-import shutil, sys, zipfile
+import re, shutil, sys, zipfile
 from pathlib import Path
 
 root, version, commit = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
@@ -33,10 +33,19 @@ files = {
     f"{docs}/playtest.md": root / "docs/playtest.md",
     f"{docs}/LICENSE": root / "LICENSE",
     f"{docs}/NOTICE": root / "NOTICE",
-    f"{docs}/licenses/PicoSHA2.txt": root / "Code/external/picosha2/LICENSE",
-    f"{docs}/licenses/zstd.txt": root / "Code/external/licenses/zstd.txt",
-    f"{docs}/licenses/lz4.txt": root / "Code/external/licenses/lz4.txt",
 }
+# Third-party licenses: the packages' (Code/external/licenses) and the vendored code's (beside it).
+external = root / "Code/external"
+for source in (external / "licenses").glob("*.txt"):
+    files[f"{docs}/licenses/{source.name}"] = source
+for source in external.glob("*/LICENSE*"):
+    files[f"{docs}/licenses/{source.parent.name}.txt"] = source
+# Each package xmake.lua requires needs its license, but those only the native tests or the profiler use.
+NOT_SHIPPED = {"catch2", "glfw", "stb", "tracy"}
+lua = re.sub(r"--[^\n]*", "", (root / "xmake.lua").read_text())
+required = {name for call in re.findall(r"add_requires\(([^)]*)\)", lua) for name in re.findall(r'"([\w-]+)[ "]', call)}
+if missing := sorted(name for name in required - NOT_SHIPPED if not (external / f"licenses/{name}.txt").exists()):
+    sys.exit(f"no license in Code/external/licenses for {', '.join(missing)}")
 # The UI's fixtures are its tests' inputs (scripts/check-ui.sh), not the game's.
 for source in ui.rglob("*"):
     if source.is_file() and "fixtures" not in source.relative_to(ui).parts:
