@@ -11,22 +11,13 @@
 #include <vector>
 
 // A player's game: its character went down (a new fall, Generation one up) or stood up again after the host's respawn.
-struct PlayerDeathRequest final : RequestMessage
+struct PlayerDeathRequest final : MessageOf<PlayerDeathRequest, kPlayerDeathRequest>
 {
-    static constexpr RequestOpcode Opcode = kPlayerDeathRequest;
-
-    PlayerDeathRequest()
-        : RequestMessage(Opcode)
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
+        aArchive(SessionId, Generation, Down, KillerId);
     }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const PlayerDeathRequest& acRhs) const noexcept
-    {
-        return SessionId == acRhs.SessionId && Generation == acRhs.Generation && Down == acRhs.Down && KillerId == acRhs.KillerId;
-    }
+    bool operator==(const PlayerDeathRequest&) const noexcept = default;
 
     uint32_t SessionId{};
     uint32_t Generation{};
@@ -38,6 +29,7 @@ struct PlayerDeathRequest final : RequestMessage
 struct PartyDeathPlayer
 {
     bool operator==(const PartyDeathPlayer&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, Generation, Down); }
 
     uint32_t SessionId{};
     uint32_t Generation{};
@@ -46,25 +38,17 @@ struct PartyDeathPlayer
 
 // The host to every player on each change: who is down, whether a standing player fights, the recovery countdown,
 // a wipe, and why its reload failed.
-struct NotifyPartyDeath final : NotifyMessage
+struct NotifyPartyDeath final : MessageOf<NotifyPartyDeath, kNotifyPartyDeath>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyPartyDeath;
     // At most a party's players on the wire.
     static constexpr size_t kMaxPlayers = kMaxPartyPlayers;
 
-    NotifyPartyDeath()
-        : NotifyMessage(Opcode)
-    {
-    }
 
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyPartyDeath& acRhs) const noexcept
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return Players == acRhs.Players && Combat == acRhs.Combat && Wiped == acRhs.Wiped && RemainingMs == acRhs.RemainingMs &&
-               Error == acRhs.Error;
+        aArchive(Wire::List(Players, kMaxPlayers), Combat, Wiped, RemainingMs, Error);
     }
+    bool operator==(const NotifyPartyDeath&) const noexcept = default;
 
     std::vector<PartyDeathPlayer> Players;
     bool Combat{};
@@ -74,24 +58,13 @@ struct NotifyPartyDeath final : NotifyMessage
 };
 
 // The host to a downed player's game: respawn for that fall beside the standing character AnchorId, there.
-struct NotifyPlayerRespawn final : NotifyMessage
+struct NotifyPlayerRespawn final : MessageOf<NotifyPlayerRespawn, kNotifyPlayerRespawn>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyPlayerRespawn;
-
-    NotifyPlayerRespawn()
-        : NotifyMessage(Opcode)
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
+        aArchive(SessionId, Generation, AnchorId, CellId, WorldSpaceId, Position, Heading);
     }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyPlayerRespawn& acRhs) const noexcept
-    {
-        return SessionId == acRhs.SessionId && Generation == acRhs.Generation && AnchorId == acRhs.AnchorId &&
-               CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position &&
-               Heading == acRhs.Heading;
-    }
+    bool operator==(const NotifyPlayerRespawn&) const noexcept = default;
 
     uint32_t SessionId{};
     uint32_t Generation{};
@@ -104,41 +77,19 @@ struct NotifyPlayerRespawn final : NotifyMessage
 
 // The host to every guest: the party wiped or the host loads a save. The save comes next (as a join's does), unless
 // the guest's store holds Save already.
-struct NotifyPartyReload final : NotifyMessage
+struct NotifyPartyReload final : MessageOf<NotifyPartyReload, kNotifyPartyReload>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyPartyReload;
-
-    NotifyPartyReload()
-        : NotifyMessage(Opcode)
-    {
-    }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyPartyReload& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Save == acRhs.Save; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Save); }
+    bool operator==(const NotifyPartyReload&) const noexcept = default;
 
     std::string Save; // the image's SHA-256 id
 };
 
 // A player went down: to every game, the player's own too, for its chat.
-struct NotifyPlayerPerished final : NotifyMessage
+struct NotifyPlayerPerished final : MessageOf<NotifyPlayerPerished, kNotifyPlayerPerished>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyPlayerPerished;
-
-    NotifyPlayerPerished()
-        : NotifyMessage(Opcode)
-    {
-    }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyPlayerPerished& acRhs) const noexcept
-    {
-        return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username &&
-               KillerName == acRhs.KillerName;
-    }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(PlayerId, Username, KillerName); }
+    bool operator==(const NotifyPlayerPerished&) const noexcept = default;
 
     uint32_t PlayerId{};
     std::string Username;

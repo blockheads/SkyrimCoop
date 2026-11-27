@@ -15,7 +15,8 @@ struct GlobalValue
     GameId Id{};
     float Value{};
 
-    bool operator==(const GlobalValue& acRhs) const noexcept { return Id == acRhs.Id && Value == acRhs.Value; }
+    bool operator==(const GlobalValue&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, Value); }
 };
 
 // A global as the host's game reads it, not sent as is.
@@ -27,16 +28,12 @@ struct HostGlobal
 };
 
 // The host's global variables that changed; a joining player gets all of them.
-struct NotifyGlobals final : NotifyMessage
+struct NotifyGlobals final : MessageOf<NotifyGlobals, kNotifyGlobals>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyGlobals;
-    NotifyGlobals() : NotifyMessage(Opcode) {}
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(Values, kMaxGlobals)); }
+    bool operator==(const NotifyGlobals&) const noexcept = default;
 
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyGlobals& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Values == acRhs.Values; }
-
+    static constexpr uint64_t kMaxGlobals = 0x10000; // Skyrim has about 1100
     std::vector<GlobalValue> Values;
 };
 
@@ -46,7 +43,8 @@ struct QuestObjective
     uint16_t Index{};
     uint8_t State{};
 
-    bool operator==(const QuestObjective& acRhs) const noexcept { return Index == acRhs.Index && State == acRhs.State; }
+    bool operator==(const QuestObjective&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Index, State); }
 };
 
 // What fills a reference alias: none, a reference (by id), or one the host's game created (Created: its id is
@@ -65,6 +63,7 @@ struct QuestAliasFill
     uint32_t ActorId{}; // a created actor's session id, resolved to its existing copy
 
     bool operator==(const QuestAliasFill&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(AliasId, Ref, HostOnly, Cell, Wire::As<uint16_t>(GridX), Wire::As<uint16_t>(GridY), ActorId); }
 };
 
 // A location alias's fill (none: cleared).
@@ -74,6 +73,7 @@ struct QuestLocationFill
     GameId Location{};
 
     bool operator==(const QuestLocationFill&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(AliasId, Location); }
 };
 
 // A quest as the host's game holds it: flags Running (0x1), Completed (0x2), Failed (0x40), StageWait (0x80), the stage, the
@@ -91,27 +91,26 @@ struct QuestState
     std::vector<QuestAliasFill> Aliases;
     std::vector<QuestLocationFill> Locations;
 
-    bool operator==(const QuestState& acRhs) const noexcept
+    // Skyrim has about 1500 quests; more than this per quest is a corrupt count.
+    static constexpr uint64_t kMaxPerQuest = 0x1000;
+    bool operator==(const QuestState&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return Id == acRhs.Id && Flags == acRhs.Flags && CurrentStage == acRhs.CurrentStage && DoneStages == acRhs.DoneStages &&
-               Objectives == acRhs.Objectives && Aliases == acRhs.Aliases && Locations == acRhs.Locations;
+        aArchive(Id, Flags, CurrentStage, Wire::List(DoneStages, kMaxPerQuest), Wire::List(Objectives, kMaxPerQuest),
+                 Wire::List(Aliases, kMaxPerQuest), Wire::List(Locations, kMaxPerQuest));
     }
 };
 
 // The host's quests that changed; a joining player gets every quest (Join: applied as a save load does).
-struct NotifyQuests final : NotifyMessage
+struct NotifyQuests final : MessageOf<NotifyQuests, kNotifyQuests>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyQuests;
-    NotifyQuests() : NotifyMessage(Opcode) {}
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyQuests& acRhs) const noexcept
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && Quests == acRhs.Quests && Join == acRhs.Join;
+        aArchive(Join, Wire::List(Quests, kMaxQuests));
     }
+    bool operator==(const NotifyQuests&) const noexcept = default;
 
+    static constexpr uint64_t kMaxQuests = 0x10000; // Skyrim has about 1500
     std::vector<QuestState> Quests;
     bool Join{};
 };
@@ -158,6 +157,7 @@ struct ObjectChange
         float Rotation[3]{};
 
         bool operator==(const Placement&) const noexcept = default;
+        template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Cell, WorldSpace, Position, Rotation); }
     };
 
     static std::string PackPlacement(const Placement& acPlacement) noexcept
@@ -245,30 +245,40 @@ struct ObjectChange
     std::string Data;      // kSaveData, kMove, kContents
     std::vector<Inventory::Entry> Stacks; // HasStacks: items with extra data, each its count
 
-    bool operator==(const ObjectChange& acRhs) const noexcept
+    static constexpr uint64_t kMaxStacks = 0x1000;
+    bool operator==(const ObjectChange&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return Type == acRhs.Type && Object == acRhs.Object && Activator == acRhs.Activator && OpenState == acRhs.OpenState &&
-               Animation == acRhs.Animation && Event == acRhs.Event && Item == acRhs.Item && Value == acRhs.Value && Data == acRhs.Data &&
-               Stacks == acRhs.Stacks;
+        aArchive(Type, Object);
+        if (Type == Kind::kActivate)
+            aArchive(Activator, Wire::Bits<8>(OpenState));
+        else if (Type == Kind::kAnimation)
+            aArchive(Animation, Event, Value);
+        else
+        {
+            if (HasItem(Type))
+                aArchive(Item);
+            aArchive(Value);
+            if (HasData(Type))
+                aArchive(Data);
+            if (HasStacks(Type))
+                aArchive(Wire::List(Stacks, kMaxStacks));
+        }
     }
 };
 
 // The host's world objects' changes since the last, in the order its game had them; or, with Cell, the state of that
 // cell's references a guest asked for when it loaded (CellStateRequest).
-struct NotifyObjectChanges final : NotifyMessage
+struct NotifyObjectChanges final : MessageOf<NotifyObjectChanges, kNotifyObjectChanges>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyObjectChanges;
-    NotifyObjectChanges() : NotifyMessage(Opcode) {}
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyObjectChanges& acRhs) const noexcept
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && Cell == acRhs.Cell && Changes == acRhs.Changes;
+        aArchive(Cell, Wire::List(Changes, kMaxChanges));
     }
+    bool operator==(const NotifyObjectChanges&) const noexcept = default;
 
     // Set: that cell's state, for a guest that has it loaded.
     GameId Cell{};
+    static constexpr uint64_t kMaxChanges = 0x1000;
     std::vector<ObjectChange> Changes;
 };

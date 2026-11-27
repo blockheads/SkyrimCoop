@@ -5,19 +5,10 @@
 #include <Structs/Inventory.h>
 #include <Wire/Buffer.h>
 
-struct NotifyInventoryChanges final : NotifyMessage
+struct NotifyInventoryChanges final : MessageOf<NotifyInventoryChanges, kNotifyInventoryChanges>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyInventoryChanges;
-
-    NotifyInventoryChanges()
-        : NotifyMessage(Opcode)
-    {
-    }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyInventoryChanges& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && Item == acRhs.Item && Drop == acRhs.Drop; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, Item, Drop); }
+    bool operator==(const NotifyInventoryChanges&) const noexcept = default;
 
     uint32_t SessionId{};
     Inventory::Entry Item{};

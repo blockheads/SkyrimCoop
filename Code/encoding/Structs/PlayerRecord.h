@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
 #include <Structs/PlayerKnowledge.h>
@@ -36,6 +38,7 @@ struct PlayerRecord
         GameId Id{};
         uint8_t Rank{1};
         bool operator==(const Perk&) const = default;
+        template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, Rank); }
     };
 
     struct Value

@@ -1,10 +1,12 @@
 #pragma once
 
 #include "../Opcodes.h"
+#include <Wire/Archive.h>
 #include <Wire/Buffer.h>
 #include <Wire/Serialization.h>
 
 #include <memory>
+#include <type_traits>
 
 using Wire::Serialization;
 
@@ -51,6 +53,24 @@ struct NotifyMessage
 
 private:
     NotifyOpcode m_opcode;
+};
+
+// A message whose bytes are its Fields (Wire/Archive.h): struct X final : MessageOf<X, kX> { Fields, = default ==; }.
+template <class T, auto cOpcode>
+struct MessageOf : std::conditional_t<std::is_same_v<decltype(cOpcode), RequestOpcode>, RequestMessage, NotifyMessage>
+{
+    using Base = std::conditional_t<std::is_same_v<decltype(cOpcode), RequestOpcode>, RequestMessage, NotifyMessage>;
+    static constexpr decltype(cOpcode) Opcode = cOpcode;
+
+    MessageOf() : Base(cOpcode)
+    {
+    }
+
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override { Wire::Write(aWriter, static_cast<const T&>(*this)); }
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override { Wire::Read(aReader, static_cast<T&>(*this)); }
+
+    // The opcode is the type's: two of one type differ only in their fields.
+    bool operator==(const MessageOf&) const noexcept { return true; }
 };
 
 // A message as its own type, from the factory's base pointer.

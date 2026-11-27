@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <cstdint>
 
 #include <Wire/Buffer.h>
@@ -17,9 +19,8 @@ struct TimeModel
     // Whole days since the game started (the calendar's rawDaysPassed): GameDaysPassed is this + Time / 24.
     uint32_t DaysPassed = 0;
 
-    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
+    COOP_SERIALIZE_FIELDS
 
-    bool operator==(const TimeModel& achRhs) const noexcept { return TimeScale == achRhs.TimeScale && Time == achRhs.Time && Day == achRhs.Day && Month == achRhs.Month && Year == achRhs.Year && DaysPassed == achRhs.DaysPassed; }
-    bool operator!=(const TimeModel& achRhs) const noexcept { return !this->operator==(achRhs); }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(TimeScale, Time, Day, Month, Year, DaysPassed); }
+    bool operator==(const TimeModel&) const noexcept = default;
 };

@@ -4,21 +4,10 @@
 #include <Structs/ActorWhereabouts.h>
 #include <Wire/Buffer.h>
 
-struct NotifyRemoveCharacter final : NotifyMessage
+struct NotifyRemoveCharacter final : MessageOf<NotifyRemoveCharacter, kNotifyRemoveCharacter>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyRemoveCharacter;
-
-    NotifyRemoveCharacter()
-        : NotifyMessage(Opcode)
-    {
-    }
-
-    virtual ~NotifyRemoveCharacter() = default;
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyRemoveCharacter& achRhs) const noexcept { return SessionId == achRhs.SessionId && Whereabouts == achRhs.Whereabouts && GetOpcode() == achRhs.GetOpcode(); }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, Whereabouts); }
+    bool operator==(const NotifyRemoveCharacter&) const noexcept = default;
 
     uint32_t SessionId{};
     // Where the owner's actor is now; its copies follow.

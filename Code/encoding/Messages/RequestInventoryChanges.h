@@ -4,21 +4,13 @@
 #include <Structs/Inventory.h>
 #include <Wire/Buffer.h>
 
-struct RequestInventoryChanges final : RequestMessage
+struct RequestInventoryChanges final : MessageOf<RequestInventoryChanges, kRequestInventoryChanges>
 {
-    static constexpr RequestOpcode Opcode = kRequestInventoryChanges;
-
-    RequestInventoryChanges()
-        : RequestMessage(Opcode)
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
+        aArchive(SessionId, Item, Drop, UpdateClients, NewPartyItem, StoryGiven, AliasHeld, Wear);
     }
-
-    virtual ~RequestInventoryChanges() = default;
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const RequestInventoryChanges& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && Item == acRhs.Item && Drop == acRhs.Drop && UpdateClients == acRhs.UpdateClients && NewPartyItem == acRhs.NewPartyItem && StoryGiven == acRhs.StoryGiven && AliasHeld == acRhs.AliasHeld && Wear == acRhs.Wear; }
+    bool operator==(const RequestInventoryChanges&) const noexcept = default;
 
     uint32_t SessionId{};
     Inventory::Entry Item{};

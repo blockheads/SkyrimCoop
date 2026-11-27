@@ -20,28 +20,22 @@ struct ChangedReference
     GameId Id{};
     uint32_t Flags{};
 
-    bool operator==(const ChangedReference& acRhs) const noexcept { return Id == acRhs.Id && Flags == acRhs.Flags; }
+    bool operator==(const ChangedReference&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, Flags); }
 };
 
 // A guest's cell finished loading: it asks for the host's state of the references there (world-state sync, step 2).
 // Changed: the ones its own game holds changes for, so those go back to the host's state too.
-struct CellStateRequest final : RequestMessage
+struct CellStateRequest final : MessageOf<CellStateRequest, kCellStateRequest>
 {
-    static constexpr RequestOpcode Opcode = kCellStateRequest;
-
-    CellStateRequest()
-        : RequestMessage(Opcode)
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
+        aArchive(Cell, Wire::List(Changed, kMaxChanged));
     }
+    bool operator==(const CellStateRequest&) const noexcept = default;
 
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const CellStateRequest& acRhs) const noexcept
-    {
-        return GetOpcode() == acRhs.GetOpcode() && Cell == acRhs.Cell && Changed == acRhs.Changed;
-    }
-
+    // A cell holds a few thousand references at most; more is a corrupt count.
+    static constexpr uint64_t kMaxChanged = 0x4000;
     GameId Cell{};
     std::vector<ChangedReference> Changed;
 };

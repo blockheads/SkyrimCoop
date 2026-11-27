@@ -5,18 +5,6 @@
 
 using Wire::Serialization;
 
-void AiTarget::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, SessionId);
-    RefId.Serialize(aWriter);
-}
-
-void AiTarget::Deserialize(Wire::Buffer::Reader& aReader) noexcept
-{
-    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    RefId.Deserialize(aReader);
-}
-
 void ActorAiState::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Package.Serialize(aWriter);
