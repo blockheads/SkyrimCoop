@@ -257,7 +257,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   owner's gasp arrives could gasp on its own: seen once (2026-10-14, `dive-host-player`, 1 of 7 runs: the
   host's copy had a line of its own with no length before the owner's gasp).
 - **Crash in the harness's `strip`** after 376 hot reloads (`UnequipAll` on a copy, garbage list
-  node). Not reproduced on fresh games (5 of 5).
+  node). Not reproduced on fresh games (5 of 5). Likely the walk fixed 2026-11-27 (below, "UnequipAll's walk").
 
 - **An NPC on the guest only** (2026-10-20): after play in Whiterun the guest showed an NPC at a door that the host's game did not; `desync` listed `Ulfberth War-Bear [client 000D15B0, sid -1]: copy in client with no owner in the other game`. Not looked into; the guest's own actors are the copy contract's.
 
@@ -277,6 +277,17 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
     off-screen, so it cannot show a display stall), during a stall.
   - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
+- **Done 2026-11-27: a copy's rebuilt leveled base recorded as its reference's base change.** `RelevelActor`'s
+  `SetBaseObject` recorded the temporary NPC's id (0x80); the next load of the reference's stored changes gave that
+  NPC to the reference the cell made again and destroyed it there (19529, 12095), under the old reference or a held
+  copy. Caught with the heap guard on 0x268-byte blocks; a temporary base is no longer recorded (`BaseChange.h`,
+  UnitTests `[base-change]`, `leveled-copy-base.md`).
+- **Done 2026-11-27: UnequipAll's walk read a node its unequip freed.** The engine's `UnequipAll` (38899) walks the
+  inventory holding the next node, and an unequip that empties the first entry frees it (16067); our reconcile's reset
+  of a copy's worn set ran it. Found by the heap quarantine in the six mount scenarios (the guest's 2026-11-27
+  cell-attach crash's investigation); `EquipManager::UnequipAll` now reads the worn stacks first (`WornStacks.h`,
+  UnitTests `[worn-stacks]`). That the night's cell-attach crash was its victim is inferred
+  (`docs/re/crashes/2026-11-27-guest-cell-attach-null-virtual.md`).
 - **Done 2026-11-22 (bugs-refactor-plan piece C, rewritten by its step 0): a worn list freed twice.** The guest's
   vtable crashes and the Ivarstead hangs were one engine double free of an item's `ExtraDataList`: a held copy shown
   again (the session's end) has its inventory reset before it has a process, and `RemoveItem` 16059 hands its nested
@@ -343,7 +354,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - A follower whose tether move never arrives stays "following" for 60 s: a travel of its own in that
     time does not lead.
   - A player joining somewhere else is pulled to the host's player and pulls nobody (2026-10-23,
-    `HostCharacters::BringToParty`; tier 2 late-join flow, `BridgeTests` "a player joining away from the host").
+    `HostArrivals::BringToParty`; tier 2 late-join flow, `BridgeTests` "a player joining away from the host").
     Outdoors also when out of the host's loaded grid in the same worldspace (fixed the same day after Skyrim's
     four-cell join: `InHostGrid`).
   - Players walking apart outdoors work (measured 2026-10-23): the far copy is kept without 3D and loads again on

@@ -3,6 +3,8 @@
 
 #include <EquipManager.h>
 #include <References.h>
+#include <WornStacks.h>
+#include <ExtraData/ExtraContainerChanges.h>
 #include <items/Overrides.h>
 
 #include <items/EquipmentChangeEvent.h>
@@ -137,13 +139,58 @@ void* EquipManager::UnEquipShout(Actor* apActor, TESForm* apShout)
     return s_unequipFunc(this, apActor, apShout);
 }
 
+using WornStack = WornStacks::Stack<TESForm, ExtraDataList>;
+
+// The actor's worn stacks now, as UnequipAllVisitor reads them (count: an ammo entry's delta, else 1).
+static std::vector<WornStack> WornStacksOf(Actor* apActor) noexcept
+{
+    std::vector<WornStack> worn;
+    auto* pChanges = apActor->GetContainerChanges();
+    if (!pChanges || !pChanges->entries)
+        return worn;
+    for (auto* pEntry : *pChanges->entries)
+    {
+        if (!pEntry || !pEntry->form || !pEntry->dataList)
+            continue;
+        const int32_t cCount = pEntry->form->formType == FormType::Ammo ? pEntry->count : 1;
+        for (auto* pList : *pEntry->dataList)
+        {
+            if (!pList)
+                continue;
+            if (pList->Contains(ExtraDataType::Worn))
+                worn.push_back({pEntry->form, pList, false, cCount});
+            if (pList->Contains(ExtraDataType::WornLeft))
+                worn.push_back({pEntry->form, pList, true, cCount});
+        }
+    }
+    return worn;
+}
+
 void EquipManager::UnequipAll(Actor* apActor)
 {
     using TUnEquipAll = void(EquipManager*, Actor*);
     POINTER_SKYRIMSE(TUnEquipAll, s_unequipAll, 38899);
+    using THandSlot = TESForm*();
+    POINTER_SKYRIMSE(THandSlot, s_leftHandSlot, 23607);
+    POINTER_SKYRIMSE(THandSlot, s_rightHandSlot, 23608);
 
+    if (!apActor)
+        return;
     ScopedEquipOverride equipOverride;
 
+    // Not through 38899's walk (16096): an unequip can free the node it holds next (WornStacks.h).
+    WornStacks::UnequipAll([apActor] { return WornStacksOf(apActor); },
+                           [this, apActor](const WornStack& acStack)
+                           {
+                               TESForm* pSlot = acStack.Left ? s_leftHandSlot() : s_rightHandSlot();
+                               UnEquip(apActor, acStack.pItem, acStack.pList, acStack.Count, pSlot, false, false, true, false, nullptr);
+                           });
+    // The hands' spells: 38899 with nothing worn left for its walk.
+    if (const auto cLeft = WornStacksOf(apActor); !cLeft.empty())
+    {
+        spdlog::warn("UnequipAll {:X}: {} worn stacks stayed; the hands' spells kept", apActor->formID, cLeft.size());
+        return;
+    }
     s_unequipAll(this, apActor);
 }
 

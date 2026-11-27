@@ -1,4 +1,5 @@
 #include <BSCore/LockOrder.h>
+#include <BaseChange.h>
 #include <FreedWornList.h>
 #include <Memory.h>
 #include <animation/GraphReference.h>
@@ -585,7 +586,11 @@ void TESObjectREFR::SetBaseObject(TESBoundObject* apBase) noexcept
 {
     // Actor's override (37466) also sets its race from the new NPC base.
     SetBaseForm(apBase);
-    MarkChanged(CHANGE_REFR_BASEOBJECT);
+    // A temporary base is never recorded, and an older record goes (BaseChange.h).
+    if (apBase && RecordsBaseChange(apBase->formID))
+        MarkChanged(CHANGE_REFR_BASEOBJECT);
+    else
+        UnsetChanged(CHANGE_REFR_BASEOBJECT);
     if (!GetNiNode() || IsDisabled())
         return;
     // The 3D is the old base's.

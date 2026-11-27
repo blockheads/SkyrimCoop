@@ -1143,6 +1143,17 @@ Size: small. Needs: IDA, then the duo.
   `SKSE/crash-2026-11-17-23-28-37.log`.
   - Probably fixed by `agent/coc-whiterun-crash` (PR #71, merged 2026-11-17: the same job, 63997, faulting on a
     deleted copy's held clip load after a `coc`); rerun a `coc` with riders to confirm, then delete this entry.
+  - **Seen again 2026-11-27** (`agent/cleanup-guest-crash`, the six mount scenarios, heap history and quarantine on;
+    guest crash log `crash-2026-11-27-07-18-55.log` in that worktree's build): the same `call [rax+0x08]` at 63997+0xC1,
+    `rax` 0, on a finished load's callback (`entry+0x40`, in `RCX`, not a MemoryManager block: our `ClipsLoaded` is
+    made with `new`). The entry (0x68) was queued by our `ActionClips::Request` from a graph stream's deferred request
+    15.8 s before and was still live. **Read:** `ActionClips::Request`'s instant set (4) assigns the process's callback
+    (`instantClipsLoaded`) through 39731, which deletes the old one at its last reference, with no cancel first; the
+    queue holds only the pointer (63968). **Hypothesis, not checked:** that this entry was such a replaced set-4 load
+    (the timing allows a set-3 load of the same copy too). Copy `1348C` asked for set 4 at 07:18:38.722
+    (`IdleWoodPickUpEnter`, the entry's time) and again at 07:18:52.026, 2.5 s before the crash; the engine's own
+    39798 cancels the instant load before it releases that callback. Start: keep the old callback by a reference until
+    its load reports back (as `HeldClipLoads` does for movement sets), and a GameTests flow on the fake's loads.
 
 ### Cover plates after the host leaves
 
