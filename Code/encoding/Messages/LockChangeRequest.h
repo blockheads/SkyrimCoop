@@ -6,9 +6,6 @@
 
 struct LockChangeRequest final : MessageOf<LockChangeRequest, kLockChangeRequest>
 {
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
     template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, CellId, IsLocked, Wire::Bits<8>(LockLevel)); }
     bool operator==(const LockChangeRequest&) const noexcept = default;
 
