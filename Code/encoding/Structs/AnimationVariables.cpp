@@ -117,16 +117,20 @@ void AnimationVariables::GenerateDiff(const AnimationVariables& aPrevious, Wire:
 // 
 void AnimationVariables::ApplyDiff(Wire::Buffer::Reader& aReader)
 {
-    size_t booleansSize = Wire::Serialization::ReadVarInt(aReader);
-    size_t integersSize = Wire::Serialization::ReadVarInt(aReader);
-    size_t floatsSize   = Wire::Serialization::ReadVarInt(aReader);
+    // One bit each in the table, a string of at most 64 KB.
+    constexpr uint64_t cMaxVariables = 0xFFFF * 8;
+    const size_t booleansSize = Wire::Serialization::ReadCount(aReader, cMaxVariables);
+    const size_t integersSize = Wire::Serialization::ReadCount(aReader, cMaxVariables);
+    const size_t floatsSize = Wire::Serialization::ReadCount(aReader, cMaxVariables);
+    auto chars = Wire::Serialization::ReadString(aReader);
+    if (chars.size() * 8 < booleansSize + integersSize + floatsSize)
+        return aReader.Fail();
     if (Integers.size() != integersSize)
         Integers.assign(integersSize, 0);
     if (Floats.size() != floatsSize)
         Floats.assign(floatsSize, 0.f);
-    
+
     std::vector<bool> changedVector(booleansSize + integersSize + floatsSize);
-    auto chars = Wire::Serialization::ReadString(aReader);
     String_to_VectorBool(chars, changedVector);
 
     Booleans.assign(changedVector.begin(), changedVector.begin() + booleansSize);

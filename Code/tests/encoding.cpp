@@ -253,7 +253,7 @@ TEST_CASE("Crime requests initialize omitted IDs and reject invalid ownership st
         Buffer::Reader reader(&buffer);
         CrimeRequest decoded;
         decoded.DeserializeRaw(reader);
-        CHECK_FALSE(decoded.IsValid());
+        CHECK(reader.Failed());
     }
 }
 
@@ -2757,4 +2757,135 @@ TEST_CASE("EnterCellRequest carries when its place was read", "[encoding]")
     received.DeserializeRaw(reader);
     CHECK(received.Tick == sent.Tick);
     CHECK(received == sent);
+}
+
+namespace
+{
+// [opcode][varints]: a message as any sender could craft it.
+std::vector<uint8_t> Crafted(uint8_t aOpcode, std::initializer_list<uint64_t> aVarInts)
+{
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    writer.WriteBits(aOpcode, 8);
+    for (const uint64_t cValue : aVarInts)
+        Serialization::WriteVarInt(writer, cValue);
+    return {buffer.GetData(), buffer.GetData() + writer.Size()};
+}
+
+template <class TMessage> std::vector<uint8_t> Written(const TMessage& acMessage)
+{
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    acMessage.Serialize(writer);
+    return {buffer.GetData(), buffer.GetData() + writer.Size()};
+}
+
+// The whole of acBytes decodes; every cut short of its end decodes to nothing.
+template <class TFactory> void CheckEveryCutFails(const std::vector<uint8_t>& acBytes, const TFactory& acFactory)
+{
+    Buffer::Reader whole{std::span(acBytes)};
+    REQUIRE(acFactory.Extract(whole));
+    for (size_t size = 0; size < acBytes.size(); ++size)
+    {
+        Buffer::Reader reader{std::span(acBytes.data(), size)};
+        INFO("cut at " << size << " of " << acBytes.size());
+        CHECK_FALSE(acFactory.Extract(reader));
+    }
+}
+} // namespace
+
+TEST_CASE("A count is bounded by its maximum and by the bits left", "[encoding.decoder]")
+{
+    SECTION("within both, it is read")
+    {
+        const auto cBytes = Crafted(0, {3, 0, 0, 0});
+        Buffer::Reader reader{std::span(cBytes)};
+        uint64_t opcode = 0;
+        REQUIRE(reader.ReadBits(opcode, 8));
+        CHECK(Serialization::ReadCount(reader, 3) == 3);
+        CHECK_FALSE(reader.Failed());
+    }
+    SECTION("past its maximum, the reader fails")
+    {
+        const auto cBytes = Crafted(0, {4, 0, 0, 0, 0});
+        Buffer::Reader reader{std::span(cBytes)};
+        uint64_t opcode = 0;
+        REQUIRE(reader.ReadBits(opcode, 8));
+        CHECK(Serialization::ReadCount(reader, 3) == 0);
+        CHECK(reader.Failed());
+    }
+    SECTION("past the bits left, the reader fails")
+    {
+        const auto cBytes = Crafted(0, {9});
+        Buffer::Reader reader{std::span(cBytes)};
+        uint64_t opcode = 0;
+        REQUIRE(reader.ReadBits(opcode, 8));
+        CHECK(Serialization::ReadCount(reader, 1000) == 0);
+        CHECK(reader.Failed());
+    }
+    SECTION("a short read stays failed")
+    {
+        const uint8_t cByte = 0;
+        Buffer::Reader reader{std::span(&cByte, 1)};
+        uint64_t value = 0;
+        CHECK_FALSE(reader.ReadBits(value, 16));
+        CHECK(reader.ReadBits(value, 8));
+        CHECK(reader.Failed());
+    }
+}
+
+TEST_CASE("A crafted count of 2^40 is dropped at once", "[encoding.decoder]")
+{
+    const uint64_t cHuge = uint64_t{1} << 40;
+    SECTION("references moved, both ways")
+    {
+        const auto cRequest = Crafted(kReferencesMoveRequest, {7, cHuge});
+        Buffer::Reader request{std::span(cRequest)};
+        CHECK_FALSE(RequestMessageFactory{}.Extract(request));
+        const auto cNotify = Crafted(kNotifyReferencesMove, {7, cHuge});
+        Buffer::Reader notify{std::span(cNotify)};
+        CHECK_FALSE(NotifyMessageFactory{}.Extract(notify));
+    }
+    SECTION("other messages sized by a count")
+    {
+        const auto cItems = Crafted(kNotifyPartyItems, {cHuge});
+        Buffer::Reader items{std::span(cItems)};
+        CHECK_FALSE(NotifyMessageFactory{}.Extract(items));
+        // A cell (two varints), then the count.
+        const auto cCell = Crafted(kCellStateRequest, {0, 1, cHuge});
+        Buffer::Reader cell{std::span(cCell)};
+        CHECK_FALSE(RequestMessageFactory{}.Extract(cell));
+        // A container, an item (two varints each) and a count, then the stacks.
+        const auto cContainer = Crafted(kContainerChangeRequest, {0, 1, 0, 2, 1, cHuge});
+        Buffer::Reader container{std::span(cContainer)};
+        CHECK_FALSE(RequestMessageFactory{}.Extract(container));
+    }
+    SECTION("a count within the message's maximum but past its bytes")
+    {
+        const auto cItems = Crafted(kNotifyPartyItems, {100});
+        Buffer::Reader items{std::span(cItems)};
+        CHECK_FALSE(NotifyMessageFactory{}.Extract(items));
+    }
+}
+
+TEST_CASE("A truncated message decodes to nothing, not zeros", "[encoding.decoder]")
+{
+    ReferencesMoveRequest move;
+    move.Tick = 12345;
+    auto& update = move.Updates[42];
+    update.UpdatedMovement.Position = {1.f, 2.f, 3.f};
+    update.ActionEvents.emplace_back().EventName = "attackStart";
+    CheckEveryCutFails(Written(move), RequestMessageFactory{});
+
+    NotifyPartyItems items;
+    items.Items.resize(2);
+    items.Items[0].BaseId = GameId(0, 0x12EB7);
+    items.Items[0].ExtraName = "[P] Iron Sword";
+    items.Items[1].BaseId = GameId(0, 0x93B08);
+    CheckEveryCutFails(Written(items), NotifyMessageFactory{});
+
+    AuthenticationRequest join;
+    join.Username = "Lydia";
+    join.HeldSaves = {std::string(32, 'a')};
+    CheckEveryCutFails(Written(join), RequestMessageFactory{});
 }

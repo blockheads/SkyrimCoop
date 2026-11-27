@@ -28,9 +28,9 @@ void DialogueOption::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Info.Deserialize(aReader);
     Quest.Deserialize(aReader);
     Text = Serialization::ReadString(aReader);
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxPlayers);
     Players.clear();
-    for (uint64_t i = 0; i < cCount && i < kMaxPlayers; ++i)
+    for (uint64_t i = 0; i < cCount; ++i)
         Players.push_back(static_cast<uint32_t>(Serialization::ReadVarInt(aReader)));
 }
 
@@ -43,9 +43,9 @@ void SerializeDialogueOptions(Wire::Buffer::Writer& aWriter, const DialogueOptio
 
 void DeserializeDialogueOptions(Wire::Buffer::Reader& aReader, DialogueOptions& aOptions) noexcept
 {
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxOptions);
     aOptions.clear();
-    for (uint64_t i = 0; i < cCount && i < kMaxOptions; ++i)
+    for (uint64_t i = 0; i < cCount; ++i)
         aOptions.emplace_back().Deserialize(aReader);
 }
 
@@ -61,9 +61,9 @@ void SerializePlayerOptions(Wire::Buffer::Writer& aWriter, const std::vector<Pla
 
 void DeserializePlayerOptions(Wire::Buffer::Reader& aReader, std::vector<PlayerDialogueOptions>& aPlayers) noexcept
 {
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxPlayers);
     aPlayers.clear();
-    for (uint64_t i = 0; i < cCount && i < kMaxPlayers; ++i)
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         auto& player = aPlayers.emplace_back();
         player.PlayerId = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));

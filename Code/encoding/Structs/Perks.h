@@ -7,6 +7,8 @@
 // copy's old ones.
 struct Perks
 {
+    static constexpr uint64_t kMaxEntries = 4096;
+
     std::vector<PlayerRecord::Perk> Ranks;
     std::vector<GameId> Spells;
     bool operator==(const Perks&) const noexcept = default;
@@ -26,16 +28,16 @@ struct Perks
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept
     {
         Ranks.clear();
-        const uint64_t cCount = Wire::Serialization::ReadVarInt(aReader);
-        for (uint64_t i = 0; i < cCount && i < 4096 && !aReader.Eof(); ++i)
+        const uint64_t cCount = Wire::Serialization::ReadCount(aReader, kMaxEntries);
+        for (uint64_t i = 0; i < cCount; ++i)
         {
             auto& rank = Ranks.emplace_back();
             rank.Id.Deserialize(aReader);
             rank.Rank = Wire::Serialization::ReadVarInt(aReader) & 0xFF;
         }
         Spells.clear();
-        const uint64_t cSpells = Wire::Serialization::ReadVarInt(aReader);
-        for (uint64_t i = 0; i < cSpells && i < 4096 && !aReader.Eof(); ++i)
+        const uint64_t cSpells = Wire::Serialization::ReadCount(aReader, kMaxEntries);
+        for (uint64_t i = 0; i < cSpells; ++i)
             Spells.emplace_back().Deserialize(aReader);
     }
 };

@@ -15,5 +15,5 @@ struct Faction
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
     GameId Id;
-    int8_t Rank;
+    int8_t Rank{};
 };

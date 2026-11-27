@@ -1,8 +1,19 @@
 #include "Packet.h"
 #include "ENetInterface.h"
 
+#include <snappy.h>
+
 namespace Net
 {
+    bool Uncompress(const void* apData, size_t aSize, std::string& aOut) noexcept
+    {
+        size_t size = 0;
+        const auto* cpData = static_cast<const char*>(apData);
+        if (!snappy::GetUncompressedLength(cpData, aSize, &size) || size > kMaxUncompressed)
+            return false;
+        return snappy::Uncompress(cpData, aSize, &aOut);
+    }
+
     Packet::Packet() noexcept
         : m_pData(nullptr)
         , m_size(0)

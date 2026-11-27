@@ -67,9 +67,9 @@ void DeserializeScriptCall(Wire::Buffer::Reader& aReader, ScriptCall& aCall) noe
     aCall.Function = Serialization::ReadString(aReader);
     if (!DeserializeScriptValue(aReader, aCall.Self))
         aCall.Self = std::monostate{};
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxNativeArguments);
     aCall.Arguments.clear();
-    for (uint64_t i = 0; i < cCount && i < kMaxNativeArguments; ++i)
+    for (uint64_t i = 0; i < cCount; ++i)
         if (!DeserializeScriptValue(aReader, aCall.Arguments.emplace_back()))
         {
             aCall.Arguments.clear();

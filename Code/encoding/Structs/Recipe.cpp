@@ -61,7 +61,7 @@ void Recipe::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     uint64_t poison = 0;
     aReader.ReadBits(poison, 1);
     IsPoison = poison != 0;
-    Effects.resize(Serialization::ReadVarInt(aReader) & 0xFF);
+    Effects.resize(Serialization::ReadCount(aReader, 0xFF));
     for (auto& effect : Effects)
         effect.Deserialize(aReader);
 }

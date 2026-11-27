@@ -37,10 +37,16 @@ namespace Wire
             [[nodiscard]] size_t Size() const noexcept { return (m_bitPosition + 7) / 8; }
             [[nodiscard]] size_t GetBytePosition() const noexcept { return m_bitPosition / 8; }
             [[nodiscard]] size_t GetBitPosition() const noexcept { return m_bitPosition; }
+            [[nodiscard]] size_t BitsLeft() const noexcept { return m_bitPosition >= m_data.size() * 8 ? 0 : m_data.size() * 8 - m_bitPosition; }
+
+            // Set by a read past the end or a bad value; it stays set.
+            [[nodiscard]] bool Failed() const noexcept { return m_failed; }
+            void Fail() noexcept { m_failed = true; }
 
         private:
             std::span<const uint8_t> m_data;
             size_t m_bitPosition = 0;
+            bool m_failed = false;
         };
 
         // Writes bits and whole bytes: into a Buffer, growing it, or into fixed bytes, failing past their end.

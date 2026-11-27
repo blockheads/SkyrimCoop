@@ -21,7 +21,7 @@ void RecordPart::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     aReader.ReadBits(kind, 8);
     Kind = static_cast<RecordKind>(kind & 0xFF);
     Version = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    Bytes.assign(Serialization::ReadVarInt(aReader) & 0xFFFFFF, '\0');
+    Bytes.assign(Serialization::ReadCount(aReader, 0xFFFFFF), '\0');
     aReader.ReadBytes(std::span(reinterpret_cast<uint8_t*>(Bytes.data()), Bytes.size()));
 }
 
@@ -34,8 +34,7 @@ void RecordParts::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 
 void RecordParts::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
-    // A count past what the bytes can hold is a broken message: nothing read.
-    const uint64_t cCount = std::min<uint64_t>(Serialization::ReadVarInt(aReader), 0xFF);
+    const uint64_t cCount = Serialization::ReadCount(aReader, 0xFF);
     Parts.clear();
     for (uint64_t i = 0; i < cCount; ++i)
         Parts.emplace_back().Deserialize(aReader);
