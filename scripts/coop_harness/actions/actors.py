@@ -162,7 +162,7 @@ class ActorsActions:
         if megabytes:
             os.environ["SKYRIMCOOP_HEAP_QUARANTINE"] = str(megabytes)
         else:
-            os.environ.pop("SKYRIMCOOP_HEAP_QUARANTINE", None)
+            os.environ["SKYRIMCOOP_HEAP_QUARANTINE"] = "0"  # the default is on (game_env)
         return megabytes
 
 
