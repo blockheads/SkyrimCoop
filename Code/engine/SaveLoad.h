@@ -83,7 +83,9 @@ struct BGSSaveLoadGame
         kSaveGameSaving = 1 << 2,
     };
 
-    uint8_t pad0[0x340];
+    uint8_t pad0[0x330];
+    void* saveLoadChanges; // 330, CommonLibSSE-NG BGSSaveLoadChangesMap*: the change records 35503 reads
+    uint8_t pad338[0x8];
     uint32_t globalFlags; // 340
 };
 static_assert(offsetof(BGSSaveLoadGame, globalFlags) == 0x340);

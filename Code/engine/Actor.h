@@ -221,6 +221,22 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool IsWearingBodyPiece() const noexcept;
     [[nodiscard]] bool ShouldWearBodyPiece() const noexcept;
     [[nodiscard]] bool IsVampireLord() const noexcept;
+    // Actor::IsInRagdollState (37491).
+    [[nodiscard]] bool IsInRagdollState() const noexcept;
+    // Character 38619: in a deferred kill, as KillActorHandler tests it.
+    [[nodiscard]] bool IsInDeferredKill() const noexcept;
+    // Actor::GetCrimeFaction (37380): the faction its crimes go to, or null.
+    [[nodiscard]] TESFaction* GetCrimeFaction() const noexcept;
+    // Actor::GetFactionReaction (37666): 2 ally, 3 friend (CommonLibSSE-NG FIGHT_REACTION).
+    [[nodiscard]] int32_t GetFactionReaction(Actor* apOther) const noexcept;
+    // Actor::IsHostileToActor (37537).
+    [[nodiscard]] bool IsHostileToActor(Actor* apOther) noexcept;
+    // Actor::CanBeKilledBy (37229): a kill move's victim test.
+    [[nodiscard]] bool CanBeKilledBy(Actor* apKiller) noexcept;
+    // Actor::EngagingInCombat (38563).
+    [[nodiscard]] bool EngagingInCombat() noexcept;
+    // Actor::HasLineOfSight (53829).
+    [[nodiscard]] bool HasLineOfSight(TESObjectREFR* apTarget, bool& aUnknown) noexcept;
 
     // Setters
     void SetLevelMod(uint32_t aLevel) noexcept;
@@ -263,6 +279,8 @@ struct Actor : TESObjectREFR
     void PutOwnerPackage(TESPackage* apPackage) noexcept;
     // The scene it plays a part in, as this game runs it (Actor::GetCurrentScene 37247, not a copy's owner's).
     [[nodiscard]] struct BGSScene* GetOwnCurrentScene() const noexcept;
+    // Actor::GetCurrentScene (37247) through its hook: a copy answers its owner's.
+    [[nodiscard]] BGSScene* GetCurrentScene() const noexcept;
     // Actor::GetCombatState (38556): 0 none, 1 fighting, 2 searching (its group's search state).
     [[nodiscard]] uint8_t GetCombatState() const noexcept;
     void SetActorInventory(const Inventory& aInventory) noexcept;
@@ -294,6 +312,8 @@ struct Actor : TESObjectREFR
     // Onto a mount another rider holds: linked (unless already), then seated as a get-on's clip ends (sit state 3, then
     // Actor::OnInteractionSeated 41533, as PairedStopHandler 42868).
     void SeatOnMount(Actor* apMount) noexcept;
+    // Actor::OnInteractionSeated (41533): what a get-on's end runs once seated.
+    void OnInteractionSeated() noexcept;
     // Linked and seated at once by the engine's quick get-on (HorseEnterInstant, no paired clip), a ridden mount too.
     bool SitOnMountQuick(Actor* apMount) noexcept;
     // The furniture it sits or sleeps in: Character::GetOccupiedFurniture (38708), not a mount; null while standing.
@@ -307,7 +327,7 @@ struct Actor : TESObjectREFR
     // the rider's link; aReplace empties it first.
     void HoldRider(Actor* apRider, bool aReplace) noexcept;
     // Actor::EvaluatePackage (37401): the package chosen again now.
-    void EvaluatePackageNow() noexcept;
+    void EvaluatePackageNow(bool aResetAI = false) noexcept;
     // A mount's half of a pair (MountBehavior DismountSynced, HorseBehavior.hkx) ends on PairEnd, which only the
     // pair's instance sends (BGSSynchronizedAnimationInstance::Deactivate 32797): none where the horse changed hands.
     void EndMountPair() noexcept;

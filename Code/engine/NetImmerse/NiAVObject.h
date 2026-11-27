@@ -17,6 +17,8 @@ struct NiAVObject : NiObjectNET
 
     // Its world transforms, children and bounds from its local transform (NiAVObject::Update, 70251).
     void Update(uint32_t aFlags = 0) noexcept;
+    // NiAVObject::SetMotionType (77866): its bodies' motion type (hkpMotion::MotionType), its children's with aRecurse.
+    bool SetMotionType(uint32_t aMotionType, bool aRecurse, bool aForce, bool aAllowActivate) noexcept;
 
     // Rotation (row-major), position and scale, relative to the parent (local) or the world (CommonLibSSE-NG).
     struct Transform

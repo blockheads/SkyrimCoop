@@ -60,10 +60,8 @@ namespace
 // to the top menu, CommonLibSSE-NG).
 void ShowInItemMenus(TESObjectREFR& aObject) noexcept
 {
-    using TSend = void(TESObjectREFR*, const TESBoundObject*);
-    POINTER_SKYRIMSE(TSend, s_send, 52849);
-    s_send.Get()(&aObject, nullptr);
-    s_send.Get()(&aObject, nullptr);
+    aObject.UpdateItemList(nullptr);
+    aObject.UpdateItemList(nullptr);
 }
 } // namespace
 

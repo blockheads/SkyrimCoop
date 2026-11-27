@@ -123,8 +123,7 @@ void InputTrace::Poll() noexcept
     if (cNow < s_nextScan)
         return;
     s_nextScan = cNow + std::chrono::seconds(1);
-    VersionDbPtr<InputEventSource*> source(402776); // BSInputDeviceManager: the event source at its start
-    const InputEventSource* pSource = *source.Get();
+    const InputEventSource* pSource = EngineCalls::GetInputDeviceManager();
     if (!pSource)
         return;
     for (uint32_t i = 0; i < pSource->sinks.length; ++i)

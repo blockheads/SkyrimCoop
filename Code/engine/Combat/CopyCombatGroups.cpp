@@ -26,6 +26,13 @@ CombatManager* CombatManager::Get() noexcept
     return *s_manager.Get();
 }
 
+float CombatManager::GetLowestStealthPoints(Actor* apActor) noexcept
+{
+    using TLowestStealth = float(CombatManager*, Actor*);
+    POINTER_SKYRIMSE(TLowestStealth, s_lowestStealth, 46877);
+    return s_lowestStealth.Get()(this, apActor);
+}
+
 namespace
 {
 thread_local bool s_holding = false;

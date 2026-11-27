@@ -64,6 +64,28 @@ void ProcessLists::StopEffectShader(TESObjectREFR* apRef, TESForm* apEffectShade
     s_stopEffectShader(this, apRef, apEffectShader);
 }
 
+void ProcessLists::StopCombatAndAlarmOnActor(Actor* apActor, bool aNotAlarm) noexcept
+{
+    using TStop = void(ProcessLists*, Actor*, bool);
+    POINTER_SKYRIMSE(TStop, s_stop, 41340);
+    s_stop(this, apActor, aNotAlarm);
+}
+
+int32_t ProcessLists::RequestHighestDetectionLevelAgainstActor(Actor* apActor, uint32_t& aSeeing) noexcept
+{
+    using THighest = int32_t(ProcessLists*, Actor*, uint32_t&);
+    POINTER_SKYRIMSE(THighest, s_highest, 41408);
+    return s_highest(this, apActor, aSeeing);
+}
+
+bool ProcessLists::HasKnownCrime(TESObjectREFR* apVictim, TESObjectREFR* apCriminal, Actor* apWitness, uint32_t aType, int32_t aUnknown,
+                                 int32_t aDay) noexcept
+{
+    using TKnownCrime = bool(ProcessLists*, TESObjectREFR*, TESObjectREFR*, Actor*, uint32_t, int32_t, int32_t);
+    POINTER_SKYRIMSE(TKnownCrime, s_knownCrime, 41354);
+    return s_knownCrime(this, apVictim, apCriminal, apWitness, aType, aUnknown, aDay);
+}
+
 void ProcessLists::StopArtObject(TESObjectREFR* apRef, TESForm* apArtObject) noexcept
 {
     using TStop = void(ProcessLists*, TESObjectREFR*, TESForm*);

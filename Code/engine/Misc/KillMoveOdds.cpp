@@ -47,16 +47,12 @@ bool Killable(void* apSubject, void* apTarget) noexcept
     POINTER_SKYRIMSE(TIsDead, s_isDead, 37483);
     if (!pAttacker || !pVictim || s_isDead.Get()(pVictim, false))
         return false;
-    using TCanBeKilledBy = bool(Actor*, Actor*);
     using TProcessGate = bool(AIProcess*);
-    using TEngagingInCombat = bool(Actor*);
-    POINTER_SKYRIMSE(TCanBeKilledBy, s_canBeKilledBy, 37229);
     POINTER_SKYRIMSE(TProcessGate, s_combatGate, 39996);
-    POINTER_SKYRIMSE(TEngagingInCombat, s_engagingInCombat, 38563);
-    if (!s_canBeKilledBy.Get()(pVictim, pAttacker))
+    if (!pVictim->CanBeKilledBy(pAttacker))
         return false;
     AIProcess* pProcess = pAttacker->currentProcess;
-    return !(pProcess && s_combatGate.Get()(pProcess) && !s_engagingInCombat.Get()(pAttacker));
+    return !(pProcess && s_combatGate.Get()(pProcess) && !pAttacker->EngagingInCombat());
 }
 
 // Condition functions: (subject, param1, param2, result); an empty reference param1 is the check's target
