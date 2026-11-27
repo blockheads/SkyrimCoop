@@ -10,7 +10,7 @@
 
 namespace
 {
-constexpr uint32_t kHost = 1, kGuest = 2, kOther = 3;
+constexpr uint32_t kGuest = 2, kOther = 3;
 const BodyKey kBucket{.Object = {0, 0x12FDF}};
 const BodyKey kPlate{.Object = {0, 0x12FE0}};
 const BodyKey kCup{.Object = {0, 0x12FE1}};

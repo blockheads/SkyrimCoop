@@ -48,7 +48,7 @@ AnimationGraphDescriptor_SteamBehavior::AnimationGraphDescriptor_SteamBehavior(A
         kbIsSynced = 40,
     };
 
-    uint64_t key = 12323911819758128165;
+    uint64_t key = 12323911819758128165u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,

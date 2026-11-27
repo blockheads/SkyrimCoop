@@ -28,9 +28,9 @@ namespace Net
         : m_pHost(nullptr)
         , m_tickRate(10)
         , m_port(0)
+        , m_lastClockSyncTime(0ns)
         , m_lastUpdateTime(0ns)
         , m_timeBetweenUpdates(100ms)
-        , m_lastClockSyncTime(0ns)
     {
         ENetInterface::Acquire();
     }

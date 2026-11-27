@@ -1385,8 +1385,8 @@ def scenario_dialogue_pick_reaches_host(ctx):
         ctx.activate_on("client", copy)
         ctx.wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: ctx.in_conversation("", npc), 10)
         ctx.wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: ctx.talking_to("client", copy), 10)
-        options = ctx.wait_for("[client] the menu lists options",
-                           lambda: ctx.talking_to("client", copy) and ctx.dialogue("client").get("options"), 10)
+        ctx.wait_for("[client] the menu lists options",
+                     lambda: ctx.talking_to("client", copy) and ctx.dialogue("client").get("options"), 10)
         ctx.wait_for("[host] its NPC's greeting is over", lambda: ctx.line_over("", npc), 30)
         # The client's copy voices it a moment later; a press in the frame its greeting ends is lost (B3, docs/bugs.md).
         ctx.wait_for("[client] its copy's greeting is over", lambda: ctx.line_over("client", copy), 30)

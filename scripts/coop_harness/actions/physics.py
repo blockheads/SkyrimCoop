@@ -304,7 +304,6 @@ class PhysicsActions:
         while walking; "push", walked into) and both games trace it each frame (body_trace) until it rests. Names it
         `name` and keeps what the checks need: the mover's rest (expect at_rest_of) and its frames' snaps (expect
         steady: physics-sync.md, "The mover's until its rest"). Returns both, failing only if it could not move it."""
-        other = "client" if instance == "" else ""
         mover = instance or "host"
         if target is None:  # loose clutter resting in both games (ids are the plugins': the same every run)
             refs, guest_refs = ctx.world_state(""), ctx.world_state("client")
@@ -378,7 +377,7 @@ class PhysicsActions:
             host, guest = ctx.world_state("", list(starts)), ctx.world_state("client", list(starts))
             return all(i in guest and near(first_body(guest[i])["position"], first_body(host[i])["position"], 1.0)
                        and same_turn(first_body(guest[i])["rotation"], first_body(host[i])["rotation"], BODY_TURN_TOLERANCE) for i in host)
-        ctx.wait_for(f"[client] shows them back", client_too, 5)
+        ctx.wait_for("[client] shows them back", client_too, 5)
 
 
     def stage_on_floor_before(ctx, instance, target, ahead=150):

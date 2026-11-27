@@ -498,7 +498,7 @@ bool HookFunctorQueued(void* apThis, DelayFunctor** appFunctor)
         s_tags.TagFunctor(pFunctor, t_nativeGuest); // before: the game thread may run it at once
     const bool cQueued = RealFunctorQueued(apThis, appFunctor);
     if (cTagged && !cQueued)
-        s_tags.TakeFunctor(pFunctor);
+        (void)s_tags.TakeFunctor(pFunctor);
     return cQueued;
 }
 
@@ -511,7 +511,7 @@ bool HookPostRenderQueued(void* apThis, DelayFunctor** appFunctor)
         s_tags.TagFunctor(pFunctor, t_nativeGuest);
     const bool cQueued = RealPostRenderQueued(apThis, appFunctor);
     if (cTagged && !cQueued)
-        s_tags.TakeFunctor(pFunctor);
+        (void)s_tags.TakeFunctor(pFunctor);
     return cQueued;
 }
 

@@ -115,7 +115,7 @@ AnimationGraphDescriptor_MammothRootBehavior::AnimationGraphDescriptor_MammothRo
         kDefaultBlend = 107,
     };
 
-    uint64_t key = 13065750443784029010;
+    uint64_t key = 13065750443784029010u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,

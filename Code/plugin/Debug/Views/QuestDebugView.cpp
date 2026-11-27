@@ -82,7 +82,7 @@ void DebugService::DrawQuestDebugView()
 
                         char name[256];
                         sprintf_s(name, std::size(name), "%s (%x)", pActor->baseForm->GetName(), pActor->formID);
-                        ImGui::BulletText(name);
+                        ImGui::BulletText("%s", name);
 
                         ImGui::PushID(pActor->formID);
                         if (ImGui::Button("Teleport to me"))

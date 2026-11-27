@@ -45,8 +45,8 @@ class Observations:
                     lines.extend(file.read_text(errors="replace").splitlines()[-40000:])
                 except OSError:
                     continue
-            for (copy, event), count in sorted(refused_replays(lines, since).items()):
-                parts.append(f"{game or 'host'} {copy:08X} {event} x{count}")
+            for (copy_id, event), count in sorted(refused_replays(lines, since).items()):
+                parts.append(f"{game or 'host'} {copy_id:08X} {event} x{count}")
         return "; ".join(parts)
 
     @staticmethod

@@ -84,7 +84,7 @@ def scenario_loaded_save_hosts_then_joins_friend(ctx):
     then reaches it, and its game, hosting alone, steps down and joins the friend's session through Steam. Each chat
     says who joined. Ends joined directly again."""
     host_id, _ = ctx.steam_accounts()
-    host_name, guest_name = ctx.steam_status("").get("name"), ctx.steam_status("client").get("name")
+    host_name = ctx.steam_status("").get("name")
     ctx.disconnect_client()
     ctx.wait_on("", "the client's character leaves the host's game", lambda actors: ctx.other_player(actors) is None)
     try:

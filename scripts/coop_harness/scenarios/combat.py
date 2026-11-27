@@ -410,7 +410,7 @@ def scenario_host_kill_move(ctx):
     trace = AnimTrace(ctx, "host-kill-move", {"": {npc: "wolf", 0x14: "player"},
                                          "client": {copy: "wolf", host_on_client: "player", 0x14: "watcher"}})
     with GodMode(ctx):
-        ctx.console_on("", f"set KillMoveRandom to 100")
+        ctx.console_on("", "set KillMoveRandom to 100")
         try:
             ctx.give_sword("")
             ctx.draw("")

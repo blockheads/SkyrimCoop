@@ -291,7 +291,7 @@ def scenario_guest_brewed_potion_reaches_host(ctx):
         recipe = ctx.recipe_of("client", potion)
         ctx.wait_for("[host] its copy of the guest carries the potion, as the host's own form for its recipe",
                  lambda: ctx.brewed("", copy)[recipe] == carried["client"][recipe] + 1, 10)
-        dropped = ctx.player_command("client", {"cmd": "drop", "item": potion, "plain": True})["object"]
+        ctx.player_command("client", {"cmd": "drop", "item": potion, "plain": True})
         made = ctx.wait_for("[host] the potion lies in its world", lambda: ctx.loose_brewed("", recipe), 10)
         ctx.player_command("", {"cmd": "activate", "object": made})
         ctx.wait_for("[host] its player carries the potion", lambda: ctx.brewed("")[recipe] == carried[""][recipe] + 1, 10)

@@ -12,7 +12,7 @@
 
 namespace Hooks
 {
-    struct StubIDirectInputDevice8A
+    struct StubIDirectInputDevice8A final
     {
         StubIDirectInputDevice8A(IDirectInputDevice8A* apDevice) : m_pDevice(apDevice) {}
 
@@ -117,7 +117,7 @@ namespace Hooks
 
         const vp::ScopedContext prologueMemory(RealDirectInput8Create, kDirectInput8CreatePrologueSize);
 
-        bool hasOriginalPrologue = RtlEqualMemory(RealDirectInput8Create, s_realDirectInput8CreatePrologue.data(), kDirectInput8CreatePrologueSize);
+        bool hasOriginalPrologue = RtlEqualMemory(GetOriginalFunctionPrologue(), s_realDirectInput8CreatePrologue.data(), kDirectInput8CreatePrologueSize);
         if (!hasOriginalPrologue)
         {
             Hooks::Put(RealDirectInput8Create, s_realDirectInput8CreatePrologue);

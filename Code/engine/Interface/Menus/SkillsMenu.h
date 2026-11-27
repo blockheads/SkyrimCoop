@@ -10,7 +10,7 @@ struct MenuEventHandler
     char pad0[0x10];
 };
 
-struct StatsMenu final : IMenu, MenuEventHandler
+struct StatsMenu : IMenu, MenuEventHandler
 {
     // TBD
 };
