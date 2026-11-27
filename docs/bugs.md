@@ -1533,7 +1533,9 @@ Size: small. Needs: the duo.
   items on one game and 0 on the other.
 - `guest-sets-down-item`: "[host] shows it where it rests" timed out after 5 s.
 - `guest-bump-moves-host`: "[host] 1 objects back where they were" timed out after 30 s.
-- `world-changes-reach-guest`: "the client's world does not follow the host's".
+- `world-changes-reach-guest`: "the client's world does not follow the host's". Second sighting 2026-11-27 (the
+  cleanup branch `20a4acde`, 1 of 8 runs that night): the `open` step, the host saw `lock_changed` and `open`, the
+  guest only `lock_changed`; the next 4 runs passed.
 - `guest-makes-character-then-joins`: "[client] the Body category is open" timed out (the race menu), then the host
   refused the guest ("has no character in the host's save and brings none") and the duo was booted again.
 - `host-menu-loads-party`: "the guest loads the save from its store and rejoins" timed out after 120 s.
