@@ -101,7 +101,6 @@ finish() {
 
 echo "check: tiers 1-2"
 MSVC_CONFIG="build/msvc-config"
-[[ ${COOP_SKYRIM_VERSION:-latest} == 1.6.1170 ]] && MSVC_CONFIG+="-1.6.1170"
 configured build/linux-config || step "configure Linux" scripts/xmake-linux.sh f
 if (( DLL )) && ! configured "$MSVC_CONFIG"; then
     step "configure Windows" scripts/xmake-msvc.sh f -m dev -y

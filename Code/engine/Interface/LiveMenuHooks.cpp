@@ -277,12 +277,10 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(82082, &RealUiMessages, UiMessages);
     HOOK_ID(82083, &RealUiMovies, UiMovies);
 
-#if !COOP_SKYRIM_1_6_1170 // the +0x11C build flag was read in 1.7.104 only
     HOOK_ID(51950, &RealLockpickProcess, LockpickProcess);
-#endif
 
     VersionDbPtr<uint8_t> bookProcess(51049);
-    constexpr size_t cBookModeCall = COOP_SKYRIM_1_6_1170 ? 0x6F : 0x71;
+    constexpr size_t cBookModeCall = 0x71;
     VersionDbPtr<uint8_t> menuMode(35406);
     uint8_t* pCall = bookProcess.Get() + cBookModeCall;
     if (*pCall == 0xE8 && pCall + 5 + *reinterpret_cast<const int32_t*>(pCall + 1) == menuMode.Get())

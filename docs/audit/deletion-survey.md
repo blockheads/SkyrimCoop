@@ -2,7 +2,7 @@
 
 Step 1 of the cleanup ([cleanup-plan.md](cleanup-plan.md)): what nothing uses, how that was shown, and what went.
 Surveyed 2026-11-26 on `agent/cleanup` (94ea6cfad). Verdicts: **deleted**, **keep** (why), **owner** (needs a
-decision).
+decision; all went to the owner and are settled in the second pass below).
 
 ## How "unused" was shown
 
@@ -120,34 +120,28 @@ has an `op`/`opcode` key.
 | Engine nested types and event structs (`EventDispatcher.h`, `BSGraphicsRenderer.h`, ...) | | engine layout: members that keep offsets |
 | `scripts/build_start_room.py`, `re/behavior_dump.py`, `net_check.sh`, `analyze_green_flash.py` | | generate a shipped `.esp` / documented RE tool / documented manual check / `green_pixels` imported by `scenarios/physics_green.py` |
 
-## Needs the owner
+## Second pass: the owner's items (owner: delete them all)
 
-| What | Lines | Question |
+Done 2026-11-26 on `agent/cleanup-delete-2`, one commit per item. Lines are the commit's deletions.
+
+| What | Lines | Verdict |
 | --- | --- | --- |
-| Skyrim 1.6.1170 support | about 90 code lines + 407 data lines | see below |
-| `GameFiles/Skyrim/SkyrimTogetherRebornBehaviors/` | 185 files | `BehaviorVar.cpp` reads it from `Data/`, but neither `package.sh` nor the harness deploys it: the mod-behaviour feature finds nothing in a packaged install. Ship it or drop `BehaviorVar`? |
-| `DidLaunchSkyrimTogether` native (`ScriptFunction.cpp`, `BSScript.h`, `FakeNativeVm.cpp`) | ~30 | still bound; its script went with `SkyrimTogether.esp`, so nothing calls it. Removing changes the bound-natives count by one |
-| `D3D11Hook` signals (`OnCreate`, `OnLost`, `OnPresent`) | ~30 | `RenderSystemD3D11` connects to them, nothing fires them (no `Install`). Removing means editing `RenderSystemD3D11` |
-| `DInputHook::IsEnabled` | ~10 | always false now (nothing ever set it); its branches in `DInputHook.cpp` never run |
-| `World` getters (`GetSessionService` const, `GetMagicService` x2, `GetCharacterService` const, `GetHostService` const, `GetTravelService` const, `Exists`) | ~25 | linker-discarded, but `World.*` is the id-index worker's area; several may be used by tests |
-| Test-only production methods: `CopyRecords::WaitsFor`, `PartyRules::ControlHolds::HeldBy`, `BodyPlayback::RestComing` | ~25 | no production caller, only `UnitTests`/`GameTests`; deleting means deleting their tests |
-| `scripts/spikes/player_events.py` + `player_singleton_functions.txt` | 1396 | the only driver of the harness `player_probe` ("kept for measuring"); `progress.md:89` cites `scripts/spikes/` |
-| 33 `coop_harness/actions` verbs no code calls (`body_watch`, `swing_at_moving`, `trap_watch`, ...) | ~500 | reachable only by an agent through `verb(name)`; 10 are named in docs |
-| `scripts/re/graph_compare.py`, `graph_snapshot.py` | 277 | for the parked graph replication; the design note they point to is gone |
-| `scripts/release.sh` | | named nowhere; cites the missing `docs/design/launcher.md` |
-| ruff F841 (7 locals assigned, never read) and F541 (4 f-strings without placeholders) | ~11 | not dead code; a style pass |
-| Unused inline methods in headers | ? | a linker cannot see code that is never emitted; not surveyed |
+| Skyrim 1.6.1170 support | -611 +207 (the +207 is mostly the regenerated reference's line numbers) | **deleted**: the `skyrim_version` option and `COOP_SKYRIM_1_6_1170` with every branch (1.7.104 side kept), the 1.6 config/build dirs in `xmake-msvc.sh`, `package.sh`, `check.sh`, `coop_harness/common.py`, `COOP_SKYRIM_VERSION`, `scripts/lock_order_known.txt`, the Address Library v2 (1.6 format) readers in `AddressLibrary.h` and `address_library.py`, the 1.6 branches of `build_re_data.py`, `check_re.py`, `symbolize_crash.py`, and the docs (`CLAUDE.md`, `docs/re/README.md`, `runtime-versions.md`, `testing.md`). Kept: `docs/re/ida_notes.tsv` whole (`build_re_data.py` loads it for 1.7.104, marked "From 1.6.1170"; `check_re.py` no longer ID-checks it, its library is not installed); `fetch_references.sh`'s powerof3 CommonLibSSE (cited by RE docs); comments that cite 1.6.1170 as where an address was read |
+| `GameFiles/Skyrim/SkyrimTogetherRebornBehaviors/` | -5029 (199 files) | **deleted** with `BehaviorVar`, `BehaviorOrig*`, `BehaviorVarsMap` and `README-ANIMATION-MODS.md`: nothing installs the folder and no doc of ours tells players to add one (the README is upstream STR's, never packaged). Two paths that worked without the folder stay, inline: the player's first-person graph falls back to the humanoid descriptor (`TESObjectREFR.cpp` `DescriptorFor`), and `Actor::IsDragon` compares with `BHR_Master`'s key |
+| `DidLaunchSkyrimTogether` native | -236 | **deleted** with `HookBindEverythingToScript` (55739, only bound it), `FakeNativeVm` and its two tests (they tested only its lifetime) |
+| `D3D11Hook` signals | -263 | **deleted** with `Hooks/Signal.h` (its only user), `RenderSystemD3D11`'s connections and `OnReset`, and the empty `ImguiService::Reset`. `RenderSystemD3D11` stays: `BSGraphicsRenderer.cpp`'s hooks create and render it |
+| `DInputHook::IsEnabled` | -29 | **deleted** with its branches and `Get()` |
+| `World` getters | -43 | **deleted** (all seven, after the id-index merge) |
+| `BodyPlayback::RestComing` | -21 | **deleted** with its test |
+| `CopyRecords::WaitsFor`, `ControlHolds::HeldBy` | | **keep**: readouts in tests that check other behaviour (applied parts; cutscene and party holds, 6 cases) |
+| `scripts/spikes/`, `re/graph_compare.py`, `re/graph_snapshot.py`, `release.sh` | -1691 | **deleted**; no doc tells anyone to run `release.sh`. The harness `player_probe` stays |
+| Harness verbs no code calls | -16 | rechecked: 31 (not 33) have no caller in `scripts/`, `Code/`, `docs/`, `.claude/`. **Deleted** 2, duplicates: `knows_word` (`word_state`'s first half), `observe_handles` (the MCP `observe` tool). **Keep** 29, readouts and repro moves an agent calls by name, none broken (every `ctx.` attribute resolves, every harness command exists): `alpha_trace`, `body_watch`, `bought_horse_ride`, `collision_apart`, `collision_baselines`, `collision_check_alone`, `collision_restless`, `collision_suite`, `combat_targets_of`, `console_watch`, `crime_watch`, `graph_machines_watch`, `hands_compared`, `heap_quarantine`, `host_death_watch`, `knock_to_rest`, `loose_sword_rows`, `make_angry`, `mount_timeline`, `open_inventory`, `player_effects`, `quit_to_main_menu` (used in a 2026-11-22 `bugs.md` investigation), `sight_watch`, `speak_calls`, `swing_at_moving`, `talk_again_as_menu_closes`, `talk_twice`, `trap_watch`, `world_projectiles` |
+| ruff F841 / F541, unused inline methods | | **open**: not in the owner's list for this pass |
 
-### Skyrim 1.6.1170 (not deleted; CLAUDE.md keeps the configuration)
-
-- C++: 43 lines name it, in 30 files (`RuntimeVersion.h`'s second branch, `Crime.h`'s five offset asserts,
-  `WaitBridge.cpp`'s `HOOK_ID 52488`, `CrimeBridge.cpp`'s `if constexpr`, `LiveMenuHooks.cpp`, `GameVersions.h`,
-  test fixtures). The second runtime is otherwise a different Address Library, not a second address table in the repo.
-- Build: the `skyrim_version` option in `xmake.lua` (14 lines), the `1.6.1170` case in `scripts/xmake-msvc.sh`.
-- Scripts: 33 lines in 12 files (`skyrim_runtime.py` and its test, `check_re.py`, `re/build_re_data.py`,
-  `re/symbolize_crash.py`, `re/fetch_references.sh`, `coop_harness/common.py`, `runtime.py`, `windows.py`, `check.sh`).
-- Data: `scripts/lock_order_known.txt` (167, the 1.6 list; 1.7.104 has its own), `docs/re/ida_notes.tsv`
-  (240). Note: `build_re_data.py` loads `ida_notes.tsv` for 1.7.104 too (its stable-ID names), so it is not 1.6-only.
+Hooks, base `agent/cleanup` -> this pass (non-comment lines in `Code/engine`, `plugin`, `harness`): `HOOK_ID` 288 -> 286
+(the 1.6-only `52488` line, never compiled for 1.7.104, and `55739`); `HOOK_ID_IMMEDIATE` 5, `HOOK` 3, `HOOK_IAT` 2,
+`HookVTable` 1, `MH_CreateHook` 8, `Hooks::Initializer` 99, unchanged; `BindNativeMethod` 2 -> 1 (the call; the
+declaration stays). The regenerated `ENGINE_REFERENCE.md`: 288 -> 287 hooks.
 
 ## Test doubles (report only)
 

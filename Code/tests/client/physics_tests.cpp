@@ -651,19 +651,6 @@ TEST_CASE("An island is put to sleep only when every body in it is dynamic and s
     CHECK_FALSE(BodyPrediction::StillToSleep(true, 90.f, 0.f));
 }
 
-TEST_CASE("A rest queued for a reference's body is known before it shows", "[physics]")
-{
-    BodyPlayback playback;
-    const BodyKey cKey{.Object = GameId(0, 0x1234)};
-    CHECK_FALSE(playback.RestComing(cKey.Object));
-    playback.Rest(1000, {BodyPose{.Key = cKey, .Position = {1.f, 2.f, 3.f}}});
-    CHECK(playback.RestComing(cKey.Object));
-    CHECK_FALSE(playback.RestComing(GameId(0, 0x9999)));
-    // Shown: the row may place it again from here on.
-    CHECK(playback.At(1000).size() == 1);
-    CHECK_FALSE(playback.RestComing(cKey.Object));
-}
-
 TEST_CASE("What a body meets: a played one passes loose objects nobody moves, and other played ones", "[physics]")
 {
     using BodyGroups::Decide;

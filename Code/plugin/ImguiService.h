@@ -21,7 +21,6 @@ struct ImguiService
     void Create(RenderSystemD3D11* apRenderSystem, HWND aHwnd);
 
     void Render() const;
-    void Reset() const;
 
     entt::sink<entt::sigh<TCallback>> OnDraw;
 

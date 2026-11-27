@@ -4,7 +4,7 @@ target("UnitTests")
     set_kind("binary")
     set_group("Tests")
     set_languages("cxx23")
-    add_files("*.cpp|SaveTransferBench.cpp", "../FakeNativeVm.cpp", "../../engine/Misc/ScriptFunction.cpp")
+    add_files("*.cpp|SaveTransferBench.cpp")
     -- Each layer's unit tests, beside what they test.
     add_files("../../sync/**_tests.cpp", "../../engine/**_tests.cpp", "../../plugin/**_tests.cpp", "../../harness/**_tests.cpp")
     add_files("../../sync/core/Counters.cpp", "../../sync/core/ActorIndex.cpp")

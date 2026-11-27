@@ -293,10 +293,6 @@ class StoryActions:
         ctx.wait_for(f"[{instance or 'host'}] the message box is closed", lambda: "MessageBoxMenu" not in ctx.menus(instance), 5)
 
 
-    def knows_word(ctx, instance, word):
-        return ctx.player_command(instance, {"cmd": "form", "form": word}).get("known")
-
-
     def word_state(ctx, instance, word):
         """Whether that game's player knows the word and has it unlocked."""
         form = ctx.player_command(instance, {"cmd": "form", "form": word})

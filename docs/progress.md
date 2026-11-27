@@ -308,7 +308,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - **Menu mode and `equipitem`:** an NPC's `equipitem` run while paused never shows
   (`AIProcess::Update3DModel_Impl` reads menu mode; not traced). Why the harness pauses only cell changes.
 - **Lock order, vanilla:** `coc` while the exterior world steps inverts the extra-data and `bhkWorld`
-  locks. Listed in `scripts/lock_order_known.txt`, not fixed.
+  locks. Listed in `scripts/lock_order_known-1.7.104.txt`, not fixed.
 - **Host hang in `dialogue-refused-start` (2026-10-22, the 25th scenario of a `--tag ai,combat,magic,spawn,session,scripts`
   run; 3 of 3 alone).** The main thread waits for jobs in `Main` (36555); one job thread waits in `Mutex::Lock1`
   (13129, the engine's `BSSpinLock`) from `MenuTopicManager` (35289) → `Actor::UpdateInDialogue` (37541) → our

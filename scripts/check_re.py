@@ -18,9 +18,9 @@ JOURNAL = re.compile(r"^docs/re/journal/(?P<version>[\d.]+)/[^/]+\.tsv$")
 
 
 def version_of(path):
-    """The runtime whose Address Library a notes or journal file uses (ida_notes.tsv is 1.6.1170's)."""
+    """The runtime whose Address Library a notes or journal file uses; None for ida_notes.tsv (frozen, from 1.6.1170)."""
     match = NOTES.match(path) or JOURNAL.match(path)
-    return (match.group("version") or "1.6.1170") if match else None
+    return match.group("version") if match else None
 
 
 def row_problem(path, line, library):

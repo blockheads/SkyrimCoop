@@ -5,16 +5,15 @@ import struct
 import re
 
 LATEST = "1.7.104.0"
-SUPPORTED = (LATEST, "1.6.1170.0")
 
 
 def runtime_version(value=None):
-    value = value or os.environ.get("COOP_SKYRIM_VERSION", "latest")
+    value = value or "latest"
     if value == "latest":
         return LATEST
     value = value if value.count(".") == 3 else value + ".0"
-    if value not in SUPPORTED:
-        raise ValueError(f"unsupported Skyrim runtime {value}; choose latest or 1.6.1170")
+    if value != LATEST:
+        raise ValueError(f"unsupported Skyrim runtime {value}; only {LATEST} is supported")
     return value
 
 

@@ -3,7 +3,7 @@
 Notes here may point at design notes outside this folder (`docs/design`, `docs/research`, `docs/reports`). Those were
 removed on 2026-11-26 and read from history: `git show b7b43a3bd:docs/design/<name>.md`.
 
-Everything we know about SkyrimSE.exe **1.7.104** (the primary Steam target), the retained **1.6.1170** build, and how SkyrimCoop
+Everything we know about SkyrimSE.exe **1.7.104** (the only supported runtime) and how SkyrimCoop
 touches it. The repo is the record; IDA is a workbench that syncs into it.
 
 | Where | What | Edited by |
@@ -16,8 +16,8 @@ touches it. The repo is the record; IDA is a workbench that syncs into it.
 
 ## Sources (in priority order)
 
-1. **Our IDA database** (`build/re/SkyrimSE_1.7.104.i64`, not committed). The 1.6.1170 database remains separate;
-   `ida_notes.tsv` retains its findings, and `ida_notes_1.7.104.tsv` holds target-specific notes.
+1. **Our IDA database** (`build/re/SkyrimSE_1.7.104.i64`, not committed). `ida_notes.tsv` holds
+   frozen findings from the earlier 1.6.1170 database; `ida_notes_1.7.104.tsv` holds the current notes.
 2. **CommonLibSSE** (powerof3, GPL-3) in `reference/CommonLibSSE`: engine classes, layouts,
    vtables, RTTI, and `RELOCATION_ID(SE, AE)` for ~9.7k addresses. The best reference for
    struct layouts; check our hand-written structs in `Code/engine/` against it.
@@ -25,7 +25,7 @@ touches it. The repo is the record; IDA is a workbench that syncs into it.
    AE layout fixes (e.g. `PlayerControls::data` at 0x24, the `ButtonEvent` stride) and helpers such
    as `ButtonEvent::Create`. When the two disagree on an AE layout, check IDA.
 3. **Matching SKSE source**, shipped with SKSE in the game dir (`src/skse64`): runtime-specific
-   offsets. 1.7.104 uses SKSE 2.3.1; 1.6.1170 uses 2.2.6. Also shows which engine functions SKSE itself hooks (we stack on some of them).
+   offsets. 1.7.104 uses SKSE 2.3.1. Also shows which engine functions SKSE itself hooks (we stack on some of them).
 4. **meh321 AddressLibraryDatabase** (`skyrimae.rename`): names for ~42k Address Library IDs.
 5. **SKSE plugins** in `reference/plugins` (Precision, TrueHUD, EngineFixes, po3-Tweaks, Papyrus
    Extender): where other mods hook or call an address and how. Each such ID gets "Used by plugin:
@@ -48,8 +48,7 @@ scripts/re/build_re_data.py      # regenerate ENGINE_REFERENCE.md + build/re/<ve
 scripts/re/make_ida_db.sh        # first time: unpack the exe, analyse, annotate (slow)
 ```
 
-The default is 1.7.104. For legacy generation use `COOP_SKYRIM_VERSION=1.6.1170`; it writes
-`ENGINE_REFERENCE_1.6.1170.md` (generated on demand, not kept in the repo). Both write `build/re/<version>/annotations.json`. `COOP_RE_LIBRARY`,
+It writes `build/re/1.7.104/annotations.json`. `COOP_RE_LIBRARY`,
 `COOP_RE_EXE`, `COOP_RE_SKSE_SOURCE` and `COOP_RE_COMMONLIB` select private artifact/reference paths.
 
 In IDA (open the database matching the selected executable):

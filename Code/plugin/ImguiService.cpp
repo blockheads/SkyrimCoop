@@ -46,8 +46,3 @@ void ImguiService::Render() const
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 }
 
-void ImguiService::Reset() const
-{
-    // TODO: idk how imgui handles this
-}
-

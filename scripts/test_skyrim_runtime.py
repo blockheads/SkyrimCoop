@@ -39,29 +39,22 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual((plugins / loader.name).read_bytes(), b"old")
             self.assertEqual((plugins / "SkyrimCoop" / dll.name).read_bytes(), b"old")
 
-    def test_reviewed_lock_patterns_follow_runtime_and_never_hide_live_overlaps(self):
+    def test_reviewed_lock_patterns_never_hide_live_overlaps(self):
         from coop_harness.observations import Observations
-        from coop_harness import observations, common
-        root = Path(__file__).resolve().parent
-        old = "SkyrimSE.exe+0xe85437 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16abbd > SkyrimSE.exe+0xe92c16"
-        new = "SkyrimSE.exe+0x104ad57 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x17014d > SkyrimSE.exe+0x10587a6"
-        for version, filename, reviewed, other in (
-            ("1.6.1170.0", "lock_order_known.txt", old, new),
-            ("1.7.104.0", "lock_order_known-1.7.104.txt", new, old),
-        ):
-            if common.SKYRIM_VERSION == version:
-                self.assertEqual(common.KNOWN_LOCK_PATTERNS.name, filename)
-            ctx = Mock()
-            ctx.known_lock_patterns.side_effect = lambda: Observations.known_lock_patterns(ctx)
-            reports = [f"[ours] lock order inversion [{reviewed}]",
-                       f"[ours] live lock order inversion [{reviewed}]",
-                       f"[ours] lock order inversion [{other}]"]
-            ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": reports}}
-            with patch.object(observations, "KNOWN_LOCK_PATTERNS", root / filename):
-                found = Observations.lock_order_reports(ctx)
-                self.assertNotIn(reviewed, found)
-                self.assertIn("live: " + reviewed, found)
-                self.assertIn(other, found)
+        from coop_harness import common
+        reviewed = "SkyrimSE.exe+0x104ad57 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x17014d > SkyrimSE.exe+0x10587a6"
+        other = "SkyrimSE.exe+0x1 > SkyrimSE.exe+0x2 vs SkyrimSE.exe+0x3 > SkyrimSE.exe+0x4"
+        self.assertEqual(common.KNOWN_LOCK_PATTERNS.name, "lock_order_known-1.7.104.txt")
+        ctx = Mock()
+        ctx.known_lock_patterns.side_effect = lambda: Observations.known_lock_patterns(ctx)
+        reports = [f"[ours] lock order inversion [{reviewed}]",
+                   f"[ours] live lock order inversion [{reviewed}]",
+                   f"[ours] lock order inversion [{other}]"]
+        ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": reports}}
+        found = Observations.lock_order_reports(ctx)
+        self.assertNotIn(reviewed, found)
+        self.assertIn("live: " + reviewed, found)
+        self.assertIn(other, found)
 
     def test_lock_orders_the_frame_keeps_apart_never_fail_and_never_hide_a_risk(self):
         from coop_harness.observations import Observations
@@ -111,14 +104,13 @@ class RuntimeTests(unittest.TestCase):
                 self.assertEqual(target.read_bytes(), b"old")
                 self.assertFalse(Runtime.copy_if_changed(None, source, target, compare_contents=True))
 
-    def test_latest_and_legacy_files_are_distinct(self):
-        with patch.dict(os.environ, {"COOP_SKYRIM_VERSION": "latest"}):
-            self.assertEqual(runtime.runtime_version(), "1.7.104.0")
-            self.assertEqual(runtime.skse_dll(), "skse64_1_7_104.dll")
-        self.assertEqual(runtime.library_name("1.6.1170"), "versionlib-1-6-1170-0.bin")
-        with self.assertRaises(ValueError):
-            runtime.runtime_version("1.7.99")
-        self.assertEqual(runtime.runtime_from_log("SkyrimSE v1.6.1170"), "1.6.1170.0")
+    def test_runtime_files(self):
+        self.assertEqual(runtime.runtime_version(), "1.7.104.0")
+        self.assertEqual(runtime.skse_dll(), "skse64_1_7_104.dll")
+        self.assertEqual(runtime.library_name(), "versionlib-1-7-104-0.bin")
+        for unsupported in ("1.7.99", "1.6.1170"):
+            with self.assertRaises(ValueError):
+                runtime.runtime_version(unsupported)
         self.assertEqual(runtime.runtime_from_log("Skyrim 1.7.104 with SKSE 2.3.1"), "1.7.104.0")
 
     def test_staging_selects_matching_sibling_without_replacing_steam_exe(self):
@@ -130,7 +122,6 @@ class RuntimeTests(unittest.TestCase):
             executable(old, (1, 6, 1170, 0))
             executable(new, (1, 7, 104, 0))
             self.assertEqual(runtime.game_executable(root), new)
-            self.assertEqual(runtime.game_executable(root, "1.6.1170"), old)
             self.assertEqual(runtime.pe_version(old), "1.6.1170.0")
             with patch.dict(os.environ, {"SKYRIM_EXECUTABLE": str(old)}):
                 with self.assertRaises(ValueError): runtime.game_executable(root)
@@ -145,18 +136,6 @@ class RuntimeTests(unittest.TestCase):
             for end in range(len(data)):
                 path.write_bytes(data[:end])
                 with self.assertRaises(ValueError): load(path)
-
-    def test_reference_scan_uses_only_the_selected_runtime_hook(self):
-        import build_re_data
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            client = root / "Code/engine"
-            client.mkdir(parents=True)
-            (client / "hooks.cpp").write_text('#if COOP_SKYRIM_1_6_1170\nHOOK_ID(52488, &RealOkay, HookOkay);\n#else\nHOOK_ID(524025, &RealOkay, HookOkay);\n#endif\n')
-            with patch.object(build_re_data, "ROOT", root), patch.object(build_re_data, "SOURCES", [client]):
-                for version, expected in (("1.6.1170.0", 52488), ("1.7.104.0", 524025)):
-                    with patch.object(build_re_data, "EXE_VERSION", version):
-                        self.assertEqual(set(build_re_data.scan_our_code()), {expected})
 
     def test_ida_import_rejects_a_different_binary_before_any_database_write(self):
         with tempfile.TemporaryDirectory() as folder:

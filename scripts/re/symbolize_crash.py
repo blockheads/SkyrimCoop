@@ -73,8 +73,7 @@ def main():
     if args.build:
         kept = sorted((folder for folder in (ROOT / "build/package").glob("*-symbols")
                        if (folder / "BUILD").exists() and (folder / "BUILD").read_text().strip() == args.build
-                       and ((folder / "RUNTIME").read_text().strip() == runtime if (folder / "RUNTIME").exists()
-                            else runtime == "1.6.1170")),
+                       and (folder / "RUNTIME").exists() and (folder / "RUNTIME").read_text().strip() == runtime),
                       key=lambda folder: folder.stat().st_mtime)
         if not kept:
             parser.error(f"no package kept symbols for build {args.build} (build/package/*-symbols/)")

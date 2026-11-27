@@ -9,7 +9,7 @@ cd "$ROOT"
 VERSION="$(python3 -c 'import sys; sys.path.insert(0, "scripts"); from skyrim_runtime import runtime_version; print(runtime_version().removesuffix(".0"))')"
 export XMAKE_CONFIGDIR="$ROOT/build/package-config-$VERSION"
 xmake f -P "$ROOT" -p windows -a x64 --toolchain=clang-cl --sdk="$T/winsysroot" -m dev --test_harness=n \
-    --skyrim_version="$VERSION" -o "build/package-build/$VERSION" -y >/dev/null
+    -o "build/package-build/$VERSION" -y >/dev/null
 xmake build -P "$ROOT" -j8 SkyrimCoopPlugin
 python3 - "$ROOT" "$(git describe --tags --always --dirty)" "$(git rev-parse --short HEAD)" "$VERSION" <<'EOF'
 import shutil, sys, zipfile

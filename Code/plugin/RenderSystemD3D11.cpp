@@ -6,25 +6,12 @@
 #include <Ui/UiService.h>
 #include <core/World.h>
 
-#include <Hooks/D3D11Hook.h>
 #include <d3d11.h>
 
 RenderSystemD3D11::RenderSystemD3D11(ImguiService& aImguiService)
     : m_pSwapChain(nullptr)
     , m_imguiService(aImguiService)
 {
-    auto& d3d11 = Hooks::D3D11Hook::Get();
-
-    m_createConnection = d3d11.OnCreate.Connect([this](IDXGISwapChain* apSwapChain) { OnDeviceCreation(apSwapChain); });
-    m_resetConnection = d3d11.OnLost.Connect(std::bind(&RenderSystemD3D11::OnReset, this, std::placeholders::_1));
-}
-
-RenderSystemD3D11::~RenderSystemD3D11()
-{
-    auto& d3d11 = Hooks::D3D11Hook::Get();
-
-    d3d11.OnCreate.Disconnect(m_createConnection);
-    d3d11.OnLost.Disconnect(m_resetConnection);
 }
 
 HWND RenderSystemD3D11::GetWindow() const
@@ -62,12 +49,5 @@ void RenderSystemD3D11::OnRender()
     if (auto* pUi = World::Get().ctx().find<UiService>())
         pUi->Render();
     m_imguiService.Render();
-}
-
-void RenderSystemD3D11::OnReset(IDXGISwapChain* apSwapChain)
-{
-    m_pSwapChain = apSwapChain;
-
-    m_imguiService.Reset();
 }
 

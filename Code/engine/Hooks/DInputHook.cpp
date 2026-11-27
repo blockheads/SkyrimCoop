@@ -68,29 +68,12 @@ namespace Hooks
 
     HRESULT WINAPI StubIDirectInputDevice8A::GetDeviceState(DWORD outDataLen, LPVOID outData)
     {
-        if (DInputHook::Get().IsEnabled())
-        {
-            std::memset(outData, 0, outDataLen);
-            return 0;
-        }
-
         return IDirectInputDevice8_GetDeviceState(m_pDevice, outDataLen, outData);
     }
 
     HRESULT WINAPI StubIDirectInputDevice8A::GetDeviceData(DWORD dataSize, LPDIDEVICEOBJECTDATA outData, LPDWORD outDataLen, DWORD flags)
     {
-        auto& input = DInputHook::Get();
-
-        const auto result = IDirectInputDevice8_GetDeviceData(m_pDevice, dataSize, outData, outDataLen, flags);
-
-        if (input.IsEnabled())
-        {
-            *outDataLen = 0;
-
-            return result;
-        }
-
-        return result;
+        return IDirectInputDevice8_GetDeviceData(m_pDevice, dataSize, outData, outDataLen, flags);
     }
 
     ULONG WINAPI StubIDirectInputDevice8A::Release()
@@ -164,12 +147,6 @@ namespace Hooks
         HOOK_IAT(DirectInput8Create, "dinput8.dll");
         // Store original prologue to restore later
         std::memcpy(s_realDirectInput8CreatePrologue.data(), GetOriginalFunctionPrologue(), kDirectInput8CreatePrologueSize);
-    }
-
-    DInputHook& DInputHook::Get() noexcept
-    {
-        static DInputHook s_instance;
-        return s_instance;
     }
 
 }

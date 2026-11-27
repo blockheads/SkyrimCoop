@@ -213,11 +213,6 @@ World& World::Get() noexcept
     return *s_pCurrent;
 }
 
-bool World::Exists() noexcept
-{
-    return s_pCurrent != nullptr;
-}
-
 void World::SetCurrent(World* apWorld) noexcept
 {
     s_pCurrent = apWorld;
@@ -263,39 +258,14 @@ SessionService& World::GetSessionService() noexcept
     return ctx().at<SessionService>();
 }
 
-const SessionService& World::GetSessionService() const noexcept
-{
-    return ctx().at<const SessionService>();
-}
-
 TravelService& World::GetTravelService() noexcept
 {
     return ctx().at<TravelService>();
 }
 
-const TravelService& World::GetTravelService() const noexcept
-{
-    return ctx().at<const TravelService>();
-}
-
 CharacterService& World::GetCharacterService() noexcept
 {
     return ctx().at<CharacterService>();
-}
-
-const CharacterService& World::GetCharacterService() const noexcept
-{
-    return ctx().at<const CharacterService>();
-}
-
-MagicService& World::GetMagicService() noexcept
-{
-    return ctx().at<MagicService>();
-}
-
-const MagicService& World::GetMagicService() const noexcept
-{
-    return ctx().at<const MagicService>();
 }
 
 Hosting& World::GetHosting() noexcept
@@ -306,9 +276,4 @@ Hosting& World::GetHosting() noexcept
 HostService& World::GetHostService() noexcept
 {
     return ctx().at<HostService>();
-}
-
-const HostService& World::GetHostService() const noexcept
-{
-    return ctx().at<const HostService>();
 }
