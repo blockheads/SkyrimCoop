@@ -343,7 +343,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - A follower whose tether move never arrives stays "following" for 60 s: a travel of its own in that
     time does not lead.
   - A player joining somewhere else is pulled to the host's player and pulls nobody (2026-10-23,
-    `HostCharacters::BringToParty`; tier 2 late-join flow, `BridgeTests` "a player joining away from the host").
+    `HostArrivals::BringToParty`; tier 2 late-join flow, `BridgeTests` "a player joining away from the host").
     Outdoors also when out of the host's loaded grid in the same worldspace (fixed the same day after Skyrim's
     four-cell join: `InHostGrid`).
   - Players walking apart outdoors work (measured 2026-10-23): the far copy is kept without 3D and loads again on
