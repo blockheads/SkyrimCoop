@@ -72,6 +72,7 @@ every other section needs the duo.
 **Combat**
 
 - [After the host dies](#after-the-host-dies): small, the lock order inversion left
+- [A guest's game stalls on its first swing](#a-guests-game-stalls-on-its-first-swing): small
 - [A guest's horse in a trap](#a-guests-horse-in-a-trap): small, no duo first
 - [After the host loads a save, a guest's moved objects stay](#after-the-host-loads-a-save-a-guests-moved-objects-stay): medium
 
@@ -757,11 +758,16 @@ named now read `World`'s static accessors (`Hosts`, `Connected`, `FrameTick`, `S
   The `World::Get()` there is the least of it: `UiService::Render` then reads the registry (the party's
   `PlayerComponent`s), `SessionService`'s players, `JoinService`'s status, `DeathService`, and sends chat
   (`TransportService::Send`), all on that thread while the main thread's hooks may change them. Removing the lookup
-  alone would only hide it. Needs: the model updates (`UpdateParty`, `UpdateChat`, `UpdateJoin`, `UpdateDeath`) moved
-  to `UiService`'s update, with a lock shared with `Render` around the RmlUi context; the join panel must still draw
-  during loads.
+  alone would only hide it.
 
-Size: small. Needs: the duo (the check only speaks in the game).
+Agent task: drawing reads no live game state. `UiService`'s update (the main thread) fills a plain snapshot of what
+the four `Update*` read (party, chat, join, death; the `UiModels` types) and swaps it under one small mutex; `Render`
+copies it and is the only code that touches the RmlUi context, so the context needs no lock. A click's action (a chat
+line sent) goes through `World::Runner().Queue`. First read which thread `UiInput` feeds the context from during a
+load: if not the presenting one, its events go through the snapshot's mutex too. The join panel must still draw
+during loads (from the last snapshot; check what its progress reads).
+
+Size: medium. Needs: the duo (the check only speaks in the game).
 
 ### Quest start and stop events
 
@@ -846,6 +852,19 @@ Size: medium. Needs: duo.
     - Pass now: `guest-lockpick-party-alarm` and `guest-ivarstead-fine-mouse`, 4 of 4 each (every run on 2026-11-11).
 
 ## Combat
+
+### A guest's game stalls on its first swing
+
+Seen once, 2026-11-27, in `melee-client-hits-host-npc` on the branch of PR #150 before its melee fix
+(`HookDamageActor`, `HookStagger` off `World::Get()`): the guest's game gave the harness no answer for 3 s at the
+guest's first swing (`graph_bool` for `IsAttacking`: "refused: no answer"), then went on; the rerun passed. Evidence:
+that worktree's `build/coop-test/results/20261127-122636-96390f`. Not investigated: a stall that long on a first
+swing reads like a file load on the game's thread (the swing's clips) or a lock held, not a slow frame.
+
+Agent task: `coop_test.py scenario --repeat 10 melee-client-hits-host-npc` on fresh games; on a stall, the watchdog's
+report and the guest's log around the swing say what the main thread waited on. Not seen in ten runs: delete this.
+
+Size: small. Needs: the duo.
 
 ### After the host dies
 
@@ -1594,9 +1613,22 @@ owner's until both stand" (`physics_flows.cpp:887`): the copy's head ended 27.8 
 Looped alone again: 1 of 20 over 15 (42.4) with the blend, 8 of 30 (up to 16.4) with it off.
 2026-11-24 on `agent/traps-synced`: the same case, 29.8 (`physics_flows.cpp:996`); 1 of 6 alone.
 
-Agent task: loop `GameTests` until it fails and fix that case's timing.
+2026-11-27, measured (dev `bba3a3b2`, the gate's eight shards, 28 cores): 0 of 4 runs failed on an idle machine; 6 of 6
+with 26 busy loops beside them, on ten cases of 645: six in `physics_flows.cpp` (the ragdoll cases at 514, 653 and
+997, the bucket cases at 2095 and 2200), `copy_playback_flows.cpp` 178 and 484, `animation_replay_flows.cpp` 605,
+`friendly_fire_flows.cpp` 422, `travel_flows.cpp` 533. Two kinds: a `Party::Until` that gives up after 2 s of wall
+time, and a check of a result that real sleeps were meant to line up within milliseconds. The cause is the harness,
+not the cases: an in-process game runs in wall time (the host's network tick, `SynchronizedClock`, enet's own timers,
+`Seams.cpp`'s frame delta), so a busy machine changes what a test sees. Counting frames instead of seconds would not
+help: the loop spins frames while it waits for real time.
 
-Size: small. Needs: nothing but the fast suite.
+Agent task: time the tests step. The seams that exist: `World::Step(delta, frameMs)`, `FakeEngine::FrameMs`,
+`HostNetwork`'s in-process routes. What is missing: the session tick and `SynchronizedClock` from a clock the test
+advances, an in-memory line in place of enet between the test's games, the 29 `now()` calls in `Code/sync` through
+that clock, and the tests' own `while (now() < until)` loops as "run this many ms". A design first, proven on
+`physics_flows.cpp`.
+
+Size: medium to large. Needs: nothing but the fast suite.
 - 2026-11-22: `scripts/check.sh` passed 2 of 2 in this worktree (one full, `CHECK_FORCE=1`).
 
 ### A scenario stages its speaker frozen
