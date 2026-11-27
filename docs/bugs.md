@@ -72,6 +72,7 @@ every other section needs the duo.
 **Combat**
 
 - [After the host dies](#after-the-host-dies): small, the lock order inversion left
+- [A guest's game stalls on its first swing](#a-guests-game-stalls-on-its-first-swing): small
 - [A guest's horse in a trap](#a-guests-horse-in-a-trap): small, no duo first
 - [After the host loads a save, a guest's moved objects stay](#after-the-host-loads-a-save-a-guests-moved-objects-stay): medium
 
@@ -757,11 +758,16 @@ named now read `World`'s static accessors (`Hosts`, `Connected`, `FrameTick`, `S
   The `World::Get()` there is the least of it: `UiService::Render` then reads the registry (the party's
   `PlayerComponent`s), `SessionService`'s players, `JoinService`'s status, `DeathService`, and sends chat
   (`TransportService::Send`), all on that thread while the main thread's hooks may change them. Removing the lookup
-  alone would only hide it. Needs: the model updates (`UpdateParty`, `UpdateChat`, `UpdateJoin`, `UpdateDeath`) moved
-  to `UiService`'s update, with a lock shared with `Render` around the RmlUi context; the join panel must still draw
-  during loads.
+  alone would only hide it.
 
-Size: small. Needs: the duo (the check only speaks in the game).
+Agent task: drawing reads no live game state. `UiService`'s update (the main thread) fills a plain snapshot of what
+the four `Update*` read (party, chat, join, death; the `UiModels` types) and swaps it under one small mutex; `Render`
+copies it and is the only code that touches the RmlUi context, so the context needs no lock. A click's action (a chat
+line sent) goes through `World::Runner().Queue`. First read which thread `UiInput` feeds the context from during a
+load: if not the presenting one, its events go through the snapshot's mutex too. The join panel must still draw
+during loads (from the last snapshot; check what its progress reads).
+
+Size: medium. Needs: the duo (the check only speaks in the game).
 
 ### Quest start and stop events
 
@@ -846,6 +852,19 @@ Size: medium. Needs: duo.
     - Pass now: `guest-lockpick-party-alarm` and `guest-ivarstead-fine-mouse`, 4 of 4 each (every run on 2026-11-11).
 
 ## Combat
+
+### A guest's game stalls on its first swing
+
+Seen once, 2026-11-27, in `melee-client-hits-host-npc` on the branch of PR #150 before its melee fix
+(`HookDamageActor`, `HookStagger` off `World::Get()`): the guest's game gave the harness no answer for 3 s at the
+guest's first swing (`graph_bool` for `IsAttacking`: "refused: no answer"), then went on; the rerun passed. Evidence:
+that worktree's `build/coop-test/results/20261127-122636-96390f`. Not investigated: a stall that long on a first
+swing reads like a file load on the game's thread (the swing's clips) or a lock held, not a slow frame.
+
+Agent task: `coop_test.py scenario --repeat 10 melee-client-hits-host-npc` on fresh games; on a stall, the watchdog's
+report and the guest's log around the swing say what the main thread waited on. Not seen in ten runs: delete this.
+
+Size: small. Needs: the duo.
 
 ### After the host dies
 
