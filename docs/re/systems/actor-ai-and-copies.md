@@ -447,7 +447,7 @@ graph updates late", debug).
 Measured: `firebolt-client-hits-host-npc` 8 of 8 with no refusal (7 taken at once, 1 after 2
 retries); the magic, hands and combat tags run back to back twice pass apart from the kill-credit
 scenarios (fixed below). The host relay also stamps a snapshot with the owner's tick now
-(`HostCharacters::OnMovement`), the time base the owner's actions carry, instead of the host's
+(`HostMovement::OnMovement`), the time base the owner's actions carry, instead of the host's
 receive time.
 
 ## A copy's casts are free (2026-10-13)

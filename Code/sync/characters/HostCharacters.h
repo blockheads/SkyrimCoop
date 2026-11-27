@@ -14,7 +14,6 @@
 struct HostRouter;
 struct HostCharactersGame;
 struct HostPlayers;
-struct ReferencesMoveRequest;
 struct AnnounceCharacterRequest;
 struct RequestRemoveCharacter;
 struct RequestRespawn;
@@ -63,6 +62,8 @@ struct HostCharacters
 
     // The owner's connection (0: no such character).
     [[nodiscard]] ConnectionId_t OwnerOf(uint32_t aSessionId) const noexcept;
+    // A player's character's record (kept for its later spawns) when aOwner owns it; else null.
+    [[nodiscard]] NotifyCharacterSpawn* PlayerRecordOf(uint32_t aSessionId, ConnectionId_t aOwner) noexcept;
     // A session id for one of the host's actors, which its game announces under it.
     [[nodiscard]] uint32_t NewCharacterId() noexcept;
     // A joining player's character's session id (in its join answer), which only its game may announce.
@@ -119,15 +120,7 @@ private:
     // Who rides what, to a game that just got the riders' and mounts' spawns.
     void SendRides(ConnectionId_t aPlayer) const noexcept;
     // The owner's actor's effects with visuals: to everyone else, and into a player's record for its later spawns.
-    void OnPerks(const ActorPerksRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept;
-    // A player's character's values from its owner (the relayed requests, watched): into its record for its later
-    // spawns, which a read of the host's copy never overwrites (docs/design/death.md, "Copies").
-    void OnValues(const RequestActorValueChanges& acRequest, ConnectionId_t aSender) noexcept;
-    void OnMaxValues(const RequestActorMaxValueChanges& acRequest, ConnectionId_t aSender) noexcept;
-    void KeepValues(uint32_t aSessionId, const std::map<uint32_t, float>& acValues, bool aMaximum, ConnectionId_t aSender) noexcept;
-    // Owners' movement goes straight to everyone else (unreliable: only the latest matters).
-    void OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept;
     // A player's game arrived somewhere: with the host, it gets everyone there and they get it.
     void OnTravelQueued(const PartyTravelRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;

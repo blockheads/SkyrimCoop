@@ -57,39 +57,32 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, const uint32_t
 
     // A fresh copy starts in its owner's graph state; the queue waits for it. On the stream, its sync point is newer:
     // it takes that state's actor state alone (a sit state its owner's procedure set, with no action), and its
-    // spawn action is taken as below.
+    // spawn action is taken as off it.
     auto& streams = aWorld.GetGraphStreams();
-    if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity); pSpawn && streams.OnStream(aFormId))
-    {
-        if (body.LoadGraphStateFlags(aFormId, pSpawn->State) && !actions.empty())
-        {
-            ActionEvent spawnAction = actions.front();
-            TargetFromNetwork(spawnAction);
-            cTaken(spawnAction);
-            actions.pop_front();
-        }
-        aWorld.remove<SpawnGraphStateComponent>(aEntity);
-    }
     if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity))
     {
-        if (aWorld.all_of<WaitingFor3D>(aEntity) || !body.GraphReady(aFormId))
+        const bool cOnStream = streams.OnStream(aFormId);
+        if (!cOnStream && (aWorld.all_of<WaitingFor3D>(aEntity) || !body.GraphReady(aFormId)))
             return;
-        if (body.LoadGraphState(aFormId, pSpawn->State))
+        if (cOnStream ? body.LoadGraphStateFlags(aFormId, pSpawn->State) : body.LoadGraphState(aFormId, pSpawn->State))
         {
             // The state holds the spawn action's result: it is taken, not replayed.
             if (!actions.empty())
             {
                 ActionEvent spawnAction = actions.front();
                 TargetFromNetwork(spawnAction);
-                spdlog::debug("Copy {:X} starts in its owner's graph state; spawn action {:X} '{}' taken", aFormId, spawnAction.ActionId,
-                              spawnAction.EventName);
-                aAnimationComponent.Variables = spawnAction.Variables;
-                aAnimationComponent.VariablesTick = spawnAction.Tick;
+                if (!cOnStream)
+                {
+                    spdlog::debug("Copy {:X} starts in its owner's graph state; spawn action {:X} '{}' taken", aFormId, spawnAction.ActionId,
+                                  spawnAction.EventName);
+                    aAnimationComponent.Variables = spawnAction.Variables;
+                    aAnimationComponent.VariablesTick = spawnAction.Tick;
+                }
                 cTaken(spawnAction);
                 actions.pop_front();
             }
         }
-        else
+        else if (!cOnStream)
             spdlog::warn("Copy {:X}: the owner's graph state did not load, replaying its last action", aFormId);
         aWorld.remove<SpawnGraphStateComponent>(aEntity);
     }
