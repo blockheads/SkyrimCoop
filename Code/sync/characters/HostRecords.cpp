@@ -76,7 +76,7 @@ void HostRecords::OnRecord(const RecordRequest& acRequest, ConnectionId_t aSende
         spdlog::debug("HostRecords: {:x} declared a part of {:x}, which it does not own: dropped", aSender, acRequest.Id);
         return;
     }
-    if (!m_characters.RideGranted(acRequest.Id, acRequest.Part))
+    if (!m_characters.Rides().RideGranted(acRequest.Id, acRequest.Part))
     {
         spdlog::info("HostRecords: {:x} declared a seat the host did not give it: dropped", acRequest.Id);
         return;
