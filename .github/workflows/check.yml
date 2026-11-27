@@ -1,0 +1,40 @@
+# The gate without the Windows plugin: scripts/check.sh --no-dll (native tests, Python tests, layout, RE and
+# scenario checks). The plugin's build stays local (scripts/check.sh, the pre-push hook).
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # check.sh and check_re.py compare with origin/dev
+
+      # The Python the scripts target; the packages the gate's tests import (pyproject.toml) and ruff
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install "mcp<2" lz4 Pillow ruff
+
+      # clang 18 and lld (scripts/xmake-linux.sh), X11 and GL for glfw, Xvfb for UiWorkbench --check
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 lld-18 libstdc++-13-dev bc xvfb libgl1-mesa-dev libgl1-mesa-dri \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev
+
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.xmake/packages
+          key: xmake-${{ runner.os }}-${{ hashFiles('xmake.lua') }}
+
+      - run: scripts/check.sh --no-dll

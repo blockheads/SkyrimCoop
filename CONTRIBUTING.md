@@ -28,7 +28,8 @@ Skyrim really does.
 1. Branch from `dev`.
 2. Write a test that fails, then the change that makes it pass.
 3. Run `scripts/check.sh`.
-4. Open a pull request to `dev`. Say what changed and how you tested it.
+4. Open a pull request to `dev`. Say what changed and how you tested it. CI runs `scripts/check.sh --no-dll` on it
+   (`.github/workflows/check.yml`).
 
 ## The rules
 
