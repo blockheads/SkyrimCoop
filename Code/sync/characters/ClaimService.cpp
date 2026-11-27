@@ -36,10 +36,7 @@ ClaimService::ClaimService(World& aWorld, entt::dispatcher& aDispatcher, Transpo
 
 entt::entity ClaimService::EntityOf(uint32_t aSessionId) const noexcept
 {
-    for (const auto cEntity : m_world.view<FormIdComponent>())
-        if (Utils::GetSessionId(cEntity) == aSessionId)
-            return cEntity;
-    return entt::null;
+    return m_world.GetActorIndex().BySession<FormIdComponent>(aSessionId);
 }
 
 bool ClaimService::Holds(uint32_t aSessionId) const noexcept

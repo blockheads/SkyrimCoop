@@ -67,16 +67,13 @@ void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acE
     else
     {
         const uint32_t cShooterFormId = acEvent.ShooterID;
-        auto view = m_world.view<FormIdComponent, LocalComponent>();
-        const auto cShooter = std::find_if(view.begin(), view.end(), [&](entt::entity aEntity) {
-            return view.get<FormIdComponent>(aEntity).Id == cShooterFormId;
-        });
-        if (cShooter == view.end())
+        const auto cShooter = m_world.GetActorIndex().ByForm<LocalComponent>(cShooterFormId);
+        if (cShooter == entt::null)
         {
             spdlog::debug("Projectile launched by {:X}: not ours, not sent", cShooterFormId);
             return;
         }
-        shooterId = view.get<LocalComponent>(*cShooter).Id;
+        shooterId = m_world.get<LocalComponent>(cShooter).Id;
     }
 
     ProjectileLaunchRequest request{};
@@ -96,15 +93,13 @@ void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMes
     uint32_t shooterFormId = 0;
     if (acMessage.ShooterID)
     {
-        auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
-        const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.ShooterID](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
-
-        if (remoteIt == std::end(remoteView))
+        const auto cShooter = m_world.GetActorIndex().BySession<RemoteComponent, FormIdComponent>(acMessage.ShooterID);
+        if (cShooter == entt::null)
         {
             spdlog::warn("Shooter with remote id {:X} not found.", acMessage.ShooterID);
             return;
         }
-        shooterFormId = remoteView.get<FormIdComponent>(*remoteIt).Id;
+        shooterFormId = m_world.get<FormIdComponent>(cShooter).Id;
     }
 
     const uint32_t cParentCellId = m_world.GetTravelService().CellAt(
@@ -143,11 +138,7 @@ void CombatService::OnHitEvent(const HitEvent& acEvent) noexcept
     // lower health arrives.
     if (acEvent.HitterId != m_playerBridge.GetPlayerFormId())
         return;
-    auto view = m_world.view<FormIdComponent, RemoteComponent>();
-    const auto cCopy = std::find_if(view.begin(), view.end(), [&](entt::entity aEntity) {
-        return view.get<FormIdComponent>(aEntity).Id == acEvent.HitteeId;
-    });
-    if (cCopy == view.end())
+    if (m_world.GetActorIndex().ByForm<RemoteComponent>(acEvent.HitteeId) == entt::null)
         return;
 
     const float cHealth = m_actorBridge.GetActorValue(acEvent.HitteeId, 24 /* kHealth */);

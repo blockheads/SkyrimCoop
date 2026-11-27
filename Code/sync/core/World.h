@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include <core/ActorIndex.h>
 #include <core/RecipeBook.h>
 #include <core/CopyClock.h>
 #include <core/RunnerService.h>
@@ -79,6 +80,9 @@ struct World : entt::registry
     IPlayerBridge& GetPlayerBridge() noexcept;
     IWorldBridge& GetWorldBridge() noexcept;
 
+    // This game's actors by session id and form id.
+    [[nodiscard]] const ActorIndex& GetActorIndex() const noexcept { return m_actorIndex; }
+
     auto& GetDispatcher() noexcept { return m_dispatcher; }
     // The player-made potions' recipes this game knows (ItemIds).
     RecipeBook& GetRecipes() noexcept { return m_recipes; }
@@ -104,6 +108,7 @@ struct World : entt::registry
     [[nodiscard]] static RunnerService& Runner() noexcept;
 
 private:
+    ActorIndex m_actorIndex{*this}; // before every service: it sees each actor's components from the first
     entt::dispatcher m_dispatcher;
     // First: every service is built on it, and outlives none of them.
     std::unique_ptr<IEngine> m_pEngine;

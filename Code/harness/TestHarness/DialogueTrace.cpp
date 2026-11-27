@@ -17,15 +17,13 @@ namespace
 int64_t SessionOf(uint32_t aFormId)
 {
     auto& world = World::Get();
-    for (const auto cEntity : world.view<FormIdComponent>())
-    {
-        if (world.get<FormIdComponent>(cEntity).Id != aFormId)
-            continue;
-        if (const auto* pLocal = world.try_get<LocalComponent>(cEntity))
-            return pLocal->Id;
-        if (const auto* pRemote = world.try_get<RemoteComponent>(cEntity))
-            return pRemote->Id;
-    }
+    const auto cEntity = world.GetActorIndex().ByForm(aFormId);
+    if (cEntity == entt::null)
+        return -1;
+    if (const auto* pLocal = world.try_get<LocalComponent>(cEntity))
+        return pLocal->Id;
+    if (const auto* pRemote = world.try_get<RemoteComponent>(cEntity))
+        return pRemote->Id;
     return -1;
 }
 } // namespace

@@ -93,15 +93,13 @@ void EffectVisualsService::OnEffectVisualsChange(const EffectVisualsChangeEvent&
 {
     if (!m_transport.IsConnected())
         return;
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    for (const auto cEntity : view)
-        if (view.get<FormIdComponent>(cEntity).Id == acEvent.ActorId)
-        {
-            const uint32_t cSessionId = view.get<LocalComponent>(cEntity).Id;
-            if (acEvent.FlashEffectId)
-                SendFlash(cSessionId, acEvent.FlashEffectId);
-            return SendOwned(acEvent.ActorId, cSessionId);
-        }
+    const auto cEntity = m_world.GetActorIndex().ByForm<LocalComponent>(acEvent.ActorId);
+    if (cEntity == entt::null)
+        return;
+    const uint32_t cSessionId = m_world.get<LocalComponent>(cEntity).Id;
+    if (acEvent.FlashEffectId)
+        SendFlash(cSessionId, acEvent.FlashEffectId);
+    SendOwned(acEvent.ActorId, cSessionId);
 }
 
 void EffectVisualsService::SendFlash(uint32_t aSessionId, uint32_t aEffectFormId) noexcept
