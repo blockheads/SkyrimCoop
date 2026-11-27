@@ -6,8 +6,7 @@ target("GameTests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
     -- The sync layer is its own target (Code/sync). Two engine files that are pure enough to run here.
-    add_files("*.cpp", "../FakeNativeVm.cpp", "../../engine/Misc/ScriptFunction.cpp",
-              "../../engine/Interface/PartyMarkerLabel.cpp")
+    add_files("*.cpp", "../../engine/Interface/PartyMarkerLabel.cpp")
     add_deps("SkyrimCoopSync")
     -- ../../plugin: the diagnostics readouts the fake engine fills.
     add_includedirs(".", "../../plugin", "../../engine")

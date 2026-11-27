@@ -11,10 +11,8 @@
 #include <Bridges/PapyrusService.h>
 
 using TRegisterPapyrusFunction = void(BSScript::IVirtualMachine*, NativeFunction*);
-using TBindEverythingToScript = void(BSScript::IVirtualMachine**);
 
 TRegisterPapyrusFunction* RealRegisterPapyrusFunction = nullptr;
-TBindEverythingToScript* RealBindEverythingToScript = nullptr;
 
 void HookRegisterPapyrusFunction(BSScript::IVirtualMachine* apThis, NativeFunction* apFunction)
 {
@@ -27,20 +25,9 @@ void HookRegisterPapyrusFunction(BSScript::IVirtualMachine* apThis, NativeFuncti
     RealRegisterPapyrusFunction(apThis, apFunction);
 }
 
-void HookBindEverythingToScript(BSScript::IVirtualMachine** apThis)
-{
-    // The VM owns bound functions and frees them with the game heap (e.g. when the
-    // script class is not installed), so they must come from the game heap too.
-    // Plain `new` used the DLL's allocator and crashed BSSmallBlockAllocator at startup.
-    (*apThis)->BindNativeMethod(BSScript::MakeLaunchFunction());
-
-    RealBindEverythingToScript(apThis);
-}
-
 static Hooks::Initializer s_vmHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(104788, &RealRegisterPapyrusFunction, HookRegisterPapyrusFunction);
-        HOOK_ID(55739, &RealBindEverythingToScript, HookBindEverythingToScript);
     });
