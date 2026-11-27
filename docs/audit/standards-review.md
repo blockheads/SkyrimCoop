@@ -1,321 +1,218 @@
-# Standards review (2026-11-26)
+# Code review (2026-11-26)
 
-The code base read against well-known C++, build, test, open-source and security standards, at `dev` 3d7635789
-(after PR #134's layout and #135). Docs only: nothing here changes code.
+How the code itself is written, at `dev` 3d7635789: its correctness at the network boundary, global state, the
+shape of its classes and functions, how it reaches the engine, and how its messages are written. Each finding names
+the files, the standard it breaks (mostly the C++ Core Guidelines, "CG"), a fix and a rough size. Docs only.
 
-It builds on PR #134 (`agent/codebase-audit`), which laid the code out in layers and feature folders and wrote the
-rules into `CONTRIBUTING.md` and `docs/architecture.md`. That work is not repeated; what it left open is listed first.
+It builds on PR #134, which laid the code out in layers and feature folders. Repo-level points (CI, licenses, lint
+configuration) are listed briefly at the end.
 
-How it was checked: every finding was read in the code. Numbers come from `scripts/check_layout.py`, `lizard`
-(function size and cyclomatic complexity), `ruff` and `shellcheck` (default rules, no project config exists),
-`grep`, and a clean rebuild of `GameTests`.
+Every finding was read in the code; counts are from `grep`, `lizard` and `scripts/check_layout.py`.
+Severity: **High** (crashes or hangs, or invites bugs everywhere), **Medium** (makes change costly or error-prone),
+**Low** (local cleanup). Size: **S** under an hour, **M** a day or less, **L** several days.
 
-Severity: **High** (crash, legal or security exposure, or a gap that hides bugs), **Medium** (slows work or lets
-bugs in), **Low** (hygiene). Size: **S** under an hour, **M** a day or less, **L** several days.
+## What is already good
 
-## What PR #134 left open
+- **Host rules check who sends what.** `HostCharacters::OnMovement` drops updates for actors the sender does not
+  own; `OnAnnounceCharacter` checks the id the join gave; `HostAuthority::Handle` drops everything but a join from
+  a game that is not a player.
+- **Hooks are thin.** `engine/ActorHooks/Detection.cpp` reads the engine, asks a rule (`DetectionRules::Installed`,
+  `ActorStateRules::MakesOwnNoise`) and writes back; the rule has unit tests. This is the pattern to copy.
+- **`sync` cannot include the engine**, and the compiler enforces it.
+- **Work from the engine's job threads is queued** (`World::GetRunner().Trigger` in `AiStateEvents.cpp`,
+  `EffectEvents.cpp`, `HeadEvents.cpp`), not run on the registry.
 
-Still true at 3d7635789:
+## 1. Message decoding (the network boundary)
 
-- **The engine still includes upwards and decides.** `check_layout.py`: 22 includes from `engine` to `plugin`
-  (rule 1) and 564 from `engine` to `sync`. Ports and events are allowed, but the tool cannot tell them from
-  decisions, so rule 3 is unchecked.
-- **Feature cycles in `sync`.** `travel <-> death`, `travel <-> movement`, `movement <-> physics`,
-  `characters <-> physics`. Not checked by the gate (`--strict` checks only core and wiring).
-- **The seven link-time ports and the whole-`IActorBridge` services** (`docs/architecture.md`, "Not done yet").
-- **Services reach each other through `World`**, and `IsHosting()` stays where a role is decided.
-- **Dead links to removed notes.** 268 files in `Code/` and `scripts/` name a `docs/design`, `docs/research` or
-  `docs/reports` note that was deleted on 2026-11-26 (48 distinct paths, 3 still exist). `CONTRIBUTING.md` explains
-  the `git show b7b43a3bd:` workaround; `scripts/release.sh` and `scripts/package.sh` point at the deleted
-  `docs/design/launcher.md`.
+**1.1 High: a crafted `ReferencesMoveRequest` hangs the host.**
+`Code/encoding/Messages/ReferencesMoveRequest.cpp:21-27` and its twin `NotifyReferencesMove.cpp:21-23`:
+```cpp
+const auto count = Serialization::ReadVarInt(aReader);   // 64-bit, from the sender
+for (auto i = 0u; i < count; ++i)                         // 32-bit i: never reaches 2^32
+    Updates[sessionId].Deserialize(aReader);
+```
+A count of 2^32 or more loops forever; smaller large counts spin for minutes. Decoding runs in
+`HostNetwork::Receive` before `HostAuthority::Handle` checks the sender, so a connection that never joined is
+enough.
+Standard: CWE-835; CG ES.100 (don't mix signed/unsigned widths), ES.106.
+Fix: `uint64_t` index and a cap; a `TPTests` case with the crafted buffer. Size: S.
 
-## 1. Code smells
+**1.2 High: sizes from the sender, unbounded.** `ReferenceUpdate::Deserialize`
+(`Code/encoding/Structs/ReferenceUpdate.cpp:35`, `ActionEvents.resize(count)`), `Payloads::PartyItems`
+(`Payloads.cpp:637`), and `snappy::Uncompress` with no output limit (`Code/network/Server.cpp:362`,
+`Client.cpp:456`; snappy sizes its output from the packet's header). A huge size throws `bad_alloc` inside a
+`noexcept` decoder, which ends the game (1.4). Other decoders are bounded, each its own way (`kMaxStacks`,
+`kMaxChanged`, `kMaxPerQuest`, `std::min(..., 1024)`, `& 0xFFFF` in 168 places). The bound depends on each
+author remembering it; nothing enforces it.
+Standard: CWE-770/789; CG I.6 (state preconditions).
+Fix: one `Serialization::ReadCount(aReader, cMax)` that also fails when the count exceeds the bytes left, used by
+every decoder; `snappy::GetUncompressedLength` checked against a cap first. Size: M.
 
-**1.1 Medium: a few functions carry most of the complexity.**
-Where (lizard, NLOC / cyclomatic complexity):
-`Code/sync/animation/AnimationSystem.cpp` `AnimationSystem::Update` (251 / 79),
-`Code/harness/TestHarness/CommandsCrime.cpp` `TestHarness::Crime` (272 / 82),
-`Code/plugin/Debug/Views/AnimDebugView.cpp` `DrawAnimDebugView` (305 / 63),
-`Code/sync/game/HostService.cpp` `MakeAuthority` (161 / 20),
-`Code/sync/characters/CharacterServiceSpawn.cpp` `OnCharacterSpawn` (138 / 29).
-39 functions are over 100 lines and 56 have a complexity of 25 or more (of 6,686).
-Standard: C++ Core Guidelines F.2/F.3 (one operation, short functions); `CONTRIBUTING.md` rule 6.
-Fix: split `AnimationSystem::Update` by phase (gather, decide, apply) with a `UnitTests` case per phase; cut
-`TestHarness::Crime` into one function per sub-command (it is a dispatcher). Size: M each.
+**1.3 Medium: decoding cannot fail.** `RequestMessage::DeserializeRaw` / `NotifyMessage::DeserializeRaw`
+(`Code/encoding/Messages/Message.h`) return `void`; `ReadBool`, `ReadFloat`, `ReadString`, `ReadVarInt`
+(`Wire/Serialization.cpp`) drop the reader's `false`. A truncated message decodes into zeros and is acted on.
+Only `GraphOps::ReadRun`, `WorldState`'s `Read` and `TryReadVarInt` report failure.
+Standard: CG I.10 (use results to signal failure), E.27.
+Fix: a sticky `Failed()` flag on `Wire::Buffer::Reader`, set by any short read; the factories check it once and
+return `nullptr`. No per-message change needed beyond 1.2's counts. Size: S to M.
 
-**1.2 Low: giant files that are data or upstream.**
-`Code/engine/RTTI.h` / `RTTI.cpp` (5.6k lines each, RTTI address tables) and 65
-`Code/encoding/Structs/Skyrim/AnimationGraphDescriptor_*.cpp` files (3.9k lines of constructor tables) are data
-written as code. `Code/harness/TestHarness/EngineCalls.cpp` (2.8k) is hand-written and the largest real file.
-Standard: CG SF.1 / "a file does one job" (rule 6).
-Fix: generate the RTTI and descriptor tables from a data file (or mark them generated so reviewers skip them);
-cut `EngineCalls.cpp` by topic the way `FakeEngine.cpp` was. Size: M (EngineCalls), L (generation).
+**1.4 Medium: exceptions are on, banned, and never caught.** `set_exceptions("cxx")`, 0 `catch` blocks in
+`sync`/`engine`/`plugin`/`network`, 2,125 `noexcept` in `sync` headers. Any throw escaping a `noexcept` function
+terminates. Two decoders throw on purpose: `Code/encoding/Structs/Factions.cpp:39,49`.
+Standard: CG E.12; the project's "no exceptions" rule.
+Fix: those two become failed reads; 1.2 removes the allocation throws. Size: S.
 
-**1.3 Low: dead code and dead config.**
-- `xmake.lua`'s `before_build` writes `build/BranchInfo.h` (`IS_MASTER`, `IS_BRANCH_BETA` for upstream's
-  `bluedove` branch) on every build; nothing includes it.
-- `GameFiles/Skyrim/SkyrimTogether.esp`: upstream's plugin, referenced by no code, script or doc.
-- `.githooks/commit-msg` demands Conventional Commits, but `core.hooksPath` is `scripts/hooks`, so it never runs;
-  0 of the last 200 commit subjects follow it.
-- `NOTICE` names an LGPL `code/launcher` that does not exist.
-Standard: CG "don't keep dead code"; repo hygiene.
-Fix: delete all four (and the `NOTICE` paragraph). Size: S.
+**1.5 Medium: messages are written twice by hand, plus a third time for equality.** About 100 messages and
+structs each have a hand-written `SerializeRaw` and `DeserializeRaw` that must list the same fields in the same
+order. 94 `operator==` are also written by hand (e.g. `LockChangeRequest.h:21`), and the round-trip tests rely on
+them: a field left out of `==` makes its round trip pass without checking it. 10k lines in `Code/encoding/*.cpp`.
+Standard: CG T.1/T.140 (generic code over repetition), C.161; DRY.
+Fix: one template per type, `template <class Archive> void Fields(Archive& ar) { ar(Id, CellId, IsLocked,
+LockLevel); }`, driven by a writer and a reader archive, and `operator== = default`. Convert as messages are
+touched; new messages use it. Size: M for the archives, then per message.
 
-## 2. C++ practice
+**1.6 Low: message fields without initializers.** 12 fields in `Code/encoding` (`GameId::BaseId/ModId`,
+`LockChangeRequest::IsLocked/LockLevel`, `ActivateRequest::ActivatorId`, ...). A message built and sent with a
+field forgotten sends whatever was on the stack.
+Standard: CG C.48, ES.20.
+Fix: `{}` on each. Size: S.
 
-**2.1 High: exceptions are on, banned, and never caught.** `xmake.lua` sets `set_exceptions("cxx")`; the rules say
-"no exceptions"; there are 0 `catch` blocks in `sync`, `engine`, `plugin` and `network`, and 2,125 `noexcept`
-declarations in `sync` headers alone. Any throw (`std::bad_alloc` from a `resize`, `std::length_error`,
-`std::bad_function_call`, nlohmann's `type_error`) reaching a `noexcept` frame calls `std::terminate` and takes the
-game down. Two deserializers throw on purpose: `Code/encoding/Structs/Factions.cpp:39,49`
-(`throw std::runtime_error`).
-Standard: CG E.12 (`noexcept` when a throw is impossible or unacceptable), E.25; the project's own rule 15.
-Fix: replace the two throws with a failed read; bound every allocation sized from the network (2.2, 7.1);
-optionally `-fno-exceptions` for `SkyrimCoopSync` and `SkyrimEncoding` once the standard library's throwing paths
-are avoided. Size: S (throws), M (audit), L (no-exceptions build).
+## 2. Global state and lookups
 
-**2.2 Medium: deserializers cannot fail.** `RequestMessage::DeserializeRaw` and `NotifyMessage::DeserializeRaw`
-(`Code/encoding/Messages/Message.h`) return `void`; `Serialization::ReadBool`, `ReadFloat`, `ReadString` and
-`ReadVarInt` (`Code/encoding/Wire/Serialization.cpp`) drop the reader's `false`. A truncated or corrupt message
-decodes into default fields and is handled as real. Only a few readers (`GraphOps::ReadRun`, `WorldState`'s
-`Read`, `TryReadVarInt`) return `bool`.
-Standard: CG I.10 / E.27 (signal failure, don't ignore it); CERT ERR33-C.
-Fix: `[[nodiscard]] bool DeserializeRaw`, a sticky error flag on `Wire::Buffer::Reader` (`Failed()`) checked once
-by the factories, which return `nullptr` on failure. Size: M (mechanical over ~100 messages).
+**2.1 High: session id and form id lookups scan every entity.** `Utils::GetFormIdBySessionId` and
+`GetSessionIdByFormId` (`Code/sync/core/SessionIds.cpp:31-52`) walk every `FormIdComponent` through
+`World::Get()`; there are 194 calls, many inside per-frame loops over copies: `InventoryService::OnUpdate` for
+each waiting copy, `AnimationSystem::Update`'s claim lambda for each copy each frame. 26 more places
+open-code the same scan (`std::find_if(view.begin(), ...)`, e.g. `InventoryService::OnInventoryChangeEvent`).
+That is O(copies × entities) a frame, growing with party size and NPC count. `GetSessionId` also writes
+`uint32_t sessionId = -1`.
+Standard: CG Per.7 (design for optimisation), ES.46; DRY.
+Fix: a two-way index (`entt::dense_map` session id ⇄ entity, form id ⇄ entity) kept by `on_construct` /
+`on_destroy` of `LocalComponent`, `RemoteComponent` and `FormIdComponent`, behind the same three functions; then
+replace the 26 open-coded scans. Size: M.
 
-**2.3 Low: owning raw pointers.** `UiService::m_pRenderer` (`Code/plugin/Ui/UiService.h:104`, `delete` in the
-destructor), `Net::Packet::m_pData` (`Code/network/Packet.cpp:17`), `UiRenderer`'s geometry/texture handles,
-`Papyrus/GlobalCall.cpp:102`. 13 `new` / 15 `delete` in our own code (the engine's own allocators excluded).
-Standard: CG R.11 (no naked new/delete), R.20 (`unique_ptr` owns).
-Fix: `std::unique_ptr` (with a deleter for the RmlUi handles), `std::vector<char>` in `Packet`. Size: S.
+**2.2 Medium: a global `World` and two ways to get a dependency.** `World::Get()` (a static pointer,
+`Code/sync/game/World.cpp:211`) is called 232 times: 142 in `engine`, 49 in `harness`, 27 in `plugin`, 14 in
+`sync`. Services receive some dependencies by constructor (`InventoryService(World&, dispatcher&, transport&,
+IActorBridge&, ...)`) and look others up from the registry (`m_world.ctx().at<IPlayerBridge&>()`, 162 times in
+`sync`), so a constructor does not show what a service uses. `World` also *is* an `entt::registry` (public
+inheritance), so every service can touch every component.
+Standard: CG I.2 (avoid non-const globals), I.3 (avoid singletons), R.6; dependency injection.
+Fix: in `sync`, pass what is used by constructor and drop `ctx().at` (start with the bridges, mechanical); in
+`engine`, hooks reach the game through one `HookContext` set at install rather than `World::Get()`; make the
+registry a member, not a base, when the first two are done. Size: M (sync), L (engine).
 
-**2.4 Low: header hygiene is a rule but unchecked.** Rule 14 ("every header compiles on its own") has no check;
-`Code/engine/ClientPch.h` and `Code/sync/SyncPch.h` are forced into every file, so a header missing an include
-still builds. `Code/encoding/EncodingPch.h` lacks `#pragma once`; `Code/harness/TestHarness/EngineCalls.h:101` has
-`using namespace Diagnostics::EngineReads;` in a header, and both PCHs export `using namespace
-std::chrono_literals`.
-Standard: CG SF.7 (no `using namespace` in a header), SF.11 (self-contained headers); include-what-you-use.
-Fix: a gate step compiling each `sync`/`encoding` header alone (no PCH) on Linux, and clang-tidy's
-`misc-include-cleaner` (2.5). Size: M.
+**2.3 Low: threading is a comment, not a check.** Which code may run off the main thread is written in comments
+("on the graphs' threads too" for `GraphStreams`, "Each runs where the engine calls it" in the event files).
+`entt::registry` and `entt::dispatcher` are not thread-safe, and nothing stops a hook on a job thread from calling
+`World::Get().view<...>()`.
+Standard: CG CP.1/CP.2 (assume multi-threading; avoid data races).
+Fix: a debug-only main-thread assert in `World::Get()` and the dispatcher's `trigger`, with a separate
+`World::Queue()` for job threads. Size: S.
 
-**2.5 Medium: no static analysis.** No `.clang-tidy` anywhere; `clang-tidy-18` is installed. Raw-cast density is
-high where it need not be: 445 `reinterpret_cast`, 79 C-style pointer casts, 29 `const_cast` outside
-`Code/external` (most are legitimately in `engine`).
-Standard: CG Profiles (type, bounds, lifetime); clang-tidy `cppcoreguidelines-*`, `bugprone-*`.
-Fix: a `.clang-tidy` with `bugprone-*`, `performance-*`, `misc-include-cleaner`, `cppcoreguidelines-pro-type-cstyle-cast`
-and `-owning-memory`, run on `Code/sync`, `Code/encoding`, `Code/network` over `build/compile_commands.json`; warn
-first, then gate on new code only. Size: M.
+## 3. Shape of classes and functions
 
-## 3. Build and repo hygiene
+**3.1 Medium: `HostCharacters` holds five features' rules.** `Code/sync/characters/HostCharacters.cpp` (786
+lines, 45 methods) registers 14 handlers: characters (announce, remove, respawn), mounts (dismount, board,
+unboard, the ride claim), magic (active effects), actor state (perks, values, max values), movement, and travel
+(enter cell, travel queued, party summon). `mounts/`, `movement/` and `travel/` folders exist for these.
+Standard: CG C.1/C.2 (one responsibility); the project's rule 4 (one folder per feature).
+Fix: move the rides to `mounts/HostRides`, values and perks to `actorstate/HostValues`, the travel handlers to
+`travel/`; `HostCharacters` keeps the character table and exposes `OwnerOf`. Size: M.
 
-**3.1 High: no CI.** No `.github/workflows` (the API reports 0 workflows). The only gate is the local pre-push
-hook (`scripts/hooks/pre-push`), which a contributor without the hook, or with `--no-verify`, skips. External PRs
-arrive unchecked.
-Standard: OpenSSF Scorecard "CI-Tests", "Branch-Protection"; GitHub flow.
-Fix: a GitHub Actions job on Ubuntu 22.04 running `scripts/check.sh --no-dll` (native tests, layout, RE notes,
-Python unit tests), with xmake's package cache; branch protection on `dev` requiring it. The DLL build can follow
-(xwin download, cached). Size: M.
+**3.2 Medium: `AnimationSystem::Update` is two algorithms and a duplicate.**
+`Code/sync/animation/AnimationSystem.cpp:29-323` (251 lines, complexity 79): the graph-stream mode and the action
+queue mode run in one function behind `if (streams.OnStream(aFormId))` checks, and the spawn-state block appears
+twice with small differences (lines 62-72 and 73-95).
+Standard: CG F.2/F.3 (one operation, short functions), ES.3 (don't repeat).
+Fix: `TakeSpawnState`, `PlayStream`, `PlayQueue`, `StopPairs`, each with a `UnitTests` case over
+`IAnimationBody`'s fake. Size: M.
 
-**3.2 Medium: warnings are neither strict nor errors.** `set_warnings("all")` only; no `-Wextra`, no
-`-Werror`; the plugin silences `-Winvalid-offsetof` and `-Wmicrosoft-include`. A clean rebuild of `GameTests`
-shows 33 distinct warnings at today's level that nobody sees, because `check.sh` hides the logs of steps that
-pass: 21 `-Wimplicitly-unsigned-literal`, 7 unused variables/functions, one each of `-Wreorder-ctor`,
-`-Wnull-conversion` and `-Wimplicit-exception-spec-mismatch`.
-Standard: CG "compile cleanly at high warning levels" (P.12 tooling); OpenSSF Compiler Options Hardening Guide.
-Fix: add `-Wextra -Wshadow -Wnon-virtual-dtor -Wconversion` (start with `sync`/`encoding`), fix, then
-`set_warnings("all", "error")` on those targets. Size: M.
+**3.3 Medium: the host's crime judgement lives in an engine bridge.** `CrimeBridge::Judge`
+(`Code/engine/Bridges/CrimeBridge.cpp:873`, 1,021-line file) decides whether a guest's crime stands (ownership
+recheck, cell check, fines) with 28 inline engine-function pointers. `CrimeRules` holds only part of it.
+Standard: the project's rule 3 ("engine makes no decisions"); CG C.2.
+Fix: keep engine reads and writes in the bridge (`ReadCrimeTarget`, `ApplyTheft`), move the decision into
+`crime/HostCrime` or `CrimeRules`, with a `HostAuthorityTests` case. Size: M.
 
-**3.3 Medium: no sanitizers.** No ASan/UBSan build of the native tests. `GameTests` runs the real `World`,
-services and decoders on Linux, the ideal place to catch use-after-free, overflow and UB that the game only shows
-as a crash under Wine.
-Standard: Google/LLVM practice; OpenSSF hardening guide.
-Fix: an xmake option `sanitize` adding `-fsanitize=address,undefined -fno-omit-frame-pointer` to the Linux test
-targets; a nightly or CI job running `UnitTests`, `TPTests`, `GameTests` with it. Size: S to add, M to clean up.
+**3.4 Low: other large functions.** `TestHarness::Crime` (`harness/TestHarness/CommandsCrime.cpp`, 272 lines,
+complexity 82: a sub-command dispatcher), `DebugService::DrawAnimDebugView` (305 lines), `HostService::MakeAuthority`
+(161 lines of wiring lambdas), `CharacterService::OnCharacterSpawn` (138). In all, 39 functions are over 100
+lines and 56 have a complexity of 25 or more (of 6,686).
+Fix: split as each is touched (a table of sub-commands for `Crime`). Size: S each.
 
-**3.4 Low: two contradicting `.clang-format` files.** Root `.clang-format` (LLVM base, `ColumnLimit: 300`,
-`SortIncludes: Never`) and `Code/.clang-format` (Microsoft base, UTF-8 BOM, sorts includes). Every C++ file is
-under `Code/`, so the root file applies to nothing; no format check runs anywhere, which is why CLAUDE.md warns
-against running the tool on edited files.
-Standard: one source of truth (EditorConfig/clang-format practice).
-Fix: delete the root file, strip the BOM, set `SortIncludes: Never` in `Code/.clang-format` so formatting is safe
-on any file, and add `git clang-format --diff origin/dev` to the gate (changed lines only). Size: S.
+## 4. Reaching the engine
 
-**3.5 Low: the release package is a `dev` build.** `scripts/package.sh` configures `-m dev` (`-O1`, PDB) for the
-player's DLL, not `releasedbg`/`release`.
-Standard: reproducible, optimised release builds.
-Fix: package with `-m releasedbg` (O2 + PDB), checked by one duo run before a tag. Size: S.
+**4.1 Medium: engine functions declared at the call site.** 710 `static VersionDbPtr<...> f(id)` declarations sit
+inside function bodies across `engine`, `plugin` and `harness`, each with its own hand-written signature. 14
+Address Library IDs are declared in two files with signatures written twice, e.g. 37380, 41408, 41354, 41340 in
+both `engine/Bridges/CrimeBridge.cpp` and `harness/TestHarness/CommandsCrime.cpp`. CLAUDE.md records three
+inherited hooks whose signatures were silently wrong; duplicated declarations are where the next one will hide.
+Standard: CG I.4 (precisely typed interfaces), ES.3; the project's "engine access goes through typed structs".
+Fix: each engine function declared once, as a method or free function in its struct's file under
+`Code/engine/` (e.g. `TESObjectREFR::IsOwnedBy` for 20210), checked by `scripts/test_ida_hook.py`; the harness
+calls those. Start with the 14 duplicates. Size: S (duplicates), L (all).
 
-**3.6 Low: dated test framework.** `catch2 2.13.9` (Catch2 v2 is in maintenance; v3 is a compiled library with
-faster builds and better matchers).
-Fix: move to Catch2 v3 when convenient (mostly include changes). Size: M.
+**4.2 Low: magic form ids.** `0x14` (the player reference) appears in about 50 places in `sync`, `engine` and
+`plugin`, beside three named constants that mean the same (`GuestRecord::kPlayerForm`, `ScriptTags::kThisPlayer`,
+`FakeEngine::kPlayer`); `GetById(0xF)` (gold) and similar 12 more times.
+Standard: CG ES.45 (no magic constants).
+Fix: one `core/FormIds.h` set (`kPlayerRef`, `kGold`, ...) and replace. Size: S.
 
-## 4. Tests
+**4.3 Low: hook files copy their include block.** After the hook split, each file kept most of `Actor.cpp`'s
+includes: `engine/ActorHooks/Detection.cpp` has 70 includes for 121 lines; `Item.cpp` and `Movement.cpp` include
+the same header twice. Every edit to any of those headers rebuilds all the hook files.
+Standard: include-what-you-use; CG SF.10; the project's rule 14.
+Fix: trim with `clang-include-cleaner` (clang 18 ships it) over `compile_commands.json`, one folder at a time.
+Size: S per folder.
 
-**4.1 Medium: about 50 messages have no round trip.** CLAUDE.md's "Adding a message" step 5 asks for a round
-trip in `Code/tests/encoding.cpp`; 52 of 163 opcodes have none (neither by name nor through their relayed
-payload), for example `ReferencesMoveRequest`'s notify twin `NotifyReferencesMove`, `NotifyInventoryChanges`,
-`DialogueRequest`, `ProjectileLaunchRequest`, `GraphSyncRequest`, `NotifyActorPerks`.
-Standard: test-per-message contract (the project's own); coverage of the trust boundary.
-Fix: one templated `TEMPLATE_TEST_CASE` over every opcode in `Opcodes.h` (default-constructed and one filled
-instance), so a new message is covered without writing a test. Size: M.
+## 5. Style left over from upstream
 
-**4.2 Medium: no coverage measurement.** Nothing measures what the 906 test cases reach. Gaps are found by
-playtests instead.
-Standard: common OSS practice (llvm-cov / Codecov).
-Fix: an xmake option adding `-fprofile-instr-generate -fcoverage-mapping`, and a script printing per-folder
-coverage of `Code/sync` and `Code/encoding`; no threshold at first. Size: S.
+**5.1 Low: two styles side by side.** Upstream's `Utils::` free functions (125 uses in `sync`), `__FUNCTION__`
+in log lines (69), `spdlog::error("{}: : failed ...")`, open-coded entity scans; next to the newer style (typed
+ports, rules, short comments). Ten timers advance by frame delta in `sync` (e.g. `InventoryService`'s
+`kRetry`/`kGiveUp`, `JoinService::kRetrySeconds`), against the project's "events over polling".
+Fix: none in bulk; replace as files are touched, starting with 2.1, which removes most `Utils::` calls.
 
-**4.3 Low: test names.** `TPTests` is upstream's "Tilted Phoques" name for the encoding tests; unit tests are
-`*_tests.cpp`, game tests `*_flows.cpp`, host tests `host_authority/*_tests.cpp`. Fine once known, but the target
-names do not say what they test.
-Fix: rename `TPTests` to `EncodingTests` (xmake, `check.sh`, docs). Size: S.
-
-## 5. Docs and contributor norms
-
-Present: `README.md`, `CONTRIBUTING.md` (good: one page, rules, set-up), `LICENSE` (full GPLv3), `NOTICE`, a PR
-template, `docs/architecture.md`. Missing or off:
-
-**5.1 High: third-party notices are incomplete in the player's package.** `scripts/package.sh` ships the licenses
-of PicoSHA2, zstd and lz4 only. The DLL statically links (xmake `add_requires`): spdlog, EnTT, glm, rpmalloc,
-snappy, enet6, libuv, nlohmann_json, zlib, MinHook, xbyak, Zydis, RmlUi with FreeType, imgui, magic_enum, mem
-(and Tracy when `--profiler=y`). MIT, BSD-2/3, zlib and the FreeType License all require their notice to travel
-with binary copies; FreeType also asks for a credit in the docs. The UI ships `Oswald-Variable.ttf` (SIL OFL)
-without its license; only Liberation Sans has one.
-Standard: each library's license terms; GPLv3 section 4/6 (keep notices intact); SIL OFL condition 2.
-Fix: a `THIRD_PARTY_NOTICES.md` (generated from xmake's package manifests plus `Code/external/*/LICENSE`) shipped
-by `package.sh`, and `package_check.py` failing when a linked package lacks a notice. Size: M.
-
-**5.2 Medium: no SPDX headers, no REUSE compliance, license version unclear.** 0 files carry
-`SPDX-License-Identifier`; 6 carry any copyright line. `README.md` says "GPLv3"; upstream's notice says "version 3
-or any later version". Which one a contributor grants is not written down.
-Standard: REUSE 3.x (fsfe.org), SPDX; GPL "How to Apply These Terms".
-Fix: decide `GPL-3.0-or-later` (upstream's) or `-only`; add a `REUSE.toml` covering `Code/**`, `scripts/**`,
-`docs/**` in one place (no per-file churn) with exceptions for `Code/external`; state it in `README.md` and
-`CONTRIBUTING.md`. Size: S.
-
-**5.3 Medium: no SECURITY.md.** The mod opens a UDP port on every interface (`Code/network/Server.cpp`,
-`enet_host_create` on "any") and decodes what arrives (7.1). There is no way to report a vulnerability privately.
-Standard: OpenSSF Scorecard "Security-Policy"; GitHub private vulnerability reporting.
-Fix: `SECURITY.md` (supported version: latest release; report via GitHub private advisories); enable private
-reporting in the repo settings. Size: S.
-
-**5.4 Low: no CHANGELOG, versioning unstated.** 36 tags up to `v1.8.3` and `scripts/release.sh` making GitHub
-prereleases, but no `CHANGELOG.md` and no statement of what a version number means (the Skyrim runtime is also
-in the package name).
-Standard: Keep a Changelog 1.1; Semantic Versioning 2.0.
-Fix: `CHANGELOG.md` with an `Unreleased` section, appended per PR (the PR template can ask); `release.sh` copies
-the section into the release notes. Size: S.
-
-**5.5 Low: no code of conduct, no issue templates.** Only `.github/pull_request_template.md` exists; GitHub's
-community profile flags both.
-Standard: Contributor Covenant 2.1; GitHub community health files.
-Fix: `CODE_OF_CONDUCT.md` (Contributor Covenant), `.github/ISSUE_TEMPLATE/bug.yml` (game version, mod list,
-logs, `coop_report.py` bundle) and `feature.yml`. Size: S.
-
-**5.6 Low: the PR template is for internal agents.** It asks every contributor for IDA reads, `docs/re/journal/`
-and the skyrim-coop MCP. `AGENTS.md` copies CLAUDE.md's bug-fix flow but has already drifted (no step 0).
-Fix: a short public template (what, why, how tested, bug-fix flow for bugs) with the RE section marked "if you
-touched engine code"; make `AGENTS.md` a pointer to CLAUDE.md with no copied rules. Size: S.
-
-## 6. Scripts
-
-248 Python files (44k lines) and 13 shell scripts.
-
-**6.1 Medium: Python has no lint, types or dependency list.** No `pyproject.toml`, no ruff/flake8/mypy config,
-no `requirements.txt`, though scripts import `mcp`, `lz4` and `PIL`. ruff with default rules finds 119 unused
-imports, 4 redefinitions (`scripts/coop_harness/registrations.py:5`, `runtime.py:492`, `scenarios/combat.py:602`,
-`scenarios/world.py:25`), 7 unused variables, 29 blind `except`, 40 `subprocess.run` without `check`. 180 B023
-(closure over a loop variable) are mostly lambdas passed straight to `wait_for` and so harmless, but the rule
-cannot tell. 62 of 2,909 functions have type hints.
-Standard: PEP 8 / PEP 621 (`pyproject.toml`), PEP 484 typing; ruff/mypy practice.
-Fix: a `pyproject.toml` with `[project] dependencies`, a ruff config (`E`, `F`, `I`, `B` with B023 off), run
-`ruff check --fix` once, add `ruff check scripts` to `check.sh`; mypy on `coop_harness/core` later. Size: S
-(config + autofix), M (the rest).
-
-**6.2 Low: shell scripts are almost clean.** shellcheck: two SC2164 (`cd` without `|| exit`) in
-`scripts/check.sh:10` and `scripts/net_check.sh:9`, a few style notes. `scripts/package.sh` is a bash wrapper
-around an inline Python heredoc of most of its logic.
-Standard: ShellCheck; Google Shell Style Guide.
-Fix: fix the two, add `shellcheck scripts/*.sh scripts/hooks/*` to the gate; move `package.sh`'s Python into
-`scripts/package.py`. Size: S.
-
-## 7. Security
-
-**7.1 High: one crafted packet can hang the host.** `ReferencesMoveRequest::DeserializeRaw`
-(`Code/encoding/Messages/ReferencesMoveRequest.cpp:21-27`) reads `count` as a 64-bit varint and loops
-`for (auto i = 0u; i < count; ++i)`: `i` is 32-bit, so any `count` of 2^32 or more never ends, and smaller large
-counts spin for minutes; each turn inserts into a `std::map`. Decoding happens in `HostNetwork::Receive`
-(`Code/sync/core/HostNetwork.cpp:53`) before `HostAuthority::Handle` checks that the sender is a player, so a
-connection that never authenticated is enough. Its notify twin decodes the same way on guests.
-Unbounded allocations sized by the sender: `ReferenceUpdate::Deserialize` (`Code/encoding/Structs/ReferenceUpdate.cpp:35`,
-`ActionEvents.resize(count)`), `Payloads::PartyItems` (`Code/encoding/Messages/Payloads.cpp:637`), and the
-masks up to 65,535 elements in `PlayerRecord.cpp` and `PlayerOwnState.cpp`; an oversized resize throws inside a
-`noexcept` decoder, which terminates the game (2.1). Others are bounded case by case (`kMaxStacks`, `kMaxChanged`,
-`kMaxPerQuest`, `min(..., 1024)`), so the bound is a convention, not a mechanism.
-Standard: CWE-835 (infinite loop), CWE-770/789 (allocation without limits), CWE-20; OWASP input validation.
-Fix: cap `count` and use a `uint64_t` index here (S, with a `TPTests` case); then one helper,
-`Serialization::ReadCount(aReader, cMax)`, that also fails when `count` exceeds the bytes left, used by every
-decoder (M); decode only `AuthenticationRequest` from a connection that is not yet a player (S).
-
-**7.2 High: decompression size comes from the sender.** `Net::Server::HandleCompressedPayload`
-(`Code/network/Server.cpp:362`) calls `snappy::Uncompress` with no limit; snappy sizes its output from the length
-header in the packet, so a few bytes can ask for gigabytes (to be confirmed against snappy 1.1.10's source, not
-vendored here). The same holds on the guest side (`Code/network/Client.cpp:456`).
-Standard: CWE-409 (decompression bomb).
-Fix: `snappy::GetUncompressedLength` first and drop anything over a cap (the largest real message plus margin,
-e.g. 4 MiB); count drops per connection and kick. Size: S.
-
-**7.3 Medium: the decoders are not fuzzed.** There is no fuzz target. The factories
-(`RequestMessageFactory::Extract`, `NotifyMessageFactory::Extract`) take bytes and return a message: an ideal
-libFuzzer entry point that builds with the Linux clang 18 already used for tests. 7.1 is the kind of bug it finds
-in seconds.
-Standard: OpenSSF Scorecard "Fuzzing"; LLVM libFuzzer; OSS-Fuzz practice.
-Fix: `Code/tests/fuzz/fuzz_requests.cpp` and `fuzz_notifies.cpp` (`LLVMFuzzerTestOneInput` calling `Extract`,
-then `Serialize` and decode again, comparing), an xmake target with `-fsanitize=fuzzer,address,undefined`, a seed
-corpus from `encoding.cpp`'s round trips, and a 60-second run in CI. Size: M.
-
-**7.4 Low: no rate or size limits per connection.** `enet_host_create` gets unlimited bandwidth and the default
-packet size; the host takes any number of messages from a player per tick.
-Standard: CWE-400.
-Fix: `enet_host_bandwidth_limit` / `ENetHost::maximumPacketSize` set to the largest real save chunk, and a
-per-connection message budget logged when exceeded. Size: S.
+**5.2 Low: owning raw pointers.** `UiService::m_pRenderer` (`plugin/Ui/UiService.h:104`), `Net::Packet::m_pData`,
+`UiRenderer`'s handles: 13 `new` / 15 `delete` outside the engine's own allocators.
+Standard: CG R.11, R.20.
+Fix: `std::unique_ptr` / `std::vector`. Size: S.
 
 ## Top 10, ranked
 
-1. **7.1** Cap the `ReferencesMoveRequest` loop; one bounded `ReadCount` for every decoder; decode only joins from
-   non-players. (High, S then M)
-2. **7.2** Cap snappy's uncompressed length on host and guest. (High, S)
-3. **5.1** Ship every linked library's license notice, the OFL font licence included. (High, M)
-4. **3.1** CI on GitHub Actions running `check.sh --no-dll`, required on `dev`. (High, M)
-5. **2.1 / 2.2** Deserializers fail instead of throwing or decoding garbage; no throw reaches a `noexcept`. (High, M)
-6. **7.3** libFuzzer targets for both message factories, with sanitizers, in CI. (Medium, M)
-7. **3.3** ASan/UBSan build of the native tests. (Medium, S/M)
-8. **4.1** One templated round trip over every opcode. (Medium, M)
-9. **5.2 / 5.3** License version decided, `REUSE.toml`, `SECURITY.md`. (Medium, S)
-10. **3.2 / 2.5 / 6.1** Stricter warnings as errors, a `.clang-tidy`, ruff and shellcheck in the gate. (Medium, M)
+1. **1.1** The `ReferencesMoveRequest` loop: `uint64_t` index and cap. (High, S)
+2. **1.2** One bounded `ReadCount` for every decoder; cap snappy's output. (High, M)
+3. **2.1** A session/form id index instead of entity scans. (High, M)
+4. **1.3 / 1.4** Decoders fail instead of decoding zeros or throwing. (Medium, S-M)
+5. **4.1** Each engine function declared once in its struct; the 14 duplicates first. (Medium, S then L)
+6. **1.5** One `Fields()` per message for read, write and `==`. (Medium, M)
+7. **3.1** `HostCharacters`' mount, value and travel rules to their folders. (Medium, M)
+8. **3.2** `AnimationSystem::Update` split by mode, the duplicate removed. (Medium, M)
+9. **2.2** Constructor injection in `sync` instead of `ctx().at` and `World::Get()`. (Medium, M)
+10. **3.3** The crime judgement out of `CrimeBridge` into a host rule. (Medium, M)
 
 ## Suggested order of work
 
-1. **Security fixes first (one PR, a day):** 7.1's loop and the two unbounded resizes, 7.2's cap, the two throws
-   in `Factions.cpp`, each with a `TPTests` case built from a crafted buffer.
-2. **CI (a day):** 3.1 with the current `check.sh --no-dll`. Everything after this lands checked.
-3. **Legal hygiene (a day):** 5.1 notices, 5.2 license decision and `REUSE.toml`, 5.3 `SECURITY.md`, 1.3's stale
-   `NOTICE` line. Cheap and it is what a release needs.
-4. **Make decoders fail (2.2), then fuzz them (7.3) with sanitizers (3.3)** in CI: the fuzzer will find what 7.1's
-   manual pass missed; 4.1's templated round trip comes free with the seed corpus.
-5. **Tooling:** 3.4 format config and changed-lines check, 6.1/6.2 linters, 3.2 warnings, 2.5 clang-tidy, warn
-   first and gate on new code.
-6. **Smells, as features touch them:** 1.1's three largest functions, PR #134's open items (engine-to-plugin
-   includes, feature cycles, the dead note links), 1.2 generation.
-7. **Contributor polish:** 5.4 changelog, 5.5 conduct and issue templates, 5.6 public PR template, 4.3 rename,
-   3.6 Catch2 v3, 3.5 release mode.
+1. **Decoder safety (one PR):** 1.1, 1.2, 1.4's two throws, 1.6's initializers, each with a crafted-buffer test.
+2. **1.3**, so 1.5's archives can rely on the reader's failure flag; then **1.5** for new messages and those touched.
+3. **2.1**, measured with `coop_test.py profile --load wolves=N` before and after.
+4. **4.1**'s duplicates and **4.2**: small, and they remove signature risk.
+5. As features are worked on: **3.1**, **3.2**, **3.3**, **2.2** in `sync`, **4.3** per folder, **5.x** in passing.
 
-## Appendix: measurements
+## Repo-level points, in brief
 
-- Our C++ (excluding `Code/external`): 1,715 files, 203k lines. Largest hand-written:
-  `harness/TestHarness/EngineCalls.cpp` 2,842, `tests/encoding.cpp` 2,760, `tests/games/FakeEngine.h` 2,295,
-  `tests/games/physics_flows.cpp` 2,291, `engine/Actor.cpp` 1,459. Largest in `sync`:
-  `characters/HostCharacters.cpp` 786, `animation/GraphStream.cpp` 742, `items/InventoryService.cpp` 691.
-- Tests: 906 `TEST_CASE`s; 117 unit-test files beside their code.
-- `GameTests` clean rebuild warnings: 33 distinct (21 `-Wimplicitly-unsigned-literal`, 7 unused,
-  2 `-Winvalid-offsetof`, 1 each `-Wreorder-ctor`, `-Wnull-conversion`, `-Wimplicit-exception-spec-mismatch`).
+Not about the code, but found on the way:
+
+- No CI (`.github/workflows` is empty); the gate is the local pre-push hook.
+- No fuzz target. `RequestMessageFactory::Extract` is a ready libFuzzer entry point, and 1.1 is the kind of bug
+  it finds in seconds. No ASan/UBSan build of the native tests.
+- Warnings at `set_warnings("all")`, not errors; a clean `GameTests` build shows 33 distinct warnings that
+  `check.sh` hides (21 `-Wimplicitly-unsigned-literal`, 7 unused, 1 `-Wreorder-ctor`).
+- No `.clang-tidy`; two contradicting `.clang-format` files (root one applies to nothing).
+- The player package ships 3 of about 17 linked libraries' licenses and not the Oswald font's (OFL).
+- No `SECURITY.md`, `CHANGELOG.md`, SPDX/REUSE, code of conduct or issue templates; `NOTICE` names a
+  `code/launcher` that does not exist.
+- Python scripts: no `pyproject.toml` or dependency list; ruff finds 119 unused imports and 4 redefinitions.
+- 52 of 163 messages have no round trip in `Code/tests/encoding.cpp`.
+- Dead: `build/BranchInfo.h` generation, `GameFiles/Skyrim/SkyrimTogether.esp`, `.githooks/commit-msg`.
