@@ -227,10 +227,8 @@ void HostService::MakeAuthority() noexcept
     game.TakePlaced = [this] { return m_pEngine->TakePlaced(); };
     game.TakeBodies = [this](uint64_t aTick) {
         HostBodyReads bodies = m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
-            for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
-                if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
-                    return m_world.get<LocalComponent>(cEntity).Id;
-            return 0;
+            const auto cEntity = m_world.GetActorIndex().ByForm<LocalComponent>(aFormId);
+            return cEntity == entt::null ? 0 : m_world.get<LocalComponent>(cEntity).Id;
         });
         // Its actors' ragdoll rests are their record parts; the references' go to HostBodies.
         m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake);

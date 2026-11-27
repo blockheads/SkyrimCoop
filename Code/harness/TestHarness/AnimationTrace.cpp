@@ -366,13 +366,12 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     if (const auto cUpdate = world.GetGraphStreams().UpdateIndex(aFormId))
         entry["graph_update"] = *cUpdate;
     // A copy's clocks: the owner's time it shows, the game's copy clock and the session's time as read.
-    for (auto&& [entity, form, interpolation] : world.view<FormIdComponent, InterpolationComponent>().each())
-        if (form.Id == aFormId)
-        {
-            entry["playback"] = InterpolationSystem::PlaybackTick(world, entity);
-            entry["clock"] = world.GetCopyClock().Now();
-            entry["session"] = world.GetTick();
-        }
+    if (const auto cEntity = world.GetActorIndex().ByForm<InterpolationComponent>(aFormId); cEntity != entt::null)
+    {
+        entry["playback"] = InterpolationSystem::PlaybackTick(world, cEntity);
+        entry["clock"] = world.GetCopyClock().Now();
+        entry["session"] = world.GetTick();
+    }
     Record(std::move(entry));
 }
 } // namespace TestHarness

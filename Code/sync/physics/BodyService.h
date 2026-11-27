@@ -111,9 +111,6 @@ private:
     std::set<BodyKey> m_placed; // their newest rest is where the host's game put it (BodyState::Placed)
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_ragdollRests; // a corpse another game's player moved, at its rest
     std::set<uint32_t> m_declaredRests; // this game's actors whose ragdoll rest is declared (cleared as one wakes)
-    // Apply's copies by session id: a lookup per body and bone each frame, not a scan of the copies.
-    std::unordered_map<uint32_t, entt::entity> m_copyIndex;
-    bool m_copiesIndexed{};
     std::set<BodyKey> m_following; // played from another game's states (logged once)
     std::map<BodyKey, uint32_t> m_held; // held in another game: its form id here
     std::set<BodyKey> m_missing;   // not in this game (logged once)

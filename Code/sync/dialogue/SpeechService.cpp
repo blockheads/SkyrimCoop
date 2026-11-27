@@ -32,13 +32,11 @@ void SpeechService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept
     if (!m_transport.IsConnected())
         return;
 
-    auto view = m_world.view<FormIdComponent>();
-    auto entityIt = std::find_if(view.begin(), view.end(), [view, formId = acEvent.ActorID](auto entity) { return view.get<FormIdComponent>(entity).Id == formId; });
-
-    if (entityIt == view.end())
+    const auto cEntity = m_world.GetActorIndex().ByForm(acEvent.ActorID);
+    if (cEntity == entt::null)
         return;
 
-    auto sessionIdRes = Utils::GetSessionId(*entityIt);
+    auto sessionIdRes = Utils::GetSessionId(cEntity);
     if (!sessionIdRes)
     {
         spdlog::error("{}: session id not found for form id {:X}", __FUNCTION__, acEvent.ActorID);
@@ -54,16 +52,14 @@ void SpeechService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept
 
 void SpeechService::OnNotifyDialogue(const NotifyDialogue& acMessage) noexcept
 {
-    auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
-    const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.SessionId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
-
-    if (remoteIt == std::end(remoteView))
+    const auto cCopy = m_world.GetActorIndex().BySession<RemoteComponent, FormIdComponent>(acMessage.SessionId);
+    if (cCopy == entt::null)
     {
         spdlog::warn("Actor for dialogue with remote id {:X} not found.", acMessage.SessionId);
         return;
     }
 
-    auto formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
+    const auto formIdComponent = m_world.get<FormIdComponent>(cCopy);
     // A copy not loaded yet has no process, which Actor::SpeakSound (37542) reads unchecked.
     if (!m_actors.ActorHas3D(formIdComponent.Id))
         return;
@@ -78,13 +74,11 @@ void SpeechService::OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept
     if (!m_transport.IsConnected())
         return;
 
-    auto view = m_world.view<FormIdComponent>();
-    auto entityIt = std::find_if(view.begin(), view.end(), [view, formId = acEvent.SpeakerID](auto entity) { return view.get<FormIdComponent>(entity).Id == formId; });
-
-    if (entityIt == view.end())
+    const auto cEntity = m_world.GetActorIndex().ByForm(acEvent.SpeakerID);
+    if (cEntity == entt::null)
         return;
 
-    auto sessionIdRes = Utils::GetSessionId(*entityIt);
+    auto sessionIdRes = Utils::GetSessionId(cEntity);
     if (!sessionIdRes)
     {
         spdlog::error("{}: session id not found for form id {:X}", __FUNCTION__, acEvent.SpeakerID);
@@ -102,16 +96,14 @@ void SpeechService::OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept
 
 void SpeechService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcept
 {
-    auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
-    const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.SessionId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
-
-    if (remoteIt == std::end(remoteView))
+    const auto cCopy = m_world.GetActorIndex().BySession<RemoteComponent, FormIdComponent>(acMessage.SessionId);
+    if (cCopy == entt::null)
     {
         spdlog::warn("Actor for dialogue with remote id {:X} not found.", acMessage.SessionId);
         return;
     }
 
-    auto formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
+    const auto formIdComponent = m_world.get<FormIdComponent>(cCopy);
 
     // The owner's subtitle text over the copy (its voice comes through NotifyDialogue).
     m_speech.ActorShowSubtitle(formIdComponent.Id, std::string(acMessage.Text.c_str()), acMessage.TopicFormId, acMessage.Force);

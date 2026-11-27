@@ -217,24 +217,20 @@ void CharacterService::OnActorAdded(const ActorAddedEvent& acEvent) noexcept
 
 void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
 {
-    auto view = m_world.view<FormIdComponent>();
-    const auto entityIt = std::find_if(view.begin(), view.end(), [view, formId = acEvent.FormId](auto aEntity) { return view.get<FormIdComponent>(aEntity).Id == formId; });
-
-    if (entityIt == view.end())
+    const auto cId = m_world.GetActorIndex().ByForm(acEvent.FormId);
+    if (cId == entt::null)
     {
         spdlog::error("Actor to remove not found in form ids map {:X}", acEvent.FormId);
         return;
     }
 
-    const auto cId = *entityIt;
     if (const auto cSession = Utils::GetSessionId(cId); cSession && m_world.ctx().at<MountService>().IsPartyMount(*cSession))
         return;
     // Another player's copy left the loaded area with our travel: it travels with the party, not its cell.
     if (m_world.all_of<RemoteComponent, PlayerComponent>(cId) && m_actorBridge.IsActorCopy(acEvent.FormId))
         return;
 
-    auto& formIdComponent = view.get<FormIdComponent>(cId);
-    ReleaseCharacter(*entityIt, formIdComponent.Id);
+    ReleaseCharacter(cId, m_world.get<FormIdComponent>(cId).Id);
 
     if (m_world.all_of<FormIdComponent>(cId))
         m_world.remove<FormIdComponent>(cId);
@@ -389,14 +385,10 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
 {
     m_pendingLooks.erase(acMessage.SessionId);
     m_pendingSpawns.erase(acMessage.SessionId);
-    auto view = m_world.view<RemoteComponent>();
-
-    const auto itor = std::find_if(std::begin(view), std::end(view), [id = acMessage.SessionId, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
-
-    if (itor == std::end(view))
+    const entt::entity cEntity = m_world.GetActorIndex().BySession<RemoteComponent>(acMessage.SessionId);
+    if (cEntity == entt::null)
         return;
 
-    const entt::entity cEntity = *itor;
     const auto* pFormIdComponent = m_world.try_get<FormIdComponent>(cEntity);
     const uint32_t cFormId = pFormIdComponent ? pFormIdComponent->Id : 0;
     // A copy we spawned (temporary reference) goes with its owner's actor. A placed one, even on a leveled
@@ -425,10 +417,8 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
 
 uint32_t CharacterService::FormOfSession(uint32_t aSessionId) const noexcept
 {
-    for (const auto cEntity : m_world.view<FormIdComponent>())
-        if (Utils::GetSessionId(cEntity) == aSessionId)
-            return m_world.get<FormIdComponent>(cEntity).Id;
-    return 0;
+    const auto cEntity = m_world.GetActorIndex().BySession<FormIdComponent>(aSessionId);
+    return cEntity == entt::null ? 0 : m_world.get<FormIdComponent>(cEntity).Id;
 }
 
 void CharacterService::ReleaseCharacter(const entt::entity aEntity, const uint32_t aFormId) const noexcept

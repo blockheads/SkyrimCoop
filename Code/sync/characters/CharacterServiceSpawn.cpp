@@ -72,12 +72,10 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
         }
     }
     m_pendingSpawns.erase(acMessage.SessionId);
-    auto remoteView = m_world.view<RemoteComponent>();
-    const auto remoteItor = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.SessionId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
-
-    if (remoteItor != std::end(remoteView))
+    const auto& actors = m_world.GetActorIndex();
+    if (const auto cCopy = actors.BySession<RemoteComponent>(acMessage.SessionId); cCopy != entt::null)
     {
-        RefreshCopy(*remoteItor, acMessage);
+        RefreshCopy(cCopy, acMessage);
         m_world.ctx().at<MountService>().LinkPendingRides(acMessage.SessionId);
         return;
     }
@@ -115,10 +113,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     {
         const uint32_t cActorId = ToGame(acMessage.FormId);
 
-        auto ownView = m_world.view<FormIdComponent, LocalComponent>();
-        const auto ownItor = std::find_if(std::begin(ownView), std::end(ownView), [ownView, cActorId](auto entity) { return ownView.get<FormIdComponent>(entity).Id == cActorId; });
-
-        if (ownItor != std::end(ownView))
+        if (actors.ByForm<LocalComponent>(cActorId) != entt::null)
         {
             spdlog::info("Character with form id {:X} is this game's already.", cActorId);
             return;
@@ -132,11 +127,8 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
 
         actorFormId = cActorId;
 
-        const auto view = m_world.view<FormIdComponent>();
-        const auto itor = std::find_if(std::begin(view), std::end(view), [cActorId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == cActorId; });
-
-        if (itor != std::end(view))
-            entity = *itor;
+        if (const auto cHeld = actors.ByForm(cActorId); cHeld != entt::null)
+            entity = cHeld;
         else
             entity = m_world.create();
     }
@@ -527,15 +519,15 @@ std::vector<NotifyCharacterSpawn> CharacterService::BuildSpawnRequests(uint32_t 
 
 std::optional<NotifyCharacterSpawn> CharacterService::BuildCopySpawn(uint32_t aSessionId) const noexcept
 {
-    for (const auto cEntity : m_world.view<FormIdComponent, RemoteComponent>())
-        if (m_world.get<RemoteComponent>(cEntity).Id == aSessionId)
-            if (const auto cAnnouncement = BuildAnnouncement(cEntity))
-            {
-                auto spawn = NotifyCharacterSpawn::FromAnnouncement(*cAnnouncement, aSessionId, 0);
-                PlaceFromOwner(cEntity, spawn);
-                return spawn;
-            }
-    return std::nullopt;
+    const auto cEntity = m_world.GetActorIndex().BySession<FormIdComponent, RemoteComponent>(aSessionId);
+    if (cEntity == entt::null)
+        return std::nullopt;
+    const auto cAnnouncement = BuildAnnouncement(cEntity);
+    if (!cAnnouncement)
+        return std::nullopt;
+    auto spawn = NotifyCharacterSpawn::FromAnnouncement(*cAnnouncement, aSessionId, 0);
+    PlaceFromOwner(cEntity, spawn);
+    return spawn;
 }
 
 void CharacterService::PlaceFromOwner(entt::entity aEntity, NotifyCharacterSpawn& aSpawn) const noexcept
@@ -559,23 +551,20 @@ void CharacterService::PlaceFromOwner(entt::entity aEntity, NotifyCharacterSpawn
 
 bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) const noexcept
 {
-    for (const auto cEntity : m_world.view<FormIdComponent, RemoteComponent>())
-    {
-        if (m_world.get<RemoteComponent>(cEntity).Id != aSessionId)
-            continue;
-        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-        if (!m_actorBridge.ActorExists(cFormId))
-            return false;
-        const auto cState = ReadLiveState(cFormId);
-        aSpawn.Position = cState.Position;
-        aSpawn.Rotation = cState.Rotation;
-        PlaceFromOwner(cEntity, aSpawn);
-        aSpawn.IsDead = cState.Data.IsDead;
-        aSpawn.LatestAction = cState.LatestAction;
-        aSpawn.GraphState = cState.GraphState;
-        return true;
-    }
-    return false;
+    const auto cEntity = m_world.GetActorIndex().BySession<FormIdComponent, RemoteComponent>(aSessionId);
+    if (cEntity == entt::null)
+        return false;
+    const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+    if (!m_actorBridge.ActorExists(cFormId))
+        return false;
+    const auto cState = ReadLiveState(cFormId);
+    aSpawn.Position = cState.Position;
+    aSpawn.Rotation = cState.Rotation;
+    PlaceFromOwner(cEntity, aSpawn);
+    aSpawn.IsDead = cState.Data.IsDead;
+    aSpawn.LatestAction = cState.LatestAction;
+    aSpawn.GraphState = cState.GraphState;
+    return true;
 }
 
 CharacterService::ActorLiveState CharacterService::ReadLiveState(uint32_t aFormId) const noexcept

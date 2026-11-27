@@ -169,15 +169,7 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
 
 entt::entity BodyService::CopyEntity(uint32_t aSessionId) const noexcept
 {
-    if (m_copiesIndexed)
-    {
-        const auto cFound = m_copyIndex.find(aSessionId);
-        return cFound != m_copyIndex.end() ? cFound->second : entt::null;
-    }
-    for (const auto cEntity : m_world.view<RemoteComponent>())
-        if (m_world.get<RemoteComponent>(cEntity).Id == aSessionId)
-            return cEntity;
-    return entt::null;
+    return m_world.GetActorIndex().BySession<RemoteComponent>(aSessionId);
 }
 
 uint32_t BodyService::CopyOf(uint32_t aSessionId) const noexcept
@@ -189,10 +181,8 @@ uint32_t BodyService::CopyOf(uint32_t aSessionId) const noexcept
 
 uint32_t BodyService::OwnActorOf(uint32_t aSessionId) const noexcept
 {
-    for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
-        if (m_world.get<LocalComponent>(cEntity).Id == aSessionId)
-            return m_world.get<FormIdComponent>(cEntity).Id;
-    return 0;
+    const auto cEntity = m_world.GetActorIndex().BySession<LocalComponent, FormIdComponent>(aSessionId);
+    return cEntity == entt::null ? 0 : m_world.get<FormIdComponent>(cEntity).Id;
 }
 
 uint32_t BodyService::ActorOf(uint32_t aSessionId) const noexcept
@@ -214,14 +204,10 @@ void BodyService::OnUpdate(const UpdateEvent&) noexcept
 void BodyService::Apply() noexcept
 {
     PROFILE_ZONE("BodyService::Apply");
-    m_copyIndex.clear();
-    for (const auto cEntity : m_world.view<RemoteComponent>())
-        m_copyIndex.try_emplace(m_world.get<RemoteComponent>(cEntity).Id, cEntity);
-    m_copiesIndexed = true;
     std::vector<uint32_t> copies;
-    for (const auto& [cId, cEntity] : m_copyIndex)
-        if (const auto* pFormId = m_world.try_get<FormIdComponent>(cEntity); pFormId && pFormId->Id)
-            copies.push_back(pFormId->Id);
+    for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
+        if (const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id)
+            copies.push_back(cFormId);
     m_bridge.SetCopies(copies);
     // The frame clock, steady by the engine's frames: the session's time as read lags unevenly (S10, copy-clock.md).
     const uint64_t cTick = m_world.GetFrameTick();
@@ -255,7 +241,6 @@ void BodyService::Apply() noexcept
         else
             ++it;
     }
-    m_copiesIndexed = false;
 }
 
 uint64_t BodyService::PlaybackTick(uint64_t aNow) const noexcept

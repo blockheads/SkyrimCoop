@@ -116,11 +116,8 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
     if (!m_transport.IsConnected() || !cPlayer)
         return;
 
-    auto view = m_world.view<FormIdComponent>();
-
-    const auto iter = std::find_if(std::begin(view), std::end(view), [view, formId = acEvent.FormId](auto entity) { return view.get<FormIdComponent>(entity).Id == formId; });
-
-    if (iter == std::end(view))
+    const auto cEntity = m_world.GetActorIndex().ByForm(acEvent.FormId);
+    if (cEntity == entt::null)
         return;
 
     RequestInventoryChanges request;
@@ -128,7 +125,7 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
     request.Drop = acEvent.Drop;
     request.UpdateClients = acEvent.UpdateClients;
 
-    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*iter);
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(cEntity);
     if (!sessionIdRes.has_value())
     {
         spdlog::error("{}: : failed to find session id, target form id: {:X}, item id: {:X}, count: {}", __FUNCTION__, acEvent.FormId, acEvent.Item.BaseId.BaseId, acEvent.Item.Count);
