@@ -57,12 +57,11 @@ public:
     void AddServicesAfterCharacters(World& aWorld) override
     {
         aWorld.ctx().emplace<DebugService>(aWorld.GetDispatcher(), aWorld, aWorld.GetTransport(), aWorld.ctx().at<ImguiService>());
-        aWorld.ctx().emplace<PapyrusService>(aWorld.GetDispatcher());
+        PapyrusNatives::TakeHandOff();
     }
 
     void RemoveServicesAfterCharacters(World& aWorld) noexcept override
     {
-        aWorld.ctx().erase<PapyrusService>();
         aWorld.ctx().erase<DebugService>();
     }
 
