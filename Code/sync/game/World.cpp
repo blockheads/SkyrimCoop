@@ -109,7 +109,7 @@ World::World(std::unique_ptr<IEngine> apEngine)
     // Before CharacterService: an arrival drops the copies the old cell took before they are checked.
     ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                  ctx().at<IPlayerBridge&>());
-    ctx().emplace<CreatedIds>();
+    m_pCreatedIds = &ctx().emplace<CreatedIds>();
     ctx().emplace<CopyRecords>(); // before CharacterService: its Ride part
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport,
                                    ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
@@ -231,6 +231,7 @@ void World::Step(double aDeltaSeconds, double aEngineFrameMs) noexcept
     // Force run this before so we get the tasks scheduled to run
     m_runner.OnUpdate(UpdateEvent(aDeltaSeconds));
     m_dispatcher.trigger(UpdateEvent(aDeltaSeconds));
+    m_connected.store(m_transport.IsConnected(), std::memory_order_relaxed);
 }
 
 World& World::Get() noexcept
@@ -253,6 +254,31 @@ void World::SetCurrent(World* apWorld) noexcept
 RunnerService& World::Runner() noexcept
 {
     return s_pCurrent->m_runner;
+}
+
+bool World::Hosts() noexcept
+{
+    return s_pCurrent->IsHosting();
+}
+
+bool World::Connected() noexcept
+{
+    return s_pCurrent->m_connected.load(std::memory_order_relaxed);
+}
+
+uint64_t World::FrameTick() noexcept
+{
+    return s_pCurrent->GetFrameTick();
+}
+
+GraphStreams& World::Streams() noexcept
+{
+    return *s_pCurrent->m_pGraphStreams;
+}
+
+CreatedIds& World::Created() noexcept
+{
+    return *s_pCurrent->m_pCreatedIds;
 }
 
 RunnerService& World::GetRunner() noexcept

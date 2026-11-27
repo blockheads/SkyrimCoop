@@ -335,7 +335,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
     const WorldGate::Reader cWorld;
     if (!cWorld || s_inStream || !apGraph || !apGraph->holder || !apGraph->behaviorGraph || !apData || !CopiesHave(*apGraph))
         return RealUpdate(apGraph, apData, apScratch);
-    auto& streams = World::Get().GetGraphStreams();
+    auto& streams = World::Streams();
     const uint32_t cFormId = apGraph->holder->formID;
     // On its own body (in a pair): off its owner's stream, and back from a new sync point after. Its own half of a
     // pair plays out after the instance: its kill move's end, getting on or off its mount.
@@ -379,7 +379,7 @@ void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContex
     if (!cWorld || s_inStream || !pGraph || pGraph->behaviorGraph != apBehaviour)
         return RealBehaviourUpdate(apBehaviour, apContext, aStep); // a sub-behaviour's, or no owner's
     s_owner = nullptr;
-    auto& streams = World::Get().GetGraphStreams();
+    auto& streams = World::Streams();
     const uint32_t cFormId = pGraph->holder->formID;
     SendClipLoads(streams, cFormId, *pGraph);
     // A sync point as this update begins: its graph after its generate pass, as this update will take it.
@@ -435,7 +435,7 @@ void HookMatchRagdollPose(hkbPoseMatchingGenerator* apNode, void* apContext, flo
     if (apNode->currentMatch != cBefore)
         spdlog::debug("Graph stream: {:X}'s node {} '{}' matched {} (had {})", pGraph->holder->formID, apNode->id,
                       apNode->name ? apNode->name : "", apNode->currentMatch, cBefore);
-    World::Get().GetGraphStreams().OnPick(pGraph->holder->formID, apNode->id, apNode->currentMatch);
+    World::Streams().OnPick(pGraph->holder->formID, apNode->id, apNode->currentMatch);
 }
 
 using TUpdateSynchronizedClip = void(BSSynchronizedClipGenerator*, const hkbContext&, float);
@@ -494,7 +494,7 @@ void HookUpdateSynchronizedClip(BSSynchronizedClipGenerator* apThis, const hkbCo
         return;
     }
     if (const WorldGate::Reader cWorld; cWorld && CopiesHave(*pGraph))
-        World::Get().GetGraphStreams().OnPick(pGraph->holder->formID, apThis->id,
+        World::Streams().OnPick(pGraph->holder->formID, apThis->id,
                                               (apThis->allAtMarks ? kAllAtMarks : 0) | (apThis->allInScene ? kAllInScene : 0) |
                                                   (apThis->atMark ? kAtMark : 0));
 }
@@ -505,7 +505,7 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
     const WorldGate::Reader cWorld;
     if (!cWorld || s_inStream || !apGraph || !apGraph->holder || !apEvent || !CopiesHave(*apGraph))
         return RealSendEvent(apGraph, apEvent);
-    auto& streams = World::Get().GetGraphStreams();
+    auto& streams = World::Streams();
     const uint32_t cFormId = apGraph->holder->formID;
     // A copy on the stream takes its owner's events alone, but in a pair on this game (a kill move's half, 32803):
     // that one plays on its own body, off the stream.
@@ -531,7 +531,7 @@ TLoadManagerClips* RealLoadManagerClips = nullptr;
 
 void LogOwnerLoad(Actor* apActor, const BSFixedString* apEvent, uint32_t aSet)
 {
-    if (const WorldGate::Reader cWorld; cWorld && apActor && apEvent && apEvent->data && World::Get().GetGraphStreams().Recording(apActor->formID))
+    if (const WorldGate::Reader cWorld; cWorld && apActor && apEvent && apEvent->data && World::Streams().Recording(apActor->formID))
         spdlog::debug("Graph stream: owner {:X} loads {}'s clip files into set {}", apActor->formID, apEvent->data, aSet);
 }
 
@@ -571,7 +571,7 @@ uint64_t HookGenerate(BShkbAnimationGraph* apGraph, char aQueued)
 {
     if (const WorldGate::Reader cWorld; cWorld && !s_inStream && apGraph && apGraph->holder && CopiesHave(*apGraph))
     {
-        auto& streams = World::Get().GetGraphStreams();
+        auto& streams = World::Streams();
         if (streams.Recording(apGraph->holder->formID))
             streams.OnGenerate(apGraph->holder->formID, streams.Tick());
     }

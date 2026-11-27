@@ -75,7 +75,7 @@ static bool UI_FindOnStack_Hook(UI* apSelf, IMenu* apMenu, IMenu*** appFoundItem
     {
         if (const auto* cpName = apSelf->LookupMenuNameByInstance(apMenu))
             apMenu->uiMenuFlags = MenuPauseRules::Flags(cpName->AsAscii(), apMenu->uiMenuFlags,
-                                                      World::Get().GetTransport().IsConnected());
+                                                      World::Connected());
     }
     return cOnStack;
 }

@@ -132,7 +132,7 @@ void FakeEngine::ActorYieldPair(uint32_t aOwnFormId, uint32_t aCopyFormId) noexc
     }
     Actors.at(aCopyFormId).ClashPartner = aOwnFormId;
     Actors.at(aCopyFormId).PairStops = ::ReplayState::cClashStopUpdates;
-    Actors.at(aOwnFormId).ClashUntil = World::Get().GetTick() + ::ReplayState::cClashGuardMs;
+    Actors.at(aOwnFormId).ClashUntil = World::Get().GetFrameTick() + ::ReplayState::cClashGuardMs;
 }
 
 bool FakeEngine::ActorPerformPlainly(uint32_t aFormId, uint32_t aActionId) noexcept
@@ -416,7 +416,7 @@ void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
 {
     if (!Actors.contains(aHittee))
         return;
-    TakesDamage(aHittee, aHitter, aDamage, false, false, ::ReplayState::CancelledBlow(World::Get().GetTick() < Actors.at(aHitter).ClashUntil));
+    TakesDamage(aHittee, aHitter, aDamage, false, false, ::ReplayState::CancelledBlow(World::FrameTick() < Actors.at(aHitter).ClashUntil));
 }
 
 void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, uint32_t aProjectile, const glm::vec3& acOrigin)

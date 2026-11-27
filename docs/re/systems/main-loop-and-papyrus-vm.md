@@ -23,7 +23,7 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 
 | ID | Engine function | Our hook | Notes |
 |---|---|---|---|
-| 104788 | (unnamed) register native | `HookRegisterPapyrusFunction` | Fires `PapyrusFunctionRegisterEvent`. |
+| 104788 | (unnamed) register native | `HookRegisterPapyrusFunction` | Adds it to `PapyrusNatives` (locked: the VM registers off the main thread too). |
 
 - The host's script engine also treats every party member as the player: comparisons, `Game.GetPlayer()`,
   queued calls and stacks ([papyrus-guest-scripts.md](papyrus-guest-scripts.md)).
@@ -34,6 +34,21 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
   bytes; compare with SKSE's field comments and CommonLib `RE/N/NativeFunctionBase.h`.
 - The bound function targets upstream's script `SkyrimTogetherVerifyLaunchScript`, no longer bundled (it went with
   `SkyrimTogether.esp`, 2026-11-26): nothing calls it.
+
+## Hooks off the main thread (2026-11-27, 1.7.104)
+
+Where our hooks run besides the main thread and our update (the check in `World::Get()`, test and debug builds):
+
+- `UI::ProcessMessages` (82082, `UI_FindOnStack_Hook`): also from `Job_UI` (a job thread) and from the loading
+  screen's loop (`0x1406E4C20`), which runs on its own thread while the main thread loads.
+- Present (77246, `Hook_StopTimer`, so `RenderSystemD3D11::OnRender`): from `Main` each frame, and from that loading
+  screen loop.
+- Papyrus natives and their registration (104788), graph updates and events (63587, 58329, 63568, 63591), actor
+  animation jobs (41453), `MagicTarget::AddTarget` (34526), a melee hit's damage and stagger (`HookDamageActor`, 37710):
+  the engine's job and VM threads.
+
+Those hooks read what is safe there through `World`'s static accessors (`Hosts`, `Connected`, `FrameTick`, `Streams`,
+`Created`; `World.h`) and queue the rest through `World::Runner()`.
 
 ## Freezing the world: `Main::freezeTime` (2026-11-02, 1.7.104)
 

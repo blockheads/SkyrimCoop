@@ -59,6 +59,9 @@ SCENARIO("The host's session drops for good: after its tries the guest's panel s
 {
     Party party(1, SmokeWorld);
     party.Agree("each game has the other's player");
+    // The other threads' readings (the menus' pause rule) follow the session.
+    party.As(party.Guest(), [] { CHECK((World::Connected() && !World::Hosts())); });
+    party.As(party.Host(), [] { CHECK((World::Connected() && World::Hosts())); });
     party.As(party.Host(), [&] { party.Host().GetHostService().StopHosting(); });
     party.Until([&] { return PanelOf(party.Guest()).Current == JoinStatus::State::kEnded; },
                 "the guest's tries run out: its panel says the session ended",
@@ -67,5 +70,7 @@ SCENARIO("The host's session drops for good: after its tries the guest's panel s
                     (JoinService::kReconnectSeconds + JoinService::kRetrySeconds) + 5)});
     CHECK(PanelOf(party.Guest()).Reason == "lost_connection");
     CHECK_FALSE(party.Guest().GetTransport().IsConnected());
+    party.As(party.Guest(), [] { CHECK_FALSE(World::Connected()); });
+    party.As(party.Host(), [] { CHECK_FALSE((World::Connected() || World::Hosts())); });
     party.Until([&] { return Party::Engine(party.Guest()).AtMainMenu; }, "the guest returns to the main menu");
 }

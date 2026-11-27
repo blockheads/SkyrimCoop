@@ -63,7 +63,7 @@ void AnimationBody::YieldPair(World& aWorld, Actor* apCopy, Actor* apOwn) noexce
     apOwn->EndKillMove();
     apCopy->GetExtension()->ClashPartner = apOwn->formID;
     apCopy->GetExtension()->PairStops = ReplayState::cClashStopUpdates;
-    apOwn->GetExtension()->ClashUntil = aWorld.GetTick() + ReplayState::cClashGuardMs;
+    apOwn->GetExtension()->ClashUntil = aWorld.GetFrameTick() + ReplayState::cClashGuardMs;
     // The kill cam of the swing that lost: left running, its end cuts the winner's pair short.
     if (auto* pVats = VATS::Get(); apOwn == PlayerCharacter::Get() && pVats && pVats->mode == VATS::kKillCam)
         pVats->End();

@@ -2,8 +2,6 @@
 #include <HookSwitch.h>
 #include <Misc/NativeFunction.h>
 
-#include <core/World.h>
-#include <scripts/PapyrusFunctionRegisterEvent.h>
 #include <Memory.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -16,11 +14,8 @@ TRegisterPapyrusFunction* RealRegisterPapyrusFunction = nullptr;
 
 void HookRegisterPapyrusFunction(BSScript::IVirtualMachine* apThis, NativeFunction* apFunction)
 {
-    // Synchronous: natives register on the main thread during VM setup, and hooks such as
-    // HookActivate look them up (PAPYRUS_FUNCTION) before the first World::Update would
-    // drain a queued event, caching a null function pointer for good.
-    World::Get().GetDispatcher().trigger(
-        PapyrusFunctionRegisterEvent(apFunction->functionName.AsAscii(), apFunction->typeName.AsAscii(), apFunction->functionAddress));
+    // At once: hooks such as HookActivate look natives up (PAPYRUS_FUNCTION) before our first update, caching for good.
+    PapyrusNatives::Add(apFunction->typeName.AsAscii(), apFunction->functionName.AsAscii(), apFunction->functionAddress);
 
     RealRegisterPapyrusFunction(apThis, apFunction);
 }
