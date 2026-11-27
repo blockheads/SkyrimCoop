@@ -52,6 +52,7 @@ every other section needs the duo.
 - [A follower stops following](#a-follower-stops-following): not reproducible on 1.7.104 (2026-11-07), not worked on
 - [A guest's recruitment stalls](#a-guests-recruitment-stalls): small
 - [A deleted copy in an AI job](#a-deleted-copy-in-an-ai-job): small
+- [A guest crashes attaching a cell after the mount scenarios](#a-guest-crashes-attaching-a-cell-after-the-mount-scenarios): medium
 - [A passenger jumps 57 units as it takes the reins](#a-passenger-jumps-57-units-as-it-takes-the-reins): small
 
 **Saves**
@@ -683,6 +684,17 @@ took the party from the Whiterun plains to QASmoke with a guest's conversation o
 Agent task: read what 39372 and 37541 dereference and why a deleted copy is still in the job's list.
 
 Size: small. Needs: IDA, then GameTests.
+
+### A guest crashes attaching a cell after the mount scenarios
+
+The guest's game crashed (RIP 0, a null virtual on `Character 0xDC54F` from 19187 in the cell attach) as the party
+travelled to QASmoke in `party-travel-mounted-guest`, after five mount scenarios in one session, 2026-11-27 on the
+cleanup branch `bf190e82`: 1 of 3 runs of the sequence. The same class as the 2026-11-12 crash in the garbage
+collector's job. Notes: `docs/re/crashes/2026-11-27-guest-cell-attach-null-virtual.md`.
+
+Agent task: `coop_test.py repro` with the heap history on, the six scenarios in order; read who freed the reference.
+
+Size: medium. Needs: the duo, IDA.
 
 ### A passenger jumps 57 units as it takes the reins
 
