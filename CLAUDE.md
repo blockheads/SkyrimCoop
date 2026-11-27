@@ -181,7 +181,6 @@ the host's own game: the same, over an in-process route instead of enet
 
 - `AnimationSystem` interpolates copies' animations; `LocalAnimationComponent` / `RemoteAnimationComponent` track state
 - Animation variables are sent with differential encoding
-- Behavior mods via Nemesis/Pandora patches: `README-ANIMATION-MODS.md`
 
 ## Conventions
 

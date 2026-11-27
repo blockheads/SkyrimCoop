@@ -62,8 +62,8 @@
 
 #include <Structs/AnimationGraphDescriptorManager.h>
 #include <Structs/AnimationVariables.h>
-
-extern const AnimationGraphDescriptor* BehaviorVarPatch(BSAnimationGraphManager* pManager, Actor* pActor);
+#include <Structs/Skyrim/AnimationGraphDescriptor_Master_Behavior.h>
+#include <Camera/PlayerCamera.h>
 
 #include <Hooks/FunctionHook.h>
 
@@ -246,7 +246,12 @@ static const AnimationGraphDescriptor* DescriptorFor(BSAnimationGraphManager& aM
         pExtension->GraphDescriptorProjectKey = cProject;
     }
     auto* pDescriptor = AnimationGraphDescriptorManager::Get().GetDescriptor(pExtension->GraphDescriptorHash);
-    return pDescriptor ? pDescriptor : BehaviorVarPatch(&aManager, &aActor);
+    if (pDescriptor)
+        return pDescriptor;
+    // The player's first-person graph has no descriptor: use the humanoid one.
+    if (aActor.formID == 0x14 && PlayerCamera::Get()->IsFirstPerson())
+        return AnimationGraphDescriptorManager::Get().GetDescriptor(AnimationGraphDescriptor_Master_Behavior::m_key);
+    return nullptr;
 }
 
 static std::span<const hkbVariableInfo> VariableInfos(const hkbBehaviorGraph& acGraph)

@@ -92,7 +92,6 @@
 #include <ScriptEquips.h>
 #include <Forms/TESObjectARMO.h>
 
-#include <ModCompat/BehaviorVar.h>
 
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -1033,7 +1032,7 @@ bool Actor::LiesInRagdoll() const noexcept
 bool Actor::IsDragon() const noexcept
 {
     const ActorExtension* pExtension = const_cast<Actor*>(this)->GetExtension();
-    return BehaviorVar::IsDragon(pExtension->GraphDescriptorHash);
+    return pExtension->GraphDescriptorHash == AnimationGraphDescriptor_BHR_Master::m_key;
 }
 
 void Actor::StartDeferredKill() noexcept
