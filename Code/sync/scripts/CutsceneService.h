@@ -34,7 +34,6 @@ protected:
     void OnPlayerLeft(const NotifyPlayerLeft& acMessage) noexcept;
 
 private:
-    World& m_world;
     TransportService& m_transport;
 
     std::vector<entt::scoped_connection> m_connections;

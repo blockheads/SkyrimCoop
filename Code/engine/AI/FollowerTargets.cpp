@@ -133,20 +133,16 @@ void Reevaluate(const Targets& acBefore, const Targets& acAfter) noexcept
         if (!acAfter.contains(cReference))
             if (auto* pActor = Cast<Actor>(TESForm::GetById(cReference)))
             {
-                using TEvaluate = void(Actor*, bool, bool);
-                POINTER_SKYRIMSE(TEvaluate, s_evaluate, 37401);
                 const auto* pPackage = pActor->GetCurrentPackage();
-                s_evaluate(pActor, true, cHandle && pPackage && pPackage->formID == 0x5C84B && !pActor->IsInCombat());
+                pActor->EvaluatePackageNow(cHandle && pPackage && pPackage->formID == 0x5C84B && !pActor->IsInCombat());
             }
     for (const auto& [cReference, cHandle] : acAfter)
         if (!acBefore.contains(cReference) || acBefore.at(cReference) != cHandle)
             if (auto* pActor = Cast<Actor>(TESForm::GetById(cReference)))
             {
                 spdlog::info("Followers: {:X} follows handle {:X}", cReference, cHandle);
-                using TEvaluate = void(Actor*, bool, bool);
-                POINTER_SKYRIMSE(TEvaluate, s_evaluate, 37401);
                 const auto* pPackage = pActor->GetCurrentPackage();
-                s_evaluate(pActor, true, cHandle && pPackage && pPackage->formID == 0x5C84B && !pActor->IsInCombat());
+                pActor->EvaluatePackageNow(cHandle && pPackage && pPackage->formID == 0x5C84B && !pActor->IsInCombat());
             }
 }
 

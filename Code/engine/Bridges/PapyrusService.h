@@ -1,35 +1,21 @@
 #pragma once
 
-#include <core/Listen.h>
 #include <Misc/GameVM.h>
-#include <NoCopyMove.h>
+
+#include <string>
 
 struct TESForm;
 struct TESObjectREFR;
-struct PapyrusFunctionRegisterEvent;
 
-/**
- * @brief Handles registering and executing Papyrus functions.
- */
-struct PapyrusService
+// The engine's Papyrus natives by name, from any thread: the VM registers them off the main thread too (104788).
+namespace PapyrusNatives
 {
-    PapyrusService(entt::dispatcher& aDispatcher) noexcept;
-    ~PapyrusService() noexcept = default;
-
-    NO_COPY_MOVE(PapyrusService);
-
-    const void* Get(const std::string& acNamespace, const std::string& acFunction) const noexcept;
-
-    void HandlePapyrusFunctionEvent(const PapyrusFunctionRegisterEvent&) noexcept;
-
-    // Hot reload: natives register once at boot, so the next client gets them from this one.
-    void HandOffFunctions() const noexcept;
-
-private:
-    std::unordered_map<std::string, void*> m_functions; // by NameKey("Namespace::Name")
-
-    std::vector<entt::scoped_connection> m_connections;
-};
+void Add(const std::string& acNamespace, const std::string& acFunction, void* apFunction) noexcept;
+[[nodiscard]] const void* Get(const std::string& acNamespace, const std::string& acFunction) noexcept;
+// Hot reload: natives register once at boot, so the next load gets them from this one.
+void HandOff() noexcept;
+void TakeHandOff() noexcept;
+} // namespace PapyrusNatives
 
 template <class Return, class Type, class... Args> struct PapyrusFunction
 {
@@ -88,6 +74,6 @@ private:
     TFunction m_pFunction;
 };
 
-#define PAPYRUS_FUNCTION(returnType, scope, name, ...) static PapyrusFunction<returnType, scope, ##__VA_ARGS__> s_p##name(World::Get().ctx().at<PapyrusService>().Get(#scope, #name));
-#define GLOBAL_PAPYRUS_FUNCTION(returnType, scope, name, ...) static GlobalPapyrusFunction<returnType, ##__VA_ARGS__> s_p##name(World::Get().ctx().at<PapyrusService>().Get(#scope, #name));
-#define LATENT_PAPYRUS_FUNCTION(returnType, scope, name, ...) static LatentPapyrusFunction<returnType, scope, ##__VA_ARGS__> s_p##name(World::Get().ctx().at<PapyrusService>().Get(#scope, #name));
+#define PAPYRUS_FUNCTION(returnType, scope, name, ...) static PapyrusFunction<returnType, scope, ##__VA_ARGS__> s_p##name(PapyrusNatives::Get(#scope, #name));
+#define GLOBAL_PAPYRUS_FUNCTION(returnType, scope, name, ...) static GlobalPapyrusFunction<returnType, ##__VA_ARGS__> s_p##name(PapyrusNatives::Get(#scope, #name));
+#define LATENT_PAPYRUS_FUNCTION(returnType, scope, name, ...) static LatentPapyrusFunction<returnType, scope, ##__VA_ARGS__> s_p##name(PapyrusNatives::Get(#scope, #name));

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The RE notes this branch added since origin/dev hold up (docs/re/README.md): every IDA notes or journal row names a
 real Address Library ID at its own RVA (build_re_data.py drops a bad row silently), and the notes and
-docs/re/systems/ name functions rather than citing IDA's auto names (sub_...; journals are history, not checked). Run by scripts/check.sh."""
+docs/re/systems/ name functions rather than citing IDA's auto names (sub_...; journals are history, not checked); and
+each Address Library ID is declared in one file of Code/ (twice_declared). Run by scripts/check.sh."""
 import re
 import subprocess
 import sys
@@ -18,9 +19,9 @@ JOURNAL = re.compile(r"^docs/re/journal/(?P<version>[\d.]+)/[^/]+\.tsv$")
 
 
 def version_of(path):
-    """The runtime whose Address Library a notes or journal file uses (ida_notes.tsv is 1.6.1170's)."""
+    """The runtime whose Address Library a notes or journal file uses; None for ida_notes.tsv (frozen, from 1.6.1170)."""
     match = NOTES.match(path) or JOURNAL.match(path)
-    return (match.group("version") or "1.6.1170") if match else None
+    return match.group("version") if match else None
 
 
 def row_problem(path, line, library):
@@ -65,6 +66,22 @@ def problems(added, libraries):
     return found
 
 
+def twice_declared(uses):
+    """IDs declared in more than one file, as {id: [files]}. `uses` is build_re_data.scan_our_code()'s {id: [use]}.
+    A declaration types an address as a function or data: a VersionDbPtr<T> or POINTER_SKYRIMSE(T, ...), and a
+    Hooks::Resolve that is only called. Not declarations: T void or uint8_t (a bare address, compared or patched at),
+    patches and RTTI, and hooks (HOOK_ID, Hooks::Hook, a Resolve hooked or chained): a hook's signature is the
+    hook's, checked with it (CLAUDE.md), and a call of the hooked ID elsewhere is a declaration of its own. A file
+    counts once however often it declares the ID. One declaration, in its engine struct's file, is what both call."""
+    found = {}
+    for ident, each in sorted(uses.items()):
+        files = sorted({use["file"] for use in each if use["kind"] not in ("hook", "patch", "rtti")
+                        and use["type"] not in ("void", "uint8_t")})
+        if len(files) > 1:
+            found[ident] = files
+    return found
+
+
 def git(*arguments):
     return subprocess.run(["git", "-C", str(ROOT), *arguments], capture_output=True, text=True).stdout
 
@@ -88,7 +105,13 @@ def library(version):
 
 
 def main():
-    base = git("merge-base", "HEAD", "origin/dev").strip()
+    from build_re_data import scan_our_code
+    if twice := twice_declared(scan_our_code()):
+        print("Address Library IDs declared in more than one file (declare each once, in its engine struct's file):")
+        for ident, files in twice.items():
+            print(f"  {ident}: {', '.join(files)}")
+        return 1
+    base =git("merge-base", "HEAD", "origin/dev").strip()
     if not base:
         print("check_re: no origin/dev to compare with; skipped")
         return 0

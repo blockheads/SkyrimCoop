@@ -1,14 +1,5 @@
 """Actions for the co-op harness."""
-import argparse
 import collections
-import contextlib
-import math
-import os
-import re
-import socket
-import subprocess
-import time
-import uuid
 from ..common import (
     ACTIVATE_KEY,
     ALL_CONTROLS,
@@ -300,10 +291,6 @@ class StoryActions:
         ctx.move_cursor(instance, MESSAGE_BOX_OK)
         ctx.click(instance)
         ctx.wait_for(f"[{instance or 'host'}] the message box is closed", lambda: "MessageBoxMenu" not in ctx.menus(instance), 5)
-
-
-    def knows_word(ctx, instance, word):
-        return ctx.player_command(instance, {"cmd": "form", "form": word}).get("known")
 
 
     def word_state(ctx, instance, word):

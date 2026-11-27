@@ -79,7 +79,6 @@ public:
 
     bool GetMenuOpen(const BSFixedString& acName) const;
     void CloseAllMenus();
-    void DebugLogAllMenus();
 
     IMenu* FindMenuByName(const BSFixedString& acName);
     BSFixedString* LookupMenuNameByInstance(IMenu* apMenu);

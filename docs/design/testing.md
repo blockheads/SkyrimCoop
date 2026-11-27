@@ -218,8 +218,9 @@ python3 scripts/coop_test.py repro quit-in-game
 **Heap tools on the duo** (`Code/plugin/HeapHistory.h`): boot with `SKYRIMCOOP_HEAP_HISTORY=2` (the MCP's
 `duo_start heap_history=2`) and the games record the engine's allocations and frees and count double frees: the
 harness's `heap` readout, the verb `expect_no_double_free`, a `DOUBLE FREE` log entry with both frees' stacks (the
-second free is not passed on). With `SKYRIMCOOP_HEAP_QUARANTINE=256` a use after free stops at once; a hang on a lock
-in freed memory names who freed it in the watchdog's report.
+second free is not passed on). The quarantine is on in every duo game (`SKYRIMCOOP_HEAP_QUARANTINE=256`, set by
+`game_env`; about 500 MB a game, no cost in frames; `SKYRIMCOOP_HEAP_QUARANTINE=0` turns it off): a use after free
+stops at once, and a hang on a lock in freed memory names who freed it in the watchdog's report.
 
 They use the same duo reservation, off-screen display and prefix ownership rules. The corresponding GameTests
 flow is `[quit-desktop]`; `[native-lifetime]` checks deletion of independently registered VM natives.
@@ -252,9 +253,6 @@ Since 2026-11-01 the duo also runs on Windows, natively (`scripts/coop_harness/w
 
 Both games run as the user, on the user's Steam, in 960x540 windows side by side, with `bBackgroundMouse` set so
 they do not grab the cursor.
-
-**Skyrim version:** Steam ships 1.7 on Windows, which our Address Library IDs and SKSE do not support. The duo links
-a 1.6.1170 copy instead (`SKYRIM_STEAM_GAME_DIR`, with `SKYRIM_SKSE_DIR` and `SKYRIM_ADDRESS_LIBRARY_DIR`).
 
 **Unlike Linux:**
 - Both games share the user's `Documents/My Games/Skyrim Special Edition` (INIs, saves, SKSE and crash logs) and
@@ -414,6 +412,19 @@ for each branch and belong only where fresh initial state is required. Use `Part
 expected results after each meaningful action. `Step(game)` is for deliberate message ordering; retain those
 regressions separately. `COOP_NET` still selects the existing delay/jitter/loss transport profiles. Run the network
 stress script only when specifically warranted, never routinely as an audit.
+
+## Sanitizers and fuzzing
+
+`COOP_SANITIZE=1 scripts/xmake-linux.sh` builds the native tests with ASan and UBSan in their own config and build dir
+(`build/sanitize`), plus `FuzzMessages`, libFuzzer on both message factories. Not in `scripts/check.sh` (slow); a report
+found there is fixed or goes in `docs/bugs.md`. The tests link no allocator override (rpmalloc is the plugin's only).
+
+```bash
+COOP_SANITIZE=1 scripts/xmake-linux.sh f && COOP_SANITIZE=1 scripts/xmake-linux.sh build -j8 UnitTests
+build/sanitize/linux/x86_64/debug/UnitTests
+mkdir -p build/sanitize/fuzz/corpus && build/sanitize/linux/x86_64/debug/FuzzMessages build/sanitize/fuzz/corpus \
+    -max_total_time=600 -timeout=5 -rss_limit_mb=2048 -artifact_prefix=build/sanitize/fuzz/
+```
 
 ## Shared specs and soak
 

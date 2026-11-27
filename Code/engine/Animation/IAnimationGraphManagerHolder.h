@@ -28,8 +28,6 @@ struct IAnimationGraphManagerHolder
     virtual bool GetVariableInt(BSFixedString* apVariable, uint32_t* apReturn);
     virtual bool GetVariableBool(BSFixedString* apVariable, bool* apReturn);
 
-    bool SetVariableFloat(BSFixedString* apVariable, float aValue);
     bool IsReady();
 
-    bool ReSendAnimationEvent(BSFixedString* apAnimEvent);
 };

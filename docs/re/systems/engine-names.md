@@ -16,12 +16,12 @@ order), so a compare that works today can break with a mod.
 
 - `SameName(a, b)`: equal names, whatever their case. For a name copied out of the engine into our own
   strings too (`ActionEvent::EventName`).
-- `NameKey(name)`: a map key, the same for every spelling (`PapyrusService` keys the natives it calls by it).
+- `NameKey(name)`: a map key, the same for every spelling (`PapyrusNatives` keys the natives it calls by it).
 - `BSFixedString::Is(name)` and `BSFixedString == "name"` use `SameName`. Before, `==` with a string literal
   compiled through `operator const char*` and compared pointers.
 
 Moved onto them (2026-10-20): `GuestScripts` (`GetPlayer`, the timer natives and their events),
-`PapyrusService` (a missed lookup caches a null native and crashes when called), `BSScript::Object`'s
+`PapyrusNatives` (a missed lookup caches a null native and crashes when called), `BSScript::Object`'s
 variable lookup, `OnlyHudOpen` (`"HUD Menu"`), `FindQuestByNameId` (an editor id: a `BSString`, not pooled,
 but the engine matches editor ids case-insensitively too), `KillWithDeathAction` (`"RagdollInstant"`).
 

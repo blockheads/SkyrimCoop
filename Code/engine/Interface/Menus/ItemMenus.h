@@ -20,6 +20,9 @@ struct ContainerMenu : IMenu
     ItemList* pItemList; // 51126, 51130, 51132
     uint8_t pad50[0x20];
     uint32_t ChangedFormCount; // 51126 case 8, 51144, 51146
+
+    // ContainerMenu::GetTargetRefHandle (405962): the open menu's container.
+    [[nodiscard]] static uint32_t GetTargetRefHandle() noexcept;
 };
 
 struct BarterMenu : IMenu
@@ -27,6 +30,9 @@ struct BarterMenu : IMenu
     ItemList* pItemList; // 50945, 50958
     uint8_t pad38[0x58];
     uint32_t ChangedFormCount; // 50945 case 8, 50958
+
+    // BarterMenu::GetTargetRefHandle (405823): the open menu's merchant.
+    [[nodiscard]] static uint32_t GetTargetRefHandle() noexcept;
 };
 
 struct InventoryMenu : IMenu

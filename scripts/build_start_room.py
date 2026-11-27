@@ -3,7 +3,7 @@
 
 No quests, scripts, actors, doors or interactive objects are copied. Only the base game's
 shack shell, decoration and lighting are referenced; Skyrim.esm remains the only master.
-Run with the path to Skyrim.esm; output is GameFiles/Skyrim/SkyrimCoopStart.esp.
+Run with the path to Skyrim.esm; output is assets/SkyrimCoopStart.esp.
 """
 import argparse
 from pathlib import Path
@@ -107,7 +107,7 @@ def build(master):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('master', type=Path)
-    parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[1] / 'GameFiles/Skyrim/SkyrimCoopStart.esp')
+    parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[1] / 'assets/SkyrimCoopStart.esp')
     args = parser.parse_args()
     data, count = build(args.master.read_bytes())
     args.output.write_bytes(data)

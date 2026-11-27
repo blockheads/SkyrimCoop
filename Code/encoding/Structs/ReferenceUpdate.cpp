@@ -1,6 +1,5 @@
 #include <Structs/ReferenceUpdate.h>
 #include <Wire/Serialization.h>
-#include <stdexcept>
 
 using Wire::Serialization;
 
@@ -30,12 +29,8 @@ void ReferenceUpdate::Deserialize(Wire::Buffer::Reader& aReader)
 {
     UpdatedMovement.Deserialize(aReader);
 
-    const auto count = Serialization::ReadVarInt(aReader);
+    ActionEvents.resize(Serialization::ReadCount(aReader, kMaxActionEvents));
 
-    ActionEvents.resize(count);
-
-    for (auto i = 0u; i < count; ++i)
-    {
-        ActionEvents[i].ApplyDifferential(aReader);
-    }
+    for (auto& entry : ActionEvents)
+        entry.ApplyDifferential(aReader);
 }

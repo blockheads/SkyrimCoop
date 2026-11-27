@@ -229,6 +229,8 @@ struct BSRagdollContactListener
 static_assert(offsetof(BSRagdollContactListener, triggered) == 0x20);
 
 struct TESObjectREFR;
+// TESHavokUtilities::FindCollidableRef (26003): the reference a collidable (hkpCollidable) belongs to, or null.
+[[nodiscard]] TESObjectREFR* FindCollidableRef(const void* apCollidable) noexcept;
 // The reference a body belongs to (TESHavokUtilities::FindCollidableRef 26003), none for the world's own.
 [[nodiscard]] TESObjectREFR* ReferenceOf(const hkpRigidBody& acBody) noexcept;
 

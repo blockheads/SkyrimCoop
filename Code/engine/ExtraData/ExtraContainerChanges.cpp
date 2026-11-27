@@ -37,33 +37,6 @@ void ExtraContainerChanges::Data::SetRollsWorldContainers(bool aRolls) noexcept
     s_rollsWorldContainers.store(aRolls, std::memory_order_relaxed);
 }
 
-void ExtraContainerChanges::Data::Save(BGSSaveFormBuffer* apBuffer)
-{
-    using TSaveFunc = void*(ExtraContainerChanges::Data*, BGSSaveFormBuffer*);
-
-    POINTER_SKYRIMSE(TSaveFunc, s_save, 16142);
-
-    s_save(this, apBuffer);
-}
-
-void ExtraContainerChanges::Data::Load(BGSLoadFormBuffer* apBuffer)
-{
-    using TLoadFunc = void*(ExtraContainerChanges::Data*, BGSLoadFormBuffer*);
-
-    POINTER_SKYRIMSE(TLoadFunc, s_load, 16143);
-
-    s_load(this, apBuffer);
-}
-
-bool ExtraContainerChanges::Entry::IsQuestObject() noexcept
-{
-    using TIsQuestObject = bool(ExtraContainerChanges::Entry*);
-
-    POINTER_SKYRIMSE(TIsQuestObject, s_isQuestObject, 16005);
-
-    return s_isQuestObject(this);
-}
-
 TESObjectARMO* ExtraContainerChanges::Data::GetArmor(uint32_t aSlotId) noexcept
 {
     using TGetArmor = TESObjectARMO*(ExtraContainerChanges::Data*, uint32_t);

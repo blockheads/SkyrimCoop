@@ -22,7 +22,6 @@
 #include <core/Profile.h>
 #include <LoadGameEvents.h>
 #include <MenuEvents.h>
-#include <ModCompat/BehaviorVar.h>
 #include <DebugService.h>
 #include <ImguiService.h>
 #include <Bridges/PapyrusService.h>
@@ -58,12 +57,11 @@ public:
     void AddServicesAfterCharacters(World& aWorld) override
     {
         aWorld.ctx().emplace<DebugService>(aWorld.GetDispatcher(), aWorld, aWorld.GetTransport(), aWorld.ctx().at<ImguiService>());
-        aWorld.ctx().emplace<PapyrusService>(aWorld.GetDispatcher());
+        PapyrusNatives::TakeHandOff();
     }
 
     void RemoveServicesAfterCharacters(World& aWorld) noexcept override
     {
-        aWorld.ctx().erase<PapyrusService>();
         aWorld.ctx().erase<DebugService>();
     }
 
@@ -76,7 +74,6 @@ public:
     void Started(World&) override
     {
         LoadGameEvents::Start();
-        BehaviorVar::Get()->Init();
     }
 
     void Stopping(World&) noexcept override

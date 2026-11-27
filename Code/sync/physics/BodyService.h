@@ -61,9 +61,6 @@ struct BodyService
     // A reference another game's player holds (its states come held): its holder's alone, so this game's player
     // may not activate it (pick it up) meanwhile.
     [[nodiscard]] bool HeldElsewhere(uint32_t aFormId) const noexcept { return aFormId && m_heldElsewhere.contains(aFormId); }
-    // A reference whose body this game shows from another game's states (moving or resting): its move row is not the
-    // host's to apply.
-    [[nodiscard]] bool Shows(const GameId& acObject) const noexcept;
     // An owner leaves its ragdoll on the delayed movement timeline: stop steering its resting bones.
     void EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept;
     // A copy goes down with its owner's ragdoll action, before its owner's first body frame.
@@ -111,9 +108,6 @@ private:
     std::set<BodyKey> m_placed; // their newest rest is where the host's game put it (BodyState::Placed)
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_ragdollRests; // a corpse another game's player moved, at its rest
     std::set<uint32_t> m_declaredRests; // this game's actors whose ragdoll rest is declared (cleared as one wakes)
-    // Apply's copies by session id: a lookup per body and bone each frame, not a scan of the copies.
-    std::unordered_map<uint32_t, entt::entity> m_copyIndex;
-    bool m_copiesIndexed{};
     std::set<BodyKey> m_following; // played from another game's states (logged once)
     std::map<BodyKey, uint32_t> m_held; // held in another game: its form id here
     std::set<BodyKey> m_missing;   // not in this game (logged once)

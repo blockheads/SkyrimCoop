@@ -41,7 +41,7 @@ void TimeData::Advance(float aGameHours) noexcept
 void HookSimulateTime(TimeData* apData, float aMultiplier)
 {
     if (s_fastTravel && !GuestClock::GameClockRuns() && apData->TimeScale)
-        World::Get().GetRunner().Trigger(FastTravelEvent{aMultiplier * apData->TimeScale->f / 3600.f});
+        World::Runner().Trigger(FastTravelEvent{aMultiplier * apData->TimeScale->f / 3600.f});
     if (GuestClock::GameClockRuns())
     {
         RealSimulateTime(apData, aMultiplier);

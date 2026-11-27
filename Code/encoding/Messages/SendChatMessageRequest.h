@@ -3,21 +3,10 @@
 #include "Message.h"
 #include <Wire/Buffer.h>
 
-struct SendChatMessageRequest final : RequestMessage
+struct SendChatMessageRequest final : MessageOf<SendChatMessageRequest, kSendChatMessageRequest>
 {
-    static constexpr RequestOpcode Opcode = kSendChatMessageRequest;
-
-    SendChatMessageRequest()
-        : RequestMessage(Opcode)
-    {
-    }
-
-    virtual ~SendChatMessageRequest() = default;
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const SendChatMessageRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && ChatMessage == acRhs.ChatMessage; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(ChatMessage); }
+    bool operator==(const SendChatMessageRequest&) const noexcept = default;
 
     std::string ChatMessage;
 };

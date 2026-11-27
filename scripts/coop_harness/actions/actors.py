@@ -1,14 +1,7 @@
 """Actions for the co-op harness."""
-import argparse
-import collections
-import contextlib
 import math
 import os
-import re
-import socket
-import subprocess
 import time
-import uuid
 from ..comparisons import is_close
 from ..common import STAGE_DEPTH
 from ..errors import TestFailure
@@ -169,7 +162,7 @@ class ActorsActions:
         if megabytes:
             os.environ["SKYRIMCOOP_HEAP_QUARANTINE"] = str(megabytes)
         else:
-            os.environ.pop("SKYRIMCOOP_HEAP_QUARANTINE", None)
+            os.environ["SKYRIMCOOP_HEAP_QUARANTINE"] = "0"  # the default is on (game_env)
         return megabytes
 
 

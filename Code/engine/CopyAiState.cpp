@@ -36,6 +36,12 @@ BGSScene* Actor::GetOwnCurrentScene() const noexcept
     return RealGetCurrentScene ? RealGetCurrentScene(const_cast<Actor*>(this)) : nullptr;
 }
 
+BGSScene* Actor::GetCurrentScene() const noexcept
+{
+    POINTER_SKYRIMSE(TGetCurrentScene, s_getCurrentScene, 37247);
+    return s_getCurrentScene(const_cast<Actor*>(this));
+}
+
 using TGetCurrentPackage = TESPackage*(const Actor*);
 static TGetCurrentPackage* RealGetCurrentPackage = nullptr;
 

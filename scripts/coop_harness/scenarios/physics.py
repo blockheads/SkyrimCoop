@@ -11,7 +11,6 @@ from ..common import (
     HOME_CELL,
     INN,
     ITEM_LISTS,
-    KEYFRAMED_MOTION,
     LISTS_SHOWN,
     LYDIA,
     SINKHOLE,

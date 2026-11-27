@@ -54,6 +54,8 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | System | Status | Scenarios |
 |---|---|---|
 | Session, join, leave, kick, host rejoin | works | `session-roster`, `late-join-client`, `host-rejoins`, `host-kicks-client` |
+| Crafted or truncated messages (2026-11-26) | dropped: a non-player's messages other than a join go unread, every count is bounded (`Serialization::ReadCount`), a short read drops the message, snappy output is capped at 16 MB | tier 1 `[encoding.decoder]`, tier 2 `stranger_flows.cpp` |
+| One field list per message (2026-11-27) | a message or struct lists its fields once (`Fields`, `Wire/Archive.h`), both archives walk them, `==` defaulted; the hand-written serializers left: differential (`ActionEvent` and the messages carrying it), quantizers, versioned or validated reads | tier 1 `[encoding.fields]`: every opcode against bytes recorded from the old serializers |
 | Movement (players, host NPCs) | works | `steady-state`, `move-host-npc` |
 | Cell changes (`coc`, doors, fast travel) | works | `teleport-keeps-copies`, `party-changes-cells`, `party-uses-door`, `party-fast-travels` |
 | Equipment and hands | works | `equip-*`, `repair-equipment-drift`, `hands-survive-reload-*` |
@@ -188,6 +190,9 @@ removed (git history keeps them).
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
+- **Done 2026-11-26: actors are found by id in one lookup** (`core/ActorIndex`, kept by the registry's signals): the
+  `Utils::` session/form id functions and the services' own scans of every entity use it (cleanup step 3).
+
 - **Open 2026-10-24: a copy's base has no original race.** `TESNPC::Create` clears it (`TESNPC+0x1E8`, upstream's
   "forces facegen"); the owner's is kept. Only a beast form's return reads it, and a copy follows its owner's race.
   Scenarios compare the race section by its race only (`copy_base_differences`).
@@ -252,7 +257,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   owner's gasp arrives could gasp on its own: seen once (2026-10-14, `dive-host-player`, 1 of 7 runs: the
   host's copy had a line of its own with no length before the owner's gasp).
 - **Crash in the harness's `strip`** after 376 hot reloads (`UnequipAll` on a copy, garbage list
-  node). Not reproduced on fresh games (5 of 5).
+  node). Not reproduced on fresh games (5 of 5). Likely the walk fixed 2026-11-27 (below, "UnequipAll's walk").
 
 - **An NPC on the guest only** (2026-10-20): after play in Whiterun the guest showed an NPC at a door that the host's game did not; `desync` listed `Ulfberth War-Bear [client 000D15B0, sid -1]: copy in client with no owner in the other game`. Not looked into; the guest's own actors are the copy contract's.
 
@@ -272,6 +277,17 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
     off-screen, so it cannot show a display stall), during a stall.
   - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
+- **Done 2026-11-27: a copy's rebuilt leveled base recorded as its reference's base change.** `RelevelActor`'s
+  `SetBaseObject` recorded the temporary NPC's id (0x80); the next load of the reference's stored changes gave that
+  NPC to the reference the cell made again and destroyed it there (19529, 12095), under the old reference or a held
+  copy. Caught with the heap guard on 0x268-byte blocks; a temporary base is no longer recorded (`BaseChange.h`,
+  UnitTests `[base-change]`, `leveled-copy-base.md`).
+- **Done 2026-11-27: UnequipAll's walk read a node its unequip freed.** The engine's `UnequipAll` (38899) walks the
+  inventory holding the next node, and an unequip that empties the first entry frees it (16067); our reconcile's reset
+  of a copy's worn set ran it. Found by the heap quarantine in the six mount scenarios (the guest's 2026-11-27
+  cell-attach crash's investigation); `EquipManager::UnequipAll` now reads the worn stacks first (`WornStacks.h`,
+  UnitTests `[worn-stacks]`). That the night's cell-attach crash was its victim is inferred
+  (`docs/re/crashes/2026-11-27-guest-cell-attach-null-virtual.md`).
 - **Done 2026-11-22 (bugs-refactor-plan piece C, rewritten by its step 0): a worn list freed twice.** The guest's
   vtable crashes and the Ivarstead hangs were one engine double free of an item's `ExtraDataList`: a held copy shown
   again (the session's end) has its inventory reset before it has a process, and `RemoveItem` 16059 hands its nested
@@ -304,7 +320,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - **Menu mode and `equipitem`:** an NPC's `equipitem` run while paused never shows
   (`AIProcess::Update3DModel_Impl` reads menu mode; not traced). Why the harness pauses only cell changes.
 - **Lock order, vanilla:** `coc` while the exterior world steps inverts the extra-data and `bhkWorld`
-  locks. Listed in `scripts/lock_order_known.txt`, not fixed.
+  locks. Listed in `scripts/lock_order_known-1.7.104.txt`, not fixed.
 - **Host hang in `dialogue-refused-start` (2026-10-22, the 25th scenario of a `--tag ai,combat,magic,spawn,session,scripts`
   run; 3 of 3 alone).** The main thread waits for jobs in `Main` (36555); one job thread waits in `Mutex::Lock1`
   (13129, the engine's `BSSpinLock`) from `MenuTopicManager` (35289) → `Actor::UpdateInDialogue` (37541) → our
@@ -338,7 +354,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - A follower whose tether move never arrives stays "following" for 60 s: a travel of its own in that
     time does not lead.
   - A player joining somewhere else is pulled to the host's player and pulls nobody (2026-10-23,
-    `HostCharacters::BringToParty`; tier 2 late-join flow, `BridgeTests` "a player joining away from the host").
+    `HostArrivals::BringToParty`; tier 2 late-join flow, `BridgeTests` "a player joining away from the host").
     Outdoors also when out of the host's loaded grid in the same worldspace (fixed the same day after Skyrim's
     four-cell join: `InHostGrid`).
   - Players walking apart outdoors work (measured 2026-10-23): the far copy is kept without 3D and loads again on
@@ -350,6 +366,11 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   `...-dirty` and pass the gate's stage 1. Fine for development; release builds come from commits.
 
 ### Tests and harness
+
+- **2026-11-26: bug-finders.** Sanitized native tests and `FuzzMessages` (testing.md, "Sanitizers and fuzzing"); in
+  debug and harness builds `World::Get()` logs a caller off the update and main thread (hooks queue through
+  `World::Runner()` and read `World`'s static accessors; 2026-11-27 only the UI's render on a loading screen is left,
+  bugs.md). Under ASan many GameTests flows miss their real-time waits (slowness).
 
 - **Open 2026-11-17: the graph stream check crashed a guest.** `guest-trips-platform-guard`'s first run: the guest's
   game died 48 s in, in `GraphStreamCheck.cpp`'s `HookHandleEvent` (line 113), formatting the platform guard's copy's

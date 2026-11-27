@@ -188,13 +188,11 @@ void RunConsoleCommand(const std::string& acLine) noexcept
 
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept
 {
-    using TAddMessage = void(void*, const BSFixedString*, uint32_t, void*);
-    POINTER_SKYRIMSE(TAddMessage, s_addMessage, 13631); // UIMessageQueue::AddMessage
-    VersionDbPtr<void*> queue(400445);                   // UIMessageQueue singleton (RVA 0x20F8950)
-    if (!*queue.Get())
+    UIMessageQueue* pQueue = UIMessageQueue::Get();
+    if (!pQueue)
         return;
     const BSFixedString cName(acpMenu);
-    s_addMessage.Get()(*queue.Get(), &cName, aShown ? UIMessage::kShow : UIMessage::kHide, nullptr);
+    pQueue->AddMessage(cName, aShown ? UIMessage::kShow : UIMessage::kHide, nullptr);
 }
 
 std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept
@@ -206,8 +204,6 @@ std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept
 
 std::optional<bool> IsLockpickBuilt() noexcept
 {
-    if constexpr (COOP_SKYRIM_1_6_1170)
-        return std::nullopt; // +0x11C read in 1.7.104 only
     UI* pUI = UI::Get();
     const auto* cpMenu = pUI && pUI->GetMenuOpen("Lockpicking Menu")
                              ? static_cast<const LockpickingMenu*>(pUI->FindMenuByName("Lockpicking Menu"))
@@ -867,14 +863,12 @@ bool PutOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept
 
 bool SeatOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept
 {
-    using TSeated = void(Actor*);
-    POINTER_SKYRIMSE(TSeated, s_onSeated, 41533); // Actor::OnInteractionSeated, as PairedStopHandler (42868) ends
     Actor* pRider = Cast<Actor>(TESForm::GetById(aRiderId));
     Actor* pMount = Cast<Actor>(TESForm::GetById(aMountId));
     if (!pRider || !pMount || !pRider->PutOnMount(pMount))
         return false;
     pRider->actorState.flags1 = (pRider->actorState.flags1 & ~(0xFu << 14)) | (3u << 14); // sit state 3, seated
-    s_onSeated(pRider);
+    pRider->OnInteractionSeated(); // as PairedStopHandler (42868) ends
     return true;
 }
 
@@ -887,36 +881,30 @@ bool SitOnMountQuick(uint32_t aRiderId, uint32_t aMountId) noexcept
 
 bool BoardRiddenMount(uint32_t aRiderId, uint32_t aMountId) noexcept
 {
-    using TSetInteraction = void(ExtraDataList*, void** appInteraction);
-    POINTER_SKYRIMSE(TSetInteraction, s_setInteraction, 12074); // ExtraDataList::SetInteractionData: null removes it
     Actor* pRider = Cast<Actor>(TESForm::GetById(aRiderId));
     Actor* pMount = Cast<Actor>(TESForm::GetById(aMountId));
     if (!pRider || !pMount)
         return false;
     // The horse forgets its rider (CanRide 38706 refuses a ridden one); the rider keeps its own interaction.
-    void* pNone = nullptr;
-    s_setInteraction(&pMount->extraData, &pNone);
+    RefrInteraction* pNone = nullptr; // null removes it
+    pMount->extraData.SetInteraction(&pNone);
     return pRider->InitiateMountPackage(pMount);
 }
 
 bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept
 {
-    using TSetInteraction = void(ExtraDataList*, RefrInteraction** appInteraction);
-    POINTER_SKYRIMSE(TSetInteraction, s_setInteraction, 12074); // adds only when the horse has none
     Actor* pRider = Cast<Actor>(TESForm::GetById(aRiderId));
     Actor* pMount = Cast<Actor>(TESForm::GetById(aMountId));
     auto* pOwn = pRider ? static_cast<ExtraInteraction*>(pRider->extraData.GetByType(ExtraDataType::Interaction)) : nullptr;
     if (!pMount || !pOwn || !pOwn->interaction)
         return false;
     RefrInteraction* pNone = nullptr;
-    s_setInteraction(&pMount->extraData, &pNone);
-    s_setInteraction(&pMount->extraData, &pOwn->interaction);
-    using TOnMountStarted = void(PlayerCharacter*, Actor** appMount);
-    POINTER_SKYRIMSE(TOnMountStarted, s_onMountStarted, 40725); // the camera, controls, EnablePlayerControl (41710)
+    pMount->extraData.SetInteraction(&pNone);
+    pMount->extraData.SetInteraction(&pOwn->interaction); // adds only when the horse has none
     if (pRider == PlayerCharacter::Get())
     {
         pMount->EndMountPair();
-        s_onMountStarted(PlayerCharacter::Get(), &pMount);
+        PlayerCharacter::Get()->StartedRiding(pMount); // the camera, controls, EnablePlayerControl (41710)
         pMount->EvaluatePackageNow();
     }
     return true;
@@ -1059,9 +1047,7 @@ bool SetDoorOpen(uint32_t aObjectFormId, bool aOpen, bool aSnap) noexcept
     auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
     if (!pObject || !pObject->baseForm || (pObject->baseForm->formType != FormType::Door && pObject->baseForm->formType != FormType::Container))
         return false;
-    using TSetOpenState = bool(TESObjectREFR*, bool, bool);
-    POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287); // BGSOpenCloseForm::SetOpenState
-    s_setOpenState.Get()(pObject, aOpen, aSnap);
+    pObject->SetOpenState(aOpen, aSnap);
     return true;
 }
 
@@ -1715,13 +1701,11 @@ bool LoadFormState(uint32_t aFormId, uint32_t aChangeFlags, const std::string& a
 
 bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept
 {
-    using TInitFromPackage = void(ActorPackage*, TESPackage*, TESObjectREFR* apTarget, Actor*);
-    POINTER_SKYRIMSE(TInitFromPackage, s_initFromPackage, 38959);
     Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
     auto* pPackage = Cast<TESPackage>(TESForm::GetById(aPackageId));
     if (!pActor || !pActor->currentProcess || !pPackage)
         return false;
-    s_initFromPackage(&pActor->currentProcess->currentPackage, pPackage, nullptr, pActor);
+    pActor->PutOwnerPackage(pPackage);
     // BSTEventSource<TESPackageEvent>::SendEvent (39769), as the package senders (39434-39436) call it.
     using TSendPackageEvent = void(EventDispatcher<TESPackageEvent>*, const TESPackageEvent*);
     POINTER_SKYRIMSE(TSendPackageEvent, s_sendPackageEvent, 39769);
@@ -1817,10 +1801,7 @@ KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) no
     if (!pAttacker || !pVictim)
         return {};
     using TActorCheck = bool(Actor*, Actor*);
-    using TOwnCheck = bool(Actor*);
     POINTER_SKYRIMSE(TActorCheck, s_shouldAttackKill, 38559);
-    POINTER_SKYRIMSE(TActorCheck, s_killable, 37229);
-    POINTER_SKYRIMSE(TOwnCheck, s_engagingInCombat, 38563);
     using TGetAttackReach = float(Actor*);
     using TPickAttackTarget = Actor*(Actor*, float, void*);
     POINTER_SKYRIMSE(TGetAttackReach, s_getAttackReach, 38538);
@@ -1839,8 +1820,8 @@ KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) no
     const uint32_t cRightObject = pProcess && pProcess->equippedObject[1] ? pProcess->equippedObject[1]->formID : 0;
     const Actor* pTarget = s_pickAttackTarget.Get()(pAttacker, cReach, nullptr);
     return {s_shouldAttackKill.Get()(pAttacker, pVictim),
-            s_killable.Get()(pVictim, pAttacker),
-            s_engagingInCombat.Get()(pAttacker),
+            pVictim->CanBeKilledBy(pAttacker),
+            pAttacker->EngagingInCombat(),
             IsInKillMove(aAttackerFormId),
             crosshairActor,
             pTarget ? pTarget->formID : 0,
@@ -1956,13 +1937,6 @@ void CollectMachines(const hkbBehaviorGraphNode* apGraph, const std::string& acF
     }
 }
 } // namespace
-
-bool SendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString& acEvent) noexcept
-{
-    using TSendEvent = bool(BShkbAnimationGraph*, const BSFixedString*);
-    POINTER_SKYRIMSE(TSendEvent, SendEvent, 63591);
-    return apGraph && SendEvent.Get()(apGraph, &acEvent);
-}
 
 std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter, int aGraph) noexcept
 {
@@ -2269,10 +2243,8 @@ bool QueuePapyrusCall(const std::string& acClass, const std::string& acFunction,
 
 bool IsInRagdollState(uint32_t aFormId) noexcept
 {
-    using TIsInRagdollState = bool(const Actor*);
-    POINTER_SKYRIMSE(TIsInRagdollState, s_isInRagdollState, 37491);
     const Actor* pActor = GetActor(aFormId);
-    return pActor && s_isInRagdollState.Get()(pActor);
+    return pActor && pActor->IsInRagdollState();
 }
 
 std::vector<uint32_t> SpellEffects(uint32_t aSpellId) noexcept
@@ -2395,9 +2367,9 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept
     static RawButtonEvent s_events[std::size(cMappings)]{};
 
     VersionDbPtr<uint8_t*> userEvents(402638);
-    VersionDbPtr<void*> inputDeviceManager(402776);
+    InputEventSource* pInputDeviceManager = GetInputDeviceManager();
     const VersionDbPtr<void> buttonEventVtable(208708);
-    if (!*userEvents.Get() || !*inputDeviceManager.Get())
+    if (!*userEvents.Get() || !pInputDeviceManager)
         return false;
 
     const auto cIndex = static_cast<size_t>(aButton);
@@ -2422,7 +2394,7 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept
     using TSendEvent = void(void*, RawButtonEvent* const*);
     POINTER_SKYRIMSE(TSendEvent, s_sendEvent, 68655);
     RawButtonEvent* pChain = &event;
-    (s_sendEvent.Get())(*inputDeviceManager.Get(), &pChain);
+    (s_sendEvent.Get())(pInputDeviceManager, &pChain);
     return true;
 }
 
@@ -2475,20 +2447,20 @@ namespace
 // (ControlMap::MapUserEvents 68542; the map's P is PlacePlayerMarker), then sends it.
 bool MapAndSend(InputEvent& aEvent, BSFixedString& aUserEvent) noexcept
 {
-    VersionDbPtr<void*> inputDeviceManager(402776);
-    VersionDbPtr<void*> controlMap(400863); // ControlMap
-    if (!*inputDeviceManager.Get() || !*controlMap.Get())
+    InputEventSource* pInputDeviceManager = GetInputDeviceManager();
+    BSInputEnableManager* pControlMap = BSInputEnableManager::Get(); // ControlMap
+    if (!pInputDeviceManager || !pControlMap)
         return false;
 
     aUserEvent.Release();
     using TMapUserEvents = void(void*, InputEvent*);
     POINTER_SKYRIMSE(TMapUserEvents, s_mapUserEvents, 68542); // ControlMap::MapUserEvents
-    (s_mapUserEvents.Get())(*controlMap.Get(), &aEvent);
+    (s_mapUserEvents.Get())(pControlMap, &aEvent);
 
     using TSendEvent = void(void*, InputEvent* const*);
     POINTER_SKYRIMSE(TSendEvent, s_sendEvent, 68655); // BSTEventSource<InputEvent*>::SendEvent
     InputEvent* pChain = &aEvent;
-    (s_sendEvent.Get())(*inputDeviceManager.Get(), &pChain);
+    (s_sendEvent.Get())(pInputDeviceManager, &pChain);
     return true;
 }
 
@@ -2514,10 +2486,16 @@ bool SendKey(uint32_t aScanCode, bool aDown) noexcept
     return SendButton(InputEvent::kKeyboard, aScanCode, aDown);
 }
 
+InputEventSource* GetInputDeviceManager() noexcept
+{
+    POINTER_SKYRIMSE(InputEventSource*, s_inputDeviceManager, 402776);
+    return *s_inputDeviceManager.Get();
+}
+
 bool SendChar(uint32_t aCharacter) noexcept
 {
-    VersionDbPtr<void*> inputDeviceManager(402776);
-    if (!*inputDeviceManager.Get())
+    InputEventSource* pInputDeviceManager = GetInputDeviceManager();
+    if (!pInputDeviceManager)
         return false;
     static CharEvent s_event{};
     const VersionDbPtr<void> charEventVtable(236705);
@@ -2530,7 +2508,7 @@ bool SendChar(uint32_t aCharacter) noexcept
     using TSendEvent = void(void*, InputEvent* const*);
     POINTER_SKYRIMSE(TSendEvent, s_sendEvent, 68655); // BSTEventSource<InputEvent*>::SendEvent
     InputEvent* pChain = &s_event.header;
-    (s_sendEvent.Get())(*inputDeviceManager.Get(), &pChain);
+    (s_sendEvent.Get())(pInputDeviceManager, &pChain);
     return true;
 }
 
@@ -2566,11 +2544,8 @@ std::optional<InputState> GetInputState() noexcept
 
 void ForcePlayerFirstPerson() noexcept
 {
-    VersionDbPtr<void*> camera(400802); // PlayerCamera singleton
-    using TForceFirstPerson = void(void*);
-    POINTER_SKYRIMSE(TForceFirstPerson, s_forceFirstPerson, 50790); // PlayerCamera::ForceFirstPerson
-    if (void* pCamera = *camera.Get())
-        s_forceFirstPerson(pCamera);
+    if (PlayerCamera* pCamera = PlayerCamera::Get())
+        pCamera->ForceFirstPerson();
 }
 
 void ForcePlayerThirdPerson() noexcept
@@ -2768,9 +2743,7 @@ std::optional<ActorRuntime> ReadActorRuntime(uint32_t aFormId) noexcept
     if (const auto* pScene = pActor->GetOwnCurrentScene())
         result.NativeScene = pScene->formID;
     result.OwnerScene = pActor->GetExtension()->OwnerSceneId;
-    using TGetCurrentScene = TESForm*(Actor*);
-    POINTER_SKYRIMSE(TGetCurrentScene, s_getCurrentScene, 37247);
-    if (const auto* pScene = s_getCurrentScene(pActor))
+    if (const auto* pScene = pActor->GetCurrentScene())
         result.EffectiveScene = pScene->formID;
     return result;
 }

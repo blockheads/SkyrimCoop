@@ -7,15 +7,12 @@
 #include <Forms/TESWorldSpace.h>
 
 #include <DebugService.h>
-#include <AI/AIProcess.h>
-#include <Misc/MiddleProcess.h>
-#include <Effects/ActiveEffect.h>
 #include <RTTI.h>
 
 void DebugService::DrawFormDebugView()
 {
-    static TESForm* pFetchForm = nullptr;
-    static Actor* pRefr = nullptr;
+    // An id, looked up each frame: the form can be freed while the view is open.
+    static uint32_t s_lookedUpId = 0;
 
     ImGui::Begin("Form");
 
@@ -23,13 +20,11 @@ void DebugService::DrawFormDebugView()
 
     if (ImGui::Button("Look up"))
     {
-        if (m_formId)
-        {
-            pFetchForm = TESForm::GetById(m_formId);
-            if (pFetchForm)
-                pRefr = Cast<Actor>(pFetchForm);
-        }
+        s_lookedUpId = m_formId;
     }
+
+    TESForm* pFetchForm = s_lookedUpId ? TESForm::GetById(s_lookedUpId) : nullptr;
+    Actor* pRefr = pFetchForm ? Cast<Actor>(pFetchForm) : nullptr;
 
     if (pFetchForm)
     {
@@ -49,29 +44,6 @@ void DebugService::DrawFormDebugView()
             const uint32_t cellId = pParentCell->formID;
             ImGui::InputScalar("parentCell", ImGuiDataType_U32, (void*)&cellId, nullptr, nullptr, "%" PRIx32, ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_CharsHexadecimal);
         }
-
-        /*
-        char name[256];
-        sprintf_s(name, std::size(name), "%s (%x)", pRefr->baseForm->GetName(), pRefr->formID);
-        ImGui::InputText("Name", name, std::size(name), ImGuiInputTextFlags_ReadOnly);
-
-        for (ActiveEffect* pEffect : *pRefr->currentProcess->middleProcess->ActiveEffects)
-        {
-            if (!pEffect)
-                continue;
-
-            if (!ImGui::CollapsingHeader(pEffect->pSpell->fullName.value, ImGuiTreeNodeFlags_DefaultOpen))
-                continue;
-
-            ImGui::InputFloat("Elapsed seconds", &pEffect->fElapsedSeconds, 0, 0, "%.1f", ImGuiInputTextFlags_ReadOnly);
-            ImGui::InputFloat("Duration", &pEffect->fDuration, 0, 0, "%.1f", ImGuiInputTextFlags_ReadOnly);
-            ImGui::InputFloat("Magnitude", &pEffect->fMagnitude, 0, 0, "%.1f", ImGuiInputTextFlags_ReadOnly);
-            ImGui::InputInt("Flags", (int*)&pEffect->uiFlags, 0, 0, ImGuiInputTextFlags_ReadOnly);
-
-            if (ImGui::Button("Elapse time"))
-                m_world.GetRunner().Queue([pEffect]() { pEffect->fElapsedSeconds = pEffect->fDuration - 3.f; });
-        }
-        */
     }
 
     ImGui::End();

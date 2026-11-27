@@ -163,7 +163,7 @@ void HostDeath::Respawn() noexcept
     uint32_t anchorId = 0;
     for (const auto& [cConnection, cPlayer] : m_party)
         if (cPlayer.Known && !cPlayer.Body.Down && (!anchorId || cPlayer.Body.SessionId < anchorId))
-            if (auto at = m_characters.CharacterPlace(cPlayer.Body.SessionId))
+            if (auto at = m_characters.Arrivals().CharacterPlace(cPlayer.Body.SessionId))
             {
                 anchor = std::move(at);
                 anchorId = cPlayer.Body.SessionId;

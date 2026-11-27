@@ -56,7 +56,7 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
             else
                 actors.SetActorCopy(cFormId, false);
         }
-        world.ctx().at<PapyrusService>().HandOffFunctions();
+        PapyrusNatives::HandOff();
         world.GetTransport().Close();
         // Engine jobs still run our hooks: the ones reading the World leave first.
         WorldGate::Close();

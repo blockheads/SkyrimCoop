@@ -164,20 +164,17 @@ void PlayerOwnState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Present = Serialization::ReadBool(aReader);
     if (!Present)
         return;
-    FavoriteItems.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+    FavoriteItems.resize(Serialization::ReadCount(aReader, 0xFFFF));
     for (FavoriteItem& item : FavoriteItems)
     {
         item.Stack.Deserialize(aReader);
         item.Hotkey = static_cast<int8_t>(Serialization::ReadVarInt(aReader) & 0xFF);
     }
-    const uint64_t cGlobals = Serialization::ReadVarInt(aReader) & 0xFF;
+    const uint64_t cGlobals = Serialization::ReadCount(aReader, 0xFF);
     for (uint64_t i = 0; i < cGlobals; ++i)
     {
         const uint32_t cType = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-        const uint64_t cSize = Serialization::ReadVarInt(aReader);
-        if (cSize > kMaxGlobal)
-            return void(*this = {});
-        std::string data(cSize, '\0');
+        std::string data(Serialization::ReadCount(aReader, kMaxGlobal), '\0');
         if (!aReader.ReadBytes(std::span(reinterpret_cast<uint8_t*>(data.data()), data.size())))
             return void(*this = {});
         // Only the player's globals, and only bytes their loader reads within (it has no bounds check).
@@ -186,7 +183,7 @@ void PlayerOwnState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     }
     for (float& damage : Damage)
         damage = Serialization::ReadFloat(aReader);
-    Effects.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+    Effects.resize(Serialization::ReadCount(aReader, 0xFFFF));
     for (Effect& effect : Effects)
     {
         effect.Spell.Deserialize(aReader);
@@ -194,7 +191,7 @@ void PlayerOwnState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
         effect.Elapsed = Serialization::ReadFloat(aReader);
         effect.Duration = Serialization::ReadFloat(aReader);
     }
-    Cooldowns.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+    Cooldowns.resize(Serialization::ReadCount(aReader, 0xFFFF));
     for (Cooldown& cooldown : Cooldowns)
     {
         cooldown.Spell.Deserialize(aReader);

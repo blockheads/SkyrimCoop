@@ -46,4 +46,5 @@ struct AuthenticationRequest final : RequestMessage
     bool HasCharacter{};
     // The saves its store holds (their SHA-256 ids): the host encodes the next one against the newest it still has.
     std::vector<std::string> HeldSaves;
+    static constexpr uint64_t kMaxHeldSaves = 16;
 };

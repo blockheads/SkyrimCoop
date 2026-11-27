@@ -2,19 +2,17 @@
 
 #include <BSAnimationGraphManager.h>
 #include <Forms/TESObjectCELL.h>
+#include <Misc/TaskQueueInterface.h>
 #include <TESObjectREFR.h>
 #include <Utils.h>
 
 bool QueueRagdollOutOfWorld(TESObjectREFR& aActor) noexcept
 {
     NiAVObject* p3D = aActor.Get3D1(false);
-    POINTER_SKYRIMSE(void*, s_queue, 403759); // TaskQueueInterface::singleton
-    void* pQueue = *s_queue.Get();
+    TaskQueueInterface* pQueue = TaskQueueInterface::Get();
     if (!p3D || !pQueue)
         return false;
-    using TRemoveFromWorld = void(void*, NiAVObject*);
-    POINTER_SKYRIMSE(TRemoveFromWorld, s_removeFromWorld, 36924); // TaskQueueInterface::QueueRemoveFromWorld
-    s_removeFromWorld.Get()(pQueue, p3D);
+    pQueue->QueueRemoveFromWorld(p3D);
     return true;
 }
 
@@ -36,9 +34,7 @@ std::optional<bool> GraphsStepPhysics(const TESObjectREFR& acActor) noexcept
 
 bool SetGraphsStepPhysics(TESObjectREFR& aActor, bool aStep) noexcept
 {
-    using TGetWorld = void*(TESObjectCELL*);
-    POINTER_SKYRIMSE(TGetWorld, s_getWorld, 18995); // TESObjectCELL::GetbhkWorld
-    void* pWorld = aStep && aActor.parentCell ? s_getWorld(aActor.parentCell) : nullptr;
+    void* pWorld = aStep && aActor.parentCell ? aActor.parentCell->GetbhkWorld() : nullptr;
     const auto cStep = GraphsStepPhysics(aActor);
     if (!cStep || *cStep == aStep || (aStep && !pWorld))
         return false;

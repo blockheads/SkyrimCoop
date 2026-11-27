@@ -64,7 +64,7 @@ Inventory::Entry HostEngine::MoveAliasStack(TESObjectREFR& aContainer, TESBoundO
     if (!acRequest.ContainerActorId)
         RecordItems(aContainer.formID, aItem.formID);
     else if (moved.Count)
-        World::Get().GetRunner().Trigger(ItemsChangedEvent{aContainer.formID});
+        World::Runner().Trigger(ItemsChangedEvent{aContainer.formID});
     return moved;
 }
 
@@ -172,7 +172,7 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
                 if (!acRequest.ContainerActorId)
                     RecordItems(pContainer->formID, pItem->formID);
                 else if (moved.Count)
-                    World::Get().GetRunner().Trigger(ItemsChangedEvent{pContainer->formID});
+                    World::Runner().Trigger(ItemsChangedEvent{pContainer->formID});
             }
             return moved;
         }
@@ -211,6 +211,6 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
     if (!acRequest.ContainerActorId)
         RecordItems(pContainer->formID, pItem->formID);
     else if (moved.Count)
-        World::Get().GetRunner().Trigger(ItemsChangedEvent{pContainer->formID}); // its items part, silent above
+        World::Runner().Trigger(ItemsChangedEvent{pContainer->formID}); // its items part, silent above
     return moved;
 }

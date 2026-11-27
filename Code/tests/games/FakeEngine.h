@@ -12,7 +12,6 @@
 #include <travel/PartyMarkers.h>
 #include <combat/PartyThreat.h>
 #include <CopyPackage.h>
-#include "../FakeNativeVm.h"
 #include <animation/ReplayStep.h>
 #include <animation/ReplayState.h>
 #include <animation/HeldClipLoads.h>
@@ -138,8 +137,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     float GreetDistance = 150.f;
     // The join flow's engine (IJoinBridge). A save carries this game's player as a record and the co-save; loading one
     // makes the player the save's (the host's) until JoinService applies the joining player's own.
-    FakeNativeVm NativeVm;
-    void QuitToDesktop() { NativeVm.ReleaseTypes(); }
     bool AtMainMenu = false;
     bool CreationAvailable = true;
     Creation CreationPhase = Creation::kIdle;

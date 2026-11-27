@@ -51,7 +51,7 @@ AnimationGraphDescriptor_Mudcrab::AnimationGraphDescriptor_Mudcrab(AnimationGrap
         kIsSideAttacking = 43,
     };
 
-    uint64_t key = 9498225481650921683;
+    uint64_t key = 9498225481650921683u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,

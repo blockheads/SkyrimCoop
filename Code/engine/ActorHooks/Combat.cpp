@@ -92,12 +92,12 @@ static thread_local bool s_applyingEffect = false;
 bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMove)
 {
     // Reads the hit; HitRules::Lands decides (combat/HitRules.h, docs/design/friendly-fire.md).
-    const bool cCancelled = apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil);
+    const bool cCancelled = apHitter && ReplayState::CancelledBlow(World::FrameTick() < apHitter->GetExtension()->ClashUntil);
     const bool cWorldHit = WorldHits::Current();
     const auto cVerdict = HitRules::Lands(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), cCancelled, s_applyingEffect, cWorldHit,
                                           cWorldHit && GuestNpcs::Session() != 0);
     if (cVerdict.Hit)
-        World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
+        World::Runner().Trigger(HitEvent(apHitter->formID, apThis->formID));
     if (cCancelled)
     {
         spdlog::debug("{:X}'s blow on {:X} dropped: its pair yielded", apHitter->formID, apThis->formID);
@@ -109,10 +109,10 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
     switch (cVerdict.To)
     {
     case HitRules::Route::Apply:
-        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage));
+        World::Runner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage));
         return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
     case HitRules::Route::AskOwner:
-        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage, apHitter ? apHitter->formID : 0));
+        World::Runner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage, apHitter ? apHitter->formID : 0));
         return cWouldKill;
     case HitRules::Route::Mirror: return cWouldKill;
     case HitRules::Route::Drop: return false;
@@ -143,7 +143,7 @@ void HookApplyActorEffect(ActiveEffect* apThis, Actor* apTarget, float aEffectVa
                 const auto pExTarget = apTarget->GetExtension();
                 if (pExTarget->IsLocal())
                 {
-                    World::Get().GetRunner().Trigger(HealthChangeEvent(apTarget->formID, aEffectValue));
+                    World::Runner().Trigger(HealthChangeEvent(apTarget->formID, aEffectValue));
                     return RealApplyActorEffect(apThis, apTarget, aEffectValue, unk1);
                 }
                 return;
@@ -220,7 +220,7 @@ static bool DescribeReferenceLock(const void* apLock, char* apBuffer, size_t aSi
 
 void RefreshHangLockWatch() noexcept
 {
-    static const bool s_diagnosticSet = [] {
+    [[maybe_unused]] static const bool s_diagnosticSet = [] {
         CrashHandler::SetHangDiagnostic(&LogHeldReferenceLocks);
         // Mutex::Lock1 (13129), the engine's BSSpinLock wait: the lock stays in rdi while it sleeps.
         POINTER_SKYRIMSE(void, s_spinLockWait, 13129);

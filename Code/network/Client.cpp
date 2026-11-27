@@ -50,7 +50,11 @@ namespace Net
             m_pHost = nullptr;
         }
 
-        uv_loop_close(static_cast<uv_loop_t*>(m_pLoop));
+        // A lookup still pending ends first: uv_loop_close fails with it, and its thread would later signal a freed loop.
+        auto* pLoop = static_cast<uv_loop_t*>(m_pLoop);
+        pLoop->data = nullptr;
+        uv_run(pLoop, UV_RUN_DEFAULT);
+        uv_loop_close(pLoop);
         free(m_pLoop);
         ENetInterface::Release();
     }
@@ -82,6 +86,12 @@ namespace Net
             bool valid = false;
 
             auto* pClient = static_cast<Client*>(apHandle->loop->data);
+            if (!pClient) // the client is going (~Client)
+            {
+                uv_freeaddrinfo(apResult);
+                free(apHandle);
+                return;
+            }
             pClient->m_pHandle = nullptr;
 
             if (aStatus == 0)
@@ -490,7 +500,11 @@ namespace Net
     void Client::HandleCompressedPayload(const void* apData, uint32_t aSize) noexcept
     {
         std::string data;
-        snappy::Uncompress((const char*)apData, aSize, &data);
+        if (!Uncompress(apData, aSize, data))
+        {
+            spdlog::warn("[SkyrimCoopNetworking] CLIENT: dropped a broken or oversized compressed packet");
+            return;
+        }
 
         m_currentFrame.UncompressedRecvBytes -= aSize;
         m_currentFrame.UncompressedRecvBytes += data.size() & 0xFFFFFFFF;

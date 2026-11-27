@@ -71,7 +71,6 @@ struct MagicTarget
     bool AddTarget(AddTargetData& arData, bool aHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept;
     // this function actually adds the effect
     bool CheckAddEffect(AddTargetData& arData) noexcept;
-    void DispelAllSpells(bool aNow) noexcept;
 
     void* unk04;
     void* unk08;

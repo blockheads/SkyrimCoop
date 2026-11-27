@@ -100,7 +100,7 @@ AnimationGraphDescriptor_CowRootBehavior::AnimationGraphDescriptor_CowRootBehavi
         kSlowBlend = 92,
     };
 
-    uint64_t key = 17103635255379484992;
+    uint64_t key = 17103635255379484992u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,

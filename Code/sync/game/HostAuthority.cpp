@@ -2,7 +2,6 @@
 #include <game/HostAuthority.h>
 
 #include <core/HostNetwork.h>
-#include <actorstate/HostValues.h>
 
 #include <core/Profile.h>
 
@@ -15,6 +14,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_transfer(aNetwork, m_game)
     , m_session(m_router, aNetwork, m_players, m_characters, m_transfer, m_game)
     , m_characters(m_router, aNetwork, m_players, m_game)
+    , m_values(m_router, m_players, m_characters)
+    , m_movement(m_router, aNetwork, m_players, m_characters)
     , m_clock(m_router, aNetwork, m_players, m_game)
     , m_wait(m_router, aNetwork, m_players, m_game, m_game)
     , m_crime(m_router, aNetwork, m_players, m_characters, m_game)
@@ -30,7 +31,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_records(m_router, m_players, m_characters, m_game)
     , m_story(m_router, m_players, m_characters, m_game)
     , m_death(m_router, aNetwork, m_players, m_characters)
-    , m_leash(aNetwork, m_players, m_characters, m_death)
+    , m_leash(aNetwork, m_players, m_characters.Arrivals(), m_death)
     , m_followers(m_router, aNetwork, m_players, m_characters, m_death, m_game)
     , m_devTools(m_router, aNetwork, m_players, m_characters, m_game, m_leash)
     , m_objects(m_router, m_players, m_characters, m_game)
@@ -60,7 +61,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // Rules of parts built before the router could take them.
     m_players.Listen(m_router);
     m_router.On(m_transfer, &HostSaveTransfer::OnSaveHeld);
-    RelayActorValues(m_router);
 
     // Everything a joiner must know, from every store that holds it.
     m_joinerStores = {
@@ -79,6 +79,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     };
 
     m_network.SetFrontDoor([this](const RequestMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
+    m_network.SetGate([this](RequestOpcode aOpcode, ConnectionId_t aSender) { return Admits(aOpcode, aSender); });
     // A player's game ended its connection: the others drop it, then its characters go.
     m_network.SetDisconnectionHandler([this](ConnectionId_t aConnection) {
         m_transfer.OnDisconnected(aConnection);
@@ -154,17 +155,20 @@ void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSes
         cStore.Send(aPlayer, aCharacterSessionId);
 }
 
+bool HostAuthority::Admits(RequestOpcode aOpcode, ConnectionId_t aSender) const noexcept
+{
+    // A game that is not a player may only ask to join, or say what it holds when a save was meant for it.
+    if (m_players.IsPlayer(aSender) || aOpcode == kAuthenticationRequest)
+        return true;
+    return aOpcode == kSaveHeldRequest && m_transfer.IsRecipient(aSender);
+}
+
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
 {
     const auto cOpcode = acMessage.GetOpcode();
-    // What a game holds is heard from any game a save was meant for, a joining one too, and during a reload.
-    const bool cHeld = cOpcode == kSaveHeldRequest && (m_players.IsPlayer(aSender) || m_transfer.IsRecipient(aSender));
-    if (m_reloading && !cHeld)
+    // During a reload only what a game holds is heard.
+    if (!Admits(cOpcode, aSender) || (m_reloading && cOpcode != kSaveHeldRequest))
         return false;
-    // A game that is not a player may only ask to join; anything else from it is dropped.
-    if (cOpcode != kAuthenticationRequest && !cHeld && !m_players.IsPlayer(aSender))
-        return false;
-
     return m_router.Dispatch(acMessage, aSender);
 }
 

@@ -1,13 +1,7 @@
 """Actions for the co-op harness."""
 import argparse
-import collections
 import contextlib
-import math
-import os
-import re
 import socket
-import subprocess
-import time
 import uuid
 from ..common import MOD_PLUGINS, PEER, WINDOWS
 from ..game import LOCAL_APP_DATA, known_folder

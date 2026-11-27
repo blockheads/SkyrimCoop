@@ -139,9 +139,7 @@ void HoldBodies(NiAVObject& aRoot) noexcept
 {
     for (bhkWorldObject* pBody : RigidBodiesOf(aRoot))
         SetVelocities(*pBody, {}, {});
-    using TSetMotionType = bool(NiAVObject*, uint32_t, bool aRecurse, bool aForce, bool aAllowActivate);
-    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 77866);
-    s_setMotionType.Get()(&aRoot, hkpRigidBody::kKeyframed, true, false, false);
+    aRoot.SetMotionType(hkpRigidBody::kKeyframed, true, false, false);
 }
 
 std::vector<bhkNiCollisionObject*> CollisionObjectsOf(NiAVObject& aRoot) noexcept
@@ -329,9 +327,14 @@ bool FreeBody(bhkNiCollisionObject& aCollision, hkpRigidBody::MotionType aMotion
     return true;
 }
 
-TESObjectREFR* ReferenceOf(const hkpRigidBody& acBody) noexcept
+TESObjectREFR* FindCollidableRef(const void* apCollidable) noexcept
 {
     using TFindCollidableRef = TESObjectREFR*(const void*);
     POINTER_SKYRIMSE(TFindCollidableRef, s_findCollidableRef, 26003);
-    return s_findCollidableRef(&acBody.collidable);
+    return s_findCollidableRef(apCollidable);
+}
+
+TESObjectREFR* ReferenceOf(const hkpRigidBody& acBody) noexcept
+{
+    return FindCollidableRef(&acBody.collidable);
 }

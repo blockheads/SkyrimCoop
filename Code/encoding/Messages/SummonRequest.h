@@ -8,23 +8,13 @@
 
 // A guest's player cast a summon on itself: the host's game puts that effect on the guest's copy, so the host's engine
 // makes the summon (docs/re/systems/summons.md).
-struct SummonRequest final : RequestMessage
+struct SummonRequest final : MessageOf<SummonRequest, kSummonRequest>
 {
-    static constexpr RequestOpcode Opcode = kSummonRequest;
-
-    SummonRequest()
-        : RequestMessage(Opcode)
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
+        aArchive(SpellId, EffectId, Magnitude, Location, DualCast);
     }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const SummonRequest& acRhs) const noexcept
-    {
-        return SpellId == acRhs.SpellId && EffectId == acRhs.EffectId && Magnitude == acRhs.Magnitude && Location == acRhs.Location &&
-               DualCast == acRhs.DualCast && GetOpcode() == acRhs.GetOpcode();
-    }
+    bool operator==(const SummonRequest&) const noexcept = default;
 
     GameId SpellId;
     GameId EffectId; // its summon effect (MGEF)

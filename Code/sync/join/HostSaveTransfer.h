@@ -58,7 +58,6 @@ struct HostSaveTransfer
     // A game that passed the gate and was sent (or told) a save to load, still connected: it may say what it holds.
     [[nodiscard]] bool IsRecipient(ConnectionId_t aConnection) const noexcept { return m_recipients.contains(aConnection); }
     void OnDisconnected(ConnectionId_t aConnection) noexcept;
-    [[nodiscard]] bool IsSending(ConnectionId_t aConnection) const noexcept;
 
 private:
     struct Receiver

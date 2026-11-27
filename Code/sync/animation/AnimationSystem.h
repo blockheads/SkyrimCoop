@@ -29,15 +29,6 @@ struct AnimationSystem
      */
     static void Setup(World& aWorld, entt::entity aEntity) noexcept;
     /**
-     * @brief Unregisters an actor from receiving remote animations.
-     *
-     * This function is not being used.
-     *
-     * @param aWorld The registry where the actor in question lives.
-     * @param aEntity The entity attached to the actor.
-     */
-    static void Clean(World& aWorld, entt::entity aEntity) noexcept;
-    /**
      * @brief Adds an action (animation) to be processed.
      * @param aAnimationComponent The animation component attached to the actor in question.
      * @param acActionDiff The differential data of the animation.

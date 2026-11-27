@@ -188,7 +188,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         return cResult;
     const uint32_t cFormId = apGraph->holder->formID;
     // Lock-free readouts only: a copy's replay holds its stream's lock around this call.
-    const auto cUpdate = World::Get().GetGraphStreams().UpdateIndex(cFormId);
+    const auto cUpdate = World::Streams().UpdateIndex(cFormId);
     if (!cUpdate)
         return cResult;
     {
@@ -242,7 +242,7 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
     if (!apGraph || !apGraph->holder || !apEvent || !apEvent->data || !Streamed(*apGraph))
         return cTaken;
     const uint32_t cFormId = apGraph->holder->formID;
-    if (!World::Get().GetGraphStreams().UpdateIndex(cFormId))
+    if (!World::Streams().UpdateIndex(cFormId))
         return cTaken;
     std::scoped_lock _{s_lock};
     auto& events = s_actors[cFormId].Events;
@@ -289,7 +289,7 @@ void GraphStreamCheck::Install() noexcept
 
 nlohmann::json GraphStreamCheck::Command(const nlohmann::json& acRequest) noexcept
 {
-    auto& streams = World::Get().GetGraphStreams();
+    auto& streams = World::Streams();
     // A copy's stream started over, as a copy arriving mid-loop starts: it asks its owner for a new sync point.
     if (acRequest.contains("restart"))
     {

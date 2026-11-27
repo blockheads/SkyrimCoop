@@ -20,10 +20,7 @@ void DevToolsBridge::RunConsole(const std::string& acLine) noexcept
 
 uint32_t DevToolsBridge::KillHostiles() noexcept
 {
-    POINTER_SKYRIMSE(ProcessLists*, s_processLists, 400315);
-    using TIsHostileToActor = bool(Actor*, Actor*);
-    POINTER_SKYRIMSE(TIsHostileToActor, s_isHostileToActor, 37537); // Actor::IsHostileToActor
-    ProcessLists* pLists = *s_processLists.Get();
+    ProcessLists* pLists = ProcessLists::Get();
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     if (!pLists || !pPlayer)
         return 0;
@@ -37,7 +34,7 @@ uint32_t DevToolsBridge::KillHostiles() noexcept
         const ActorExtension* pExtension = pActor->GetExtension();
         if (pExtension && (pExtension->IsPlayer() || pExtension->IsCopy()))
             continue;
-        if (s_isHostileToActor.Get()(pActor, pPlayer))
+        if (pActor->IsHostileToActor(pPlayer))
             hostile.push_back(pActor->formID);
     }
     // Not while walking the list: a death can change it.

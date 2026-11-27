@@ -724,7 +724,7 @@ def scenario_greybeards_scene_casts_party(ctx):
     package = lambda name: ctx.running_package(name, 0x14)
     ctx.console_on("", "setstage MQ105 270")
     ctx.wait_for("[host] a scene casts its player", lambda: scene("") != 0, 60)
-    ctx.wait_for(f"[client] its own player runs the host's player's scene package",
+    ctx.wait_for("[client] its own player runs the host's player's scene package",
              lambda: package("") and package("client") == package(""), 15)
     ctx.wait_for("[host] the scene lets its player go", lambda: scene("") == 0, 180)
     ctx.wait_for("[client] its player is its own again", lambda: package("client") != package("") or not package(""), 15)

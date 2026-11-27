@@ -2249,7 +2249,7 @@ class DuoLockTests(unittest.TestCase):
         session.DUO_LOCK = self.lock("/wt/mcp", "repro-mcp")
         with self.assertRaisesRegex(TestFailure, "number 1 in the queue"):
             session.duo_claim("repro-mcp", "x", wait_seconds=0, keep_place=True)
-        late = self.contender("late")
+        self.contender("late")
         self.until(lambda: self.queue() == ["repro-mcp", "late"], "late queued behind the session")
         with patch.object(Session, "stop_duo") as stop:
             self.assertEqual(session.duo_free("repro-mcp", "done"), "left the queue, was number 1")

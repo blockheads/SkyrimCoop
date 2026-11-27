@@ -40,6 +40,8 @@ struct ExtraDataList
     void SetOwner(TESForm* apOwner) noexcept;
     // A favorite's number key (ExtraHotkey: -1 favorited, unbound; 0-7), added if absent (ExtraDataList::SetHotkey 11664).
     void SetHotkey(int8_t aHotkey) noexcept;
+    // ExtraDataList::SetInteractionData (12074): adds only to an empty slot; a null interaction empties it.
+    void SetInteraction(struct RefrInteraction** appInteraction) noexcept;
 
     [[nodiscard]] bool HasQuestObjectAlias() noexcept;
 

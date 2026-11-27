@@ -18,9 +18,10 @@ target("imgui")
         "misc/cpp/imgui_stdlib.cpp"
     )
 
-    -- Public include directory
-    add_includedirs(".", {public = true})
-    add_includedirs("misc/cpp", {public = true})
+    -- Third-party: its warnings are not ours (none here, system includes for the code that uses it).
+    set_warnings("none")
+    add_sysincludedirs(".", {public = true})
+    add_sysincludedirs("misc/cpp", {public = true})
 
     if is_plat("windows") then
         add_defines("_WIN32_WINNT=0x0A00", "WINVER=0x0A00")

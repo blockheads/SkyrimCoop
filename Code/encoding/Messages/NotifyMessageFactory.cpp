@@ -29,12 +29,14 @@ static struct NotifyMessageFactoryInit
 
 std::unique_ptr<NotifyMessage> NotifyMessageFactory::Extract(Wire::Buffer::Reader& aReader) const noexcept
 {
-    uint64_t data;
-    aReader.ReadBits(data, sizeof(NotifyOpcode) * 8);
-
-    if (data >= kNotifyOpcodeMax) [[unlikely]]
+    uint64_t data = 0;
+    if (!aReader.ReadBits(data, sizeof(NotifyOpcode) * 8) || data >= kNotifyOpcodeMax) [[unlikely]]
         return {nullptr};
 
     const auto opcode = static_cast<NotifyOpcode>(data);
-    return s_serverMessageExtractor[opcode](aReader);
+    auto pMessage = s_serverMessageExtractor[opcode](aReader);
+    // A short read or a bad count: drop the message rather than act on zeros.
+    if (aReader.Failed()) [[unlikely]]
+        return {nullptr};
+    return pMessage;
 }

@@ -161,11 +161,6 @@ Hooks::Initializer s_hooks([]() {
 
 constexpr uint32_t cPlayerFormId = kThisPlayer;
 
-bool IsHosting() noexcept
-{
-    return World::Get().IsHosting();
-}
-
 uint32_t FormIdOf(const BSScript::Variable& acValue) noexcept
 {
     auto* pObject = acValue.GetObject();
@@ -297,7 +292,7 @@ bool PlayerArgument(const BSScript::Arguments* apArguments) noexcept
 
 int64_t HookCompare(BSScript::CodeTasklet* apThis, BSScript::Variable* apFirst, BSScript::Variable* apSecond)
 {
-    if (IsHosting())
+    if (World::Hosts())
     {
         const uint32_t cFirst = FormIdOf(*apFirst);
         const uint32_t cSecond = FormIdOf(*apSecond);
@@ -312,7 +307,7 @@ bool HookGetPlayer(BSScript::IFunction* apThis, BSScript::Variable* apBase, BSSc
 {
     const bool cResult = RealGetPlayer(apThis, apBase, apVm, aStackId, apResult, apFrame);
     const char* cpName = apThis->GetName().AsAscii();
-    if (cResult && apFrame && apResult && cpName && SameName(cpName, "GetPlayer") && IsHosting())
+    if (cResult && apFrame && apResult && cpName && SameName(cpName, "GetPlayer") && World::Hosts())
         if (Actor* pGuest = GuestCharacter(GuestOf(apFrame->pParent)))
             apResult->SetActor(pGuest, apVm);
     return cResult;
@@ -432,14 +427,14 @@ BSScript::CallResult HookScriptCalled(BSScript::IFunction* apThis, BSScript::Sta
         SystemQuests::Learn(cCallee, true);
     if (!SystemQuests::Is(cCallee))
         return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
-    World::Get().GetRunner().Trigger(PlayerProgressEvent{}); // its state is this player's record's
+    World::Runner().Trigger(PlayerProgressEvent{}); // its state is this player's record's
     if (!cpCaller)
         return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4); // its own event
 
     const Cause cCause = CauseOf(pStack);
     const bool cReturns = apThis->GetReturnType().type != BSScript::Variable::kEmpty;
     const PartyRules::Routing cRouting =
-        PartyRules::RouteOfSystemCall(cCause.Player, cCause.Story, IsGuestCharacter(cCause.Player), IsHosting(), cReturns);
+        PartyRules::RouteOfSystemCall(cCause.Player, cCause.Story, IsGuestCharacter(cCause.Player), World::Hosts(), cReturns);
     if (cRouting.To == PartyRules::Destination::kHere)
         return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
     auto call = GlobalCall::ReadCall(apThis, *pFrame);
@@ -459,7 +454,7 @@ BSScript::CallResult HookScriptCalled(BSScript::IFunction* apThis, BSScript::Sta
     PartyRules::MarkEachPlayer(*call, cRouting.MarkFor);
     if (cRouting.ThisPlayer && !PartyNatives::Run(PartyRules::OnThisPlayer(*call), 0))
         spdlog::warn("GuestScripts: {}.{} could not be queued on this game's player", call->Class, call->Function);
-    World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .Call = std::move(*call)});
+    World::Runner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .Call = std::move(*call)});
     if (cRouting.Original)
         return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
     pStack->returnValue.Clear();
@@ -498,7 +493,7 @@ bool HookFunctorQueued(void* apThis, DelayFunctor** appFunctor)
         s_tags.TagFunctor(pFunctor, t_nativeGuest); // before: the game thread may run it at once
     const bool cQueued = RealFunctorQueued(apThis, appFunctor);
     if (cTagged && !cQueued)
-        s_tags.TakeFunctor(pFunctor);
+        (void)s_tags.TakeFunctor(pFunctor);
     return cQueued;
 }
 
@@ -511,7 +506,7 @@ bool HookPostRenderQueued(void* apThis, DelayFunctor** appFunctor)
         s_tags.TagFunctor(pFunctor, t_nativeGuest);
     const bool cQueued = RealPostRenderQueued(apThis, appFunctor);
     if (cTagged && !cQueued)
-        s_tags.TakeFunctor(pFunctor);
+        (void)s_tags.TakeFunctor(pFunctor);
     return cQueued;
 }
 
@@ -553,7 +548,7 @@ void HookSetOwnerForm(void* apThis, TESForm* apOwner)
         const Actor* pGuest = GuestCharacter(acSlot.load(std::memory_order_relaxed));
         return pGuest && pGuest->baseForm == apOwner;
     };
-    if (apOwner && IsHosting() && std::ranges::any_of(s_guests, cIsGuestBase))
+    if (apOwner && World::Hosts() && std::ranges::any_of(s_guests, cIsGuestBase))
         apOwner = TESForm::GetById(cPlayerBaseFormId);
     RealSetOwnerForm(apThis, apOwner);
 }
@@ -563,7 +558,7 @@ void HookSetOwnerForm(void* apThis, TESForm* apOwner)
 TESForm* PartyBase(TESForm* apBase) noexcept
 {
     constexpr uint32_t cPlayerBaseFormId = 0x7;
-    if (!apBase || !apBase->IsTemporary() || !IsHosting())
+    if (!apBase || !apBase->IsTemporary() || !World::Hosts())
         return apBase;
     const auto cIsGuestBase = [apBase](const std::atomic<uint32_t>& acSlot) {
         const Actor* pGuest = GuestCharacter(acSlot.load(std::memory_order_relaxed));
@@ -623,13 +618,13 @@ uint64_t NativeScript() noexcept
 
 bool IsGuestCharacter(uint32_t aFormId) noexcept
 {
-    return IsHosting() && GuestCharacter(aFormId) != nullptr;
+    return World::Hosts() && GuestCharacter(aFormId) != nullptr;
 }
 
 std::vector<uint32_t> GuestCharacters() noexcept
 {
     std::vector<uint32_t> characters;
-    if (IsHosting())
+    if (World::Hosts())
         for (const auto& cSlot : s_guests)
             if (const uint32_t cFormId = cSlot.load(std::memory_order_relaxed); cFormId && GuestCharacter(cFormId))
                 characters.push_back(cFormId);
@@ -654,7 +649,7 @@ uint32_t RegisteredBy(uint64_t aObject, std::string_view aEvent) noexcept
 
 void SetGuest(uint32_t aFormId, bool aIsGuest) noexcept
 {
-    aIsGuest = aIsGuest && IsHosting(); // only the host's scripts run for guests
+    aIsGuest = aIsGuest && World::Hosts(); // only the host's scripts run for guests
     for (auto& slot : s_guests)
         if (slot.load() == aFormId)
         {

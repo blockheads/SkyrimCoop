@@ -1,4 +1,5 @@
 #include <BSCore/LockOrder.h>
+#include <BaseChange.h>
 #include <FreedWornList.h>
 #include <Memory.h>
 #include <animation/GraphReference.h>
@@ -62,8 +63,8 @@
 
 #include <Structs/AnimationGraphDescriptorManager.h>
 #include <Structs/AnimationVariables.h>
-
-extern const AnimationGraphDescriptor* BehaviorVarPatch(BSAnimationGraphManager* pManager, Actor* pActor);
+#include <Structs/Skyrim/AnimationGraphDescriptor_Master_Behavior.h>
+#include <Camera/PlayerCamera.h>
 
 #include <Hooks/FunctionHook.h>
 
@@ -246,7 +247,12 @@ static const AnimationGraphDescriptor* DescriptorFor(BSAnimationGraphManager& aM
         pExtension->GraphDescriptorProjectKey = cProject;
     }
     auto* pDescriptor = AnimationGraphDescriptorManager::Get().GetDescriptor(pExtension->GraphDescriptorHash);
-    return pDescriptor ? pDescriptor : BehaviorVarPatch(&aManager, &aActor);
+    if (pDescriptor)
+        return pDescriptor;
+    // The player's first-person graph has no descriptor: use the humanoid one.
+    if (aActor.formID == 0x14 && PlayerCamera::Get()->IsFirstPerson())
+        return AnimationGraphDescriptorManager::Get().GetDescriptor(AnimationGraphDescriptor_Master_Behavior::m_key);
+    return nullptr;
 }
 
 static std::span<const hkbVariableInfo> VariableInfos(const hkbBehaviorGraph& acGraph)
@@ -317,16 +323,6 @@ void TESObjectREFR::SetGraphRandom(uint32_t aSeed) const noexcept
     WithGraphRandom(*this, -1, [&](hkPseudoRandomGenerator& aRandom) { aRandom.current = aSeed; });
 }
 
-uint32_t TESObjectREFR::GetCellId() const noexcept
-{
-    if (!parentCell)
-        return 0;
-
-    const auto* pWorldSpace = parentCell->worldspace;
-
-    return pWorldSpace != nullptr ? pWorldSpace->formID : parentCell->formID;
-}
-
 TESWorldSpace* TESObjectREFR::GetWorldSpace() const noexcept
 {
     auto* pParentCell = parentCell ? parentCell : GetParentCell();
@@ -349,24 +345,6 @@ void TESObjectREFR::Delete() const noexcept
     PAPYRUS_FUNCTION(void, ObjectReference, Delete);
 
     s_pDelete(this);
-}
-
-void TESObjectREFR::Disable() const noexcept
-{
-    using ObjectReference = TESObjectREFR;
-
-    PAPYRUS_FUNCTION(void, ObjectReference, Disable, bool);
-
-    s_pDisable(this, true);
-}
-
-void TESObjectREFR::Enable() const noexcept
-{
-    using ObjectReference = TESObjectREFR;
-
-    PAPYRUS_FUNCTION(void, ObjectReference, Enable, bool);
-
-    s_pEnable(this, true);
 }
 
 // Skyrim: MoveTo() can fail, causing the object to be deleted
@@ -608,7 +586,11 @@ void TESObjectREFR::SetBaseObject(TESBoundObject* apBase) noexcept
 {
     // Actor's override (37466) also sets its race from the new NPC base.
     SetBaseForm(apBase);
-    MarkChanged(CHANGE_REFR_BASEOBJECT);
+    // A temporary base is never recorded, and an older record goes (BaseChange.h).
+    if (apBase && RecordsBaseChange(apBase->formID))
+        MarkChanged(CHANGE_REFR_BASEOBJECT);
+    else
+        UnsetChanged(CHANGE_REFR_BASEOBJECT);
     if (!GetNiNode() || IsDisabled())
         return;
     // The 3D is the old base's.
@@ -908,12 +890,6 @@ Inventory TESObjectREFR::GetWornArmor() const noexcept
     return wornArmor;
 }
 
-bool TESObjectREFR::IsItemInInventory(uint32_t aFormID) const noexcept
-{
-    Inventory inventory = GetInventory([aFormID](TESForm& aForm) { return aForm.formID == aFormID; });
-    return !inventory.Entries.empty();
-}
-
 void TESObjectREFR::SetInventory(const Inventory& aInventory) noexcept
 {
     spdlog::debug("Setting inventory for {:X}", formID);
@@ -1028,6 +1004,27 @@ void TESObjectREFR::UpdateItemList(TESForm* pUnkForm) noexcept
     using TUpdateItemList = void(TESObjectREFR*, TESForm*);
     POINTER_SKYRIMSE(TUpdateItemList, updateItemList, 52849);
     updateItemList(this, pUnkForm);
+}
+
+bool TESObjectREFR::SetOpenState(bool aOpen, bool aSnap) noexcept
+{
+    using TSetOpenState = bool(TESObjectREFR*, bool, bool);
+    POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287);
+    return s_setOpenState.Get()(this, aOpen, aSnap);
+}
+
+bool TESObjectREFR::IsAnOwner(const Actor* apActor, bool aUseFaction, bool aRequiresOwner) const noexcept
+{
+    using TIsAnOwner = bool(const TESObjectREFR*, const Actor*, bool, bool);
+    POINTER_SKYRIMSE(TIsAnOwner, s_isAnOwner, 20210);
+    return s_isAnOwner.Get()(this, apActor, aUseFaction, aRequiresOwner);
+}
+
+BGSEncounterZone* TESObjectREFR::GetLocationEncounterZone() const noexcept
+{
+    using TGetLocationEncounterZone = BGSEncounterZone*(const TESObjectREFR*);
+    POINTER_SKYRIMSE(TGetLocationEncounterZone, s_getLocationEncounterZone, 20203);
+    return s_getLocationEncounterZone.Get()(this);
 }
 
 bool TESObjectREFR::SetLockState(bool aLocked, uint8_t aLockLevel) noexcept

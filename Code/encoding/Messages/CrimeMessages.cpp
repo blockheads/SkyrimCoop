@@ -37,34 +37,6 @@ bool CrimeRequest::IsValid() const noexcept
     return false;
 }
 
-void NotifyCrimeConfiscation::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, Id);
-    Faction.Serialize(aWriter);
-    Owner.Serialize(aWriter);
-    To.Serialize(aWriter);
-    Serialization::WriteVarInt(aWriter, ToActor);
-}
-
-void NotifyCrimeConfiscation::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
-{
-    Id = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
-    Faction.Deserialize(aReader);
-    Owner.Deserialize(aReader);
-    To.Deserialize(aReader);
-    ToActor = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
-}
-
-void NotifyLockCrime::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, Attempt);
-}
-
-void NotifyLockCrime::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
-{
-    Attempt = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
-}
-
 void CrimeRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Sequence);
@@ -106,25 +78,13 @@ void CrimeRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     RemoveStolenItems = Serialization::ReadBool(aReader);
     AllowWarning = Serialization::ReadBool(aReader);
     Items.clear();
-    const auto count = Serialization::ReadVarInt(aReader);
-    if (count > kMaxEntries)
-    {
-        Action = static_cast<CrimeAction>(255);
-        return;
-    }
-    Items.resize(static_cast<size_t>(count));
+    Items.resize(Serialization::ReadCount(aReader, kMaxEntries));
     size_t entries = Items.size();
     for (auto& line : Items)
     {
         line.Item.Deserialize(aReader);
         line.Taking = Serialization::ReadBool(aReader);
-        const auto owners = Serialization::ReadVarInt(aReader);
-        if (owners > kMaxEntries - entries)
-        {
-            Action = static_cast<CrimeAction>(255);
-            return;
-        }
-        line.Owners.resize(static_cast<size_t>(owners));
+        line.Owners.resize(Serialization::ReadCount(aReader, kMaxEntries - entries));
         entries += line.Owners.size();
         for (auto& owner : line.Owners)
         {
@@ -132,7 +92,9 @@ void CrimeRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
             const auto quantity = Serialization::ReadVarInt(aReader);
             if (!quantity || quantity > 0x7FFFu)
             {
+                // A bad value drops the message (fuzzer: decoding stopped here and left the rest unread).
                 Action = static_cast<CrimeAction>(255);
+                aReader.Fail();
                 return;
             }
             owner.Count = static_cast<uint32_t>(quantity);
@@ -140,51 +102,3 @@ void CrimeRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     }
 }
 
-void NotifyCrimeState::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, Gold.size());
-    for (const auto& row : Gold)
-    {
-        row.Faction.Serialize(aWriter);
-        Serialization::WriteVarInt(aWriter, row.Violent);
-        Serialization::WriteVarInt(aWriter, row.NonViolent);
-        Serialization::WriteVarInt(aWriter, row.NonViolentInfamy);
-        Serialization::WriteVarInt(aWriter, row.ViolentInfamy);
-        Serialization::WriteBool(aWriter, row.PlayerEnemy);
-    }
-    Serialization::WriteVarInt(aWriter, Reports.size());
-    for (const auto& report : Reports)
-    {
-        report.Faction.Serialize(aWriter);
-        Serialization::WriteVarInt(aWriter, report.Bounty);
-    }
-}
-
-void NotifyCrimeState::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
-{
-    Gold.clear();
-    const auto count = Serialization::ReadVarInt(aReader);
-    // Every row needs at least six bytes; reject an impossible count before allocating.
-    if (count > 4096)
-        return;
-    Gold.resize(static_cast<size_t>(count));
-    for (auto& row : Gold)
-    {
-        row.Faction.Deserialize(aReader);
-        row.Violent = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
-        row.NonViolent = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
-        row.NonViolentInfamy = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
-        row.ViolentInfamy = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
-        row.PlayerEnemy = Serialization::ReadBool(aReader);
-    }
-    Reports.clear();
-    const auto reports = Serialization::ReadVarInt(aReader);
-    if (reports > 4096)
-        return;
-    Reports.resize(static_cast<size_t>(reports));
-    for (auto& report : Reports)
-    {
-        report.Faction.Deserialize(aReader);
-        report.Bounty = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
-    }
-}

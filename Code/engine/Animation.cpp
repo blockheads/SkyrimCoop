@@ -68,7 +68,7 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
     action.State1 = pActor->actorState.flags1;
     action.State2 = pActor->actorState.flags2;
     action.Type = apAction->unkInput | (apAction->someFlag ? 0x4 : 0);
-    action.Tick = World::Get().GetFrameTick(); // the frame's, as its movement is stamped (S10)
+    action.Tick = World::FrameTick(); // the frame's, as its movement is stamped (S10)
     action.ActorId = pActor->formID;
     action.ActionId = apAction->action->formID;
     action.TargetId = apAction->target ? apAction->target->formID : 0;
@@ -104,7 +104,7 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         .Forced = g_forceAnimation,
         .PairHalf = cTaking.PairHalf,
         .Paired = !action.TargetEventName.empty(),
-        .Streamed = res && cOwn && World::Get().GetGraphStreams().Streaming(pActor->formID),
+        .Streamed = res && cOwn && World::Streams().Streaming(pActor->formID),
         .OwnBody = ReplayState::CopyOwnBody(pActor->InPair(), pActor->IsInKillMove(), (pActor->flags2 & Actor::GETTING_ON_OFF_MOUNT) != 0,
                                             pActor->actorState.GetSitSleepState()),
         .Event = action.EventName,
@@ -133,7 +133,7 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
     {
         if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying)
             spdlog::debug("Owner {:X} death action {:X} '{}'", pActor->formID, action.ActionId, action.EventName);
-        World::Get().GetRunner().Trigger(action);
+        World::Runner().Trigger(action);
     }
     return res;
 }
@@ -150,7 +150,7 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
         {
             if (pExtension->IsCopy())
                 AnimationBody::RunReplayStep(pActor);
-            if (ReplayState::PoseHeld(World::Get().GetFrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
+            if (ReplayState::PoseHeld(World::FrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
             {
                 HoldCopyRagdollStill(*pActor);
                 return false;
@@ -193,7 +193,7 @@ bool HookKillActorEvent(void* apThis, Actor* apActor)
 {
     // A claimed victim's kill is the host's too (DeathOnGiveBack): it holds its pose as a copy does.
     if (auto* pExtension = apActor->GetExtension(); pExtension->IsCopy() || pExtension->KillHeld.load(std::memory_order_relaxed))
-        pExtension->PoseHeldUntil.store(World::Get().GetFrameTick() + ReplayState::cPoseHoldMs, std::memory_order_relaxed);
+        pExtension->PoseHeldUntil.store(World::FrameTick() + ReplayState::cPoseHoldMs, std::memory_order_relaxed);
     return RealKillActorEvent(apThis, apActor);
 }
 

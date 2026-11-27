@@ -33,20 +33,6 @@ struct DetectionState : public NiRefObject
 };
 static_assert(sizeof(DetectionState) == 0x48);
 
-BGSEncounterZone* GetLocationEncounterZone(Actor* apActor)
-{
-    using TGetLocationEncounterZone = BGSEncounterZone*(Actor*);
-    POINTER_SKYRIMSE(TGetLocationEncounterZone, getLocationEncounterZone, 20203);
-    return getLocationEncounterZone(apActor);
-}
-
-bool IsValidTarget(CombatTargetSelector* apThis, Actor* apAttacker, Actor* apTarget, BGSEncounterZone* apEncounterZone)
-{
-    using TIsValidTarget = bool(CombatTargetSelector*, Actor* apAttacker, Actor* apTarget, BGSEncounterZone* apEncounterZone);
-    POINTER_SKYRIMSE(TIsValidTarget, isValidTarget, 47196);
-    return isValidTarget(apThis, apAttacker, apTarget, apEncounterZone);
-}
-
 DetectionState* GetDetectionState(Actor* apAttacker, Actor* apTarget)
 {
     using TGetDetectionState = DetectionState*(Actor*, Actor* apTarget);
@@ -197,7 +183,7 @@ void DebugService::DrawCombatView()
             ImGui::InputScalar("Current target ID", ImGuiDataType_U32, (void*)&targetFormID, nullptr, nullptr, "%" PRIx32, ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_CharsHexadecimal);
         }
 
-        BGSEncounterZone* pZone = GetLocationEncounterZone(pActor);
+        BGSEncounterZone* pZone = pActor->GetLocationEncounterZone();
 
         ImGui::BeginChild("Potential targets", ImVec2(0, 200), true);
 

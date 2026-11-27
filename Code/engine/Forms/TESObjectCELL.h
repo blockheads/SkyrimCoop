@@ -2,6 +2,7 @@
 
 #include <Forms/TESForm.h>
 
+struct Actor;
 struct TESObjectREFR;
 struct TESWorldSpace;
 struct BGSEncounterZone;
@@ -14,7 +15,6 @@ struct TESObjectCELL : TESForm
     std::vector<TESObjectREFR*> GetRefsByFormTypes(const std::vector<FormType>& aFormTypes) const noexcept;
     // Every reference in the cell, taken under its lock (as the engine's own walks do, e.g. OnCellLoad's 53964).
     [[nodiscard]] std::vector<TESObjectREFR*> GetReferences() noexcept;
-    void GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bool aAllowCellLoad) noexcept;
 
     bool IsValid() const { return cellFlags[4] == 7; }
     bool IsInterior() const { return (cellFlags[0] & 1) != 0; }
@@ -24,6 +24,10 @@ struct TESObjectCELL : TESForm
     [[nodiscard]] TESForm* GetOwner() const noexcept;
     // As Cell.SetFactionOwner/SetActorOwner do on its extra data (ExtraDataList::SetOwnerForm 11609).
     void SetOwner(TESForm* apOwner) noexcept;
+    // TESObjectCELL::GetbhkWorld (18995): its physics world.
+    [[nodiscard]] void* GetbhkWorld() noexcept;
+    // 18909: apActor trespasses here (an owner, not public, apActor no owner; the player only while flagged).
+    [[nodiscard]] bool IsTrespassing(Actor* apActor) noexcept;
     // Attached and done loading (a reset included): what its references hold is this game's state.
     bool IsFullyLoaded() const { return IsValid() && loadedCellData && loadedCellData->fullyLoaded; }
 

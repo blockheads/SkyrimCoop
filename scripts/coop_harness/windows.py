@@ -177,7 +177,7 @@ class WindowsRuntime(Runtime):
             raise ctx.failure("Steam must be running (Skyrim's DRM needs it).")
 
     def ensure_duo_game(ctx):
-        """The duo's game folder: the 1.6.1170 game's files and SKSE's linked, its own Data/SKSE/Plugins."""
+        """The duo's game folder: the game's files and SKSE's linked, its own Data/SKSE/Plugins."""
         plugins = GAME / "Data/SKSE/Plugins"
         plugins.mkdir(parents=True, exist_ok=True)
         own = {"Data", "SkyrimSELauncher.exe", "SkyrimSE.exe"}

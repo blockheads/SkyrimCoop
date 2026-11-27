@@ -16,6 +16,7 @@
 #include <EquipManager.h>
 #include <AI/AIProcess.h>
 #include <Misc/MiddleProcess.h>
+#include <Misc/TaskQueueInterface.h>
 #include <Havok/bhkCharacterController.h>
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
@@ -92,7 +93,6 @@
 #include <ScriptEquips.h>
 #include <Forms/TESObjectARMO.h>
 
-#include <ModCompat/BehaviorVar.h>
 
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -107,8 +107,6 @@ using TCharacterConstructor = Actor*(Actor*);
 
 using TCharacterConstructor2 = Actor*(Actor*, uint8_t aUnk);
 
-using TCharacterDestructor = Actor*(Actor*);
-
 using TGetLocation = TESForm*(TESForm*);
 
 static TGetLocation* FUNC_GetActorLocation;
@@ -117,24 +115,7 @@ TCharacterConstructor* RealCharacterConstructor;
 
 TCharacterConstructor2* RealCharacterConstructor2;
 
-TCharacterDestructor* RealCharacterDestructor;
-
 static TRemoveSpell* RealRemoveSpell = nullptr;
-
-float Actor::GetSpeed() noexcept
-{
-    static BSFixedString speedSampledStr("SpeedSampled");
-    float speed = 0.f;
-    EngineVirtual(animationGraphHolder).GetVariableFloat(&speedSampledStr, &speed);
-
-    return speed;
-}
-
-void Actor::SetSpeed(float aSpeed) noexcept
-{
-    static BSFixedString speedSampledStr("SpeedSampled");
-    EngineVirtual(animationGraphHolder).SetVariableFloat(&speedSampledStr, aSpeed);
-}
 
 uint16_t Actor::GetLevel() const noexcept
 {
@@ -224,21 +205,18 @@ bool Actor::SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf) noexcept
         return false;
     const bool cInWorld = pBody->world != nullptr;
 
-    POINTER_SKYRIMSE(void*, s_queue, 403759); // TaskQueueInterface::singleton
     using TAddToWorld = void(void*, NiAVObject*, void* apWorld, int32_t);
-    using TRemoveFromWorld = void(void*, NiAVObject*);
     using TSetMotionType = void(void*, NiAVObject*, uint32_t, bool);
     using TSetLayerAndGroup = void(void*, NiAVObject*, uint32_t, uint32_t);
     POINTER_SKYRIMSE(TAddToWorld, s_addToWorld, 36922);
-    POINTER_SKYRIMSE(TRemoveFromWorld, s_removeFromWorld, 36924);
     POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 36925);
     POINTER_SKYRIMSE(TSetLayerAndGroup, s_setLayerAndGroup, 36929);
-    void* pQueue = *s_queue.Get();
+    TaskQueueInterface* pQueue = TaskQueueInterface::Get();
     if (!pQueue)
         return false;
     if (!aLayer)
     {
-        s_removeFromWorld.Get()(pQueue, pRoot);
+        pQueue->QueueRemoveFromWorld(pRoot);
         return true;
     }
     // As EnterFurnitureCollision (40063): keyframed, the layer with its capsule's group (a rider's: its mount's), in
@@ -422,11 +400,6 @@ void Actor::DoReset3D(bool aUpdateWeight) noexcept
     s_doReset3D(this, aUpdateWeight);
 }
 
-void Actor::DispelAllSpells(bool aNow) noexcept
-{
-    magicTarget.DispelAllSpells(aNow);
-}
-
 void Actor::ClearPowerCooldowns() noexcept
 {
     POINTER_SKYRIMSE(void(Actor*), s_clear, 38825);
@@ -455,29 +428,6 @@ Actor* Actor::GetCombatTarget() const noexcept
 {
     PAPYRUS_FUNCTION(Actor*, Actor, GetCombatTarget);
     return s_pGetCombatTarget(this);
-}
-
-// TODO: this is a really hacky solution.
-// The internal targeting system should be disabled instead.
-void Actor::StartCombatEx(Actor* apTarget) noexcept
-{
-    if (GetCombatTarget() != apTarget)
-    {
-        StopCombat();
-        StartCombat(apTarget);
-    }
-}
-
-void Actor::SetCombatTargetEx(Actor* apTarget) noexcept
-{
-    if (pCombatController)
-        pCombatController->SetTarget(apTarget);
-}
-
-void Actor::StartCombat(Actor* apTarget) noexcept
-{
-    PAPYRUS_FUNCTION(void, Actor, StartCombat, Actor*);
-    s_pStartCombat(this, apTarget);
 }
 
 void Actor::StopCombat() noexcept
@@ -539,7 +489,7 @@ bool HookRemoveSpell(Actor* apThis, MagicItem* apSpell)
 
         removalEvent.TargetId = apThis->formID;
         removalEvent.SpellId = apSpell->formID;
-        World::Get().GetRunner().Trigger(removalEvent);
+        World::Runner().Trigger(removalEvent);
     }
 
     return result;
@@ -559,22 +509,6 @@ Actor* HookCharacterConstructor2(Actor* apThis, uint8_t aUnk)
     EMPTY_HOOK_PLACEHOLDER;
 
     RealCharacterConstructor2(apThis, aUnk);
-
-    return apThis;
-}
-
-Actor* HookCharacterDestructor(Actor* apThis)
-{
-    EMPTY_HOOK_PLACEHOLDER;
-
-    auto pExtension = apThis->GetExtension();
-
-    if (pExtension)
-    {
-        pExtension->~ActorExtension();
-    }
-
-    RealCharacterDestructor(apThis);
 
     return apThis;
 }
@@ -608,17 +542,6 @@ TESForm* Actor::GetEquippedWeapon(uint32_t aSlotId) const noexcept
 
         else if (aSlotId == 1 && pMiddleProcess->rightEquippedObject)
             return pMiddleProcess->rightEquippedObject->pObject;
-    }
-
-    return nullptr;
-}
-
-TESForm* Actor::GetEquippedAmmo() const noexcept
-{
-    if (currentProcess && currentProcess->middleProcess && currentProcess->middleProcess->ammoEquippedObject)
-    {
-        // TODO: rtti cast to check if is ammo object? or actually, just call AIProcess::GetCurrentAmmo()
-        return currentProcess->middleProcess->ammoEquippedObject->pObject;
     }
 
     return nullptr;
@@ -917,13 +840,6 @@ void Actor::SetFactionRank(const TESFaction* apFaction, int8_t aRank) noexcept
     s_setFactionRankInternal(this, apFaction, aRank);
 }
 
-void Actor::SetPlayerTeammate(bool aSet) noexcept
-{
-    using TSetPlayerTeammate = void(Actor*, bool aSet, bool abCanDoFavor);
-    POINTER_SKYRIMSE(TSetPlayerTeammate, setPlayerTeammate, 37717);
-    return setPlayerTeammate(this, aSet, true);
-}
-
 void Actor::UnEquipAll() noexcept
 {
     EquipManager::Get()->UnequipAll(this);
@@ -961,13 +877,18 @@ bool Actor::PutOnMount(Actor* apMount) noexcept
 
 void Actor::SeatOnMount(Actor* apMount) noexcept
 {
-    using TSeated = void(Actor*);
-    POINTER_SKYRIMSE(TSeated, s_onSeated, 41533);
     const RefrInteraction* pLink = GetOwnInteraction();
     const bool cLinked = pLink && TESObjectREFR::GetByHandle(pLink->actorHandle) == this && TESObjectREFR::GetByHandle(pLink->targetHandle) == apMount;
     if (!cLinked && !PutOnMount(apMount))
         return;
     actorState.SetSitSleepStateFlags(3);
+    OnInteractionSeated();
+}
+
+void Actor::OnInteractionSeated() noexcept
+{
+    using TSeated = void(Actor*);
+    POINTER_SKYRIMSE(TSeated, s_onSeated, 41533);
     s_onSeated(this);
 }
 
@@ -1033,23 +954,21 @@ RefrInteraction* Actor::GetOwnInteraction() const noexcept
 
 void Actor::HoldRider(Actor* apRider, bool aReplace) noexcept
 {
-    using TSetInteraction = void(ExtraDataList*, RefrInteraction** appInteraction);
-    POINTER_SKYRIMSE(TSetInteraction, s_setInteraction, 12074);
     RefrInteraction* pLink = apRider ? apRider->GetOwnInteraction() : nullptr;
     if (aReplace || !pLink)
     {
         RefrInteraction* pNone = nullptr;
-        s_setInteraction(&extraData, &pNone);
+        extraData.SetInteraction(&pNone);
     }
     if (pLink)
-        s_setInteraction(&extraData, &pLink);
+        extraData.SetInteraction(&pLink);
 }
 
-void Actor::EvaluatePackageNow() noexcept
+void Actor::EvaluatePackageNow(bool aResetAI) noexcept
 {
     using TEvaluate = void(Actor*, bool aImmediate, bool aResetAI);
     POINTER_SKYRIMSE(TEvaluate, s_evaluate, 37401);
-    s_evaluate(this, true, false);
+    s_evaluate(this, true, aResetAI);
 }
 
 void Actor::EndMountPair() noexcept
@@ -1106,15 +1025,69 @@ bool Actor::IsDead() const noexcept
 
 bool Actor::LiesInRagdoll() const noexcept
 {
+    return (IsDead() || actorState.GetKnockState() != 0) && IsInRagdollState();
+}
+
+bool Actor::IsInRagdollState() const noexcept
+{
     using TIsInRagdollState = bool(const Actor*);
     POINTER_SKYRIMSE(TIsInRagdollState, s_isInRagdollState, 37491);
-    return (IsDead() || actorState.GetKnockState() != 0) && s_isInRagdollState.Get()(this);
+    return s_isInRagdollState.Get()(this);
+}
+
+bool Actor::IsInDeferredKill() const noexcept
+{
+    using TIsInDeferredKill = bool(const Actor*);
+    POINTER_SKYRIMSE(TIsInDeferredKill, s_isInDeferredKill, 38619);
+    return s_isInDeferredKill.Get()(this);
+}
+
+TESFaction* Actor::GetCrimeFaction() const noexcept
+{
+    using TGetCrimeFaction = TESFaction*(const Actor*);
+    POINTER_SKYRIMSE(TGetCrimeFaction, s_getCrimeFaction, 37380);
+    return s_getCrimeFaction.Get()(this);
+}
+
+int32_t Actor::GetFactionReaction(Actor* apOther) const noexcept
+{
+    using TGetFactionReaction = int32_t(const Actor*, Actor*);
+    POINTER_SKYRIMSE(TGetFactionReaction, s_getFactionReaction, 37666);
+    return s_getFactionReaction.Get()(this, apOther);
+}
+
+bool Actor::IsHostileToActor(Actor* apOther) noexcept
+{
+    using TIsHostileToActor = bool(Actor*, Actor*);
+    POINTER_SKYRIMSE(TIsHostileToActor, s_isHostileToActor, 37537);
+    return s_isHostileToActor.Get()(this, apOther);
+}
+
+bool Actor::CanBeKilledBy(Actor* apKiller) noexcept
+{
+    using TCanBeKilledBy = bool(Actor*, Actor*);
+    POINTER_SKYRIMSE(TCanBeKilledBy, s_canBeKilledBy, 37229);
+    return s_canBeKilledBy.Get()(this, apKiller);
+}
+
+bool Actor::EngagingInCombat() noexcept
+{
+    using TEngagingInCombat = bool(Actor*);
+    POINTER_SKYRIMSE(TEngagingInCombat, s_engagingInCombat, 38563);
+    return s_engagingInCombat.Get()(this);
+}
+
+bool Actor::HasLineOfSight(TESObjectREFR* apTarget, bool& aUnknown) noexcept
+{
+    using THasLineOfSight = bool(Actor*, TESObjectREFR*, bool&);
+    POINTER_SKYRIMSE(THasLineOfSight, s_hasLineOfSight, 53829);
+    return s_hasLineOfSight.Get()(this, apTarget, aUnknown);
 }
 
 bool Actor::IsDragon() const noexcept
 {
     const ActorExtension* pExtension = const_cast<Actor*>(this)->GetExtension();
-    return BehaviorVar::IsDragon(pExtension->GraphDescriptorHash);
+    return pExtension->GraphDescriptorHash == AnimationGraphDescriptor_BHR_Master::m_key;
 }
 
 void Actor::StartDeferredKill() noexcept
@@ -1163,8 +1136,8 @@ void Actor::FinishLoad3D() noexcept
         return;
     const uint32_t cFormId = formID;
     if (cRefused)
-        World::Get().GetRunner().Trigger(NpcHeldEvent{cFormId});
-    World::Get().GetRunner().Queue([cFormId] {
+        World::Runner().Trigger(NpcHeldEvent{cFormId});
+    World::Runner().Queue([cFormId] {
         if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
             pActor->ApplyHeld3D();
     });
@@ -1257,10 +1230,8 @@ void Actor::EndKillMove() noexcept
 
 bool Actor::IsHeldByKillMove() const noexcept
 {
-    // Character 38619 (in a deferred kill, as KillActorHandler tests it): a kill move holds its victim so until KillActor.
-    using TIsInDeferredKill = bool(const Actor*);
-    POINTER_SKYRIMSE(TIsInDeferredKill, s_isInDeferredKill, 38619);
-    return IsInKillMove() && (s_isInDeferredKill.Get())(this);
+    // In a deferred kill, as KillActorHandler tests it: a kill move holds its victim so until KillActor.
+    return IsInKillMove() && IsInDeferredKill();
 }
 
 void Actor::Kill() noexcept
@@ -1346,7 +1317,7 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     g_forceAnimation = true;
     KillImpl(nullptr, 100.f, true, cRagdoll);
     g_forceAnimation = false;
-    World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
+    World::Runner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
     return pExtension->LatestAnimation.FinishAttempt(acAction.ActionId, cAttempt);
 }
 
@@ -1358,7 +1329,7 @@ void Actor::KillBesideGraph(const ActionEvent& acAction) noexcept
     pExtension->PoseHeldUntil.store(0, std::memory_order_relaxed);
     EndDeferredKill();
     KillImpl(nullptr, 100.f, true, SameName(acAction.EventName, "RagdollInstant"));
-    World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
+    World::Runner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
 }
 
 void Actor::Reset() noexcept
@@ -1368,12 +1339,6 @@ void Actor::Reset() noexcept
     PAPYRUS_FUNCTION(void, ObjectReference, Reset, int, TESObjectREFR*);
 
     s_pReset(this, 0, nullptr);
-}
-
-bool Actor::PlayIdle(TESIdleForm* apIdle) noexcept
-{
-    PAPYRUS_FUNCTION(bool, Actor, PlayIdle, TESIdleForm*);
-    return s_pPlayIdle(this, apIdle);
 }
 
 void Actor::Respawn() noexcept
@@ -1450,7 +1415,6 @@ static Hooks::Initializer s_actorHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TCharacterDestructor, s_characterDtor, 37175);
         POINTER_SKYRIMSE(TGetLocation, s_GetActorLocation, 19812);
         FUNC_GetActorLocation = s_GetActorLocation.Get();
         HOOK_ID(38717, &RealRemoveSpell, HookRemoveSpell);

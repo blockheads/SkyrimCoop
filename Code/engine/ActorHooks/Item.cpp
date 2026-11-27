@@ -124,7 +124,7 @@ static void ReportAdd(const Actor& acActor, const TESBoundObject& acItem, ExtraD
     InventoryChangeEvent event(acActor.formID, std::move(item));
     event.StoryGiven = GuestScripts::StoryGiving();
     event.AliasHeld = apExtraData && apExtraData->Contains(ExtraDataType::AliasInstanceArray);
-    World::Get().GetRunner().Trigger(std::move(event));
+    World::Runner().Trigger(std::move(event));
 }
 
 // Papyrus Actor.EquipItem (54661): an item the actor lacks is added past AddInventoryItem (16053), reported here.
@@ -149,7 +149,7 @@ static void HookScriptEquipItem(void* apVm, uint32_t aStackId, Actor* apThis, TE
     const int64_t cAfter = HeldCount(*apThis, *apItem).value_or(0);
     if (auto event = ScriptEquips::Arrival(apThis->formID, ItemId(apItem->formID).value_or(GameId{}), static_cast<int32_t>(*cBefore),
                                            static_cast<int32_t>(cAfter), GuestScripts::StoryCalling()))
-        World::Get().GetRunner().Trigger(std::move(*event));
+        World::Runner().Trigger(std::move(*event));
 }
 
 void HookAddInventoryItem(Actor* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
@@ -183,15 +183,10 @@ void* HookPickUpObject(Actor* apThis, TESObjectREFR* apObject, int32_t aCount, b
         // The inventory change event should always be sent to the server, otherwise the server inventory won't be updated.
         bool shouldUpdateClients = apObject->IsTemporary() && !ScopedActivateOverride::IsOverriden();
 
-        World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item), false, shouldUpdateClients));
+        World::Runner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item), false, shouldUpdateClients));
     }
 
     return RealPickUpObject(apThis, apObject, aCount, aUnk1, aUnk2);
-}
-
-void Actor::PickUpObject(TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2) noexcept
-{
-    RealPickUpObject(this, apObject, aCount, aUnk1, aUnk2);
 }
 
 void* HookDropObject(Actor* apThis, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation)
@@ -204,14 +199,14 @@ void* HookDropObject(Actor* apThis, void* apResult, TESBoundObject* apObject, Ex
     if (apExtraData)
         apThis->GetItemFromExtraData(item, apExtraData);
 
-    World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item), true));
+    World::Runner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item), true));
 
     ScopedInventoryOverride _;
 
     void* pResult = RealDropObject(apThis, apResult, apObject, apExtraData, aCount, apLocation, apRotation);
     // The loose item it made (none when it went into a container instead), by its handle.
     if (const TESObjectREFR* pDropped = apResult ? TESObjectREFR::GetByHandle(*static_cast<uint32_t*>(apResult)) : nullptr)
-        World::Get().GetRunner().Trigger(ItemDroppedEvent{pDropped->formID});
+        World::Runner().Trigger(ItemDroppedEvent{pDropped->formID});
     return pResult;
 }
 
@@ -259,7 +254,7 @@ void HookResetWornToOutfit(void* apNpc, Actor* apActor, bool aUnused3, bool aEqu
         RealResetWornToOutfit(apNpc, apActor, aUnused3, aEquipBestWeapons, aUnused5, aKeepTlsFlag);
     }
     if (apActor)
-        World::Get().GetRunner().Trigger(WornResetEvent{apActor->formID});
+        World::Runner().Trigger(WornResetEvent{apActor->formID});
 }
 
 using TAddDeathItems = void(Actor*);

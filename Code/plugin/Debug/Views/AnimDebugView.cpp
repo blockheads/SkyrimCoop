@@ -24,7 +24,6 @@
 #include <Structs/AnimationGraphDescriptorManager.h>
 #include <inttypes.h>
 
-#include <ModCompat/BehaviorVar.h>
 #include <RTTI.h>
 #include <Utils.h>
 
@@ -86,7 +85,6 @@ void DebugService::DrawAnimDebugView()
      if (ImGui::Button("Show cached hash"))
     {
         spdlog::info("{}", pActor->GetExtension()->GraphDescriptorHash);
-        BehaviorVar::Get()->Debug();
     }
 
     if (ImGui::Button("Clear all"))

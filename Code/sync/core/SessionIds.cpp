@@ -30,11 +30,10 @@ std::optional<uint32_t> GetSessionId(entt::entity aEntity) noexcept
 
 uint32_t GetFormIdBySessionId(uint32_t aSessionId) noexcept
 {
-    auto view = World::Get().view<FormIdComponent>();
-    for (entt::entity entity : view)
-        // A held copy has neither: no session id, and nothing to log each lookup.
-        if (World::Get().any_of<LocalComponent, RemoteComponent>(entity) && GetSessionId(entity) == aSessionId)
-            return view.get<FormIdComponent>(entity).Id;
+    // A held copy has neither Local nor Remote: no session id.
+    const auto cEntity = World::Get().GetActorIndex().BySession<FormIdComponent>(aSessionId);
+    if (cEntity != entt::null)
+        return World::Get().get<FormIdComponent>(cEntity).Id;
     spdlog::debug("GetFormIdBySessionId: form not found for session id {:X}", aSessionId);
     return 0;
 }
@@ -43,10 +42,9 @@ std::optional<uint32_t> GetSessionIdByFormId(uint32_t aFormId) noexcept
 {
     if (!aFormId)
         return std::nullopt;
-    auto view = World::Get().view<FormIdComponent>();
-    for (entt::entity entity : view)
-        if (view.get<FormIdComponent>(entity).Id == aFormId)
-            return GetSessionId(entity);
-    return std::nullopt;
+    const auto cEntity = World::Get().GetActorIndex().ByForm(aFormId);
+    if (cEntity == entt::null)
+        return std::nullopt;
+    return GetSessionId(cEntity);
 }
 } // namespace Utils

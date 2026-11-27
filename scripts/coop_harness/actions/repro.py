@@ -1052,18 +1052,6 @@ class ReproActions:
         ctx.wait_for(f"[client] {name}'s {field} follows the host's ({read('', 'host')})",
                      lambda: read("client", "guest") == read("", "host"), within)
 
-    def observe_handles(ctx, names):
-        """{name: {host, guest, apart}}: apart is the distance between the two games' places of it."""
-        seen = {}
-        for name in names:
-            shown = ctx.observe_one(name)
-            places = [where(row) for row in shown.values() if row]
-            entry = {game: row for game, row in shown.items()}
-            if len(places) == 2 and all(places):
-                entry["apart"] = round(math.dist(places[0], places[1]), 2)
-            seen[name] = entry
-        return seen
-
     def sky(ctx, instance, region=0):
         """That game's sky (the harness's sky command): weather, last (fading out), pct, override, default, region,
         allowed (the region's list holds the weather), region_weather (the given region's own, else the player's)."""

@@ -181,7 +181,6 @@ struct TESObjectREFR : TESForm
     void SetRotation(float aX, float aY, float aZ) noexcept;
 
     BSPointerHandle<TESObjectREFR> GetHandle() const noexcept;
-    uint32_t GetCellId() const noexcept;
     // GetDisplayFullName (19781): its name with this reference's override (ExtraTextDisplayData), never null.
     const char* GetDisplayFullName() noexcept;
     TESWorldSpace* GetWorldSpace() const noexcept;
@@ -203,8 +202,8 @@ struct TESObjectREFR : TESForm
     [[nodiscard]] uint32_t CountLeveledEntries() const noexcept;
     // Rolls its leveled entries as opening it does (InitInventoryIfRequired 16038); false for none to roll.
     bool InitInventoryIfRequired() noexcept;
-    // Its base swapped (SetObjectReference, virtual 0x84) and recorded as the engine's pick records it (0x80); a loaded,
-    // enabled reference's 3D loaded again for it.
+    // Its base swapped (SetObjectReference, virtual 0x84) and recorded as the engine's pick records it (0x80), unless
+    // temporary (BaseChange.h); a loaded, enabled reference's 3D loaded again for it.
     void SetBaseObject(TESBoundObject* apBase) noexcept;
     TESObjectCELL* GetParentCellEx() const noexcept;
 
@@ -230,8 +229,6 @@ struct TESObjectREFR : TESForm
     void RemoveAllItems() noexcept;
     std::vector<uint32_t> RemoveNonQuestItems(Inventory& aCurrentInventory) noexcept;
     void Delete() const noexcept;
-    void Disable() const noexcept;
-    void Enable() const noexcept;
     void MoveTo(TESObjectCELL* apCell, const NiPoint3& acPosition) const noexcept;
     // Places it on one axis ('X', 'Y', 'Z') with its 3D and collision, as the console's SetPos and Papyrus'
     // SetPosition do (22053); SetAngleOnAxis the same for its angle, in degrees as the console's SetAngle (22054).
@@ -249,6 +246,10 @@ struct TESObjectREFR : TESForm
     // 11810: a permanent form, not the temporary NPC) or its base, else
     // TESObjectREFR::GetOwner 20194 (its ownership, a linked door's, the encounter zone's, the cell's).
     TESForm* GetItemsOwner() const noexcept;
+    // TESObjectREFR::IsAnOwner (20210): apActor owns it (aUseFaction: through its factions too).
+    [[nodiscard]] bool IsAnOwner(const Actor* apActor, bool aUseFaction, bool aRequiresOwner) const noexcept;
+    // TESObjectREFR::GetLocationEncounterZone (20203): the zone the standard combat target selector reads.
+    [[nodiscard]] struct BGSEncounterZone* GetLocationEncounterZone() const noexcept;
     bool SendAnimationEvent(BSFixedString* apEventName) noexcept;
     // A furniture with KeywordActivatorFurnitureNoPlayer: a lever, pull bar or chain the player pulls without entering.
     [[nodiscard]] bool IsActivatorFurniture() const noexcept;
@@ -259,13 +260,12 @@ struct TESObjectREFR : TESForm
 
     bool Activate(TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing) noexcept;
 
-    bool PlayAnimationAndWait(BSFixedString* apAnimation, BSFixedString* apEventName) noexcept;
-    bool PlayAnimation(BSFixedString* apEventName) noexcept;
-
     Lock* CreateLock() noexcept;
     void LockChange() noexcept;
     // Locks (at that level) or unlocks it and records the change, without raising LockChangeEvent.
     bool SetLockState(bool aLocked, uint8_t aLockLevel) noexcept;
+    // BGSOpenCloseForm::SetOpenState (14287): a door or container opened or closed, at once with aSnap.
+    bool SetOpenState(bool aOpen, bool aSnap) noexcept;
 
     const float GetHeight() noexcept;
     void EnableImpl() noexcept;
@@ -277,8 +277,6 @@ struct TESObjectREFR : TESForm
     Inventory GetInventory(std::function<bool(TESForm&)> aFilter) const noexcept;
     Inventory GetArmor() const noexcept;
     Inventory GetWornArmor() const noexcept;
-
-    bool IsItemInInventory(uint32_t aFormID) const noexcept;
 
     void SetInventory(const Inventory& acContainer) noexcept;
     void SetInventoryRetainingQuestItems(Inventory& aCurrentInventory, const Inventory& acSourceInventory) noexcept;

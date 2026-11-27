@@ -174,8 +174,6 @@ struct ActorValueInfo : TESForm
         kActorValueCount = 164,
     };
 
-    static uint32_t Resolve(uint32_t aId) noexcept;
-
     virtual ~ActorValueInfo();
 
     TESFullName name;

@@ -36,7 +36,7 @@ class Configure(unittest.TestCase):
     def run_check(self, *arguments, stub_f=0):
         calls = self.root / 'scripts' / 'calls'
         calls.unlink(missing_ok=True)
-        environment = {key: value for key, value in os.environ.items() if key != 'COOP_SKYRIM_VERSION'}
+        environment = dict(os.environ)
         environment['STUB_F'] = str(stub_f)
         self.output = subprocess.run([self.root / 'scripts' / 'check.sh', *arguments], env=environment,
                                      capture_output=True, text=True).stdout

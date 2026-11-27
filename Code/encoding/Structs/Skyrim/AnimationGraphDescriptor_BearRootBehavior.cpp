@@ -113,7 +113,7 @@ AnimationGraphDescriptor_BearRootBehavior::AnimationGraphDescriptor_BearRootBeha
         kiState_DeerDefaultRun = 105,
     };
 
-    uint64_t key = 12283352931604624777;
+    uint64_t key = 12283352931604624777u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,

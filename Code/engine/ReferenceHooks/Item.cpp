@@ -80,7 +80,7 @@ void HookAddInventoryItem(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDa
         InventoryChangeEvent event(apThis->formID, std::move(item));
         event.StoryGiven = GuestScripts::StoryGiving();
         event.AliasHeld = apExtraData && apExtraData->Contains(ExtraDataType::AliasInstanceArray);
-        World::Get().GetRunner().Trigger(std::move(event));
+        World::Runner().Trigger(std::move(event));
     }
 
     spdlog::debug("Adding inventory item {:X} to {:X}", apItem->formID, apThis->formID);
@@ -99,7 +99,7 @@ void SendRemoval(TESObjectREFR* apRef, TESBoundObject* apItem, int32_t aCount, E
         apRef->GetItemFromExtraData(item, apExtraList);
     }
     item.Count = -aCount;
-    World::Get().GetRunner().Trigger(InventoryChangeEvent(apRef->formID, std::move(item)));
+    World::Runner().Trigger(InventoryChangeEvent(apRef->formID, std::move(item)));
 }
 
 static std::atomic<bool> s_movesContainerItems{true};
@@ -230,7 +230,7 @@ template <class TCall> static auto ImprovesStack(ExtraContainerChanges::Data* ap
     auto result = aCall();
     if (pOwner && !ScopedInventoryOverride::IsOverriden())
         for (auto& change : ItemChanges::Diff(cBefore, cStacks()))
-            World::Get().GetRunner().Trigger(InventoryChangeEvent(pOwner->formID, std::move(change)));
+            World::Runner().Trigger(InventoryChangeEvent(pOwner->formID, std::move(change)));
     return result;
 }
 

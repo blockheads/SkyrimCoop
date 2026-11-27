@@ -39,7 +39,7 @@ before customization. Base Flames and Healing remain the player's starting spell
 
 ## Bundled data
 
-`GameFiles/Skyrim/SkyrimCoopStart.esp` is ESL flagged and depends only on Skyrim.esm. It contains a new interior
+`assets/SkyrimCoopStart.esp` is ESL flagged and depends only on Skyrim.esm. It contains a new interior
 cell (local ID 800) and static scenery/lights with a COC marker, without quest, script, actor, door, container,
 location or encounter data. Rebuild it with:
 

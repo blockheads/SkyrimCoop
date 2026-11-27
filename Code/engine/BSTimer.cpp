@@ -34,7 +34,7 @@ void HookSetGlobalTimeMultiplier(BSTimer* apThis, float aMultiplier, bool aArg2)
     {
         s_wanted = aMultiplier;
         if (World::Get().GetTransport().IsConnected())
-            World::Get().GetRunner().Trigger(TimeScaleEvent{aMultiplier});
+            World::Runner().Trigger(TimeScaleEvent{aMultiplier});
     }
     RealSetGlobalTimeMultiplier(apThis, std::min(s_wanted, s_shared), aArg2);
 }

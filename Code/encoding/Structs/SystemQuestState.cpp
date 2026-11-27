@@ -57,16 +57,12 @@ std::optional<SystemQuestState> SystemQuestState::Decode(std::string_view aData)
     if (Serialization::ReadVarInt(reader) != kVersion)
         return std::nullopt;
     SystemQuestState state;
-    const uint64_t cQuests = Serialization::ReadVarInt(reader);
-    if (cQuests > kMaxEntries)
-        return std::nullopt;
+    const uint64_t cQuests = Serialization::ReadCount(reader, kMaxEntries);
     for (uint64_t i = 0; i < cQuests; ++i)
     {
         Quest& quest = state.Quests.emplace_back();
         quest.Id.Deserialize(reader);
-        const uint64_t cVariables = Serialization::ReadVarInt(reader);
-        if (cVariables > kMaxEntries)
-            return std::nullopt;
+        const uint64_t cVariables = Serialization::ReadCount(reader, kMaxEntries);
         for (uint64_t j = 0; j < cVariables; ++j)
         {
             Variable& variable = quest.Variables.emplace_back();
@@ -75,9 +71,7 @@ std::optional<SystemQuestState> SystemQuestState::Decode(std::string_view aData)
             if (!DeserializeScriptValue(reader, variable.Value))
                 return std::nullopt;
         }
-        const uint64_t cTimers = Serialization::ReadVarInt(reader);
-        if (cTimers > kMaxEntries)
-            return std::nullopt;
+        const uint64_t cTimers = Serialization::ReadCount(reader, kMaxEntries);
         for (uint64_t j = 0; j < cTimers; ++j)
         {
             Timer& timer = quest.Timers.emplace_back();
@@ -85,14 +79,14 @@ std::optional<SystemQuestState> SystemQuestState::Decode(std::string_view aData)
             timer.Interval = Serialization::ReadFloat(reader);
         }
     }
-    const uint64_t cGlobals = Serialization::ReadVarInt(reader);
-    if (cGlobals > kMaxEntries)
-        return std::nullopt;
+    const uint64_t cGlobals = Serialization::ReadCount(reader, kMaxEntries);
     for (uint64_t i = 0; i < cGlobals; ++i)
     {
         Global& global = state.Globals.emplace_back();
         global.Id.Deserialize(reader);
         global.Value = Serialization::ReadFloat(reader);
     }
+    if (reader.Failed())
+        return std::nullopt;
     return state;
 }

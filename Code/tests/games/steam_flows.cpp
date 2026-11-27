@@ -15,8 +15,6 @@
 
 namespace
 {
-constexpr uint32_t kSmoke = 0x00031D2E;
-
 SteamService& Steam(World& aGame)
 {
     return aGame.ctx().at<SteamService>();

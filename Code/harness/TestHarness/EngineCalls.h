@@ -17,6 +17,9 @@
 #include <string>
 #include <vector>
 
+struct BShkbAnimationGraph;
+struct InputEventSource;
+
 // The test harness's own engine calls (scripts/coop_test.py drives them through the harness's commands):
 // staging, the player's input, and engine state the scenarios check. Test-only: the client's services
 // go through the bridges, never through these.
@@ -328,6 +331,8 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept;
 bool SendKey(uint32_t aScanCode, bool aDown) noexcept;
 // A typed character, as the keyboard sends it for text fields (a CharEvent through the same dispatch).
 bool SendChar(uint32_t aCharacter) noexcept;
+// BSInputDeviceManager::singleton (402776): the input events' source (BSTEventSource<InputEvent*>) at its start.
+InputEventSource* GetInputDeviceManager() noexcept;
 // A mouse button (0 left, 1 right) and a mouse move by a delta, the same way.
 bool SendMouseButton(uint32_t aButton, bool aDown) noexcept;
 bool SendMouseMove(int32_t aDeltaX, int32_t aDeltaY) noexcept;
@@ -724,7 +729,7 @@ struct GraphMachine
 // aGraph: its manager's graph by index (a player's: 0 third person), -1 the one it shows.
 std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter, int aGraph = -1) noexcept;
 // An input event into one graph, through BShkbAnimationGraph::SendEvent (63591) and its hooks: whether a node took it.
-bool SendGraphEvent(struct BShkbAnimationGraph* apGraph, const BSFixedString& acEvent) noexcept;
+bool SendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString& acEvent) noexcept;
 
 struct GraphWriter
 {

@@ -205,12 +205,6 @@ bool At(const FakeEngine& acEngine, uint32_t aCell, float aX)
     return cPlayer.Cell == aCell && cPlayer.Position[0] == aX;
 }
 
-bool AtMarker(const FakeEngine& acEngine)
-{
-    const auto& cPlayer = acEngine.Actors.at(FakeEngine::kPlayer);
-    return cPlayer.Cell == kSinkhole && cPlayer.Position[0] == 100.f && cPlayer.Position[1] == 200.f;
-}
-
 // The host's copy of the guest's character.
 uint32_t GuestCharacter(const FakeEngine& acHost)
 {

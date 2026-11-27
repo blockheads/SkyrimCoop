@@ -5,6 +5,7 @@
 #include <BSCore/LockOrder.h>
 #include <Interface/IMenu.h>
 #include <Interface/ItemMenuWatch.h>
+#include <Interface/Menus/ItemMenus.h>
 #include <Interface/MenuAutoClose.h>
 #include <world/LidUnposedEvent.h>
 #include <Interface/Menus/LockpickingMenu.h>
@@ -91,27 +92,15 @@ __declspec(noinline) void CheckWatched(AutoClosed& aMenu) noexcept
         spdlog::info("LiveMenus: closing {}: {}", aMenu.Name, cWhy);
         // A gone chest has no 3D: the menu's close (51125 -> OpenOrClose 14284) only flips its open state.
         if (const TESObjectREFR* pTarget = cTarget.Gone && std::string_view(aMenu.Name) == "ContainerMenu" ? TESObjectREFR::GetByHandle(aMenu.TargetHandle()) : nullptr)
-            World::Get().GetRunner().Trigger(LidUnposedEvent{pTarget->formID});
+            World::Runner().Trigger(LidUnposedEvent{pTarget->formID});
         aMenu.Watching = false;
         if (auto* pQueue = UIMessageQueue::Get())
             pQueue->AddMessage(aMenu.Name, UIMessage::kHide, nullptr);
     }
 }
 
-uint32_t ContainerTarget()
-{
-    POINTER_SKYRIMSE(uint32_t, s_handle, 405962); // ContainerMenu's target (CommonLibSSE-NG GetTargetRefHandle)
-    return *s_handle.Get();
-}
-
-uint32_t BarterTarget()
-{
-    POINTER_SKYRIMSE(uint32_t, s_handle, 405823); // BarterMenu's target
-    return *s_handle.Get();
-}
-
-AutoClosed s_container{"ContainerMenu", ItemMenuWatch::Kind::Container, &ContainerTarget};
-AutoClosed s_barter{"BarterMenu", ItemMenuWatch::Kind::Barter, &BarterTarget};
+AutoClosed s_container{"ContainerMenu", ItemMenuWatch::Kind::Container, &ContainerMenu::GetTargetRefHandle};
+AutoClosed s_barter{"BarterMenu", ItemMenuWatch::Kind::Barter, &BarterMenu::GetTargetRefHandle};
 
 UI_MESSAGE_RESULTS ContainerProcess(IMenu* apMenu, UIMessage& aMessage)
 {
@@ -277,12 +266,10 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(82082, &RealUiMessages, UiMessages);
     HOOK_ID(82083, &RealUiMovies, UiMovies);
 
-#if !COOP_SKYRIM_1_6_1170 // the +0x11C build flag was read in 1.7.104 only
     HOOK_ID(51950, &RealLockpickProcess, LockpickProcess);
-#endif
 
     VersionDbPtr<uint8_t> bookProcess(51049);
-    constexpr size_t cBookModeCall = COOP_SKYRIM_1_6_1170 ? 0x6F : 0x71;
+    constexpr size_t cBookModeCall = 0x71;
     VersionDbPtr<uint8_t> menuMode(35406);
     uint8_t* pCall = bookProcess.Get() + cBookModeCall;
     if (*pCall == 0xE8 && pCall + 5 + *reinterpret_cast<const int32_t*>(pCall + 1) == menuMode.Get())

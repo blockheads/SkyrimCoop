@@ -5,7 +5,6 @@
 
 namespace
 {
-constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kGold = 0x0000000F;
 
 // Every game's player and every copy of a player there carries aGold.

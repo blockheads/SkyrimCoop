@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import signal
-import socket
 import subprocess
 import sys
 import time
@@ -181,6 +180,8 @@ class Runtime:
         env.update(SteamAppId="489830", SteamGameId="489830", STEAM_COMPAT_DATA_PATH=str(_game.prefix),
                    STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam), WINEDEBUG=env.get("WINEDEBUG", "-all"),
                    SKYRIMCOOP_LOG_LEVEL=env.get("SKYRIMCOOP_LOG_LEVEL", "debug"),
+                   # A use after free stops at its first read (HeapHistory.h); about 500 MB a game. 0 turns it off.
+                   SKYRIMCOOP_HEAP_QUARANTINE=env.get("SKYRIMCOOP_HEAP_QUARANTINE", "256"),
                    # `stop` kills the games: no crash report and zip from that at the next boot.
                    SKYRIMCOOP_NO_CRASH_REPORTS="1",
                    # The UI straight from the repo (Wine's Z: is /): edits show up in game within a second.
@@ -569,7 +570,7 @@ class Runtime:
         """The bundled start active last; `plugins` (mods in the game's Data, MOD_PLUGINS) active before it and the other
         MOD_PLUGINS left out (a duo booted without them loads none); None keeps the load order's mods."""
         _game = ctx.game(_game)
-        source = ROOT / "GameFiles/Skyrim" / BUNDLED_START
+        source = ROOT / "assets" / BUNDLED_START
         target = _game.install / "Data" / BUNDLED_START
         if not target.exists() or target.read_bytes() != source.read_bytes():
             shutil.copyfile(source, target)

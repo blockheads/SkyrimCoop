@@ -19,7 +19,7 @@ struct Sink final : BSTEventSink<TESContainerChangedEvent>
             return BSTEventResult::kOk;
         for (const uint32_t cContainer : {apEvent->oldContainerID, apEvent->newContainerID})
             if (cContainer)
-                World::Get().GetRunner().Trigger(ContainerChangeEvent{cContainer, apEvent->baseObjectID});
+                World::Runner().Trigger(ContainerChangeEvent{cContainer, apEvent->baseObjectID});
         return BSTEventResult::kOk;
     }
 };

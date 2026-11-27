@@ -56,19 +56,18 @@ MovementService::MovementService(World& aWorld, entt::dispatcher& aDispatcher, T
 
 void MovementService::OnReferencesMoveRequest(const NotifyReferencesMove& acMessage) const noexcept
 {
-    auto view = m_world.view<RemoteComponent, InterpolationComponent, RemoteAnimationComponent>();
+    const auto& actors = m_world.GetActorIndex();
     auto& clock = m_world.GetCopyClock();
     clock.OnSnapshot(acMessage.Tick, m_transport.GetTick());
 
     for (const auto& [sessionId, update] : acMessage.Updates)
     {
-        auto itor = std::find_if(std::begin(view), std::end(view), [sessionId = sessionId, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == sessionId; });
-
-        if (itor == std::end(view))
+        const auto cCopy = actors.BySession<RemoteComponent, InterpolationComponent, RemoteAnimationComponent>(sessionId);
+        if (cCopy == entt::null)
             continue;
 
-        auto& interpolationComponent = view.get<InterpolationComponent>(*itor);
-        auto& animationComponent = view.get<RemoteAnimationComponent>(*itor);
+        auto& interpolationComponent = m_world.get<InterpolationComponent>(cCopy);
+        auto& animationComponent = m_world.get<RemoteAnimationComponent>(cCopy);
         const auto& movement = update.UpdatedMovement;
         for (const auto& action : update.ActionEvents)
             animationComponent.TimePoints.push_back(action);
@@ -94,7 +93,7 @@ void MovementService::OnReferencesMoveRequest(const NotifyReferencesMove& acMess
         const auto& points = interpolationComponent.TimePoints;
         if (movement.CellId && (points.empty() || points.back().Tick <= point.Tick))
         {
-            auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(*itor);
+            auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(cCopy);
             teleported |= place.CellId && (movement.WorldSpaceId != place.WorldSpaceId || (!movement.WorldSpaceId && movement.CellId != place.CellId));
             place.CellId = movement.CellId;
             place.WorldSpaceId = movement.WorldSpaceId;

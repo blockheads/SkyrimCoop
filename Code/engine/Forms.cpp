@@ -65,20 +65,11 @@ namespace
 // Its entry in the change records (internalGetChangeFlags 35503); false for none.
 bool ReadChangeEntry(uint32_t aFormId, TESForm::ChangeFlags& aEntry) noexcept
 {
-    struct Unk
-    {
-        uint8_t unk0[0x330];
-        void* unk330;
-    };
-
     using InternalGetChangeFlags = bool(void*, uint32_t formId, TESForm::ChangeFlags& changeFlags);
 
     POINTER_SKYRIMSE(InternalGetChangeFlags, internalGetChangeFlags, 35503);
 
-    POINTER_SKYRIMSE(Unk*, s_singleton, 403330);
-
-    const auto pUnk = *(s_singleton.Get());
-    return internalGetChangeFlags(pUnk->unk330, aFormId, aEntry);
+    return internalGetChangeFlags(BGSSaveLoadGame::Get()->saveLoadChanges, aFormId, aEntry);
 }
 } // namespace
 

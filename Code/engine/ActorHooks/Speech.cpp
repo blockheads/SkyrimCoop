@@ -83,7 +83,7 @@ float HookSpeakSoundFunction(Actor* apThis, const char* apName, uint32_t* a3, ui
                   apThis->GetExtension()->IsCopy() ? "copy, refused" : apThis->GetExtension()->IsLocal() ? "local" : "not ours", apName ? apName : "");
 
     if (apThis->GetExtension()->IsLocal())
-        World::Get().GetRunner().Trigger(DialogueEvent(apThis->formID, apName));
+        World::Runner().Trigger(DialogueEvent(apThis->formID, apName));
     // A copy says only its owner's lines (NotifyDialogue calls past this hook), none its game picks: no voice.
     else if (apThis->GetExtension()->IsCopy())
         return -1.f;

@@ -15,10 +15,14 @@ thread_local bool t_giving = false;
 void Queued(Queue, const void* apFunctor, bool aAddItem, bool aFromStory) noexcept
 {
     // Either queue: AddItem defers on the post-render one (re/systems/inventory-changes.md).
-    if (!apFunctor || !aAddItem || !aFromStory)
+    if (!apFunctor)
         return;
+    // Not the story's: erase, as a functor at a freed one's address must not keep its mark.
     std::scoped_lock _{s_lock};
-    s_marked.insert(apFunctor);
+    if (aAddItem && aFromStory)
+        s_marked.insert(apFunctor);
+    else
+        s_marked.erase(apFunctor);
 }
 
 Run::Run(const void* apFunctor) noexcept

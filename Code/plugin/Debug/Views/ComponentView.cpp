@@ -71,17 +71,12 @@ void DebugService::SetDebugId(const uint32_t aFormId) noexcept
 
 void DebugService::DrawComponentDebugView()
 {
-    auto view = m_world.view<FormIdComponent>();
-
     if (!m_formId)
         return;
 
-    auto entityIt = std::find_if(view.begin(), view.end(), [id = m_formId, view](auto entity) { return view.get<FormIdComponent>(entity).Id == id; });
-
-    if (entityIt == view.end())
+    const auto entity = m_world.GetActorIndex().ByForm(m_formId);
+    if (entity == entt::null)
         return;
-
-    auto entity = *entityIt;
 
     if (auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(m_formId)))
     {

@@ -94,49 +94,25 @@ bool TESObjectREFR::Activate(TESObjectREFR* apActivator, uint8_t aUnk1, TESBound
 
 static thread_local bool s_cancelAnimationWaitEvent = false;
 
-bool TESObjectREFR::PlayAnimationAndWait(BSFixedString* apAnimation, BSFixedString* apEventName) noexcept
-{
-    using ObjectReference = TESObjectREFR;
-
-    PAPYRUS_FUNCTION(bool, ObjectReference, PlayAnimationAndWait, BSFixedString*, BSFixedString*);
-
-    s_cancelAnimationWaitEvent = true;
-    bool result = s_pPlayAnimationAndWait(this, apAnimation, apEventName);
-    s_cancelAnimationWaitEvent = false;
-    return result;
-}
-
 bool HookPlayAnimationAndWait(void* apThis, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apAnimation, BSFixedString* apEventName)
 {
     spdlog::debug("Animation: {}, EventName: {}", apAnimation->AsAscii(), apEventName->AsAscii());
 
     // Sent by every game, passed on from the host's only (HostAuthority::OnScriptAnimation).
     if (!s_cancelAnimationWaitEvent && !ScopedHostChangeOverride::IsOverriden() && (apSelf->formID < 0xFF000000))
-        World::Get().GetRunner().Trigger(ScriptAnimationEvent(apSelf->formID, apAnimation->AsAscii(), apEventName->AsAscii()));
+        World::Runner().Trigger(ScriptAnimationEvent(apSelf->formID, apAnimation->AsAscii(), apEventName->AsAscii()));
 
     return RealPlayAnimationAndWait(apThis, auiStackID, apSelf, apAnimation, apEventName);
 }
 
 static thread_local bool s_cancelAnimationEvent = false;
 
-bool TESObjectREFR::PlayAnimation(BSFixedString* apEventName) noexcept
-{
-    using ObjectReference = TESObjectREFR;
-
-    PAPYRUS_FUNCTION(bool, ObjectReference, PlayAnimation, BSFixedString*);
-
-    s_cancelAnimationEvent = true;
-    bool result = s_pPlayAnimation(this, apEventName);
-    s_cancelAnimationEvent = false;
-    return result;
-}
-
 bool HookPlayAnimation(void* apThis, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName)
 {
     spdlog::debug("EventName: {}", apEventName->AsAscii());
 
     if (!s_cancelAnimationEvent && !ScopedHostChangeOverride::IsOverriden() && (apSelf->formID < 0xFF000000))
-        World::Get().GetRunner().Trigger(ScriptAnimationEvent(apSelf->formID, std::string{}, apEventName->AsAscii()));
+        World::Runner().Trigger(ScriptAnimationEvent(apSelf->formID, std::string{}, apEventName->AsAscii()));
 
     return RealPlayAnimation(apThis, auiStackID, apSelf, apEventName);
 }
@@ -165,7 +141,7 @@ bool HookActivate(TESObjectREFR* apThis, TESObjectREFR* apActivator, uint8_t aUn
         // Picked before the engine's own pick moves it (17420, this game's player only).
         if (apActivator == PlayerCharacter::Get())
             evt.FurnitureEvent = apThis->PickActivatorFurnitureEvent(*pActivator, aDefaultProcessing);
-        World::Get().GetRunner().Trigger(evt);
+        World::Runner().Trigger(evt);
     }
 
     // A door or container the player opens with its key unlocks inside (TESObjectDOOR/CONT::Activate).
@@ -181,7 +157,7 @@ bool HookActivate(TESObjectREFR* apThis, TESObjectREFR* apActivator, uint8_t aUn
 void RaiseJump(TESObjectREFR* apThis) noexcept
 {
     if (apThis && Cast<Actor>(apThis))
-        World::Get().GetRunner().Trigger(ReferenceJumpEvent{apThis->formID});
+        World::Runner().Trigger(ReferenceJumpEvent{apThis->formID});
 }
 
 void HookMoveTo(TESObjectREFR* apThis, void* apTargetHandle, TESObjectCELL* apCell, TESWorldSpace* apWorldSpace, const NiPoint3& acPosition, const NiPoint3& acRotation)
@@ -258,9 +234,9 @@ void HookLockChange(TESObjectREFR* apThis)
     const auto* pLock = apThis->GetLock();
     const bool cByPlayer = ScopedPlayerLockOverride::IsOverriden();
     if(pLock)
-        World::Get().GetRunner().Trigger(LockChangeEvent(apThis->formID, pLock->IsLocked(), pLock->lockLevel, cByPlayer));
+        World::Runner().Trigger(LockChangeEvent(apThis->formID, pLock->IsLocked(), pLock->lockLevel, cByPlayer));
     else
-        World::Get().GetRunner().Trigger(LockChangeEvent(apThis->formID, false, 0, cByPlayer));
+        World::Runner().Trigger(LockChangeEvent(apThis->formID, false, 0, cByPlayer));
 }
 
 // LockpickingMenu::Unlock (51968, `void (LockpickingMenu*)`): the player's lockpick opened it.

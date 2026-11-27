@@ -139,7 +139,7 @@ void HookPutCreatedPackage(Actor* apThis, TESPackage* apPackage, bool aRunOnce, 
         return;
 
     RealPutCreatedPackage(apThis, apPackage, aRunOnce, aCreated, aAllowFromFurniture);
-    World::Get().GetRunner().Trigger(AiStateChangeEvent{apThis->formID});
+    World::Runner().Trigger(AiStateChangeEvent{apThis->formID});
 }
 
 // Actor::GetCurrentPackage (37399): what GetIsCurrentPackage (21529) and Papyrus read.
@@ -199,6 +199,7 @@ void Actor::InitiateDoNothingPackage() noexcept
         extraData.RemoveByType(ExtraDataType::Package);
 }
 
+struct Console;
 using TSetCurrentPickREFR = void(Console*, BSPointerHandle<TESObjectREFR>* apRefr);
 static TSetCurrentPickREFR* RealSetCurrentPickREFR = nullptr;
 
