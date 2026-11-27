@@ -826,6 +826,8 @@ class CombatActions:
         copy = ctx.other_player(ctx.actors_on(dragger))
         if not ctx.death_state(victim).get("down"):
             raise ctx.failure(f"[{victim or 'host'}] the victim is not down")
+        # Where it lies once its fall settled, so only the drag counts.
+        ctx.ragdoll_lies_as_owner(owner=victim, actor=0x14, other=dragger, copy=copy)
         before = ctx.ragdoll_of(victim, 0x14)[0]["position"]
         ctx.go_to(dragger, copy, 70.0)
         # The crosshair on its pelvis: the grab springs the ragdoll bone it picks (40555).

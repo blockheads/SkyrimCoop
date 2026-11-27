@@ -1558,8 +1558,10 @@ Size: small. Needs: the duo, then GameTests.
 `host-drags-dead-guest` (2026-11-27, after the fix that takes a copy's held corpse out of the played group): the host's
 player walking backwards with the dead guest's copy let go after 1.3 s and 1.8 s (two runs); the host's own dead
 bandit (base 13BA1), dragged the same way, held the whole 2 s (one run). The copy's bones follow the hand meanwhile
-(33 units in 1.8 s) and the guest's own body follows them. Not read: which of the moving group's rules
-(`BodyGroups::Decide`) still differs from the engine's for a ragdoll, or whether it is chance.
+(33 units in 1.8 s) and the guest's own body follows them. Not read: which collider pair and `BodyGroups::Decide`
+result pinned the copy's bones in the played group before the fix (only the hook switch showed it), and which still
+differs in the moving group, or whether it is chance. The fake's pinned-grab rule (`FakeEngine::PlayerHolds`) rests on
+that switch alone.
 
 Agent task: rounds of both drags (`drags_dead_player`, and the same on a host NPC's corpse), then read what the copy's
 bones meet that the host's own corpse's do not.

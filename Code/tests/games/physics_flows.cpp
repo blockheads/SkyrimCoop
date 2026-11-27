@@ -7,6 +7,7 @@
 #include <physics/BodyService.h>
 #include <physics/GuestBodies.h>
 #include <Messages/Relayed.h>
+#include <physics/BodyPlayback.h>
 #include <physics/BodyPrediction.h>
 #include <physics/BodyTolerances.h>
 #include <physics/RestPlacer.h>
@@ -2292,11 +2293,10 @@ SCENARIO("A guest's player pushes a body a script holds keyframed: it is not tak
 
 namespace
 {
-// Skyrim (duo, host-drags-dead-guest, 2026-11-27): the host's player held E on the dead guest's body and walked back
-// with it; the host never took it (its copy's ragdoll was keyed by local actors only), so the guest's own body never
-// moved and the copy was put back at the guest's rest. A corpse is anyone's to drag (40555 takes any dead actor): the
-// dragger's frames move the dead player's own body on its game, and every copy lies where the dragger left it.
-void DragsDeadPlayer(Party& aParty, World& aDragger, World& aVictim)
+// Skyrim (duo, host-drags-dead-guest, 2026-11-27): the dragger's frames never moved the dead guest's own body
+// (docs/re/systems/physics.md, "Dragging a corpse").
+// aLeave: the dragger leaves the session holding it, instead of letting go.
+void DragsDeadPlayer(Party& aParty, World& aDragger, World& aVictim, bool aLeave = false)
 {
     World& host = aParty.Host();
     aParty.Agree("all players are present");
@@ -2312,11 +2312,12 @@ void DragsDeadPlayer(Party& aParty, World& aDragger, World& aVictim)
                 return cId;
         return 0u;
     };
-    // A host NPC fights the dragger: the party is in combat, so the dead player stays down through the drag.
+    // A host NPC fights a standing player (the host's, unless it is the dead one): the party is in combat, so the dead
+    // player stays down.
     uint32_t guard = 0;
     aParty.As(host, [&] { guard = Party::Engine(host).LoadNpc(kGuard, kSmoke, {400.f, 400.f, 0.f}); });
-    const uint32_t cDragger = &aDragger == &host ? FakeEngine::kPlayer : cCopyOn(host, SessionOf(aDragger, FakeEngine::kPlayer));
-    aParty.As(host, [&] { Party::Engine(host).Fights(guard, cDragger); });
+    const uint32_t cStanding = &aVictim != &host ? FakeEngine::kPlayer : cCopyOn(host, SessionOf(aDragger, FakeEngine::kPlayer));
+    aParty.As(host, [&] { Party::Engine(host).Fights(guard, cStanding); });
     aParty.Until([&] { return std::ranges::all_of(others, [&](World* apGame) { return cCopyOn(*apGame, cSession) != 0; }); },
                  "each other game has the victim's copy");
 
@@ -2382,7 +2383,13 @@ void DragsDeadPlayer(Party& aParty, World& aDragger, World& aVictim)
         aParty.Frame();
     REQUIRE(dragger.Grabbed); // still in its hands
     CHECK(cRestVersion() == cRestBefore);
-    aParty.As(aDragger, [&] { dragger.Grabbed.reset(); });
+    if (aLeave)
+    {
+        aParty.Leave(aDragger);
+        std::erase(others, &aDragger);
+    }
+    else
+        aParty.As(aDragger, [&] { dragger.Grabbed.reset(); });
     const auto cWhere = [&] {
         return std::format("the dead player's own bone 0 at x {:.1f} {}, the dragger's copy at x {:.1f} {}", cOwnBone(0).Flight.Body.Position.x,
                            cOwnBone(0).Awake ? "awake" : "asleep", cCopyBone(aDragger, 0).Flight.Body.Position.x,
@@ -2398,16 +2405,41 @@ void DragsDeadPlayer(Party& aParty, World& aDragger, World& aVictim)
                     glm::distance(cOwnBone(i).Flight.Body.Position, cCopyBone(*pGame, i).Flight.Body.Position) >= FakeEngine::kRagdollNear)
                     return false;
         }
-        return glm::distance(cOwnBone(0).Flight.Body.Position, cLay) > 100.f;
+        return aLeave || glm::distance(cOwnBone(0).Flight.Body.Position, cLay) > 100.f;
     }, "the dead player's own body and every copy lie where the dragger left it", cWhere);
     for (int i = 0; i < 60; ++i)
         aParty.Frame();
     INFO(cWhere());
     CHECK(Party::Engine(aVictim).IsActorDead(FakeEngine::kPlayer));
-    CHECK(glm::distance(cOwnBone(0).Flight.Body.Position, starts[0] + cDrag) < 5.f);
+    if (!aLeave)
+        CHECK(glm::distance(cOwnBone(0).Flight.Body.Position, starts[0] + cDrag) < 5.f);
     for (World* pGame : others)
         for (uint8_t i = 0; i < kRagdollBodies; ++i)
             CHECK(glm::distance(cOwnBone(i).Flight.Body.Position, cCopyBone(*pGame, i).Flight.Body.Position) < FakeEngine::kRagdollNear);
+
+    // Its own game's physics moves it next (a blast at once): every copy follows it there, the drag's numbers no bar. A
+    // mover that left is silent kLostMs first (the frame clock is the wall's here).
+    if (aLeave)
+        for (const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(BodyPlayback::kLostMs + 300);
+             std::chrono::steady_clock::now() < cUntil;)
+            aParty.Frame();
+    aParty.As(aVictim, [&] {
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            victim.Knock({.Actor = FakeEngine::kPlayer, .Index = i}, {0.f, 250.f, 30.f}, {});
+    });
+    const glm::vec3 cBefore = cOwnBone(0).Flight.Body.Position;
+    aParty.Until([&] {
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+        {
+            if (cOwnBone(i).Awake)
+                return false;
+            for (World* pGame : others)
+                if (cCopyBone(*pGame, i).Awake ||
+                    glm::distance(cOwnBone(i).Flight.Body.Position, cCopyBone(*pGame, i).Flight.Body.Position) >= FakeEngine::kRagdollNear)
+                    return false;
+        }
+        return glm::distance(cOwnBone(0).Flight.Body.Position, cBefore) > 30.f;
+    }, "its own blast moves it on every game", cWhere);
 }
 } // namespace
 
@@ -2427,4 +2459,10 @@ SCENARIO("A guest's player drags another dead guest's body: it lies where the dr
 {
     Party party(2, Plugins);
     DragsDeadPlayer(party, party.Guest(0), party.Guest(1));
+}
+
+SCENARIO("A guest leaves holding another dead guest's body: its own game's physics has it again", "[physics][death][corpse-drag]")
+{
+    Party party(2, Plugins);
+    DragsDeadPlayer(party, party.Guest(0), party.Guest(1), true);
 }

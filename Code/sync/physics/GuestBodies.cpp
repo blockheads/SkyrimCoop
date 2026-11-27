@@ -1,6 +1,7 @@
 #include <physics/GuestBodies.h>
 
 #include <physics/IBodyBridge.h>
+#include <physics/BodyPlayback.h>
 #include <physics/BodyPrediction.h>
 #include <physics/BodyTolerances.h>
 
@@ -236,8 +237,18 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
     const bool cWasMine = m_authority.Is(cKey, kMe);
     const auto cHeard = m_authority.Hear(acState, kMe);
     // Its player's corpse another player drags: played here from the host's states until it rests.
-    if (cHeard == BodyAuthority::Heard::kApply && !acState.AtRest && cKey.Actor && cKey.Actor == PlayerId())
-        m_playedOwn.insert(cKey);
+    if (cKey.Actor && cKey.Actor == PlayerId() && !acState.AtRest)
+    {
+        if (acState.Author == BodyAuthor::kOther)
+            m_playedOwn[cKey] = m_world.GetFrameTick();
+        else if (acState.Author == BodyAuthor::kNone && m_playedOwn.erase(cKey))
+        {
+            // Its mover's claim ended (it left): this game's physics has it again.
+            m_authority.Forget(cKey);
+            m_world.ctx().at<BodyService>().Forget(cKey);
+            return false;
+        }
+    }
     if (cWasMine && !m_authority.Is(cKey, kMe))
     {
         if (cHeard == BodyAuthority::Heard::kConfirmed)
@@ -273,6 +284,14 @@ void GuestBodies::Ragdoll(uint64_t aTick, IGuestEngine::OwnBodies& aOwn, std::ve
     const uint32_t cPlayer = PlayerId();
     if (!cPlayer)
         return;
+    // Its mover gone silent (it left, the host took it back unheard): this game's physics has it again.
+    std::erase_if(m_playedOwn, [&](const auto& acPlayed) {
+        if (aTick < acPlayed.second + BodyPlayback::kLostMs)
+            return false;
+        m_authority.Forget(acPlayed.first);
+        m_world.ctx().at<BodyService>().Forget(acPlayed.first);
+        return true;
+    });
     for (BodyFrame& frame : aOwn.Ragdoll)
         frame.Key.Actor = cPlayer;
     // Moved by another player's states, not this game's physics: not taken back.
@@ -293,8 +312,9 @@ void GuestBodies::Ragdoll(uint64_t aTick, IGuestEngine::OwnBodies& aOwn, std::ve
     });
     for (BodyPose& rest : aOwn.RagdollRested)
     {
-        m_playedOwn.erase(rest.Key);
-        m_authority.Forget(rest.Key);
+        // At another player's rest: its numbers kept, so this game's next claim of it is newer than the host's row.
+        if (!m_playedOwn.erase(rest.Key))
+            m_authority.Forget(rest.Key);
         m_stream.Forget(rest.Key);
         m_motions.Forget(rest.Key);
     }

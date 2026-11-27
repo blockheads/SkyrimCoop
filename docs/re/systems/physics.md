@@ -350,7 +350,7 @@ ActivateHandler::ProcessButton (42420)  E held past fZKeyDelay:Controls, no grab
       the spring's body: the crosshair's picked body (CrosshairPickData+32), for a corpse the ragdoll bone under it,
       anchored at its hit point (+16); refused for a keyframed (4) or fixed (5) motion
       a corpse's spring is softer: the fGrabbedActor* settings, scaled by its 3D's size
-release: ReleaseGrab (our name, 0x140751A30) -> DestroyMouseSprings (40557)
+release: ReleaseGrab (40553, our name) -> DestroyMouseSprings (40557)
 ```
 
 So any game's player can drag any dead actor's body shown there, a copy's too, as long as its bones are dynamic (a
@@ -361,7 +361,7 @@ the copy was put back at the guest's rest. Once the host heard of it, the grab s
 bones (dynamic, awake, the crosshair's picked body was ragdoll bone 16: harness `ragdoll`'s `picked`) moved 0.2 units
 in the hand. They sat in our played group (`BodyGroups::kPlayed`, `BodyBridge::Find`), and with the `PlayerCollision`
 hook off (`BodyGroups::Decide` in 78553) the same drag held for 2 s and moved the guest's own body 46 units (measured;
-which pair of the played group's rules pins them was not read). A guest's taken corpse already left that group
+which pair of colliders and which `Decide` result pins them was not traced: inferred from the hook switch alone). A guest's taken corpse already left that group
 (`BodyBridge::SetMoving`); the host's hold now does the same. Now (`docs/progress.md`): the host keys a copy's ragdoll
 and takes it while its player holds or moves it, any player may claim a dead actor's bodies (`HostBodies::MayClaim`), and the dead
 player's own game plays the dragger's states on its own body without claiming them back (`GuestBodies`). A dead
