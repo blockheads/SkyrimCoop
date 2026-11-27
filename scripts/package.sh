@@ -28,7 +28,7 @@ ui = root / "Code/plugin/Ui/assets"
 docs = "SKSE/Plugins/SkyrimCoop"
 files = {
     "SKSE/Plugins/SkyrimCoop.dll": dll,
-    "SkyrimCoopStart.esp": root / "GameFiles/Skyrim/SkyrimCoopStart.esp",
+    "SkyrimCoopStart.esp": root / "assets/SkyrimCoopStart.esp",
     f"{docs}/INSTALL.md": root / "docs/install.md",
     f"{docs}/playtest.md": root / "docs/playtest.md",
     f"{docs}/LICENSE": root / "LICENSE",
