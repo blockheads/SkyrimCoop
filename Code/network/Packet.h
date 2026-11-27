@@ -2,13 +2,18 @@
 
 #include <NoCopyMove.h>
 
+#include <cstddef>
 #include <cstdint>
-#include <NoCopyMove.h>
-
-#include <cstdint>
+#include <string>
 
 namespace Net
 {
+    // Above any real message (a player record's blobs go to 16 MB less a byte), below enet's 32 MB packet.
+    inline constexpr size_t kMaxUncompressed = 16u << 20;
+
+    // A compressed payload into aOut; false when broken or when its header claims more than kMaxUncompressed.
+    [[nodiscard]] bool Uncompress(const void* apData, size_t aSize, std::string& aOut) noexcept;
+
     struct Packet
     {
 

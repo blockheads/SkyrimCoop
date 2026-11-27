@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include <core/ActorIndex.h>
 #include <core/RecipeBook.h>
 #include <core/CopyClock.h>
 #include <core/RunnerService.h>
@@ -28,7 +29,6 @@ class IEngine;
 struct SessionService;
 struct TravelService;
 struct CharacterService;
-struct MagicService;
 struct HostService;
 struct Hosting;
 
@@ -61,23 +61,20 @@ struct World : entt::registry
     TransportService& GetTransport() noexcept;
 
     SessionService& GetSessionService() noexcept;
-    const SessionService& GetSessionService() const noexcept;
     TravelService& GetTravelService() noexcept;
-    const TravelService& GetTravelService() const noexcept;
     CharacterService& GetCharacterService() noexcept;
-    const CharacterService& GetCharacterService() const noexcept;
-    MagicService& GetMagicService() noexcept;
-    const MagicService& GetMagicService() const noexcept;
     // Hosting as the features use it (HostService).
     Hosting& GetHosting() noexcept;
     HostService& GetHostService() noexcept;
-    const HostService& GetHostService() const noexcept;
 
     // Bridge accessors — interfaces injected into EnTT context by World.cpp
     IActorBridge& GetActorBridge() noexcept;
     IFormBridge& GetFormBridge() noexcept;
     IPlayerBridge& GetPlayerBridge() noexcept;
     IWorldBridge& GetWorldBridge() noexcept;
+
+    // This game's actors by session id and form id.
+    [[nodiscard]] const ActorIndex& GetActorIndex() const noexcept { return m_actorIndex; }
 
     auto& GetDispatcher() noexcept { return m_dispatcher; }
     // The player-made potions' recipes this game knows (ItemIds).
@@ -98,10 +95,12 @@ struct World : entt::registry
 
     // The game this code runs in: the plugin's one World; in the tests, the game whose turn it is.
     [[nodiscard]] static World& Get() noexcept;
-    [[nodiscard]] static bool Exists() noexcept;
     static void SetCurrent(World* apWorld) noexcept;
+    // Its event queue, from any thread (an engine hook on a job thread); Get() is for the update and the main thread.
+    [[nodiscard]] static RunnerService& Runner() noexcept;
 
 private:
+    ActorIndex m_actorIndex{*this}; // before every service: it sees each actor's components from the first
     entt::dispatcher m_dispatcher;
     // First: every service is built on it, and outlives none of them.
     std::unique_ptr<IEngine> m_pEngine;

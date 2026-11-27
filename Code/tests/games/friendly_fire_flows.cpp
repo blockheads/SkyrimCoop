@@ -330,7 +330,6 @@ SCENARIO("A victim's last move, sent before it heard of the kill move, leaves th
 {
     Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
-    FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
                 "both games have the other's player");
 
@@ -344,7 +343,6 @@ SCENARIO("A victim's last move, sent before it heard of the kill move, leaves th
 SCENARIO("A kill move's victim brushing a wall lives on to the clip's own kill", "[combat][friendly-fire][kill-move]")
 {
     Party party(1, SmokeWorld);
-    FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
                 "both games have the other's player");

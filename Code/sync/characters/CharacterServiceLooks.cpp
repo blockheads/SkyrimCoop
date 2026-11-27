@@ -58,16 +58,14 @@ void CharacterService::OnNotifyRespawn(const NotifyRespawn& acMessage) noexcept
         return;
     }
     m_pendingLooks.erase(acMessage.ActorId);
-    auto view = m_world.view<FormIdComponent, RemoteComponent>();
-    const auto entityIt = std::find_if(view.begin(), view.end(), [view, id = acMessage.ActorId](auto aEntity) { return view.get<RemoteComponent>(aEntity).Id == id; });
-
-    if (entityIt == view.end())
+    const auto cEntity = m_world.GetActorIndex().BySession<FormIdComponent, RemoteComponent>(acMessage.ActorId);
+    if (cEntity == entt::null)
     {
         spdlog::error("Actor to respawn not found in: {:X}", acMessage.ActorId);
         return;
     }
 
-    RespawnCopy(*entityIt, acMessage.ActorId);
+    RespawnCopy(cEntity, acMessage.ActorId);
 }
 
 void CharacterService::QueuePendingLooks() noexcept
@@ -95,15 +93,14 @@ void CharacterService::ApplyPendingLooks() noexcept
         m_world.ctx().at<ActorValueService>().RestoreCopyValues(it->first);
         // A different race has a different variable layout; derive it from the rebuilt graph.
         m_actorBridge.SetAnimationGraphDescriptorHash(cFormId, 0);
-        for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
-            if (form.Id == cFormId)
-            {
-                m_world.remove<FaceGenComponent>(cEntity);
-                KeepFaceTints(m_world, cEntity, cLooks.FaceTints);
-                PaintFace(cEntity, cFormId);
-                if (const auto* cpPlayer = m_world.try_get<PlayerComponent>(cEntity))
-                    SetCopyLevel(cFormId, cpPlayer->Id);
-            }
+        if (const auto cEntity = m_world.GetActorIndex().ByForm<RemoteComponent>(cFormId); cEntity != entt::null)
+        {
+            m_world.remove<FaceGenComponent>(cEntity);
+            KeepFaceTints(m_world, cEntity, cLooks.FaceTints);
+            PaintFace(cEntity, cFormId);
+            if (const auto* cpPlayer = m_world.try_get<PlayerComponent>(cEntity))
+                SetCopyLevel(cFormId, cpPlayer->Id);
+        }
         it = m_pendingLooks.erase(it);
     }
 }
@@ -133,21 +130,19 @@ void CharacterService::PaintFace(entt::entity aEntity, uint32_t aFormId) noexcep
 
 void CharacterService::OnActorHeadUpdate(const ActorHeadUpdateEvent& acEvent) noexcept
 {
-    for (auto&& [cEntity, form, face] : m_world.view<FormIdComponent, FaceGenComponent>().each())
-        if (form.Id == acEvent.FormId)
-            PaintFace(cEntity, form.Id);
+    if (const auto cEntity = m_world.GetActorIndex().ByForm<FaceGenComponent>(acEvent.FormId); cEntity != entt::null)
+        PaintFace(cEntity, acEvent.FormId);
 }
 
 void CharacterService::OnPlayerLooksChange(const PlayerLooksChangeEvent&) const noexcept
 {
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    const auto it = std::find_if(view.begin(), view.end(), [view](auto entity) { return view.get<FormIdComponent>(entity).Id == 0x14; });
+    const auto cPlayer = m_world.GetActorIndex().ByForm<LocalComponent>(0x14);
     // Not announced yet: its announcement carries the looks.
-    if (it == view.end() || !m_transport.IsOnline())
+    if (cPlayer == entt::null || !m_transport.IsOnline())
         return;
 
     RequestRespawn request;
-    request.ActorId = view.get<LocalComponent>(*it).Id;
+    request.ActorId = m_world.get<LocalComponent>(cPlayer).Id;
     m_actorBridge.MarkActorNpcChanged(0x14, kPlayerLooksFlags);
     request.ChangeFlags = m_actorBridge.SerializeActorNpc(0x14, request.AppearanceBuffer);
     request.FaceTints = m_playerBridge.GetPlayerFaceTints();
@@ -166,14 +161,13 @@ void CharacterService::OnPlayerRevived(const PlayerRevivedEvent&) const noexcept
 {
     if (!m_transport.IsOnline())
         return;
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    const auto it = std::ranges::find_if(view, [&view](auto aEntity) { return view.get<FormIdComponent>(aEntity).Id == 0x14; });
-    if (it == view.end())
+    const auto cPlayer = m_world.GetActorIndex().ByForm<LocalComponent>(0x14);
+    if (cPlayer == entt::null)
         return;
 
     const auto state = ReadLiveState(0x14);
     RequestRespawn request;
-    request.ActorId = view.get<LocalComponent>(*it).Id;
+    request.ActorId = m_world.get<LocalComponent>(cPlayer).Id;
     request.HasState = true;
     request.LatestAction = state.LatestAction;
     request.GraphState = state.GraphState;

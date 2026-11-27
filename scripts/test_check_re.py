@@ -1,5 +1,4 @@
 """scripts/check_re.py: added notes and journal rows name real IDs at their RVAs; systems docs use names, not sub_."""
-import json
 import sys
 import tempfile
 import unittest
@@ -49,6 +48,28 @@ class Problems(unittest.TestCase):
         found = self.check(NOTES, *rows, libraries={"1.7.104": {37507: 0x689370, 37996: 0x6b1ab0}})
         self.assertEqual(len(found), 1)
         self.assertIn("sub_1407023E0", found[0])
+
+
+class TwiceDeclared(unittest.TestCase):
+    @staticmethod
+    def use(path, kind="call", type_name="TFind"):
+        return {"file": path, "kind": kind, "type": type_name}
+
+    def test_one_id_declared_in_two_files_fails(self):
+        uses = {41408: [self.use("Code/engine/Bridges/CrimeBridge.cpp", "data", "THighest"),
+                        self.use("Code/harness/TestHarness/CommandsCrime.cpp", "data", "THighest")]}
+        self.assertEqual(check_re.twice_declared(uses), {41408: ["Code/engine/Bridges/CrimeBridge.cpp",
+                                                                 "Code/harness/TestHarness/CommandsCrime.cpp"]})
+
+    def test_one_file_counts_once(self):
+        self.assertEqual(check_re.twice_declared({12074: [self.use("Code/a.cpp"), self.use("Code/a.cpp")]}), {})
+
+    def test_hooks_patches_and_bare_addresses_are_not_declarations(self):
+        uses = {37537: [self.use("Code/engine/ActorHooks/Combat.cpp", "hook"), self.use("Code/engine/Actor.cpp")],
+                38628: [self.use("Code/engine/PlayerHands.cpp", "data", "uint8_t"), self.use("Code/engine/Actor.cpp")],
+                82082: [self.use("Code/engine/Interface/UI.cpp", "patch"), self.use("Code/engine/Actor.cpp")],
+                401069: [self.use("Code/engine/Papyrus/NativeReach.cpp", "data", "void"), self.use("Code/engine/Actor.cpp")]}
+        self.assertEqual(check_re.twice_declared(uses), {})
 
 
 class ReferenceData(unittest.TestCase):

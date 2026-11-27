@@ -103,7 +103,7 @@ bool Take(const InputEvent* apChain) noexcept
             if (direction)
             {
                 if (cButton.IsPress())
-                    World::Get().GetRunner().Trigger(SpectateCycleEvent{direction});
+                    World::Runner().Trigger(SpectateCycleEvent{direction});
                 buttons = true;
                 continue;
             }

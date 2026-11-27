@@ -21,10 +21,6 @@ struct ImguiService
     void Create(RenderSystemD3D11* apRenderSystem, HWND aHwnd);
 
     void Render() const;
-    void Reset() const;
-
-    LRESULT WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-    void RawInputHandler(RAWINPUT& aRawinput);
 
     entt::sink<entt::sigh<TCallback>> OnDraw;
 

@@ -114,21 +114,6 @@ MenuTopicManager::Dialogue* MenuTopicManager::BuildOption(TESTopic* apTopic, TES
     return pOption;
 }
 
-void MenuTopicManager::Append(Dialogue* apOption) noexcept
-{
-    ListLock lock(criticalSection);
-    if (!dialogueList)
-        return;
-    Entry* pLast = &dialogueList->entry;
-    while (pLast->next)
-        pLast = pLast->next;
-    // An empty list holds its first option in the head node.
-    if (!pLast->data)
-        pLast->data = apOption;
-    else
-        pLast->next = NewNode(apOption);
-}
-
 void MenuTopicManager::SetOptions(const std::vector<Dialogue*>& acOptions) noexcept
 {
     std::vector<Dialogue*> dropped;

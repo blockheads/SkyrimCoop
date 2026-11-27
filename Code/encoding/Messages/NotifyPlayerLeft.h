@@ -3,22 +3,11 @@
 #include "Message.h"
 #include <Wire/Buffer.h>
 
-struct NotifyPlayerLeft final : NotifyMessage
+struct NotifyPlayerLeft final : MessageOf<NotifyPlayerLeft, kNotifyPlayerLeft>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyPlayerLeft;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(PlayerId, Username); }
+    bool operator==(const NotifyPlayerLeft&) const noexcept = default;
 
-    NotifyPlayerLeft()
-        : NotifyMessage(Opcode)
-    {
-    }
-
-    virtual ~NotifyPlayerLeft() = default;
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyPlayerLeft& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username; }
-
-    uint32_t PlayerId;
+    uint32_t PlayerId{};
     std::string Username;
 };

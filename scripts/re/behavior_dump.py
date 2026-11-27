@@ -25,7 +25,6 @@ def read_bsa(path, want):
     pos=foff; folders=[]
     for i in range(fcount):
         h,cnt,_,off=struct.unpack_from('<QIIQ',d,pos); pos+=24; folders.append(cnt)
-    names_pos=None
     recs=[]
     for cnt in folders:
         ln=d[pos]; dname=d[pos+1:pos+ln].rstrip(b'\0').decode(); pos+=1+ln
@@ -44,7 +43,7 @@ def read_bsa(path, want):
         if aflags & 0x100:
             ln=d[p]; p+=1+ln; size-=1+ln
         if comp:
-            orig=struct.unpack_from('<I',d,p)[0]; data=lz4.frame.decompress(d[p+4:p+size])
+            data=lz4.frame.decompress(d[p+4:p+size])
         else:
             data=d[p:p+size]
         out.append((full,data))

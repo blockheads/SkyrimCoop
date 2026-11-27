@@ -121,7 +121,7 @@ BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Pro
     }, [&Event](Projectile* apProjectile) {
         CountLaunch(apProjectile, "");
         Event.Power = apProjectile->fPower;
-        World::Get().GetRunner().Trigger(Event);
+        World::Runner().Trigger(Event);
     });
 }
 

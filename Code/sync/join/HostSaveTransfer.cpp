@@ -49,12 +49,6 @@ bool HostSaveTransfer::Empty() const noexcept
     return m_recipients.empty() && std::ranges::all_of(m_receivers, [](const auto& acReceiver) { return acReceiver.second.Ahead; });
 }
 
-bool HostSaveTransfer::IsSending(ConnectionId_t aConnection) const noexcept
-{
-    const auto it = m_receivers.find(aConnection);
-    return it != m_receivers.end() && !it->second.Ahead;
-}
-
 void HostSaveTransfer::OnDisconnected(ConnectionId_t aConnection) noexcept
 {
     m_receivers.erase(aConnection);

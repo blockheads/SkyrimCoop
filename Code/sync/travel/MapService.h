@@ -29,7 +29,6 @@ struct MapService
     void OnNotifyRemoveWaypoint(const NotifyRemoveWaypoint& acMessage) noexcept;
 
   private:
-    World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
     IPlayerBridge& m_playerBridge;

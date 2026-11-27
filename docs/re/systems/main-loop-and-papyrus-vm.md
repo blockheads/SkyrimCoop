@@ -23,7 +23,6 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 
 | ID | Engine function | Our hook | Notes |
 |---|---|---|---|
-| 55739 | (unnamed) bind-all-natives | `HookBindEverythingToScript` | **SKSE hooks this too** (`Hooks_Papyrus.cpp: RegisterPapyrusFunctions`). We bind `DidLaunchSkyrimTogether` (upstream's `IsRemotePlayer` / `IsPlayer` went with its patched scripts, 2026-10-20). |
 | 104788 | (unnamed) register native | `HookRegisterPapyrusFunction` | Fires `PapyrusFunctionRegisterEvent`. |
 
 - The host's script engine also treats every party member as the player: comparisons, `Game.GetPlayer()`,
@@ -33,8 +32,8 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 - Our `NativeFunction` ctor (ID 104653) and dtor (104655) match SKSE's
   `PapyrusNativeFunctions.h` (`Impl_dtor` = 0x0143E330). Layout: `NativeFunctionBase` is 0x50
   bytes; compare with SKSE's field comments and CommonLib `RE/N/NativeFunctionBase.h`.
-- The bound function targets the script `SkyrimTogetherVerifyLaunchScript` from the mod's data files
-  (`GameFiles/`). Without it installed the VM cannot attach it.
+- The bound function targets upstream's script `SkyrimTogetherVerifyLaunchScript`, no longer bundled (it went with
+  `SkyrimTogether.esp`, 2026-11-26): nothing calls it.
 
 ## Freezing the world: `Main::freezeTime` (2026-11-02, 1.7.104)
 

@@ -233,6 +233,46 @@ boots the games with the heap history itself: `count_double_frees`, then `expect
   lock 12358, or task 24 through 36943), then a `DeleteFunctor` after the frame's render -> `GarbageCollector::Add`
   36459 -> `Job_Garbage` (36479). No free of it showed in either run.
 
+## UnequipAll's walk follows a node its unequip freed (2026-11-27)
+
+Read in IDA on 1.7.104; the free and the stale read measured on the duo (the six mount scenarios, heap history and
+quarantine on, the guest). Searched `reference/plugins` for 38899 and 16096: EngineFixes names 38899 for its null
+process fix only; nothing patches the walk.
+
+```text
+ActorEquipManager::UnequipAll 38899
+  InventoryChanges::VisitWornItems 16096 with UnequipAllVisitor
+    for each node of the changes' entry list (BSSimpleList<InventoryEntryData*>)
+      next = node->next                       taken BEFORE the visit (0x14023734b)
+      a worn list: visitor -> UnequipObject 38901 -> 38934 -> 38920 -> 38002 -> 38005
+        -> InventoryChanges::UnequipWornList 16067
+             the list loses its worn extra; an empty list is freed
+             an entry left with no list and count delta 0 (a base container's item) leaves the entry list
+               the head:  the next node's item and link are copied in, the NEXT node is freed (0x1402329a3, 16180)
+               elsewhere: its own node is unlinked and freed (the walk is past it)
+      node = next                              the freed node when the head's entry left
+```
+
+So unequipping everything on an actor whose first changes entry is a worn base-container item, with a second entry
+after it, reads a freed 16-byte node; not quarantined, that block is the busiest size there is (our equips' own
+`AddWornItem` 16066 nodes), and the walk goes on through whatever took it, unequipping what it finds there.
+
+- **Measured** (crash `07-02-09`, travel move applied): the guest stopped on `0xDBDB...` at 16096+0x45 under
+  `SkyrimBridge::ActorResetEquipment` (`InventoryService::ApplyWorn`, "Equipment reconcile 1348C: reset worn set",
+  Faendal's copy as its 3D loaded, 11 s after the party arrived at Riverwood's cell 9732). The node was allocated by `AddWornItem` 16066 under our equip of that copy
+  10 s before and freed by 16067 (from 38934) 17 ms before, on the same thread, inside the same `UnequipAll`.
+- **Read:** the reconcile resets a copy whose hands hold less than its worn set: Faendal's copy did on every Riverwood
+  arrival in both crash logs of 2026-11-27 (7 s and 9 s before the crashes).
+- **Inferred, not measured:** that the two crashes of 2026-11-27 (a `Character` whose vtable read as a heap pointer and
+  then as a `Character` again, and a copy's base `TESNPC` with a null vtable) are this walk's victims: a walk through a
+  reused node can free blocks that are not its own, and a block freed twice is handed to two objects, the shape of
+  [the worn list freed twice](#a-worn-item-removed-from-an-actor-with-no-process-the-list-freed-twice-2026-11-22).
+
+**The fix** (`engine/WornStacks.h`, `EquipManager::UnequipAll`): the worn stacks are read first, and each is found
+again by address in a fresh walk before `UnequipObject` 38901 takes it (the visitor's slots and counts: 23607/23608,
+an ammo entry's delta); 38899 then runs with nothing worn for its walk, for the hands' spells. UnitTests
+`[worn-stacks]` model 16067's head removal: the engine's walk reads the freed node, ours does not.
+
 ## An alias-held item leaving a container (2026-11-23, IDA 1.7.104, read)
 
 The Golden Claw (playtest 2026-11-22, item 15). MS13's `GoldenClaw` alias (11) creates `MS13GoldenClaw` (39647) **in**

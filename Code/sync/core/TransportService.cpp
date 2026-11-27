@@ -299,7 +299,7 @@ void TransportService::HandleConnected(const ConnectedEvent& acEvent) noexcept
 
 void TransportService::HandleDisconnected(const DisconnectedEvent& acEvent) noexcept
 {
-    m_localPlayerId = NULL;
+    m_localPlayerId = 0;
 }
 
 void TransportService::HandleAuthenticationResponse(const AuthenticationResponse& acMessage) noexcept

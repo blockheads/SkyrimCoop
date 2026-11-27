@@ -14,13 +14,11 @@ TESForm* GetFormBySessionId(uint32_t aSessionId) noexcept
     return nullptr;
 }
 
-void ShowHudMessage(const std::string& acMessage)
+void ShowHudMessage(const std::string& acMessage, bool aCancelIfQueued)
 {
     using TShowHudMessage = void(const char*, const char*, bool);
-
     POINTER_SKYRIMSE(TShowHudMessage, s_showHudMessage, 52933);
-
-    s_showHudMessage(acMessage.c_str(), nullptr, false);
+    s_showHudMessage(acMessage.c_str(), nullptr, aCancelIfQueued);
 }
 
 } // namespace Utils

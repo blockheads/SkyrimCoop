@@ -77,7 +77,6 @@ struct BSFixedString
     const char* Data = nullptr;
 };
 
-uintptr_t s_base = 0;
 template <class T> T At(uintptr_t aRva)
 {
     return reinterpret_cast<T>(VersionDb::Get().FindAddressById(aRva));
@@ -419,7 +418,6 @@ extern "C" __declspec(dllexport) const SKSEPluginVersionData SKSEPlugin_Version 
 
 extern "C" __declspec(dllexport) bool SKSEPlugin_Load(const void*)
 {
-    s_base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     wchar_t path[MAX_PATH]{};
     GetModuleFileNameW(s_self, path, MAX_PATH);
     const auto game = std::filesystem::path(path).parent_path().parent_path().parent_path().parent_path();

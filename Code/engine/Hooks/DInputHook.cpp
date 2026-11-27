@@ -12,7 +12,7 @@
 
 namespace Hooks
 {
-    struct StubIDirectInputDevice8A
+    struct StubIDirectInputDevice8A final
     {
         StubIDirectInputDevice8A(IDirectInputDevice8A* apDevice) : m_pDevice(apDevice) {}
 
@@ -68,29 +68,12 @@ namespace Hooks
 
     HRESULT WINAPI StubIDirectInputDevice8A::GetDeviceState(DWORD outDataLen, LPVOID outData)
     {
-        if (DInputHook::Get().IsEnabled())
-        {
-            std::memset(outData, 0, outDataLen);
-            return 0;
-        }
-
         return IDirectInputDevice8_GetDeviceState(m_pDevice, outDataLen, outData);
     }
 
     HRESULT WINAPI StubIDirectInputDevice8A::GetDeviceData(DWORD dataSize, LPDIDEVICEOBJECTDATA outData, LPDWORD outDataLen, DWORD flags)
     {
-        auto& input = DInputHook::Get();
-
-        const auto result = IDirectInputDevice8_GetDeviceData(m_pDevice, dataSize, outData, outDataLen, flags);
-
-        if (input.IsEnabled())
-        {
-            *outDataLen = 0;
-
-            return result;
-        }
-
-        return result;
+        return IDirectInputDevice8_GetDeviceData(m_pDevice, dataSize, outData, outDataLen, flags);
     }
 
     ULONG WINAPI StubIDirectInputDevice8A::Release()
@@ -134,7 +117,7 @@ namespace Hooks
 
         const vp::ScopedContext prologueMemory(RealDirectInput8Create, kDirectInput8CreatePrologueSize);
 
-        bool hasOriginalPrologue = RtlEqualMemory(RealDirectInput8Create, s_realDirectInput8CreatePrologue.data(), kDirectInput8CreatePrologueSize);
+        bool hasOriginalPrologue = RtlEqualMemory(GetOriginalFunctionPrologue(), s_realDirectInput8CreatePrologue.data(), kDirectInput8CreatePrologueSize);
         if (!hasOriginalPrologue)
         {
             Hooks::Put(RealDirectInput8Create, s_realDirectInput8CreatePrologue);
@@ -166,56 +149,4 @@ namespace Hooks
         std::memcpy(s_realDirectInput8CreatePrologue.data(), GetOriginalFunctionPrologue(), kDirectInput8CreatePrologueSize);
     }
 
-    void DInputHook::Acquire() const noexcept
-    {
-        for (auto& device : s_devices)
-        {
-            device->Acquire();
-        }
-    }
-
-    void DInputHook::Unacquire() const noexcept
-    {
-        for (auto& device : s_devices)
-        {
-            device->Unacquire();
-        }
-    }
-
-    DInputHook& DInputHook::Get() noexcept
-    {
-        static DInputHook s_instance;
-        return s_instance;
-    }
-
-    void DInputHook::Update() const noexcept
-    {
-        RAWINPUTDEVICE device[2];
-
-        device[0].usUsagePage = 0x01;
-        device[0].usUsage = 0x06;
-        device[0].dwFlags = RIDEV_REMOVE;
-        device[0].hwndTarget = nullptr;
-
-        device[1].usUsagePage = 0x01;
-        device[1].usUsage = 0x02;
-        device[1].dwFlags = RIDEV_REMOVE;
-        device[1].hwndTarget = nullptr;
-
-        RegisterRawInputDevices(device, sizeof(device) / sizeof(RAWINPUTDEVICE), sizeof(RAWINPUTDEVICE));
-
-        if (m_enabled)
-        {
-            Acquire();
-
-            device[0].dwFlags = 0;
-            device[1].dwFlags = 0;
-
-            RegisterRawInputDevices(device, sizeof(device) / sizeof(RAWINPUTDEVICE), sizeof(RAWINPUTDEVICE));
-        }
-        else
-        {
-            Unacquire();
-        }
-    }
 }

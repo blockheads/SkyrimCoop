@@ -12,7 +12,7 @@ struct IDXGISwapChain;
 struct RenderSystemD3D11
 {
     explicit RenderSystemD3D11(ImguiService& aImguiService);
-    ~RenderSystemD3D11();
+    ~RenderSystemD3D11() = default;
 
     NO_COPY_MOVE(RenderSystemD3D11);
 
@@ -24,12 +24,9 @@ struct RenderSystemD3D11
     // reloaded DLL found it already made (its windows were arranged by the first load).
     void OnDeviceCreation(IDXGISwapChain* apSwapChain, bool aArrangeWindows = true);
     void OnRender();
-    void OnReset(IDXGISwapChain* apSwapChain);
 
 private:
     IDXGISwapChain* m_pSwapChain;
     ImguiService& m_imguiService;
-    size_t m_createConnection;
-    size_t m_resetConnection;
 };
 

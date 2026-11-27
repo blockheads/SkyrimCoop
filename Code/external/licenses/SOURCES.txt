@@ -1,0 +1,20 @@
+The licenses of the libraries linked into SkyrimCoop.dll (xmake packages, add_requires in xmake.lua), each
+unmodified from its source at the version built. Vendored code under Code/external keeps its license beside it.
+
+enet6.txt          enet6 v6.1.3           https://github.com/SirLynix/enet6 (LICENSE)
+entt.txt           EnTT v3.10.0           https://github.com/skypjack/entt (LICENSE)
+freetype.txt       FreeType 2.14.1        https://freetype.org (docs/FTL.TXT), with RmlUi
+glm.txt            GLM 0.9.9.8            https://github.com/g-truc/glm (copying.txt)
+libuv.txt          libuv v1.48.0          https://github.com/libuv/libuv (LICENSE, then LICENSE-extra)
+lz4.txt            LZ4 v1.9.4             https://github.com/lz4/lz4 (lib/LICENSE)
+minhook.txt        MinHook v1.3.3         https://github.com/TsudaKageyu/minhook (LICENSE.txt)
+nlohmann_json.txt  JSON for Modern C++ v3.11.3  https://github.com/nlohmann/json (LICENSE.MIT)
+rmlui.txt          RmlUi 6.2              https://github.com/mikke89/RmlUi (LICENSE.txt)
+rpmalloc.txt       rpmalloc 1.4.5         https://github.com/mjansson/rpmalloc (LICENSE)
+snappy.txt         Snappy 1.1.10          https://github.com/google/snappy (COPYING)
+spdlog.txt         spdlog v1.13.0         https://github.com/gabime/spdlog (LICENSE)
+xbyak.txt          Xbyak v7.06            https://github.com/herumi/xbyak (COPYRIGHT)
+zlib.txt           zlib v1.3.1            https://github.com/madler/zlib (LICENSE)
+zstd.txt           Zstandard v1.5.6       https://github.com/facebook/zstd (LICENSE)
+zycore.txt         Zycore v1.5.0          https://github.com/zyantific/zycore-c (LICENSE), with Zydis
+zydis.txt          Zydis v4.1.0           https://github.com/zyantific/zydis (LICENSE)

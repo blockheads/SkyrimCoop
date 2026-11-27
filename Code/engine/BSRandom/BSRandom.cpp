@@ -9,11 +9,6 @@ namespace BSRandom
 static void* (*GetGenerator)();
 static uint32_t (*Real_UnsignedInt)(void*, uint32_t);
 
-uint32_t UnsignedInt(uint32_t aMin, uint32_t aMax)
-{
-    return Real_UnsignedInt(GetGenerator(), aMax - aMin);
-}
-
 static Hooks::Initializer s_randomInit(
     []()
     {

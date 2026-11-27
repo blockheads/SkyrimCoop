@@ -14,6 +14,7 @@
 #include <Structs/Inventory.h>
 #include <Structs/Recipe.h>
 #include <Structs/ScriptValue.h>
+#include <Wire/Archive.h>
 #include <Wire/Buffer.h>
 #include <array>
 #include <optional>
@@ -26,8 +27,7 @@ struct MeleeStagger
     uint32_t HitterId{};
     float Magnitude{};
     bool operator==(const MeleeStagger&) const noexcept = default;
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(HitteeId, HitterId, Magnitude); }
 };
 
 // TESTrapHitEvent as a guest's engine raised it for its own player.
@@ -48,8 +48,7 @@ struct TrapContact
     uint32_t Motion{};
     bool Initial{};
     bool operator==(const TrapContact&) const noexcept = default;
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(TargetId, Trap, Type, Velocity, Position, Material, Motion, Initial); }
 };
 
 // What a script's ProcessTrapHit makes of a contact (the engine's TrapData, 56212).
@@ -64,8 +63,7 @@ struct TrapHit
     std::array<float, 3> Position{};
     uint32_t Material{};
     bool operator==(const TrapHit&) const noexcept = default;
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(TargetId, Trap, Damage, Push, Stagger, Velocity, Position, Material); }
 };
 
 struct ActorPerks
@@ -73,17 +71,16 @@ struct ActorPerks
     uint32_t SessionId{};
     Perks Content;
     bool operator==(const ActorPerks&) const noexcept = default;
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, Content); }
 };
 
 struct ActorValueChanges
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const ActorValueChanges&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, Wire::List(Values, kMaxActorValues), Wire::List(TemporaryValues, kMaxActorValues)); }
 
+    // Keyed by actor value index: the engine has 164.
+    static constexpr uint64_t kMaxActorValues = 256;
     uint32_t Id{};
     std::map<uint32_t, float> Values{};
     std::map<uint32_t, float> TemporaryValues{};
@@ -91,10 +88,8 @@ struct ActorValueChanges
 
 struct ActorMaxValueChanges
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const ActorMaxValueChanges&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, Wire::List(Values, ActorValueChanges::kMaxActorValues)); }
 
     uint32_t Id{};
     std::map<uint32_t, float> Values{};
@@ -102,10 +97,8 @@ struct ActorMaxValueChanges
 
 struct DeathStateChange
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const DeathStateChange&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, IsDead, DeathActionTick); }
 
     uint32_t Id{};
     bool IsDead{};
@@ -115,10 +108,8 @@ struct DeathStateChange
 
 struct HealthChange
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const HealthChange&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, DeltaHealth, HasAttacker, AttackerId); }
 
     uint32_t Id{};
     float DeltaHealth{};
@@ -128,10 +119,8 @@ struct HealthChange
 
 struct InterruptCast
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const InterruptCast&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(CasterId, CastingSource); }
 
     uint32_t CasterId{};
     int32_t CastingSource{};
@@ -139,10 +128,13 @@ struct InterruptCast
 
 struct ProjectileLaunch
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const ProjectileLaunch&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
+    {
+        aArchive(ShooterID, OriginX, OriginY, OriginZ, ProjectileBaseID, WeaponID, AmmoID, ZAngle, XAngle, YAngle, ParentCellID,
+                 WorldSpaceID, SpellID, CastingSource, Area, Power, Scale, AlwaysHit, NoDamageOutsideCombat, AutoAim,
+                 DeferInitialization, ForceConeOfFire, UnkBool1, UnkBool2);
+    }
 
     uint32_t ShooterID{};
     float OriginX{};
@@ -172,10 +164,8 @@ struct ProjectileLaunch
 
 struct AddTarget
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const AddTarget&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(TargetId, CasterId, SpellId, EffectId, Magnitude, IsDualCasting, ApplyHealPerkBonus, ApplyStaminaPerkBonus); }
 
     uint32_t TargetId{};
     uint32_t CasterId{};
@@ -189,10 +179,8 @@ struct AddTarget
 
 struct RemoveSpell
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const RemoveSpell&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(TargetId, SpellId); }
 
     uint32_t TargetId{};
     GameId SpellId{};
@@ -202,10 +190,8 @@ struct RemoveSpell
 // notification's).
 struct PlayerName
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const PlayerName&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(PlayerId, Name); }
 
     uint32_t PlayerId{};
     std::string Name{};
@@ -214,10 +200,8 @@ struct PlayerName
 // An actor's display name, when the host's game changed it (a quest alias's name set or cleared).
 struct ActorName
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const ActorName&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(ActorId, Name); }
 
     uint32_t ActorId{};
     std::string Name{};
@@ -225,10 +209,8 @@ struct ActorName
 
 struct Mount
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const Mount&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(RiderId, MountId); }
 
     uint32_t RiderId{};
     uint32_t MountId{};
@@ -239,6 +221,7 @@ struct Mount
 struct ClaimMember
 {
     bool operator==(const ClaimMember&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(ActorId, Take, DeathOnGiveBack); }
     uint32_t ActorId{};
     bool Take{};
     bool DeathOnGiveBack{}; // taken: its death waits for its give-back (the copy's deferred kill kept)
@@ -246,9 +229,8 @@ struct ClaimMember
 
 struct Claim
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
     bool operator==(const Claim&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(ClaimId, Kind, Reason, ForId, Tick, Wire::List(Members, kMaxMembers)); }
 
     enum Kind : uint8_t
     {
@@ -268,14 +250,14 @@ struct Claim
     uint32_t ForId{}; // the acting actor (a rider, a kill move's attacker), its owner's game the holder
     uint64_t Tick{};  // the action's
     std::vector<ClaimMember> Members;
+    static constexpr uint64_t kMaxMembers = 16;
 };
 
 // A claimed actor back to the host, with its holder's current placement (a native travel's implicit dismount too).
 struct ActorGiveBack
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
     bool operator==(const ActorGiveBack&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(ActorId, ClaimId, ForId, Whereabouts, Tick, Killed, Taken, Ended); }
     uint32_t ActorId{};
     uint32_t ClaimId{}; // the claim it ends
     uint32_t ForId{};   // the host's: whom the claim was for, the killer of a killed one
@@ -291,10 +273,8 @@ struct ActorGiveBack
 // One part of an actor's record, from its owner (docs/design/one-simulator.md, piece 1).
 struct Record
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const Record&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, Part); }
 
     uint32_t Id{}; // the actor's session id
     RecordPart Part{};
@@ -303,10 +283,8 @@ struct Record
 // A game whose copy looks wrong asks the actor's owner for a part again (R3).
 struct RecordAsk
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const RecordAsk&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, Wire::Bits<8>(Kind)); }
 
     uint32_t Id{};
     RecordKind Kind{};
@@ -314,10 +292,8 @@ struct RecordAsk
 
 struct Dialogue
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const Dialogue&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, SoundFilename); }
 
     uint32_t SessionId{};
     std::string SoundFilename{};
@@ -325,10 +301,8 @@ struct Dialogue
 
 struct Subtitle
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const Subtitle&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, Text, TopicFormId, Force); }
 
     uint32_t SessionId{};
     std::string Text{};
@@ -340,10 +314,8 @@ struct Subtitle
 // healing glow), whose visuals copies play, and every one it holds, which copies answer to "has this effect".
 struct ActiveEffects
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const ActiveEffects&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, Wire::ClampedList(EffectIds, kMaxEffects), Wire::ClampedList(Held, kMaxEffects)); }
 
     struct Held
     {
@@ -351,6 +323,7 @@ struct ActiveEffects
         GameId Effect{};
         bool SpellTarget = true; // counts for IsSpellTarget (OwnerEffects)
         bool operator==(const Held&) const noexcept = default;
+        template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Spell, Effect, SpellTarget); }
     };
 
     uint32_t SessionId{};
@@ -368,10 +341,8 @@ struct ActiveEffects
 // An effect's visuals that play once (no FX Persist) just started on one of the owner's actors: its copies play them.
 struct EffectFlash
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const EffectFlash&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(SessionId, EffectId); }
 
     uint32_t SessionId{};
     GameId EffectId{};
@@ -426,13 +397,12 @@ struct PlayerNativeResult
 // it has authority over, to the host; the host's of every other body near a game, each as that game hears it.
 struct BodyStates
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const BodyStates&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Tick, Wire::List(States, kMaxBodies)); }
 
     uint64_t Tick{};
     std::vector<BodyState> States;
+    static constexpr uint64_t kMaxBodies = 4096; // a packet carries ~30
 };
 
 // The party's gold (docs/design/party-purse.md): every player carries this many of Gold001 (0xF).
@@ -440,10 +410,8 @@ struct PartyGold
 {
     static inline const GameId kGold{0, 0xF};
 
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const PartyGold&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Gold, Wire::As<uint32_t>(Shown)); }
 
     uint32_t Gold{};
     // The change for this game's HUD to show ("Gold (40) removed"); 0 on the game whose player made it (the engine
@@ -455,10 +423,8 @@ struct PartyGold
 // extra data), 0 for none.
 struct PartyItem
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const PartyItem&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Item, Wire::As<uint32_t>(Shown), Wire::As<uint32_t>(Converted), Wear); }
 
     Inventory::Entry Item{};
     // The change for this game's HUD to show, as PartyGold's.
@@ -472,22 +438,19 @@ struct PartyItem
 // Every party item (a join): every player carries these stacks, and no other "[P] " stack.
 struct PartyItems
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const PartyItems&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(Items, kMaxItems)); }
 
     std::vector<Inventory::Entry> Items;
+    static constexpr uint64_t kMaxItems = 4096; // generous: the keys, quest items and story rewards a party shares
 };
 
 // The quests that are one per player (docs/design/system-quests.md), learned by a game whose player's own script
 // called into one: a guest's to the host, the host's whole list to every game.
 struct SystemQuests
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const SystemQuests&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(Quests, 0xFFFF)); }
 
     std::vector<GameId> Quests;
 };
@@ -496,10 +459,8 @@ struct SystemQuests
 // to the host and the host's to each guest (docs/design/crafted-potions.md).
 struct Recipes
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const Recipes&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(Known, 0xFFFF)); }
 
     std::vector<Recipe> Known;
 };
@@ -507,10 +468,8 @@ struct Recipes
 // game, each writing its own part.
 struct BugReport
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const BugReport&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Text, Id, By, SessionTick); }
 
     std::string Text;
     std::string Id;          // the host's: every game's part goes under it
@@ -520,10 +479,8 @@ struct BugReport
 // A dev chat command (docs/design/dev-commands.md): the line as typed; the host's names who typed it.
 struct DevCommand
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const DevCommand&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Line, By); }
 
     std::string Line;
     std::string By;
@@ -531,10 +488,8 @@ struct DevCommand
 // A game's player pressed through the NPC's line: the host's game, which says it, moves on.
 struct DialogueSkip
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const DialogueSkip&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Conversation, Step); }
 
     uint32_t Conversation{};
     uint32_t Step{};
@@ -543,10 +498,8 @@ struct DialogueSkip
 // the conversation shows it there. Index: the option's place in the step's merged list.
 struct DialogueHighlight
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const DialogueHighlight&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Conversation, Step, Index, PlayerId, Seq); }
 
     uint32_t Conversation{};
     uint32_t Step{};
@@ -567,20 +520,22 @@ struct GraphOpsBatch
 // A copy's game asks the owner for a sync point: its copy has none yet, or its stream had a gap.
 struct GraphSync
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const GraphSync&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id); }
 
     uint32_t Id{};
 };
 // An owner's graph right after one of its updates: where its copies' replay starts.
 struct GraphSyncPoint
 {
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
     bool operator==(const GraphSyncPoint&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
+    {
+        aArchive(Id, Update, Tick, State, Wire::List(Words, 65536, [](auto& aWords, uint32_t& aWord) { aWords(Wire::Bits<32>(aWord)); }),
+                 Wire::Bits<32>(Seed.Seed), Wire::Bits<32>(Seed.Current), Wire::Bits<1>(ActiveNodesChanged), Wire::Bits<32>(Project),
+                 Wire::List(ClipSets, 8, [](auto& aSets, auto& aSet) { aSets(Wire::Bits<8>(aSet.first), Wire::Bits<16>(aSet.second)); }),
+                 Wire::List(AnimObjects, 16, [](auto& aObjects, auto& aObject) { aObjects(Wire::Bits<32>(aObject.first), Wire::Bits<1>(aObject.second)); }));
+    }
 
     uint32_t Id{};
     uint32_t Update{};  // its updates so far: the ops from this update index on follow it

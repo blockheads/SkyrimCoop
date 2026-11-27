@@ -4,19 +4,10 @@
 #include <Structs/GameId.h>
 #include <Wire/Buffer.h>
 
-struct PlayerLevelRequest final : RequestMessage
+struct PlayerLevelRequest final : MessageOf<PlayerLevelRequest, kPlayerLevelRequest>
 {
-    static constexpr RequestOpcode Opcode = kPlayerLevelRequest;
-
-    PlayerLevelRequest()
-        : RequestMessage(Opcode)
-    {
-    }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const PlayerLevelRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && NewLevel == acRhs.NewLevel; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(NewLevel); }
+    bool operator==(const PlayerLevelRequest&) const noexcept = default;
 
     uint16_t NewLevel{};
 };

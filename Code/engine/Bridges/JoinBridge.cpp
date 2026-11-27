@@ -206,7 +206,7 @@ bool JoinBridge::WriteAndLoad(const std::string& acName, const SaveFiles& acFile
         if (!pManager || !pManager->Load(cName.c_str()))
         {
             spdlog::error("JoinBridge: the engine did not load {}", cPath);
-            World::Get().GetRunner().Trigger(GameLoadFailedEvent{cName});
+            World::Runner().Trigger(GameLoadFailedEvent{cName});
         }
     });
     return true;

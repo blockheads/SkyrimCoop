@@ -256,11 +256,11 @@ void DeathService::QueueRefresh() noexcept
 std::string DeathService::SpectatingName() const noexcept
 {
     const auto& cPlayers = m_world.GetSessionService().GetPlayers();
-    for (auto&& [cEntity, cCopy, cPlayer] : m_world.view<RemoteComponent, PlayerComponent>().each())
-        if (cCopy.Id == m_spectating)
-            if (const auto it = cPlayers.find(cPlayer.Id); it != cPlayers.end())
-                return it->second.Name;
-    return {};
+    const auto cCopy = m_world.GetActorIndex().BySession<RemoteComponent, PlayerComponent>(m_spectating);
+    if (cCopy == entt::null)
+        return {};
+    const auto it = cPlayers.find(m_world.get<PlayerComponent>(cCopy).Id);
+    return it != cPlayers.end() ? it->second.Name : std::string{};
 }
 
 std::string DeathService::Status() const noexcept

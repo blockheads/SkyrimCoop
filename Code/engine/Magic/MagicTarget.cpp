@@ -36,14 +36,12 @@ using TAddTarget = bool(MagicTarget*, MagicTarget::AddTargetData& arData);
 using TFindTargets = bool(MagicCaster*, float afEffectivenessMult, int32_t* aruiTargetCount, TESBoundObject* apSource, char abLoadCast, char abAdjust);
 using TAdjustForPerks = void(ActiveEffect*, Actor* apCaster, MagicTarget* apTarget);
 using THasPerk = bool(Actor*, TESForm* apPerk, void* apUnk1, double* afReturnValue);
-using TGetPerkRank = uint8_t(Actor*, TESForm* apPerk);
 using TEvaluateEntryConditions = void(ActiveEffect*, float aDelta, bool aForce);
 
 static TAddTarget* RealAddTarget = nullptr;
 static TFindTargets* RealFindTargets = nullptr;
 static TAdjustForPerks* RealAdjustForPerks = nullptr;
 static THasPerk* RealHasPerk = nullptr;
-static TGetPerkRank* RealGetPerkRank = nullptr;
 static TEvaluateEntryConditions* RealEvaluateEntryConditions = nullptr;
 
 namespace
@@ -59,13 +57,6 @@ TESObjectREFR* PlayerCaster(TESObjectREFR* apCaster) noexcept
 
 static thread_local bool s_applyHealPerkBonus = false;
 static thread_local bool s_applyStaminaPerkBonus = false;
-
-void MagicTarget::DispelAllSpells(bool aNow) noexcept
-{
-    using TDispelAllSpells = void(MagicTarget*, bool aNow);
-    POINTER_SKYRIMSE(TDispelAllSpells, dispelAllSpells, 34512);
-    dispelAllSpells(this, aNow);
-}
 
 bool MagicTarget::AddTarget(AddTargetData& arData, bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept
 {
@@ -155,10 +146,10 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
             addTargetEvent.ApplyHealPerkBonus = pCasterActor->HasPerk(0x581f8);
             addTargetEvent.ApplyStaminaPerkBonus = pCasterActor->HasPerk(0x581f9);
         }
-        World::Get().GetRunner().Trigger(addTargetEvent);
+        World::Runner().Trigger(addTargetEvent);
     }
     if (cVerdict.Hit)
-        World::Get().GetRunner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
+        World::Runner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
     if (!cVerdict.Apply)
         return false;
 
@@ -169,7 +160,7 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
                               {arData.ExplosionLocation.x, arData.ExplosionLocation.y, arData.ExplosionLocation.z}, arData.bDualCast};
     const bool cTaken = RealAddTarget(apThis, arData);
     if (cTaken)
-        World::Get().GetRunner().Trigger(cSummon);
+        World::Runner().Trigger(cSummon);
     return cTaken;
 }
 
@@ -268,17 +259,8 @@ void HookEvaluateEntryConditions(ActiveEffect* apThis, float aDelta, bool aForce
     RealEvaluateEntryConditions(apThis, aDelta, aForce);
 }
 
-uint8_t HookGetPerkRank(Actor* apThis, TESForm* apPerk)
-{
-    return RealGetPerkRank(apThis, apPerk);
-}
-
 static Hooks::Initializer s_magicTargetHooks([]() {
     const HookGate cGate(__FILE__);
-    POINTER_SKYRIMSE(TGetPerkRank, getPerkRank, 37698);
-
-    RealGetPerkRank = getPerkRank.Get();
-
     HOOK_ID(34526, &RealAddTarget, HookAddTarget);
     HOOK_ID(34410, &RealFindTargets, HookFindTargets);
     HOOK_ID(34517, &RealHasMagicEffect, HookHasMagicEffect);
@@ -287,5 +269,4 @@ static Hooks::Initializer s_magicTargetHooks([]() {
     HOOK_ID(34053, &RealAdjustForPerks, HookAdjustForPerks);
     HOOK_ID(21622, &RealHasPerk, HookHasPerk);
     HOOK_ID(34062, &RealEvaluateEntryConditions, HookEvaluateEntryConditions);
-    //HOOK(&RealGetPerkRank, HookGetPerkRank);
 });

@@ -4,22 +4,13 @@
 
 #include <Structs/GameId.h>
 
-struct LockChangeRequest final : RequestMessage
+struct LockChangeRequest final : MessageOf<LockChangeRequest, kLockChangeRequest>
 {
-    static constexpr RequestOpcode Opcode = kLockChangeRequest;
-
-    LockChangeRequest()
-        : RequestMessage(Opcode)
-    {
-    }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const LockChangeRequest& acRhs) const noexcept { return Id == acRhs.Id && CellId == acRhs.CellId && IsLocked == acRhs.IsLocked && LockLevel == acRhs.LockLevel && GetOpcode() == acRhs.GetOpcode(); }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, CellId, IsLocked, Wire::Bits<8>(LockLevel)); }
+    bool operator==(const LockChangeRequest&) const noexcept = default;
 
     GameId Id;
     GameId CellId;
-    bool IsLocked;
-    uint8_t LockLevel;
+    bool IsLocked{};
+    uint8_t LockLevel{};
 };

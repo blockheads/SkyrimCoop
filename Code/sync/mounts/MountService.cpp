@@ -103,30 +103,25 @@ void MountService::LinkPendingRides(uint32_t aSessionId) noexcept
 
 void MountService::OnMountEvent(const MountEvent& acEvent) noexcept
 {
-    auto view = m_world.view<FormIdComponent>();
-
-    const auto riderIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.RiderID, view](auto entity) { return view.get<FormIdComponent>(entity).Id == id; });
-
-    if (riderIt == std::end(view))
+    const auto& actors = m_world.GetActorIndex();
+    const auto cRiderEntity = actors.ByForm(acEvent.RiderID);
+    if (cRiderEntity == entt::null)
     {
         spdlog::warn("Rider not found, form id: {:X}", acEvent.RiderID);
         return;
     }
 
     // Ours only: a copy getting on its mount replays its owner's.
-    const auto* cpRider = m_world.try_get<LocalComponent>(*riderIt);
+    const auto* cpRider = m_world.try_get<LocalComponent>(cRiderEntity);
     if (!cpRider)
         return;
 
-    const auto mountIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.MountID, view](auto entity) { return view.get<FormIdComponent>(entity).Id == id; });
-
-    if (mountIt == std::end(view))
+    const entt::entity cMountEntity = actors.ByForm(acEvent.MountID);
+    if (cMountEntity == entt::null)
     {
         spdlog::warn("Mount not found, form id: {:X}", acEvent.MountID);
         return;
     }
-
-    const entt::entity cMountEntity = *mountIt;
 
     std::optional<uint32_t> mountSessionIdRes = Utils::GetSessionId(cMountEntity);
     if (!mountSessionIdRes.has_value())
@@ -155,73 +150,51 @@ void MountService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 {
     m_pendingRides.erase(acMessage.MountId);
     m_drivers[acMessage.MountId] = acMessage.RiderId;
-    for (const auto cPlayer : m_world.view<PlayerComponent>())
-        if (Utils::GetSessionId(cPlayer) == acMessage.RiderId)
-            m_partyMounts.insert(acMessage.MountId);
+    if (m_world.GetActorIndex().BySession<PlayerComponent>(acMessage.RiderId) != entt::null)
+        m_partyMounts.insert(acMessage.MountId);
     // Our player got on it: the host's claim gave the mount to this game (ClaimService, just before). Not asked for: a
-    // handover (HostCharacters::HandOver).
+    // handover (HostRides::HandOver).
     const bool cHandedOver = m_riddenMount != acMessage.MountId;
-    for (const auto cRider : m_world.view<LocalComponent>())
+    const auto& actors = m_world.GetActorIndex();
+    if (actors.BySession<LocalComponent>(acMessage.RiderId) != entt::null)
     {
-        if (m_world.get<LocalComponent>(cRider).Id != acMessage.RiderId)
-            continue;
-        for (const auto cMount : m_world.view<LocalComponent, FormIdComponent>())
-            if (m_world.get<LocalComponent>(cMount).Id == acMessage.MountId && m_world.ctx().at<ClaimService>().Holds(acMessage.MountId))
+        const auto cMount = actors.BySession<LocalComponent, FormIdComponent>(acMessage.MountId);
+        if (cMount != entt::null && m_world.ctx().at<ClaimService>().Holds(acMessage.MountId))
+        {
+            m_riddenMount = acMessage.MountId;
+            KeepMount(m_world.get<FormIdComponent>(cMount).Id);
+            // A passenger the driver left: ours to steer. Off it already (its ride's end still on its way, or never
+            // heard): handed back at once. Our own ride's answer can come before the get-on links our player.
+            const uint32_t cHorse = m_world.get<FormIdComponent>(cMount).Id;
+            if (m_boardedMount)
+                LeaveBoard();
+            if (cHandedOver)
             {
-                m_riddenMount = acMessage.MountId;
-                KeepMount(m_world.get<FormIdComponent>(cMount).Id);
-                // A passenger the driver left: ours to steer. Off it already (its ride's end still on its way, or never
-                // heard): handed back at once. Our own ride's answer can come before the get-on links our player.
-                const uint32_t cHorse = m_world.get<FormIdComponent>(cMount).Id;
-                if (m_boardedMount)
-                    LeaveBoard();
-                if (!cHandedOver)
-                    continue;
                 if (m_actorBridge.GetActorMount(m_playerBridge.GetPlayerFormId()) == cHorse)
                     m_playerBridge.PlayerTakeReins(cHorse);
                 else
                     OnDismountEvent(DismountEvent{m_playerBridge.GetPlayerFormId(), cHorse});
             }
+        }
         return;
     }
 
-    auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
-
-    const auto riderIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.RiderId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
-
-    if (riderIt == std::end(remoteView))
+    const auto cRider = actors.BySession<RemoteComponent, FormIdComponent>(acMessage.RiderId);
+    if (cRider == entt::null)
     {
         spdlog::info("Rider {:X} of {:X} has no copy yet", acMessage.RiderId, acMessage.MountId);
         m_pendingRides[acMessage.MountId] = acMessage.RiderId;
         return;
     }
 
-    auto& riderFormIdComponent = remoteView.get<FormIdComponent>(*riderIt);
-    const uint32_t cRiderFormId = riderFormIdComponent.Id;
+    const uint32_t cRiderFormId = m_world.get<FormIdComponent>(cRider).Id;
 
     uint32_t mountFormId = 0;
-
-    auto formView = m_world.view<FormIdComponent>();
-    std::vector<entt::entity> entities(formView.begin(), formView.end());
-
-    for (auto entity : entities)
+    if (const auto cMount = actors.BySession<FormIdComponent>(acMessage.MountId); cMount != entt::null)
     {
-        std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(entity);
-        if (!sessionIdRes.has_value())
-        {
-            spdlog::error("{}: failed to find session id", __FUNCTION__);
-            continue;
-        }
-
-        uint32_t sessionId = sessionIdRes.value();
-
-        if (sessionId == acMessage.MountId)
-        {
-            mountFormId = m_world.get<FormIdComponent>(entity).Id;
-            if (m_partyMounts.contains(acMessage.MountId))
-                KeepMount(mountFormId);
-            break;
-        }
+        mountFormId = m_world.get<FormIdComponent>(cMount).Id;
+        if (m_partyMounts.contains(acMessage.MountId))
+            KeepMount(mountFormId);
     }
 
     spdlog::info("Ride {:X} on {:X}: its copy {:X} on {:X}, sit {}", acMessage.RiderId, acMessage.MountId, cRiderFormId, mountFormId,
@@ -235,7 +208,7 @@ void MountService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 }
 
 // The ride of one of this game's actors ended (any path): the host takes its mount back.
-// A boarding refused (HostCharacters::OnBoard), or a ride (OnRideRefused): ours gets off, the horse stays a copy here.
+// A boarding refused (HostRides::OnBoard), or a ride (OnRideRefused): ours gets off, the horse stays a copy here.
 void MountService::OnRideRefused(const NotifyClaimRefused& acMessage) noexcept
 {
     if (acMessage.Kind != Payloads::Claim::kRide || acMessage.Members.empty() || acMessage.ForId != m_characters.CharacterId())
@@ -270,10 +243,8 @@ void MountService::OnBoardEvent(const BoardEvent& acEvent) noexcept
         spdlog::info("Board {:X}: not now (riding {:X}, aboard {:X})", acEvent.MountId, m_riddenMount, m_boardedMount);
         return;
     }
-    for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
+    if (const auto cEntity = m_world.GetActorIndex().ByForm<RemoteComponent>(acEvent.MountId); cEntity != entt::null)
     {
-        if (m_world.get<FormIdComponent>(cEntity).Id != acEvent.MountId)
-            continue;
         const uint32_t cMount = m_world.get<RemoteComponent>(cEntity).Id;
         // Only a horse a party player drives: an NPC's stays refused, as in Skyrim (37864).
         if (!m_drivers.contains(cMount) || !m_partyMounts.contains(cMount))
@@ -373,11 +344,8 @@ void MountService::KeepDriverOn(const DismountEvent& acEvent) noexcept
 {
     if (!acEvent.MountId)
         return;
-    uint32_t mount = 0;
-    for (const auto cEntity : m_world.view<FormIdComponent>())
-        if (m_world.get<FormIdComponent>(cEntity).Id == acEvent.MountId)
-            mount = Utils::GetSessionId(cEntity).value_or(0);
-    const auto cDriver = m_drivers.find(mount);
+    const uint32_t cMount = Utils::GetSessionIdByFormId(acEvent.MountId).value_or(0);
+    const auto cDriver = m_drivers.find(cMount);
     if (cDriver == m_drivers.end())
         return;
     const uint32_t cDriverForm = m_characters.FormOfSession(cDriver->second);
@@ -414,14 +382,11 @@ void MountService::OnDismountEvent(const DismountEvent& acEvent) noexcept
     }
     else
     {
-        for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
-        {
-            const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-            if (cFormId == acEvent.RiderId)
-                request.RiderId = m_world.get<LocalComponent>(cEntity).Id;
-            else if (cFormId == acEvent.MountId)
-                request.MountId = m_world.get<LocalComponent>(cEntity).Id;
-        }
+        const auto& actors = m_world.GetActorIndex();
+        if (const auto cRider = actors.ByForm<LocalComponent>(acEvent.RiderId); cRider != entt::null)
+            request.RiderId = m_world.get<LocalComponent>(cRider).Id;
+        if (const auto cMount = actors.ByForm<LocalComponent>(acEvent.MountId); cMount != entt::null)
+            request.MountId = m_world.get<LocalComponent>(cMount).Id;
         if (!request.RiderId || !request.MountId)
             return;
     }
@@ -438,9 +403,8 @@ void MountService::OnNotifyDismount(const NotifyDismount& acMessage) noexcept
     if (m_boardedMount == acMessage.MountId)
         LeaveBoard();
     // Its owner's ride ended: a copy rider still seated gets off now (its owner's ride ended with no exit clip).
-    for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
-        if (m_world.get<RemoteComponent>(cEntity).Id == acMessage.RiderId)
-            m_actorBridge.ActorEndRide(m_world.get<FormIdComponent>(cEntity).Id);
+    if (const auto cRider = m_world.GetActorIndex().BySession<RemoteComponent, FormIdComponent>(acMessage.RiderId); cRider != entt::null)
+        m_actorBridge.ActorEndRide(m_world.get<FormIdComponent>(cRider).Id);
     // Its owner (the host, given back: ClaimService) keeps it as it would.
     const uint32_t cMountFormId = m_characters.FormOfSession(acMessage.MountId);
     if (cMountFormId)
@@ -457,13 +421,11 @@ void MountService::CarryMountTo(uint32_t aCellId, const glm::vec3& acPosition) n
 {
     if (!m_riddenMount)
         return;
-    for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
-        if (m_world.get<LocalComponent>(cEntity).Id == m_riddenMount)
-        {
-            const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-            m_actorBridge.MoveActorTo(cFormId, aCellId, acPosition.x, acPosition.y, acPosition.z);
-            return;
-        }
+    if (const auto cEntity = m_world.GetActorIndex().BySession<LocalComponent, FormIdComponent>(m_riddenMount); cEntity != entt::null)
+    {
+        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+        m_actorBridge.MoveActorTo(cFormId, aCellId, acPosition.x, acPosition.y, acPosition.z);
+    }
 }
 
 void MountService::KeepMount(uint32_t aFormId) noexcept

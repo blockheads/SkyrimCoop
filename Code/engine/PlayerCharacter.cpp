@@ -98,21 +98,6 @@ void PlayerCharacter::SetDifficulty(const int32_t aDifficulty, bool aForceUpdate
     *difficultySetting = difficulty = aDifficulty;
 }
 
-bool PlayerCharacter::SaidRecently(const TESTopicInfo* apInfo) const noexcept
-{
-    using TSaidRecently = bool(const PlayerCharacter*, const TESTopicInfo* apInfo);
-    POINTER_SKYRIMSE(TSaidRecently, s_saidRecently, 40694);
-    return apInfo && apInfo->timeUntilReset && (s_saidRecently.Get())(this, apInfo);
-}
-
-void PlayerCharacter::RememberSaid(const TESTopicInfo* apInfo) noexcept
-{
-    using TRememberSaid = void(PlayerCharacter*, const TESTopicInfo* apInfo);
-    POINTER_SKYRIMSE(TRememberSaid, s_rememberSaid, 40692);
-    if (apInfo && apInfo->timeUntilReset)
-        (s_rememberSaid.Get())(this, apInfo);
-}
-
 void PlayerCharacter::SetAIDriven(bool aDriven) noexcept
 {
     using TSetAIDriven = void(PlayerCharacter*, bool);
@@ -223,7 +208,7 @@ char HookPickUpObject(PlayerCharacter* apThis, TESObjectREFR* apObject, int32_t 
     // A guest's reach for the party's loose item: the host's game decides who gets it.
     if (!t_pickUpGranted && s_pickUpGate && apObject && s_pickUpGate(*apObject))
     {
-        World::Get().GetRunner().Trigger(ItemPickUpEvent{apObject->formID});
+        World::Runner().Trigger(ItemPickUpEvent{apObject->formID});
         return false;
     }
 
@@ -243,7 +228,7 @@ char HookPickUpObject(PlayerCharacter* apThis, TESObjectREFR* apObject, int32_t 
 
     InventoryChangeEvent event(apThis->formID, std::move(item), false, shouldUpdateClients);
     event.AliasHeld = apObject->GetExtraDataList() && apObject->GetExtraDataList()->Contains(ExtraDataType::AliasInstanceArray);
-    World::Get().GetRunner().Trigger(std::move(event));
+    World::Runner().Trigger(std::move(event));
 
     ScopedInventoryOverride _;
 
@@ -276,7 +261,7 @@ void HookAddSkillExperience(PlayerCharacter* apThis, int32_t aSkill, float aExpe
 {
     RealAddSkillExperience(apThis, aSkill, aExperience, apAdvanceObject, aAdvanceAction);
     if (aExperience > 0.f && aSkill >= ActorValueInfo::kOneHanded && aSkill <= ActorValueInfo::kEnchanting)
-        World::Get().GetRunner().Trigger(PlayerProgressEvent{});
+        World::Runner().Trigger(PlayerProgressEvent{});
 }
 
 // The map menu places the player's marker (MapMenu::PlaceMarker 53113, then the terrain pick 53114).
@@ -287,7 +272,7 @@ void HookSetWaypoint(PlayerCharacter* apThis, NiPoint3* apPosition, TESForm* apW
     position.y = apPosition->y;
     position.z = apPosition->z;
 
-    World::Get().GetRunner().Trigger(SetWaypointEvent(position, apWorldOrCell ? apWorldOrCell->formID : 0));
+    World::Runner().Trigger(SetWaypointEvent(position, apWorldOrCell ? apWorldOrCell->formID : 0));
 
     return RealSetWaypoint(apThis, apPosition, apWorldOrCell);
 }
@@ -297,7 +282,7 @@ void HookRemoveWaypoint(PlayerCharacter* apThis)
 {
     static const BSFixedString s_mapMenu("MapMenu");
     if (UI* pUI = UI::Get(); pUI && pUI->GetMenuOpen(s_mapMenu))
-        World::Get().GetRunner().Trigger(RemoveWaypointEvent());
+        World::Runner().Trigger(RemoveWaypointEvent());
 
     return RealRemoveWaypoint(apThis);
 }
@@ -307,7 +292,7 @@ void HookRemoveWaypoint(PlayerCharacter* apThis)
 void HookSetDifficulty(PlayerCharacter* apThis, int32_t aDifficulty)
 {
     RealSetDifficulty(apThis, aDifficulty);
-    World::Get().GetRunner().Trigger(DifficultyChangeEvent{static_cast<uint32_t>(*Settings::GetDifficulty())});
+    World::Runner().Trigger(DifficultyChangeEvent{static_cast<uint32_t>(*Settings::GetDifficulty())});
 }
 
 namespace
@@ -412,7 +397,7 @@ static uintptr_t HookProcessQueuedTravel(PlayerCharacter* apPlayer)
             cTarget.World ? cTarget.World->formID : 0,
             cTarget.Interior ? cTarget.Interior->formID : 0,
             {cAt.x, cAt.y, cAt.z}, cTarget.Angle.z};
-        World::Get().GetRunner().Queue([cEvent, cQueued] {
+        World::Runner().Queue([cEvent, cQueued] {
             World::Get().GetDispatcher().trigger(cEvent);
             s_announcedTravel = cQueued;
         });

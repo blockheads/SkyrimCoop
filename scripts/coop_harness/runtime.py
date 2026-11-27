@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import signal
-import socket
 import subprocess
 import sys
 import time
@@ -569,7 +568,7 @@ class Runtime:
         """The bundled start active last; `plugins` (mods in the game's Data, MOD_PLUGINS) active before it and the other
         MOD_PLUGINS left out (a duo booted without them loads none); None keeps the load order's mods."""
         _game = ctx.game(_game)
-        source = ROOT / "GameFiles/Skyrim" / BUNDLED_START
+        source = ROOT / "assets" / BUNDLED_START
         target = _game.install / "Data" / BUNDLED_START
         if not target.exists() or target.read_bytes() != source.read_bytes():
             shutil.copyfile(source, target)

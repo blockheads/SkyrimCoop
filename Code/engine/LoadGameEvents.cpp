@@ -18,7 +18,7 @@ struct LoadSink final : BSTEventSink<TESLoadGameEvent>
 {
     BSTEventResult OnEvent(const TESLoadGameEvent*, const EventDispatcher<TESLoadGameEvent>*) override
     {
-        World::Get().GetRunner().Trigger(GameLoadedEvent{});
+        World::Runner().Trigger(GameLoadedEvent{});
         return BSTEventResult::kOk;
     }
 };
@@ -34,7 +34,7 @@ TNewGameEnter* RealNewGameEnter = nullptr;
 uint64_t HookNewGameEnter(void* apA, void* apB, void* apC, void* apD)
 {
     const uint64_t cResult = RealNewGameEnter(apA, apB, apC, apD);
-    World::Get().GetRunner().Trigger(NewGameEvent{});
+    World::Runner().Trigger(NewGameEvent{});
     return cResult;
 }
 

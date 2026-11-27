@@ -28,7 +28,7 @@ std::atomic<uint32_t> s_users{0};
 void Raise(uint32_t aFormId, uint32_t aFlashEffectId = 0) noexcept
 {
     if (aFormId && s_users.load(std::memory_order_relaxed))
-        World::Get().GetRunner().Trigger(EffectVisualsChangeEvent{aFormId, aFlashEffectId});
+        World::Runner().Trigger(EffectVisualsChangeEvent{aFormId, aFlashEffectId});
 }
 
 // A one-shot visual, including an instant fire-and-forget effect with FX Persist.

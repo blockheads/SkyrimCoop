@@ -13,6 +13,8 @@ namespace Wire
         static uint64_t ReadVarInt(Buffer::Reader& aReader);
         static bool TryReadVarInt(Buffer::Reader& aReader, uint64_t& aValue) noexcept;
         static void WriteVarInt(Buffer::Writer& aWriter, uint64_t aValue);
+        // A count that sizes a container or bounds a loop: past aMax or the bits left, fails the reader and returns 0.
+        static uint64_t ReadCount(Buffer::Reader& aReader, uint64_t aMax) noexcept;
 
         static bool ReadBool(Buffer::Reader& aReader);
         static void WriteBool(Buffer::Writer& aWriter, bool aValue);

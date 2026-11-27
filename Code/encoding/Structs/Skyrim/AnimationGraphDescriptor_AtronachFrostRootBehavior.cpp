@@ -55,7 +55,7 @@ AnimationGraphDescriptor_AtronachFrostRootBehavior::AnimationGraphDescriptor_Atr
         kiGetUpType = 47,
     };
 
-    uint64_t key = 14566708169643289121;
+    uint64_t key = 14566708169643289121u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,

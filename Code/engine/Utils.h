@@ -41,5 +41,6 @@ template <class T> T* GetBySessionId(uint32_t aSessionId) noexcept
     return pForm ? Cast<T>(pForm) : nullptr;
 }
 
-void ShowHudMessage(const std::string& acMessage);
+// SendHUDMessage::ShowHUDMessage (52933): queued on the HUD; aCancelIfQueued drops it when one is waiting.
+void ShowHudMessage(const std::string& acMessage, bool aCancelIfQueued = false);
 } // namespace Utils

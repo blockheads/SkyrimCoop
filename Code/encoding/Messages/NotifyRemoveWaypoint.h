@@ -3,19 +3,10 @@
 #include "Message.h"
 #include <Wire/Buffer.h>
 
-struct NotifyRemoveWaypoint final : NotifyMessage
+struct NotifyRemoveWaypoint final : MessageOf<NotifyRemoveWaypoint, kNotifyRemoveWaypoint>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyRemoveWaypoint;
-
-    NotifyRemoveWaypoint() : NotifyMessage(Opcode)
+    template <class TArchive> void Fields(TArchive&) noexcept
     {
     }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyRemoveWaypoint& acRhs) const noexcept
-    {
-        return GetOpcode() == acRhs.GetOpcode();
-    }
+    bool operator==(const NotifyRemoveWaypoint&) const noexcept = default;
 };

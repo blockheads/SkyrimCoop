@@ -51,12 +51,8 @@ void CopyRecordsService::OnNotifyRecord(const NotifyRecord& acMessage) noexcept
 void CopyRecordsService::OnNotifyRecordAsk(const NotifyRecordAsk& acMessage) noexcept
 {
     // Only its owner answers: the host sent this to the owner it knew, which may have changed since.
-    for (const auto cEntity : m_world.view<LocalComponent>())
-        if (m_world.get<LocalComponent>(cEntity).Id == acMessage.Id)
-        {
-            m_records.DeclareAgain(acMessage.Id, acMessage.Kind);
-            return;
-        }
+    if (m_world.GetActorIndex().BySession<LocalComponent>(acMessage.Id) != entt::null)
+        m_records.DeclareAgain(acMessage.Id, acMessage.Kind);
 }
 
 void CopyRecordsService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) noexcept

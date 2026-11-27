@@ -101,7 +101,7 @@ void HookToggleControls(BSInputEnableManager* apThis, uint32_t aFlags, bool aEna
     if (flags != aFlags)
         spdlog::debug("PartyNatives: controls {:X} stay taken, another cutscene holds them", aFlags & ~flags);
     RealToggleControls(apThis, flags, aEnable, aStoreState);
-    World::Get().GetRunner().Trigger(SpectatorRefreshEvent{});
+    World::Runner().Trigger(SpectatorRefreshEvent{});
 }
 
 // The latent party calls: this game's originals by their stack (the key their copies go by), and other games' copies
@@ -124,7 +124,7 @@ void HookReturnFromLatent(BSScript::IVirtualMachine* apThis, uint32_t aStackId, 
         s_copies.Returned(aStackId);
     }
     if (original)
-        World::Get().GetRunner().Trigger(CallEndedEvent{aStackId, GlobalCall::Read(acValue).value_or(std::monostate{})});
+        World::Runner().Trigger(CallEndedEvent{aStackId, GlobalCall::Read(acValue).value_or(std::monostate{})});
     RealReturnFromLatent(apThis, aStackId, acValue);
 }
 
@@ -380,13 +380,13 @@ void Scope::Ran(BSScript::CallResult aResult, uint32_t aStackId) noexcept
     }
     // Its original already returned: ended once this frame lets it wait.
     if (ended)
-        World::Get().GetRunner().Queue([aStackId, cResult = std::move(*ended)] { EndWaiting(aStackId, cResult); });
+        World::Runner().Queue([aStackId, cResult = std::move(*ended)] { EndWaiting(aStackId, cResult); });
 }
 
 Scope::~Scope() noexcept
 {
     if (m_progressed)
-        World::Get().GetRunner().Trigger(PlayerProgressEvent{});
+        World::Runner().Trigger(PlayerProgressEvent{});
     if (m_controls)
     {
         t_pCall = m_pOuter;
@@ -401,7 +401,7 @@ Scope::~Scope() noexcept
     if (m_onThisPlayer && !Run(*m_onThisPlayer, 0))
         spdlog::warn("PartyNatives: {}.{} could not be queued on this game's player", m_onThisPlayer->Class, m_onThisPlayer->Function);
     if (m_event)
-        World::Get().GetRunner().Trigger(std::move(*m_event));
+        World::Runner().Trigger(std::move(*m_event));
 }
 
 bool Run(const LocalCall& acCall, uint32_t aSource, uint32_t aKey) noexcept

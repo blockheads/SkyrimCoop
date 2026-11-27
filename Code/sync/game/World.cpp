@@ -59,9 +59,28 @@
 #include <travel/TravelService.h>
 #include <core/UpdateEvent.h>
 
+#include <spdlog/spdlog.h>
+
+#include <atomic>
+#include <thread>
+#include <unordered_set>
+
 namespace
 {
 World* s_pCurrent = nullptr;
+
+#if COOP_TEST_HARNESS || defined(DEBUG)
+// World::Get() off the update and the main thread (where SetCurrent ran) is logged once per caller and thread.
+std::atomic<std::thread::id> s_mainThread;
+thread_local int t_inUpdate = 0;
+
+void CheckThread(const void* apCaller) noexcept
+{
+    thread_local std::unordered_set<const void*> t_logged;
+    if (!t_inUpdate && std::this_thread::get_id() != s_mainThread.load() && t_logged.insert(apCaller).second)
+        spdlog::error("World::Get() off the game's thread: thread {}, called from {}", std::hash<std::thread::id>{}(std::this_thread::get_id()), apCaller);
+}
+#endif
 
 // The ports the services look up, before the first of them (TransportService) is made. Each by its own interface:
 // with multiple inheritance, entt's ctx().emplace<T&> keeps the pointer as given.
@@ -195,7 +214,13 @@ World::~World()
 
 void World::Update() noexcept
 {
+#if COOP_TEST_HARNESS || defined(DEBUG)
+    ++t_inUpdate;
     m_pEngine->Frame(*this);
+    --t_inUpdate;
+#else
+    m_pEngine->Frame(*this);
+#endif
 }
 
 void World::Step(double aDeltaSeconds, double aEngineFrameMs) noexcept
@@ -210,17 +235,24 @@ void World::Step(double aDeltaSeconds, double aEngineFrameMs) noexcept
 
 World& World::Get() noexcept
 {
+#if COOP_TEST_HARNESS || defined(DEBUG)
+    CheckThread(__builtin_return_address(0));
+#endif
     return *s_pCurrent;
-}
-
-bool World::Exists() noexcept
-{
-    return s_pCurrent != nullptr;
 }
 
 void World::SetCurrent(World* apWorld) noexcept
 {
     s_pCurrent = apWorld;
+#if COOP_TEST_HARNESS || defined(DEBUG)
+    if (apWorld)
+        s_mainThread = std::this_thread::get_id();
+#endif
+}
+
+RunnerService& World::Runner() noexcept
+{
+    return s_pCurrent->m_runner;
 }
 
 RunnerService& World::GetRunner() noexcept
@@ -263,39 +295,14 @@ SessionService& World::GetSessionService() noexcept
     return ctx().at<SessionService>();
 }
 
-const SessionService& World::GetSessionService() const noexcept
-{
-    return ctx().at<const SessionService>();
-}
-
 TravelService& World::GetTravelService() noexcept
 {
     return ctx().at<TravelService>();
 }
 
-const TravelService& World::GetTravelService() const noexcept
-{
-    return ctx().at<const TravelService>();
-}
-
 CharacterService& World::GetCharacterService() noexcept
 {
     return ctx().at<CharacterService>();
-}
-
-const CharacterService& World::GetCharacterService() const noexcept
-{
-    return ctx().at<const CharacterService>();
-}
-
-MagicService& World::GetMagicService() noexcept
-{
-    return ctx().at<MagicService>();
-}
-
-const MagicService& World::GetMagicService() const noexcept
-{
-    return ctx().at<const MagicService>();
 }
 
 Hosting& World::GetHosting() noexcept
@@ -306,9 +313,4 @@ Hosting& World::GetHosting() noexcept
 HostService& World::GetHostService() noexcept
 {
     return ctx().at<HostService>();
-}
-
-const HostService& World::GetHostService() const noexcept
-{
-    return ctx().at<const HostService>();
 }

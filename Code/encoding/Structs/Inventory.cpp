@@ -3,23 +3,12 @@
 
 using Wire::Serialization;
 
-void Inventory::EffectItem::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
+namespace
 {
-    Serialization::WriteFloat(aWriter, Magnitude);
-    Serialization::WriteVarInt(aWriter, Area);
-    Serialization::WriteVarInt(aWriter, Duration);
-    Serialization::WriteFloat(aWriter, RawCost);
-    EffectId.Serialize(aWriter);
-}
-
-void Inventory::EffectItem::Deserialize(Wire::Buffer::Reader& aReader) noexcept
-{
-    Magnitude = Serialization::ReadFloat(aReader);
-    Area = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    Duration = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    RawCost = Serialization::ReadFloat(aReader);
-    EffectId.Deserialize(aReader);
-}
+// Generous: an inventory's distinct stacks, and an enchantment's effects.
+constexpr uint64_t kMaxEntries = 0xFFFF;
+constexpr uint64_t kMaxEffects = 256;
+} // namespace
 
 void Inventory::Entry::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
@@ -61,8 +50,8 @@ void Inventory::Entry::Deserialize(Wire::Buffer::Reader& aReader, bool aOwner) n
 
     ExtraEnchantId.Deserialize(aReader);
     ExtraEnchantCharge = Serialization::ReadVarInt(aReader) & 0xFFFF;
-    uint64_t effectCount = Serialization::ReadVarInt(aReader);
-    for (uint64_t i = 0; i < effectCount; i++)
+    const uint64_t cEffects = Serialization::ReadCount(aReader, kMaxEffects);
+    for (uint64_t i = 0; i < cEffects; ++i)
     {
         EffectItem effect;
         effect.Deserialize(aReader);
@@ -119,8 +108,8 @@ void Inventory::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 
 void Inventory::Deserialize(Wire::Buffer::Reader& aReader, bool aOwners) noexcept
 {
-    uint32_t count = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    for (uint32_t i = 0; i < count; i++)
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxEntries);
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         Entry entry;
         entry.Deserialize(aReader, aOwners);

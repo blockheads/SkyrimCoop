@@ -32,10 +32,10 @@ namespace
 // This game's actor's session id (none: not this game's).
 std::optional<uint32_t> LocalIdOf(World& aWorld, uint32_t aFormId) noexcept
 {
-    for (const entt::entity cEntity : aWorld.view<FormIdComponent, LocalComponent>())
-        if (aWorld.get<FormIdComponent>(cEntity).Id == aFormId)
-            return aWorld.get<LocalComponent>(cEntity).Id;
-    return std::nullopt;
+    const auto cEntity = aWorld.GetActorIndex().ByForm<LocalComponent>(aFormId);
+    if (cEntity == entt::null)
+        return std::nullopt;
+    return aWorld.get<LocalComponent>(cEntity).Id;
 }
 } // namespace
 
@@ -266,17 +266,17 @@ void MagicService::OnAddTargetEvent(const AddTargetEvent& acEvent) noexcept
 
     // Because it takes time to create Actors, the Caster or Target may not
     // exist on the server yet, or server may not have told us yet. Have to queue to compensate.
-    auto view = m_world.view<FormIdComponent>();
-    const auto it = std::find_if(std::begin(view), std::end(view), [id = acEvent.TargetID, view](auto entity) { return view.get<FormIdComponent>(entity).Id == id; });
+    const auto& actors = m_world.GetActorIndex();
+    const auto cTarget = actors.ByForm(acEvent.TargetID);
 
-    if (it == std::end(view))
+    if (cTarget == entt::null)
     {
         MagicQueue::Spdlog("{}: server entity for target formID not found, formID: {:X}, queueing", __FUNCTION__, acEvent.TargetID);
         m_queuedEffects.push(MagicAddTargetEventQueue(acEvent));
         return;
     }
 
-    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*it);
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(cTarget);
     if (!sessionIdRes.has_value())
     {
         MagicQueue::Spdlog("{}: server ID for target formID not found, formID: {:X}, queueing", __FUNCTION__, acEvent.TargetID);
@@ -288,16 +288,16 @@ void MagicService::OnAddTargetEvent(const AddTargetEvent& acEvent) noexcept
 
     if (acEvent.CasterID)
     {
-        const auto casterIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.CasterID, view](auto entity) { return view.get<FormIdComponent>(entity).Id == id; });
+        const auto cCaster = actors.ByForm(acEvent.CasterID);
 
-        if (casterIt == std::end(view))
+        if (cCaster == entt::null)
         {
             MagicQueue::Spdlog("{}: server entity for caster formID not found, formID: {:X}, queueing", __FUNCTION__, acEvent.CasterID);
             m_queuedEffects.push(MagicAddTargetEventQueue(acEvent));
             return;
         }
 
-        sessionIdRes = Utils::GetSessionId(*casterIt);
+        sessionIdRes = Utils::GetSessionId(cCaster);
         if (!sessionIdRes.has_value())
         {
             MagicQueue::Spdlog("{}: server ID for caster formID not found, formID: {:X}, queueing", __FUNCTION__, acEvent.CasterID);
@@ -397,18 +397,14 @@ void MagicService::OnRemoveSpellEvent(const RemoveSpellEvent& acEvent) noexcept
         return;
     request.SpellId = *cSpell;
 
-    auto view = m_world.view<FormIdComponent>();
-    const auto it = std::find_if(std::begin(view), std::end(view), [id = acEvent.TargetId, view](auto entity) {
-        return view.get<FormIdComponent>(entity).Id == id;
-    });
-
-    if (it == std::end(view))
+    const auto cTarget = m_world.GetActorIndex().ByForm(acEvent.TargetId);
+    if (cTarget == entt::null)
     {
         spdlog::warn("Form id not found for magic remove target, form id: {:X}", acEvent.TargetId);
         return;
     }
 
-    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*it);
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(cTarget);
     if (!sessionIdRes.has_value())
     {
         spdlog::warn("Session id not found for magic remove target, form id: {:X}", acEvent.TargetId);
@@ -464,17 +460,16 @@ void MagicService::ApplyQueuedEffects() noexcept
         {
             // Process queued target events. If caster and target now have server IDs, this should work.
             // If they don't, stop processing the list until next iteration.
-            auto view = m_world.view<FormIdComponent>();
-            const auto it = std::find_if(std::begin(view), std::end(view), [id = target.TargetID, view](auto entity) { return view.get<FormIdComponent>(entity).Id == id; });
+            const auto& actors = m_world.GetActorIndex();
+            const entt::entity entity = actors.ByForm(target.TargetID);
 
-            if (it == std::end(view))
+            if (entity == entt::null)
             {
                 spdlog::debug("{}: server entity for AddTargetEvent target formID still not found: caster {:X}, spell {:X}, effect {:X}, target {:X}",
                               __FUNCTION__, target.CasterID, target.SpellID, target.EffectID, target.TargetID);
                 break;
             }
 
-            entt::entity entity = *it;
             std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(entity);
             if (!sessionIdRes.has_value())
             {
@@ -485,16 +480,16 @@ void MagicService::ApplyQueuedEffects() noexcept
 
             if (target.CasterID)
             {
-                const auto casterIt = std::find_if(std::begin(view), std::end(view), [id = target.CasterID, view](auto entity) { return view.get<FormIdComponent>(entity).Id == id; });
+                const auto cCaster = actors.ByForm(target.CasterID);
 
-                if (casterIt == std::end(view))
+                if (cCaster == entt::null)
                 {
                     spdlog::debug("{}: serverID for AddTargetEvent caster formID still not found: caster {:X}, spell {:X}, effect {:X}, target {:X}",
                                   __FUNCTION__, target.CasterID, target.SpellID, target.EffectID, target.TargetID);
                     break;
                 }
 
-                sessionIdRes = Utils::GetSessionId(*casterIt);
+                sessionIdRes = Utils::GetSessionId(cCaster);
                 if (!sessionIdRes.has_value())
                 {
                     spdlog::debug("{}: serverID for AddTargetEvent caster formID still not found: caster {:X}, spell {:X}, effect {:X}, target {:X}",

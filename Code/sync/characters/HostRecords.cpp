@@ -65,7 +65,7 @@ void HostRecords::StorePlace(ConnectionId_t aPlayer) const noexcept
     const auto* cpPlayer = m_players.Find(aPlayer);
     if (!m_game.StorePlace || !cpPlayer || cpPlayer->IsHost || cpPlayer->Key.empty())
         return;
-    if (const auto cPlace = m_characters.CharacterPlace(m_characters.PlayerCharacterOf(aPlayer)))
+    if (const auto cPlace = m_characters.Arrivals().CharacterPlace(m_characters.PlayerCharacterOf(aPlayer)))
         m_game.StorePlace(cpPlayer->Key, cPlace->WorldSpaceId, cPlace->CellId, {cPlace->Position.x, cPlace->Position.y, cPlace->Position.z});
 }
 
@@ -76,7 +76,7 @@ void HostRecords::OnRecord(const RecordRequest& acRequest, ConnectionId_t aSende
         spdlog::debug("HostRecords: {:x} declared a part of {:x}, which it does not own: dropped", aSender, acRequest.Id);
         return;
     }
-    if (!m_characters.RideGranted(acRequest.Id, acRequest.Part))
+    if (!m_characters.Rides().RideGranted(acRequest.Id, acRequest.Part))
     {
         spdlog::info("HostRecords: {:x} declared a seat the host did not give it: dropped", acRequest.Id);
         return;

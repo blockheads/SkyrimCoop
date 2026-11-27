@@ -47,7 +47,7 @@ void DebugService::DisplayEntities() noexcept
 
     std::vector<entt::entity> entities(view.begin(), view.end());
 
-    ImGui::Text("Actor list (%d)", entities.size());
+    ImGui::Text("Actor list (%zu)", entities.size());
 
     ImGui::BeginChild("Entities", ImVec2(0, 200), true);
 

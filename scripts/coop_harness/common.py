@@ -37,7 +37,7 @@ DUO_USER = setting("COOP_DUO_USER", "")
 TEST_HOME = (ROOT / "build/coop-test").resolve()
 # The duo's game folder: STEAM_GAME's files linked, its own SKSE plugins (runtime.ensure_duo_game).
 GAME = Path(os.environ.get("SKYRIM_GAME_DIR", TEST_HOME / "game"))
-BUILD_HOME = ROOT / ("build/skyrim-1.6.1170" if SKYRIM_VERSION == "1.6.1170.0" else "build")
+BUILD_HOME = ROOT / "build"
 DLL = Path(os.environ.get("COOP_DLL", BUILD_HOME / "windows/x64/dev/SkyrimCoop.dll"))
 LOADER = DLL.with_name("SkyrimCoopLoader.dll")
 VANILLA_HARNESS = DLL.with_name("SkyrimCoopVanillaHarness.dll")
@@ -143,7 +143,6 @@ NEW_CHARACTER_NAME = "Rinara"
 BODY_TAB = (782, 36)
 FINISH_NAMING_OK = (587, 389)
 NAME_ACCEPT = (580, 316)
-JOIN_BASE_FLAGS = 0x03000E36
 NPC_SKILLS = 0x200
 NPC_RACE = 0x2000000
 NORD_VAMPIRE_RACE = 0x88794
@@ -190,7 +189,6 @@ HULDA_COLLEGE_LINES = (0x8EC38, 0x8EC39)
 ONMUND = "0001C194"
 ONMUND_FEW_NORDS = 0x8B58D
 ONMUND_NOT_A_NORD = 0x66963
-ONMUND_NOT_A_NORD_LINE = 0x6696E
 ONMUND_GREETINGS = (0x66973, 0x66974)
 NORD_RACE = 0x13746
 AMREN = "00013BAA"
@@ -325,7 +323,6 @@ WORLD_CHANGES = [
 ]
 OBJECT_EVENTS = {"activate", "lock_changed", "open", "close", "cell_attach", "cell_detach", "loaded", "unloaded"}
 DYNAMIC_MOTIONS = {1, 2, 3, 6}
-KEYFRAMED_MOTION = 4
 BONE_ON_BODY = 15.0
 BONE_APART = 10.0
 SINKHOLE = "SoljundsSinkhole01"
@@ -363,8 +360,7 @@ KEPT_APART = "kept apart by the frame: "
 # lock_order_reports' key for pass-through hooks the plugin could not measure: never part of a baseline.
 UNMEASURED_HOOKS = "unmeasured hooks"
 LOCK_PATTERN = re.compile(r"^(\[ours\] )?(?:kept apart by the frame: )?(live lock order inversion|lock order inversion|self-deadlock) \[([^\]]*)\]")
-KNOWN_LOCK_PATTERNS = ROOT / ("scripts/lock_order_known.txt" if SKYRIM_VERSION == "1.6.1170.0"
-                              else "scripts/lock_order_known-1.7.104.txt")
+KNOWN_LOCK_PATTERNS = ROOT / "scripts/lock_order_known-1.7.104.txt"
 FORM_TYPE_NAMES = dict(enumerate(
     "NONE TES4 GRUP GMST KYWD LCRT AACT TXST MICN GLOB CLAS FACT HDPT EYES RACE SOUN ASPC SKIL MGEF SCPT LTEX ENCH "
     "SPEL SCRL ACTI TACT ARMO BOOK CONT DOOR INGR LIGH MISC APPA STAT SCOL MSTT GRAS TREE FLOR FURN WEAP AMMO NPC_ "

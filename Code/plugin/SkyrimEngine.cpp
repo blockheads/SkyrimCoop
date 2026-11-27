@@ -22,7 +22,6 @@
 #include <core/Profile.h>
 #include <LoadGameEvents.h>
 #include <MenuEvents.h>
-#include <ModCompat/BehaviorVar.h>
 #include <DebugService.h>
 #include <ImguiService.h>
 #include <Bridges/PapyrusService.h>
@@ -76,7 +75,6 @@ public:
     void Started(World&) override
     {
         LoadGameEvents::Start();
-        BehaviorVar::Get()->Init();
     }
 
     void Stopping(World&) noexcept override

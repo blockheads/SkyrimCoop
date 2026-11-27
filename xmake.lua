@@ -20,26 +20,13 @@ if is_plat("linux") then
     add_cxflags("-fPIC")
 end
 
-set_warnings("all")
+-- Our targets build clean: a warning fails the build (packages build with their own flags).
+set_warnings("all", "error")
 add_vectorexts("sse", "sse2", "sse3", "ssse3")
 add_vectorexts("neon")
 
 -- build configurations
 add_rules("mode.debug", "mode.releasedbg", "mode.release", "mode.dev")
-
-option("skyrim_version")
-    set_default("latest")
-    set_values("latest", "1.7.104", "1.6.1170")
-    set_showmenu(true)
-    set_description("Skyrim Steam runtime (latest is 1.7.104)")
-    after_check(function (option)
-        if not table.contains(option:get("values"), option:value()) then
-            raise("unsupported skyrim_version: %s", tostring(option:value()))
-        end
-    end)
-option_end()
-add_defines(has_config("skyrim_version") and is_config("skyrim_version", "1.6.1170")
-    and "COOP_SKYRIM_1_6_1170=1" or "COOP_SKYRIM_1_6_1170=0")
 
 if is_plat("windows") then
     -- clang-cl targeting the MSVC ABI from Linux: configure through scripts/xmake-msvc.sh,
@@ -53,6 +40,9 @@ if is_plat("windows") then
     set_runtimes("MT")
     set_exceptions("cxx")
     add_cxflags("/bigobj", "/Zc:__cplusplus", {tools = {"clang_cl", "cl"}})
+    -- The CRT's "use the _s variant" deprecations, and the pragma in xmake's generated precompiled headers.
+    add_defines("_CRT_SECURE_NO_WARNINGS")
+    add_cxflags("-Wno-pragma-system-header-outside-header", {tools = {"clang_cl"}})
     -- Package CMake builds: Ninja instead of the Visual Studio generator.
     set_policy("package.cmake_generator.ninja", true)
 end
@@ -125,32 +115,6 @@ add_requireconfs("*.rpmalloc", { override = true })
 add_requireconfs("*.cmake", { version = "3.30.2", override = true })
 add_requireconfs("*.zlib", { version = "v1.3.1", override = true })
 
-before_build(function (target)
-    import("modules.version")
-    local branch, commitHash = version()
-    bool_to_number={ [true]=1, [false]=0 }
-    local contents = string.format([[
-    #pragma once
-    #define IS_MASTER %d
-    #define IS_BRANCH_BETA %d
-    #define IS_BRANCH_PREREL %d
-    ]], 
-    bool_to_number[branch == "master"], 
-    bool_to_number[branch == "bluedove"], 
-    bool_to_number[branch == "prerel"])
-
-    -- fix always-compiles problem by updating the file only if content has changed.
-    local filepath = "build/BranchInfo.h"
-    local old_content = nil
-    if os.exists(filepath) then
-        old_content = io.readfile(filepath)
-    end
-    if old_content ~= contents then
-        print("Updating file:", filepath)
-        io.writefile(filepath, contents)
-    end
-end)
-
 if is_mode("debug") then
     add_defines("DEBUG")
 end
@@ -172,6 +136,19 @@ option("profiler")
     set_showmenu(true)
     set_description("Build Tracy into the client (idle until a profiler connects; localhost only)")
 option_end()
+
+-- ASan and UBSan in the native Linux build, and the fuzz target (Code/tests/fuzz): COOP_SANITIZE=1
+-- scripts/xmake-linux.sh, its own config and build dir (docs/design/testing.md, Sanitizers and fuzzing).
+option("sanitize")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Build the native Linux targets with ASan, UBSan and libFuzzer's coverage")
+option_end()
+if is_plat("linux") and has_config("sanitize") then
+    add_cxflags("-fsanitize=address,undefined,fuzzer-no-link", "-fno-omit-frame-pointer")
+    add_ldflags("-fsanitize=address,undefined", {force = true})
+    add_shflags("-fsanitize=address,undefined", {force = true})
+end
 
 if is_plat("windows") and has_config("profiler") then
     -- Started and stopped by the plugin (not in DllMain; before a hot reload unloads it). No crash handler of its

@@ -52,6 +52,7 @@ every other section needs the duo.
 - [A follower stops following](#a-follower-stops-following): not reproducible on 1.7.104 (2026-11-07), not worked on
 - [A guest's recruitment stalls](#a-guests-recruitment-stalls): small
 - [A deleted copy in an AI job](#a-deleted-copy-in-an-ai-job): small
+- [A guest crashes attaching a cell after the mount scenarios](#a-guest-crashes-attaching-a-cell-after-the-mount-scenarios): medium
 - [A passenger jumps 57 units as it takes the reins](#a-passenger-jumps-57-units-as-it-takes-the-reins): small
 
 **Saves**
@@ -60,6 +61,7 @@ every other section needs the duo.
 
 **Plugin compatibility**
 
+- [World::Get() off the game's thread](#worldget-off-the-games-thread): medium
 - [Quest start and stop events](#quest-start-and-stop-events): medium
 
 **Crime and aggro**
@@ -699,6 +701,11 @@ Size: small. Needs: IDA, the duo (`party-shares-a-horse`), then GameTests.
   `EvaluatePackage` 37401) with `riders_smooth`'s body trace; read what 40725 / the mount package do to a seated rider.
 - 2026-11-22, dev `aa723513`: 1 of 3 runs, "the host gets off: [client 14] jumped 50 units in 16 ms at 0.77 s"; the
   other two passed whole (their end comparisons too).
+- 2026-11-26, dev `3d763578`: `rejoined-guest-sees-rider` 4 of 4 fail on the end comparison, each on another nearby
+  actor or object (villagers' sit state, a rabbit 121 units from its copy, a mill log), with two agents compiling
+  beside the games. The cleanup branch fails the same way (5 of 5: an elk's facing, Dorthe 94 units off, a rabbit).
+  The same sword at Riverwood's forge (35514, `IronLongSword01`, resting 5 units apart) ends dev's fourth run and
+  `two-players-race-for-horse` once on the cleanup branch (2026-11-27; it passed the run before).
 - From the closed "Whiterun plains' critters differ" (2026-11-20, the claims refactor and piece 5, not read): once the
   horse itself 53 units from its copy at the end, once two host elks' copies about 159 units off their owners. Not seen
   in the two passing runs of 2026-11-22.
@@ -720,6 +727,29 @@ Size: small. Needs: code and GameTests only.
   - Test: a `host_load_flows.cpp` case.
 
 ## Plugin compatibility
+
+### World::Get() off the game's thread
+
+Found 2026-11-27 by the thread check in `World::Get()` (test and debug builds; `Code/sync/game/World.cpp`): in a duo
+run of eleven scenarios each game logged about 60 lines, 18 call sites on the engine's job, Papyrus, graph and render
+threads, outside our update. `entt`'s registry and dispatcher are not thread-safe, and the plain fields read here have
+no lock. The sites, by symbol (`build/coop-test/runs/20261127-001358-duo`, resolved against the run's PDB):
+
+- Papyrus threads: `GuestScripts::IsHosting` (GuestScripts.cpp:166), `PartyNatives::Scope::FactsOf`
+  (PartyNatives.cpp:259, 281), `HookRegisterPapyrusFunction` (VirtualMachine.cpp:22), `TESObjectREFR::GetOpenState`.
+- Graph threads: `GraphStreamHooks.cpp`'s `HookUpdate`, `HookBehaviourUpdate`, `HookGenerate`, `HookSendEvent`,
+  `LogOwnerLoad` (the streams are meant to be used there, but are reached through `World::Get()`), the harness's
+  `GraphStreamCheck.cpp`, `HookUpdateAnimationGraphs` (Animation.cpp:153, the frame tick), `HookPerformAction`
+  (Animation.cpp:71, 101).
+- Job threads: `HookAddTarget` (MagicTarget.cpp:118).
+- UI and render threads: `UI_FindOnStack_Hook` (UI.cpp:77, the transport's connected flag),
+  `RenderSystemD3D11::OnRender` (the registry's context, for `UiService`).
+
+Agent task: for each site, read what it touches. A value meant for other threads (the frame tick, hosting, connected,
+the graph streams) gets its own thread-safe accessor beside `World::Runner()`; a site that reads the registry or a
+service moves its work to the queue (`World::Runner().Trigger`). The check's log should then be empty in a duo run.
+
+Size: medium. Needs: the duo (the check only speaks in the game).
 
 ### Quest start and stop events
 
@@ -990,7 +1020,7 @@ Size: small. Needs: GameTests.
   - 2026-11-16, dev: `party-travel-mounted-guest` 1 of 3 reruns, the guest's owner on `swimStop`, the host's copy on
     `SwimStart` with `state1` 33792 against 32768.
   - 2026-11-17 (`agent/horse-riding`): the host's record of a player now takes the actions it relays
-    (`HostCharacters::OnMovement`), so a spawn built from the record (no host copy, a respawn) plays the latest;
+    (`HostMovement::OnMovement`), so a spawn built from the record (no host copy, a respawn) plays the latest;
     HostAuthorityTests "a player's latest relayed action". Not yet seen on the duo whether the travels' copies come
     from the record or from the host's copy (`ReadCopy`, its own action, the one behind).
   - Start: which spawn the host's new copy came from after the travel: the record, or an earlier one in flight.
@@ -1099,6 +1129,17 @@ Size: small. Needs: IDA, then the duo.
   `SKSE/crash-2026-11-17-23-28-37.log`.
   - Probably fixed by `agent/coc-whiterun-crash` (PR #71, merged 2026-11-17: the same job, 63997, faulting on a
     deleted copy's held clip load after a `coc`); rerun a `coc` with riders to confirm, then delete this entry.
+  - **Seen again 2026-11-27** (`agent/cleanup-guest-crash`, the six mount scenarios, heap history and quarantine on;
+    guest crash log `crash-2026-11-27-07-18-55.log` in that worktree's build): the same `call [rax+0x08]` at 63997+0xC1,
+    `rax` 0, on a finished load's callback (`entry+0x40`, in `RCX`, not a MemoryManager block: our `ClipsLoaded` is
+    made with `new`). The entry (0x68) was queued by our `ActionClips::Request` from a graph stream's deferred request
+    15.8 s before and was still live. **Read:** `ActionClips::Request`'s instant set (4) assigns the process's callback
+    (`instantClipsLoaded`) through 39731, which deletes the old one at its last reference, with no cancel first; the
+    queue holds only the pointer (63968). **Hypothesis, not checked:** that this entry was such a replaced set-4 load
+    (the timing allows a set-3 load of the same copy too). Copy `1348C` asked for set 4 at 07:18:38.722
+    (`IdleWoodPickUpEnter`, the entry's time) and again at 07:18:52.026, 2.5 s before the crash; the engine's own
+    39798 cancels the instant load before it releases that callback. Start: keep the old callback by a reference until
+    its load reports back (as `HeldClipLoads` does for movement sets), and a GameTests flow on the fake's loads.
 
 ### Cover plates after the host leaves
 
@@ -1504,7 +1545,9 @@ Size: small. Needs: the duo.
   items on one game and 0 on the other.
 - `guest-sets-down-item`: "[host] shows it where it rests" timed out after 5 s.
 - `guest-bump-moves-host`: "[host] 1 objects back where they were" timed out after 30 s.
-- `world-changes-reach-guest`: "the client's world does not follow the host's".
+- `world-changes-reach-guest`: "the client's world does not follow the host's". Second sighting 2026-11-27 (the
+  cleanup branch `20a4acde`, 1 of 8 runs that night): the `open` step, the host saw `lock_changed` and `open`, the
+  guest only `lock_changed`; the next 4 runs passed.
 - `guest-makes-character-then-joins`: "[client] the Body category is open" timed out (the race menu), then the host
   refused the guest ("has no character in the host's save and brings none") and the duo was booted again.
 - `host-menu-loads-party`: "the guest loads the save from its store and rejoins" timed out after 120 s.

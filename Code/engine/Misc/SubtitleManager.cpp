@@ -29,20 +29,13 @@ void SubtitleManager::ShowSubtitle(TESObjectREFR* apSpeaker, const char* apSubti
     RealShowSubtitle(this, apSpeaker, apSubtitleText, aForceDisplay);
 }
 
-void* SubtitleManager::HideSubtitle(TESObjectREFR* apSpeaker) noexcept
-{
-    using THideSubtitle = void*(SubtitleManager*, TESObjectREFR* apSpeaker);
-    POINTER_SKYRIMSE(THideSubtitle, s_hideSubtitle, 52627);
-    return s_hideSubtitle(this, apSpeaker);
-}
-
 void HookShowSubtitle(SubtitleManager* apThis, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aForceDisplay)
 {
     // spdlog::debug("Subtitle for actor {:X} (bool {}):\n\t{}", apSpeaker ? apSpeaker->formID : 0, aForceDisplay, apSubtitleText);
 
     Actor* pActor = Cast<Actor>(apSpeaker);
     if (apSubtitleText && pActor && pActor->GetExtension()->IsLocal() && !pActor->GetExtension()->IsPlayer())
-        World::Get().GetRunner().Trigger(SubtitleEvent(apSpeaker->formID, apSubtitleText, aForceDisplay));
+        World::Runner().Trigger(SubtitleEvent(apSpeaker->formID, apSubtitleText, aForceDisplay));
     // A copy shows only its owner's subtitles (NotifySubtitle calls past this hook).
     if (pActor && pActor->GetExtension()->IsCopy())
         return;

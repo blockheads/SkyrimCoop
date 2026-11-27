@@ -4,22 +4,15 @@
 #include <Wire/Buffer.h>
 #include <Structs/Tints.h>
 
-struct NotifyRespawn final : NotifyMessage
+struct NotifyRespawn final : MessageOf<NotifyRespawn, kNotifyRespawn>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyRespawn;
-    NotifyRespawn()
-        : NotifyMessage(Opcode)
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
+        aArchive(ActorId, AppearanceBuffer);
+        if (!AppearanceBuffer.empty())
+            aArchive(ChangeFlags, FaceTints, Weight);
     }
-
-    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const NotifyRespawn& acRhs) const noexcept
-    {
-        return GetOpcode() == acRhs.GetOpcode() && ActorId == acRhs.ActorId && AppearanceBuffer == acRhs.AppearanceBuffer &&
-               ChangeFlags == acRhs.ChangeFlags && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight;
-    }
+    bool operator==(const NotifyRespawn&) const noexcept = default;
 
     uint32_t ActorId{};
     // With looks, update the existing copy; otherwise make it again from the owner's live state.

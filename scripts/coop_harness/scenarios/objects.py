@@ -70,7 +70,7 @@ def scenario_sword_box_asks_client(ctx):
             raise ctx.failure("[host] the host's player holds a sword it never had")
         ctx.wait_for("[host] the copy gave up the sword", lambda: ctx.item_count("", copy, RED_EAGLE_SWORD) == 0, 5)
         if HALLDIR_STAFF in ctx.copy_equips("", copy, since):
-            raise ctx.failure(f"[host] the copy equipped the staff its owner never held when the sword was taken from it")
+            raise ctx.failure("[host] the copy equipped the staff its owner never held when the sword was taken from it")
         # The host's script swaps the box for the sword in the stone; the client sees it from the host (step 6).
         for name in ("", "client"):
             ctx.wait_for(f"[{name or 'host'}] the sword stands in the stone, the box is gone",

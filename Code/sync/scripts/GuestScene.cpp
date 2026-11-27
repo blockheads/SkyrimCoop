@@ -24,14 +24,11 @@ GuestScene::~GuestScene() noexcept
 void GuestScene::OnAiState(const CopyAiStateEvent& acMessage) noexcept
 {
     // Only the host's player drives the party's scenes; another guest's ordinary AI state must not end one.
-    const auto actors = m_world.view<RemoteComponent, PlayerComponent>();
-    const auto actor = std::ranges::find_if(actors, [&](entt::entity aEntity) {
-        return actors.get<RemoteComponent>(aEntity).Id == acMessage.SessionId;
-    });
-    if (actor == actors.end())
+    const auto cActor = m_world.GetActorIndex().BySession<RemoteComponent, PlayerComponent>(acMessage.SessionId);
+    if (cActor == entt::null)
         return;
     const auto& players = m_world.GetSessionService().GetPlayers();
-    const auto player = players.find(actors.get<PlayerComponent>(*actor).Id);
+    const auto player = players.find(m_world.get<PlayerComponent>(cActor).Id);
     if (player == players.end() || !player->second.IsHost)
         return;
     const ActorAiState& cState = acMessage.State;

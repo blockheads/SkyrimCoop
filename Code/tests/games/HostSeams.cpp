@@ -192,7 +192,6 @@ void FakeHostEngine::AdvanceTime(float aHours) noexcept
 
 void FakeHostEngine::RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept
 {
-    FakeEngine& engine = m_engine;
     // The fake engine records its own world's changes where they happen (FakeEngine::Recorded).
 }
 

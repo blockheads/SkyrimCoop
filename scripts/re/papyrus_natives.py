@@ -21,7 +21,6 @@ singletons it reads (its import of the Address Library resolves at run time: giv
 """
 if __name__ == "__main__":
     import ida_funcs  # noqa: F401
-    import ida_nalt
     import idautils  # noqa: F401
     import idc  # noqa: F401
 

@@ -18,7 +18,6 @@ struct BSScript
     struct IVirtualMachine;
     struct Variable;
     struct IFunction;
-    static IFunction* MakeLaunchFunction();
 
     // A script's compiled type (CommonLibSSE-NG ObjectTypeInfo.h).
     struct ObjectTypeInfo
@@ -431,15 +430,6 @@ struct BSScript
 
     // TODO: template stuff for a cleaner implementation
     // https://github.com/Ryan-rsm-McKenzie/CommonLibSSE/blob/master/include/RE/N/NativeFunction.h
-
-    struct DidLaunchSkyrimTogetherFunc : NativeFunction
-    {
-        using FunctionType = bool();
-
-        DidLaunchSkyrimTogetherFunc(const char* apFunctionName, const char* apClassName, FunctionType aFunction, Variable::Type aType);
-
-        bool MarshallAndDispatch(Variable* apBaseVar, IVirtualMachine* apVm, uint32_t aStackID, Variable* apResult, StackFrame* apStackFrame) override;
-    };
 
     // Bad PoC code
 };

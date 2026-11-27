@@ -16,10 +16,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 
 ### Constraints
 
-- **Runtime**: Steam 1.7.104 is the routine development and validation target. Do not run compatibility builds,
-  tests or legacy RE updates for 1.6.1170 unless explicitly requested (user preference, 2026-11-02).
-  Keep the existing optional 1.6 build configuration; its artifacts remain isolated under
-  `build/skyrim-1.6.1170` / `build/msvc-config-1.6.1170`.
+- **Runtime**: Steam 1.7.104 is the only supported runtime (1.6.1170 support was removed 2026-11-26).
 
 - **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimCoopPlugin`. Details: `docs/re/systems/compiler-abi.md`
 - **Testing**: four tiers, `docs/design/testing.md` (unit and in-process games gate every change: `scripts/check.sh`, also the pre-push hook; the duo for what's affected). `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the testing guide
@@ -141,7 +138,7 @@ Code/
 ├── components/imgui/    # The debug views' renderer
 ├── hotreload/           # Hot reload's loader
 ├── vanilla_harness/     # The harness without our plugin
-└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests that span layers), games/ (GameTests),
+└── tests/               # TPTests (encoding.cpp, encoding_fields.cpp), host_authority/ (HostAuthorityTests), client/ (UnitTests that span layers), games/ (GameTests),
                          # specs/ (shared specs: GameTests and scripts/coop_specs.py), peer/ (coop_peer)
 ```
 
@@ -162,21 +159,22 @@ the host's own game: the same, over an in-process route instead of enet
 ### Adding a message
 
 1. A request and notification carrying the same payload: the payload in `Messages/Payloads.h` and a `using` line each in
-   `Messages/RelayedMessages.h` (`Relayed<Payload, Opcode>`). Otherwise its own struct in `Code/encoding/Messages/` (a
-   `RequestMessage` or `NotifyMessage` with `SerializeRaw`/`DeserializeRaw`), included in `RequestMessageFactory.h` /
-   `NotifyMessageFactory.h`
+   `Messages/RelayedMessages.h` (`Relayed<Payload, Opcode>`). Otherwise its own struct in `Code/encoding/Messages/`
+   (`struct X final : MessageOf<X, kX>`), included in `RequestMessageFactory.h` / `NotifyMessageFactory.h`. Either way
+   its fields are listed once, in wire order, in `Fields` (`Wire/Archive.h`), with `operator==` defaulted: no .cpp
 2. Its name at the end of its list in `Code/encoding/Opcodes.h`: that makes its opcode and its factory entry
 3. The host's rule: in its feature's `Host*` part (`Code/sync/<feature>/`), registered with `HostRouter::On` (or a `Relay`) in that part's
    constructor, with a `HostAuthorityTests` case. A new part is built in `HostAuthority`, which holds no rules itself
 4. Each game's handler: a client service's `m_messageHandlers` entry or dispatcher sink
-5. A round trip in `Code/tests/encoding.cpp`
+5. Its recorded bytes: `COOP_GOLDEN_OUT=<file> build/linux/x86_64/debug/TPTests "[encoding.fields]"`, its new line into
+   `Code/tests/encoding_golden.h` (every opcode round trips there); a test in `encoding.cpp` only for behaviour beyond that
 
 ## Reverse Engineering Reference
 
 - Start at `docs/re/README.md`: generated `docs/re/ENGINE_REFERENCE.md` lists every engine address (Address Library ID) the client uses with its CommonLibSSE/SKSE/meh321 name and hook/call usage; `docs/re/systems/` and `docs/re/crashes/` hold hand-written findings
 - Regenerate after adding/changing `POINTER_SKYRIMSE` IDs: `python3 scripts/re/build_re_data.py` (references fetched by `scripts/re/fetch_references.sh` into git-ignored `reference/`)
-- IDA databases (not committed): `build/re/SkyrimSE_1.7.104.i64` and the retained `SkyrimSE_1.6.1170.i64`, built by
-  `scripts/re/make_ida_db.sh` with the matching `COOP_SKYRIM_VERSION`; annotations live in `build/re/<version>/`.
+- IDA database (not committed): `build/re/SkyrimSE_1.7.104.i64`, built by `scripts/re/make_ida_db.sh`; annotations
+  live in `build/re/1.7.104/`.
   Sync with `scripts/re/ida_apply.py` / `ida_export.py`; the importer verifies the executable SHA-256. Every checkout
   shares the main checkout's database; MCP writes reach the repo through the journal (`ida_replay.py` rebuilds from it).
 
@@ -184,7 +182,6 @@ the host's own game: the same, over an in-process route instead of enet
 
 - `AnimationSystem` interpolates copies' animations; `LocalAnimationComponent` / `RemoteAnimationComponent` track state
 - Animation variables are sent with differential encoding
-- Behavior mods via Nemesis/Pandora patches: `README-ANIMATION-MODS.md`
 
 ## Conventions
 

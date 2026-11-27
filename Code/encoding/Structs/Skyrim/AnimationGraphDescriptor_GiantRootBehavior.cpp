@@ -68,7 +68,7 @@ AnimationGraphDescriptor_GiantRootBehavior::AnimationGraphDescriptor_GiantRootBe
         kIsBleedingOutTransition = 60,
     };
 
-    uint64_t key = 14787123347890181413;
+    uint64_t key = 14787123347890181413u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key, AnimationGraphDescriptor({kbAnimationDriven, kIsAttackReady, kIsStaggering, kbEquipOk, kbHeadTrackingOn, kbAllowRotation}, {kSpeed, kDirection, kTurnDelta, kSpeedSampled}, {kiSyncIdleLocomotion, kiSyncDefaultState, kiSyncTurnState, kiState, kiStateCurrent}));

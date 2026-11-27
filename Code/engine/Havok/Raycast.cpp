@@ -1,4 +1,5 @@
 #include <Havok/Raycast.h>
+#include <Havok/bhkCollision.h>
 #include <Havok/bhkPickData.h>
 #include <Forms/TESObjectCELL.h>
 #include <PlayerCharacter.h>
@@ -13,9 +14,7 @@ namespace
 std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer, TESObjectCELL* apCell) noexcept;
 void* WorldOf(TESObjectCELL* apCell) noexcept
 {
-    using TGetWorld = void*(TESObjectCELL*);
-    POINTER_SKYRIMSE(TGetWorld, s_getWorld, 18995);
-    return apCell ? s_getWorld(apCell) : nullptr;
+    return apCell ? apCell->GetbhkWorld() : nullptr;
 }
 } // namespace
 
@@ -87,9 +86,7 @@ std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], ui
     }
     if (hit.Hit)
     {
-        using TFindRef = TESObjectREFR*(const hkpCollidable*);
-        POINTER_SKYRIMSE(TFindRef, s_findCollidableRef, 26003); // TESHavokUtilities::FindCollidableRef
-        if (const TESObjectREFR* pRef = s_findCollidableRef(pick.RootCollidable))
+        if (const TESObjectREFR* pRef = FindCollidableRef(pick.RootCollidable))
             hit.Reference = pRef->formID;
         hit.Layer = pick.RootCollidable->filterInfo & 0x7F;
     }

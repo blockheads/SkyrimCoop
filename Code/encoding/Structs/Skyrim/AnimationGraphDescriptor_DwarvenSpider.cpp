@@ -79,7 +79,7 @@ AnimationGraphDescriptor_DwarvenSpider::AnimationGraphDescriptor_DwarvenSpider(A
         kiGetUpType = 71,
     };
 
-    uint64_t key = 15924684633707834553;
+    uint64_t key = 15924684633707834553u;
 
     AnimationGraphDescriptorManager::Builder s_builder(
         aManager, key,

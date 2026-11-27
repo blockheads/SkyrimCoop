@@ -62,14 +62,6 @@ IMenu* UI::FindMenuByName(const BSFixedString& acName)
     return nullptr;
 }
 
-void UI::DebugLogAllMenus()
-{
-    for (auto& e : menuStack)
-    {
-        spdlog::info("Menu {}", e->uiMenuFlags);
-    }
-}
-
 static_assert(MenuPauseRules::kPauseFlags ==
               (IMenu::kPausesGame | IMenu::kFreezeFrameBackground | IMenu::kFreezeFramePause));
 
@@ -109,16 +101,6 @@ void UIMessageQueue::AddMessage(const BSFixedString& acMenu, UIMessage::UI_MESSA
     (s_addMessage.Get())(this, &acMenu, aType, apData);
 }
 
-using TCallback = void(void*, const BSFixedString*, uint32_t, void*);
-static TCallback* UIMessageQueue__AddMessage_Real;
-
-// Useful for debugging UI related issues.
-void UIMessageQueue__AddMessage(void* a1, const BSFixedString* a2, UIMessage::UI_MESSAGE_TYPE a3, void* a4)
-{
-    spdlog::info("Adding Message {} with prio {} from {}", a2->AsAscii(), std::to_underlying(a3), static_cast<const void*>(_ReturnAddress()));
-    UIMessageQueue__AddMessage_Real(a1, a2, a3, a4);
-}
-
 static Hooks::Initializer s_s(
     []()
     {
@@ -135,11 +117,6 @@ static Hooks::Initializer s_s(
         // Allows the favorites menu to be numbered during connect.
         VersionDbPtr<uint8_t> FavoritesCanProcess(51538);
         Hooks::Put<uint16_t>(FavoritesCanProcess.Get() + 0x15, 0x9090);
-
-        // Some experiments:
-        // POINTER_SKYRIMSE(TCallback, s_start, 13631);
-        // UIMessageQueue__AddMessage_Real = s_start.Get();
-        // HOOK(&UIMessageQueue__AddMessage_Real, UIMessageQueue__AddMessage);
 
         // This kills the loading spinner
         // Hooks::Put<uint8_t>(0x1405D51C1, 0xEB);

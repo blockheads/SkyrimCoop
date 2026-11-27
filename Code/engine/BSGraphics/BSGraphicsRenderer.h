@@ -87,6 +87,9 @@ struct RendererData
 
 struct Renderer
 {
+    // Renderer::singleton (411393): the object itself.
+    [[nodiscard]] static Renderer* Get() noexcept;
+
     bool bSkipNextPresent;
     void (*ResetRenderTargets)();
     BSGraphics::RendererData Data;

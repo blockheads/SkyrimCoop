@@ -52,7 +52,6 @@ struct MenuTopicManager
     // once the info's conditions pass (Dialogue's constructor 35254, with the speaker); no conditions are tested,
     // and it is not in the list until added.
     [[nodiscard]] Dialogue* BuildOption(TESTopic* apTopic, TESTopicInfo* apInfo) noexcept;
-    void Append(Dialogue* apOption) noexcept;
     // The list becomes these options, in order (its own or built here); the ones left out are destroyed.
     void SetOptions(const std::vector<Dialogue*>& acOptions) noexcept;
     // Dialogue's deleting destructor (35319).
