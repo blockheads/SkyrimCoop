@@ -50,7 +50,7 @@ void HookSpellCast(ActorMagicCaster* apThis, bool abSuccess, int32_t auiTargetCo
         }
     }
 
-    World::Get().GetRunner().Trigger(SpellCastEvent(pActor->formID, pSpell->formID, targetFormId,
+    World::Runner().Trigger(SpellCastEvent(pActor->formID, pSpell->formID, targetFormId,
                                                    static_cast<uint32_t>(apThis->GetCastingSource()),
                                                    apThis->GetIsDualCasting(), pActor->GetNiNode() != nullptr));
 
@@ -63,7 +63,7 @@ void HookInterruptCast(ActorMagicCaster* apThis, bool abRefund)
     ActorExtension* pExtended = CastingSafety::ExtensionOf(pActor);
 
     if (pExtended && pExtended->IsLocal())
-        World::Get().GetRunner().Trigger(InterruptCastEvent(apThis->pCasterActor->formID, apThis->eCastingSource));
+        World::Runner().Trigger(InterruptCastEvent(apThis->pCasterActor->formID, apThis->eCastingSource));
 
     RealInterruptCast(apThis, abRefund);
 }

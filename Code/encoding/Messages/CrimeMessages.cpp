@@ -126,7 +126,9 @@ void CrimeRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
             const auto quantity = Serialization::ReadVarInt(aReader);
             if (!quantity || quantity > 0x7FFFu)
             {
+                // A bad value drops the message (fuzzer: decoding stopped here and left the rest unread).
                 Action = static_cast<CrimeAction>(255);
+                aReader.Fail();
                 return;
             }
             owner.Count = static_cast<uint32_t>(quantity);

@@ -17,7 +17,7 @@ struct MenuSink final : BSTEventSink<MenuOpenCloseEvent>
     {
         const char* cpName = apEvent ? apEvent->menuName.AsAscii() : nullptr;
         if (cpName)
-            World::Get().GetRunner().Trigger(MenuEvent{cpName, apEvent->opening});
+            World::Runner().Trigger(MenuEvent{cpName, apEvent->opening});
         return BSTEventResult::kOk;
     }
 };

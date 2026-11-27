@@ -91,7 +91,7 @@ __declspec(noinline) void CheckWatched(AutoClosed& aMenu) noexcept
         spdlog::info("LiveMenus: closing {}: {}", aMenu.Name, cWhy);
         // A gone chest has no 3D: the menu's close (51125 -> OpenOrClose 14284) only flips its open state.
         if (const TESObjectREFR* pTarget = cTarget.Gone && std::string_view(aMenu.Name) == "ContainerMenu" ? TESObjectREFR::GetByHandle(aMenu.TargetHandle()) : nullptr)
-            World::Get().GetRunner().Trigger(LidUnposedEvent{pTarget->formID});
+            World::Runner().Trigger(LidUnposedEvent{pTarget->formID});
         aMenu.Watching = false;
         if (auto* pQueue = UIMessageQueue::Get())
             pQueue->AddMessage(aMenu.Name, UIMessage::kHide, nullptr);

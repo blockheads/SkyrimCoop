@@ -19,7 +19,7 @@ std::atomic<uint32_t> s_users{0};
 void Raise(const Actor* apActor) noexcept
 {
     if (apActor && s_users.load(std::memory_order_relaxed))
-        World::Get().GetRunner().Trigger(FactionsChangeEvent{apActor->formID});
+        World::Runner().Trigger(FactionsChangeEvent{apActor->formID});
 }
 
 // Each writes the base's faction list (a unique actor) or the reference's ExtraFactionChanges, which GetFactions reads.

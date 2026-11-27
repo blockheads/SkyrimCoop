@@ -119,7 +119,7 @@ BGSStoryEvent* HookBuildEvent(BGSStoryEvent* apThis, uint32_t aIndex, const void
     {
         OwnStoryEvent own{aIndex};
         std::copy(std::begin(pEvent->members), std::end(pEvent->members), own.Members.begin());
-        World::Get().GetRunner().Trigger(own);
+        World::Runner().Trigger(own);
     }
     return pEvent;
 }

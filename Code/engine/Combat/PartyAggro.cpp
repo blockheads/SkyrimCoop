@@ -112,7 +112,7 @@ void HandleDamage(Actor* apVictim, Actor* apAttacker, float aDelta)
     RealHandleDamage(apVictim, apAttacker, aDelta);
     if (s_active.load(std::memory_order_acquire) && apVictim && apAttacker && !apVictim->GetExtension()->IsCopy() &&
         !apVictim->GetExtension()->IsPlayer() && std::isfinite(aDelta) && aDelta < 0)
-        World::Get().GetRunner().Trigger(ActorDamagedEvent{apVictim->formID, apAttacker->formID, -aDelta});
+        World::Runner().Trigger(ActorDamagedEvent{apVictim->formID, apAttacker->formID, -aDelta});
 }
 
 using TSelect = uint32_t*(CombatTargetSelectorStandard*, uint32_t*);

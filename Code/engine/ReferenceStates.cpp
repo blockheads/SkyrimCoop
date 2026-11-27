@@ -98,7 +98,7 @@ bool ApplyOpen(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
     POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287);
     s_setOpenState.Get()(&aObject, acChange.Value != 0, false);
     if (!aObject.GetNiNode())
-        World::Get().GetRunner().Trigger(LidUnposedEvent{aObject.formID});
+        World::Runner().Trigger(LidUnposedEvent{aObject.formID});
     return true;
 }
 

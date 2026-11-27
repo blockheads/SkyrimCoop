@@ -98,7 +98,7 @@ bool HookInitiateMountPackage(Actor* apThis, Actor* apMount)
 {
     const bool cStarted = RealInitiateMountPackage(apThis, apMount);
     if (apMount && apThis->GetExtension()->IsLocal() && (cStarted || apThis->extraData.Contains(ExtraDataType::Interaction)))
-        World::Get().GetRunner().Trigger(MountEvent(apThis->formID, apMount->formID));
+        World::Runner().Trigger(MountEvent(apThis->formID, apMount->formID));
     return cStarted;
 }
 
@@ -110,7 +110,7 @@ uint64_t HookDetachInteraction(RefrInteraction* apThis, bool aUnk)
     const uint32_t cMountId = cpMount ? cpMount->formID : 0;
     const uint64_t cResult = RealDetachInteraction(apThis, aUnk);
     if (pRider)
-        World::Get().GetRunner().Trigger(DismountEvent{pRider->formID, cMountId, !pRider->GetExtension()->IsLocal()});
+        World::Runner().Trigger(DismountEvent{pRider->formID, cMountId, !pRider->GetExtension()->IsLocal()});
     return cResult;
 }
 
@@ -162,7 +162,7 @@ void HookActivateMount(Actor* apThis, TESObjectREFR* apTarget, int32_t aUnk1, in
     if (!apThis || apThis != PlayerCharacter::Get() || !pMount || !pMount->IsMount())
         return;
     if (OffersBoarding(pMount))
-        return World::Get().GetRunner().Trigger(BoardEvent{apThis->formID, pMount->formID});
+        return World::Runner().Trigger(BoardEvent{apThis->formID, pMount->formID});
     const RefrInteraction* pLink = pMount->GetOwnInteraction();
     spdlog::info("Activated mount {:X}: no boarding (our player riding {}, its slot {}, its rider {:X})", pMount->formID,
                  apThis->extraData.Contains(ExtraDataType::Interaction), pLink != nullptr,

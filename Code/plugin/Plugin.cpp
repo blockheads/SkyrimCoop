@@ -99,7 +99,8 @@ void Plugin::Update()
 
     *bAlwaysActive = 1;
 
-    World::Get().Update();
+    // Not World::Get(): its thread check (World.cpp) counts this thread from inside the update.
+    entt::locator<World>::value().Update();
 }
 
 // SKYRIMCOOP_PROBE=13408,36559: engine functions (Address Library IDs) whose calls leave crash

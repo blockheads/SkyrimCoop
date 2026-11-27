@@ -66,7 +66,7 @@ BSScript::CallResult Wait(BSScript::IFunction* apFunction, BSScript::Stack& aSta
     }
     reinterpret_cast<BSScript::VirtualMachine*>(apVm)->WaitOnLatent(aStack.stackId);
     aEvent.ReplyId = aStack.stackId;
-    World::Get().GetRunner().Trigger(std::move(aEvent));
+    World::Runner().Trigger(std::move(aEvent));
     return BSScript::CallResult::kInProgress;
 }
 
@@ -101,7 +101,7 @@ BSScript::CallResult SendToHost(BSScript::IFunction* apFunction, BSScript::Stack
     if (apFunction->GetReturnType().type == BSScript::Variable::kBoolean)
         aStack.returnValue.Set(true);
     spdlog::info("PlayerNatives: {}.{} from this guest's script goes to the host", aCall.Class, aCall.Function);
-    World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kHost, .Call = std::move(aCall)});
+    World::Runner().Trigger(RoutedCallEvent{.To = CallTo::kHost, .Call = std::move(aCall)});
     return BSScript::CallResult::kCompleted;
 }
 
@@ -112,7 +112,7 @@ BSScript::CallResult SendToGuest(BSScript::IFunction* apFunction, BSScript::Stac
     if (apFunction->GetReturnType().type == BSScript::Variable::kEmpty)
     {
         aStack.returnValue.Clear();
-        World::Get().GetRunner().Trigger(std::move(event));
+        World::Runner().Trigger(std::move(event));
         return BSScript::CallResult::kCompleted;
     }
     return Wait(apFunction, aStack, apVm, std::move(event));

@@ -25,7 +25,7 @@ void HookStagger(Actor* apActor, float aMagnitude, Actor* apHitter)
         switch (HitRules::Of(HitRules::PartyOf(apActor), HitRules::PartyOf(apHitter), false))
         {
         case HitRules::Route::AskOwner:
-            World::Get().GetRunner().Trigger(MeleeStaggerEvent{apActor->formID, apHitter->formID, aMagnitude});
+            World::Runner().Trigger(MeleeStaggerEvent{apActor->formID, apHitter->formID, aMagnitude});
             return;
         case HitRules::Route::Drop:
         case HitRules::Route::Mirror:
