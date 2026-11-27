@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+struct BShkbAnimationGraph;
 struct InputEventSource;
 
 // The test harness's own engine calls (scripts/coop_test.py drives them through the harness's commands):
@@ -728,7 +729,7 @@ struct GraphMachine
 // aGraph: its manager's graph by index (a player's: 0 third person), -1 the one it shows.
 std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter, int aGraph = -1) noexcept;
 // An input event into one graph, through BShkbAnimationGraph::SendEvent (63591) and its hooks: whether a node took it.
-bool SendGraphEvent(struct BShkbAnimationGraph* apGraph, const BSFixedString& acEvent) noexcept;
+bool SendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString& acEvent) noexcept;
 
 struct GraphWriter
 {

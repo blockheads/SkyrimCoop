@@ -199,6 +199,7 @@ void Actor::InitiateDoNothingPackage() noexcept
         extraData.RemoveByType(ExtraDataType::Package);
 }
 
+struct Console;
 using TSetCurrentPickREFR = void(Console*, BSPointerHandle<TESObjectREFR>* apRefr);
 static TSetCurrentPickREFR* RealSetCurrentPickREFR = nullptr;
 
