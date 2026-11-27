@@ -3,6 +3,12 @@
 
 using Wire::Serialization;
 
+namespace
+{
+// Crime state rows: one per crime faction, far fewer than this.
+constexpr uint64_t kMaxCrimeRows = 4096;
+} // namespace
+
 bool CrimeRequest::IsValid() const noexcept
 {
     if (!Sequence || (!Target && !TargetActor))
@@ -106,25 +112,13 @@ void CrimeRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     RemoveStolenItems = Serialization::ReadBool(aReader);
     AllowWarning = Serialization::ReadBool(aReader);
     Items.clear();
-    const auto count = Serialization::ReadVarInt(aReader);
-    if (count > kMaxEntries)
-    {
-        Action = static_cast<CrimeAction>(255);
-        return;
-    }
-    Items.resize(static_cast<size_t>(count));
+    Items.resize(Serialization::ReadCount(aReader, kMaxEntries));
     size_t entries = Items.size();
     for (auto& line : Items)
     {
         line.Item.Deserialize(aReader);
         line.Taking = Serialization::ReadBool(aReader);
-        const auto owners = Serialization::ReadVarInt(aReader);
-        if (owners > kMaxEntries - entries)
-        {
-            Action = static_cast<CrimeAction>(255);
-            return;
-        }
-        line.Owners.resize(static_cast<size_t>(owners));
+        line.Owners.resize(Serialization::ReadCount(aReader, kMaxEntries - entries));
         entries += line.Owners.size();
         for (auto& owner : line.Owners)
         {
@@ -163,11 +157,7 @@ void NotifyCrimeState::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcep
 void NotifyCrimeState::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     Gold.clear();
-    const auto count = Serialization::ReadVarInt(aReader);
-    // Every row needs at least six bytes; reject an impossible count before allocating.
-    if (count > 4096)
-        return;
-    Gold.resize(static_cast<size_t>(count));
+    Gold.resize(Serialization::ReadCount(aReader, kMaxCrimeRows));
     for (auto& row : Gold)
     {
         row.Faction.Deserialize(aReader);
@@ -178,10 +168,7 @@ void NotifyCrimeState::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
         row.PlayerEnemy = Serialization::ReadBool(aReader);
     }
     Reports.clear();
-    const auto reports = Serialization::ReadVarInt(aReader);
-    if (reports > 4096)
-        return;
-    Reports.resize(static_cast<size_t>(reports));
+    Reports.resize(Serialization::ReadCount(aReader, kMaxCrimeRows));
     for (auto& report : Reports)
     {
         report.Faction.Deserialize(aReader);

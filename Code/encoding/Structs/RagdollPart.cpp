@@ -14,11 +14,8 @@ void RagdollPart::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 void RagdollPart::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     Tick = Serialization::ReadVarInt(aReader);
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
     Rests.clear();
-    if (cCount > kMaxBodies)
-        return;
-    Rests.resize(cCount);
+    Rests.resize(Serialization::ReadCount(aReader, kMaxBodies));
     for (auto& rest : Rests)
         rest.Deserialize(aReader);
 }

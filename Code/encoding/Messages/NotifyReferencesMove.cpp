@@ -18,9 +18,9 @@ void NotifyReferencesMove::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     NotifyMessage::DeserializeRaw(aReader);
 
     Tick = Serialization::ReadVarInt(aReader);
-    const auto count = Serialization::ReadVarInt(aReader);
+    const uint64_t cCount = Serialization::ReadCount(aReader, ReferenceUpdate::kMaxPerMessage);
 
-    for (auto i = 0u; i < count; ++i)
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         const uint32_t cSessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
         Updates[cSessionId].Deserialize(aReader);

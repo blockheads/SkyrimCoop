@@ -118,14 +118,6 @@ Mod* ModManager::GetByName(const char* acpName) const noexcept
     return nullptr;
 }
 
-TESObjectCELL* ModManager::GetCellFromCoordinates(int32_t aX, int32_t aY, TESWorldSpace* aWorldSpace, bool aSpawnCell) noexcept
-{
-    using TModManager = TESObjectCELL*(ModManager*, int32_t, int32_t, TESWorldSpace*, bool);
-    POINTER_SKYRIMSE(TModManager, getCell, 13718);
-
-    return getCell(this, aX, aY, aWorldSpace, aSpawnCell);
-}
-
 static Hooks::Initializer s_tesHooks(
     []()
     {

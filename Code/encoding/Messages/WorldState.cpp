@@ -43,30 +43,21 @@ void Write(Wire::Buffer::Writer& aWriter, const QuestState& acQuest) noexcept
     }
 }
 
-bool Read(Wire::Buffer::Reader& aReader, QuestState& aQuest) noexcept
+void Read(Wire::Buffer::Reader& aReader, QuestState& aQuest) noexcept
 {
     aQuest.Id.Deserialize(aReader);
     aQuest.Flags = static_cast<uint16_t>(Serialization::ReadVarInt(aReader));
     aQuest.CurrentStage = static_cast<uint16_t>(Serialization::ReadVarInt(aReader));
-    uint64_t count = Serialization::ReadVarInt(aReader);
-    if (count > kMaxPerQuest)
-        return false;
-    aQuest.DoneStages.resize(count);
+    aQuest.DoneStages.resize(Serialization::ReadCount(aReader, kMaxPerQuest));
     for (auto& stage : aQuest.DoneStages)
         stage = static_cast<uint16_t>(Serialization::ReadVarInt(aReader));
-    count = Serialization::ReadVarInt(aReader);
-    if (count > kMaxPerQuest)
-        return false;
-    aQuest.Objectives.resize(count);
+    aQuest.Objectives.resize(Serialization::ReadCount(aReader, kMaxPerQuest));
     for (auto& objective : aQuest.Objectives)
     {
         objective.Index = static_cast<uint16_t>(Serialization::ReadVarInt(aReader));
         objective.State = static_cast<uint8_t>(Serialization::ReadVarInt(aReader));
     }
-    count = Serialization::ReadVarInt(aReader);
-    if (count > kMaxPerQuest)
-        return false;
-    aQuest.Aliases.resize(count);
+    aQuest.Aliases.resize(Serialization::ReadCount(aReader, kMaxPerQuest));
     for (auto& fill : aQuest.Aliases)
     {
         fill.AliasId = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
@@ -77,16 +68,12 @@ bool Read(Wire::Buffer::Reader& aReader, QuestState& aQuest) noexcept
         fill.GridY = static_cast<int16_t>(static_cast<uint16_t>(Serialization::ReadVarInt(aReader)));
         fill.ActorId = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
     }
-    count = Serialization::ReadVarInt(aReader);
-    if (count > kMaxPerQuest)
-        return false;
-    aQuest.Locations.resize(count);
+    aQuest.Locations.resize(Serialization::ReadCount(aReader, kMaxPerQuest));
     for (auto& fill : aQuest.Locations)
     {
         fill.AliasId = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
         fill.Location.Deserialize(aReader);
     }
-    return true;
 }
 } // namespace
 
@@ -104,10 +91,7 @@ void NotifyGlobals::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxGlobals)
-        return;
-    Values.resize(cCount);
+    Values.resize(Serialization::ReadCount(aReader, kMaxGlobals));
     for (auto& value : Values)
     {
         value.Id.Deserialize(aReader);
@@ -128,16 +112,9 @@ void NotifyQuests::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     NotifyMessage::DeserializeRaw(aReader);
 
     Join = Serialization::ReadBool(aReader);
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxQuests)
-        return;
-    Quests.resize(cCount);
+    Quests.resize(Serialization::ReadCount(aReader, kMaxQuests));
     for (auto& quest : Quests)
-        if (!Read(aReader, quest))
-        {
-            Quests.clear();
-            return;
-        }
+        Read(aReader, quest);
 }
 
 void NotifyObjectChanges::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
@@ -181,10 +158,7 @@ void NotifyObjectChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     NotifyMessage::DeserializeRaw(aReader);
 
     Cell.Deserialize(aReader);
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxObjectChanges)
-        return;
-    Changes.resize(cCount);
+    Changes.resize(Serialization::ReadCount(aReader, kMaxObjectChanges));
     for (auto& change : Changes)
     {
         change.Type = static_cast<ObjectChange::Kind>(Serialization::ReadVarInt(aReader));
@@ -211,10 +185,7 @@ void NotifyObjectChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
                 change.Data = Serialization::ReadString(aReader);
             if (ObjectChange::HasStacks(change.Type))
             {
-                const uint64_t cStacks = Serialization::ReadVarInt(aReader);
-                if (cStacks > kMaxObjectChanges)
-                    return;
-                change.Stacks.resize(cStacks);
+                change.Stacks.resize(Serialization::ReadCount(aReader, kMaxObjectChanges));
                 for (auto& stack : change.Stacks)
                     stack.Deserialize(aReader);
             }

@@ -20,7 +20,7 @@ struct RequestRemoveCharacter final : RequestMessage
 
     bool operator==(const RequestRemoveCharacter& achRhs) const noexcept { return SessionId == achRhs.SessionId && Whereabouts == achRhs.Whereabouts && GetOpcode() == achRhs.GetOpcode(); }
 
-    uint32_t SessionId;
+    uint32_t SessionId{};
     // Where the owner's actor is now; its copies follow.
     ActorWhereabouts Whereabouts{};
 };

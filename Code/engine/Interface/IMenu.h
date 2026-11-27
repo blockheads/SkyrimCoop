@@ -154,7 +154,6 @@ struct IMenu : FxDelegateHandler
         kUsesMovementToDirection = 0x8000000,
     };
 
-    void SetFlag(uint32_t auiFlag);
     void ClearFlag(uint32_t auiFlag);
 
     bool PausesGame() const { return uiMenuFlags & kPausesGame; }

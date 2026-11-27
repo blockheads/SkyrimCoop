@@ -1,8 +1,12 @@
 #include <Structs/Factions.h>
 #include <Wire/Serialization.h>
-#include <stdexcept>
 
 using Wire::Serialization;
+
+namespace
+{
+constexpr uint64_t kMaxFactions = 0x1FF;
+} // namespace
 
 bool Factions::operator==(const Factions& acRhs) const noexcept
 {
@@ -34,21 +38,13 @@ void Factions::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 
 void Factions::Deserialize(Wire::Buffer::Reader& aReader)
 {
-    auto npcCount = Serialization::ReadVarInt(aReader);
-    if (npcCount > 0x1FF)
-        throw std::runtime_error("Too many NPC factions received !");
-
-    NpcFactions.resize(npcCount);
+    NpcFactions.resize(Serialization::ReadCount(aReader, kMaxFactions));
     for (auto& entry : NpcFactions)
     {
         entry.Deserialize(aReader);
     }
 
-    auto extraCount = Serialization::ReadVarInt(aReader) & 0x1FF;
-    if (extraCount > 0x1FF)
-        throw std::runtime_error("Too many extra factions received !");
-
-    ExtraFactions.resize(extraCount);
+    ExtraFactions.resize(Serialization::ReadCount(aReader, kMaxFactions));
     for (auto& entry : ExtraFactions)
     {
         entry.Deserialize(aReader);

@@ -5,11 +5,6 @@
 #include <RTTI.h>
 #include <Utils.h>
 
-bool EffectItem::IsHealingEffect() const noexcept
-{
-    return pEffectSetting->eArchetype == EffectArchetypes::ArchetypeID::kValueModifier && data.fMagnitude > 0.0f;
-}
-
 bool EffectItem::IsSummonEffect() const noexcept
 {
     return pEffectSetting->eArchetype == EffectArchetypes::ArchetypeID::kSummonCreature;
@@ -18,11 +13,6 @@ bool EffectItem::IsSummonEffect() const noexcept
 bool EffectItem::IsSlowEffect() const noexcept
 {
     return pEffectSetting->eArchetype == EffectArchetypes::ArchetypeID::kSlowTime;
-}
-
-bool EffectItem::IsInivisibilityEffect() const noexcept
-{
-    return pEffectSetting->eArchetype == EffectArchetypes::ArchetypeID::kInvisibility;
 }
 
 bool EffectItem::IsWerewolfEffect() const noexcept

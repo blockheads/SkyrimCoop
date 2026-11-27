@@ -14,7 +14,6 @@ from ..common import (
     OUTDOOR_CELL,
 )
 from ..errors import TestFailure
-from ..comparisons import near
 
 
 def scenario_host_time_reaches_client(ctx):

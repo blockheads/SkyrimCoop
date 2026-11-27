@@ -25,7 +25,10 @@ namespace Wire
         const auto bitIndex = m_bitPosition & 0x7;
         auto bytesToRead = BytesSpanned(m_bitPosition, aCount);
         if (bytesToRead + GetBytePosition() > m_data.size())
+        {
+            m_failed = true;
             return false;
+        }
 
         const uint8_t* pLocation = m_data.data() + GetBytePosition();
         size_t bitsToRead = 0;
@@ -56,7 +59,10 @@ namespace Wire
     {
         m_bitPosition = NextWholeByte(m_bitPosition);
         if (aDestination.size() + GetBytePosition() > m_data.size())
+        {
+            m_failed = true;
             return false;
+        }
 
         std::copy_n(m_data.data() + GetBytePosition(), aDestination.size(), aDestination.data());
         m_bitPosition += aDestination.size() * 8;

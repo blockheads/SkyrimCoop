@@ -23,9 +23,7 @@ void SaveHeldRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     Saves.clear();
-    const auto cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxSaves)
-        return;
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxSaves);
     for (uint64_t i = 0; i < cCount; ++i)
         Saves.push_back(Serialization::ReadString(aReader));
 }

@@ -6,7 +6,7 @@ namespace Wire
     {
         std::string result;
 
-        const uint16_t len = ReadVarInt(aReader) & 0xFFFF;
+        const uint16_t len = static_cast<uint16_t>(ReadCount(aReader, 0xFFFF));
         result.resize(len);
         aReader.ReadBytes(std::span(reinterpret_cast<uint8_t*>(result.data()), len));
 
@@ -33,13 +33,26 @@ namespace Wire
         for (uint32_t shift = 0; shift < 64; shift += 7)
         {
             uint64_t bits = 0, more = 0;
-            if (!aReader.ReadBits(bits, 7) || !aReader.ReadBits(more, 1) || (shift == 63 && bits > 1))
+            if (!aReader.ReadBits(bits, 7) || !aReader.ReadBits(more, 1))
                 return false;
+            if (shift == 63 && bits > 1)
+                break;
             aValue |= bits << shift;
             if (!more)
                 return true;
         }
+        aReader.Fail(); // more than 64 bits
         return false;
+    }
+
+    uint64_t Serialization::ReadCount(Buffer::Reader& aReader, uint64_t aMax) noexcept
+    {
+        // Every element takes at least one bit.
+        const uint64_t cCount = ReadVarInt(aReader);
+        if (cCount <= aMax && cCount <= aReader.BitsLeft())
+            return cCount;
+        aReader.Fail();
+        return 0;
     }
 
     void Serialization::WriteVarInt(Buffer::Writer& aWriter, uint64_t aValue)

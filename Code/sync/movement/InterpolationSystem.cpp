@@ -95,9 +95,3 @@ InterpolationComponent& InterpolationSystem::Setup(World& aWorld, const entt::en
 {
     return aWorld.emplace_or_replace<InterpolationComponent>(aEntity);
 }
-
-void InterpolationSystem::Clean(World& aWorld, const entt::entity aEntity) noexcept
-{
-    if (aWorld.all_of<InterpolationComponent>(aEntity))
-        aWorld.remove<InterpolationComponent>(aEntity);
-}

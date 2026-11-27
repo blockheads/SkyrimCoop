@@ -78,13 +78,6 @@ void BodyService::Forget(const BodyKey& acKey, uint64_t aUntil) noexcept
     m_bridge.Forget(acKey);
 }
 
-bool BodyService::Shows(const GameId& acObject) const noexcept
-{
-    const auto cOf = [&acObject](const auto& acEntry) { return !acEntry.first.Actor && acEntry.first.Object == acObject; };
-    return std::ranges::any_of(m_following, [&acObject](const BodyKey& acKey) { return !acKey.Actor && acKey.Object == acObject; }) ||
-           std::ranges::any_of(m_rests, cOf) || m_playback.RestComing(acObject);
-}
-
 void BodyService::Hold(const BodyKey& acKey, bool aHeld) noexcept
 {
     if (aHeld && !m_held.contains(acKey))

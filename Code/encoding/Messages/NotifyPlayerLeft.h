@@ -19,6 +19,6 @@ struct NotifyPlayerLeft final : NotifyMessage
 
     bool operator==(const NotifyPlayerLeft& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username; }
 
-    uint32_t PlayerId;
+    uint32_t PlayerId{};
     std::string Username;
 };

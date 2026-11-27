@@ -171,19 +171,6 @@ void CharacterService::GiveUpOwnership(entt::entity aEntity, uint32_t aSessionId
     AnimationSystem::Setup(m_world, aEntity);
 }
 
-void CharacterService::DeleteTempActor(const uint32_t aFormId) noexcept
-{
-    // Temporary actors have form IDs in the FF000000+ range
-    if ((aFormId & 0xFF000000) == 0xFF000000)
-    {
-        // Deletion is routed through World bridge in the main client compilation unit
-        // This static method is called from OnRemoveCharacter which has bridge access,
-        // but for now we rely on the direct call path via SkyrimBridge in the non-services build.
-        // TODO: thread bridge through or make this non-static
-        spdlog::info("\tRequesting delete of actor {:X} (temp ID range)", aFormId);
-    }
-}
-
 void CharacterService::OnActorAdded(const ActorAddedEvent& acEvent) noexcept
 {
     if (acEvent.FormId == 0x14)

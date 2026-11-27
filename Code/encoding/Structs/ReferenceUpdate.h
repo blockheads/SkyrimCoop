@@ -8,6 +8,10 @@ using Wire::Buffer;
 
 struct ReferenceUpdate
 {
+    // Generous: the actions one actor queues between two sends, and the actors one game moves.
+    static constexpr uint64_t kMaxActionEvents = 1024;
+    static constexpr uint64_t kMaxPerMessage = 4096;
+
     ReferenceUpdate() = default;
     ~ReferenceUpdate() = default;
 

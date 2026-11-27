@@ -1,5 +1,4 @@
 """scripts/check_re.py: added notes and journal rows name real IDs at their RVAs; systems docs use names, not sub_."""
-import json
 import sys
 import tempfile
 import unittest

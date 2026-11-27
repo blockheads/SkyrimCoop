@@ -24,10 +24,7 @@ void CellStateRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     RequestMessage::DeserializeRaw(aReader);
 
     Cell.Deserialize(aReader);
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxChanged)
-        return;
-    Changed.resize(cCount);
+    Changed.resize(Serialization::ReadCount(aReader, kMaxChanged));
     for (auto& ref : Changed)
     {
         ref.Id.Deserialize(aReader);

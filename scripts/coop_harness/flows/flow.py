@@ -13,7 +13,6 @@ from ..errors import TestFailure
 
 TOGETHER = 1500.0  # units: a party further apart than this has split up
 HANG_MS = 3000.0  # a frame longer than this is a hang a player notices
-QUEST_RUNNING, QUEST_COMPLETED = 0x1, 0x2  # TESQuest flags (harness `quest`)
 FLOWS = TEST_HOME / "flows"
 
 
@@ -96,20 +95,6 @@ def quest_at(quest, stage, seconds=10):
         except TestFailure:
             raise ctx.failure(f"quest {quest:08X} not at stage {stage} in both games: {stages}") from None
     check.__name__ = f"quest {quest:08X} at {stage}"
-    return check
-
-
-def quest_completed(quest, seconds=10):
-    def check(ctx):
-        flags = {}
-        def done():
-            flags.update({game or "host": ctx.quest_snapshot(game, quest)["flags"] for game in ("", "client")})
-            return all(value & QUEST_COMPLETED for value in flags.values())
-        try:
-            ctx.wait_for(f"quest {quest:08X} completed in both games", done, seconds)
-        except TestFailure:
-            raise ctx.failure(f"quest {quest:08X} not completed in both games: flags {flags}") from None
-    check.__name__ = f"quest {quest:08X} completed"
     return check
 
 

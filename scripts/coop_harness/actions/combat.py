@@ -1,15 +1,9 @@
 """Actions for the co-op harness."""
-import argparse
-import collections
 import contextlib
 import json
 import math
-import os
 import re
-import socket
-import subprocess
 import time
-import uuid
 from pathlib import Path
 from ..comparisons import is_close
 from ..common import (

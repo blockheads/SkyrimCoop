@@ -15,7 +15,6 @@ namespace Hooks
         Signal<void(IDXGISwapChain*)> OnPresent;
         Signal<void(IDXGISwapChain*)> OnLost;
 
-        static void Install() noexcept;
         static D3D11Hook& Get() noexcept;
 
     private:

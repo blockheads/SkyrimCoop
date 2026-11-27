@@ -53,13 +53,6 @@ std::vector<TESObjectREFR*> TESObjectCELL::GetReferences() noexcept
     return references;
 }
 
-void TESObjectCELL::GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bool aAllowCellLoad) noexcept
-{
-    using TGetCOCPlacementInfo = void(TESObjectCELL*, NiPoint3*, NiPoint3*, bool);
-    POINTER_SKYRIMSE(TGetCOCPlacementInfo, s_getCOCPlacementInfo, 19075);
-    s_getCOCPlacementInfo(this, aOutPos, aOutRot, aAllowCellLoad);
-}
-
 TESForm* TESObjectCELL::GetOwner() const noexcept
 {
     const auto* pOwnership = static_cast<ExtraOwnership*>(extraData.GetByType(ExtraDataType::Ownership));

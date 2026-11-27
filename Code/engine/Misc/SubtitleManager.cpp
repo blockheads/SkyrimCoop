@@ -29,13 +29,6 @@ void SubtitleManager::ShowSubtitle(TESObjectREFR* apSpeaker, const char* apSubti
     RealShowSubtitle(this, apSpeaker, apSubtitleText, aForceDisplay);
 }
 
-void* SubtitleManager::HideSubtitle(TESObjectREFR* apSpeaker) noexcept
-{
-    using THideSubtitle = void*(SubtitleManager*, TESObjectREFR* apSpeaker);
-    POINTER_SKYRIMSE(THideSubtitle, s_hideSubtitle, 52627);
-    return s_hideSubtitle(this, apSpeaker);
-}
-
 void HookShowSubtitle(SubtitleManager* apThis, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aForceDisplay)
 {
     // spdlog::debug("Subtitle for actor {:X} (bool {}):\n\t{}", apSpeaker ? apSpeaker->formID : 0, aForceDisplay, apSubtitleText);

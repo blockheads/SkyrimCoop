@@ -1,6 +1,7 @@
 #pragma once
 
 #include <network/Server.h>
+#include <Opcodes.h>
 
 #include <functional>
 #include <string>
@@ -21,6 +22,8 @@ struct HostNetwork final : Net::Server
     using ConnectionId_t = Net::ConnectionId_t;
     // True: the message was handled.
     using FrontDoor = std::function<bool(const RequestMessage&, ConnectionId_t)>;
+    // True: aConnection may send aOpcode, read before the message is decoded.
+    using Gate = std::function<bool(RequestOpcode, ConnectionId_t)>;
     using Disconnected = std::function<void(ConnectionId_t)>;
     // A message for an in-process game, serialized as on the wire.
     using Inbox = std::function<void(const void*, uint32_t)>;
@@ -40,6 +43,7 @@ struct HostNetwork final : Net::Server
     bool Listen(uint16_t aPort) noexcept;
 
     void SetFrontDoor(FrontDoor aFrontDoor) noexcept { m_frontDoor = std::move(aFrontDoor); }
+    void SetGate(Gate aGate) noexcept { m_gate = std::move(aGate); }
     void SetDisconnectionHandler(Disconnected aHandler) noexcept { m_disconnected = std::move(aHandler); }
 
     // A game in this process; the first one opened is the host's own.
@@ -67,6 +71,7 @@ private:
 
     std::unordered_map<ConnectionId_t, std::string> m_names;
     FrontDoor m_frontDoor;
+    Gate m_gate;
     Disconnected m_disconnected;
     std::unordered_map<ConnectionId_t, Inbox> m_routes;
     ConnectionId_t m_hostConnection{0};
