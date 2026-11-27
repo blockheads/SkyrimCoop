@@ -161,6 +161,13 @@ void ExtraDataList::SetHotkey(int8_t aHotkey) noexcept
     s_setHotkey(this, aHotkey);
 }
 
+void ExtraDataList::SetInteraction(RefrInteraction** appInteraction) noexcept
+{
+    using TSetInteraction = void(ExtraDataList*, RefrInteraction**);
+    POINTER_SKYRIMSE(TSetInteraction, s_setInteraction, 12074);
+    s_setInteraction(this, appInteraction);
+}
+
 void ExtraDataList::SetCount(uint16_t aCount) noexcept
 {
     using TSetCount = void(ExtraDataList*, uint16_t aCount);

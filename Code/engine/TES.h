@@ -93,6 +93,14 @@ struct ProcessLists
     // VisualEffect.Stop).
     void StopEffectShader(TESObjectREFR* apRef, TESForm* apEffectShader) noexcept;
     void StopArtObject(TESObjectREFR* apRef, TESForm* apArtObject) noexcept;
+    // ProcessLists::StopCombatAndAlarmOnActor (41340).
+    void StopCombatAndAlarmOnActor(Actor* apActor, bool aNotAlarm) noexcept;
+    // ProcessLists::RequestHighestDetectionLevelAgainstActor (41408): int32 in eax (40593 tests all of it; CommonLib
+    // says int16); aSeeing counts who sees apActor.
+    int32_t RequestHighestDetectionLevelAgainstActor(Actor* apActor, uint32_t& aSeeing) noexcept;
+    // 41354: a crime of aType by apCriminal is on record (apVictim, apWitness null for any; aDay -1 any day).
+    bool HasKnownCrime(TESObjectREFR* apVictim, TESObjectREFR* apCriminal, Actor* apWitness, uint32_t aType, int32_t aUnknown,
+                       int32_t aDay) noexcept;
 
     uint8_t pad00[0x8];
 

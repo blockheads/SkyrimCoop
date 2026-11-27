@@ -61,7 +61,19 @@ TESForm* TESObjectCELL::GetOwner() const noexcept
 
 void TESObjectCELL::SetOwner(TESForm* apOwner) noexcept
 {
-    using TSetOwnerForm = void(ExtraDataList*, TESForm*);
-    POINTER_SKYRIMSE(TSetOwnerForm, s_setOwnerForm, 11609);
-    s_setOwnerForm(&extraData, apOwner);
+    extraData.SetOwner(apOwner);
+}
+
+void* TESObjectCELL::GetbhkWorld() noexcept
+{
+    using TGetWorld = void*(TESObjectCELL*);
+    POINTER_SKYRIMSE(TGetWorld, s_getWorld, 18995);
+    return s_getWorld(this);
+}
+
+bool TESObjectCELL::IsTrespassing(Actor* apActor) noexcept
+{
+    using TIsTrespassing = bool(TESObjectCELL*, Actor*);
+    POINTER_SKYRIMSE(TIsTrespassing, s_isTrespassing, 18909);
+    return s_isTrespassing(this, apActor);
 }

@@ -94,9 +94,7 @@ bool ApplyOpen(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
     if (IsOpen(aObject) == (acChange.Value != 0))
         return true;
     aObject.extraData.RemoveByType(ExtraDataType::OpenCloseActivateRef);
-    using TSetOpenState = bool(TESObjectREFR*, bool, bool);
-    POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287);
-    s_setOpenState.Get()(&aObject, acChange.Value != 0, false);
+    aObject.SetOpenState(acChange.Value != 0, false);
     if (!aObject.GetNiNode())
         World::Runner().Trigger(LidUnposedEvent{aObject.formID});
     return true;
@@ -133,9 +131,7 @@ void PoseOpenState(TESObjectREFR& aObject) noexcept
     const auto cType = aObject.baseForm ? aObject.baseForm->formType : FormType::Count;
     if (cType != FormType::Door && cType != FormType::Container)
         return;
-    using TSetOpenState = bool(TESObjectREFR*, bool, bool);
-    POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287);
-    s_setOpenState.Get()(&aObject, IsOpen(aObject), true);
+    aObject.SetOpenState(IsOpen(aObject), true);
 }
 
 namespace
@@ -275,9 +271,7 @@ bool ApplyMotion(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
         ScriptMotion::Get().Defer(aObject.formID, acChange.Value);
         return true;
     }
-    using TSetMotionType = bool(NiAVObject*, uint32_t, bool aRecurse, bool aForce, bool aAllowActivate);
-    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 77866);
-    s_setMotionType.Get()(p3D, ScriptMotion::TypeOf(acChange.Value), true, false, ScriptMotion::AllowsActivate(acChange.Value));
+    p3D->SetMotionType(ScriptMotion::TypeOf(acChange.Value), true, false, ScriptMotion::AllowsActivate(acChange.Value));
     return true;
 }
 

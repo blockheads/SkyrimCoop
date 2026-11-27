@@ -1001,6 +1001,27 @@ void TESObjectREFR::UpdateItemList(TESForm* pUnkForm) noexcept
     updateItemList(this, pUnkForm);
 }
 
+bool TESObjectREFR::SetOpenState(bool aOpen, bool aSnap) noexcept
+{
+    using TSetOpenState = bool(TESObjectREFR*, bool, bool);
+    POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287);
+    return s_setOpenState.Get()(this, aOpen, aSnap);
+}
+
+bool TESObjectREFR::IsAnOwner(const Actor* apActor, bool aUseFaction, bool aRequiresOwner) const noexcept
+{
+    using TIsAnOwner = bool(const TESObjectREFR*, const Actor*, bool, bool);
+    POINTER_SKYRIMSE(TIsAnOwner, s_isAnOwner, 20210);
+    return s_isAnOwner.Get()(this, apActor, aUseFaction, aRequiresOwner);
+}
+
+BGSEncounterZone* TESObjectREFR::GetLocationEncounterZone() const noexcept
+{
+    using TGetLocationEncounterZone = BGSEncounterZone*(const TESObjectREFR*);
+    POINTER_SKYRIMSE(TGetLocationEncounterZone, s_getLocationEncounterZone, 20203);
+    return s_getLocationEncounterZone.Get()(this);
+}
+
 bool TESObjectREFR::SetLockState(bool aLocked, uint8_t aLockLevel) noexcept
 {
     Lock* pLock = GetLock();

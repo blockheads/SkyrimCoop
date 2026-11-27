@@ -13,6 +13,7 @@
 #include <ActorExtension.h>
 #include <Memory.h>
 #include <TES.h>
+#include <Utils.h>
 #include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -408,21 +409,18 @@ bool CriminalInterest(Actor* aWitness)
 {
     if (!aWitness || OtherPlayer(aWitness))
         return false;
-    using TFaction = TESFaction*(Actor*);
     using TCrimeList = GameList<void>*(ExtraDataList*);
-    static VersionDbPtr<TFaction> faction(37380);
     static VersionDbPtr<TCrimeList> crimes(11726);
     const auto* known = crimes(&aWitness->extraData);
-    CrimeRules::Grudge grudge{.FactionEnemy = PlayerEnemy(faction(aWitness)),
+    CrimeRules::Grudge grudge{.FactionEnemy = PlayerEnemy(aWitness->GetCrimeFaction()),
                               .Victim = known && (known->entry.data || known->entry.next),
                               .AngryWithPlayer = aWitness->IsAngryWithPlayer()};
     if (CrimeRules::PartyIsCriminalTo(grudge))
         return true;
     // KnownCrime (41354): any victim, any day; only the player's (the party's) crimes are kept (41349).
-    static VersionDbPtr<TKnownCrime> knownCrime(41354);
     auto* player = PlayerCharacter::Get();
     for (uint32_t type = 0; player && type < CrimeEngine::cCrimeTypes && !grudge.Witness; ++type)
-        grudge.Witness = knownCrime(ProcessLists::Get(), nullptr, player, aWitness, type, 0, -1);
+        grudge.Witness = ProcessLists::Get()->HasKnownCrime(nullptr, player, aWitness, type, 0, -1);
     return CrimeRules::PartyIsCriminalTo(grudge);
 }
 
@@ -602,16 +600,14 @@ void HookPayFine(PlayerCharacter* aPlayer, TESFaction* aFaction, bool aJail, boo
     {
         // PayFine ends the real player's alarm. Resolve the same alarm/combat on
         // every guest body too; their fights are not stored on the host's body.
-        using TStop = void(ProcessLists*, Actor*, bool);
         using TReset = void(Actor*, bool);
-        static VersionDbPtr<TStop> stop(41340);
         static VersionDbPtr<TReset> reset(37668);
         reset(PlayerCharacter::Get(), true);
         if (auto* processes = ProcessLists::Get())
             for (auto handle : processes->highActorHandleArray)
                 if (auto* actor = Cast<Actor>(TESObjectREFR::GetByHandle(handle)); OtherPlayer(actor))
                 {
-                    stop(processes, actor, false);
+                    processes->StopCombatAndAlarmOnActor(actor, false);
                     reset(actor, true);
                 }
     }
@@ -629,12 +625,10 @@ void UpdateGuestTrespass(Actor* aActor)
     if (s_role != ICrimeBridge::Role::Host || !OtherPlayer(aActor))
         return;
     // The NPC-safe part of 37578. Never run PlayerCharacter's 42676 on an NPC.
-    using TCheck = bool(TESObjectCELL*, Actor*);
     using TOwner = TESForm*(TESObjectCELL*);
     using TExtra = void*(ExtraDataList*);
     using TCreate = void*(void*, Actor*, TESForm*, uint32_t);
     using TAdd = void(ExtraDataList*, void*);
-    static VersionDbPtr<TCheck> check(18909);
     static VersionDbPtr<TOwner> owner(18905);
     static VersionDbPtr<TExtra> extra(11723), clear(11942);
     static VersionDbPtr<TCreate> create(42678);
@@ -643,7 +637,7 @@ void UpdateGuestTrespass(Actor* aActor)
     TESObjectCELL* cell = aActor->GetParentCellEx();
     // Property permissions belong to the party's player. A copy's created NPC base
     // is not base 7, so checking it directly mislabels the party's own home.
-    if (cell && check(cell, PlayerCharacter::Get()))
+    if (cell && cell->IsTrespassing(PlayerCharacter::Get()))
     {
         aActor->flags2 |= 0x1000;
         if (!extra(&aActor->extraData))
@@ -764,14 +758,12 @@ void CrimeBridge::ShowReport(const CrimeReport& acReport) noexcept
 {
     // 37679's line: "%d %s %s", the bounty, sAddCrimeGold (378208), the faction's name; queued (SendHUDMessage 52933).
     POINTER_SKYRIMSE(Setting, s_addCrimeGold, 378208);
-    using TShow = void(const char*, const char*, bool);
-    POINTER_SKYRIMSE(TShow, s_show, 52933);
     const auto* pFaction = TESForm::GetById(ToGame(acReport.Faction));
     const char* pName = pFaction ? pFaction->GetName() : nullptr;
     if (!pName || !acReport.Bounty)
         return;
     const auto cLine = std::format("{} {} {}", acReport.Bounty, reinterpret_cast<const char*>(s_addCrimeGold.Get()->data), pName);
-    s_show.Get()(cLine.c_str(), nullptr, true);
+    Utils::ShowHudMessage(cLine, true);
 }
 
 std::vector<CrimeRequest> CrimeBridge::TakeActions() noexcept
@@ -815,8 +807,6 @@ void CrimeBridge::ApplyGold(const std::vector<CrimeGold>& aRows) noexcept
     if (!player)
         return;
     using TSet = void(PlayerCharacter*, TESFaction*, bool, uint32_t);
-    using TEnemy = void(TESFaction*, bool);
-    static VersionDbPtr<TEnemy> setEnemy(24505);
     auto set = reinterpret_cast<TSet**>(*reinterpret_cast<uintptr_t**>(player))[0xB5];
     const auto previous = ReadGold();
     for (const auto& row : previous)
@@ -830,7 +820,7 @@ void CrimeBridge::ApplyGold(const std::vector<CrimeGold>& aRows) noexcept
             if (auto* value = FindGold(player, faction))
                 value->NonViolentInfamy = value->ViolentInfamy = 0;
             if (row.PlayerEnemy)
-                setEnemy(faction, false);
+                faction->SetPlayerEnemy(false);
         }
     for (const auto& row : aRows)
         if (auto* faction = Cast<TESFaction>(TESForm::GetById(ToGame(row.Faction))))
@@ -848,7 +838,7 @@ void CrimeBridge::ApplyGold(const std::vector<CrimeGold>& aRows) noexcept
                 it->ViolentInfamy = row.ViolentInfamy;
             }
             if (PlayerEnemy(faction) != row.PlayerEnemy)
-                setEnemy(faction, row.PlayerEnemy);
+                faction->SetPlayerEnemy(row.PlayerEnemy);
         }
 }
 
@@ -860,11 +850,9 @@ bool CrimeBridge::PartyIsCriminalTo(uint32_t aActorFormId) const noexcept
 void CrimeBridge::AskWitnesses(uint32_t aActorFormId) noexcept
 {
     // 41408 reads each high actor's fresh state (37758), which queues an update for a stale one.
-    using THighest = int32_t(ProcessLists*, Actor*, uint32_t&);
-    static VersionDbPtr<THighest> highest(41408);
     uint32_t seeing{};
     if (auto* actor = Cast<Actor>(TESForm::GetById(aActorFormId)))
-        highest(ProcessLists::Get(), actor, seeing);
+        ProcessLists::Get()->RequestHighestDetectionLevelAgainstActor(actor, seeing);
 }
 
 bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noexcept
@@ -899,9 +887,7 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
         return false;
     }
     // Recheck permission in the host's world; the guest's ownership information can be stale.
-    using TOwns = bool(TESObjectREFR*, Actor*, bool, bool);
-    static VersionDbPtr<TOwns> owns(20210);
-    if (cChecks.Ownership && owns(target, player, true, false))
+    if (cChecks.Ownership && target->IsAnOwner(player, true, false))
     {
         spdlog::info("Party crime: actor {:X}, action {}, target {:X}: the party owns it", aActorFormId,
                      static_cast<uint32_t>(aRequest.Action), target->formID);
@@ -912,12 +898,8 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
     if (aRequest.Action == CrimeAction::ContainerTheft)
     {
         using TValue = uint32_t(TESObjectREFR*, ExtraContainerChanges::Entry*, int32_t, bool);
-        using TSetOwner = void(ExtraDataList*, TESForm*);
-        using TSetCount = void(ExtraDataList*, uint16_t);
         using TDestroy = void(ExtraDataList*, bool);
         static VersionDbPtr<TValue> value(16045);
-        static VersionDbPtr<TSetOwner> setOwner(11609);
-        static VersionDbPtr<TSetCount> setCount(11617);
         static VersionDbPtr<TDestroy> destroy(11573);
         uint64_t total{};
         for (const auto& line : aRequest.Items)
@@ -931,8 +913,8 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
                 auto* extra = i == 0 ? TESObjectREFR::GetExtraDataFromItem(line.Item) : nullptr;
                 if (!extra)
                     extra = ExtraDataList::New();
-                setOwner(extra, TESForm::GetById(ToGame(line.Owners[i].Owner)));
-                setCount(extra, static_cast<uint16_t>(line.Owners[i].Count));
+                extra->SetOwner(TESForm::GetById(ToGame(line.Owners[i].Owner)));
+                extra->SetCount(static_cast<uint16_t>(line.Owners[i].Count));
                 nodes[i].entry = {extra, i + 1 < nodes.size() ? &nodes[i + 1].entry : nullptr};
             }
             ExtraContainerChanges::Entry entry{form, nodes.empty() ? nullptr : nodes.data(), line.Item.Count, {}};

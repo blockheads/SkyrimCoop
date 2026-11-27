@@ -164,9 +164,7 @@ AiReadout GetAiReadout(uint32_t aFormId) noexcept
         if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(cRunning.target))
             readout.PackageTarget = pTarget->formID;
     // Through the hooked function: a copy answers its owner's.
-    using TGetCurrentScene = TESForm*(Actor*);
-    POINTER_SKYRIMSE(TGetCurrentScene, s_getCurrentScene, 37247);
-    if (const TESForm* pScene = s_getCurrentScene(pActor))
+    if (const TESForm* pScene = pActor->GetCurrentScene())
         readout.Scene = pScene->formID;
     if (const MiddleProcess* pMiddle = pActor->currentProcess->middleProcess)
         if (const TESObjectREFR* pFurniture = TESObjectREFR::GetByHandle(pMiddle->occupiedFurniture))
@@ -408,11 +406,9 @@ KillState GetKillState(uint32_t aFormId) noexcept
     const Actor* pActor = GetActor(aFormId);
     if (!pActor || !pActor->currentProcess)
         return {};
-    using TIsInDeferredKill = bool(const Actor*);
-    POINTER_SKYRIMSE(TIsInDeferredKill, s_isInDeferredKill, 38619);
     using TIsKillQueued = bool(const AIProcess*);
     POINTER_SKYRIMSE(TIsKillQueued, s_isKillQueued, 40011);
-    return {s_isInDeferredKill(pActor), s_isKillQueued(pActor->currentProcess)};
+    return {pActor->IsInDeferredKill(), s_isKillQueued(pActor->currentProcess)};
 }
 
 std::optional<StaminaRegen> GetStaminaRegen(uint32_t aFormId) noexcept

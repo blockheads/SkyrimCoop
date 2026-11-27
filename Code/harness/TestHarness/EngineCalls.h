@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+struct InputEventSource;
+
 // The test harness's own engine calls (scripts/coop_test.py drives them through the harness's commands):
 // staging, the player's input, and engine state the scenarios check. Test-only: the client's services
 // go through the bridges, never through these.
@@ -328,6 +330,8 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept;
 bool SendKey(uint32_t aScanCode, bool aDown) noexcept;
 // A typed character, as the keyboard sends it for text fields (a CharEvent through the same dispatch).
 bool SendChar(uint32_t aCharacter) noexcept;
+// BSInputDeviceManager::singleton (402776): the input events' source (BSTEventSource<InputEvent*>) at its start.
+InputEventSource* GetInputDeviceManager() noexcept;
 // A mouse button (0 left, 1 right) and a mouse move by a delta, the same way.
 bool SendMouseButton(uint32_t aButton, bool aDown) noexcept;
 bool SendMouseMove(int32_t aDeltaX, int32_t aDeltaY) noexcept;

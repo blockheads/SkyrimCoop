@@ -1,6 +1,7 @@
 #include <Havok/SwingCast.h>
 
 #include <Actor.h>
+#include <Forms/TESObjectCELL.h>
 #include <TES.h>
 #include <Havok/bhkCollision.h>
 #include <Havok/bhkPickData.h>
@@ -51,9 +52,6 @@ namespace GameSwingCast
 {
 std::vector<Hit> HitsOf(const void* apCollector) noexcept
 {
-    using TFindRef = TESObjectREFR*(const hkpCollidable*);
-    POINTER_SKYRIMSE(TFindRef, s_findCollidableRef, 26003); // TESHavokUtilities::FindCollidableRef
-
     std::vector<Hit> hits;
     const auto* pCollector = static_cast<const SwingCollector*>(apCollector);
     for (int32_t i = 0; pCollector && i < pCollector->hitCount; ++i)
@@ -62,7 +60,7 @@ std::vector<Hit> HitsOf(const void* apCollector) noexcept
         Hit hit;
         if (cPoint.rootCollidableB)
         {
-            if (const TESObjectREFR* pRef = s_findCollidableRef(cPoint.rootCollidableB))
+            if (const TESObjectREFR* pRef = FindCollidableRef(cPoint.rootCollidableB))
                 hit.Reference = pRef->formID;
             hit.Layer = cPoint.rootCollidableB->filterInfo & 0x7F;
         }
@@ -89,17 +87,15 @@ uint32_t GroupOf(Actor& aActor) noexcept
 
 Cast CastFor(Actor& aActor, Reach aReach) noexcept
 {
-    using TGetWorld = void*(TESObjectCELL*);
     using TGetCollector = SwingCollector*(int, bool);
     using TSetGroup = void(SwingCollector*, uint32_t);
     using TLinearCast = bool(SwingCollector*, void*, const float*, const float*, float);
-    POINTER_SKYRIMSE(TGetWorld, s_getWorld, 18995);         // TESObjectCELL::GetbhkWorld
     POINTER_SKYRIMSE(TGetCollector, s_getCollector, 25925); // GetAllCdPointCollector
     POINTER_SKYRIMSE(TSetGroup, s_setGroup, 25932);         // the phantom's filter group
     POINTER_SKYRIMSE(TLinearCast, s_linearCast, 25931);     // the phantom swept from origin along direction
 
     Cast cast;
-    void* pWorld = aActor.parentCell ? s_getWorld(aActor.parentCell) : nullptr;
+    void* pWorld = aActor.parentCell ? aActor.parentCell->GetbhkWorld() : nullptr;
     SwingCollector* pCollector = s_getCollector(0, true);
     if (!pWorld || !pCollector)
         return cast;

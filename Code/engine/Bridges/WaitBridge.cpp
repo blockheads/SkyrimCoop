@@ -6,6 +6,7 @@
 #include <Interface/Menus/SleepWaitMenu.h>
 #include <Interface/UI.h>
 #include <PlayerCharacter.h>
+#include <TES.h>
 #include <TimeManager.h>
 #include <VersionDb.h>
 
@@ -88,7 +89,6 @@ void StepGuestPlayer(PlayerCharacter& aPlayer, uint32_t aRemainingSeconds) noexc
     const float cDelta = cpTime && cpTime->TimeScale && cpTime->TimeScale->f > 0.f
                              ? static_cast<float>(cElapsed) / cpTime->TimeScale->f
                              : 0.f;
-    POINTER_SKYRIMSE(ProcessLists*, s_processLists, 400315);
     using TReadClock = float(ProcessLists*);
     using TSetClock = int(ProcessLists*, float);
     using TUpdatePlayer = void(PlayerCharacter*, float);
@@ -97,7 +97,7 @@ void StepGuestPlayer(PlayerCharacter& aPlayer, uint32_t aRemainingSeconds) noexc
     POINTER_SKYRIMSE(TSetClock, s_setClock, 41338);
     POINTER_SKYRIMSE(TUpdatePlayer, s_updatePlayer, 38785);
     POINTER_SKYRIMSE(TStop, s_stop, 40417);
-    ProcessLists* pLists = *s_processLists.Get();
+    ProcessLists* pLists = ProcessLists::Get();
     aPlayer.InterruptCast(false);
     s_setClock(pLists, s_readClock(pLists) + cDelta);
     s_updatePlayer(&aPlayer, cDelta);
