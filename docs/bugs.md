@@ -1613,9 +1613,22 @@ owner's until both stand" (`physics_flows.cpp:887`): the copy's head ended 27.8 
 Looped alone again: 1 of 20 over 15 (42.4) with the blend, 8 of 30 (up to 16.4) with it off.
 2026-11-24 on `agent/traps-synced`: the same case, 29.8 (`physics_flows.cpp:996`); 1 of 6 alone.
 
-Agent task: loop `GameTests` until it fails and fix that case's timing.
+2026-11-27, measured (dev `bba3a3b2`, the gate's eight shards, 28 cores): 0 of 4 runs failed on an idle machine; 6 of 6
+with 26 busy loops beside them, on ten cases of 645: six in `physics_flows.cpp` (the ragdoll cases at 514, 653 and
+997, the bucket cases at 2095 and 2200), `copy_playback_flows.cpp` 178 and 484, `animation_replay_flows.cpp` 605,
+`friendly_fire_flows.cpp` 422, `travel_flows.cpp` 533. Two kinds: a `Party::Until` that gives up after 2 s of wall
+time, and a check of a result that real sleeps were meant to line up within milliseconds. The cause is the harness,
+not the cases: an in-process game runs in wall time (the host's network tick, `SynchronizedClock`, enet's own timers,
+`Seams.cpp`'s frame delta), so a busy machine changes what a test sees. Counting frames instead of seconds would not
+help: the loop spins frames while it waits for real time.
 
-Size: small. Needs: nothing but the fast suite.
+Agent task: time the tests step. The seams that exist: `World::Step(delta, frameMs)`, `FakeEngine::FrameMs`,
+`HostNetwork`'s in-process routes. What is missing: the session tick and `SynchronizedClock` from a clock the test
+advances, an in-memory line in place of enet between the test's games, the 29 `now()` calls in `Code/sync` through
+that clock, and the tests' own `while (now() < until)` loops as "run this many ms". A design first, proven on
+`physics_flows.cpp`.
+
+Size: medium to large. Needs: nothing but the fast suite.
 - 2026-11-22: `scripts/check.sh` passed 2 of 2 in this worktree (one full, `CHECK_FORCE=1`).
 
 ### A scenario stages its speaker frozen
