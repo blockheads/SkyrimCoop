@@ -30,3 +30,12 @@ TEST_CASE("Not the story's: another functor, or an AddItem from an object's own 
     const StoryGifts::Run cRun(&cFunctor);
     CHECK_FALSE(StoryGifts::Giving());
 }
+
+TEST_CASE("A marked functor that never runs leaves no mark for a new one at its address", "[StoryGifts]")
+{
+    const int cFunctor = 0;
+    StoryGifts::Queued(Queue::kPostRender, &cFunctor, true, true); // freed without running
+    StoryGifts::Queued(Queue::kPostRender, &cFunctor, true, false); // a new one at the same address
+    const StoryGifts::Run cRun(&cFunctor);
+    CHECK_FALSE(StoryGifts::Giving());
+}

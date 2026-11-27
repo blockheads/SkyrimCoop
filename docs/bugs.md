@@ -32,6 +32,7 @@ every other section needs the duo.
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
 - [A refused rider left crouched](#a-refused-rider-left-crouched): small
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
+- [A new actor inherits an old one's clip sets](#a-new-actor-inherits-an-old-ones-clip-sets): small
 
 **Ragdolls and death poses**
 
@@ -448,6 +449,23 @@ scene plays.
 
 Size: small. Needs: the duo with the late save.
 - 2026-11-22, dev `aa723513` (`duo --save LateAfterDragonRising`): 1 of 1 again, the same step.
+
+### A new actor inherits an old one's clip sets
+
+Found by reading (the engine object lifetime survey, 2026-11-27), not seen in a run. `s_clipLoads`
+(`Code/engine/Havok/GraphStreamHooks.cpp`) is keyed by a graph manager's address; entries are only added, and the
+whole table is wiped past 4096. A graph manager made at a freed one's address inherits the old actor's held clip sets
+(and its unsent loads), which the next sync point (`HeldClipSets`) names to the copies. A player could see a copy load
+another actor's idle or action clips. The wipe also drops live actors' held sets at once.
+
+Same area as [A guest crashed loading a copy's idle clips](#a-guest-crashed-loading-a-copys-idle-clips) (a copy's
+clip loads); a link between the two is unproven.
+
+Agent task: find in IDA who destroys a graph manager (the holder's `GraphManagerKey`) and remove its `s_clipLoads`
+entry there, then drop the 4096 wipe; a GameTests flow on the fake's loads: an actor goes, a new one at its address
+starts with no held sets.
+
+Size: small. Needs: IDA, the duo.
 
 ## Ragdolls and death poses
 
