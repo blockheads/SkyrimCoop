@@ -1,0 +1,16 @@
+time	op	id	rva	item
+2026-11-27T06:14:38Z	read	41408	0x786350	{"name": "ProcessLists::RequestHighestDetectionLevelAgainstActor"}
+2026-11-27T06:14:43Z	read	439876	0x10d710	{"name": "BSString::Set"}
+2026-11-27T06:24:53Z	read	40725	0x75ddc0	{"name": "PlayerCharacter::OnMountStarted"}
+2026-11-27T06:25:02Z	name	18909	0x2bb7e0	{"addr": "0x1402bb7e0", "name": "TESObjectCELL::IsTrespassing"}
+2026-11-27T06:25:02Z	name	41354	0x7820d0	{"addr": "0x1407820d0", "name": "ProcessLists::HasKnownCrime"}
+2026-11-27T06:25:02Z	name	38619	0x6cc970	{"addr": "0x1406cc970", "name": "Character::IsInDeferredKill"}
+2026-11-27T06:25:08Z	type	41408	0x786350	{"addr": "0x140786350", "kind": "function", "signature": "int __fastcall ProcessLists__RequestHighestDetectionLevelAgainstActor(__int64 processLists, __int64 actor, unsigned int *seeing)"}
+2026-11-27T06:25:08Z	type	18909	0x2bb7e0	{"addr": "0x1402bb7e0", "kind": "function", "signature": "bool __fastcall TESObjectCELL__IsTrespassing(__int64 cell, __int64 actor)"}
+2026-11-27T06:25:08Z	type	41354	0x7820d0	{"addr": "0x1407820d0", "kind": "function", "signature": "bool __fastcall ProcessLists__HasKnownCrime(__int64 processLists, __int64 victim, __int64 criminal, __int64 witness, unsigned int type, int unknown, int day)"}
+2026-11-27T06:25:08Z	type	14287	0x1d9eb0	{"addr": "0x1401d9eb0", "kind": "function", "signature": "bool __fastcall BGSOpenCloseForm__SetOpenState(__int64 ref, bool open, bool snap)"}
+2026-11-27T06:25:08Z	type	37380	0x67ea40	{"addr": "0x14067ea40", "kind": "function", "signature": "__int64 __fastcall Actor__GetCrimeFaction(__int64 actor)"}
+2026-11-27T06:25:20Z	comment	41408	0x786350	{"addr": "0x140786350", "comment": "Returns the full int32 max level (starts at -1000); CommonLibSSE-NG declares int16. SkyrimCoop: ProcessLists::RequestHighestDetectionLevelAgainstActor (Code/engine/TES.h)."}
+2026-11-27T06:25:20Z	comment	18909	0x2bb7e0	{"addr": "0x1402bb7e0", "comment": "True when the actor trespasses in the cell: not the player (or the player while flag +0xBEC bit 4), the cell has an owner, cell flags 0x20/0x40 clear, and 18908 says the actor is no owner. SkyrimCoop: TESObjectCELL::IsTrespassing."}
+2026-11-27T06:25:20Z	comment	41354	0x7820d0	{"addr": "0x1407820d0", "comment": "A crime of type a5 (<=7) by a3 is on record in the lists at +0xB0: victim a2 (null any), witness a4 (null any), day a7 (-1 any). SkyrimCoop: ProcessLists::HasKnownCrime; hooked by CrimeBridge's HookKnownCrime."}
+2026-11-27T06:25:20Z	comment	439876	0x10d710	{"addr": "0x14010d710", "comment": "Returns bool (copied length != 0). SkyrimCoop: BSString::Set (Code/engine/Misc/BSString.h)."}
