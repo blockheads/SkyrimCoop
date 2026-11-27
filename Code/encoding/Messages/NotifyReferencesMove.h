@@ -4,19 +4,16 @@
 #include <Structs/ReferenceUpdate.h>
 #include <Wire/Buffer.h>
 
-struct NotifyReferencesMove final : NotifyMessage
+struct NotifyReferencesMove final : MessageOf<NotifyReferencesMove, kNotifyReferencesMove>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyReferencesMove;
-
-    NotifyReferencesMove()
-        : NotifyMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyReferencesMove& acRhs) const noexcept { return Updates == acRhs.Updates && Tick == acRhs.Tick && GetOpcode() == acRhs.GetOpcode(); }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
+    {
+        aArchive(Tick, Wire::List(Updates, ReferenceUpdate::kMaxPerMessage));
+    }
+    bool operator==(const NotifyReferencesMove&) const noexcept = default;
 
     uint64_t Tick{};
     std::map<uint32_t, ReferenceUpdate> Updates{};

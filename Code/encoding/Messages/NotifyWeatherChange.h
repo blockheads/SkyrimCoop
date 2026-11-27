@@ -4,19 +4,13 @@
 
 #include <Structs/GameId.h>
 
-struct NotifyWeatherChange final : NotifyMessage
+struct NotifyWeatherChange final : MessageOf<NotifyWeatherChange, kNotifyWeatherChange>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyWeatherChange;
-
-    NotifyWeatherChange()
-        : NotifyMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyWeatherChange& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Id == acRhs.Id; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id); }
+    bool operator==(const NotifyWeatherChange&) const noexcept = default;
 
     GameId Id{};
 };

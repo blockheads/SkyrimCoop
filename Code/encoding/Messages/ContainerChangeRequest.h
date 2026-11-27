@@ -7,24 +7,18 @@
 
 // A guest's container changed (its player took or stored an item): a proposal, as the count it holds now and the
 // stacks of them with extra data (an enchantment, tempering...).
-struct ContainerChangeRequest final : RequestMessage
+struct ContainerChangeRequest final : MessageOf<ContainerChangeRequest, kContainerChangeRequest>
 {
-    static constexpr RequestOpcode Opcode = kContainerChangeRequest;
     static constexpr size_t kMaxStacks = 4096;
-
-    ContainerChangeRequest()
-        : RequestMessage(Opcode)
-    {
-    }
 
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const ContainerChangeRequest& acRhs) const noexcept
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && Container == acRhs.Container && Item == acRhs.Item && Count == acRhs.Count &&
-               Stacks == acRhs.Stacks;
+        aArchive(Container, Item, Count, Wire::List(Stacks, kMaxStacks));
     }
+    bool operator==(const ContainerChangeRequest&) const noexcept = default;
 
     GameId Container{};
     GameId Item{};

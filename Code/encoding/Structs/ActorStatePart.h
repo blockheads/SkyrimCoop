@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Wire/Buffer.h>
 
 #include <cstdint>
@@ -9,6 +11,7 @@
 struct ActorStatePart
 {
     bool operator==(const ActorStatePart&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Tick, Flags1, Flags2, InKillMove, Killer, HandsUp, Noise); }
     // The state alone, its tick aside: whether an owner has anything new to declare.
     [[nodiscard]] bool SameState(const ActorStatePart& acRhs) const noexcept;
 

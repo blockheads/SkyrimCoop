@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Structs/PlayerRecord.h>
 #include <Wire/Serialization.h>
 
@@ -12,6 +14,7 @@ struct Perks
     std::vector<PlayerRecord::Perk> Ranks;
     std::vector<GameId> Spells;
     bool operator==(const Perks&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(Ranks, kMaxEntries), Wire::List(Spells, kMaxEntries)); }
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     {

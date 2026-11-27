@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Structs/Inventory.h>
 
 #include <optional>
@@ -10,6 +12,7 @@
 struct ItemsPart
 {
     bool operator==(const ItemsPart&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Full, Items); }
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;

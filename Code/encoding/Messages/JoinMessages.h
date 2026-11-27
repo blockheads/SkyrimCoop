@@ -5,61 +5,44 @@
 #include <Structs/PlayerRecord.h>
 
 // A guest's character, for the host's save: on joining and on its changes.
-struct PlayerRecordRequest final : RequestMessage
+struct PlayerRecordRequest final : MessageOf<PlayerRecordRequest, kPlayerRecordRequest>
 {
-    static constexpr RequestOpcode Opcode = kPlayerRecordRequest;
-
-    PlayerRecordRequest()
-        : RequestMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const PlayerRecordRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Record == acRhs.Record; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Record); }
+    bool operator==(const PlayerRecordRequest&) const noexcept = default;
 
     PlayerRecord Record{};
 };
 
 // A guest to the host: the saves its store holds now (their ids), after one came in or was dropped.
-struct SaveHeldRequest final : RequestMessage
+struct SaveHeldRequest final : MessageOf<SaveHeldRequest, kSaveHeldRequest>
 {
-    static constexpr RequestOpcode Opcode = kSaveHeldRequest;
     static constexpr size_t kMaxSaves = 16;
-
-    SaveHeldRequest()
-        : RequestMessage(Opcode)
-    {
-    }
 
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const SaveHeldRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Saves == acRhs.Saves; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::List(Saves, kMaxSaves)); }
+    bool operator==(const SaveHeldRequest&) const noexcept = default;
 
     std::vector<std::string> Saves; // SHA-256 ids, 32 binary bytes each
 };
 
 // A piece of a save on its way (docs/design/join-flow.md, "Save sync"): the save's image encoded against Base.
-struct NotifySaveChunk final : NotifyMessage
+struct NotifySaveChunk final : MessageOf<NotifySaveChunk, kNotifySaveChunk>
 {
-    static constexpr NotifyOpcode Opcode = kNotifySaveChunk;
     static constexpr uint32_t kMaxData = 32 * 1024;
-
-    NotifySaveChunk()
-        : NotifyMessage(Opcode)
-    {
-    }
 
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifySaveChunk& acRhs) const noexcept
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && Save == acRhs.Save && Base == acRhs.Base && Size == acRhs.Size && Total == acRhs.Total &&
-               Offset == acRhs.Offset && Ahead == acRhs.Ahead && Data == acRhs.Data;
+        aArchive(Save, Base, Size, Total, Offset, Ahead, Data);
     }
+    bool operator==(const NotifySaveChunk&) const noexcept = default;
 
     std::string Save;  // the image's SHA-256 id, 32 binary bytes
     std::string Base;  // the id of the image it is encoded against; empty: against none
@@ -71,17 +54,13 @@ struct NotifySaveChunk final : NotifyMessage
 };
 
 // The host's game cannot save yet (a menu that allows no save, such as a conversation, is open): the join waits for it.
-struct NotifySaveWaiting final : NotifyMessage
+struct NotifySaveWaiting final : MessageOf<NotifySaveWaiting, kNotifySaveWaiting>
 {
-    static constexpr NotifyOpcode Opcode = kNotifySaveWaiting;
-
-    NotifySaveWaiting()
-        : NotifyMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer&) const noexcept override {}
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override { NotifyMessage::DeserializeRaw(aReader); }
 
-    bool operator==(const NotifySaveWaiting& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode(); }
+    template <class TArchive> void Fields(TArchive&) noexcept
+    {
+    }
+    bool operator==(const NotifySaveWaiting&) const noexcept = default;
 };

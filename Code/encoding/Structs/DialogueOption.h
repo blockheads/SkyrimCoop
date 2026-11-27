@@ -1,12 +1,18 @@
 #pragma once
 
+#include <PartySize.h>
+#include <Wire/Archive.h>
+
 #include <Structs/GameId.h>
 #include <Wire/Buffer.h>
 
 // One option of a step's list (docs/design/shared-dialogue.md); in the party's merged list, who can say it.
 struct DialogueOption
 {
+    // A conversation never shows more; anything past it is a corrupt message.
+    static constexpr uint64_t kMaxOptions = 64;
     bool operator==(const DialogueOption&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Topic, Info, Quest, Text, Wire::List(Players, kMaxPartyPlayers)); }
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
@@ -25,6 +31,7 @@ using DialogueOptions = std::vector<DialogueOption>;
 struct PlayerDialogueOptions
 {
     bool operator==(const PlayerDialogueOptions&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(PlayerId, Wire::List(Options, DialogueOption::kMaxOptions)); }
 
     uint32_t PlayerId{};
     DialogueOptions Options{};

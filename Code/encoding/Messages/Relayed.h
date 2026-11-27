@@ -3,11 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 #include "RelayedMessages.h"
+#include <Wire/Archive.h>
 #include <Wire/Buffer.h>
 
 #include <type_traits>
 
-// A request or notification carrying a shared payload unchanged: its bytes are the payload's.
+// A request or notification carrying a shared payload unchanged: its bytes are the payload's (its Fields, or its
+// SerializePayload where it writes itself).
 template <class TPayload, auto cOpcode>
 struct Relayed final
     : std::conditional_t<std::is_same_v<decltype(cOpcode), RequestOpcode>, RequestMessage, NotifyMessage>,
@@ -23,15 +25,18 @@ struct Relayed final
 
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override
     {
-        Payload::SerializePayload(aWriter);
+        if constexpr (requires { &Payload::SerializePayload; })
+            Payload::SerializePayload(aWriter);
+        else
+            Wire::Write(aWriter, static_cast<const Payload&>(*this));
     }
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override
     {
-        Payload::DeserializePayload(aReader);
+        if constexpr (requires { &Payload::DeserializePayload; })
+            Payload::DeserializePayload(aReader);
+        else
+            Wire::Read(aReader, static_cast<Payload&>(*this));
     }
 
-    bool operator==(const Relayed& acRhs) const noexcept
-    {
-        return this->GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs);
-    }
+    bool operator==(const Relayed& acRhs) const noexcept { return Payload::operator==(acRhs); }
 };

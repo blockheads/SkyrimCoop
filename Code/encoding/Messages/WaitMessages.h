@@ -23,13 +23,8 @@ enum class WaitPhase : uint8_t
 };
 
 // Only the host's game reports Progress; every player can cancel the current wait.
-struct WaitRequest final : RequestMessage
+struct WaitRequest final : MessageOf<WaitRequest, kWaitRequest>
 {
-    static constexpr RequestOpcode Opcode = kWaitRequest;
-    WaitRequest() : RequestMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
@@ -38,16 +33,16 @@ struct WaitRequest final : RequestMessage
     uint32_t Hours{};            // Start: chosen hours
     uint32_t RemainingSeconds{}; // Progress: the native player's countdown, including partial hours
     bool Sleeping{};
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
+    {
+        aArchive(Wire::Bits<8>(Action), Id, Hours, RemainingSeconds, Sleeping);
+    }
+    bool operator==(const WaitRequest&) const noexcept = default;
 };
 
 // Preparing opens and pauses every game; Running follows only after every menu is ready.
-struct NotifyWaitState final : NotifyMessage
+struct NotifyWaitState final : MessageOf<NotifyWaitState, kNotifyWaitState>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyWaitState;
-    NotifyWaitState() : NotifyMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
@@ -58,30 +53,33 @@ struct NotifyWaitState final : NotifyMessage
     bool Sleeping{}; // The bed's player, and the host's party avatar for sleep events; other guests wait.
     bool Driver{};   // Only the host's native menu advances on its timer.
     TimeModel Calendar;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
+    {
+        aArchive(Wire::Bits<8>(Phase), Id, Hours, RemainingSeconds, Sleeping, Driver, Calendar);
+    }
+    bool operator==(const NotifyWaitState&) const noexcept = default;
 };
 
 // Only the completed shared rest asks for this refresh; ordinary cell loads use CellStateRequest.
-struct WaitWorldRequest final : RequestMessage
+struct WaitWorldRequest final : MessageOf<WaitWorldRequest, kWaitWorldRequest>
 {
-    static constexpr RequestOpcode Opcode = kWaitWorldRequest;
-    WaitWorldRequest() : RequestMessage(Opcode) {}
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Id{};
     CellStateRequest State;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, State); }
+    bool operator==(const WaitWorldRequest&) const noexcept = default;
 };
 
-struct NotifyWaitWorld final : NotifyMessage
+struct NotifyWaitWorld final : MessageOf<NotifyWaitWorld, kNotifyWaitWorld>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyWaitWorld;
-    NotifyWaitWorld() : NotifyMessage(Opcode) {}
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Id{};
     bool Last{true}; // A cell may need several bounded messages.
     NotifyObjectChanges State;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Id, Last, State); }
+    bool operator==(const NotifyWaitWorld&) const noexcept = default;
 };

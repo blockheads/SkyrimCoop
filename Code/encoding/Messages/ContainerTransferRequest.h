@@ -4,12 +4,8 @@
 #include <Wire/Serialization.h>
 
 // Positive Item.Count takes from the container; negative stores in it. Actors use their session id.
-struct ContainerTransferRequest final : RequestMessage
+struct ContainerTransferRequest final : MessageOf<ContainerTransferRequest, kContainerTransferRequest>
 {
-    static constexpr RequestOpcode Opcode = kContainerTransferRequest;
-    ContainerTransferRequest() : RequestMessage(Opcode)
-    {
-    }
     GameId Container{};
     uint32_t ContainerActorId{};
     Inventory::Entry Item;
@@ -28,9 +24,9 @@ struct ContainerTransferRequest final : RequestMessage
         Item.Deserialize(aReader);
         Steal = Wire::Serialization::ReadBool(aReader);
     }
-    bool operator==(const ContainerTransferRequest& acOther) const noexcept
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return Container == acOther.Container && ContainerActorId == acOther.ContainerActorId && Item == acOther.Item &&
-               Steal == acOther.Steal;
+        aArchive(Container, ContainerActorId, Item, Steal);
     }
+    bool operator==(const ContainerTransferRequest&) const noexcept = default;
 };

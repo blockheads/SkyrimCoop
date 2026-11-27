@@ -5,12 +5,8 @@
 #include <Wire/Buffer.h>
 
 // The native fast-travel time skipped by a guest's calendar, advanced on the host instead.
-struct TravelTimeRequest final : RequestMessage
+struct TravelTimeRequest final : MessageOf<TravelTimeRequest, kTravelTimeRequest>
 {
-    static constexpr RequestOpcode Opcode = kTravelTimeRequest;
-    TravelTimeRequest() : RequestMessage(Opcode)
-    {
-    }
     float Hours{};
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override
     {
@@ -21,19 +17,13 @@ struct TravelTimeRequest final : RequestMessage
         RequestMessage::DeserializeRaw(aReader);
         Hours = Serialization::ReadFloat(aReader);
     }
-    bool operator==(const TravelTimeRequest& acOther) const noexcept
-    {
-        return Hours == acOther.Hours;
-    }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Hours); }
+    bool operator==(const TravelTimeRequest&) const noexcept = default;
 };
 
 // The leader's queued destination, before loading it. Arrival still reports the actual destination.
-struct PartyTravelRequest final : RequestMessage
+struct PartyTravelRequest final : MessageOf<PartyTravelRequest, kPartyTravelRequest>
 {
-    static constexpr RequestOpcode Opcode = kPartyTravelRequest;
-    PartyTravelRequest() : RequestMessage(Opcode)
-    {
-    }
     NotifyPartyTravel Destination;
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override
     {
@@ -44,19 +34,13 @@ struct PartyTravelRequest final : RequestMessage
         RequestMessage::DeserializeRaw(aReader);
         Destination.DeserializeRaw(aReader);
     }
-    bool operator==(const PartyTravelRequest& acOther) const noexcept
-    {
-        return Destination == acOther.Destination;
-    }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Destination); }
+    bool operator==(const PartyTravelRequest&) const noexcept = default;
 };
 
 // /tpa: everyone else comes onto the sender's spot.
-struct PartySummonRequest final : RequestMessage
+struct PartySummonRequest final : MessageOf<PartySummonRequest, kPartySummonRequest>
 {
-    static constexpr RequestOpcode Opcode = kPartySummonRequest;
-    PartySummonRequest() : RequestMessage(Opcode)
-    {
-    }
     NotifyPartyTravel Destination;
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override
     {
@@ -67,8 +51,6 @@ struct PartySummonRequest final : RequestMessage
         RequestMessage::DeserializeRaw(aReader);
         Destination.DeserializeRaw(aReader);
     }
-    bool operator==(const PartySummonRequest& acOther) const noexcept
-    {
-        return Destination == acOther.Destination;
-    }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Destination); }
+    bool operator==(const PartySummonRequest&) const noexcept = default;
 };

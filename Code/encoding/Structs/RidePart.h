@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Wire/Buffer.h>
 
 #include <cstdint>
@@ -8,6 +10,7 @@
 struct RidePart
 {
     bool operator==(const RidePart&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Tick, Mount); }
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;

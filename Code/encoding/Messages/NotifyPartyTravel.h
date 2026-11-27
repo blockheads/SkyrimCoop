@@ -10,22 +10,16 @@
 
 // The party tether: a player travelled by itself (EnterCellRequest::Travel::kOwn) and everyone else goes where it
 // arrived. A game already there stays.
-struct NotifyPartyTravel final : NotifyMessage
+struct NotifyPartyTravel final : MessageOf<NotifyPartyTravel, kNotifyPartyTravel>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyPartyTravel;
-
-    NotifyPartyTravel() : NotifyMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyPartyTravel& acRhs) const noexcept
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId &&
-               Position == acRhs.Position && Heading == acRhs.Heading;
+        aArchive(CellId, WorldSpaceId, Position, Heading);
     }
+    bool operator==(const NotifyPartyTravel&) const noexcept = default;
 
     GameId CellId{};
     GameId WorldSpaceId{}; // empty: an interior
@@ -34,21 +28,13 @@ struct NotifyPartyTravel final : NotifyMessage
 };
 
 // /tpa: a player brought everyone to it; each game goes there even when already in that cell.
-struct NotifyPartySummon final : NotifyMessage
+struct NotifyPartySummon final : MessageOf<NotifyPartySummon, kNotifyPartySummon>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyPartySummon;
-
-    NotifyPartySummon() : NotifyMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyPartySummon& acRhs) const noexcept
-    {
-        return GetOpcode() == acRhs.GetOpcode() && Destination == acRhs.Destination && Username == acRhs.Username;
-    }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Destination, Username); }
+    bool operator==(const NotifyPartySummon&) const noexcept = default;
 
     NotifyPartyTravel Destination;
     std::string Username; // who summoned
@@ -56,21 +42,19 @@ struct NotifyPartySummon final : NotifyMessage
 
 // The soft leash (party-travel.md): a guest outdoors out of the host's loaded grid hears a countdown, then goes to the
 // host; back in time, or once the leash no longer applies (a trip, indoors, a player down), the countdown stops.
-struct NotifyLeash final : NotifyMessage
+struct NotifyLeash final : MessageOf<NotifyLeash, kNotifyLeash>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyLeash;
-
-    NotifyLeash() : NotifyMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyLeash& acRhs) const noexcept
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && State == acRhs.State && Seconds == acRhs.Seconds;
+        aArchive(Wire::Bits<2>(State), Wire::Bits<8>(Seconds));
+        if constexpr (TArchive::kReading)
+            if (State > Kind::kBack)
+                State = Kind::kOff;
     }
+    bool operator==(const NotifyLeash&) const noexcept = default;
 
     enum class Kind : uint8_t
     {

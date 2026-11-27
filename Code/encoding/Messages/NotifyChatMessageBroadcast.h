@@ -4,21 +4,16 @@
 #include <ChatMessageTypes.h>
 #include <Wire/Buffer.h>
 
-struct NotifyChatMessageBroadcast final : NotifyMessage
+struct NotifyChatMessageBroadcast final : MessageOf<NotifyChatMessageBroadcast, kNotifyChatMessageBroadcast>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyChatMessageBroadcast;
-
-    NotifyChatMessageBroadcast()
-        : NotifyMessage(Opcode)
-    {
-    }
-
-    virtual ~NotifyChatMessageBroadcast() = default;
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyChatMessageBroadcast& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && MessageType == acRhs.MessageType && PlayerName == acRhs.PlayerName && ChatMessage == acRhs.ChatMessage; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
+    {
+        aArchive(MessageType, PlayerName, ChatMessage);
+    }
+    bool operator==(const NotifyChatMessageBroadcast&) const noexcept = default;
 
     ChatMessageType MessageType = kPlayerChat;
     std::string PlayerName;

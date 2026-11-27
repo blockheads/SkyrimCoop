@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Structs/BodyFrame.h>
 #include <Wire/Buffer.h>
 
@@ -13,6 +15,7 @@ struct RagdollPart
     static constexpr size_t kMaxBodies = 128;
 
     bool operator==(const RagdollPart&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Tick, Wire::List(Rests, kMaxBodies)); }
 
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;

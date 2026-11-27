@@ -5,19 +5,13 @@
 #include <Structs/GameId.h>
 #include <Wire/Buffer.h>
 
-struct NotifyPlayerLevel final : NotifyMessage
+struct NotifyPlayerLevel final : MessageOf<NotifyPlayerLevel, kNotifyPlayerLevel>
 {
-    static constexpr NotifyOpcode Opcode = kNotifyPlayerLevel;
-
-    NotifyPlayerLevel()
-        : NotifyMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyPlayerLevel& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && NewLevel == acRhs.NewLevel; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(PlayerId, NewLevel); }
+    bool operator==(const NotifyPlayerLevel&) const noexcept = default;
 
     uint32_t PlayerId{};
     uint16_t NewLevel{};

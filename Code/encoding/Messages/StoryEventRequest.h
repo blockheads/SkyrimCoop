@@ -23,6 +23,14 @@ struct StoryEvent
         };
 
         bool operator==(const Member&) const noexcept = default;
+        template <class TArchive> void Fields(TArchive& aArchive) noexcept
+        {
+            aArchive(Wire::Bits<8>(Type));
+            if (Type == kReference || Type == kForm)
+                aArchive(Form);
+            else if (Type == kInteger)
+                aArchive(Value);
+        }
 
         Kind Type = kNone;
         GameId Form{};      // kReference, kForm
@@ -38,6 +46,7 @@ struct StoryEvent
     }
 
     bool operator==(const StoryEvent&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Wire::Bits<32>(Type), Wire::List(Members, kMaxMembers)); }
 
     uint32_t Type = 0;      // its registered type's id, four characters (BGSRegisteredStoryEvent::uniqueID): 'CLOC'
     uint32_t Character = 0; // the session id of the character it is judged for (the host's rule fills it)
@@ -45,19 +54,13 @@ struct StoryEvent
 };
 
 // A guest's story event its own game cannot judge (its story manager starts no quest): raised in the host's game.
-struct StoryEventRequest final : RequestMessage
+struct StoryEventRequest final : MessageOf<StoryEventRequest, kStoryEventRequest>
 {
-    static constexpr RequestOpcode Opcode = kStoryEventRequest;
-
-    StoryEventRequest()
-        : RequestMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const StoryEventRequest& acRhs) const noexcept { return Event == acRhs.Event && GetOpcode() == acRhs.GetOpcode(); }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Event); }
+    bool operator==(const StoryEventRequest&) const noexcept = default;
 
     StoryEvent Event;
 };

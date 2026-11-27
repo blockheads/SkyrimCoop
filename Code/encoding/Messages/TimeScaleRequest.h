@@ -3,19 +3,13 @@
 #include "Message.h"
 
 // How fast a player's game wants its clock to run (1 normal; a kill cam, Slow Time or a bow zoom slow it).
-struct TimeScaleRequest final : RequestMessage
+struct TimeScaleRequest final : MessageOf<TimeScaleRequest, kTimeScaleRequest>
 {
-    static constexpr RequestOpcode Opcode = kTimeScaleRequest;
-
-    TimeScaleRequest()
-        : RequestMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const TimeScaleRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Multiplier == acRhs.Multiplier; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Multiplier); }
+    bool operator==(const TimeScaleRequest&) const noexcept = default;
 
     float Multiplier{1.f};
 };

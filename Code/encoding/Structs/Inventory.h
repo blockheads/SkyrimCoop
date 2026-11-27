@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <functional>
 #include <optional>
 #include <string>
@@ -19,6 +21,7 @@ struct Inventory
         GameId EffectId{};
 
         bool operator==(const EffectItem&) const noexcept = default;
+        template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Magnitude, Area, Duration, RawCost, EffectId); }
 
         void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
         void Deserialize(Wire::Buffer::Reader& aReader) noexcept;

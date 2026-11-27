@@ -9,17 +9,6 @@ namespace
 constexpr uint64_t kMaxActorValues = 256;
 } // namespace
 
-bool ActorValues::operator==(const ActorValues& acRhs) const noexcept
-{
-    return ActorValuesList == acRhs.ActorValuesList && ActorMaxValuesList == acRhs.ActorMaxValuesList &&
-           ActorTemporaryValuesList == acRhs.ActorTemporaryValuesList;
-}
-
-bool ActorValues::operator!=(const ActorValues& acRhs) const noexcept
-{
-    return !this->operator==(acRhs);
-}
-
 void ActorValues::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, ActorValuesList.size());

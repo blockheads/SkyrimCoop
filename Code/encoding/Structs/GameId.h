@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <Wire/Buffer.h>
 
 using Wire::Buffer;
@@ -15,6 +17,7 @@ struct GameId
 
     operator bool() const noexcept;
 
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(BaseId, ModId); }
     void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
     inline uint64_t LogFormat() const noexcept { return static_cast<uint64_t>(ModId) << 32 | BaseId; }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Archive.h>
+
 #include <cstdint>
 #include <string>
 
@@ -16,6 +18,7 @@ struct GameVersions
     void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const GameVersions&) const noexcept = default;
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Runtime, Skse); }
 
     // "1.6.1170", from a packed version.
     [[nodiscard]] static std::string Format(uint32_t aPacked) noexcept;

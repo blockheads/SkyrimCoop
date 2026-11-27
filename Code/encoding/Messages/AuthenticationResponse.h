@@ -4,10 +4,8 @@
 #include <Structs/GameVersions.h>
 #include <Structs/Mods.h>
 
-struct AuthenticationResponse final : NotifyMessage
+struct AuthenticationResponse final : MessageOf<AuthenticationResponse, kAuthenticationResponse>
 {
-    static constexpr NotifyOpcode Opcode = kAuthenticationResponse;
-
     enum class ResponseType : uint8_t
     {
         kAccepted,
@@ -24,15 +22,14 @@ struct AuthenticationResponse final : NotifyMessage
         kNoCharacter,
     };
 
-    AuthenticationResponse()
-        : NotifyMessage(Opcode)
-    {
-    }
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const AuthenticationResponse& achRhs) const noexcept { return GetOpcode() == achRhs.GetOpcode() && Type == achRhs.Type && Version == achRhs.Version && Game == achRhs.Game && UserMods == achRhs.UserMods && Difficulty == achRhs.Difficulty && PlayerId == achRhs.PlayerId && CharacterId == achRhs.CharacterId; }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept
+    {
+        aArchive(Type, Version, Game, UserMods, Difficulty, PlayerId, CharacterId);
+    }
+    bool operator==(const AuthenticationResponse&) const noexcept = default;
 
     ResponseType Type;
     // The host's build and game: what a refused game differs from.

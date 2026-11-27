@@ -5,23 +5,13 @@
 #include <Structs/GameId.h>
 #include <Wire/Buffer.h>
 
-struct RequestSetWaypoint final : RequestMessage
+struct RequestSetWaypoint final : MessageOf<RequestSetWaypoint, kRequestSetWaypoint>
 {
-    static constexpr RequestOpcode Opcode = kRequestSetWaypoint;
-
-    RequestSetWaypoint() : RequestMessage(Opcode)
-    {
-    }
-
-    virtual ~RequestSetWaypoint() = default;
-
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const RequestSetWaypoint& acRhs) const noexcept
-    {
-        return GetOpcode() == acRhs.GetOpcode() && Position == acRhs.Position && WorldSpaceFormID == acRhs.WorldSpaceFormID;
-    }
+    template <class TArchive> void Fields(TArchive& aArchive) noexcept { aArchive(Position, WorldSpaceFormID); }
+    bool operator==(const RequestSetWaypoint&) const noexcept = default;
 
     Vector3_NetQuantize Position;
     GameId WorldSpaceFormID;
