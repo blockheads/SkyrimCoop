@@ -96,6 +96,8 @@ struct World : entt::registry
     // The game this code runs in: the plugin's one World; in the tests, the game whose turn it is.
     [[nodiscard]] static World& Get() noexcept;
     static void SetCurrent(World* apWorld) noexcept;
+    // Its event queue, from any thread (an engine hook on a job thread); Get() is for the update and the main thread.
+    [[nodiscard]] static RunnerService& Runner() noexcept;
 
 private:
     ActorIndex m_actorIndex{*this}; // before every service: it sees each actor's components from the first

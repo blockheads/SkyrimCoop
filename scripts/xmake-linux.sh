@@ -7,6 +7,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="${LLVM_DIR:-/usr/lib/llvm-18}/bin:$PATH"
 export XMAKE_CONFIGDIR="$ROOT/build/linux-config"
+EXTRA=()
+# COOP_SANITIZE=1: ASan, UBSan and the fuzz target, in build/linux-sanitize-config and build/sanitize.
+if [[ "${COOP_SANITIZE:-}" == 1 ]]; then
+    export XMAKE_CONFIGDIR="$ROOT/build/linux-sanitize-config"
+    EXTRA=(--sanitize=y -o "$ROOT/build/sanitize")
+fi
 cd "$ROOT"
 if [[ "${1:-}" == "f" || "${1:-}" == "config" ]]; then
     shift
@@ -18,7 +24,7 @@ if [[ "${1:-}" == "f" || "${1:-}" == "config" ]]; then
     printf '%s\n' "$GCC" > "$XMAKE_CONFIGDIR/clang/compile.cfg"
     printf '%s\n' "$GCC" -fuse-ld=lld > "$XMAKE_CONFIGDIR/clang/link.cfg"
     exec xmake f -P "$ROOT" -p linux -a x86_64 -m debug --toolchain=clang --cxflags="--config=$XMAKE_CONFIGDIR/clang/compile.cfg" \
-        --ldflags="--config=$XMAKE_CONFIGDIR/clang/link.cfg" --shflags="--config=$XMAKE_CONFIGDIR/clang/link.cfg" -y "$@" < /dev/null
+        --ldflags="--config=$XMAKE_CONFIGDIR/clang/link.cfg" --shflags="--config=$XMAKE_CONFIGDIR/clang/link.cfg" -y "${EXTRA[@]}" "$@" < /dev/null
 fi
 # Always this checkout's project: in a git worktree (inside the main checkout) xmake would take the parent's.
 if [[ $# -gt 0 && "$1" != -* ]]; then

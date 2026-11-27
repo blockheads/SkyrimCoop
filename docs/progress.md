@@ -355,6 +355,10 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- **2026-11-26: bug-finders.** Sanitized native tests and `FuzzMessages` (testing.md, "Sanitizers and fuzzing"); in
+  debug and harness builds `World::Get()` logs a caller off the update and main thread (hooks queue through
+  `World::Runner()`), not yet seen in Skyrim. Under ASan many GameTests flows miss their real-time waits (slowness).
+
 - **Open 2026-11-17: the graph stream check crashed a guest.** `guest-trips-platform-guard`'s first run: the guest's
   game died 48 s in, in `GraphStreamCheck.cpp`'s `HookHandleEvent` (line 113), formatting the platform guard's copy's
   event sender name: the sender read at event +0x10 named a pointer to `0x40C000003F800000` (two floats, not a node).

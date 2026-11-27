@@ -96,7 +96,7 @@ bool ApplyOpen(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
     aObject.extraData.RemoveByType(ExtraDataType::OpenCloseActivateRef);
     aObject.SetOpenState(acChange.Value != 0, false);
     if (!aObject.GetNiNode())
-        World::Get().GetRunner().Trigger(LidUnposedEvent{aObject.formID});
+        World::Runner().Trigger(LidUnposedEvent{aObject.formID});
     return true;
 }
 

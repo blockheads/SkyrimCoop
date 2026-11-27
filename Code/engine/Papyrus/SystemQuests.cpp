@@ -173,7 +173,7 @@ bool Learn(uint32_t aQuest, bool aTell) noexcept
     s_lastRead = 0;
     ReadGlobals();
     if (aTell)
-        World::Get().GetRunner().Trigger(SystemQuestLearnedEvent{aQuest});
+        World::Runner().Trigger(SystemQuestLearnedEvent{aQuest});
     return true;
 }
 

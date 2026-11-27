@@ -97,7 +97,7 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
     const auto cVerdict = HitRules::Lands(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), cCancelled, s_applyingEffect, cWorldHit,
                                           cWorldHit && GuestNpcs::Session() != 0);
     if (cVerdict.Hit)
-        World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
+        World::Runner().Trigger(HitEvent(apHitter->formID, apThis->formID));
     if (cCancelled)
     {
         spdlog::debug("{:X}'s blow on {:X} dropped: its pair yielded", apHitter->formID, apThis->formID);
@@ -109,10 +109,10 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
     switch (cVerdict.To)
     {
     case HitRules::Route::Apply:
-        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage));
+        World::Runner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage));
         return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
     case HitRules::Route::AskOwner:
-        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage, apHitter ? apHitter->formID : 0));
+        World::Runner().Trigger(HealthChangeEvent(apThis->formID, -cRealDamage, apHitter ? apHitter->formID : 0));
         return cWouldKill;
     case HitRules::Route::Mirror: return cWouldKill;
     case HitRules::Route::Drop: return false;
@@ -143,7 +143,7 @@ void HookApplyActorEffect(ActiveEffect* apThis, Actor* apTarget, float aEffectVa
                 const auto pExTarget = apTarget->GetExtension();
                 if (pExTarget->IsLocal())
                 {
-                    World::Get().GetRunner().Trigger(HealthChangeEvent(apTarget->formID, aEffectValue));
+                    World::Runner().Trigger(HealthChangeEvent(apTarget->formID, aEffectValue));
                     return RealApplyActorEffect(apThis, apTarget, aEffectValue, unk1);
                 }
                 return;

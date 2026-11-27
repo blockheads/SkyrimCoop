@@ -24,7 +24,7 @@ void AliasOnReference(void* apAlias, const uint32_t* apHandle)
     const std::string cBefore = pActor ? pActor->GetDisplayFullName() : "";
     (*tReal)(apAlias, apHandle);
     if (std::string after = pActor ? pActor->GetDisplayFullName() : ""; pActor && cBefore != after)
-        World::Get().GetRunner().Trigger(ActorRenamedEvent{pActor->formID, std::move(after)});
+        World::Runner().Trigger(ActorRenamedEvent{pActor->formID, std::move(after)});
 }
 
 using TClearCachedName = void(ExtraTextDisplayData*);

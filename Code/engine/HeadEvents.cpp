@@ -18,7 +18,7 @@ uint64_t HookUpdateHeadState(TESNPC* apNpc, Actor* apActor, NiAVObject* apRoot)
 {
     const uint64_t cResult = RealUpdateHeadState(apNpc, apActor, apRoot);
     if (apActor)
-        World::Get().GetRunner().Trigger(ActorHeadUpdateEvent{apActor->formID});
+        World::Runner().Trigger(ActorHeadUpdateEvent{apActor->formID});
     return cResult;
 }
 

@@ -241,6 +241,7 @@ TEST_CASE("Crime requests initialize omitted IDs and reject invalid ownership st
             CrimeRequest decoded;
             decoded.DeserializeRaw(reader);
             CHECK_FALSE(decoded.IsValid());
+            CHECK(reader.Failed());
         }
     }
     SECTION("The entry budget covers nested stacks as well as item lines")
@@ -533,6 +534,16 @@ TEST_CASE("Static structures", "[encoding.static]")
             recvObjects.Deserialize(reader);
 
             REQUIRE(sendObjects == recvObjects);
+        }
+    }
+
+    GIVEN("Rotator2_NetQuantize decoded and encoded again (fuzzer: a relayed rotation lost a step)")
+    {
+        for (uint32_t step = 0; step <= 0xFFFF; ++step)
+        {
+            Rotator2_NetQuantize rotation;
+            rotation.Unpack(step | (0xFFFF - step) << 16);
+            REQUIRE(rotation.Pack() == (step | (0xFFFF - step) << 16));
         }
     }
 

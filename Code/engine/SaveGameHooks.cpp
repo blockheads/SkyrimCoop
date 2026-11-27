@@ -48,7 +48,7 @@ static void* HookWriteSaveFile(void* apUtility, BGSSaveLoadFile** appFile, void*
     if (!name.empty())
         MainLoopTasks::Queue([name = std::move(name)] {
             if (entt::locator<World>::has_value())
-                World::Get().GetRunner().Trigger(SaveWrittenEvent{name});
+                World::Runner().Trigger(SaveWrittenEvent{name});
         });
     return pResult;
 }
