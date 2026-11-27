@@ -220,6 +220,18 @@ def dead_anchor(ctx):
         ctx.wait_for("the guest recovers beside the standing party", lambda: not ctx.is_dead(ctx.player_snapshot("client")), 30)
         follows(ctx, npc, lambda: ctx.player_copy(""))
 
+def dead_anchor_in_fight(ctx):
+    """The guest dies to wolves the follower fights: she follows the host, then the guest's respawned copy."""
+    with recruited(ctx) as (npc, sid, copy):
+        follows(ctx, npc, lambda: ctx.player_copy(""))
+        ctx.console_on("client", "player.forceav health 10")
+        ctx.console_on("", f"{npc:X}.placeatme 23ABE 3")
+        ctx.wait_for("the followed guest dies in the fight", lambda: ctx.is_dead(ctx.player_snapshot("client")), 30)
+        follows(ctx, npc, 0x14, timeout=60)
+        ctx.wait_for("the guest recovers beside the standing party", lambda: not ctx.is_dead(ctx.player_snapshot("client")), 60)
+        follows(ctx, npc, lambda: ctx.player_copy(""), timeout=30)
+        ctx.console_on("client", "player.forceav health 100")
+
 def saved_anchor(ctx, reference=None):
     """The host save restores the guest's desired anchor and rebinds the follower to the new player copy."""
     _game = ctx.game()

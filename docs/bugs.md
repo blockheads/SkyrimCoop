@@ -645,6 +645,13 @@ play. The entry stays for its engine reading ([followers.md](re/systems/follower
 ordering is a respawned copy at the moment the follow package starts again after a fight while the follower still
 counts as in combat (the restart skipped, no later package change).
 
+- **Reported again in play (2026-11-27): a guest's follower stopped following after the guest died.** Not reproduced
+  on the duo, 3 of 3 (`agent/followers-stay-party`): the guest recruited Lydia by dialogue and died to wolves, once
+  while she fought on; each time she followed the host, then the respawned copy, and walked after it
+  ([followers.md](re/systems/followers.md), "A guest's death in a fight"; scenario `follower-anchor-dies-fighting`).
+  - Start: the player's circumstances (place, enemy, who else died, a save or load, a mod follower) and the host's log
+    lines `Followers: ... follows handle` around the death.
+
 - **A guest's follower can stop following after being teleported and a fight** (2026-10-29, v1-gate, `save-load-gate`).
   After the harness took the party to the inn and home with `coc` and put Lydia beside it with `move_actor` (she
   unloads and loads again), a wolf fighting the guest's copy left her on `PlayerFollowerPackage` (5C84B) with no

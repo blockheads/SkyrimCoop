@@ -53,6 +53,22 @@ respawn, a follower left in another cell then moved in, a real load door and a w
 follower on the guest's current copy. Console disable and kill of a copy do not reach these paths (disabled needs a
 sub-state; a copy's death is refused).
 
+What a restart does, read in IDA (1.7.104, 2026-11-27): `Actor::EvaluatePackage` (37401) returns at once for a dead
+actor (vfunc 0x99, IsDead(1)) or one doing a favor. With `immediate` and `resetAI` it stops combat (so we never reset
+a fighting follower), ends the interrupt package, ends and clears the current package (`AIProcess_EndCurrentPackage`
+1406E99E0 -> `ActorPackage_EndAndClear` 1406E0210) and picks again, so the follow procedure starts and resolves its
+target (29846). `immediate` alone only picks again, which keeps an unchanged package and its cached target.
+
+### A guest's death in a fight
+
+Played on the duo (2026-11-27, Riverwood, Lydia recruited by the guest's own "Follow me" line, 3 runs): wolves on
+the guest and Lydia, the guest killed (by the wolves, or `player.kill` while she fought a 5000-health wolf). Each time
+she ran her combat package (109124) with no follow target, and once the fight ended went back to 5C84B and followed
+the guest's respawned copy (a new form id), then walked after it. The combat package's end is a package change, so the
+follow procedure starts again and resolves the current target: the restart skipped in combat is not needed. The
+recovery timer holds the respawn while an enemy that fought a standing player lives (`HostDeath`), so the respawn
+mid-fight did not happen. Scenario: `follower-anchor-dies-fighting`.
+
 DialogueFollower (750BA) has humanoid alias 0 and animal alias 1. Recruitment already fills the host's alias
 through the existing dialogue path. PlayerFollowerPackage (5C84B) still stores a reference to player 14;
 the existing script context does not change that package data.

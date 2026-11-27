@@ -1,0 +1,12 @@
+time	op	id	rva	item
+2026-11-27T21:51:24Z	read	37401	0x67f7b0	{"name": "Actor::EvaluatePackage"}
+2026-11-27T21:51:37Z	read	39176	0x6ea920	{"name": "sub_1406EA920"}
+2026-11-27T21:51:37Z	read	39150	0x6e99e0	{"name": "sub_1406E99E0"}
+2026-11-27T21:51:40Z	read	38957	0x6e0210	{"name": "sub_1406E0210"}
+2026-11-27T21:51:44Z	name	38957	0x6e0210	{"addr": "0x1406E0210", "name": "ActorPackage_EndAndClear"}
+2026-11-27T21:51:44Z	name	39150	0x6e99e0	{"addr": "0x1406E99E0", "name": "AIProcess_EndCurrentPackage"}
+2026-11-27T21:51:44Z	name	39176	0x6ea920	{"addr": "0x1406EA920", "name": "AIProcess_SetFlag310Bit0"}
+2026-11-27T21:51:49Z	comment	38957	0x6e0210	{"addr": "0x1406E0210", "comment": "ActorPackage (AIProcess+0x18) under its lock: ends the running procedure's exec state (vfunc +0x20 on +0x10), clears the package (+0x18 = 0), target handle -1, timers reset. Called by EvaluatePackage(reset) so the next pick restarts the package."}
+2026-11-27T21:51:49Z	comment	39150	0x6e99e0	{"addr": "0x1406E99E0", "comment": "AIProcess::currentPackage (+0x18) end and clear (ActorPackage_EndAndClear). EvaluatePackage(immediate, reset=true) only."}
+2026-11-27T21:51:49Z	comment	39176	0x6ea920	{"addr": "0x1406EA920", "comment": "Sets/clears bit 0 of AIProcess+0x136. EvaluatePackage(reset) clears it before CheckForNewPackage."}
+2026-11-27T21:51:49Z	comment	37401	0x67f7b0	{"addr": "0x14067f7b0", "comment": "37401 Actor::EvaluatePackage(actor, immediate, resetAI). Returns at once if the actor is dead (vfunc 0x99 IsDead(1)) or doing a favor. immediate+reset: stops combat (vfunc 0x1C8/8 on a combat controller at +0x160), ends the interrupt package, ends and clears the current package (1406E99E0), then CheckForNewPackage: the package restarts and its procedure's Start resolves the target again. immediate without reset: only CheckForNewPackage, which keeps an unchanged package (no procedure restart). Not immediate: only flags +0xE8."}
