@@ -1017,7 +1017,7 @@ Size: small. Needs: GameTests.
   - 2026-11-16, dev: `party-travel-mounted-guest` 1 of 3 reruns, the guest's owner on `swimStop`, the host's copy on
     `SwimStart` with `state1` 33792 against 32768.
   - 2026-11-17 (`agent/horse-riding`): the host's record of a player now takes the actions it relays
-    (`HostCharacters::OnMovement`), so a spawn built from the record (no host copy, a respawn) plays the latest;
+    (`HostMovement::OnMovement`), so a spawn built from the record (no host copy, a respawn) plays the latest;
     HostAuthorityTests "a player's latest relayed action". Not yet seen on the duo whether the travels' copies come
     from the record or from the host's copy (`ReadCopy`, its own action, the one behind).
   - Start: which spawn the host's new copy came from after the travel: the record, or an earlier one in flight.

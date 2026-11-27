@@ -268,7 +268,7 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
   show in `status` (`counters`), the harness `counters` command (with `reset`), `coop_test.py profile` (reset at the
   window's start, a table per game) and the MCP `counters` tool. UnitTests `[counters]`. First uses:
   `graph state save us` and `graph state bytes` (`Animation.cpp`), `movement messages` and
-  `movement stamp ahead ms` (`HostCharacters::OnMovement`).
+  `movement stamp ahead ms` (`HostMovement::OnMovement`).
 - **Network** (`status.network`, MCP `network`, a line in `profile`): the session time, the host's round trip per
   connection (`Server::GetConnections`), a guest's round trip and its last 8 clock syncs (`SynchronizedClock::Syncs`:
   the server tick, the ping used, the correction asked).
