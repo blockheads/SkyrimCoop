@@ -49,7 +49,14 @@ void HostNetwork::CloseRoute(ConnectionId_t aConnection) noexcept
 
 void HostNetwork::Receive(const void* apData, uint32_t aSize, ConnectionId_t aConnection) noexcept
 {
-    Wire::Buffer::Reader reader(std::span(static_cast<const uint8_t*>(apData), aSize));
+    const auto* cpBytes = static_cast<const uint8_t*>(apData);
+    // A game that is not a player may only ask to join: anything else is dropped unread.
+    if (aSize && m_gate && !m_gate(static_cast<RequestOpcode>(cpBytes[0]), aConnection))
+    {
+        spdlog::debug("HostNetwork: dropped opcode {} from {:x} unread", cpBytes[0], aConnection);
+        return;
+    }
+    Wire::Buffer::Reader reader(std::span(cpBytes, aSize));
     const auto pMessage = RequestMessageFactory{}.Extract(reader);
     if (!pMessage)
     {

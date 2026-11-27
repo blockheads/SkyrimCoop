@@ -19,10 +19,7 @@ void ContainerChangeRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexc
     Container.Deserialize(aReader);
     Item.Deserialize(aReader);
     Count = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
-    const uint64_t cStacks = Serialization::ReadVarInt(aReader);
-    if (cStacks > kMaxStacks)
-        return;
-    Stacks.resize(cStacks);
+    Stacks.resize(Serialization::ReadCount(aReader, kMaxStacks));
     for (auto& stack : Stacks)
         stack.Deserialize(aReader);
 }

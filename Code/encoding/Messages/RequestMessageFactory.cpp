@@ -29,12 +29,14 @@ static struct RequestMessageFactoryInit
 
 std::unique_ptr<RequestMessage> RequestMessageFactory::Extract(Wire::Buffer::Reader& aReader) const noexcept
 {
-    uint64_t data;
-    aReader.ReadBits(data, sizeof(RequestOpcode) * 8);
-
-    if (data >= kRequestOpcodeMax) [[unlikely]]
+    uint64_t data = 0;
+    if (!aReader.ReadBits(data, sizeof(RequestOpcode) * 8) || data >= kRequestOpcodeMax) [[unlikely]]
         return {nullptr};
 
     const auto opcode = static_cast<RequestOpcode>(data);
-    return s_clientMessageExtractor[opcode](aReader);
+    auto pMessage = s_clientMessageExtractor[opcode](aReader);
+    // A short read or a bad count: drop the message rather than act on zeros.
+    if (aReader.Failed()) [[unlikely]]
+        return {nullptr};
+    return pMessage;
 }

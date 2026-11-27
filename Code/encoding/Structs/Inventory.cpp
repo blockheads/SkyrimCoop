@@ -3,6 +3,13 @@
 
 using Wire::Serialization;
 
+namespace
+{
+// Generous: an inventory's distinct stacks, and an enchantment's effects.
+constexpr uint64_t kMaxEntries = 0xFFFF;
+constexpr uint64_t kMaxEffects = 256;
+} // namespace
+
 void Inventory::EffectItem::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteFloat(aWriter, Magnitude);
@@ -61,8 +68,8 @@ void Inventory::Entry::Deserialize(Wire::Buffer::Reader& aReader, bool aOwner) n
 
     ExtraEnchantId.Deserialize(aReader);
     ExtraEnchantCharge = Serialization::ReadVarInt(aReader) & 0xFFFF;
-    uint64_t effectCount = Serialization::ReadVarInt(aReader);
-    for (uint64_t i = 0; i < effectCount; i++)
+    const uint64_t cEffects = Serialization::ReadCount(aReader, kMaxEffects);
+    for (uint64_t i = 0; i < cEffects; ++i)
     {
         EffectItem effect;
         effect.Deserialize(aReader);
@@ -119,8 +126,8 @@ void Inventory::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 
 void Inventory::Deserialize(Wire::Buffer::Reader& aReader, bool aOwners) noexcept
 {
-    uint32_t count = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    for (uint32_t i = 0; i < count; i++)
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxEntries);
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         Entry entry;
         entry.Deserialize(aReader, aOwners);

@@ -22,5 +22,5 @@ struct ActivateRequest final : RequestMessage
     GameId Id;
     uint32_t NpcId{};
     GameId CellId;
-    uint32_t ActivatorId;
+    uint32_t ActivatorId{};
 };

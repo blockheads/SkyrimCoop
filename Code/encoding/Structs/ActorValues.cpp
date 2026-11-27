@@ -3,6 +3,12 @@
 
 using Wire::Serialization;
 
+namespace
+{
+// Keyed by actor value index: the engine has 164.
+constexpr uint64_t kMaxActorValues = 256;
+} // namespace
+
 bool ActorValues::operator==(const ActorValues& acRhs) const noexcept
 {
     return ActorValuesList == acRhs.ActorValuesList && ActorMaxValuesList == acRhs.ActorMaxValuesList &&
@@ -39,22 +45,22 @@ void ActorValues::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 
 void ActorValues::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
-    auto count = Serialization::ReadVarInt(aReader);
-    for (int i = 0; i < count; i++)
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxActorValues);
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         auto key = Serialization::ReadVarInt(aReader);
         auto value = Serialization::ReadFloat(aReader);
         ActorValuesList.insert({key, value});
     }
 
-    auto maxCount = Serialization::ReadVarInt(aReader);
-    for (int i = 0; i < maxCount; i++)
+    const uint64_t cMaxCount = Serialization::ReadCount(aReader, kMaxActorValues);
+    for (uint64_t i = 0; i < cMaxCount; ++i)
     {
         auto key = Serialization::ReadVarInt(aReader);
         auto value = Serialization::ReadFloat(aReader);
         ActorMaxValuesList.insert({key, value});
     }
-    const auto cTemporaryCount = Serialization::ReadVarInt(aReader);
+    const uint64_t cTemporaryCount = Serialization::ReadCount(aReader, kMaxActorValues);
     for (uint64_t i = 0; i < cTemporaryCount; ++i)
     {
         const auto cIndex = Serialization::ReadVarInt(aReader);

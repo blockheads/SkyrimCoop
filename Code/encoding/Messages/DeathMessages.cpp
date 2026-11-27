@@ -39,10 +39,8 @@ void NotifyPartyDeath::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     NotifyMessage::DeserializeRaw(aReader);
 
     Players.clear();
-    const auto cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxPlayers)
-        return;
-    for (size_t i = 0; i < cCount; ++i)
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxPlayers);
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         PartyDeathPlayer player;
         player.SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;

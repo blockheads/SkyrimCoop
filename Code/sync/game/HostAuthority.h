@@ -114,6 +114,8 @@ struct HostAuthority
 private:
     using Delivery = HostRouter::Delivery;
 
+    // Whether aSender may send aOpcode at all (HostNetwork asks before decoding).
+    [[nodiscard]] bool Admits(RequestOpcode aOpcode, ConnectionId_t aSender) const noexcept;
     [[nodiscard]] std::vector<ConnectionId_t> Guests() const noexcept;
 
     HostNetwork& m_network;

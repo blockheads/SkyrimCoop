@@ -4,6 +4,15 @@
 
 using Wire::Serialization;
 
+namespace
+{
+// Keyed by actor value index: the engine has 164.
+constexpr uint64_t kMaxActorValues = 256;
+constexpr uint64_t kMaxClaimMembers = 16;
+// Generous: the keys, quest items and story rewards a party shares.
+constexpr uint64_t kMaxPartyItems = 4096;
+} // namespace
+
 namespace Payloads
 {
 void MeleeStagger::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
@@ -112,14 +121,14 @@ void ActorValueChanges::DeserializePayload(Wire::Buffer::Reader& aReader) noexce
 {
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 
-    auto count = Serialization::ReadVarInt(aReader);
-    for (int i = 0; i < count; i++)
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxActorValues);
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         auto key = Serialization::ReadVarInt(aReader);
         auto value = Serialization::ReadFloat(aReader);
         Values.insert({key, value});
     }
-    const auto cTemporaryCount = Serialization::ReadVarInt(aReader);
+    const uint64_t cTemporaryCount = Serialization::ReadCount(aReader, kMaxActorValues);
     for (uint64_t i = 0; i < cTemporaryCount; ++i)
     {
         const auto cIndex = Serialization::ReadVarInt(aReader);
@@ -143,8 +152,8 @@ void ActorMaxValueChanges::DeserializePayload(Wire::Buffer::Reader& aReader) noe
 {
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 
-    auto count = Serialization::ReadVarInt(aReader);
-    for (decltype(count) i = 0; i < count; i++)
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxActorValues);
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         uint32_t key = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
         auto value = Serialization::ReadFloat(aReader);
@@ -327,9 +336,9 @@ void Claim::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Reason = uint8_t(Serialization::ReadVarInt(aReader));
     ForId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Tick = Serialization::ReadVarInt(aReader);
-    const auto cCount = Serialization::ReadVarInt(aReader);
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxClaimMembers);
     Members.clear();
-    for (uint64_t i = 0; i < cCount && i < 16; ++i)
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         ClaimMember& member = Members.emplace_back();
         member.ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
@@ -462,7 +471,7 @@ void ActiveEffects::WriteIds(Wire::Buffer::Writer& aWriter, const std::vector<Ga
 
 void ActiveEffects::ReadIds(Wire::Buffer::Reader& aReader, std::vector<GameId>& aIds) noexcept
 {
-    aIds.assign(std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects), GameId{});
+    aIds.assign(Serialization::ReadCount(aReader, kMaxEffects), GameId{});
     for (auto& id : aIds)
         id.Deserialize(aReader);
 }
@@ -481,7 +490,7 @@ void ActiveEffects::WriteHeld(Wire::Buffer::Writer& aWriter, const std::vector<s
 
 void ActiveEffects::ReadHeld(Wire::Buffer::Reader& aReader, std::vector<struct Held>& aHeld) noexcept
 {
-    aHeld.assign(std::min<uint64_t>(Serialization::ReadVarInt(aReader), kMaxEffects), {});
+    aHeld.assign(Serialization::ReadCount(aReader, kMaxEffects), {});
     for (auto& held : aHeld)
     {
         held.Spell.Deserialize(aReader);
@@ -589,10 +598,7 @@ void Payloads::BodyStates::SerializePayload(Wire::Buffer::Writer& aWriter) const
 void Payloads::BodyStates::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Tick = Serialization::ReadVarInt(aReader);
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxBodies)
-        return;
-    States.resize(cCount);
+    States.resize(Serialization::ReadCount(aReader, kMaxBodies));
     for (auto& state : States)
         state.Deserialize(aReader);
 }
@@ -634,7 +640,7 @@ void Payloads::PartyItems::SerializePayload(Wire::Buffer::Writer& aWriter) const
 
 void Payloads::PartyItems::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
-    Items.resize(Serialization::ReadVarInt(aReader));
+    Items.resize(Serialization::ReadCount(aReader, kMaxPartyItems));
     for (Inventory::Entry& item : Items)
         item.Deserialize(aReader);
 }
@@ -648,7 +654,7 @@ void Payloads::SystemQuests::SerializePayload(Wire::Buffer::Writer& aWriter) con
 
 void Payloads::SystemQuests::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
-    Quests.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+    Quests.resize(Serialization::ReadCount(aReader, 0xFFFF));
     for (GameId& quest : Quests)
         quest.Deserialize(aReader);
 }
@@ -662,7 +668,7 @@ void Payloads::Recipes::SerializePayload(Wire::Buffer::Writer& aWriter) const no
 
 void Payloads::Recipes::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
-    Known.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+    Known.resize(Serialization::ReadCount(aReader, 0xFFFF));
     for (Recipe& recipe : Known)
         recipe.Deserialize(aReader);
 }
@@ -778,53 +784,39 @@ void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Update = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Tick = Serialization::ReadVarInt(aReader);
     State = Serialization::ReadString(aReader);
-    uint64_t count = 0;
-    if (!Serialization::TryReadVarInt(aReader, count) || count > 65536)
-        count = 0;
-    Words.assign(count, 0);
+    Words.assign(Serialization::ReadCount(aReader, 65536), 0);
     for (auto& word : Words)
     {
         uint64_t value = 0;
-        if (!aReader.ReadBits(value, 32))
-        {
-            Words.clear();
-            break;
-        }
+        aReader.ReadBits(value, 32);
         word = static_cast<uint32_t>(value);
     }
     uint64_t seed = 0, current = 0;
-    if (aReader.ReadBits(seed, 32) && aReader.ReadBits(current, 32))
-        Seed = {static_cast<uint32_t>(seed), static_cast<uint32_t>(current)};
+    aReader.ReadBits(seed, 32);
+    aReader.ReadBits(current, 32);
+    Seed = {static_cast<uint32_t>(seed), static_cast<uint32_t>(current)};
     uint64_t changed = 0;
-    ActiveNodesChanged = aReader.ReadBits(changed, 1) && changed;
+    aReader.ReadBits(changed, 1);
+    ActiveNodesChanged = changed != 0;
     uint64_t project = 0;
-    Project = aReader.ReadBits(project, 32) ? uint32_t(project) : 0;
-    uint64_t sets = 0;
+    aReader.ReadBits(project, 32);
+    Project = static_cast<uint32_t>(project);
+    const uint64_t cSets = Serialization::ReadCount(aReader, 8);
     ClipSets.clear();
-    if (!Serialization::TryReadVarInt(aReader, sets) || sets > 8)
-        return;
-    for (uint64_t i = 0; i < sets; ++i)
+    for (uint64_t i = 0; i < cSets; ++i)
     {
         uint64_t set = 0, event = 0;
-        if (!aReader.ReadBits(set, 8) || !aReader.ReadBits(event, 16))
-        {
-            ClipSets.clear();
-            return;
-        }
+        aReader.ReadBits(set, 8);
+        aReader.ReadBits(event, 16);
         ClipSets.emplace_back(uint8_t(set), uint16_t(event));
     }
-    uint64_t objects = 0;
+    const uint64_t cObjects = Serialization::ReadCount(aReader, 16);
     AnimObjects.clear();
-    if (!Serialization::TryReadVarInt(aReader, objects) || objects > 16)
-        return;
-    for (uint64_t i = 0; i < objects; ++i)
+    for (uint64_t i = 0; i < cObjects; ++i)
     {
         uint64_t object = 0, drawn = 0;
-        if (!aReader.ReadBits(object, 32) || !aReader.ReadBits(drawn, 1))
-        {
-            AnimObjects.clear();
-            return;
-        }
+        aReader.ReadBits(object, 32);
+        aReader.ReadBits(drawn, 1);
         AnimObjects.emplace_back(uint32_t(object), drawn != 0);
     }
 }

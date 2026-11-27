@@ -31,10 +31,9 @@ void GraphOps::WriteFrames(Wire::Buffer::Writer& aWriter, const std::vector<Grap
 
 bool GraphOps::ReadFrames(Wire::Buffer::Reader& aReader, std::vector<GraphOpFrame>& aFrames)
 {
-    uint64_t count = 0;
-    if (!ReadVarInt(aReader, count) || count > cMaxFrames)
+    aFrames.assign(Wire::Serialization::ReadCount(aReader, cMaxFrames), {});
+    if (aReader.Failed())
         return false;
-    aFrames.assign(count, {});
     uint64_t tick = 0;
     for (auto& frame : aFrames)
     {
@@ -58,10 +57,11 @@ void GraphOps::Serialize(Wire::Buffer::Writer& aWriter) const
 
 bool GraphOps::Deserialize(Wire::Buffer::Reader& aReader)
 {
-    uint64_t runs = 0;
-    if (!ReadFrames(aReader, Frames) || !ReadVarInt(aReader, runs) || runs > cMaxRuns)
+    if (!ReadFrames(aReader, Frames))
         return false;
-    Runs.assign(runs, {});
+    Runs.assign(Wire::Serialization::ReadCount(aReader, cMaxRuns), {});
+    if (aReader.Failed())
+        return false;
     for (auto& run : Runs)
         if (!ReadRun(aReader, run, Frames.size()))
             return false;
@@ -152,6 +152,7 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t 
     if (!ReadVarInt(aReader, id) || id > UINT32_MAX)
         return false;
     aRun.ActorId = static_cast<uint32_t>(id);
+    // Not ReadCount: a single bit can carry two ops.
     if (!ReadVarInt(aReader, first) || first > UINT32_MAX || !ReadVarInt(aReader, count) || count > cMaxOps)
         return false;
     aRun.FirstUpdate = static_cast<uint32_t>(first);
@@ -210,7 +211,9 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t 
             op.Frame = lastFrame = static_cast<uint32_t>(frame);
             generated = generate != 0;
             uint64_t picked = 0, picks = 0;
-            if (!aReader.ReadBits(picked, 1) || (picked && (!ReadVarInt(aReader, picks) || !picks || picks > cMaxPicks)))
+            if (!aReader.ReadBits(picked, 1))
+                return false;
+            if (picked && (picks = Wire::Serialization::ReadCount(aReader, cMaxPicks)) == 0)
                 return false;
             for (uint64_t i = 0; i < picks; ++i)
             {
@@ -229,8 +232,8 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t 
                 return false;
             op.Seed = GraphSeed{static_cast<uint32_t>(seed), static_cast<uint32_t>(current)};
         }
-        uint64_t changed = 0;
-        if (!ReadVarInt(aReader, changed) || changed > cMaxChanged)
+        const uint64_t changed = Wire::Serialization::ReadCount(aReader, cMaxChanged);
+        if (aReader.Failed())
             return false;
         op.Changed.reserve(changed);
         uint64_t index = 0;

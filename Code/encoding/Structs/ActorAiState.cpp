@@ -63,8 +63,7 @@ void ActorAiState::Deserialize(Wire::Buffer::Reader& aReader) noexcept
         Furniture.Deserialize(aReader);
     CombatGroup = Serialization::ReadVarInt(aReader);
     // A group's targets: bounded as a fight is, by the actors one game holds near its players.
-    const auto cTargets = std::min<uint64_t>(Serialization::ReadVarInt(aReader), 1024);
-    GroupTargets.resize(cTargets);
+    GroupTargets.resize(Serialization::ReadCount(aReader, 1024));
     for (uint32_t& sessionId : GroupTargets)
         sessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

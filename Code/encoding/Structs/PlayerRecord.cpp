@@ -21,14 +21,14 @@ void WriteBlob(Wire::Buffer::Writer& aWriter, const std::string& acData) noexcep
 
 std::string ReadBlob(Wire::Buffer::Reader& aReader) noexcept
 {
-    std::string data(Serialization::ReadVarInt(aReader) & 0xFFFFFF, '\0');
+    std::string data(Serialization::ReadCount(aReader, 0xFFFFFF), '\0');
     aReader.ReadBytes(std::span(reinterpret_cast<uint8_t*>(data.data()), data.size()));
     return data;
 }
 
 std::vector<GameId> ReadIds(Wire::Buffer::Reader& aReader) noexcept
 {
-    std::vector<GameId> ids(Serialization::ReadVarInt(aReader) & 0xFFFF);
+    std::vector<GameId> ids(Serialization::ReadCount(aReader, 0xFFFF));
     for (GameId& id : ids)
         id.Deserialize(aReader);
     return ids;
@@ -140,14 +140,14 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader, bool aItemOwners) 
         skill.Legendary = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     }
     PerkPoints = Serialization::ReadVarInt(aReader) & 0xFF;
-    Perks.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+    Perks.resize(Serialization::ReadCount(aReader, 0xFFFF));
     for (Perk& perk : Perks)
     {
         perk.Id.Deserialize(aReader);
         perk.Rank = Serialization::ReadVarInt(aReader) & 0xFF;
     }
     Spells = ReadIds(aReader);
-    Values.resize(Serialization::ReadVarInt(aReader) & 0xFF);
+    Values.resize(Serialization::ReadCount(aReader, 0xFF));
     for (Value& value : Values)
     {
         value.Index = Serialization::ReadVarInt(aReader) & 0xFF;
@@ -158,7 +158,7 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader, bool aItemOwners) 
     Items.Deserialize(aReader, aItemOwners);
 
     Extras.clear();
-    const uint64_t cExtras = Serialization::ReadVarInt(aReader) & 0xFF;
+    const uint64_t cExtras = Serialization::ReadCount(aReader, 0xFF);
     for (uint64_t i = 0; i < cExtras; ++i)
     {
         std::string name = Serialization::ReadString(aReader);
@@ -175,7 +175,7 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader, bool aItemOwners) 
     PermanentValues.clear();
     if (!aReader.Eof())
     {
-        PermanentValues.resize(Serialization::ReadVarInt(aReader) & 0xFF);
+        PermanentValues.resize(Serialization::ReadCount(aReader, 0xFF));
         for (Value& value : PermanentValues)
         {
             value.Index = Serialization::ReadVarInt(aReader) & 0xFF;
@@ -186,7 +186,7 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader, bool aItemOwners) 
     if (!aReader.Eof() && Serialization::ReadVarInt(aReader) == 1)
     {
         Knowledge.Present = true;
-        Knowledge.Ingredients.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+        Knowledge.Ingredients.resize(Serialization::ReadCount(aReader, 0xFFFF));
         for (auto& ingredient : Knowledge.Ingredients)
         {
             ingredient.Id.Deserialize(aReader);
@@ -198,7 +198,7 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader, bool aItemOwners) 
     Recipes.clear();
     if (!aReader.Eof())
     {
-        Recipes.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+        Recipes.resize(Serialization::ReadCount(aReader, 0xFFFF));
         for (Recipe& recipe : Recipes)
             recipe.Deserialize(aReader);
     }

@@ -34,9 +34,7 @@ void AuthenticationRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexce
     WantsWorld = Serialization::ReadBool(aReader);
     HasCharacter = Serialization::ReadBool(aReader);
     HeldSaves.clear();
-    const auto cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > 16)
-        return;
+    const uint64_t cCount = Serialization::ReadCount(aReader, kMaxHeldSaves);
     for (uint64_t i = 0; i < cCount; ++i)
     {
         auto save = Serialization::ReadString(aReader);

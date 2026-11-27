@@ -22,8 +22,8 @@ void StoryEventRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     aReader.ReadBits(value, 32);
     Event.Type = static_cast<uint32_t>(value);
     Event.Members.clear();
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    for (uint64_t i = 0; i < cCount && i < StoryEvent::kMaxMembers; ++i)
+    const uint64_t cCount = Serialization::ReadCount(aReader, StoryEvent::kMaxMembers);
+    for (uint64_t i = 0; i < cCount; ++i)
     {
         StoryEvent::Member& member = Event.Members.emplace_back();
         aReader.ReadBits(value, 8);

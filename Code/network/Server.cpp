@@ -362,7 +362,11 @@ namespace Net
     void Server::HandleCompressedPayload(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId) noexcept
     {
         std::string data;
-        snappy::Uncompress((const char*)apData, aSize, &data);
+        if (!Uncompress(apData, aSize, data))
+        {
+            spdlog::warn("[SkyrimCoopNetworking] SERVER: dropped a broken or oversized compressed packet from {}", aConnectionId);
+            return;
+        }
 
         if (!data.empty())
         {
