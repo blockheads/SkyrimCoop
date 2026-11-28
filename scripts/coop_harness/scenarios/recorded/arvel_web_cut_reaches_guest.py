@@ -4,7 +4,7 @@ Recorded with the repro MCP (docs/design/repro-mcp.md)."""
 # recorded: 20261127-191728-arvel-web-cut-reaches-guest.jsonl, 11 calls (scripts/check_scenarios.py)
 # hand-edited: the death waited for as actor state (same_place reads only distance), the earlier stage and read dropped
 NAME = 'arvel-web-cut-reaches-guest'
-TAGS = ['objects', 'scene', 'world_state']
+TAGS = ['objects', 'own-checks', 'scene', 'world_state']
 DOC = "Playtest 2026-11-26 (Bleak Falls Barrow, 1FC43): the host killed Arvel in his web and cut it; the guest's stayed whole and blocking. E3demo copy (Arvel 8478F, web 847B0, MS13FXspiderWebKitDestructible): the host kills Arvel and cuts his web with real swings; the guest's web shows cut (destroyed, its stage model, health 0)."
 
 
