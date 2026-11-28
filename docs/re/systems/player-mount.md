@@ -125,6 +125,66 @@ any Detach -> the driver still on holds the slot again (KeepDriverOn)
 
 Not built: passengers carried by a party travel (only the driver's horse is, `CarryMountTo`).
 
+## Riders on one horse don't hit each other (read in IDA 2026-11-27, `riders-pass-through-each-other`)
+
+The playtest: the host swung a sword from the saddle and killed the guest riding along. The engine has no rule for
+this: there are never two riders in vanilla.
+
+```
+HitFrameHandler::Handle -> SpendAttackStaminaAndHit 38603
+  target = VATS / Actor_GetTarget 38608, else the reach sweep (38628, CalculateCurrentHitTargetForWeaponSwing)
+  -> DealDamage 38627 (attacker, target, arrow, left hand)       <- our hook: dropped for riders together
+       attack spells, HitData::Populate, XP, impact (BGSImpactManager)
+       ProcessHit 38586: the reaction (stagger 37710) and the damage (DoDamage 37335)
+ArrowProjectile 44218 -> DealDamage 38627 (an arrow's hit)
+kill move: the idle tree's ShouldAttackKill (21744 -> WouldAttackKill 38559)
+```
+
+- **Read in IDA.** The sweep (38628) skips one collision group: a mounted player's comes from a bone's body (fixed
+  string +0x228), else the attacker's own. That this is what spares a rider's own horse, and that the second rider's
+  own group is why the sweep takes it, is inferred (Havok's filter not read). Which of 38608 or 38628 picked the
+  passenger in the playtest is not traced either: either gives 38627 the passenger as the target.
+- **Read in IDA.** DealDamage 38627 is the whole hit on the chosen target (Precision's `DealDamage`, whose `void*`
+  return the engine never sets: its early returns leave RAX as it was, so ours is `void`). Dropping it, nothing of
+  that hit happens: no damage, reaction, impact, poison or XP. The swing still plays.
+- **Pass-through (built 2026-11-28, `riders-hit-through-each-other`).** Dropping the hit alone left the co-rider
+  taking the blow's place. The co-rider is now skipped where the engine picks what a blow meets, as it skips a rider's
+  own mount:
+  - **Read in IDA.** `PickSwingTarget` (47272) walks the high-process actors and keeps the one in reach with the
+    smallest angle that `IsInAttackCone` (47297: attacker, target, both positions, attack data, cone mult, out angle,
+    flag) passes; it skips itself and its own mount (`GetMount`), nothing else. Ours: 47297 false for riders together
+    (it is also the sweep perk's loop in 38603 and AI range checks; two players are never each other's AI target).
+  - **Measured** (a log in the cone hook, horse facing 230 degrees, then 166): the guest's seated copy stands at the
+    host's own x, y, so its direction comes from a zero vector: its angle reads |heading - 180| for the right swing
+    (50.4 at 230, 13.6 at 166, 180 at 0) and it is in the cone. With the horse facing south it beats any enemy: a
+    wolf at 15.4 degrees took no blow before the fix (0 and 1 of 4 swings), all of them after (2 runs each).
+  - **Read in IDA.** With no actor picked, the sweep (38628) casts its phantom with `LinearCastPhantom` (25931, its
+    only caller), hits sorted nearest first, and takes the first. Ours: the swinger's (`PlayerHands::Swinger`, the
+    38628 hook's thread-local) fellow rider's hits taken out of the collector, so it takes the next body. Not measured
+    (the cone pick takes the co-rider first).
+  - **Read in IDA.** Every projectile (missile, arrow, beam, flame) shares vfunc 0xBE, `Projectile::HandleHits`
+    (44204): its step's cast hits (`hkpAllCdPointCollector`, 0x40 a hit) in order, skipping a hit whose system group is
+    `GetCollisionGroup`'s (vfunc 0xBB, the shooter's). Ours: the shooter's fellow rider's hits taken out first, as
+    HIGGS edits these hits (`reference/plugins/higgs`, `Projectile_UpdateImpactFromCollector_Hook`). Not measured: no
+    rider can shoot through the other (below).
+  - `DealDamage` (38627) still drops a co-rider's blow that reaches it another way.
+- **Measured: no spells on a horse, and a passenger draws nothing.** The driver's cast press with Firebolt equipped
+  started no cast (no input reached its graph; vanilla allows no magic while mounted). A passenger's Ready Weapon
+  sends `WeapSoloEquip`, which its graph refuses (the driver's sends `WeapEquip`, taken): a passenger can neither
+  swing, shoot nor cast. So only the driver fights, and only with weapons; the projectile half waits for a rider who
+  can shoot back over the other.
+- **Measured** before any of this: each of seven host swings sent the guest's character -7.3 health; after it, none.
+- **Measured**, kill moves: the host's swings from the saddle at the guest riding along at 3 health, `KillMoveRandom`
+  100, picked no kill move (no pair, the guest alive), with no gate of ours on 21744. The mounted idle tree's kill
+  moves are not read; the scenario's second half keeps checking it.
+- The rule, `HitRules::RideTogether`: both actors players (ours or a copy) and both on the same mount, each read from
+  its own link (`Actor::GetRiddenMount`, the link's rider being itself: the mount's slot holds the driver's link too).
+  Each game judges its own player's swing, so the copy's replayed swing needs nothing. An NPC on the horse is not
+  covered (there is none).
+- **Harness, measured.** A rider's draw sets no `IsEquipping` on its graph, and its graph takes no attack until the
+  draw's clip sends `attackStop` (0.9 s after `weaponDraw`), nor Ready Weapon until a sheathe's sends `Unequip_Out`:
+  `ready_weapon_riding` waits for those.
+
 ## The new driver's horse left in the old driver's exit pair (duo, 2026-11-17)
 
 - `MountBehavior` (`HorseBehavior.hkx`, `scripts/re/behavior_dump.py machines`): wildcard `pa_HorseExit` ->

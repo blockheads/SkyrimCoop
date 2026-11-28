@@ -120,6 +120,22 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
     return false;
 }
 
+// DealDamage 38627 (Precision's name; void: its early returns leave RAX unset): one weapon hit on its chosen target.
+// Dropped between players on one horse (HitRules::RideTogether, docs/re/systems/player-mount.md).
+using TDealDamage = void(Actor* apAttacker, Actor* apTarget, void* apArrow, bool aLeftHand);
+
+static TDealDamage* RealDealDamage = nullptr;
+
+void HookDealDamage(Actor* apAttacker, Actor* apTarget, void* apArrow, bool aLeftHand)
+{
+    if (HitRules::RideTogether(apTarget, apAttacker))
+    {
+        spdlog::debug("{:X}'s blow on {:X} dropped: they ride together", apAttacker->formID, apTarget->formID);
+        return;
+    }
+    RealDealDamage(apAttacker, apTarget, apArrow, aLeftHand);
+}
+
 using TApplyActorEffect = void(ActiveEffect*, Actor* apTarget, float aEffectValue, unsigned int unk1);
 
 static TApplyActorEffect* RealApplyActorEffect = nullptr;
@@ -292,6 +308,7 @@ static Hooks::Initializer s_actorCombatHooks(
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(37335, &RealDamageActor, HookDamageActor);
+        HOOK_ID(38627, &RealDealDamage, HookDealDamage);
         HOOK_ID(35086, &RealApplyActorEffect, HookApplyActorEffect);
         HOOK_ID(38459, &RealRegenerateActorValue, HookRegenerateActorValue);
         HOOK_ID(37537, &RealIsHostileToActor, HookIsHostileToActor);

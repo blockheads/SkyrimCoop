@@ -415,7 +415,8 @@ void FakeEngine::TakeTrapHit(uint32_t aFormId, uint32_t, const Payloads::TrapHit
 
 void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
 {
-    if (!Actors.contains(aHittee))
+    // DealDamage 38627: the blow passes through a player riding the same horse.
+    if (!Actors.contains(aHittee) || HitRules::RideTogether(PartyOf(aHittee), PartyOf(aHitter), GetActorMount(aHittee), GetActorMount(aHitter)))
         return;
     TakesDamage(aHittee, aHitter, aDamage, false, false, ::ReplayState::CancelledBlow(World::FrameTick() < Actors.at(aHitter).ClashUntil));
 }

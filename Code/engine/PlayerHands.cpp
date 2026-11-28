@@ -186,6 +186,11 @@ void SetCopies(const std::vector<uint32_t>& acCopyFormIds) noexcept
     s_copyControllers = std::move(controllers);
 }
 
+Actor* Swinger() noexcept
+{
+    return static_cast<Actor*>(const_cast<void*>(s_swinger));
+}
+
 bool CopySwings() noexcept
 {
     auto* pActor = static_cast<Actor*>(const_cast<void*>(s_swinger));

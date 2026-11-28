@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 struct Actor;
+struct TESObjectREFR;
 
 // A melee swing's hit test, as Actor::CalculateCurrentHitTargetForWeaponSwing (38628) casts it
 // (docs/re/systems/physics.md, "A swing's hit"): a sphere swept from the actor's eye along its look.
@@ -37,6 +39,9 @@ enum class Reach
 [[nodiscard]] Cast CastFor(Actor& aActor, Reach aReach) noexcept;
 // A swing collector's (GetAllCdPointCollector 25925) hits after a cast, nearest first.
 [[nodiscard]] std::vector<Hit> HitsOf(const void* apCollector) noexcept;
+// Takes out of an hkpAllCdPointCollector (a swing's, or a projectile's in 44204) the hits on references aDrop names,
+// keeping the rest nearest first; the hits left.
+int32_t DropHits(void* apCollector, const std::function<bool(const TESObjectREFR&)>& aDrop) noexcept;
 // The collision group its phantom ignores now (25932 sets it to the swinger's), and that actor's group.
 [[nodiscard]] uint32_t CollectorGroup(const void* apCollector) noexcept;
 [[nodiscard]] uint32_t GroupOf(Actor& aActor) noexcept;
