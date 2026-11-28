@@ -24,6 +24,7 @@ every other section needs the duo.
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
+- [A speaker's copy faces apart after a guest's conversation](#a-speakers-copy-faces-apart-after-a-guests-conversation): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
@@ -228,6 +229,19 @@ Size: small. Needs: the duo (`death-spectate-host`, `death-spectate-guest`, `par
   `death-spectate-guest`; `FF000859`, 7.7 s, and `FF000D74`, 8.8 s, `party-travel-dead-guest`, until the actor stopped being
   read; all before the stream): its owner's `RootBehavior` stays in the attack, its copy in combat idle. May be the
   owner's graph held by the kill: [After the host dies](#after-the-host-dies).
+
+### A speaker's copy faces apart after a guest's conversation
+
+After the guest's conversation with Lucan ended (his goodbye, the host's E waited out), the scenario's closing
+comparison found his copy facing 34 degrees off his owner: host `[0, 0, 3.139]`, guest copy `[0, 0, 3.734]`
+(`dialogue-host-talks-during-guest-turn-in`, 1 of 1, 2026-11-27, `agent/dialogue-interrupted-reset`). Every step before
+it passed. Not read: whether the owner's turn back after the conversation is sent, or the copy keeps the turn to the
+guest's character (`HookShouldRotateToTrack`, dialogue.md "Who the speaker looks at").
+
+Agent task: rerun `dialogue-host-talks-during-guest-turn-in`, read Lucan's rotation on both games through the
+conversation's end (`observe`), and find which side stops following.
+
+Size: small. Needs: the duo.
 
 ### Headtracking on copies
 

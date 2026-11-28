@@ -379,6 +379,27 @@ Read in IDA (named and commented there), measured on the duo (`dialogue-guest-le
   about 20 ms apart (both the host's and the copy's logs), with one sound each (the voice handle's ids rise by one per
   response); each relay stops the copy's line before its own.
 
+## The host talking to an NPC saying a guest's goodbye (1.7.104, 2026-11-27)
+
+Playtest 2026-11-26: the guest handed Lucan the golden claw, the host pressed E on Lucan, and the guest's conversation
+stopped. Read in IDA (commented there), measured on the duo (`dialogue-host-talks-during-guest-turn-in`):
+
+| ID | RVA | Name (ours) | What |
+|---|---|---|---|
+| 24715 | 0x3c05c0 | `TESNPC::Activate` | The player's talk: on the manager's current speaker (+0x6C) with no dialogue target in its process, reopens the menu (`menuOpen` +0xB1, 52853) on the conversation under way; any other actor starts one (37200). `HookNpcActivate` runs our join before it |
+| 35283 | 0x5efb90 | `SaySelected` | `forceGoodbye` (+0xB2) = the picked info's Goodbye flag (+0x3C & 1), at the pick (0x1405efcb8) |
+| 35285 | 0x5effa0 | `Advance` | At the line's end: `forceGoodbye` or an end info sets `shutMenu` (+0xB3): the conversation ends after the line |
+| 51515 | 0x92b0d0 | `DialogueMenu::PopulateTopicList` | Sets `shutMenu` on `forceGoodbye` or no option, whenever it runs |
+
+- **The cause:** the host's E joins (`HostConversation::OnTalk`), and `DialogueBridge::ShowMenu` shows the engine's list
+  (52857) mid-line. Lucan's claw answer (topic 5D46F, info 5D471, a line's choice) is a goodbye, so the menu's fill
+  (51515) found `forceGoodbye` and shut the conversation 94 ms after the press (measured), not at the line's end. The
+  host's engine ending it ends it for everyone (`HostConversation::OnUpdate`). The quest still reached stage 100.
+- **Now:** the host's talk does nothing while the speaker says a goodbye (`IDialogueBridge::IsSayingGoodbye`, the flag),
+  as pressing E on a busy NPC does nothing; the line ends the conversation for everyone at its end, as in single player.
+  GameTests "The host talking to an NPC saying a guest's goodbye..." (the fake keeps a voiced goodbye until its line ends
+  and ends a menu shown meanwhile, as 51515).
+
 ## A menu joining mid-answer, and the replayed greeting (2026-11-24)
 
 Read in the SWF's source (`reference/plugins/skyrimui/src/dialoguemenu/DialogueMenu.as`): `onCancelPress` (Tab, Esc)

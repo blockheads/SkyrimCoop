@@ -16,6 +16,7 @@ public:
     std::vector<Option> GetOptions() const noexcept override;
     std::optional<std::vector<Option>> GetOptionsFor(uint32_t aCharacterFormId) const noexcept override;
     bool IsChoices() const noexcept override;
+    bool IsSayingGoodbye() const noexcept override;
     uint32_t GetGreeting() const noexcept override;
 
     bool Start(uint32_t aActorFormId, bool aShowMenu, uint32_t aGreeting = 0) noexcept override;

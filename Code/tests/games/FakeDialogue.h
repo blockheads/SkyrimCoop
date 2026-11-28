@@ -18,7 +18,8 @@
 
 struct FakeDialogue final : IDialogueBridge
 {
-    // What saying a topic leads to: the next list (empty: the conversation ends, a goodbye).
+    // What saying a topic leads to: the next list (empty: the conversation ends, a goodbye; with LinesTakeTime, at the
+    // line's end, as Advance 35285 shuts it on forceGoodbye).
     std::map<uint32_t, std::vector<Option>> After;
     // The speaker's topics when a conversation starts.
     std::vector<Option> Greeting;
@@ -124,6 +125,11 @@ struct FakeDialogue final : IDialogueBridge
     // The speaker's line ends: the engine builds and shows its list (52857, after each line, a copy's too).
     void LineEnds()
     {
+        if (std::exchange(m_goodbye, false))
+        {
+            m_next.reset();
+            return End();
+        }
         AllowProgress = true; // the next line's voice ready (52858) re-arms the SWF
         // The build takes choices from the picked option first (35287): left on one, its answers.
         if (!m_next && Picked && *Picked < Options.size())
@@ -194,6 +200,10 @@ struct FakeDialogue final : IDialogueBridge
     {
         return Choices;
     }
+    bool IsSayingGoodbye() const noexcept override
+    {
+        return m_goodbye;
+    }
     uint32_t GetGreeting() const noexcept override
     {
         return GreetingInfo;
@@ -242,6 +252,12 @@ struct FakeDialogue final : IDialogueBridge
     }
     bool ShowMenu() noexcept override
     {
+        // The menu's fill (51515) shuts the conversation on forceGoodbye, mid-line too.
+        if (m_goodbye)
+        {
+            End();
+            return false;
+        }
         MenuOpen = Speaker != 0;
         m_pickedShown = false;
         // No voice ready while a line is said (Skyrim 2026-11-09, dialogue-host-joins-mid-line): no pick until it ends.
@@ -274,6 +290,7 @@ struct FakeDialogue final : IDialogueBridge
         // EndDialogue (35294) leaves a speaker still talking its line.
         if (m_next)
             StillTalking = Speaker;
+        m_goodbye = false;
         m_next.reset();
         Speaker = 0;
         m_pickedShown = false;
@@ -431,7 +448,10 @@ struct FakeDialogue final : IDialogueBridge
         const auto cNext = After.find(acOption.Topic);
         if (cNext == After.end() || cNext->second.empty())
         {
-            End();
+            if (!LinesTakeTime)
+                return End();
+            m_goodbye = true; // SaySelected (35283): forceGoodbye from the info's flag
+            m_next = std::vector<Option>{};
             return;
         }
         if (LinesTakeTime)
@@ -505,6 +525,7 @@ struct FakeDialogue final : IDialogueBridge
 
     Filters m_filters;
     bool m_heldShow = false;
+    bool m_goodbye = false; // forceGoodbye: the line being said ends the conversation
     bool m_pickedShown = false;
     bool m_greeting = false; // the SWF's SHOW_GREETING: a start's menu before its first list or pick
     bool m_suspended = false;

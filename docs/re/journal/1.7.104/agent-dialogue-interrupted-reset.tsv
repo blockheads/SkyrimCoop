@@ -1,0 +1,8 @@
+time	op	id	rva	item
+2026-11-28T02:11:13Z	read	24715	0x3c05c0	{"name": "TESNPC::Activate"}
+2026-11-28T02:24:41Z	comment		0x5efcb8	{"addr": "0x1405efcb8", "comment": "forceGoodbye (+0xB2) = the picked info's Goodbye flag (+0x3C & 1), set at the pick: the menu's next fill (51515) or Advance (35285) shuts the conversation. Co-op: a menu shown mid-line on a goodbye answer (DialogueBridge::ShowMenu, 52857) ends it at once, cutting the line (dialogue-host-talks-during-guest-turn-in)."}
+2026-11-28T02:24:41Z	comment		0x3c0eb1	{"addr": "0x1403c0eb1", "comment": "Talk to the manager's current speaker (+0x6C handle): with no dialogue target in its process, reopen the menu on the conversation under way (menuOpen +0xB1, show menu 52853), no new start; another actor: SetDialogueWithPlayer (vfunc 0x41, 37200). Co-op: HookNpcActivate runs the join before this."}
+2026-11-28T02:31:42Z	read	35283	0x5efb90	{"name": "MenuTopicManager::SaySelected"}
+2026-11-28T02:31:42Z	read		0x5effa0	{"name": "MenuTopicManager::sub_35285"}
+2026-11-28T02:31:43Z	read	51515	0x92b0d0	{"name": "DialogueMenu::PopulateTopicList"}
+2026-11-28T02:31:48Z	comment		0x5f019e	{"addr": "0x1405f019e", "comment": "The said line's responses done: forceGoodbye (set by SaySelected 35283) or a Goodbye info -> shutMenu (+0xB3), the conversation ends after its line. The vanilla end of a goodbye."}

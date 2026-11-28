@@ -45,6 +45,13 @@ bool HostConversation::OnTalk(uint32_t aActorFormId) noexcept
     auto& bridge = m_dialogue.Bridge();
     if (bridge.IsMenuOpen() || !m_dialogue.Conversation() || aActorFormId != bridge.GetSpeaker())
         return false;
+    // Saying a goodbye: a menu shown now would end it mid-line (51515 on forceGoodbye); the press does nothing.
+    if (bridge.IsSayingGoodbye())
+    {
+        spdlog::info("Dialogue: {:X} says its goodbye in conversation {}: the host's talk waits it out", aActorFormId,
+                     m_dialogue.Conversation());
+        return true;
+    }
     spdlog::info("Dialogue: the host joins conversation {} with {:X}", m_dialogue.Conversation(), aActorFormId);
     if (!m_menuAsked)
         m_menuAsked = bridge.ShowMenu();

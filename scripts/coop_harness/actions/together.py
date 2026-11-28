@@ -369,6 +369,22 @@ class TogetherActions:
         ctx.tap_key(instance, ACTIVATE_KEY)
         return {"pressed_at": seen["last"]}
 
+    def press_talk(ctx, instance, target):
+        """That game's player faces `target` and presses Activate once, waiting for nothing: a press on an NPC already
+        talking to another player."""
+        ctx.activate_ref(instance, ctx.resolve(target, "guest" if instance else "host"), target)
+        return {"pressed": True}
+
+    def expect_stays_talking(ctx, instance, target, seconds=3.0):
+        """That game's dialogue menu stays open on `target` all through `seconds`; a failure says when it closed."""
+        ref = ctx.resolve(target, "guest" if instance else "host")
+        start = time.monotonic()
+        while (elapsed := time.monotonic() - start) < seconds:
+            if not ctx.talking_to(instance, ref):
+                raise ctx.failure(f"[{instance or 'host'}] its conversation with {target} ended {elapsed:.1f} s in: {ctx.dialogue(instance)}")
+            time.sleep(0.1)
+        return {"stayed": seconds}
+
     def dialogue_press(ctx, instance):
         """That game's player presses E once in its dialogue menu, whatever it shows: the highlighted option, a skip."""
         ctx.tap_key(instance, ACTIVATE_KEY)

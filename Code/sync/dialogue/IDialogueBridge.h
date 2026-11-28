@@ -67,6 +67,8 @@ public:
     virtual std::optional<std::vector<Option>> GetOptionsFor(uint32_t aCharacterFormId) const noexcept = 0;
     /// Whether the list is a line's choices (35287 sets rootTopicInfo), not the speaker's topics.
     virtual bool IsChoices() const noexcept = 0;
+    /// The line being said ends the conversation: a goodbye picked (forceGoodbye, set by 35283); its end shuts it.
+    virtual bool IsSayingGoodbye() const noexcept = 0;
     /// The greeting selected by this game's engine; copies use the host's selected INFO.
     virtual uint32_t GetGreeting() const noexcept = 0;
     /// Whose audio a line's voice files are (25502): the info that owns it (a shared response's dataInfo, else the

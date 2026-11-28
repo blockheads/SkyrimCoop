@@ -500,6 +500,12 @@ bool DialogueBridge::IsChoices() const noexcept
     return pManager && pManager->rootTopicInfo;
 }
 
+bool DialogueBridge::IsSayingGoodbye() const noexcept
+{
+    const MenuTopicManager* pManager = Conversation();
+    return pManager && pManager->forceGoodbye;
+}
+
 // ---- Starting and ending it ----
 
 uint32_t DialogueBridge::GetGreeting() const noexcept
