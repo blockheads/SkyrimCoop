@@ -2607,23 +2607,6 @@ bool WakeBodies(uint32_t aFormId) noexcept
     return woke;
 }
 
-bool ResetRagdollDrivers(uint32_t aFormId) noexcept
-{
-    // Each graph's BSIRagdollDriver::ResetRagdoll (vfunc 5), as AddRagdollHandler 42873's visitor 32955 does.
-    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    BSAnimationGraphManager* pManager = nullptr;
-    if (!pActor || !EngineVirtual(pActor->animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
-        return false;
-    {
-        BSScopedLock<BSRecursiveLock> _{pManager->lock};
-        for (uint32_t i = 0; i < pManager->animationGraphs.size; ++i)
-            if (BShkbAnimationGraph* pGraph = pManager->animationGraphs.Get(i))
-                EngineVirtual(*pGraph).ResetRagdoll();
-    }
-    pManager->Release();
-    return true;
-}
-
 std::optional<GameSwingCast::Cast> PlayerSwingCast(GameSwingCast::Reach aReach) noexcept
 {
     PlayerCharacter* pPlayer = PlayerCharacter::Get();

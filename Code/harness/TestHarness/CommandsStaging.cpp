@@ -305,17 +305,11 @@ nlohmann::json Wake(Harness&, const nlohmann::json& acRequest)
     return EngineCalls::WakeBodies(acRequest.value("ref", 0u)) ? Ok() : Error("no such reference, or no body to wake");
 }
 
-// {"cmd": "ragdoll_reset", "actor": id}: each of the actor's graphs' ragdoll driver reset (EngineCalls::ResetRagdollDrivers).
-nlohmann::json RagdollReset(Harness&, const nlohmann::json& acRequest)
-{
-    return EngineCalls::ResetRagdollDrivers(acRequest.value("actor", 0u)) ? Ok() : Error("no such actor, or no graphs");
-}
-
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson}, {"third_person", true, &ThirdPerson},
     {"strip", true, &Strip},     {"reset_worn", true, &ResetWorn}, {"reset_3d", true, &Reset3DCommand},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing}, {"ragdoll_adds", false, &RagdollAdds}, {"ragdoll_out", false, &RagdollOut},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"put_on_mount", true, &PutOnMount}, {"board_ridden", true, &BoardRidden}, {"seat_on_mount", true, &SeatOnMountCommand}, {"sit_on_mount_quick", true, &SitOnMountQuickCommand}, {"take_reins", true, &TakeReinsCommand}, {"graph_event", true, &GraphEventCommand}, {"activate_text", true, &ActivateTextCommand}, {"name_data", true, &NameDataCommand}, {"set_name", true, &SetNameCommand}, {"clear_map_marker", true, &ClearMapMarker},
-    {"wake", true, &Wake}, {"ragdoll_reset", true, &RagdollReset},
+    {"wake", true, &Wake},
     {"body_velocity", true, &BodyVelocity},
 };
 } // namespace

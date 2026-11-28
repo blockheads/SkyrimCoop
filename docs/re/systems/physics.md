@@ -522,8 +522,8 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
   dynamic, and was steered 20 units from the clip's pose to the owner's. In 1 of 2 runs two bones were off for that
   one frame: the "flickers" of `kill-move-kills-guest`. A copy in a kill move now keeps its bodies
   (`ReplayState::TakesOwnerBodies`), as one lying in its ragdoll already did.
-  Out of it alive, its bodies stay dynamic and hold its bones (78910) until keyframed again: kill-moves.md, "A victim
-  half cut short".
+  Handed back to its owner's layer, they are keyframed as they leave (`Actor::SetBodiesLayer`, as 39897): dynamic
+  bodies out of the world hold their bones (78910). kill-moves.md, "A victim half cut short".
 - **Resurrect and the knock state** (read in IDA 2026-11-18). `Actor::Resurrect` (37321) zeroes `ActorState1`
   (`ActorState::ResetForResurrect`, 38989), so a revived actor's knock state is 0. It also plays
   `kActionResetAnimationGraph` (106) while the actor is still dead (an NPC copy's dead graph refused it:

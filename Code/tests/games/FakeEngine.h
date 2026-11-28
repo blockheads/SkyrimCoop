@@ -858,7 +858,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // on its animation.
         uint32_t DynamicBodies = 0;
         glm::vec3 SkeletonAt{};
-        uint32_t BodiesKeyframed = 0;
+        uint32_t BodiesKeyframed = 0; // times its bodies were put keyframed by SetCopyPhysics
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool NotOnStealthMeter = false; // boolFlags kDoNotShowOnStealthMeter: 41408 skips it for the player
@@ -1461,19 +1461,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override
     {
         if (!Actors.contains(aFormId) || !Actors.at(aFormId).Copy ||
-            !::ReplayState::TakesOwnerBodies(Actors.at(aFormId).KnockedDown, Actors.at(aFormId).InKillMove))
+            !::ReplayState::TakesOwnerBodies(IsLyingInRagdoll(aFormId), Actors.at(aFormId).InKillMove,
+                                             Actors.at(aFormId).Dead || PoseHeld(aFormId)))
             return;
-        Actors.at(aFormId).BodiesLayer = aBodiesLayer;
-        Actors.at(aFormId).GraphsStepPhysics = aGraphsStep;
-    }
-    bool BodiesDynamic(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).DynamicBodies != 0; }
-    bool HoldsPose(uint32_t aFormId) const noexcept override { return PoseHeld(aFormId); }
-    void KeyframeBodies(uint32_t aFormId) noexcept override
-    {
-        if (!Actors.contains(aFormId))
-            return;
-        Actors.at(aFormId).DynamicBodies = 0;
-        ++Actors.at(aFormId).BodiesKeyframed;
+        auto& actor = Actors.at(aFormId);
+        // Actor::SetBodiesLayer: keyframed (36925) whenever it moves them, out of the world too, as 39897 ends a ragdoll.
+        if (actor.BodiesLayer != aBodiesLayer || (aBodiesLayer == 0 && actor.DynamicBodies))
+        {
+            actor.DynamicBodies = 0;
+            ++actor.BodiesKeyframed;
+        }
+        actor.BodiesLayer = aBodiesLayer;
+        actor.GraphsStepPhysics = aGraphsStep;
     }
     // How far its skeleton stands from the actor (seen from above): a living one on dynamic bodies out of the world.
     [[nodiscard]] float SkeletonOff(uint32_t aFormId) const noexcept

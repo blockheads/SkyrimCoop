@@ -92,7 +92,7 @@ a claimed pair's forwarded blow on the victim's game: held; dropped once the pai
 
 Crossed kill moves left the winner's copy on the loser's game with its skeleton frozen where the pair was, for good,
 while the copy (its reference, capsule and name) walked on with its owner. Scenario `kill-moves-cross-frozen-copy`
-(every crossed exchange, host first: 3 of 3 on the duo); GameTests "Crossed kill moves: the winner's copy on the loser's
+(every crossed exchange: 3 of 3 on the duo); GameTests "Crossed kill moves: the winner's copy on the loser's
 game walks with its skeleton"; UnitTests `[copy-ragdoll]`.
 
 ```
@@ -101,7 +101,7 @@ loser's game: its player's own pair on the winner's copy
     its bones' blend strength 0 in that frame (measured; the writer inside 42873 not read)
     driveToPose 58291, the next frame: bodies not keyframed set dynamic (hkpRigidBody::setMotionType 60908, read)
   the host refuses the loser's claim (kHeld): the yield (EndPairsOf) cuts the victim half short, nobody dies
-  out of its kill move, the copy mirrors its owner's layer 0 (SetCopyPhysics -> Actor::SetBodiesLayer: 36924 only)
+  out of its kill move, the copy mirrors its owner's layer 0 (SetCopyPhysics -> Actor::SetBodiesLayer: was 36924 only)
     bodies out of the world, still dynamic: nothing moves them
   each node update: bhkBlendCollisionObject::UpdateBoneFromBody 78910, blend 0 -> each bone = its body (78382,
     local too): the skeleton stays at the cut, the COM's local recomputed each frame to keep it there
@@ -111,30 +111,34 @@ loser's game: its player's own pair on the winner's copy
   (+0x28) 0 for a dynamic motion type, 1 otherwise; `UpdateBoneFromBody` 78910 (slot 0x2B) blends the bone's world
   between its animation and its body by it, with no test that the body is in a world. `driveToPose` 58291 sets each
   body's motion straight on Havok (60908 at `0x140AC79FE`), not through 78912.
+- **Read in IDA and the behaviours (`behavior_dump.py`).** `1hm_behavior`'s `VictimState` leaves on `PairEnd` for
+  `1HM_Ready_State` and sends nothing; only `0_master` sends `RemoveRagdollFromWorld`. So a living vanilla victim keeps
+  its ragdoll in the world, where `driveToPose` 58291 runs each step and sets each body keyframed or dynamic by its
+  bone's track (the 4/1 loop at `0x140AC79AC`). What vanilla does with a victim whose pair is cut was not played. The
+  only engine end of a living actor's ragdoll read is `AIProcess::EndKnockState` 39897: every graph's
+  `RemoveRagdollFromWorld`, then the 3D keyframed (`SetMotionType` 4).
 - **Measured (duo, the trace's `blend` and `body_motion`).** The copy's COM blend 1, body motion 4 until
-  `AddRagdollToWorld`; blend 0 in its frame, the first body dynamic (motion 2) the next; with the fix, blend 1 and motion
-  4 again at the yield (0.20 s). The victim state never
-  keyframes its bodies again: a victim dies (its ragdoll stays), and only `AIProcess::EndKnockState` 39897 ends a
-  living actor's ragdoll (every graph's `RemoveRagdollFromWorld`, then the 3D keyframed, `SetMotionType` 4).
-  `StartPair` 32803 also calls `Actor::EnterPairedSim` 32847 on both actors (boolFlags 0x800000, controller `kNoSim`,
+  `AddRagdollToWorld`; blend 0 in its frame, the first body dynamic (motion 2) the next; then our mirror took the bodies
+  out (layer 0) and they stayed dynamic.
+- **Measured (duo, harness `skeleton`, `ragdoll`).** The graph's `rootNode` is the drawn 3D, and the four nodes read
+  (NPC Root, COM, Pelvis, L Foot) are among its 99 `boneNodes`, which `WritePoseToBoneNodes` 63856 writes;
+  world-from-model on the copy. COM's world identical to the decimal across reads while the copy moved 300 units, its
+  local changing; the foot's local fixed. Resetting the ragdoll driver (BSIRagdollDriver vfunc 5) changed nothing, and
+  63564 said the graph was not eligible for the physics step's list at each read (a sample, not the listener's record:
+  physics.md); `reset_3d` (fresh collision objects, blend 1) freed the skeleton at once.
+- `StartPair` 32803 also calls `Actor::EnterPairedSim` 32847 on both actors (boolFlags 0x800000, controller `kNoSim`,
   filter bit 0x8000), undone by `Deactivate` 32797: not involved here.
-- **Measured (duo, harness `skeleton`, `ragdoll`, `ragdoll_reset`).** The graph's `rootNode` is the drawn 3D, and the
-  four nodes read (NPC Root, COM, Pelvis, L Foot) are among its 99 `boneNodes`, which `WritePoseToBoneNodes` 63856
-  writes; world-from-model on the copy. COM's world identical to the decimal across reads while the copy moved 300
-  units, its local changing; the foot's local fixed. The ragdoll driver's own flags (+0xC8 on, `pose_was_used`) were
-  left on too, but resetting them changed nothing, and 63564 said the graph was not eligible for the physics step's list
-  at each read (a sample, not the listener's record: physics.md); `reset_3d` (fresh collision objects, blend 1) freed
-  the skeleton at once.
-- **Fix.** A living copy back on its owner's bodies (not lying, knock state 0, out of its kill move, not holding its
-  pose for its owner's death) whose own bodies are dynamic gets them keyframed (`ReplayState::KeyframesOwnBodies`,
-  `MovementService`, `Actor::KeyframeBodies`: 36925 on the 3D, as 39897 does). Not only crossed kill moves: any victim
-  half that ends alive on a copy. The pose hold matters: a person's victim clip sends `KillMoveEnd` with `KillActor`, so
-  its copy is out of its kill move and alive until its owner's death, and keyframing then made that death's fall
-  flicker (`kill-move-kills-guest`, once). A counted kill is no such sign: it stays counted on a copy whose owner lived.
-- The check is any body dynamic: 58291 sets each body by its bone's keyframe track, so the root can be keyframed while a
-  limb is not.
-- After: `kill-moves-cross-frozen-copy` 6 of 6, `kill-move-kills-guest` 2 of 2, `kill-moves-cross` 2 of 2; one
-  keyframe per crossed exchange, none in a plain kill move.
+- **Where we diverge.** The engine never takes a living actor's ragdoll out of the world without keyframing it (39897).
+  Our mirror did (`Actor::SetBodiesLayer(0)`: 36924 alone): that is the bug, wherever the copy's bodies came from.
+- **Fix.** `Actor::SetBodiesLayer` keyframes the 3D (36925) whenever it moves a copy's bodies, out of the world as in it,
+  and treats bodies out of the world but dynamic as not done yet; so one call at the change, no polling. The copy's
+  bodies stay its own (no mirror) while it lies, is in its kill move, or is dying (`ReplayState::TakesOwnerBodies`):
+  dead, or holding its pose for its owner's death. That last matters: a person's victim clip sends `KillMoveEnd` with
+  `KillActor`, so its copy is out of its kill move and alive until its owner's death, and keyframing then made that
+  death's fall flicker (`kill-move-kills-guest`, once, under an earlier version of this fix).
+- **After** (duo): `kill-moves-cross-frozen-copy` 4 of 4 (and 2 of 2 red, 342 units off, on a build with layer 0 not
+  keyframing), `kill-move-kills-guest` 2 of 2, `kill-moves-cross`, `furniture-host-player`, `furniture-client-player`,
+  `guest-rides-host-horse`, `knockdown-lies-as-host` 1 of 1 each.
 - **The race itself works.** Both orders (host first, guest first) ended with one winner and every copy at its owner's
   place once the skeleton is set aside (`kill_move_exchange`, now with `first`): the host's claim wins a simultaneous
   pair (its own claim is in-process), the loser yields and plays the winner's pair.

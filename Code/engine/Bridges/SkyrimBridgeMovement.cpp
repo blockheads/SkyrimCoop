@@ -111,9 +111,13 @@ bool SkyrimBridge::GraphsStepPhysics(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept
 {
-    // Not while those bodies are its own ragdoll's: lying in it (BodyService) or in its kill move.
+    // Not while those bodies are its own ragdoll's: lying in it (BodyService), in its kill move, or held for its death.
     Actor* pActor = GetActor(aFormId);
-    if (!pActor || !pActor->GetExtension()->IsCopy() || !ReplayState::TakesOwnerBodies(pActor->LiesInRagdoll(), pActor->IsInKillMove()))
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    const bool cDying = pActor->IsDead() ||
+                        ReplayState::PoseHeld(World::FrameTick(), pActor->GetExtension()->PoseHeldUntil.load(std::memory_order_relaxed), false);
+    if (!ReplayState::TakesOwnerBodies(pActor->LiesInRagdoll(), pActor->IsInKillMove(), cDying))
         return;
     if (!aGraphsStep)
         SetGraphsStepPhysics(*pActor, false);
@@ -122,25 +126,6 @@ void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool a
     pActor->SetBodiesLayer(aBodiesLayer, GetActor(GetActorMount(aFormId)));
     if (aGraphsStep)
         SetGraphsStepPhysics(*pActor, true);
-}
-
-bool SkyrimBridge::BodiesDynamic(uint32_t aFormId) const noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    return pActor && pActor->BodiesDynamic();
-}
-
-void SkyrimBridge::KeyframeBodies(uint32_t aFormId) noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    if (pActor && pActor->GetExtension()->IsCopy() && pActor->KeyframeBodies())
-        spdlog::debug("Copy {:X}: its ragdoll's bodies left dynamic, keyframed again", aFormId);
-}
-
-bool SkyrimBridge::HoldsPose(uint32_t aFormId) const noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    return pActor && ReplayState::PoseHeld(World::FrameTick(), pActor->GetExtension()->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead());
 }
 
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept

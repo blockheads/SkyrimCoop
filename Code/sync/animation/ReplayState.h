@@ -18,23 +18,11 @@ constexpr bool CopyOwnBody(bool aInPair, bool aInKillMove, bool aGettingOnOff, u
 }
 
 // A copy's bodies take its owner's layer (seated, mounted: SetCopyPhysics) unless they are its own ragdoll's: lying in
-// it, or a kill move's victim state's, which its graph put in the world (AddRagdollHandler 42873; physics.md).
-constexpr bool TakesOwnerBodies(bool aLiesInRagdoll, bool aInKillMove) noexcept
+// it, a kill move's victim state's (AddRagdollHandler 42873; physics.md), or its death's: dead, or holding its pose
+// for its owner's death (PoseHeld).
+constexpr bool TakesOwnerBodies(bool aLiesInRagdoll, bool aInKillMove, bool aDying) noexcept
 {
-    return !aLiesInRagdoll && !aInKillMove;
-}
-
-// ActorState flags1's knock state (bits 25-27): 1-4 knocked down, 5-6 getting up (EndKnockState 39897 reads it so).
-constexpr uint8_t KnockStateOf(uint32_t aFlags1) noexcept
-{
-    return aFlags1 >> 25 & 7;
-}
-
-// A living, standing copy out of its kill move with dynamic bodies of its own is keyframed, as EndKnockState 39897
-// does (kill-moves.md, "A victim half cut short"); one holding its pose keeps its ragdoll for its death.
-constexpr bool KeyframesOwnBodies(bool aBodiesDynamic, bool aLiesInRagdoll, bool aKnocked, bool aInKillMove, bool aDying) noexcept
-{
-    return aBodiesDynamic && !aKnocked && !aDying && TakesOwnerBodies(aLiesInRagdoll, aInKillMove);
+    return !aLiesInRagdoll && !aInKillMove && !aDying;
 }
 
 // A copy's owner's pair: on its stream with a copy partner here, but a taken one, which has no stream to replay

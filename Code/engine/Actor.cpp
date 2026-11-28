@@ -187,33 +187,20 @@ uint8_t Actor::BodiesLayer() const noexcept
     return LayerOf(FirstBodyOf(*this));
 }
 
-bool Actor::BodiesDynamic() const noexcept
-{
-    // Per body: 58291 sets each bone's body by its own keyframe track.
-    for (const bhkWorldObject* pBody : RagdollBodiesOf(*this))
-        if (pBody && pBody->referencedObject && pBody->referencedObject->IsDynamic())
-            return true;
-    return false;
-}
-
-bool Actor::KeyframeBodies() noexcept
-{
-    NiNode* pRoot = GetNiNode();
-    TaskQueueInterface* pQueue = TaskQueueInterface::Get();
-    if (!pRoot || !pQueue)
-        return false;
-    using TSetMotionType = void(void*, NiAVObject*, uint32_t, bool);
-    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 36925);
-    s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
-    return true;
-}
-
 bool Actor::SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf) noexcept
 {
     NiNode* pRoot = GetNiNode();
     auto* pProcess = currentProcess;
     auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
-    const hkpRigidBody* pBody = FirstBodyOf(*this);
+    // 58291 sets each body by its bone's keyframe track; a dynamic one poses its bone (78910), in the world or not.
+    const hkpRigidBody* pBody = nullptr;
+    bool anyDynamic = false;
+    for (const bhkWorldObject* pEach : RagdollBodiesOf(*this))
+        if (pEach && pEach->referencedObject)
+        {
+            pBody = pBody ? pBody : pEach->referencedObject;
+            anyDynamic |= pEach->referencedObject->IsDynamic();
+        }
     if (!pRoot || !pController || !parentCell || !pBody)
         return false;
     // Its own capsule's group, or its mount's: one group never collides, as SeatRider (40358) sets a rider's.
@@ -222,7 +209,7 @@ bool Actor::SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf) noexcept
     uint32_t groupFilter = 0;
     (pGroupController ? pGroupController : pController)->GetCollisionFilterInfo(groupFilter);
     const uint32_t cGroup = groupFilter >> 16;
-    if (LayerOf(pBody) == aLayer && (!aLayer || pBody->CollisionFilterInfo() >> 16 == cGroup))
+    if (LayerOf(pBody) == aLayer && (aLayer ? pBody->CollisionFilterInfo() >> 16 == cGroup : !anyDynamic))
         return false;
     const bool cInWorld = pBody->world != nullptr;
 
@@ -235,14 +222,15 @@ bool Actor::SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf) noexcept
     TaskQueueInterface* pQueue = TaskQueueInterface::Get();
     if (!pQueue)
         return false;
+    // Out, as EndKnockState (39897) ends a living actor's ragdoll: keyframed too, so no bone stays on a still body.
+    s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
     if (!aLayer)
     {
         pQueue->QueueRemoveFromWorld(pRoot);
         return true;
     }
-    // As EnterFurnitureCollision (40063): keyframed, the layer with its capsule's group (a rider's: its mount's), in
-    // its cell's world (39912 changes only the layer of bodies in the world already).
-    s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
+    // As EnterFurnitureCollision (40063): the layer with its capsule's group (a rider's: its mount's), in its cell's
+    // world (39912 changes only the layer of bodies in the world already).
     s_setLayerAndGroup.Get()(pQueue, pRoot, aLayer, cGroup);
     if (!cInWorld)
         s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);

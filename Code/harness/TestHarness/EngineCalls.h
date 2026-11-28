@@ -860,8 +860,6 @@ std::optional<std::array<float, 3>> ReferencePlace(uint32_t aFormId) noexcept;
 // A reference's bodies woken where they are, still (bhkRigidBody::SetLinearVelocity 78089 activates): one the console
 // moved sleeps in the air until something touches it, and falls from this.
 bool WakeBodies(uint32_t aFormId) noexcept;
-// Each of the actor's graphs' ragdoll driver reset (BSIRagdollDriver::ResetRagdoll), as a ragdoll's add to the world does.
-bool ResetRagdollDrivers(uint32_t aFormId) noexcept;
 // The player's heading and pitch in degrees (z clockwise from north, x positive looking down): in first person, where
 // its camera looks.
 std::optional<std::array<float, 2>> PlayerAngles() noexcept;
