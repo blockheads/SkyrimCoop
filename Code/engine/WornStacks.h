@@ -36,4 +36,16 @@ template <class TRead, class TUnequip> uint32_t UnequipAll(const TRead& acRead, 
     }
     return unequipped;
 }
+
+// UnequipAll, then acEngine() (the engine's UnequipAll 38899, for the hands' spells) only once nothing is worn, so
+// its walk visits nothing. False when a stack stayed worn and acEngine was skipped.
+template <class TRead, class TUnequip, class TEngine>
+bool UnequipAllThenEngine(const TRead& acRead, const TUnequip& acUnequip, const TEngine& acEngine)
+{
+    UnequipAll(acRead, acUnequip);
+    if (!acRead().empty())
+        return false;
+    acEngine();
+    return true;
+}
 } // namespace WornStacks

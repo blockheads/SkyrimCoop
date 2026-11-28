@@ -1,0 +1,9 @@
+time	op	id	rva	item
+2026-11-28T14:53:24Z	read	16096	0x237300	{"name": "InventoryChanges::VisitWornItems"}
+2026-11-28T14:54:33Z	read	16067	0x232330	{"name": "InventoryChanges__UnequipWornList_16067"}
+2026-11-28T14:54:57Z	read	38942	0x6df960	{"name": "UnequipAllVisitor__Visit"}
+2026-11-28T14:54:57Z	read	38899	0x6dc8a0	{"name": "coop_unequipAll"}
+2026-11-28T14:55:01Z	read	22352	0x35c5b0	{"name": "GameFunc::handler::UnequipAll"}
+2026-11-28T14:55:08Z	name	38899	0x6dc8a0	{"addr": "0x1406dc8a0", "name": "ActorEquipManager::UnequipAll"}
+2026-11-28T14:55:11Z	comment		0x35c5eb	{"addr": "0x14035c5eb", "comment": "Console 'unequipall' calls 38899 directly; its walk (16096) reads a node 16067 freed when the first entry leaves. SkyrimCoop hooks 38899 so this path takes the safe walk too (bug 2026-11-28, guest_keeps_own_state_on_reload)."}
+2026-11-28T14:55:11Z	comment	38899	0x6dc8a0	{"addr": "0x1406dc8a0", "comment": "38899 ActorEquipManager::UnequipAll. Callers: console UnequipAll 22352, papyrus Actor.UnequipAll. SkyrimCoop hooks it (EquipManager.cpp): worn stacks unequipped one at a time (WornStacks.h), then this runs with nothing worn, for the hands' spells."}

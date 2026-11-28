@@ -273,6 +273,20 @@ again by address in a fresh walk before `UnequipObject` 38901 takes it (the visi
 an ammo entry's delta); 38899 then runs with nothing worn for its walk, for the hands' spells. UnitTests
 `[worn-stacks]` model 16067's head removal: the engine's walk reads the freed node, ours does not.
 
+**The engine's own callers (2026-11-28).** That fix covered our calls only. 38899 has two engine callers that went
+straight to the walk: the console's `UnequipAll` (22352, `player.unequipall`) and Papyrus `Actor.UnequipAll`. The
+guest crashed in `guest_keeps_own_state_on_reload`'s cleanup, its console `player.unequipall` after the party reload
+and rejoin: `0xDBDB...` at 16096+0x45 under 22352 -> 38899, the same freed next node. Nothing frees the player's worn
+list across the reload. Measured (heap history, 2026-11-28, 1 of 1): the 16-byte node and its 24-byte entry were made
+by `RemoveItem` 16059 under our join apply (`SetActorInventory` -> `SetInventory` -> `RemoveAllItems`), 2.5 s before;
+they were freed by 16067 -> 16180 under `UnequipAllVisitor` (38942) inside the walk, 9 ms before the read. So our
+apply leaves a worn base-container entry with no count delta at the list's head, and the walk's first unequip takes it. The runner's "still queued after 10s" was the game dead before it answered; the
+console wait now checks for a crash log. So 38899 itself is hooked (`UnequipAllHook`): the worn stacks go one at a
+time through `UnequipObject` 38901 as `UnequipAllVisitor` (38942) calls it (the visitor's slots and counts, play
+sound, no overrides of ours), then the real 38899 runs with nothing worn, for the hands' spells.
+`EquipManager::UnequipAll` only adds our equip override around it. EngineFixes' null-process fix patches calls
+inside 38899 (+0x6C, +0x9C), not its entry, so the two hooks do not meet.
+
 ## An alias-held item leaving a container (2026-11-23, IDA 1.7.104, read)
 
 The Golden Claw (playtest 2026-11-22, item 15). MS13's `GoldenClaw` alias (11) creates `MS13GoldenClaw` (39647) **in**
