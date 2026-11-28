@@ -65,7 +65,7 @@ class GetUpSnaps(unittest.TestCase):
         self.assertEqual(len(snapping((), (30,)).copy_snaps("", 1, "client", 2)), 1)
 
     def test_the_tail_of_its_owners_shake_is_not_the_copys(self):
-        # knockdown-smoke, 2026-11-11: the owner's limb shook for 170 ms; its copy's last snaps came after the owner's.
+        # knockdown-front-and-back, 2026-11-11: the owner's limb shook for 170 ms; its copy's last snaps came after the owner's.
         self.assertEqual(snapping((20, 22, 24, 26), (22, 24, 26, 28, 34, 36)).copy_snaps("", 1, "client", 2), [])
 
     def test_a_shake_just_under_the_snap_size_on_its_owner_is_still_its_owners(self):

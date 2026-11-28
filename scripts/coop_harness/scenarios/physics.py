@@ -14,7 +14,6 @@ from ..common import (
     LISTS_SHOWN,
     LYDIA,
     SINKHOLE,
-    TAB_KEY,
     TAKE_ALL_KEY,
     WOLF,
     WORLD_CHANGES,
@@ -654,39 +653,6 @@ def scenario_knockdown_lies_as_host(ctx):
     trace.check_copy("", npc, "client", copy)
     trace.check_as_owner("", npc, "client", copy)
 
-def scenario_knockdown_smoke(ctx):
-    """Lydia stands between the two players, both facing her (watch both games: `watch`, `watch --instance client`);
-    the host knocks her down and she gets up, three times. Her copy must not snap where she does not: a frame where
-    its skeleton jumps and comes back (RagdollTrace.snaps)."""
-    npc, _, copy = ctx.spawn_host_npc(LYDIA)
-    def knock(instance, form):
-        return (ctx.actor_snapshot(instance, form).get("state") or {}).get("knock", 0)
-    name = "knockdown-smoke"
-    trace = RagdollTrace(ctx, name, {"": {npc: "the host's Lydia"}, "client": {copy: "the client's copy"}})
-    try:
-        ctx.place_before("", npc, 250, bearing=0)
-        ctx.place_before("client", copy, 300, bearing=90)
-        trace.__enter__()
-        anims = AnimTrace(ctx, name, {"": {npc: "lydia"}, "client": {copy: "lydia"}}, video=False).__enter__()
-        for round in range(3):
-            ctx.face("", npc)
-            ctx.face("client", copy)
-            ctx.console_on("", f"player.pushactoraway {npc:X} 5")
-            ctx.wait_for(f"[host] Lydia goes down ({round + 1} of 3)", lambda: knock("", npc), 3)
-            ctx.wait_for("[host] Lydia is up again", lambda: not knock("", npc), 20)
-            ctx.wait_for("[client] her copy is up again", lambda: not knock("client", copy), 5)
-    finally:
-        trace.__exit__(None, None, None)
-        if "anims" in locals():
-            anims.__exit__(None, None, None)
-        ctx.remove_host_npc(npc)
-    log("ragdoll: " + trace.report())
-    log("copy vs owner: " + trace.compare_report("", npc, "client", copy))
-    log("snaps: " + trace.snaps_report("", npc, "client", copy))
-    if trace.copy_snaps("", npc, "client", copy):
-        raise ctx.failure("the copy snaps where its owner does not: " + trace.snaps_report("", npc, "client", copy) +
-                          f" (samples: {trace.folder.name})")
-
 def scenario_knockdown_front_and_back(ctx):
     """Push a living NPC from the front and behind; each whole fall and get-up follows its owner."""
     npc, _, copy = ctx.spawn_host_npc(LYDIA)
@@ -808,11 +774,10 @@ def scenario_late_join_gets_load_door_lock(ctx):
         ctx.both_go(HOME_CELL) # the town's own copy drift is not this scenario's
 
 
-def scenario_guest_opens_hosts_roll(ctx, *, take=False, _game=None):
+def scenario_guest_loots_hosts_roll(ctx, *, _game=None):
     """A container's leveled entries are the host's roll (world sync step 2b): in the inn, the client opens the
-    container with the most leveled entries that a player can reach (the merchant's stock chest under the floor is
-    not) as its player would (an open is what rolls them), and it holds what the host's does, which the host's game
-    rolled when the client's inn loaded."""
+    container with the most leveled entries that a player can reach (an open is what rolls them): it holds what the
+    host's does, and taking it all (the 2026-10-31 playtest S5) gives the guest the host's roll and empties the host's."""
     _game = ctx.game(_game)
     try:
         ctx.both_go(INN)
@@ -839,11 +804,6 @@ def scenario_guest_opens_hosts_roll(ctx, *, take=False, _game=None):
                  lambda: ctx.menu_var("client", "ContainerMenu", ITEM_LISTS + ".currentState") in LISTS_SHOWN, 5, _game=_game)
         if (theirs := ctx.container_items("client", chest)) != host:
             raise ctx.failure(f"[client] opened {chest:X} holding its own roll: " + ctx.item_differences(host, theirs, "host", "client"))
-        if not take:
-            ctx.tap_key("client", TAB_KEY)
-            ctx.wait_for("[client] the menu closed", lambda: ctx.takes_input("client"), 5, _game=_game)
-            return
-        # Taking it all (the 2026-10-31 playtest S5): the guest gets the host's roll, the host's chest empties.
         carried = {item: ctx.item_count("client", 0x14, item) or 0 for item in host}
         ctx.tap_key("client", TAKE_ALL_KEY)
         ctx.wait_for("[client] the menu closed", lambda: ctx.takes_input("client"), 5, _game=_game)
