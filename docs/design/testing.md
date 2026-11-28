@@ -213,6 +213,7 @@ and require Skyrim itself to exit without a new crash report. Wine helpers are s
 ```bash
 python3 scripts/coop_test.py repro quit-main-menu
 python3 scripts/coop_test.py repro quit-in-game
+python3 scripts/coop_test.py repro quit-close-window   # the window's X / Alt+F4 (WM_CLOSE), docs/re/systems/game-window.md
 ```
 
 **Heap tools on the duo** (`Code/plugin/HeapHistory.h`): boot with `SKYRIMCOOP_HEAP_HISTORY=2` (the MCP's

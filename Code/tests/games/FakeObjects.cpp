@@ -495,6 +495,15 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         }
         break;
     case ObjectChange::Kind::kHarvested: reference.Harvested = acChange.Value != 0; break;
+    case ObjectChange::Kind::kMove: // ApplyMove: SetPosition and SetAngle (22053, 22054)
+    {
+        if (acChange.Data.size() != 6 * sizeof(float))
+            return false;
+        float pose[6];
+        std::memcpy(pose, acChange.Data.data(), sizeof(pose));
+        reference.Position = {pose[0], pose[1], pose[2]};
+        break;
+    }
     case ObjectChange::Kind::kMotion: // ApplyMotion: on its 3D's bodies; with none yet, when it loads
         if (!reference.Has3D)
             reference.DeferredMotion = acChange.Value;

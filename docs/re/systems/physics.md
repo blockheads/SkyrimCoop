@@ -779,6 +779,12 @@ ran the script moves it, on its own clock; no other game is told. `Critter.psc` 
 itself (`PlaceAtMe(LandingMarkerForm)`: Skyrim.esm's `C2D47` for 13 critters, `22201` for one) and moves them with
 `SetPosition`.
 
+In a session the host's change log records each of those `SetPosition` moves, so a host critter's move row goes to
+the guests every frame of its path, reliable, and is what moves its guest copy (Josh's playtest, 2026-11-26: four
+fish, about 60 rows a second each). Both games log live moves at debug since 2026-11-27 (`WorldStateLog::LogLive`).
+Relaying the path itself (the `TranslateTo` call, run on each game's clock) would send one row per path instead:
+`docs/ideas.md`.
+
 The harness tells a critter by its script: the VM's `FindBoundObject` (104792, vfunc 0x1C) visits the handle's bound
 objects (104880) and, unless asked for an exact match, walks each one's class up its parents (104912), so a lookup of
 `Critter` finds `critterMoth` (read).

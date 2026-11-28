@@ -3,6 +3,11 @@
 #include "Party.h"
 #include "Fixtures.h"
 
+#include <spdlog/sinks/ringbuffer_sink.h>
+#include <spdlog/spdlog.h>
+
+#include <cstring>
+
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
@@ -11,6 +16,7 @@ constexpr uint32_t kGate = 0x000F1B2D;  // a locked one
 constexpr uint32_t kChest = 0x000C2CE8; // QASmoke's small chest, a lid that opens
 constexpr uint32_t kPlant = 0x000F1B2E; // a flora reference (a mountain flower)
 constexpr uint32_t kPullLever = 0x000F1B2F; // a lever furniture (Bleak Falls Barrow's pillar lever's kind)
+constexpr uint32_t kCritter = 0x000F1B30;   // a reference with no body: a fish a script's TranslateTo moves
 
 void Plugins(FakeEngine& aEngine)
 {
@@ -21,7 +27,37 @@ void Plugins(FakeEngine& aEngine)
     aEngine.References[kChest] = {.Cell = kSmoke, .Chest = true};
     aEngine.References[kPlant] = {.Cell = kSmoke, .Plant = true};
     aEngine.References[kPullLever] = {.Cell = kSmoke, .Lever = true};
+    aEngine.References[kCritter] = {.Cell = kSmoke};
 }
+
+// The info lines every game logs while it lives; the other sinks keep the level they had.
+struct InfoLines
+{
+    InfoLines()
+        : m_level(spdlog::get_level())
+    {
+        for (auto& pSink : spdlog::default_logger()->sinks())
+            pSink->set_level(m_level);
+        spdlog::default_logger()->sinks().push_back(m_pLines);
+        spdlog::set_level(spdlog::level::info);
+    }
+    ~InfoLines()
+    {
+        spdlog::set_level(m_level);
+        auto& sinks = spdlog::default_logger()->sinks();
+        std::erase(sinks, m_pLines);
+        for (auto& pSink : sinks)
+            pSink->set_level(spdlog::level::trace);
+    }
+    [[nodiscard]] size_t Count(std::string_view aText) const
+    {
+        return std::ranges::count_if(m_pLines->last_formatted(), [aText](const std::string& acLine) { return acLine.contains(aText); });
+    }
+
+private:
+    spdlog::level::level_enum m_level;
+    std::shared_ptr<spdlog::sinks::ringbuffer_sink_mt> m_pLines = std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(4096);
+};
 
 
 } // namespace
@@ -120,6 +156,30 @@ SCENARIO("A guest's pull of a scripted lever moves it on every game by the host'
     party.Until([&] { return guest.References[kLever].GraphEvents.size() == 1 && other.References[kLever].GraphEvents.size() == 1; },
                 "both guests' levers play the host's animation");
     CHECK(guest.References[kLever].GraphEvents.front() == "FullPull");
+}
+
+SCENARIO("A reference the host's script moves every frame follows on the guest without a log line a frame", "[objects]")
+{
+    // Josh's playtest (2026-11-26): a guest logged "applied N of the host's object changes" for critters' moves 9,400
+    // times in 4 minutes. TranslateTo moves its reference each frame (18898), so its move row goes out each frame.
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    InfoLines lines;
+    constexpr int cFrames = 60;
+    for (int i = 1; i <= cFrames; ++i)
+    {
+        const float cPose[6]{100.f + static_cast<float>(i), 200.f, -60.f, 0.f, 0.f, 0.5f};
+        ObjectChange move{.Type = ObjectChange::Kind::kMove, .Object = GameId(0, kCritter)};
+        move.Data.assign(reinterpret_cast<const char*>(cPose), sizeof(cPose));
+        party.As(party.Host(), [&] { host.Recorded.push_back(move); });
+        party.Frame();
+    }
+    party.Until([&] { return guest.References[kCritter].Position.x == 100.f + cFrames; }, "the guest's critter follows to its last spot");
+    THEN("neither game logged a line for its moves")
+    CHECK(lines.Count("object changes") == 0);
 }
 
 SCENARIO("A plant one player picks is picked on every game", "[objects]")

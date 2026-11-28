@@ -61,6 +61,10 @@ code comment, reads from history: `git show b7b43a3bd:docs/design/<name>.md`.
 
 ## Sync
 
+- **A critter's path as one row (2026-11-27).** A host critter's `TranslateTo` moves it every frame (18898), and each
+  move goes to the guests as a reliable row (`docs/re/systems/physics.md`, "A translating reference"). Relaying the
+  call instead (target, speeds) lets each game's cell run the path on its own clock: one row a path, not 60 a second.
+  Read 56237's arguments and what `OnTranslationComplete` does on a guest (its scripts skip world events) first.
 - **The engine renders a copy's face tints itself (deferred 2026-11-09, its own PR).** Today coop renders the
   owner's tints and paints them on each new head from a hook on `TESNPC::UpdateHeadState` (24724), as RaceMenu
   does. The engine's way: `PrepareHeadPartForShaders` (26838) renders an NPC's runtime face from its base's tint

@@ -1,0 +1,7 @@
+time	op	id	rva	item
+2026-11-27T21:36:37Z	read	63411	0xbc3c30	{"name": "BSAnimationGraphManager::dtor"}
+2026-11-27T21:36:46Z	read	63355	0xbc0280	{"name": "BSAnimationGraphManager::sub_63355"}
+2026-11-27T21:36:57Z	name	63355	0xbc0280	{"addr": "0x140bc0280", "name": "BSAnimationGraphManager::Destruct"}
+2026-11-27T21:36:57Z	name	63411	0xbc3c30	{"addr": "0x140bc3c30", "name": "BSAnimationGraphManager::ScalarDeletingDtor"}
+2026-11-27T21:37:00Z	comment	63355	0xbc0280	{"addr": "0x140bc0280", "comment": "BSAnimationGraphManager's complete destructor (63355): releases its graphs (+0x10), bound channels (+0x28), +0x40 and +0x58 arrays, then the BSTEventSink<BSAnimationGraphEvent> base. Every manager's death passes here: the heap one from 63411 (vtable slot 0, on its last BSTSmartPointer release), the stack temporaries of 32881/32882 (LoadGraphStates) directly, and the unwind funclets. Hooked by GraphStreamHooks to forget the address's clip loads."}
+2026-11-27T21:37:00Z	comment	63411	0xbc3c30	{"addr": "0x140bc3c30", "comment": "BSAnimationGraphManager scalar deleting dtor (63411, vtable 232742 slot 0): 63355 then SizedDelete(this, 0xB8) when flag 1. Called by BSIntrusiveRefCounted's release when the refcount (+0x8) hits 0; the freed 0xB8 block can host the next manager."}

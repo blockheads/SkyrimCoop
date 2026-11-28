@@ -4,6 +4,7 @@
 
 
 struct ImguiService;
+struct UiService;
 struct IDXGISwapChain;
 
 /**
@@ -11,7 +12,7 @@ struct IDXGISwapChain;
  */
 struct RenderSystemD3D11
 {
-    explicit RenderSystemD3D11(ImguiService& aImguiService);
+    RenderSystemD3D11(ImguiService& aImguiService, UiService& aUiService);
     ~RenderSystemD3D11() = default;
 
     NO_COPY_MOVE(RenderSystemD3D11);
@@ -28,5 +29,6 @@ struct RenderSystemD3D11
 private:
     IDXGISwapChain* m_pSwapChain;
     ImguiService& m_imguiService;
+    UiService& m_uiService;
 };
 

@@ -111,3 +111,22 @@ may hold the same inversion.
   fake counts requests made inside a graph update: `ClipRequestsUnderGraphLock`).
 - The lock-order checker sees none of this: it tracks `BSReadWriteLock`, and these are `BSSpinLock`s.
 
+
+## An owner's held sets and its graph manager's death (2026-11-27)
+
+Read in IDA on 1.7.104. An owner's game keeps each actor's loaded clip sets (43621, 43622, 43624) by its
+`BSAnimationGraphManager`'s address (`ActorClipSets`), which the next sync point names to the copies. The address is
+only as good as the manager's life:
+
+```text
+last BSTSmartPointer release (refcount +0x8 hits 0)
+  -> vtable 232742 slot 0: 63411 scalar deleting dtor
+       63355 BSAnimationGraphManager's complete destructor
+       SizedDelete(this, 0xB8): the block can hold the next manager
+32881 IAnimationGraphManagerHolder::LoadAnimationGraphs, 32882: a stack manager for LoadGraphStates, then 63355
+```
+
+Every manager's death passes 63355, so its hook forgets the address's entry (`GraphStreamHooks`). Before, the table
+only grew and was wiped past 4096 entries: a new actor at a freed manager's block inherited the old one's sets, and the
+wipe dropped every live one's. Found by reading, not seen in a run. `GameTests`: "A new NPC at a gone one's graph
+manager's address holds none of its clip sets" (the fake's managers reuse freed addresses); `UnitTests`: `[clip-sets]`.

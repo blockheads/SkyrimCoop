@@ -32,7 +32,6 @@ every other section needs the duo.
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
 - [A refused rider left crouched](#a-refused-rider-left-crouched): small
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
-- [A new actor inherits an old one's clip sets](#a-new-actor-inherits-an-old-ones-clip-sets): small
 
 **Ragdolls and death poses**
 
@@ -62,7 +61,6 @@ every other section needs the duo.
 
 **Plugin compatibility**
 
-- [World::Get() off the game's thread](#worldget-off-the-games-thread): small, the UI's render left
 - [Quest start and stop events](#quest-start-and-stop-events): medium
 
 **Crime and aggro**
@@ -451,23 +449,6 @@ scene plays.
 Size: small. Needs: the duo with the late save.
 - 2026-11-22, dev `aa723513` (`duo --save LateAfterDragonRising`): 1 of 1 again, the same step.
 
-### A new actor inherits an old one's clip sets
-
-Found by reading (the engine object lifetime survey, 2026-11-27), not seen in a run. `s_clipLoads`
-(`Code/engine/Havok/GraphStreamHooks.cpp`) is keyed by a graph manager's address; entries are only added, and the
-whole table is wiped past 4096. A graph manager made at a freed one's address inherits the old actor's held clip sets
-(and its unsent loads), which the next sync point (`HeldClipSets`) names to the copies. A player could see a copy load
-another actor's idle or action clips. The wipe also drops live actors' held sets at once.
-
-Same area as [A guest crashed loading a copy's idle clips](#a-guest-crashed-loading-a-copys-idle-clips) (a copy's
-clip loads); a link between the two is unproven.
-
-Agent task: find in IDA who destroys a graph manager (the holder's `GraphManagerKey`) and remove its `s_clipLoads`
-entry there, then drop the 4096 wipe; a GameTests flow on the fake's loads: an actor goes, a new one at its address
-starts with no held sets.
-
-Size: small. Needs: IDA, the duo.
-
 ## Ragdolls and death poses
 
 ### A script's reference added to a body is not on the guest's copy
@@ -746,28 +727,6 @@ Size: small. Needs: code and GameTests only.
   - Test: a `host_load_flows.cpp` case.
 
 ## Plugin compatibility
-
-### World::Get() off the game's thread
-
-Found 2026-11-27 by the thread check in `World::Get()` (test and debug builds; `Code/sync/game/World.cpp`). The hooks it
-named now read `World`'s static accessors (`Hosts`, `Connected`, `FrameTick`, `Streams`, `Created`) or the locked
-`PapyrusNatives` table; in a duo run of ten scenarios each game logged one line, the one site left:
-
-- `RenderSystemD3D11::OnRender` (RenderSystemD3D11.cpp:49) on the loading screen's thread (`0x1406E4C20`, which
-  processes the UI and presents while the main thread loads: [main-loop-and-papyrus-vm.md](re/systems/main-loop-and-papyrus-vm.md)).
-  The `World::Get()` there is the least of it: `UiService::Render` then reads the registry (the party's
-  `PlayerComponent`s), `SessionService`'s players, `JoinService`'s status, `DeathService`, and sends chat
-  (`TransportService::Send`), all on that thread while the main thread's hooks may change them. Removing the lookup
-  alone would only hide it.
-
-Agent task: drawing reads no live game state. `UiService`'s update (the main thread) fills a plain snapshot of what
-the four `Update*` read (party, chat, join, death; the `UiModels` types) and swaps it under one small mutex; `Render`
-copies it and is the only code that touches the RmlUi context, so the context needs no lock. A click's action (a chat
-line sent) goes through `World::Runner().Queue`. First read which thread `UiInput` feeds the context from during a
-load: if not the presenting one, its events go through the snapshot's mutex too. The join panel must still draw
-during loads (from the last snapshot; check what its progress reads).
-
-Size: medium. Needs: the duo (the check only speaks in the game).
 
 ### Quest start and stop events
 

@@ -541,6 +541,28 @@ TEST_CASE("A copy's ragdoll takes up its owner's frames whole, each body from wh
     CHECK(plan.Targets[0].Position.x == 100.f);
 }
 
+TEST_CASE("A copy's ragdoll put on its owner's frames update after update counts the run once it ends", "[body-prediction][ragdoll-start]")
+{
+    // Josh's playtest (2026-11-26): a corpse copy logged "put on its owner's frames" 323 updates in a row.
+    const auto cBody = [](float aOff) {
+        RagdollStart::Body body{.Position = {100.f + aOff, 0.f, 0.f}};
+        body.Frame.Key = {.Actor = 7, .Index = 0};
+        body.Frame.Position = {100.f, 0.f, 0.f};
+        return body;
+    };
+    RagdollStart start;
+    CHECK(start.Next({cBody(70.f)}, 1000).Places == 1);
+    CHECK(start.Next({cBody(70.f)}, 1016).Places == 2);
+    CHECK(start.Next({cBody(70.f)}, 1032).Places == 3);
+    CHECK(start.Places() == 3);
+    const auto cSteered = start.Next({cBody(1.f)}, 1048);
+    CHECK_FALSE(cSteered.Place);
+    CHECK(cSteered.Places == 0);
+    CHECK(cSteered.EndedPlaces == 3);
+    CHECK(start.Next({cBody(1.f)}, 1064).EndedPlaces == 0);
+    CHECK(start.Places() == 0);
+}
+
 TEST_CASE("A copy's ragdoll turns from where it was onto its owner's frame", "[body-prediction][ragdoll-start]")
 {
     RagdollStart start;

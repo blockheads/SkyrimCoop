@@ -1,4 +1,5 @@
 #include "TestHarness/EngineCalls.h"
+#include <BSGraphics/BSGraphicsRenderer.h>
 #include <SaveLoadManager.h>
 #include <Forms/MagicItem.h>
 #include <Magic/EffectItem.h>
@@ -2825,6 +2826,12 @@ std::vector<ActorPoolReadout> ReadActorPools(uint32_t aFormId) noexcept
                           pActor->GetActorPermanentValue(cIndex), pActor->GetActorValueModifier(Mode::TEMPORARY, cIndex),
                           pActor->GetActorValueModifier(Mode::DAMAGE, cIndex), pActor->GetActorValue(cIndex)});
     return pools;
+}
+
+HWND GameWindow() noexcept
+{
+    const auto* pWindow = BSGraphics::GetMainWindow();
+    return pWindow ? pWindow->hWnd : nullptr;
 }
 
 } // namespace TestHarness::EngineCalls

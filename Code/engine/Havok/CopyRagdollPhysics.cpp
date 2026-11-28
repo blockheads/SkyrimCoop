@@ -124,6 +124,12 @@ bool Played(uint32_t aFormId) noexcept
     return s_bodies.Has(aFormId) || s_rests.contains(aFormId);
 }
 
+void LogPlaces(uint32_t aFormId, uint32_t aPlaces)
+{
+    if (aPlaces > 1)
+        spdlog::info("CopyRagdollPhysics: {:X} put on its owner's frames {} updates in a row", aFormId, aPlaces);
+}
+
 void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
 {
     std::vector<RagdollPending::Drive> bodies;
@@ -174,15 +180,21 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         const auto cSteer = BodyPrediction::Steer(driven[i].Position, driven[i].Rotation, cTarget);
         SteerBody(*drivenBodies[i], cSteer.Linear, cSteer.Angular);
     }
-    if (plan.Place)
+    // A run of puts logs its first and its length (a run is its bodies kept far from the frames).
+    if (plan.Places == 1)
         spdlog::info("CopyRagdollPhysics: {:X} put on its owner's frames, {} bodies", aCopy.formID, driven.size());
+    LogPlaces(aCopy.formID, plan.EndedPlaces);
     if (!resting.empty())
     {
         // Its start ends once no body of it moves: a limb still blending keeps its gap.
         if (driven.empty())
         {
             std::scoped_lock lock(s_bodyLock);
-            s_starts.erase(aCopy.formID);
+            if (const auto it = s_starts.find(aCopy.formID); it != s_starts.end())
+            {
+                LogPlaces(aCopy.formID, it->second.Places());
+                s_starts.erase(it);
+            }
         }
         RestBodies(aCopy, resting);
     }

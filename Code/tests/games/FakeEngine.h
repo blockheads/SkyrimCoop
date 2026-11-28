@@ -14,6 +14,7 @@
 #include <CopyPackage.h>
 #include <animation/ReplayStep.h>
 #include <animation/ReplayState.h>
+#include <animation/ActorClipSets.h>
 #include <animation/HeldClipLoads.h>
 #include "../FakeFlight.h"
 
@@ -893,6 +894,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         ActionEvent PairHalf; // its half of the pair it last took (32803 knows its instance's halves)
         std::string GraphState;
         std::set<std::string> LoadedClips; // the event whose clip files its process holds: one action set (KeepSet 40055)
+        std::shared_ptr<const void> GraphManager; // its BSAnimationGraphManager, made on first use (GraphManagerKey)
         std::vector<std::pair<uint32_t, bool>> AnimObjects; // its props (AnimationObjects 400328): ANIO, drawn
         AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
@@ -953,6 +955,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t FaceBase = 0;
         uint32_t ChangeFlags = 0;
     };
+    // Graph managers (engine/Havok's hooks): one freed with its last reference (63411, 63355) leaves its address to
+    // the next one made. Before Actors, which free theirs as they go.
+    ActorClipSets ClipSets;
+    std::vector<uintptr_t> FreedGraphManagers;
+    uintptr_t m_lastGraphManager = 0;
+    [[nodiscard]] const void* GraphManagerKey(Actor& aActor);
     std::map<uint32_t, Npc> Npcs;
     std::map<uint32_t, Actor> Actors{{kPlayer, Actor{.Base = 0x7, .Player = true}}};
     std::map<std::string, std::string> PooledNames;
