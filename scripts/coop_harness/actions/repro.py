@@ -610,12 +610,13 @@ class ReproActions:
         ctx.REPRO_RESTS[(name, "guest" if instance else "host")] = position
         return {"position": position}
 
-    def line_up_swing(ctx, instance, ref, reach="weapon", lifts=tuple(range(-3, 19, 3))):
+    def line_up_swing(ctx, instance, ref, reach="weapon", lifts=tuple(range(-3, 19, 3)), above=0.0):
         """That game's player aims its melee swing at `ref` so the engine's own swing cast meets it first (the cast
         38628 sweeps: a 12-unit sphere from the eye, docs/re/systems/physics.md, "A swing's hit"). Tries aims from just
         under the body to over it (the sphere meets the floor under a flat object first) and takes the middle of the
         longest run that meets it first: the eye moves a little during the swing. Fails naming what each aim meets."""
         centre = ctx.body_of(instance, ref)["position"]
+        centre = [centre[0], centre[1], centre[2] + above]  # a body whose origin sits low (a web's box): its middle
 
         def aim(lift):
             point, eye = [centre[0], centre[1], centre[2] + lift], None
@@ -733,6 +734,46 @@ class ReproActions:
         if math.dist(ends["host"], starts["host"]) <= moved:
             raise ctx.failure(f"[host] {name} lies back where it rested before the swing ({math.dist(ends['host'], starts['host']):.1f} units off)")
         return {"moved": {who: round(math.dist(ends[who], starts[who]), 1) for who in refs}}
+
+    def destruction(ctx, instance, ref):
+        """That game's destructible: health (-1 undamaged), destroyed flag, stage model (a cut web's), 3D loaded."""
+        reply = ctx.player_command(instance, {"cmd": "destruction", "object": ref}) or {}
+        if not reply.get("ok"):
+            raise ctx.failure(f"[{instance or 'host'}] destruction {ref:X}: {reply}")
+        return reply
+
+    def cut(ctx, name, game="host", swings=6, gap=70, above=0.0):
+        """That game's player swings its drawn weapon at the handle's destructible (a web), whole to begin with, until its
+        own game shows it cut (its stage model, destroyed), lining each swing up first; fails if `swings` do not cut it,
+        naming its health after each."""
+        instance = "client" if game in ("guest", "client") else ""
+        mine = "guest" if instance else "host"
+        ref = ctx.resolve(name, mine)
+        cut_now = lambda d: d["destroyed"] and d["stage_model"]
+        if cut_now(state := ctx.destruction(instance, ref)):
+            raise ctx.failure(f"[{mine}] {name} is cut already: {state}")
+        ctx.draw(instance)
+        ctx.place_before(instance, ref, gap)
+        healths = []
+        for _ in range(swings):
+            ctx.line_up_swing(instance, ref, above=above)
+            ctx.attack(instance)
+            ctx.wait_for(f"[{mine}] hands settled after the swing", lambda: ctx.hands_settled(instance), 5)
+            state = ctx.destruction(instance, ref)
+            healths.append(state["health"])
+            if cut_now(state):
+                return {"swings": len(healths), "healths": healths}
+        raise ctx.failure(f"[{mine}] {swings} swings did not cut {name}: health after each {healths}, now {state}")
+
+    def expect_cut(ctx, name, seconds=10):
+        """The handle's destructible shows cut in both games (destroyed, its stage model, health 0) within `seconds`."""
+        refs = {"host": ctx.resolve(name, "host"), "guest": ctx.resolve(name, "guest")}
+        games = {"host": "", "guest": "client"}
+        for who in refs:
+            ctx.wait_for(f"[{who}] {name} is cut (destroyed, its stage model)",
+                         lambda who=who: (lambda d: d["destroyed"] and d["stage_model"])(ctx.destruction(games[who], refs[who])),
+                         seconds)
+        return {who: ctx.destruction(games[who], refs[who]) for who in refs}
 
     def swing_at_moving(ctx, name, game="guest", speed=40.0, knock=40.0, seconds=6, gap=60):
         """That game's player lines its swing up on the handle's resting object, the host sets its object sliding across

@@ -1,0 +1,19 @@
+time	op	id	rva	item
+2026-11-28T00:39:03Z	read	14181	0x1d61a0	{"name": "TESObjectREFR::ClearDestruction"}
+2026-11-28T00:39:11Z	read	14158	0x1d36e0	{"name": "sub_1401D36E0"}
+2026-11-28T00:40:24Z	name	19526	0x2e09d0	{"addr": "0x1402e09d0", "name": "TESObjectREFR::DamageObject"}
+2026-11-28T00:40:24Z	name	14158	0x1d36e0	{"addr": "0x1401D36E0", "name": "BGSDestructibleObjectForm::DamageObject"}
+2026-11-28T00:40:24Z	name	12004	0x170dc0	{"addr": "0x140170DC0", "name": "ExtraDataList::GetObjectHealth"}
+2026-11-28T00:40:24Z	name	12005	0x170df0	{"addr": "0x140170DF0", "name": "ExtraDataList::SetObjectHealth"}
+2026-11-28T00:40:24Z	name	12006	0x170f00	{"addr": "0x140170F00", "name": "ExtraDataList::RemoveObjectHealth"}
+2026-11-28T00:40:24Z	name	11968	0x16fbd0	{"addr": "0x14016FBD0", "name": "ExtraDataList::GetModelSwap"}
+2026-11-28T00:40:24Z	name	11969	0x16fc00	{"addr": "0x14016FC00", "name": "ExtraDataList::RemoveModelSwap"}
+2026-11-28T00:40:24Z	name	11967	0x16fab0	{"addr": "0x14016FAB0", "name": "ExtraDataList::SetModelSwap"}
+2026-11-28T00:40:24Z	name	14166	0x1d4dd0	{"addr": "0x1401D4DD0", "name": "BGSDestructibleObjectForm::ApplyStageFromHealth"}
+2026-11-28T00:40:24Z	name	14157	0x1d3690	{"addr": "0x1401D3690", "name": "BGSDestructibleObjectForm::GetMaxHealth"}
+2026-11-28T00:40:24Z	name	14204	0x1d6b10	{"addr": "0x1401D6B10", "name": "SendDestructionStageChangedEvent"}
+2026-11-28T00:40:28Z	comment	14158	0x1d36e0	{"addr": "0x1401D36E0", "comment": "(form, ref, damage, allowDestroyed): health in ExtraObjectHealth 0x55 (base health if none) minus damage; picks the stage by health %; SetDestroyed at 0; AddChange(0x80000000 game-only extra); a stage with a model -> ExtraModelSwap 0x58 + 3D reload (destroyed web: no collision); else damage-stage index on the 3D; explosions/debris; TESDestructionStageChangedEvent(old,new). Skips refs with flags 0x820 (deleted/disabled)."}
+2026-11-28T00:40:28Z	comment		0x1d3a6d	{"addr": "0x1401d3a6d", "comment": "destruction state is recorded as CHANGE_REFR_EXTRA_GAME_ONLY (0x80000000): health + model swap"}
+2026-11-28T00:40:28Z	comment	19526	0x2e09d0	{"addr": "0x1402e09d0", "comment": "vtable slot 0x42 (CommonLibSSE-NG DamageObject). Only with form flag 0x1000000 (has destructible) and not destroyed (0x800000) unless allowDestroyed."}
+2026-11-28T00:40:28Z	comment	14166	0x1d4dd0	{"addr": "0x1401D4DD0", "comment": "Load path: snaps ExtraObjectHealth down to its stage's threshold, sets the stage model swap, damage-stage index on the 3D if loaded."}
+2026-11-28T00:41:13Z	read	19660	0x2e6af0	{"name": "TESObjectREFR::UpdateInDialogue"}

@@ -15,6 +15,7 @@
 #include <Messages/LockChangeRequest.h>
 #include <Messages/StoryEventRequest.h>
 #include <Messages/ContainerChangeRequest.h>
+#include <Messages/ObjectStateRequest.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/SendChatMessageRequest.h>

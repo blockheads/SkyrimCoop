@@ -304,6 +304,16 @@ struct InventoryEntryRead
 std::optional<InventoryEntryRead> GetInventoryEntry(uint32_t aHolder, uint32_t aItem) noexcept;
 // Whether the reference is enabled (its disabled flag, TESForm 0x800); none: no such reference.
 std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept;
+// A destructible's state: its health (ExtraObjectHealth, -1 while undamaged), destroyed flag, whether its stage model
+// stands in for its base's (ExtraModelSwap) and whether its 3D is loaded.
+struct Destruction
+{
+    float Health = -1.f;
+    bool Destroyed = false;
+    bool StageModel = false;
+    bool Has3D = false;
+};
+std::optional<Destruction> GetDestruction(uint32_t aFormId) noexcept;
 // The main menu's scan of every save, as Continue runs it (52898 -> PopulateSaveList 35760): the save list and the
 // Journal's character map then know every playthrough in the folder. The characters of the saves listed.
 [[nodiscard]] std::vector<uint32_t> ScanAllSaves() noexcept;

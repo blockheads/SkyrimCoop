@@ -287,6 +287,8 @@ void HostService::MakeAuthority() noexcept
     game.TouchTrap = [this](const Payloads::TrapContact& acContact) { m_pEngine->TouchTrap(acContact); };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
+    game.ReadObjectState = [this](const GameId& acObject, ObjectChange::Kind aKind) { return m_pEngine->ReadObjectState(acObject, aKind); };
+    game.SetObjectState = [this](const ObjectChange& acState) { m_pEngine->SetObjectState(acState); };
     game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { m_pEngine->RaiseStoryEvent(acEvent); };
     game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) {
         return m_pEngine->CreateItem(acItem, acPlacement);

@@ -24,6 +24,8 @@ enum class ExtraDataType : uint32_t
     CannotWear = 0x3D,
     Poison = 0x3E,
     Hotkey = 0x49, // a favorited stack and its number key (ExtraHotkey)
+    ObjectHealth = 0x55, // a destructible's health (ExtraObjectHealth)
+    ModelSwap = 0x58,    // a model in place of its base's: a destructible's stage model (SetModelSwap 11967)
     Faction = 0x5B,
     OpenCloseActivateRef = 0x68,
     AliasInstanceArray = 0x88,

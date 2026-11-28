@@ -71,6 +71,9 @@ public:
     [[nodiscard]] virtual bool HasLiveBody(const GameId& acObject) noexcept = 0;
     // This game's container's count of the item now (sync/items/ContainerItems.h), for a proposal to the host.
     [[nodiscard]] virtual std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept = 0;
+    // This game's reference's state row of that kind now (ReferenceStates), for a proposal to the host; none for one
+    // not in the session or without that state.
+    [[nodiscard]] virtual std::optional<ObjectChange> ReadObjectState(uint32_t aObjectFormId, ObjectChange::Kind aKind) const noexcept = 0;
     // The cells loaded here now and done loading (the interior, or the exterior grid's attached ones), by form id.
     [[nodiscard]] virtual std::vector<uint32_t> AttachedCells() const noexcept = 0;
     // Asks for the host's state of that loaded cell, naming the references this game holds changes for; none for a

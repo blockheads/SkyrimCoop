@@ -1,6 +1,7 @@
 #include <PlayerHands.h>
 
 #include <AI/AIProcess.h>
+#include <ActorExtension.h>
 #include <Havok/bhkCollision.h>
 #include <HookSwitch.h>
 #include <Misc/MiddleProcess.h>
@@ -183,6 +184,12 @@ void SetCopies(const std::vector<uint32_t>& acCopyFormIds) noexcept
     std::sort(controllers.begin(), controllers.end());
     std::unique_lock _(s_copiesLock);
     s_copyControllers = std::move(controllers);
+}
+
+bool CopySwings() noexcept
+{
+    auto* pActor = static_cast<Actor*>(const_cast<void*>(s_swinger));
+    return pActor && pActor->GetExtension()->IsCopy();
 }
 
 void Watch(bool aOn) noexcept

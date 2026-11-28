@@ -1,3 +1,4 @@
+#include <ExtraData/ExtraObjectHealth.h>
 #include "TestHarness/EngineCalls.h"
 #include <BSGraphics/BSGraphicsRenderer.h>
 #include <SaveLoadManager.h>
@@ -1454,6 +1455,20 @@ std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept
 {
     const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
     return pObject ? std::optional<bool>(!pObject->IsDisabled()) : std::nullopt;
+}
+
+std::optional<Destruction> GetDestruction(uint32_t aFormId) noexcept
+{
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    if (!pObject)
+        return std::nullopt;
+    Destruction state;
+    if (const auto* pHealth = static_cast<const ExtraObjectHealth*>(pObject->extraData.GetByType(ExtraDataType::ObjectHealth)))
+        state.Health = pHealth->health;
+    state.Destroyed = (pObject->flags & 0x800000) != 0; // TESForm::SetDestroyed 14649
+    state.StageModel = pObject->extraData.GetByType(ExtraDataType::ModelSwap) != nullptr;
+    state.Has3D = pObject->GetNiNode() != nullptr;
+    return state;
 }
 
 std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept

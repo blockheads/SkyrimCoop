@@ -595,6 +595,43 @@ TEST_CASE("Objects: a guest's activation runs on the host's game only; a guest's
     CHECK(session.ItemsSet.size() == 1);
 }
 
+TEST_CASE("A guest's cut of a web: the host's game takes it as damage only", "[HostAuthority][objects]")
+{
+    Session session;
+    const GameId cWeb(0, 0x1FC43);
+    const auto cRow = [&](float aHealth) {
+        return ObjectChange{.Type = ObjectChange::Kind::kDestruction, .Object = cWeb, .Value = DestructionRow::Pack(aHealth)};
+    };
+    session.ObjectStates[cWeb.BaseId] = cRow(10.f);
+
+    ObjectStateRequest cut;
+    cut.Change = cRow(4.f);
+    session.Outbox.clear();
+    session.Receive(kPeer, cut);
+    REQUIRE(session.StatesSet.size() == 1);
+    CHECK(session.StatesSet[0] == cRow(4.f));
+    CHECK(session.Outbox.empty()); // it goes out as the host's change
+
+    // A guest behind the host's own hits mends nothing.
+    cut.Change = cRow(6.f);
+    session.Receive(kPeer, cut);
+    CHECK(session.StatesSet.size() == 1);
+
+    // Only a destructible's health; the host's own goes out with its object changes.
+    ObjectStateRequest other;
+    other.Change = {.Type = ObjectChange::Kind::kEnabled, .Object = cWeb, .Value = 0};
+    session.Receive(kPeer, other);
+    cut.Change = cRow(0.f);
+    session.Receive(kHost, cut);
+    CHECK(session.StatesSet.size() == 1);
+
+    // A web the host's game does not have.
+    cut.Change = cRow(0.f);
+    cut.Change.Object = GameId(0, 0x800D5);
+    session.Receive(kPeer, cut);
+    CHECK(session.StatesSet.size() == 1);
+}
+
 TEST_CASE("A record's part: its owner's reaches everyone else; nobody else's counts", "[HostAuthority][records]")
 {
     Session session;
