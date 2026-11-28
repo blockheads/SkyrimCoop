@@ -1076,28 +1076,6 @@ def scenario_dialogue_ends_on_travel(ctx):
             ctx.both_go(HOME_CELL)
         ctx.remove_host_npc(npc)
 
-def scenario_dialogue_npc_removed(ctx):
-    """The NPC goes away mid-conversation (the host's game deletes it): the client's menu on its copy closes, and
-    the client can talk to the next NPC (a copy deleted while its game talks to it left that game unable to start
-    another conversation)."""
-    npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
-    try:
-        ctx.place_before("", npc, 800, 90)
-        ctx.place_before("client", copy, 110)
-        ctx.activate_on("client", copy)
-        ctx.wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: ctx.talking_to("client", copy), 10)
-        ctx.wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: ctx.in_conversation("", npc), 10)
-        ctx.remove_host_npc(npc)
-        ctx.wait_for("[client] its menu closes", lambda: ctx.menu_closed("client"), 10)
-        npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
-        ctx.place_before("client", copy, 110)
-        ctx.activate_on("client", copy)
-        ctx.wait_for(f"[client] talking to the new copy {copy:08X} opens the menu", lambda: ctx.talking_to("client", copy), 10)
-        ctx.hold()
-    finally:
-        ctx.close_dialogues()
-        ctx.remove_host_npc(npc)
-
 def scenario_dialogue_npc_starts(ctx):
     """An NPC starts the conversation (a force greet; NPCs run their AI on the host's game, so it greets the host's
     player): it greets the party, every game's menu opens on it (the clients' on their copies), with the host's
@@ -1429,8 +1407,10 @@ def scenario_dialogue_pick_reaches_host(ctx):
 def scenario_dialogue_npc_removed_mid_conversation(ctx):
     """The client talks to its copy of the host's NPC, and the host's game removes the NPC mid-conversation (a quest
     disabling it, the console's disable and markfordelete): the client's copy goes without crashing its game, its
-    menu closes and both games end the conversation."""
+    menu closes, both games end the conversation, and the client can talk to the next NPC (a copy deleted while its
+    game talks to it left that game unable to start another conversation)."""
     npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
+    following = None
     try:
         ctx.place_before("", npc, 800, 90)
         ctx.place_before("client", copy, 110)
@@ -1442,6 +1422,12 @@ def scenario_dialogue_npc_removed_mid_conversation(ctx):
         ctx.wait_on("client", f"copy {copy:08X} removed", lambda actors: str(copy) not in actors)
         ctx.wait_for("[client] its menu closes", lambda: ctx.menu_closed("client"), 10)
         ctx.wait_for("[both] the conversation ends", lambda: not ctx.dialogue("").get("speaker") and not ctx.dialogue("client").get("speaker"), 10)
+        following, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
+        ctx.place_before("client", copy, 110)
+        ctx.activate_on("client", copy)
+        ctx.wait_for(f"[client] talking to the new copy {copy:08X} opens the menu", lambda: ctx.talking_to("client", copy), 10)
         ctx.hold()
     finally:
         ctx.close_dialogues()
+        if following is not None:
+            ctx.remove_host_npc(following)

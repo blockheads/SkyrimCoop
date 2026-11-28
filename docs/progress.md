@@ -77,7 +77,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Furniture (live, while the copy is loaded) | works | `furniture-*` |
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
-| Containers' items (changes, as counts per base item) | works both ways; the host's contents (its leveled roll) when a guest's cell loads (slice 2, 2026-10-21); an item's extra data (enchantment, tempering, poison) does not travel | `chest-take-reaches-others`, `guest-opens-hosts-roll` |
+| Containers' items (changes, as counts per base item) | works both ways; the host's contents (its leveled roll) when a guest's cell loads (slice 2, 2026-10-21); an item's extra data (enchantment, tempering, poison) does not travel | `chest-take-reaches-others`, `guest-loots-hosts-roll` |
 | Time, weather | works; weather per region (2026-11-22: a guest holds the weather the host's game gives its own region, the host's where forced or shared, faded into; `docs/re/systems/weather.md`) | `guest-weather-own-region`, `host-time-reaches-client`, `guest-sets-time`, `host-wait-reaches-guest`, `shared-wait-host`/`-guest`, `shared-sleep-host`/`-guest`, `shared-wait-cancel`, `late-join-gets-calendar`, `party-fast-travels` (days passed), `weather-follows-host` |
 | Party panel (RmlUi) | works alone; fails after other scenarios | `party-panel` |
 | Player levels (party panel) | works | `party-shows-levels` |

@@ -540,7 +540,7 @@ Checked in IDA on 1.6.1170 for the open items of `shared-dialogue.md`.
 - **A speaker deleted mid-conversation** leaves the conversation stuck: 35294 does nothing without a speaker
   (`speaker` handle invalid), so 35274 never runs and `menuOpen` stays set, and the game starts no conversation
   again (activating an NPC does nothing). A copy is deleted that way when its NPC is removed or left behind on
-  travel. `DialogueBridge::ClearOrphaned` calls 35274 then (`dialogue-npc-removed` fails without it), and for a speaker
+  travel. `DialogueBridge::ClearOrphaned` calls 35274 then (`dialogue-npc-removed-mid-conversation` fails without it), and for a speaker
   with a valid handle and no process, a placed one marked deleted ([copy-lifecycle.md](copy-lifecycle.md)).
 - **`StartDialogue` (35282) returns true exactly when it asks for the menu** (52853), so a peer's start that
   returns true always has its menu queued.

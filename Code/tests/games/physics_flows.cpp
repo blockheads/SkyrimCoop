@@ -1059,7 +1059,7 @@ SCENARIO("A host NPC knocked down hard: its copy stays on its own ragdoll while 
     const auto cStood = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
     party.Until([&] { return std::chrono::steady_clock::now() > cStood; }, "the guard stands a moment");
     // Its knock puts it on its ragdoll (feet to pelvis) before its bodies simulate and send (knock state 2): its lying
-    // point can reach the copy before the copy's knock (knockdown-smoke).
+    // point can reach the copy before the copy's knock (knockdown-front-and-back).
     party.As(party.Host(), [&] {
         host.Actors.at(guard).KnockedDown = true;
         std::copy_n(&host.Bodies.at({.Actor = guard, .Index = 0}).Flight.Body.Position.x, 3, host.Actors.at(guard).Position);
@@ -1095,9 +1095,9 @@ SCENARIO("A host NPC knocked down hard: its copy stays on its own ragdoll while 
     INFO("the copy's reference strayed up to " << worst << " units and " << worstTurn << " rad from its root body");
     CHECK(worst < 1.f);
     CHECK(worstTurn < 0.03f);
-    THEN("it stands until it falls, never rising toward its owner's pelvis first (knockdown-smoke)")
+    THEN("it stands until it falls, never rising toward its owner's pelvis first (knockdown-front-and-back)")
         CHECK(risen < 1.f);
-    THEN("it is moved where the engine moves an actor, so its skeleton never snaps (knockdown-smoke)")
+    THEN("it is moved where the engine moves an actor, so its skeleton never snaps (knockdown-front-and-back)")
     {
         INFO(guest.Actors.at(cCopy).Snaps << " snaps, the worst " << guest.Actors.at(cCopy).WorstSnap << " units");
         CHECK(guest.Actors.at(cCopy).Snaps == 0);

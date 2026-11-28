@@ -202,27 +202,6 @@ def mouse_highlights(ctx, fast_pick=False):
             capture(ctx, folder, 'stable', history=history)
 
 
-def picked_text(ctx):
-    folder = evidence_folder('claw-picked-text')
-    tap = ctx.tap_key
-    count = 0
-    def record(instance, code, shift=False):
-        nonlocal count
-        tap(instance, code, shift=shift)
-        if code == ACTIVATE_KEY:
-            count += 1
-            capture(ctx, folder, f'pick-{count}')
-    ctx.tap_key = record
-    try:
-        dialogue.scenario_dialogue_options_are_the_partys(ctx)
-    except BaseException:
-        with contextlib.suppress(Exception):
-            capture(ctx, folder, 'failure')
-        raise
-    finally:
-        ctx.tap_key = tap
-
-
 def refused_pick(ctx):
     """A locally refused pick must restore its list without another player's help."""
     folder = evidence_folder('refused-pick')

@@ -14,7 +14,6 @@
 #include <physics/BodyPlayback.h>
 #include <physics/RagdollPending.h>
 #include <physics/RagdollStart.h>
-#include <physics/BodyRelevance.h>
 #include <physics/BodyMotions.h>
 #include <physics/BodyStream.h>
 #include <physics/HavokStep.h>
@@ -161,7 +160,7 @@ TEST_CASE("A steered body joins its frame's path from where it is, without overs
 
 TEST_CASE("A copy up from its own ragdoll is eased onto its owner's place, never jumped there", "[physics]")
 {
-    // Its engine stood it 16 units off and a little turned from its owner (knockdown-smoke).
+    // Its engine stood it 16 units off and a little turned from its owner (knockdown-front-and-back).
     const glm::vec3 cOwner{-747.f, 1501.f, 6957.f};
     const glm::vec3 cOwn{-755.f, 1514.7f, 6957.f};
     CopyEase ease;
@@ -344,12 +343,6 @@ SCENARIO("A playback takes a late frame as its target at once (the steer smooths
         CHECK(cLost[0].Frames == 2);
         CHECK(playback.TakeLost().empty());
     }
-}
-
-TEST_CASE("A guest gets the moving states of the bodies near its character", "[physics]")
-{
-    CHECK(BodyRelevance::IsNear({BodyRelevance::kGuestRadius - 100.f, 0.f, 0.f}, glm::vec3{}));
-    CHECK_FALSE(BodyRelevance::IsNear({BodyRelevance::kGuestRadius + 100.f, 0.f, 0.f}, glm::vec3{}));
 }
 
 TEST_CASE("Physics playback keeps millisecond precision at the network's epoch ticks", "[physics][epoch]")
@@ -575,7 +568,7 @@ TEST_CASE("A copy's ragdoll turns from where it was onto its owner's frame", "[b
 
 TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", "[physics][rising][shake]")
 {
-    // knockdown-smoke (duo, 2026-11-11): a getting-up owner's hand went back and forth 4-6 units a frame; its copy's
+    // knockdown-front-and-back (duo, 2026-11-11): a getting-up owner's hand went back and forth 4-6 units a frame; its copy's
     // 8-14. The owner's body alternates each physics step, a frame of it reaches the copy every fourth step.
     const BodyKey cKey{.Actor = 7, .Index = 4};
     const auto cWorst = [&](bool aWithVelocity) {

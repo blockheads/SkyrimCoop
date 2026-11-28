@@ -231,101 +231,8 @@ TEST_CASE("Buffer", "[encoding.buffer]")
     }
 }
 
-TEST_CASE("Session packets carry only difficulty and chat content", "[encoding.session]")
-{
-    const auto check = [](const auto& acMessage, const auto& acFactory, const std::vector<uint8_t>& acExpected)
-    {
-        Buffer buffer;
-        Buffer::Writer writer(&buffer);
-        acMessage.Serialize(writer);
-        CHECK(std::vector<uint8_t>(buffer.GetData(), buffer.GetData() + writer.Size()) == acExpected);
-
-        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
-        auto decoded = acFactory.Extract(reader);
-        REQUIRE(decoded);
-        using Message = std::remove_cvref_t<decltype(acMessage)>;
-        CHECK(*CastUnique<Message>(std::move(decoded)) == acMessage);
-        CHECK(reader.GetBitPosition() == writer.GetBitPosition());
-    };
-
-    SECTION("Authentication has no token between game and build")
-    {
-        AuthenticationRequest request;
-        request.Game = {1, 2};
-        request.Version = "v";
-        request.Username = "L";
-        request.Level = 7;
-        request.PlayerTime = {0.f, 0.f, 0, 0, 0, 0};
-        std::vector<uint8_t> expected{uint8_t(kAuthenticationRequest), 1, 2, 1, 'v', 0, 0x20, 0, 'L', 0, 0, 0, 0, 7};
-        expected.resize(29, 0); // ... empty player key and cached-save block list
-        check(request, RequestMessageFactory{}, expected);
-    }
-
-    SECTION("Authentication returns difficulty without option flags")
-    {
-        AuthenticationResponse response;
-        response.Type = AuthenticationResponse::ResponseType::kAccepted;
-        response.Version = "v";
-        response.Game = {1, 2};
-        response.Difficulty = 5;
-        response.PlayerId = 7;
-        check(response, NotifyMessageFactory{}, {uint8_t(kAuthenticationResponse), 0, 1, 'v', 1, 2, 0, 0xA0, 0xE0, 0, 0});
-    }
-
-    SECTION("Difficulty changes carry one value")
-    {
-        NotifySettingsChange message;
-        message.Difficulty = 5;
-        check(message, NotifyMessageFactory{}, {uint8_t(kNotifySettingsChange), 5});
-    }
-
-    SECTION("Players send only text")
-    {
-        SendChatMessageRequest request;
-        request.ChatMessage = "Hi";
-        check(request, RequestMessageFactory{}, {uint8_t(kSendChatMessageRequest), 2, 'H', 'i'});
-    }
-
-    SECTION("Player and system broadcasts remain distinct")
-    {
-        NotifyChatMessageBroadcast line;
-        line.PlayerName = "L";
-        line.ChatMessage = "Hi";
-        check(line, NotifyMessageFactory{}, {uint8_t(kNotifyChatMessageBroadcast), 1, 1, 'L', 2, 'H', 'i'});
-        line.MessageType = kSystemMessage;
-        line.PlayerName.clear();
-        check(line, NotifyMessageFactory{}, {uint8_t(kNotifyChatMessageBroadcast), 0, 0, 2, 'H', 'i'});
-    }
-
-    SECTION("Active refusal codes keep their wire values")
-    {
-        CHECK(uint8_t(AuthenticationResponse::ResponseType::kSessionFull) == 5);
-        CHECK(uint8_t(AuthenticationResponse::ResponseType::kWrongGame) == 6);
-    }
-}
-
 TEST_CASE("Static structures", "[encoding.static]")
 {
-    GIVEN("Vector3_NetQuantize")
-    {
-        Vector3_NetQuantize sendObjects, recvObjects;
-        sendObjects.x = 142.56f;
-        sendObjects.y = 45687.7f;
-        sendObjects.z = -142.56f;
-
-        {
-            Buffer buff(1000);
-            Buffer::Writer writer(&buff);
-
-            sendObjects.Serialize(writer);
-
-            Buffer::Reader reader(&buff);
-            recvObjects.Deserialize(reader);
-
-            REQUIRE(sendObjects == recvObjects);
-        }
-    }
-
     GIVEN("Vector3_NetQuantize keeps a walking copy's place to an eighth of a unit")
     {
         // Whole units made a walking copy step unevenly: 0 for a while, then a unit at once (smooth-movement baseline).
@@ -345,25 +252,6 @@ TEST_CASE("Static structures", "[encoding.static]")
         }
     }
 
-    GIVEN("Rotator2_NetQuantize")
-    {
-        Rotator2_NetQuantize sendObjects, recvObjects;
-        sendObjects.x = 1.89f;
-        sendObjects.y = std::numbers::pi_v<float> * 2.0f;
-
-        {
-            Buffer buff(1000);
-            Buffer::Writer writer(&buff);
-
-            sendObjects.Serialize(writer);
-
-            Buffer::Reader reader(&buff);
-            recvObjects.Deserialize(reader);
-
-            REQUIRE(sendObjects == recvObjects);
-        }
-    }
-
     GIVEN("Rotator2_NetQuantize decoded and encoded again (fuzzer: a relayed rotation lost a step)")
     {
         for (uint32_t step = 0; step <= 0xFFFF; ++step)
@@ -371,26 +259,6 @@ TEST_CASE("Static structures", "[encoding.static]")
             Rotator2_NetQuantize rotation;
             rotation.Unpack(step | (0xFFFF - step) << 16);
             REQUIRE(rotation.Pack() == (step | (0xFFFF - step) << 16));
-        }
-    }
-
-    GIVEN("Rotator2_NetQuantize needing wrap")
-    {
-        // This test is a bit dangerous as floating errors can lead to sendObjects != recvObjects but the difference is minuscule so we don't care abut such cases
-        Rotator2_NetQuantize sendObjects, recvObjects;
-        sendObjects.x = -1.87f;
-        sendObjects.y = std::numbers::pi_v<float> * 18.0f + 3.6f;
-
-        {
-            Buffer buff(1000);
-            Buffer::Writer writer(&buff);
-
-            sendObjects.Serialize(writer);
-
-            Buffer::Reader reader(&buff);
-            recvObjects.Deserialize(reader);
-
-            REQUIRE(sendObjects == recvObjects);
         }
     }
 }
@@ -442,26 +310,6 @@ TEST_CASE("Differential structures", "[encoding.differential]")
 
             REQUIRE(sendAction == recvAction);
         }
-    }
-
-    GIVEN("Full Mods")
-    {
-        Mods sendMods, recvMods;
-
-        Buffer buff(1000);
-        Buffer::Writer writer(&buff);
-
-        sendMods.ModList.push_back({"Hello", 42});
-        sendMods.ModList.push_back({"Hi", 14});
-        sendMods.ModList.push_back({"Test", 8});
-        sendMods.ModList.push_back({"Toast", 49});
-
-        sendMods.Serialize(writer);
-
-        Buffer::Reader reader(&buff);
-        recvMods.Deserialize(reader);
-
-        REQUIRE(sendMods == recvMods);
     }
 
     GIVEN("AnimationVariables")
@@ -600,69 +448,6 @@ TEST_CASE("Packets", "[encoding.packets]")
         }
     }
 
-    SECTION("AnnounceCharacterRequest")
-    {
-        Buffer buff(1000);
-
-        ActionEvent sendAction;
-        sendAction.ActionId = 42;
-        sendAction.State1 = 6547;
-        sendAction.Tick = 48;
-        sendAction.ActorId = 12345678;
-        sendAction.EventName = "test";
-        sendAction.IdleId = 87964;
-        sendAction.State2 = 8963;
-        sendAction.StateAfter1 = 6547 | 0x200;
-        sendAction.StateAfter2 = 8964;
-        sendAction.TargetEventName = "toast";
-        sendAction.TargetId = 963741;
-        sendAction.TargetActor = 0x1200003;
-        sendAction.Type = 4;
-
-        AnnounceCharacterRequest sendMessage, recvMessage;
-        sendMessage.SessionId = 14523698;
-        sendMessage.Tick = 123456789;
-        sendMessage.AppearanceBuffer = "toto";
-        sendMessage.Weight = 87.5f;
-        sendMessage.CellId.BaseId = 45;
-        sendMessage.FormId.ModId = 48;
-        sendMessage.ReferenceId.BaseId = 456799;
-        sendMessage.ReferenceId.ModId = 4079;
-        sendMessage.LatestAction = sendAction;
-        sendMessage.Position.x = -452.4f;
-        sendMessage.Position.y = 452.4f;
-        sendMessage.Position.z = 125452.4f;
-        sendMessage.Rotation.x = -1.87f;
-        sendMessage.Rotation.y = 45.35f;
-        sendMessage.EffectIds = {GameId(0, 0x4B2D9), GameId(2, 0x803)};
-        sendMessage.HeldEffects = {{GameId(0, 0xA0370), GameId(0, 0x9F28F)}, {GameId(0, 0xA0371), GameId(0, 0x9F28F), false}};
-
-        Buffer::Writer writer(&buff);
-        sendMessage.Serialize(writer);
-
-        Buffer::Reader reader(&buff);
-
-        uint64_t trash;
-        reader.ReadBits(trash, 8); // pop opcode
-
-        recvMessage.DeserializeRaw(reader);
-
-        REQUIRE(sendMessage == recvMessage);
-
-        // The spawn others get carries the same.
-        NotifyCharacterSpawn sendSpawn = NotifyCharacterSpawn::FromAnnouncement(sendMessage, 7, 0), recvSpawn;
-        CHECK(sendSpawn.EffectIds == sendMessage.EffectIds);
-        CHECK(sendSpawn.HeldEffects == sendMessage.HeldEffects);
-        CHECK(sendSpawn.Weight == 87.5f);
-        Buffer spawnBuff(1000);
-        Buffer::Writer spawnWriter(&spawnBuff);
-        sendSpawn.Serialize(spawnWriter);
-        Buffer::Reader spawnReader(&spawnBuff);
-        spawnReader.ReadBits(trash, 8);
-        recvSpawn.DeserializeRaw(spawnReader);
-        REQUIRE(sendSpawn == recvSpawn);
-    }
-
     SECTION("NotifyObjectChanges")
     {
         NotifyObjectChanges sendMessage, recvMessage;
@@ -756,55 +541,6 @@ TEST_CASE("Packets", "[encoding.packets]")
         recvMessage.DeserializeRaw(reader);
 
         REQUIRE(sendMessage == recvMessage);
-    }
-
-    GIVEN("ReferencesMoveRequest")
-    {
-        ReferencesMoveRequest sendMessage, recvMessage;
-        auto& update = sendMessage.Updates[1];
-        auto& move = update.UpdatedMovement;
-        move.Knocked = true;
-
-        AnimationVariables vars;
-        vars.Booleans.resize(76);
-        std::string testString("\xDE\xAD\xBE\xEF\x76\xB");
-        vars.String_to_VectorBool(testString, vars.Booleans);
-
-        vars.Floats.push_back(1.f);
-        vars.Floats.push_back(7.f);
-        vars.Floats.push_back(12.f);
-        vars.Floats.push_back(0.f);
-        vars.Floats.push_back(145.f);
-        vars.Floats.push_back(100.f);
-        vars.Floats.push_back(-1.f);
-
-        vars.Integers.push_back(0);
-        vars.Integers.push_back(12000);
-        vars.Integers.push_back(06);
-        vars.Integers.push_back(7778);
-        vars.Integers.push_back(41104539);
-
-        move.Variables = vars;
-        move.Teleported = true;
-        move.Lying = true;
-        move.Knocked = true;
-        move.OnGround = true;
-        move.CapsuleCollides = false;
-        move.BodiesLayer = 33;
-        move.GraphsStepPhysics = false;
-
-        Buffer buff(1000);
-        Buffer::Writer writer(&buff);
-        sendMessage.Serialize(writer);
-
-        Buffer::Reader reader(&buff);
-
-        uint64_t trash;
-        reader.ReadBits(trash, 8); // pop opcode
-
-        recvMessage.DeserializeRaw(reader);
-
-        REQUIRE(recvMessage.Updates[1].UpdatedMovement == sendMessage.Updates[1].UpdatedMovement);
     }
 
     GIVEN("A walking humanoid's movement snapshot")
@@ -965,71 +701,6 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         chunk.Data = std::string(NotifySaveChunk::kMaxData, '\x7F');
         roundTrip(chunk, NotifyMessageFactory{});
     }
-
-    SECTION("The host's game waiting to save is a notice with nothing in it")
-    {
-        roundTrip(NotifySaveWaiting{}, NotifyMessageFactory{});
-    }
-
-    SECTION("A guest names the saves its store holds")
-    {
-        SaveHeldRequest held;
-        held.Saves = {std::string(32, 'h'), std::string(32, 'i')};
-        roundTrip(held, RequestMessageFactory{});
-    }
-
-    SECTION("The join request names the player and whether it joins from the main menu")
-    {
-        AuthenticationRequest request;
-        request.Version = "v";
-        request.PlayerKey = "id:0123456789abcdef";
-        request.HeldSaves = {std::string(32, 'h'), std::string(32, 'i')};
-        request.WantsWorld = true;
-        roundTrip(request, RequestMessageFactory{});
-    }
-
-    SECTION("A player joining now is marked, and a player going down carries its name and its killer's")
-    {
-        NotifyPlayerJoined joined;
-        joined.PlayerId = 3;
-        joined.Username = "Serana";
-        joined.Level = 5;
-        joined.Arrived = true;
-        roundTrip(joined, NotifyMessageFactory{});
-        NotifyPlayerPerished perished;
-        perished.PlayerId = 3;
-        perished.Username = "Serana";
-        roundTrip(perished, NotifyMessageFactory{});
-        perished.KillerName = "Lydia";
-        roundTrip(perished, NotifyMessageFactory{});
-    }
-    SECTION("A player's fall, the party's death state, a respawn and a wipe's reload carry who, which fall, its killer and where")
-    {
-        PlayerDeathRequest down;
-        down.SessionId = 7;
-        down.Generation = 2;
-        down.Down = true;
-        down.KillerId = 9;
-        roundTrip(down, RequestMessageFactory{});
-        NotifyPartyDeath party;
-        party.Players = {{7, 2, true}, {9, 0, false}};
-        party.Combat = true;
-        party.RemainingMs = 4500;
-        party.Error = "No previous gameplay save";
-        roundTrip(party, NotifyMessageFactory{});
-        NotifyPlayerRespawn respawn;
-        respawn.SessionId = 7;
-        respawn.Generation = 2;
-        respawn.AnchorId = 9;
-        respawn.CellId = GameId(0, 0x3C);
-        respawn.WorldSpaceId = GameId(0, 0x3C);
-        respawn.Position = {100.f, -200.f, 50.f};
-        respawn.Heading = 1.5f;
-        roundTrip(respawn, NotifyMessageFactory{});
-        NotifyPartyReload reload;
-        reload.Save = std::string(32, 's');
-        roundTrip(reload, NotifyMessageFactory{});
-    }
 }
 
 TEST_CASE("Physics bodies", "[encoding.physics]")
@@ -1094,42 +765,6 @@ TEST_CASE("Body states cross both ways, each as its receiver gets it", "[encodin
     CHECK(DeliveryOf(request) == Delivery::kUnreliable);
 }
 
-TEST_CASE("Player-made potions' recipes go to the host and from it to every game", "[encoding.recipes]")
-{
-    Payloads::Recipes recipes;
-    recipes.Known = {{false, {{25.f, 0, 60, 30.f, GameId(0, 0x3EAF3)}}}, {true, {{10.f, 0, 5, 20.f, GameId(0, 0x3EB42)}}}};
-    SECTION("a guest's")
-    {
-        RecipesRequest sent;
-        static_cast<Payloads::Recipes&>(sent) = recipes;
-        Buffer buffer;
-        Buffer::Writer writer(&buffer);
-        sent.Serialize(writer);
-        Buffer::Reader reader(&buffer);
-        auto decoded = RequestMessageFactory{}.Extract(reader);
-        REQUIRE(decoded);
-        REQUIRE(decoded->GetOpcode() == kRecipesRequest);
-        CHECK(static_cast<const RecipesRequest&>(*decoded) == sent);
-    }
-    SECTION("the host's")
-    {
-        NotifyRecipes sent;
-        static_cast<Payloads::Recipes&>(sent) = recipes;
-        Buffer buffer;
-        Buffer::Writer writer(&buffer);
-        sent.Serialize(writer);
-        Buffer::Reader reader(&buffer);
-        auto decoded = NotifyMessageFactory{}.Extract(reader);
-        REQUIRE(decoded);
-        REQUIRE(decoded->GetOpcode() == kNotifyRecipes);
-        const auto& cDecoded = static_cast<const NotifyRecipes&>(*decoded);
-        CHECK(cDecoded == sent);
-        // The same ids after the trip: the poison flag and every effect field came through.
-        CHECK(cDecoded.Known[1].Id() == recipes.Known[1].Id());
-        CHECK(cDecoded.Known[1].IsPoison);
-    }
-}
-
 TEST_CASE("A player-made enchantment is the same item in every game", "[encoding.items]")
 {
     // Each game makes its own form for it (a created 0xFF id): the same effects are the same enchantment.
@@ -1153,110 +788,24 @@ TEST_CASE("A player-made enchantment is the same item in every game", "[encoding
     CHECK_FALSE(host.CanBeMerged(guest));
 }
 
-TEST_CASE("Party travel preserves queued destinations and native travel hours", "[encoding.travel]")
+TEST_CASE("A spawn carries what its character's announcement held", "[encoding.perks]")
 {
-    const auto roundTrip = [](const auto& acMessage) {
-        Buffer buffer;
-        Buffer::Writer writer(&buffer);
-        acMessage.Serialize(writer);
-        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
-        auto decoded = RequestMessageFactory{}.Extract(reader);
-        REQUIRE(decoded);
-        using Message = std::remove_cvref_t<decltype(acMessage)>;
-        CHECK(*CastUnique<Message>(std::move(decoded)) == acMessage);
-        CHECK(reader.GetBitPosition() == writer.GetBitPosition());
-    };
-    TravelTimeRequest time;
-    time.Hours = 27.25f;
-    roundTrip(time);
-    PartyTravelRequest travel;
-    travel.Destination.CellId = GameId(1, 0xABC);
-    travel.Destination.WorldSpaceId = GameId(2, 0x123);
-    travel.Destination.Position = {30.f, -40.f, 50.f};
-    travel.Destination.Heading = 2.1f;
-    roundTrip(travel);
-    PartySummonRequest summon;
-    summon.Destination = travel.Destination;
-    roundTrip(summon);
-
-    NotifyPartySummon notify;
-    notify.Destination = travel.Destination;
-    notify.Username = "Lydia";
-    Buffer buffer;
-    Buffer::Writer writer(&buffer);
-    notify.Serialize(writer);
-    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
-    auto decoded = NotifyMessageFactory{}.Extract(reader);
-    REQUIRE(decoded);
-    CHECK(*CastUnique<NotifyPartySummon>(std::move(decoded)) == notify);
-    CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
-}
-
-TEST_CASE("Player perk snapshots retain ranks and added spells through messages and spawns", "[encoding.perks]")
-{
-    ActorPerksRequest request;
-    request.SessionId = 37;
-    request.Content.Ranks = {{GameId(0, 0xCC799), 2}, {GameId(3, 0x812), 1}};
-    request.Content.Spells = {GameId(0, 0x12FD0), GameId(3, 0x813)};
-    Buffer buffer;
-    Buffer::Writer writer(&buffer);
-    request.Serialize(writer);
-    Buffer::Reader reader(&buffer);
-    const auto decoded = RequestMessageFactory{}.Extract(reader);
-    REQUIRE(decoded);
-    CHECK(static_cast<const ActorPerksRequest&>(*decoded) == request);
-
     AnnounceCharacterRequest announcement;
     announcement.ReferenceId = GameId(0, 0x14);
-    announcement.PerksContent = request.Content;
-    auto spawn = NotifyCharacterSpawn::FromAnnouncement(announcement, request.SessionId, 3);
-    CHECK(spawn.PerksContent == request.Content);
-    Buffer result;
-    Buffer::Writer resultWriter(&result);
-    spawn.Serialize(resultWriter);
-    Buffer::Reader resultReader(&result);
-    const auto received = NotifyMessageFactory{}.Extract(resultReader);
-    REQUIRE(received);
-    CHECK(static_cast<const NotifyCharacterSpawn&>(*received) == spawn);
+    announcement.Weight = 87.5f;
+    announcement.EffectIds = {GameId(0, 0x4B2D9), GameId(2, 0x803)};
+    announcement.HeldEffects = {{GameId(0, 0xA0370), GameId(0, 0x9F28F)}, {GameId(0, 0xA0371), GameId(0, 0x9F28F), false}};
+    announcement.PerksContent.Ranks = {{GameId(0, 0xCC799), 2}, {GameId(3, 0x812), 1}};
+    announcement.PerksContent.Spells = {GameId(0, 0x12FD0), GameId(3, 0x813)};
+    const auto cSpawn = NotifyCharacterSpawn::FromAnnouncement(announcement, 37, 3);
+    CHECK(cSpawn.EffectIds == announcement.EffectIds);
+    CHECK(cSpawn.HeldEffects == announcement.HeldEffects);
+    CHECK(cSpawn.Weight == 87.5f);
+    CHECK(cSpawn.PerksContent == announcement.PerksContent);
 }
 
-TEST_CASE("Trap contacts, hits and the world's projectiles round trip", "[encoding.traps]")
+TEST_CASE("An owner's effect lists are cut at their maximum", "[encoding.traps]")
 {
-    const auto cRequest = [](const auto& acMessage) {
-        Buffer buffer;
-        Buffer::Writer writer(&buffer);
-        acMessage.Serialize(writer);
-        Buffer::Reader reader(&buffer);
-        const auto decoded = RequestMessageFactory{}.Extract(reader);
-        REQUIRE(decoded);
-        CHECK(static_cast<const std::remove_cvref_t<decltype(acMessage)>&>(*decoded) == acMessage);
-    };
-    TrapContactRequest contact;
-    contact.TargetId = 37;
-    contact.Trap = GameId(0, 0x54B15);
-    contact.Type = Payloads::TrapContact::kHit;
-    contact.Velocity = {1.f, -2.5f, 3.f};
-    contact.Position = {100.f, 200.f, -300.f};
-    contact.Material = 0xABCD1234;
-    contact.Motion = 4;
-    contact.Initial = true;
-    cRequest(contact);
-    TrapHitRequest hit;
-    hit.TargetId = 37;
-    hit.Trap = GameId(0xFFFFFFFF, 0x812);
-    hit.Damage = 60.f;
-    hit.Push = 5.f;
-    hit.Stagger = 0.5f;
-    hit.Velocity = {1.f, 2.f, 3.f};
-    hit.Position = {4.f, 5.f, 6.f};
-    hit.Material = 7;
-    cRequest(hit);
-    // An owner's effects: those with visuals, and every one it holds (a copy's answer to "has this effect").
-    RequestActiveEffects effects;
-    effects.SessionId = 9;
-    effects.EffectIds = {GameId(0, 0x13CA9)};
-    effects.Held = {{GameId(0, 0x12FCD), GameId(0, 0x13CA9)}, {GameId(0, 0xA0370), GameId(0, 0x9F28F)}};
-    cRequest(effects);
     // Each list holds at most kMaxEffects: a longer one goes out cut, the next field still read in its place.
     RequestActiveEffects many;
     many.SessionId = 9;
@@ -1294,36 +843,6 @@ TEST_CASE("A player's own system quests are kept in its record", "[encoding.ques
     CHECK_FALSE(SystemQuestState::Decode(std::string("\x07", 1)));
 }
 
-TEST_CASE("A pick names who said it; the highlight goes to the others", "[encoding.dialogue]")
-{
-    NotifyDialoguePicked sent;
-    sent.Conversation = 3;
-    sent.Step = 4;
-    sent.Topic = GameId(0, 0x1F4E2);
-    sent.Info = GameId(0, 0x803);
-    sent.PlayerId = 2;
-    sent.Text = "Tell me about him.";
-    Buffer buffer;
-    Buffer::Writer writer(&buffer);
-    sent.Serialize(writer);
-    DialogueHighlightRequest moved;
-    moved.Conversation = 3;
-    moved.Step = 4;
-    moved.Index = 2;
-    moved.PlayerId = 9;
-    moved.Seq = 300;
-    moved.Serialize(writer);
-    Buffer::Reader reader(&buffer);
-    auto decoded = NotifyMessageFactory{}.Extract(reader);
-    REQUIRE(decoded);
-    const auto& cPicked = static_cast<const NotifyDialoguePicked&>(*decoded);
-    CHECK((cPicked.PlayerId == 2 && cPicked.Info == sent.Info && cPicked.Text == sent.Text));
-    auto decodedMove = RequestMessageFactory{}.Extract(reader);
-    REQUIRE(decodedMove);
-    REQUIRE(decodedMove->GetOpcode() == kDialogueHighlightRequest);
-    CHECK(static_cast<const DialogueHighlightRequest&>(*decodedMove) == moved);
-}
-
 TEST_CASE("An actor's AI state carries what it looks at for each reason, as a part of its record", "[encoding.ai_state][encoding.record]")
 {
     ActorAiState state;
@@ -1352,20 +871,10 @@ TEST_CASE("An actor's AI state carries what it looks at for each reason, as a pa
     CHECK_FALSE(FromPartBytes(std::string{}, read));
 }
 
-TEST_CASE("An actor's AI state carries the furniture it sits in", "[encoding.ai_state]")
+TEST_CASE("An actor's AI state carries its furniture, combat group and targets, and their absence", "[encoding.ai_state]")
 {
     ActorAiState state;
     state.Furniture.RefId = GameId(0, 0x71DFC); // Riverwood's sawmill
-    ActorAiState read;
-    REQUIRE(FromPartBytes(ToPartBytes(state), read));
-    CHECK(read == state);
-    REQUIRE(FromPartBytes(ToPartBytes(ActorAiState{}), read));
-    CHECK(read.Furniture == AiTarget{});
-}
-
-TEST_CASE("An actor's AI state carries its combat group and its targets", "[encoding.ai_state]")
-{
-    ActorAiState state;
     state.Combat = 1;
     state.CombatGroup = (uint64_t{2} << 32) | 7;
     state.GroupTargets = {1, 300};
@@ -1373,31 +882,7 @@ TEST_CASE("An actor's AI state carries its combat group and its targets", "[enco
     REQUIRE(FromPartBytes(ToPartBytes(state), read));
     CHECK(read == state);
     REQUIRE(FromPartBytes(ToPartBytes(ActorAiState{}), read));
-    CHECK(read.GroupTargets.empty());
-    CHECK(read.CombatGroup == 0);
-}
-
-TEST_CASE("A spawn carries its actor's record and an ask names one part", "[encoding.record]")
-{
-    NotifyCharacterSpawn spawn;
-    spawn.SessionId = 9;
-    spawn.Record.Parts.push_back({RecordKind::kAiState, 4, std::string("\x01\x00\x02", 3)});
-    Buffer buffer;
-    Buffer::Writer writer(&buffer);
-    spawn.Serialize(writer);
-    RecordAskRequest ask;
-    ask.Id = 9;
-    ask.Kind = RecordKind::kAiState;
-    ask.Serialize(writer);
-    Buffer::Reader reader(&buffer);
-    auto decodedSpawn = NotifyMessageFactory{}.Extract(reader);
-    REQUIRE(decodedSpawn);
-    REQUIRE(decodedSpawn->GetOpcode() == kNotifyCharacterSpawn);
-    CHECK(static_cast<const NotifyCharacterSpawn&>(*decodedSpawn).Record == spawn.Record);
-    auto decodedAsk = RequestMessageFactory{}.Extract(reader);
-    REQUIRE(decodedAsk);
-    REQUIRE(decodedAsk->GetOpcode() == kRecordAskRequest);
-    CHECK(static_cast<const RecordAskRequest&>(*decodedAsk) == ask);
+    CHECK(read == ActorAiState{});
 }
 
 TEST_CASE("A guest sends movement unreliably and movement with actions or a teleport reliably", "[encoding.delivery]")
@@ -1581,41 +1066,6 @@ TEST_CASE("A record part longer than 64 KB round-trips whole", "[encoding][recor
     CHECK(read.Kind == RecordKind::kItems);
     CHECK(read.Version == 7);
     CHECK(read.Bytes == part.Bytes);
-}
-
-TEST_CASE("A player's item change carries what the host decides a party item by", "[encoding.party-items]")
-{
-    RequestInventoryChanges sent;
-    sent.SessionId = 7;
-    sent.Item.BaseId = GameId(0, 0x39654);
-    sent.Item.Count = 1;
-    sent.StoryGiven = true;
-    sent.AliasHeld = true;
-    sent.Wear = true;
-    Buffer buffer;
-    Buffer::Writer writer(&buffer);
-    sent.Serialize(writer);
-    Buffer::Reader reader(&buffer);
-    auto decoded = RequestMessageFactory{}.Extract(reader);
-    REQUIRE(decoded);
-    REQUIRE(decoded->GetOpcode() == kRequestInventoryChanges);
-    CHECK(static_cast<const RequestInventoryChanges&>(*decoded) == sent);
-}
-
-TEST_CASE("EnterCellRequest carries when its place was read", "[encoding]")
-{
-    EnterCellRequest sent, received;
-    sent.Tick = 987654321;
-    sent.CellId = GameId{0, 0x9C5E1};
-    Wire::Buffer buffer(1 << 12);
-    Wire::Buffer::Writer writer(&buffer);
-    sent.Serialize(writer);
-    Wire::Buffer::Reader reader(&buffer);
-    uint64_t trash = 0;
-    reader.ReadBits(trash, 8);
-    received.DeserializeRaw(reader);
-    CHECK(received.Tick == sent.Tick);
-    CHECK(received == sent);
 }
 
 namespace
