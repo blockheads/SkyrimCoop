@@ -191,10 +191,11 @@ TEST_CASE("ReplayState: a mount handed over is taken once its copy ran its last 
 
 TEST_CASE("A copy's bodies take its owner's layer only while they are not its own ragdoll's", "[replay-state][copy-ragdoll]")
 {
-    CHECK(ReplayState::TakesOwnerBodies(false, false, false));
-    CHECK_FALSE(ReplayState::TakesOwnerBodies(true, false, false));
-    CHECK_FALSE(ReplayState::TakesOwnerBodies(false, true, false)); // a kill move's victim: its graph's ragdoll
-    CHECK_FALSE(ReplayState::TakesOwnerBodies(false, false, true)); // dead, or out of it at its blow, held for its owner's death
+    CHECK(ReplayState::TakesOwnerBodies(false, 0, false, false));
+    CHECK_FALSE(ReplayState::TakesOwnerBodies(true, 0, false, false));
+    CHECK_FALSE(ReplayState::TakesOwnerBodies(false, 6, false, false)); // getting up, not lying (37491): limbs simulated
+    CHECK_FALSE(ReplayState::TakesOwnerBodies(false, 0, true, false));  // a kill move's victim: its graph's ragdoll
+    CHECK_FALSE(ReplayState::TakesOwnerBodies(false, 0, false, true));  // dead, or out of it at its blow, held for its owner's death
 }
 
 TEST_CASE("A copy takes its half of a pair this game plays, and no other action of its own", "[copies][replay-state][kill-move]")

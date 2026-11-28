@@ -1611,6 +1611,11 @@ Size: small. Needs: the duo.
 - `guest-mounts-bought-horse` (2026-11-23, every step passed): its end comparison found Ria (`1A6D8`, QASmoke) at
   `values.stamina_regen.delay` 1.17 on the host and 0.0 on its copy. A new readout (the stamina-regen gates, same
   day); not read whether a copy's delay should follow its owner's at all.
+- `guest-rides-host-horse` (2026-11-28, `agent/killmove-simultaneous-race`, right after `furniture-client-player`): the
+  guest crashed (c0000005) 0.2 s after its mount package began, replaying the host's copy's graph input stream:
+  `GraphStreams::Replay` -> `SkyrimGraphTarget::SendEvent` -> `BShkbAnimationGraph::SendEvent` 63591 ->
+  `hkbBehaviorGraph::HandleEventOnActiveNodes` 58377 -> `hkbStateMachine::StartTransition` 59383 -> `SetActiveState`
+  59390 -> 59411 (+0x24). Not read. 0 of 3 again in the same order on the same build.
 
 ## Test tools
 

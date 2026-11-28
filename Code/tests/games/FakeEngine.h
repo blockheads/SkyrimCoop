@@ -25,6 +25,7 @@
 #include <ItemMenuRebuild.h>
 #include <physics/RagdollPending.h>
 #include <physics/RagdollStart.h>
+#include <movement/BodiesLayer.h>
 #include <physics/RestPlacer.h>
 
 #include <QuestChanges.h>
@@ -856,10 +857,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint8_t BodiesLayer = 0;  // the layer its own 3D's bodies are on in the world, 0 out of it: the AI puts an
                                   // actor's there (33) as it sits or sleeps (40063), never a copy's (it runs no AI)
         bool GraphsStepPhysics = true; // its graphs step with the physics world; the AI detaches them in furniture (40063)
-        // Which of its ragdoll's bodies are dynamic, one bit each (a kill move's victim state: 42873, then 58291 by
-        // each bone's keyframe track): those bones follow them (78910). Out of the world nothing moves them, so a living
-        // actor's skeleton stays where they are (SkeletonAt) while it moves on; keyframed again (39897's 36925) it is
-        // on its animation.
+        // Its ragdoll's dynamic bodies, a bit each: out of the world they hold a living skeleton (SkeletonAt; kill-moves.md).
         uint32_t DynamicBodies = 0;
         glm::vec3 SkeletonAt{};
         uint32_t BodiesKeyframed = 0; // times its bodies were put keyframed by SetCopyPhysics
@@ -1465,17 +1463,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override
     {
         if (!Actors.contains(aFormId) || !Actors.at(aFormId).Copy ||
-            !::ReplayState::TakesOwnerBodies(IsLyingInRagdoll(aFormId), Actors.at(aFormId).InKillMove,
+            !::ReplayState::TakesOwnerBodies(IsLyingInRagdoll(aFormId), KnockStateOf(aFormId), Actors.at(aFormId).InKillMove,
                                              Actors.at(aFormId).Dead || PoseHeld(aFormId)))
             return;
         auto& actor = Actors.at(aFormId);
-        // Actor::SetBodiesLayer: keyframed (36925) whenever it moves them, out of the world too, as 39897 ends a ragdoll.
-        if (actor.BodiesLayer != aBodiesLayer || (aBodiesLayer == 0 && actor.DynamicBodies))
-        {
-            actor.DynamicBodies = 0;
-            ++actor.BodiesKeyframed;
-        }
-        actor.BodiesLayer = aBodiesLayer;
+        // Actor::SetBodiesLayer's queued calls, as the engine runs them.
+        for (const auto cOp : BodiesLayer::For(actor.BodiesLayer, aBodiesLayer, true, actor.DynamicBodies != 0, actor.BodiesLayer != 0))
+            switch (cOp)
+            {
+            case BodiesLayer::Op::kRemove: actor.BodiesLayer = 0; break;
+            case BodiesLayer::Op::kKeyframe: actor.DynamicBodies = 0; ++actor.BodiesKeyframed; break;
+            case BodiesLayer::Op::kSetLayer: actor.BodiesLayer = aBodiesLayer; break;
+            default: break;
+            }
         actor.GraphsStepPhysics = aGraphsStep;
     }
     // How far its skeleton stands from the actor (seen from above): a living one on dynamic bodies out of the world.

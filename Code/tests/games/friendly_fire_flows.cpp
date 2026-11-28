@@ -396,6 +396,35 @@ SCENARIO("A kill move's victim copy out of its kill move at its blow keeps its r
     CHECK(host.Actors.at(cCopy).BodiesKeyframed == 0);
 }
 
+SCENARIO("A copy still getting up keeps its simulated bodies though its owner already stands", "[copy-ragdoll][knockdown]")
+{
+    // Review of PR #167: the owner sends layer 0 once it stands, its copy may still be in knock state 6, which
+    // IsInRagdollState (37491) leaves out, while 58291 still simulates its limbs (physics.md, Getting up).
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) != 0; }, "the host has the guest's player");
+    const uint32_t cCopy = CopyOfPlayer(party, party.Host(), party.Guest());
+    auto& copy = host.Actors.at(cCopy);
+    copy.Rising = 5000; // frames: long past its owner's snapshots' playback delay
+    copy.BodiesLayer = FakeEngine::kBipedLayer;
+    copy.DynamicBodies = ~1u;
+    FakeEngine& guest = Party::Engine(party.Guest());
+    const uint32_t cMovements = copy.Movements;
+    // Its owner walks on: its movement keeps coming.
+    party.Until([&] {
+        guest.Actors.at(FakeEngine::kPlayer).Position[0] += 2.f;
+        return copy.Rising < 1000;
+    }, "most of its get-up", {}, nullptr, std::chrono::seconds(20));
+    REQUIRE(copy.Movements > cMovements + 10);
+    CHECK(copy.DynamicBodies != 0);
+    CHECK(copy.BodiesKeyframed == 0);
+    party.Until([&] {
+        guest.Actors.at(FakeEngine::kPlayer).Position[0] += 2.f;
+        return copy.BodiesKeyframed > 0;
+    }, "standing, its bodies its owner's again, keyframed", {}, nullptr, std::chrono::seconds(20));
+    CHECK(copy.DynamicBodies == 0);
+}
+
 SCENARIO("A kill move plays on a victim's game that has no room at the mark, and an attacker's own check still counts",
          "[combat][friendly-fire][kill-move]")
 {

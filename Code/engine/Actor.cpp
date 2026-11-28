@@ -20,6 +20,7 @@
 #include <Havok/bhkCharacterController.h>
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
+#include <movement/BodiesLayer.h>
 #include <movement/CopyStep.h>
 #include <Combat/WorldHits.h>
 #include <Misc/GameVM.h>
@@ -209,9 +210,10 @@ bool Actor::SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf) noexcept
     uint32_t groupFilter = 0;
     (pGroupController ? pGroupController : pController)->GetCollisionFilterInfo(groupFilter);
     const uint32_t cGroup = groupFilter >> 16;
-    if (LayerOf(pBody) == aLayer && (aLayer ? pBody->CollisionFilterInfo() >> 16 == cGroup : !anyDynamic))
+    const auto cSteps = BodiesLayer::For(LayerOf(pBody), aLayer, pBody->CollisionFilterInfo() >> 16 == cGroup, anyDynamic,
+                                         pBody->world != nullptr);
+    if (cSteps[0] == BodiesLayer::Op::kNone)
         return false;
-    const bool cInWorld = pBody->world != nullptr;
 
     using TAddToWorld = void(void*, NiAVObject*, void* apWorld, int32_t);
     using TSetMotionType = void(void*, NiAVObject*, uint32_t, bool);
@@ -222,18 +224,16 @@ bool Actor::SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf) noexcept
     TaskQueueInterface* pQueue = TaskQueueInterface::Get();
     if (!pQueue)
         return false;
-    // Out, as EndKnockState (39897) ends a living actor's ragdoll: keyframed too, so no bone stays on a still body.
-    s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
-    if (!aLayer)
-    {
-        pQueue->QueueRemoveFromWorld(pRoot);
-        return true;
-    }
-    // As EnterFurnitureCollision (40063): the layer with its capsule's group (a rider's: its mount's), in its cell's
-    // world (39912 changes only the layer of bodies in the world already).
-    s_setLayerAndGroup.Get()(pQueue, pRoot, aLayer, cGroup);
-    if (!cInWorld)
-        s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);
+    // The layer with its capsule's group (a rider's: its mount's); 39912 changes only the layer of bodies in the world.
+    for (const BodiesLayer::Op cOp : cSteps)
+        switch (cOp)
+        {
+        case BodiesLayer::Op::kRemove: pQueue->QueueRemoveFromWorld(pRoot); break;
+        case BodiesLayer::Op::kKeyframe: s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false); break;
+        case BodiesLayer::Op::kSetLayer: s_setLayerAndGroup.Get()(pQueue, pRoot, aLayer, cGroup); break;
+        case BodiesLayer::Op::kAddToWorld: s_addToWorld.Get()(pQueue, pRoot, nullptr, 0); break;
+        case BodiesLayer::Op::kNone: break;
+        }
     return true;
 }
 

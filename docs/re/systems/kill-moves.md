@@ -128,17 +128,24 @@ loser's game: its player's own pair on the winner's copy
   physics.md); `reset_3d` (fresh collision objects, blend 1) freed the skeleton at once.
 - `StartPair` 32803 also calls `Actor::EnterPairedSim` 32847 on both actors (boolFlags 0x800000, controller `kNoSim`,
   filter bit 0x8000), undone by `Deactivate` 32797: not involved here.
-- **Where we diverge.** The engine never takes a living actor's ragdoll out of the world without keyframing it (39897).
-  Our mirror did (`Actor::SetBodiesLayer(0)`: 36924 alone): that is the bug, wherever the copy's bodies came from.
-- **Fix.** `Actor::SetBodiesLayer` keyframes the 3D (36925) whenever it moves a copy's bodies, out of the world as in it,
-  and treats bodies out of the world but dynamic as not done yet; so one call at the change, no polling. The copy's
-  bodies stay its own (no mirror) while it lies, is in its kill move, or is dying (`ReplayState::TakesOwnerBodies`):
-  dead, or holding its pose for its owner's death. That last matters: a person's victim clip sends `KillMoveEnd` with
+- **Where we diverge.** Two engine removals are read: `EndKnockState` 39897 (a knocked actor's: every graph's
+  `RemoveRagdollFromWorld`, then the 3D keyframed) and the graph event's `RemoveRagdollHandler` 42877 (36924, or 77864
+  at once, with no motion type change; `0_master` sends it, from which states was not traced). What vanilla does with a
+  victim whose pair is cut is inferred, not traced: its `VictimState` exit sends nothing. Our mirror took a living
+  copy's dynamic ragdoll out with 36924 alone, where nothing moves it again: that is the bug, wherever the bodies came
+  from.
+- **Fix.** `Actor::SetBodiesLayer` runs `BodiesLayer::For`'s steps (shared with the fake): out (layer 0), removed then
+  keyframed, 39897's order; a layer, keyframed, set, added; bodies out of the world but one still dynamic count as not
+  done. So one call at the change, no polling. The copy's bodies stay its own (no mirror) while it lies, gets up (knock
+  state 5 or 6: 37491 leaves 6 out of "lying", while 58291 still simulates its limbs), is in its kill move, or is dying
+  (`ReplayState::TakesOwnerBodies`): dead, or holding its pose for its owner's death. That last matters: a person's victim clip sends `KillMoveEnd` with
   `KillActor`, so its copy is out of its kill move and alive until its owner's death, and keyframing then made that
   death's fall flicker (`kill-move-kills-guest`, once, under an earlier version of this fix).
-- **After** (duo): `kill-moves-cross-frozen-copy` 4 of 4 (and 2 of 2 red, 342 units off, on a build with layer 0 not
-  keyframing), `kill-move-kills-guest` 2 of 2, `kill-moves-cross`, `furniture-host-player`, `furniture-client-player`,
-  `guest-rides-host-horse`, `knockdown-lies-as-host` 1 of 1 each.
+- **After** (duo, the shared-steps build): `kill-moves-cross-frozen-copy` 3 of 3 (2 of 2 red, 342 units off, on a build
+  whose layer 0 did not keyframe), `kill-move-kills-guest`, `kill-moves-cross`, `knockdown-lies-as-host`,
+  `guest-knockdown-lies-on-host` 1 of 1, `furniture-client-player` and `guest-rides-host-horse` 3 of 3 each after one
+  guest crash in a graph stream replay (bugs.md, "Seen once in the run of 2026-11-22"; nothing of this change on its
+  stack).
 - **The race itself works.** Both orders (host first, guest first) ended with one winner and every copy at its owner's
   place once the skeleton is set aside (`kill_move_exchange`, now with `first`): the host's claim wins a simultaneous
   pair (its own claim is in-process), the loser yields and plays the winner's pair.

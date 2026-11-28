@@ -31,6 +31,9 @@ def run(ctx):
         ctx.hold_key(winner, 's', 2.0)
         ctx.wait_for(f"[{winner or 'host'}] the winner walked away from the pair",
                      lambda: distance(ctx.player_snapshot(winner)['placement']['position'], start) > 120, 3)
+        # Its copy where it is now, then its feet with that copy: a copy left whole at the cut would pass the second alone.
+        ctx.wait_for(f"[{loser or 'host'}] the winner's copy walked with it", lambda: distance(
+            ctx.actor_snapshot(loser, copies[loser])['placement']['position'], ctx.player_snapshot(winner)['placement']['position']) < 30, 3)
         ctx.expect('winner', 'skeleton', game=loser or 'host', within=5.0, seconds=1.0)
     finally:
         with contextlib.suppress(TestFailure):
