@@ -13,6 +13,15 @@ TEST_CASE("A dialogue refresh restores a hidden list even when its options did n
     CHECK(NeedsRefill(false, true, true));
 }
 
+TEST_CASE("The host offers a list its engine shows, and none the engine says on its own", "[dialogue]")
+{
+    using DialogueMenuPolicy::OffersList;
+    CHECK(OffersList(false, false));      // an open's list
+    CHECK_FALSE(OffersList(false, true)); // the courier's greeting: its choices are said, never shown
+    CHECK(OffersList(true, true));        // a flagged greeting in no blocking branch (Barbas), Advance's fallback
+    CHECK(OffersList(true, false));
+}
+
 TEST_CASE("Barter suspends dialogue but returning restores each role's close behavior", "[barter-reopen]")
 {
     using DialogueMenuPolicy::CloseEndsConversation;

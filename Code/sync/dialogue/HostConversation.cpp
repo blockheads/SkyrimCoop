@@ -1,4 +1,5 @@
 #include <dialogue/HostConversation.h>
+#include <dialogue/DialogueMenuPolicy.h>
 
 #include <Messages/SharedDialogue.h>
 #include <core/FormIdComponent.h>
@@ -33,6 +34,7 @@ bool HostConversation::OnStartAsked(uint32_t aActorFormId, bool aForceGreet) noe
     {
         m_greeter = aForceGreet ? aActorFormId : 0;
         m_talker = 0;
+        m_engineShowed = false;
         return true;
     }
     spdlog::info("Dialogue: {:X} would talk to the host, but the party talks to {:X}", aActorFormId, cSpeaker);
@@ -116,6 +118,7 @@ void HostConversation::OnLineSkipped() noexcept
 
 std::optional<std::vector<IDialogueBridge::Option>> HostConversation::OnListBuilt() noexcept
 {
+    m_engineShowed = true;
     // Native arrest greetings can rebuild their choices before anyone picks.
     if (m_dialogue.Conversation())
         m_awaitingList = true;
@@ -148,6 +151,7 @@ void HostConversation::OnPicked(const NotifyDialoguePicked& acMessage, uint32_t 
     m_talkerSpeaker = m_pickerSpeaker.load();
     m_talker = aOwnLine ? 0 : m_picker.load();
     m_awaitingList = true;
+    m_engineShowed = false;
     if (!bridge.GetSpeaker())
         return;
     if (!bridge.PickOption(aTopic, aInfo))
@@ -243,6 +247,15 @@ void HostConversation::SendOptions() noexcept
     auto& bridge = m_dialogue.Bridge();
     if (!m_dialogue.Conversation() || !bridge.GetSpeaker())
         return;
+    // The engine says this list's first line itself (Invisible Continue): its next shown list is the step's, and a
+    // skip moves the line on meanwhile.
+    if (!DialogueMenuPolicy::OffersList(m_engineShowed, bridge.IsContinued()))
+    {
+        spdlog::info("Dialogue: step {} of conversation {}: the line continues on its own, no list yet", m_dialogue.Step(),
+                     m_dialogue.Conversation());
+        m_awaitingList = true;
+        return;
+    }
 
     DialogueOptionsRequest request;
     request.Conversation = m_dialogue.Conversation();

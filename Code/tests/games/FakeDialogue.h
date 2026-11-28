@@ -13,6 +13,7 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -35,6 +36,11 @@ struct FakeDialogue final : IDialogueBridge
     // in this game (TESQuest 25086 reads a quest's lines when it starts; re/systems/dialogue.md). Lines not listed
     // always exist.
     std::map<uint32_t, uint32_t> LineQuest;
+    // Invisible Continue lines (by info, flags 0x40): 35285 says their first choice itself. Goodbyes (0x1) end it.
+    std::set<uint32_t> InvisibleContinue;
+    std::set<uint32_t> Goodbyes;
+    // The greeting's topic is in a blocking branch: its list is not shown during it (35282, 25552).
+    bool GreetingBlocks = true;
     std::function<bool(uint32_t aQuest)> DialogueLoaded = [](uint32_t) { return true; };
     [[nodiscard]] bool LineExists(const Option& acOption) const
     {
@@ -125,6 +131,14 @@ struct FakeDialogue final : IDialogueBridge
     void LineEnds()
     {
         AllowProgress = true; // the next line's voice ready (52858) re-arms the SWF
+        if (std::exchange(m_continues, false))
+        {
+            if (Options.empty())
+                End();
+            else
+                Say(Options.front()); // 35285: the first choice, selected and said (35283)
+            return;
+        }
         // The build takes choices from the picked option first (35287): left on one, its answers.
         if (!m_next && Picked && *Picked < Options.size())
             if (const auto it = After.find(Options[*Picked].Topic); it != After.end() && !it->second.empty())
@@ -194,6 +208,10 @@ struct FakeDialogue final : IDialogueBridge
     {
         return Choices;
     }
+    bool IsContinued() const noexcept override
+    {
+        return m_continues;
+    }
     uint32_t GetGreeting() const noexcept override
     {
         return GreetingInfo;
@@ -237,7 +255,15 @@ struct FakeDialogue final : IDialogueBridge
         // NPC's last line").
         if (OnGreeting && StillTalking != aActorFormId)
             OnGreeting();
-        Build(Greeting);
+        if (!InvisibleContinue.contains(aGreeting ? aGreeting : GreetingInfo))
+            Build(Greeting);
+        else if (GreetingBlocks)
+            BuildContinued(Greeting);
+        else
+        {
+            Build(Greeting); // shown during the greeting, then said all the same
+            m_continues = true;
+        }
         return true;
     }
     bool ShowMenu() noexcept override
@@ -275,6 +301,7 @@ struct FakeDialogue final : IDialogueBridge
         if (m_next)
             StillTalking = Speaker;
         m_next.reset();
+        m_continues = false;
         Speaker = 0;
         m_pickedShown = false;
         m_greeting = false;
@@ -429,11 +456,13 @@ struct FakeDialogue final : IDialogueBridge
         if (OnSaid)
             OnSaid(Said.back());
         const auto cNext = After.find(acOption.Topic);
-        if (cNext == After.end() || cNext->second.empty())
+        if (cNext == After.end() || cNext->second.empty() || Goodbyes.contains(acOption.Info))
         {
             End();
             return;
         }
+        if (InvisibleContinue.contains(acOption.Info))
+            return BuildContinued(cNext->second);
         if (LinesTakeTime)
             m_next = cNext->second;
         else
@@ -452,12 +481,22 @@ struct FakeDialogue final : IDialogueBridge
         }
         return lines;
     }
+    // An Invisible Continue line's choices (35287), never shown (no 52857): the first is said when the line ends.
+    void BuildContinued(const std::vector<Option>& acOptions)
+    {
+        Picked.reset();
+        m_source = acOptions;
+        Options = LinesFor(acOptions, 0x14);
+        Choices = true;
+        m_continues = true;
+    }
     // The engine's list (35287, then 52857): this game's player's, and each judged character's (the menu's topics it
     // has a line for, in the menu's order, then those only it has: DialogueBridge's HookBuildList); the List filter may
     // show another in its place.
     void Build(const std::vector<Option>& acOptions)
     {
         Picked.reset();
+        m_continues = false;
         m_source = acOptions;
         std::vector<Option> own = LinesFor(acOptions, 0x14);
         m_judged.clear();
@@ -505,6 +544,7 @@ struct FakeDialogue final : IDialogueBridge
 
     Filters m_filters;
     bool m_heldShow = false;
+    bool m_continues = false; // the list is an Invisible Continue line's choices: said at LineEnds, never shown
     bool m_pickedShown = false;
     bool m_greeting = false; // the SWF's SHOW_GREETING: a start's menu before its first list or pick
     bool m_suspended = false;

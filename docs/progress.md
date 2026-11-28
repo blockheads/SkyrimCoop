@@ -286,6 +286,12 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
     off-screen, so it cannot show a display stall), during a stall.
   - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
+- **Done 2026-11-27: the courier's menus offered "(Invisible Continues Linked to Self)"** (playtest 2026-11-27). His
+  force greet is an Invisible Continue line: the host's engine says his deliveries itself (35285), but the host sent the
+  start's list as the step and every menu showed it. The host sends no list while the said line continues
+  (`IDialogueBridge::IsContinued`; [dialogue.md](re/systems/dialogue.md), "Invisible Continue lines"). GameTests "A
+  courier's force greet continues on its own...", scenario `courier-force-greet-continues`. Open: a walk-away choice
+  hidden by flag 0x100 (+0x4A) is not carried in party lists yet; no playtest met it.
 - **Done 2026-11-27: a copy's rebuilt leveled base recorded as its reference's base change.** `RelevelActor`'s
   `SetBaseObject` recorded the temporary NPC's id (0x80); the next load of the reference's stored changes gave that
   NPC to the reference the cell made again and destroyed it there (19529, 12095), under the old reference or a held

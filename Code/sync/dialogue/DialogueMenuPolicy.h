@@ -28,6 +28,13 @@ constexpr bool NeedsRefill(bool aOptionsChanged, bool aListShown, bool aResuming
     return aResuming || aOptionsChanged || !aListShown;
 }
 
+// A list the host offers as a step: one its engine shows (52857), or the open's, unless the line said continues on its
+// own (Invisible Continue: 35285 says the first choice, showing no list).
+constexpr bool OffersList(bool aEngineShowed, bool aContinued) noexcept
+{
+    return aEngineShowed || !aContinued;
+}
+
 // The speaker's body would not turn only for the engine's rule that, talking to this game's player, it turns to that
 // player alone (Character::ShouldRotateToTrack 38011): its target is the talker the host names instead.
 constexpr bool AskTurnForTalker(bool aTurns, bool aTalkingToPlayer, bool aSpeaker, uint32_t aTarget, uint32_t aTalker) noexcept
