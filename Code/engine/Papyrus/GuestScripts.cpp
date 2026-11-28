@@ -205,9 +205,13 @@ uint32_t GuestArgument(const BSScript::Arguments* apArguments) noexcept
 class PlayerInFrame
 {
   public:
-    PlayerInFrame(BSScript::IFunction* apFunction, BSScript::StackFrame* apFrame, Actor* apGuest, BSScript::IVirtualMachine* apVm) noexcept
+    // aFrom: the form put aside, this game's player unless a question asked of the party puts each player in the place of
+    // the stack's (a guest's character there).
+    PlayerInFrame(BSScript::IFunction* apFunction, BSScript::StackFrame* apFrame, Actor* apGuest, BSScript::IVirtualMachine* apVm,
+                  uint32_t aFrom = cPlayerFormId) noexcept
+        : m_from(aFrom)
     {
-        if (!apFrame || !apGuest)
+        if (!apFrame || !apGuest || apGuest->formID == aFrom)
             return;
         Take(&apFrame->self, apGuest, apVm);
         const uint32_t cCount = apFunction->GetParamCount();
@@ -245,7 +249,7 @@ class PlayerInFrame
 
     void Take(BSScript::Variable* apSlot, Actor* apGuest, BSScript::IVirtualMachine* apVm) noexcept
     {
-        if (!apSlot || m_count >= kSlots || FormIdOf(*apSlot) != cPlayerFormId)
+        if (!apSlot || m_count >= kSlots || FormIdOf(*apSlot) != m_from)
             return;
         m_slots[m_count++] = {apSlot, apSlot->type, apSlot->data};
         BSScript::Variable guest;
@@ -255,6 +259,7 @@ class PlayerInFrame
         guest.type = BSScript::Variable::kEmpty; // its reference is the frame's now
     }
 
+    uint32_t m_from;
     Slot m_slots[kSlots];
     uint32_t m_count = 0;
 };
@@ -366,7 +371,7 @@ BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Sta
         }
     Actor* pGuest = guest ? GuestCharacter(guest) : nullptr;
     const PlayerInFrame cPlayer(apThis, pGuest ? pStack->pTop : nullptr, pGuest, apVm);
-    PartyNatives::Scope cRoute(apThis, pStack, apVm, guest, cause.Story);
+    PartyNatives::Scope cRoute(apThis, pStack, apVm, guest, cause.Story, cause.Timer);
     if (const auto cResult = cRoute.Result())
         return *cResult;
     const uint32_t cOuter = t_nativeGuest;
@@ -379,17 +384,18 @@ BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Sta
     auto* pCallerScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
     t_nativeScript = pCallerScript ? pCallerScript->GetHandle() : 0;
     ++t_nativeDepth;
-    // Rule 3: a question with no player's action is put to the players it asks, each in this game's player's place,
-    // until a yes/no one says yes.
+    // Rule 3: a question asked of the party is put to the players it asks, each in the place of the stack's player
+    // (this game's, or in a guest's timer its character), until a yes/no one says yes.
     BSScript::CallResult result{};
     if (cRoute.Asks().empty())
         result = RealNativeCalled(apThis, appStack, apLogger, apVm, aArg4);
+    const uint32_t cStackPlayer = pGuest ? pGuest->formID : cPlayerFormId;
     for (const uint32_t cAsked : cRoute.Asks())
     {
-        Actor* pAsked = cAsked != cPlayerFormId ? GuestCharacter(cAsked) : nullptr;
-        if (cAsked != cPlayerFormId && !pAsked)
+        Actor* pAsked = cAsked != cPlayerFormId ? GuestCharacter(cAsked) : Cast<Actor>(TESForm::GetById(cPlayerFormId));
+        if (!pAsked)
             continue;
-        const PlayerInFrame cInPlace(apThis, pAsked ? pStack->pTop : nullptr, pAsked, apVm);
+        const PlayerInFrame cInPlace(apThis, pStack->pTop, pAsked, apVm, cStackPlayer);
         result = RealNativeCalled(apThis, appStack, apLogger, apVm, aArg4);
         const BSScript::Variable& cAnswer = pStack->returnValue;
         if (result != BSScript::CallResult::kCompleted || cAnswer.type != BSScript::Variable::kBoolean || cAnswer.data.b)

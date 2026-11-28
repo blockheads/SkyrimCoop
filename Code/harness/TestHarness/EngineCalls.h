@@ -250,6 +250,9 @@ struct ScriptStack
 {
     uint32_t Id{};
     std::vector<std::string> Frames;
+    uint32_t State{};  // BSScript::Stack::State: 0 running, 3 waiting on a latent function, 4-6 on another stack
+    uint32_t Freeze{}; // FreezeState
+    std::vector<uint32_t> Holders; // per frame: the stack inside that frame's script object now (0: none), Object+0x18
 };
 std::vector<ScriptStack> GetRunningScripts() noexcept;
 

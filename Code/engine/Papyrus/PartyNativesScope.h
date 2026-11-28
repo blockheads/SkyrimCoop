@@ -26,8 +26,9 @@ struct ControlsCall
 class Scope
 {
   public:
+    // aTimer: the stack answers a timer its player's stack set (GuestScripts::Cause::Timer).
     Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript::IVirtualMachine* apVm, uint32_t aCause,
-          bool aStory) noexcept;
+          bool aStory, bool aTimer = false) noexcept;
     ~Scope() noexcept;
 
     Scope(const Scope&) = delete;
@@ -54,6 +55,7 @@ class Scope
   private:
     uint32_t m_cause = 0;
     bool m_story = false;
+    bool m_timer = false;
     std::optional<ControlsCall> m_controls;
     ControlsCall* m_pOuter = nullptr;
     std::optional<RoutedCallEvent> m_event;
