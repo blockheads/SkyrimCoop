@@ -133,23 +133,35 @@ this: there are never two riders in vanilla.
 ```
 HitFrameHandler::Handle -> SpendAttackStaminaAndHit 38603
   target = VATS / Actor_GetTarget 38608, else the reach sweep (38628, CalculateCurrentHitTargetForWeaponSwing)
-  -> DealDamage 38627 (attacker, target, arrow, left hand)       <- our hook: skipped for riders together
+  -> DealDamage 38627 (attacker, target, arrow, left hand)       <- our hook: dropped for riders together
        attack spells, HitData::Populate, XP, impact (BGSImpactManager)
        ProcessHit 38586: the reaction (stagger 37710) and the damage (DoDamage 37335)
 ArrowProjectile 44218 -> DealDamage 38627 (an arrow's hit)
-kill move: the idle tree's ShouldAttackKill (21744 -> WouldAttackKill 38559)   <- our hook: 0 for riders together
+kill move: the idle tree's ShouldAttackKill (21744 -> WouldAttackKill 38559)
 ```
 
 - **Read in IDA.** The sweep (38628) skips one collision group: a mounted player's comes from a bone's body (fixed
-  string +0x228), else the attacker's own. Its own horse is spared; a second rider has a group of its own, so it is hit
-  (that the group filter is what spares the horse is inferred, not read in Havok).
-- **Read in IDA.** DealDamage 38627 is the whole hit (Precision's `DealDamage`, kaputt hooks it too): skipping it,
-  nothing of the hit happens: no damage, reaction, impact, poison or XP. The swing still plays.
-- **Measured** before the fix: each of seven host swings sent the guest's character -7.3 health.
+  string +0x228), else the attacker's own. That this is what spares a rider's own horse, and that the second rider's
+  own group is why the sweep takes it, is inferred (Havok's filter not read). Which of 38608 or 38628 picked the
+  passenger in the playtest is not traced either: either gives 38627 the passenger as the target.
+- **Read in IDA.** DealDamage 38627 is the whole hit on the chosen target (Precision's `DealDamage`, whose `void*`
+  return the engine never sets: its early returns leave RAX as it was, so ours is `void`). Dropping it, nothing of
+  that hit happens: no damage, reaction, impact, poison or XP. The swing still plays.
+- **Not pass-through.** 38603 calls 38627 once for the target it chose and goes on; an arrow's callers (44218,
+  44204) carry on with their impact. So a co-rider the sweep picks still takes the blow's place: an enemy behind it
+  is not hit by that swing, and an arrow still stops at it (read, not measured). Real pass-through would filter the
+  co-rider in the target pick (38608/38628) and in the arrow's contact; not built.
+- **Measured** before the fix: each of seven host swings sent the guest's character -7.3 health; after it, none.
+- **Measured**, kill moves: the host's swings from the saddle at the guest riding along at 3 health, `KillMoveRandom`
+  100, picked no kill move (no pair, the guest alive), with no gate of ours on 21744. The mounted idle tree's kill
+  moves are not read; the scenario's second half keeps checking it.
 - The rule, `HitRules::RideTogether`: both actors players (ours or a copy) and both on the same mount, each read from
   its own link (`Actor::GetRiddenMount`, the link's rider being itself: the mount's slot holds the driver's link too).
   Each game judges its own player's swing, so the copy's replayed swing needs nothing. An NPC on the horse is not
   covered (there is none).
+- **Harness, measured.** A rider's draw sets no `IsEquipping` on its graph, and its graph takes no attack until the
+  draw's clip sends `attackStop` (0.9 s after `weaponDraw`), nor Ready Weapon until a sheathe's sends `Unequip_Out`:
+  `ready_weapon_riding` waits for those.
 
 ## The new driver's horse left in the old driver's exit pair (duo, 2026-11-17)
 

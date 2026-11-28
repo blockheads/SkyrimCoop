@@ -1603,9 +1603,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The host's script plays an animation on a reference (PlayAnimation 56205: HookPlayAnimation records it).
     void ScriptPlaysAnimation(uint32_t aObject, const std::string& acEvent);
     static constexpr const char* kPull = "Pull";
-    // Combat. A melee hit, as our hooks on DealDamage (38627: none between players on one horse) and Actor::DamageActor
-    // take it: raised as a hit, and a hit of this game's player on another's actor raised as a health change and not
-    // applied here (its owner applies it).
+    // Combat. A melee hit as DealDamage (38627: none between riders together) and DamageActor take it: raised as a hit;
+    // our player's on another game's actor a health change for its owner to apply.
     void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);
     // Damage reaching an actor as HookDamageActor takes it (HitRules), from a swing or an effect being applied.
     void TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect, bool aWorldHit = false,

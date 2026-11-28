@@ -1,7 +1,6 @@
 #include <Misc/KillMoveOdds.h>
 
 #include <Actor.h>
-#include <Combat/HitOwnership.h>
 
 #include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
@@ -66,12 +65,6 @@ TCondition* RealIsLastHostileActor = nullptr;
 bool HookShouldAttackKill(void* apSubject, void* apParam1, void* apParam2, double* apResult)
 {
     const bool cOk = RealShouldAttackKill(apSubject, apParam1, apParam2, apResult);
-    // No kill move on a player riding the same horse (HitRules::RideTogether).
-    if (HitRules::RideTogether(Cast<Actor>(static_cast<TESForm*>(apParam1)), Cast<Actor>(static_cast<TESForm*>(apSubject))))
-    {
-        *apResult = 0.0;
-        return cOk;
-    }
     if (const auto cOdds = Odds())
         *apResult = DevCommands::ShouldAttackKill(*apResult != 0.0, Killable(apSubject, apParam1), cOdds,
                                                   Roll(apSubject, apParam1))

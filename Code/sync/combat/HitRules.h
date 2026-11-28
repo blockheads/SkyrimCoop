@@ -23,8 +23,8 @@ enum class Party
     return aHittee != Party::OtherPlayer;
 }
 
-// Players on one horse (each rider's own link to it, ExtraInteraction): a weapon hit between them passes through
-// (DealDamage 38627 skipped) and no kill move picks the other (ShouldAttackKill 21744). docs/re/systems/player-mount.md.
+// Players on one horse (each rider's own link to it, ExtraInteraction): a weapon hit between them is dropped
+// (DealDamage 38627). docs/re/systems/player-mount.md.
 [[nodiscard]] constexpr bool RideTogether(Party aHittee, Party aHitter, uint32_t aHitteeMount, uint32_t aHitterMount) noexcept
 {
     const auto cPlayer = [](Party a) { return a == Party::LocalPlayer || a == Party::OtherPlayer; };

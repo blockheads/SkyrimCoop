@@ -120,8 +120,8 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
     return false;
 }
 
-// DealDamage 38627 (Precision's and kaputt's name): one weapon hit, its spells, impact, reaction and damage. Skipped
-// between players on one horse (HitRules::RideTogether): the blow passes through (docs/re/systems/player-mount.md).
+// DealDamage 38627 (Precision's name; void: its early returns leave RAX unset): one weapon hit on its chosen target.
+// Dropped between players on one horse (HitRules::RideTogether, docs/re/systems/player-mount.md).
 using TDealDamage = void(Actor* apAttacker, Actor* apTarget, void* apArrow, bool aLeftHand);
 
 static TDealDamage* RealDealDamage = nullptr;
