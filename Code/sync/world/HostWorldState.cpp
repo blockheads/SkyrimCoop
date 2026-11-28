@@ -121,7 +121,7 @@ void HostWorldState::UpdateObjectChanges() noexcept
     const ConnectionId_t cHost = m_players.Host();
     if (!cHost || changes.Changes.empty())
         return;
-    spdlog::info("HostWorldState: sent {} object changes: {}", changes.Changes.size(), WorldStateLog::List(changes.Changes, &WorldStateLog::Describe, 16));
+    WorldStateLog::LogLive("HostWorldState: sent", changes.Changes);
     m_players.SendToOthers(changes, cHost, Net::kReliable);
 }
 

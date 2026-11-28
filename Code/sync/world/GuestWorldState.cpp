@@ -115,8 +115,8 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
         if (message.Cell != GameId{})
             spdlog::info("GuestWorldState: applied cell {:X}'s state, {} of {} changes: {}", message.Cell.LogFormat(), applied.size(),
                          message.Changes.size(), WorldStateLog::List(applied, &WorldStateLog::Describe, 16));
-        else if (!applied.empty())
-            spdlog::info("GuestWorldState: applied {} of the host's object changes: {}", applied.size(), WorldStateLog::List(applied, &WorldStateLog::Describe, 16));
+        else
+            WorldStateLog::LogLive("GuestWorldState: applied the host's", applied);
     });
 }
 
