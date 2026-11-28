@@ -500,6 +500,12 @@ bool DialogueBridge::IsChoices() const noexcept
     return pManager && pManager->rootTopicInfo;
 }
 
+bool DialogueBridge::IsSayingGoodbye() const noexcept
+{
+    const MenuTopicManager* pManager = Conversation();
+    return pManager && pManager->forceGoodbye;
+}
+
 bool DialogueBridge::IsContinued() const noexcept
 {
     // As Advance (35285) asks once the said option's responses are done.

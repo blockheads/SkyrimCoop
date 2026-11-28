@@ -28,6 +28,15 @@ constexpr bool NeedsRefill(bool aOptionsChanged, bool aListShown, bool aResuming
     return aResuming || aOptionsChanged || !aListShown;
 }
 
+// The host's player talking to an NPC (24715): the engine's own talk, a join of the conversation under way, or nothing
+// while its speaker says a goodbye (a menu shown then ends it mid-line: 51515 on forceGoodbye).
+enum class HostTalk { Engine, Join, Ignore };
+
+constexpr HostTalk DecideHostTalk(bool aMenuOpen, bool aConversation, bool aIsSpeaker, bool aSayingGoodbye) noexcept
+{
+    return aMenuOpen || !aConversation || !aIsSpeaker ? HostTalk::Engine : aSayingGoodbye ? HostTalk::Ignore : HostTalk::Join;
+}
+
 // A list the host offers as a step: one its engine shows (52857), or the open's, unless the line said continues on its
 // own (Invisible Continue: 35285 says the first choice, showing no list).
 constexpr bool OffersList(bool aEngineShowed, bool aContinued) noexcept

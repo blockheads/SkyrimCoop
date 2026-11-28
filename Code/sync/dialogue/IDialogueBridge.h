@@ -67,6 +67,8 @@ public:
     virtual std::optional<std::vector<Option>> GetOptionsFor(uint32_t aCharacterFormId) const noexcept = 0;
     /// Whether the list is a line's choices (35287 sets rootTopicInfo), not the speaker's topics.
     virtual bool IsChoices() const noexcept = 0;
+    /// The line being said ends the conversation: a goodbye picked (forceGoodbye, set by 35283); its end shuts it.
+    virtual bool IsSayingGoodbye() const noexcept = 0;
     /// Whether the engine says the list's first option itself once the line being said ends (an Invisible Continue
     /// line, 35285): a list never shown, so not one to offer.
     virtual bool IsContinued() const noexcept = 0;

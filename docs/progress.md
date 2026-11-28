@@ -286,6 +286,10 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
     off-screen, so it cannot show a display stall), during a stall.
   - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
+- **Done 2026-11-27: the host's E cut a guest's goodbye.** Pressing E on an NPC answering a guest's goodbye (Lucan's
+  golden claw, playtest 2026-11-26) opened the host's menu mid-line, whose fill ends the conversation on `forceGoodbye`
+  (51515) for everyone; the host's talk now waits the goodbye out (`re/systems/dialogue.md`, "The host talking to an
+  NPC saying a guest's goodbye"; GameTests in `dialogue_races.cpp`, scenario `dialogue-host-talks-during-guest-turn-in`).
 - **Done 2026-11-27: the courier's menus offered "(Invisible Continues Linked to Self)"** (playtest 2026-11-27). His
   force greet is an Invisible Continue line: the host's engine says his deliveries itself (35285), but the host sent the
   start's list as the step and every menu showed it. The host sends no list while the said line continues

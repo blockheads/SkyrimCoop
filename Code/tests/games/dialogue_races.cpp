@@ -498,3 +498,31 @@ SCENARIO("A player joining while the NPC answers hears its line once", "[dialogu
     Settle(party);
     CHECK(cCopyLines() == 1);
 }
+
+// The host talks to the NPC while it says the goodbye a guest picked (dialogue-host-talks-during-guest-turn-in: Lucan's
+// golden claw): its press does nothing, as on a busy NPC, and the line ends the conversation for everyone at its end.
+SCENARIO("The host talking to an NPC saying a guest's goodbye leaves the guest's conversation running", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld);
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    for (FakeDialogue* pTalk : {&hostTalk, &guestTalk})
+        pTalk->After = {{kThird.Topic, {}}};
+    hostTalk.LinesTakeTime = true;
+    const uint32_t npc = EveryoneTalks(party, {&party.Guest()});
+    party.As(party.Guest(), [&] { guestTalk.PlayerPicks(2); });
+    party.Until([&] { return hostTalk.Said.size() == 1; }, "the host's game says the guest's goodbye");
+    REQUIRE(hostTalk.IsSayingGoodbye());
+
+    party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(npc); });
+    Settle(party, std::chrono::milliseconds(200));
+    CHECK(hostTalk.Speaker == npc);
+    CHECK_FALSE(hostTalk.MenuOpen);
+    CHECK(guestTalk.MenuOpen);
+    CHECK(guestTalk.PickedText == kThird.Text);
+    CHECK(party.Guest().ctx().at<DialogueService>().Joined());
+
+    party.As(party.Host(), [&] { hostTalk.LineEnds(); });
+    party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the goodbye's end ends the conversation for everyone");
+    CHECK(hostTalk.Said.size() == 1);
+}
