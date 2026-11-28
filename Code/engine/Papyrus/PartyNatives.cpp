@@ -296,6 +296,8 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
     });
     // Read from the code only where the rule asks: in a stack a guest's action ran (its lock is not on every call).
     facts.PlayerNative = facts.GuestCause && cStatic && !IsGetPlayer(apFunction) && NativeReach::ReachesThisPlayer(apFunction);
+    facts.ReadsPlayer = facts.GuestCause && facts.Reach.Kind == NativeReach::Call::kQuestion &&
+                        facts.Target == Target::kGuestCharacter && NativeReach::ReachesThisPlayer(apFunction);
     return facts;
 }
 

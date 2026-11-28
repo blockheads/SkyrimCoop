@@ -65,6 +65,11 @@ Routing RouteOf(const CallFacts& acFacts) noexcept
     // A world object's timer polling "the player" (a word wall): its questions and its screen are the party's, as a timer
     // with no player's are (papyrus-guest-scripts.md, "Vanilla timers that name the player"). A body's stay its own.
     const bool cPartyTimer = acFacts.Timer && acFacts.Hosting && !acFacts.Body && !acFacts.InSystemQuest;
+    // A guest's own question that only its game can answer (a sight, from its camera): asked there, the script waiting,
+    // so a one-off read acts on the real answer. A polling timer's are the party's, below.
+    if (cKind == Call::kQuestion && acFacts.Hosting && acFacts.GuestCause && acFacts.Target == Target::kGuestCharacter &&
+        acFacts.ReadsPlayer && !cPartyTimer)
+        return {.To = Destination::kCauseGame, .Original = false};
     // Where the player is, with no player's action behind it: the party's (rule 3). Only the host's scripts.
     if (cKind == Call::kQuestion && acFacts.Hosting && acFacts.PlayerInCall && (!acFacts.Cause || cPartyTimer))
         return {.Ask = true};

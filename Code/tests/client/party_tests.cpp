@@ -619,6 +619,26 @@ SCENARIO("A world object's timer asks the party and shows the party", "[party][r
     }
 }
 
+SCENARIO("A guest's own question only its game can answer waits for it", "[party][route][sight]")
+{
+    const CallFacts cSight{.Reach = {Call::kQuestion}, .ReadsPlayer = true, .Target = Target::kGuestCharacter, .Cause = kGuest,
+                           .GuestCause = true, .Hosting = true, .PlayerInCall = true};
+    THEN("a one-off read (MQ201's sight of Malborn): asked of the guest's game, the script waiting")
+    CHECK(RouteOf(cSight) == Routing{.To = Destination::kCauseGame, .Original = false});
+    THEN("a polling timer's: the party's, read from the host's cache")
+    {
+        CallFacts timer = cSight;
+        timer.Timer = true;
+        CHECK(RouteOf(timer) == Routing{.Ask = true});
+    }
+    THEN("a question the host answers for the copy (a distance): as before")
+    {
+        CallFacts distance = cSight;
+        distance.ReadsPlayer = false;
+        CHECK(RouteOf(distance) == Routing{});
+    }
+}
+
 SCENARIO("Which player a question asks about", "[party][route]")
 {
     THEN("the nearest to the reference it measures from")

@@ -1,10 +1,12 @@
-#include <scripts/SightCache.h>
+#include <scripts/HostSight.h>
 
-SightCache::Reading SightCache::Sees(uint32_t aGuest, uint32_t aTarget, Clock::time_point aNow) noexcept
+HostSight::Reading HostSight::Sees(uint32_t aGuest, uint32_t aTarget, Clock::time_point aNow) noexcept
 {
     std::scoped_lock _{m_lock};
     Entry& entry = m_entries[{aGuest, aTarget}];
-    Reading reading{.Sees = entry.Sees && entry.AnsweredAt && aNow - *entry.AnsweredAt < kFresh};
+    Reading reading;
+    if (entry.AnsweredAt && aNow - *entry.AnsweredAt < kFresh)
+        reading.Sees = entry.Sees;
     if (entry.AskedAt && aNow - *entry.AskedAt < kLost)
         return reading;
     const uint32_t cReplyId = kReplyBits | (m_next++ & ~kReplyBits);
@@ -15,7 +17,7 @@ SightCache::Reading SightCache::Sees(uint32_t aGuest, uint32_t aTarget, Clock::t
     return reading;
 }
 
-bool SightCache::Answer(uint32_t aReplyId, bool aSees, Clock::time_point aNow) noexcept
+bool HostSight::Answer(uint32_t aReplyId, bool aSees, Clock::time_point aNow) noexcept
 {
     if (!IsSightReply(aReplyId))
         return false;

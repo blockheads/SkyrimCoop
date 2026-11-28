@@ -102,29 +102,39 @@ struct WallParty
         copy = host.CopiesOf()[0];
     }
 
-    // The wall's call on the host in the guest's stack (GetPlayer is the guest's character), answered now.
-    LocalValue Ask(const char* acpClass, const char* acpFunction, bool aTimer)
+    // The wall's call on the host in the guest's stack (GetPlayer is the guest's character); its answer if it has one.
+    std::optional<LocalValue> Ask(const char* acpClass, const char* acpFunction, bool aTimer)
     {
         party.As(party.Host(), [&] {
             host.RunScript({.Class = acpClass, .Function = acpFunction, .Self = LocalForm{copy}, .Arguments = {LocalForm{kWallMarker}}},
                            copy, false, false, aTimer);
         });
-        return *host.LastAnswer;
-    }
-    bool Sees(bool aTimer)
-    {
-        return std::get<bool>(Ask("Actor", "HasLOS", aTimer));
+        return host.LastAnswer;
     }
 };
 } // namespace
 
-SCENARIO("A guest looks at a word wall's marker: its own game answers the host's script", "[questions][sight]")
+SCENARIO("A guest's script asks once whether its player sees a marker: it waits for the guest's game", "[questions][sight]")
 {
     WallParty wall(5000.f, 300.f);
-    THEN("the host never sees the guest's look itself: the first answer is no")
-        CHECK_FALSE(wall.Sees(false));
-    THEN("the guest's game answers, and the host's script hears yes")
-        wall.party.Until([&] { return wall.Sees(false); }, "the wall's script reads the guest's sight");
+    THEN("no answer comes from the host's own view of the guest's character")
+    {
+        CHECK_FALSE(wall.Ask("Actor", "HasLOS", false));
+        const uint32_t cStack = wall.host.LastWaiting;
+        THEN("the script goes on with the guest's game's yes")
+        {
+            wall.party.Until([&] { return wall.host.ScriptReturns.contains(cStack); }, "the guest's game answers the waiting script");
+            CHECK(wall.host.ScriptReturns.at(cStack) == LocalValue{true});
+        }
+    }
+}
+
+SCENARIO("A word wall's timer reads the guest's sight from what its game last said", "[questions][sight]")
+{
+    WallParty wall(5000.f, 300.f);
+    const auto cSees = [&] { return std::get<bool>(*wall.Ask("Actor", "HasLOS", true)); };
+    THEN("the first poll has no answer yet: no") CHECK_FALSE(cSees());
+    THEN("a later poll hears the guest's game") wall.party.Until(cSees, "the wall's timer reads the guest's sight");
 }
 
 SCENARIO("A word wall's timer asks the party: whoever looks counts, in whoever's loop", "[questions][sight]")
@@ -132,12 +142,12 @@ SCENARIO("A word wall's timer asks the party: whoever looks counts, in whoever's
     WallParty wall(300.f, 5000.f);
     WHEN("the guest walked in first: the loop is the guest's, and only the host looks")
     {
-        THEN("the guest's own question stays the guest's") CHECK_FALSE(wall.Sees(false));
-        THEN("the timer's question is the party's: the host's look counts") CHECK(wall.Sees(true));
-        THEN("the timer's distance is the nearest player's")
+        THEN("the timer's question is the party's: the host's look counts")
+            CHECK(std::get<bool>(*wall.Ask("Actor", "HasLOS", true)));
+        THEN("the timer's distance is the nearest player's, the guest's own question the guest's")
         {
-            CHECK(std::get<float>(wall.Ask("ObjectReference", "GetDistance", true)) < 400.f);
-            CHECK(std::get<float>(wall.Ask("ObjectReference", "GetDistance", false)) > 4000.f);
+            CHECK(std::get<float>(*wall.Ask("ObjectReference", "GetDistance", true)) < 400.f);
+            CHECK(std::get<float>(*wall.Ask("ObjectReference", "GetDistance", false)) > 4000.f);
         }
     }
 }

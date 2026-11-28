@@ -8,8 +8,8 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **888** distinct engine addresses used; **267** have code in CommonLib or SKSE; **158** have no community name at all.
-- **300** hooks (these replace engine code, so check them first when the game crashes).
+- **889** distinct engine addresses used; **267** have code in CommonLib or SKSE; **158** have no community name at all.
+- **301** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
 
@@ -241,16 +241,17 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 53112 | `0x99e640` | `MapMenu::sub_53112` | meh | hook → `LocalMap` | `RealLocalMap` | [LiveMenuHooks.cpp:259](../../Code/engine/Interface/LiveMenuHooks.cpp#L259) |  |
 | 53290 | `0x9a8130` | `FadeThenMainMenuCallback::Func1_53290` | meh | hook → `HookMenuQuit` | `RealMenuQuit` | [QuitToMainMenu.cpp:35](../../Code/engine/Interface/QuitToMainMenu.cpp#L35) |  |
 | 53429 | `0x9b2f50` | `SkyrimVM::FindQuestFragment` | IDA | hook → `HookFindFragment` | `RealFindFragment` | [QuestFragments.cpp:82](../../Code/harness/TestHarness/QuestFragments.cpp#L82) |  |
-| 53829 | `0x9d19f0` | `Actor::HasLineOfSight` | IDA CL SKSE meh | hook → `HookHasLineOfSight` | `RealHasLineOfSight` | [GuestSight.cpp:70](../../Code/engine/Papyrus/GuestSight.cpp#L70) |  |
-| 53830 | `0x9d1a40` | `papyrus::CanRegisterForLOS` | IDA meh | hook → `HookCanRegisterForLos` | `RealCanRegisterForLos` | [GuestSight.cpp:72](../../Code/engine/Papyrus/GuestSight.cpp#L72) |  |
+| 53829 | `0x9d19f0` | `Actor::HasLineOfSight` | IDA CL SKSE meh | hook → `HookHasLineOfSight` | `RealHasLineOfSight` | [GuestSight.cpp:99](../../Code/engine/Papyrus/GuestSight.cpp#L99) |  |
+| 53830 | `0x9d1a40` | `papyrus::CanRegisterForLOS` | IDA meh | hook → `HookCanRegisterForLos` | `RealCanRegisterForLos` | [GuestSight.cpp:102](../../Code/engine/Papyrus/GuestSight.cpp#L102) |  |
 | 53926 | `0x9d7450` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:95](../../Code/plugin/SkyrimVM64.cpp#L95) |  |
 | 53954 | `0x9dad40` | `SkyrimVM::QueueDelayFunctor` | IDA meh | hook → `HookFunctorQueued` | `RealFunctorQueued` | [GuestScripts.cpp:148](../../Code/engine/Papyrus/GuestScripts.cpp#L148) |  |
 | 53955 | `0x9dae10` | `SkyrimVM::QueuePostRenderCall` | CL SKSE meh | hook → `HookPostRenderQueued` | `RealPostRenderQueued` | [GuestScripts.cpp:150](../../Code/engine/Papyrus/GuestScripts.cpp#L150) |  |
 | 53987 | `0x9de4c0` | `SkyrimVM::ProcessQuestStageEvent` | IDA meh | hook → `HookQuestStageEventSink` | `RealQuestStageEventSink` | [TESQuest.cpp:195](../../Code/engine/Forms/TESQuest.cpp#L195) |  |
 | 53999 | `0x9dfc80` | `BSTEventSink_TESTrapHitEvent_::Handle` | IDA meh | hook → `HookTrapHitSink` | `RealTrapHitSink` | [Traps.cpp:84](../../Code/engine/Combat/Traps.cpp#L84) |  |
+| 54037 | `0x9e3870` | `SkyrimVM::UpdateLOSRegistrations` | IDA meh | hook → `HookUpdateLosRegistrations` | `RealUpdateLosRegistrations` | [GuestSight.cpp:100](../../Code/engine/Papyrus/GuestSight.cpp#L100) |  |
 | 54655 | `0x9ffb50` | `papyrus::Actor::AttachAshPile` | IDA meh | hook → `HookAttachAshPile` | `RealAttachAshPile` | [CriticalStage.cpp:88](../../Code/engine/CriticalStage.cpp#L88) |  |
 | 54661 | `0xa00040` | `papyrus::Actor::EquipItem` | IDA meh | hook → `HookScriptEquipItem` | `RealScriptEquipItem` | [Item.cpp:290](../../Code/engine/ActorHooks/Item.cpp#L290) |  |
-| 54698 | `0xa00d20` | `papyrus::Actor::HasLOS` | IDA meh | hook → `HookPapyrusHasLos` | `RealPapyrusHasLos` | [GuestSight.cpp:71](../../Code/engine/Papyrus/GuestSight.cpp#L71) |  |
+| 54698 | `0xa00d20` | `papyrus::Actor::HasLOS` | IDA meh | hook → `HookPapyrusHasLos` | `RealPapyrusHasLos` | [GuestSight.cpp:101](../../Code/engine/Papyrus/GuestSight.cpp#L101) |  |
 | 54735 | `0xa01ab0` | `papyrus::Actor::RemoveFromAllFactions` | meh | hook → `HookRemoveFromAllFactions` | `RealRemoveFromAllFactions` | [FactionEvents.cpp:83](../../Code/engine/FactionEvents.cpp#L83) |  |
 | 55497 | `0xa25610` | `papyrus::Game::SetBeastForm` | meh | hook → `HookSetBeastForm` | `RealSetBeastForm` | [PlayerCharacter.cpp:420](../../Code/engine/PlayerCharacter.cpp#L420) |  |
 | 55618 | `0xa2b320` | `BSScript::NativeFunction0_BSScript::StaticFunctionTag_Actor__::MarshallAndDispatch` | meh | hook → `HookGetPlayer` | `RealGetPlayer` | [GuestScripts.cpp:140](../../Code/engine/Papyrus/GuestScripts.cpp#L140) |  |
@@ -1229,12 +1230,13 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 52269 | `0x9625f0` | `MessageBoxMenu::CreateMessage` | IDA CL | data | `s_messageBox` | [NativeReach.cpp:102](../../Code/engine/Papyrus/NativeReach.cpp#L102) |  |
 | 52847 | `0x98dd00` | `FaderMenu_QueueFade` | IDA | data | `s_fade` | [NativeReach.cpp:79](../../Code/engine/Papyrus/NativeReach.cpp#L79) |  |
 | 52933 | `0x991a30` | `SendHUDMessage::ShowHUDMessage` | CL meh | data | `s_hudMessage` | [NativeReach.cpp:101](../../Code/engine/Papyrus/NativeReach.cpp#L101) |  |
-| 53829 | `0x9d19f0` | `Actor::HasLineOfSight` | IDA CL SKSE meh | hook → `HookHasLineOfSight` | `RealHasLineOfSight` | [GuestSight.cpp:70](../../Code/engine/Papyrus/GuestSight.cpp#L70) |  |
+| 53829 | `0x9d19f0` | `Actor::HasLineOfSight` | IDA CL SKSE meh | hook → `HookHasLineOfSight` | `RealHasLineOfSight` | [GuestSight.cpp:99](../../Code/engine/Papyrus/GuestSight.cpp#L99) |  |
 | 53829 | `0x9d19f0` | `Actor::HasLineOfSight` | IDA CL SKSE meh | data | `s_hasLineOfSight` | [NativeReach.cpp:114](../../Code/engine/Papyrus/NativeReach.cpp#L114) |  |
-| 53830 | `0x9d1a40` | `papyrus::CanRegisterForLOS` | IDA meh | hook → `HookCanRegisterForLos` | `RealCanRegisterForLos` | [GuestSight.cpp:72](../../Code/engine/Papyrus/GuestSight.cpp#L72) |  |
+| 53830 | `0x9d1a40` | `papyrus::CanRegisterForLOS` | IDA meh | hook → `HookCanRegisterForLos` | `RealCanRegisterForLos` | [GuestSight.cpp:102](../../Code/engine/Papyrus/GuestSight.cpp#L102) |  |
 | 53954 | `0x9dad40` | `SkyrimVM::QueueDelayFunctor` | IDA meh | hook → `HookFunctorQueued` | `RealFunctorQueued` | [GuestScripts.cpp:148](../../Code/engine/Papyrus/GuestScripts.cpp#L148) |  |
 | 53955 | `0x9dae10` | `SkyrimVM::QueuePostRenderCall` | CL SKSE meh | hook → `HookPostRenderQueued` | `RealPostRenderQueued` | [GuestScripts.cpp:150](../../Code/engine/Papyrus/GuestScripts.cpp#L150) |  |
-| 54698 | `0xa00d20` | `papyrus::Actor::HasLOS` | IDA meh | hook → `HookPapyrusHasLos` | `RealPapyrusHasLos` | [GuestSight.cpp:71](../../Code/engine/Papyrus/GuestSight.cpp#L71) |  |
+| 54037 | `0x9e3870` | `SkyrimVM::UpdateLOSRegistrations` | IDA meh | hook → `HookUpdateLosRegistrations` | `RealUpdateLosRegistrations` | [GuestSight.cpp:100](../../Code/engine/Papyrus/GuestSight.cpp#L100) |  |
+| 54698 | `0xa00d20` | `papyrus::Actor::HasLOS` | IDA meh | hook → `HookPapyrusHasLos` | `RealPapyrusHasLos` | [GuestSight.cpp:101](../../Code/engine/Papyrus/GuestSight.cpp#L101) |  |
 | 55105 | `0xa12e60` | `Character::sub_55105` | meh | data | `s_playIdle` | [NativeReach.cpp:131](../../Code/engine/Papyrus/NativeReach.cpp#L131) |  |
 | 55616 | `0xa2b1f0` | `IncrementSkillFromPapyrus` | meh | data | `s_incrementSkill` | [NativeReach.cpp:119](../../Code/engine/Papyrus/NativeReach.cpp#L119) |  |
 | 55618 | `0xa2b320` | `BSScript::NativeFunction0_BSScript::StaticFunctionTag_Actor__::MarshallAndDispatch` | meh | hook → `HookGetPlayer` | `RealGetPlayer` | [GuestScripts.cpp:140](../../Code/engine/Papyrus/GuestScripts.cpp#L140) |  |

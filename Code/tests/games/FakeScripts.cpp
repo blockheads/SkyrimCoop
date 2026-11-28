@@ -158,7 +158,9 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
         const auto* cpForm = std::get_if<LocalForm>(&acValue);
         return cpForm && (cpForm->FormId == kPlayer || cpForm->FormId == cStackPlayer);
     };
+    const bool cGuestQuestion = cIsGuestCharacter(aCause) && cReach.Kind == Call::kQuestion && cIsGuestCharacter(cSelf);
     const CallFacts cFacts{.Reach = cReach,
+                           .ReadsPlayer = cGuestQuestion && SameName(acCall.Function, "HasLOS"), // its camera (40520)
                            .Target = cSelf == kPlayer ? Target::kThisPlayer : cIsGuestCharacter(cSelf) ? Target::kGuestCharacter : Target::kNone,
                            .TargetId = cSelf,
                            .Cause = aCause,
@@ -173,6 +175,14 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
                            .SystemObject = cpSelf && (SystemQuestList.Contains(cpSelf->FormId) || SystemQuestList.IsGlobal(cpSelf->FormId)),
                            .CreatedObject = cpSelf && IsCreatedForm(cpSelf->FormId) && World::Get().ctx().at<CreatedIds>().ToSession(cpSelf->FormId).has_value()};
     const Routing cRouting = InSession ? RouteOf(cFacts) : Routing{};
+    if (cReach.Kind == Call::kQuestion && cRouting.To == Destination::kCauseGame)
+    {
+        // The guest's game answers it; the stack waits (PlayerNatives' Wait).
+        LastAnswer.reset();
+        Waiting.insert(LastWaiting = m_nextStack++);
+        World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOwner, .GuestFormId = aCause, .ReplyId = LastWaiting, .Call = acCall});
+        return;
+    }
     if (cReach.Kind == Call::kQuestion)
     {
         LastAnswer = Answer(acCall, cRouting.Ask, aCause);
@@ -215,11 +225,8 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
     World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .ReplyId = m_openedBox, .Call = std::move(call), .Controls = cControls});
 }
 
-// ObjectReference.GetDistance between its self and its argument; Actor.HasLOS as the engine answers it (54698, 53829):
-// this game's player sees with its camera (here: in sight within 1000 units), another actor sees only actors, and on the
-// host a guest's character sees what its game last said (GuestSight). A question asked of the party is put to the
-// players PartyRules::PlayersToAsk names, each in the stack's player's place: a distance to the nearest (Scope's
-// asker), a yes/no one to each until one says yes.
+// ObjectReference.GetDistance; Actor.HasLOS as the engine answers it, a guest's character on the host from its game
+// (docs/re/systems/papyrus-guest-scripts.md, "A player's line of sight"). Asked of the party: PlayersToAsk's players.
 LocalValue FakeEngine::Answer(const LocalCall& acCall, bool aAsksParty, uint32_t aCause) const
 {
     const auto cIdOf = [](const LocalValue& acValue) {
@@ -251,14 +258,14 @@ LocalValue FakeEngine::Answer(const LocalCall& acCall, bool aAsksParty, uint32_t
     const auto cSees = [&](uint32_t aViewer, uint32_t aTarget) {
         if (cIsGuestCharacter(aViewer))
         {
-            const auto cReading = Sight.Sees(aViewer, aTarget, SightCache::Clock::now());
+            const auto cReading = Sight.Sees(aViewer, aTarget, HostSight::Clock::now());
             if (cReading.Ask)
                 World::Get().GetRunner().Trigger(RoutedCallEvent{
                     .To = CallTo::kOwner,
                     .GuestFormId = aViewer,
                     .ReplyId = cReading.Ask->ReplyId,
                     .Call = {.Class = "Actor", .Function = "HasLOS", .Self = LocalForm{aViewer}, .Arguments = {LocalForm{aTarget}}}});
-            return cReading.Sees;
+            return cReading.Sees.value_or(false);
         }
         if (aViewer != kPlayer && !Actors.contains(aTarget))
             return false; // "Non-player actors cannot request LOS to a non-actor"
@@ -419,10 +426,10 @@ void SetGuest(bool) noexcept
 
 void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept
 {
-    if (SightCache::IsSightReply(aReplyId))
+    if (HostSight::IsSightReply(aReplyId))
     {
         const auto* cpSees = std::get_if<bool>(&acResult);
-        FakeEngine::Current().Sight.Answer(aReplyId, cpSees && *cpSees, SightCache::Clock::now());
+        FakeEngine::Current().Sight.Answer(aReplyId, cpSees && *cpSees, HostSight::Clock::now());
         return;
     }
     if (FakeEngine::Current().Waiting.erase(aReplyId))

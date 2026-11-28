@@ -229,38 +229,47 @@ character (a copy) can never answer the player's version. Read in IDA:
 else does (AI detection has its own path). Vanilla scripts ask the player's sight in 26 files (`HasLOS`, about 58
 calls on the player) and register for it in 14.
 
-Vanilla word walls (`WordWallTriggerScript`, Bleak Falls Barrow's trigger adds `WordWallTriggerBleakFallsScript`):
-the trigger reference carries both scripts' handlers, so an entry calls `StartWordWall` twice (and a leave
-`StopWordWall` twice).
-`OnTriggerEnter(actorRef == Game.GetPlayer())` → `StartWordWall` (`iInTrigger += 1`, `RegisterForSingleUpdate(0.5)`)
-→ `OnUpdate` loops while `iInTrigger > 0`: `isLooking()` = `Game.GetPlayer().HasLOS(lookTarget)` (an xmarker), then
-`StartFX`: within 300 units `Game.TeachWord`, the shout global, `myQuest.SetStage`, `myEnabler.Enable` (Bleak Falls,
+Vanilla word walls: Bleak Falls Barrow's trigger `709D2` (Skyrim.esm) carries `WordWallTrigger02Script` and
+`WordWallTriggerBleakFallsScript`, both with an `OnTriggerEnter(actorRef == Game.GetPlayer())` calling
+`WordWallTriggerScript.StartWordWall` (`iInTrigger += 1`, `RegisterForSingleUpdate(0.5)`); measured, `iInTrigger` rose
+by one per player walking in. `WordWallTriggerScript.OnUpdate` loops while `iInTrigger > 0`: `isLooking()` =
+`Game.GetPlayer().HasLOS(lookTarget)` (an xmarker), then `StartFX`: within 300 units and not in combat, or within 200
+units, `Game.TeachWord`, the shout global, `myQuest.SetStage`, `myEnabler.Enable` (Bleak Falls,
 trigger `709D2`: word `13E22`, global `7096D`, MS13 stage 60, and `493B7`, a disabled `defaultActivateSelfTRIG`
 that wakes the draugr when a player then walks into it). Nothing past `isLooking` runs until it says yes.
 
 On the host, a guest's character entering the trigger runs the loop for that guest (rule 2: the `OnUpdate` answers
 the guest's registration), `Game.GetPlayer()` is the copy, and `HasLOS(copy, xmarker)` is false forever (54698's
 non-player branch): no word, no draugr, while the loop spins. A save's suspended stack comes back with no cause
-(`ScriptTags` are not saved), so after a load rule 3 asks the party, the host's player first, in its place: the host's
-camera answered (playtest 2026-11-26, Bleak Falls Barrow 14:39-14:43, fixed by a quicksave and reload). The rule 3
+(`ScriptTags` are not saved), so after a load rule 3 asks the party, the host's player first, in its place. Measured:
+the wall worked about two seconds after the reload (playtest 2026-11-26, Bleak Falls Barrow 14:39-14:43, the guest's
+log); that the host's camera gave the yes is inferred, no trace after the load says whose. The rule 3
 path runs the native on the host with each guest's copy in the player's place, so it cannot answer a guest's sight either.
 
 ### As built (2026-11-27)
 
 ```
-host: any script asks "does guest G see T?"
+host: a script in guest G's stack asks once "does the player see T?" (not a timer)
+  PartyRules::RouteOf: a question whose code reads the player (NativeReach) -> G's game, the script waiting
+
+host: a polling timer, rule 3 or a LOS registration asks "does G see T?"
   Actor.HasLOS (54698) / RegisterForLOS gate (53830): G passes (GuestSight)
-  Actor::HasLineOfSight (53829), viewer G   -> SightCache: G's last answer for T (no until one comes)
+  Actor::HasLineOfSight (53829), viewer G   -> HostSight: G's last answer for T, if under a second old
+     no answer: no; inside the registrations' poll (54037) the registration's state is kept, no event
      no question out -> RoutedCallEvent kOwner Actor.HasLOS(G, T), reply id 0xC0000000 | n
 guest G: runs it on its own player (its camera) -> PlayerNativeResultRequest
-host: PlayerNatives::Answer -> GuestSight::Answer -> the cache; the script's next ask reads it
+host: PlayerNatives::Answer -> GuestSight::Answer -> the cache; the next ask reads it
 ```
 
-A stack answering a timer its player's stack set (`Cause::Timer`, taken in `CauseOfCall`) asks its questions about
+A stack answering an update timer its player's stack set (`Cause::Timer`, taken in `CauseOfCall` for `OnUpdate` and
+`OnUpdateGameTime`; not a registration's callback such as `OnAnimationEvent`) asks its questions about
 that player of the party (rule 3's path, each player put in the place of the stack's player: `PlayerInFrame`'s
 `aFrom`), and its screen calls go to every game (`PartyRules::RouteOf`). Not a body's timer (an effect on the player)
 or a system quest's. Measured on the duo (`guest-reads-word-wall`): the guest alone, the guest in first looking away
 then the host looking, and the host alone all teach Fus and enable `493B7`; the fade and the word reach both games.
+
+The party answers each question on its own: one player's look and another's distance satisfy one `StartFX` (a player
+looking from 600 units while another stands at the wall). That is the party as one Dragonborn, kept on purpose.
 
 ### One loop per script object (measured 2026-11-27)
 

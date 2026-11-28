@@ -85,6 +85,7 @@ struct CallFacts
 {
     Reach Reach;
     bool PlayerNative = false; // a global acting on this game's player (NativeReach::ReachesThisPlayer)
+    bool ReadsPlayer = false;  // its code reads this game's player (NativeReach::ReachesThisPlayer): Actor.HasLOS's camera
     Target Target = Target::kNone;
     uint32_t TargetId = 0;   // its form id
     uint32_t Cause = 0;      // GuestScripts' cause: a guest, this game's player 0x14, a mirrored tag, 0 for none

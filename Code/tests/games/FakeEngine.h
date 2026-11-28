@@ -38,7 +38,7 @@
 #include <scripts/StoryEventRules.h>
 #include <scripts/OwnEvents.h>
 #include <scripts/PartyRules.h>
-#include <scripts/SightCache.h>
+#include <scripts/HostSight.h>
 #include <Structs/Recipe.h>
 #include <core/IEngine.h>
 #include <game/HostGame.h>
@@ -266,7 +266,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, LocalValue> ScriptReturns;
     [[nodiscard]] LocalValue Answer(const LocalCall& acCall, bool aAsksParty, uint32_t aCause) const;
     // On the host, what each guest's player sees, as its game answered (GuestSight's cache).
-    mutable SightCache Sight;
+    mutable HostSight Sight;
     // This game's player answers the box in aStack: its stack returns (ReturnFromLatent's hook: an original's result
     // goes to its copies, CallEndedEvent).
     void AnswerBox(uint32_t aStack, int32_t aButton);

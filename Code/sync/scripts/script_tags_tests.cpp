@@ -167,11 +167,11 @@ SCENARIO("A timer or registration answers to whoever set it", "[tags]")
     GIVEN("a registration answering two events (RegisterForAnimationEvent)")
     {
         NativeCalled(tags, "RegisterForAnimationEvent", kScript, {kThisPlayer, true});
-        THEN("both events run for its player, story kept")
+        THEN("both events run for its player, story kept; a callback, not a timer's poll")
         {
-            CHECK(CauseOfCall(tags, EngineEvent("OnAnimationEvent"), cNoGuest, cNoPlayer) == Cause{kThisPlayer, true, true});
+            CHECK(CauseOfCall(tags, EngineEvent("OnAnimationEvent"), cNoGuest, cNoPlayer) == Cause{kThisPlayer, true});
             CHECK(CauseOfCall(tags, EngineEvent("OnAnimationEventUnregistered"), cNoGuest, cNoPlayer) ==
-                  Cause{kThisPlayer, true, true});
+                  Cause{kThisPlayer, true});
         }
     }
 
@@ -234,7 +234,7 @@ TEST_CASE("Party sleep events use the host player even when a guest registered t
     {
         auto solo = EngineEvent("OnSleepStart");
         solo.InSession = false;
-        CHECK(CauseOfCall(tags, solo, cNoGuest, cNoPlayer) == Cause{kGuest, false, true});
+        CHECK(CauseOfCall(tags, solo, cNoGuest, cNoPlayer) == Cause{kGuest, false});
     }
     SECTION("An explicitly queued native call keeps its caller's context")
     {

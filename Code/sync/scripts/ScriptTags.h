@@ -23,7 +23,7 @@ struct Cause
 {
     uint32_t Player = 0;
     bool Story = false;
-    bool Timer = false; // it answers a timer or registration Player's stack set (a word wall's OnUpdate)
+    bool Timer = false; // it answers an update timer Player's stack set (a word wall's OnUpdate)
     bool operator==(const Cause&) const = default;
 };
 
@@ -135,7 +135,7 @@ template <class TGuestArgument, class TPlayerArgument>
         if (const auto cEvent = TimerEvent(acCall.Event); !cEvent.empty())
         {
             cause = aTags.TakeTimer(acCall.Self, cEvent);
-            cause.Timer = cause.Player != 0;
+            cause.Timer = cause.Player && (cEvent == "OnUpdate" || cEvent == "OnUpdateGameTime"); // a poll, not a callback
         }
     return cause;
 }

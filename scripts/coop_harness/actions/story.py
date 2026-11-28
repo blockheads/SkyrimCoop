@@ -310,9 +310,11 @@ class StoryActions:
                      explain=lambda: f"(known, enabled) per game: {seen()}")
 
 
-    def expect_wall_waits(ctx, instance, look_target, word):
-        """A word wall's loop runs for that game's player, who does not look at `look_target` (its own HasLOS says no),
-        and no player knows `word` yet: what follows is another player's look."""
+    def expect_wall_waits(ctx, instance, look_target, word, script="WordWallTriggerScript"):
+        """A word wall's loop runs on the host for that game's player alone, who does not look at `look_target` (its own
+        HasLOS says no), and no player knows `word` yet: what follows is another player's look."""
+        ctx.wait_for(f"the host runs {script}'s OnUpdate loop", lambda: any(
+            f"{script}.OnUpdate[" in line for line in ctx.script_stacks_of("", script)), 10)
         sees = ctx.script_answer(instance, "Actor", "HasLOS", [{"form": look_target}], on=0x14, player_action=True)
         known = {name or "host": ctx.word_state(name, word)[0] for name in ("", "client")}
         if sees or any(known.values()):
