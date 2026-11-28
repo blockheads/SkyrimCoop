@@ -961,6 +961,14 @@ RefrInteraction* Actor::GetOwnInteraction() const noexcept
     return pExtra ? pExtra->interaction : nullptr;
 }
 
+TESObjectREFR* Actor::GetRiddenMount() const noexcept
+{
+    const RefrInteraction* pLink = GetOwnInteraction();
+    if (!pLink || TESObjectREFR::GetByHandle(pLink->actorHandle) != this)
+        return nullptr;
+    return TESObjectREFR::GetByHandle(pLink->targetHandle);
+}
+
 void Actor::HoldRider(Actor* apRider, bool aReplace) noexcept
 {
     RefrInteraction* pLink = apRider ? apRider->GetOwnInteraction() : nullptr;

@@ -299,6 +299,28 @@ class StoryActions:
         return bool(form.get("known")), bool(form.get("unlocked"))
 
 
+    def expect_word_wall_read(ctx, word, enables=None, seconds=15):
+        """A word wall was read: each game's player knows `word` within `seconds`, and the wall's script enabled
+        `enables` (WordWallTriggerScript's myEnabler) in each game."""
+        def seen():
+            return {name or "host": (ctx.word_state(name, word)[0], enables is None or bool(ctx.ref_enabled(name, enables)))
+                    for name in ("", "client")}
+        ctx.wait_for(f"both players know word {word:X}" + (f" and {enables:X} is enabled" if enables else ""),
+                     lambda: all(known and enabled for known, enabled in seen().values()), seconds,
+                     explain=lambda: f"(known, enabled) per game: {seen()}")
+
+
+    def expect_wall_waits(ctx, instance, look_target, word, script="WordWallTriggerScript"):
+        """A word wall's loop runs on the host for that game's player alone, who does not look at `look_target` (its own
+        HasLOS says no), and no player knows `word` yet: what follows is another player's look."""
+        ctx.wait_for(f"the host runs {script}'s OnUpdate loop", lambda: any(
+            f"{script}.OnUpdate[" in line for line in ctx.script_stacks_of("", script)), 10)
+        sees = ctx.script_answer(instance, "Actor", "HasLOS", [{"form": look_target}], on=0x14, player_action=True)
+        known = {name or "host": ctx.word_state(name, word)[0] for name in ("", "client")}
+        if sees or any(known.values()):
+            raise ctx.failure(f"[{instance or 'host'}] the wall should wait: its player sees the word {sees}, known {known}")
+
+
     def forget_words(ctx, words):
         """Neither game's player knows or has unlocked these words (a forgotten word is not the party's to share)."""
         for name in ("", "client"):

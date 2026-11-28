@@ -139,7 +139,7 @@ Reach FakeReachOf(const LocalCall& acCall)
 }
 
 // PartyNatives::Scope around the native (PartyRules::RouteOf), the native's own effect here, and the party call after.
-void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory, bool aBody)
+void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory, bool aBody, bool aTimer)
 {
     const Reach cReach = FakeReachOf(acCall);
     const auto* cpSelf = std::get_if<LocalForm>(&acCall.Self);
@@ -152,15 +152,20 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
         const auto cIt = Actors.find(aActor);
         return !IsGuest && cIt != Actors.end() && cIt->second.Copy && cIt->second.Player;
     };
+    // The stack's player: this game's, or in a guest's stack its character (GetPlayer's swap, PlayerInFrame).
+    const uint32_t cStackPlayer = cIsGuestCharacter(aCause) ? aCause : kPlayer;
     const auto cIsPlayer = [&](const LocalValue& acValue) {
         const auto* cpForm = std::get_if<LocalForm>(&acValue);
-        return cpForm && cpForm->FormId == kPlayer;
+        return cpForm && (cpForm->FormId == kPlayer || cpForm->FormId == cStackPlayer);
     };
+    const bool cGuestQuestion = cIsGuestCharacter(aCause) && cReach.Kind == Call::kQuestion && cIsGuestCharacter(cSelf);
     const CallFacts cFacts{.Reach = cReach,
+                           .ReadsPlayer = cGuestQuestion && SameName(acCall.Function, "HasLOS"), // its camera (40520)
                            .Target = cSelf == kPlayer ? Target::kThisPlayer : cIsGuestCharacter(cSelf) ? Target::kGuestCharacter : Target::kNone,
                            .TargetId = cSelf,
                            .Cause = aCause,
                            .Story = aStory,
+                           .Timer = aTimer,
                            .Body = aBody,
                            .GuestCause = cIsGuestCharacter(aCause),
                            .Hosting = !IsGuest,
@@ -170,9 +175,18 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
                            .SystemObject = cpSelf && (SystemQuestList.Contains(cpSelf->FormId) || SystemQuestList.IsGlobal(cpSelf->FormId)),
                            .CreatedObject = cpSelf && IsCreatedForm(cpSelf->FormId) && World::Get().ctx().at<CreatedIds>().ToSession(cpSelf->FormId).has_value()};
     const Routing cRouting = InSession ? RouteOf(cFacts) : Routing{};
+    if (cReach.Kind == Call::kQuestion && cRouting.To == Destination::kCauseGame)
+    {
+        // The guest's game answers it; the stack waits (PlayerNatives' Wait).
+        LastAnswer.reset();
+        Waiting.insert(LastWaiting = m_nextStack++);
+        World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOwner, .GuestFormId = aCause, .ReplyId = LastWaiting, .Call = acCall});
+        return;
+    }
     if (cReach.Kind == Call::kQuestion)
     {
-        LastAnswer = Answer(acCall, cRouting.Ask);
+        LastAnswer = Answer(acCall, cRouting.Ask, aCause);
+        LastReturn = *LastAnswer;
         return;
     }
     uint32_t asked = 0;
@@ -211,35 +225,61 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
     World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .ReplyId = m_openedBox, .Call = std::move(call), .Controls = cControls});
 }
 
-// ObjectReference.GetDistance between its self and its argument, Actor.HasLOS (in sight within 1000 units). A question
-// asked of the party is put to the players PartyRules::PlayersToAsk names: a distance to the nearest (Scope's asker),
-// a yes/no one to each until one says yes.
-LocalValue FakeEngine::Answer(const LocalCall& acCall, bool aAsksParty) const
+// ObjectReference.GetDistance; Actor.HasLOS as the engine answers it, a guest's character on the host from its game
+// (docs/re/systems/papyrus-guest-scripts.md, "A player's line of sight"). Asked of the party: PlayersToAsk's players.
+LocalValue FakeEngine::Answer(const LocalCall& acCall, bool aAsksParty, uint32_t aCause) const
 {
     const auto cIdOf = [](const LocalValue& acValue) {
         const auto* cpForm = std::get_if<LocalForm>(&acValue);
         return cpForm ? cpForm->FormId : 0u;
     };
+    const auto cIsGuestCharacter = [this](uint32_t aActor) {
+        const auto cIt = Actors.find(aActor);
+        return !IsGuest && aActor != kPlayer && cIt != Actors.end() && cIt->second.Copy && cIt->second.Player;
+    };
+    const uint32_t cStackPlayer = cIsGuestCharacter(aCause) ? aCause : kPlayer;
     uint32_t self = cIdOf(acCall.Self);
     uint32_t other = acCall.Arguments.empty() ? 0 : cIdOf(acCall.Arguments[0]);
-    const auto cDistance = [this](uint32_t aFrom, uint32_t aTo) -> std::optional<float> {
-        const auto cFrom = Actors.find(aFrom);
-        const auto cTo = Actors.find(aTo);
-        if (cFrom == Actors.end() || cTo == Actors.end() || cFrom->second.Cell != cTo->second.Cell)
+    const auto cPlace = [this](uint32_t aForm) -> std::optional<std::pair<glm::vec3, std::optional<uint32_t>>> {
+        if (const auto cActor = Actors.find(aForm); cActor != Actors.end())
+            return std::pair{glm::vec3(cActor->second.Position[0], cActor->second.Position[1], cActor->second.Position[2]),
+                             std::optional(cActor->second.Cell)};
+        if (const auto cReference = References.find(aForm); cReference != References.end())
+            return std::pair{cReference->second.Position, std::optional<uint32_t>{}};
+        return std::nullopt;
+    };
+    const auto cDistance = [&](uint32_t aFrom, uint32_t aTo) -> std::optional<float> {
+        const auto cFrom = cPlace(aFrom);
+        const auto cTo = cPlace(aTo);
+        if (!cFrom || !cTo || (cFrom->second && cTo->second && *cFrom->second != *cTo->second))
             return std::nullopt;
-        return glm::distance(glm::vec3(cFrom->second.Position[0], cFrom->second.Position[1], cFrom->second.Position[2]),
-                             glm::vec3(cTo->second.Position[0], cTo->second.Position[1], cTo->second.Position[2]));
+        return glm::distance(cFrom->first, cTo->first);
+    };
+    const auto cSees = [&](uint32_t aViewer, uint32_t aTarget) {
+        if (cIsGuestCharacter(aViewer))
+        {
+            const auto cReading = Sight.Sees(aViewer, aTarget, HostSight::Clock::now());
+            if (cReading.Ask)
+                World::Get().GetRunner().Trigger(RoutedCallEvent{
+                    .To = CallTo::kOwner,
+                    .GuestFormId = aViewer,
+                    .ReplyId = cReading.Ask->ReplyId,
+                    .Call = {.Class = "Actor", .Function = "HasLOS", .Self = LocalForm{aViewer}, .Arguments = {LocalForm{aTarget}}}});
+            return cReading.Sees.value_or(false);
+        }
+        if (aViewer != kPlayer && !Actors.contains(aTarget))
+            return false; // "Non-player actors cannot request LOS to a non-actor"
+        return cDistance(aViewer, aTarget).value_or(1e9f) < 1000.f;
     };
     const bool cYesNo = acCall.Function == "HasLOS";
     const auto cAnswerFor = [&](uint32_t aPlayer) -> LocalValue {
-        const uint32_t cSelf = self == kPlayer ? aPlayer : self;
-        const uint32_t cOther = other == kPlayer ? aPlayer : other;
-        const float cDistanceNow = cDistance(cSelf, cOther).value_or(1e9f);
-        return cYesNo ? LocalValue{cDistanceNow < 1000.f} : LocalValue{cDistanceNow};
+        const uint32_t cSelf = self == cStackPlayer ? aPlayer : self;
+        const uint32_t cOther = other == cStackPlayer ? aPlayer : other;
+        return cYesNo ? LocalValue{cSees(cSelf, cOther)} : LocalValue{cDistance(cSelf, cOther).value_or(1e9f)};
     };
     if (!aAsksParty)
-        return cAnswerFor(kPlayer);
-    const uint32_t cAsker = self == kPlayer ? other : self;
+        return cAnswerFor(cStackPlayer);
+    const uint32_t cAsker = self == cStackPlayer ? other : self;
     std::vector<Asked> players{{kPlayer, cDistance(kPlayer, cAsker)}};
     std::vector<uint32_t> guests;
     for (const uint32_t cCopy : CopiesOf())
@@ -386,6 +426,12 @@ void SetGuest(bool) noexcept
 
 void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept
 {
+    if (HostSight::IsSightReply(aReplyId))
+    {
+        const auto* cpSees = std::get_if<bool>(&acResult);
+        FakeEngine::Current().Sight.Answer(aReplyId, cpSees && *cpSees, HostSight::Clock::now());
+        return;
+    }
     if (FakeEngine::Current().Waiting.erase(aReplyId))
         FakeEngine::Current().ScriptReturns[aReplyId] = acResult;
 }

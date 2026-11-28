@@ -1,6 +1,7 @@
 #include <Papyrus/PlayerNativeCalls.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/NativeReach.h>
+#include <Papyrus/GuestSight.h>
 
 #include <scripts/RoutedCallEvent.h>
 #include <Forms/TESQuest.h>
@@ -120,6 +121,8 @@ BSScript::CallResult SendToGuest(BSScript::IFunction* apFunction, BSScript::Stac
 
 void Answer(uint32_t aReplyId, const LocalValue& acResult) noexcept
 {
+    if (GuestSight::Answer(aReplyId, acResult))
+        return;
     BSScript::Variable::Type returnType;
     {
         std::scoped_lock _{s_waitingLock};

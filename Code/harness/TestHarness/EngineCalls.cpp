@@ -1428,10 +1428,17 @@ std::vector<ScriptStack> GetRunningScripts() noexcept
     {
         ScriptStack& stack = stacks.emplace_back();
         stack.Id = entry.key;
+        stack.State = entry.value ? entry.value->state : 0;
+        stack.Freeze = entry.value ? entry.value->freezeState : 0;
         for (BSScript::StackFrame* pFrame = entry.value ? entry.value->pTop : nullptr; pFrame && stack.Frames.size() < 32;
              pFrame = pFrame->pPrevious)
             if (pFrame->pFunction)
+            {
                 stack.Frames.push_back(cName(pFrame->pFunction->GetObjectTypeName()) + "." + cName(pFrame->pFunction->GetName()));
+                const auto* cpSelf = pFrame->self.GetObject();
+                const auto* cpHolder = cpSelf ? reinterpret_cast<const BSScript::Stack*>(cpSelf->lockedBy & ~uintptr_t{1}) : nullptr;
+                stack.Holders.push_back(cpHolder ? cpHolder->stackId : 0);
+            }
     }
     pVm->runningStacksLock.Unlock();
     return stacks;

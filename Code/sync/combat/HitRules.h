@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 // HookDamageActor's rule with no engine (docs/design/friendly-fire.md): what this game does with a hit it saw.
 // Checked by UnitTests; the hook and GameTests' fake engine both follow it.
 namespace HitRules
@@ -19,6 +21,14 @@ enum class Party
 [[nodiscard]] constexpr bool JudgesImpact(Party aHittee) noexcept
 {
     return aHittee != Party::OtherPlayer;
+}
+
+// Players on one horse (each rider's own link to it, ExtraInteraction): a weapon hit between them is dropped
+// (DealDamage 38627). docs/re/systems/player-mount.md.
+[[nodiscard]] constexpr bool RideTogether(Party aHittee, Party aHitter, uint32_t aHitteeMount, uint32_t aHitterMount) noexcept
+{
+    const auto cPlayer = [](Party a) { return a == Party::LocalPlayer || a == Party::OtherPlayer; };
+    return cPlayer(aHittee) && cPlayer(aHitter) && aHitteeMount != 0 && aHitteeMount == aHitterMount;
 }
 
 enum class Route

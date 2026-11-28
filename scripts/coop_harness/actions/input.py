@@ -3,6 +3,7 @@ import os
 import subprocess
 import time
 from ..comparisons import is_close
+from ..objects import AnimTrace
 from ..common import (
     CASTER_CHARGED,
     CONCENTRATION_SPELLS,
@@ -148,10 +149,25 @@ class InputActions:
         who = f"[{instance or 'host'}]"
         ctx.wait_for(f"{who} the last draw or sheathe has played out", lambda: ctx.hands_settled(instance), 5)
         animations = ctx.local_player(instance).get("equip_animations", 0)
+        if (ctx.player_snapshot(instance).get("placement") or {}).get("riding"):
+            return ctx.ready_weapon_riding(instance, state, what)
         ctx.tap(instance, "ready")
         ctx.wait_for(f"{who} {what}", lambda: ctx.local_player(instance).get("equip_animations", 0) > animations
                  and ctx.weapon_state(instance) == state and ctx.hands_settled(instance), 5)
 
+    def ready_weapon_riding(ctx, instance, state, what):
+        """Ready Weapon on a mount: the rider's graph sets no IsEquipping, takes no attack until its draw's clip sends
+        attackStop (measured 2026-11-28: weaponDraw, then attackStop 0.9 s later; a click between is not taken), and
+        no Ready Weapon until its sheathe's sends Unequip_Out. Read in a trace of its own player, nested in any open."""
+        with AnimTrace(ctx, "ready-weapon-riding", {instance: {0x14: "me"}}, video=False) as trace:
+            pressed = time.time()
+            ctx.tap(instance, "ready")
+            if state == WEAPON_DRAWN:
+                drawn = trace.wait(instance, "me", "weaponDraw", 5, after=pressed)
+                trace.wait(instance, "me", "attackStop", 5, after=drawn["time"])
+            else:
+                trace.wait(instance, "me", "Unequip_Out", 5, after=pressed)
+            ctx.wait_for(f"[{instance or 'host'}] {what} (riding)", lambda: ctx.weapon_state(instance) == state, 5)
 
     def draw(ctx, instance):
         """The player readies what it holds (the Ready Weapon button); returns once the hands are ready."""

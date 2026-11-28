@@ -533,6 +533,16 @@ class PhysicsActions:
                    for frame in stack["frames"])
 
 
+    def script_stacks_of(ctx, instance, script):
+        """That game's stacks running a function of that script, one line each: id, state (0 running, 3 in a latent
+        call, 4 waiting on another stack to call, 5-6 to return), and each frame with the stack inside its object."""
+        prefix = script.lower() + "."
+        return [f"{stack['id']} state {stack.get('state')}: " + " < ".join(
+                    f"{frame}[{holder or '-'}]" for frame, holder in zip(stack["frames"], stack.get("holders") or [0] * len(stack["frames"])))
+                for stack in ctx.player_command(instance, {"cmd": "script_stacks"})["stacks"]
+                if any(frame.lower().startswith(prefix) for frame in stack["frames"])]
+
+
     def werewolf_running(ctx, instance):
         _game = ctx.game(instance)
         return bool((_game.rpc({"cmd": "quest", "quest": PLAYER_WEREWOLF_QUEST}) or {}).get("flags", 0) & 1)

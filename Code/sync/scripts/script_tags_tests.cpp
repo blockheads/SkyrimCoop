@@ -134,7 +134,7 @@ SCENARIO("A timer or registration answers to whoever set it", "[tags]")
         {
             const Cause cFirst = CauseOfCall(tags, EngineEvent("OnUpdate"), cNoGuest, cNoPlayer);
             const Cause cSecond = CauseOfCall(tags, EngineEvent("OnUpdate"), cNoGuest, cNoPlayer);
-            THEN("it runs for the guest, once") CHECK(cFirst == Cause{kGuest, false});
+            THEN("it runs for the guest, once, as its timer") CHECK(cFirst == Cause{kGuest, false, true});
             THEN("a second update is no one's") CHECK(cSecond == Cause{});
         }
         WHEN("another script object's OnUpdate fires")
@@ -167,7 +167,7 @@ SCENARIO("A timer or registration answers to whoever set it", "[tags]")
     GIVEN("a registration answering two events (RegisterForAnimationEvent)")
     {
         NativeCalled(tags, "RegisterForAnimationEvent", kScript, {kThisPlayer, true});
-        THEN("both events run for its player, story kept")
+        THEN("both events run for its player, story kept; a callback, not a timer's poll")
         {
             CHECK(CauseOfCall(tags, EngineEvent("OnAnimationEvent"), cNoGuest, cNoPlayer) == Cause{kThisPlayer, true});
             CHECK(CauseOfCall(tags, EngineEvent("OnAnimationEventUnregistered"), cNoGuest, cNoPlayer) ==
@@ -217,7 +217,7 @@ TEST_CASE("Party sleep events use the host player even when a guest registered t
         CHECK(PartyRules::Whose(cSleep.Player, cSleep.Story) == PartyRules::Share::kParty);
         // Follow-up quest timers keep acting on the host player too (e.g. the abduction's continuation).
         NativeCalled(tags, "RegisterForSingleUpdate", kQuest, cSleep);
-        CHECK(CauseOfCall(tags, EngineEvent("OnUpdate", kQuest), cNoGuest, cNoPlayer) == Cause{kThisPlayer, true});
+        CHECK(CauseOfCall(tags, EngineEvent("OnUpdate", kQuest), cNoGuest, cNoPlayer) == Cause{kThisPlayer, true, true});
     }
     SECTION("A listener registered by the world also acts on the host player")
     {
@@ -228,7 +228,7 @@ TEST_CASE("Party sleep events use the host player even when a guest registered t
     SECTION("Ordinary registrations retain their guest context")
     {
         NativeCalled(tags, "RegisterForUpdate", kScript, {kGuest, false});
-        CHECK(CauseOfCall(tags, EngineEvent("OnUpdate"), cNoGuest, cNoPlayer) == Cause{kGuest, false});
+        CHECK(CauseOfCall(tags, EngineEvent("OnUpdate"), cNoGuest, cNoPlayer) == Cause{kGuest, false, true});
     }
     SECTION("Outside a session the existing registration rules apply")
     {
@@ -256,7 +256,7 @@ SCENARIO("A guest's lever to a cutscene: the chain from action to story", "[tags
 
     // The update fires, runs for the guest; it sets the quest's stage.
     const Cause cUpdate = CauseOfCall(tags, EngineEvent("OnUpdate"), cNoGuest, cNoPlayer);
-    REQUIRE(RunsFor(tags, cUpdate, 2, &update) == Cause{kGuest, false});
+    REQUIRE(RunsFor(tags, cUpdate, 2, &update) == Cause{kGuest, false, true});
     const Cause cSetStage = Within(tags.OfStack(2), true);
 
     // The stage's fragment, queued by SetStage: the story.

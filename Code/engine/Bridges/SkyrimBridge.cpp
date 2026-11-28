@@ -405,11 +405,7 @@ void SkyrimBridge::ActorSeatOnMount(uint32_t aRiderFormId, uint32_t aMountFormId
 uint32_t SkyrimBridge::GetActorMount(uint32_t aRiderFormId) const noexcept
 {
     const Actor* pRider = GetActor(aRiderFormId);
-    const RefrInteraction* pLink = pRider ? pRider->GetOwnInteraction() : nullptr;
-    // A mount holds its rider's link too (its one slot): only the link's rider is on a mount.
-    if (!pLink || TESObjectREFR::GetByHandle(pLink->actorHandle) != pRider)
-        return 0;
-    const TESObjectREFR* pMount = TESObjectREFR::GetByHandle(pLink->targetHandle);
+    const TESObjectREFR* pMount = pRider ? pRider->GetRiddenMount() : nullptr;
     return pMount ? pMount->formID : 0;
 }
 

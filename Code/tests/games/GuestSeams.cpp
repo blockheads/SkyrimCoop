@@ -57,13 +57,13 @@ void FakeGuestEngine::EndScenePackage() noexcept
 {
     FakeEngine::Current().AiDriven = false;
 }
-bool FakeGuestEngine::RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)>) noexcept
+bool FakeGuestEngine::RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn) noexcept
 {
-    // As GuestEngine: GlobalCall::QueueCall, as this player's own.
+    // As GuestEngine: GlobalCall::QueueCall, as this player's own; what it returns goes back (the host's question).
     const auto cCall = Utils::ToLocalCall(acCall.Call);
     if (!cCall)
         return false;
-    FakeEngine::Current().Queue(*cCall, PartyRules::kRoutedCallCause);
+    FakeEngine::Current().Queue(*cCall, PartyRules::kRoutedCallCause, std::move(aOnReturn));
     return true;
 }
 

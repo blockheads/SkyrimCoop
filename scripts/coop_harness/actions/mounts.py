@@ -194,6 +194,39 @@ class MountsActions:
         return bool(ridden) and not any(ctx.player_command(game, {"cmd": "graph_bool", "actor": form, "names": ["bIsSynced"]})
                                         .get("values", {}).get("bIsSynced") for form in ridden)
 
+    def npc_beside_rider(ctx, instance, npc, horse, right=0.0, ahead=0.0):
+        """Stands the host's NPC `npc` (a handle or form id) `right` units to the right of that game's riding player and
+        `ahead` units before it (its horse's heading): dropped onto the floor there from above `horse`'s height (as
+        `place`: a spot set at floor height can land under it), frozen once it holds still, and the guest's copy where
+        the host has it. Returns where it stands."""
+        ref = ctx.resolve(npc, "")
+        placement = ctx.player_snapshot(instance).get("placement") or {}
+        at, heading = placement["position"], placement["rotation"][2]
+        ground = ctx.place_of("", ctx.resolve(horse, ""))[2]
+        # Skyrim's heading: 0 north (+y), clockwise.
+        goal = [at[0] + ahead * math.sin(heading) + right * math.cos(heading),
+                at[1] + ahead * math.cos(heading) - right * math.sin(heading), ground]
+        ctx.console_on("", f"{ref:x}.setav aggression 0")  # thawed while it lands: no attack meanwhile
+        ctx.freeze("", ref, False)
+        ctx.place("", f"{ref:x}", goal, goal)
+        ctx.wait_for(f"[host] {npc} over its spot", lambda: distance(ctx.host_npc_state(ref)["position"][:2], goal[:2]) < 40, 5)
+        last = [None]
+        def landed():
+            now, before = ctx.host_npc_state(ref)["position"], last[0]
+            last[0] = now
+            return before is not None and distance(now, before) < 2 and abs(now[2] - ground) < 60
+        ctx.wait_for(f"[host] {npc} stands on the floor by the horse", lambda: (time.sleep(0.3), landed())[1], 8,
+                     explain=lambda: f"at {last[0]}, the horse's height {ground:.0f}")
+        ctx.freeze("", ref)
+        copy = ctx.copy_of("client", ctx.host_npc_state(ref)["session_id"])
+        def apart():
+            host_at, guest_at = ctx.host_npc_state(ref)["position"], ctx.place_of("client", copy)
+            return distance(host_at, guest_at) if guest_at else 1e9
+        # A frozen NPC's copy rests up to 45 units off (measured); one under the floor on either game is 100+ off.
+        ctx.wait_for(f"[client] its copy of {npc} where the host has it", lambda: apart() < 60, 10,
+                     explain=lambda: f"{apart():.0f} units apart")
+        return ctx.host_npc_state(ref)["position"]
+
     def wait_seated(ctx, instance):
         """That game's player, having activated a horse, is up on it (seated_on_mount), else fails with the readout."""
         ctx.wait_for(f"[{instance or 'host'}] its player is up on its horse", lambda: ctx.seated_on_mount(instance), 10,
