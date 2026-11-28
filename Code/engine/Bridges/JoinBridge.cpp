@@ -405,10 +405,33 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
                  acRecord.Perks.size(), acRecord.Spells.size(), acRecord.Items.Entries.size());
 }
 
-void JoinBridge::SetCharacter(uint32_t aCharacterId) noexcept
+void JoinBridge::SetCharacter(SaveNames::Character aCharacter) noexcept
 {
     if (BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get())
-        pManager->SetCurrentCharacter(aCharacterId);
+        pManager->SetCurrentCharacter(aCharacter.Id, aCharacter.Modded);
+}
+
+uint32_t JoinBridge::CurrentCharacter() const noexcept
+{
+    const auto* pManager = BGSSaveLoadManager::Get();
+    return pManager ? pManager->currentCharacterId : 0;
+}
+
+void JoinBridge::LimitSaveList(SaveList::Limit aLimit) noexcept
+{
+    BGSSaveLoadManager::LimitSaveList(aLimit);
+}
+
+void JoinBridge::DeleteSave(const std::string& acName) noexcept
+{
+    auto game = BGSSaveLoadManager::SaveFilePath(acName.c_str());
+    if (game.empty())
+        return;
+    std::error_code error;
+    if (std::filesystem::remove(game, error))
+        spdlog::info("JoinBridge: deleted {}", game.string());
+    game.replace_extension(".skse");
+    std::filesystem::remove(game, error);
 }
 
 std::optional<IJoinBridge::SaveFiles> JoinBridge::ReadSave(const std::string& acName) noexcept

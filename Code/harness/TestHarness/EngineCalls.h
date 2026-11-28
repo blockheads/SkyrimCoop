@@ -314,6 +314,9 @@ struct Destruction
     bool Has3D = false;
 };
 std::optional<Destruction> GetDestruction(uint32_t aFormId) noexcept;
+// The main menu's scan of every save, as Continue runs it (52898 -> PopulateSaveList 35760): the save list and the
+// Journal's character map then know every playthrough in the folder. The characters of the saves listed.
+[[nodiscard]] std::vector<uint32_t> ScanAllSaves() noexcept;
 
 // --- Staging and the player's own input ---
 

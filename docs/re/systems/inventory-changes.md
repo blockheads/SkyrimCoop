@@ -311,6 +311,30 @@ taker's copy instead; the journal's rows and the copy measurements of that day a
 replaced it. Arvel's web package ghosts him
 (`PF_MS13ArvelWebForcegreetPack` `setGhost()`): the scenario clears it before the kill. A kill move was not tried.
 
+## A quest object's party tag (2026-11-27, IDA 1.7.104, read and measured)
+
+The Golden Claw (measured) and the Dragonstone (inferred: MQ103's alias creates it the same way, above) showed no
+`[P]` on their holder (the host's player, which every route gives a
+quest object to: `MoveAliasStack`, `TakeQuestObject`, its own pickup), while the other players' copies read
+"[P] Golden Claw".
+
+```text
+StandardItemData::GetName 51803 (0x14093FD20, read): its InventoryEntryData (+0x8)
+  -> InventoryEntryData::GetName 16018 (0x140229670, read)
+  the stack's first list: its ExtraTextDisplayData (0x99) -> ExtraTextDisplayData::GetDisplayName 12768
+  none (and temper 1.0) -> TESForm's name
+ExtraDataList::HasQuestObjectAlias 12052 (0x140172D30, read)
+  the aliases of the list's reference (handle 0x1C) unless deleted, else the list's own 0x88
+```
+
+Measured (`stack_extras`, `golden-claw-party-tag`): the holder's claw list holds 136 and 28, no 153; that the menu
+then shows the form's name is read from 16018, not seen (`item_stacks` reads the custom name we set). `TagStackInPlace`
+skipped a quest object's list, and `InventoryService` asked no rename for a quest item. Now the host's arrival tags it
+in place, and a quest object held from the save is tagged when the party's items arrive (`NotifyPartyItems`). An alias
+list takes the tag only unnamed or named as the tag's own name (`PartyItems::TagsAliasStack`), never one tagged
+already. `SetCustomName` refuses a list whose name an alias's display name gives: that one keeps it, and nothing else
+is tagged in its place. It is never replaced, as a plain stack is: a new list would lose the alias.
+
 ## What the story hears and counts of a player's items (2026-11-23, IDA 1.7.104, read)
 
 For the party's one pack (the story hears, counts and takes the party's items as the player's): where the engine's

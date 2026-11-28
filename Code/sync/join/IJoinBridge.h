@@ -1,5 +1,7 @@
 #pragma once
 
+#include <join/SaveList.h>
+#include <join/SaveNames.h>
 #include <join/SaveTransfer.h>
 #include <Structs/PlayerRecord.h>
 
@@ -37,6 +39,7 @@ public:
     // call; call again each update) or when it refused.
     [[nodiscard]] virtual std::optional<SaveFiles> SaveNow(const std::string& acName) noexcept = 0;
     // Writes a save's files under acName; the engine loads it on a main loop frame after (TESLoadGameEvent follows).
+    // False when a file was not written: the other may be.
     virtual bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept = 0;
 
     // Work too heavy for a frame (a save imaged, encoded or decoded) runs off the game's threads; what it returns
@@ -52,11 +55,17 @@ public:
     virtual bool WriteHeldSave(const std::string& acId, const std::string& acData) noexcept = 0;
     virtual void DropHeldSave(const std::string& acId) noexcept = 0;
 
+    // A save and its co-save gone from the engine's Saves folder (nothing when there is none).
+    virtual void DeleteSave(const std::string& acName) noexcept = 0;
     // An existing save and its co-save, selected by the host.
     [[nodiscard]] virtual std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept = 0;
     // The engine's current character (its saves are filed and named under it), as a load of that character's save
     // sets it: a load of a scratch save (SkyrimCoopWipe) sets 0 (docs/re/systems/save-game.md).
-    virtual void SetCharacter(uint32_t aCharacterId) noexcept = 0;
+    virtual void SetCharacter(SaveNames::Character aCharacter) noexcept = 0;
+    [[nodiscard]] virtual uint32_t CurrentCharacter() const noexcept = 0;
+    // Which saves the Journal's Load lists from now on (callable on any thread's behalf: the engine reads it on its
+    // save thread).
+    virtual void LimitSaveList(SaveList::Limit aLimit) noexcept = 0;
     // This game's player's character (no key, no place): docs/design/join-flow.md, "The character record".
     [[nodiscard]] virtual PlayerRecord ReadPlayer() const noexcept = 0;
     // Makes this game's player the record's character (the loaded save's player is another's), standing at the

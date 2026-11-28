@@ -1126,7 +1126,8 @@ class ReproActions:
         update; with `name`, its copy compared on at least `value` updates, by default 9 in 10 of its owner's and 4 a
         second; without, at least `value` copies, default 1, compared that far), "guest_npcs" (the guest shows no NPC of its own, all
         through `seconds`), "props" (every copy holds its owner's props within `seconds`, at least `value` owners holding one), "stolen" (item `name`,
-        hex: `game`'s player holds at least value [n] of it owned by `of`, hex: ExtraOwnership)."""
+        hex: `game`'s player holds at least value [n] of it owned by `of`, hex: ExtraOwnership), "party_tag" (item `name`, hex: each
+        game's player carries it and every stack is named "[P] ...", within `seconds`)."""
         if check == "faces":
             return ctx.expect_faces(name, of, game, within, seconds)
         if check == "items":  # within `seconds`: a change reaches the other game a few frames later
@@ -1182,6 +1183,22 @@ class ReproActions:
             except TestFailure:
                 raise ctx.failure(f"[{game or 'host'}] the player holds {stolen()} of {name} owned by {of}, not {want}") from None
             return {"stolen": stolen()}
+        if check == "party_tag":  # item `name` (hex): each game's player carries it, every stack named "[P] ..." (the menus' name)
+            item = int(name, 16)
+            def names():  # each game's stacks' names; what no stack with extra data holds reads as the form's name ("")
+                read = {}
+                for g, i in (("host", ""), ("guest", "client")):
+                    stacks = [s for s in ctx.game(i).rpc({"cmd": "item_stacks", "object": 0x14}).get("stacks") or [] if s.get("item") == item]
+                    plain = (ctx.item_count(i, 0x14, item) or 0) - sum(s.get("count", 1) for s in stacks)
+                    read[g] = [s.get("name", "") for s in stacks] + [""] * max(0, plain)
+                return read
+            def tagged(read):
+                return all(read[g] and all(n.startswith("[P] ") for n in read[g]) for g in read)
+            with contextlib.suppress(TestFailure):
+                ctx.wait_for(f"{name}: every player carries it as a party item", lambda: tagged(names()), seconds or 5)
+            if not tagged(read := names()):
+                raise ctx.failure(f"{name}: not every player's stack is tagged [P]: {read}")
+            return {"party_tag": read}
         if check == "wears":  # player `name` (host/guest) wears what the `of` player wears in its own game (armor and
             # clothing), each in its own game, within `seconds`; value [hex ids]: only those
             def worn(who):

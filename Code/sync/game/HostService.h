@@ -110,7 +110,7 @@ private:
     bool m_readCheckpoint{};  // the transfer started (m_checkpoint, or none once its load failed)
     bool m_loadingSave{};     // delivered to the guests, loading here
     std::optional<IJoinBridge::SaveFiles> m_checkpoint;
-    uint32_t m_checkpointCharacter{}; // its character's id (in its name), the engine's again once loaded under kReloadSave
+    SaveNames::Character m_checkpointCharacter; // its character (in its name), the engine's again once loaded under kReloadSave
     std::map<Net::ConnectionId_t, AuthenticationRequest> m_reloadJoins; // joins (the guests again) that came meanwhile
     // The images of the saves sent, while hosting: a load remakes the rules, not these.
     std::unique_ptr<SaveLibrary> m_pSaves;

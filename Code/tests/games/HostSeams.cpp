@@ -427,7 +427,7 @@ HostBodyReads FakeHostEngine::TakeBodies(uint64_t aTick, const std::function<uin
     const auto cOwner = [&](const PhysicsBodies::Bodies& acBodies) -> std::optional<BodyKey> {
         if (acBodies.Actor)
         {
-            const uint32_t cSessionId = aSessionOf(acBodies.FormId);
+            const uint32_t cSessionId = aSessionOf(engine.RagdollActorOf(acBodies.FormId));
             return cSessionId ? std::optional(BodyKey{.Actor = cSessionId}) : std::nullopt;
         }
         for (const auto& [cKey, cBody] : engine.Bodies)
@@ -445,7 +445,7 @@ HostBodyReads FakeHostEngine::TakeBodies(uint64_t aTick, const std::function<uin
                 frame.Key = {cKey->Object, cKey->Actor, frame.Key.Index};
                 if (cAwake.Held)
                     bodies.Held.push_back(frame.Key);
-                if (!cKey->Actor)
+                if (!cKey->Actor || cAwake.Held)
                     engine.SetMoving(frame.Key, true);
                 bodies.Awake.push_back(frame);
             }
@@ -453,8 +453,7 @@ HostBodyReads FakeHostEngine::TakeBodies(uint64_t aTick, const std::function<uin
         if (const auto cKey = cOwner(cRested))
             for (const BodyFrame& cRead : cRested.Read)
             {
-                if (!cKey->Actor)
-                    engine.SetMoving({cKey->Object, 0, cRead.Key.Index}, false);
+                engine.SetMoving({cKey->Object, cKey->Actor, cRead.Key.Index}, false);
                 bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position,
                                          .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
             }

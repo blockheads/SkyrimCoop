@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string_view>
 #include <vector>
@@ -7,9 +8,24 @@
 // The engine's save file names (docs/re/systems/save-game.md, "The character a save belongs to"). No engine.
 namespace SaveNames
 {
-// The character id a load of acName gives the engine, as BSSaveDataSystemUtility::Entry's parse (109348) reads it:
-// Save|Autosave|Quicksave<N>_<id hex>_<modded>_<name hex>_<place>_<time>_<date>_<x>_1, 9 fields. Any other name: 0.
-[[nodiscard]] inline uint32_t CharacterId(std::string_view aName) noexcept
+// Our scratch saves in the engine's Saves folder (a join's load, a host load's, a transfer's image): never a player's.
+// Each is deleted once used, or main menu Continue would load it (save-game.md, "Continue").
+inline constexpr const char* kJoin = "SkyrimCoopJoin";
+inline constexpr const char* kReload = "SkyrimCoopWipe";
+inline constexpr const char* kTransfer = "SkyrimCoopTransfer";
+inline constexpr std::array kScratch{kJoin, kReload, kTransfer};
+
+// The character a load of acName gives the engine, {id, modded} as BSSaveDataSystemUtility::Entry's parse (109348)
+// reads it: Save|Autosave|Quicksave<N>_<id hex>_<modded>_<name hex>_<place>_<time>_<date>_<x>_1, 9 fields. Any other
+// name: {0, false}. The engine compares both (CharacterIdPair, 35749 recomputes the modded flag on every save).
+struct Character
+{
+    uint32_t Id{};
+    bool Modded{};
+    bool operator==(const Character&) const = default;
+};
+
+[[nodiscard]] inline Character CharacterOf(std::string_view aName) noexcept
 {
     if (aName.ends_with(".ess"))
         aName.remove_suffix(4);
@@ -42,9 +58,14 @@ namespace SaveNames
         return true;
     };
     if (fields.size() != 9 || cNumber(fields.back(), 10) != 1)
-        return 0;
+        return {};
     if (!cStarts(fields[0], "Autosave") && !cStarts(fields[0], "Save") && !cStarts(fields[0], "Quicksave"))
-        return 0;
-    return cNumber(fields[1], 16);
+        return {};
+    return {cNumber(fields[1], 16), cNumber(fields[2], 10) != 0};
+}
+
+[[nodiscard]] inline uint32_t CharacterId(std::string_view aName) noexcept
+{
+    return CharacterOf(aName).Id;
 }
 } // namespace SaveNames

@@ -85,6 +85,13 @@ TEST_CASE("A player's death drop is kept in a session; an NPC's, or one outside 
     CHECK_FALSE(DeathDrops::Kept(true, false));
 }
 
+TEST_CASE("A dead player's kept weapon does not weigh into a grab of its corpse; a living one's, or an NPC's, does", "[PartyItems][death]")
+{
+    CHECK_FALSE(DeathDrops::HeldWeighs(true, true));
+    CHECK(DeathDrops::HeldWeighs(true, false));
+    CHECK(DeathDrops::HeldWeighs(false, true));
+}
+
 TEST_CASE("A hidden copy's id is refused enables until it is shown; nothing else is", "[copies]")
 {
     CHECK_FALSE(HiddenCopies::Contains(0x1A699));
@@ -106,6 +113,14 @@ TEST_CASE("A speaker with no process skips its update in a session; one with a p
     CHECK_FALSE(SpeakerUpdate::Skipped(true, true));
     CHECK_FALSE(SpeakerUpdate::Skipped(false, false));
     CHECK_FALSE(SpeakerUpdate::Skipped(true, false));
+}
+
+TEST_CASE("The tag goes on an unnamed alias stack or the one its name came from, never a tagged one", "[PartyItems]")
+{
+    CHECK(PartyItems::TagsAliasStack("", "[P] Golden Claw"));
+    CHECK(PartyItems::TagsAliasStack("Old Friend", "[P] Old Friend"));
+    CHECK_FALSE(PartyItems::TagsAliasStack("[P] Golden Claw", "[P] Golden Claw")); // a party stack held already
+    CHECK_FALSE(PartyItems::TagsAliasStack("Other", "[P] Old Friend"));
 }
 
 TEST_CASE("A party copy's name without its tag: the form's own name is no custom name", "[PartyItems]")

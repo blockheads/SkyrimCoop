@@ -32,8 +32,9 @@ HostBodyReads HostEngine::TakeBodies(uint64_t aTick, const std::function<uint32_
                 frame.Key = {cKey->Object, cKey->Actor, frame.Key.Index};
                 if (cAwake.Held)
                     bodies.Held.push_back(frame.Key);
-                // This game moves it (ignored for one a guest moves: its frames play it here).
-                if (!cKey->Actor)
+                // This game moves it (ignored for one a guest moves: its frames play it here); a copy's corpse only
+                // while its player holds it, out of the played group (its bones pinned there otherwise).
+                if (!cKey->Actor || cAwake.Held)
                     m_bodyBridge.SetMoving(frame.Key, true);
                 bodies.Awake.push_back(frame);
             }
@@ -41,8 +42,7 @@ HostBodyReads HostEngine::TakeBodies(uint64_t aTick, const std::function<uint32_
         if (const auto cKey = cOwner(cRested))
             for (const BodyFrame& cRead : cRested.Read)
             {
-                if (!cKey->Actor)
-                    m_bodyBridge.SetMoving({cKey->Object, 0, cRead.Key.Index}, false);
+                m_bodyBridge.SetMoving({cKey->Object, cKey->Actor, cRead.Key.Index}, false);
                 bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position, .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
             }
     return bodies;

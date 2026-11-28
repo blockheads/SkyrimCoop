@@ -202,11 +202,35 @@ SCENARIO("A guest picks up a quest object: the party holds the quest item, every
     THEN("the host's player holds the quest item, and it stays one each")
     {
         CHECK(std::ranges::count_if(host.EntriesOf(FakeEngine::kPlayer, kClaw), [](const auto& e) { return e.IsQuestItem; }) == 1);
+        // The item menu shows the holder's stack by its own name (InventoryEntryData::GetName 16018): tagged too.
+        for (FakeEngine* pGame : {&host, &guest})
+            for (const auto& cEntry : pGame->EntriesOf(FakeEngine::kPlayer, kClaw))
+                CHECK(cEntry.ExtraName == "[P] Golden Claw");
         const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
         party.Until([&] { return std::chrono::steady_clock::now() > cUntil; }, "a while passes");
         CHECK(cOneEach());
         INFO(cClaws());
     }
+}
+
+SCENARIO("A quest object held from the save gets its tag when the party forms", "[party-items]")
+{
+    static constexpr uint32_t kClaw = 0x00039647; // the Golden Claw, MS13's GoldenClaw alias holding it
+    Party party(1, [](FakeEngine& aEngine) { aEngine.FormNames[kClaw] = "Golden Claw"; }, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Host(), [&] {
+        ScopedInventoryOverride _; // the save's: no arrival
+        host.AliasCreatesIn(FakeEngine::kPlayer, kClaw, {0x39645, 30, true});
+    });
+    party.Join(party.Guest());
+    const auto cNamed = [&](FakeEngine& aGame) {
+        const auto cEntries = aGame.EntriesOf(FakeEngine::kPlayer, kClaw);
+        return cEntries.size() == 1 && cEntries[0].ExtraName == "[P] Golden Claw";
+    };
+    party.Until([&] { return cNamed(host) && cNamed(guest); }, "both players' claws read \"[P] Golden Claw\"");
+    CHECK(host.EntriesOf(FakeEngine::kPlayer, kClaw)[0].IsQuestItem);
+    CHECK(host.AliasStacks.contains({FakeEngine::kPlayer, kClaw}));
 }
 
 SCENARIO("Tempering or enchanting a party item improves every player's copy", "[party-items]")

@@ -64,7 +64,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Casting | works: copies replay in step with their graph and cast for free | `cast-*`, `input-mouse-cast`, `firebolt-*`, `flames-*` |
 | Health | works | `health-*` |
 | NPC death and removal | works: a copy dies with its owner's death action | `remove-host-npc`, `death-host-npc` |
-| A player going down (`docs/design/death.md`) | works: a real death in a session (`OnDeath` and `TESDeathEvent` fire, the reload held), copies die by their owner's death action, spectating once dead, revived beside the party (abilities, hands, graph and camera back; 2026-10-26); after a wipe the dead host loads a save it chooses (nothing loads by itself, 2026-11-16) and each guest stands where it stood in it; each player's ragdoll streams from its own game to the others (2026-10-26) | `death-spectate-host`, `death-spectate-guest`, `death-wipe-host-loads`, GameTests `[death]` |
+| A player going down (`docs/design/death.md`) | works: a real death in a session (`OnDeath` and `TESDeathEvent` fire, the reload held), copies die by their owner's death action, spectating once dead, revived beside the party (abilities, hands, graph and camera back; 2026-10-26); after a wipe the dead host loads a save it chooses (nothing loads by itself, 2026-11-16) and each guest stands where it stood in it; each player's ragdoll streams from its own game to the others (2026-10-26); any player drags a dead player's body with a held E, the drag reaching every game (2026-11-27, `re/systems/physics.md`, "Dragging a corpse"; until its respawn) | `death-spectate-host`, `death-spectate-guest`, `death-wipe-host-loads`, `host-drags-dead-guest`, `guest-drags-dead-host`, GameTests `[death]`, `[corpse-drag]` |
 | Melee and spells on host NPCs | works, with kill credit | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
 | Friendly fire (`docs/design/friendly-fire.md`) | built 2026-10-26: a player's sword or spell on another player is applied by the victim's game; a kill is a real death named in every chat; not a crime; kill moves on players work (a copy's ragdoll steered, and kept on it by the engine as its owner; a copy getting up on its own timing: open) | `friendly-fire-*`, `spectator-watches-kill-move`, `kill-move-kills-guest` (fails on the open jitter), GameTests `[friendly-fire]` |
 | Kill moves | works, both ways, with kill credit; players moving and crossed kill moves fixed; crossed, the first swing wins; a copy holds its pose until its owner's death (2026-11-05, `docs/re/systems/kill-moves.md`) | `host-kill-move`, `client-kill-move`, `kill-move-runs-full-length`, `kill-moves-cross` |
@@ -291,6 +291,11 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   NPC to the reference the cell made again and destroyed it there (19529, 12095), under the old reference or a held
   copy. Caught with the heap guard on 0x268-byte blocks; a temporary base is no longer recorded (`BaseChange.h`,
   UnitTests `[base-change]`, `leveled-copy-base.md`).
+- **Done 2026-11-27: a quest object's holder shows its [P] tag** (the Golden Claw, the Dragonstone). The item menus
+  name a stack by its list's `ExtraTextDisplayData` (`InventoryEntryData::GetName` 16018); the holder's quest-object
+  list was never tagged, so only the other players' copies read "[P] ...". The host's arrival (or, for one held from
+  the save, the party's items arriving) now tags it in place, never replacing it (`inventory-changes.md`, "A quest object's party tag"; GameTests "A guest picks up a quest object",
+  scenario `golden-claw-party-tag`).
 - **Done 2026-11-27: UnequipAll's walk read a node its unequip freed.** The engine's `UnequipAll` (38899) walks the
   inventory holding the next node, and an unequip that empties the first entry frees it (16067); our reconcile's reset
   of a copy's worn set ran it. Found by the heap quarantine in the six mount scenarios (the guest's 2026-11-27
@@ -578,6 +583,17 @@ What the first playtest build has besides what works today (the table above):
     bypasses `Load_Impl` (35728): it queues `0xD0000400` through 35769; its exact quicksave comes from the engine's
     per-character `SaveEntry` (35789). GameTests cover three guests, an older chosen save and repeated loads;
     Skyrim scenarios cover quickload, the Load menu, console loading, guest refusals and the shared wipe.
+    2026-11-27: the scratch saves a join or host load writes (`SkyrimCoopJoin`, `SkyrimCoopWipe`) are deleted once
+    any load ends and on reaching the main menu: the main menu's Continue loads the newest save of any character and
+    took them, leaving character id 0 and a Load list of other playthroughs' saves
+    ([save-game.md](re/systems/save-game.md), "Continue and the Load list"; GameTests `[saves]`). A friend joining a
+    loaded save without its character creates one, a save with it brings it back. In a game the Journal's Load lists
+    only the loaded playthrough's saves (no other characters, no "Show all saves"; a guest in a session lists none),
+    and a console load of another playthrough's save is refused (`engine/SaveListHooks.cpp`, `SaveList`;
+    save-game.md, "Only this playthrough's saves"; scenario `load-lists-only-playthrough`). The party load now sets the
+    checkpoint's character with its modded flag too: keeping the scratch load's 0 left `{id, 0}` against saves filed
+    `{id, 1}` (an empty list, and a save exposed to a catalogue reallocation, save-game.md). Open: a guest in the session when
+    the host loads a save without its character keeps the character it plays (`OnPartyReload` brings it).
 17. **The party's purse** (decided and built 2026-10-27, merged into dev;
     [party-purse.md](design/party-purse.md)): every player carries one purse, the host's player's gold. Any
     player's gold change (loot, trade, training, a fine, a reward on a guest's copy) reaches the host as before

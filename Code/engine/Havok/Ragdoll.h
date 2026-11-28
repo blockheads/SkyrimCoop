@@ -35,6 +35,9 @@ struct hkbRagdollDriver
 };
 
 [[nodiscard]] std::vector<bhkWorldObject*> RagdollBodiesOf(const TESObjectREFR& acActor) noexcept;
+// Its 3D's other bodies, those not its ragdoll's: what its hands hold (a dead player keeps its weapon, death-drops.md).
+// They share its ragdoll's collision group, so the engine never lets them meet its bones.
+[[nodiscard]] std::vector<bhkWorldObject*> HeldBodiesOf(TESObjectREFR& aActor) noexcept;
 // Its ragdoll out of the physics world on the engine's task pool, as RemoveRagdollHandler (42877) queues it (36924).
 bool QueueRagdollOutOfWorld(TESObjectREFR& aActor) noexcept;
 // A graph of its steps with the physics world (BShkbAnimationGraph +0x238): its ragdoll driver then drives the ragdoll's

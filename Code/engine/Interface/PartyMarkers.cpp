@@ -3,6 +3,7 @@
 
 #include <travel/PartyMarkers.h>
 #include <Interface/FxDelegateArgs.h>
+#include <Interface/GFxArray.h>
 #include <Interface/GFxMovie.h>
 #include <Interface/IMenu.h>
 #include <Interface/Menus/MapMenu.h>
@@ -55,15 +56,7 @@ GFxValue String(const char* acpText)
 struct ScopedValue
 {
     GFxValue Value{};
-    ~ScopedValue()
-    {
-        if (Value.type & GFxValue::kManaged)
-        {
-            using TRelease = void(void*, GFxValue*, void*);
-            POINTER_SKYRIMSE(TRelease, s_release, 82270);
-            s_release.Get()(Value.objectInterface, &Value, Value.value.object);
-        }
-    }
+    ~ScopedValue() { GFxArray::Release(Value); }
 };
 std::optional<double> ReadNumber(GFxMovie* apMovie, const std::string& acPath)
 {

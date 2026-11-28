@@ -76,6 +76,102 @@ class JoinActions:
         return {path.name for path in saves.glob("*.ess")} if saves.exists() else set()
 
 
+    def expect_no_scratch_saves(ctx, instance):
+        """The game's Saves folder holds only players' saves: the main menu's Continue loads the newest .ess of any
+        character (52898), and a scratch save's name files it under character 0 (save-game.md, Continue)."""
+        saves = ctx.game(instance).my_games / "Saves"
+        scratch = sorted(path.name for stem in ("SkyrimCoopJoin", "SkyrimCoopWipe", "SkyrimCoopTransfer")
+                         for path in saves.glob(stem + ".*") if path.suffix in (".ess", ".skse"))
+        if scratch:
+            raise ctx.failure(f"[{instance or 'host'}] scratch saves left in the Saves folder: {scratch}")
+        return {"scratch": scratch}
+
+
+    def plant_other_playthrough_save(ctx, instance, character="0C0FFEE0"):
+        """Another playthrough's save in the game's Saves folder: the newest save's files under a name with another
+        character id (the id is only in the name, save-game.md)."""
+        saves = ctx.game(instance).my_games / "Saves"
+        newest = max(saves.glob("*.ess"), key=lambda path: path.stat().st_mtime)
+        name = f"Save900_{character}_0_4F74686572_Tamriel_000001_20260101120000_1_1"
+        for suffix in (".ess", ".skse"):
+            source = newest.with_suffix(suffix)
+            if source.exists():
+                (saves / (name + suffix)).write_bytes(source.read_bytes())
+        return {"planted": name, "from": newest.name}
+
+
+    def scan_saves(ctx, instance):
+        """The main menu's scan of every save (harness scan_saves: PopulateSaveList 35760, as Continue runs it), as a
+        player coming from the main menu has had: the Journal's character map then knows every playthrough in the
+        folder. The characters it saw."""
+        reply = ctx.game(instance).rpc({"cmd": "scan_saves"}) or {}
+        return {"characters": sorted({f"{int(c) & 0xFFFFFFFF:08X}" for c in reply.get("characters", [])})}
+
+
+    def expect_scan_sees(ctx, instance, characters):
+        """The scan of every save saw each of these characters (so vanilla's Character Selection would list them)."""
+        seen = ctx.scan_saves(instance)["characters"]
+        missing = [character for character in characters if character.upper() not in seen]
+        if missing:
+            raise ctx.failure(f"[{instance or 'host'}] the scan of every save saw {seen}, not {missing}")
+        return {"seen": seen}
+
+
+    def drop_planted_saves(ctx, instance):
+        """The saves plant_other_playthrough_save put in the game's Saves folder, gone."""
+        saves = ctx.game(instance).my_games / "Saves"
+        for path in saves.glob("Save900_*"):
+            path.unlink()
+
+
+    def journal_character_rows(ctx, instance):
+        """The player opens Load, then the Journal's Character Selection (T, quest_journal.swf SystemPage): each row's
+        character id (4294967295 for Show all saves), the Journal then closed again."""
+        value = JoinActions.open_journal_load(ctx, instance)
+        ctx.wait_for("the load list or the character list opens", lambda: value("iCurrentState") in (1, 17), 10)
+        if value("iCurrentState") == 1:
+            ctx.tap_key(instance, 0x14)  # T: Character Selection
+        ctx.wait_for("the character list opens", lambda: value("iCurrentState") == 17, 10)
+        # The rows come after a save-thread scan (52882: 0x50000008, then 52890); vanilla always has Show all saves.
+        length = lambda: int(value("SaveLoadListHolder.List_mc.entryList.length") or 0)
+        try:
+            ctx.wait_for("the character rows arrive", length, 5)
+        except TestFailure:
+            pass
+        rows = [int(value(f"SaveLoadListHolder.List_mc.entryList.{i}.id")) & 0xFFFFFFFF
+                for i in range(int(value("SaveLoadListHolder.List_mc.entryList.length") or 0))]
+        for _ in range(3):
+            if "Journal Menu" not in ctx.menus(instance):
+                break
+            ctx.tap_key(instance, 0x01)
+            time.sleep(0.5)
+        return {"rows": [f"{row:08X}" for row in rows]}
+
+
+    def expect_rows_only(ctx, instance):
+        """The Journal's character rows are exactly this playthrough's character's: no Show all saves, no other
+        character (character 0 never has a row: the folder scan, 35799, makes rows for nonzero ids only)."""
+        character = ctx.current_character(instance)["character"]
+        rows = ctx.journal_character_rows(instance)["rows"]
+        if rows != ([character] if int(character, 16) else []):
+            raise ctx.failure(f"[{instance or 'host'}] the Journal's character rows are {rows}, not only {character}")
+        return {"rows": rows}
+
+
+    def current_character(ctx, instance, character=None):
+        """The engine's current character id (harness set_character), set first when given, as loading that
+        character's save would (SetCurrentCharacter 35751). Its modded flag is this game's, read from the newest save's
+        name: a flag other than the game's makes the next save add a catalogue entry under Save_Impl (35749, crashed)."""
+        request = {"cmd": "set_character"}
+        if character is not None:
+            saves = ctx.game(instance).my_games / "Saves"
+            own = [path for path in saves.glob("*.ess") if not path.name.startswith(("SkyrimCoop", "Save900_"))]
+            newest = max(own, key=lambda path: path.stat().st_mtime).stem.split("_")
+            request.update(id=int(character, 16), modded=len(newest) == 9 and newest[2] == "1")
+        reply = ctx.game(instance).rpc(request) or {}
+        return {"character": f"{int(reply.get('character', 0)) & 0xFFFFFFFF:08X}"}
+
+
     def press_key(ctx, instance, scan):
         """The player presses and releases a keyboard key (DirectInput scan code), through the game's input dispatch."""
         ctx.wait_for(f"[{instance or 'host'}] the game takes input", lambda: ctx.takes_input(instance), 10)
@@ -172,12 +268,9 @@ class JoinActions:
             raise ctx.failure("the guest did not load its saved character: its later level survived")
 
 
-    def load_latest_from_menu(ctx, instance):
-        """The player opens System, Load, selects the newest save and confirms through menu input."""
+    def open_journal_load(ctx, instance):
+        """The player opens the Journal's System tab and presses Load; the System page's menu variables."""
         value = lambda field: ctx.menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + field)
-        # An earlier reload's scratch copy sorts above the save just made.
-        for scratch in ctx.game(instance).my_games.glob("Saves/SkyrimCoopWipe.*"):
-            scratch.unlink()
         ctx.tap_key(instance, 0x01)
         ctx.wait_for("the journal opens", lambda: "Journal Menu" in ctx.menus(instance), 5)
         ctx.move_cursor(instance, (910, 100))
@@ -193,7 +286,13 @@ class JoinActions:
         else:
             raise ctx.failure("Load is absent from the system menu")
         ctx.tap_key(instance, 0x12)  # E, the menu's Accept action
-        # 1.7.104 lists the characters first (state 17): E takes the first, this game's.
+        return value
+
+
+    def load_latest_from_menu(ctx, instance):
+        """The player opens System, Load, selects the newest save and confirms through menu input."""
+        value = JoinActions.open_journal_load(ctx, instance)
+        # With no save of this character the Journal shows the character list (state 17): E takes the first.
         ctx.wait_for("the load list opens", lambda: value("iCurrentState") in (1, 17), 10)
         if value("iCurrentState") == 17:
             ctx.tap_key(instance, 0x12)
