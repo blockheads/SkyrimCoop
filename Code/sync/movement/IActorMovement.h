@@ -34,6 +34,13 @@ struct IActorMovement
     // A copy's bodies and graphs put as its owner's are, in the engine's order (40063 detaches the graphs first, 39912
     // takes the bodies out first). A copy runs no AI, so its engine never does it.
     virtual void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept = 0;
+    // Its own ragdoll's bodies are dynamic: its bones then follow them (bhkBlendCollisionObject 78912, 78910), in the
+    // world or out of it. A kill move's victim state leaves them so (AddRagdollToWorld 42873).
+    [[nodiscard]] virtual bool BodiesDynamic(uint32_t aFormId) const noexcept = 0;
+    // Its 3D's bodies keyframed again, its bones on its animation: EndKnockState's (39897) end of a living ragdoll.
+    virtual void KeyframeBodies(uint32_t aFormId) noexcept = 0;
+    // A copy holding its pose from its clip's KillActor for its owner's death (ReplayState::PoseHeld).
+    [[nodiscard]] virtual bool HoldsPose(uint32_t aFormId) const noexcept = 0;
     virtual void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
     virtual uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept = 0;
     virtual uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept = 0;

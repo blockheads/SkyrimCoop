@@ -29,7 +29,7 @@ from ..common import (
     WOLF,
 )
 from ..errors import TestFailure
-from ..comparisons import distance
+from ..comparisons import body_problems, distance
 from ..utilities import log
 from ..objects import AnimTrace, DYNAMIC_MOTIONS, GodMode, RagdollTrace
 
@@ -133,9 +133,10 @@ class CombatActions:
         ctx.wait_for(f"[{instance or 'host'}] both hands are empty", lambda: not any(hands()), 5)
 
 
-    def kill_move_exchange(ctx, copies):
+    def kill_move_exchange(ctx, copies, first=None):
         """Both players, one hit from death and moving, swing at each other at once. Returns whether the two games' pairs
-        crossed; crossed, the first swing must win: one player down, the other standing. `copies`: each game's copy of the other player."""
+        crossed; crossed, the first swing must win: one player down, the other standing. `copies`: each game's copy of the other player.
+        `first` ("" the host, "client"): that game swings, and the other only once its pair has started there."""
         games = ("", "client")
         ctx.wait_for("both players are up", lambda: not any(ctx.death_state(game).get("down") for game in games), 40)
         for game in games:
@@ -149,10 +150,12 @@ class CombatActions:
             ctx.wait_on(game, "the other player shows one hit from death", lambda a, c=other: (a.get(str(c), {}).get("health") or 100) <= 10, 5)
         trace = AnimTrace(ctx, "kill-moves-cross", {game: {0x14: "player", copies[game]: "other"} for game in games}, video=False)
         with trace:
+            def own_pair(game):
+                return any(e["game"] == game and e["who"] == "player" and e["kind"] == "action" and e["event"].startswith("pa_")
+                           for e in trace.entries)
             def own_pairs():
                 trace.take()
-                return all(any(e["game"] == game and e["who"] == "player" and e["kind"] == "action" and e["event"].startswith("pa_")
-                               for e in trace.entries) for game in games)
+                return all(own_pair(game) for game in games)
             held = []
             def hold(game, button):
                 ctx.player_command(game, {"cmd": "input", "button": button, "down": True})
@@ -160,9 +163,12 @@ class CombatActions:
             try:
                 hold("", "forward")
                 hold("client", "strafe_left")
-                for game in games:
+                order = games if first is None else (first, next(game for game in games if game != first))
+                for game in order:
                     ctx.face(game, copies[game])
                     hold(game, "right")
+                    if game == first:
+                        ctx.wait_for(f"[{first or 'host'}] its pair starts first", lambda: trace.take() or own_pair(first), 1)
                 ctx.wait_for("each game started its own pair", own_pairs, 1)
                 crossed = True
             except TestFailure:
@@ -184,6 +190,23 @@ class CombatActions:
                 for game in games:
                     if down[game]:
                         trace.wait_state(game, "player", "kill_move", True, 1, after=trace.start)
+                # How it ended: the winner's copy on the loser's game stands where the winner does.
+                winner = next(game for game in games if not down[game])
+                loser = next(game for game in games if game != winner)
+                places = {}
+                def together():
+                    places["own"] = ctx.player_snapshot(winner)["placement"]["position"]
+                    places["shown"] = ctx.actor_snapshot(loser, copies[loser])["placement"]["position"]
+                    return distance(places["own"], places["shown"]) <= KILL_MOVE_APART
+                try:
+                    ctx.wait_for("the winner's copy stands where the winner does", together, 3)
+                except TestFailure:
+                    raise ctx.failure(f"[{loser or 'host'}] the winner's copy stands {distance(places['own'], places['shown']):.0f} units "
+                                      f"from its owner after the crossed kill moves: {[round(v) for v in places['shown']]} vs "
+                                      f"{[round(v) for v in places['own']]}") from None
+                for game in games:
+                    if problems := body_problems(ctx.actor_snapshot(game, copies[game])):
+                        raise ctx.failure(f"[{game or 'host'}] the other player's copy after the crossed kill moves: {'; '.join(problems)}")
         return crossed
 
 

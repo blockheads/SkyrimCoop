@@ -24,6 +24,21 @@ constexpr bool TakesOwnerBodies(bool aLiesInRagdoll, bool aInKillMove) noexcept
     return !aLiesInRagdoll && !aInKillMove;
 }
 
+// ActorState flags1's knock state (bits 25-27): 1-4 knocked down, 5-6 getting up (EndKnockState 39897 reads it so).
+constexpr uint8_t KnockStateOf(uint32_t aFlags1) noexcept
+{
+    return aFlags1 >> 25 & 7;
+}
+
+// A living copy back on its owner's bodies whose own are still dynamic (a victim half cut short: the yield, a refused
+// pair) shows a skeleton frozen on them: they are keyframed again, as EndKnockState (39897) does at knock state 0
+// (kill-moves.md, "A victim half cut short"). A get-up's bodies stay simulated (knock states 5, 6), and a victim
+// whose clip killed it (its pose held for its owner's death) keeps its ragdoll for that death.
+constexpr bool KeyframesOwnBodies(bool aBodiesDynamic, bool aLiesInRagdoll, bool aKnocked, bool aInKillMove, bool aDying) noexcept
+{
+    return aBodiesDynamic && !aKnocked && !aDying && TakesOwnerBodies(aLiesInRagdoll, aInKillMove);
+}
+
 // A copy's owner's pair: on its stream with a copy partner here, but a taken one, which has no stream to replay
 // (kill-moves.md, "Claimed pairs"). A partner this game's own, or not here: its half is its own body's.
 constexpr bool PairOnStream(bool aPartnerIsCopy, bool aVictimTaken = false) noexcept

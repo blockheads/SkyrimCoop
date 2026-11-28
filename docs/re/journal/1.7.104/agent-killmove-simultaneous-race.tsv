@@ -1,0 +1,22 @@
+time	op	id	rva	item
+2026-11-28T04:04:52Z	read	32792	0x54e170	{"name": "BGSSynchronizedAnimationInstance::LayoutParticipants"}
+2026-11-28T04:04:53Z	read	32797	0x54f110	{"name": "BGSSynchronizedAnimationInstance::Deactivate"}
+2026-11-28T04:05:20Z	read	32847	0x551e40	{"name": "Character::sub_32847"}
+2026-11-28T04:05:35Z	name	32847	0x551e40	{"addr": "0x140551e40", "name": "Actor::EnterPairedSim"}
+2026-11-28T04:05:37Z	comment	32847	0x551e40	{"addr": "0x140551e40", "comment": "[re]\nAddressLib ID 32847\nStartPair 32803 calls it on both actors once the pair is laid out: Actor+0x204 boolFlags |= 0x800000 (CommonLib kForceIncMinBoneUpdate), controller +0x218 |= 0x20000 (kNoSim: the clip moves it, not the controller), and its collision filter info gets bit 0x8000 on layer 0x1E. BGSSynchronizedAnimationInstance::Deactivate 32797 undoes the controller part for every participant still listed. Read 2026-11-27 (killmove-simultaneous-race)."}
+2026-11-28T05:44:16Z	read	32955	0x556050	{"name": "AnimationGraphVisitor_ResetRagdoll"}
+2026-11-28T05:46:01Z	read	58293	0xac8b80	{"name": "hkbRagdollDriver::postPhysics"}
+2026-11-28T05:46:01Z	read	58289	0xac6f10	{"name": "sub_140AC6F10"}
+2026-11-28T05:46:09Z	read		0xb15e30	{"name": "hkbExtractRagdollPoseModifier::Func12_59845"}
+2026-11-28T05:46:12Z	read		0xb15e70	{"name": "hkbExtractRagdollPoseModifier::Func23_59846"}
+2026-11-28T05:47:02Z	read		0xbcadd0	{"name": "BShkbAnimationGraph::UpdateRagdollPostPhysics"}
+2026-11-28T05:56:22Z	read	63856	0xbdfa20	{"name": "sub_140BDFA20"}
+2026-11-28T06:01:31Z	read	78912	0x108d430	{"name": "bhkBlendCollisionObject::Func46_78912"}
+2026-11-28T06:01:31Z	read	78911	0x108d310	{"name": "bhkBlendCollisionObject::Func38_78911"}
+2026-11-28T06:02:18Z	name	78912	0x108d430	{"addr": "0x14108d430", "name": "bhkBlendCollisionObject::SetMotionType"}
+2026-11-28T06:02:18Z	name	78910	0x108cdd0	{"addr": "0x14108cdd0", "name": "bhkBlendCollisionObject::UpdateBoneFromBody"}
+2026-11-28T06:02:18Z	name	63856	0xbdfa20	{"addr": "0x140bdfa20", "name": "BShkbAnimationGraph::WritePoseToBoneNodes"}
+2026-11-28T06:02:24Z	comment	78912	0x108d430	{"addr": "0x14108d430", "comment": "[re]\nAddressLib ID 78912\nbhkBlendCollisionObject's SetMotionType (vfunc 0x2E): the rigid body's motion type set (78077), then blend strength +0x28 (and +0x2C) = 0 for a dynamic type (sub_14105A590), 1 otherwise. So an actor's bones follow their bodies (78910) while dynamic and drive them while keyframed. Read 2026-11-28 (killmove-simultaneous-race): a copy left dynamic after a cut-short kill move victim half, its bodies out of the world, kept its skeleton frozen where the pair was."}
+2026-11-28T06:02:24Z	comment	78910	0x108cdd0	{"addr": "0x14108cdd0", "comment": "[re]\nAddressLib ID 78910\nbhkBlendCollisionObject vfunc +0x160, each scene-graph update of an actor's bone (NiAVObject::UpdateWorldData from ProcessActorAnimSG). Blend strength +0x28: 1 = keyframed, its body driven to the bone (vfunc +0x160 -> 78178 -> 78100 -> SetLinearVelocity -> hkpEntity::Activate; Orgnar re-activating the bar bottles, measured 2026-11-13). Below 1: the bone's world = blend of its animated world and its body's pose, written with 78382 (the local too): at 0 the bone is its body. Nothing checks the body is in a world: a dynamic body out of the world holds its bone still (killmove-simultaneous-race, 2026-11-28)."}
+2026-11-28T06:02:24Z	comment	63856	0xbdfa20	{"addr": "0x140bdfa20", "comment": "The graph's pose (hkQsTransform per bone) into its boneNodes (BShkbAnimationGraph +0x160: {NiNode*, index} 16 bytes, count +0x10): each node's local rotation and translation (+0x48). Called by 63563 and 63581's paths."}
+2026-11-28T06:02:27Z	comment	42873	0x7ce470	{"addr": "0x1407ce470", "comment": "[re]\nAddressLib ID 42873\nAddRagdollHandler::Handle. Graph event AddRagdollToWorld (a kill move victim state sends it at the pair's start): resets each graph's ragdoll (visitor 32955, BSIRagdollDriver::ResetRagdoll), then adds the actor's 3D collision to its cell's bhkWorld (QueueAddToWorld, or bhkWorld vfunc 0x1A8 directly), its ragdoll's bodies included, biped layer 8. Nothing in the victim state makes the bodies keyframed again: only a death (stays a ragdoll) or EndKnockState 39897 for a knocked actor. A pair cut short (a yield) leaves a living actor's bones on dynamic bodies (78912, 78910): killmove-simultaneous-race, 2026-11-28."}

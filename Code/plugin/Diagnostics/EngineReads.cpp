@@ -541,11 +541,14 @@ std::optional<std::vector<RagdollBody>> GetRagdoll(uint32_t aActorFormId) noexce
     for (const bhkWorldObject* pBody : RagdollBodiesOf(*pActor))
     {
         auto& body = bodies.emplace_back();
-        BodyRead read;
-        if (!pBody || !pBody->referencedObject || !ReadBody(*pBody, read))
+        if (!pBody || !pBody->referencedObject)
             continue;
+        // Its motion type out of the world too: dynamic there, it still poses its bone (78910).
         body.InWorld = pBody->referencedObject->world != nullptr;
         body.Motion = pBody->referencedObject->motionType;
+        BodyRead read;
+        if (!ReadBody(*pBody, read))
+            continue;
         body.Awake = read.Active;
         for (int axis = 0; axis < 3; ++axis)
         {
@@ -636,8 +639,11 @@ std::optional<RagdollDriverRead> GetRagdollDriver(uint32_t aActorFormId) noexcep
                                                 : nullptr;
         if (const hkbRagdollDriver* pDriver = pGraph ? pGraph->character.ragdollDriver : nullptr; pDriver && pDriver->ragdoll)
         {
+            using THasRagdoll = bool(const BShkbAnimationGraph*);
+            POINTER_SKYRIMSE(THasRagdoll, s_hasRagdoll, 63564);
             read = RagdollDriverRead{pDriver->isEnabled, pDriver->isPoweredControllerEnabled, pDriver->isRigidBodyControllerEnabled,
-                                     pDriver->ragdollPoseWasUsed, pDriver->allBonesKeyframed, pGraph->hkWorldM != nullptr, {-1.f, -1.f, -1.f, -1.f}, {}};
+                                     pDriver->ragdollPoseWasUsed, pDriver->allBonesKeyframed, pGraph->hkWorldM != nullptr,
+                                     s_hasRagdoll(pGraph), {-1.f, -1.f, -1.f, -1.f}, {}};
             const hkbGeneratorOutput* pOutput = pGraph->generatorOutputs[0];
             if (const hkbGeneratorOutputTracks* pTracks = pOutput ? pOutput->tracks : nullptr)
             {
@@ -652,6 +658,43 @@ std::optional<RagdollDriverRead> GetRagdollDriver(uint32_t aActorFormId) noexcep
                     for (int16_t i = 0; i < cBones.numData && i < 255; ++i)
                         read->KeyframedBones.push_back(pValues[i]);
                 }
+            }
+        }
+    }
+    pManager->Release();
+    return read;
+}
+
+std::optional<SkeletonRead> GetSkeleton(uint32_t aActorFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aActorFormId));
+    NiAVObject* p3D = pActor ? pActor->Get3D1(false) : nullptr;
+    BSAnimationGraphManager* pManager = nullptr;
+    if (!p3D || !EngineVirtual(pActor->animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+        return std::nullopt;
+    std::optional<SkeletonRead> read;
+    {
+        BSScopedLock<BSRecursiveLock> _{pManager->lock};
+        const BShkbAnimationGraph* pGraph = pManager->animationGraphIndex < pManager->animationGraphs.size
+                                                ? pManager->animationGraphs.Get(pManager->animationGraphIndex)
+                                                : nullptr;
+        if (pGraph)
+        {
+            read = SkeletonRead{reinterpret_cast<const NiAVObject*>(pGraph->rootNode) == p3D, pGraph->boneNodes.length, {}, {}};
+            if (const float* pWorld = pGraph->character.worldFromModel)
+                read->WorldFromModel = {pWorld[0], pWorld[1], pWorld[2]};
+            for (const char* cName : {"NPC Root [Root]", "NPC COM [COM ]", "NPC Pelvis [Pelv]", "NPC L Foot [Lft ]"})
+            {
+                const NiAVObject* pNode = p3D->GetByName(BSFixedString(cName));
+                SkeletonNodeRead node{cName, pNode != nullptr, false, {}, {}};
+                if (pNode)
+                {
+                    for (uint32_t i = 0; i < pGraph->boneNodes.length && !node.Written; ++i)
+                        node.Written = reinterpret_cast<const NiAVObject*>(pGraph->boneNodes.data[i].node) == pNode;
+                    node.Local = {pNode->local.translate.x, pNode->local.translate.y, pNode->local.translate.z};
+                    node.World = {pNode->world.translate.x, pNode->world.translate.y, pNode->world.translate.z};
+                }
+                read->Nodes.push_back(node);
             }
         }
     }

@@ -212,7 +212,10 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         }
         // The victim state's AddRagdollToWorld (AddRagdollHandler 42873): its ragdoll in the world, biped layer.
         if (cPartner->second.InKillMove)
+        {
             cPartner->second.BodiesLayer = kBipedLayer;
+            cPartner->second.BodiesDynamic = true; // driveToPose (58291): its powered ragdoll's bodies dynamic
+        }
         if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
         {
             actor.PairBlowIn = PairBlowFrames;

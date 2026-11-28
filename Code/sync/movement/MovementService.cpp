@@ -316,6 +316,12 @@ void MovementService::RunRemoteUpdates() noexcept
             if (!cOwnerLies)
             {
                 const auto& cOwner = tick >= second.Tick ? second : first;
+                const uint32_t cCopyId = pFormIdComponent->Id;
+                const ActorStateFields cFields = m_actorBridge.GetActorStateFields(cCopyId);
+                if (ReplayState::KeyframesOwnBodies(m_actorBridge.BodiesDynamic(cCopyId), m_actorBridge.IsLyingInRagdoll(cCopyId),
+                                                    ReplayState::KnockStateOf(cFields.Flags1) != 0, cFields.InKillMove,
+                                                    cFields.Dead || m_actorBridge.HoldsPose(cCopyId)))
+                    m_actorBridge.KeyframeBodies(cCopyId);
                 m_actorBridge.SetCopyPhysics(pFormIdComponent->Id, cOwner.BodiesLayer, cOwner.GraphsStepPhysics);
             }
             // On its stream its graph's variables are the stream's alone.

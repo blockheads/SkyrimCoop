@@ -124,6 +124,25 @@ void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool a
         SetGraphsStepPhysics(*pActor, true);
 }
 
+bool SkyrimBridge::BodiesDynamic(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->BodiesDynamic();
+}
+
+void SkyrimBridge::KeyframeBodies(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor && pActor->GetExtension()->IsCopy() && pActor->KeyframeBodies())
+        spdlog::debug("Copy {:X}: its ragdoll's bodies left dynamic, keyframed again", aFormId);
+}
+
+bool SkyrimBridge::HoldsPose(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    return pActor && ReplayState::PoseHeld(World::FrameTick(), pActor->GetExtension()->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead());
+}
+
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))

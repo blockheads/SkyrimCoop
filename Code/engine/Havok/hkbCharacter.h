@@ -1,7 +1,5 @@
 #pragma once
 
-struct CharacterContext;
-
 struct hkbRagdollDriver;
 
 struct hkbCharacter
@@ -14,16 +12,15 @@ struct hkbCharacter
     struct hkbBehaviorGraph* behaviorGraph; // 58 (reflection: hkbCharacter members)
     uint8_t pad60[0x80 - 0x60];
     struct hkbEventQueue* eventQueue; // 80: where a graph's raised events wait when its context has no queue
-    uint8_t pad88[0xA0 - 0x88];
-    CharacterContext* characterContext;
-    uint8_t padA8[0xC0 - 0xA8];
+    float* worldFromModel;            // 88: hkQsTransform (translation first) the pose is placed by
+    uint8_t pad90[0xA0 - 0x90];
 };
 
 static_assert(offsetof(hkbCharacter, ragdollDriver) == 0x30);
 static_assert(offsetof(hkbCharacter, behaviorGraph) == 0x58);
 static_assert(offsetof(hkbCharacter, eventQueue) == 0x80);
-static_assert(offsetof(hkbCharacter, characterContext) == 0xA0);
-static_assert(sizeof(hkbCharacter) == 0xC0);
+static_assert(offsetof(hkbCharacter, worldFromModel) == 0x88);
+static_assert(sizeof(hkbCharacter) == 0xA0); // CommonLib-NG; BShkbAnimationGraph's boneNodes follow at 0x160 (63563)
 
 // A graph's raised events (hkQueue<hkbEvent>, 24 bytes each; reserve 58323): enqueued at tail, handled from head.
 struct hkbEventQueue

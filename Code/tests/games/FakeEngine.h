@@ -852,6 +852,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint8_t BodiesLayer = 0;  // the layer its own 3D's bodies are on in the world, 0 out of it: the AI puts an
                                   // actor's there (33) as it sits or sleeps (40063), never a copy's (it runs no AI)
         bool GraphsStepPhysics = true; // its graphs step with the physics world; the AI detaches them in furniture (40063)
+        // Its ragdoll's bodies dynamic (a kill move's victim state: 42873, then 58291): its bones follow them (78912,
+        // 78910). Out of the world nothing moves them, so a living actor's skeleton stays where they are (SkeletonAt)
+        // while it moves on; keyframed again (EndKnockState 39897's 36925) it is on its animation.
+        bool BodiesDynamic = false;
+        glm::vec3 SkeletonAt{};
+        uint32_t BodiesKeyframed = 0;
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool NotOnStealthMeter = false; // boolFlags kDoNotShowOnStealthMeter: 41408 skips it for the player
@@ -1458,6 +1464,21 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
             return;
         Actors.at(aFormId).BodiesLayer = aBodiesLayer;
         Actors.at(aFormId).GraphsStepPhysics = aGraphsStep;
+    }
+    bool BodiesDynamic(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).BodiesDynamic; }
+    bool HoldsPose(uint32_t aFormId) const noexcept override { return PoseHeld(aFormId); }
+    void KeyframeBodies(uint32_t aFormId) noexcept override
+    {
+        if (!Actors.contains(aFormId))
+            return;
+        Actors.at(aFormId).BodiesDynamic = false;
+        ++Actors.at(aFormId).BodiesKeyframed;
+    }
+    // How far its skeleton stands from the actor (seen from above): a living one on dynamic bodies out of the world.
+    [[nodiscard]] float SkeletonOff(uint32_t aFormId) const noexcept
+    {
+        const auto& cActor = Actors.at(aFormId);
+        return glm::distance(glm::vec2(cActor.SkeletonAt), glm::vec2(cActor.Position[0], cActor.Position[1]));
     }
     // Its bodies in the world driven by its ragdoll driver (63562: only with its graph in the physics world), so
     // simulated, off its animation's pose; a seated actor's stay keyframed (40063 detaches its graphs).

@@ -1282,6 +1282,8 @@ class ReproActions:
             return ctx.expect_actor(name, field, game, value, seconds)
         if check == "stands":  # `name`'s body in `game` (or each) stands on its feet, its ragdoll out of the world
             return ctx.expect_stands(name, game, seconds)
+        if check == "skeleton":  # `name`'s skeleton in `game` (or each) is where the actor is, read for `seconds`
+            return ctx.expect_skeleton(name, game, within, seconds)
         if check == "crosshair":
             return ctx.expect_crosshair(name, game, seconds or 2.0)
         if check == "stays":
@@ -1481,6 +1483,31 @@ class ReproActions:
         if found := problems():
             raise ctx.failure(f"{name}: does not stand: " + " | ".join(f"[{label}] {'; '.join(p)}" for label, p in found.items()))
         return {"stands": [label for label, _ in games]}
+
+    def expect_skeleton(ctx, name, game, within=5.0, seconds=0.0):
+        """`name`'s skeleton follows the actor in `game` (or each): all through `seconds` (default 1), each of its feet within
+        `within` units (at least 60: a stride) of its reference, seen from above. A skeleton the ragdoll driver holds stays
+        where it was while its actor moves on (kill-moves.md, "A victim half cut short")."""
+        from ..objects import AnimTrace
+        games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
+        reach = max(within, 60.0)
+        ctx.refresh_handles()
+        trace = AnimTrace(ctx, f"skeleton-{name}", {instance: {ctx.resolve(name, label): "actor"} for label, instance in games}, video=False)
+        with trace:
+            started = time.monotonic()
+            ctx.wait_for(f"{name}: read for {seconds or 1.0:g} s", lambda: time.monotonic() - started >= (seconds or 1.0), (seconds or 1.0) + 2)
+            trace.take()
+        worst = {}
+        for label, instance in games:
+            gaps = [max(math.dist(foot[:2], e["pos"][:2]) for foot in e["feet"]) for e in trace.entries
+                    if e["game"] == instance and e["kind"] == "pos" and e.get("feet")]
+            if not gaps:
+                raise ctx.failure(f"[{label}] {name}: no skeleton read")
+            worst[label] = round(max(gaps))
+        if wrong := {label: gap for label, gap in worst.items() if gap > reach}:
+            raise ctx.failure(f"{name}: its skeleton is apart from the actor: " +
+                              ", ".join(f"[{label}] a foot {gap} units off" for label, gap in wrong.items()) + f" (a stride {reach:g})")
+        return {"feet_off": worst}
 
     def expect_actor(ctx, name, field, game, value, seconds=0.0, stays=False):
         """`field` of a handle's snapshot (ai.follow_target, state.dead) as expected within `seconds`, or, with `stays`,
@@ -1712,7 +1739,8 @@ def _line(tool, args):
         case "equip":
             return f"ctx.equip_weapon({game}, {int(args.get('item') or '0', 16)!r})"
         case "kill_move_exchange":
-            return "ctx.kill_move_exchange({g: ctx.other_player(ctx.actors_on(g)) for g in ('', 'client')})"
+            first = f", {_INSTANCE.get(args['first'], '')!r}" if args.get("first") else ""
+            return f"ctx.kill_move_exchange({{g: ctx.other_player(ctx.actors_on(g)) for g in ('', 'client')}}{first})"
         case "menu":
             return f"ctx.menu({game}, {args['name']!r}, {args.get('show', True)!r})"
         case "spec_step":

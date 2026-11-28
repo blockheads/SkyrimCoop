@@ -259,6 +259,10 @@ struct Actor : TESObjectREFR
     // Its own 3D's bodies put on that layer in the world (keyframed, its capsule's group), or out of it for 0, queued
     // as the engine queues them (TaskQueueInterface 36922 to 36929). False: as wanted already, or no 3D.
     bool SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf = nullptr) noexcept;
+    // Its own ragdoll's bodies are dynamic: its bones follow them (bhkBlendCollisionObject 78912, 78910).
+    [[nodiscard]] bool BodiesDynamic() const noexcept;
+    // Its 3D's bodies queued keyframed (36925), as EndKnockState (39897) ends a living actor's ragdoll.
+    bool KeyframeBodies() noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
     void ShowWeaponDrawn(bool aDrawn) noexcept;
     void InitiateDoNothingPackage() noexcept;

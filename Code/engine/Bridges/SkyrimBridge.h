@@ -54,6 +54,9 @@ public:
     uint8_t BodiesLayer(uint32_t aFormId) const noexcept override;
     bool GraphsStepPhysics(uint32_t aFormId) const noexcept override;
     void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override;
+    bool BodiesDynamic(uint32_t aFormId) const noexcept override;
+    void KeyframeBodies(uint32_t aFormId) noexcept override;
+    bool HoldsPose(uint32_t aFormId) const noexcept override;
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;

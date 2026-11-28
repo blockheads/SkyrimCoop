@@ -187,6 +187,24 @@ uint8_t Actor::BodiesLayer() const noexcept
     return LayerOf(FirstBodyOf(*this));
 }
 
+bool Actor::BodiesDynamic() const noexcept
+{
+    const hkpRigidBody* pBody = FirstBodyOf(*this);
+    return pBody && pBody->IsDynamic();
+}
+
+bool Actor::KeyframeBodies() noexcept
+{
+    NiNode* pRoot = GetNiNode();
+    TaskQueueInterface* pQueue = TaskQueueInterface::Get();
+    if (!pRoot || !pQueue)
+        return false;
+    using TSetMotionType = void(void*, NiAVObject*, uint32_t, bool);
+    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 36925);
+    s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
+    return true;
+}
+
 bool Actor::SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf) noexcept
 {
     NiNode* pRoot = GetNiNode();

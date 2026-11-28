@@ -196,6 +196,17 @@ TEST_CASE("A copy's bodies take its owner's layer only while they are not its ow
     CHECK_FALSE(ReplayState::TakesOwnerBodies(false, true)); // a kill move's victim: its graph's ragdoll
 }
 
+TEST_CASE("A living copy back on its owner's bodies gets its own dynamic ones keyframed", "[replay-state][copy-ragdoll]")
+{
+    using namespace ReplayState;
+    CHECK(KeyframesOwnBodies(true, false, false, false, false));        // a victim half cut short: its bones on them
+    CHECK_FALSE(KeyframesOwnBodies(false, false, false, false, false)); // keyframed already
+    CHECK_FALSE(KeyframesOwnBodies(true, false, false, true, false));   // still in its kill move: its graph's ragdoll
+    CHECK_FALSE(KeyframesOwnBodies(true, true, false, false, false));   // lying in its ragdoll
+    CHECK_FALSE(KeyframesOwnBodies(true, false, true, false, false));   // getting up: its bodies still simulated
+    CHECK_FALSE(KeyframesOwnBodies(true, false, false, false, true));   // dead, or holding its pose for its owner's death
+}
+
 TEST_CASE("A copy takes its half of a pair this game plays, and no other action of its own", "[copies][replay-state][kill-move]")
 {
     using namespace ReplayState;
