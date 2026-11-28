@@ -759,12 +759,11 @@ std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aA
 // in Skyrim, 2026-10-30): the bridge's TESObjectREFR::AddOrRemoveItem finds it.
 int32_t FakeEngine::TagStackInPlace(uint32_t aObjectFormId, uint32_t aItemFormId, const std::string& acName, int32_t aCount) noexcept
 {
-    // As TagStackInPlace: the alias's stack, else a worn one; never a quest object's or a named one.
-    const auto cAlias = AliasStacks.find({aObjectFormId, aItemFormId});
-    const bool cAliasHeld = cAlias != AliasStacks.end() && !cAlias->second.QuestObject;
+    // As TagStackInPlace: the alias's stack (a quest object's too), else a worn one; never a named one.
+    const bool cAliasHeld = AliasStacks.contains({aObjectFormId, aItemFormId});
     for (auto& entry : Actors.at(aObjectFormId).Items.Entries)
-        if (entry.BaseId == ServerId(aItemFormId) && !entry.IsQuestItem && entry.ExtraName.empty() && entry.Count > 0 &&
-            entry.Count <= aCount && (cAliasHeld || entry.IsWorn()))
+        if (entry.BaseId == ServerId(aItemFormId) && entry.ExtraName.empty() && entry.Count > 0 && entry.Count <= aCount &&
+            (cAliasHeld || entry.IsQuestItem || entry.IsWorn()))
         {
             entry.ExtraName = acName;
             return entry.Count;

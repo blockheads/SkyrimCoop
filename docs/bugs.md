@@ -391,6 +391,10 @@ Size: medium. Needs: duo.
   `WeaponRackMidACTIVATOR`, with `0x8000000` on one game: not read, an activator has no container).
   2026-11-23: the Sleeping Giant's rack weapons ended apart too; `HoldAt` each update until asleep passes
   `guest-grabs-orgnar-bottle` (1 run), `docs/re/systems/physics.md`.
+- 2026-11-27 (`agent/party-item-icon`, `LateOutsideHelgen`): `golden-claw-guest` (2 runs) and
+  `golden-claw-party-tag` (2 runs) pass every step and end on trees (TREE `5D2D7`, `5D2D9`) whose branch bones
+  (`BranchBoneCluster02`, `BranchBoneLow02`) are turned differently, 1-6 references a run. Unread: whether a tree's
+  wind pose is game-local, which would make it one to leave out of the comparison.
 
 ### A strafing copy catches for a frame
 

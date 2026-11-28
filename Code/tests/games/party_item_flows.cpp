@@ -202,6 +202,10 @@ SCENARIO("A guest picks up a quest object: the party holds the quest item, every
     THEN("the host's player holds the quest item, and it stays one each")
     {
         CHECK(std::ranges::count_if(host.EntriesOf(FakeEngine::kPlayer, kClaw), [](const auto& e) { return e.IsQuestItem; }) == 1);
+        // The item menu shows the holder's stack by its own name (InventoryEntryData::GetName 16018): tagged too.
+        for (FakeEngine* pGame : {&host, &guest})
+            for (const auto& cEntry : pGame->EntriesOf(FakeEngine::kPlayer, kClaw))
+                CHECK(cEntry.ExtraName == "[P] Golden Claw");
         const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
         party.Until([&] { return std::chrono::steady_clock::now() > cUntil; }, "a while passes");
         CHECK(cOneEach());

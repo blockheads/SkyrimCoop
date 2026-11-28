@@ -211,11 +211,12 @@ int32_t TagStackInPlace(TESObjectREFR& aHolder, TESBoundObject& aItem, const cha
     auto* pEntry = FindEntry(aHolder, aItem);
     if (!pEntry || !pEntry->dataList)
         return 0;
-    // An alias's list first, then one that reads plain to us (worn, a favorite): never one already named.
+    // An alias's list first (a quest object's too: the menus name it by its list, 16018), then one that reads plain to
+    // us (worn, a favorite): never one already named.
     for (const bool cAliasPass : {true, false})
         for (ExtraDataList* pList : *pEntry->dataList)
         {
-            if (!pList || pList->HasQuestObjectAlias() || pList->Contains(ExtraDataType::AliasInstanceArray) != cAliasPass ||
+            if (!pList || pList->Contains(ExtraDataType::AliasInstanceArray) != cAliasPass ||
                 (!cAliasPass && ReadStack(aItem, pList)))
                 continue;
             const auto* pCount = static_cast<const ExtraCount*>(pList->GetByType(ExtraDataType::Count));

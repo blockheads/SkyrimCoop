@@ -115,7 +115,7 @@ bool HostPartyItems::Change(const RequestInventoryChanges& acFound, ConnectionId
     }
     NotifyPartyItem notify;
     notify.Item = acRequest.Item;
-    // A quest item keeps its alias's name on its holder; every other player's copy is named with the tag.
+    // A quest item's holder tags its own stack in place; every other player's copy is named with the tag.
     if (notify.Item.IsQuestItem && notify.Item.ExtraName.empty() && m_game.ItemName)
         notify.Item.ExtraName = PartyItems::Tagged("", m_game.ItemName(notify.Item.BaseId));
     notify.Item.Count = m_game.ReadPartyItem(notify.Item);

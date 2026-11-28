@@ -80,7 +80,7 @@ std::optional<GameId> HostEngine::DropPartyItem(const Inventory::Entry& acItem, 
     ExtraDataList* pList = FindStack(*pPlayer, *pItem, wanted, count);
     if (!pList)
     {
-        // A quest object's real stack keeps its alias's name: refused, as Skyrim refuses its drop.
+        // A quest object's real stack an alias names (untagged): refused, as Skyrim refuses its drop.
         wanted.ExtraName.clear();
         count = std::abs(acItem.Count);
         ExtraDataList* pQuest = FindStack(*pPlayer, *pItem, wanted, count);
@@ -153,7 +153,7 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
             ExtraDataList* pReal = FindStack(*pHost, *pItem, moved, count);
             if (!pReal)
             {
-                // A quest object's real stack keeps its alias's name, not the mirror's tag.
+                // A quest object's real stack an alias names keeps that name, not the mirror's tag.
                 Inventory::Entry quest = moved;
                 quest.ExtraName.clear();
                 count = std::abs(acRequest.Item.Count);

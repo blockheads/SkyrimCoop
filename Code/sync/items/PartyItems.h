@@ -14,7 +14,7 @@ inline constexpr std::string_view cTag = "[P] ";
 inline constexpr uint8_t cKeyFormType = 45; // KEYM (FormType::KeyMaster)
 inline constexpr uint32_t cGold = 0xF;       // Gold001: the party's purse holds it (party-purse.md), never a party item
 
-// A stack the party owns: tagged, or a quest item (its alias's name stays; the quest marker shows it).
+// A stack the party owns: tagged, or a quest item (its holder's, tagged in place unless an alias names it).
 [[nodiscard]] inline bool IsParty(const Inventory::Entry& acItem) noexcept
 {
     return acItem.IsQuestItem || acItem.ExtraName.starts_with(cTag);
