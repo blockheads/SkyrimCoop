@@ -214,7 +214,7 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         if (cPartner->second.InKillMove)
         {
             cPartner->second.BodiesLayer = kBipedLayer;
-            cPartner->second.BodiesDynamic = true; // driveToPose (58291): its powered ragdoll's bodies dynamic
+            cPartner->second.DynamicBodies = ~1u; // driveToPose (58291): its limbs dynamic, its root body keyframed
         }
         if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
         {

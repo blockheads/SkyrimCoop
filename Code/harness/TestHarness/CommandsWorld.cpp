@@ -833,7 +833,8 @@ nlohmann::json Skeleton(Harness&, const nlohmann::json& acRequest)
         return Error("no such actor, 3D or graph");
     auto nodes = nlohmann::json::array();
     for (const auto& cNode : cRead->Nodes)
-        nodes.push_back({{"name", cNode.Name}, {"drawn", cNode.Drawn}, {"written", cNode.Written}, {"local", cNode.Local}, {"world", cNode.World}});
+        nodes.push_back({{"name", cNode.Name}, {"drawn", cNode.Drawn}, {"written", cNode.Written}, {"local", cNode.Local}, {"world", cNode.World},
+                         {"blend", cNode.Blend}, {"blend_motion", cNode.BlendMotion}});
     return {{"ok", true}, {"root_is_drawn", cRead->RootIsDrawn}, {"bone_nodes", cRead->BoneNodes}, {"world_from_model", cRead->WorldFromModel}, {"nodes", nodes}};
 }
 

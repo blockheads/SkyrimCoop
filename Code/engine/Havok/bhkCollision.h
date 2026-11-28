@@ -158,6 +158,17 @@ struct bhkNiCollisionObject
     bhkWorldObject* body; // 20 (NiPointer)
 };
 
+// An actor bone's collision object (its vtable: ID 239339). Each update (78910) blends the bone between its animation
+// and its body by blendStrength; SetMotionType (78912) makes it 0 for a dynamic motion type, 1 otherwise.
+struct bhkBlendCollisionObject : bhkNiCollisionObject
+{
+    float blendStrength; // 28 (CommonLib): 0 the bone follows its body, 1 its body follows the bone
+    float unk2C;
+    uint32_t motionType; // 30: the motion type 78910 last set
+};
+static_assert(offsetof(bhkBlendCollisionObject, blendStrength) == 0x28);
+static_assert(offsetof(bhkBlendCollisionObject, motionType) == 0x30);
+
 // Every physics body under the 3D comes to a stop (bhkRigidBody::SetLinearVelocity 78089, SetAngularVelocity 78090)
 // and stays there: keyframed (NiAVObject::SetMotionType 77866, as Papyrus SetMotionType(Motion_Keyframed)), moved only
 // by its reference's position.

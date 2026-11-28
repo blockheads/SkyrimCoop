@@ -386,7 +386,7 @@ SCENARIO("A kill move's victim copy out of its kill move at its blow keeps its r
     StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
     CopyCatchesUp(party, party.Guest(), party.Host(), 0x1000);
     const uint32_t cCopy = CopyOfPlayer(party, party.Host(), party.Guest());
-    REQUIRE(host.Actors.at(cCopy).BodiesDynamic);
+    REQUIRE(host.Actors.at(cCopy).DynamicBodies);
     party.As(party.Host(), [&] { host.ClipEndsAtBlow(cCopy); });
     int frames = 0;
     party.Until([&] { return ++frames > 30; }, "half a second of its pose held");

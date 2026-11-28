@@ -692,6 +692,13 @@ std::optional<SkeletonRead> GetSkeleton(uint32_t aActorFormId) noexcept
                     for (uint32_t i = 0; i < pGraph->boneNodes.length && !node.Written; ++i)
                         node.Written = reinterpret_cast<const NiAVObject*>(pGraph->boneNodes.data[i].node) == pNode;
                     node.Local = {pNode->local.translate.x, pNode->local.translate.y, pNode->local.translate.z};
+                    POINTER_SKYRIMSE(void, s_blendVtable, 239339); // bhkBlendCollisionObject's vtable
+                    const auto* pCollision = reinterpret_cast<const bhkBlendCollisionObject*>(pNode->collisionObject);
+                    if (pCollision && *reinterpret_cast<void* const*>(pCollision) == s_blendVtable.Get())
+                    {
+                        node.Blend = pCollision->blendStrength;
+                        node.BlendMotion = static_cast<int32_t>(pCollision->motionType);
+                    }
                     node.World = {pNode->world.translate.x, pNode->world.translate.y, pNode->world.translate.z};
                 }
                 read->Nodes.push_back(node);

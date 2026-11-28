@@ -189,8 +189,11 @@ uint8_t Actor::BodiesLayer() const noexcept
 
 bool Actor::BodiesDynamic() const noexcept
 {
-    const hkpRigidBody* pBody = FirstBodyOf(*this);
-    return pBody && pBody->IsDynamic();
+    // Per body: 58291 sets each bone's body by its own keyframe track.
+    for (const bhkWorldObject* pBody : RagdollBodiesOf(*this))
+        if (pBody && pBody->referencedObject && pBody->referencedObject->IsDynamic())
+            return true;
+    return false;
 }
 
 bool Actor::KeyframeBodies() noexcept

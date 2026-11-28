@@ -852,10 +852,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint8_t BodiesLayer = 0;  // the layer its own 3D's bodies are on in the world, 0 out of it: the AI puts an
                                   // actor's there (33) as it sits or sleeps (40063), never a copy's (it runs no AI)
         bool GraphsStepPhysics = true; // its graphs step with the physics world; the AI detaches them in furniture (40063)
-        // Its ragdoll's bodies dynamic (a kill move's victim state: 42873, then 58291): its bones follow them (78912,
-        // 78910). Out of the world nothing moves them, so a living actor's skeleton stays where they are (SkeletonAt)
-        // while it moves on; keyframed again (EndKnockState 39897's 36925) it is on its animation.
-        bool BodiesDynamic = false;
+        // Which of its ragdoll's bodies are dynamic, one bit each (a kill move's victim state: 42873, then 58291 by
+        // each bone's keyframe track): those bones follow them (78910). Out of the world nothing moves them, so a living
+        // actor's skeleton stays where they are (SkeletonAt) while it moves on; keyframed again (39897's 36925) it is
+        // on its animation.
+        uint32_t DynamicBodies = 0;
         glm::vec3 SkeletonAt{};
         uint32_t BodiesKeyframed = 0;
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
@@ -1465,13 +1466,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         Actors.at(aFormId).BodiesLayer = aBodiesLayer;
         Actors.at(aFormId).GraphsStepPhysics = aGraphsStep;
     }
-    bool BodiesDynamic(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).BodiesDynamic; }
+    bool BodiesDynamic(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).DynamicBodies != 0; }
     bool HoldsPose(uint32_t aFormId) const noexcept override { return PoseHeld(aFormId); }
     void KeyframeBodies(uint32_t aFormId) noexcept override
     {
         if (!Actors.contains(aFormId))
             return;
-        Actors.at(aFormId).BodiesDynamic = false;
+        Actors.at(aFormId).DynamicBodies = 0;
         ++Actors.at(aFormId).BodiesKeyframed;
     }
     // How far its skeleton stands from the actor (seen from above): a living one on dynamic bodies out of the world.

@@ -683,7 +683,7 @@ void FakeEngine::StepDeathRagdolls()
             actor.RagdollForDeath = false;
         actor.RagdollListed = actor.RagdollInWorld;
         // In the world its powered ragdoll follows its clip; dead it lies; out of it, dynamic bodies hold its bones.
-        if (actor.Dead || !actor.BodiesDynamic || actor.BodiesLayer != 0)
+        if (actor.Dead || !actor.DynamicBodies || actor.BodiesLayer != 0)
             actor.SkeletonAt = {actor.Position[0], actor.Position[1], actor.Position[2]};
     }
 }

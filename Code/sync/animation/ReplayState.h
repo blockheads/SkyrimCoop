@@ -30,10 +30,8 @@ constexpr uint8_t KnockStateOf(uint32_t aFlags1) noexcept
     return aFlags1 >> 25 & 7;
 }
 
-// A living copy back on its owner's bodies whose own are still dynamic (a victim half cut short: the yield, a refused
-// pair) shows a skeleton frozen on them: they are keyframed again, as EndKnockState (39897) does at knock state 0
-// (kill-moves.md, "A victim half cut short"). A get-up's bodies stay simulated (knock states 5, 6), and a victim
-// whose clip killed it (its pose held for its owner's death) keeps its ragdoll for that death.
+// A living, standing copy out of its kill move with dynamic bodies of its own is keyframed, as EndKnockState 39897
+// does (kill-moves.md, "A victim half cut short"); one holding its pose keeps its ragdoll for its death.
 constexpr bool KeyframesOwnBodies(bool aBodiesDynamic, bool aLiesInRagdoll, bool aKnocked, bool aInKillMove, bool aDying) noexcept
 {
     return aBodiesDynamic && !aKnocked && !aDying && TakesOwnerBodies(aLiesInRagdoll, aInKillMove);

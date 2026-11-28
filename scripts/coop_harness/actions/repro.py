@@ -1499,15 +1499,17 @@ class ReproActions:
             trace.take()
         worst = {}
         for label, instance in games:
-            gaps = [max(math.dist(foot[:2], e["pos"][:2]) for foot in e["feet"]) for e in trace.entries
-                    if e["game"] == instance and e["kind"] == "pos" and e.get("feet")]
-            if not gaps:
-                raise ctx.failure(f"[{label}] {name}: no skeleton read")
-            worst[label] = round(max(gaps))
+            samples = [e for e in trace.entries if e["game"] == instance and e["kind"] == "pos"]
+            # Both feet in every reading, across the whole window.
+            read = [e for e in samples if len(e.get("feet") or []) == 2]
+            span = (read[-1]["time"] - read[0]["time"]) if read else 0.0
+            if not read or len(read) < len(samples) or span < 0.8 * (seconds or 1.0):
+                raise ctx.failure(f"[{label}] {name}: its feet not read all through ({len(read)} of {len(samples)} readings, {span:.1f} s)")
+            worst[label] = max(math.dist(foot[:2], e["pos"][:2]) for e in read for foot in e["feet"])
         if wrong := {label: gap for label, gap in worst.items() if gap > reach}:
             raise ctx.failure(f"{name}: its skeleton is apart from the actor: " +
-                              ", ".join(f"[{label}] a foot {gap} units off" for label, gap in wrong.items()) + f" (a stride {reach:g})")
-        return {"feet_off": worst}
+                              ", ".join(f"[{label}] a foot {gap:.1f} units off" for label, gap in wrong.items()) + f" (a stride {reach:g})")
+        return {"feet_off": {label: round(gap, 1) for label, gap in worst.items()}}
 
     def expect_actor(ctx, name, field, game, value, seconds=0.0, stays=False):
         """`field` of a handle's snapshot (ai.follow_target, state.dead) as expected within `seconds`, or, with `stays`,

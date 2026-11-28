@@ -238,7 +238,7 @@ struct RagdollDriverRead
 {
     bool Enabled, Powered, RigidBody, PoseWasUsed, AllKeyframed;
     bool StepsPhysics; // the graph has a physics world (+0x238)
-    bool Listed;       // 63564: a world and its ragdoll's first body in one; its bones then come from the physics step's post pass
+    bool Listed;       // 63564 now: eligible for the physics step's list (a world, its first body in one); not the listener's own record
     std::array<float, 4> Tracks;
     std::vector<float> KeyframedBones; // track 8's value per bone: > 1 keyframes that body (58291)
 };
@@ -252,6 +252,8 @@ struct SkeletonNodeRead
     bool Drawn;   // found in the drawn 3D (Get3D1)
     bool Written; // the graph's boneNodes hold this node
     std::array<float, 3> Local, World;
+    float Blend{-1.f};      // its bhkBlendCollisionObject's blend strength, -1 with none
+    int32_t BlendMotion{-1}; // the motion type that object last set (+0x30)
 };
 struct SkeletonRead
 {
