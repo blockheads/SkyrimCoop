@@ -250,6 +250,19 @@ void FakeHostEngine::SetItems(const ObjectChange& acItems) noexcept
     engine.SetItems(FormIdOf(acItems.Object), ItemForm(acItems.Item), static_cast<int32_t>(acItems.Value), acItems.Stacks);
 }
 
+std::optional<ObjectChange> FakeHostEngine::ReadObjectState(const GameId& acObject, ObjectChange::Kind aKind) const noexcept
+{
+    const FakeEngine& cEngine = m_engine;
+    return aKind == ObjectChange::Kind::kDestruction ? cEngine.DestructionRowOf(FormIdOf(acObject)) : std::nullopt;
+}
+
+void FakeHostEngine::SetObjectState(const ObjectChange& acState) noexcept
+{
+    FakeEngine& engine = m_engine;
+    if (acState.Type == ObjectChange::Kind::kDestruction && engine.References.contains(FormIdOf(acState.Object)))
+        engine.SetDestruction(FormIdOf(acState.Object), acState.Value);
+}
+
 Inventory::Entry FakeHostEngine::TransferContainer(const ContainerTransferRequest& acRequest, uint32_t aPlayer) noexcept
 {
     FakeEngine& engine = m_engine;

@@ -298,6 +298,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Harvested = false; // its form flag 0x2000
         uint32_t Motion = 0;    // the motion type a script last gave it (kMotion's row, ScriptMotion::Pack); 0 its model's
         uint32_t DeferredMotion = 0; // a guest's motion row that came before its 3D
+        // A destructible (DEST, form flag 0x1000000): its full health, 0 for none; its health (ExtraObjectHealth);
+        // its last stage's model (ExtraModelSwap: a cut web, no collision); a guest's row that came before its 3D.
+        float FullHealth = 0.f;
+        float Health = 0.f;
+        bool StageModel = false;
+        std::optional<uint32_t> DeferredDestruction;
         std::set<uint32_t> Rolled; // items a leveled roll put in (their changes entry a roll's: ExtraLeveledItem lists)
         uint32_t LinkedDoor = 0; // a load door with no lock of its own: it uses this door's (GetLock 20223)
         bool Persistent = false; // in memory with its cell unloaded (a load door's other side)
@@ -372,6 +378,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ScriptSetsEnabled(uint32_t aReference, bool aEnabled);
     // The host's script marks a reference destroyed (ObjectReference.SetDestroyed 56641 -> 14649): made and recorded.
     void ScriptSetsDestroyed(uint32_t aReference, bool aDestroyed);
+    // This game's player hits a destructible (a swing, TESObjectREFR::DamageObject 19526): refused for a destroyed one
+    // or one with no 3D; the host's game records it, a guest's raises DestructionEvent.
+    void PlayerDamagesObject(uint32_t aReference, float aDamage);
+    // The host's game takes a destructible's health (a guest's proposal accepted, HostGame::SetObjectState): made and
+    // recorded.
+    void SetDestruction(uint32_t aReference, uint32_t aValue);
+    // A destructible's row (ReferenceStates' kDestruction); none for one with no destruction data.
+    [[nodiscard]] std::optional<ObjectChange> DestructionRowOf(uint32_t aReference) const;
     // Each cell's location (BGSLocation), by cell: the player moved into a cell of another location raises CLOC.
     std::map<uint32_t, uint32_t> Locations;
     // The story event types this game registers, by index (BGSStoryEventManager::registeredEvents).

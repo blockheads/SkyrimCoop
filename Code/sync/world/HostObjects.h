@@ -11,8 +11,9 @@ struct HostWorldGame;
 struct HostPlayers;
 struct HostRouter;
 struct LockChangeRequest;
+struct ObjectStateRequest;
 
-// A guest's doors, levers, locks and containers: proposals the host's world takes. The host's own go out as its
+// A guest's doors, levers, locks, containers and destructibles: proposals the host's world takes. The host's own go out as its
 // object changes (HostWorldState).
 struct HostObjects
 {
@@ -29,6 +30,8 @@ struct HostObjects
     void OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's player took or stored an item.
     void OnContainerChange(const ContainerChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    // A guest's state row: only a destructible's health, taken as damage (DestructionRow::GuestDamages).
+    void OnObjectState(const ObjectStateRequest& acRequest, ConnectionId_t aSender) const noexcept;
 
     const HostPlayers& m_players;
     const HostCharacters& m_characters;

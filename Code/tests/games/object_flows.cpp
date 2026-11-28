@@ -17,6 +17,8 @@ constexpr uint32_t kChest = 0x000C2CE8; // QASmoke's small chest, a lid that ope
 constexpr uint32_t kPlant = 0x000F1B2E; // a flora reference (a mountain flower)
 constexpr uint32_t kPullLever = 0x000F1B2F; // a lever furniture (Bleak Falls Barrow's pillar lever's kind)
 constexpr uint32_t kCritter = 0x000F1B30;   // a reference with no body: a fish a script's TranslateTo moves
+constexpr uint32_t kWeb = 0x000F1B31;       // a destructible web (Bleak Falls Barrow's MS13FXspiderWebKitDestructible)
+constexpr uint32_t kOtherWeb = 0x000F1B32;  // another, health 10 and two stages as theirs
 
 void Plugins(FakeEngine& aEngine)
 {
@@ -28,6 +30,8 @@ void Plugins(FakeEngine& aEngine)
     aEngine.References[kPlant] = {.Cell = kSmoke, .Plant = true};
     aEngine.References[kPullLever] = {.Cell = kSmoke, .Lever = true};
     aEngine.References[kCritter] = {.Cell = kSmoke};
+    aEngine.References[kWeb] = {.Cell = kSmoke, .FullHealth = 10.f, .Health = 10.f};
+    aEngine.References[kOtherWeb] = {.Cell = kSmoke, .FullHealth = 10.f, .Health = 10.f};
 }
 
 // The info lines every game logs while it lives; the other sinks keep the level they had.
@@ -241,6 +245,58 @@ SCENARIO("A reference the host's script marks destroyed is destroyed on the gues
     party.As(party.Host(), [&] { host.ScriptSetsDestroyed(kChest, true); });
     party.Until([&] { return guest.References.at(kChest).Destroyed; }, "the guest's is destroyed");
     CHECK_FALSE(guest.References.at(kChest).Disabled);
+}
+
+// Playtest 2026-11-26 (Bleak Falls Barrow, 1FC43): the host cut the web Arvel hangs in; the guest's got only the
+// destroyed flag (the enabled row), kept its whole model and collision, and its own hits did nothing (DamageObject 19526
+// refuses a destroyed one). The damage is game-only extra data the rows never sent (docs/re/systems/destruction.md).
+SCENARIO("A web the host cuts is cut on the guest", "[objects]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    party.As(party.Host(), [&] { host.PlayerDamagesObject(kWeb, 10.f); });
+    REQUIRE(host.References.at(kWeb).StageModel);
+    party.Until([&] { return guest.References.at(kWeb).Destroyed; }, "the guest's web is destroyed");
+    party.Until([&] { return guest.References.at(kWeb).StageModel; }, "the guest's web shows its cut model");
+    CHECK(guest.References.at(kWeb).Health == 0.f);
+}
+
+// The same playtest's second half: the guest cuts a web itself; the host's world takes it, as for a lock.
+SCENARIO("A web the guest cuts is cut on the host", "[objects]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    party.As(party.Guest(), [&] { guest.PlayerDamagesObject(kOtherWeb, 4.f); });
+    party.Until([&] { return host.References.at(kOtherWeb).Health == 6.f; }, "the host's web took the guest's hit");
+    party.As(party.Host(), [&] { host.PlayerDamagesObject(kOtherWeb, 2.f); }); // the host's own, ahead of the guest's next
+    party.Until([&] { return guest.References.at(kOtherWeb).Health == 4.f; }, "the guest's web takes the host's hit");
+    party.As(party.Guest(), [&] { guest.PlayerDamagesObject(kOtherWeb, 4.f); });
+    party.Until([&] { return host.References.at(kOtherWeb).StageModel; }, "the host's web is cut");
+    CHECK(host.References.at(kOtherWeb).Destroyed);
+    party.Until([&] { return guest.References.at(kOtherWeb).StageModel && guest.References.at(kOtherWeb).Health == 0.f; },
+                "the guest's stays cut");
+}
+
+// A guest that loads the cell later finds the web as the host left it (the cell's state), its 3D loading after.
+SCENARIO("A web the host cut before the guest's 3D loaded is cut when it loads", "[objects]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
+
+    guest.References.at(kWeb).Has3D = false;
+    party.As(party.Host(), [&] { host.PlayerDamagesObject(kWeb, 10.f); });
+    party.Until([&] { return guest.References.at(kWeb).Destroyed; }, "the guest's web is destroyed");
+    CHECK_FALSE(guest.References.at(kWeb).StageModel); // DamageObject needs its 3D (14158)
+    party.As(party.Guest(), [&] { guest.Finishes3D(kWeb); });
+    CHECK(guest.References.at(kWeb).StageModel);
 }
 
 // Scenario host-menus-close-when-target-goes: the same on the host's own chest.

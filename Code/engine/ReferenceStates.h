@@ -29,10 +29,12 @@ void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept;
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
           std::vector<ObjectChange>& aChanges, bool aWhole = false) noexcept;
 // aWhole: a cell's state (a script's motion type with it); else live, that row once for each script call.
-// A motion row that came before the reference's 3D, applied now it loaded.
-void ApplyDeferredMotion(TESObjectREFR& aObject) noexcept;
+// The motion and destruction rows that came before the reference's 3D, applied now it loaded.
+void ApplyDeferred(TESObjectREFR& aObject) noexcept;
 // The enabled row of a reference that is gone (deleted), for one no longer there to read.
 ObjectChange Deleted(const GameId& acId) noexcept;
+// The reference's row of that kind now, whatever its record holds; none for a state it has no value for.
+std::optional<ObjectChange> ReadRow(const TESObjectREFR& acObject, const GameId& acId, ObjectChange::Kind aKind) noexcept;
 // Whether the reference here already reads as the change (a row's kind only).
 bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange) noexcept;
 // False for a kind that is an event, not a state, or a change the engine refused.

@@ -78,7 +78,8 @@
     X(BodyStatesRequest)            \
     X(WeatherRegionRequest)        \
     X(TrapContactRequest)          \
-    X(TrapHitRequest)
+    X(TrapHitRequest)              \
+    X(ObjectStateRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \

@@ -379,6 +379,11 @@ void FakeGuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
     engine.ObjectAddOrRemoveItem(FakeEngine::kPlayer, acGrant.Item);
 }
 
+std::optional<ObjectChange> FakeGuestEngine::ReadObjectState(uint32_t aObjectFormId, ObjectChange::Kind aKind) const noexcept
+{
+    return aKind == ObjectChange::Kind::kDestruction ? FakeEngine::Current().DestructionRowOf(aObjectFormId) : std::nullopt;
+}
+
 std::optional<ObjectChange> FakeGuestEngine::ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept
 {
     const auto& cReferences = FakeEngine::Current().References;

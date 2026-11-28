@@ -1,6 +1,7 @@
 #include <ReferenceStates.h>
 
 #include <FormState.h>
+#include <world/DestructionRow.h>
 #include <world/EnabledRow.h>
 #include <ScriptMotion.h>
 #include <FormChangeRows.h>
@@ -14,10 +15,14 @@
 #include <NetImmerse/NiUpdateData.h>
 
 #include <cstring>
+#include <mutex>
+#include <unordered_map>
 #include <RTTI.h>
 #include <VersionDb.h>
 #include <Forms/TESBoundObject.h>
 #include <ExtraData/ExtraLock.h>
+#include <ExtraData/ExtraObjectHealth.h>
+#include <Components/BGSDestructibleObjectForm.h>
 #include <ExtraData/ExtraTeleport.h>
 
 namespace ReferenceStates
@@ -262,7 +267,7 @@ bool ReadMotion(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) 
 }
 
 // As the script's SetMotionTypeFunctor::Run (56332) does it: every body under its 3D, the fixed ones left (77866).
-// With no 3D yet, when it loads (ApplyDeferredMotion).
+// With no 3D yet, when it loads (ApplyDeferred).
 bool ApplyMotion(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     NiNode* p3D = aObject.GetNiNode();
@@ -272,6 +277,71 @@ bool ApplyMotion(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
         return true;
     }
     p3D->SetMotionType(ScriptMotion::TypeOf(acChange.Value), true, false, ScriptMotion::AllowsActivate(acChange.Value));
+    return true;
+}
+
+// A destructible's health: ExtraObjectHealth (0x55) once damaged, else its base's full health; none for one with no
+// destruction data (form flag 0x1000000, set by SetObjectReference 19785).
+constexpr uint32_t kDestructibleFlag = 0x1000000;
+
+std::optional<float> DestructionHealth(const TESObjectREFR& acObject) noexcept
+{
+    if (!(acObject.flags & kDestructibleFlag) || !acObject.baseForm)
+        return std::nullopt;
+    if (const auto* pHealth = static_cast<const ExtraObjectHealth*>(acObject.extraData.GetByType(ExtraDataType::ObjectHealth)))
+        return pHealth->health;
+    using TGetDestructible = BGSDestructibleObjectForm*(TESForm*);
+    POINTER_SKYRIMSE(TGetDestructible, s_getDestructible, 14152);
+    const BGSDestructibleObjectForm* pForm = s_getDestructible.Get()(acObject.baseForm);
+    return pForm && pForm->data ? std::optional(static_cast<float>(pForm->data->health)) : std::nullopt;
+}
+
+bool ReadDestruction(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
+{
+    const auto cHealth = DestructionHealth(acObject);
+    if (cHealth)
+        aChange.Value = DestructionRow::Pack(*cHealth);
+    return cHealth.has_value();
+}
+
+// A row that came before the reference's 3D (its damage needs one), applied when it loads (ApplyDeferred).
+struct DeferredDestruction
+{
+    std::mutex Lock;
+    std::unordered_map<uint32_t, uint32_t> Values;
+};
+DeferredDestruction s_deferredDestruction;
+
+// The engine's own damage (TESObjectREFR::DamageObject 19526, vtable 0x42; BGSDestructibleObjectForm 14158): its
+// stage's model swap and 3D reload (a cut web loses its collision), explosion, debris and destroyed flag. Allowed on a
+// destroyed one: the host's enabled row may have set the flag first. Back to whole first with ClearDestruction (14181).
+// docs/re/systems/destruction.md.
+bool ApplyDestruction(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
+{
+    auto here = DestructionHealth(aObject);
+    if (!here)
+        return false;
+    const float cTarget = DestructionRow::Unpack(acChange.Value);
+    if (cTarget == *here)
+        return true;
+    if (!aObject.GetNiNode())
+    {
+        std::scoped_lock _(s_deferredDestruction.Lock);
+        s_deferredDestruction.Values[aObject.formID] = acChange.Value;
+        return true;
+    }
+    if (cTarget > *here)
+    {
+        using TClearDestruction = void(TESObjectREFR*);
+        POINTER_SKYRIMSE(TClearDestruction, s_clearDestruction, 14181);
+        s_clearDestruction.Get()(&aObject);
+        here = DestructionHealth(aObject);
+        if (!here || cTarget >= *here)
+            return true;
+    }
+    using TDamageObject = void(TESObjectREFR*, float, bool);
+    POINTER_SKYRIMSE(TDamageObject, s_damageObject, 19526);
+    s_damageObject.Get()(&aObject, *here - cTarget, true);
     return true;
 }
 
@@ -296,18 +366,21 @@ constexpr ReferenceState cStates[] = {
     {ObjectChange::Kind::kGraph, TESObjectREFR::CHANGE_REFR_ANIMATION, &ReadGraph, &ApplyGraph},
     // No flag of its own: its SetMotionType's havok change (4) has the reference read, the store says what it was.
     {ObjectChange::Kind::kMotion, 0, &ReadMotion, &ApplyMotion},
+    // Its health is game-only extra data (DamageObject records 0x80000000): read only for a destructible.
+    {ObjectChange::Kind::kDestruction, TESObjectREFR::CHANGE_REFR_EXTRA_GAME_ONLY, &ReadDestruction, &ApplyDestruction},
     {ObjectChange::Kind::kSaveData, ~0u, &ReadSaveData, &ApplySaveData},
 };
 
 // The last row, for mods' states later: off while vanilla's get rows (a flag no row takes is logged instead).
 constexpr bool cSaveDataFallback = false;
 
-// Game-only extra data is the engine's runtime bookkeeping, whose load on a guest re-runs a reference's alias data
-// under the quests' locks (FinishLoadGame) against a cell load's alias fills; promoted and cell changed are the
-// location header's, which FormState does not carry (loaded alone: a half-promoted reference).
+// Game-only extra data is the engine's runtime bookkeeping (only a destructible's health is taken, by its row: loaded
+// whole on a guest it re-runs a reference's alias data under the quests' locks, FinishLoadGame, against a cell load's
+// alias fills); promoted and cell changed are the location header's, which FormState does not carry (loaded alone: a
+// half-promoted reference).
 // Inventory travels as the container event's kItems changes (ContainerEvents), not a row. Activating children: a
 // reference on its cell's list while its activate-parent children run (InitChildActivates, 19428), the host's.
-constexpr uint32_t cNotSent = TESObjectREFR::CHANGE_REFR_EXTRA_GAME_ONLY | TESObjectREFR::CHANGE_REFR_PROMOTED |
+constexpr uint32_t cNotSent = TESObjectREFR::CHANGE_REFR_PROMOTED |
                               TESObjectREFR::CHANGE_REFR_CELL_CHANGED | TESObjectREFR::CHANGE_REFR_INVENTORY |
                               TESObjectREFR::CHANGE_REFR_EXTRA_ACTIVATING_CHILDREN;
 } // namespace
@@ -332,8 +405,11 @@ uint32_t RecordedRows(const TESObjectREFR& acObject) noexcept
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     if (!pSaveLoad || FormChangeRows::OfFormType(static_cast<uint8_t>(acObject.formType)) != FormChangeRows::Form::kReference)
         return 0;
-    const uint32_t cFlags = pSaveLoad->ChangeFlags(acObject, RowFlags() | cHavokMove);
-    return (cFlags & ~cHavokMove) | (cFlags & cHavokMove ? TESObjectREFR::CHANGE_REFR_MOVE : 0);
+    uint32_t flags = pSaveLoad->ChangeFlags(acObject, RowFlags() | cHavokMove);
+    // Game-only extra data is a row only for a destructible (its health).
+    if (!(acObject.flags & kDestructibleFlag))
+        flags &= ~TESObjectREFR::CHANGE_REFR_EXTRA_GAME_ONLY;
+    return (flags & ~cHavokMove) | (flags & cHavokMove ? TESObjectREFR::CHANGE_REFR_MOVE : 0);
 }
 
 uint32_t LinkedLockRows(const TESObjectREFR& acObject) noexcept
@@ -401,6 +477,17 @@ void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
     }
 }
 
+std::optional<ObjectChange> ReadRow(const TESObjectREFR& acObject, const GameId& acId, ObjectChange::Kind aKind) noexcept
+{
+    for (const auto& cState : cStates)
+        if (cState.Kind == aKind)
+        {
+            ObjectChange row{aKind, acId};
+            return cState.Read(acObject, cState.Flags, row) ? std::optional(std::move(row)) : std::nullopt;
+        }
+    return std::nullopt;
+}
+
 bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange) noexcept
 {
     for (const auto& cState : cStates)
@@ -413,10 +500,21 @@ bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange) noexce
     return false;
 }
 
-void ApplyDeferredMotion(TESObjectREFR& aObject) noexcept
+void ApplyDeferred(TESObjectREFR& aObject) noexcept
 {
     if (const auto cValue = ScriptMotion::Get().TakeDeferred(aObject.formID))
         (void)ApplyMotion(aObject, {.Type = ObjectChange::Kind::kMotion, .Value = *cValue});
+    std::optional<uint32_t> destruction;
+    {
+        std::scoped_lock _(s_deferredDestruction.Lock);
+        if (const auto it = s_deferredDestruction.Values.find(aObject.formID); it != s_deferredDestruction.Values.end())
+        {
+            destruction = it->second;
+            s_deferredDestruction.Values.erase(it);
+        }
+    }
+    if (destruction)
+        (void)ApplyDestruction(aObject, {.Type = ObjectChange::Kind::kDestruction, .Value = *destruction});
 }
 
 bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept

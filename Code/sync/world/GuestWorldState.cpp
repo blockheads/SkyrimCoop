@@ -6,6 +6,7 @@
 #include <core/UpdateEvent.h>
 #include <items/ContainerChangeEvent.h>
 #include <world/LockChangeEvent.h>
+#include <world/DestructionEvent.h>
 #include <items/LooseItemEvents.h>
 #include <scripts/StoryEvents.h>
 #include <magic/SummonEvent.h>
@@ -18,6 +19,7 @@
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/DroppedItems.h>
 #include <Messages/LockChangeRequest.h>
+#include <Messages/ObjectStateRequest.h>
 #include <Messages/StoryEventRequest.h>
 #include <core/TransportService.h>
 #include <world/WorldStateLog.h>
@@ -36,6 +38,7 @@ GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, I
     Listen<NotifyQuests, &GuestWorldState::OnQuests>(m_connections, aDispatcher, this);
     Listen<NotifyObjectChanges, &GuestWorldState::OnObjectChanges>(m_connections, aDispatcher, this);
     Listen<LockChangeEvent, &GuestWorldState::OnLockChange>(m_connections, aDispatcher, this);
+    Listen<DestructionEvent, &GuestWorldState::OnDestruction>(m_connections, aDispatcher, this);
     Listen<ContainerChangeEvent, &GuestWorldState::OnContainerChange>(m_connections, aDispatcher, this);
     Listen<ItemDroppedEvent, &GuestWorldState::OnItemDropped>(m_connections, aDispatcher, this);
     Listen<NotifyItemDropped, &GuestWorldState::OnItemDroppedNotify>(m_connections, aDispatcher, this);
@@ -150,6 +153,17 @@ void GuestWorldState::OnLockChange(const LockChangeEvent& acEvent) noexcept
     request.IsLocked = acEvent.IsLocked;
     request.LockLevel = acEvent.LockLevel;
     spdlog::info("GuestWorldState: proposed lock {:X} {} at {}", request.Id.LogFormat(), request.IsLocked ? "locked" : "unlocked", request.LockLevel);
+    m_world.GetTransport().Send(request);
+}
+
+void GuestWorldState::OnDestruction(const DestructionEvent& acEvent) noexcept
+{
+    auto row = m_engine.ReadObjectState(acEvent.FormId, ObjectChange::Kind::kDestruction);
+    if (!row)
+        return;
+    ObjectStateRequest request;
+    request.Change = std::move(*row);
+    spdlog::info("GuestWorldState: proposed {}", WorldStateLog::Describe(request.Change));
     m_world.GetTransport().Send(request);
 }
 

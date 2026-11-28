@@ -933,6 +933,15 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"enabled", *cEnabled}};
 }
 
+// {"cmd": "destruction", "object": id}: a destructible's health (-1 undamaged), destroyed flag, stage model, 3D.
+nlohmann::json DestructionState(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cState = EngineCalls::GetDestruction(acRequest.value("object", 0u));
+    if (!cState)
+        return Error("no such reference");
+    return {{"ok", true}, {"health", cState->Health}, {"destroyed", cState->Destroyed}, {"stage_model", cState->StageModel}, {"has_3d", cState->Has3D}};
+}
+
 // {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, whether it is a copy here and
 // still loading (kStillLoading: a spawn for it waits), its running package and process level (-1: no process), where the
 // game placed it (home: GetEditorLocation 19514), whether its parent cell is attached here and, for a mount, whether a
@@ -1356,6 +1365,7 @@ constexpr Command cCommands[] = {
     {"menu_var", false, &MenuVar},
     {"hud_messages", false, &HudMessagesShown},
     {"ref_enabled", true, &RefEnabled},
+    {"destruction", true, &DestructionState},
     {"actor_place", true, &ActorPlace},
     {"is_current_package", true, &IsCurrentPackage},
     {"faction_rank", true, &FactionRank},

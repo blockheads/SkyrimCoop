@@ -60,6 +60,7 @@ public:
     bool ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept override;
     [[nodiscard]] bool HasLiveBody(const GameId& acObject) noexcept override;
     [[nodiscard]] std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept override;
+    [[nodiscard]] std::optional<ObjectChange> ReadObjectState(uint32_t aObjectFormId, ObjectChange::Kind aKind) const noexcept override;
     [[nodiscard]] std::vector<uint32_t> AttachedCells() const noexcept override;
     [[nodiscard]] std::optional<CellStateRequest> ReadCellChanges(uint32_t aCellFormId) const noexcept override;
     [[nodiscard]] bool IsCellAttached(const GameId& acCell) const noexcept override;

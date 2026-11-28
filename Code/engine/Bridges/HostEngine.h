@@ -63,6 +63,8 @@ public:
     void TouchTrap(const Payloads::TrapContact& acContact) noexcept override;
     void SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept override;
     void SetItems(const ObjectChange& acItems) noexcept override;
+    [[nodiscard]] std::optional<ObjectChange> ReadObjectState(const GameId& acObject, ObjectChange::Kind aKind) const noexcept override;
+    void SetObjectState(const ObjectChange& acState) noexcept override;
     [[nodiscard]] Inventory::Entry TransferContainer(const ContainerTransferRequest&, uint32_t aPlayer) noexcept override;
     void RaiseStoryEvent(const StoryEvent& acEvent) noexcept override;
     [[nodiscard]] std::optional<GameId> CreateItem(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) noexcept override;

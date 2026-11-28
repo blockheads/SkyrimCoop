@@ -407,6 +407,13 @@ std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectForm
     return ::ReadContainerItems(aObjectFormId, aItemFormId);
 }
 
+std::optional<ObjectChange> GuestEngine::ReadObjectState(uint32_t aObjectFormId, ObjectChange::Kind aKind) const noexcept
+{
+    const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
+    const auto cId = pObject ? ToSession(aObjectFormId) : std::nullopt;
+    return cId ? ReferenceStates::ReadRow(*pObject, *cId, aKind) : std::nullopt;
+}
+
 TESObjectREFR* GuestEngine::FindFillReference(TESQuest& aQuest, const QuestAliasFill& acFill) const noexcept
 {
     if (acFill.ActorId)
