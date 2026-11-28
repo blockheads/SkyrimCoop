@@ -144,13 +144,10 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
         m_decidesArrival(cItemId, m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven, acEvent.AliasHeld))
     {
         request.NewPartyItem = true;
-        const std::string cTagged = PartyItems::Tagged(acEvent.Item.ExtraName, m_formBridge.GetFormName(cItemId));
+        request.Item.ExtraName = PartyItems::Tagged(acEvent.Item.ExtraName, m_formBridge.GetFormName(cItemId));
         if (!acEvent.Item.IsQuestItem)
-        {
-            request.Item.ExtraName = cTagged;
             request.Item.ExtraWorn = request.Item.ExtraWornLeft = false;
-        }
-        RenameAsParty(acEvent.FormId, acEvent.Item, cTagged);
+        RenameAsParty(acEvent.FormId, acEvent.Item, request.Item.ExtraName);
     }
 
     m_transport.Send(request);
@@ -435,8 +432,7 @@ void InventoryService::OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexc
 }
 
 // The host decided an item this game's player found is the party's: that many of its stack get the tag where they are,
-// never taken back (a stack a quest alias holds keeps its list; a plain one is replaced at once, silently). A quest
-// object's stack is only tagged in place: replaced, it would lose its alias.
+// never taken back; a plain one is replaced at once, silently, a quest object's never (it would lose its alias).
 void InventoryService::RenameAsParty(uint32_t aHolder, const Inventory::Entry& acFound, const std::string& acTagged) const noexcept
 {
     const int32_t cRest = acFound.Count - m_formBridge.TagStackInPlace(aHolder, ToGame(acFound.BaseId), acTagged, acFound.Count);
@@ -500,6 +496,10 @@ void InventoryService::SetPartyItem(uint32_t aActorFormId, const Inventory::Entr
 void InventoryService::OnNotifyPartyItems(const NotifyPartyItems& acMessage) noexcept
 {
     m_partyItems = acMessage.Items;
+    // A quest object this game's player held before the party formed (a save) gets its tag too.
+    for (const auto& cEntry : m_actorBridge.GetActorInventory(0x14).Entries)
+        if (cEntry.IsQuestItem && cEntry.ExtraName.empty() && cEntry.Count > 0)
+            RenameAsParty(0x14, cEntry, PartyItems::Tagged("", m_formBridge.GetFormName(ToGame(cEntry.BaseId))));
     SetPartyItems(0x14, acMessage.Items);
     for (const auto cEntity : m_world.view<FormIdComponent>())
         if (const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id; m_actorBridge.IsOtherPlayer(cFormId))

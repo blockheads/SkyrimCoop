@@ -288,8 +288,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   UnitTests `[base-change]`, `leveled-copy-base.md`).
 - **Done 2026-11-27: a quest object's holder shows its [P] tag** (the Golden Claw, the Dragonstone). The item menus
   name a stack by its list's `ExtraTextDisplayData` (`InventoryEntryData::GetName` 16018); the holder's quest-object
-  list was never tagged, so only the other players' copies read "[P] ...". The host's arrival now tags it in place,
-  never replacing it (`inventory-changes.md`, "A quest object's party tag"; GameTests "A guest picks up a quest object",
+  list was never tagged, so only the other players' copies read "[P] ...". The host's arrival (or, for one held from
+  the save, the party's items arriving) now tags it in place, never replacing it (`inventory-changes.md`, "A quest object's party tag"; GameTests "A guest picks up a quest object",
   scenario `golden-claw-party-tag`).
 - **Done 2026-11-27: UnequipAll's walk read a node its unequip freed.** The engine's `UnequipAll` (38899) walks the
   inventory holding the next node, and an unequip that empties the first entry frees it (16067); our reconcile's reset

@@ -395,6 +395,9 @@ Size: medium. Needs: duo.
   `golden-claw-party-tag` (2 runs) pass every step and end on trees (TREE `5D2D7`, `5D2D9`) whose branch bones
   (`BranchBoneCluster02`, `BranchBoneLow02`) are turned differently, 1-6 references a run. Unread: whether a tree's
   wind pose is game-local, which would make it one to leave out of the comparison.
+  The same scenarios' guest `take` from Arvel's body missed twice in four runs ("the crosshair is on nothing, not
+  arvel: 130/191 units off"): the body still moving after the console kill (his web, a ragdoll). Start: `take` waiting
+  for the body to rest (`wait_rest`) before it aims.
 
 ### A strafing copy catches for a frame
 

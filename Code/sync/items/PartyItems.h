@@ -55,4 +55,9 @@ inline constexpr uint32_t cGold = 0xF;       // Gold001: the party's purse holds
     const std::string_view cName = aCustomName.empty() ? aFormName : aCustomName;
     return cName.starts_with(cTag) ? std::string(cName) : std::string(cTag) + std::string(cName);
 }
+// An alias's stack the tag goes on: unnamed, or with the custom name the tag carries; never one tagged already.
+[[nodiscard]] inline bool TagsAliasStack(std::string_view aName, std::string_view aTagged)
+{
+    return aName.empty() || (!aName.starts_with(cTag) && Tagged(aName, {}) == aTagged);
+}
 } // namespace PartyItems

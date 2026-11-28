@@ -11,3 +11,6 @@ time	op	id	rva	item
 2026-11-28T00:38:42Z	local	12052	0x172d30	{"func_addr": "0x140172d30", "old": "v5", "new": "pAliasList"}
 2026-11-28T00:38:42Z	local	12052	0x172d30	{"func_addr": "0x140172d30", "old": "v7", "new": "questObject"}
 2026-11-28T00:38:43Z	comment		0x172d94	{"addr": "0x140172d94", "comment": "the aliases come from the list's reference (handle 0x1C) unless it is deleted (flag 0x20), else the list itself; a quest object alias (0x88) makes it a quest item"}
+2026-11-28T01:35:24Z	read	51803	0x93fd20	{"name": "StandardItemData::GetName"}
+2026-11-28T01:35:30Z	comment	51803	0x93fd20	{"addr": "0x14093fd20", "comment": "[re]\nAddressLib ID 51803\nThe item menus' row name: its InventoryEntryData (+0x8) through InventoryEntryData::GetName 16018."}
+2026-11-28T01:35:31Z	type	51803	0x93fd20	{"addr": "0x14093fd20", "kind": "function", "signature": "char *__fastcall StandardItemData::GetName(__int64 pItemData)"}

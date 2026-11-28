@@ -213,6 +213,26 @@ SCENARIO("A guest picks up a quest object: the party holds the quest item, every
     }
 }
 
+SCENARIO("A quest object held from the save gets its tag when the party forms", "[party-items]")
+{
+    static constexpr uint32_t kClaw = 0x00039647; // the Golden Claw, MS13's GoldenClaw alias holding it
+    Party party(1, [](FakeEngine& aEngine) { aEngine.FormNames[kClaw] = "Golden Claw"; }, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Host(), [&] {
+        ScopedInventoryOverride _; // the save's: no arrival
+        host.AliasCreatesIn(FakeEngine::kPlayer, kClaw, {0x39645, 30, true});
+    });
+    party.Join(party.Guest());
+    const auto cNamed = [&](FakeEngine& aGame) {
+        const auto cEntries = aGame.EntriesOf(FakeEngine::kPlayer, kClaw);
+        return cEntries.size() == 1 && cEntries[0].ExtraName == "[P] Golden Claw";
+    };
+    party.Until([&] { return cNamed(host) && cNamed(guest); }, "both players' claws read \"[P] Golden Claw\"");
+    CHECK(host.EntriesOf(FakeEngine::kPlayer, kClaw)[0].IsQuestItem);
+    CHECK(host.AliasStacks.contains({FakeEngine::kPlayer, kClaw}));
+}
+
 SCENARIO("Tempering or enchanting a party item improves every player's copy", "[party-items]")
 {
     Party party(1, SmokeWorld);
