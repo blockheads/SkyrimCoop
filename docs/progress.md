@@ -286,6 +286,11 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   NPC to the reference the cell made again and destroyed it there (19529, 12095), under the old reference or a held
   copy. Caught with the heap guard on 0x268-byte blocks; a temporary base is no longer recorded (`BaseChange.h`,
   UnitTests `[base-change]`, `leveled-copy-base.md`).
+- **Done 2026-11-27: a quest object's holder shows its [P] tag** (the Golden Claw, the Dragonstone). The item menus
+  name a stack by its list's `ExtraTextDisplayData` (`InventoryEntryData::GetName` 16018); the holder's quest-object
+  list was never tagged, so only the other players' copies read "[P] ...". The host's arrival (or, for one held from
+  the save, the party's items arriving) now tags it in place, never replacing it (`inventory-changes.md`, "A quest object's party tag"; GameTests "A guest picks up a quest object",
+  scenario `golden-claw-party-tag`).
 - **Done 2026-11-27: UnequipAll's walk read a node its unequip freed.** The engine's `UnequipAll` (38899) walks the
   inventory holding the next node, and an unequip that empties the first entry frees it (16067); our reconcile's reset
   of a copy's worn set ran it. Found by the heap quarantine in the six mount scenarios (the guest's 2026-11-27

@@ -115,6 +115,14 @@ TEST_CASE("A speaker with no process skips its update in a session; one with a p
     CHECK_FALSE(SpeakerUpdate::Skipped(true, false));
 }
 
+TEST_CASE("The tag goes on an unnamed alias stack or the one its name came from, never a tagged one", "[PartyItems]")
+{
+    CHECK(PartyItems::TagsAliasStack("", "[P] Golden Claw"));
+    CHECK(PartyItems::TagsAliasStack("Old Friend", "[P] Old Friend"));
+    CHECK_FALSE(PartyItems::TagsAliasStack("[P] Golden Claw", "[P] Golden Claw")); // a party stack held already
+    CHECK_FALSE(PartyItems::TagsAliasStack("Other", "[P] Old Friend"));
+}
+
 TEST_CASE("A party copy's name without its tag: the form's own name is no custom name", "[PartyItems]")
 {
     CHECK(PartyItems::Untagged("[P] Key to Breezehome", "Key to Breezehome").empty());
