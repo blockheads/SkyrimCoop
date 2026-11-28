@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <vector>
 
+struct Actor;
+
 struct hkpRigidBody;
 
 // What this game's player's character pushes and its swings hit (Havok's character proxy giving a dynamic body an impulse,
@@ -32,4 +34,6 @@ void Watch(bool aOn) noexcept;
 void SetCopies(const std::vector<uint32_t>& acCopyFormIds) noexcept;
 // Whether a copy's swing runs 38628 on this thread now: what it hits is its owner's game's (a destructible's damage).
 [[nodiscard]] bool CopySwings() noexcept;
+// The actor whose swing 38628 runs on this thread now, else null.
+[[nodiscard]] Actor* Swinger() noexcept;
 } // namespace PlayerHands

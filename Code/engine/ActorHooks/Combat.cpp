@@ -129,7 +129,10 @@ static TDealDamage* RealDealDamage = nullptr;
 void HookDealDamage(Actor* apAttacker, Actor* apTarget, void* apArrow, bool aLeftHand)
 {
     if (HitRules::RideTogether(apTarget, apAttacker))
+    {
+        spdlog::debug("{:X}'s blow on {:X} dropped: they ride together", apAttacker->formID, apTarget->formID);
         return;
+    }
     RealDealDamage(apAttacker, apTarget, apArrow, aLeftHand);
 }
 

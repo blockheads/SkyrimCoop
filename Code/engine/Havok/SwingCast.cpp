@@ -71,6 +71,26 @@ std::vector<Hit> HitsOf(const void* apCollector) noexcept
     return hits;
 }
 
+int32_t DropHits(void* apCollector, const std::function<bool(const TESObjectREFR&)>& aDrop) noexcept
+{
+    auto* pCollector = static_cast<SwingCollector*>(apCollector);
+    if (!pCollector)
+        return 0;
+    int32_t kept = 0;
+    for (int32_t i = 0; i < pCollector->hitCount; ++i)
+    {
+        const hkpRootCdPoint& cPoint = pCollector->hits[i];
+        const TESObjectREFR* pRef = cPoint.rootCollidableB ? FindCollidableRef(cPoint.rootCollidableB) : nullptr;
+        if (pRef && aDrop(*pRef))
+            continue;
+        if (kept != i)
+            pCollector->hits[kept] = cPoint;
+        ++kept;
+    }
+    pCollector->hitCount = kept;
+    return kept;
+}
+
 uint32_t CollectorGroup(const void* apCollector) noexcept
 {
     return apCollector ? static_cast<const SwingCollector*>(apCollector)->filterGroup : 0;

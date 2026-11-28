@@ -2,6 +2,7 @@
 
 #include <Actor.h>
 #include <ActorExtension.h>
+#include <Havok/SwingCast.h>
 #include <combat/HitRules.h>
 
 namespace HitRules
@@ -26,5 +27,13 @@ inline bool RideTogether(Actor* apHittee, Actor* apHitter) noexcept
         return pMount ? pMount->formID : 0u;
     };
     return RideTogether(PartyOf(apHittee), PartyOf(apHitter), cMount(apHittee), cMount(apHitter));
+}
+
+// A collector's hits (a swing's sweep, a projectile's step) on another player riding aRider's mount taken out; the rest.
+inline int32_t DropFellowRiderHits(void* apCollector, Actor& aRider) noexcept
+{
+    return GameSwingCast::DropHits(apCollector, [&aRider](const TESObjectREFR& acRef) {
+        return RideTogether(Cast<Actor>(const_cast<TESObjectREFR*>(&acRef)), &aRider);
+    });
 }
 } // namespace HitRules

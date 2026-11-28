@@ -1,4 +1,5 @@
 #include "Projectiles/Projectile.h"
+#include <Combat/HitOwnership.h>
 #include <magic/CastingSafety.h>
 #include <HookSwitch.h>
 #include <Forms/TESObjectWEAP.h>
@@ -129,15 +130,19 @@ namespace
 {
 thread_local bool t_worldImpact = false;
 
-// Projectile::HandleHits (44204): a projectile hits a reference; its weapon's enchantment is cast in HandleRefImpact (44205)
-// by the hit actor's own instant caster. Shot by no actor, that effect is the world's.
+// Projectile::HandleHits (44204, vfunc 0xBE of every projectile type): its step's cast hits, in order. A weapon's
+// enchantment is cast in HandleRefImpact (44205) by the hit actor's own caster; shot by no actor, that is the world's.
 using TImpact = bool(Projectile*, void*);
 TImpact* RealImpact = nullptr;
 
 bool HookImpact(Projectile* apThis, void* apHit)
 {
+    Actor* pShooter = Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hShooter));
+    // apHit: the step's hkpAllCdPointCollector; the shooter's fellow rider is passed through (HitRules::RideTogether).
+    if (pShooter)
+        HitRules::DropFellowRiderHits(apHit, *pShooter);
     const bool cBefore = t_worldImpact;
-    t_worldImpact = !Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hShooter));
+    t_worldImpact = !pShooter;
     const bool cResult = RealImpact(apThis, apHit);
     t_worldImpact = cBefore;
     return cResult;
