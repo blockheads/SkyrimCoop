@@ -13,7 +13,7 @@ target("UnitTests")
     add_files("../../sync/core/CharacterRecords.cpp", "../../sync/core/RecipeBook.cpp", "../../sync/core/CopyClock.cpp", "../../sync/core/CopyRecords.cpp", "../../sync/dialogue/PartyOptionText.cpp",
               "../../sync/core/MessageTrail.cpp", "../../plugin/Diagnostics/Perf.cpp", "../../sync/tools/ReportPaths.cpp", "../../plugin/Diagnostics/LogRing.cpp",
               "../../plugin/Diagnostics/Zip.cpp", "../../plugin/Diagnostics/Export.cpp", "../../plugin/Diagnostics/CrashReports.cpp")
-    add_files("../../sync/scripts/PartyRules.cpp", "../../sync/scripts/ScriptTags.cpp",
+    add_files("../../sync/scripts/PartyRules.cpp", "../../sync/scripts/ScriptTags.cpp", "../../sync/scripts/SightCache.cpp",
               "../../sync/scripts/OwnEvents.cpp", "../../sync/scripts/StoryGifts.cpp", "../../sync/scripts/CodeReach.cpp",
               "../../engine/Misc/PartyArrivals.cpp", "../../engine/Misc/JudgedRules.cpp",
               "../../sync/scripts/StoryEventRules.cpp",

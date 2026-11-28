@@ -62,9 +62,14 @@ Routing RouteOf(const CallFacts& acFacts) noexcept
                    : Routing{};
     if (acFacts.Guest && cKind == Call::kWorld && !acFacts.OwnQuest && !acFacts.SystemObject)
         return {.To = Destination::kHost, .Original = false};
+    // A world object's timer polling "the player" (a word wall): its questions and its screen are the party's, as a timer
+    // with no player's are (papyrus-guest-scripts.md, "Vanilla timers that name the player"). A body's stay its own.
+    const bool cPartyTimer = acFacts.Timer && acFacts.Hosting && !acFacts.Body && !acFacts.InSystemQuest;
     // Where the player is, with no player's action behind it: the party's (rule 3). Only the host's scripts.
-    if (cKind == Call::kQuestion && acFacts.Hosting && acFacts.PlayerInCall && !acFacts.Cause)
+    if (cKind == Call::kQuestion && acFacts.Hosting && acFacts.PlayerInCall && (!acFacts.Cause || cPartyTimer))
         return {.Ask = true};
+    if (cKind == Call::kScreen && cPartyTimer)
+        return {.To = Destination::kEveryGame, .Mark = true, .MarkFor = acFacts.Cause};
     // A cast runs where its script does: its projectile reaches the others (CombatService), its effect on a guest's
     // character is the host's verdict (MagicTarget's world cast; traps.md). Never the screen's.
     if (cKind == Call::kCast)

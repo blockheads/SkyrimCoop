@@ -89,12 +89,13 @@ struct CallFacts
     uint32_t TargetId = 0;   // its form id
     uint32_t Cause = 0;      // GuestScripts' cause: a guest, this game's player 0x14, a mirrored tag, 0 for none
     bool Story = false;      // a stage that player's action set runs it
+    bool Timer = false;      // the stack answers a timer that player's stack set (GuestScripts::Cause::Timer)
     bool Body = false;       // a body's script calls it: an effect, equipment, a script on the player, a body's quest
     bool GuestCause = false; // the cause is a guest whose character is on this game (the host)
     bool Hosting = false;
     bool Guest = false;    // this game is a guest in a session
     bool OwnQuest = false; // its object is a quest of this guest's own
-    bool PlayerInCall = false;  // this game's player (0x14) is its object or an argument
+    bool PlayerInCall = false;  // the stack's player (0x14, or its guest's character) is its object or an argument
     bool InSystemQuest = false; // a system quest's script calls it: this game's instance, for its own player
     bool SystemObject = false;  // its object is a system quest or one of its globals: each game's own
     bool CreatedObject = false; // its object is a reference the host's game created (CreatedIds)

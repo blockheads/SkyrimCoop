@@ -255,7 +255,7 @@ std::vector<PartyRules::Asked> PlayersAsked(const Asker& acAsker) noexcept
 PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSScript::Stack& acStack) const noexcept
 {
     using PartyRules::Target;
-    PartyRules::CallFacts facts{.Reach = NativeReach::CallOf(apFunction), .Cause = m_cause, .Story = m_story};
+    PartyRules::CallFacts facts{.Reach = NativeReach::CallOf(apFunction), .Cause = m_cause, .Story = m_story, .Timer = m_timer};
     facts.Hosting = World::Hosts();
     facts.Guest = PlayerNatives::IsGuest();
     facts.GuestCause = GuestScripts::IsGuestCharacter(m_cause);
@@ -288,17 +288,22 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
         facts.InSystemQuest = SystemQuests::Is(OwnEvents::QuestOf(cScript));
         facts.SystemObject = !cStatic && (SystemQuests::Is(cObject) || SystemQuests::IsGlobal(cObject));
     }
-    EachValue(*acStack.pTop, [&facts](const BSScript::Variable& acValue) {
-        facts.PlayerInCall = facts.PlayerInCall || FormIdOf(acValue) == PartyRules::kThisPlayerFormId;
+    // The stack's player: this game's, or in a guest's stack its character (GetPlayer's swap, PlayerInFrame).
+    const uint32_t cStackPlayer = facts.GuestCause ? m_cause : PartyRules::kThisPlayerFormId;
+    EachValue(*acStack.pTop, [&facts, cStackPlayer](const BSScript::Variable& acValue) {
+        const uint32_t cFormId = FormIdOf(acValue);
+        facts.PlayerInCall = facts.PlayerInCall || cFormId == PartyRules::kThisPlayerFormId || cFormId == cStackPlayer;
     });
     // Read from the code only where the rule asks: in a stack a guest's action ran (its lock is not on every call).
     facts.PlayerNative = facts.GuestCause && cStatic && !IsGetPlayer(apFunction) && NativeReach::ReachesThisPlayer(apFunction);
     return facts;
 }
 
-Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript::IVirtualMachine* apVm, uint32_t aCause, bool aStory) noexcept
+Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript::IVirtualMachine* apVm, uint32_t aCause, bool aStory,
+             bool aTimer) noexcept
     : m_cause(aCause)
     , m_story(aStory)
+    , m_timer(aTimer)
 {
     using PartyRules::Destination;
     if (!s_inSession.load(std::memory_order_relaxed) || !apStack || !apStack->pTop)

@@ -38,6 +38,7 @@
 #include <scripts/StoryEventRules.h>
 #include <scripts/OwnEvents.h>
 #include <scripts/PartyRules.h>
+#include <scripts/SightCache.h>
 #include <Structs/Recipe.h>
 #include <core/IEngine.h>
 #include <game/HostGame.h>
@@ -240,8 +241,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::optional<std::optional<SaveFiles>> MadeSave;  // made (or refused), for the next SaveNow
     std::optional<std::pair<std::string, SaveFiles>> PendingLoad;
 
-    // A script's call on this game, run now in a stack whose cause is aCause (GuestScripts': 0 for no player's action).
-    void RunScript(const LocalCall& acCall, uint32_t aCause = 0, bool aStory = false, bool aBody = false);
+    // A script's call on this game, run now in a stack whose cause is aCause (GuestScripts': 0 for no player's action);
+    // aTimer: the stack answers a timer that player's stack set (a word wall's OnUpdate).
+    void RunScript(const LocalCall& acCall, uint32_t aCause = 0, bool aStory = false, bool aBody = false, bool aTimer = false);
     uint32_t Perform(const LocalCall& acCall, PartyRules::Call aKind, uint32_t aSelf, uint32_t aCause);
     // What actors show (VisualEffect, EffectShader, Actor.PlaySubGraphAnimation: NativeReach's kShow): by actor, the
     // calls run on it here.
@@ -262,7 +264,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t LastWaiting = 0;
     std::set<uint32_t> Waiting; // stacks waiting on another game (PlayerNatives' s_waiting)
     std::map<uint32_t, LocalValue> ScriptReturns;
-    [[nodiscard]] LocalValue Answer(const LocalCall& acCall, bool aAsksParty) const;
+    [[nodiscard]] LocalValue Answer(const LocalCall& acCall, bool aAsksParty, uint32_t aCause) const;
+    // On the host, what each guest's player sees, as its game answered (GuestSight's cache).
+    mutable SightCache Sight;
     // This game's player answers the box in aStack: its stack returns (ReturnFromLatent's hook: an original's result
     // goes to its copies, CallEndedEvent).
     void AnswerBox(uint32_t aStack, int32_t aButton);

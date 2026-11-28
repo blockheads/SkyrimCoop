@@ -554,12 +554,14 @@ nlohmann::json ScriptState(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"state", *cState}};
 }
 
-// {"cmd": "script_stacks"}: the VM's running stacks, each its frames innermost first ("Script.Function").
+// {"cmd": "script_stacks"}: the VM's running stacks, each its frames innermost first ("Script.Function") and its
+// state (0 running, 3 waiting on a latent function, 4-6 on another stack), freeze state, and per frame the stack
+// inside that frame's script object now ("holders", 0 for none).
 nlohmann::json ScriptStacks(Harness&, const nlohmann::json&)
 {
     auto stacks = nlohmann::json::array();
     for (const auto& cStack : EngineCalls::GetRunningScripts())
-        stacks.push_back({{"id", cStack.Id}, {"frames", cStack.Frames}});
+        stacks.push_back({{"id", cStack.Id}, {"frames", cStack.Frames}, {"state", cStack.State}, {"freeze", cStack.Freeze}, {"holders", cStack.Holders}});
     return {{"ok", true}, {"stacks", stacks}};
 }
 

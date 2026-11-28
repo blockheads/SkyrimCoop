@@ -1,4 +1,5 @@
 #include <join/GameLoadFailedEvent.h>
+#include <scripts/SightCache.h>
 #include <characters/ActorRenamedEvent.h>
 #include <join/GameLoadedEvent.h>
 #include <game/HostService.h>
@@ -103,7 +104,8 @@ void HostService::OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage
 {
     if (!IsHosting())
         return;
-    spdlog::info("HostService: the guest's game answered stack {}", acMessage.ReplyId);
+    if (!SightCache::IsSightReply(acMessage.ReplyId))
+        spdlog::info("HostService: the guest's game answered stack {}", acMessage.ReplyId);
     PlayerNatives::Answer(acMessage.ReplyId, Utils::ToLocalValue(acMessage.Result).value_or(std::monostate{}));
 }
 

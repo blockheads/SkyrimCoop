@@ -576,6 +576,49 @@ SCENARIO("A question about the player with no player's action is asked of the pa
     }
 }
 
+// A world object's timer polling "the player" (a word wall's OnUpdate): papyrus-guest-scripts.md, "Vanilla timers".
+SCENARIO("A world object's timer asks the party and shows the party", "[party][route]")
+{
+    const CallFacts cWall{.Reach = {Call::kQuestion}, .Cause = kGuest, .Timer = true, .GuestCause = true, .Hosting = true,
+                          .PlayerInCall = true};
+    THEN("its question about its player is asked of the party") CHECK(RouteOf(cWall) == Routing{.Ask = true});
+    THEN("so is the host's own timer's")
+    {
+        CallFacts host = cWall;
+        host.Cause = kThisPlayer;
+        host.GuestCause = false;
+        CHECK(RouteOf(host) == Routing{.Ask = true});
+    }
+    THEN("its screen is every game's, its player each game's own")
+    {
+        CallFacts screen = cWall;
+        screen.Reach = {Call::kScreen};
+        CHECK(RouteOf(screen) == Routing{.To = Destination::kEveryGame, .Mark = true, .MarkFor = kGuest});
+    }
+    THEN("a body's timer (an effect on the player), a system quest's, a guest's own: as before")
+    {
+        CallFacts body = cWall;
+        body.Body = true;
+        CHECK(RouteOf(body) == Routing{});
+        CallFacts system = cWall;
+        system.InSystemQuest = true;
+        CHECK(RouteOf(system) == Routing{});
+        CallFacts guest = cWall;
+        guest.Hosting = false;
+        CHECK(RouteOf(guest) == Routing{});
+    }
+    THEN("the same stack's items and body stay its player's")
+    {
+        CallFacts items = cWall;
+        items.Reach = {Call::kItem};
+        CHECK(RouteOf(items) == Routing{});
+        CallFacts body = cWall;
+        body.Reach = {Call::kBody};
+        body.Target = Target::kGuestCharacter;
+        CHECK(RouteOf(body) == Routing{.To = Destination::kCauseGame, .Original = false});
+    }
+}
+
 SCENARIO("Which player a question asks about", "[party][route]")
 {
     THEN("the nearest to the reference it measures from")
