@@ -1,0 +1,88 @@
+time	op	id	rva	item
+2026-11-28T01:37:55Z	read		0xa06280	{"name": "papyrus__Actor__RegisterFuncs"}
+2026-11-28T01:38:11Z	read	54698	0xa00d20	{"name": "papyrus::Actor::HasLOS"}
+2026-11-28T01:38:19Z	read	53829	0x9d19f0	{"name": "Actor::HasLineOfSight"}
+2026-11-28T01:38:41Z	comment	54698	0xa00d20	{"addr": "0x140a00d20", "comment": "[re]\nAddressLib ID 54698\nPapyrus Actor.HasLOS(akOther) (vm, stackId, self, akOther). None -> logs, false. self == the player singleton or akOther an actor (formType 0x3E) -> Actor::HasLineOfSight (53829). Else (a non-player self, a non-actor target: a word wall's xmarker) logs 'Non-player actors cannot request LOS to a non-actor' and returns false: on the host a guest's copy never sees an object."}
+2026-11-28T01:38:41Z	comment	53829	0x9d19f0	{"addr": "0x1409d19f0", "comment": "[re]\nAddressLib ID 53829\nmeh321: Actor::HasLOS\nCommonLibSSE: Actor::HasLineOfSight (CommonLibSSE-NG/src/RE/A/Actor.cpp:860)\nSKSE: HasLOS (skse64-2.3.1/skse64/GameData.cpp:63)\nSkyrimCoop: call as s_lineOfSight (PartyAggro), data as s_hasLineOfSight (NativeReach)\n(this, target, bool* outUsedActorLos). The player (gPlayerCharacter3) -> PlayerCharacter::GetLineOfSightImplementation (40520): this game's camera. Any other actor: only an actor target, Actor::GetLineOfSightImplementation(this, target, 3) with *out = 1; a non-actor target -> false."}
+2026-11-28T01:38:41Z	comment		0x9d1a0e	{"addr": "0x1409d1a0e", "comment": "the player: this game's camera decides (40520)"}
+2026-11-28T01:38:41Z	comment		0xa00d44	{"addr": "0x140a00d44", "comment": "non-player self and a non-actor target: false with a VM warning"}
+2026-11-28T01:38:45Z	comment		0x7d9de0	{"addr": "0x1407d9de0", "comment": "placeholder"}
+2026-11-28T01:39:10Z	comment		0x7d9de0	{"addr": "0x1407d9de0", "comment": ""}
+2026-11-28T01:39:10Z	comment	40520	0x74bbe0	{"addr": "0x14074bbe0", "comment": "[re]\nAddressLib ID 40520\nPlayerCharacter::GetLineOfSightImplementation(this, target, bool* outInView): the target's 3D bound in the world camera's frustum (gWorldRootNode +0x128, NiCamera::BoundInFrustum) sets *out; then up to three TES::Pick rays from the camera's world translate (camera +0x6C) to the target at 3/4, 1/2, 1/4 of its height: a clear ray or a hit on the target is LOS. An actor target falls back to Actor::GetLineOfSightImplementation. This game's own camera: no other game can answer it for its player."}
+2026-11-28T01:40:08Z	read	55875	0xa379d0	{"name": "papyrus::Form::RegisterForSingleUpdate"}
+2026-11-28T01:40:27Z	name	53937	0x9d92a0	{"addr": "0x1409d92a0", "name": "SkyrimVM::RegisterForUpdate"}
+2026-11-28T01:40:27Z	local	53937	0x9d92a0	{"func_addr": "0x1409d92a0", "old": "a2", "new": "aSeconds"}
+2026-11-28T01:40:27Z	local	53937	0x9d92a0	{"func_addr": "0x1409d92a0", "old": "a3", "new": "aHandle"}
+2026-11-28T01:40:27Z	local	53937	0x9d92a0	{"func_addr": "0x1409d92a0", "old": "a4", "new": "aSingle"}
+2026-11-28T01:40:27Z	local	53937	0x9d92a0	{"func_addr": "0x1409d92a0", "old": "v6", "new": "intervalMs"}
+2026-11-28T01:40:27Z	local	53937	0x9d92a0	{"func_addr": "0x1409d92a0", "old": "v10", "new": "pEntry"}
+2026-11-28T01:40:31Z	comment	53937	0x9d92a0	{"addr": "0x1409d92a0", "comment": "[re]\nAddressLib ID 53937\n(vm, float seconds, VMHandle, bool single): Form/Alias RegisterForSingleUpdate (55875) and RegisterForUpdate. Interval ms clamped to [33, 86400000]. Under the lock at vm+0x724 it looks in the update heap (vm+0x730, count vm+0x740) for an entry whose +0x10 is this handle: found, its interval (+0xC) and due time (+0x8, now from 54034 plus the interval) are reset and the heap re-sorted; else a new 24-byte entry. One registration per handle, not per script or caller: a second RegisterForSingleUpdate replaces the first, and one OnUpdate fires."}
+2026-11-28T01:40:31Z	comment	55875	0xa379d0	{"addr": "0x140a379d0", "comment": "[re]\nAddressLib ID 55875\nPapyrus Form.RegisterForSingleUpdate(afInterval): the form's handle (policy +0x168, slot +0x20), then SkyrimVM::RegisterForUpdate(vm, afInterval, handle, single=1) (53937)."}
+2026-11-28T01:59:49Z	local	54698	0xa00d20	{"func_addr": "0x140a00d20", "old": "a1", "new": "aVm"}
+2026-11-28T01:59:49Z	local	54698	0xa00d20	{"func_addr": "0x140a00d20", "old": "a2", "new": "aStackId"}
+2026-11-28T01:59:49Z	local	54698	0xa00d20	{"func_addr": "0x140a00d20", "old": "a3", "new": "aSelf"}
+2026-11-28T01:59:49Z	local	54698	0xa00d20	{"func_addr": "0x140a00d20", "old": "a4", "new": "aOther"}
+2026-11-28T01:59:49Z	local	54698	0xa00d20	{"func_addr": "0x140a00d20", "old": "v4", "new": "pActorTarget"}
+2026-11-28T01:59:49Z	local	53829	0x9d19f0	{"func_addr": "0x1409d19f0", "old": "a1", "new": "aThis"}
+2026-11-28T01:59:49Z	local	53829	0x9d19f0	{"func_addr": "0x1409d19f0", "old": "a2", "new": "aTarget"}
+2026-11-28T01:59:49Z	local	53829	0x9d19f0	{"func_addr": "0x1409d19f0", "old": "a3", "new": "aOutUsedActorLos"}
+2026-11-28T01:59:49Z	local	53829	0x9d19f0	{"func_addr": "0x1409d19f0", "old": "v4", "new": "pActorTarget"}
+2026-11-28T02:15:48Z	read	53830	0x9d1a40	{"name": "PlayerCharacter::sub_53830"}
+2026-11-28T02:15:48Z	read	40520	0x74bbe0	{"name": "PlayerCharacter::GetLineOfSightImplementation"}
+2026-11-28T02:16:10Z	name	53830	0x9d1a40	{"addr": "0x1409d1a40", "name": "papyrus::CanRegisterForLOS"}
+2026-11-28T02:16:10Z	local	53830	0x9d1a40	{"func_addr": "0x1409d1a40", "old": "a1", "new": "aViewer"}
+2026-11-28T02:16:10Z	local	53830	0x9d1a40	{"func_addr": "0x1409d1a40", "old": "a2", "new": "aTarget"}
+2026-11-28T02:16:10Z	local	53830	0x9d1a40	{"func_addr": "0x1409d1a40", "old": "a3", "new": "aVm"}
+2026-11-28T02:16:10Z	local	53830	0x9d1a40	{"func_addr": "0x1409d1a40", "old": "a4", "new": "aStackId"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "a1", "new": "aThis"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "a2", "new": "aTarget"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "a3", "new": "aOutInView"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "v6", "new": "hasLos"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "v7", "new": "rayIndex"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "v8", "new": "pCamera"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "v9", "new": "pFrustumPlanes"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "v17", "new": "pActorTarget"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "v30", "new": "pHit3D"}
+2026-11-28T02:16:10Z	local	40520	0x74bbe0	{"func_addr": "0x14074bbe0", "old": "v34", "new": "rayHeights"}
+2026-11-28T02:16:11Z	read		0xa378de	{"name": "papyrus::Form::RegisterForSingleLOSGain"}
+2026-11-28T02:16:12Z	read		0x9e39d7	{"name": "SkyrimVM::sub_54037"}
+2026-11-28T02:16:23Z	name		0x9e3880	{"addr": "0x1409e3880", "name": "SkyrimVM::UpdateLOSRegistrations"}
+2026-11-28T02:16:23Z	name	53942	0x9d9b80	{"addr": "0x1409D9B80", "name": "SkyrimVM::RegisterForLOS"}
+2026-11-28T02:16:23Z	local		0x9e3880	{"func_addr": "0x1409e3880", "old": "v6", "new": "pEntry"}
+2026-11-28T02:16:23Z	local		0x9e3880	{"func_addr": "0x1409e3880", "old": "v11", "new": "pViewerForm"}
+2026-11-28T02:16:23Z	local		0x9e3880	{"func_addr": "0x1409e3880", "old": "v14", "new": "pViewer"}
+2026-11-28T02:16:23Z	local		0x9e3880	{"func_addr": "0x1409e3880", "old": "v13", "new": "pTarget"}
+2026-11-28T02:16:23Z	local		0x9e3880	{"func_addr": "0x1409e3880", "old": "v19", "new": "losState"}
+2026-11-28T02:16:23Z	local		0x9e3880	{"func_addr": "0x1409e3880", "old": "v8", "new": "singleFired"}
+2026-11-28T02:16:23Z	read	53942	0x9d9b80	{"name": "SkyrimVM::RegisterForLOS"}
+2026-11-28T02:16:57Z	name		0x9e3880	{"addr": "0x1409e3880", "name": ""}
+2026-11-28T02:16:57Z	name	54037	0x9e3870	{"addr": "0x1409e3870", "name": "SkyrimVM::UpdateLOSRegistrations"}
+2026-11-28T02:18:34Z	comment	53830	0x9d1a40	{"addr": "0x1409d1a40", "comment": "[re]\nAddressLib ID 53830\n(viewer, target, vm, stackId): the gate of all nine RegisterForLOS / RegisterForSingleLOSGain / RegisterForSingleLOSLost natives (Form, Alias, ActiveMagicEffect). Same rule as Actor.HasLOS (54698): the viewer is the player singleton, or the target is an actor (formType 0x3E); else VM error 'Cannot register for LOS between a non-player actor and a non-actor' and no registration. On the host a guest's character cannot register sight of an object."}
+2026-11-28T02:18:34Z	comment	54037	0x9e3870	{"addr": "0x1409e3870", "comment": "[re]\nAddressLib ID 54037\nCalled each VM update from SkyrimVM::ProcessRegisteredUpdates (53926). Walks the LOS registrations (array vm+0x708, count vm+0x718, cursor vm+0x720; entry: +0x8 script handle, +0x10 viewer form id, +0x14 target form id, +0x18 kind 0 gain / 1 lost / 2 both, +0x1C last state 1 seen / 2 not) and asks Actor::HasLineOfSight (53829) for each: a state change of the wanted kind sends OnGainLOS / OnLostLOS (viewer, target) to the handle through the VM's SendEvent (slot 0x24); a single registration is removed after it fires. 53829's only engine callers are this and Actor.HasLOS (54698): the function is script-facing only."}
+2026-11-28T02:18:34Z	comment	53942	0x9d9b80	{"addr": "0x1409d9b80", "comment": "[re]\nAddressLib ID 53942\n(vm, handle, viewerFormId, targetFormId): RegisterForSingleLOSGain's registration, under the lock at vm+0x700; sub_1409E3D70 adds the entry UpdateLOSRegistrations (54037) polls."}
+2026-11-28T02:18:34Z	comment		0x9d7f09	{"addr": "0x1409d7f09", "comment": "OnUpdate: SendEvent (slot 0x24) to the entry's handle with no arguments; a single entry was removed from the heap (vm+0x730) above, a repeating one pushed back with due += interval"}
+2026-11-28T02:18:34Z	comment		0x9d81c0	{"addr": "0x1409d81c0", "comment": "the LOS registrations are polled here, every VM update (54037)"}
+2026-11-28T02:53:51Z	read	104257	0x148f350	{"name": "sub_14148F350"}
+2026-11-28T02:53:52Z	read	104258	0x148f380	{"name": "sub_14148F380"}
+2026-11-28T02:53:53Z	read	104867	0x14bc7c0	{"name": "sub_1414BC7C0"}
+2026-11-28T02:54:30Z	name	104257	0x148f350	{"addr": "0x14148F350", "name": "BSScript::Object::TryLockForStack"}
+2026-11-28T02:54:30Z	name	104258	0x148f380	{"addr": "0x14148F380", "name": "BSScript::Object::UnlockForStack"}
+2026-11-28T02:54:30Z	name	104867	0x14bc7c0	{"addr": "0x1414BC7C0", "name": "BSScript::Internal::VirtualMachine::SuspendStack"}
+2026-11-28T02:54:30Z	name	104853	0x14ba380	{"addr": "0x1414ba380", "name": "BSScript::Internal::VirtualMachine::ProcessCall"}
+2026-11-28T02:54:36Z	comment	104257	0x148f350	{"addr": "0x14148F350", "comment": "[re]\nAddressLib ID 104257\n(Object*, Stack*): the script object's lock, Object+0x18 = the stack running inside it (low bit a flag). A compare-exchange from 0: true if free (the stack is ref'd and takes it) or already this stack's. No queue: a stack that fails is suspended (104867) and tries again on a later VM pass."}
+2026-11-28T02:54:36Z	comment	104258	0x148f380	{"addr": "0x14148F380", "comment": "[re]\nAddressLib ID 104258\n(Object*, Stack*): frees the object's lock (Object+0x18) if this stack holds it. Called when a stack's call leaves the object for another one (ProcessCall 104853), when it goes into a latent wait (104851) and when its frame returns."}
+2026-11-28T02:54:36Z	comment	104867	0x14bc7c0	{"addr": "0x1414BC7C0", "comment": "[re]\nAddressLib ID 104867\n(vm, Stack*, message*): parks the stack with its pending call or return in the VM's suspended list (vm+0x9310 holds the array, lock vm+0x92F0) to be tried again later. Callers set Stack::state: 4 waiting on another stack for a call, 5/6 for a return, 2 memory, 8 retry the call."}
+2026-11-28T02:54:36Z	comment	104853	0x14ba380	{"addr": "0x1414ba380", "comment": "[re]\nAddressLib ID 104853\n(vm, Stack*, message*, bool fromTasklet): runs a stack's pending function call. The callee's object must be free: TryLockForStack (104257) on it after unlocking the caller's object when it is another one (0x1414ba61f); taken by another stack -> SuspendStack and state 4. A native's CallResult: 2 (in progress) -> state 2 path/latent, 3 (retry) -> state 8. One stack inside a script object at a time."}
+2026-11-28T02:54:40Z	read	56816	0xa656e0	{"name": "papyrus::utility::Wait"}
+2026-11-28T02:54:48Z	read	53934	0x9d8e40	{"name": "SkyrimVM::sub_53934"}
+2026-11-28T02:55:16Z	name	53934	0x9d8e40	{"addr": "0x1409d8e40", "name": "SkyrimVM::WaitForSeconds"}
+2026-11-28T02:55:16Z	local	53934	0x9d8e40	{"func_addr": "0x1409d8e40", "old": "a2", "new": "aSeconds"}
+2026-11-28T02:55:16Z	local	53934	0x9d8e40	{"func_addr": "0x1409d8e40", "old": "a3", "new": "aStackId"}
+2026-11-28T02:55:16Z	local	53934	0x9d8e40	{"func_addr": "0x1409d8e40", "old": "a4", "new": "aVm"}
+2026-11-28T02:55:19Z	comment	53934	0x9d8e40	{"addr": "0x1409d8e40", "comment": "[re]\nAddressLib ID 53934\nUtility.Wait's (56816) work: (SkyrimVM, seconds, stackId, vm). seconds <= 0: no timer, the stack is resumed at once through the VM's ReturnFromLatent (slot 0x2B) with None: Wait(0) only leaves the script object for the moment of the latent call. Otherwise an entry (due ms, stackId, vm) goes into the wait heap at SkyrimVM+0x6B8 under the lock at +0x6AC."}
+2026-11-28T03:00:53Z	read	104854	0x14bae50	{"name": "BSScript::Internal::VirtualMachine::sub_104854"}
+2026-11-28T03:01:22Z	read	104858	0x14bb8b0	{"name": "sub_1414BB8B0"}
+2026-11-28T03:08:33Z	name	104854	0x14bae50	{"addr": "0x1414bae50", "name": "BSScript::Internal::VirtualMachine::ProcessReturn"}
+2026-11-28T03:08:33Z	name	104858	0x14bb8b0	{"addr": "0x1414BB8B0", "name": "BSScript::Internal::VirtualMachine::RetrySuspendedStacks"}
+2026-11-28T03:08:38Z	comment	104854	0x14bae50	{"addr": "0x1414bae50", "comment": "[re]\nAddressLib ID 104854\n(vm, Stack*, bool popFrame, bool fromTasklet): a stack's return into its caller's frame. The caller's script object must be free when it is another object than the callee's: UnlockForStack the callee's, TryLockForStack (104257) the caller's; taken -> SuspendStack (104867) and state 5 (pop) or 6 (no pop). No frames left -> state 1 (finished). Called by ReturnFromLatent (104807): Utility.Wait(0) re-locks the script object inside the same call."}
+2026-11-28T03:08:38Z	comment	104858	0x14bb8b0	{"addr": "0x1414BB8B0", "comment": "[re]\nAddressLib ID 104858\n(vm, float budgetSeconds, uint32* outPending, ...): once a VM update, within a time budget. Swaps the suspend and resume queues (vm+0x92F8..0x9310, under vm+0x92F0), then tries each suspended stack again by its state: 2, 4, 8 -> ProcessCall (104853), 5 -> ProcessReturn(pop), 6, 7 -> ProcessReturn(no pop). A stack whose object is still taken is suspended again: one try per update against a plain try-lock, no queue for the lock. Measured 2026-11-27 (WordWallTriggerScript, Bleak Falls Barrow): while one stack loops 'while ... Wait(0)' in a script object, a second OnUpdate on it stays in state 4 for as long as watched, with the host alone and no guest near."}

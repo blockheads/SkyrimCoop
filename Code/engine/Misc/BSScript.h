@@ -73,7 +73,8 @@ struct BSScript
         uint8_t unk00[0x8];
         ObjectTypeInfo* pType;      // 08 BSTSmartPointer
         BSFixedString currentState; // 10
-        uint8_t unk18[0x30 - 0x18];
+        uintptr_t lockedBy;         // 18 the Stack running inside it (low bit a flag): TryLockForStack 104257
+        uint8_t unk20[0x30 - 0x20];
     };
 
     // The form a handle names (a handle's low 32 bits; CommonLibSSE-NG IObjectHandlePolicy).
@@ -442,6 +443,7 @@ template <> void BSScript::Variable::Set(const char* acpValue) noexcept;
 static_assert(sizeof(BSScript::Variable) == 0x10);
 static_assert(offsetof(BSScript::Arguments, pData) == 0x8 && offsetof(BSScript::Arguments, size) == 0x18);
 static_assert(offsetof(BSScript::Object, currentState) == 0x10 && offsetof(BSScript::Object, pType) == 0x8 && sizeof(BSScript::Object) == 0x30);
+static_assert(offsetof(BSScript::Object, lockedBy) == 0x18);
 static_assert(offsetof(BSScript::ObjectTypeInfo, pParent) == 0x10 && offsetof(BSScript::ObjectTypeInfo, data) == 0x30 &&
               sizeof(BSScript::ObjectTypeInfo) == 0x38 && sizeof(BSScript::ObjectTypeInfo::VariableInfo) == 0x10);
 static_assert(offsetof(BSScript::Stack, pTop) == 0x60 && offsetof(BSScript::Stack, returnValue) == 0x70 && offsetof(BSScript::Stack, stackId) == 0x80);

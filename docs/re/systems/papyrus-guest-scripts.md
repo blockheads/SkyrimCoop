@@ -210,6 +210,101 @@ one to the player (none of the 14,026 in `Skyrim - Misc.bsa` names `IdleForceDef
 - **A reset:** `IVirtualMachine::ResetAllBoundObjects` (slot 0x1E, 0x141446A70) resets each object bound to the handle
   (`sub_1414233B0`) and queues it to be set up again (`+0x9428`), as a quest's reset does.
 
+## A player's line of sight (word walls, 2026-11-27)
+
+`Actor.HasLOS` gives a different answer for the player than for any other actor, so on the host a guest's
+character (a copy) can never answer the player's version. Read in IDA:
+
+| ID | Engine function | What it does |
+|---|---|---|
+| 54698 | `papyrus::Actor::HasLOS(vm, stackId, self, akOther)` | self is the player singleton, or akOther is an actor (formType 0x3E): calls 53829. A non-player self with a non-actor target: VM warning "Non-player actors cannot request LOS to a non-actor", false |
+| 53829 | `Actor::HasLineOfSight(this, target, bool* outUsedActorLos)` | the player (`gPlayerCharacter3` 401069): `PlayerCharacter::GetLineOfSightImplementation` (40520). Any other actor: only an actor target, `Actor::GetLineOfSightImplementation(this, target, 3)` |
+| 40520 | `PlayerCharacter::GetLineOfSightImplementation` | the target's bound in this game's world camera frustum, then up to three `TES::Pick` rays from the camera to the target: this game's own camera |
+| 53830 | `papyrus::CanRegisterForLOS(viewer, target, vm, stackId)` | the gate of all nine `RegisterForLOS` / `RegisterForSingleLOSGain` / `RegisterForSingleLOSLost` natives: the same rule as 54698, else "Cannot register for LOS between a non-player actor and a non-actor" |
+| 54037 | `SkyrimVM::UpdateLOSRegistrations` | every VM update (from 53926): asks 53829 for each registered pair (array `vm+0x708`; entry: handle +0x8, viewer +0x10, target +0x14, kind +0x18, last state +0x1C) and sends `OnGainLOS` / `OnLostLOS` on a change |
+| 53937 | `SkyrimVM::RegisterForUpdate(vm, seconds, handle, single)` | one registration per handle: a second `RegisterForSingleUpdate` replaces the first, one `OnUpdate` fires |
+| 53926 | `SkyrimVM::ProcessRegisteredUpdates` | pops due entries off the update heap (`vm+0x730`) and sends `OnUpdate` to the entry's handle, no arguments |
+
+53829 has two callers in the engine, 54698 and 54037: every script's question about sight ends in it, and nothing
+else does (AI detection has its own path). Vanilla scripts ask the player's sight in 26 files (`HasLOS`, about 58
+calls on the player) and register for it in 14.
+
+Vanilla word walls: Bleak Falls Barrow's trigger `709D2` (Skyrim.esm) carries `WordWallTrigger02Script` and
+`WordWallTriggerBleakFallsScript`, both with an `OnTriggerEnter(actorRef == Game.GetPlayer())` calling
+`WordWallTriggerScript.StartWordWall` (`iInTrigger += 1`, `RegisterForSingleUpdate(0.5)`); measured, `iInTrigger` rose
+by one per player walking in. `WordWallTriggerScript.OnUpdate` loops while `iInTrigger > 0`: `isLooking()` =
+`Game.GetPlayer().HasLOS(lookTarget)` (an xmarker), then `StartFX`: within 300 units and not in combat, or within 200
+units, `Game.TeachWord`, the shout global, `myQuest.SetStage`, `myEnabler.Enable` (Bleak Falls,
+trigger `709D2`: word `13E22`, global `7096D`, MS13 stage 60, and `493B7`, a disabled `defaultActivateSelfTRIG`
+that wakes the draugr when a player then walks into it). Nothing past `isLooking` runs until it says yes.
+
+On the host, a guest's character entering the trigger runs the loop for that guest (rule 2: the `OnUpdate` answers
+the guest's registration), `Game.GetPlayer()` is the copy, and `HasLOS(copy, xmarker)` is false forever (54698's
+non-player branch): no word, no draugr, while the loop spins. A save's suspended stack comes back with no cause
+(`ScriptTags` are not saved), so after a load rule 3 asks the party, the host's player first, in its place. Measured:
+the wall worked about two seconds after the reload (playtest 2026-11-26, Bleak Falls Barrow 14:39-14:43, the guest's
+log); that the host's camera gave the yes is inferred, no trace after the load says whose. The rule 3
+path runs the native on the host with each guest's copy in the player's place, so it cannot answer a guest's sight either.
+
+### As built (2026-11-27)
+
+```
+host: a script in guest G's stack asks once "does the player see T?" (not a timer)
+  PartyRules::RouteOf: a question whose code reads the player (NativeReach) -> G's game, the script waiting
+
+host: a polling timer, rule 3 or a LOS registration asks "does G see T?"
+  Actor.HasLOS (54698) / RegisterForLOS gate (53830): G passes (GuestSight)
+  Actor::HasLineOfSight (53829), viewer G   -> HostSight: G's last answer for T, if under a second old
+     no answer: no; inside the registrations' poll (54037) the registration's state is kept, no event
+     no question out -> RoutedCallEvent kOwner Actor.HasLOS(G, T), reply id 0xC0000000 | n
+guest G: runs it on its own player (its camera) -> PlayerNativeResultRequest
+host: PlayerNatives::Answer -> GuestSight::Answer -> the cache; the next ask reads it
+```
+
+A stack answering an update timer its player's stack set (`Cause::Timer`, taken in `CauseOfCall` for `OnUpdate` and
+`OnUpdateGameTime`; not a registration's callback such as `OnAnimationEvent`) asks its questions about
+that player of the party (rule 3's path, each player put in the place of the stack's player: `PlayerInFrame`'s
+`aFrom`), and its screen calls go to every game (`PartyRules::RouteOf`). Not a body's timer (an effect on the player)
+or a system quest's. Measured on the duo (`guest-reads-word-wall`): the guest alone, the guest in first looking away
+then the host looking, and the host alone all teach Fus and enable `493B7`; the fade and the word reach both games.
+
+The party answers each question on its own: one player's look and another's distance satisfy one `StartFX` (a player
+looking from 600 units while another stands at the wall). That is the party as one Dragonborn, kept on purpose.
+
+### One loop per script object (measured 2026-11-27)
+
+| ID | Engine function | What it does |
+|---|---|---|
+| 104257, 104258 | `BSScript::Object::TryLockForStack` / `UnlockForStack` | a script object's lock, `Object+0x18` = the stack inside it: a compare-exchange, no queue |
+| 104853, 104854 | `VirtualMachine::ProcessCall` / `ProcessReturn` | a call or a return into another script object needs its lock; taken, the stack is suspended (104867) in state 4 (call) or 5/6 (return) |
+| 104858 | `VirtualMachine::RetrySuspendedStacks` | once a VM update, each suspended stack tries again; still taken, suspended again |
+| 53934 | `SkyrimVM::WaitForSeconds` (`Utility.Wait`) | `Wait(0)` sets no timer: the stack is resumed at once (`ReturnFromLatent`), and takes its object's lock back inside the same call |
+
+A script looping on `Wait(0)` (the wall's `OnUpdate`) keeps other stacks out of its object: a second `OnUpdate` on the wall
+stayed in state 4 for as long as it was watched, with the host alone in the trigger and no guest near (harness
+`script_stacks`: `state`, `holders`). Handlers arriving from outside got in some runs and stuck in others (the host's
+`OnTriggerEnter` in state 5 after `PlayAnimation`; its own loop inside `HasLOS`). So a wall has one loop, the first
+player's in: with the guest in first, the host's look never counted either (duo, 2026-11-27: the host alone learns the
+word; the guest in first, then the host looking, nobody does). Not checked without our plugin: the game does not boot
+with every hook file off.
+
+### Vanilla timers that name the player (survey, 2026-11-27)
+
+Read from the 14,301 vanilla script sources: 109 scripts set an update timer whose `OnUpdate` names the player.
+
+| Who sets the timer | Scripts | Owner today | What `OnUpdate` asks or does with the player |
+|---|---|---|---|
+| A quest's own function, a stage, a load, the timer itself | about 75 | none: rule 3, the party | distance, cell, location (the TG, MS, MQ, CW, DA quest scripts); sight of an object in `SovngardeStatueScript` and `dunPOISoldiersRaidOnStart`, of actors in `WIKill02Script` and `CWMission00EnemySoldierScript` |
+| A magic effect on the player, a player alias | 14 | the effect's own game | their own player only (vampire, survival, blessings) |
+| An actor's hit, death or combat event | 6 | the hitter or killer (a death: as the story) | distance: `DragonDeathScript`, `MQ104DragonScript`, `MQ106DragonScript`, `DLC2dunSeekerInvisScript` |
+| A trigger or an activation of a world object | 11, and the 4 word wall scripts | the player who walked in or activated | items and distance (`BYOHHouseTrophyBaseScript`, `CWMission08CowOfferingScript`), a target (`dunSoljundsBossSCRIPT`, `dunCGPlayerInSquareTriggerScript`, `MQ204HrothgarPushbackSCRIPT`), sight: only the word walls |
+
+- Of the timers with an owner, only the word walls (`WordWallTriggerScript`, the Dark Brotherhood, Dawnguard and Dragonborn
+  copies) ask a yes/no question about their owner, and only they loop on `Wait(0)`.
+- `RegisterForLOS` with the player watching an object: `defaultEnableLinkedRefOnLostLOS`, `DB05MoveRefOnLostLOS`, MQ105's
+  tomb. With the player watching an actor (answered for a copy by the actor's own sight): CWMission03's courier, MQ106's Alduin.
+- 22 scripts loop on `Wait(0)`; the others are traps and effects that ask nothing about a player.
+
 ## Tests
 
 Unpatched vanilla scripts, the client acting on its own game; checked on the host.

@@ -1,4 +1,5 @@
 #include <game/GuestService.h>
+#include <scripts/HostSight.h>
 
 #include <ports/IGuestEngine.h>
 #include <core/ConnectedEvent.h>
@@ -102,7 +103,9 @@ void GuestService::OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept
 {
     if (!m_pGuest || acMessage.To != CallTo::kOwner)
         return;
-    spdlog::info("GuestService: the host's script runs {}.{} for this game's player", acMessage.Call.Class, acMessage.Call.Function);
+    // The host's sight questions come several times a second while a script polls (HostSight).
+    spdlog::log(HostSight::IsSightReply(acMessage.ReplyId) ? spdlog::level::debug : spdlog::level::info,
+                "GuestService: the host's script runs {}.{} for this game's player", acMessage.Call.Class, acMessage.Call.Function);
     // One returning a value: the host's script waits for it.
     const uint32_t cReplyId = acMessage.ReplyId;
     std::function<void(LocalValue)> onReturn;

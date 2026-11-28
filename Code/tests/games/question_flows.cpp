@@ -71,3 +71,106 @@ SCENARIO("A quest's timer asks whether a guard sees the player: yes if it sees a
         THEN("only the host's own sight counts") CHECK(!std::get<bool>(*host.LastAnswer));
     }
 }
+
+// A word wall (WordWallTriggerScript, Bleak Falls Barrow): its OnUpdate asks Game.GetPlayer().HasLOS(lookTarget), an
+// xmarker, then how far the player is from it. The engine answers a player's sight from its own camera and refuses any
+// other actor's sight of an object (54698), so on the host a guest's sight is its game's answer (GuestSight), and the
+// wall's timer asks the party (docs/re/systems/papyrus-guest-scripts.md, "A player's line of sight").
+namespace
+{
+constexpr uint32_t kWallMarker = 0x000709D4; // lookTargetWord01, an xmarker
+
+struct WallParty
+{
+    Party party{1, SmokeWorld};
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t copy = 0;
+
+    // Each player stands that far from the marker; the guest's copy reaches its place on the host.
+    WallParty(float aHostGap, float aGuestGap)
+    {
+        party.Agree("the players are present");
+        for (FakeEngine* pEngine : {&host, &guest})
+            pEngine->References[kWallMarker].Position = {0.f, 0.f, 0.f};
+        party.As(party.Host(), [&] { host.PlayerStands(kSmoke, {aHostGap, 0.f, 0.f}); });
+        party.As(party.Guest(), [&] { guest.PlayerStands(kSmoke, {0.f, aGuestGap, 0.f}); });
+        party.Until([&] {
+            const auto cCopies = host.CopiesOf();
+            return !cCopies.empty() && std::abs(host.Actors.at(cCopies[0]).Position[1] - aGuestGap) < 1.f;
+        }, "the guest's copy stands where the guest does");
+        copy = host.CopiesOf()[0];
+    }
+
+    // The wall's call on the host in the guest's stack (GetPlayer is the guest's character); its answer if it has one.
+    std::optional<LocalValue> Ask(const char* acpClass, const char* acpFunction, bool aTimer)
+    {
+        party.As(party.Host(), [&] {
+            host.RunScript({.Class = acpClass, .Function = acpFunction, .Self = LocalForm{copy}, .Arguments = {LocalForm{kWallMarker}}},
+                           copy, false, false, aTimer);
+        });
+        return host.LastAnswer;
+    }
+};
+} // namespace
+
+SCENARIO("A guest's script asks once whether its player sees a marker: it waits for the guest's game", "[questions][sight]")
+{
+    WallParty wall(5000.f, 300.f);
+    THEN("no answer comes from the host's own view of the guest's character")
+    {
+        CHECK_FALSE(wall.Ask("Actor", "HasLOS", false));
+        const uint32_t cStack = wall.host.LastWaiting;
+        THEN("the script goes on with the guest's game's yes")
+        {
+            wall.party.Until([&] { return wall.host.ScriptReturns.contains(cStack); }, "the guest's game answers the waiting script");
+            CHECK(wall.host.ScriptReturns.at(cStack) == LocalValue{true});
+        }
+    }
+}
+
+SCENARIO("A word wall's timer reads the guest's sight from what its game last said", "[questions][sight]")
+{
+    WallParty wall(5000.f, 300.f);
+    const auto cSees = [&] { return std::get<bool>(*wall.Ask("Actor", "HasLOS", true)); };
+    THEN("the first poll has no answer yet: no") CHECK_FALSE(cSees());
+    THEN("a later poll hears the guest's game") wall.party.Until(cSees, "the wall's timer reads the guest's sight");
+}
+
+SCENARIO("A word wall's timer asks the party: whoever looks counts, in whoever's loop", "[questions][sight]")
+{
+    WallParty wall(300.f, 5000.f);
+    WHEN("the guest walked in first: the loop is the guest's, and only the host looks")
+    {
+        THEN("the timer's question is the party's: the host's look counts")
+            CHECK(std::get<bool>(*wall.Ask("Actor", "HasLOS", true)));
+        THEN("the timer's distance is the nearest player's, the guest's own question the guest's")
+        {
+            CHECK(std::get<float>(*wall.Ask("ObjectReference", "GetDistance", true)) < 400.f);
+            CHECK(std::get<float>(*wall.Ask("ObjectReference", "GetDistance", false)) > 4000.f);
+        }
+    }
+}
+
+SCENARIO("A word wall's timer shows its screen to every game", "[questions][screen]")
+{
+    WallParty wall(300.f, 300.f);
+    const auto cShake = [&](bool aTimer) {
+        wall.party.As(wall.party.Host(), [&] {
+            wall.host.RunScript({.Class = "Game", .Function = "ShakeCamera", .Arguments = {std::monostate{}, 0.5f, 2.0f}},
+                                wall.copy, false, false, aTimer);
+        });
+    };
+    WHEN("the guest's own action shakes the camera")
+    {
+        cShake(false);
+        wall.party.Until([&] { return wall.guest.ShakeSeconds > 0; }, "the guest's screen shakes");
+        THEN("only the guest's") CHECK(wall.host.ShakeSeconds <= 0);
+    }
+    WHEN("the wall's timer in the guest's loop shakes it")
+    {
+        cShake(true);
+        wall.party.Until([&] { return wall.guest.ShakeSeconds > 0; }, "the guest's screen shakes");
+        THEN("the host's shakes too") CHECK(wall.host.ShakeSeconds > 0);
+    }
+}
