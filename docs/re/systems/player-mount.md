@@ -125,6 +125,32 @@ any Detach -> the driver still on holds the slot again (KeepDriverOn)
 
 Not built: passengers carried by a party travel (only the driver's horse is, `CarryMountTo`).
 
+## Riders on one horse don't hit each other (read in IDA 2026-11-27, `riders-pass-through-each-other`)
+
+The playtest: the host swung a sword from the saddle and killed the guest riding along. The engine has no rule for
+this: there are never two riders in vanilla.
+
+```
+HitFrameHandler::Handle -> SpendAttackStaminaAndHit 38603
+  target = VATS / Actor_GetTarget 38608, else the reach sweep (38628, CalculateCurrentHitTargetForWeaponSwing)
+  -> DealDamage 38627 (attacker, target, arrow, left hand)       <- our hook: skipped for riders together
+       attack spells, HitData::Populate, XP, impact (BGSImpactManager)
+       ProcessHit 38586: the reaction (stagger 37710) and the damage (DoDamage 37335)
+ArrowProjectile 44218 -> DealDamage 38627 (an arrow's hit)
+kill move: the idle tree's ShouldAttackKill (21744 -> WouldAttackKill 38559)   <- our hook: 0 for riders together
+```
+
+- **Read in IDA.** The sweep (38628) skips one collision group: a mounted player's comes from a bone's body (fixed
+  string +0x228), else the attacker's own. Its own horse is spared; a second rider has a group of its own, so it is hit
+  (that the group filter is what spares the horse is inferred, not read in Havok).
+- **Read in IDA.** DealDamage 38627 is the whole hit (Precision's `DealDamage`, kaputt hooks it too): skipping it,
+  nothing of the hit happens: no damage, reaction, impact, poison or XP. The swing still plays.
+- **Measured** before the fix: each of seven host swings sent the guest's character -7.3 health.
+- The rule, `HitRules::RideTogether`: both actors players (ours or a copy) and both on the same mount, each read from
+  its own link (`Actor::GetRiddenMount`, the link's rider being itself: the mount's slot holds the driver's link too).
+  Each game judges its own player's swing, so the copy's replayed swing needs nothing. An NPC on the horse is not
+  covered (there is none).
+
 ## The new driver's horse left in the old driver's exit pair (duo, 2026-11-17)
 
 - `MountBehavior` (`HorseBehavior.hkx`, `scripts/re/behavior_dump.py machines`): wildcard `pa_HorseExit` ->

@@ -510,6 +510,29 @@ TEST_CASE("A guest boards the horse the host drives: seated on both games, the h
 
 }
 
+TEST_CASE("Players on one horse pass through each other's blows; off it, a blow lands", "[mounts][passengers][friendly-fire]")
+{
+    Passenger ride;
+    const auto cHealth = [](FakeEngine& aEngine) { return aEngine.GetActorValue(FakeEngine::kPlayer, FakeEngine::kHealth); };
+    const float cGuestFull = cHealth(ride.guest);
+    const float cHostFull = cHealth(ride.host);
+    // The host's sword on the guest behind it, the guest's back: neither game's player takes anything.
+    ride.party.As(ride.party.Host(), [&] { ride.host.Strikes(FakeEngine::kPlayer, ride.guestOnHost, 30.f); });
+    ride.party.As(ride.party.Guest(), [&] { ride.guest.Strikes(FakeEngine::kPlayer, ride.hostOnGuest, 30.f); });
+    for (int i = 0; i < 20; ++i)
+        ride.party.Frame();
+    CHECK(cHealth(ride.guest) == cGuestFull);
+    CHECK(cHealth(ride.host) == cHostFull);
+
+    // The guest gets off: the host's blow lands again (friendly fire, docs/progress.md).
+    ride.party.As(ride.party.Guest(), [&] { ride.guest.Activates(FakeEngine::kPlayer, ride.guestHorse); });
+    ride.party.Until([&] { return !ride.guest.IsPlayerMounted(); }, "the passenger is off");
+    ride.party.As(ride.party.Host(), [&] { ride.host.EndRide(ride.guestOnHost); });
+    ride.party.Until([&] { return ride.host.GetActorMount(ride.guestOnHost) == 0; }, "the guest's copy is off on the host");
+    ride.party.As(ride.party.Host(), [&] { ride.host.Strikes(FakeEngine::kPlayer, ride.guestOnHost, 30.f); });
+    ride.party.Until([&] { return cHealth(ride.guest) == cGuestFull - 30.f; }, "the guest's own player takes the host's blow");
+}
+
 TEST_CASE("A passenger sits at once: no get-on clip on any game, the driver keeps its horse", "[mounts][passengers]")
 {
     Passenger ride;

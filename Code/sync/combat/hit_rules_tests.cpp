@@ -67,3 +67,15 @@ TEST_CASE("A hit an actor dealt is told, and a blow whose pair yielded lands now
     // No actor dealt it (a fall, a trap): nothing to tell or cancel.
     CHECK(Lands(Local, None, true, false) == Verdict{.Hit = false, .To = Route::Apply});
 }
+
+TEST_CASE("Players on one horse pass through each other; a horse apart, or an NPC, does not", "[HitRules]")
+{
+    constexpr uint32_t kHorse = 0x109E3D;
+    CHECK(RideTogether(OtherPlayer, LocalPlayer, kHorse, kHorse));
+    CHECK(RideTogether(LocalPlayer, OtherPlayer, kHorse, kHorse));
+    CHECK_FALSE(RideTogether(OtherPlayer, LocalPlayer, kHorse, kHorse + 1));
+    CHECK_FALSE(RideTogether(OtherPlayer, LocalPlayer, 0, 0)); // both on foot
+    CHECK_FALSE(RideTogether(OtherPlayer, LocalPlayer, kHorse, 0));
+    CHECK_FALSE(RideTogether(Copy, LocalPlayer, kHorse, kHorse)); // an NPC riding along is fair game
+    CHECK_FALSE(RideTogether(LocalPlayer, Local, kHorse, kHorse));
+}

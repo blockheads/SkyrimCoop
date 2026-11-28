@@ -148,9 +148,30 @@ class InputActions:
         who = f"[{instance or 'host'}]"
         ctx.wait_for(f"{who} the last draw or sheathe has played out", lambda: ctx.hands_settled(instance), 5)
         animations = ctx.local_player(instance).get("equip_animations", 0)
+        if (ctx.player_snapshot(instance).get("placement") or {}).get("riding"):
+            return ctx.ready_weapon_riding(instance, state, what)
         ctx.tap(instance, "ready")
         ctx.wait_for(f"{who} {what}", lambda: ctx.local_player(instance).get("equip_animations", 0) > animations
                  and ctx.weapon_state(instance) == state and ctx.hands_settled(instance), 5)
+
+    def ready_weapon_riding(ctx, instance, state, what):
+        """Ready Weapon on a mount: the rider's graph sets no IsEquipping, and takes no attack until its clip sends
+        attackStop (measured 2026-11-28: weaponDraw, then attackStop 0.9 s later; a click between is not taken), nor
+        a press of Ready Weapon until its sheathe's clip sends Unequip_Out.
+        Uses the harness's anim trace: not under another trace of this game's player."""
+        who = f"[{instance or 'host'}]"
+        seen = []
+        ctx.player_command(instance, {"cmd": "anim_trace", "actors": [0x14]})
+        try:
+            ctx.tap(instance, "ready")
+            def done():
+                seen.extend(e.get("event") for e in ctx.player_command(instance, {"cmd": "anim_trace"}).get("entries") or []
+                            if e.get("kind") == "graph")
+                drew = "weaponDraw" in seen and "attackStop" in seen[seen.index("weaponDraw"):]
+                return ctx.weapon_state(instance) == state and (drew if state == WEAPON_DRAWN else "Unequip_Out" in seen)
+            ctx.wait_for(f"{who} {what} (riding)", done, 5, explain=lambda: f"graph events {seen[-8:]}")
+        finally:
+            ctx.player_command(instance, {"cmd": "anim_trace", "stop": True})
 
 
     def draw(ctx, instance):

@@ -323,6 +323,9 @@ struct Actor : TESObjectREFR
     void LinkFurnitureGraphs(TESObjectREFR* apFurniture) noexcept;
     // Its own ExtraInteraction's link (a rider's to its mount), else null.
     [[nodiscard]] RefrInteraction* GetOwnInteraction() const noexcept;
+    // The mount it rides, driver or passenger: its own link's target while it is the link's rider (a mount's slot holds
+    // its rider's link too), else null.
+    [[nodiscard]] TESObjectREFR* GetRiddenMount() const noexcept;
     // On a mount: its one slot (ExtraDataList::SetInteractionData 12074, which adds only to an empty one) set to
     // the rider's link; aReplace empties it first.
     void HoldRider(Actor* apRider, bool aReplace) noexcept;
