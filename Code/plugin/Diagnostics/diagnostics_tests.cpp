@@ -169,7 +169,7 @@ TEST_CASE("An export takes the reports, logs, crash logs and dumps changed since
     CHECK(cEntries.at("crash/crash-2026-10-29.log") == "crash");
 }
 
-TEST_CASE("A run without a clean exit, or with a crash log after it started, becomes a report at the next start", "[diagnostics]")
+TEST_CASE("A run without a clean exit, or with a crash log or dump after it started, becomes a report at the next start", "[diagnostics]")
 {
     TempFolder folder;
     const ExportSources cSources{folder.Path / "reports", folder.Path / "logs", folder.Path / "SKSE", folder.Path / "game"};
@@ -184,9 +184,9 @@ TEST_CASE("A run without a clean exit, or with a crash log after it started, bec
     SECTION("a clean exit: nothing; the same process (a hot reload): nothing")
     {
         CrashReports::MarkRunning(cLast);
-        CHECK_FALSE(CrashReports::LastRunEndedBadly(cLast, cSources.CrashLogs));
+        CHECK_FALSE(CrashReports::LastRunEndedBadly(cLast, cSources));
         CrashReports::MarkCleanExit(cLast);
-        CHECK_FALSE(CrashReports::LastRunEndedBadly(cNext, cSources.CrashLogs));
+        CHECK_FALSE(CrashReports::LastRunEndedBadly(cNext, cSources));
     }
 
     SECTION("no clean exit: its logs, no crash log")
@@ -211,6 +211,20 @@ TEST_CASE("A run without a clean exit, or with a crash log after it started, bec
         const auto cReport = CrashReports::CollectLastRun(cNext, cSources, "");
         REQUIRE(cReport);
         CHECK(std::filesystem::exists(*cReport / "crash-1.log"));
+    }
+
+    SECTION("our dump after it started (no CrashLoggerSSE): a crash, the dump named")
+    {
+        CrashReports::MarkRunning(cLast);
+        const auto cStarted = std::filesystem::last_write_time(cLast.Folder / "last_run");
+        WriteFile(cSources.Dumps / "crash_UTC_2026-11-26_07-36-25.dmp", "dump");
+        std::filesystem::last_write_time(cSources.Dumps / "crash_UTC_2026-11-26_07-36-25.dmp", cStarted + std::chrono::seconds(5));
+        const auto cReport = CrashReports::CollectLastRun(cNext, cSources, "");
+        REQUIRE(cReport);
+        std::ifstream note(*cReport / "note.txt");
+        const std::string cNote((std::istreambuf_iterator<char>(note)), std::istreambuf_iterator<char>());
+        CHECK(cNote.starts_with("kind: crash\n"));
+        CHECK(cNote.find("dump: crash_UTC_2026-11-26_07-36-25.dmp") != std::string::npos);
     }
 }
 
