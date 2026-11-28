@@ -576,7 +576,9 @@ What the first playtest build has besides what works today (the table above):
     loaded save without its character creates one, a save with it brings it back. In a game the Journal's Load lists
     only the loaded playthrough's saves (no other characters, no "Show all saves"; a guest in a session lists none),
     and a console load of another playthrough's save is refused (`engine/SaveListHooks.cpp`, `SaveList`;
-    save-game.md, "Only this playthrough's saves"; scenario `load-lists-only-playthrough`). Open: a guest in the session when
+    save-game.md, "Only this playthrough's saves"; scenario `load-lists-only-playthrough`). The party load now sets the
+    checkpoint's character with its modded flag too: keeping the scratch load's 0 left `{id, 0}` against saves filed
+    `{id, 1}` (an empty list, and a save exposed to a catalogue reallocation, save-game.md). Open: a guest in the session when
     the host loads a save without its character keeps the character it plays (`OnPartyReload` brings it).
 17. **The party's purse** (decided and built 2026-10-27, merged into dev;
     [party-purse.md](design/party-purse.md)): every player carries one purse, the host's player's gold. Any

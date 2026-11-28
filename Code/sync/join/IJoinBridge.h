@@ -1,6 +1,7 @@
 #pragma once
 
 #include <join/SaveList.h>
+#include <join/SaveNames.h>
 #include <join/SaveTransfer.h>
 #include <Structs/PlayerRecord.h>
 
@@ -60,7 +61,7 @@ public:
     [[nodiscard]] virtual std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept = 0;
     // The engine's current character (its saves are filed and named under it), as a load of that character's save
     // sets it: a load of a scratch save (SkyrimCoopWipe) sets 0 (docs/re/systems/save-game.md).
-    virtual void SetCharacter(uint32_t aCharacterId) noexcept = 0;
+    virtual void SetCharacter(SaveNames::Character aCharacter) noexcept = 0;
     [[nodiscard]] virtual uint32_t CurrentCharacter() const noexcept = 0;
     // Which saves the Journal's Load lists from now on (callable on any thread's behalf: the engine reads it on its
     // save thread).

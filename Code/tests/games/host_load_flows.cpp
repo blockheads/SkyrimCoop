@@ -153,7 +153,9 @@ SCENARIO("A host load makes the chosen save's character the engine's, as loading
 {
     Party party(1, Plugins);
     auto& host = Party::Engine(party.Host());
-    const std::string cChosen = "Save12_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    // A modded game's save: the engine's character is {id, modded}, both from the name (35749 compares both).
+    const std::string cChosen = "Save12_0BADF00D_1_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    host.CharacterModded = true;
     host.CharacterId = 0x0BADF00D; // the playthrough the host plays: its own saves are named with it
     Save(party, cChosen);
     party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads(cChosen)); });
@@ -161,6 +163,9 @@ SCENARIO("A host load makes the chosen save's character the engine's, as loading
                 "the host loads the chosen save under the scratch name");
     CHECK(host.Loaded.back() == "SkyrimCoopWipe");
     CHECK(host.CharacterId == 0x0BADF00D);
+    CHECK(host.CharacterModded);
+    party.Frame();
+    CHECK(host.LoadList() == std::vector<std::string>{cChosen});
 }
 
 SCENARIO("A guest's own loads are refused with a chat reason, including internal-looking names", "[load]")

@@ -24,3 +24,10 @@ TEST_CASE("Our scratch saves are no character's: Continue must never find one", 
     for (const char* cpName : SaveNames::kScratch)
         CHECK(SaveNames::CharacterId(cpName) == 0);
 }
+
+TEST_CASE("A save's name also says whether its game was modded, which the engine's character includes", "[save]")
+{
+    CHECK(SaveNames::CharacterOf("Quicksave0_92E593CB_1_746573746572_Tamriel_000008_20261031204500_1_1") == SaveNames::Character{0x92E593CB, true});
+    CHECK(SaveNames::CharacterOf("Save4_ABC467A6_0_7363726F6D626F6E697573_RiftenWorld_000123_20261108211500_1_1") == SaveNames::Character{0xABC467A6, false});
+    CHECK(SaveNames::CharacterOf("SkyrimCoopWipe") == SaveNames::Character{});
+}

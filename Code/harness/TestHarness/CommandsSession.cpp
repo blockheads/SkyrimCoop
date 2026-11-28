@@ -215,11 +215,14 @@ nlohmann::json ForgetRecord(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
-// {"cmd": "set_character", "id": n}: the engine's current character, as loading that character's own save sets it.
+// {"cmd": "set_character"[, "id": n, "modded": b]}: the engine's current character, set first (with "id") as loading
+// that character's own save sets it; its id.
 nlohmann::json SetCharacter(Harness&, const nlohmann::json& acRequest)
 {
-    World::Get().ctx().at<IJoinBridge&>().SetCharacter(acRequest.value("id", 0u));
-    return Ok();
+    auto& bridge = World::Get().ctx().at<IJoinBridge&>();
+    if (acRequest.contains("id"))
+        bridge.SetCharacter({acRequest.value("id", 0u), acRequest.value("modded", false)});
+    return {{"ok", true}, {"character", bridge.CurrentCharacter()}};
 }
 
 constexpr Command cCommands[] = {

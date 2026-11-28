@@ -79,3 +79,12 @@ time	op	id	rva	item
 2026-11-27T23:07:43Z	comment	52882	0x98f170	{"addr": "0x14098F170", "comment": "52882: UISaveLoadManager's list messages: 3 save list (52892), 4 batches (52893), 5 PopulateCharacterList (queues save-thread request 0x50000008: scan characters), 6 FillCharacterList (52890)."}
 2026-11-27T23:07:43Z	comment	35924	0x632c60	{"addr": "0x140632C60", "comment": "35924: entry {id, modded byte} matches filter {id, flags}: ids equal and modded == flags bit 2. ScanSaveFolder (35799) applies it when the filter's flags bit 1 is set."}
 2026-11-27T23:07:43Z	comment	52890	0x98f600	{"addr": "0x14098f600", "comment": "52890 FillCharacterList: clears entryList, pushes \"$ShowAllSave\" (id 0xFFFFFFFF), the characters (52917), then onFillCharacterListComplete. The Journal opens it (quest_journal.swf SystemPage CHARACTER_LOAD_STATE 16) when LOAD finds no save of the current character, or by its Character Selection button (T)."}
+2026-11-27T23:48:37Z	read	35789	0x629e70	{"name": "BGSSaveLoadManager::GetSaveEntry"}
+2026-11-27T23:49:39Z	read	35751	0x624570	{"name": "BGSSaveLoadManager__SetCurrentCharacter"}
+2026-11-27T23:49:39Z	read	35926	0x632cb0	{"name": "CharacterIdPair__Assign"}
+2026-11-27T23:49:40Z	read	35797	0x62a8b0	{"name": "sub_14062A8B0"}
+2026-11-27T23:50:12Z	read	35922	0x632c20	{"name": "CharacterIdPair__NotEqual"}
+2026-11-27T23:50:12Z	read	35923	0x632c40	{"name": "sub_140632C40"}
+2026-11-27T23:50:26Z	name	35749	0x623da0	{"addr": "0x140623da0", "name": "BGSSaveLoadManager__MakeSaveName"}
+2026-11-27T23:50:29Z	comment	35749	0x623da0	{"addr": "0x140623da0", "comment": "35749 MakeSaveName (called by Save_Impl 35727 after its own GetSaveEntry): for a nonzero current id it recomputes the pair as {id, modded = 0x1401BFA00(TESDataHandler, 1) != 0} (that call not read: inferred 'mods loaded'), assigns current and display when the pair differs, then GetSaveEntry for it. A differing modded flag adds a catalogue entry, which can reallocate +0xE8 under Save_Impl's SaveEntry pointer: measured as a use after free in Save_Impl's quicksave branch (+0x40) after SetCurrentCharacter {id, 0} in a modded game (2026-11-27)."}
+2026-11-27T23:50:29Z	comment	35922	0x632c20	{"addr": "0x140632c20", "comment": "CharacterIdPair != : both dwords (id, modded 0/1)."}

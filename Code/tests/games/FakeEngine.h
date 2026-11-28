@@ -174,7 +174,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The engine's main loop between frames, before our update (HookMainLoop's MainLoopTasks).
     void RunMainLoop() noexcept;
     std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
-    void SetCharacter(uint32_t aCharacterId) noexcept override { CharacterId = aCharacterId; }
+    void SetCharacter(SaveNames::Character aCharacter) noexcept override { CharacterId = aCharacter.Id, CharacterModded = aCharacter.Modded; }
+    bool CharacterModded = false; // currentCharacterModded: with the id, the engine's character (35749)
     uint32_t CurrentCharacter() const noexcept override { return CharacterId; }
     // As SaveListHooks.cpp: BuildSaveList (35743) and the character rows (52917) under the limit.
     SaveList::Limit SaveListLimit = SaveList::Limit::kAll;

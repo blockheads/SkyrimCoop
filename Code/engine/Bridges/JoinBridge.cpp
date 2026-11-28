@@ -405,10 +405,10 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
                  acRecord.Perks.size(), acRecord.Spells.size(), acRecord.Items.Entries.size());
 }
 
-void JoinBridge::SetCharacter(uint32_t aCharacterId) noexcept
+void JoinBridge::SetCharacter(SaveNames::Character aCharacter) noexcept
 {
     if (BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get())
-        pManager->SetCurrentCharacter(aCharacterId);
+        pManager->SetCurrentCharacter(aCharacter.Id, aCharacter.Modded);
 }
 
 uint32_t JoinBridge::CurrentCharacter() const noexcept

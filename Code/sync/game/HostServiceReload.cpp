@@ -67,7 +67,7 @@ void HostService::LoadSave(const std::string& acName) noexcept
     if (!IsHosting() || m_loadingSave || m_checkpoint)
         return;
     m_checkpoint = m_world.ctx().at<IJoinBridge&>().ReadSave(acName);
-    m_checkpointCharacter = SaveNames::CharacterId(acName);
+    m_checkpointCharacter = SaveNames::CharacterOf(acName);
     if (!m_checkpoint)
     {
         m_dispatcher.trigger(SessionNoticeEvent{kChosenMissing});

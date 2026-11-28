@@ -97,9 +97,20 @@ IDA 1.7.104. The engine keeps no character id inside a save: **the id is in the 
 - So loading `SkyrimCoopWipe` (or `SkyrimCoopJoin`) leaves id 0: saves made afterwards are named and filed under 0
   (and the wipe's old automatic pick of the newest save, removed 2026-11-16, took another character's, 2026-11-08).
 
-Ours: `SaveNames::CharacterId` is the same parse; after the party's scratch load the host calls `SetCurrentCharacter`
-(35751) with the checkpoint's id (`HostService::OnGameLoaded`, `JoinBridge::SetCharacter`), keeping the load's modded
-flag. A guest's join load still leaves its id 0 (it makes no saves in a session).
+Ours: `SaveNames::CharacterOf` is the same parse; after the party's scratch load the host calls `SetCurrentCharacter`
+(35751) with the checkpoint's `{id, modded}` (`HostService::OnGameLoaded`, `JoinBridge::SetCharacter`). A guest's join
+load still leaves its id 0 (it makes no saves in a session).
+
+**The modded flag is half the character (2026-11-27, read and measured).** The pair compares both dwords
+(`CharacterIdPair` 0x140632C20/C40). Every save's name builder (`MakeSaveName` 35749, called by `Save_Impl` after its
+own `GetSaveEntry`) recomputes the flag for a nonzero id from the loaded plugins (0x1401BFA00, not read) and moves
+current and display to the new pair when it differs. `GetSaveEntry` (35789) then adds a catalogue entry (`+0xE8`,
+0x48 each), which can reallocate the array under `Save_Impl`'s pointer. Measured: `SetCurrentCharacter {id, 0}` in a
+modded game (any Creation Club content), then a quicksave, is a use after free in `Save_Impl`'s quicksave branch
+(`lastQuicksave`, `+0x40`), with or without our list hooks. Until 2026-11-27 we kept the scratch load's flag (0), so
+after a party load the current character was `{id, 0}` while its saves are filed `{id, 1}`: the next save
+was exposed to this, and the in-game Load list (filtered by the pair) was empty. Now both come from the checkpoint's
+name (GameTests "A host load makes the chosen save's character the engine's").
 
 ## Continue and the Load list (2026-11-27)
 
@@ -149,9 +160,10 @@ JPEXS FFDec: `SystemPage`, `SaveLoadPanel`), read for "in a game, Load lists onl
   with `{currentCharacterId, 2 | modded}` (and for a guest, empties the list, 35746), so any row picked lists this
   playthrough. The 52917 hook drops the rows of other characters and "Show all saves" before Flash sees the list.
   A console `load` of another character's save is refused in chat (`SaveService::OnLoadRequested`).
-- **Measured** (scenario `load-lists-only-playthrough`, another character's save planted in the host's folder):
-  vanilla (`disable_hooks=SaveListHooks`) lists the rows `FFFFFFFF` and `0C0FFEE0`; with the hooks none (the duo's
-  QASmoke character is id 0, which never has a row), and Load still lists the current character's saves.
+- **Measured** (scenario `load-lists-only-playthrough`: the host plays character `0BADF00D`, set through the harness's
+  `set_character` as its save's load would, saves, and another character's save is planted in its folder): with the
+  hooks the rows are exactly `0BADF00D`; vanilla (`disable_hooks=SaveListHooks`) adds "Show all saves" (`FFFFFFFF`)
+  and the scenario fails. An earlier vanilla run as character 0 listed the planted `0C0FFEE0` row too.
 
 ## Loading while dead (2026-11-16)
 

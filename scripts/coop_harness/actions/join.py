@@ -132,21 +132,27 @@ class JoinActions:
 
 
     def expect_rows_only(ctx, instance):
-        """The Journal's character rows are this playthrough's character's at most: no Show all saves, no other
-        character (character 0 has no row: the folder scan, 35799, makes rows for nonzero ids only)."""
+        """The Journal's character rows are exactly this playthrough's character's: no Show all saves, no other
+        character (character 0 never has a row: the folder scan, 35799, makes rows for nonzero ids only)."""
         character = ctx.current_character(instance)["character"]
         rows = ctx.journal_character_rows(instance)["rows"]
-        if any(row != character.upper() for row in rows):
+        if rows != ([character] if int(character, 16) else []):
             raise ctx.failure(f"[{instance or 'host'}] the Journal's character rows are {rows}, not only {character}")
         return {"rows": rows}
 
 
-    def current_character(ctx, instance):
-        """The engine's current character id, as the newest save this game made names it."""
-        saves = ctx.game(instance).my_games / "Saves"
-        own = [path for path in saves.glob("*.ess") if not path.name.startswith(("SkyrimCoop", "Save900_"))]
-        newest = max(own, key=lambda path: path.stat().st_mtime)
-        return {"character": newest.stem.split("_")[1].upper(), "save": newest.name}
+    def current_character(ctx, instance, character=None):
+        """The engine's current character id (harness set_character), set first when given, as loading that
+        character's save would (SetCurrentCharacter 35751). Its modded flag is this game's, read from the newest save's
+        name: a flag other than the game's makes the next save add a catalogue entry under Save_Impl (35749, crashed)."""
+        request = {"cmd": "set_character"}
+        if character is not None:
+            saves = ctx.game(instance).my_games / "Saves"
+            own = [path for path in saves.glob("*.ess") if not path.name.startswith(("SkyrimCoop", "Save900_"))]
+            newest = max(own, key=lambda path: path.stat().st_mtime).stem.split("_")
+            request.update(id=int(character, 16), modded=len(newest) == 9 and newest[2] == "1")
+        reply = ctx.game(instance).rpc(request) or {}
+        return {"character": f"{int(reply.get('character', 0)) & 0xFFFFFFFF:08X}"}
 
 
     def press_key(ctx, instance, scan):

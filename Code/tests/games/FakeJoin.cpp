@@ -168,7 +168,7 @@ void FakeEngine::RunMainLoop() noexcept
     saves.RevertCoSave();
     saves.ReadCoSave(cFiles.CoSave, CharacterRecords::kVersion);
     AtMainMenu = false;
-    CharacterId = SaveNames::CharacterId(cName);
+    SetCharacter(SaveNames::CharacterOf(cName));
     Loaded.push_back(cName);
     LoadedFiles = cFiles;
     World::Get().GetRunner().Trigger(GameLoadedEvent{});
@@ -509,8 +509,14 @@ std::vector<std::string> FakeEngine::LoadList(std::optional<uint32_t> aPicked) c
     using enum SaveList::Limit;
     const uint32_t cFilter = SaveListLimit == kAll ? aPicked.value_or(CharacterId) : CharacterId;
     std::vector<std::pair<uint64_t, std::string>> listed;
+    // In a game the hook filters by the current {id, modded} (35924 compares both).
+    const auto cListed = [&](const std::string& acName) {
+        if (SaveListLimit == kCurrent)
+            return SaveNames::CharacterOf(acName) == SaveNames::Character{CharacterId, CharacterModded};
+        return SaveListLimit == kAll && (cFilter == SaveList::kAllCharacters || SaveNames::CharacterId(acName) == cFilter);
+    };
     for (const auto& [cName, cFiles] : SavedFiles)
-        if (SaveListLimit != kNothing && (cFilter == SaveList::kAllCharacters || SaveNames::CharacterId(cName) == cFilter))
+        if (cListed(cName))
             listed.emplace_back(SaveTimes.contains(cName) ? SaveTimes.at(cName) : 0, cName);
     std::ranges::sort(listed, std::greater{});
     std::vector<std::string> names;
