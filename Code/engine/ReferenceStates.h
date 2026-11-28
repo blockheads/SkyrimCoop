@@ -31,6 +31,8 @@ void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
 // aWhole: a cell's state (a script's motion type with it); else live, that row once for each script call.
 // The motion and destruction rows that came before the reference's 3D, applied now it loaded.
 void ApplyDeferred(TESObjectREFR& aObject) noexcept;
+// A save is loading: the script motions and the rows waiting for a 3D are another save's (ScriptMotion::Clear too).
+void ForgetDeferred() noexcept;
 // The enabled row of a reference that is gone (deleted), for one no longer there to read.
 ObjectChange Deleted(const GameId& acId) noexcept;
 // The reference's row of that kind now, whatever its record holds; none for a state it has no value for.

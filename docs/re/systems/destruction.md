@@ -55,8 +55,23 @@ guest: its player's damage -> our 19526 hook -> DestructionEvent -> ObjectStateR
 
 - The row takes `CHANGE_REFR_EXTRA_GAME_ONLY` for a destructible only (`RecordedRows`): other references' game-only
   bookkeeping stays unsent, and a cell's state names a damaged destructible, so a guest arriving later gets it.
-- Counts, not deltas, as for containers: the guest's own web is already damaged when it proposes.
-- The replay plays the stage's explosion on the guest too (each game's own, as before for both games' copies).
+- Counts, not deltas, as for containers: the guest's own web is already damaged when it proposes. So two players'
+  hits landing within one round trip count once (both games report the same health); a lost hit on a web, accepted
+  for duplicate-proof proposals.
+- **Capped stages** (14158: a stage with flag 1 stops the damage at its threshold whatever `allowDestroyed` says; both
+  Bleak Falls web bases cap their first stage at 99%, measured 10 -> 9.9 -> 2.2 -> 0): a row that jumps stages (a guest
+  loading the cell later, a deferred 3D) is applied by calling `DamageObject` again until the health reads as the row.
+- **A repair**: `ClearDestruction` (14181) records no change of its own. Our hook records the game-only change when it
+  mends one, so the host's funnel sends the whole web's row (a script's `ClearDestruction`, `LumbermillSawScript.Repair`,
+  a cell reset).
+- **Deferred rows**: the newest row replaces or cancels one waiting for the 3D; the replay runs under
+  `ScopedHostChangeOverride` (no proposal of the host's own damage); a save load forgets them
+  (`ReferenceStates::ForgetDeferred`).
+- A row naming a reference the host created at runtime uses its shared id (`HostIdOf` on the guest, the `0xFF` id on
+  the host).
+- The replay plays the stage's explosion on the guest too, also when a guest loading the cell later catches up on a
+  spent object (a web's is a cobweb puff; a trap's would be a blast). Restoring the stage without its effects needs the
+  model swap set by hand (the cell reset's `ApplyStageFromHealth` snaps a partial health to a stage): a loose end.
 - **A copy's swing damages nothing.** Every game runs a copy's hit frame (`HitFrameHandler` 42828 -> 38603 -> 38628,
   `actor-state.md`), so before this a copy's swing damaged the web in the game that only shows it (measured: the host's
   copy of the guest took 0.1 off a web, the guest's copy of the host made the guest propose the host's own hit back).

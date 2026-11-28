@@ -302,6 +302,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         // its last stage's model (ExtraModelSwap: a cut web, no collision); a guest's row that came before its 3D.
         float FullHealth = 0.f;
         float Health = 0.f;
+        float CapHealth = 0.f; // a capped stage's threshold: a hit from above stops there (14158; a web's at 99%)
         bool StageModel = false;
         std::optional<uint32_t> DeferredDestruction;
         std::set<uint32_t> Rolled; // items a leveled roll put in (their changes entry a roll's: ExtraLeveledItem lists)
@@ -384,6 +385,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The host's game takes a destructible's health (a guest's proposal accepted, HostGame::SetObjectState): made and
     // recorded.
     void SetDestruction(uint32_t aReference, uint32_t aValue);
+    // The host's script mends a destructible (ObjectReference.ClearDestruction -> 14181): made and recorded.
+    void ScriptClearsDestruction(uint32_t aReference);
     // A destructible's row (ReferenceStates' kDestruction); none for one with no destruction data.
     [[nodiscard]] std::optional<ObjectChange> DestructionRowOf(uint32_t aReference) const;
     // Each cell's location (BGSLocation), by cell: the player moved into a cell of another location raises CLOC.

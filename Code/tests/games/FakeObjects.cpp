@@ -285,10 +285,14 @@ void FakeEngine::ScriptSetsDestroyed(uint32_t aReference, bool aDestroyed)
 
 namespace
 {
-// BGSDestructibleObjectForm::DamageObject (14158): health down, at 0 the destroyed flag and the last stage's model.
+// BGSDestructibleObjectForm::DamageObject (14158): health down, stopped at a capped stage's threshold when crossing
+// it, at 0 the destroyed flag and the last stage's model.
 void Damage(FakeEngine::Reference& aReference, float aDamage)
 {
-    aReference.Health = std::max(0.f, aReference.Health - aDamage);
+    const float cBefore = aReference.Health;
+    aReference.Health = std::max(0.f, cBefore - aDamage);
+    if (cBefore > aReference.CapHealth && aReference.Health < aReference.CapHealth)
+        aReference.Health = aReference.CapHealth;
     if (aReference.Health == 0.f)
     {
         aReference.Destroyed = true;
@@ -299,20 +303,29 @@ void Damage(FakeEngine::Reference& aReference, float aDamage)
 // ReferenceStates' ApplyDestruction: whole again first (ClearDestruction 14181) if the row is above, then the damage.
 void ApplyDestruction(FakeEngine::Reference& aReference, uint32_t aValue)
 {
+    const float cTarget = DestructionRow::Unpack(aValue);
+    // The newest row stands: it replaces, or cancels, one still waiting for the 3D.
+    aReference.DeferredDestruction.reset();
     if (!aReference.Has3D)
     {
-        aReference.DeferredDestruction = aValue;
+        if (cTarget != aReference.Health)
+            aReference.DeferredDestruction = aValue;
         return;
     }
-    const float cTarget = DestructionRow::Unpack(aValue);
     if (cTarget > aReference.Health)
     {
         aReference.Health = aReference.FullHealth;
         aReference.Destroyed = false;
         aReference.StageModel = false;
     }
-    if (cTarget < aReference.Health)
+    // Again until it reads as the row: each call stops at a capped stage.
+    while (cTarget < aReference.Health)
+    {
+        const float cBefore = aReference.Health;
         Damage(aReference, aReference.Health - cTarget);
+        if (aReference.Health == cBefore)
+            break;
+    }
 }
 } // namespace
 
@@ -340,6 +353,19 @@ void FakeEngine::PlayerDamagesObject(uint32_t aReference, float aDamage)
     if (reference.Destroyed != cWasDestroyed)
         Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = EnabledValue(reference)});
     Recorded.push_back(*DestructionRowOf(aReference));
+}
+
+void FakeEngine::ScriptClearsDestruction(uint32_t aReference)
+{
+    auto& reference = References.at(aReference);
+    const bool cWasDestroyed = reference.Destroyed;
+    reference.Health = reference.FullHealth;
+    reference.Destroyed = false;
+    reference.StageModel = false;
+    Changed.insert(aReference);
+    if (reference.Destroyed != cWasDestroyed)
+        Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = EnabledValue(reference)});
+    Recorded.push_back(*DestructionRowOf(aReference)); // our 14181 hook records its health's change
 }
 
 void FakeEngine::SetDestruction(uint32_t aReference, uint32_t aValue)

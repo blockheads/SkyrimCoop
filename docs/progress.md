@@ -163,7 +163,8 @@ removed (git history keeps them).
 - **A copy's arrows and spells still damage destructibles in the other game** (2026-11-27,
   [destruction.md](re/systems/destruction.md)): only a copy's melee swing is skipped (`PlayerHands::CopySwings`). A
   copy's projectile or explosion meeting a web damages it in the game that shows it; on a guest that becomes a proposal
-  (the host takes only damage, so at worst a web breaks a hit early). Not measured.
+  (the host takes only damage, so at worst a web breaks a hit early). Not measured. Also: a guest loading a cell after
+  the host broke something replays the stage's explosion there (a trap's blast, a web's puff).
 - **A guest's Storm Call may not hurt host NPCs** (2026-11-24, [projectiles.md](re/systems/projectiles.md), inferred
   from our code, not measured): the host runs the NPC's storm script, which blames the guest's copy; if the bolt's
   `AddTarget` caster is that copy, `HookAddTarget` drops it on the host's own NPC. Needs a scenario reading the

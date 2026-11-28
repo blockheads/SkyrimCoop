@@ -2,6 +2,7 @@
 
 #include <FormState.h>
 #include <world/DestructionRow.h>
+#include <items/Overrides.h>
 #include <world/EnabledRow.h>
 #include <ScriptMotion.h>
 #include <FormChangeRows.h>
@@ -315,6 +316,7 @@ DeferredDestruction s_deferredDestruction;
 // The engine's own damage (TESObjectREFR::DamageObject 19526, vtable 0x42; BGSDestructibleObjectForm 14158): its
 // stage's model swap and 3D reload (a cut web loses its collision), explosion, debris and destroyed flag. Allowed on a
 // destroyed one: the host's enabled row may have set the flag first. Back to whole first with ClearDestruction (14181).
+// A capped stage stops each call at its threshold (a web's first, at 99%): called again until it reads as the row.
 // docs/re/systems/destruction.md.
 bool ApplyDestruction(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
@@ -322,14 +324,16 @@ bool ApplyDestruction(TESObjectREFR& aObject, const ObjectChange& acChange) noex
     if (!here)
         return false;
     const float cTarget = DestructionRow::Unpack(acChange.Value);
-    if (cTarget == *here)
-        return true;
-    if (!aObject.GetNiNode())
     {
+        // The newest row stands: it replaces, or cancels, one still waiting for the 3D.
         std::scoped_lock _(s_deferredDestruction.Lock);
-        s_deferredDestruction.Values[aObject.formID] = acChange.Value;
-        return true;
+        if (!aObject.GetNiNode() && cTarget != *here)
+            s_deferredDestruction.Values[aObject.formID] = acChange.Value;
+        else
+            s_deferredDestruction.Values.erase(aObject.formID);
     }
+    if (cTarget == *here || !aObject.GetNiNode())
+        return true;
     if (cTarget > *here)
     {
         using TClearDestruction = void(TESObjectREFR*);
@@ -341,7 +345,15 @@ bool ApplyDestruction(TESObjectREFR& aObject, const ObjectChange& acChange) noex
     }
     using TDamageObject = void(TESObjectREFR*, float, bool);
     POINTER_SKYRIMSE(TDamageObject, s_damageObject, 19526);
-    s_damageObject.Get()(&aObject, *here - cTarget, true);
+    constexpr int cMaxStages = 127; // DestructibleObjectData::numStages is an int8
+    for (int i = 0; i < cMaxStages && here && cTarget < *here; ++i)
+    {
+        s_damageObject.Get()(&aObject, *here - cTarget, true);
+        const auto cNow = DestructionHealth(aObject);
+        if (!cNow || *cNow == *here)
+            break;
+        here = cNow;
+    }
     return true;
 }
 
@@ -490,14 +502,15 @@ std::optional<ObjectChange> ReadRow(const TESObjectREFR& acObject, const GameId&
 
 bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange) noexcept
 {
-    for (const auto& cState : cStates)
-        if (cState.Kind == acChange.Type)
-        {
-            ObjectChange here{acChange.Type, acChange.Object};
-            return cState.Read(acObject, cState.Flags, here) && here.Value == acChange.Value && here.Item == acChange.Item &&
-                   here.Data == acChange.Data;
-        }
-    return false;
+    const auto cHere = ReadRow(acObject, acChange.Object, acChange.Type);
+    return cHere && cHere->Value == acChange.Value && cHere->Item == acChange.Item && cHere->Data == acChange.Data;
+}
+
+void ForgetDeferred() noexcept
+{
+    ScriptMotion::Get().Clear();
+    std::scoped_lock _(s_deferredDestruction.Lock);
+    s_deferredDestruction.Values.clear();
 }
 
 void ApplyDeferred(TESObjectREFR& aObject) noexcept
@@ -514,7 +527,10 @@ void ApplyDeferred(TESObjectREFR& aObject) noexcept
         }
     }
     if (destruction)
+    {
+        ScopedHostChangeOverride _; // the host's row, not this game's damage: proposed nowhere
         (void)ApplyDestruction(aObject, {.Type = ObjectChange::Kind::kDestruction, .Value = *destruction});
+    }
 }
 
 bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept

@@ -1,4 +1,5 @@
-// TESObjectREFR's damage to a destructible: a guest's own goes to the host (docs/re/systems/destruction.md).
+// A destructible's damage and repair: a guest's own damage goes to the host, a repair records its change
+// (docs/re/systems/destruction.md).
 #include <HookSwitch.h>
 #include <PlayerHands.h>
 #include <TESObjectREFR.h>
@@ -35,8 +36,22 @@ void HookDamageObject(TESObjectREFR* apThis, float aDamage, bool aAllowDestroyed
         World::Runner().Trigger(DestructionEvent{apThis->formID});
 }
 
+// TESObjectREFR::ClearDestruction (14181): mends it (a script's ClearDestruction, LumbermillSawScript.Repair, a cell
+// reset) and records no change of its own; recorded as its health's change, so the host's funnel sends the row.
+using TClearDestruction = void(TESObjectREFR*);
+TClearDestruction* RealClearDestruction = nullptr;
+
+void HookClearDestruction(TESObjectREFR* apThis)
+{
+    const float cBefore = apThis ? Health(*apThis) : -1.f;
+    RealClearDestruction(apThis);
+    if (apThis && Health(*apThis) != cBefore)
+        apThis->MarkChanged(TESObjectREFR::CHANGE_REFR_EXTRA_GAME_ONLY);
+}
+
 Hooks::Initializer s_destructionHooks([] {
     const HookGate cGate(__FILE__);
     HOOK_ID(19526, &RealDamageObject, HookDamageObject);
+    HOOK_ID(14181, &RealClearDestruction, HookClearDestruction);
 });
 } // namespace

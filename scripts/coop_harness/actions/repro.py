@@ -743,24 +743,26 @@ class ReproActions:
         return reply
 
     def cut(ctx, name, game="host", swings=6, gap=70, above=0.0):
-        """That game's player swings its drawn weapon at the handle's destructible (a web) until its own game shows it
-        cut (its stage model, destroyed), lining each swing up first; fails if `swings` do not cut it, naming its
-        health after each."""
+        """That game's player swings its drawn weapon at the handle's destructible (a web), whole to begin with, until its
+        own game shows it cut (its stage model, destroyed), lining each swing up first; fails if `swings` do not cut it,
+        naming its health after each."""
         instance = "client" if game in ("guest", "client") else ""
         mine = "guest" if instance else "host"
         ref = ctx.resolve(name, mine)
+        cut_now = lambda d: d["destroyed"] and d["stage_model"]
+        if cut_now(state := ctx.destruction(instance, ref)):
+            raise ctx.failure(f"[{mine}] {name} is cut already: {state}")
         ctx.draw(instance)
         ctx.place_before(instance, ref, gap)
         healths = []
         for _ in range(swings):
-            state = ctx.destruction(instance, ref)
-            if state["destroyed"] and state["stage_model"]:
-                return {"swings": len(healths), "healths": healths}
             ctx.line_up_swing(instance, ref, above=above)
             ctx.attack(instance)
             ctx.wait_for(f"[{mine}] hands settled after the swing", lambda: ctx.hands_settled(instance), 5)
-            healths.append(ctx.destruction(instance, ref)["health"])
-        state = ctx.destruction(instance, ref)
+            state = ctx.destruction(instance, ref)
+            healths.append(state["health"])
+            if cut_now(state):
+                return {"swings": len(healths), "healths": healths}
         raise ctx.failure(f"[{mine}] {swings} swings did not cut {name}: health after each {healths}, now {state}")
 
     def expect_cut(ctx, name, seconds=10):
