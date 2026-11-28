@@ -849,3 +849,44 @@ SCENARIO("A player's character offers no prompt to the other players, on every g
     CHECK(guestTalk.Speaker == guest.CopiesOf(kGuard)[0]);
     CHECK(starts.Npcs.size() == 1); // the guard's ask alone
 }
+
+SCENARIO("A courier's force greet continues on its own: no menu offers its hidden next line", "[dialogue][force-greet]")
+{
+    // The courier (WICourier, playtest 2026-11-27): its greeting WICourierTopic 39F79 is an Invisible Continue line
+    // in a blocking branch; the engine says WICourierDeliveries itself once it ends (35285), no list shown.
+    constexpr uint32_t cCourierBase = 0x39F6A, cGreeting = 0x39F79;
+    const IDialogueBridge::Option cDeliveries{.Topic = 0x39F6C, .Info = 0x3DF63, .Text = "(Invisible continues linked to self)"};
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    for (auto* game : {&party.Host(), &party.Guest()})
+    {
+        auto& talk = Dialogue(*game);
+        talk.Greeting = {cDeliveries};
+        talk.GreetingInfo = cGreeting;
+        talk.InvisibleContinue = {cGreeting};
+        talk.After = {{cDeliveries.Topic, {}}};
+    }
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+
+    uint32_t courier = 0;
+    party.As(party.Host(), [&] { courier = host.LoadNpc(cCourierBase, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(cCourierBase).size() == 1; }, "the guest's game has a copy of the courier");
+
+    party.As(party.Host(), [&] { hostTalk.NpcGreets(courier); });
+    party.Until([&] { return hostTalk.MenuOpen && guestTalk.MenuOpen; }, "the courier's greeting opens every menu");
+    // Long enough for the host's step list to reach every menu, had it been sent.
+    for (const auto cEnd = std::chrono::steady_clock::now() + std::chrono::milliseconds(300); std::chrono::steady_clock::now() < cEnd;)
+    {
+        party.Frame();
+        INFO("host's menu: " << hostTalk.Options.size() << " options, guest's: " << guestTalk.Options.size());
+        REQUIRE(!hostTalk.ListShown);
+        REQUIRE(!guestTalk.ListShown);
+    }
+
+    party.As(party.Host(), [&] { hostTalk.LineEnds(); });
+    CHECK(hostTalk.Said == std::vector{cDeliveries});
+    party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the delivery's goodbye ends it on both games");
+    CHECK(guestTalk.Said.empty());
+}

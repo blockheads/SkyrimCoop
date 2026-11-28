@@ -1,0 +1,19 @@
+time	op	id	rva	item
+2026-11-28T02:11:18Z	read	35303	0x5f1560	{"name": "coop_RealAddTopic"}
+2026-11-28T02:11:21Z	read	35254	0x5ed830	{"name": "coop_construct"}
+2026-11-28T02:11:26Z	read	51515	0x92b0d0	{"name": "DialogueMenu::PopulateTopicList"}
+2026-11-28T02:11:42Z	read	35287	0x5f04b0	{"name": "MenuTopicManager::BuildList"}
+2026-11-28T02:11:58Z	read	35321	0x5f2690	{"name": "TESTopicInfo::sub_35321"}
+2026-11-28T02:16:22Z	read	35285	0x5efe90	{"name": "MenuTopicManager::sub_35285"}
+2026-11-28T02:16:49Z	read	35282	0x5ef4c0	{"name": "MenuTopicManager::sub_35282"}
+2026-11-28T02:17:14Z	read	25552	0x3efe60	{"name": "TESTopic::sub_25552"}
+2026-11-28T02:24:21Z	name	25552	0x3efe60	{"addr": "0x1403efe60", "name": "TESTopic::InBlockingOrExclusiveBranch"}
+2026-11-28T02:24:21Z	name	35321	0x5f2690	{"addr": "0x1405f2690", "name": "TESTopicInfo::GetWalkAwayTopic"}
+2026-11-28T02:24:21Z	data			{"old": "qword_14209DF30", "new": "g_walkAwayTopicMap"}
+2026-11-28T02:24:21Z	data			{"old": "byte_143211AF9", "new": "g_advanceFromStart"}
+2026-11-28T02:24:29Z	comment	25552	0x3efe60	{"addr": "0x1403efe60", "comment": "25552: the topic's owner branch (+0x38, BGSDialogueBranch) has flags & 6 (blocking or exclusive). StartDialogue 35282 does not show the list (52857) during such a greeting (force greets: WiCourierMainBranch DNAM 2)."}
+2026-11-28T02:24:29Z	comment	35321	0x5f2690	{"addr": "0x1405f2690", "comment": "35321: the info's walk-away topic (INFO TWAT) from the global map g_walkAwayTopicMap; EndDialogue 35294 says it when a choices list is left; BuildList 35287 hides it among the choices (+0x4A) when the info has flags 0x100."}
+2026-11-28T02:24:29Z	comment		0x5f0060	{"addr": "0x1405f0060", "comment": "Invisible Continue: the said info (lastSelectedDialogue +0x38 ->parentTopicInfo) has flags 0x40 (TESTopicInfo +0x3C; xEdit 'Invisible Continue'; CommonLibSSE-NG's kEndRunningScene is wrong). Its responses done, the engine builds its choices (35287), selects the first (skipping the head greeting and topics whose subtype table entry is 1) and says it (35283): the list is never shown. The courier's WICourierTopic 39F79 -> WICourierDeliveries."}
+2026-11-28T02:24:29Z	comment		0x5f061e	{"addr": "0x1405f061e", "comment": "Choices: the hidden byte +0x4A is set for the said info's walk-away topic (35321 map) when the info has flags 0x100 (Walk Away Invisible in Menu)."}
+2026-11-28T02:24:29Z	comment		0x5ed874	{"addr": "0x1405ed874", "comment": "hidden (+0x4A) = 0; only BuildList 35287 sets it."}
+2026-11-28T02:36:36Z	read	37200	0x672e30	{"name": "Actor::SetDialogueWithPlayer"}

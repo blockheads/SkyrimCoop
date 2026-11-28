@@ -384,6 +384,8 @@ Size: medium. Needs: duo.
     from the interrupted execution 57-94 units off their owners (Lisette, Greta, Jala; Roggvir 66 off and facing 57 deg
     apart), and once the guest's player 40 units into the floor, owner and copy alike. Unread: whether the copies lag a
     run or hold a stale point.
+  - `courier-force-greet-continues` (Riverwood, 2026-11-27) passes its steps and ends with furniture `1B752` (FURN
+    `74A4E`) graph variable `IsReady` 1 on the host, 0 on the guest. Unread.
 - 2026-11-22, dev `aa723513`: `copies_follow_owners_graphs_in_town` passed; `copy_holds_furniture_prop` ended on
   Dorthe's copy 58 units off, `guest-trips-platform-guard` on Evette San 75 units off and the guest's copy. On the
   `LateAfterDragonslayerBackinSkyrim` boot `faendal-letter` passed whole (once), and

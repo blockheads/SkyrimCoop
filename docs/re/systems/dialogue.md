@@ -677,3 +677,41 @@ Talk fix alone the Pickpocket prompt stayed (scenario `no-prompt-over-players` f
 passes. The Search prompt over a dead player is not measured (the fake's flow covers it). UnitTests `TalksToPlayer`,
 `ActivatePrompts`; GameTests "A player's character offers no prompt to the other players, on every game" (the fake's
 `CanTalkToPlayer`, `ActivateText`), scenario `no-prompt-over-players` (verb `expect_prompt_lacks`).
+
+## Invisible Continue lines and hidden choices (1.7.104, 2026-11-27)
+
+Found by the 2026-11-27 playtest: the courier ran up to the party and every menu offered one option, "(Invisible Continues
+Linked to Self)", the editor text of `WICourierDeliveries`. Read in IDA (1.7.104) and in Skyrim.esm; reproduced on the
+duo (scenario `courier-force-greet-continues`).
+
+The courier's data (Skyrim.esm, `WICourier` 39F82): his force greet line `WICourierTopic` 39F79 has flags 0x40, its one
+choice `WICourierDeliveries` 39F6C, whose lines (one per delivery, 0x40 too, choices: their own topic) end on a goodbye
+(39F81, flags 0x1). All three topics are in `WiCourierMainBranch` 39FBF, a blocking branch (DNAM 2).
+
+```text
+StartDialogue 35282 (greeting info)
+  BuildList 35287: the greeting's choices -> [WICourierDeliveries]
+  show menu; greeting topic in a blocking/exclusive branch (25552, branch flags & 6)? no list shown (no 52857)
+Advance 35285, the said line's responses done
+  said info (lastSelectedDialogue +0x38 -> info) flags 0x40 "Invisible Continue":
+    BuildList 35287, the first option selected (head and subtype-1 topics skipped), SaySelected 35283: no list shown
+  else: forceGoodbye or a goodbye info (0x1) -> shutMenu; else BuildList + show (52857) + voice ready (52858)
+```
+
+- `TESTopicInfo` flags (+0x3C): 0x40 is xEdit's "Invisible Continue" (CommonLibSSE-NG's `kEndRunningScene` is wrong
+  there), 0x100 "Walk Away Invisible in Menu".
+- The other hidden case: the list build (35287, read) sets an option's `hidden` (+0x4A) when it is the said line's walk-away
+  topic (INFO `TWAT`, the global map read by 35321, which EndDialogue says when a choices list is left) and the line has
+  0x100. The `Dialogue` constructor (35254) clears it; nothing else writes it. Our party lists do not carry it yet: no
+  playtest has met it (190 vanilla lines have 0x100, the Civil War finale and bounty collectors among them).
+- Starting `WICourier` takes the Story Manager: its Location alias comes from a Change Location event (node
+  `WICourierNodeSharesEvent` 39FBD: `WIEventsEnabled` and `WICourierItemCount` ≥ 1, a habitation, not a dwelling), and
+  its lines exist only once it runs (25086, above). `startquest WICourier` fails to fill the alias.
+
+Our bug: the host sent every start's list as its step (`HostConversation::OnOpen` → `SendOptions`) and every menu,
+the host's own too, refilled with it (`DialogueService::ShowPartyList`), while the host's engine said the deliveries
+itself. The host now sends no list while the said line continues invisibly (`IDialogueBridge::IsContinued`, the check
+Advance makes); the step's list is the next one the engine shows (52857, `OnListBuilt`). Measured on the duo: before,
+both menus offered the continue topic; after, neither did, and the courier's lines ended the conversation for both.
+GameTests "A courier's force greet continues on its own: no menu offers its hidden next line" (the fake's
+`InvisibleContinue`), verb `expect_no_list_offered`.

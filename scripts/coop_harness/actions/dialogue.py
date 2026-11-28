@@ -2,6 +2,7 @@
 import contextlib
 import math
 import re
+import time
 from ..common import (
     TURN_SAMPLES,
     ACTIVATE_KEY,
@@ -81,6 +82,22 @@ class DialogueActions:
     def list_shown(ctx, instance):
         """That game's dialogue menu shows its list: the arrow keys move the highlight (eMenuState TOPIC_LIST_SHOWN)."""
         return (ctx.dialogue(instance).get("swf") or {}).get("state") == 1
+
+
+    def expect_no_list_offered(ctx, speaker, timeout=60):
+        """Once `speaker` greets the party (both menus open on it, within `timeout`), no menu offers a list while that
+        conversation lasts: what the engine says by itself (an Invisible Continue line's choices, 35285) is never a
+        list to pick from."""
+        ctx.wait_for(f"{speaker:X} talks to both players",
+                     lambda: ctx.talking_to("", speaker) and ctx.talking_to("client", speaker), timeout)
+        deadline = time.monotonic() + timeout
+        while any(ctx.dialogue(game).get("speaker") == speaker for game in ("", "client")):
+            if time.monotonic() > deadline:
+                raise ctx.failure(f"{speaker:X}'s conversation still runs after {timeout} s")
+            for game in ("", "client"):
+                if ctx.list_shown(game):
+                    raise ctx.failure(f"[{game or 'host'}] the menu offers {ctx.options_shown(game)} while {speaker:X} "
+                                      "says its lines on its own")
 
 
     def cursor(ctx, instance):

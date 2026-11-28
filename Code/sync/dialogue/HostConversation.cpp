@@ -243,6 +243,13 @@ void HostConversation::SendOptions() noexcept
     auto& bridge = m_dialogue.Bridge();
     if (!m_dialogue.Conversation() || !bridge.GetSpeaker())
         return;
+    // The engine says this list's first line itself (Invisible Continue): its next shown list is the step's.
+    if (bridge.IsContinued())
+    {
+        spdlog::info("Dialogue: step {} of conversation {}: the line continues on its own, no list yet", m_dialogue.Step(),
+                     m_dialogue.Conversation());
+        return;
+    }
 
     DialogueOptionsRequest request;
     request.Conversation = m_dialogue.Conversation();
