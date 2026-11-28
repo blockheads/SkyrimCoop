@@ -50,6 +50,13 @@ void Poll()
     if (harness.Files.Directory().empty())
         return;
     EngineCalls::EndConsolePauses();
+    // A frame on a destroyed window resizes a swap chain it no longer has (docs/re/systems/game-window.md).
+    static bool s_windowGone = false;
+    if (const HWND cWindow = EngineCalls::GameWindow(); cWindow && !s_windowGone && !IsWindow(cWindow))
+    {
+        s_windowGone = true;
+        spdlog::error("Harness: a frame ran after the game's window was destroyed");
+    }
     if (!harness.CommandsStarted)
     {
         harness.CommandsStarted = true;

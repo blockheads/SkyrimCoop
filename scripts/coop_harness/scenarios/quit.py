@@ -55,7 +55,16 @@ def quit_to_desktop(ctx, instance, *, main_menu):
         raise ctx.failure(f"Quit confirmation refused: {response.get('error')}")
 
 
-def reproduce(ctx, args, *, main_menu, game):
+WINDOW_GONE = "a frame ran after the game's window was destroyed"
+
+
+def close_game_window(ctx, instance):
+    """The window's X button (WM_CLOSE, as Alt+F4 sends it too) while the loaded game plays."""
+    ctx.wait_for("the loaded game takes input", lambda: "HUD Menu" in ctx.menus(instance) and ctx.takes_input(instance), 15)
+    ctx.player_command(instance, {"cmd": "close_window"})
+
+
+def reproduce(ctx, args, *, main_menu, game, close_window=False):
     # A solo recipe owns only games it starts; refuse before deployment or cleanup can touch a live game.
     for other in ctx.games:
         if ctx.prefix_processes(_game=other):
@@ -68,7 +77,7 @@ def reproduce(ctx, args, *, main_menu, game):
         return set(ctx.crash_logs(game.name)) | raw
 
     for run in range(args.runs):
-        directory = ctx.new_run_dir("quit-main-menu" if main_menu else "quit-in-game")
+        directory = ctx.new_run_dir("quit-close-window" if close_window else "quit-main-menu" if main_menu else "quit-in-game")
         boot = SimpleNamespace(**vars(args))
         boot.main_menu = main_menu
         boot.save = None
@@ -76,10 +85,18 @@ def reproduce(ctx, args, *, main_menu, game):
         try:
             ctx.launch(boot, directory, _game=game)
             pid = ctx.game_process(game.name)
-            quit_to_desktop(ctx, game.name, main_menu=main_menu)
+            plugin_log = ctx.plugin_log(game.name)
+            launched_at = plugin_log.stat().st_size if plugin_log.exists() else 0  # earlier launches' lines stay in it
+            if close_window:
+                close_game_window(ctx, game.name)
+            else:
+                quit_to_desktop(ctx, game.name, main_menu=main_menu)
             ctx.wait_for("Skyrim exits after confirming Quit", lambda: ctx.game_exited(game.name, pid), 30, _game=game)
             if crashes := crash_files() - before:
                 raise ctx.failure(f"Quit crashed: {sorted(crashes)[-1]}")
+            # On Windows that frame crashes resizing the swap chain; DXVK lets it pass, so the log is the check.
+            if close_window and WINDOW_GONE in plugin_log.read_bytes()[launched_at:].decode(errors="replace"):
+                raise ctx.failure("a frame ran after the window was destroyed (Windows crashes there)")
         finally:
             original = sys.exc_info()[1]
             stopped = ctx.stop_game(_game=game)
@@ -92,4 +109,5 @@ def reproduce(ctx, args, *, main_menu, game):
                     raise error
                 ctx.cleanup_errors.append(error)
                 log(f"Cleanup failed: {error}")
-        log(f"PASS quit {'from the main menu' if main_menu else 'from in-game'} ({run + 1}/{args.runs})")
+        how = "by closing the window" if close_window else "from the main menu" if main_menu else "from in-game"
+        log(f"PASS quit {how} ({run + 1}/{args.runs})")

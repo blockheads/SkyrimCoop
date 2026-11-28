@@ -6,6 +6,7 @@
 
 #include "BSGraphics/BSGraphicsRenderer.h"
 #include "BSRandom/BSRandom.h"
+#include <Main.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <VersionDb.h>
@@ -52,7 +53,16 @@ void (*Renderer_Init)(Renderer*, BSGraphics::RendererInitOSData*, const BSGraphi
 // WNDPROC seems to be part of the renderer
 LRESULT CALLBACK Hook_WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-
+    // Closing the window (its X, Alt+F4) quits as qqq does, the window kept: the game's WindowProc (36649) lets it
+    // be destroyed first, and the frame still run after it resizes its swap chain (docs/re/systems/game-window.md).
+    if (uMsg == WM_CLOSE)
+    {
+        if (Main* pMain = Main::Get())
+        {
+            pMain->quitGame = true;
+            return 0;
+        }
+    }
     return RealWndProc(hwnd, uMsg, wParam, lParam);
 }
 

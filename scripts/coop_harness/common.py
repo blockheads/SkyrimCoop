@@ -374,6 +374,7 @@ UNSYNCED_LINE = re.compile(r"^\[([^\]]+)\].*Reference sync: change flags ([0-9A-
 REPROS = {
     "quit-main-menu": ("QASmoke", []),
     "quit-in-game": ("QASmoke", []),
+    "quit-close-window": ("QASmoke", []),
     "qasmoke-exit": ("QASmoke", ["player.placeatme 000A2C8E", "coc Riverwood"]),
     # The same with the console open, as when typed (vanilla does not crash that way).
     "qasmoke-exit-console": ("QASmoke", ["player.placeatme 000A2C8E", "@show Console", "coc Riverwood"]),

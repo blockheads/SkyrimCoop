@@ -883,4 +883,6 @@ ScreenState GetScreenState() noexcept;
 // Queues a Papyrus call as a script's (GlobalCall): a global function, or a method on aSelf's script object.
 bool QueuePapyrusCall(const std::string& acClass, const std::string& acFunction, std::optional<uint32_t> aSelf, const std::vector<LocalValue>& acArguments,
                       std::function<void(LocalValue)> aOnReturn = {}) noexcept;
+// The game's window (Renderer window 0), or null before the renderer made it.
+HWND GameWindow() noexcept;
 } // namespace TestHarness::EngineCalls

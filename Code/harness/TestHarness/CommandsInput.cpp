@@ -108,6 +108,15 @@ nlohmann::json Interrupt(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "close_window"}: the window gets WM_CLOSE, as its X button or Alt+F4 sends it (the game quits).
+nlohmann::json CloseWindow(Harness&, const nlohmann::json&)
+{
+    const HWND cWindow = EngineCalls::GameWindow();
+    if (!cWindow || !PostMessageA(cWindow, WM_CLOSE, 0, 0))
+        return Error("no game window");
+    return Ok();
+}
+
 constexpr Command cCommands[] = {
     {"input", true, &Input},
     {"key", false, &Key},
@@ -117,6 +126,7 @@ constexpr Command cCommands[] = {
     {"ui_element", false, &UiElement},
     {"clipboard", false, &Clipboard},
     {"interrupt", false, &Interrupt},
+    {"close_window", false, &CloseWindow},
 };
 } // namespace
 
