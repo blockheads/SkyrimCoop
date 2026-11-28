@@ -3,9 +3,13 @@
 #include <Messages/WorldState.h>
 #include <world/EnabledRow.h>
 
-#include <format>
+#include <spdlog/spdlog.h>
 
+#include <cstring>
+#include <format>
 #include <string>
+#include <string_view>
+#include <vector>
 
 // World-state messages as one log line each (host sends, guest applies or proposes): what a scenario's failure
 // digest shows of them.
@@ -60,5 +64,18 @@ template <class T, class F> std::string List(const std::vector<T>& acItems, F aD
     if (acItems.size() > aMax)
         text += std::format("; and {} more", acItems.size() - aMax);
     return text;
+}
+
+// Live object changes: a script's TranslateTo moves its reference every frame (18898), so moves go at debug.
+inline void LogLive(std::string_view aWhat, const std::vector<ObjectChange>& acChanges)
+{
+    std::vector<const ObjectChange*> others, moves;
+    for (const auto& cChange : acChanges)
+        (cChange.Type == ObjectChange::Kind::kMove ? moves : others).push_back(&cChange);
+    const auto cDescribe = [](const ObjectChange* apChange) { return Describe(*apChange); };
+    if (!others.empty())
+        spdlog::info("{} {} object changes: {}", aWhat, others.size(), List(others, cDescribe, 16));
+    if (!moves.empty())
+        spdlog::debug("{} {} moves: {}", aWhat, moves.size(), List(moves, cDescribe, 16));
 }
 } // namespace WorldStateLog

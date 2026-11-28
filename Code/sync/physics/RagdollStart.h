@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <map>
+#include <utility>
 #include <vector>
 
 // How a copy's ragdoll takes up its authority's frames: its joints tie its bodies, so they go together. Where each was
@@ -28,6 +29,8 @@ public:
     {
         bool Place{};                   // one body past kPlaceFar: the whole ragdoll is put on its targets, else steered
         std::vector<BodyFrame> Targets; // per body: where, and how it moves there
+        uint32_t Places{};              // updates in a row it was put, this one included (1: the first)
+        uint32_t EndedPlaces{};         // a steer: the run of puts it ends
     };
 
     [[nodiscard]] Plan Next(const std::vector<Body>& acBodies, uint64_t aNow)
@@ -47,9 +50,15 @@ public:
             plan.Targets.clear();
             for (const Body& cBody : acBodies)
                 plan.Targets.push_back(cBody.Frame);
+            plan.Places = ++m_places;
         }
+        else
+            plan.EndedPlaces = std::exchange(m_places, 0);
         return plan;
     }
+
+    // Updates in a row its last plans put it (its start ending at a rest).
+    [[nodiscard]] uint32_t Places() const noexcept { return m_places; }
 
 private:
     struct Gap
@@ -59,6 +68,7 @@ private:
         uint64_t Since{};
     };
     std::map<uint8_t, Gap> m_gaps;
+    uint32_t m_places{};
 
     [[nodiscard]] BodyFrame Target(BodyFrame aFrame, uint64_t aNow) const
     {
