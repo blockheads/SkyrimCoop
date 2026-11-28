@@ -36,10 +36,11 @@ struct FakeDialogue final : IDialogueBridge
     // in this game (TESQuest 25086 reads a quest's lines when it starts; re/systems/dialogue.md). Lines not listed
     // always exist.
     std::map<uint32_t, uint32_t> LineQuest;
-    // Invisible Continue lines (by info, TESTopicInfo flags 0x40): once said, the engine builds their choices and says
-    // the first itself (Advance 35285), showing no list; a greeting so flagged in a blocking branch shows none either
-    // (StartDialogue 35282, 25552). re/systems/dialogue.md, "Invisible Continue".
+    // Invisible Continue lines (by info, flags 0x40): 35285 says their first choice itself. Goodbyes (0x1) end it.
     std::set<uint32_t> InvisibleContinue;
+    std::set<uint32_t> Goodbyes;
+    // The greeting's topic is in a blocking branch: its list is not shown during it (35282, 25552).
+    bool GreetingBlocks = true;
     std::function<bool(uint32_t aQuest)> DialogueLoaded = [](uint32_t) { return true; };
     [[nodiscard]] bool LineExists(const Option& acOption) const
     {
@@ -254,10 +255,15 @@ struct FakeDialogue final : IDialogueBridge
         // NPC's last line").
         if (OnGreeting && StillTalking != aActorFormId)
             OnGreeting();
-        if (InvisibleContinue.contains(aGreeting ? aGreeting : GreetingInfo))
+        if (!InvisibleContinue.contains(aGreeting ? aGreeting : GreetingInfo))
+            Build(Greeting);
+        else if (GreetingBlocks)
             BuildContinued(Greeting);
         else
-            Build(Greeting);
+        {
+            Build(Greeting); // shown during the greeting, then said all the same
+            m_continues = true;
+        }
         return true;
     }
     bool ShowMenu() noexcept override
@@ -450,7 +456,7 @@ struct FakeDialogue final : IDialogueBridge
         if (OnSaid)
             OnSaid(Said.back());
         const auto cNext = After.find(acOption.Topic);
-        if (cNext == After.end() || cNext->second.empty())
+        if (cNext == After.end() || cNext->second.empty() || Goodbyes.contains(acOption.Info))
         {
             End();
             return;

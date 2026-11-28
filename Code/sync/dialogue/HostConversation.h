@@ -70,6 +70,8 @@ private:
     uint32_t m_speaker{};
     // Picked: the next list the engine builds, once the NPC has answered, is the next step's.
     bool m_awaitingList{};
+    // The engine showed a list (52857) since the start or the last pick (any thread).
+    std::atomic<bool> m_engineShowed{};
 
     // The engine's last build as sent: its own list and each player's.
     DialogueOptionsRequest m_built;

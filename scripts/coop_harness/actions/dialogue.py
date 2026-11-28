@@ -84,20 +84,24 @@ class DialogueActions:
         return (ctx.dialogue(instance).get("swf") or {}).get("state") == 1
 
 
-    def expect_no_list_offered(ctx, speaker, timeout=60):
+    def expect_no_list_offered(ctx, speaker, says, timeout=60):
         """Once `speaker` greets the party (both menus open on it, within `timeout`), no menu offers a list while that
-        conversation lasts: what the engine says by itself (an Invisible Continue line's choices, 35285) is never a
-        list to pick from."""
+        conversation lasts, and the host's engine says line `says` in it: what the engine says by itself (an Invisible
+        Continue line's choices, 35285) is never a list to pick from."""
         ctx.wait_for(f"{speaker:X} talks to both players",
                      lambda: ctx.talking_to("", speaker) and ctx.talking_to("client", speaker), timeout)
-        deadline = time.monotonic() + timeout
+        deadline, said = time.monotonic() + timeout, set()
         while any(ctx.dialogue(game).get("speaker") == speaker for game in ("", "client")):
+            said.add(ctx.dialogue("").get("current_info"))
             if time.monotonic() > deadline:
                 raise ctx.failure(f"{speaker:X}'s conversation still runs after {timeout} s")
             for game in ("", "client"):
                 if ctx.list_shown(game):
                     raise ctx.failure(f"[{game or 'host'}] the menu offers {ctx.options_shown(game)} while {speaker:X} "
                                       "says its lines on its own")
+        if says not in said:
+            raise ctx.failure(f"{speaker:X}'s conversation ended without line {says:X} (said: "
+                              + ", ".join(f"{info:X}" for info in sorted(said - {0, None})) + ")")
 
 
     def cursor(ctx, instance):

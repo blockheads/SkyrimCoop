@@ -702,7 +702,8 @@ Advance 35285, the said line's responses done
   there), 0x100 "Walk Away Invisible in Menu".
 - The other hidden case: the list build (35287, read) sets an option's `hidden` (+0x4A) when it is the said line's walk-away
   topic (INFO `TWAT`, the global map read by 35321, which EndDialogue says when a choices list is left) and the line has
-  0x100. The `Dialogue` constructor (35254) clears it; nothing else writes it. Our party lists do not carry it yet: no
+  0x100. The only writes to +0x4A in the dialogue code (0x1405D0000 to 0x140610000 scanned in IDA): this one, and
+  clears in the `Dialogue` constructors (35254, and the empty one 35253). Our party lists do not carry it yet: no
   playtest has met it (190 vanilla lines have 0x100, the Civil War finale and bounty collectors among them).
 - Starting `WICourier` takes the Story Manager: its Location alias comes from a Change Location event (node
   `WICourierNodeSharesEvent` 39FBD: `WIEventsEnabled` and `WICourierItemCount` ≥ 1, a habitation, not a dwelling), and
@@ -710,8 +711,13 @@ Advance 35285, the said line's responses done
 
 Our bug: the host sent every start's list as its step (`HostConversation::OnOpen` → `SendOptions`) and every menu,
 the host's own too, refilled with it (`DialogueService::ShowPartyList`), while the host's engine said the deliveries
-itself. The host now sends no list while the said line continues invisibly (`IDialogueBridge::IsContinued`, the check
-Advance makes); the step's list is the next one the engine shows (52857, `OnListBuilt`). Measured on the duo: before,
+itself. At the open the host now sends no list while the said line continues invisibly (`IDialogueBridge::IsContinued`,
+the check Advance makes, `DialogueMenuPolicy::OffersList`), and a guest's skip then moves the line on as the host's own
+would. A list the engine does show is always sent: a flagged greeting outside a blocking branch (Barbas's
+`DA03BarbasGreet` 1C4D9: 35282 shows it during the greeting, read at 0x5EFB45-0x5EFB5E) and Advance's fallback when no
+choice can be said (0x5F0164 to the build and show at 0x5F01BD). Measured on the duo: before,
 both menus offered the continue topic; after, neither did, and the courier's lines ended the conversation for both.
-GameTests "A courier's force greet continues on its own: no menu offers its hidden next line" (the fake's
-`InvisibleContinue`), verb `expect_no_list_offered`.
+GameTests "A courier's force greet continues on its own: no menu offers its hidden next line" (a self-linked delivery,
+then the goodbye; a guest's skip) and "A greeting that continues on its own but shows its list" (the fake's
+`InvisibleContinue`, `Goodbyes`, `GreetingBlocks`), UnitTests `OffersList`, verb `expect_no_list_offered` (with the
+goodbye 39F81 as its milestone).

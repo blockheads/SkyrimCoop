@@ -12,6 +12,6 @@ def run(ctx):
         ctx.console_on('', 'set WIEventsEnabled to 1')
         ctx.console_on('', 'set WICourierItemCount to 1')
         ctx.scene(save=None, at='coc Riverwood', pin=True)
-        ctx.expect_no_list_offered(speaker=237495)
+        ctx.expect_no_list_offered(speaker=237495, says=0x39F81)  # the goodbye: the deliveries were said
     finally:
         ctx.unstage()

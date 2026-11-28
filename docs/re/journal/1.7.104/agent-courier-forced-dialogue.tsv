@@ -17,3 +17,6 @@ time	op	id	rva	item
 2026-11-28T02:24:29Z	comment		0x5f061e	{"addr": "0x1405f061e", "comment": "Choices: the hidden byte +0x4A is set for the said info's walk-away topic (35321 map) when the info has flags 0x100 (Walk Away Invisible in Menu)."}
 2026-11-28T02:24:29Z	comment		0x5ed874	{"addr": "0x1405ed874", "comment": "hidden (+0x4A) = 0; only BuildList 35287 sets it."}
 2026-11-28T02:36:36Z	read	37200	0x672e30	{"name": "Actor::SetDialogueWithPlayer"}
+2026-11-28T03:05:42Z	read	35253	0x5ed6b0	{"name": "sub_1405ED6B0"}
+2026-11-28T03:05:48Z	name	35253	0x5ed6b0	{"addr": "0x1405ed6b0", "name": "MenuTopicManager::Dialogue::DialogueEmpty"}
+2026-11-28T03:05:49Z	comment	35253	0x5ed6b0	{"addr": "0x1405ed6b0", "comment": "35253: the Dialogue option's empty constructor: every field cleared, hidden (+0x4A) included, the text set empty."}
