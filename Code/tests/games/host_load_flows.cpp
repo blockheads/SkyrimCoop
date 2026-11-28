@@ -5,6 +5,7 @@
 #include <core/MenuEvent.h>
 #include <core/SessionNoticeEvent.h>
 #include <join/JoinService.h>
+#include <join/SaveNames.h>
 #include <join/SaveService.h>
 #include <join/SaveTransfer.h>
 
@@ -152,14 +153,19 @@ SCENARIO("A host load makes the chosen save's character the engine's, as loading
 {
     Party party(1, Plugins);
     auto& host = Party::Engine(party.Host());
-    const std::string cChosen = "Save12_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    // A modded game's save: the engine's character is {id, modded}, both from the name (35749 compares both).
+    const std::string cChosen = "Save12_0BADF00D_1_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    host.CharacterModded = true;
+    host.CharacterId = 0x0BADF00D; // the playthrough the host plays: its own saves are named with it
     Save(party, cChosen);
-    host.CharacterId = 0xABC467A6;
     party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads(cChosen)); });
     party.Until([&] { return host.Loaded.size() == 1 && party.Host().GetTransport().IsOnline(); },
                 "the host loads the chosen save under the scratch name");
     CHECK(host.Loaded.back() == "SkyrimCoopWipe");
     CHECK(host.CharacterId == 0x0BADF00D);
+    CHECK(host.CharacterModded);
+    party.Frame();
+    CHECK(host.LoadList() == std::vector<std::string>{cChosen});
 }
 
 SCENARIO("A guest's own loads are refused with a chat reason, including internal-looking names", "[load]")
@@ -406,4 +412,156 @@ SCENARIO("A guest whose held save is damaged still loads a save it was never sen
     CHECK_FALSE(cMetrics.AgainstHeld);
     CHECK_FALSE(guestEngine.References.at(0xECA).Locked);
     CHECK(Holds(guest, ImageOf(party, "OldSave")));
+}
+
+// The main menu's Continue loads the newest save of any character, and the Journal's Load list shows the current
+// character's (save-game.md, "Continue"): a scratch save left behind is both. Continue stays vanilla's: the newest
+// players' save, whichever playthrough it is.
+SCENARIO("After a host load, Continue and the Load list keep to the newest player save's playthrough", "[load][saves]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    const std::string cOther = "Save3_0C0FFEE0_0_4C79646961_RiftenWorld_000050_20261101120000_1_1";
+    const std::string cChosen = "Save12_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    host.CharacterId = 0x0BADF00D; // the playthrough the host plays: its own saves are named with it
+    Save(party, cOther);
+    Save(party, cChosen);
+    // The guest's own game's save, from before it joined.
+    guest.SavedFiles[std::string("Save1_0DEADBEE_0_4C79646961_Tamriel_000005_20261020100000_1_1")] = host.SavedFiles.at(cOther);
+
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads(cChosen)); });
+    Reloads(party, 1, "the party loads the chosen save and rejoins");
+    THEN("no game keeps a scratch save, and the host's list is the chosen character's")
+    {
+        for (const char* cpScratch : SaveNames::kScratch)
+        {
+            CHECK_FALSE(host.SavedFiles.contains(cpScratch));
+            CHECK_FALSE(guest.SavedFiles.contains(cpScratch));
+        }
+        CHECK(host.LoadList() == std::vector<std::string>{cChosen});
+    }
+
+    WHEN("each player quits to the main menu and presses Continue")
+    {
+        for (auto* pEngine : {&host, &guest})
+            pEngine->AtMainMenu = true;
+        party.Frame();
+        party.As(party.Host(), [&] { REQUIRE(host.Continues()); });
+        party.As(party.Guest(), [&] { REQUIRE(guest.Continues()); });
+        party.Until([&] { return host.Loaded.size() == 2 && guest.Loaded.size() == 2; }, "both games load the newest save");
+        THEN("the host continues the chosen playthrough, the guest its own game")
+        {
+            CHECK(host.Loaded.back() == cChosen);
+            CHECK(host.CharacterId == 0x0BADF00D);
+            CHECK(host.LoadList() == std::vector<std::string>{cChosen});
+            CHECK(guest.Loaded.back() == "Save1_0DEADBEE_0_4C79646961_Tamriel_000005_20261020100000_1_1");
+            CHECK(guest.CharacterId == 0x0DEADBEE);
+        }
+    }
+}
+
+SCENARIO("A scratch save left by an earlier run is gone before the player can press Continue", "[load][saves]")
+{
+    Party party(0, Plugins);
+    auto& host = Party::Engine(party.Host());
+    const std::string cOwn = "Save2_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    Save(party, cOwn);
+    for (const char* cpScratch : SaveNames::kScratch)
+        host.WritesSaveFile(cpScratch, host.SavedFiles.at(cOwn));
+    host.AtMainMenu = true;
+    party.Frame();
+    for (const char* cpScratch : SaveNames::kScratch)
+        CHECK_FALSE(host.SavedFiles.contains(cpScratch));
+    party.As(party.Host(), [&] { REQUIRE(host.Continues()); });
+    party.Until([&] { return host.Loaded.size() == 1; }, "Continue loads the newest save");
+    CHECK(host.Loaded.back() == cOwn);
+}
+
+SCENARIO("After a host load of an older playthrough, Continue takes the newest player save and its list alone", "[load][saves]")
+{
+    Party party(0, Plugins);
+    auto& host = Party::Engine(party.Host());
+    const std::string cChosen = "Save12_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    host.CharacterId = 0x0BADF00D; // the playthrough the host plays: its own saves are named with it
+    const std::string cOther = "Save3_0C0FFEE0_0_4C79646961_RiftenWorld_000050_20261109120000_1_1";
+    Save(party, cChosen);
+    Save(party, cOther);
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads(cChosen)); });
+    Reloads(party, 1, "the host loads the older playthrough's save");
+    CHECK(host.LoadList() == std::vector<std::string>{cChosen});
+    host.AtMainMenu = true;
+    party.Frame();
+    party.As(party.Host(), [&] { REQUIRE(host.Continues()); });
+    party.Until([&] { return host.Loaded.size() == 2; }, "Continue loads the newest save");
+    CHECK(host.Loaded.back() == cOther);
+    CHECK(host.CharacterId == 0x0C0FFEE0);
+    CHECK(host.LoadList() == std::vector<std::string>{cOther});
+}
+
+SCENARIO("A join whose save is only partly written leaves no scratch save for Continue", "[join][saves]")
+{
+    Party party(1, Plugins, false);
+    auto& guest = Party::Engine(party.Guest());
+    guest.FailsCoSaveWrite = true; // brings its own character, so the host's save comes
+    party.As(party.Guest(), [&] { REQUIRE(party.Guest().ctx().at<JoinService>().Join(std::format("127.0.0.1:{}", party.Host().GetHostService().GetNetwork()->GetPort()))); });
+    party.Until([&] { return !party.Guest().ctx().at<JoinService>().IsJoining(); }, "the join fails writing the host's save");
+    CHECK(party.Guest().ctx().at<JoinService>().GetStatus().Reason == "transfer_failed");
+    CHECK_FALSE(guest.SavedFiles.contains(SaveNames::kJoin));
+    CHECK(guest.Loaded.empty());
+}
+
+// In a game the Journal's Load lists only the loaded playthrough (SaveListHooks.cpp: whatever row the player picks,
+// BuildSaveList takes the current character; other characters' rows and "Show all saves" are gone).
+SCENARIO("In a game the Journal lists and loads only the loaded playthrough's saves", "[load][saves]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    const std::string cOther = "Save3_0C0FFEE0_0_4C79646961_RiftenWorld_000050_20261101120000_1_1";
+    const std::string cChosen = "Save12_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    host.CharacterId = 0x0BADF00D; // the playthrough the host plays: its own saves are named with it
+    Save(party, cOther);
+    Save(party, cChosen);
+    guest.SavedFiles[std::string("Save1_0DEADBEE_0_4C79646961_Tamriel_000005_20261020100000_1_1")] = host.SavedFiles.at(cOther);
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads(cChosen)); });
+    Reloads(party, 1, "the party loads the chosen save");
+    party.Frame();
+
+    THEN("the host's list and rows are the chosen character's, whatever row it picks")
+    {
+        CHECK(host.SaveListLimit == SaveList::Limit::kCurrent);
+        for (const uint32_t cPicked : {0x0BADF00Du, 0x0C0FFEE0u, SaveList::kAllCharacters})
+            CHECK(host.LoadList(cPicked) == std::vector<std::string>{cChosen});
+        CHECK(host.CharacterRows() == std::vector<uint32_t>{0x0BADF00D});
+    }
+    THEN("a guest, which loads nothing itself, lists nothing")
+    {
+        CHECK(guest.SaveListLimit == SaveList::Limit::kNothing);
+        CHECK(guest.LoadList().empty());
+        CHECK(guest.CharacterRows().empty());
+    }
+    WHEN("the host's console loads another playthrough's save")
+    {
+        Notices notices(party.Host());
+        party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads(cOther)); });
+        party.Frame();
+        THEN("it is refused and says why")
+        {
+            CHECK(notices.Lines == std::vector<std::string>{SaveService::kOtherPlaythrough});
+            CHECK(host.Loaded.size() == 1);
+            CHECK(party.Host().GetTransport().IsOnline());
+        }
+    }
+    WHEN("the host is back at the main menu")
+    {
+        host.AtMainMenu = true;
+        party.Frame();
+        THEN("every playthrough is listed again")
+        {
+            CHECK(host.SaveListLimit == SaveList::Limit::kAll);
+            CHECK(host.LoadList(SaveList::kAllCharacters).size() == 2);
+            CHECK(host.CharacterRows().size() == 3);
+        }
+    }
 }

@@ -23,7 +23,7 @@
 
 namespace
 {
-constexpr const char* kReloadSave = "SkyrimCoopWipe";
+constexpr const char* kReloadSave = SaveNames::kReload;
 constexpr const char* kChosenMissing = "The selected save could not be read. Choose another save.";
 constexpr const char* kLoadFailed = "The save could not be loaded. Choose a save or return to the menu.";
 } // namespace
@@ -67,7 +67,7 @@ void HostService::LoadSave(const std::string& acName) noexcept
     if (!IsHosting() || m_loadingSave || m_checkpoint)
         return;
     m_checkpoint = m_world.ctx().at<IJoinBridge&>().ReadSave(acName);
-    m_checkpointCharacter = SaveNames::CharacterId(acName);
+    m_checkpointCharacter = SaveNames::CharacterOf(acName);
     if (!m_checkpoint)
     {
         m_dispatcher.trigger(SessionNoticeEvent{kChosenMissing});
@@ -101,7 +101,10 @@ void HostService::UpdateReload() noexcept
     m_loadingSave = true;
     m_world.GetTransport().Close();
     if (!m_world.ctx().at<IJoinBridge&>().WriteAndLoad(kReloadSave, *m_checkpoint))
+    {
+        m_world.ctx().at<IJoinBridge&>().DeleteSave(kReloadSave); // a part may be written
         OnGameLoadFailed(GameLoadFailedEvent{kReloadSave});
+    }
 }
 
 void HostService::OnGameLoaded(const GameLoadedEvent&) noexcept

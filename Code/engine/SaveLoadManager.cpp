@@ -91,12 +91,12 @@ std::filesystem::path BGSSaveLoadManager::SaveFilePath(const char* apName) noexc
     return path;
 }
 
-void BGSSaveLoadManager::SetCurrentCharacter(uint32_t aCharacterId) noexcept
+void BGSSaveLoadManager::SetCurrentCharacter(uint32_t aCharacterId, bool aModded) noexcept
 {
     // The engine's {id, modded} pair (CommonLibSSE-NG currentCharacterID, currentCharacterModded).
     using TSetCurrent = void(BGSSaveLoadManager*, const uint32_t*);
     POINTER_SKYRIMSE(TSetCurrent, s_setCurrent, 35751);
-    const uint32_t cPair[2]{aCharacterId, currentCharacterModded};
+    const uint32_t cPair[2]{aCharacterId, aModded ? 1u : 0u};
     s_setCurrent(this, cPair);
 }
 

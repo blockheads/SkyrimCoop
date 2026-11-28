@@ -760,7 +760,7 @@ class LoadMenu(unittest.TestCase):
     def saves(self, root):
         saves = Path(root) / "Saves"
         saves.mkdir()
-        for name in ("SkyrimCoopWipe.ess", "SkyrimCoopWipe.skse", "Quicksave0.ess", "Quicksave0.skse"):
+        for name in ("Quicksave0.ess", "Quicksave0.skse"):
             (saves / name).touch()
         return saves
 
@@ -771,12 +771,6 @@ class LoadMenu(unittest.TestCase):
     def test_a_game_going_straight_to_its_saves_still_loads(self):
         with tempfile.TemporaryDirectory() as root:
             self.assertEqual(self.load(1, self.saves(root)), 2)
-
-    def test_a_reloads_scratch_save_goes_and_the_players_stay(self):
-        with tempfile.TemporaryDirectory() as root:
-            saves = self.saves(root)
-            self.load(1, saves)
-            self.assertEqual(sorted(path.name for path in saves.iterdir()), ["Quicksave0.ess", "Quicksave0.skse"])
 
 
 class PlayFollow(unittest.TestCase):

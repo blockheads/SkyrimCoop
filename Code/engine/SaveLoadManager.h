@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <Primitives.h>
 #include <Misc/BSFixedString.h>
+#include <join/SaveList.h>
 #include <optional>
 #include <string>
 
@@ -57,9 +58,14 @@ struct BGSSaveLoadManager
     static_assert(offsetof(SaveEntry, lastQuicksave) == 0x40);
     static_assert(sizeof(SaveEntry) == 0x48);
     [[nodiscard]] std::string QuickSaveName() noexcept;
-    // SetCurrentCharacter (35751): current and display character, as a load sets them; the modded flag kept.
-    void SetCurrentCharacter(uint32_t aCharacterId) noexcept;
+    // SetCurrentCharacter (35751): current and display character {id, modded}, as a load sets them from the save's
+    // name. Both count: a modded flag other than the game's makes the next save add a catalogue entry (35749).
+    void SetCurrentCharacter(uint32_t aCharacterId, bool aModded) noexcept;
     static BGSSaveLoadManager* Get() noexcept;
+    // The Journal's save lists from now on (SaveListHooks.cpp: BuildSaveList 35743, the character rows 52917).
+    static void LimitSaveList(SaveList::Limit aLimit) noexcept;
+    // ClearSaveList (35746): saveGameList emptied, to be built again.
+    void ClearSaveList() noexcept;
 
     // Save_Impl(2, 0, name) (35727): a named save, written before it returns; false when the engine refused.
     bool Save(const char* apName) noexcept;

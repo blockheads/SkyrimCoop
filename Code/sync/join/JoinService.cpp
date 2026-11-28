@@ -156,6 +156,14 @@ void JoinService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
     PROFILE_ZONE("JoinService::OnUpdate");
     m_bridge.FinishWork();
+    // Leftovers (a crash mid-load, an older build) go before the player can press Continue.
+    const bool cAtMainMenu = m_bridge.IsAtMainMenu();
+    if (cAtMainMenu && !m_atMainMenu)
+        DropScratchSaves();
+    m_atMainMenu = cAtMainMenu;
+    const auto cLimit = SaveList::For(cAtMainMenu, m_world.GetTransport().IsConnected() && !m_world.IsHosting());
+    if (cLimit != std::exchange(m_saveListLimit, cLimit))
+        m_bridge.LimitSaveList(cLimit);
     const auto cCreation = m_bridge.PollCharacterCreation();
     using Creation = IJoinBridge::Creation;
     m_creatingCharacter = cCreation == Creation::kStarting || cCreation == Creation::kCustomizing || cCreation == Creation::kFinalizing;
@@ -348,11 +356,22 @@ void JoinService::LoadImage(const std::string& acImage) noexcept
     m_metrics.WriteMs = Since(m_loadStarted);
     m_loadStarted = Clock::now();
     if (!cWritten)
+    {
+        m_bridge.DeleteSave(kJoinSave); // a part may be written: never one for Continue
         Fail("transfer_failed");
+    }
+}
+
+void JoinService::DropScratchSaves() noexcept
+{
+    for (const char* cpName : SaveNames::kScratch)
+        m_bridge.DeleteSave(cpName);
 }
 
 void JoinService::OnGameLoaded(const GameLoadedEvent&) noexcept
 {
+    // A scratch save, once loaded, is not this game's playthrough.
+    DropScratchSaves();
     if (m_step == Step::kLoading)
     {
         m_metrics.LoadMs = Since(m_loadStarted);
@@ -526,6 +545,7 @@ void JoinService::OnPartyReload(const NotifyPartyReload& acReload) noexcept
 
 void JoinService::OnGameLoadFailed(const GameLoadFailedEvent& acEvent) noexcept
 {
+    DropScratchSaves();
     if (m_step == Step::kLoading && acEvent.Name == kJoinSave)
         Fail("transfer_failed");
 }

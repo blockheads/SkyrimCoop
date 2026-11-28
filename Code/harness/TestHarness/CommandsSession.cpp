@@ -215,16 +215,32 @@ nlohmann::json ForgetRecord(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
-// {"cmd": "set_character", "id": n}: the engine's current character, as loading that character's own save sets it.
+// {"cmd": "set_character"[, "id": n, "modded": b]}: the engine's current character, set first (with "id") as loading
+// that character's own save sets it; its id.
 nlohmann::json SetCharacter(Harness&, const nlohmann::json& acRequest)
 {
-    World::Get().ctx().at<IJoinBridge&>().SetCharacter(acRequest.value("id", 0u));
-    return Ok();
+    auto& bridge = World::Get().ctx().at<IJoinBridge&>();
+    if (acRequest.contains("id"))
+        bridge.SetCharacter({acRequest.value("id", 0u), acRequest.value("modded", false)});
+    return {{"ok", true}, {"character", bridge.CurrentCharacter()}};
+}
+
+// {"cmd": "scan_saves"}: the main menu's scan of every save (EngineCalls::ScanAllSaves), under the main menu's list
+// limit (SaveList::kAll) and the game's own again after; the characters of the saves it listed.
+nlohmann::json ScanSaves(Harness&, const nlohmann::json&)
+{
+    auto& world = World::Get();
+    auto& bridge = world.ctx().at<IJoinBridge&>();
+    bridge.LimitSaveList(SaveList::Limit::kAll);
+    const auto cCharacters = EngineCalls::ScanAllSaves();
+    bridge.LimitSaveList(SaveList::For(bridge.IsAtMainMenu(), world.GetTransport().IsConnected() && !world.IsHosting()));
+    return {{"ok", true}, {"characters", cCharacters}};
 }
 
 constexpr Command cCommands[] = {
     {"forget_record", false, &ForgetRecord},
     {"set_character", false, &SetCharacter},
+    {"scan_saves", false, &ScanSaves},
     {"join_world", false, &JoinWorld},
     {"player_record", false, &PlayerRecordOf},
     {"records", false, &Records},

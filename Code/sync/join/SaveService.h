@@ -28,6 +28,7 @@ struct SaveService
     // Player-initiated loads: guests refuse; the host defers to the party reload. Internal transfers bypass this.
     [[nodiscard]] bool OnLoadRequested(const std::string& acName) noexcept;
     static constexpr const char* kLoadRefusal = "Only the host loads saves: your game can't load while you're in a co-op session.";
+    static constexpr const char* kOtherPlaythrough = "That save belongs to another playthrough. Return to the main menu to play it.";
 
     // Whether this game may save now: not as a guest, nor while joining a session.
     [[nodiscard]] bool MaySave() const noexcept;

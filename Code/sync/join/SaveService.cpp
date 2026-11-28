@@ -2,6 +2,8 @@
 
 #include <core/ConnectedEvent.h>
 #include <join/GameSavingEvent.h>
+#include <join/IJoinBridge.h>
+#include <join/SaveNames.h>
 #include <core/SessionNoticeEvent.h>
 #include <core/Hosting.h>
 #include <join/JoinService.h>
@@ -39,6 +41,13 @@ bool SaveService::OnLoadRequested(const std::string& acName) noexcept
     if (!MaySave())
     {
         m_dispatcher.trigger(SessionNoticeEvent{kLoadRefusal});
+        return false;
+    }
+    // In a game only its own playthrough loads, as the Journal lists (SaveList).
+    auto& bridge = m_world.ctx().at<IJoinBridge&>();
+    if (!bridge.IsAtMainMenu() && SaveNames::CharacterId(acName) != bridge.CurrentCharacter())
+    {
+        m_dispatcher.trigger(SessionNoticeEvent{kOtherPlaythrough});
         return false;
     }
     auto& host = m_world.GetHosting();

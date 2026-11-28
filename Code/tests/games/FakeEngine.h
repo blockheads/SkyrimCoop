@@ -164,6 +164,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     PlayerOwnState Own;
     bool RefusesSaves = false;       // Save_Impl's own refusals (combat, a menu)
     std::vector<std::string> Loaded; // the saves this game loaded, by name
+    SaveFiles LoadedFiles;           // the last of them
     bool IsAtMainMenu() const noexcept override { return AtMainMenu; }
     void ReturnToMainMenu() noexcept override { AtMainMenu = true; }
     std::string PlayerId() noexcept override;
@@ -174,12 +175,29 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The engine's main loop between frames, before our update (HookMainLoop's MainLoopTasks).
     void RunMainLoop() noexcept;
     std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
-    // As PreviousGameplaySave: the newest save on disk of CharacterId, not a SkyrimCoop scratch save.
-    void SetCharacter(uint32_t aCharacterId) noexcept override { CharacterId = aCharacterId; }
+    void SetCharacter(SaveNames::Character aCharacter) noexcept override { CharacterId = aCharacter.Id, CharacterModded = aCharacter.Modded; }
+    bool CharacterModded = false; // currentCharacterModded: with the id, the engine's character (35749)
+    uint32_t CurrentCharacter() const noexcept override { return CharacterId; }
+    // As SaveListHooks.cpp: BuildSaveList (35743) and the character rows (52917) under the limit.
+    SaveList::Limit SaveListLimit = SaveList::Limit::kAll;
+    void LimitSaveList(SaveList::Limit aLimit) noexcept override { SaveListLimit = aLimit; }
     // The engine's currentCharacterID: a load sets it from the save's file name (SaveNames::CharacterId, 0 for
     // SkyrimCoopWipe), the engine's own saves are named with it.
     uint32_t CharacterId = 0;
+    // The Saves folder: each save's files and its file time (the order written; a file set by hand is oldest).
     std::map<std::string, SaveFiles> SavedFiles;
+    std::map<std::string, uint64_t> SaveTimes;
+    void WritesSaveFile(const std::string& acName, SaveFiles aFiles);
+    void DeleteSave(const std::string& acName) noexcept override;
+    bool FailsCoSaveWrite = false; // WriteAndLoad writes the .ess, then fails on the .skse
+    // The main menu's Continue (ContinueLastSavedGame 52117, 52898): loads the newest save of any character, by
+    // file time; false when the folder has none.
+    bool Continues();
+    // The Journal's Load list, newest first: LOAD shows the current character's (OpenSaveLoadList 52924), a character
+    // row picked shows aPicked's (52919; SaveList::kAllCharacters for "Show all saves").
+    [[nodiscard]] std::vector<std::string> LoadList(std::optional<uint32_t> aPicked = std::nullopt) const;
+    // The Journal's character rows (FillCharacterList 52890): "Show all saves", then each character with a save.
+    [[nodiscard]] std::vector<uint32_t> CharacterRows() const;
     // As JoinBridge's worker thread, but in step: the work runs at once and what it returns right after, or with
     // DefersWork both wait for the next FinishWork (JoinService's update), as work still running would.
     bool DefersWork = false;
