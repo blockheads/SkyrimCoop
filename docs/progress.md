@@ -307,6 +307,10 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   list was never tagged, so only the other players' copies read "[P] ...". The host's arrival (or, for one held from
   the save, the party's items arriving) now tags it in place, never replacing it (`inventory-changes.md`, "A quest object's party tag"; GameTests "A guest picks up a quest object",
   scenario `golden-claw-party-tag`).
+- **Done 2026-11-28: the console's and Papyrus's UnequipAll took the engine's walk.** The guest crashed in
+  `guest_keeps_own_state_on_reload`'s cleanup (`player.unequipall`): 22352 and `Actor.UnequipAll` call 38899
+  directly, past the 2026-11-27 fix. 38899 itself is hooked now (`UnequipAllHook`, UnitTests `[worn-stacks]`,
+  `inventory-changes.md`, "The engine's own callers").
 - **Done 2026-11-27: UnequipAll's walk read a node its unequip freed.** The engine's `UnequipAll` (38899) walks the
   inventory holding the next node, and an unequip that empties the first entry frees it (16067); our reconcile's reset
   of a copy's worn set ran it. Found by the heap quarantine in the six mount scenarios (the guest's 2026-11-27

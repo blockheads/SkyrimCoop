@@ -166,32 +166,41 @@ static std::vector<WornStack> WornStacksOf(Actor* apActor) noexcept
     return worn;
 }
 
+using TUnEquipAll = void(EquipManager*, Actor*);
+TUnEquipAll* RealUnequipAll = nullptr;
+
 void EquipManager::UnequipAll(Actor* apActor)
 {
-    using TUnEquipAll = void(EquipManager*, Actor*);
     POINTER_SKYRIMSE(TUnEquipAll, s_unequipAll, 38899);
+
+    if (!apActor)
+        return;
+    ScopedEquipOverride equipOverride;
+    s_unequipAll(this, apActor); // through UnequipAllHook
+}
+
+// ActorEquipManager::UnequipAll 38899 from every caller (ours, the console's 22352, Papyrus Actor.UnequipAll): not
+// through its walk (16096), whose unequip can free the node it holds next (WornStacks.h).
+void UnequipAllHook(EquipManager* apThis, Actor* apActor)
+{
+    using TUnequipObject = void*(EquipManager*, Actor*, TESForm*, ExtraDataList*, int, TESForm*, bool, bool, bool, bool, TESForm*);
+    POINTER_SKYRIMSE(TUnequipObject, s_unequipObject, 38901);
     using THandSlot = TESForm*();
     POINTER_SKYRIMSE(THandSlot, s_leftHandSlot, 23607);
     POINTER_SKYRIMSE(THandSlot, s_rightHandSlot, 23608);
 
     if (!apActor)
-        return;
-    ScopedEquipOverride equipOverride;
-
-    // Not through 38899's walk (16096): an unequip can free the node it holds next (WornStacks.h).
-    WornStacks::UnequipAll([apActor] { return WornStacksOf(apActor); },
-                           [this, apActor](const WornStack& acStack)
-                           {
-                               TESForm* pSlot = acStack.Left ? s_leftHandSlot() : s_rightHandSlot();
-                               UnEquip(apActor, acStack.pItem, acStack.pList, acStack.Count, pSlot, false, false, true, false, nullptr);
-                           });
-    // The hands' spells: 38899 with nothing worn left for its walk.
-    if (const auto cLeft = WornStacksOf(apActor); !cLeft.empty())
-    {
-        spdlog::warn("UnequipAll {:X}: {} worn stacks stayed; the hands' spells kept", apActor->formID, cLeft.size());
-        return;
-    }
-    s_unequipAll(this, apActor);
+        return RealUnequipAll(apThis, apActor);
+    // Each unequip as UnequipAllVisitor (38942) makes it: the caller's overrides, if any, stay in force.
+    const bool cAll = WornStacks::UnequipAllThenEngine([apActor] { return WornStacksOf(apActor); },
+                                                       [apThis, apActor](const WornStack& acStack)
+                                                       {
+                                                           TESForm* pSlot = acStack.Left ? s_leftHandSlot() : s_rightHandSlot();
+                                                           s_unequipObject(apThis, apActor, acStack.pItem, acStack.pList, acStack.Count, pSlot, false, false, true, false, nullptr);
+                                                       },
+                                                       [apThis, apActor] { RealUnequipAll(apThis, apActor); });
+    if (!cAll)
+        spdlog::warn("UnequipAll {:X}: worn stacks stayed; the hands' spells kept", apActor->formID);
 }
 
 void* EquipHook(EquipManager* apThis, Actor* apActor, TESForm* apItem, EquipData* apData)
@@ -372,4 +381,5 @@ static Hooks::Initializer s_equipmentHooks(
         HOOK_ID(38933, &RealUnEquipSpell, UnEquipSpellHook);
         HOOK_ID(38930, &RealEquipShout, EquipShoutHook);
         HOOK_ID(38935, &RealUnEquipShout, UnEquipShoutHook);
+        HOOK_ID(38899, &RealUnequipAll, UnequipAllHook); // ActorEquipManager::UnequipAll(this, actor)
     });

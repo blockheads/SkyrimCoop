@@ -8,8 +8,8 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **898** distinct engine addresses used; **270** have code in CommonLib or SKSE; **158** have no community name at all.
-- **307** hooks (these replace engine code, so check them first when the game crashes).
+- **898** distinct engine addresses used; **270** have code in CommonLib or SKSE; **157** have no community name at all.
+- **308** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
 
@@ -172,12 +172,13 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 38627 | `0x6cd2f0` | `DealDamage` | IDA PL meh | hook → `HookDealDamage` | `RealDealDamage` | [Combat.cpp:311](../../Code/engine/ActorHooks/Combat.cpp#L311) |  |
 | 38628 | `0x6cd850` | `Actor::CalculateCurrentHitTargetForWeaponSwing` | IDA PL meh | hook → `HookWeaponSwing` | `RealWeaponSwing` | [PlayerHands.cpp:156](../../Code/engine/PlayerHands.cpp#L156) |  |
 | 38717 | `0x6d3f70` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `RealRemoveSpell` | [Actor.cpp:1437](../../Code/engine/Actor.cpp#L1437) |  |
-| 38928 | `0x6de5c0` | `?` | - | hook → `EquipSpellHook` | `RealEquipSpell` | [EquipManager.cpp:371](../../Code/engine/EquipManager.cpp#L371) | **undocumented** |
-| 38929 | `0x6de920` | `?` | IDA | hook → `EquipHook` | `RealEquip` | [EquipManager.cpp:369](../../Code/engine/EquipManager.cpp#L369) |  |
-| 38930 | `0x6dec80` | `?` | - | hook → `EquipShoutHook` | `RealEquipShout` | [EquipManager.cpp:373](../../Code/engine/EquipManager.cpp#L373) | **undocumented** |
-| 38933 | `0x6df010` | `?` | - | hook → `UnEquipSpellHook` | `RealUnEquipSpell` | [EquipManager.cpp:372](../../Code/engine/EquipManager.cpp#L372) | **undocumented** |
-| 38934 | `0x6df300` | `?` | - | hook → `UnEquipHook` | `RealUnEquip` | [EquipManager.cpp:370](../../Code/engine/EquipManager.cpp#L370) | **undocumented** |
-| 38935 | `0x6df550` | `?` | - | hook → `UnEquipShoutHook` | `RealUnEquipShout` | [EquipManager.cpp:374](../../Code/engine/EquipManager.cpp#L374) | **undocumented** |
+| 38899 | `0x6dc8a0` | `ActorEquipManager::UnequipAll` | IDA PL | hook → `UnequipAllHook` | `RealUnequipAll` | [EquipManager.cpp:384](../../Code/engine/EquipManager.cpp#L384) |  |
+| 38928 | `0x6de5c0` | `?` | - | hook → `EquipSpellHook` | `RealEquipSpell` | [EquipManager.cpp:380](../../Code/engine/EquipManager.cpp#L380) | **undocumented** |
+| 38929 | `0x6de920` | `?` | IDA | hook → `EquipHook` | `RealEquip` | [EquipManager.cpp:378](../../Code/engine/EquipManager.cpp#L378) |  |
+| 38930 | `0x6dec80` | `?` | - | hook → `EquipShoutHook` | `RealEquipShout` | [EquipManager.cpp:382](../../Code/engine/EquipManager.cpp#L382) | **undocumented** |
+| 38933 | `0x6df010` | `?` | - | hook → `UnEquipSpellHook` | `RealUnEquipSpell` | [EquipManager.cpp:381](../../Code/engine/EquipManager.cpp#L381) | **undocumented** |
+| 38934 | `0x6df300` | `?` | - | hook → `UnEquipHook` | `RealUnEquip` | [EquipManager.cpp:379](../../Code/engine/EquipManager.cpp#L379) | **undocumented** |
+| 38935 | `0x6df550` | `?` | - | hook → `UnEquipShoutHook` | `RealUnEquipShout` | [EquipManager.cpp:383](../../Code/engine/EquipManager.cpp#L383) | **undocumented** |
 | 38949 | `0x6dfbc0` | `?` | - | hook → `HookPerformAction` | `RealPerformAction` | [Animation.cpp:317](../../Code/engine/Animation.cpp#L317) | **undocumented** |
 | 38959 | `0x6e0420` | `?` | - | hook → `HookInitFromPackage` | `RealInitFromPackage` | [References.cpp:223](../../Code/engine/References.cpp#L223) | **undocumented** |
 | 39114 | `0x6e8240` | `?` | - | hook → `HookCheckForNewPackage` | `RealCheckForNewPackage` | [References.cpp:224](../../Code/engine/References.cpp#L224) | **undocumented** |
@@ -369,8 +370,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 22053 | `0x3508d0` | `TESObjectREFR::SetPositionOnAxis` | IDA meh | call | `s_setPositionOnAxis` | [TESObjectREFR.cpp:366](../../Code/engine/TESObjectREFR.cpp#L366) |  |
 | 22054 | `0x350a40` | `TESObjectREFR::SetRotation` | IDA meh | call | `s_setAngleOnAxis` | [TESObjectREFR.cpp:373](../../Code/engine/TESObjectREFR.cpp#L373) |  |
 | 23329 | `0x386320` | `?` | - | hook → `HookOperation` | `RealOperation` | [GlobalEvents.cpp:88](../../Code/engine/GlobalEvents.cpp#L88) | **undocumented** |
-| 23607 | `0x38fa30` | `GetLeftHandSlot` | SKSE meh | call | `s_leftHandSlot` | [EquipManager.cpp:174](../../Code/engine/EquipManager.cpp#L174) |  |
-| 23608 | `0x38fa40` | `GetRightHandSlot` | SKSE meh | call | `s_rightHandSlot` | [EquipManager.cpp:175](../../Code/engine/EquipManager.cpp#L175) |  |
+| 23607 | `0x38fa30` | `GetLeftHandSlot` | SKSE meh | call | `s_leftHandSlot` | [EquipManager.cpp:189](../../Code/engine/EquipManager.cpp#L189) |  |
+| 23608 | `0x38fa40` | `GetRightHandSlot` | SKSE meh | call | `s_rightHandSlot` | [EquipManager.cpp:190](../../Code/engine/EquipManager.cpp#L190) |  |
 | 23951 | `0x39c340` | `ObjectiveState::GetEventSource` | CL | call | `getSource` | [QuestEvents.cpp:84](../../Code/engine/QuestEvents.cpp#L84) |  |
 | 24602 | `0x3b9040` | `coop_PickIdleForAction` | IDA | call | `s_pickIdleForAction` | [TESObjectREFR.cpp:1082](../../Code/engine/TESObjectREFR.cpp#L1082) |  |
 | 24724 | `0x3c2940` | `TESNPC::UpdateHeadState` | IDA meh | hook → `HookUpdateHeadState` | `RealUpdateHeadState` | [HeadEvents.cpp:29](../../Code/engine/HeadEvents.cpp#L29) |  |
@@ -416,16 +417,16 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 36048 | `0x639b00` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `RealBGSSaveFormBuffer_WriteFormId` | [SaveLoad.cpp:184](../../Code/engine/SaveLoad.cpp#L184) |  |
 | 36056 | `0x63a070` | `BGSSaveGameBuffer::Reserve` | IDA meh | call | `s_reserve` | [SaveLoad.cpp:46](../../Code/engine/SaveLoad.cpp#L46) |  |
 | 36291 | `0x645d60` | `Calendar::Update` | IDA | hook → `HookSimulateTime` | `RealSimulateTime` | [TimeManager.cpp:56](../../Code/engine/TimeManager.cpp#L56) |  |
-| 36922 | `0x6683f0` | `TaskQueueInterface::QueueAddToWorld` | IDA | call | `s_addToWorld` | [Actor.cpp:219](../../Code/engine/Actor.cpp#L219) |  |
-| 36925 | `0x6684c0` | `TaskQueueInterface::QueueSetMotionType` | IDA | call | `s_setMotionType` | [Actor.cpp:220](../../Code/engine/Actor.cpp#L220) |  |
-| 36929 | `0x6685c0` | `TaskQueueInterface::QueueSetCollisionLayerAndGroup` | IDA | call | `s_setLayerAndGroup` | [Actor.cpp:221](../../Code/engine/Actor.cpp#L221) |  |
-| 37006 | `0x66cea0` | `bhkWorldObject::SetCollisionFilterInfo` | IDA | call | `s_setFilter` | [Actor.cpp:162](../../Code/engine/Actor.cpp#L162) |  |
+| 36922 | `0x6683f0` | `TaskQueueInterface::QueueAddToWorld` | IDA | call | `s_addToWorld` | [Actor.cpp:221](../../Code/engine/Actor.cpp#L221) |  |
+| 36925 | `0x6684c0` | `TaskQueueInterface::QueueSetMotionType` | IDA | call | `s_setMotionType` | [Actor.cpp:222](../../Code/engine/Actor.cpp#L222) |  |
+| 36929 | `0x6685c0` | `TaskQueueInterface::QueueSetCollisionLayerAndGroup` | IDA | call | `s_setLayerAndGroup` | [Actor.cpp:223](../../Code/engine/Actor.cpp#L223) |  |
+| 37006 | `0x66cea0` | `bhkWorldObject::SetCollisionFilterInfo` | IDA | call | `s_setFilter` | [Actor.cpp:163](../../Code/engine/Actor.cpp#L163) |  |
 | 37169 | `0x66fca0` | `Actor::FinishSheathe` | IDA meh | call | `s_sheathed` | [Actor.cpp:373](../../Code/engine/Actor.cpp#L373) |  |
 | 37229 | `0x674030` | `Actor::CanBeKilledBy` | IDA meh | call | `s_canBeKilledBy` | [Actor.cpp:1086](../../Code/engine/Actor.cpp#L1086) |  |
 | 37247 | `0x674b70` | `Actor::GetCurrentScene` | meh | call | `s_getCurrentScene` | [CopyAiState.cpp:41](../../Code/engine/CopyAiState.cpp#L41) |  |
 | 37247 | `0x674b70` | `Actor::GetCurrentScene` | meh | hook → `HookGetCurrentScene` | `RealGetCurrentScene` | [CopyAiState.cpp:76](../../Code/engine/CopyAiState.cpp#L76) |  |
 | 37321 | `0x678560` | `Actor::Resurrect` | IDA meh | hook → `HookResurrect` | `RealResurrect` | [ActorValueEvents.cpp:75](../../Code/engine/ActorValueEvents.cpp#L75) |  |
-| 37334 | `0x6797a0` | `Actor::GetLevel` | CL SKSE meh | call | `s_getLevel` | [Actor.cpp:123](../../Code/engine/Actor.cpp#L123) |  |
+| 37334 | `0x6797a0` | `Actor::GetLevel` | CL SKSE meh | call | `s_getLevel` | [Actor.cpp:124](../../Code/engine/Actor.cpp#L124) |  |
 | 37380 | `0x67ea40` | `Actor::GetCrimeFaction` | meh | call | `s_getCrimeFaction` | [Actor.cpp:1065](../../Code/engine/Actor.cpp#L1065) |  |
 | 37381 | `0x67eab0` | `Character::SetCrimeFaction` | meh | hook → `HookSetCrimeFaction` | `RealSetCrimeFaction` | [FactionEvents.cpp:82](../../Code/engine/FactionEvents.cpp#L82) |  |
 | 37399 | `0x67f680` | `Actor::GetCurrentPackage` | IDA meh | hook → `HookGetCurrentPackage` | `RealGetCurrentPackage` | [CopyAiState.cpp:77](../../Code/engine/CopyAiState.cpp#L77) |  |
@@ -477,16 +478,18 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 38894 | `0x6dc310` | `ActorEquipManager::EquipObject` | IDA CL SKSE meh | call | `s_equipFunc` | [EquipManager.cpp:79](../../Code/engine/EquipManager.cpp#L79) |  |
 | 38896 | `0x6dc560` | `ActorEquipManager::EquipSpellBySlot` | IDA | call | `s_equipFunc` | [EquipManager.cpp:103](../../Code/engine/EquipManager.cpp#L103) |  |
 | 38897 | `0x6dc5d0` | `ActorEquipManager::EquipShout` | CL meh | call | `s_equipFunc` | [EquipManager.cpp:123](../../Code/engine/EquipManager.cpp#L123) |  |
-| 38899 | `0x6dc8a0` | `?` | PL | call | `s_unequipAll` | [EquipManager.cpp:172](../../Code/engine/EquipManager.cpp#L172) | **undocumented** |
+| 38899 | `0x6dc8a0` | `ActorEquipManager::UnequipAll` | IDA PL | call | `s_unequipAll` | [EquipManager.cpp:174](../../Code/engine/EquipManager.cpp#L174) |  |
+| 38899 | `0x6dc8a0` | `ActorEquipManager::UnequipAll` | IDA PL | hook → `UnequipAllHook` | `RealUnequipAll` | [EquipManager.cpp:384](../../Code/engine/EquipManager.cpp#L384) |  |
 | 38901 | `0x6dcb00` | `ActorEquipManager::UnequipObject` | CL SKSE meh | call | `s_unequipFunc` | [EquipManager.cpp:91](../../Code/engine/EquipManager.cpp#L91) |  |
+| 38901 | `0x6dcb00` | `ActorEquipManager::UnequipObject` | CL SKSE meh | call | `s_unequipObject` | [EquipManager.cpp:187](../../Code/engine/EquipManager.cpp#L187) |  |
 | 38903 | `0x6dcda0` | `ActorEquipManager::UnequipSpellBySlot` | IDA | call | `s_unequipFunc` | [EquipManager.cpp:113](../../Code/engine/EquipManager.cpp#L113) |  |
 | 38904 | `0x6dce10` | `ActorEquipManager::UnequipShout` | IDA | call | `s_unequipFunc` | [EquipManager.cpp:135](../../Code/engine/EquipManager.cpp#L135) |  |
-| 38928 | `0x6de5c0` | `?` | - | hook → `EquipSpellHook` | `RealEquipSpell` | [EquipManager.cpp:371](../../Code/engine/EquipManager.cpp#L371) | **undocumented** |
-| 38929 | `0x6de920` | `?` | IDA | hook → `EquipHook` | `RealEquip` | [EquipManager.cpp:369](../../Code/engine/EquipManager.cpp#L369) |  |
-| 38930 | `0x6dec80` | `?` | - | hook → `EquipShoutHook` | `RealEquipShout` | [EquipManager.cpp:373](../../Code/engine/EquipManager.cpp#L373) | **undocumented** |
-| 38933 | `0x6df010` | `?` | - | hook → `UnEquipSpellHook` | `RealUnEquipSpell` | [EquipManager.cpp:372](../../Code/engine/EquipManager.cpp#L372) | **undocumented** |
-| 38934 | `0x6df300` | `?` | - | hook → `UnEquipHook` | `RealUnEquip` | [EquipManager.cpp:370](../../Code/engine/EquipManager.cpp#L370) | **undocumented** |
-| 38935 | `0x6df550` | `?` | - | hook → `UnEquipShoutHook` | `RealUnEquipShout` | [EquipManager.cpp:374](../../Code/engine/EquipManager.cpp#L374) | **undocumented** |
+| 38928 | `0x6de5c0` | `?` | - | hook → `EquipSpellHook` | `RealEquipSpell` | [EquipManager.cpp:380](../../Code/engine/EquipManager.cpp#L380) | **undocumented** |
+| 38929 | `0x6de920` | `?` | IDA | hook → `EquipHook` | `RealEquip` | [EquipManager.cpp:378](../../Code/engine/EquipManager.cpp#L378) |  |
+| 38930 | `0x6dec80` | `?` | - | hook → `EquipShoutHook` | `RealEquipShout` | [EquipManager.cpp:382](../../Code/engine/EquipManager.cpp#L382) | **undocumented** |
+| 38933 | `0x6df010` | `?` | - | hook → `UnEquipSpellHook` | `RealUnEquipSpell` | [EquipManager.cpp:381](../../Code/engine/EquipManager.cpp#L381) | **undocumented** |
+| 38934 | `0x6df300` | `?` | - | hook → `UnEquipHook` | `RealUnEquip` | [EquipManager.cpp:379](../../Code/engine/EquipManager.cpp#L379) | **undocumented** |
+| 38935 | `0x6df550` | `?` | - | hook → `UnEquipShoutHook` | `RealUnEquipShout` | [EquipManager.cpp:383](../../Code/engine/EquipManager.cpp#L383) | **undocumented** |
 | 38949 | `0x6dfbc0` | `?` | - | call | `s_performAction` | [Actor.cpp:1315](../../Code/engine/Actor.cpp#L1315) | **undocumented** |
 | 38949 | `0x6dfbc0` | `?` | - | hook → `HookPerformAction` | `RealPerformAction` | [Animation.cpp:317](../../Code/engine/Animation.cpp#L317) | **undocumented** |
 | 38953 | `0x6dff90` | `?` | - | call | `PerformComplexAction` | [Animation.cpp:242](../../Code/engine/Animation.cpp#L242) | **undocumented** |

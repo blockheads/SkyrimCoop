@@ -751,6 +751,8 @@ class Runtime:
                     if errors := [line for line in output if CONSOLE_ERRORS.search(line)]:
                         raise ctx.failure(f"console could not run `{command}`: {' | '.join(errors)}")
                     return output
+                # A game that crashed running the line never answers: say so, not "still queued".
+                ctx.check_for_crash()
                 if time.monotonic() > deadline:
                     raise ctx.failure(f"console line `{command}` never ran (still queued after {timeout}s)")
                 time.sleep(0.01)

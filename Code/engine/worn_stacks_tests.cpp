@@ -160,3 +160,40 @@ TEST_CASE("A stack an earlier unequip took is not unequipped again", "[inventory
     CHECK(changes.Unequips == 2);
     CHECK(changes.FreedReads == 0);
 }
+
+TEST_CASE("The engine's UnequipAll runs only once nothing is worn for its walk", "[inventory][worn-stacks]")
+{
+    FakeChanges changes;
+    changes.Add(0x13985, 0); // the console's player.unequipall on a guest after a reload: a base item first
+    changes.Add(0x1397F, 0);
+    changes.Add(0x209A5, 1);
+
+    SECTION("every stack unequipped first: the engine's walk then visits nothing")
+    {
+        int engineCalls = 0;
+        const bool cAll = WornStacks::UnequipAllThenEngine([&] { return changes.Worn(); },
+                                                           [&](const Stack& acStack) { changes.Unequip(acStack.pItem, acStack.pList); },
+                                                           [&]
+                                                           {
+                                                               ++engineCalls;
+                                                               changes.EngineUnequipAll();
+                                                           });
+        CHECK(cAll);
+        CHECK(engineCalls == 1);
+        CHECK(changes.Unequips == 3);
+        CHECK(changes.FreedReads == 0);
+    }
+    SECTION("a stack that stays worn: the engine's walk is skipped")
+    {
+        int engineCalls = 0;
+        const bool cAll = WornStacks::UnequipAllThenEngine([&] { return changes.Worn(); },
+                                                           [&](const Stack& acStack)
+                                                           {
+                                                               if (acStack.pItem->Item != 0x209A5)
+                                                                   changes.Unequip(acStack.pItem, acStack.pList);
+                                                           },
+                                                           [&] { ++engineCalls; });
+        CHECK_FALSE(cAll);
+        CHECK(engineCalls == 0);
+    }
+}

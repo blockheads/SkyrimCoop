@@ -107,7 +107,6 @@ every other section needs the duo.
 
 **Found by the full run of 2026-11-28**
 
-- [A guest crash in `unequipall` after a reload](#a-guest-crash-in-unequipall-after-a-reload): small
 - [A host crash in the attack cone hook](#a-host-crash-in-the-attack-cone-hook): small
 - [A player's combat flag on, its copy's off](#a-players-combat-flag-on-its-copys-off): small
 - [A merchant's barter line never offered to a guest](#a-merchants-barter-line-never-offered-to-a-guest): small
@@ -1124,21 +1123,6 @@ never ran (a guest crash, the first entry, left the duo unbootable). Then a shuf
 same crash stopped again. "2 of 2" counts the full run and a rerun. Evidence: `build/coop-test/results/<time>/` and
 the prefixes' `SKSE/crash-*.log` in the `bugs-triage` worktree. Engine paths are not read (step 0, CLAUDE.md) unless
 an entry says read.
-
-### A guest crash in `unequipall` after a reload
-
-`guest_keeps_own_state_on_reload` 2 of 2: its steps pass, its cleanup's console `player.unequipall` on the guest is
-"still queued after 10s", and when it runs the guest crashes: a read of freed memory (the quarantine's `0xDBDB...`
-poison) in `InventoryChanges::VisitWornItems` (16096+0x45) under `UnequipAll` (38899) from the console. So the
-player's worn list the visitor walks was freed under it, after the scenario's reload. Each time the runner then
-could not boot the duo again, so every later scenario went unrun. Crash logs: `crash-2026-11-28-05-21-34.log` and
-`-05-52-03.log` (client prefix). A worn list freed twice was fixed on `agent/copy-teardown` (2026-11-22); this one is
-the player's own.
-
-Agent task: read which owner frees the guest player's worn list across a reload (`ExtraWornList`, our inventory
-apply) and why the console line waits 10 s first.
-
-Size: small. Needs: IDA, the duo (`guest_keeps_own_state_on_reload`, heap history on), then GameTests.
 
 ### A host crash in the attack cone hook
 
