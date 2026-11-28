@@ -597,6 +597,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept override;
     // The reference a body belongs to (an actor's for its ragdoll's).
     [[nodiscard]] static uint32_t ReferenceOf(const BodyKey& acKey) noexcept;
+    // The actor whose ragdoll a body's reference id (ReferenceOf) names: itself, or the copy a session-keyed one is of.
+    [[nodiscard]] uint32_t RagdollActorOf(uint32_t aFormId) const noexcept;
     // This game's player's hand (a guest's: GuestEngine::TakePushes, ReadHeld): what its character pushed since the
     // last read (every body a mass of 1), and what it holds. Another game's hand on this game's bodies comes through
     // IBodyBridge (a push, a held body played keyframed, so not awake, then let go).
@@ -611,6 +613,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // its own physics moves too (OwnMoves). Swing() makes one.
     std::vector<BodyPush> PlayerHits;
     std::optional<BodyKey> Grabbed;
+    static constexpr uint32_t kPinnedBreakFrames = 78; // a pinned grab's life (PlayerHolds)
+    uint32_t m_pinnedFrames{};
     std::set<uint32_t> WatchedCorpses; // copies' corpses this game's player grabbed: read as its own until they rest
     // A guest's own physics moved these (GuestEngine::TakeOwnBodies): its own blast, not the host's.
     std::vector<BodyPose> OwnMoves;

@@ -118,6 +118,17 @@ void BodyBridge::SetClass(const BodyKey& acKey, bhkWorldObject* apBody, BodyClas
         WriteMoving();
 }
 
+namespace
+{
+// What its hands hold goes with its ragdoll's group: in another, its bones meet it and grind on it (a dragged dead
+// player's copy, physics.md "Dragging a corpse").
+void GroupHeld(Actor& aCopy, uint16_t aGroup) noexcept
+{
+    for (bhkWorldObject* pBody : HeldBodiesOf(aCopy))
+        SetBodyGroup(*pBody, aGroup);
+}
+} // namespace
+
 bool BodyBridge::AnyPlayed() const noexcept
 {
     return !m_ragdollGroups.empty() || std::ranges::any_of(m_classes, [](const auto& acClass) { return acClass.second.Is == BodyClass::kPlayed; });
@@ -159,6 +170,7 @@ void BodyBridge::SetMoving(const BodyKey& acKey, bool aMoving) noexcept
             if (cTaken)
                 m_ragdollMoving[acKey] = cTaken;
             SetBodyGroup(*cBodies[acKey.Index], aMoving ? cTaken : BodyGroups::kPlayed);
+            GroupHeld(*pCopy, aMoving ? cTaken : BodyGroups::kPlayed);
         }
         return;
     }
@@ -208,6 +220,7 @@ void BodyBridge::StandRagdoll(Actor& aCopy, const BodyKey& acKey) noexcept
     // Its bodies read again from the copy: a stale pointer from before its 3D was rebuilt is never written.
     if (const auto cBodies = RagdollBodiesOf(aCopy); acKey.Index < cBodies.size() && cBodies[acKey.Index])
         SetBodyGroup(*cBodies[acKey.Index], it->second);
+    GroupHeld(aCopy, it->second);
     m_ragdollGroups.erase(it);
     if (const auto cHeld = m_ragdollMoving.find(acKey); cHeld != m_ragdollMoving.end())
     {
@@ -260,6 +273,7 @@ BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, b
             if (pCopy->GetExtension()->IsCopy())
                 if (const auto cOwn = SetBodyGroup(*pBody, BodyGroups::kPlayed); cOwn && *cOwn != BodyGroups::kPlayed)
                 {
+                    GroupHeld(*pCopy, BodyGroups::kPlayed);
                     const bool cFirstPlayed = !AnyPlayed();
                     m_ragdollGroups[acKey] = *cOwn;
                     if (cFirstPlayed)

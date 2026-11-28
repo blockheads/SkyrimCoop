@@ -6,6 +6,22 @@
 #include <TESObjectREFR.h>
 #include <Utils.h>
 
+#include <algorithm>
+
+std::vector<bhkWorldObject*> HeldBodiesOf(TESObjectREFR& aActor) noexcept
+{
+    NiNode* p3D = aActor.IsDeleted() ? nullptr : aActor.GetNiNode();
+    if (!p3D)
+        return {};
+    const auto cRagdoll = RagdollBodiesOf(aActor);
+    std::vector<bhkWorldObject*> held;
+    for (bhkNiCollisionObject* pCollision : CollisionObjectsOf(*p3D))
+        if (bhkWorldObject* pBody = pCollision ? pCollision->body : nullptr;
+            pBody && pBody->referencedObject && std::ranges::find(cRagdoll, pBody) == cRagdoll.end())
+            held.push_back(pBody);
+    return held;
+}
+
 bool QueueRagdollOutOfWorld(TESObjectREFR& aActor) noexcept
 {
     NiAVObject* p3D = aActor.Get3D1(false);

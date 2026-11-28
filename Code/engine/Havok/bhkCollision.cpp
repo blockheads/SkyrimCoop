@@ -259,6 +259,28 @@ std::optional<std::vector<hkpRigidBody*>> IslandMatesOf(const bhkWorldObject& ac
     return mates;
 }
 
+float BodyMass(const bhkWorldObject& acBody) noexcept
+{
+    // Returns a float in xmm0 (read in IDA: its callers take the low lane).
+    using TMotionMass = float(const void*);
+    POINTER_SKYRIMSE(TMotionMass, s_motionMass, 60959);
+    return acBody.referencedObject ? s_motionMass(&acBody.referencedObject->motion) : 0.f;
+}
+
+std::vector<CollisionPartner> CollisionPartnersOf(const bhkWorldObject& acBody) noexcept
+{
+    const hkpRigidBody* pBody = acBody.referencedObject;
+    bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
+    if (!pWorld)
+        return {};
+    BSReadLockGuard _(pWorld->worldLock);
+    std::vector<CollisionPartner> partners;
+    for (int32_t i = 0; i < pBody->collidable.entryCount; ++i)
+        if (const hkpLinkedCollidable* pPartner = pBody->collidable.entries[i].partner)
+            partners.push_back({pPartner->collisionFilterInfo, pPartner->Owner()});
+    return partners;
+}
+
 std::vector<const hkpRigidBody*> TouchingOf(const bhkWorldObject& acBody) noexcept
 {
     const hkpRigidBody* pBody = acBody.referencedObject;

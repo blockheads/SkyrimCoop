@@ -49,6 +49,8 @@ private:
         bool FromGuest{};     // a guest's rest the host's game is still putting
         bool Given{};         // FromGuest: the host's game was sent it
         bool Placed{};        // where the host's game put it, not where its physics settled it
+        bool HostMoved{};     // a guest's corpse, last moved by the host's player
+        uint64_t Released{};  // a guest's corpse made nobody's then (its owner is told before the row goes)
     };
 
     void OnStates(const BodyStatesRequest& acMessage, ConnectionId_t aSender) noexcept;
@@ -59,9 +61,11 @@ private:
     void Stream(uint64_t aTick) noexcept;
     // Nobody's again: the host's game simulates it from where it is.
     void Unclaim(const BodyKey& acKey, const char* acpWhy) noexcept;
-    // A ragdoll body the sender's character owns, or a corpse the host's game owns (a guest's player may grab it).
+    // A ragdoll body the sender's character owns, or any corpse (a player may drag it).
     [[nodiscard]] bool MayClaim(const BodyKey& acKey, ConnectionId_t aSender) const noexcept;
     [[nodiscard]] bool IsGuest(uint32_t aPlayer) const noexcept;
+    // A guest's character's ragdoll body (shown here as its copy's).
+    [[nodiscard]] bool IsCopy(const BodyKey& acKey) const noexcept;
     // A connection's number in BodyAuthority (its claims), and back; 0 is nobody.
     [[nodiscard]] uint32_t NumberOf(ConnectionId_t aPlayer) noexcept;
 
