@@ -304,6 +304,9 @@ struct InventoryEntryRead
 std::optional<InventoryEntryRead> GetInventoryEntry(uint32_t aHolder, uint32_t aItem) noexcept;
 // Whether the reference is enabled (its disabled flag, TESForm 0x800); none: no such reference.
 std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept;
+// The main menu's scan of every save, as Continue runs it (52898 -> PopulateSaveList 35760): the save list and the
+// Journal's character map then know every playthrough in the folder. The characters of the saves listed.
+[[nodiscard]] std::vector<uint32_t> ScanAllSaves() noexcept;
 
 // --- Staging and the player's own input ---
 

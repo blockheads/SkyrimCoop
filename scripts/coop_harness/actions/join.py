@@ -100,6 +100,23 @@ class JoinActions:
         return {"planted": name, "from": newest.name}
 
 
+    def scan_saves(ctx, instance):
+        """The main menu's scan of every save (harness scan_saves: PopulateSaveList 35760, as Continue runs it), as a
+        player coming from the main menu has had: the Journal's character map then knows every playthrough in the
+        folder. The characters it saw."""
+        reply = ctx.game(instance).rpc({"cmd": "scan_saves"}) or {}
+        return {"characters": sorted({f"{int(c) & 0xFFFFFFFF:08X}" for c in reply.get("characters", [])})}
+
+
+    def expect_scan_sees(ctx, instance, characters):
+        """The scan of every save saw each of these characters (so vanilla's Character Selection would list them)."""
+        seen = ctx.scan_saves(instance)["characters"]
+        missing = [character for character in characters if character.upper() not in seen]
+        if missing:
+            raise ctx.failure(f"[{instance or 'host'}] the scan of every save saw {seen}, not {missing}")
+        return {"seen": seen}
+
+
     def drop_planted_saves(ctx, instance):
         """The saves plant_other_playthrough_save put in the game's Saves folder, gone."""
         saves = ctx.game(instance).my_games / "Saves"

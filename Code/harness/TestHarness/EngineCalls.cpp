@@ -1,4 +1,5 @@
 #include "TestHarness/EngineCalls.h"
+#include <SaveLoadManager.h>
 #include <Forms/MagicItem.h>
 #include <Magic/EffectItem.h>
 #include <Interface/ConsoleLines.h>
@@ -1432,6 +1433,20 @@ std::vector<ScriptStack> GetRunningScripts() noexcept
     }
     pVm->runningStacksLock.Unlock();
     return stacks;
+}
+
+std::vector<uint32_t> ScanAllSaves() noexcept
+{
+    POINTER_SKYRIMSE(void(BGSSaveLoadManager*), s_populate, 35760);
+    std::vector<uint32_t> characters;
+    BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get();
+    if (!pManager)
+        return characters;
+    s_populate(pManager);
+    for (uint32_t i = 0; i < pManager->saveGameList.length; ++i)
+        if (const GameplaySaveEntry* cpEntry = pManager->saveGameList[i])
+            characters.push_back(cpEntry->characterId);
+    return characters;
 }
 
 std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept

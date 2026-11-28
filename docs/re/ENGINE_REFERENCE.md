@@ -8,7 +8,7 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **884** distinct engine addresses used; **266** have code in CommonLib or SKSE; **158** have no community name at all.
+- **885** distinct engine addresses used; **267** have code in CommonLib or SKSE; **158** have no community name at all.
 - **296** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -1333,37 +1333,38 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 14639 | `0x1e6150` | `TESForm::SetPlayerKnows` | CL | call | `s_setPlayerKnows` | [EngineCalls.cpp:2186](../../Code/harness/TestHarness/EngineCalls.cpp#L2186) |  |
-| 14640 | `0x1e6190` | `?` | - | call | `s_setUnlocked` | [EngineCalls.cpp:2202](../../Code/harness/TestHarness/EngineCalls.cpp#L2202) | **undocumented** |
-| 16145 | `0x23ee00` | `?` | - | call | `s_temper` | [EngineCalls.cpp:1621](../../Code/harness/TestHarness/EngineCalls.cpp#L1621) | **undocumented** |
-| 16146 | `0x23f0c0` | `InventoryChanges::EnchantObject` | CL | call | `s_enchantObject` | [EngineCalls.cpp:1622](../../Code/harness/TestHarness/EngineCalls.cpp#L1622) |  |
-| 19512 | `0x2df840` | `TESObjectREFR::AddLockChange` | IDA CL meh | data | `s_lockChange` | [EngineCalls.cpp:793](../../Code/harness/TestHarness/EngineCalls.cpp#L793) |  |
-| 19514 | `0x2dfa60` | `TESObjectREFR::GetEditorLocation` | IDA meh | call | `s_getEditorLocation` | [EngineCalls.cpp:1748](../../Code/harness/TestHarness/EngineCalls.cpp#L1748) |  |
-| 19516 | `0x2dfbd0` | `Character::sub_19516` | meh | data | `s_moveToMyEditorLocation` | [EngineCalls.cpp:835](../../Code/harness/TestHarness/EngineCalls.cpp#L835) |  |
+| 14639 | `0x1e6150` | `TESForm::SetPlayerKnows` | CL | call | `s_setPlayerKnows` | [EngineCalls.cpp:2201](../../Code/harness/TestHarness/EngineCalls.cpp#L2201) |  |
+| 14640 | `0x1e6190` | `?` | - | call | `s_setUnlocked` | [EngineCalls.cpp:2217](../../Code/harness/TestHarness/EngineCalls.cpp#L2217) | **undocumented** |
+| 16145 | `0x23ee00` | `?` | - | call | `s_temper` | [EngineCalls.cpp:1636](../../Code/harness/TestHarness/EngineCalls.cpp#L1636) | **undocumented** |
+| 16146 | `0x23f0c0` | `InventoryChanges::EnchantObject` | CL | call | `s_enchantObject` | [EngineCalls.cpp:1637](../../Code/harness/TestHarness/EngineCalls.cpp#L1637) |  |
+| 19512 | `0x2df840` | `TESObjectREFR::AddLockChange` | IDA CL meh | data | `s_lockChange` | [EngineCalls.cpp:794](../../Code/harness/TestHarness/EngineCalls.cpp#L794) |  |
+| 19514 | `0x2dfa60` | `TESObjectREFR::GetEditorLocation` | IDA meh | call | `s_getEditorLocation` | [EngineCalls.cpp:1763](../../Code/harness/TestHarness/EngineCalls.cpp#L1763) |  |
+| 19516 | `0x2dfbd0` | `Character::sub_19516` | meh | data | `s_moveToMyEditorLocation` | [EngineCalls.cpp:836](../../Code/harness/TestHarness/EngineCalls.cpp#L836) |  |
 | 19750 | `0x2eece0` | `TESObjectREFR::FindReferenceFor3D` | CL meh | call | `s_findRef` | [CombatReads.cpp:153](../../Code/harness/TestHarness/CombatReads.cpp#L153) |  |
-| 19796 | `0x2f11b0` | `TESObjectREFR::ActivateRef` | IDA CL meh | data | `s_activate` | [EngineCalls.cpp:291](../../Code/harness/TestHarness/EngineCalls.cpp#L291) |  |
-| 21493 | `0x334210` | `GameFunc::native::GetFactionRank` | meh | call | `s_getFactionRank` | [EngineCalls.cpp:1767](../../Code/harness/TestHarness/EngineCalls.cpp#L1767) |  |
-| 21529 | `0x3361e0` | `GameFunc::native::GetIsCurrentPackage` | meh | call | `s_getIsCurrentPackage` | [EngineCalls.cpp:1724](../../Code/harness/TestHarness/EngineCalls.cpp#L1724) |  |
-| 21679 | `0x33b740` | `GameFunc::native::GetRelationshipRank` | meh | call | `s_getRelationshipRank` | [EngineCalls.cpp:1781](../../Code/harness/TestHarness/EngineCalls.cpp#L1781) |  |
-| 24716 | `0x3c1000` | `TESNPC::GetActivateText` | IDA meh | call | `s_getActivateText` | [EngineCalls.cpp:916](../../Code/harness/TestHarness/EngineCalls.cpp#L916) |  |
+| 19796 | `0x2f11b0` | `TESObjectREFR::ActivateRef` | IDA CL meh | data | `s_activate` | [EngineCalls.cpp:292](../../Code/harness/TestHarness/EngineCalls.cpp#L292) |  |
+| 21493 | `0x334210` | `GameFunc::native::GetFactionRank` | meh | call | `s_getFactionRank` | [EngineCalls.cpp:1782](../../Code/harness/TestHarness/EngineCalls.cpp#L1782) |  |
+| 21529 | `0x3361e0` | `GameFunc::native::GetIsCurrentPackage` | meh | call | `s_getIsCurrentPackage` | [EngineCalls.cpp:1739](../../Code/harness/TestHarness/EngineCalls.cpp#L1739) |  |
+| 21679 | `0x33b740` | `GameFunc::native::GetRelationshipRank` | meh | call | `s_getRelationshipRank` | [EngineCalls.cpp:1796](../../Code/harness/TestHarness/EngineCalls.cpp#L1796) |  |
+| 24716 | `0x3c1000` | `TESNPC::GetActivateText` | IDA meh | call | `s_getActivateText` | [EngineCalls.cpp:917](../../Code/harness/TestHarness/EngineCalls.cpp#L917) |  |
 | 25196 | `0x3dfec0` | `QuestStatus::GetEventSource` | CL | call | `source` | [QuestFragments.cpp:63](../../Code/harness/TestHarness/QuestFragments.cpp#L63) |  |
-| 25587 | `0x3f1010` | `?` | - | call | `s_freeResponses` | [EngineCalls.cpp:2121](../../Code/harness/TestHarness/EngineCalls.cpp#L2121) | **undocumented** |
-| 25626 | `0x3f3300` | `TESTopicInfo::GetResponseList` | CL | call | `s_getResponses` | [EngineCalls.cpp:2120](../../Code/harness/TestHarness/EngineCalls.cpp#L2120) |  |
+| 25587 | `0x3f1010` | `?` | - | call | `s_freeResponses` | [EngineCalls.cpp:2136](../../Code/harness/TestHarness/EngineCalls.cpp#L2136) | **undocumented** |
+| 25626 | `0x3f3300` | `TESTopicInfo::GetResponseList` | CL | call | `s_getResponses` | [EngineCalls.cpp:2135](../../Code/harness/TestHarness/EngineCalls.cpp#L2135) |  |
 | 25931 | `0x3ff900` | `hkpAllCdPointCollector::LinearCastFrom` | IDA meh | hook → `HookLinearCast` | `RealLinearCast` | [SwingWatch.cpp:53](../../Code/harness/TestHarness/SwingWatch.cpp#L53) |  |
-| 30635 | `0x4d71a0` | `Pathing::sub_30635` | PL meh | data | `s_actorLocation` | [EngineCalls.cpp:574](../../Code/harness/TestHarness/EngineCalls.cpp#L574) |  |
-| 30640 | `0x4d75a0` | `Pathing::sub_30640` | meh | data | `s_pointLocation` | [EngineCalls.cpp:576](../../Code/harness/TestHarness/EngineCalls.cpp#L576) |  |
-| 30640 | `0x4d75a0` | `Pathing::sub_30640` | meh | data | `s_pointLocation` | [EngineCalls.cpp:698](../../Code/harness/TestHarness/EngineCalls.cpp#L698) |  |
-| 30875 | `0x4e3260` | `PathingRequest::ctor` | IDA | data | `s_requestCtor` | [EngineCalls.cpp:591](../../Code/harness/TestHarness/EngineCalls.cpp#L591) |  |
+| 30635 | `0x4d71a0` | `Pathing::sub_30635` | PL meh | data | `s_actorLocation` | [EngineCalls.cpp:575](../../Code/harness/TestHarness/EngineCalls.cpp#L575) |  |
+| 30640 | `0x4d75a0` | `Pathing::sub_30640` | meh | data | `s_pointLocation` | [EngineCalls.cpp:577](../../Code/harness/TestHarness/EngineCalls.cpp#L577) |  |
+| 30640 | `0x4d75a0` | `Pathing::sub_30640` | meh | data | `s_pointLocation` | [EngineCalls.cpp:699](../../Code/harness/TestHarness/EngineCalls.cpp#L699) |  |
+| 30875 | `0x4e3260` | `PathingRequest::ctor` | IDA | data | `s_requestCtor` | [EngineCalls.cpp:592](../../Code/harness/TestHarness/EngineCalls.cpp#L592) |  |
 | 32359 | `0x5339b0` | `BGSStoryEventManager::AddEvent_Impl` | CL | hook → `HookAddEvent` | `RealAddEvent` | [PlayerEvents.cpp:61](../../Code/harness/TestHarness/PlayerEvents.cpp#L61) |  |
 | 32374 | `0x5346c0` | `BGSStoryManager::sub_32374` | meh | hook → `HookStoryLog` | `RealStoryLog` | [PlayerEvents.cpp:88](../../Code/harness/TestHarness/PlayerEvents.cpp#L88) |  |
 | 32953 | `0x555fd0` | `AnimationGraphVisitor_AddRagdollToWorld` | IDA | hook → `HookAddVisitor` | `RealAddVisitor` | [RagdollWatch.cpp:77](../../Code/harness/TestHarness/RagdollWatch.cpp#L77) |  |
-| 37200 | `0x672e30` | `Actor::SetDialogueWithPlayer` | meh | call | `s_setDialogueWithPlayer` | [EngineCalls.cpp:2068](../../Code/harness/TestHarness/EngineCalls.cpp#L2068) |  |
+| 35760 | `0x624b40` | `BGSSaveLoadManager::PopulateSaveList` | IDA CL meh | call | `s_populate` | [EngineCalls.cpp:1440](../../Code/harness/TestHarness/EngineCalls.cpp#L1440) |  |
+| 37200 | `0x672e30` | `Actor::SetDialogueWithPlayer` | meh | call | `s_setDialogueWithPlayer` | [EngineCalls.cpp:2083](../../Code/harness/TestHarness/EngineCalls.cpp#L2083) |  |
 | 37422 | `0x681de0` | `Actor::StealAlarm` | IDA CL meh | data | `steal` | [CommandsCrime.cpp:55](../../Code/harness/TestHarness/CommandsCrime.cpp#L55) |  |
 | 37423 | `0x6827e0` | `Actor__PickpocketAlarm` | IDA meh | data | `pick` | [CommandsCrime.cpp:64](../../Code/harness/TestHarness/CommandsCrime.cpp#L64) |  |
 | 37424 | `0x682e70` | `Actor::SendAssaultAlarm` | meh | data | `alarm` | [CommandsCrime.cpp:75](../../Code/harness/TestHarness/CommandsCrime.cpp#L75) |  |
 | 37426 | `0x683550` | `Character::sub_37426` | meh | data | `alarm` | [CommandsCrime.cpp:81](../../Code/harness/TestHarness/CommandsCrime.cpp#L81) |  |
 | 37463 | `0x6864b0` | `Actor__SetAngryWithPlayer` | IDA meh | data | `set` | [CommandsCrime.cpp:146](../../Code/harness/TestHarness/CommandsCrime.cpp#L146) |  |
-| 37488 | `0x687b40` | `Actor::SetRestrained` | IDA meh | data | `s_setRestrained` | [EngineCalls.cpp:1004](../../Code/harness/TestHarness/EngineCalls.cpp#L1004) |  |
+| 37488 | `0x687b40` | `Actor::SetRestrained` | IDA meh | data | `s_setRestrained` | [EngineCalls.cpp:1005](../../Code/harness/TestHarness/EngineCalls.cpp#L1005) |  |
 | 37764 | `0x6a2520` | `Actor::RequestDetectionLevel` | IDA CL meh | data | `detect` | [CommandsCrime.cpp:216](../../Code/harness/TestHarness/CommandsCrime.cpp#L216) |  |
 | 37768 | `0x6a2830` | `Actor::CalculateLOS` | IDA CL meh | call | `s_calculateLos` | [CombatReads.cpp:149](../../Code/harness/TestHarness/CombatReads.cpp#L149) |  |
 | 37770 | `0x6a2e20` | `Actor::CalculateLOSToPoint` | IDA CL meh | call | `s_losToPoint` | [CombatReads.cpp:151](../../Code/harness/TestHarness/CombatReads.cpp#L151) |  |
@@ -1371,21 +1372,21 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37773 | `0x6a32c0` | `Actor::GetAngleToPoint` | IDA meh | call | `s_angle` | [CombatReads.cpp:152](../../Code/harness/TestHarness/CombatReads.cpp#L152) |  |
 | 37774 | `0x6a33b0` | `Actor::CalculateDetection` | IDA meh | call | `s_detection` | [CombatReads.cpp:154](../../Code/harness/TestHarness/CombatReads.cpp#L154) |  |
 | 37775 | `0x6a4030` | `Actor::GetLightLevel` | PL meh | call | `s_light` | [CombatReads.cpp:126](../../Code/harness/TestHarness/CombatReads.cpp#L126) |  |
-| 37818 | `0x6a61f0` | `Actor::StopMovement` | PL meh | data | `s_stopMovement` | [EngineCalls.cpp:1005](../../Code/harness/TestHarness/EngineCalls.cpp#L1005) |  |
-| 37820 | `0x6a6330` | `Actor::FillPathToLocation` | IDA meh | data | `s_fill` | [EngineCalls.cpp:593](../../Code/harness/TestHarness/EngineCalls.cpp#L593) |  |
-| 37893 | `0x6a9950` | `Actor::RequestPathToReference` | IDA meh | data | `s_pathRequest` | [EngineCalls.cpp:300](../../Code/harness/TestHarness/EngineCalls.cpp#L300) |  |
-| 38538 | `0x6c80b0` | `Actor::GetAttackReach` | CL PL meh | call | `s_getAttackReach` | [EngineCalls.cpp:1807](../../Code/harness/TestHarness/EngineCalls.cpp#L1807) |  |
-| 38559 | `0x6c9200` | `Actor::WouldAttackKill` | IDA meh | call | `s_shouldAttackKill` | [EngineCalls.cpp:1804](../../Code/harness/TestHarness/EngineCalls.cpp#L1804) |  |
+| 37818 | `0x6a61f0` | `Actor::StopMovement` | PL meh | data | `s_stopMovement` | [EngineCalls.cpp:1006](../../Code/harness/TestHarness/EngineCalls.cpp#L1006) |  |
+| 37820 | `0x6a6330` | `Actor::FillPathToLocation` | IDA meh | data | `s_fill` | [EngineCalls.cpp:594](../../Code/harness/TestHarness/EngineCalls.cpp#L594) |  |
+| 37893 | `0x6a9950` | `Actor::RequestPathToReference` | IDA meh | data | `s_pathRequest` | [EngineCalls.cpp:301](../../Code/harness/TestHarness/EngineCalls.cpp#L301) |  |
+| 38538 | `0x6c80b0` | `Actor::GetAttackReach` | CL PL meh | call | `s_getAttackReach` | [EngineCalls.cpp:1822](../../Code/harness/TestHarness/EngineCalls.cpp#L1822) |  |
+| 38559 | `0x6c9200` | `Actor::WouldAttackKill` | IDA meh | call | `s_shouldAttackKill` | [EngineCalls.cpp:1819](../../Code/harness/TestHarness/EngineCalls.cpp#L1819) |  |
 | 38628 | `0x6cd850` | `Actor::CalculateCurrentHitTargetForWeaponSwing` | IDA PL meh | data | `swing` | [SwingWatch.cpp:31](../../Code/harness/TestHarness/SwingWatch.cpp#L31) |  |
-| 38697 | `0x6d2a40` | `Actor::StopInteractingQuick` | CL | data | `s_stopInteractingQuick` | [EngineCalls.cpp:807](../../Code/harness/TestHarness/EngineCalls.cpp#L807) |  |
+| 38697 | `0x6d2a40` | `Actor::StopInteractingQuick` | CL | data | `s_stopInteractingQuick` | [EngineCalls.cpp:808](../../Code/harness/TestHarness/EngineCalls.cpp#L808) |  |
 | 39509 | `0x6ff470` | `ActorProcess::GetLightLevel` | meh | call | `s_processLight` | [CombatReads.cpp:128](../../Code/harness/TestHarness/CombatReads.cpp#L128) |  |
 | 39763 | `0x71e100` | `HighProcessData__FindKnowledge` | IDA | data | `find` | [CommandsCrime.cpp:191](../../Code/harness/TestHarness/CommandsCrime.cpp#L191) |  |
 | 39763 | `0x71e100` | `HighProcessData__FindKnowledge` | IDA | data | `find` | [CommandsCrime.cpp:226](../../Code/harness/TestHarness/CommandsCrime.cpp#L226) |  |
-| 39769 | `0x71e7c0` | `?` | - | call | `s_sendPackageEvent` | [EngineCalls.cpp:1711](../../Code/harness/TestHarness/EngineCalls.cpp#L1711) | **undocumented** |
-| 40454 | `0x746e00` | `PlayerCharacter::DropObject` | meh | data | `s_dropObject` | [EngineCalls.cpp:1532](../../Code/harness/TestHarness/EngineCalls.cpp#L1532) |  |
-| 40563 | `0x754640` | `?` | - | call | `s_setDifficulty` | [EngineCalls.cpp:280](../../Code/harness/TestHarness/EngineCalls.cpp#L280) | **undocumented** |
-| 47272 | `0x866260` | `Actor_PickSwingTarget` | IDA meh | call | `s_pickAttackTarget` | [EngineCalls.cpp:1808](../../Code/harness/TestHarness/EngineCalls.cpp#L1808) |  |
-| 47273 | `0x866600` | `TESObjectREFR::sub_47273` | meh | call | `s_gap` | [EngineCalls.cpp:1814](../../Code/harness/TestHarness/EngineCalls.cpp#L1814) |  |
+| 39769 | `0x71e7c0` | `?` | - | call | `s_sendPackageEvent` | [EngineCalls.cpp:1726](../../Code/harness/TestHarness/EngineCalls.cpp#L1726) | **undocumented** |
+| 40454 | `0x746e00` | `PlayerCharacter::DropObject` | meh | data | `s_dropObject` | [EngineCalls.cpp:1547](../../Code/harness/TestHarness/EngineCalls.cpp#L1547) |  |
+| 40563 | `0x754640` | `?` | - | call | `s_setDifficulty` | [EngineCalls.cpp:281](../../Code/harness/TestHarness/EngineCalls.cpp#L281) | **undocumented** |
+| 47272 | `0x866260` | `Actor_PickSwingTarget` | IDA meh | call | `s_pickAttackTarget` | [EngineCalls.cpp:1823](../../Code/harness/TestHarness/EngineCalls.cpp#L1823) |  |
+| 47273 | `0x866600` | `TESObjectREFR::sub_47273` | meh | call | `s_gap` | [EngineCalls.cpp:1829](../../Code/harness/TestHarness/EngineCalls.cpp#L1829) |  |
 | 47309 | `0x869020` | `Actor__GetPredictedPosition` | IDA meh | call | `s_predicted` | [CombatReads.cpp:57](../../Code/harness/TestHarness/CombatReads.cpp#L57) |  |
 | 47336 | `0x86b240` | `CombatUtilities__GetActorReach` | IDA | call | `s_reach` | [CombatReads.cpp:64](../../Code/harness/TestHarness/CombatReads.cpp#L64) |  |
 | 50643 | `0x8f1c90` | `CombatUtilities__GetCloseRangeMargin` | IDA meh | call | `s_margin` | [CombatReads.cpp:61](../../Code/harness/TestHarness/CombatReads.cpp#L61) |  |
@@ -1404,31 +1405,31 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 63591 | `0xbcf690` | `BShkbAnimationGraph::SendEvent` | IDA meh | hook → `HookSendGraphEvent` | `RealSendGraphEvent` | [AnimationTrace.cpp:224](../../Code/harness/TestHarness/AnimationTrace.cpp#L224) |  |
 | 63591 | `0xbcf690` | `BShkbAnimationGraph::SendEvent` | IDA meh | hook → `HookSendEvent` | `RealSendEvent` | [GraphStreamCheck.cpp:276](../../Code/harness/TestHarness/GraphStreamCheck.cpp#L276) |  |
 | 63980 | `0xbe8460` | `AnimationFileManagerSingleton__Update` | IDA meh | data | `update` | [ClipLoads.cpp:39](../../Code/harness/TestHarness/ClipLoads.cpp#L39) |  |
-| 68542 | `0xcef3b0` | `ControlMap::MapUserEvents` | IDA | data | `s_mapUserEvents` | [EngineCalls.cpp:2457](../../Code/harness/TestHarness/EngineCalls.cpp#L2457) |  |
-| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2395](../../Code/harness/TestHarness/EngineCalls.cpp#L2395) |  |
-| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2461](../../Code/harness/TestHarness/EngineCalls.cpp#L2461) |  |
-| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2509](../../Code/harness/TestHarness/EngineCalls.cpp#L2509) |  |
-| 90350 | `0x11b6ab0` | `?` | IDA PL | data | `s_destroy` | [EngineCalls.cpp:555](../../Code/harness/TestHarness/EngineCalls.cpp#L555) |  |
-| 90369 | `0x11b75a0` | `BSPathingLocation::ResolveToClosestNavmeshAndTriangle` | CL | data | `s_resolve` | [EngineCalls.cpp:318](../../Code/harness/TestHarness/EngineCalls.cpp#L318) |  |
-| 90396 | `0x11b90f0` | `Pathing::BuildPathNow` | IDA meh | data | `s_build` | [EngineCalls.cpp:599](../../Code/harness/TestHarness/EngineCalls.cpp#L599) |  |
-| 90961 | `0x11d7270` | `BSPathingSolution::ctor` | IDA | data | `s_solutionCtor` | [EngineCalls.cpp:595](../../Code/harness/TestHarness/EngineCalls.cpp#L595) |  |
-| 90962 | `0x11d7300` | `BSPathingSolution::dtor` | IDA | data | `s_solutionDtor` | [EngineCalls.cpp:597](../../Code/harness/TestHarness/EngineCalls.cpp#L597) |  |
-| 208708 | `0x1935110` | `?` | CL | data | `buttonEventVtable` | [EngineCalls.cpp:2371](../../Code/harness/TestHarness/EngineCalls.cpp#L2371) |  |
-| 208708 | `0x1935110` | `?` | CL | data | `buttonEventVtable` | [EngineCalls.cpp:2471](../../Code/harness/TestHarness/EngineCalls.cpp#L2471) |  |
-| 236703 | `0x1a23bc0` | `?` | CL | data | `mouseMoveEventVtable` | [EngineCalls.cpp:2523](../../Code/harness/TestHarness/EngineCalls.cpp#L2523) |  |
-| 236705 | `0x1a23be0` | `?` | CL | data | `charEventVtable` | [EngineCalls.cpp:2501](../../Code/harness/TestHarness/EngineCalls.cpp#L2501) |  |
-| 240560 | `0x1a89578` | `?` | CL | data | `s_proxyControllerVtable` | [EngineCalls.cpp:679](../../Code/harness/TestHarness/EngineCalls.cpp#L679) |  |
+| 68542 | `0xcef3b0` | `ControlMap::MapUserEvents` | IDA | data | `s_mapUserEvents` | [EngineCalls.cpp:2472](../../Code/harness/TestHarness/EngineCalls.cpp#L2472) |  |
+| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2410](../../Code/harness/TestHarness/EngineCalls.cpp#L2410) |  |
+| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2476](../../Code/harness/TestHarness/EngineCalls.cpp#L2476) |  |
+| 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2524](../../Code/harness/TestHarness/EngineCalls.cpp#L2524) |  |
+| 90350 | `0x11b6ab0` | `?` | IDA PL | data | `s_destroy` | [EngineCalls.cpp:556](../../Code/harness/TestHarness/EngineCalls.cpp#L556) |  |
+| 90369 | `0x11b75a0` | `BSPathingLocation::ResolveToClosestNavmeshAndTriangle` | CL | data | `s_resolve` | [EngineCalls.cpp:319](../../Code/harness/TestHarness/EngineCalls.cpp#L319) |  |
+| 90396 | `0x11b90f0` | `Pathing::BuildPathNow` | IDA meh | data | `s_build` | [EngineCalls.cpp:600](../../Code/harness/TestHarness/EngineCalls.cpp#L600) |  |
+| 90961 | `0x11d7270` | `BSPathingSolution::ctor` | IDA | data | `s_solutionCtor` | [EngineCalls.cpp:596](../../Code/harness/TestHarness/EngineCalls.cpp#L596) |  |
+| 90962 | `0x11d7300` | `BSPathingSolution::dtor` | IDA | data | `s_solutionDtor` | [EngineCalls.cpp:598](../../Code/harness/TestHarness/EngineCalls.cpp#L598) |  |
+| 208708 | `0x1935110` | `?` | CL | data | `buttonEventVtable` | [EngineCalls.cpp:2386](../../Code/harness/TestHarness/EngineCalls.cpp#L2386) |  |
+| 208708 | `0x1935110` | `?` | CL | data | `buttonEventVtable` | [EngineCalls.cpp:2486](../../Code/harness/TestHarness/EngineCalls.cpp#L2486) |  |
+| 236703 | `0x1a23bc0` | `?` | CL | data | `mouseMoveEventVtable` | [EngineCalls.cpp:2538](../../Code/harness/TestHarness/EngineCalls.cpp#L2538) |  |
+| 236705 | `0x1a23be0` | `?` | CL | data | `charEventVtable` | [EngineCalls.cpp:2516](../../Code/harness/TestHarness/EngineCalls.cpp#L2516) |  |
+| 240560 | `0x1a89578` | `?` | CL | data | `s_proxyControllerVtable` | [EngineCalls.cpp:680](../../Code/harness/TestHarness/EngineCalls.cpp#L680) |  |
 | 370394 | `0x209ee20` | `gGameSetting_fDetectionViewCone` | meh | data | `s_viewCone` | [CombatReads.cpp:160](../../Code/harness/TestHarness/CombatReads.cpp#L160) |  |
-| 400442 | `0x21a05a8` | `?` | - | data | `s_obstacles` | [EngineCalls.cpp:511](../../Code/harness/TestHarness/EngineCalls.cpp#L511) | **undocumented** |
-| 401037 | `0x31df208` | `Pathing::singleton` | CL PL | data | `s_pathing` | [EngineCalls.cpp:570](../../Code/harness/TestHarness/EngineCalls.cpp#L570) |  |
-| 401037 | `0x31df208` | `Pathing::singleton` | CL PL | data | `s_pathing` | [EngineCalls.cpp:696](../../Code/harness/TestHarness/EngineCalls.cpp#L696) |  |
-| 401950 | `0x31ec8d8` | `?` | - | data | `s_pathBuilder` | [EngineCalls.cpp:571](../../Code/harness/TestHarness/EngineCalls.cpp#L571) | **undocumented** |
-| 402622 | `0x3204860` | `?` | PL | data | `s_shakeStrength` | [EngineCalls.cpp:2223](../../Code/harness/TestHarness/EngineCalls.cpp#L2223) | **undocumented** |
-| 402623 | `0x3204864` | `?` | PL | data | `s_shakeSeconds` | [EngineCalls.cpp:2224](../../Code/harness/TestHarness/EngineCalls.cpp#L2224) | **undocumented** |
-| 402638 | `0x32048d0` | `UserEvents::singleton` | CL SKSE meh | data | `userEvents` | [EngineCalls.cpp:2369](../../Code/harness/TestHarness/EngineCalls.cpp#L2369) |  |
-| 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `s_inputDeviceManager` | [EngineCalls.cpp:2491](../../Code/harness/TestHarness/EngineCalls.cpp#L2491) |  |
+| 400442 | `0x21a05a8` | `?` | - | data | `s_obstacles` | [EngineCalls.cpp:512](../../Code/harness/TestHarness/EngineCalls.cpp#L512) | **undocumented** |
+| 401037 | `0x31df208` | `Pathing::singleton` | CL PL | data | `s_pathing` | [EngineCalls.cpp:571](../../Code/harness/TestHarness/EngineCalls.cpp#L571) |  |
+| 401037 | `0x31df208` | `Pathing::singleton` | CL PL | data | `s_pathing` | [EngineCalls.cpp:697](../../Code/harness/TestHarness/EngineCalls.cpp#L697) |  |
+| 401950 | `0x31ec8d8` | `?` | - | data | `s_pathBuilder` | [EngineCalls.cpp:572](../../Code/harness/TestHarness/EngineCalls.cpp#L572) | **undocumented** |
+| 402622 | `0x3204860` | `?` | PL | data | `s_shakeStrength` | [EngineCalls.cpp:2238](../../Code/harness/TestHarness/EngineCalls.cpp#L2238) | **undocumented** |
+| 402623 | `0x3204864` | `?` | PL | data | `s_shakeSeconds` | [EngineCalls.cpp:2239](../../Code/harness/TestHarness/EngineCalls.cpp#L2239) | **undocumented** |
+| 402638 | `0x32048d0` | `UserEvents::singleton` | CL SKSE meh | data | `userEvents` | [EngineCalls.cpp:2384](../../Code/harness/TestHarness/EngineCalls.cpp#L2384) |  |
+| 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `s_inputDeviceManager` | [EngineCalls.cpp:2506](../../Code/harness/TestHarness/EngineCalls.cpp#L2506) |  |
 | 412229 | `0x3350950` | `?` | - | data | `s_pathFollowing` | [CombatReads.cpp:68](../../Code/harness/TestHarness/CombatReads.cpp#L68) | **undocumented** |
-| 418622 | `0x3c4440` | `TESNPC::ResetWornToOutfit` | IDA | call | `s_reset` | [EngineCalls.cpp:1299](../../Code/harness/TestHarness/EngineCalls.cpp#L1299) |  |
+| 418622 | `0x3c4440` | `TESNPC::ResetWornToOutfit` | IDA | call | `s_reset` | [EngineCalls.cpp:1300](../../Code/harness/TestHarness/EngineCalls.cpp#L1300) |  |
 | 441582 | `0x343d00` | `Script::CompileAndRun_Impl` | IDA | hook → `HookCompileAndRun` | `RealCompileAndRun` | [ConsoleOutput.cpp:95](../../Code/harness/TestHarness/ConsoleOutput.cpp#L95) |  |
 | 442673 | `0x90a2d0` | `Console::RunQueuedCommands` | IDA | hook → `HookRunQueued` | `RealRunQueued` | [ConsoleOutput.cpp:94](../../Code/harness/TestHarness/ConsoleOutput.cpp#L94) |  |
 

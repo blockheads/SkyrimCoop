@@ -160,10 +160,16 @@ JPEXS FFDec: `SystemPage`, `SaveLoadPanel`), read for "in a game, Load lists onl
   with `{currentCharacterId, 2 | modded}` (and for a guest, empties the list, 35746), so any row picked lists this
   playthrough. The 52917 hook drops the rows of other characters and "Show all saves" before Flash sees the list.
   A console `load` of another character's save is refused in chat (`SaveService::OnLoadRequested`).
-- **Measured** (scenario `load-lists-only-playthrough`: the host plays character `0BADF00D`, set through the harness's
-  `set_character` as its save's load would, saves, and another character's save is planted in its folder): with the
-  hooks the rows are exactly `0BADF00D`; vanilla (`disable_hooks=SaveListHooks`) adds "Show all saves" (`FFFFFFFF`)
-  and the scenario fails. An earlier vanilla run as character 0 listed the planted `0C0FFEE0` row too.
+- **Which characters get a row.** The rows are the manager's character map (`+0x78`). `ScanCharacters` (35800),
+  behind Character Selection, scans the folder only while that map is empty. Every save list's scan (35799) also adds
+  the characters it lists, and the map is not cleared between scans. So in game the rows are the characters some scan
+  has seen: in real play the main menu's Continue or Load scanned every save first. A save planted after the first
+  in-game list never got a row (measured).
+- **Measured** (scenario `load-lists-only-playthrough`): the host plays character `0BADF00D` (the harness's
+  `set_character`, as its save's load would) and saves. Another character's save (`0C0FFEE0`) is planted, and the game
+  scans every save as the main menu does (harness `scan_saves`: `PopulateSaveList` 35760 under the main menu's limit;
+  it saw both). With the hooks the rows are exactly `0BADF00D`. Vanilla (`disable_hooks=SaveListHooks`) lists
+  `FFFFFFFF`, `0C0FFEE0` and `0BADF00D`, and the scenario fails.
 
 ## Loading while dead (2026-11-16)
 
