@@ -350,6 +350,11 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
             if (const NiAVObject* pFoot = p3D->GetByName(cFoot))
                 entry["feet"].push_back({pFoot->world.translate.x, pFoot->world.translate.y, pFoot->world.translate.z});
     }
+    // Its COM bone's blend between animation and body (78910; 0: the bone is its body), and its first ragdoll body's motion.
+    if (const auto cSkeleton = EngineCalls::GetSkeleton(aFormId); cSkeleton && cSkeleton->Nodes.size() > 1)
+        entry["blend"] = {cSkeleton->Nodes[1].Blend, cSkeleton->Nodes[1].BlendMotion};
+    if (const auto cBodies = EngineCalls::GetRagdoll(aFormId); cBodies && !cBodies->empty())
+        entry["body_motion"] = (*cBodies)[0].Motion;
     // Who moves it: the graph (animation-driven) or the controller, by the Virtual Path Follower without a graph.
     if (const auto* pMovement = reinterpret_cast<const MovementControllerNPC*>(pActor->movementDrivenControl))
         entry["movement"] = {{"state", pMovement->movementState}, {"loaded_agents", pMovement->loadedAgents}};

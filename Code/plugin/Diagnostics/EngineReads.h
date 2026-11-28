@@ -238,10 +238,31 @@ struct RagdollDriverRead
 {
     bool Enabled, Powered, RigidBody, PoseWasUsed, AllKeyframed;
     bool StepsPhysics; // the graph has a physics world (+0x238)
+    bool Listed;       // 63564 now: eligible for the physics step's list (a world, its first body in one); not the listener's own record
     std::array<float, 4> Tracks;
     std::vector<float> KeyframedBones; // track 8's value per bone: > 1 keyframes that body (58291)
 };
 std::optional<RagdollDriverRead> GetRagdollDriver(uint32_t aActorFormId) noexcept;
+
+// What an actor's active graph writes its pose into (BShkbAnimationGraph boneNodes, rootNode) against its drawn 3D:
+// a few named nodes' local and world places, and whether the graph writes that very node.
+struct SkeletonNodeRead
+{
+    std::string Name;
+    bool Drawn;   // found in the drawn 3D (Get3D1)
+    bool Written; // the graph's boneNodes hold this node
+    std::array<float, 3> Local, World;
+    float Blend{-1.f};      // its bhkBlendCollisionObject's blend strength, -1 with none
+    int32_t BlendMotion{-1}; // the motion type that object last set (+0x30)
+};
+struct SkeletonRead
+{
+    bool RootIsDrawn;   // the graph's rootNode is the drawn 3D
+    uint32_t BoneNodes; // how many the graph writes
+    std::array<float, 3> WorldFromModel;
+    std::vector<SkeletonNodeRead> Nodes;
+};
+std::optional<SkeletonRead> GetSkeleton(uint32_t aActorFormId) noexcept;
 
 // The body the crosshair's ray hit (CrosshairPickData::targetCollider, what a grab springs): its index in that actor's
 // ragdoll (-1: not one of its bodies), collision filter info and motion type. None when the crosshair hit no body.

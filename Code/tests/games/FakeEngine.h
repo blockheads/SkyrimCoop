@@ -25,6 +25,7 @@
 #include <ItemMenuRebuild.h>
 #include <physics/RagdollPending.h>
 #include <physics/RagdollStart.h>
+#include <movement/BodiesLayer.h>
 #include <physics/RestPlacer.h>
 
 #include <QuestChanges.h>
@@ -856,6 +857,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint8_t BodiesLayer = 0;  // the layer its own 3D's bodies are on in the world, 0 out of it: the AI puts an
                                   // actor's there (33) as it sits or sleeps (40063), never a copy's (it runs no AI)
         bool GraphsStepPhysics = true; // its graphs step with the physics world; the AI detaches them in furniture (40063)
+        // Its ragdoll's dynamic bodies, a bit each: out of the world they hold a living skeleton (SkeletonAt; kill-moves.md).
+        uint32_t DynamicBodies = 0;
+        glm::vec3 SkeletonAt{};
+        uint32_t BodiesKeyframed = 0; // times its bodies were put keyframed by SetCopyPhysics
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool NotOnStealthMeter = false; // boolFlags kDoNotShowOnStealthMeter: 41408 skips it for the player
@@ -1458,10 +1463,26 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override
     {
         if (!Actors.contains(aFormId) || !Actors.at(aFormId).Copy ||
-            !::ReplayState::TakesOwnerBodies(Actors.at(aFormId).KnockedDown, Actors.at(aFormId).InKillMove))
+            !::ReplayState::TakesOwnerBodies(IsLyingInRagdoll(aFormId), KnockStateOf(aFormId), Actors.at(aFormId).InKillMove,
+                                             Actors.at(aFormId).Dead || PoseHeld(aFormId)))
             return;
-        Actors.at(aFormId).BodiesLayer = aBodiesLayer;
-        Actors.at(aFormId).GraphsStepPhysics = aGraphsStep;
+        auto& actor = Actors.at(aFormId);
+        // Actor::SetBodiesLayer's queued calls, as the engine runs them.
+        for (const auto cOp : BodiesLayer::For(actor.BodiesLayer, aBodiesLayer, true, actor.DynamicBodies != 0, actor.BodiesLayer != 0))
+            switch (cOp)
+            {
+            case BodiesLayer::Op::kRemove: actor.BodiesLayer = 0; break;
+            case BodiesLayer::Op::kKeyframe: actor.DynamicBodies = 0; ++actor.BodiesKeyframed; break;
+            case BodiesLayer::Op::kSetLayer: actor.BodiesLayer = aBodiesLayer; break;
+            default: break;
+            }
+        actor.GraphsStepPhysics = aGraphsStep;
+    }
+    // How far its skeleton stands from the actor (seen from above): a living one on dynamic bodies out of the world.
+    [[nodiscard]] float SkeletonOff(uint32_t aFormId) const noexcept
+    {
+        const auto& cActor = Actors.at(aFormId);
+        return glm::distance(glm::vec2(cActor.SkeletonAt), glm::vec2(cActor.Position[0], cActor.Position[1]));
     }
     // Its bodies in the world driven by its ragdoll driver (63562: only with its graph in the physics world), so
     // simulated, off its animation's pose; a seated actor's stay keyframed (40063 detaches its graphs).

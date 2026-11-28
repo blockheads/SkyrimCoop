@@ -373,6 +373,58 @@ SCENARIO("A kill move's copy holds its pose from its clip's KillActor to its own
     party.As(party.Host(), [&] { CHECK_FALSE(host.PoseHeld(cCopy)); });
 }
 
+SCENARIO("A kill move's victim copy out of its kill move at its blow keeps its ragdoll for its owner's death", "[combat][friendly-fire][kill-move][copy-ragdoll]")
+{
+    // Duo (kill-move-kills-guest, 2026-11-28): a person's victim clip sends PairEnd, KillMoveEnd and KillActor in one
+    // update, so its copy is out of its kill move, alive, holding its pose; keyframing its ragdoll then (the cut-short
+    // victim half's fix) made its death's fall flicker. Its counted kill says its death is coming.
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
+    CopyCatchesUp(party, party.Guest(), party.Host(), 0x1000);
+    const uint32_t cCopy = CopyOfPlayer(party, party.Host(), party.Guest());
+    REQUIRE(host.Actors.at(cCopy).DynamicBodies);
+    party.As(party.Host(), [&] { host.ClipEndsAtBlow(cCopy); });
+    int frames = 0;
+    party.Until([&] { return ++frames > 30; }, "half a second of its pose held");
+    CHECK(host.Actors.at(cCopy).BodiesKeyframed == 0);
+    party.As(party.Guest(), [&] { guest.KillActor(FakeEngine::kPlayer); });
+    party.Until([&] { return host.Actors.at(cCopy).Dead; }, "the copy dies with its owner");
+    CHECK(host.Actors.at(cCopy).BodiesKeyframed == 0);
+}
+
+SCENARIO("A copy still getting up keeps its simulated bodies though its owner already stands", "[copy-ragdoll][knockdown]")
+{
+    // Review of PR #167: the owner sends layer 0 once it stands, its copy may still be in knock state 6, which
+    // IsInRagdollState (37491) leaves out, while 58291 still simulates its limbs (physics.md, Getting up).
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) != 0; }, "the host has the guest's player");
+    const uint32_t cCopy = CopyOfPlayer(party, party.Host(), party.Guest());
+    auto& copy = host.Actors.at(cCopy);
+    copy.Rising = 5000; // frames: long past its owner's snapshots' playback delay
+    copy.BodiesLayer = FakeEngine::kBipedLayer;
+    copy.DynamicBodies = ~1u;
+    FakeEngine& guest = Party::Engine(party.Guest());
+    const uint32_t cMovements = copy.Movements;
+    // Its owner walks on: its movement keeps coming.
+    party.Until([&] {
+        guest.Actors.at(FakeEngine::kPlayer).Position[0] += 2.f;
+        return copy.Rising < 1000;
+    }, "most of its get-up", {}, nullptr, std::chrono::seconds(20));
+    REQUIRE(copy.Movements > cMovements + 10);
+    CHECK(copy.DynamicBodies != 0);
+    CHECK(copy.BodiesKeyframed == 0);
+    party.Until([&] {
+        guest.Actors.at(FakeEngine::kPlayer).Position[0] += 2.f;
+        return copy.BodiesKeyframed > 0;
+    }, "standing, its bodies its owner's again, keyframed", {}, nullptr, std::chrono::seconds(20));
+    CHECK(copy.DynamicBodies == 0);
+}
+
 SCENARIO("A kill move plays on a victim's game that has no room at the mark, and an attacker's own check still counts",
          "[combat][friendly-fire][kill-move]")
 {
@@ -509,6 +561,28 @@ SCENARIO("Two players' kill moves on the same tick: both games pick the same win
     CrossKillMoves(party, true, 0, 0);
     party.Until([&] { return !host.IsPlayerAlive() || !guest.IsPlayerAlive(); }, "a blow lands");
     CHECK(host.IsPlayerAlive() != guest.IsPlayerAlive());
+}
+
+SCENARIO("Crossed kill moves: the winner's copy on the loser's game walks with its skeleton, not left on its victim half's ragdoll",
+         "[combat][friendly-fire][kill-move][copy-ragdoll]")
+{
+    // Skyrim (duo, kill-moves-cross-frozen-copy, 2026-11-27): on the loser's game the winner's copy played the loser's
+    // victim half (AddRagdollToWorld 42873, its bodies dynamic), the yield cut it short, and its owner's layer 0 took
+    // the bodies out of the world: its skeleton stayed there, 300 units from the copy as it walked (78910).
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    CrossKillMoves(party, true, 5, 0);
+    const uint32_t cCopy = CopyOfPlayer(party, party.Guest(), party.Host());
+    party.Until([&] { return !guest.IsPlayerAlive(); }, "the host's blow lands");
+    // Its clip's PairEnd and KillMoveEnd on each game (the fake ends no pair by itself).
+    for (auto* pActor : {&host.Actors.at(FakeEngine::kPlayer), &guest.Actors.at(cCopy)})
+        pActor->InKillMove = pActor->InPair = pActor->InPairClip = false;
+    host.Actors.at(FakeEngine::kPlayer).Position[0] += 300.f;
+    const float cTo = host.Actors.at(FakeEngine::kPlayer).Position[0];
+    party.Until([&] { return std::abs(guest.Actors.at(cCopy).Position[0] - cTo) < 1.f; }, "the host's copy walks with it");
+    INFO("its skeleton " << guest.SkeletonOff(cCopy) << " units from it");
+    CHECK(guest.SkeletonOff(cCopy) < 1.f);
 }
 
 SCENARIO("A yielded clip that drops pairedStop never lands its blow", "[combat][friendly-fire][kill-move]")

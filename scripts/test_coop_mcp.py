@@ -313,6 +313,8 @@ class Export(unittest.TestCase):
     def test_a_verb_exports_as_its_call_and_rounds_as_a_loop(self):
         self.assertEqual(repro._line("verb", {"name": "kill_move_exchange", "args": {"instance": "guest", "n": 2}}),
                          "ctx.kill_move_exchange(instance='client', n=2)")
+        self.assertEqual(repro._line("kill_move_exchange", {"first": "guest"}),
+                         "ctx.kill_move_exchange({g: ctx.other_player(ctx.actors_on(g)) for g in ('', 'client')}, 'client')")
         self.assertEqual(repro._line("rounds", {"call": "swing", "args": {"times": 1}, "count": 5, "reset": "use",
                                                 "reset_args": {"game": "host", "target": "door"}}),
                          "for _ in range(5):\n    ctx.use('', 'door')\n    ctx.swing(times=1)")

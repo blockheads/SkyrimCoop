@@ -1,5 +1,7 @@
 #pragma once
 
+#include <animation/KnockReplay.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <string_view>
@@ -18,10 +20,11 @@ constexpr bool CopyOwnBody(bool aInPair, bool aInKillMove, bool aGettingOnOff, u
 }
 
 // A copy's bodies take its owner's layer (seated, mounted: SetCopyPhysics) unless they are its own ragdoll's: lying in
-// it, or a kill move's victim state's, which its graph put in the world (AddRagdollHandler 42873; physics.md).
-constexpr bool TakesOwnerBodies(bool aLiesInRagdoll, bool aInKillMove) noexcept
+// it or getting up (its knock state's: KnockReplay), a kill move's victim state's (AddRagdollHandler 42873;
+// physics.md), or its death's: dead, or holding its pose for its owner's death (PoseHeld).
+constexpr bool TakesOwnerBodies(bool aLiesInRagdoll, uint8_t aKnock, bool aInKillMove, bool aDying) noexcept
 {
-    return !aLiesInRagdoll && !aInKillMove;
+    return !aLiesInRagdoll && !KnockReplay::BodiesSimulated(aKnock) && !aInKillMove && !aDying;
 }
 
 // A copy's owner's pair: on its stream with a copy partner here, but a taken one, which has no stream to replay

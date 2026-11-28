@@ -88,6 +88,72 @@ a claimed pair's forwarded blow on the victim's game: held; dropped once the pai
 - Not measured yet: what a host NPC shows when it becomes a copy mid-swing (the scenarios' wolves are restrained or
   frozen). Seen, not read: a frozen wolf (AI off) at -24 health after two plain hits, not dead.
 
+## A victim half cut short (2026-11-28, playtest "the guest's model stuck somewhere he was not")
+
+Crossed kill moves left the winner's copy on the loser's game with its skeleton frozen where the pair was, for good,
+while the copy (its reference, capsule and name) walked on with its owner. Scenario `kill-moves-cross-frozen-copy`
+(every crossed exchange: 3 of 3 on the duo); GameTests "Crossed kill moves: the winner's copy on the loser's
+game walks with its skeleton"; UnitTests `[copy-ragdoll]`.
+
+```
+loser's game: its player's own pair on the winner's copy
+  the copy plays the victim half: AddRagdollToWorld 42873 (graphs' ragdolls reset, the 3D in the world, layer 8)
+    its bones' blend strength 0 in that frame (measured; the writer inside 42873 not read)
+    driveToPose 58291, the next frame: bodies not keyframed set dynamic (hkpRigidBody::setMotionType 60908, read)
+  the host refuses the loser's claim (kHeld): the yield (EndPairsOf) cuts the victim half short, nobody dies
+  out of its kill move, the copy mirrors its owner's layer 0 (SetCopyPhysics -> Actor::SetBodiesLayer: was 36924 only)
+    bodies out of the world, still dynamic: nothing moves them
+  each node update: bhkBlendCollisionObject::UpdateBoneFromBody 78910, blend 0 -> each bone = its body (78382,
+    local too): the skeleton stays at the cut, the COM's local recomputed each frame to keep it there
+```
+
+- **Read in IDA.** `bhkBlendCollisionObject` (vtable ID 239339): `SetMotionType` 78912 (slot 0x2E) sets blend strength
+  (+0x28) 0 for a dynamic motion type, 1 otherwise; `UpdateBoneFromBody` 78910 (slot 0x2B) blends the bone's world
+  between its animation and its body by it, with no test that the body is in a world. `driveToPose` 58291 sets each
+  body's motion straight on Havok (60908 at `0x140AC79FE`), not through 78912.
+- **Read in IDA and the behaviours (`behavior_dump.py`).** `1hm_behavior`'s `VictimState` leaves on `PairEnd` for
+  `1HM_Ready_State` and sends nothing; only `0_master` sends `RemoveRagdollFromWorld`. So a living vanilla victim keeps
+  its ragdoll in the world, where `driveToPose` 58291 runs each step and sets each body keyframed or dynamic by its
+  bone's track (the 4/1 loop at `0x140AC79AC`). What vanilla does with a victim whose pair is cut was not played. The
+  only engine end of a living actor's ragdoll read is `AIProcess::EndKnockState` 39897: every graph's
+  `RemoveRagdollFromWorld`, then the 3D keyframed (`SetMotionType` 4).
+- **Measured (duo, the trace's `blend` and `body_motion`).** The copy's COM blend 1, body motion 4 until
+  `AddRagdollToWorld`; blend 0 in its frame, the first body dynamic (motion 2) the next; then our mirror took the bodies
+  out (layer 0) and they stayed dynamic.
+- **Measured (duo, harness `skeleton`, `ragdoll`).** The graph's `rootNode` is the drawn 3D, and the four nodes read
+  (NPC Root, COM, Pelvis, L Foot) are among its 99 `boneNodes`, which `WritePoseToBoneNodes` 63856 writes;
+  world-from-model on the copy. COM's world identical to the decimal across reads while the copy moved 300 units, its
+  local changing; the foot's local fixed. Resetting the ragdoll driver (BSIRagdollDriver vfunc 5) changed nothing, and
+  63564 said the graph was not eligible for the physics step's list at each read (a sample, not the listener's record:
+  physics.md); `reset_3d` (fresh collision objects, blend 1) freed the skeleton at once.
+- `StartPair` 32803 also calls `Actor::EnterPairedSim` 32847 on both actors (boolFlags 0x800000, controller `kNoSim`,
+  filter bit 0x8000), undone by `Deactivate` 32797: not involved here.
+- **Where we diverge.** Two engine removals are read: `EndKnockState` 39897 (a knocked actor's: every graph's
+  `RemoveRagdollFromWorld`, then the 3D keyframed) and the graph event's `RemoveRagdollHandler` 42877 (36924, or 77864
+  at once, with no motion type change; `0_master` sends it, from which states was not traced). What vanilla does with a
+  victim whose pair is cut is inferred, not traced: its `VictimState` exit sends nothing. Our mirror took a living
+  copy's dynamic ragdoll out with 36924 alone, where nothing moves it again: that is the bug, wherever the bodies came
+  from.
+- **Fix.** `Actor::SetBodiesLayer` runs `BodiesLayer::For`'s steps (shared with the fake): out (layer 0), removed then
+  keyframed, 39897's order; a layer, keyframed, set, added; bodies out of the world but one still dynamic count as not
+  done. So one call at the change, no polling. The copy's bodies stay its own (no mirror) while it lies, gets up (knock
+  state 5 or 6: 37491 leaves 6 out of "lying", while 58291 still simulates its limbs), is in its kill move, or is dying
+  (`ReplayState::TakesOwnerBodies`): dead, or holding its pose for its owner's death. That last matters: a person's victim clip sends `KillMoveEnd` with
+  `KillActor`, so its copy is out of its kill move and alive until its owner's death, and keyframing then made that
+  death's fall flicker (`kill-move-kills-guest`, once, under an earlier version of this fix).
+- **After** (duo, the shared-steps build): `kill-moves-cross-frozen-copy` 3 of 3 (2 of 2 red, 342 units off, on a build
+  whose layer 0 did not keyframe), `kill-move-kills-guest`, `kill-moves-cross`, `knockdown-lies-as-host`,
+  `guest-knockdown-lies-on-host` 1 of 1, `furniture-client-player` and `guest-rides-host-horse` 3 of 3 each after one
+  guest crash in a graph stream replay (bugs.md, "Seen once in the run of 2026-11-22"; nothing of this change on its
+  stack).
+- **The race itself works.** Both orders (host first, guest first) ended with one winner and every copy at its owner's
+  place once the skeleton is set aside (`kill_move_exchange`, now with `first`): the host's claim wins a simultaneous
+  pair (its own claim is in-process), the loser yields and plays the winner's pair.
+- **The sword of freezing.** A vanilla "of Freezing" enchantment slows its victim (the guest's `SpeedMult` 100 to 75
+  after three hits) and does not paralyze; plain hits with it left the copy on its owner (13 units). Not involved: the
+  frozen skeleton needs only the cut-short victim half.
+- The playtest's logs (2026-11-26 bug reports) hold no kill move line; the session it happened in was not among them.
+
 ## A blow and its clip's end in one update (the frozen victim, 2026-11-22)
 
 A guest's kill move on a person left the victim standing in its clip's last pose for 1.5 s after the blow, on every
@@ -283,7 +349,8 @@ death action
 `::RemapClipEvents` 63060 (`2_` events to the partner), `::GetClipRootTransform` 63058;
 `BSRagdollContactListenerModifier::contactPointCallback` 63092, `::Modify` 63091, `::AddListeners` 63093, `::Activate` 63088,
 `::Deactivate` 63089;
-`Character::EndKillMove` 38614. Each has a comment in the database. Added 2026-11-22: `ActorProcess::IsKillQueued` 40011,
+`Character::EndKillMove` 38614. Each has a comment in the database. Added 2026-11-28: `Actor::EnterPairedSim` 32847,
+`bhkBlendCollisionObject::SetMotionType` 78912, `::UpdateBoneFromBody` 78910, `BShkbAnimationGraph::WritePoseToBoneNodes`. Added 2026-11-22: `ActorProcess::IsKillQueued` 40011,
 `ActorProcess::SetKillQueued` 40012, `Actor::DeferKill` 38617, `Character::PlayRagdollInstant` 37186,
 `IAnimationGraphManagerHolder::HasRagdoll` 38085, `::SetRagdollMotionType` 38084, and their visitors.
 

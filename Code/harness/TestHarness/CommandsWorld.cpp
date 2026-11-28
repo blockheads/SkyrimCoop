@@ -815,7 +815,7 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
     if (const auto cDriver = EngineCalls::GetRagdollDriver(acRequest.value("actor", 0u)))
         result["driver"] = {{"enabled", cDriver->Enabled}, {"powered", cDriver->Powered}, {"rigid_body", cDriver->RigidBody},
                             {"pose_was_used", cDriver->PoseWasUsed}, {"all_keyframed", cDriver->AllKeyframed},
-                            {"steps_physics", cDriver->StepsPhysics},
+                            {"steps_physics", cDriver->StepsPhysics}, {"listed", cDriver->Listed},
                             {"tracks", {{"rigid_body", cDriver->Tracks[0]}, {"powered", cDriver->Tracks[1]},
                                         {"keyframed_bones", cDriver->Tracks[2]}, {"keyframe_targets", cDriver->Tracks[3]}}},
                             {"keyframed_bone_values", cDriver->KeyframedBones}};
@@ -825,6 +825,19 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
         result["picked"] = {{"ragdoll_index", cPicked->RagdollIndex}, {"layer", cPicked->Filter & 0x7F}, {"group", cPicked->Filter >> 16},
                             {"motion", cPicked->Motion}};
     return result;
+}
+
+// {"cmd": "skeleton", "actor": id}: what the actor's active graph writes its pose into against its drawn 3D (GetSkeleton).
+nlohmann::json Skeleton(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cRead = EngineCalls::GetSkeleton(acRequest.value("actor", 0u));
+    if (!cRead)
+        return Error("no such actor, 3D or graph");
+    auto nodes = nlohmann::json::array();
+    for (const auto& cNode : cRead->Nodes)
+        nodes.push_back({{"name", cNode.Name}, {"drawn", cNode.Drawn}, {"written", cNode.Written}, {"local", cNode.Local}, {"world", cNode.World},
+                         {"blend", cNode.Blend}, {"blend_motion", cNode.BlendMotion}});
+    return {{"ok", true}, {"root_is_drawn", cRead->RootIsDrawn}, {"bone_nodes", cRead->BoneNodes}, {"world_from_model", cRead->WorldFromModel}, {"nodes", nodes}};
 }
 
 // {"cmd": "ragdoll_contacts", "actor": id}: what each ragdoll body is paired with in Havok (GetRagdollContacts): body,
@@ -1379,7 +1392,7 @@ constexpr Command cCommands[] = {
     {"form_known", true, &FormKnown},
     {"container_items", true, &ContainerItems},
     {"recipe", true, &RecipeOf},
-    {"ragdoll", true, &Ragdoll},
+    {"ragdoll", true, &Ragdoll}, {"skeleton", true, &Skeleton},
     {"ragdoll_contacts", true, &RagdollContacts},
     {"controller", true, &Controller},
     {"ray", true, &Ray},

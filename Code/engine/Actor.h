@@ -256,8 +256,8 @@ struct Actor : TESObjectREFR
     // The collision layer its own 3D's bodies are on in the physics world, 0 when out of it: its AI puts them there,
     // keyframed on layer 33, as it sits or sleeps (40063).
     [[nodiscard]] uint8_t BodiesLayer() const noexcept;
-    // Its own 3D's bodies put on that layer in the world (keyframed, its capsule's group), or out of it for 0, queued
-    // as the engine queues them (TaskQueueInterface 36922 to 36929). False: as wanted already, or no 3D.
+    // Its own 3D's bodies on that layer in the world (its capsule's group) or out of it for 0, keyframed either way
+    // (BodiesLayer::For's steps, queued as the engine queues them: 36922 to 36929). False: as wanted already, or no 3D.
     bool SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf = nullptr) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
     void ShowWeaponDrawn(bool aDrawn) noexcept;

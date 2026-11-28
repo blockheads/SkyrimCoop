@@ -32,7 +32,8 @@ struct IActorMovement
     // Its graphs step with the physics world, so their ragdoll driver drives its bodies (63562); detached in furniture.
     [[nodiscard]] virtual bool GraphsStepPhysics(uint32_t aFormId) const noexcept = 0;
     // A copy's bodies and graphs put as its owner's are, in the engine's order (40063 detaches the graphs first, 39912
-    // takes the bodies out first). A copy runs no AI, so its engine never does it.
+    // takes the bodies out first). A copy runs no AI, so its engine never does it. Out of the world (layer 0) its own
+    // ragdoll ends as EndKnockState (39897) ends a living one: keyframed, so no bone stays on a still body (78910).
     virtual void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept = 0;
     virtual void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
     virtual uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept = 0;
