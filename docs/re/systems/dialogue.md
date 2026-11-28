@@ -386,17 +386,18 @@ stopped. Read in IDA (commented there), measured on the duo (`dialogue-host-talk
 
 | ID | RVA | Name (ours) | What |
 |---|---|---|---|
-| 24715 | 0x3c05c0 | `TESNPC::Activate` | The player's talk: on the manager's current speaker (+0x6C) with no dialogue target in its process, reopens the menu (`menuOpen` +0xB1, 52853) on the conversation under way; any other actor starts one (37200). `HookNpcActivate` runs our join before it |
+| 24715 | 0x3c05c0 | `TESNPC::Activate` | The player's talk: on the manager's `lastSpeaker` (+0x6C) with no dialogue target in its process, reopens the menu (`menuOpen` +0xB1, 52853); else, unless the target is the active `speaker` (+0x68, 35288), starts one (37200). `HookNpcActivate` runs our join, on +0x68, before either |
+| 35288 | 0x5f06c0 | `MenuTopicManager::GetSpeaker` (ours) | The active speaker (+0x68) as a reference |
 | 35283 | 0x5efb90 | `SaySelected` | `forceGoodbye` (+0xB2) = the picked info's Goodbye flag (+0x3C & 1), at the pick (0x1405efcb8) |
-| 35285 | 0x5effa0 | `Advance` | At the line's end: `forceGoodbye` or an end info sets `shutMenu` (+0xB3): the conversation ends after the line |
+| 35285 | 0x5efe90 | `Advance` | At the line's end: `forceGoodbye` or an end info sets `shutMenu` (+0xB3): the conversation ends after the line |
 | 51515 | 0x92b0d0 | `DialogueMenu::PopulateTopicList` | Sets `shutMenu` on `forceGoodbye` or no option, whenever it runs |
 
 - **The cause:** the host's E joins (`HostConversation::OnTalk`), and `DialogueBridge::ShowMenu` shows the engine's list
   (52857) mid-line. Lucan's claw answer (topic 5D46F, info 5D471, a line's choice) is a goodbye, so the menu's fill
   (51515) found `forceGoodbye` and shut the conversation 94 ms after the press (measured), not at the line's end. The
   host's engine ending it ends it for everyone (`HostConversation::OnUpdate`). The quest still reached stage 100.
-- **Now:** the host's talk does nothing while the speaker says a goodbye (`IDialogueBridge::IsSayingGoodbye`, the flag),
-  as pressing E on a busy NPC does nothing; the line ends the conversation for everyone at its end, as in single player.
+- **Now:** the host's talk does nothing while the speaker says a goodbye (`IDialogueBridge::IsSayingGoodbye`, the flag);
+  that a single player's press on a busy NPC does nothing is inferred, not measured. The line ends the conversation for everyone at its end, as in single player.
   GameTests "The host talking to an NPC saying a guest's goodbye..." (the fake keeps a voiced goodbye until its line ends
   and ends a menu shown meanwhile, as 51515).
 

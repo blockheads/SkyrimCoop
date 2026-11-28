@@ -234,7 +234,7 @@ Size: small. Needs: the duo (`death-spectate-host`, `death-spectate-guest`, `par
 
 After the guest's conversation with Lucan ended (his goodbye, the host's E waited out), the scenario's closing
 comparison found his copy facing 34 degrees off his owner: host `[0, 0, 3.139]`, guest copy `[0, 0, 3.734]`
-(`dialogue-host-talks-during-guest-turn-in`, 1 of 1, 2026-11-27, `agent/dialogue-interrupted-reset`). Every step before
+(`dialogue-host-talks-during-guest-turn-in`, 1 of 2 runs, 2026-11-27, `agent/dialogue-interrupted-reset`). Every step before
 it passed. Not read: whether the owner's turn back after the conversation is sent, or the copy keeps the turn to the
 guest's character (`HookShouldRotateToTrack`, dialogue.md "Who the speaker looks at").
 

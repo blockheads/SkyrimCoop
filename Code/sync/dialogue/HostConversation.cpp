@@ -8,6 +8,7 @@
 #include <core/SessionIds.h>
 #include <core/World.h>
 #include <core/FormIds.h>
+#include <dialogue/DialogueMenuPolicy.h>
 
 HostConversation::HostConversation(World& aWorld, entt::dispatcher& aDispatcher, DialogueService& aDialogue) noexcept
     : m_world(aWorld)
@@ -43,10 +44,11 @@ bool HostConversation::OnTalk(uint32_t aActorFormId) noexcept
 {
     // The conversation runs without its menu: talking to its NPC opens it.
     auto& bridge = m_dialogue.Bridge();
-    if (bridge.IsMenuOpen() || !m_dialogue.Conversation() || aActorFormId != bridge.GetSpeaker())
+    const auto cTalk = DialogueMenuPolicy::DecideHostTalk(bridge.IsMenuOpen(), m_dialogue.Conversation() != 0,
+                                                          aActorFormId == bridge.GetSpeaker(), bridge.IsSayingGoodbye());
+    if (cTalk == DialogueMenuPolicy::HostTalk::Engine)
         return false;
-    // Saying a goodbye: a menu shown now would end it mid-line (51515 on forceGoodbye); the press does nothing.
-    if (bridge.IsSayingGoodbye())
+    if (cTalk == DialogueMenuPolicy::HostTalk::Ignore)
     {
         spdlog::info("Dialogue: {:X} says its goodbye in conversation {}: the host's talk waits it out", aActorFormId,
                      m_dialogue.Conversation());

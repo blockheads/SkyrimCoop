@@ -113,6 +113,7 @@ static_assert(offsetof(MenuTopicManager, selectedResponseNode) == 0x18);
 static_assert(offsetof(MenuTopicManager, lastSelectedDialogue) == 0x38);
 static_assert(offsetof(MenuTopicManager, blockingBranches) == 0x80);
 static_assert(offsetof(MenuTopicManager, menuOpen) == 0xB1);
+static_assert(offsetof(MenuTopicManager, forceGoodbye) == 0xB2);
 static_assert(offsetof(MenuTopicManager, shutMenu) == 0xB3);
 static_assert(offsetof(MenuTopicManager, closeInProgress) == 0xBB);
 static_assert(offsetof(MenuTopicManager, skipHeadResponse) == 0xB7);

@@ -9,6 +9,8 @@ DOC = "The guest hands Lucan the golden claw; while he answers, the host presses
 
 
 def run(ctx):
+    gold = ctx.party_gold()
+    claws = {g: ctx.item_count(g, 0x14, 0x39647) for g in ('', 'client')}
     try:
         ctx.scene(save=None, at='coc RiverwoodRiverwoodTrader', pin=True)
         ctx.console_on('', 'resetquest 39645')
@@ -24,10 +26,14 @@ def run(ctx):
         ctx.dialogue_press(instance='client')  # "Wait, you mean this golden claw?", Lucan's goodbye answer
         ctx.wait_for("[host] Lucan says the guest's goodbye", lambda: ctx.dialogue('').get('flags', {}).get('force_goodbye'), 10)
         ctx.press_talk('', 'lucan')
-        ctx.expect_stays_talking('client', 'lucan', seconds=3.0)
-        ctx.wait_for('[host] the claw quest reaches stage 100', lambda: ctx.quest_stage('', 0x39645) == 100, 60)
+        ctx.expect_stays_talking('client', 'lucan', seconds=3.0)  # and while the host's Lucan voices his answer
         ctx.wait_for('[guest] the goodbye ends its conversation', lambda: ctx.menu_closed('client'), 60)
+        ctx.wait_for('[host] the claw quest reaches stage 100', lambda: ctx.quest_stage('', 0x39645) == 100, 60)
     finally:
         ctx.close_dialogues()
         ctx.console_on('', 'resetquest 39645')
+        for g, count in claws.items():
+            if delta := count - ctx.item_count(g, 0x14, 0x39647):
+                ctx.console_on(g, f"player.{'additem' if delta > 0 else 'removeitem'} 39647 {abs(delta)}")
+        ctx.set_party_gold(gold, wait=False)
         ctx.unstage()

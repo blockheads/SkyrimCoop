@@ -116,3 +116,14 @@ TEST_CASE("A voice file is a line of the topic info its name carries", "[dialogu
     CHECK(IsLineOf(cpLight, 0xFE123ABC, "Mine.esl"));
     CHECK_FALSE(IsLineOf("Data\\Sound\\Voice\\Mine.esl\\FemaleYoungEager\\MyQuest_Hello_00123ABC_1.fuz", 0xFE123ABC, "Mine.esl"));
 }
+
+TEST_CASE("The host's talk joins a conversation under way, but not while its speaker says a goodbye", "[dialogue]")
+{
+    using DialogueMenuPolicy::DecideHostTalk;
+    using DialogueMenuPolicy::HostTalk;
+    CHECK(DecideHostTalk(false, true, true, false) == HostTalk::Join); // mid-answer or at the list: joins
+    CHECK(DecideHostTalk(false, true, true, true) == HostTalk::Ignore); // Lucan's claw answer: the press does nothing
+    CHECK(DecideHostTalk(true, true, true, true) == HostTalk::Engine);  // its menu open already
+    CHECK(DecideHostTalk(false, false, true, false) == HostTalk::Engine);
+    CHECK(DecideHostTalk(false, true, false, true) == HostTalk::Engine); // another NPC
+}

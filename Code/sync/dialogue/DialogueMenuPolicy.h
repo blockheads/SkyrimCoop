@@ -28,6 +28,15 @@ constexpr bool NeedsRefill(bool aOptionsChanged, bool aListShown, bool aResuming
     return aResuming || aOptionsChanged || !aListShown;
 }
 
+// The host's player talking to an NPC (24715): the engine's own talk, a join of the conversation under way, or nothing
+// while its speaker says a goodbye (a menu shown then ends it mid-line: 51515 on forceGoodbye).
+enum class HostTalk { Engine, Join, Ignore };
+
+constexpr HostTalk DecideHostTalk(bool aMenuOpen, bool aConversation, bool aIsSpeaker, bool aSayingGoodbye) noexcept
+{
+    return aMenuOpen || !aConversation || !aIsSpeaker ? HostTalk::Engine : aSayingGoodbye ? HostTalk::Ignore : HostTalk::Join;
+}
+
 // The speaker's body would not turn only for the engine's rule that, talking to this game's player, it turns to that
 // player alone (Character::ShouldRotateToTrack 38011): its target is the talker the host names instead.
 constexpr bool AskTurnForTalker(bool aTurns, bool aTalkingToPlayer, bool aSpeaker, uint32_t aTarget, uint32_t aTalker) noexcept
