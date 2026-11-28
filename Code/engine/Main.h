@@ -9,9 +9,12 @@ struct Main
 {
     static Main* Get() noexcept;
 
-    uint8_t pad0[0x16];
+    uint8_t pad0[0x10];
+    bool quitGame;        // 0x10: WinMain's loop (36544) ends after the frame that sees it
+    uint8_t pad11[0x5];
     bool freezeTime;      // 0x16
     bool freezeNextFrame; // 0x17
 };
+static_assert(offsetof(Main, quitGame) == 0x10);
 static_assert(offsetof(Main, freezeTime) == 0x16);
 static_assert(offsetof(Main, freezeNextFrame) == 0x17);

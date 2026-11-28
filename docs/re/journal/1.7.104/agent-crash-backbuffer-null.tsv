@@ -1,0 +1,20 @@
+time	op	id	rva	item
+2026-11-27T23:48:47Z	read	77397	0x1012480	{"name": "sub_141012480"}
+2026-11-27T23:48:59Z	read		0x1009500	{"name": "Renderer::WindowSizeChanged"}
+2026-11-27T23:49:15Z	read		0x10124f0	{"name": "sub_141012480"}
+2026-11-27T23:51:02Z	read	77238	0x1009360	{"name": "Renderer::WindowSizeChanged"}
+2026-11-27T23:51:36Z	read		0x1008b00	{"name": "<no function>"}
+2026-11-27T23:51:49Z	read	36649	0x65f270	{"name": "WindowProc"}
+2026-11-27T23:52:05Z	read		0x1008df0	{"name": "Renderer::KillWindow"}
+2026-11-27T23:52:26Z	read	36555	0x6565b0	{"name": "Main::sub_36555"}
+2026-11-27T23:52:31Z	read	36544	0x651300	{"name": "WinMain"}
+2026-11-27T23:54:12Z	name	77397	0x1012480	{"addr": "0x141012480", "name": "Renderer::CreateSwapChainRenderTarget"}
+2026-11-27T23:54:12Z	local	77397	0x1012480	{"func_addr": "0x141012480", "old": "v10", "new": "pBackBuffer"}
+2026-11-27T23:54:12Z	local	77238	0x1009360	{"func_addr": "0x141009360", "old": "v8", "new": "windowWidth"}
+2026-11-27T23:54:12Z	local	77238	0x1009360	{"func_addr": "0x141009360", "old": "v9", "new": "windowHeight"}
+2026-11-27T23:54:12Z	local	77238	0x1009360	{"func_addr": "0x141009360", "old": "v32", "new": "fullscreen"}
+2026-11-27T23:54:16Z	comment	77397	0x1012480	{"addr": "0x141012480", "comment": "Window w's swap-chain render target: GetBuffer(0) (swap chain vt 9), CreateRenderTargetView, CreateShaderResourceView, GetDesc. No HRESULT checked: a failed GetBuffer leaves pBackBuffer null and GetDesc faults at +0x92 (playtest crash 2026-11-26, the window already destroyed)."}
+2026-11-27T23:54:16Z	comment		0x10093a2	{"addr": "0x1410093a2", "comment": "GetWindowRect's result unchecked: on a destroyed window the RECT is stack garbage, so the size 'changes' and the resize below runs."}
+2026-11-27T23:54:16Z	comment		0x100963f	{"addr": "0x14100963f", "comment": "IDXGISwapChain::ResizeBuffers(0,0,0,0,2) (vt 13), result unchecked; then CreateSwapChainRenderTarget asks for the new buffer."}
+2026-11-27T23:54:16Z	comment		0x651494	{"addr": "0x140651494", "comment": "Main::quitGame (+0x10) is checked only after the frame: a WM_DESTROY dispatched above (WindowProc sets quitGame) still gets one Main::Update when bAlwaysActive (380768) is set, on a window that is gone."}
+2026-11-27T23:54:16Z	comment		0x65f3fa	{"addr": "0x14065f3fa", "comment": "WM_DESTROY: Main::quitGame = 1. WM_CLOSE (X button, Alt+F4) is not handled: DefWindowProc destroys the window first."}

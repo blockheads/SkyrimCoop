@@ -263,6 +263,10 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Engine threading and crashes
 
+- **Closing the window crashed** (playtest 2026-11-26, fixed 2026-11-27): the X / Alt+F4 destroyed the window and,
+  with `bAlwaysActive`, one more frame resized its swap chain; `WM_CLOSE` now quits as `qqq` does
+  (`docs/re/systems/game-window.md`, `repro quit-close-window`).
+
 - **Freezes and slowness** (2026-11-04): the machine's, not ours (measured 2026-11-05). The export: 2845 frames in
   about 8 minutes, p50 17 / p95 32 / p99 71 ms, worst 2.6 s; `Frame stalled` 70 on the host, 90 on the guest.
   - Shared: 52 of the host's 70 stalls (17.2 of its 23.4 s) hit the guest within 300 ms, the long ones to the ms
