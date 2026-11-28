@@ -15,6 +15,8 @@
 #include <Messages/ActivateRequest.h>
 #include <Messages/SummonRequest.h>
 #include <Messages/LockChangeRequest.h>
+#include <Messages/ObjectStateRequest.h>
+#include <world/DestructionRow.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/NotifyWeatherChange.h>
@@ -242,6 +244,8 @@ struct Session
     std::vector<std::tuple<GameId, bool, uint8_t>> LocksSet; // guests' lock changes the host's game took
     std::vector<StoryEvent> StoriesRaised;                    // guests' story events the host's story manager queued
     std::vector<ObjectChange> ItemsSet;                      // guests' container changes the host's game took
+    std::map<uint32_t, ObjectChange> ObjectStates;           // the host's references' state rows by base id (a web's health)
+    std::vector<ObjectChange> StatesSet;                     // guests' state rows the host's game took
     std::unordered_map<GameId, Inventory::Entry> Loose;              // the host's loose items it made for guests' drops
     std::set<GameId> QuestObjects;                                    // those a quest's alias holds
     std::vector<GameId> TakenForParty;                                // quest objects the host's player picked up
@@ -390,6 +394,14 @@ private:
         game.TouchTrap = [this](const Payloads::TrapContact& acContact) { TrapsTouched.push_back(acContact); };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
         game.SetItems = [this](const ObjectChange& acItems) { ItemsSet.push_back(acItems); };
+        game.ReadObjectState = [this](const GameId& acObject, ObjectChange::Kind aKind) -> std::optional<ObjectChange> {
+            const auto it = ObjectStates.find(acObject.BaseId);
+            return it != ObjectStates.end() && it->second.Type == aKind ? std::optional(it->second) : std::nullopt;
+        };
+        game.SetObjectState = [this](const ObjectChange& acState) {
+            StatesSet.push_back(acState);
+            ObjectStates[acState.Object.BaseId] = acState;
+        };
         game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { StoriesRaised.push_back(acEvent); };
         // A drop is made in a cell the host's game has loaded.
         game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) -> std::optional<GameId> {

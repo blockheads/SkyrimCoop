@@ -128,6 +128,8 @@ every other section needs the duo.
 - [A copy at Sheathed while its owner draws](#a-copy-at-sheathed-while-its-owner-draws): small
 - [The party's sword unnamed at a merchant](#the-partys-sword-unnamed-at-a-merchant): small
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
+- [A copy's corpse slips out of the hand sooner](#a-copys-corpse-slips-out-of-the-hand-sooner): small
+- [A fighter deleted mid-fight holds the party's respawn](#a-fighter-deleted-mid-fight-holds-the-partys-respawn): small
 - [Seen once in the run of 2026-11-22](#seen-once-in-the-run-of-2026-11-22): small
 
 **Test tools**
@@ -398,6 +400,9 @@ Size: medium. Needs: duo.
     from the interrupted execution 57-94 units off their owners (Lisette, Greta, Jala; Roggvir 66 off and facing 57 deg
     apart), and once the guest's player 40 units into the floor, owner and copy alike. Unread: whether the copies lag a
     run or hold a stale point.
+  - `courier-force-greet-continues` (Riverwood, 2026-11-27) passes its steps and ends with furniture `1B752` (FURN
+    `74A4E`) graph variable `IsReady` 1 on the host, 0 on the guest; the next run with Faendal's `anim_objects` (the
+    same three, in another order). Unread.
 - 2026-11-22, dev `aa723513`: `copies_follow_owners_graphs_in_town` passed; `copy_holds_furniture_prop` ended on
   Dorthe's copy 58 units off, `guest-trips-platform-guard` on Evette San 75 units off and the guest's copy. On the
   `LateAfterDragonslayerBackinSkyrim` boot `faendal-letter` passed whole (once), and
@@ -405,6 +410,13 @@ Size: medium. Needs: duo.
   `WeaponRackMidACTIVATOR`, with `0x8000000` on one game: not read, an activator has no container).
   2026-11-23: the Sleeping Giant's rack weapons ended apart too; `HoldAt` each update until asleep passes
   `guest-grabs-orgnar-bottle` (1 run), `docs/re/systems/physics.md`.
+- 2026-11-27 (`agent/party-item-icon`, `LateOutsideHelgen`): `golden-claw-guest` (2 runs) and
+  `golden-claw-party-tag` (2 runs) pass every step and end on trees (TREE `5D2D7`, `5D2D9`) whose branch bones
+  (`BranchBoneCluster02`, `BranchBoneLow02`) are turned differently, 1-6 references a run. Unread: whether a tree's
+  wind pose is game-local, which would make it one to leave out of the comparison.
+  The same scenarios' guest `take` from Arvel's body missed twice in four runs ("the crosshair is on nothing, not
+  arvel: 130/191 units off"): the body still moving after the console kill (his web, a ragdoll). Start: `take` waiting
+  for the body to rest (`wait_rest`) before it aims.
 
 ### A strafing copy catches for a frame
 
@@ -1524,6 +1536,40 @@ Agent task: read the guest's party stacks and the barter menu's names at that st
 the host.
 
 Size: small. Needs: the duo, then GameTests.
+
+### A fighter deleted mid-fight holds the party's respawn
+
+Seen 2026-11-27 (`drag_rounds`): a host wolf fighting the standing host player, frozen, then removed (`unstage`) while
+in combat. The dead guest stayed down with "Party in combat" for good. `HostDeath::StandingPlayerFights` reads each
+character's last AI state (`m_ai`), and nothing seems to drop a deleted actor's (not read). In play: an NPC a script
+disables or a summon that expires mid-fight would hold every downed player's respawn.
+
+Agent task: read what removes a character's entry from `HostDeath`'s records when its actor goes; a HostAuthorityTests
+case for a fighter removed mid-fight.
+
+Size: small. Needs: no duo for the test.
+
+### A copy's corpse slips out of the hand sooner
+
+`host-drags-dead-guest` (2026-11-27, after the fix that takes a copy's held corpse out of the played group): the host's
+player walking backwards with the dead guest's copy let go after 1.3 s and 1.8 s (two runs); the host's own dead
+bandit (base 13BA1), dragged the same way, held the whole 2 s (one run). The copy's bones follow the hand meanwhile
+(33 units in 1.8 s) and the guest's own body follows them. Not read: which collider pair and `BodyGroups::Decide`
+result pinned the copy's bones in the played group before the fix (only the hook switch showed it), and which still
+differs in the moving group, or whether it is chance. The fake's pinned-grab rule (`FakeEngine::PlayerHolds`) rests on
+that switch alone.
+
+2026-11-27, traced with `ragdoll_contacts`: the copy's bones were meeting the axe in its own hand (a group apart, see
+`physics.md`, "Dragging a corpse"); fixed, its held contacts now match the host's own corpse's. Then measured with
+`drag_rounds` / `drag_npc_corpse` (1.5 s back, pelvis travel): the dead guest's copy grabbed at once, before the fix
+58, 5, 33 units, after it 33, 32, 68, all held; a host bandit's corpse at rest, the host's own 59, 100, 94 and the
+guest's copy of it 49, 50, 105, all held. The two overlap at three rounds each; the earlier breaks at 1.3-1.8 s were
+2 s drags.
+
+Agent task: rounds of both drags (`drags_dead_player`, and the same on a host NPC's corpse) to tell chance from a
+difference; if it is one, trace what else acts on the copy's bones while held (its movement, CopyRagdollPhysics).
+
+Size: small. Needs: the duo.
 
 ### A dragged corpse's copy apart from its owner
 

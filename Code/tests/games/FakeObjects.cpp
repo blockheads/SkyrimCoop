@@ -29,6 +29,8 @@
 #include <magic/SpellCastEvent.h>
 #include <items/InventoryChangeEvent.h>
 #include <world/LockChangeEvent.h>
+#include <world/DestructionEvent.h>
+#include <world/DestructionRow.h>
 #include <items/LooseItemEvents.h>
 #include <scripts/CallEndedEvent.h>
 #include <scripts/RoutedCallEvent.h>
@@ -281,6 +283,102 @@ void FakeEngine::ScriptSetsDestroyed(uint32_t aReference, bool aDestroyed)
     Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = EnabledValue(reference)});
 }
 
+namespace
+{
+// BGSDestructibleObjectForm::DamageObject (14158): health down, stopped at a capped stage's threshold when crossing
+// it, at 0 the destroyed flag and the last stage's model.
+void Damage(FakeEngine::Reference& aReference, float aDamage)
+{
+    const float cBefore = aReference.Health;
+    aReference.Health = std::max(0.f, cBefore - aDamage);
+    if (cBefore > aReference.CapHealth && aReference.Health < aReference.CapHealth)
+        aReference.Health = aReference.CapHealth;
+    if (aReference.Health == 0.f)
+    {
+        aReference.Destroyed = true;
+        aReference.StageModel = true;
+    }
+}
+
+// ReferenceStates' ApplyDestruction: whole again first (ClearDestruction 14181) if the row is above, then the damage.
+void ApplyDestruction(FakeEngine::Reference& aReference, uint32_t aValue)
+{
+    const float cTarget = DestructionRow::Unpack(aValue);
+    // The newest row stands: it replaces, or cancels, one still waiting for the 3D.
+    aReference.DeferredDestruction.reset();
+    if (!aReference.Has3D)
+    {
+        if (cTarget != aReference.Health)
+            aReference.DeferredDestruction = aValue;
+        return;
+    }
+    if (cTarget > aReference.Health)
+    {
+        aReference.Health = aReference.FullHealth;
+        aReference.Destroyed = false;
+        aReference.StageModel = false;
+    }
+    // Again until it reads as the row: each call stops at a capped stage.
+    while (cTarget < aReference.Health)
+    {
+        const float cBefore = aReference.Health;
+        Damage(aReference, aReference.Health - cTarget);
+        if (aReference.Health == cBefore)
+            break;
+    }
+}
+} // namespace
+
+std::optional<ObjectChange> FakeEngine::DestructionRowOf(uint32_t aReference) const
+{
+    const auto it = References.find(aReference);
+    if (it == References.end() || it->second.FullHealth == 0.f)
+        return std::nullopt;
+    return ObjectChange{.Type = ObjectChange::Kind::kDestruction, .Object = SessionIdOf(aReference), .Value = DestructionRow::Pack(it->second.Health)};
+}
+
+void FakeEngine::PlayerDamagesObject(uint32_t aReference, float aDamage)
+{
+    auto& reference = References.at(aReference);
+    if (reference.FullHealth == 0.f || reference.Destroyed || !reference.Has3D)
+        return;
+    const bool cWasDestroyed = reference.Destroyed;
+    Damage(reference, aDamage);
+    Changed.insert(aReference);
+    if (IsGuest)
+    {
+        World::Get().GetDispatcher().trigger(DestructionEvent{aReference});
+        return;
+    }
+    if (reference.Destroyed != cWasDestroyed)
+        Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = EnabledValue(reference)});
+    Recorded.push_back(*DestructionRowOf(aReference));
+}
+
+void FakeEngine::ScriptClearsDestruction(uint32_t aReference)
+{
+    auto& reference = References.at(aReference);
+    const bool cWasDestroyed = reference.Destroyed;
+    reference.Health = reference.FullHealth;
+    reference.Destroyed = false;
+    reference.StageModel = false;
+    Changed.insert(aReference);
+    if (reference.Destroyed != cWasDestroyed)
+        Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = EnabledValue(reference)});
+    Recorded.push_back(*DestructionRowOf(aReference)); // our 14181 hook records its health's change
+}
+
+void FakeEngine::SetDestruction(uint32_t aReference, uint32_t aValue)
+{
+    auto& reference = References.at(aReference);
+    const bool cWasDestroyed = reference.Destroyed;
+    ApplyDestruction(reference, aValue);
+    Changed.insert(aReference);
+    if (reference.Destroyed != cWasDestroyed)
+        Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = SessionIdOf(aReference), .Value = EnabledValue(reference)});
+    Recorded.push_back(*DestructionRowOf(aReference));
+}
+
 void FakeEngine::ClosesChestMenu()
 {
     const uint32_t cChest = std::exchange(ChestMenuOf, 0);
@@ -302,8 +400,10 @@ void FakeEngine::Finishes3D(uint32_t aReference)
 {
     auto& reference = References.at(aReference);
     reference.Has3D = true;
-    if (reference.DeferredMotion) // ApplyDeferredMotion, on TESObjectLoadedEvent
+    if (reference.DeferredMotion) // ApplyDeferred, on TESObjectLoadedEvent
         reference.Motion = std::exchange(reference.DeferredMotion, 0u);
+    if (const auto cDestruction = std::exchange(reference.DeferredDestruction, std::nullopt))
+        ApplyDestruction(reference, *cDestruction);
     if (reference.Chest)
         reference.Lid = reference.Unposed ? kPartOpen : reference.Open ? 1.f : 0.f;
 }
@@ -428,6 +528,8 @@ std::vector<ObjectChange> FakeEngine::RowsOf(uint32_t aReference) const
         rows.push_back(HarvestedRow(aReference, cReference));
     if (cReference.Motion)
         rows.push_back(MotionRow(aReference, cReference));
+    if (auto destruction = DestructionRowOf(aReference))
+        rows.push_back(std::move(*destruction));
     for (const auto& [cItem, cCount] : cReference.Items)
         rows.push_back(ItemsRow(aReference, cReference, cItem));
     return rows;
@@ -495,6 +597,11 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         }
         break;
     case ObjectChange::Kind::kHarvested: reference.Harvested = acChange.Value != 0; break;
+    case ObjectChange::Kind::kDestruction:
+        if (reference.FullHealth == 0.f)
+            return false;
+        ApplyDestruction(reference, acChange.Value);
+        break;
     case ObjectChange::Kind::kMove: // ApplyMove: SetPosition and SetAngle (22053, 22054)
     {
         if (acChange.Data.size() != 6 * sizeof(float))

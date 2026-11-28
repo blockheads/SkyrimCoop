@@ -506,6 +506,14 @@ bool DialogueBridge::IsSayingGoodbye() const noexcept
     return pManager && pManager->forceGoodbye;
 }
 
+bool DialogueBridge::IsContinued() const noexcept
+{
+    // As Advance (35285) asks once the said option's responses are done.
+    const MenuTopicManager* pManager = Conversation();
+    const EngineOption* pSaid = pManager ? pManager->lastSelectedDialogue : nullptr;
+    return pSaid && pSaid->parentTopicInfo && (pSaid->parentTopicInfo->flags & TESTopicInfo::kInvisibleContinue);
+}
+
 // ---- Starting and ending it ----
 
 uint32_t DialogueBridge::GetGreeting() const noexcept

@@ -795,7 +795,8 @@ nlohmann::json StackExtras(Harness&, const nlohmann::json& acRequest)
 
 // {"cmd": "ragdoll", "actor": id}: the actor's ragdoll bodies in order: motion type (4 keyframed), awake, position,
 // rotation (x, y, z, w) and velocity in game units; its character controller's flags and filter info; and its ragdoll
-// driver's controllers and the graph output tracks they follow (GetRagdollDriver).
+// driver's controllers and the graph output tracks they follow (GetRagdollDriver); and the body the crosshair picked
+// ("picked": what a grab springs, its index in this ragdoll or -1).
 nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
 {
     const auto cBodies = EngineCalls::GetRagdoll(acRequest.value("actor", 0u));
@@ -816,7 +817,27 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
                             {"tracks", {{"rigid_body", cDriver->Tracks[0]}, {"powered", cDriver->Tracks[1]},
                                         {"keyframed_bones", cDriver->Tracks[2]}, {"keyframe_targets", cDriver->Tracks[3]}}},
                             {"keyframed_bone_values", cDriver->KeyframedBones}};
+    if (const auto cMass = EngineCalls::GetActorMass(acRequest.value("actor", 0u)))
+        result["mass"] = {{"total", cMass->Total}, {"ragdoll", cMass->Ragdoll}, {"held", cMass->Held}};
+    if (const auto cPicked = EngineCalls::GetCrosshairCollider(acRequest.value("actor", 0u)))
+        result["picked"] = {{"ragdoll_index", cPicked->RagdollIndex}, {"layer", cPicked->Filter & 0x7F}, {"group", cPicked->Filter >> 16},
+                            {"motion", cPicked->Motion}};
     return result;
+}
+
+// {"cmd": "ragdoll_contacts", "actor": id}: what each ragdoll body is paired with in Havok (GetRagdollContacts): body,
+// partner layer, group, motion (-1 a phantom), reference, and its index in this ragdoll (-1 another's).
+nlohmann::json RagdollContacts(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cContacts = EngineCalls::GetRagdollContacts(acRequest.value("actor", 0u));
+    if (!cContacts)
+        return Error("no such actor");
+    auto contacts = nlohmann::json::array();
+    for (const auto& cContact : *cContacts)
+        contacts.push_back({{"body", cContact.Body}, {"layer", cContact.Filter & 0x7F}, {"group", cContact.Filter >> 16},
+                            {"motion", cContact.Motion}, {"ref", cContact.Reference}, {"ragdoll_index", cContact.RagdollIndex},
+                            {"node", cContact.Node}});
+    return {{"ok", true}, {"contacts", contacts}};
 }
 
 // {"cmd": "controller", "actor": id}: the actor's character controller: flags, filter, state (0 ground, 2 air), size, its
@@ -931,6 +952,15 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
     if (!cEnabled)
         return Error("no such reference");
     return {{"ok", true}, {"enabled", *cEnabled}};
+}
+
+// {"cmd": "destruction", "object": id}: a destructible's health (-1 undamaged), destroyed flag, stage model, 3D.
+nlohmann::json DestructionState(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cState = EngineCalls::GetDestruction(acRequest.value("object", 0u));
+    if (!cState)
+        return Error("no such reference");
+    return {{"ok", true}, {"health", cState->Health}, {"destroyed", cState->Destroyed}, {"stage_model", cState->StageModel}, {"has_3d", cState->Has3D}};
 }
 
 // {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, whether it is a copy here and
@@ -1348,6 +1378,7 @@ constexpr Command cCommands[] = {
     {"container_items", true, &ContainerItems},
     {"recipe", true, &RecipeOf},
     {"ragdoll", true, &Ragdoll},
+    {"ragdoll_contacts", true, &RagdollContacts},
     {"controller", true, &Controller},
     {"ray", true, &Ray},
     {"surroundings", true, &Surroundings},
@@ -1356,6 +1387,7 @@ constexpr Command cCommands[] = {
     {"menu_var", false, &MenuVar},
     {"hud_messages", false, &HudMessagesShown},
     {"ref_enabled", true, &RefEnabled},
+    {"destruction", true, &DestructionState},
     {"actor_place", true, &ActorPlace},
     {"is_current_package", true, &IsCurrentPackage},
     {"faction_rank", true, &FactionRank},

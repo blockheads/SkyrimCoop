@@ -40,4 +40,8 @@ struct HostWorldGame
     // A guest's container change, accepted (a kItems change): the host's container holds that many, its stacks with
     // extra data as given (and it goes out as the host's change).
     std::function<void(const ObjectChange& acItems)> SetItems;
+    // The host's reference's state row of that kind (a destructible's health); none for one not here.
+    std::function<std::optional<ObjectChange>(const GameId& acObject, ObjectChange::Kind aKind)> ReadObjectState;
+    // A guest's state row, accepted: the host's reference takes it (and it goes out as the host's change).
+    std::function<void(const ObjectChange& acState)> SetObjectState;
 };

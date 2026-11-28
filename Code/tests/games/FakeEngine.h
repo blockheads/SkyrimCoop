@@ -316,6 +316,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Harvested = false; // its form flag 0x2000
         uint32_t Motion = 0;    // the motion type a script last gave it (kMotion's row, ScriptMotion::Pack); 0 its model's
         uint32_t DeferredMotion = 0; // a guest's motion row that came before its 3D
+        // A destructible (DEST, form flag 0x1000000): its full health, 0 for none; its health (ExtraObjectHealth);
+        // its last stage's model (ExtraModelSwap: a cut web, no collision); a guest's row that came before its 3D.
+        float FullHealth = 0.f;
+        float Health = 0.f;
+        float CapHealth = 0.f; // a capped stage's threshold: a hit from above stops there (14158; a web's at 99%)
+        bool StageModel = false;
+        std::optional<uint32_t> DeferredDestruction;
         std::set<uint32_t> Rolled; // items a leveled roll put in (their changes entry a roll's: ExtraLeveledItem lists)
         uint32_t LinkedDoor = 0; // a load door with no lock of its own: it uses this door's (GetLock 20223)
         bool Persistent = false; // in memory with its cell unloaded (a load door's other side)
@@ -390,6 +397,16 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ScriptSetsEnabled(uint32_t aReference, bool aEnabled);
     // The host's script marks a reference destroyed (ObjectReference.SetDestroyed 56641 -> 14649): made and recorded.
     void ScriptSetsDestroyed(uint32_t aReference, bool aDestroyed);
+    // This game's player hits a destructible (a swing, TESObjectREFR::DamageObject 19526): refused for a destroyed one
+    // or one with no 3D; the host's game records it, a guest's raises DestructionEvent.
+    void PlayerDamagesObject(uint32_t aReference, float aDamage);
+    // The host's game takes a destructible's health (a guest's proposal accepted, HostGame::SetObjectState): made and
+    // recorded.
+    void SetDestruction(uint32_t aReference, uint32_t aValue);
+    // The host's script mends a destructible (ObjectReference.ClearDestruction -> 14181): made and recorded.
+    void ScriptClearsDestruction(uint32_t aReference);
+    // A destructible's row (ReferenceStates' kDestruction); none for one with no destruction data.
+    [[nodiscard]] std::optional<ObjectChange> DestructionRowOf(uint32_t aReference) const;
     // Each cell's location (BGSLocation), by cell: the player moved into a cell of another location raises CLOC.
     std::map<uint32_t, uint32_t> Locations;
     // The story event types this game registers, by index (BGSStoryEventManager::registeredEvents).
@@ -597,6 +614,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept override;
     // The reference a body belongs to (an actor's for its ragdoll's).
     [[nodiscard]] static uint32_t ReferenceOf(const BodyKey& acKey) noexcept;
+    // The actor whose ragdoll a body's reference id (ReferenceOf) names: itself, or the copy a session-keyed one is of.
+    [[nodiscard]] uint32_t RagdollActorOf(uint32_t aFormId) const noexcept;
     // This game's player's hand (a guest's: GuestEngine::TakePushes, ReadHeld): what its character pushed since the
     // last read (every body a mass of 1), and what it holds. Another game's hand on this game's bodies comes through
     // IBodyBridge (a push, a held body played keyframed, so not awake, then let go).
@@ -611,6 +630,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // its own physics moves too (OwnMoves). Swing() makes one.
     std::vector<BodyPush> PlayerHits;
     std::optional<BodyKey> Grabbed;
+    static constexpr uint32_t kPinnedBreakFrames = 78; // a pinned grab's life (PlayerHolds)
+    uint32_t m_pinnedFrames{};
     std::set<uint32_t> WatchedCorpses; // copies' corpses this game's player grabbed: read as its own until they rest
     // A guest's own physics moved these (GuestEngine::TakeOwnBodies): its own blast, not the host's.
     std::vector<BodyPose> OwnMoves;

@@ -235,6 +235,22 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
     }
     const bool cWasMine = m_authority.Is(cKey, kMe);
     const auto cHeard = m_authority.Hear(acState, kMe);
+    // Its player's corpse another player drags: played here from the host's states until it rests.
+    if (cKey.Actor && cKey.Actor == PlayerId() && !acState.AtRest)
+    {
+        if (acState.Author == BodyAuthor::kOther)
+            m_playedOwn.insert(cKey);
+        else if (acState.Author == BodyAuthor::kNone)
+        {
+            // Nobody moves it (its mover left): this game's physics has it again, never the host's last frame of it.
+            if (m_playedOwn.erase(cKey))
+            {
+                m_authority.Forget(cKey);
+                m_world.ctx().at<BodyService>().Forget(cKey);
+            }
+            return false;
+        }
+    }
     if (cWasMine && !m_authority.Is(cKey, kMe))
     {
         if (cHeard == BodyAuthority::Heard::kConfirmed)
@@ -271,19 +287,28 @@ void GuestBodies::Ragdoll(uint64_t aTick, IGuestEngine::OwnBodies& aOwn, std::ve
     if (!cPlayer)
         return;
     for (BodyFrame& frame : aOwn.Ragdoll)
-    {
         frame.Key.Actor = cPlayer;
-        m_authority.Touch(frame.Key, kMe, aTick);
-    }
+    // Moved by another player's states, not this game's physics: not taken back.
+    std::erase_if(aOwn.Ragdoll, [this](const BodyFrame& acFrame) { return m_playedOwn.contains(acFrame.Key); });
+    for (const BodyFrame& cFrame : aOwn.Ragdoll)
+        m_authority.Touch(cFrame.Key, kMe, aTick);
     m_motions.Mark(aOwn.Ragdoll, aTick);
     if (!aOwn.Ragdoll.empty() && m_ragdollFrames++ == 0)
         spdlog::info("GuestBodies: this game's player's ragdoll moves ({} bodies awake)", aOwn.Ragdoll.size());
     for (const BodyFrame& cFrame : aOwn.Ragdoll)
         aStates.push_back(m_authority.Stamp(cFrame, kMe));
     for (BodyPose& rest : aOwn.RagdollRested)
-    {
         rest.Key.Actor = cPlayer;
-        m_authority.Forget(rest.Key);
+    // Asleep between another player's states is not its rest: that player's rest comes from the host.
+    std::erase_if(aOwn.RagdollRested, [this](const BodyPose& acRest) {
+        const auto cClaim = m_authority.Of(acRest.Key);
+        return m_playedOwn.contains(acRest.Key) && cClaim.Player != BodyAuthority::kNobody && cClaim.Player != kMe && !cClaim.AtRest;
+    });
+    for (BodyPose& rest : aOwn.RagdollRested)
+    {
+        // At another player's rest: its numbers kept, so this game's next claim of it is newer than the host's row.
+        if (!m_playedOwn.erase(rest.Key))
+            m_authority.Forget(rest.Key);
         m_stream.Forget(rest.Key);
         m_motions.Forget(rest.Key);
     }

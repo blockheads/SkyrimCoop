@@ -34,6 +34,7 @@
 #include <ports/IHostEngine.h>
 #include <core/FormIdComponent.h>
 #include <core/LocalComponent.h>
+#include <core/RemoteComponent.h>
 #include <core/PlayerComponent.h>
 #include <ports/IPlayerBridge.h>
 #include <ports/IWorldBridge.h>
@@ -227,11 +228,22 @@ void HostService::MakeAuthority() noexcept
     game.TakePlaced = [this] { return m_pEngine->TakePlaced(); };
     game.TakeBodies = [this](uint64_t aTick) {
         HostBodyReads bodies = m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
-            const auto cEntity = m_world.GetActorIndex().ByForm<LocalComponent>(aFormId);
-            return cEntity == entt::null ? 0 : m_world.get<LocalComponent>(cEntity).Id;
+            if (const auto cEntity = m_world.GetActorIndex().ByForm<LocalComponent>(aFormId); cEntity != entt::null)
+                return m_world.get<LocalComponent>(cEntity).Id;
+            // A copy's too: its corpse the host's player may drag (HostBodies takes it only then).
+            const auto cCopy = m_world.GetActorIndex().ByForm<RemoteComponent>(aFormId);
+            return cCopy == entt::null ? 0 : m_world.get<RemoteComponent>(cCopy).Id;
         });
-        // Its actors' ragdoll rests are their record parts; the references' go to HostBodies.
+        // Its actors' ragdoll rests are their record parts; the references' and a dragged copy's go to HostBodies.
+        std::vector<BodyPose> copies;
+        std::erase_if(bodies.Rested, [&](const BodyPose& acRest) {
+            if (!acRest.Key.Actor || m_world.GetActorIndex().BySession<RemoteComponent>(acRest.Key.Actor) == entt::null)
+                return false;
+            copies.push_back(acRest);
+            return true;
+        });
         m_world.ctx().at<BodyService>().DeclareRagdolls(aTick, bodies.Rested, bodies.Awake);
+        bodies.Rested.insert(bodies.Rested.end(), copies.begin(), copies.end());
         return bodies;
     };
     // A guest's copy, where the host's game shows it (PlayerComponent: its player id).
@@ -275,6 +287,8 @@ void HostService::MakeAuthority() noexcept
     game.TouchTrap = [this](const Payloads::TrapContact& acContact) { m_pEngine->TouchTrap(acContact); };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
+    game.ReadObjectState = [this](const GameId& acObject, ObjectChange::Kind aKind) { return m_pEngine->ReadObjectState(acObject, aKind); };
+    game.SetObjectState = [this](const ObjectChange& acState) { m_pEngine->SetObjectState(acState); };
     game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { m_pEngine->RaiseStoryEvent(acEvent); };
     game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) {
         return m_pEngine->CreateItem(acItem, acPlacement);

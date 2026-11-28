@@ -197,6 +197,16 @@ bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObj
 // lock): what Havok simulates and sleeps with it (61509 merges islands as their bodies' AABBs meet). None while the
 // island sleeps or the body is not dynamic.
 [[nodiscard]] std::optional<std::vector<hkpRigidBody*>> IslandMatesOf(const bhkWorldObject& acBody) noexcept;
+// Its mass (hkpMotion::getMass 60959 on its motion); 0 for a keyframed or fixed body.
+[[nodiscard]] float BodyMass(const bhkWorldObject& acBody) noexcept;
+// Every collidable Havok paired with it (its collision entries: bodies of any motion, phantoms), with its filter info
+// and owner (none for a phantom), read under the world's read lock.
+struct CollisionPartner
+{
+    uint32_t Filter{};
+    const hkpRigidBody* pOwner{};
+};
+[[nodiscard]] std::vector<CollisionPartner> CollisionPartnersOf(const bhkWorldObject& acBody) noexcept;
 // The dynamic bodies Havok paired with it (its collidable's collision entries), read under the world's read lock.
 [[nodiscard]] std::vector<const hkpRigidBody*> TouchingOf(const bhkWorldObject& acBody) noexcept;
 // Keyframed and moving so: Havok carries it over the next step (swept, pushing what it meets at that speed), where

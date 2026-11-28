@@ -14,6 +14,7 @@ struct NotifyGlobals;
 struct NotifyQuests;
 struct NotifyObjectChanges;
 struct LockChangeEvent;
+struct DestructionEvent;
 struct ContainerChangeEvent;
 struct ItemDroppedEvent;
 struct ItemPickUpEvent;
@@ -52,6 +53,8 @@ private:
     void OnObjectChanges(const NotifyObjectChanges& acMessage) noexcept;
     // This game's lock change (its player picked it, or a key): proposed to the host, whose world decides.
     void OnLockChange(const LockChangeEvent& acEvent) noexcept;
+    // This game damaged a destructible (its player cut a web): its health now proposed to the host.
+    void OnDestruction(const DestructionEvent& acEvent) noexcept;
     // This game's container changed (its player took or stored an item): its count now proposed to the host.
     void OnContainerChange(const ContainerChangeEvent& acEvent) noexcept;
     void AskCellState(uint32_t aCellFormId) noexcept;

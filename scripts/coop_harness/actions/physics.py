@@ -408,6 +408,21 @@ class PhysicsActions:
         return response["bodies"]
 
 
+    def ragdoll_contacts(ctx, instance, actor):
+        """What the actor's ragdoll bodies are paired with in Havok (harness `ragdoll_contacts`), counted by partner:
+        "own bone" for another body of this ragdoll, else layer, group (hex), motion (-1 a phantom) and reference."""
+        actor = ctx.resolve(actor, instance)
+        response = ctx.game(instance).rpc({"cmd": "ragdoll_contacts", "actor": actor}) or {}
+        if not response.get("ok"):
+            raise ctx.failure(f"[{instance or 'host'}] no contacts for {actor:X}: {response.get('error', 'no answer')}")
+        counts = {}
+        for c in response["contacts"]:
+            key = (f"own bone (group {c['group']:X})" if c["ragdoll_index"] >= 0 else
+                   f"layer {c['layer']} group {c['group']:X} motion {c['motion']} ref {c['ref']:X} {c.get('node', '')}")
+            counts[key] = counts.get(key, 0) + 1
+        return dict(sorted(counts.items(), key=lambda kv: -kv[1]))
+
+
     def ragdoll_lies_as_owner(ctx, owner, actor, other, copy, trace=None):
         """Once the owner's game's ragdoll of `actor` comes to rest, the other game's copy lies as it, bone by bone.
         `trace`: a RagdollTrace kept from filling while it waits. `actor`, `copy`: form ids or a handle name."""

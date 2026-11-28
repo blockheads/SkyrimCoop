@@ -849,3 +849,78 @@ SCENARIO("A player's character offers no prompt to the other players, on every g
     CHECK(guestTalk.Speaker == guest.CopiesOf(kGuard)[0]);
     CHECK(starts.Npcs.size() == 1); // the guard's ask alone
 }
+
+SCENARIO("A courier's force greet continues on its own: no menu offers its hidden next line", "[dialogue][force-greet]")
+{
+    // The courier (WICourier, playtest 2026-11-27): WICourierTopic 39F79 and the delivery 3DF63 are Invisible Continue
+    // lines, the delivery's choice its own topic, in a blocking branch; the goodbye 39F81 ends it (dialogue.md).
+    constexpr uint32_t cCourierBase = 0x39F6A, cGreeting = 0x39F79;
+    const IDialogueBridge::Option cDelivery{.Topic = 0x39F6C, .Info = 0x3DF63, .Text = "(Invisible Continues Linked to Self)"};
+    const IDialogueBridge::Option cGoodbye{.Topic = 0x39F6C, .Info = 0x39F81, .Text = "(Invisible Continues Linked to Self)"};
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    for (auto* game : {&party.Host(), &party.Guest()})
+    {
+        auto& talk = Dialogue(*game);
+        talk.Greeting = {cDelivery, cGoodbye};
+        talk.GreetingInfo = cGreeting;
+        talk.InvisibleContinue = {cGreeting, cDelivery.Info};
+        talk.Goodbyes = {cGoodbye.Info};
+        talk.After = {{cDelivery.Topic, {cDelivery, cGoodbye}}};
+        // One letter to deliver: its line passes until said.
+        talk.Needs[{cDelivery.Topic, cDelivery.Info}] = [&talk, cDelivery](uint32_t) { return std::ranges::count(talk.Said, cDelivery) == 0; };
+    }
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+
+    uint32_t courier = 0;
+    party.As(party.Host(), [&] { courier = host.LoadNpc(cCourierBase, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(cCourierBase).size() == 1; }, "the guest's game has a copy of the courier");
+
+    party.As(party.Host(), [&] { hostTalk.NpcGreets(courier); });
+    party.Until([&] { return hostTalk.MenuOpen && guestTalk.MenuOpen; }, "the courier's greeting opens every menu");
+    // Long enough for the host's step list to reach every menu, had it been sent.
+    for (const auto cEnd = std::chrono::steady_clock::now() + std::chrono::milliseconds(300); std::chrono::steady_clock::now() < cEnd;)
+    {
+        party.Frame();
+        INFO("host's menu: " << hostTalk.Options.size() << " options, guest's: " << guestTalk.Options.size());
+        REQUIRE(!hostTalk.ListShown);
+        REQUIRE(!guestTalk.ListShown);
+    }
+
+    // The guest presses through the greeting: the host's engine moves on to the delivery, as its own press would.
+    party.As(party.Guest(), [&] { guestTalk.PlayerSkips(); });
+    party.Until([&] { return hostTalk.Said == std::vector{cDelivery}; }, "the host's engine says the delivery itself");
+    CHECK(!hostTalk.ListShown);
+    party.As(party.Host(), [&] { hostTalk.LineEnds(); });
+    CHECK(hostTalk.Said == std::vector{cDelivery, cGoodbye});
+    party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the courier's goodbye ends it on both games");
+}
+
+SCENARIO("A greeting that continues on its own but shows its list: every menu shows it", "[dialogue][force-greet]")
+{
+    // Barbas's DA03BarbasGreet (INFO 1C4D9): flags 0x40, its branch not blocking, so 35282 shows the list during it.
+    constexpr uint32_t cGreeting = 0x1C4D9;
+    const IDialogueBridge::Option cNext{.Topic = 0x1C4DA, .Info = 0x1C4DB, .Text = "What do you want?"};
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    for (auto* game : {&party.Host(), &party.Guest()})
+    {
+        auto& talk = Dialogue(*game);
+        talk.Greeting = {cNext};
+        talk.GreetingInfo = cGreeting;
+        talk.InvisibleContinue = {cGreeting};
+        talk.GreetingBlocks = false;
+        talk.After = {{cNext.Topic, {}}};
+    }
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the NPC");
+    party.As(party.Host(), [&] { hostTalk.NpcGreets(npc); });
+    party.Until([&] { return guestTalk.ListShown && guestTalk.Options == std::vector{cNext}; },
+                "the guest's menu shows the list the host's engine shows");
+}

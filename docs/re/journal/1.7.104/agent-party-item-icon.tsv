@@ -1,0 +1,16 @@
+time	op	id	rva	item
+2026-11-28T00:37:00Z	read	15757	0x21ff10	{"name": "sub_14021FF10"}
+2026-11-28T00:37:01Z	read	12626	0x185420	{"name": "sub_140185420"}
+2026-11-28T00:38:26Z	read	16018	0x229670	{"name": "EquipData::GenerateName"}
+2026-11-28T00:38:36Z	comment	16018	0x229670	{"addr": "0x140229670", "comment": "[re]\nAddressLib ID 16018\nmeh321: InventoryEntryData::GetName\nSKSE: EquipData::GenerateName (skse64-2.3.1/skse64/GameExtraData.h:70)\nThe item menus' name (StandardItemData::GetName): the stack's first list's ExtraTextDisplayData (0x99) name, else the form's name. A quest object's list (alias 0x88 + handle 0x1C, the Golden Claw) has none: it shows the form's name, so a party tag must be set on that list itself."}
+2026-11-28T00:38:36Z	comment		0x2296c0	{"addr": "0x1402296c0", "comment": "the stack's ExtraTextDisplayData: a custom name ([P] tag) or an alias's display name"}
+2026-11-28T00:38:37Z	local	16018	0x229670	{"func_addr": "0x140229670", "old": "ExtraTextDisplayData_Internal", "new": "pTextData"}
+2026-11-28T00:38:37Z	local	16018	0x229670	{"func_addr": "0x140229670", "old": "v1", "new": "temper"}
+2026-11-28T00:38:38Z	read	12052	0x172d30	{"name": "ExtraDataList::HasQuestObjectAlias"}
+2026-11-28T00:38:42Z	local	12052	0x172d30	{"func_addr": "0x140172d30", "old": "v4", "new": "pRef"}
+2026-11-28T00:38:42Z	local	12052	0x172d30	{"func_addr": "0x140172d30", "old": "v5", "new": "pAliasList"}
+2026-11-28T00:38:42Z	local	12052	0x172d30	{"func_addr": "0x140172d30", "old": "v7", "new": "questObject"}
+2026-11-28T00:38:43Z	comment		0x172d94	{"addr": "0x140172d94", "comment": "the aliases come from the list's reference (handle 0x1C) unless it is deleted (flag 0x20), else the list itself; a quest object alias (0x88) makes it a quest item"}
+2026-11-28T01:35:24Z	read	51803	0x93fd20	{"name": "StandardItemData::GetName"}
+2026-11-28T01:35:30Z	comment	51803	0x93fd20	{"addr": "0x14093fd20", "comment": "[re]\nAddressLib ID 51803\nThe item menus' row name: its InventoryEntryData (+0x8) through InventoryEntryData::GetName 16018."}
+2026-11-28T01:35:31Z	type	51803	0x93fd20	{"addr": "0x14093fd20", "kind": "function", "signature": "char *__fastcall StandardItemData::GetName(__int64 pItemData)"}

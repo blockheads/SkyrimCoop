@@ -11,6 +11,7 @@ struct TESTopicInfo : TESForm
     {
         kSayOnce = 1 << 2,      // TOPIC_INFO_DATA::kSayOnce
         kInfoRefusal = 1 << 4,  // TOPIC_INFO_DATA::kInfoRefusal: never marked said
+        kInvisibleContinue = 1 << 6, // xEdit's name: once said, the engine says its first choice itself (35285)
     };
 
     TESTopic* parentTopic;   // 20

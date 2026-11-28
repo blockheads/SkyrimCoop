@@ -77,6 +77,11 @@ public:
     // A guest's container change (kItems), accepted: the host's container holds that many, its stacks with extra data
     // as given, and the others get it.
     virtual void SetItems(const ObjectChange& acItems) noexcept = 0;
+    // The host's reference's state row of that kind now (ReferenceStates); none for one not here or without it.
+    [[nodiscard]] virtual std::optional<ObjectChange> ReadObjectState(const GameId& acObject, ObjectChange::Kind aKind) const noexcept = 0;
+    // A guest's state row, accepted (HostObjects): the host's reference takes it with the engine's call, and it goes
+    // out from the change funnel as the host's.
+    virtual void SetObjectState(const ObjectChange& acState) noexcept = 0;
     // A guest's take from or store into a container, moved here natively: what moved, signed as the request's count.
     [[nodiscard]] virtual Inventory::Entry TransferContainer(const ContainerTransferRequest&, uint32_t aPlayer) noexcept = 0;
     // A guest's story event queued in this game's story manager, judged for its character (party-model.md rule 4).

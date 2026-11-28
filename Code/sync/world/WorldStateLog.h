@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Messages/WorldState.h>
+#include <world/DestructionRow.h>
 #include <world/EnabledRow.h>
 
 #include <spdlog/spdlog.h>
@@ -42,6 +43,7 @@ inline std::string Describe(const ObjectChange& acChange)
         return std::format("move {:X}", cObject);
     case ObjectChange::Kind::kScale: return std::format("scale {:X} {}%", cObject, acChange.Value);
     case ObjectChange::Kind::kMotion: return std::format("motion {:X} {}", cObject, acChange.Value & 0xFF);
+    case ObjectChange::Kind::kDestruction: return std::format("destruction {:X} health {:g}", cObject, DestructionRow::Unpack(acChange.Value));
     case ObjectChange::Kind::kOwner: return std::format("owner {:X} {:X}", cObject, acChange.Item.LogFormat());
     case ObjectChange::Kind::kCreate: return std::format("create {:X} of {:X}", cObject, acChange.Item.LogFormat());
     case ObjectChange::Kind::kRecord: return std::format("record {:X} {:X}", cObject, acChange.Value);

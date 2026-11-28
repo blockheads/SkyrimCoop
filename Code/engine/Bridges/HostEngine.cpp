@@ -40,6 +40,7 @@
 #include <Forms/TESWeather.h>
 #include <FormChangeRows.h>
 #include <ReferenceStates.h>
+#include <world/WorldStateLog.h>
 #include <TES.h>
 #include <SaveLoad.h>
 #include <Sky/Sky.h>
@@ -569,6 +570,29 @@ void HostEngine::SetItems(const ObjectChange& acItems) noexcept
     else
         spdlog::warn("HostEngine: a guest's items {:X} holds {} of {:X}: no such container or item here", acItems.Object.LogFormat(),
                      acItems.Value, acItems.Item.LogFormat());
+}
+
+// A reference by its session id; one this game created by its 0xFF id.
+static TESObjectREFR* SharedReference(const GameId& acObject) noexcept
+{
+    const uint32_t cFormId = acObject.ModId == ObjectChange::kCreatedModId ? 0xFF000000 | acObject.BaseId : ToGame(acObject);
+    return Cast<TESObjectREFR>(TESForm::GetById(cFormId));
+}
+
+std::optional<ObjectChange> HostEngine::ReadObjectState(const GameId& acObject, ObjectChange::Kind aKind) const noexcept
+{
+    const auto* pObject = SharedReference(acObject);
+    return pObject ? ReferenceStates::ReadRow(*pObject, acObject, aKind) : std::nullopt;
+}
+
+void HostEngine::SetObjectState(const ObjectChange& acState) noexcept
+{
+    // Goes out from the funnel, as any of the host's changes (a destructible's damage records its game-only extra).
+    auto* pObject = SharedReference(acState.Object);
+    if (pObject && ReferenceStates::Apply(*pObject, acState))
+        spdlog::info("HostEngine: took a guest's {}", WorldStateLog::Describe(acState));
+    else
+        spdlog::warn("HostEngine: a guest's {}: no such object here", WorldStateLog::Describe(acState));
 }
 
 std::optional<GameId> HostEngine::CreateItem(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) noexcept

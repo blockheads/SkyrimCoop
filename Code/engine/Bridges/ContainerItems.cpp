@@ -7,6 +7,7 @@
 #include <ExtraData/ExtraContainerChanges.h>
 #include <ExtraData/ExtraCount.h>
 #include <items/Overrides.h>
+#include <items/PartyItems.h>
 #include <Interface/ItemMenuWatch.h>
 #include <TESObjectREFR.h>
 
@@ -211,17 +212,23 @@ int32_t TagStackInPlace(TESObjectREFR& aHolder, TESBoundObject& aItem, const cha
     auto* pEntry = FindEntry(aHolder, aItem);
     if (!pEntry || !pEntry->dataList)
         return 0;
-    // An alias's list first, then one that reads plain to us (worn, a favorite): never one already named.
+    // An alias's list first (a quest object's too: the menus name it by its list, 16018), then one that reads plain to
+    // us (worn, a favorite). A quest object an alias names keeps that name.
     for (const bool cAliasPass : {true, false})
         for (ExtraDataList* pList : *pEntry->dataList)
         {
-            if (!pList || pList->HasQuestObjectAlias() || pList->Contains(ExtraDataType::AliasInstanceArray) != cAliasPass ||
-                (!cAliasPass && ReadStack(aItem, pList)))
+            if (!pList || pList->Contains(ExtraDataType::AliasInstanceArray) != cAliasPass)
+                continue;
+            if (const auto cStack = ReadStack(aItem, pList); cStack && (!cAliasPass || !PartyItems::TagsAliasStack(cStack->ExtraName, acpName)))
                 continue;
             const auto* pCount = static_cast<const ExtraCount*>(pList->GetByType(ExtraDataType::Count));
             const int32_t cInList = pCount && pCount->count > 0 ? pCount->count : 1;
-            if (cInList <= aCount && pList->SetCustomName(acpName))
+            if (cInList > aCount)
+                continue;
+            if (pList->SetCustomName(acpName))
                 return cInList;
+            if (pList->HasQuestObjectAlias())
+                return 0;
         }
     return 0;
 }

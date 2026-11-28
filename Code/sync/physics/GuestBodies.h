@@ -64,5 +64,6 @@ private:
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_hinted; // moved here alone, the host told then (again each kHintMs until heard)
     std::map<BodyKey, glm::vec3> m_newest; // where the host's newest state has each
     static constexpr uint64_t kHintMs = 1000;
+    std::set<BodyKey> m_playedOwn;          // its player's ragdoll bodies another player moves (Hears), until they rest
     uint32_t m_ragdollFrames{};             // the ragdoll's frames read since it woke (logged)
 };
