@@ -103,6 +103,7 @@ void HostBodies::OnStates(const BodyStatesRequest& acMessage, ConnectionId_t aSe
         row.Frame = cState.Frame;
         row.Placed = false;
         row.HostMoved = false;
+        row.Released = 0;
         row.Tick = acMessage.Tick;
         row.Heard = m_tick; // this game's clock: a guest's may run ahead
         row.Quiet = 0;
@@ -126,6 +127,10 @@ void HostBodies::Unclaim(const BodyKey& acKey, const char* acpWhy) noexcept
     {
         it->second.FromGuest = false;
         it->second.Tick = m_tick; // the host's word on it now: every game hears it is nobody's
+        // A guest's corpse another player moved: kept until its owner heard it is nobody's (it plays that player's states
+        // on it till then).
+        if (IsCopy(acKey) && cWas != NumberOf(m_characters.OwnerOf(acKey.Actor)))
+            it->second.Released = m_tick;
     }
     spdlog::info("HostBodies: {} is nobody's again: {}", BodyLog::Describe(acKey), acpWhy);
 }
@@ -262,7 +267,8 @@ void HostBodies::Read(uint64_t aTick) noexcept
     std::erase_if(m_rows, [&](const auto& acRow) {
         const BodyKey& cKey = acRow.first;
         if (!cKey.Actor || awakeActors.contains(cKey) || acRow.second.FromGuest || IsGuest(m_authority.Of(cKey).Player) ||
-            (acRow.second.HostMoved && m_game.IsDead && m_game.IsDead(cKey.Actor)))
+            (acRow.second.HostMoved && m_game.IsDead && m_game.IsDead(cKey.Actor)) ||
+            (acRow.second.Released && aTick < acRow.second.Released + BodyTolerances::kSilentMs))
             return false;
         m_authority.Forget(cKey);
         m_motions.Forget(cKey);

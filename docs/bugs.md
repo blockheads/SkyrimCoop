@@ -130,6 +130,7 @@ every other section needs the duo.
 - [The party's sword unnamed at a merchant](#the-partys-sword-unnamed-at-a-merchant): small
 - [A dragged corpse's copy apart from its owner](#a-dragged-corpses-copy-apart-from-its-owner): small
 - [A copy's corpse slips out of the hand sooner](#a-copys-corpse-slips-out-of-the-hand-sooner): small
+- [A fighter deleted mid-fight holds the party's respawn](#a-fighter-deleted-mid-fight-holds-the-partys-respawn): small
 - [Seen once in the run of 2026-11-22](#seen-once-in-the-run-of-2026-11-22): small
 
 **Test tools**
@@ -1553,6 +1554,18 @@ the host.
 
 Size: small. Needs: the duo, then GameTests.
 
+### A fighter deleted mid-fight holds the party's respawn
+
+Seen 2026-11-27 (`drag_rounds`): a host wolf fighting the standing host player, frozen, then removed (`unstage`) while
+in combat. The dead guest stayed down with "Party in combat" for good. `HostDeath::StandingPlayerFights` reads each
+character's last AI state (`m_ai`), and nothing seems to drop a deleted actor's (not read). In play: an NPC a script
+disables or a summon that expires mid-fight would hold every downed player's respawn.
+
+Agent task: read what removes a character's entry from `HostDeath`'s records when its actor goes; a HostAuthorityTests
+case for a fighter removed mid-fight.
+
+Size: small. Needs: no duo for the test.
+
 ### A copy's corpse slips out of the hand sooner
 
 `host-drags-dead-guest` (2026-11-27, after the fix that takes a copy's held corpse out of the played group): the host's
@@ -1563,8 +1576,15 @@ result pinned the copy's bones in the played group before the fix (only the hook
 differs in the moving group, or whether it is chance. The fake's pinned-grab rule (`FakeEngine::PlayerHolds`) rests on
 that switch alone.
 
-Agent task: rounds of both drags (`drags_dead_player`, and the same on a host NPC's corpse), then read what the copy's
-bones meet that the host's own corpse's do not.
+2026-11-27, traced with `ragdoll_contacts`: the copy's bones were meeting the axe in its own hand (a group apart, see
+`physics.md`, "Dragging a corpse"); fixed, its held contacts now match the host's own corpse's. Then measured with
+`drag_rounds` / `drag_npc_corpse` (1.5 s back, pelvis travel): the dead guest's copy grabbed at once, before the fix
+58, 5, 33 units, after it 33, 32, 68, all held; a host bandit's corpse at rest, the host's own 59, 100, 94 and the
+guest's copy of it 49, 50, 105, all held. The two overlap at three rounds each; the earlier breaks at 1.3-1.8 s were
+2 s drags.
+
+Agent task: rounds of both drags (`drags_dead_player`, and the same on a host NPC's corpse) to tell chance from a
+difference; if it is one, trace what else acts on the copy's bones while held (its movement, CopyRagdollPhysics).
 
 Size: small. Needs: the duo.
 

@@ -1,7 +1,6 @@
 #include <physics/GuestBodies.h>
 
 #include <physics/IBodyBridge.h>
-#include <physics/BodyPlayback.h>
 #include <physics/BodyPrediction.h>
 #include <physics/BodyTolerances.h>
 
@@ -240,12 +239,15 @@ bool GuestBodies::Hears(const BodyState& acState) noexcept
     if (cKey.Actor && cKey.Actor == PlayerId() && !acState.AtRest)
     {
         if (acState.Author == BodyAuthor::kOther)
-            m_playedOwn[cKey] = m_world.GetFrameTick();
-        else if (acState.Author == BodyAuthor::kNone && m_playedOwn.erase(cKey))
+            m_playedOwn.insert(cKey);
+        else if (acState.Author == BodyAuthor::kNone)
         {
-            // Its mover's claim ended (it left): this game's physics has it again.
-            m_authority.Forget(cKey);
-            m_world.ctx().at<BodyService>().Forget(cKey);
+            // Nobody moves it (its mover left): this game's physics has it again, never the host's last frame of it.
+            if (m_playedOwn.erase(cKey))
+            {
+                m_authority.Forget(cKey);
+                m_world.ctx().at<BodyService>().Forget(cKey);
+            }
             return false;
         }
     }
@@ -284,14 +286,6 @@ void GuestBodies::Ragdoll(uint64_t aTick, IGuestEngine::OwnBodies& aOwn, std::ve
     const uint32_t cPlayer = PlayerId();
     if (!cPlayer)
         return;
-    // Its mover gone silent (it left, the host took it back unheard): this game's physics has it again.
-    std::erase_if(m_playedOwn, [&](const auto& acPlayed) {
-        if (aTick < acPlayed.second + BodyPlayback::kLostMs)
-            return false;
-        m_authority.Forget(acPlayed.first);
-        m_world.ctx().at<BodyService>().Forget(acPlayed.first);
-        return true;
-    });
     for (BodyFrame& frame : aOwn.Ragdoll)
         frame.Key.Actor = cPlayer;
     // Moved by another player's states, not this game's physics: not taken back.

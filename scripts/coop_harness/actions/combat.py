@@ -851,6 +851,103 @@ class CombatActions:
         return moved
 
 
+    def lift_measure(ctx, instance, body, seconds=1.0):
+        """Holding `body`, `instance`'s player looks up (pitch -20) and holds it there `seconds`, traced: how high its
+        bones rose at most, and whether the grab held."""
+        trace = RagdollTrace(ctx, "lift", {instance: {body: "the lifted body"}})
+        held = True
+        with trace:
+            try:
+                ctx.turn_to(instance=instance, pitch=-20, rate=20, keep=[{"holding": body}])
+                ctx.act(instance, {"name": "holds it up", "ready": ["takes_input"], "until": [{"for": seconds}],
+                                   "seconds": seconds + 2, "keep": [{"holding": body}]})
+            except TestFailure:
+                held = False
+        frames = trace.frames(instance, body)
+        if not frames:
+            return {"held": held, "rose": 0.0}
+        start = [b["position"][2] for b in frames[0]["bodies"]]
+        rose = max(b["position"][2] - start[i] for f in frames for i, b in enumerate(f["bodies"]) if i < len(start))
+        return {"held": held, "rose": round(rose, 1)}
+
+
+    def drag_once(ctx, dragger="", back=1.0, lift=False):
+        """`dragger`'s player, standing beside the other player, kills it (its own game's damage) and at once grabs its
+        body by the pelvis and walks back for `back` s, traced: how far the dragged copy's pelvis moved and for how long
+        the grab held (the respawn 10 s after is left to come)."""
+        victim = "client" if dragger == "" else ""
+        copy = ctx.other_player(ctx.actors_on(dragger))
+        ctx.place_before(dragger, copy, MELEE_GAP)
+        ctx.console_on(victim, "player.damageav health 100000")
+        # Its death makes a new copy: found again once dead.
+        def dead_copy():
+            found = ctx.other_player(ctx.actors_on(dragger))
+            return found if found and ctx.is_dead(ctx.actor_snapshot(dragger, found)) else None
+        copy = ctx.wait_for(f"[{dragger or 'host'}] the copy dies", dead_copy, 5)
+        ctx.wait_for(f"[{victim or 'host'}] its own body lies still", lambda: not any(b["awake"] for b in ctx.ragdoll_of(victim, 0x14)), 8)
+        ctx.turn_to(instance=dragger, face=ctx.ragdoll_of(dragger, copy)[0]["position"])
+        ctx.grab(instance=dragger, target=copy)
+        if lift:
+            result = ctx.lift_measure(dragger, copy)
+            ctx.hold_key(dragger, "e", 0.1)
+            return result
+        trace = RagdollTrace(ctx, "drag-once", {dragger: {copy: "the dragged copy"}})
+        held = back
+        with trace:
+            try:
+                ctx.carry(instance=dragger, held=copy, buttons=["back"], seconds=back)
+            except TestFailure as failure:
+                found = re.search(r"\(([0-9.]+) s\): holding broke", str(failure))
+                held = float(found.group(1)) if found else 0.0
+        ctx.hold_key(dragger, "e", 0.1)
+        frames = trace.frames(dragger, copy)
+        moved = math.dist(frames[0]["bodies"][0]["position"], frames[-1]["bodies"][0]["position"]) if frames else 0.0
+        return {"held": held, "pelvis_moved": round(moved, 1)}
+
+
+    def drag_npc_corpse(ctx, base="00013BA1", back=1.0, dragger="", lift=False):
+        """drag_once's baseline on a host NPC: the host spawns one of `base` beside the host's player and kills it; after
+        its fall `dragger`'s player (the host's own corpse, or the guest's copy of it) grabs it by the pelvis and walks
+        back for `back` s, traced: how far the pelvis moved and for how long the grab held."""
+        npc = ctx.spawn_host_npc(base, restrained=True)[0]
+        ctx.console_on("", f"{npc:X}.kill")
+        ctx.wait_for(f"[host] {npc:X} dies", lambda: ctx.host_npc_state(npc).get("dead"), 5)
+        body = npc if dragger == "" else ctx.copy_of(dragger, ctx.host_npc_state(npc)["session_id"])
+        ctx.wait_for(f"[{dragger or 'host'}] its body is dead", lambda: ctx.is_dead(ctx.actor_snapshot(dragger, body)), 5)
+        ctx.wait_for(f"[{dragger or 'host'}] its body lies still", lambda: not any(b["awake"] for b in ctx.ragdoll_of(dragger, body)), 15)
+        ctx.place_before(dragger, body, MELEE_GAP)
+        ctx.turn_to(instance=dragger, face=ctx.ragdoll_of(dragger, body)[0]["position"])
+        ctx.grab(instance=dragger, target=body)
+        if lift:
+            result = ctx.lift_measure(dragger, body)
+            ctx.hold_key(dragger, "e", 0.1)
+            ctx.console_on("", f"{npc:X}.disable")
+            return result
+        trace = RagdollTrace(ctx, "drag-npc", {dragger: {body: "the dragged corpse"}})
+        held = back
+        with trace:
+            try:
+                ctx.carry(instance=dragger, held=body, buttons=["back"], seconds=back)
+            except TestFailure as failure:
+                found = re.search(r"\(([0-9.]+) s\): holding broke", str(failure))
+                held = float(found.group(1)) if found else 0.0
+        ctx.hold_key(dragger, "e", 0.1)
+        frames = trace.frames(dragger, body)
+        moved = math.dist(frames[0]["bodies"][0]["position"], frames[-1]["bodies"][0]["position"]) if frames else 0.0
+        ctx.console_on("", f"{npc:X}.disable")
+        return {"held": held, "pelvis_moved": round(moved, 1)}
+
+
+    def drag_rounds(ctx, dragger="", rounds=3, back=1.0, lift=False):
+        """`rounds` of drag_once, each after the victim is up again: what each moved and how long it held."""
+        victim = "client" if dragger == "" else ""
+        results = []
+        for _ in range(rounds):
+            ctx.wait_for(f"[{victim or 'host'}] the victim is up", lambda: not ctx.death_state(victim).get("down"), 30)
+            results.append(ctx.drag_once(dragger=dragger, back=back, lift=lift))
+        return results
+
+
     def shout_at_lying_player(ctx, attacker, health=0, respawn=True):
         """The other player is pushed down on its own game, then the attacker's three-word shout hits it lying.
         `health` > 0 leaves it that much health first: Dragonborn.esm's disintegrate effect (its ash pile script,

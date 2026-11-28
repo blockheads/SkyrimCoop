@@ -282,6 +282,24 @@ void HookDropHeldItemsOnDeath(Actor* apThis)
     RealDropHeldItemsOnDeath(apThis);
 }
 
+// NiAVObject::GetTotalMass (26020, our name): a 3D's bodies' mass, recursively. A dead player's corpse weighs its body
+// alone, not the weapon its hands kept (DeathDrops::HeldWeighs).
+using TGetTotalMass = float(NiAVObject*);
+
+static TGetTotalMass* RealGetTotalMass = nullptr;
+
+float HookGetTotalMass(NiAVObject* apNode)
+{
+    auto* pActor = apNode ? Cast<Actor>(apNode->userData) : nullptr;
+    if (!pActor || pActor->GetNiNode() != apNode ||
+        DeathDrops::HeldWeighs(DeathDrops::Kept(pActor->GetExtension()->IsPlayer(), World::Get().GetTransport().IsOnline()), pActor->IsDead()))
+        return RealGetTotalMass(apNode);
+    float mass = 0.f;
+    for (const bhkWorldObject* pBody : RagdollBodiesOf(*pActor))
+        mass += pBody ? BodyMass(*pBody) : 0.f;
+    return mass;
+}
+
 static Hooks::Initializer s_actorItemHooks(
     []()
     {
@@ -296,4 +314,5 @@ static Hooks::Initializer s_actorItemHooks(
         HOOK_ID(37198, &RealAddDeathItems, HookAddDeathItems);
         HOOK_ID(418622, &RealResetWornToOutfit, HookResetWornToOutfit);
         HOOK_ID(37320, &RealDropHeldItemsOnDeath, HookDropHeldItemsOnDeath);
+        HOOK_ID(26020, &RealGetTotalMass, HookGetTotalMass);
     });

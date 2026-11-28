@@ -102,6 +102,13 @@ TEST_CASE("No crosshair prompt over another player's character", "[dialogue]")
     CHECK(ActivatePrompts::Offered(false));
 }
 
+TEST_CASE("Over another player's dead body the prompt is Disrespect; a living one's or an NPC's is the engine's", "[dialogue]")
+{
+    CHECK(ActivatePrompts::OffersDisrespect(true, true));
+    CHECK_FALSE(ActivatePrompts::OffersDisrespect(true, false));
+    CHECK_FALSE(ActivatePrompts::OffersDisrespect(false, true));
+}
+
 TEST_CASE("A voice file is a line of the topic info its name carries", "[dialogue][voice]")
 {
     using VoiceFiles::IsLineOf;

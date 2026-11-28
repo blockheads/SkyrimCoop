@@ -2417,12 +2417,7 @@ void DragsDeadPlayer(Party& aParty, World& aDragger, World& aVictim, bool aLeave
         for (uint8_t i = 0; i < kRagdollBodies; ++i)
             CHECK(glm::distance(cOwnBone(i).Flight.Body.Position, cCopyBone(*pGame, i).Flight.Body.Position) < FakeEngine::kRagdollNear);
 
-    // Its own game's physics moves it next (a blast at once): every copy follows it there, the drag's numbers no bar. A
-    // mover that left is silent kLostMs first (the frame clock is the wall's here).
-    if (aLeave)
-        for (const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(BodyPlayback::kLostMs + 300);
-             std::chrono::steady_clock::now() < cUntil;)
-            aParty.Frame();
+    // Its own game's physics moves it next (a blast at once): every copy follows it there, the drag's numbers no bar.
     aParty.As(aVictim, [&] {
         for (uint8_t i = 0; i < kRagdollBodies; ++i)
             victim.Knock({.Actor = FakeEngine::kPlayer, .Index = i}, {0.f, 250.f, 30.f}, {});

@@ -669,7 +669,8 @@ The prompts: `PlayerCharacter::UpdateCrosshairs` (40621, read) shows nothing for
 `GetActivateText` returns false (empty text, the HUD message's activate flag +0x40 cleared, handle 0). So
 `HookGetActivateText` (`Actor.cpp`) returns false for another player's character before the engine runs
 (`ActivatePrompts::Offered`): no Talk, Search or Pickpocket over a player, no name either. A player is no horse, so the
-Ride prompt never applied.
+Ride prompt never applied. Since 2026-11-27 a dead player's body shows "Disrespect" and its name instead
+(`ActivatePrompts::OffersDisrespect`): holding E drags it (`physics.md`, "Dragging a corpse"); a tap still opens nothing.
 
 Measured on the duo (2026-11-23, QASmoke): before, both games read `Talk\nPrisoner` over the other player, and a sneaking
 guest read `Pickpocket\nPrisoner` over the host's copy; pressing E (standing) opened nothing and sent no ask. After the

@@ -577,6 +577,51 @@ std::optional<CrosshairColliderRead> GetCrosshairCollider(uint32_t aActorFormId)
     return read;
 }
 
+std::optional<std::vector<RagdollContact>> GetRagdollContacts(uint32_t aActorFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aActorFormId));
+    if (!pActor)
+        return std::nullopt;
+    const auto cBodies = RagdollBodiesOf(*pActor);
+    std::vector<RagdollContact> contacts;
+    for (size_t i = 0; i < cBodies.size(); ++i)
+        for (const CollisionPartner& cPartner : cBodies[i] ? CollisionPartnersOf(*cBodies[i]) : std::vector<CollisionPartner>{})
+        {
+            RagdollContact& contact = contacts.emplace_back(RagdollContact{.Body = static_cast<uint32_t>(i), .Filter = cPartner.Filter});
+            if (!cPartner.pOwner)
+                continue;
+            contact.Motion = cPartner.pOwner->motionType;
+            using TFindCollidableObject = NiAVObject*(const void*);
+            POINTER_SKYRIMSE(TFindCollidableObject, s_findCollidableObject, 15870);
+            if (const NiAVObject* pNode = s_findCollidableObject(&cPartner.pOwner->collidable))
+                contact.Node = std::format("{}/{}", pNode->parent && pNode->parent->name ? pNode->parent->name : "", pNode->name ? pNode->name : "");
+            if (const TESObjectREFR* pRef = ReferenceOf(*cPartner.pOwner))
+                contact.Reference = pRef->formID;
+            for (size_t j = 0; j < cBodies.size(); ++j)
+                if (cBodies[j] && cBodies[j]->referencedObject == cPartner.pOwner)
+                    contact.RagdollIndex = static_cast<int32_t>(j);
+        }
+    return contacts;
+}
+
+std::optional<ActorMassRead> GetActorMass(uint32_t aActorFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aActorFormId));
+    NiNode* p3D = pActor && !pActor->IsDeleted() ? pActor->GetNiNode() : nullptr;
+    if (!p3D)
+        return std::nullopt;
+    // Returns a float in xmm0 (read in IDA: its callers take the low lane).
+    using TTotalMass = float(const NiAVObject*);
+    POINTER_SKYRIMSE(TTotalMass, s_totalMass, 26020);
+    const auto cMass = [&](const std::vector<bhkWorldObject*>& acBodies) {
+        float sum = 0.f;
+        for (const bhkWorldObject* pBody : acBodies)
+            sum += pBody ? BodyMass(*pBody) : 0.f;
+        return sum;
+    };
+    return ActorMassRead{.Total = s_totalMass(p3D), .Ragdoll = cMass(RagdollBodiesOf(*pActor)), .Held = cMass(HeldBodiesOf(*pActor))};
+}
+
 std::optional<RagdollDriverRead> GetRagdollDriver(uint32_t aActorFormId) noexcept
 {
     auto* pActor = Cast<Actor>(TESForm::GetById(aActorFormId));

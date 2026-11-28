@@ -85,6 +85,13 @@ TEST_CASE("A player's death drop is kept in a session; an NPC's, or one outside 
     CHECK_FALSE(DeathDrops::Kept(true, false));
 }
 
+TEST_CASE("A dead player's kept weapon does not weigh into a grab of its corpse; a living one's, or an NPC's, does", "[PartyItems][death]")
+{
+    CHECK_FALSE(DeathDrops::HeldWeighs(true, true));
+    CHECK(DeathDrops::HeldWeighs(true, false));
+    CHECK(DeathDrops::HeldWeighs(false, true));
+}
+
 TEST_CASE("A hidden copy's id is refused enables until it is shown; nothing else is", "[copies]")
 {
     CHECK_FALSE(HiddenCopies::Contains(0x1A699));

@@ -362,7 +362,26 @@ bones (dynamic, awake, the crosshair's picked body was ragdoll bone 16: harness 
 in the hand. They sat in our played group (`BodyGroups::kPlayed`, `BodyBridge::Find`), and with the `PlayerCollision`
 hook off (`BodyGroups::Decide` in 78553) the same drag held for 2 s and moved the guest's own body 46 units (measured;
 which pair of colliders and which `Decide` result pins them was not traced: inferred from the hook switch alone). A guest's taken corpse already left that group
-(`BodyBridge::SetMoving`); the host's hold now does the same. Now (`docs/progress.md`): the host keys a copy's ragdoll
+(`BodyBridge::SetMoving`); the host's hold now does the same.
+
+What else the copy's bones met (measured 2026-11-27, harness `ragdoll_contacts`: each bone's Havok collision entries
+with the partner's layer, group, motion and node): lying dead, the host's own corpse paired its bones with each other
+(50 pairs) and the floor; the dead guest's copy had no bone-to-bone pairs (played against played passes) but 2 to 11
+pairs with `WeaponAxe/Weapon (00013790)`: the war axe a dead player keeps in its hand (`death-drops.md`), dynamic
+(motion 3), layer 32, still in the copy's own group (D0) while its bones were in the played group. In one group the
+engine never pairs an actor's bones with what it holds; in two, they collide, and the bones grind on the axe they hold.
+Now the held bodies (`HeldBodiesOf`: the 3D's bodies not in the ragdoll) follow the ragdoll's group in `BodyBridge`.
+After it, held in the host's hand the copy paired as the host's own corpse does (52 bone pairs, the floor, no axe).
+
+A corpse's spring is weaker the heavier the corpse (read in IDA, `CreateMouseSprings` 40555): its max force is
+`fZKeyMaxForce` x a scale falling from `fZKeyMaxForceScaleHigh` (1.0) at `fZKeyMaxForceWeightLow` (0) to
+`fZKeyMaxForceScaleLow` (0.2) at `fZKeyMaxForceWeightHigh` (150 in game), by `NiAVObject::GetTotalMass` (26020, our
+name: every body under its 3D, recursively), then x0.2 for a ragdoll. Armor has no bodies; what the hands hold does.
+Measured (harness `ragdoll`'s `mass`): a dead player 82.4 of ragdoll plus 20.0 of the war axe it keeps
+(`death-drops.md`), 102.4, scale 0.45; a bandit's corpse 80 plus 10, scale 0.52; the player stripped 82.4, 0.56. A
+dead player's corpse now weighs its body alone (`DeathDrops::HeldWeighs`, hook on 26020 in `ActorHooks/Item.cpp`):
+82.4 read on the duo. Lifting (`drag_rounds` / `drag_npc_corpse` with `lift`, looking up at 20 degrees a second)
+stays noisy round to round, the vanilla bandit's included (held 3 of 3, then 1 of 2 on another boot). Now (`docs/progress.md`): the host keys a copy's ragdoll
 and takes it while its player holds or moves it, any player may claim a dead actor's bodies (`HostBodies::MayClaim`), and the dead
 player's own game plays the dragger's states on its own body without claiming them back (`GuestBodies`). A dead
 player respawns 10 s after the party leaves combat (`HostDeath`), which ends a drag.

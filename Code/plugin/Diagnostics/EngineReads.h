@@ -253,6 +253,29 @@ struct CrosshairColliderRead
 };
 std::optional<CrosshairColliderRead> GetCrosshairCollider(uint32_t aActorFormId) noexcept;
 
+// What each of an actor's ragdoll bodies is paired with in Havok (its collision entries): the partner's filter info,
+// motion type (-1 a phantom), its reference (0 none) and its index in this ragdoll (-1 not one of its bodies).
+struct RagdollContact
+{
+    uint32_t Body{};
+    uint32_t Filter{};
+    int32_t Motion{-1};
+    uint32_t Reference{};
+    int32_t RagdollIndex{-1};
+    std::string Node;   // the partner's node and its parent's, "parent/node"
+};
+std::optional<std::vector<RagdollContact>> GetRagdollContacts(uint32_t aActorFormId) noexcept;
+
+// An actor's masses as a grab weighs them (NiAVObject::GetTotalMass 26020 on its 3D, what 40555 scales a corpse's
+// spring by), and that total's parts: its ragdoll's bodies and what its hands hold (HeldBodiesOf).
+struct ActorMassRead
+{
+    float Total{};
+    float Ragdoll{};
+    float Held{};
+};
+std::optional<ActorMassRead> GetActorMass(uint32_t aActorFormId) noexcept;
+
 // The calendar's whole days passed (TimeData::rawDaysPassed), which its clock counts on from.
 float GetRawDaysPassed() noexcept;
 

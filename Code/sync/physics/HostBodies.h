@@ -50,6 +50,7 @@ private:
         bool Given{};         // FromGuest: the host's game was sent it
         bool Placed{};        // where the host's game put it, not where its physics settled it
         bool HostMoved{};     // a guest's corpse, last moved by the host's player
+        uint64_t Released{};  // a guest's corpse made nobody's then (its owner is told before the row goes)
     };
 
     void OnStates(const BodyStatesRequest& acMessage, ConnectionId_t aSender) noexcept;

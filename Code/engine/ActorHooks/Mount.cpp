@@ -134,12 +134,17 @@ using TGetActivateText = bool(TESNPC*, TESObjectREFR* apTarget, BSString* apText
 static TGetActivateText* RealGetActivateText = nullptr;
 
 // The crosshair's prompt (TESNPC::GetActivateText 24716; false: none, UpdateCrosshairs 40621): none over another
-// player's character. A horse offers Ride only when CanRide (38706) passes, which refuses a ridden one; a horse a party
+// player's character, but Disrespect over its dead body (a hold drags it). A horse offers Ride only when CanRide (38706) passes, which refuses a ridden one; a horse a party
 // player drives offers it too.
 bool HookGetActivateText(TESNPC* apThis, TESObjectREFR* apTarget, BSString* apText)
 {
     if (auto* pActor = Cast<Actor>(apTarget); pActor && !ActivatePrompts::Offered(pActor->GetExtension()->IsOtherPlayer()))
-        return false;
+    {
+        if (!apText || !ActivatePrompts::OffersDisrespect(true, pActor->IsDead()))
+            return false;
+        apText->Set(std::format("{}\n{}", ActivatePrompts::kDeadPlayer, pActor->GetDisplayFullName()).c_str());
+        return true;
+    }
     if (RealGetActivateText(apThis, apTarget, apText))
         return true;
     auto* pMount = Cast<Actor>(apTarget);
